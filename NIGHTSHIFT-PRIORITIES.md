@@ -25,8 +25,21 @@ the per-screen `.dc.html` files (`AthleteOS.dc.html`, the dashboards). READ the 
 handoff file before touching a screen. Refine **toward** the handoff — do NOT invent a new
 visual language or restyle wholesale.
 
-**Use the design skills.** Invoke `frontend-design` and/or `impeccable` for principled
-decisions (hierarchy, spacing rhythm, motion, contrast) — don't eyeball it.
+**Drive EVERY design job through the `impeccable` skill — this is mandatory this session.**
+The repo now has `PRODUCT.md` + `DESIGN.md` at root, so impeccable runs grounded (not
+generic). For each screen/area, follow impeccable's own method:
+1. **Evaluate first** — run `impeccable critique <target>` (UX/heuristic review) and
+   `impeccable audit <target>` (a11y / responsive / technical). Capture the findings.
+2. **Act through the matching impeccable command**, not freehand:
+   `typeset` (type hierarchy) · `layout` (spacing/rhythm) · `animate` (motion) ·
+   `colorize` (strategic color) · `delight` (personality) · `polish` (final pass) ·
+   `harden` (errors/edge cases/i18n) · `onboard` (first-run/empty states) ·
+   `clarify` (copy/labels/errors) · `adapt` (device/size) · `distill` (remove cruft).
+3. Over the session, exercise the FULL suite across the app — every screen should get a
+   critique+audit, and the high-value fixes from each should ship.
+Honor impeccable's laws AND DESIGN.md: refine within the established system. Do NOT migrate
+color to OKLCH, restyle wholesale, or trip impeccable's absolute bans (side-stripe borders,
+gradient text, glassmorphism-by-default, hero-metric template, identical card grids, em dashes).
 
 **High-value UX/UI jobs (pick the sharpest each cycle):**
 1. **Fidelity pass, screen by screen** vs the handoff: spacing rhythm, type scale/weights,
