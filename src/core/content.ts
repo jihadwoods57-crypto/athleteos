@@ -217,8 +217,18 @@ export function heroStatus(state: AppState, derived: Derived): HeroStatus {
         ? `${mealsLeft} meal${mealsLeft === 1 ? '' : 's'} left to log`
         : 'finish the day strong';
 
-  if (dayComplete && score >= 90) {
-    return { line: 'Day complete and you cleared an A — keep the streak rolling.', standingLabel, tone: 'positive' };
+  if (dayComplete) {
+    // Genuinely complete day (every meal logged, protein cleared). Completion copy
+    // is gated on dayComplete ALONE — never fall through to a score-band branch that
+    // builds an `ask` from proteinGap/mealsLeft (both zero here), which would nag an
+    // athlete who has nothing left to do. Band only sets tone/copy, never an ask.
+    if (score >= 90) {
+      return { line: 'Day complete and you cleared an A — keep the streak rolling.', standingLabel, tone: 'positive' };
+    }
+    if (score >= 80) {
+      return { line: 'Day complete — every meal in and protein cleared. Recovery is the only thing keeping you off an A.', standingLabel, tone: 'positive' };
+    }
+    return { line: 'Day complete — everything logged. Lock in recovery to lift the grade.', standingLabel, tone: 'neutral' };
   }
   if (score >= 80) {
     // On pace (A/B), day not yet complete.
