@@ -1,6 +1,7 @@
 // AthleteOS — content data + display-string helpers (pure).
 // Ported from the prototype: meal log, meal-analysis results, AI insight, pace.
-import type { AppState, Derived, MealLabel } from './types';
+import type { AppState, Derived, MealKey, MealLabel } from './types';
+import { MEAL_MACROS } from './constants';
 
 export interface LoggedMeal {
   id: string;
@@ -112,6 +113,60 @@ export const MEAL_RESULTS: Record<MealLabel, MealResult> = {
 
 export function mealResultFor(mealType: MealLabel): MealResult {
   return MEAL_RESULTS[mealType] ?? MEAL_RESULTS.Dinner;
+}
+
+/** One row of the Nutrition "Today's Meals" list — logged data or a log-next prompt. */
+export interface MealRow {
+  key: MealKey;
+  /** Capitalized label used by the capture flow (setMealType) and mealResultFor. */
+  label: MealLabel;
+  /** Id the detail overlay resolves against (MEALS_LOG ids: b/l/s, dinner fallback). */
+  detailId: string;
+  logged: boolean;
+  name: string;
+  protein: number;
+  kcal: number;
+  quality: number;
+  /** Accent swatch / dashed-border color for the row. */
+  thumb: string;
+  /** Coach-voice "Due by ..." subtitle for the unlogged prompt. */
+  dueTime: string;
+}
+
+/** Fixed slot order — mirrors computeDerived's iteration of s.meals. */
+const SLOT_ORDER: MealKey[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+
+const SLOT_META: Record<MealKey, { label: MealLabel; detailId: string; thumb: string; dueTime: string }> = {
+  breakfast: { label: 'Breakfast', detailId: 'b', thumb: '#F59E0B', dueTime: 'Due by 9:00 AM' },
+  lunch: { label: 'Lunch', detailId: 'l', thumb: '#22C55E', dueTime: 'Due by 1:00 PM' },
+  snack: { label: 'Snack', detailId: 's', thumb: '#8B5CF6', dueTime: 'Due by 4:00 PM' },
+  dinner: { label: 'Dinner', detailId: 'dinner', thumb: '#EF4444', dueTime: 'Due by 8:00 PM' },
+};
+
+/**
+ * Build the per-slot row model for all four meal slots from day state.
+ * Name + quality come from mealResultFor(); protein + kcal come from MEAL_MACROS
+ * (the same source computeDerived sums) so the rendered rows agree with the
+ * "N of 4 logged" header and the macro totals.
+ */
+export function mealRowsFor(state: AppState): MealRow[] {
+  return SLOT_ORDER.map((key) => {
+    const meta = SLOT_META[key];
+    const result = mealResultFor(meta.label);
+    const macros = MEAL_MACROS[key];
+    return {
+      key,
+      label: meta.label,
+      detailId: meta.detailId,
+      logged: state.meals[key],
+      name: result.name,
+      protein: macros.p,
+      kcal: macros.k,
+      quality: result.quality,
+      thumb: meta.thumb,
+      dueTime: meta.dueTime,
+    };
+  });
 }
 
 /** Reactive Home insight — flips once dinner is logged. */

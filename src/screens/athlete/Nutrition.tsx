@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { MEALS_LOG, QUICK_FOODS, paceProjection } from '@/core';
+import { mealRowsFor, QUICK_FOODS, paceProjection } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -16,6 +16,7 @@ export function Nutrition() {
   const d = useDerived();
   const pace = paceProjection(s.weeklyGoalLb);
   const calPct = Math.round((d.kcalToday / d.calTarget) * 100);
+  const rows = mealRowsFor(s);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
@@ -154,63 +155,52 @@ export function Nutrition() {
           </Txt>
         </Row>
         <View style={{ gap: 12 }}>
-          {MEALS_LOG.map((m) => (
-            <Pressable key={m.id} onPress={() => s.openMealDetail(m.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
-              <View style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: m.thumb[1] }} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Txt w="b" size={14}>
-                  {m.name}
-                </Txt>
-                <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
-                  {m.time} · {m.protein}g protein · {m.kcal} cal
-                </Txt>
-              </View>
-              <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: m.quality >= 90 ? colors.successSurface : colors.accentSurface }}>
-                <Txt w="eb" size={12} color={m.quality >= 90 ? colors.successDeep : colors.accent}>
-                  {m.quality}
-                </Txt>
-              </View>
-              <Icon name="chevronRight" size={18} color="#CBD5E1" />
-            </Pressable>
-          ))}
-
-          {!s.meals.dinner ? (
-            <Pressable onPress={s.openMeal} style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
-              <View style={{ width: 48, height: 48, borderRadius: 13, borderWidth: 2, borderStyle: 'dashed', borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="camera" size={20} color={colors.textTertiary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Txt w="b" size={14} color={colors.slate700}>
-                  Dinner
-                </Txt>
-                <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
-                  Due by 8:00 PM
-                </Txt>
-              </View>
-              <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 11, backgroundColor: colors.accent }}>
-                <Txt w="b" size={13} color="#fff">
-                  Log now
-                </Txt>
-              </View>
-            </Pressable>
-          ) : (
-            <Pressable onPress={() => s.openMealDetail('dinner')} style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
-              <View style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: '#EF4444' }} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Txt w="b" size={14}>
-                  Chicken, Rice & Broccoli
-                </Txt>
-                <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
-                  Just now · 52g protein · 680 cal
-                </Txt>
-              </View>
-              <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: colors.successSurface }}>
-                <Txt w="eb" size={12} color={colors.successDeep}>
-                  94
-                </Txt>
-              </View>
-              <Icon name="chevronRight" size={18} color="#CBD5E1" />
-            </Pressable>
+          {rows.map((row) =>
+            row.logged ? (
+              <Pressable key={row.key} onPress={() => s.openMealDetail(row.detailId)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+                <View style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: row.thumb }} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Txt w="b" size={14}>
+                    {row.name}
+                  </Txt>
+                  <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                    {row.protein}g protein · {row.kcal} cal
+                  </Txt>
+                </View>
+                <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: row.quality >= 90 ? colors.successSurface : colors.accentSurface }}>
+                  <Txt w="eb" size={12} color={row.quality >= 90 ? colors.successDeep : colors.accent}>
+                    {row.quality}
+                  </Txt>
+                </View>
+                <Icon name="chevronRight" size={18} color="#CBD5E1" />
+              </Pressable>
+            ) : (
+              <Pressable
+                key={row.key}
+                onPress={() => {
+                  s.setMealType(row.label);
+                  s.openMeal();
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}
+              >
+                <View style={{ width: 48, height: 48, borderRadius: 13, borderWidth: 2, borderStyle: 'dashed', borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="camera" size={20} color={colors.textTertiary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Txt w="b" size={14} color={colors.slate700}>
+                    {row.label}
+                  </Txt>
+                  <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                    {row.dueTime}
+                  </Txt>
+                </View>
+                <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 11, backgroundColor: colors.accent }}>
+                  <Txt w="b" size={13} color="#fff">
+                    Log now
+                  </Txt>
+                </View>
+              </Pressable>
+            ),
           )}
         </View>
       </Card>
