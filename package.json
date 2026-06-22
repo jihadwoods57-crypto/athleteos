@@ -33,7 +33,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "bundle": "expo export -p ios --output-dir .aos-export",
+    "verify": "npm run typecheck && npm run test && npm run bundle"
   },
   "private": true
 }
