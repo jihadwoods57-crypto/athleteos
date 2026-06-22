@@ -1,6 +1,6 @@
 // AthleteOS — scoring engine tests. Asserts the ported math against the
 // prototype's default state and known transitions.
-import { computeDerived, gradeFor } from './scoring';
+import { computeDerived, gradeFor, seasonGoalProgress } from './scoring';
 import { createInitialState } from './defaultState';
 import type { AppState } from './types';
 
@@ -51,6 +51,38 @@ describe('computeDerived — default state', () => {
 
   it('ring offset = round(540 * (1 - score/100))', () => {
     expect(d.ringOffset).toBe(Math.round(540 * (1 - d.athleteScore / 100)));
+  });
+});
+
+describe('seasonGoalProgress', () => {
+  it('at start (171) -> nothing gained yet', () => {
+    expect(seasonGoalProgress(171, 171, 184)).toEqual({ remaining: 13, pctThere: 0 });
+  });
+
+  it('at target (184) -> goal reached', () => {
+    expect(seasonGoalProgress(184, 171, 184)).toEqual({ remaining: 0, pctThere: 100 });
+  });
+
+  it('midpoint (177.5) -> ~50% with one-decimal remaining', () => {
+    expect(seasonGoalProgress(177.5, 171, 184)).toEqual({ remaining: 6.5, pctThere: 50 });
+  });
+
+  it('below start (160) -> pctThere clamped to 0', () => {
+    const r = seasonGoalProgress(160, 171, 184);
+    expect(r.pctThere).toBe(0);
+    expect(r.remaining).toBe(24);
+  });
+
+  it('above target (190) -> pctThere clamped to 100, remaining <= 0 (not NaN)', () => {
+    const r = seasonGoalProgress(190, 171, 184);
+    expect(r.pctThere).toBe(100);
+    expect(r.remaining).toBeLessThanOrEqual(0);
+    expect(Number.isNaN(r.remaining)).toBe(false);
+  });
+
+  it('default-state currentWeight (178) reproduces the seeded card numbers', () => {
+    const s = createInitialState();
+    expect(seasonGoalProgress(s.currentWeight, 171, 184)).toEqual({ remaining: 6, pctThere: 54 });
   });
 });
 

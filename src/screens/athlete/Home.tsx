@@ -8,6 +8,7 @@ import {
   aiInsight,
   DEFAULT_CHART_BOX,
   recentDayLabels,
+  seasonGoalProgress,
   seededHistory,
   trendGeometry,
   trendSummary,
@@ -28,6 +29,11 @@ export function Home() {
   const series = seededHistory(d.athleteScore);
   const trend = trendSummary(series);
   const dayLabels = recentDayLabels(series.length);
+
+  // Season weight goal — fixed anchors, live current weight.
+  const START = 171;
+  const TARGET = 184;
+  const goal = seasonGoalProgress(s.currentWeight, START, TARGET);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
@@ -123,33 +129,35 @@ export function Home() {
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Txt w="eb" size={20} color={colors.success}>
-              +6 to go
+              {goal.remaining > 0 ? `+${goal.remaining}` : goal.remaining} to go
             </Txt>
             <Txt w="sb" size={12} color={colors.textTertiary}>
-              now 178 lb
+              now {s.currentWeight} lb
             </Txt>
           </View>
         </Row>
         <View style={{ marginTop: 16 }}>
-          <ProgressBar pct={54} height={10} />
+          <ProgressBar pct={goal.pctThere} height={10} />
         </View>
         <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
           <Txt w="b" size={11} color={colors.textTertiary}>
-            171 start
+            {START} start
           </Txt>
           <Txt w="b" size={11} color={colors.textTertiary}>
-            54% there
+            {goal.pctThere}% there
           </Txt>
           <Txt w="b" size={11} color={colors.textTertiary}>
-            184 goal
+            {TARGET} goal
           </Txt>
         </Row>
         <View style={{ marginTop: 14, borderRadius: 14, padding: 13, backgroundColor: '#ECFDF5' }}>
           <Txt w="m" size={13} color="#065F46" style={{ lineHeight: 19 }}>
             <Txt w="b" size={13} color="#065F46">
-              On track ·{' '}
+              {goal.pctThere < 100 ? 'On track ·' : 'Goal reached ·'}{' '}
             </Txt>
-            At your current pace you'll reach 184 lb by Nov 7 — a week ahead of playoffs.
+            {goal.pctThere < 100
+              ? `At your current pace you'll reach ${TARGET} lb by Nov 7 — a week ahead of playoffs.`
+              : `You hit ${TARGET} lb — season weight goal complete.`}
           </Txt>
         </View>
       </Card>

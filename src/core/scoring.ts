@@ -11,6 +11,21 @@ import type { AppState, Derived, Grade, MealKey } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
+/**
+ * Pure season-goal progress against fixed start/target weights.
+ * remaining = target - current ("+N to go"; <=0 once at/over target).
+ * pctThere = clamped 0..100 of how far current sits between start and target.
+ */
+export function seasonGoalProgress(
+  currentWeight: number,
+  start: number,
+  target: number,
+): { remaining: number; pctThere: number } {
+  const remaining = Math.round((target - currentWeight) * 10) / 10;
+  const pctThere = Math.round(clamp(((currentWeight - start) / (target - start)) * 100, 0, 100));
+  return { remaining, pctThere };
+}
+
 /** Letter grade + colors for a 0–100 score. */
 export function gradeFor(score: number): Grade {
   if (score >= 90) return { g: 'A', bg: '#DCFCE7', c: '#16A34A' };
