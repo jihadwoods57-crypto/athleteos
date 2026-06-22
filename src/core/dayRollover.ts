@@ -1,0 +1,56 @@
+// AthleteOS — calendar-day rollover (pure TS, no React/RN imports).
+// The persisted `aos_day` slice carries day-level accountability (meals, hydration,
+// tasks, check-in). On a new calendar day that data is stale and must reset to the
+// fresh day defaults, while cross-day fields (weight, prefs) survive. This file owns
+// the date stamp + the pure rollover used by the store on rehydrate.
+import type { AppState } from './types';
+import { createInitialState } from './defaultState';
+
+/** Local-date ISO stamp (YYYY-MM-DD). Uses LOCAL parts, never toISOString/UTC, so
+ *  it never shifts a day near midnight in negative-UTC zones. `now` injectable for tests. */
+export function todayStamp(now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** The day-level fields reset on rollover. Kept in sync with the store's partialize
+ *  whitelist so a field that resets here is also one that persists. ciWeight is handled
+ *  specially (seeded from currentWeight); currentWeight is a cross-day field, not here. */
+export const DAY_DEFAULT_KEYS = [
+  'meals',
+  'hydrationL',
+  'quickAdded',
+  'tasks',
+  'ciStage',
+  'ciSubmitted',
+  'ciEnergy',
+  'ciRecovery',
+  'ciSleep',
+  'ciConfidence',
+  'ciSoreness',
+  'ciMotivation',
+] as const;
+
+function pick<T extends object, K extends keyof T>(src: T, keys: readonly K[]): Pick<T, K> {
+  const out = {} as Pick<T, K>;
+  for (const k of keys) out[k] = src[k];
+  return out;
+}
+
+/** Given the persisted partial slice and today's stamp, reset the day fields to fresh
+ *  defaults when the stamp is stale (or missing, for legacy pre-fix blobs) while
+ *  preserving cross-day fields. Same-day returns the input unchanged (idempotent). */
+export function rollDayIfStale<T extends Partial<AppState>>(persisted: T, todayIso: string): T {
+  if (!persisted) return persisted;
+  if (persisted.dateStamp === todayIso) return persisted; // same day — untouched
+
+  const init = createInitialState();
+  return {
+    ...persisted, // preserve cross-day fields (currentWeight, visibility, notif, ...)
+    ...pick(init, DAY_DEFAULT_KEYS), // reset exactly the day fields to fresh defaults
+    ciWeight: persisted.currentWeight ?? init.ciWeight, // next check-in starts from real weight
+    dateStamp: todayIso,
+  };
+}

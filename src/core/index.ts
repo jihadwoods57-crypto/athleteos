@@ -7,4 +7,5 @@ export * from './recommendation';
 export * from './leaderboard';
 export * from './content';
 export * from './history';
+export * from './dayRollover';
 export { createInitialState } from './defaultState';

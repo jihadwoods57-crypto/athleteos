@@ -69,6 +69,7 @@ export interface AppState {
   coachTrack: CoachTrack;
 
   // ---- day ----
+  dateStamp: string;
   meals: Meals;
   hydrationL: number;
   tasks: Task[];

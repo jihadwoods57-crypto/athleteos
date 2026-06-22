@@ -1,5 +1,6 @@
 // AthleteOS — initial session state, ported verbatim from the prototype.
 import type { AppState } from './types';
+import { todayStamp } from './dayRollover';
 
 export function createInitialState(): AppState {
   return {
@@ -24,6 +25,7 @@ export function createInitialState(): AppState {
     coachTrack: { nutrition: true, recovery: true, hydration: true, weight: true, tasks: true },
 
     // day
+    dateStamp: todayStamp(),
     meals: { breakfast: true, lunch: true, snack: true, dinner: false },
     hydrationL: 2.4,
     quickAdded: [false, false, false],

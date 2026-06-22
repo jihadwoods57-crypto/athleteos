@@ -7,6 +7,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import {
   createInitialState,
   HYDRATION_TARGET,
+  rollDayIfStale,
+  todayStamp,
 } from '@/core';
 import type {
   AppState,
@@ -235,10 +237,12 @@ export const useStore = create<Store>()(
       storage: createJSONStorage(() => AsyncStorage),
       // Persist only the day/check-in slice, like the prototype.
       partialize: (s) => ({
+        dateStamp: s.dateStamp,
         meals: s.meals,
         hydrationL: s.hydrationL,
         tasks: s.tasks,
         quickAdded: s.quickAdded,
+        ciStage: s.ciStage,
         ciSubmitted: s.ciSubmitted,
         ciWeight: s.ciWeight,
         currentWeight: s.currentWeight,
@@ -246,9 +250,19 @@ export const useStore = create<Store>()(
         ciRecovery: s.ciRecovery,
         ciSleep: s.ciSleep,
         ciConfidence: s.ciConfidence,
+        ciSoreness: s.ciSoreness,
+        ciMotivation: s.ciMotivation,
         visibility: s.visibility,
         notif: s.notif,
       }),
+      // Roll the persisted day forward BEFORE the first UI/selector read: on a new
+      // calendar day the stale day slice resets to fresh defaults; same-day restores
+      // as-is. Cross-day fields (weight, prefs) survive. A brand-new install (no
+      // persisted blob) is treated as stale and simply stamped with today.
+      merge: (persisted, current) => {
+        const rolled = rollDayIfStale((persisted ?? {}) as Partial<AppState>, todayStamp());
+        return { ...current, ...rolled } as Store;
+      },
     },
   ),
 );
