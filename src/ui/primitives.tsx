@@ -1,7 +1,9 @@
 // AthleteOS — shared UI primitives.
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Pressable,
   PressableProps,
   ScrollView,
@@ -287,9 +289,25 @@ export function ProgressBar({
   track?: string;
 }) {
   const w = Math.max(0, Math.min(100, pct));
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: w,
+      duration: 450,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+      useNativeDriver: false,
+    }).start();
+  }, [w, anim]);
+
+  const fillWidth = anim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
     <View style={{ height, borderRadius: height, backgroundColor: track, overflow: 'hidden' }}>
-      <View style={{ width: `${w}%`, height, borderRadius: height, backgroundColor: color }} />
+      <Animated.View style={{ width: fillWidth, height, borderRadius: height, backgroundColor: color }} />
     </View>
   );
 }
