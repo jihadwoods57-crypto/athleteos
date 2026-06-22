@@ -182,6 +182,56 @@ export function aiInsight(state: AppState, derived: Derived): string {
   return `Protein and recovery are tracking well. You’re ${derived.proteinGap}g from your protein target — ${close}`;
 }
 
+export type HeroTone = 'positive' | 'neutral' | 'warn';
+export interface HeroStatus {
+  line: string;
+  standingLabel: string;
+  tone: HeroTone;
+}
+
+/**
+ * Reactive score-hero status — the most prominent surface in the app, so it must
+ * never confidently tell a behind athlete they are "on pace". Branches off the
+ * SAME dayComplete gate as aiInsight (mealsLoggedCount===4 && proteinToday>=target)
+ * plus the live score band; the specific ask is built from real derived values
+ * (proteinGap / meals remaining) so a line never claims completion that did not
+ * happen. standingLabel is grade-derived — no fabricated precise percentile.
+ */
+export function heroStatus(state: AppState, derived: Derived): HeroStatus {
+  const dayComplete =
+    derived.mealsLoggedCount === 4 && derived.proteinToday >= derived.proteinTarget;
+  const score = derived.athleteScore;
+  const g = derived.grade.g;
+
+  const standingLabel =
+    g === 'A' ? 'Top of your team' :
+    g === 'B' ? 'Upper third of your team' :
+    g === 'C' ? 'Middle of your team' :
+    'Work to do this week'; // D / F
+
+  const mealsLeft = 4 - derived.mealsLoggedCount;
+  const ask =
+    derived.proteinGap > 0
+      ? `${derived.proteinGap}g of protein to go`
+      : mealsLeft > 0
+        ? `${mealsLeft} meal${mealsLeft === 1 ? '' : 's'} left to log`
+        : 'finish the day strong';
+
+  if (dayComplete && score >= 90) {
+    return { line: 'Day complete and you cleared an A — keep the streak rolling.', standingLabel, tone: 'positive' };
+  }
+  if (score >= 80) {
+    // On pace (A/B), day not yet complete.
+    return { line: `Tracking well — ${ask} to lock in an A today.`, standingLabel, tone: 'positive' };
+  }
+  if (score < 70) {
+    // Behind (D/F) — honest, never "on pace".
+    return { line: `You're behind today — ${ask} to climb back up.`, standingLabel, tone: 'warn' };
+  }
+  // Mid 70..79 (C): neutral nudge.
+  return { line: `You're close — ${ask} to push into the green.`, standingLabel, tone: 'neutral' };
+}
+
 export interface PaceProjection {
   daysLeft: number;
   surplus: number;

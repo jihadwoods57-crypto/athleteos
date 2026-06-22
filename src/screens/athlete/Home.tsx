@@ -7,6 +7,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 import {
   aiInsight,
   DEFAULT_CHART_BOX,
+  heroStatus,
   HYDRATION_TARGET,
   recentDayLabels,
   seasonGoalProgress,
@@ -36,6 +37,14 @@ export function Home() {
   const START = 171;
   const TARGET = 184;
   const goal = seasonGoalProgress(s.currentWeight, START, TARGET);
+
+  // Reactive score-hero status line + standing badge (pure-core helper). Tone
+  // maps to existing surface/text tokens at this call site — no new tokens.
+  const status = heroStatus(s, d);
+  const toneSurface =
+    status.tone === 'warn' ? colors.alertSurface : status.tone === 'positive' ? colors.successSurface : colors.accentSurface;
+  const toneText =
+    status.tone === 'warn' ? colors.alertDeep : status.tone === 'positive' ? colors.successDeep : colors.accent;
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
@@ -93,11 +102,11 @@ export function Home() {
             </Txt>
           </Row>
           <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 13, lineHeight: 20 }}>
-            You're on pace to hit every weekly goal. Keep it rolling.
+            {status.line}
           </Txt>
-          <View style={{ marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
-            <Txt w="b" size={12} color={colors.accent}>
-              Top 12% on your team
+          <View style={{ marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: toneSurface }}>
+            <Txt w="b" size={12} color={toneText}>
+              {status.standingLabel}
             </Txt>
           </View>
         </View>

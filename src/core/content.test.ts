@@ -3,13 +3,16 @@
 import {
   aiInsight,
   athleteSubtitle,
+  heroStatus,
   mealResultFor,
   MEAL_RESULTS,
   paceProjection,
 } from './content';
-import { computeDerived } from './scoring';
+import { computeDerived, gradeFor } from './scoring';
 import { createInitialState } from './defaultState';
-import type { AppState, MealLabel } from './types';
+import type { AppState, Derived, MealLabel } from './types';
+
+const FALSE_CLAIM = 'on pace to hit every weekly goal';
 
 describe('mealResultFor', () => {
   it('returns the matching analysis for each meal type', () => {
@@ -63,6 +66,77 @@ describe('aiInsight', () => {
     expect(d.mealsLoggedCount).toBe(4);
     expect(d.proteinToday >= d.proteinTarget).toBe(true); // boundary held → both arms satisfied
     expect(aiInsight(s, d)).toContain('Day complete');
+  });
+});
+
+describe('heroStatus', () => {
+  it('day-complete A-day → positive tone, streak/complete copy, never "behind" or the false on-pace claim', () => {
+    const s = {
+      ...createInitialState(),
+      meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+      ciSubmitted: true,
+    } as AppState;
+    const d = computeDerived(s);
+    // Verify the fixture actually lands in the day-complete A band before asserting.
+    expect(d.mealsLoggedCount).toBe(4);
+    expect(d.proteinToday >= d.proteinTarget).toBe(true);
+    expect(d.athleteScore).toBeGreaterThanOrEqual(90);
+
+    const h = heroStatus(s, d);
+    expect(h.tone).toBe('positive');
+    expect(h.line).toMatch(/streak|complete/i);
+    expect(h.line.toLowerCase()).not.toContain('behind');
+    expect(h.line).not.toContain(FALSE_CLAIM);
+    expect(h.standingLabel).toBe('Top of your team'); // grade A
+  });
+
+  it('on-pace partial day → not warn, references the real proteinGap, never the false on-pace claim', () => {
+    const s = { ...createInitialState(), ciSubmitted: true } as AppState;
+    const d = computeDerived(s);
+    // Bump into the on-pace (B) band but day NOT complete (3 meals).
+    expect(d.athleteScore).toBeGreaterThanOrEqual(80);
+    expect(d.athleteScore).toBeLessThan(90);
+    expect(d.mealsLoggedCount).toBeLessThan(4);
+    expect(d.proteinGap).toBeGreaterThan(0);
+
+    const h = heroStatus(s, d);
+    expect(h.tone).not.toBe('warn');
+    expect(h.line).toContain(`${d.proteinGap}g`);
+    expect(h.line).not.toContain(FALSE_CLAIM);
+  });
+
+  it('behind state (no meals, no check-in) → warn tone, honest "behind" copy, never the false on-pace claim', () => {
+    const s = {
+      ...createInitialState(),
+      meals: { breakfast: false, lunch: false, snack: false, dinner: false },
+      ciSubmitted: false,
+    } as AppState;
+    const d = computeDerived(s);
+    expect(d.athleteScore).toBeLessThan(70);
+
+    const h = heroStatus(s, d);
+    expect(h.tone).toBe('warn');
+    expect(h.line).toMatch(/behind/i);
+    expect(h.line).toContain(`${d.proteinGap}g`);
+    expect(h.line).not.toContain(FALSE_CLAIM);
+  });
+
+  it('maps each grade to a standingLabel with no fabricated percentile', () => {
+    const base = computeDerived(createInitialState());
+    const at = (score: number): Derived => ({ ...base, athleteScore: score, grade: gradeFor(score) });
+    const cases: [number, string][] = [
+      [95, 'Top of your team'],     // A
+      [85, 'Upper third of your team'], // B
+      [75, 'Middle of your team'],  // C
+      [65, 'Work to do this week'], // D
+      [55, 'Work to do this week'], // F
+    ];
+    cases.forEach(([score, label]) => {
+      const h = heroStatus(createInitialState(), at(score));
+      expect(h.standingLabel).toBe(label);
+      expect(h.standingLabel).not.toContain('%');
+      expect(h.standingLabel).not.toContain('Top 12%');
+    });
   });
 });
 
