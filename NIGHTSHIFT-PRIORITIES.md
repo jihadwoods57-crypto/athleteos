@@ -12,6 +12,20 @@ Each job must end with the app still compiling (`tsc --noEmit`), tests passing
   without a clear need. Never break the two-layer discipline (pure core vs UI).
 - AI features are deterministic simulations for now (no API keys). Keep them offline.
 
+## QC findings to fix FIRST (from a live web walkthrough, 2026-06-21)
+These were found by actually running the app and clicking every screen — prioritize them.
+1. **Nutrition screen is unreachable.** `src/screens/athlete/Nutrition.tsx` is fully built
+   but nothing navigates to it — the bottom tab bar is Home · Plan · [Camera FAB] · Squad ·
+   Check-In, and `goNutrition` is never called. Give Nutrition a real entry point. The design
+   handoff's athlete bar was **Home · Plan · [FAB] · Nutrition · Squad** with Check-In reached
+   from the Home banner. Reconcile the navigation to match the handoff so Nutrition is reachable
+   AND Check-In still has an entry. Verify by rendering, not just compiling.
+2. **Web dev warning: `collapsable={false}` leaks to the DOM** via react-native-web, throwing
+   a red dev error toast on the web preview ("Received `false` for a non-boolean attribute
+   `collapsable`"). Harmless on native, but it muddies the web QC. Track down the source
+   (likely an Animated/SVG wrapper — check `src/ui/Ring.tsx`) and stop passing `collapsable`
+   on web, or filter it at a shared wrapper. Must not change native behavior.
+
 ## Phase 2 backlog (highest value first)
 
 ### 1. Test coverage + safety net (do early — protects every later job)
