@@ -7,6 +7,7 @@ import {
   QUICK_FOODS,
   HYDRATION_TARGET,
 } from './constants';
+import { trendSeries } from './history';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -114,7 +115,12 @@ export function computeDerived(s: AppState): Derived {
 
   const ringOffset = Math.round(540 * (1 - athleteScore / 100));
   const proteinRingOffset = Math.round(251 * (1 - proteinPct / 100));
-  const scoreDelta = athleteScore - 86;
+  // "This week" change shown next to the trend chart: today's score minus the
+  // start of the visible 7-day window, computed from the SAME series the chart
+  // draws so the number and the slope always agree. The seed pads the window
+  // (and supplies the start baseline) only until real history fills it.
+  const series = trendSeries(s.scoreHistory ?? [], athleteScore);
+  const scoreDelta = series[series.length - 1] - series[0];
   const deltaStr = (scoreDelta >= 0 ? '↑ +' : '↓ ') + Math.abs(scoreDelta);
   const deltaColor = scoreDelta >= 0 ? '#22C55E' : '#EF4444';
 

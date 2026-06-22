@@ -315,3 +315,48 @@ describe('addWater hydration threshold (couples task id 4 to HYDRATION_TARGET)',
     expect(h).toBeLessThanOrEqual(HYDRATION_TARGET);
   });
 });
+
+describe('computeDerived — week-over-week score delta', () => {
+  it('with no history, the delta uses the seeded window start and matches deltaStr', () => {
+    const s = createInitialState();
+    const d = computeDerived(s);
+    // seeded window starts at 82; delta is today's score minus that baseline.
+    expect(d.scoreDelta).toBe(d.athleteScore - 82);
+    const sign = d.scoreDelta >= 0 ? '↑ +' : '↓ ';
+    expect(d.deltaStr).toBe(sign + Math.abs(d.scoreDelta));
+  });
+
+  it('once real history fills the window, the delta is today minus the week-start score', () => {
+    const s: AppState = {
+      ...createInitialState(),
+      scoreHistory: [
+        { date: 'd1', score: 70 }, // week start (oldest in the 7-day window)
+        { date: 'd2', score: 72 },
+        { date: 'd3', score: 74 },
+        { date: 'd4', score: 76 },
+        { date: 'd5', score: 78 },
+        { date: 'd6', score: 80 },
+      ],
+    };
+    const d = computeDerived(s);
+    expect(d.scoreDelta).toBe(d.athleteScore - 70);
+  });
+
+  it('renders a downward delta when today is below the window start', () => {
+    const s: AppState = {
+      ...createInitialState(),
+      scoreHistory: [
+        { date: 'd1', score: 100 },
+        { date: 'd2', score: 99 },
+        { date: 'd3', score: 98 },
+        { date: 'd4', score: 97 },
+        { date: 'd5', score: 96 },
+        { date: 'd6', score: 95 },
+      ],
+    };
+    const d = computeDerived(s);
+    expect(d.scoreDelta).toBeLessThan(0);
+    expect(d.deltaStr.startsWith('↓ ')).toBe(true);
+    expect(d.deltaColor).toBe('#EF4444');
+  });
+});
