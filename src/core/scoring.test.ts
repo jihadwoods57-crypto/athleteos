@@ -98,7 +98,8 @@ describe('computeDerived — reactivity', () => {
 
   it('submitting a strong check-in raises recovery above 86', () => {
     const base = createInitialState();
-    const after = computeDerived({ ...base, ciSubmitted: true, ciEnergy: 10, ciRecovery: 10, ciSleep: 10 } as AppState);
+    // Default config also enables confidence, so max all four enabled questions.
+    const after = computeDerived({ ...base, ciSubmitted: true, ciEnergy: 10, ciRecovery: 10, ciSleep: 10, ciConfidence: 10 } as AppState);
     expect(after.recoveryScore).toBe(100);
   });
 
@@ -116,5 +117,46 @@ describe('computeDerived — reactivity', () => {
     } as AppState);
     expect(maxed.athleteScore).toBeLessThanOrEqual(100);
     expect(maxed.athleteScore).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('computeDerived — recovery sub-score from ciConfig', () => {
+  const allOff = { energy: false, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false };
+
+  it('default config (energy+recovery+sleep+confidence) includes confidence — differs from old /30 trio', () => {
+    const s = createInitialState();
+    const d = computeDerived({ ...s, ciSubmitted: true } as AppState);
+    // seed 8/7/8/9 over 4 questions: round(((8+7+8+9)/40)*100) = round(80) = 80
+    expect(d.recoveryScore).toBe(Math.round(((s.ciEnergy + s.ciRecovery + s.ciSleep + s.ciConfidence) / 40) * 100));
+    expect(d.recoveryScore).toBe(80);
+    // old /30 trio (8+7+8) would have been round(76.67) = 77 — confidence is now counted
+    expect(d.recoveryScore).not.toBe(77);
+  });
+
+  it('sleep-only enabled = round((ciSleep/10)*100)', () => {
+    const s = createInitialState();
+    const d = computeDerived({ ...s, ciSubmitted: true, ciConfig: { ...allOff, sleep: true } } as AppState);
+    expect(d.recoveryScore).toBe(Math.round((s.ciSleep / 10) * 100)); // 8 -> 80
+    expect(d.recoveryScore).toBe(80);
+  });
+
+  it('soreness-only enabled contributes (10 - ciSoreness) — inverse polarity', () => {
+    const s = createInitialState();
+    const d = computeDerived({ ...s, ciSubmitted: true, ciSoreness: 4, ciConfig: { ...allOff, soreness: true } } as AppState);
+    // round(((10-4)/10)*100) = 60
+    expect(d.recoveryScore).toBe(60);
+  });
+
+  it('zero enabled questions with ciSubmitted=true falls back to 86', () => {
+    const s = createInitialState();
+    const d = computeDerived({ ...s, ciSubmitted: true, ciConfig: { ...allOff } } as AppState);
+    expect(d.recoveryScore).toBe(86);
+  });
+
+  it('unsubmitted check-in still returns 86 (regression guard)', () => {
+    const s = createInitialState();
+    const d = computeDerived(s);
+    expect(s.ciSubmitted).toBe(false);
+    expect(d.recoveryScore).toBe(86);
   });
 });

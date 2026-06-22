@@ -7,7 +7,7 @@ import {
   QUICK_FOODS,
   HYDRATION_TARGET,
 } from './constants';
-import type { AppState, Derived, Grade, MealKey } from './types';
+import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -68,9 +68,34 @@ export function computeDerived(s: AppState): Derived {
     100,
     Math.round(57 + (Math.min(proteinToday, PROTEIN_TARGET) / PROTEIN_TARGET) * 30 + (mealsLoggedCount / 4) * 15),
   );
-  const recoveryScore = s.ciSubmitted
-    ? Math.min(100, Math.round(((s.ciEnergy + s.ciRecovery + s.ciSleep) / 30) * 100))
-    : 86;
+  // Recovery sub-score averages ONLY the coach-enabled check-in questions
+  // (s.ciConfig), each on a 0–10 scale — not a hard-coded energy/recovery/sleep
+  // trio. Mirrors CheckIn.tsx's CI_KEYS so the score reflects exactly the
+  // questions the athlete was actually asked.
+  const CI_FIELDS: Record<keyof CiConfig, keyof AppState> = {
+    energy: 'ciEnergy',
+    recovery: 'ciRecovery',
+    sleep: 'ciSleep',
+    confidence: 'ciConfidence',
+    soreness: 'ciSoreness',
+    motivation: 'ciMotivation',
+  };
+  let recoveryScore = 86; // fallback: unsubmitted OR no enabled questions
+  if (s.ciSubmitted) {
+    let recoverySum = 0;
+    let enabledCount = 0;
+    (Object.keys(s.ciConfig) as (keyof CiConfig)[]).forEach((key) => {
+      if (s.ciConfig[key] !== true) return;
+      const raw = s[CI_FIELDS[key]] as number;
+      // Soreness has inverse polarity: high soreness = worse recovery, so it
+      // contributes (10 - ciSoreness). All other questions contribute raw value.
+      recoverySum += key === 'soreness' ? 10 - raw : raw;
+      enabledCount += 1;
+    });
+    if (enabledCount > 0) {
+      recoveryScore = Math.min(100, Math.max(0, Math.round((recoverySum / (enabledCount * 10)) * 100)));
+    }
+  }
   const weightScore = 95;
   const tasksScore = tasksTotal > 0 ? Math.round((tasksDone / tasksTotal) * 100) : 0;
   const checkinScore = 100;

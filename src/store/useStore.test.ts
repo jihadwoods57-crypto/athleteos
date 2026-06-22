@@ -104,12 +104,15 @@ describe('submitCi', () => {
     const before = derived();
     expect(before.recoveryScore).toBe(86); // pre-submit default
 
+    // Default ciConfig enables energy+recovery+sleep+confidence — max all four
+    // so the recovery sub-score averages to a perfect 100.
     useStore.getState().setCi('ciEnergy', 10);
     useStore.getState().setCi('ciRecovery', 10);
     useStore.getState().setCi('ciSleep', 10);
+    useStore.getState().setCi('ciConfidence', 10);
     useStore.getState().submitCi();
 
-    // (10+10+10)/30 * 100 = 100
+    // (10+10+10+10)/40 * 100 = 100
     expect(derived().recoveryScore).toBe(100);
   });
 });
