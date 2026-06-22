@@ -114,6 +114,32 @@ describe('submitCi', () => {
   });
 });
 
+describe('wStep clamp', () => {
+  it('cannot drop ciWeight below the 70 lb floor on repeated large negative steps', () => {
+    for (let i = 0; i < 100; i++) useStore.getState().wStep(-50);
+    expect(useStore.getState().ciWeight).toBe(70);
+    expect(useStore.getState().ciWeight).toBeGreaterThan(0);
+  });
+
+  it('cannot raise ciWeight above the 350 lb ceiling on repeated large positive steps', () => {
+    for (let i = 0; i < 100; i++) useStore.getState().wStep(50);
+    expect(useStore.getState().ciWeight).toBe(350);
+  });
+
+  it('moves ciWeight by exactly the delta for a single in-range step', () => {
+    // Seed ciWeight is 178; +2 lands at 180, well inside [70,350].
+    useStore.getState().wStep(2);
+    expect(useStore.getState().ciWeight).toBe(180);
+  });
+
+  it('submitCi snapshots the clamped (>=70) weight, never a negative/zero value', () => {
+    for (let i = 0; i < 100; i++) useStore.getState().wStep(-50);
+    useStore.getState().submitCi();
+    expect(useStore.getState().currentWeight).toBe(70);
+    expect(useStore.getState().currentWeight).toBeGreaterThanOrEqual(70);
+  });
+});
+
 describe('end-to-end perfect day', () => {
   it('drives the athlete score upward as accountability is completed', () => {
     const start = derived().athleteScore;

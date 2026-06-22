@@ -224,7 +224,7 @@ export const useStore = create<Store>()(
         set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) })),
 
       // ---- check-in ----
-      wStep: (d) => set((s) => ({ ciWeight: s.ciWeight + d })),
+      wStep: (d) => set((s) => ({ ciWeight: clamp(s.ciWeight + d, 70, 350) })),
       setCi: (key, value) => set({ [key]: value } as Partial<AppState>),
       toggleCiQ: (k) => set((s) => ({ ciConfig: { ...s.ciConfig, [k]: !s.ciConfig[k] } })),
       submitCi: () => set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight })),
