@@ -258,8 +258,32 @@ export const useStore = create<Store>()(
     {
       name: 'aos_day',
       storage: createJSONStorage(() => AsyncStorage),
-      // Persist only the day/check-in slice, like the prototype.
+      // Persist the day/check-in slice PLUS the session-identity fields (flow, role,
+      // onboarding identity) so a reload lands the user back where they were instead of
+      // dumping them at onboarding. Identity/flow fields are cross-day: they are NOT in
+      // DAY_DEFAULT_KEYS, so they survive a calendar rollover.
       partialize: (s) => ({
+        // session / flow + onboarding identity (cross-day)
+        flow: s.flow,
+        role: s.role,
+        obStep: s.obStep,
+        signinMode: s.signinMode,
+        athleteName: s.athleteName,
+        athleteEmail: s.athleteEmail,
+        level: s.level,
+        sport: s.sport,
+        position: s.position,
+        baseGoal: s.baseGoal,
+        baseHeight: s.baseHeight,
+        baseWeight: s.baseWeight,
+        baseAge: s.baseAge,
+        weeklyGoalLb: s.weeklyGoalLb,
+        compMode: s.compMode,
+        goals: s.goals,
+        inviteWho: s.inviteWho,
+        parentFocus: s.parentFocus,
+        coachTrack: s.coachTrack,
+        // day / check-in slice
         dateStamp: s.dateStamp,
         scoreHistory: s.scoreHistory,
         meals: s.meals,
@@ -291,7 +315,16 @@ export const useStore = create<Store>()(
         // full pre-roll state (persisted day data over current defaults).
         const scoreHistory = recordDayScore({ ...current, ...p } as AppState, today);
         const rolled = rollDayIfStale(p, today);
-        return { ...current, ...rolled, scoreHistory } as Store;
+        const merged = { ...current, ...rolled, scoreHistory } as Store;
+        // New install / legacy pre-fix blob: a persisted blob with no `flow` (either a
+        // brand-new install or a blob written before session persistence existed) must
+        // start clean at onboarding step 0. When `flow` IS present, `...rolled` already
+        // carried flow/role/identity (preserved through the roll), so restore is verbatim.
+        if (p.flow == null) {
+          merged.flow = 'onboarding';
+          merged.obStep = 0;
+        }
+        return merged;
       },
     },
   ),

@@ -5,10 +5,19 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStore } from './useStore';
 import { computeDerived } from '@/core';
+import { createInitialState } from '@/core/defaultState';
+import { todayStamp } from '@/core/dayRollover';
+import type { AppState } from '@/core/types';
 
 const derived = () => computeDerived(useStore.getState());
+
+/** Seed the persisted `aos_day` blob in zustand-persist's {state, version} envelope. */
+async function seedPersisted(blob: Partial<AppState>): Promise<void> {
+  await AsyncStorage.setItem('aos_day', JSON.stringify({ state: blob, version: 0 }));
+}
 
 beforeEach(() => {
   // Start every test from the prototype's seeded day.
@@ -165,6 +174,106 @@ describe('wStep clamp', () => {
     useStore.getState().submitCi();
     expect(useStore.getState().currentWeight).toBe(70);
     expect(useStore.getState().currentWeight).toBeGreaterThanOrEqual(70);
+  });
+});
+
+describe('session persistence / rehydrate', () => {
+  beforeEach(async () => {
+    // Isolate from the global resetDemo() (which touches in-memory state only):
+    // clear AsyncStorage so each case controls the persisted blob explicitly.
+    await AsyncStorage.clear();
+  });
+
+  it('(a) restores flow:app + role:athlete + identity on a same-day blob (lands on AthleteApp)', async () => {
+    await seedPersisted({
+      flow: 'app',
+      role: 'athlete',
+      athleteName: 'Marcus',
+      dateStamp: todayStamp(),
+    });
+    await useStore.persist.rehydrate();
+    const s = useStore.getState();
+    expect(s.flow).toBe('app');
+    expect(s.role).toBe('athlete');
+    expect(s.athleteName).toBe('Marcus');
+  });
+
+  it('(b) restores a coach flow verbatim', async () => {
+    await seedPersisted({ flow: 'coach', dateStamp: todayStamp() });
+    await useStore.persist.rehydrate();
+    expect(useStore.getState().flow).toBe('coach');
+  });
+
+  it('(c) restores a mid-onboarding step', async () => {
+    await seedPersisted({ flow: 'onboarding', obStep: 2, dateStamp: todayStamp() });
+    await useStore.persist.rehydrate();
+    const s = useStore.getState();
+    expect(s.flow).toBe('onboarding');
+    expect(s.obStep).toBe(2);
+  });
+
+  it('(d) a brand-new install (no persisted blob) starts at onboarding step 0', async () => {
+    await AsyncStorage.removeItem('aos_day');
+    await useStore.persist.rehydrate();
+    const s = useStore.getState();
+    expect(s.flow).toBe('onboarding');
+    expect(s.obStep).toBe(0);
+  });
+
+  it('(d2) a legacy blob with day data but no flow falls back to onboarding step 0', async () => {
+    await seedPersisted({ dateStamp: todayStamp(), hydrationL: 3.1, obStep: 5 });
+    await useStore.persist.rehydrate();
+    const s = useStore.getState();
+    expect(s.flow).toBe('onboarding');
+    expect(s.obStep).toBe(0);
+  });
+
+  it('(e) stale-day rollover resets the day slice, appends history once, and keeps identity', async () => {
+    await seedPersisted({
+      flow: 'app',
+      role: 'athlete',
+      athleteName: 'Marcus',
+      currentWeight: 185,
+      dateStamp: '2020-01-01',
+      scoreHistory: [],
+      meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+      hydrationL: 3.8,
+      tasks: createInitialState().tasks.map((t) => ({ ...t, done: true })),
+    });
+    await useStore.persist.rehydrate();
+    const s = useStore.getState();
+    const fresh = createInitialState();
+
+    // day slice reset to fresh defaults
+    expect(s.meals).toEqual(fresh.meals);
+    expect(s.hydrationL).toBe(fresh.hydrationL);
+    expect(s.tasks).toEqual(fresh.tasks);
+    expect(s.dateStamp).toBe(todayStamp());
+
+    // prior day's score appended exactly once, for the stale date
+    expect(s.scoreHistory).toHaveLength(1);
+    expect(s.scoreHistory[0].date).toBe('2020-01-01');
+
+    // identity / cross-day survives the roll
+    expect(s.flow).toBe('app');
+    expect(s.role).toBe('athlete');
+    expect(s.athleteName).toBe('Marcus');
+    expect(s.currentWeight).toBe(185);
+  });
+
+  it('(f) same-day rehydrate leaves the day slice untouched and does not double-append history', async () => {
+    await seedPersisted({
+      flow: 'app',
+      role: 'athlete',
+      dateStamp: todayStamp(),
+      hydrationL: 3.1,
+      scoreHistory: [{ date: '2020-01-01', score: 50 }],
+    });
+    await useStore.persist.rehydrate();
+    const s = useStore.getState();
+    expect(s.hydrationL).toBe(3.1);
+    expect(s.scoreHistory).toHaveLength(1);
+    expect(s.scoreHistory[0]).toEqual({ date: '2020-01-01', score: 50 });
   });
 });
 
