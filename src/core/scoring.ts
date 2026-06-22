@@ -59,7 +59,7 @@ export function computeDerived(s: AppState): Derived {
   const kcalToday = kcalBase + quickKcal;
   const proteinGap = Math.max(0, PROTEIN_TARGET - proteinToday);
   const proteinPct = Math.min(100, Math.round((proteinToday / PROTEIN_TARGET) * 100));
-  const hydrationPct = Math.round((s.hydrationL / HYDRATION_TARGET) * 100);
+  const hydrationPct = clamp(Math.round((s.hydrationL / HYDRATION_TARGET) * 100), 0, 100);
 
   const tasksDone = s.tasks.filter((t) => t.done).length;
   const tasksTotal = s.tasks.length;

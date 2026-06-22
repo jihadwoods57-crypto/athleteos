@@ -179,7 +179,7 @@ export const useStore = create<Store>()(
       addWater: () =>
         set((s) => {
           const h = Math.min(HYDRATION_TARGET, +(s.hydrationL + 0.3).toFixed(1));
-          const tasks = s.tasks.map((x) => (x.id === 4 ? { ...x, done: h >= 3.7 } : x));
+          const tasks = s.tasks.map((x) => (x.id === 4 ? { ...x, done: h >= HYDRATION_TARGET } : x));
           return { hydrationL: h, tasks };
         }),
       openMealDetail: (meal) => set({ mealDetailOpen: true, selectedMeal: meal }),
