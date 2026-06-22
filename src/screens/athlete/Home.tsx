@@ -1,0 +1,326 @@
+// AthleteOS — Athlete Home: score hero, season goal, trend, progress, insight,
+// coach guidance, next action, check-in banner.
+import React from 'react';
+import { ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
+import { aiInsight } from '@/core';
+import { useStore, useDerived } from '@/store';
+import { colors, shadow } from '@/ui/tokens';
+import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { Icon } from '@/icons';
+import { Ring } from '@/ui/Ring';
+
+export function Home() {
+  const insets = useSafeAreaInsets();
+  const s = useStore();
+  const d = useDerived();
+  const name = s.athleteName?.split(' ')[0] || 'Jihad';
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
+      {/* header */}
+      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <View>
+          <Txt w="sb" size={14} color={colors.textSecondary}>
+            Good morning,
+          </Txt>
+          <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
+            {name}
+          </Txt>
+        </View>
+        <Row style={{ gap: 10 }}>
+          <Pressable onPress={s.openNotif} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+            <Icon name="bell" size={19} color={colors.slate600} />
+            <View style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.alert, borderWidth: 1.5, borderColor: '#fff' }} />
+          </Pressable>
+          <Row style={[{ gap: 6, backgroundColor: '#fff', paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 }, shadow.card]}>
+            <Icon name="flame" size={15} color={colors.warning} />
+            <Txt w="eb" size={14}>
+              12
+            </Txt>
+          </Row>
+          <Pressable onPress={s.goProfile} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt w="b" size={14} color="#fff">
+              J
+            </Txt>
+          </Pressable>
+        </Row>
+      </Row>
+
+      {/* score hero */}
+      <Card elevated style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 20, padding: 24 }}>
+        <Ring size={138} pct={d.athleteScore} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">
+          <Txt w="eb" size={48} ls={-2} style={{ lineHeight: 50 }}>
+            {d.athleteScore}
+          </Txt>
+          <View style={{ marginTop: 5, paddingHorizontal: 9, paddingVertical: 2, borderRadius: 7, backgroundColor: d.grade.bg }}>
+            <Txt w="eb" size={11} color={d.grade.c} ls={0.4}>
+              GRADE {d.grade.g}
+            </Txt>
+          </View>
+        </Ring>
+        <View style={{ flex: 1 }}>
+          <Txt w="b" size={13} color={colors.textSecondary}>
+            Athlete Score
+          </Txt>
+          <Row style={{ gap: 6, marginTop: 7 }}>
+            <Txt w="eb" size={15} color={d.deltaColor}>
+              {d.deltaStr}
+            </Txt>
+            <Txt w="sb" size={13} color={colors.textTertiary}>
+              this week
+            </Txt>
+          </Row>
+          <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 13, lineHeight: 20 }}>
+            You're on pace to hit every weekly goal. Keep it rolling.
+          </Txt>
+          <View style={{ marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
+            <Txt w="b" size={12} color={colors.accent}>
+              Top 12% on your team
+            </Txt>
+          </View>
+        </View>
+      </Card>
+
+      {/* season goal */}
+      <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
+            SEASON GOAL
+          </Txt>
+          <Row style={{ gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
+            <Icon name="checkin" size={12} color={colors.accent} />
+            <Txt w="eb" size={12} color={colors.accent}>
+              38 days left
+            </Txt>
+          </Row>
+        </Row>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
+          <View>
+            <Txt w="eb" size={29} ls={-0.9}>
+              184 lb
+              <Txt w="b" size={15} color={colors.textTertiary}>
+                {' '}
+                target
+              </Txt>
+            </Txt>
+            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+              by Playoffs · Nov 14
+            </Txt>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Txt w="eb" size={20} color={colors.success}>
+              +6 to go
+            </Txt>
+            <Txt w="sb" size={12} color={colors.textTertiary}>
+              now 178 lb
+            </Txt>
+          </View>
+        </Row>
+        <View style={{ marginTop: 16 }}>
+          <ProgressBar pct={54} height={10} />
+        </View>
+        <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
+          <Txt w="b" size={11} color={colors.textTertiary}>
+            171 start
+          </Txt>
+          <Txt w="b" size={11} color={colors.textTertiary}>
+            54% there
+          </Txt>
+          <Txt w="b" size={11} color={colors.textTertiary}>
+            184 goal
+          </Txt>
+        </Row>
+        <View style={{ marginTop: 14, borderRadius: 14, padding: 13, backgroundColor: '#ECFDF5' }}>
+          <Txt w="m" size={13} color="#065F46" style={{ lineHeight: 19 }}>
+            <Txt w="b" size={13} color="#065F46">
+              On track ·{' '}
+            </Txt>
+            At your current pace you'll reach 184 lb by Nov 7 — a week ahead of playoffs.
+          </Txt>
+        </View>
+      </Card>
+
+      {/* score trend */}
+      <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+          <View>
+            <Txt w="eb" size={16} ls={-0.3}>
+              Score Trend
+            </Txt>
+            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+              Past 7 days
+            </Txt>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Txt w="eb" size={26} ls={-0.5}>
+              {d.athleteScore}
+            </Txt>
+            <Txt w="b" size={12} color={colors.success}>
+              ↑ trending up
+            </Txt>
+          </View>
+        </Row>
+        <TrendChart />
+        <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
+          {['Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue'].map((dn) => (
+            <Txt key={dn} w="sb" size={11} color={colors.textTertiary}>
+              {dn}
+            </Txt>
+          ))}
+        </Row>
+      </Card>
+
+      {/* today's progress */}
+      <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
+        <Txt w="eb" size={16} ls={-0.3} style={{ marginBottom: 18 }}>
+          Today's Progress
+        </Txt>
+        <ProgressRow label="Protein" meta={`${d.proteinToday} / 180g`} pct={d.proteinPct} color={colors.accent} />
+        <ProgressRow label="Hydration" meta={`${s.hydrationL} / 3.8 L  +`} metaColor={colors.accent} onMeta={s.addWater} pct={d.hydrationPct} color={colors.hydration} />
+        <ProgressRow label="Tasks" meta={`${d.tasksDone} / ${d.tasksTotal} done`} pct={d.tasksScore} color={colors.accent} />
+        <ProgressRow label="Recovery" meta={`${s.ciSleep.toFixed(1)} / 8.5 hrs sleep`} pct={d.recoveryScore} color={colors.success} last />
+      </Card>
+
+      {/* AI insight */}
+      <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
+        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="sparkle" size={20} color={colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
+            AI INSIGHT
+          </Txt>
+          <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 5, lineHeight: 20 }}>
+            {aiInsight(s, d)}
+          </Txt>
+        </View>
+      </Card>
+
+      {/* coach guidance */}
+      <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
+        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt w="b" size={13} color="#fff">
+            CD
+          </Txt>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Row style={{ gap: 7, flexWrap: 'wrap' }}>
+            <Txt w="eb" size={12} ls={0.4}>
+              COACH GUIDANCE
+            </Txt>
+            <View style={{ backgroundColor: colors.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+              <Txt w="b" size={10} color={colors.accent}>
+                Remembered by AI
+              </Txt>
+            </View>
+          </Row>
+          <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 6, lineHeight: 20 }}>
+            {s.coachNote}
+          </Txt>
+        </View>
+      </Card>
+
+      {/* next action */}
+      {!s.meals.dinner ? (
+        <Pressable onPress={s.openMeal} style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
+          <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="camera" size={22} color={colors.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt w="b" size={15}>
+              Log dinner
+            </Txt>
+            <Txt w="m" size={13} color={colors.textSecondary}>
+              Due by 8:00 PM · last meal of the day
+            </Txt>
+          </View>
+          <Icon name="chevronRight" size={22} color="#CBD5E1" />
+        </Pressable>
+      ) : (
+        <View style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
+          <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.successSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="check" size={20} color={colors.successDeep} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt w="b" size={15}>
+              Dinner logged
+            </Txt>
+            <Txt w="m" size={13} color={colors.textSecondary}>
+              All meals in — day complete
+            </Txt>
+          </View>
+          <Txt w="eb" size={13} color={colors.successDeep}>
+            +5 pts
+          </Txt>
+        </View>
+      )}
+
+      {/* check-in banner */}
+      {!s.ciSubmitted ? (
+        <Pressable onPress={s.goCheckin} style={[{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, shadow.cta]}>
+          <View>
+            <Txt w="eb" size={11} color="rgba(255,255,255,0.85)" ls={0.7}>
+              WEEKLY CHECK-IN DUE
+            </Txt>
+            <Txt w="b" size={15} color="#fff" style={{ marginTop: 5 }}>
+              6 questions · 2 min · 2 days left
+            </Txt>
+          </View>
+          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="chevronRight" size={18} color="#fff" />
+          </View>
+        </Pressable>
+      ) : (
+        <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View>
+            <Txt w="eb" size={11} color="#059669" ls={0.7}>
+              WEEKLY CHECK-IN
+            </Txt>
+            <Txt w="b" size={15} color="#065F46" style={{ marginTop: 5 }}>
+              Completed · sent to Coach Davis
+            </Txt>
+          </View>
+          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="check" size={17} color="#fff" />
+          </View>
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+function ProgressRow({ label, meta, pct, color, metaColor, onMeta, last }: { label: string; meta: string; pct: number; color: string; metaColor?: string; onMeta?: () => void; last?: boolean }) {
+  return (
+    <View style={{ marginBottom: last ? 0 : 17 }}>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+        <Txt w="b" size={14}>
+          {label}
+        </Txt>
+        <Pressable onPress={onMeta} disabled={!onMeta}>
+          <Txt w={onMeta ? 'b' : 'sb'} size={13} color={metaColor ?? colors.textSecondary}>
+            {meta}
+          </Txt>
+        </Pressable>
+      </Row>
+      <ProgressBar pct={pct} height={9} color={color} />
+    </View>
+  );
+}
+
+function TrendChart() {
+  return (
+    <Svg viewBox="0 0 322 116" width="100%" height={100} preserveAspectRatio="none" style={{ marginTop: 6 }}>
+      <Defs>
+        <LinearGradient id="trend" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#22C55E" stopOpacity="0.18" />
+          <Stop offset="1" stopColor="#22C55E" stopOpacity="0" />
+        </LinearGradient>
+      </Defs>
+      <Path d="M12,72 L62,62 L111,67 L161,52 L211,43 L260,48 L310,33 L310,116 L12,116 Z" fill="url(#trend)" />
+      <Path d="M12,72 L62,62 L111,67 L161,52 L211,43 L260,48 L310,33" fill="none" stroke="#22C55E" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={310} cy={33} r={5.5} fill="#22C55E" stroke="#fff" strokeWidth={2.5} />
+    </Svg>
+  );
+}

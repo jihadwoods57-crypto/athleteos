@@ -1,0 +1,84 @@
+// AthleteOS — Plan (Tasks) tab. Toggling a task updates the Athlete Score.
+import React from 'react';
+import { ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useStore, useDerived } from '@/store';
+import { colors, shadow } from '@/ui/tokens';
+import { ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { Icon } from '@/icons';
+
+export function Plan() {
+  const insets = useSafeAreaInsets();
+  const tasks = useStore((s) => s.tasks);
+  const toggleTask = useStore((s) => s.toggleTask);
+  const d = useDerived();
+  const left = d.tasksTotal - d.tasksDone;
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
+      <Txt w="sb" size={14} color={colors.textSecondary}>
+        Tuesday · in-season
+      </Txt>
+      <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
+        Today's Plan
+      </Txt>
+
+      <Row style={[{ marginTop: 18, gap: 16, backgroundColor: '#fff', borderRadius: 20, padding: 18 }, shadow.card]}>
+        <Txt w="eb" size={30}>
+          <Txt w="eb" size={30} color={colors.accent}>
+            {d.tasksDone}
+          </Txt>
+          <Txt w="eb" size={30} color="#CBD5E1">
+            /{d.tasksTotal}
+          </Txt>
+        </Txt>
+        <View style={{ flex: 1 }}>
+          <Txt w="b" size={14} style={{ marginBottom: 8 }}>
+            {left === 0 ? 'All done — nice work' : `${left} task${left === 1 ? '' : 's'} left today`}
+          </Txt>
+          <ProgressBar pct={d.tasksScore} height={9} />
+        </View>
+      </Row>
+
+      <View style={{ marginTop: 18, gap: 10 }}>
+        {tasks.map((t) => (
+          <View key={t.id}>
+            {t.group ? (
+              <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 12, marginBottom: 8 }}>
+                {t.group}
+              </Txt>
+            ) : null}
+            <Pressable onPress={() => toggleTask(t.id)} style={[{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#fff', borderRadius: 16, padding: 16 }, shadow.card]}>
+              <View
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 9,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: t.done ? colors.accent : '#fff',
+                  borderWidth: 2,
+                  borderColor: t.done ? colors.accent : '#CBD5E1',
+                }}
+              >
+                {t.done ? <Icon name="check" size={14} color="#fff" /> : null}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Txt w="b" size={15} color={t.done ? colors.textTertiary : colors.text} style={{ textDecorationLine: t.done ? 'line-through' : 'none' }}>
+                  {t.title}
+                </Txt>
+                <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                  {t.meta}
+                </Txt>
+              </View>
+            </Pressable>
+          </View>
+        ))}
+      </View>
+
+      <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 18, textAlign: 'center', lineHeight: 19, paddingHorizontal: 16 }}>
+        Completed tasks feed your Athlete Score and stay visible to Coach Davis.
+      </Txt>
+    </ScrollView>
+  );
+}

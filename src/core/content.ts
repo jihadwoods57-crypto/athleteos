@@ -1,0 +1,166 @@
+// AthleteOS — content data + display-string helpers (pure).
+// Ported from the prototype: meal log, meal-analysis results, AI insight, pace.
+import type { AppState, Derived, MealLabel } from './types';
+
+export interface LoggedMeal {
+  id: string;
+  name: string;
+  time: string;
+  quality: number;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  thumb: [string, string];
+  foods: { n: string; p: string }[];
+  sub: { l: string; s: number }[];
+  note: string;
+}
+
+export const MEALS_LOG: LoggedMeal[] = [
+  {
+    id: 'b',
+    name: 'Overnight Oats & Berries',
+    time: '7:40 AM',
+    quality: 88,
+    kcal: 520,
+    protein: 42,
+    carbs: 68,
+    fat: 12,
+    thumb: ['#FDE68A', '#F59E0B'],
+    foods: [
+      { n: 'Rolled oats', p: '1 cup' },
+      { n: 'Greek yogurt', p: '¾ cup' },
+      { n: 'Blueberries', p: '½ cup' },
+      { n: 'Almond butter', p: '1 tbsp' },
+    ],
+    sub: [
+      { l: 'Protein density', s: 90 },
+      { l: 'Whole foods', s: 94 },
+      { l: 'Macro balance', s: 84 },
+      { l: 'Meal timing', s: 86 },
+    ],
+    note: 'Great recovery breakfast. The yogurt and oats give you slow-release energy for a morning lift.',
+  },
+  {
+    id: 'l',
+    name: 'Chicken & Rice Bowl',
+    time: '12:30 PM',
+    quality: 91,
+    kcal: 680,
+    protein: 51,
+    carbs: 72,
+    fat: 16,
+    thumb: ['#BBF7D0', '#22C55E'],
+    foods: [
+      { n: 'Grilled chicken', p: '6 oz' },
+      { n: 'Brown rice', p: '1.5 cups' },
+      { n: 'Black beans', p: '½ cup' },
+      { n: 'Avocado', p: '¼' },
+    ],
+    sub: [
+      { l: 'Protein density', s: 94 },
+      { l: 'Whole foods', s: 90 },
+      { l: 'Macro balance', s: 92 },
+      { l: 'Meal timing', s: 88 },
+    ],
+    note: 'Excellent lunch — high protein with clean carbs. Ideal 2-3 hours before practice.',
+  },
+  {
+    id: 's',
+    name: 'Greek Yogurt & Almonds',
+    time: '3:15 PM',
+    quality: 89,
+    kcal: 300,
+    protein: 49,
+    carbs: 24,
+    fat: 10,
+    thumb: ['#DDD6FE', '#8B5CF6'],
+    foods: [
+      { n: 'Greek yogurt', p: '1 cup' },
+      { n: 'Almonds', p: '¼ cup' },
+      { n: 'Honey', p: '1 tbsp' },
+      { n: 'Blueberries', p: '½ cup' },
+    ],
+    sub: [
+      { l: 'Protein density', s: 92 },
+      { l: 'Whole foods', s: 88 },
+      { l: 'Macro balance', s: 80 },
+      { l: 'Meal timing', s: 90 },
+    ],
+    note: 'Smart high-protein snack between lunch and dinner — keeps you in a surplus.',
+  },
+];
+
+export interface MealResult {
+  name: string;
+  quality: number;
+  protein: number;
+  kcal: number;
+  carbs: number;
+  fat: number;
+  detected: string[];
+  note: string;
+}
+
+export const MEAL_RESULTS: Record<MealLabel, MealResult> = {
+  Breakfast: { name: 'Veggie Omelette & Toast', quality: 90, protein: 38, kcal: 480, carbs: 34, fat: 22, detected: ['Eggs', 'Spinach', 'Whole-grain toast', 'Feta'], note: 'Strong protein start. Add fruit for micronutrients and you’re at an A.' },
+  Lunch: { name: 'Turkey & Quinoa Bowl', quality: 92, protein: 46, kcal: 620, carbs: 58, fat: 18, detected: ['Ground turkey', 'Quinoa', 'Peppers', 'Avocado'], note: 'Excellent lunch — lean protein with clean carbs, ideal pre-practice.' },
+  Dinner: { name: 'Chicken, Rice & Broccoli', quality: 94, protein: 52, kcal: 680, carbs: 64, fat: 18, detected: ['Grilled chicken', 'Brown rice', 'Broccoli', 'Olive oil'], note: 'Excellent protein hit for dinner. Add a piece of fruit and this is a perfect plate.' },
+  Snack: { name: 'Greek Yogurt & Berries', quality: 89, protein: 24, kcal: 240, carbs: 22, fat: 6, detected: ['Greek yogurt', 'Blueberries', 'Honey', 'Almonds'], note: 'Great high-protein snack to close the gap before bed.' },
+};
+
+export function mealResultFor(mealType: MealLabel): MealResult {
+  return MEAL_RESULTS[mealType] ?? MEAL_RESULTS.Dinner;
+}
+
+/** Reactive Home insight — flips once dinner is logged. */
+export function aiInsight(state: AppState, derived: Derived): string {
+  return state.meals.dinner
+    ? 'Day complete — every meal logged and protein over target. This is what an A week looks like; keep the streak alive.'
+    : `Protein and recovery are tracking well. You’re ${derived.proteinGap}g from your protein target — log dinner to close the day at an A.`;
+}
+
+export interface PaceProjection {
+  daysLeft: number;
+  surplus: number;
+  goalPct: number;
+  onPace: boolean;
+  paceLabel: string;
+  paceAi: string;
+  projected: number;
+}
+
+/** Nutrition weekly-goal pace projection from the coach-set weekly lb goal. */
+export function paceProjection(weeklyGoalLb: number): PaceProjection {
+  const goal = weeklyGoalLb;
+  const daysLeft = 3;
+  const progressLb = 0.6;
+  const daysElapsed = 4;
+  const surplus = Math.round((goal * 3500) / 7);
+  const projected = +((progressLb / daysElapsed) * 7).toFixed(1);
+  const onPace = projected >= goal - 0.001;
+  const goalPct = Math.min(100, Math.round((progressLb / goal) * 100));
+  const paceLabel = onPace ? '↑ On pace' : '↓ Behind pace';
+  let paceAi: string;
+  if (projected > goal) {
+    paceAi = `You're tracking to +${projected} lb by Sunday — a touch ahead. Ease back ~${Math.round(((projected - goal) * 3500) / 3)} cal/day to land exactly on target.`;
+  } else if (onPace) {
+    paceAi = `You're tracking to +${projected} lb by Sunday — right on target. Keep the surplus steady.`;
+  } else {
+    paceAi = `At today's intake you'll reach +${projected} lb. Add ~${Math.round(((goal - projected) * 3500) / 3)} cal/day over the next ${daysLeft} days to stay on track.`;
+  }
+  return { daysLeft, surplus, goalPct, onPace, paceLabel, paceAi, projected };
+}
+
+/** Position abbreviation → full label for the profile subtitle. */
+export const POSITION_LABELS: Record<string, string> = {
+  QB: 'Quarterback', RB: 'Running Back', WR: 'Wide Receiver', OL: 'Offensive Line',
+  DL: 'Defensive Line', LB: 'Linebacker', DB: 'Defensive Back', PG: 'Point Guard',
+  SG: 'Shooting Guard', SF: 'Small Forward', PF: 'Power Forward', C: 'Center',
+};
+
+export function athleteSubtitle(position: string | null): string {
+  const label = position ? POSITION_LABELS[position] ?? position : 'Linebacker';
+  return `${label} · Eastside HS`;
+}

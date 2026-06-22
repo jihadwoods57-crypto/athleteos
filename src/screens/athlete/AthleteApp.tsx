@@ -1,0 +1,124 @@
+// AthleteOS — athlete app shell: tab content + bottom tab bar + camera FAB +
+// full-screen overlays (meal capture/detail, account, messages, notifications).
+import React from 'react';
+import { View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useStore } from '@/store';
+import { colors, shadow } from '@/ui/tokens';
+import { Txt, Pressable } from '@/ui/primitives';
+import { Icon, IconName } from '@/icons';
+import type { Tab } from '@/core';
+import { Home } from './Home';
+import { Plan } from './Plan';
+import { Squad } from './Squad';
+import { CheckIn } from './CheckIn';
+import { Nutrition } from './Nutrition';
+import { Profile } from './Profile';
+import { MealCapture } from '@/screens/overlays/MealCapture';
+import { MealDetail } from '@/screens/overlays/MealDetail';
+import { Account } from '@/screens/overlays/Account';
+import { Messages } from '@/screens/overlays/Messages';
+import { Notifications } from '@/screens/overlays/Notifications';
+
+const TABS: { tab: Tab; label: string; icon: IconName }[] = [
+  { tab: 'home', label: 'Home', icon: 'home' },
+  { tab: 'tasks', label: 'Plan', icon: 'plan' },
+  { tab: 'squad', label: 'Squad', icon: 'squad' },
+  { tab: 'checkin', label: 'Check-In', icon: 'checkin' },
+];
+
+export function AthleteApp() {
+  const tab = useStore((s) => s.tab);
+  const mealOpen = useStore((s) => s.mealOpen);
+  const mealDetailOpen = useStore((s) => s.mealDetailOpen);
+  const accountOpen = useStore((s) => s.accountOpen);
+  const msgOpen = useStore((s) => s.msgOpen);
+  const notifOpen = useStore((s) => s.notifOpen);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <View style={{ flex: 1 }}>
+        {tab === 'home' && <Home />}
+        {tab === 'tasks' && <Plan />}
+        {tab === 'squad' && <Squad />}
+        {tab === 'checkin' && <CheckIn />}
+        {tab === 'nutrition' && <Nutrition />}
+        {tab === 'profile' && <Profile />}
+      </View>
+
+      <TabBar />
+
+      {/* full-screen overlays */}
+      {mealOpen && <MealCapture />}
+      {mealDetailOpen && <MealDetail />}
+      {accountOpen && <Account />}
+      {msgOpen && <Messages />}
+      {notifOpen && <Notifications />}
+    </View>
+  );
+}
+
+function TabBar() {
+  const insets = useSafeAreaInsets();
+  const tab = useStore((s) => s.tab);
+  const setTab = useStore((s) => s.setTab);
+  const openMeal = useStore((s) => s.openMeal);
+
+  const isAthleteTab = (t: Tab) => tab === t;
+
+  return (
+    <View
+      style={[
+        {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          paddingBottom: Math.max(insets.bottom, 10),
+          paddingTop: 10,
+          backgroundColor: '#fff',
+          flexDirection: 'row',
+          alignItems: 'center',
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+        },
+      ]}
+    >
+      <TabItem item={TABS[0]} active={isAthleteTab('home') || isAthleteTab('nutrition') || isAthleteTab('profile')} onPress={() => setTab('home')} />
+      <TabItem item={TABS[1]} active={isAthleteTab('tasks')} onPress={() => setTab('tasks')} />
+
+      {/* center camera FAB */}
+      <View style={{ width: 72, alignItems: 'center' }}>
+        <Pressable
+          onPress={openMeal}
+          style={[
+            { width: 58, height: 58, borderRadius: 18, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginTop: -28 },
+            shadow.cta,
+          ]}
+        >
+          <Icon name="camera" size={26} color="#fff" />
+        </Pressable>
+      </View>
+
+      <TabItem item={TABS[2]} active={isAthleteTab('squad')} onPress={() => setTab('squad')} />
+      <TabItem item={TABS[3]} active={isAthleteTab('checkin')} onPress={() => setTab('checkin')} />
+    </View>
+  );
+}
+
+function TabItem({ item, active, onPress }: { item: { label: string; icon: IconName }; active: boolean; onPress: () => void }) {
+  const color = active ? colors.accent : colors.textTertiary;
+  return (
+    <Pressable onPress={onPress} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+      <Icon name={item.icon} size={23} color={color} />
+      <Txt w={active ? 'b' : 'sb'} size={11} color={color}>
+        {item.label}
+      </Txt>
+    </Pressable>
+  );
+}
+
+/** Shared header used by athlete sub-screens. */
+export function AthleteHeader({ children }: { children: React.ReactNode }) {
+  return <SafeAreaView edges={['top']}>{children}</SafeAreaView>;
+}

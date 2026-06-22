@@ -1,0 +1,254 @@
+// AthleteOS — single session store (Zustand) + AsyncStorage persistence.
+// Mirrors the prototype's component state + methods; the day slice persists
+// under key `aos_day`, exactly like the prototype's localStorage usage.
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import {
+  createInitialState,
+  HYDRATION_TARGET,
+} from '@/core';
+import type {
+  AppState,
+  BaseGoal,
+  CiConfig,
+  CoachTrackKey,
+  CompMode,
+  MealLabel,
+  PersonDetail,
+  Role,
+  SquadMode,
+  Tab,
+} from '@/core';
+
+type CiSliderKey = 'ciEnergy' | 'ciRecovery' | 'ciSleep' | 'ciConfidence' | 'ciSoreness' | 'ciMotivation';
+
+export interface Actions {
+  // onboarding
+  obNext: () => void;
+  obBack: () => void;
+  finishOb: () => void;
+  setRole: (r: Role) => void;
+  toggleInvite: (k: string) => void;
+  toggleFocus: (k: string) => void;
+  toggleTrack: (k: CoachTrackKey) => void;
+  setName: (v: string) => void;
+  setEmail: (v: string) => void;
+  setLevel: (l: string) => void;
+  setSport: (s: string) => void;
+  setPosition: (p: string) => void;
+  toggleGoal: (g: string) => void;
+  setBaseGoal: (g: BaseGoal) => void;
+  setCompMode: (m: CompMode) => void;
+  hStep: (d: number) => void;
+  bwStep: (d: number) => void;
+  ageStep: (d: number) => void;
+  startSignin: () => void;
+  exitSignin: () => void;
+  signinDone: () => void;
+
+  // nav
+  setTab: (t: Tab) => void;
+  goHome: () => void;
+  goTasks: () => void;
+  goSquad: () => void;
+  goCheckin: () => void;
+  goProfile: () => void;
+  goNutrition: () => void;
+  setSquadMode: (m: SquadMode) => void;
+  toggleNotif: () => void;
+  goalStep: (d: number) => void;
+  signOut: () => void;
+
+  // overlays
+  openMeal: () => void;
+  closeMeal: () => void;
+  setMealType: (m: MealLabel) => void;
+  capture: () => void;
+  addMeal: () => void;
+  addWater: () => void;
+  openMealDetail: (meal: string) => void;
+  closeMealDetail: () => void;
+  toggleQuick: (i: number) => void;
+  openPerson: (p: PersonDetail) => void;
+  closePerson: () => void;
+  openAccount: () => void;
+  closeAccount: () => void;
+  openMsg: () => void;
+  closeMsg: () => void;
+  setMsgDraft: (v: string) => void;
+  sendMsg: () => void;
+  openNotif: () => void;
+  closeNotif: () => void;
+  setMealDesc: (v: string) => void;
+  setChatDraft: (v: string) => void;
+  sendChat: () => void;
+
+  // role entry
+  enterCoach: () => void;
+  enterParent: () => void;
+  enterTrainer: () => void;
+
+  // tasks
+  toggleTask: (id: number) => void;
+
+  // check-in
+  wStep: (d: number) => void;
+  setCi: (key: CiSliderKey, value: number) => void;
+  toggleCiQ: (k: keyof CiConfig) => void;
+  submitCi: () => void;
+
+  // dev
+  resetDemo: () => void;
+}
+
+export type Store = AppState & Actions;
+
+let mealTimer: ReturnType<typeof setTimeout> | undefined;
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+export const useStore = create<Store>()(
+  persist(
+    (set, get) => ({
+      ...createInitialState(),
+
+      // ---- onboarding ----
+      obNext: () => set((s) => ({ obStep: s.obStep + 1 })),
+      obBack: () => set((s) => ({ obStep: Math.max(0, s.obStep - 1) })),
+      finishOb: () => {
+        const r = get().role ?? 'athlete';
+        if (r === 'parent') set({ flow: 'parent' });
+        else if (r === 'coach') set({ flow: 'coach' });
+        else if (r === 'trainer') set({ flow: 'trainer' });
+        else set({ flow: 'app', tab: 'home' });
+      },
+      setRole: (r) => set({ role: r }),
+      toggleInvite: (k) =>
+        set((s) => ({ inviteWho: s.inviteWho.includes(k) ? s.inviteWho.filter((x) => x !== k) : [...s.inviteWho, k] })),
+      toggleFocus: (k) =>
+        set((s) => ({ parentFocus: s.parentFocus.includes(k) ? s.parentFocus.filter((x) => x !== k) : [...s.parentFocus, k] })),
+      toggleTrack: (k) => set((s) => ({ coachTrack: { ...s.coachTrack, [k]: !s.coachTrack[k] } })),
+      setName: (v) => set({ athleteName: v }),
+      setEmail: (v) => set({ athleteEmail: v }),
+      setLevel: (l) => set({ level: l }),
+      setSport: (sp) => set({ sport: sp, position: null }),
+      setPosition: (p) => set({ position: p }),
+      toggleGoal: (g) =>
+        set((s) => ({ goals: s.goals.includes(g) ? s.goals.filter((x) => x !== g) : [...s.goals, g] })),
+      setBaseGoal: (g) => set({ baseGoal: g }),
+      setCompMode: (m) => set({ compMode: m }),
+      hStep: (d) => set((s) => ({ baseHeight: clamp(s.baseHeight + d, 54, 84) })),
+      bwStep: (d) => set((s) => ({ baseWeight: clamp(s.baseWeight + d, 70, 350) })),
+      ageStep: (d) => set((s) => ({ baseAge: clamp(s.baseAge + d, 8, 24) })),
+      startSignin: () => set({ signinMode: true }),
+      exitSignin: () => set({ signinMode: false }),
+      signinDone: () => set({ signinMode: false, flow: 'app', tab: 'home' }),
+
+      // ---- nav ----
+      setTab: (t) => set({ tab: t }),
+      goHome: () => set({ flow: 'app', tab: 'home' }),
+      goTasks: () => set({ tab: 'tasks' }),
+      goSquad: () => set({ tab: 'squad' }),
+      goCheckin: () => set({ flow: 'app', tab: 'checkin', ciStage: 'open' }),
+      goProfile: () => set({ flow: 'app', tab: 'profile' }),
+      goNutrition: () => set({ flow: 'app', tab: 'nutrition' }),
+      setSquadMode: (m) => set({ squadMode: m }),
+      toggleNotif: () => set((s) => ({ notif: !s.notif })),
+      goalStep: (d) => set((s) => ({ weeklyGoalLb: +clamp(s.weeklyGoalLb + d, 0.5, 2).toFixed(1) })),
+      signOut: () => set({ flow: 'onboarding', obStep: 0, role: null, accountOpen: false }),
+
+      // ---- overlays ----
+      openMeal: () => set({ mealOpen: true, mealStage: 'capture' }),
+      closeMeal: () => set({ mealOpen: false }),
+      setMealType: (m) => set({ mealType: m }),
+      capture: () => {
+        set({ mealStage: 'analyzing' });
+        if (mealTimer) clearTimeout(mealTimer);
+        mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);
+      },
+      addMeal: () =>
+        set((s) => {
+          const key = (s.mealType || 'Dinner').toLowerCase() as keyof typeof s.meals;
+          const meals = { ...s.meals, [key]: true };
+          const tasks = s.tasks.map((x) => (x.id === 3 && key === 'dinner' ? { ...x, done: true } : x));
+          return { mealOpen: false, mealStage: 'capture', meals, tasks };
+        }),
+      addWater: () =>
+        set((s) => {
+          const h = Math.min(HYDRATION_TARGET, +(s.hydrationL + 0.3).toFixed(1));
+          const tasks = s.tasks.map((x) => (x.id === 4 ? { ...x, done: h >= 3.7 } : x));
+          return { hydrationL: h, tasks };
+        }),
+      openMealDetail: (meal) => set({ mealDetailOpen: true, selectedMeal: meal }),
+      closeMealDetail: () => set({ mealDetailOpen: false }),
+      toggleQuick: (i) =>
+        set((s) => {
+          const q = [...s.quickAdded];
+          q[i] = !q[i];
+          return { quickAdded: q };
+        }),
+      openPerson: (p) => set({ personDetail: p }),
+      closePerson: () => set({ personDetail: null }),
+      openAccount: () => set({ accountOpen: true }),
+      closeAccount: () => set({ accountOpen: false }),
+      openMsg: () => set({ msgOpen: true }),
+      closeMsg: () => set({ msgOpen: false }),
+      setMsgDraft: (v) => set({ msgDraft: v }),
+      sendMsg: () =>
+        set((s) => {
+          const t = (s.msgDraft || '').trim();
+          if (!t) return {};
+          return { msgThread: [...s.msgThread, { who: 'me', text: t }], msgDraft: '' };
+        }),
+      openNotif: () => set({ notifOpen: true }),
+      closeNotif: () => set({ notifOpen: false }),
+      setMealDesc: (v) => set({ mealDesc: v }),
+      setChatDraft: (v) => set({ chatDraft: v }),
+      sendChat: () =>
+        set((s) => {
+          const t = (s.chatDraft || '').trim();
+          if (!t) return {};
+          return { mealChat: [...s.mealChat, { who: 'athlete', text: t }], chatDraft: '' };
+        }),
+
+      // ---- role entry ----
+      enterCoach: () => set({ flow: 'coach' }),
+      enterParent: () => set({ flow: 'parent' }),
+      enterTrainer: () => set({ flow: 'trainer' }),
+
+      // ---- tasks ----
+      toggleTask: (id) =>
+        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) })),
+
+      // ---- check-in ----
+      wStep: (d) => set((s) => ({ ciWeight: s.ciWeight + d })),
+      setCi: (key, value) => set({ [key]: value } as Partial<AppState>),
+      toggleCiQ: (k) => set((s) => ({ ciConfig: { ...s.ciConfig, [k]: !s.ciConfig[k] } })),
+      submitCi: () => set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight })),
+
+      // ---- dev ----
+      resetDemo: () => set({ ...createInitialState() }),
+    }),
+    {
+      name: 'aos_day',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Persist only the day/check-in slice, like the prototype.
+      partialize: (s) => ({
+        meals: s.meals,
+        hydrationL: s.hydrationL,
+        tasks: s.tasks,
+        quickAdded: s.quickAdded,
+        ciSubmitted: s.ciSubmitted,
+        ciWeight: s.ciWeight,
+        currentWeight: s.currentWeight,
+        ciEnergy: s.ciEnergy,
+        ciRecovery: s.ciRecovery,
+        ciSleep: s.ciSleep,
+        ciConfidence: s.ciConfidence,
+        visibility: s.visibility,
+        notif: s.notif,
+      }),
+    },
+  ),
+);
