@@ -12,19 +12,55 @@ Each job must end with the app still compiling (`tsc --noEmit`), tests passing
   without a clear need. Never break the two-layer discipline (pure core vs UI).
 - AI features are deterministic simulations for now (no API keys). Keep them offline.
 
-## QC findings to fix FIRST (from a live web walkthrough, 2026-06-21)
-These were found by actually running the app and clicking every screen — prioritize them.
-1. **Nutrition screen is unreachable.** `src/screens/athlete/Nutrition.tsx` is fully built
-   but nothing navigates to it — the bottom tab bar is Home · Plan · [Camera FAB] · Squad ·
-   Check-In, and `goNutrition` is never called. Give Nutrition a real entry point. The design
-   handoff's athlete bar was **Home · Plan · [FAB] · Nutrition · Squad** with Check-In reached
-   from the Home banner. Reconcile the navigation to match the handoff so Nutrition is reachable
-   AND Check-In still has an entry. Verify by rendering, not just compiling.
-2. **Web dev warning: `collapsable={false}` leaks to the DOM** via react-native-web, throwing
-   a red dev error toast on the web preview ("Received `false` for a non-boolean attribute
-   `collapsable`"). Harmless on native, but it muddies the web QC. Track down the source
-   (likely an Animated/SVG wrapper — check `src/ui/Ring.tsx`) and stop passing `collapsable`
-   on web, or filter it at a shared wrapper. Must not change native behavior.
+## ⭐ THIS SESSION'S FOCUS: UX / UI DESIGN
+This session is a **design polish pass**, not a feature/logic session. The scoring/logic
+is solid (140 tests). Rank UX/UI jobs above everything else below. The bar is high — the
+founder has zero tolerance for generic "AI-slop" design. Make it feel hand-crafted and
+faithful to the handoff.
+
+**Ground every change in the source of truth.** The original high-fidelity design lives at
+`../athleteos-design-ref/design_handoff_athleteos/` — `README.md` (full design tokens:
+colors, the type scale, radii, the standard/elevated/CTA shadows, the animation list) and
+the per-screen `.dc.html` files (`AthleteOS.dc.html`, the dashboards). READ the relevant
+handoff file before touching a screen. Refine **toward** the handoff — do NOT invent a new
+visual language or restyle wholesale.
+
+**Use the design skills.** Invoke `frontend-design` and/or `impeccable` for principled
+decisions (hierarchy, spacing rhythm, motion, contrast) — don't eyeball it.
+
+**High-value UX/UI jobs (pick the sharpest each cycle):**
+1. **Fidelity pass, screen by screen** vs the handoff: spacing rhythm, type scale/weights,
+   color/token usage, corner radii, shadow tiers, copy. Fix drift. One screen per job.
+2. **Motion the README specifies but the app is missing:** score-ring draw (`aos-ring`),
+   bar grow, overlay slide-up (`aos-up`), meal scan-line (`aos-scan`), spinner, subtle
+   pulse. Use `Animated`; respect reduce-motion. (ProgressBar + Ring already animate — extend
+   the pattern to overlays, the meal-capture scan, etc.)
+3. **Micro-interactions:** press/active states on every tappable, `expo-haptics` on key
+   taps (log meal, complete task, submit), smooth tab/overlay transitions.
+4. **Empty & edge states:** zero meals logged, all tasks done, score at 100 / at the floor,
+   a brand-new athlete (no history). Make each intentional, not blank.
+5. **Accessibility:** hit targets ≥44px, text contrast vs tokens, `accessibilityLabel` on
+   icon-only buttons, tolerate larger system font sizes without clipping.
+6. **Tokenize & unify:** replace any stray inline hex/spacing with `src/ui/tokens`; improve
+   shared primitives in `src/ui` so polish propagates to every screen (prefer this over
+   per-screen one-offs).
+7. **Polish the role views + overlays too** (Coach/Parent/Trainer, Meal Detail, Messages,
+   Notifications, Person Detail), not just the athlete tabs.
+
+**Specific open items to fold in:**
+- **Refresh logs you out.** `flow`/`role` aren't persisted, so a reload returns to Welcome.
+  Persist enough session state (flow + role + onboarding identity) so a reload keeps the
+  user where they were. (Good UX win.)
+- **Web dev warning `collapsable={false}`** leaks to the DOM via react-native-web (red dev
+  toast on web preview only; harmless on native). Track down the source (Animated/SVG
+  wrapper) and stop passing it on web. Must not change native behavior.
+
+**Design-session guardrails (because the crew can't SEE the render):**
+- Keep changes **small, tokenized, and reversible** — one screen/primitive per commit.
+- Never break routing (`app/_layout.tsx` + `app/index.tsx`, no `src/app/`), keep `tsc`,
+  `jest`, and `expo export` green every commit.
+- In the `NIGHTSHIFT-LOG.md` entry, describe **what changed visually and on which screen**
+  so the human can QC it quickly with a browser pass.
 
 ## Phase 2 backlog (highest value first)
 
