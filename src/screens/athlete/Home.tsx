@@ -7,6 +7,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 import {
   aiInsight,
   DEFAULT_CHART_BOX,
+  HYDRATION_TARGET,
   recentDayLabels,
   seasonGoalProgress,
   seededHistory,
@@ -201,10 +202,10 @@ export function Home() {
         <Txt w="eb" size={16} ls={-0.3} style={{ marginBottom: 18 }}>
           Today's Progress
         </Txt>
-        <ProgressRow label="Protein" meta={`${d.proteinToday} / 180g`} pct={d.proteinPct} color={colors.accent} />
-        <ProgressRow label="Hydration" meta={`${s.hydrationL} / 3.8 L  +`} metaColor={colors.accent} onMeta={s.addWater} pct={d.hydrationPct} color={colors.hydration} />
+        <ProgressRow label="Protein" meta={`${d.proteinToday} / ${d.proteinTarget}g`} pct={d.proteinPct} color={colors.accent} />
+        <ProgressRow label="Hydration" meta={`${s.hydrationL} / ${HYDRATION_TARGET} L  +`} metaColor={colors.accent} onMeta={s.addWater} pct={d.hydrationPct} color={colors.hydration} />
         <ProgressRow label="Tasks" meta={`${d.tasksDone} / ${d.tasksTotal} done`} pct={d.tasksScore} color={colors.accent} />
-        <ProgressRow label="Recovery" meta={`${s.ciSleep.toFixed(1)} / 8.5 hrs sleep`} pct={d.recoveryScore} color={colors.success} last />
+        <ProgressRow label="Recovery" meta={`${d.recoveryScore} / 100`} pct={d.recoveryScore} color={colors.success} last />
       </Card>
 
       {/* nutrition entry */}
