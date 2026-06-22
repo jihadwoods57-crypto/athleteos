@@ -1,7 +1,7 @@
 // AthleteOS — Meal capture overlay: capture → analyzing (~2.3s) → result.
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, ScrollView, View } from 'react-native';
-import { mealResultFor } from '@/core';
+import { mealResultFor, qualityLabel } from '@/core';
 import type { MealLabel } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
@@ -176,16 +176,23 @@ function Spinner() {
 
 function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void }) {
   const mr = mealResultFor(mealType);
-  const excellent = mr.quality >= 90;
+  const q = qualityLabel(mr.quality);
+  // Map the pure tone token-name to the badge color pair. (No warningSurface token
+  // exists in tokens.ts; amber-50 #FEF3C7 mirrors the alert/accent surface lightness.)
+  const tone = {
+    success: { bg: colors.successSurface, fg: colors.successDeep },
+    accent: { bg: colors.accentSurface, fg: colors.accent },
+    warning: { bg: '#FEF3C7', fg: colors.warningDeep },
+  }[q.tone];
   return (
     <View>
       <Row style={{ justifyContent: 'space-between', marginTop: 18 }}>
         <Txt w="eb" size={20} ls={-0.3} style={{ flex: 1 }}>
           {mr.name}
         </Txt>
-        <View style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: excellent ? colors.successSurface : colors.accentSurface }}>
-          <Txt w="eb" size={11} color={excellent ? colors.successDeep : colors.accent}>
-            {mr.quality} · EXCELLENT
+        <View style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: tone.bg }}>
+          <Txt w="eb" size={11} color={tone.fg}>
+            {mr.quality} · {q.label}
           </Txt>
         </View>
       </Row>

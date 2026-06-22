@@ -7,6 +7,7 @@ import {
   mealResultFor,
   MEAL_RESULTS,
   paceProjection,
+  qualityLabel,
 } from './content';
 import { computeDerived, gradeFor } from './scoring';
 import { createInitialState } from './defaultState';
@@ -23,6 +24,42 @@ describe('mealResultFor', () => {
 
   it('falls back to Dinner for an unknown label', () => {
     expect(mealResultFor('Brunch' as MealLabel)).toBe(MEAL_RESULTS.Dinner);
+  });
+});
+
+describe('qualityLabel', () => {
+  it('maps score boundaries to the right label + tone', () => {
+    expect(qualityLabel(94)).toEqual({ label: 'EXCELLENT', tone: 'success' });
+    expect(qualityLabel(90)).toEqual({ label: 'EXCELLENT', tone: 'success' });
+    expect(qualityLabel(89)).toEqual({ label: 'GOOD', tone: 'accent' });
+    expect(qualityLabel(80)).toEqual({ label: 'GOOD', tone: 'accent' });
+    expect(qualityLabel(79)).toEqual({ label: 'FAIR', tone: 'accent' });
+    expect(qualityLabel(70)).toEqual({ label: 'FAIR', tone: 'accent' });
+    expect(qualityLabel(69)).toEqual({ label: 'NEEDS WORK', tone: 'warning' });
+  });
+
+  it('returns a tone token-name (union string), never a hex color', () => {
+    [95, 85, 75, 50].forEach((v) => {
+      expect(['success', 'accent', 'warning']).toContain(qualityLabel(v).tone);
+      expect(qualityLabel(v).tone).not.toMatch(/^#/);
+    });
+  });
+
+  it('89 reads GOOD, not EXCELLENT (the original badge bug)', () => {
+    const q = qualityLabel(89);
+    expect(q.label).toBe('GOOD');
+    expect(q.label).not.toBe('EXCELLENT');
+  });
+
+  it('grants the success tone over MEAL_RESULTS exactly when (iff) the entry scores >= 90', () => {
+    Object.values(MEAL_RESULTS).forEach((r) => {
+      expect(qualityLabel(r.quality).tone === 'success').toBe(r.quality >= 90);
+    });
+    // Current seed pins: Breakfast 90 / Lunch 92 / Dinner 94 → success; Snack 89 → accent.
+    expect(qualityLabel(MEAL_RESULTS.Breakfast.quality).tone).toBe('success');
+    expect(qualityLabel(MEAL_RESULTS.Lunch.quality).tone).toBe('success');
+    expect(qualityLabel(MEAL_RESULTS.Dinner.quality).tone).toBe('success');
+    expect(qualityLabel(MEAL_RESULTS.Snack.quality)).toEqual({ label: 'GOOD', tone: 'accent' });
   });
 });
 

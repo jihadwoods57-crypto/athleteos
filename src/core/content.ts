@@ -115,6 +115,25 @@ export function mealResultFor(mealType: MealLabel): MealResult {
   return MEAL_RESULTS[mealType] ?? MEAL_RESULTS.Dinner;
 }
 
+/** Tone token-name for a quality badge — the UI maps it to color tokens (never a hex). */
+export type QualityTone = 'success' | 'accent' | 'warning';
+export interface QualityLabel {
+  label: string;
+  tone: QualityTone;
+}
+
+/**
+ * Map a 0..100 meal-quality score to its badge label + tone so the word the badge
+ * shows always tracks the number (89 must read GOOD, not EXCELLENT). Pure: returns a
+ * tone token-NAME, never a color value, so it stays RN-import-free in src/core.
+ */
+export function qualityLabel(quality: number): QualityLabel {
+  if (quality >= 90) return { label: 'EXCELLENT', tone: 'success' };
+  if (quality >= 80) return { label: 'GOOD', tone: 'accent' };
+  if (quality >= 70) return { label: 'FAIR', tone: 'accent' };
+  return { label: 'NEEDS WORK', tone: 'warning' };
+}
+
 /** One row of the Nutrition "Today's Meals" list — logged data or a log-next prompt. */
 export interface MealRow {
   key: MealKey;
