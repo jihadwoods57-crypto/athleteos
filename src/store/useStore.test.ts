@@ -66,10 +66,14 @@ describe('toggleTask', () => {
     const before = derived();
     expect(before.tasksDone).toBe(3); // protein task (id 2) not done: 142 < 180
 
-    useStore.getState().toggleTask(3); // mark "Log dinner" done
+    // Use a NON-drift-proofed task. ids 2 (protein) and 3 (dinner) derive their
+    // done-state in computeDerived from logged reality, so toggling their stored
+    // flag no longer moves the derived count. id 6 ("10 min mobility") starts done
+    // and reads straight from the stored flag, so flipping it off drops the count.
+    useStore.getState().toggleTask(6); // mark "10 min mobility" undone
     const after = derived();
-    expect(after.tasksDone).toBe(4);
-    expect(after.tasksScore).toBeGreaterThan(before.tasksScore);
+    expect(after.tasksDone).toBe(2);
+    expect(after.tasksScore).toBeLessThan(before.tasksScore);
   });
 
   it('is reversible', () => {

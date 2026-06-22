@@ -79,16 +79,16 @@ describe('protein task (id 2) couples to PROTEIN_TARGET (drift-proof, not seeded
     expect(d.tasksScore).toBe(50);
   });
 
-  it('over target (dinner logged, 194 >= 180): id 2 counts done, tasksDone +1, score rises', () => {
+  it('over target (dinner logged, 194 >= 180): id 2 + id 3 count done, tasksDone +2, score rises', () => {
     const s = createInitialState();
     const under = computeDerived(s);
     const over = computeDerived({ ...s, meals: { ...s.meals, dinner: true } } as AppState);
     expect(over.proteinToday).toBe(194);
     expect(over.proteinToday).toBeGreaterThanOrEqual(over.proteinTarget);
-    // computeDerived overrides ONLY id 2 from protein; the id 3 "Log dinner" flip
-    // lives in the store action (raw s.tasks), not in core. So pure computeDerived
-    // over a dinner-logged state moves tasksDone 3 -> 4 (just the protein task).
-    expect(over.tasksDone).toBe(4);
+    // computeDerived derives BOTH drift-proofed tasks in core: id 2 from protein
+    // (194 >= 180) AND id 3 "Log dinner" from s.meals.dinner. So pure computeDerived
+    // over a dinner-logged state moves tasksDone 3 -> 5 (protein + dinner tasks).
+    expect(over.tasksDone).toBe(5);
     expect(over.tasksScore).toBeGreaterThan(under.tasksScore);
     expect(over.athleteScore).toBeGreaterThan(under.athleteScore);
   });
@@ -127,6 +127,98 @@ describe('protein task (id 2) couples to PROTEIN_TARGET (drift-proof, not seeded
     const atOrOver = computeDerived({ ...s, quickAdded: [true, false, true] } as AppState); // 182
     expect(atOrOver.proteinToday).toBeGreaterThanOrEqual(atOrOver.proteinTarget);
     expect(atOrOver.tasksDone).toBe(under.tasksDone + 1);
+  });
+});
+
+describe('Log dinner task (id 3) derives from meals.dinner (drift-proof)', () => {
+  const id3Flag = (s: AppState) => s.tasks.find((t) => t.id === 3)?.done;
+
+  it('(a) dinner true + stored id 3 done=false still counts id 3 as done (row derives, not reads flag)', () => {
+    const s = createInitialState();
+    // Pin id 2 done in BOTH baseline and dinner state via a quick-add crossing 180,
+    // so the ONLY thing toggling dinner moves is id 3 (tasksDone exactly +1).
+    const baseNoDinner = { ...s, quickAdded: [true, false, true] } as AppState; // protein 182
+    const withDinner = {
+      ...baseNoDinner,
+      meals: { ...s.meals, dinner: true }, // protein 182 + 52 = 234, id 2 already done
+    } as AppState;
+
+    // Stored task-3 flag is false the whole time (default) — prove derivation, not read.
+    expect(id3Flag(baseNoDinner)).toBe(false);
+    expect(id3Flag(withDinner)).toBe(false);
+
+    const before = computeDerived(baseNoDinner);
+    const after = computeDerived(withDinner);
+    expect(before.proteinToday).toBeGreaterThanOrEqual(before.proteinTarget); // id 2 done in both
+    expect(after.proteinToday).toBeGreaterThanOrEqual(after.proteinTarget);
+    // Only id 3 moved: exactly +1 over the dinner-false baseline.
+    expect(after.tasksDone).toBe(before.tasksDone + 1);
+    expect(after.tasksScore).toBeGreaterThan(before.tasksScore);
+  });
+
+  it('(b) dinner false + stored id 3 done=true is NOT counted (stored flag is ignored, score drops)', () => {
+    const s2 = {
+      ...createInitialState(),
+      tasks: createInitialState().tasks.map((t) => (t.id === 3 ? { ...t, done: true } : t)),
+    } as AppState; // meals.dinner stays false (default)
+    expect(s2.meals.dinner).toBe(false);
+    expect(id3Flag(s2)).toBe(true); // stored flag lies "done"
+
+    const d2 = computeDerived(s2);
+    const dDefault = computeDerived(createInitialState());
+    // The stored true flag is ignored because dinner is false -> same counts as default.
+    expect(d2.tasksDone).toBe(dDefault.tasksDone);
+    expect(d2.tasksDone).toBe(3);
+    expect(d2.tasksScore).toBe(50);
+
+    // Control: flip dinner true on the same state -> id 3 now counts, score rises.
+    const control = computeDerived({ ...s2, meals: { ...s2.meals, dinner: true } } as AppState);
+    expect(control.tasksScore).toBeGreaterThan(d2.tasksScore);
+  });
+
+  it('(c) id 2 (protein) and id 3 (dinner) derive independently', () => {
+    const s = createInitialState();
+    // dinner false + protein < 180 -> neither id 2 nor id 3 counted (tasksDone 3).
+    const neither = computeDerived(s);
+    expect(neither.proteinToday).toBeLessThan(neither.proteinTarget);
+    expect(s.meals.dinner).toBe(false);
+    expect(neither.tasksDone).toBe(3);
+
+    // protein >= 180 (quick-add) but dinner false -> ONLY id 2 counts (tasksDone 4).
+    const onlyProtein = computeDerived({ ...s, quickAdded: [true, false, true] } as AppState); // 182
+    expect(onlyProtein.proteinToday).toBeGreaterThanOrEqual(onlyProtein.proteinTarget);
+    expect(onlyProtein.tasksDone).toBe(4);
+
+    // dinner true but protein < 180 -> id 2 NOT counted, id 3 counted.
+    // Zero the other protein-bearing meals so proteinToday stays under target even
+    // with dinner logged (dinner alone = 52g < 180). id 1 "Log breakfast" stored-done
+    // is unaffected here (it is not drift-proofed), so it stays counted.
+    const onlyDinner = computeDerived({
+      ...s,
+      meals: { breakfast: false, lunch: false, snack: false, dinner: true },
+    } as AppState);
+    expect(onlyDinner.proteinToday).toBeLessThan(onlyDinner.proteinTarget); // id 2 not done
+    // Stored-done tasks unaffected by drift-proofing: id 1, id 5, id 6 = 3; plus
+    // derived id 3 (dinner) = 4. id 2 stays not-done (protein under target).
+    expect(onlyDinner.tasksDone).toBe(4);
+  });
+
+  it('does not mutate s.tasks (id 3 flag) or s.meals.dinner after computeDerived', () => {
+    const s = createInitialState();
+    const beforeFlag = s.tasks.find((t) => t.id === 3)?.done;
+    const beforeDinner = s.meals.dinner;
+    computeDerived({ ...s, meals: { ...s.meals, dinner: true } } as AppState);
+    // The original state object is untouched (we passed a shallow copy with a fresh meals).
+    expect(s.tasks.find((t) => t.id === 3)?.done).toBe(beforeFlag);
+    expect(s.meals.dinner).toBe(beforeDinner);
+    expect(beforeFlag).toBe(false);
+    expect(beforeDinner).toBe(false);
+
+    // Also assert in-place: passing s directly does not flip its stored flags.
+    const direct = createInitialState();
+    computeDerived(direct);
+    expect(direct.tasks.find((t) => t.id === 3)?.done).toBe(false);
+    expect(direct.meals.dinner).toBe(false);
   });
 });
 

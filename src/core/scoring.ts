@@ -62,12 +62,17 @@ export function computeDerived(s: AppState): Derived {
   const proteinPct = Math.min(100, Math.round((proteinToday / PROTEIN_TARGET) * 100));
   const hydrationPct = clamp(Math.round((s.hydrationL / HYDRATION_TARGET) * 100), 0, 100);
 
-  // Drift-proof: the "Hit 180g protein" task (id 2) must reflect logged protein,
-  // never a stored flag. Override its done state from the already-computed
-  // proteinToday so the row can't lie regardless of which action last fired.
-  const effectiveTasks = s.tasks.map((t) =>
-    t.id === 2 ? { ...t, done: proteinToday >= PROTEIN_TARGET } : t,
-  );
+  // Drift-proof: two tasks must reflect derived day-state, never a stored flag,
+  // so the row can't lie regardless of which action last fired.
+  //   id 2 "Hit 180g protein" -> done from the already-computed proteinToday.
+  //   id 3 "Log dinner"        -> done from s.meals.dinner.
+  // Non-mutating: spread a fresh task object for each override; s.tasks/s.meals
+  // are never written.
+  const effectiveTasks = s.tasks.map((t) => {
+    if (t.id === 2) return { ...t, done: proteinToday >= PROTEIN_TARGET };
+    if (t.id === 3) return { ...t, done: Boolean(s.meals.dinner) };
+    return t;
+  });
   const tasksDone = effectiveTasks.filter((t) => t.done).length;
   const tasksTotal = effectiveTasks.length;
 
