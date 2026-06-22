@@ -169,11 +169,17 @@ export function mealRowsFor(state: AppState): MealRow[] {
   });
 }
 
-/** Reactive Home insight — flips once dinner is logged. */
+/** Reactive Home insight — celebrates only when the day is genuinely complete. */
 export function aiInsight(state: AppState, derived: Derived): string {
-  return state.meals.dinner
-    ? 'Day complete — every meal logged and protein over target. This is what an A week looks like; keep the streak alive.'
-    : `Protein and recovery are tracking well. You’re ${derived.proteinGap}g from your protein target — log dinner to close the day at an A.`;
+  const dayComplete =
+    derived.mealsLoggedCount === 4 && derived.proteinToday >= derived.proteinTarget;
+  if (dayComplete) {
+    return 'Day complete — every meal logged and protein over target. This is what an A week looks like; keep the streak alive.';
+  }
+  const close = state.meals.dinner
+    ? 'log your remaining meals to close the day at an A.'
+    : 'log dinner to close the day at an A.';
+  return `Protein and recovery are tracking well. You’re ${derived.proteinGap}g from your protein target — ${close}`;
 }
 
 export interface PaceProjection {
