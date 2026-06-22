@@ -145,6 +145,90 @@ describe('recordDayScore — logs the prior day before reset', () => {
   });
 });
 
+describe('ciConfig persistence — archived score uses the answered questions, not defaults', () => {
+  // Prior-day snapshot with a COACH-CUSTOMIZED ciConfig: only energy + sleep enabled.
+  // The enabled-only set {energy, sleep} differs from the default enabled set
+  // {energy, recovery, sleep, confidence}, so the recovery sub-score (and thus the
+  // archived athleteScore) differs depending on which ciConfig is in effect.
+  function customConfigPreRoll(): AppState {
+    return {
+      ...createInitialState(),
+      dateStamp: '2026-06-20',
+      scoreHistory: [],
+      ciSubmitted: true,
+      ciEnergy: 2,
+      ciRecovery: 3,
+      ciSleep: 1,
+      ciConfidence: 2,
+      ciSoreness: 9,
+      ciMotivation: 1,
+      ciConfig: { energy: true, sleep: true, recovery: false, confidence: false, soreness: false, motivation: false },
+    };
+  }
+
+  it('archives the prior-day score computed against the PERSISTED (custom) ciConfig', () => {
+    const preRoll = customConfigPreRoll();
+    const expected = computeDerived(preRoll).athleteScore;
+    const hist = recordDayScore(preRoll, TODAY);
+    expect(hist).toHaveLength(1);
+    expect(hist[0].date).toBe('2026-06-20');
+    expect(hist[0].score).toBe(expected);
+  });
+
+  it('control: same answers under the DEFAULT ciConfig yield a different score (documents the bug)', () => {
+    const expected = computeDerived(customConfigPreRoll()).athleteScore;
+    const preRollDefault: AppState = { ...customConfigPreRoll(), ciConfig: createInitialState().ciConfig };
+    const defaultScore = computeDerived(preRollDefault).athleteScore;
+    // If ciConfig were dropped from persistence, merge would archive `defaultScore` —
+    // the wrong number. Proving they differ proves the persisted config is load-bearing.
+    expect(expected).not.toBe(defaultScore);
+  });
+
+  it('merge path: archived entry uses custom config AND ciConfig survives rollDayIfStale', () => {
+    // Persisted slice as partialize would write it (now including ciConfig), stamped prior day.
+    const customConfig = { energy: true, sleep: true, recovery: false, confidence: false, soreness: false, motivation: false };
+    const p: Partial<AppState> = {
+      dateStamp: '2026-06-20',
+      scoreHistory: [],
+      meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+      hydrationL: 3.8,
+      quickAdded: [true, true, true],
+      tasks: createInitialState().tasks.map((t) => ({ ...t, done: true })),
+      ciStage: 'done',
+      ciSubmitted: true,
+      ciEnergy: 2,
+      ciRecovery: 3,
+      ciSleep: 1,
+      ciConfidence: 2,
+      ciSoreness: 9,
+      ciMotivation: 1,
+      ciWeight: 190,
+      currentWeight: 190,
+      visibility: 'coach',
+      notif: false,
+      ciConfig: customConfig,
+    };
+
+    // Mirrors store.merge: recordDayScore({ ...current, ...p }, today) then rollDayIfStale(p, today).
+    const preRoll = { ...createInitialState(), ...p } as AppState;
+    const expected = computeDerived(preRoll).athleteScore;
+    const scoreHistory = recordDayScore(preRoll, TODAY);
+    const rolled = rollDayIfStale(p, TODAY);
+
+    expect(scoreHistory).toHaveLength(1);
+    expect(scoreHistory[0]).toEqual({ date: '2026-06-20', score: expected });
+
+    // ciConfig is a cross-day coach setting: it must SURVIVE rollover, not reset.
+    expect(rolled.ciConfig).toEqual(customConfig);
+
+    // Day fields still reset alongside the surviving config.
+    const init = createInitialState();
+    expect(rolled.ciSubmitted).toBe(false);
+    expect(rolled.meals).toEqual(init.meals);
+    expect(rolled.dateStamp).toBe(TODAY);
+  });
+});
+
 describe('rollDayIfStale — missing stamp is treated as stale (criterion 5)', () => {
   it('resets day fields and stamps today for a legacy blob', () => {
     const init = createInitialState();

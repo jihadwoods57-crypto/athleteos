@@ -17,9 +17,11 @@ export function todayStamp(now: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-/** The day-level fields reset on rollover. Kept in sync with the store's partialize
- *  whitelist so a field that resets here is also one that persists. ciWeight is handled
- *  specially (seeded from currentWeight); currentWeight is a cross-day field, not here. */
+/** The day-level fields reset on rollover. The invariant is one-directional: every key
+ *  that resets here MUST also be persisted in the store's partialize whitelist — but not
+ *  every persisted key resets here. Cross-day settings persist yet are intentionally
+ *  preserved across rollover (e.g. ciConfig, currentWeight, visibility, notif). ciWeight is
+ *  handled specially (seeded from currentWeight); currentWeight is a cross-day field, not here. */
 export const DAY_DEFAULT_KEYS = [
   'meals',
   'hydrationL',

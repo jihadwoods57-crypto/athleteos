@@ -276,6 +276,7 @@ export const useStore = create<Store>()(
         ciConfidence: s.ciConfidence,
         ciSoreness: s.ciSoreness,
         ciMotivation: s.ciMotivation,
+        ciConfig: s.ciConfig,
         visibility: s.visibility,
         notif: s.notif,
       }),
