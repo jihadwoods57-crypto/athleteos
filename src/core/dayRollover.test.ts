@@ -1,7 +1,8 @@
 // AthleteOS — calendar-day rollover tests. Pure, injected dates, no real clock.
 // Each case maps 1:1 to an acceptance criterion for the day-rollover fix.
-import { rollDayIfStale, todayStamp } from './dayRollover';
+import { recordDayScore, rollDayIfStale, todayStamp } from './dayRollover';
 import { createInitialState } from './defaultState';
+import { computeDerived } from './scoring';
 import type { AppState } from './types';
 
 const TODAY = '2026-06-21';
@@ -106,6 +107,41 @@ describe('rollDayIfStale — same-day preserved & idempotent (criterion 4)', () 
     expect(once).toBe(slice);
     const twice = rollDayIfStale(once, TODAY);
     expect(twice).toEqual(once);
+  });
+});
+
+describe('recordDayScore — logs the prior day before reset', () => {
+  it('appends the pre-roll day score, stamped with the prior date', () => {
+    const preRoll: AppState = { ...createInitialState(), dateStamp: '2026-06-20', scoreHistory: [] };
+    const expected = computeDerived(preRoll).athleteScore;
+    const hist = recordDayScore(preRoll, TODAY);
+    expect(hist).toEqual([{ date: '2026-06-20', score: expected }]);
+  });
+
+  it('preserves earlier history and grows it across rollovers', () => {
+    const preRoll: AppState = {
+      ...createInitialState(),
+      dateStamp: '2026-06-20',
+      scoreHistory: [{ date: '2026-06-19', score: 75 }],
+    };
+    const hist = recordDayScore(preRoll, TODAY);
+    expect(hist).toHaveLength(2);
+    expect(hist[0]).toEqual({ date: '2026-06-19', score: 75 });
+    expect(hist[1].date).toBe('2026-06-20');
+  });
+
+  it('does NOT log on the same day (no phantom score)', () => {
+    const preRoll: AppState = {
+      ...createInitialState(),
+      dateStamp: TODAY,
+      scoreHistory: [{ date: '2026-06-19', score: 75 }],
+    };
+    expect(recordDayScore(preRoll, TODAY)).toEqual([{ date: '2026-06-19', score: 75 }]);
+  });
+
+  it('does NOT log a brand-new install with no prior stamp', () => {
+    const preRoll = { ...createInitialState(), dateStamp: '', scoreHistory: [] } as AppState;
+    expect(recordDayScore(preRoll, TODAY)).toEqual([]);
   });
 });
 

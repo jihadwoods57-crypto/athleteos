@@ -70,6 +70,9 @@ export interface AppState {
 
   // ---- day ----
   dateStamp: string;
+  /** Rolling log of prior days' final scores (oldest -> newest), capped to the
+   *  last HISTORY_CAP days. Fed to the Home/role trend charts as real geometry. */
+  scoreHistory: DayScore[];
   meals: Meals;
   hydrationL: number;
   tasks: Task[];
@@ -113,6 +116,13 @@ export interface AppState {
   coachNote: string;
   mealChat: ChatMsg[];
   msgThread: ChatMsg[];
+}
+
+/** A single day's final accountability score, stamped with its local ISO date. */
+export interface DayScore {
+  /** ISO date (YYYY-MM-DD) the score is for. */
+  date: string;
+  score: number;
 }
 
 export interface PersonDetail {

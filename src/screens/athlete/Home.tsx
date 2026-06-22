@@ -10,8 +10,8 @@ import {
   HYDRATION_TARGET,
   recentDayLabels,
   seasonGoalProgress,
-  seededHistory,
   trendGeometry,
+  trendSeries,
   trendSummary,
 } from '@/core';
 import { useStore, useDerived } from '@/store';
@@ -26,8 +26,9 @@ export function Home() {
   const d = useDerived();
   const name = s.athleteName?.split(' ')[0] || 'Jihad';
 
-  // Real trend geometry from the score series (last point = today's live score).
-  const series = seededHistory(d.athleteScore);
+  // Real trend geometry: persisted prior-day scores + today's live score as the
+  // final point (seed pads the left only while real history is still filling up).
+  const series = trendSeries(s.scoreHistory, d.athleteScore);
   const trend = trendSummary(series);
   const dayLabels = recentDayLabels(series.length);
 

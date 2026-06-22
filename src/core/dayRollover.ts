@@ -3,8 +3,10 @@
 // tasks, check-in). On a new calendar day that data is stale and must reset to the
 // fresh day defaults, while cross-day fields (weight, prefs) survive. This file owns
 // the date stamp + the pure rollover used by the store on rehydrate.
-import type { AppState } from './types';
+import type { AppState, DayScore } from './types';
 import { createInitialState } from './defaultState';
+import { computeDerived } from './scoring';
+import { appendDayScore } from './history';
 
 /** Local-date ISO stamp (YYYY-MM-DD). Uses LOCAL parts, never toISOString/UTC, so
  *  it never shifts a day near midnight in negative-UTC zones. `now` injectable for tests. */
@@ -32,6 +34,19 @@ export const DAY_DEFAULT_KEYS = [
   'ciSoreness',
   'ciMotivation',
 ] as const;
+
+/**
+ * Record the prior day's final accountability score into history BEFORE the day
+ * slice resets. Called with the pre-roll full state (last session's day data).
+ * Only fires when the stamp is real and stale; same-day or a brand-new install
+ * (no stamp) leaves history untouched, so we never log a phantom score.
+ */
+export function recordDayScore(preRoll: AppState, todayIso: string): DayScore[] {
+  const history = preRoll.scoreHistory ?? [];
+  if (!preRoll.dateStamp || preRoll.dateStamp === todayIso) return history;
+  const score = computeDerived(preRoll).athleteScore;
+  return appendDayScore(history, preRoll.dateStamp, score);
+}
 
 function pick<T extends object, K extends keyof T>(src: T, keys: readonly K[]): Pick<T, K> {
   const out = {} as Pick<T, K>;

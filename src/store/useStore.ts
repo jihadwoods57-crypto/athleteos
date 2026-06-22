@@ -10,6 +10,7 @@ import {
   MEAL_MACROS,
   PROTEIN_TARGET,
   QUICK_FOODS,
+  recordDayScore,
   rollDayIfStale,
   todayStamp,
 } from '@/core';
@@ -260,6 +261,7 @@ export const useStore = create<Store>()(
       // Persist only the day/check-in slice, like the prototype.
       partialize: (s) => ({
         dateStamp: s.dateStamp,
+        scoreHistory: s.scoreHistory,
         meals: s.meals,
         hydrationL: s.hydrationL,
         tasks: s.tasks,
@@ -282,8 +284,13 @@ export const useStore = create<Store>()(
       // as-is. Cross-day fields (weight, prefs) survive. A brand-new install (no
       // persisted blob) is treated as stale and simply stamped with today.
       merge: (persisted, current) => {
-        const rolled = rollDayIfStale((persisted ?? {}) as Partial<AppState>, todayStamp());
-        return { ...current, ...rolled } as Store;
+        const p = (persisted ?? {}) as Partial<AppState>;
+        const today = todayStamp();
+        // Record the prior day's final score BEFORE the slice resets, using the
+        // full pre-roll state (persisted day data over current defaults).
+        const scoreHistory = recordDayScore({ ...current, ...p } as AppState, today);
+        const rolled = rollDayIfStale(p, today);
+        return { ...current, ...rolled, scoreHistory } as Store;
       },
     },
   ),

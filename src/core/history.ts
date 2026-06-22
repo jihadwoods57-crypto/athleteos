@@ -2,13 +2,9 @@
 // Turns a series of daily scores into the SVG geometry the Home/Parent/Coach
 // trend charts draw, replacing the prototype's hard-coded path. The live score
 // is the last point, so the chart reacts to today's accountability.
-import type { TrendDir } from './types';
+import type { DayScore, TrendDir } from './types';
 
-export interface DayScore {
-  /** ISO date (YYYY-MM-DD) the score is for. */
-  date: string;
-  score: number;
-}
+export type { DayScore } from './types';
 
 /** Chart drawing box, matching the prototype's TrendChart viewBox. */
 export interface ChartBox {
@@ -116,12 +112,58 @@ export function recentDayLabels(n: number, today: Date = new Date()): string[] {
   return out;
 }
 
+/** Most recent N days the trend chart shows (today + the prior days). */
+export const TREND_WINDOW = 7;
+
+/** How many days of real history we persist. The chart shows the last
+ *  TREND_WINDOW; we keep a little more so a longer view can reuse it later. */
+export const HISTORY_CAP = 14;
+
+/** Seeded lead-in used to pad the chart while real history is still filling up,
+ *  so a fresh install / early days still render a believable trend instead of a
+ *  flat line. Once HISTORY has TREND_WINDOW-1 real days, the seed drops out. */
+const SEEDED_LEAD = [82, 80, 83, 86, 88, 85];
+
 /**
- * Seeded demo history ending at the live score. Until real day-rollover
- * persistence lands, this gives the trend chart truthful geometry that still
- * reacts to today's score (the last point).
+ * Seeded demo history ending at the live score — kept for callers/tests that
+ * want a full synthetic series. Real callers should prefer `trendSeries`, which
+ * uses persisted history and only falls back to the seed when it's sparse.
  */
 export function seededHistory(liveScore: number): number[] {
-  const lead = [82, 80, 83, 86, 88, 85];
-  return [...lead, liveScore];
+  return [...SEEDED_LEAD, liveScore];
+}
+
+/**
+ * Append a day's final score to the rolling history, keyed by ISO date. A
+ * repeat of the same date overwrites (idempotent re-roll), the score is clamped
+ * to 0..100 and rounded, and the result is capped to the last `cap` days.
+ */
+export function appendDayScore(
+  history: DayScore[],
+  date: string,
+  score: number,
+  cap: number = HISTORY_CAP,
+): DayScore[] {
+  const next = history.filter((h) => h.date !== date);
+  next.push({ date, score: clamp(Math.round(score), 0, 100) });
+  return next.slice(-cap);
+}
+
+/**
+ * Build the trend series the chart plots: the last `window-1` persisted days
+ * followed by today's live score as the final point. When real history is too
+ * short to fill the window, the seeded lead pads the left so the chart still
+ * reads as a trend rather than a stub.
+ */
+export function trendSeries(
+  history: DayScore[],
+  liveScore: number,
+  window: number = TREND_WINDOW,
+): number[] {
+  const past = history.map((h) => h.score).slice(-(window - 1));
+  const series = [...past, liveScore];
+  if (series.length >= window) return series;
+  const padCount = window - series.length;
+  const lead = SEEDED_LEAD.slice(Math.max(0, SEEDED_LEAD.length - padCount));
+  return [...lead, ...series];
 }

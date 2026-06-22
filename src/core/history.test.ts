@@ -1,12 +1,17 @@
 // AthleteOS — trend-chart geometry tests. The chart math is load-bearing (the UI
 // draws exactly these paths), so pin the projection, clamping, and trend summary.
 import {
+  appendDayScore,
   DEFAULT_CHART_BOX,
+  HISTORY_CAP,
   recentDayLabels,
   seededHistory,
   trendGeometry,
+  trendSeries,
   trendSummary,
+  TREND_WINDOW,
 } from './history';
+import type { DayScore } from './types';
 
 describe('trendGeometry — projection', () => {
   const box = DEFAULT_CHART_BOX;
@@ -112,5 +117,73 @@ describe('seededHistory', () => {
     const h = seededHistory(94);
     expect(h).toHaveLength(7);
     expect(h[6]).toBe(94);
+  });
+});
+
+describe('appendDayScore', () => {
+  it('appends a new dated, rounded, clamped score', () => {
+    const out = appendDayScore([], '2026-06-21', 87.6);
+    expect(out).toEqual([{ date: '2026-06-21', score: 88 }]);
+  });
+
+  it('clamps out-of-range scores to 0..100', () => {
+    expect(appendDayScore([], 'd', 130)[0].score).toBe(100);
+    expect(appendDayScore([], 'd', -5)[0].score).toBe(0);
+  });
+
+  it('overwrites a repeat of the same date (idempotent re-roll), keeping order', () => {
+    const seed: DayScore[] = [
+      { date: '2026-06-20', score: 80 },
+      { date: '2026-06-21', score: 70 },
+    ];
+    const out = appendDayScore(seed, '2026-06-21', 95);
+    expect(out).toHaveLength(2);
+    expect(out).toEqual([
+      { date: '2026-06-20', score: 80 },
+      { date: '2026-06-21', score: 95 },
+    ]);
+  });
+
+  it('caps the log to the last HISTORY_CAP days', () => {
+    let hist: DayScore[] = [];
+    for (let i = 0; i < HISTORY_CAP + 5; i++) {
+      hist = appendDayScore(hist, `day-${i}`, 50 + i);
+    }
+    expect(hist).toHaveLength(HISTORY_CAP);
+    // oldest five fell off; the window ends at the newest entry.
+    expect(hist[0].date).toBe('day-5');
+    expect(hist[hist.length - 1].date).toBe(`day-${HISTORY_CAP + 4}`);
+  });
+});
+
+describe('trendSeries', () => {
+  it('pads with the seed when history is empty, ending at the live score', () => {
+    const s = trendSeries([], 94);
+    expect(s).toHaveLength(TREND_WINDOW);
+    expect(s[s.length - 1]).toBe(94);
+    expect(s).toEqual(seededHistory(94));
+  });
+
+  it('uses only real history once it fills the window (seed drops out)', () => {
+    const hist: DayScore[] = Array.from({ length: 10 }, (_, i) => ({
+      date: `day-${i}`,
+      score: 60 + i,
+    }));
+    const s = trendSeries(hist, 99);
+    expect(s).toHaveLength(TREND_WINDOW);
+    expect(s[s.length - 1]).toBe(99); // today is the final point
+    // the last window-1 real days precede today, in order.
+    expect(s.slice(0, TREND_WINDOW - 1)).toEqual([64, 65, 66, 67, 68, 69]);
+  });
+
+  it('mixes real history and seed pad while still filling up', () => {
+    const hist: DayScore[] = [
+      { date: 'a', score: 90 },
+      { date: 'b', score: 91 },
+    ];
+    const s = trendSeries(hist, 92);
+    expect(s).toHaveLength(TREND_WINDOW);
+    // tail is the real days then today; head is seed padding.
+    expect(s.slice(-3)).toEqual([90, 91, 92]);
   });
 });
