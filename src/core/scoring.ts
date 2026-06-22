@@ -98,7 +98,7 @@ export function computeDerived(s: AppState): Derived {
   }
   const weightScore = 95;
   const tasksScore = tasksTotal > 0 ? Math.round((tasksDone / tasksTotal) * 100) : 0;
-  const checkinScore = 100;
+  const checkinScore = s.ciSubmitted ? 100 : 0;
 
   const athleteScore = clamp(
     Math.round(0.4 * nutritionScore + 0.2 * recoveryScore + 0.2 * weightScore + 0.1 * tasksScore + 0.1 * checkinScore),

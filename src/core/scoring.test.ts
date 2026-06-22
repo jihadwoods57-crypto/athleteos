@@ -44,10 +44,15 @@ describe('computeDerived — default state', () => {
     expect(d.tasksScore).toBe(67);
   });
 
-  it('athlete score = clamp(round(.4*92 + .2*86 + .2*95 + .1*67 + .1*100)) = 90', () => {
-    // 36.8 + 17.2 + 19 + 6.7 + 10 = 89.7 -> 90
-    expect(d.athleteScore).toBe(90);
-    expect(d.grade.g).toBe('A');
+  it('check-in sub-score is 0 when the athlete has not submitted the daily check-in', () => {
+    expect(s.ciSubmitted).toBe(false);
+    expect(d.checkinScore).toBe(0);
+  });
+
+  it('athlete score = clamp(round(.4*92 + .2*86 + .2*95 + .1*67 + .1*0)) = 80', () => {
+    // 36.8 + 17.2 + 19 + 6.7 + 0 = 79.7 -> 80
+    expect(d.athleteScore).toBe(80);
+    expect(d.grade.g).toBe('B');
   });
 
   it('ring offset = round(540 * (1 - score/100))', () => {
@@ -102,6 +107,10 @@ describe('computeDerived — reactivity', () => {
     // Default config also enables confidence, so max all four enabled questions.
     const after = computeDerived({ ...base, ciSubmitted: true, ciEnergy: 10, ciRecovery: 10, ciSleep: 10, ciConfidence: 10 } as AppState);
     expect(after.recoveryScore).toBe(100);
+  });
+
+  it('check-in sub-score jumps to 100 once the daily check-in is submitted', () => {
+    expect(computeDerived({ ...createInitialState(), ciSubmitted: true } as AppState).checkinScore).toBe(100);
   });
 
   it('score is clamped to 0..100', () => {
