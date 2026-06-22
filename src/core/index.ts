@@ -6,4 +6,5 @@ export * from './scoring';
 export * from './recommendation';
 export * from './leaderboard';
 export * from './content';
+export * from './history';
 export { createInitialState } from './defaultState';

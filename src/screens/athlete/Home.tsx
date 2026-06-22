@@ -4,7 +4,14 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-import { aiInsight } from '@/core';
+import {
+  aiInsight,
+  DEFAULT_CHART_BOX,
+  recentDayLabels,
+  seededHistory,
+  trendGeometry,
+  trendSummary,
+} from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -16,6 +23,11 @@ export function Home() {
   const s = useStore();
   const d = useDerived();
   const name = s.athleteName?.split(' ')[0] || 'Jihad';
+
+  // Real trend geometry from the score series (last point = today's live score).
+  const series = seededHistory(d.athleteScore);
+  const trend = trendSummary(series);
+  const dayLabels = recentDayLabels(series.length);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
@@ -157,15 +169,19 @@ export function Home() {
             <Txt w="eb" size={26} ls={-0.5}>
               {d.athleteScore}
             </Txt>
-            <Txt w="b" size={12} color={colors.success}>
-              ↑ trending up
+            <Txt
+              w="b"
+              size={12}
+              color={trend.dir === 'down' ? colors.alert : trend.dir === 'flat' ? colors.textTertiary : colors.success}
+            >
+              {trend.label}
             </Txt>
           </View>
         </Row>
-        <TrendChart />
+        <TrendChart series={series} />
         <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
-          {['Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue'].map((dn) => (
-            <Txt key={dn} w="sb" size={11} color={colors.textTertiary}>
+          {dayLabels.map((dn, i) => (
+            <Txt key={`${dn}-${i}`} w="sb" size={11} color={colors.textTertiary}>
               {dn}
             </Txt>
           ))}
@@ -309,18 +325,20 @@ function ProgressRow({ label, meta, pct, color, metaColor, onMeta, last }: { lab
   );
 }
 
-function TrendChart() {
+function TrendChart({ series }: { series: number[] }) {
+  const box = DEFAULT_CHART_BOX;
+  const { linePath, areaPath, last } = trendGeometry(series, box);
   return (
-    <Svg viewBox="0 0 322 116" width="100%" height={100} preserveAspectRatio="none" style={{ marginTop: 6 }}>
+    <Svg viewBox={`0 0 ${box.width} ${box.height}`} width="100%" height={100} preserveAspectRatio="none" style={{ marginTop: 6 }}>
       <Defs>
         <LinearGradient id="trend" x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor="#22C55E" stopOpacity="0.18" />
           <Stop offset="1" stopColor="#22C55E" stopOpacity="0" />
         </LinearGradient>
       </Defs>
-      <Path d="M12,72 L62,62 L111,67 L161,52 L211,43 L260,48 L310,33 L310,116 L12,116 Z" fill="url(#trend)" />
-      <Path d="M12,72 L62,62 L111,67 L161,52 L211,43 L260,48 L310,33" fill="none" stroke="#22C55E" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <Circle cx={310} cy={33} r={5.5} fill="#22C55E" stroke="#fff" strokeWidth={2.5} />
+      <Path d={areaPath} fill="url(#trend)" />
+      <Path d={linePath} fill="none" stroke="#22C55E" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={last.x} cy={last.y} r={5.5} fill="#22C55E" stroke="#fff" strokeWidth={2.5} />
     </Svg>
   );
 }
