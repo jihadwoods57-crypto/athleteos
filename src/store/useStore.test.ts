@@ -55,11 +55,11 @@ describe('addMeal', () => {
 describe('toggleTask', () => {
   it('flips a task and recomputes the tasks sub-score', () => {
     const before = derived();
-    expect(before.tasksDone).toBe(4);
+    expect(before.tasksDone).toBe(3); // protein task (id 2) not done: 142 < 180
 
     useStore.getState().toggleTask(3); // mark "Log dinner" done
     const after = derived();
-    expect(after.tasksDone).toBe(5);
+    expect(after.tasksDone).toBe(4);
     expect(after.tasksScore).toBeGreaterThan(before.tasksScore);
   });
 
@@ -68,6 +68,31 @@ describe('toggleTask', () => {
     expect(useStore.getState().tasks.find((t) => t.id === 1)?.done).toBe(false);
     useStore.getState().toggleTask(1); // back to done
     expect(useStore.getState().tasks.find((t) => t.id === 1)?.done).toBe(true);
+  });
+});
+
+describe('protein task (id 2) visible row mirrors logged protein', () => {
+  it('starts unchecked in the seed (142 < 180)', () => {
+    expect(useStore.getState().tasks.find((t) => t.id === 2)?.done).toBe(false);
+  });
+
+  it('toggleQuick flips the visible id 2 row done once protein clears 180', () => {
+    // Greek yogurt (18) + Turkey roll-ups (22) = +40 -> 142+40 = 182 >= 180.
+    useStore.getState().toggleQuick(0); // 142+18=160, still under
+    expect(useStore.getState().tasks.find((t) => t.id === 2)?.done).toBe(false);
+    useStore.getState().toggleQuick(2); // +22 -> 182, over
+    expect(useStore.getState().tasks.find((t) => t.id === 2)?.done).toBe(true);
+    // un-toggling drops back under target and the row un-checks
+    useStore.getState().toggleQuick(2); // back to 160
+    expect(useStore.getState().tasks.find((t) => t.id === 2)?.done).toBe(false);
+  });
+
+  it('addMeal (dinner -> 194) flips both the dinner task and the protein task', () => {
+    expect(useStore.getState().tasks.find((t) => t.id === 2)?.done).toBe(false);
+    useStore.getState().setMealType('Dinner');
+    useStore.getState().addMeal();
+    expect(useStore.getState().tasks.find((t) => t.id === 2)?.done).toBe(true);
+    expect(useStore.getState().tasks.find((t) => t.id === 3)?.done).toBe(true);
   });
 });
 

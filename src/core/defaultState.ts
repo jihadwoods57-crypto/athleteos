@@ -31,7 +31,7 @@ export function createInitialState(): AppState {
     quickAdded: [false, false, false],
     tasks: [
       { id: 1, group: 'NUTRITION', title: 'Log breakfast', meta: '42g protein', done: true },
-      { id: 2, group: null, title: 'Hit 180g protein', meta: 'protein goal', done: true },
+      { id: 2, group: null, title: 'Hit 180g protein', meta: 'protein goal', done: false },
       { id: 3, group: null, title: 'Log dinner', meta: 'Due by 8:00 PM', done: false },
       { id: 4, group: 'HYDRATION', title: 'Drink 1 gallon of water', meta: 'water goal', done: false },
       { id: 5, group: 'RECOVERY', title: '8+ hours of sleep', meta: 'Logged 8.0 hrs', done: true },
