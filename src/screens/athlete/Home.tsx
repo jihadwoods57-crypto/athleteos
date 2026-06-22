@@ -199,6 +199,22 @@ export function Home() {
         <ProgressRow label="Recovery" meta={`${s.ciSleep.toFixed(1)} / 8.5 hrs sleep`} pct={d.recoveryScore} color={colors.success} last />
       </Card>
 
+      {/* nutrition entry */}
+      <Pressable onPress={s.goNutrition} style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
+        <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="flame" size={22} color={colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="b" size={15}>
+            Nutrition
+          </Txt>
+          <Txt w="m" size={13} color={colors.textSecondary}>
+            See today's meals, protein, and fuel
+          </Txt>
+        </View>
+        <Icon name="chevronRight" size={22} color="#CBD5E1" />
+      </Pressable>
+
       {/* AI insight */}
       <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
         <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>

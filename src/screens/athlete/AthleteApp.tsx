@@ -84,7 +84,7 @@ function TabBar() {
         },
       ]}
     >
-      <TabItem item={TABS[0]} active={isAthleteTab('home') || isAthleteTab('nutrition') || isAthleteTab('profile')} onPress={() => setTab('home')} />
+      <TabItem item={TABS[0]} active={isAthleteTab('home')} onPress={() => setTab('home')} />
       <TabItem item={TABS[1]} active={isAthleteTab('tasks')} onPress={() => setTab('tasks')} />
 
       {/* center camera FAB */}
