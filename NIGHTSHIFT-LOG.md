@@ -4,7 +4,7 @@ Newest entries at the top. Each entry = what shipped + anything the founder need
 
 ## 2026-06-23 (run 5) — Coach/Trainer/Athlete-detail go fully data-driven
 
-Three code commits + this log, all three gates green every commit (`tsc
+Four code commits + this log, all three gates green every commit (`tsc
 --noEmit`, jest, `expo export -p ios`). Test count 203 → **210** (never
 dropped). Router untouched (app/_layout + app/index, no src/app). Phase-2
 Supabase scaffold not touched. This run retired the last hardcoded numbers that
@@ -43,6 +43,11 @@ overlay** (item 6 / item 8 of the Definition of Done).
   the NEEDS ATTENTION rows (71 / 58), and the Trainer book; the AI summary
   branches on the score band (≥85 praise / ≥75 steady / else needs-attention).
   +4 tests.
+- **fix(squad): derive the leaderboard caption count from the rendered board.**
+  The Squad caption hardcoded "Full roster · 6 athletes" / "Linebacker room · 3
+  athletes" while the board is built by `buildLeaderboard`; it now reads
+  `board.length` (correct singular/plural) so the count can never disagree with
+  the rows shown.
 
 ### For the founder (QC this run)
 - **Trainer view** — the three header KPIs now read **5 CLIENTS · 83% AVG
@@ -55,8 +60,10 @@ overlay** (item 6 / item 8 of the Definition of Done).
 - **Athlete Profile overlay** (tap any coach/trainer roster row) — the Score
   Breakdown bars, the COMPLIANCE tile, and the AI summary now all reflect the
   tapped athlete: tap **M. Cole** (68) vs **D. Brooks** (88) and the bars,
-  compliance %, and the tone of the summary visibly differ. All deterministic +
-  offline (no Supabase touched).
+  compliance %, and the tone of the summary visibly differ.
+- **Squad tab** — the caption under the Team/Linebackers toggle now counts the
+  actual board ("Full roster · 6 athletes" / "Linebacker room · 3 athletes").
+- All deterministic + offline (no Supabase touched).
 
 ## 2026-06-23 (run 4) — the Parent portal goes fully data-driven (no static charts)
 
