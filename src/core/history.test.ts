@@ -4,6 +4,7 @@ import {
   appendDayScore,
   appendDayWeight,
   COMPLIANCE_THRESHOLD,
+  currentStreak,
   DEFAULT_CHART_BOX,
   DEFAULT_WEIGHT_BOX,
   HISTORY_CAP,
@@ -319,5 +320,35 @@ describe('trendSeries', () => {
     expect(s).toHaveLength(TREND_WINDOW);
     // tail is the real days then today; head is seed padding.
     expect(s.slice(-3)).toEqual([90, 91, 92]);
+  });
+});
+
+describe('currentStreak', () => {
+  const mk = (...scores: number[]): DayScore[] =>
+    scores.map((score, i) => ({ date: `2026-06-${String(i + 1).padStart(2, '0')}`, score }));
+
+  it('breaks to 0 when today is below the threshold, ignoring past wins', () => {
+    expect(currentStreak(mk(95, 92, 88), 70)).toBe(0);
+  });
+
+  it('on empty history pads with the seeded lead (all on-plan) → today + 6', () => {
+    // Fresh install: seeded 7-day trend reads all on-plan, so the streak should
+    // match it rather than show a lone 1.
+    expect(currentStreak([], 90)).toBe(7);
+  });
+
+  it('counts consecutive on-plan history days plus today, then the seed', () => {
+    // 3 real on-plan days, unbroken back through history → +6 seed days +1 today.
+    expect(currentStreak(mk(85, 88, 91), 90)).toBe(3 + 6 + 1);
+  });
+
+  it('stops at the first real recorded miss — the seed does not leak through', () => {
+    // History (oldest→newest): 95, 50 (miss), 90, 92. Walking back from today:
+    // today(+1), 92(+1), 90(+1), then 50 is a miss → stop. Streak = 3.
+    expect(currentStreak(mk(95, 50, 90, 92), 90)).toBe(3);
+  });
+
+  it('a day exactly at the threshold counts as on-plan', () => {
+    expect(currentStreak(mk(COMPLIANCE_THRESHOLD), COMPLIANCE_THRESHOLD)).toBe(2 + 6);
   });
 });

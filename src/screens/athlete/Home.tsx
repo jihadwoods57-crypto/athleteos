@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import {
   aiInsight,
+  currentStreak,
   DEFAULT_CHART_BOX,
   displayWeight,
   displayWeightDelta,
@@ -37,6 +38,9 @@ export function Home() {
   const series = trendSeries(s.scoreHistory, d.athleteScore);
   const trend = trendSummary(series);
   const dayLabels = recentDayLabels(series.length);
+  // Day streak: consecutive on-plan days ending today (live score + real
+  // history; seeded baseline pads the unknown pre-history like the trend chart).
+  const streak = currentStreak(s.scoreHistory, d.athleteScore);
 
   // Season weight goal — fixed start anchor, athlete-editable target, live weight.
   const START = WEIGHT_START;
@@ -71,10 +75,14 @@ export function Home() {
             <Icon name="bell" size={19} color={colors.slate600} />
             <View style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.alert, borderWidth: 1.5, borderColor: '#fff' }} />
           </Pressable>
-          <Row style={[{ gap: 6, backgroundColor: '#fff', paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 }, shadow.card]}>
+          <Row
+            accessibilityRole="text"
+            accessibilityLabel={`${streak} day streak`}
+            style={[{ gap: 6, backgroundColor: '#fff', paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 }, shadow.card]}
+          >
             <Icon name="flame" size={15} color={colors.warning} />
-            <Txt w="eb" size={14}>
-              12
+            <Txt w="eb" size={14} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+              {streak}
             </Txt>
           </Row>
           <Pressable accessibilityRole="button" accessibilityLabel="Profile" hitSlop={6} onPress={s.goProfile} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>

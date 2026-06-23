@@ -254,6 +254,38 @@ export function trendSeries(
 }
 
 /**
+ * The athlete's current accountability streak: consecutive days, ending today,
+ * that cleared the on-plan threshold. Today is honest — a sub-threshold live
+ * score ends the streak at 0 right now. Prior days read real persisted history
+ * (most recent backward); the first recorded miss ends the count. When the real
+ * history is unbroken all the way back, the unknown pre-history is padded with
+ * the SAME seeded lead the trend chart draws (`SEEDED_LEAD`), so a fresh install
+ * shows a believable streak consistent with the seeded 7-day trend instead of a
+ * lone "1" — and that seed drops out the moment a real miss is recorded.
+ */
+export function currentStreak(
+  history: DayScore[],
+  liveScore: number,
+  threshold: number = COMPLIANCE_THRESHOLD,
+): number {
+  // Today is live: missing the bar today breaks the streak immediately.
+  if (liveScore < threshold) return 0;
+  let streak = 1;
+  const scores = history.map((h) => h.score);
+  for (let i = scores.length - 1; i >= 0; i--) {
+    if (scores[i] < threshold) return streak; // a real recorded miss ends it
+    streak++;
+  }
+  // Unbroken through all real history — pad the unknown pre-history with the
+  // seeded lead, the same believable baseline the trend chart uses.
+  for (let i = SEEDED_LEAD.length - 1; i >= 0; i--) {
+    if (SEEDED_LEAD[i] < threshold) break;
+    streak++;
+  }
+  return streak;
+}
+
+/**
  * Append a day's recorded body weight to the rolling history, keyed by ISO date.
  * Same idempotent-overwrite + cap semantics as `appendDayScore`, with a sane
  * weight clamp so a corrupt blob can't blow out the chart axis.
