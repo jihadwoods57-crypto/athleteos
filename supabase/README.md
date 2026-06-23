@@ -25,11 +25,30 @@ linked via `team_members` / `practice_clients` / `guardianships` and get **read-
 through the `can_view()` RLS gate. Coaches adjust goals + team settings (the only overseer
 writes), via `coach_set_goals()` and the `teams.settings` policy.
 
-## Wiring the app (next task, not done here)
-- `src/store/useStore` gains a sync layer: hydrate the signed-in athlete from `days`/`meals`,
-  write mutations through to Postgres, keep AsyncStorage as an offline cache.
-- `src/core` is unchanged — it stays the pure scoring engine; the score it computes is written
-  to `days.score`.
-- Role views swap seeded `ROSTER` / `TRAINER_CLIENTS` for RLS-filtered queries.
-- Onboarding code-entry steps call `join_team` / `join_practice`.
-- Realtime: dashboards subscribe to `days` (RLS-filtered) for live roster updates.
+## Wiring the app — scaffolded (keys later)
+
+The integration layer is in place but **inert until keys exist**. With no
+`EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` set, `isSupabaseConfigured`
+is false, the client is null, and every data/auth call falls back to local mock data, so
+the app runs exactly as it does today.
+
+Scaffolded modules:
+- `src/lib/supabase/client.ts` — env-driven client + `isSupabaseConfigured` flag + `requireSupabase()`.
+- `src/lib/supabase/database.types.ts` — typed schema mirroring these migrations (swap for
+  `supabase gen types typescript` output once the schema settles).
+- `src/lib/supabase/auth.ts` — `signIn` / `signUp` / `signOut` / `currentUserId` (return
+  `notConfigured` instead of throwing, so the mock flow can adopt them incrementally).
+- `src/lib/supabase/queries.ts` — typed reads/writes + the `join_team` / `join_practice` /
+  `coach_set_goals` RPCs; RLS does authorization, so a plain roster select is already scoped.
+- `src/store/sync.ts` — `mapStateToDayRow` / `dayRowToState` / `pushDay` / `hydrateDay`.
+  `src/core` stays the only scoring authority; `pushDay` writes the score `computeDerived` made.
+
+### Go live (~15 min, when you're ready)
+1. Create a Supabase project; run the three migrations (`supabase db push` or paste into the SQL editor).
+2. Copy `.env.example` to `.env` and fill in the project URL + anon key (`.env` is gitignored).
+3. Restart Metro so Expo picks up the new `EXPO_PUBLIC_*` vars.
+4. Flip on the two hooks marked `TODO (go-live)` in `src/store/sync.ts`:
+   hydrate the signed-in athlete after auth, and `pushDay` (debounced) after each mutating action.
+5. Point the sign-in/create-account screens at `auth.signIn` / `auth.signUp`, and the role
+   views at `db.fetchLinkedDays` (RLS-filtered) instead of the seeded `ROSTER` / `TRAINER_CLIENTS`.
+6. Optional: `days`-table Realtime subscription for live roster updates.
