@@ -7,6 +7,7 @@ export * from './startingScore';
 export * from './recommendation';
 export * from './leaderboard';
 export * from './content';
+export * from './coaching';
 export * from './units';
 export * from './contrast';
 export * from './history';

@@ -1,11 +1,11 @@
 // AthleteOS — Meal capture overlay: capture → analyzing (~2.3s) → result.
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, ScrollView, View } from 'react-native';
-import { mealResultFor, qualityLabel } from '@/core';
+import { mealResultFor, qualityLabel, mealCoaching, mealScoreImpact } from '@/core';
 import type { MealLabel } from '@/core';
-import { useStore } from '@/store';
+import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { Avatar, Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
@@ -189,18 +189,28 @@ function Spinner() {
   );
 }
 
+/**
+ * AI Nutrition Coach — the showcase. Ordered by VALUE, not macros: coaching insight
+ * (goal-aligned) -> score impact -> daily context -> the coach's carried-forward note
+ * (loop #2) -> next step -> education -> weekly context -> detected/macros (demoted).
+ * Should feel like "a nutritionist in your pocket," never a food log.
+ */
 function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void }) {
+  const s = useStore();
+  const derived = useDerived();
   const mr = mealResultFor(mealType);
   const q = qualityLabel(mr.quality);
-  // Map the pure tone token-name to the badge color pair. (No warningSurface token
-  // exists in tokens.ts; amber-50 #FEF3C7 mirrors the alert/accent surface lightness.)
   const tone = {
     success: { bg: colors.successSurface, fg: colors.successDeep },
     accent: { bg: colors.accentSurface, fg: colors.accent },
     warning: { bg: '#FEF3C7', fg: colors.warningDeep },
   }[q.tone];
+  const coaching = mealCoaching(mealType, s.primaryGoal, derived, s.scoreHistory.length, s.coachNote);
+  const impact = mealScoreImpact(s, mealType);
+
   return (
     <View>
+      {/* header: meal + quality (evidence, compact) */}
       <Row style={{ justifyContent: 'space-between', marginTop: 18 }}>
         <Txt w="eb" size={20} ls={-0.3} style={{ flex: 1 }}>
           {mr.name}
@@ -211,70 +221,127 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           </Txt>
         </View>
       </Row>
-      <Row style={{ gap: 8, marginTop: 16 }}>
-        <MacroTile value={`${mr.protein}g`} label="PROTEIN" color={colors.accent} />
-        <MacroTile value={`${mr.kcal}`} label="CALORIES" />
-        <MacroTile value={`${mr.carbs}g`} label="CARBS" />
-        <MacroTile value={`${mr.fat}g`} label="FAT" />
-      </Row>
-      <Card style={{ marginTop: 14, borderRadius: 18 }}>
-        <Txt w="eb" size={12} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
-          FOODS DETECTED
+
+      {/* HERO — goal-aligned coaching insight */}
+      <View style={{ marginTop: 16, borderRadius: 20, padding: 18, backgroundColor: colors.accentSurface, borderWidth: 1, borderColor: colors.accentBorder }}>
+        <Row style={{ gap: 9 }}>
+          <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="sparkle" size={16} color={colors.accent} />
+          </View>
+          <Txt w="eb" size={12} color={colors.accent} ls={0.6}>
+            AI NUTRITION COACH
+          </Txt>
+        </Row>
+        <Txt w="sb" size={16} color={colors.slate700} style={{ marginTop: 12, lineHeight: 23 }}>
+          {coaching.insight}
         </Txt>
-        <Row style={{ flexWrap: 'wrap', gap: 8 }}>
+      </View>
+
+      {/* score impact — the reward that proves the loop */}
+      <View style={{ marginTop: 12, borderRadius: 18, padding: 16, backgroundColor: impact > 0 ? colors.successSurface : colors.bg2, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+        <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+          <Txt w="eb" size={20} color={impact > 0 ? colors.successDeep : colors.textTertiary}>
+            {impact > 0 ? `+${impact}` : '✓'}
+          </Txt>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="eb" size={15} color={impact > 0 ? colors.successDeep : colors.slate700}>
+            {impact > 0 ? `+${impact} to today's score` : 'Already counted today'}
+          </Txt>
+          <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 1 }}>
+            {coaching.dailyContext}
+          </Txt>
+        </View>
+      </View>
+
+      {/* loop #2 — the coach's voice, carried forward by the AI */}
+      {coaching.coachEcho ? (
+        <Card style={{ marginTop: 12, borderRadius: 18 }}>
+          <Row style={{ gap: 10 }}>
+            <Avatar initials="CD" size={34} bg={colors.text} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5}>
+                YOUR COACH · CARRIED FORWARD
+              </Txt>
+              <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 4, lineHeight: 20 }}>
+                {`"${s.coachNote}"`}
+              </Txt>
+            </View>
+          </Row>
+          <Txt w="sb" size={13} color={colors.accent} style={{ marginTop: 10, lineHeight: 19 }}>
+            {coaching.coachEcho}
+          </Txt>
+        </Card>
+      ) : null}
+
+      {/* next step + education */}
+      <CoachBlock tag="DO THIS NEXT" icon="utensils" text={coaching.nextStep} />
+      <CoachBlock tag="WHY IT MATTERS" icon="bolt" text={coaching.education} muted />
+
+      {/* weekly context, when earned */}
+      {coaching.weeklyContext ? (
+        <Row style={{ gap: 9, marginTop: 12, paddingHorizontal: 4 }}>
+          <Icon name="trophy" size={16} color={colors.warningDeep} />
+          <Txt w="sb" size={13} color={colors.slate600} style={{ flex: 1, lineHeight: 19 }}>
+            {coaching.weeklyContext}
+          </Txt>
+        </Row>
+      ) : null}
+
+      {/* evidence (demoted): detected foods + macros */}
+      <Card style={{ marginTop: 14, borderRadius: 18 }}>
+        <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
+          DETECTED · ESTIMATED
+        </Txt>
+        <Row style={{ flexWrap: 'wrap', gap: 7 }}>
           {mr.detected.map((dt) => (
-            <View key={dt} style={{ paddingHorizontal: 13, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.bg2 }}>
-              <Txt w="b" size={13} color={colors.slate700}>
+            <View key={dt} style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: colors.bg2 }}>
+              <Txt w="b" size={12} color={colors.slate700}>
                 {dt}
               </Txt>
             </View>
           ))}
         </Row>
+        <Row style={{ gap: 14, marginTop: 14 }}>
+          <MacroChip value={`${mr.protein}g`} label="Protein" color={colors.accent} />
+          <MacroChip value={`${mr.kcal}`} label="Cal" />
+          <MacroChip value={`${mr.carbs}g`} label="Carbs" />
+          <MacroChip value={`${mr.fat}g`} label="Fat" />
+        </Row>
       </Card>
-      <View style={{ marginTop: 14, borderRadius: 18, padding: 18, backgroundColor: colors.accentSurface, borderWidth: 1, borderColor: colors.accentBorder, flexDirection: 'row', gap: 13 }}>
-        <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="sparkle" size={17} color={colors.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>
-            <Txt w="b" size={14} color={colors.accent}>
-              Coach AI ·{' '}
-            </Txt>
-            {mr.note}
-          </Txt>
-          <View style={{ marginTop: 11, gap: 7 }}>
-            <WhyNext tag="WHY" color={colors.successDeep} text="High protein density, whole-food ingredients, and solid training-window timing." />
-            <WhyNext tag="NEXT" color={colors.warningDeep} text="Add a fruit or extra veg for micronutrients to push past 95." />
-          </View>
-        </View>
-      </View>
+
       <Btn label="Add to Log" haptic="success" onPress={onAdd} style={{ marginTop: 18 }} />
     </View>
   );
 }
 
-function MacroTile({ value, label, color }: { value: string; label: string; color?: string }) {
+function CoachBlock({ tag, icon, text, muted }: { tag: string; icon: 'utensils' | 'bolt'; text: string; muted?: boolean }) {
   return (
-    <View style={[{ flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 14 }, shadow.card]}>
-      <Txt w="eb" size={22} color={color}>
-        {value}
-      </Txt>
-      <Txt w="b" size={11} color={colors.textTertiary} style={{ marginTop: 3 }}>
-        {label}
-      </Txt>
+    <View style={[{ marginTop: 12, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, backgroundColor: colors.card }, shadow.card]}>
+      <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} size={16} color={muted ? colors.textSecondary : colors.accent} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5} style={{ marginBottom: 4 }}>
+          {tag}
+        </Txt>
+        <Txt w="sb" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>
+          {text}
+        </Txt>
+      </View>
     </View>
   );
 }
 
-function WhyNext({ tag, color, text }: { tag: string; color: string; text: string }) {
+function MacroChip({ value, label, color }: { value: string; label: string; color?: string }) {
   return (
-    <Row style={{ gap: 8, alignItems: 'flex-start' }}>
-      <Txt w="eb" size={12} color={color} style={{ marginTop: 1 }}>
-        {tag}
+    <View>
+      <Txt w="eb" size={17} color={color}>
+        {value}
       </Txt>
-      <Txt w="m" size={13} color={colors.slate600} style={{ flex: 1 }}>
-        {text}
+      <Txt w="sb" size={11} color={colors.textTertiary} style={{ marginTop: 1 }}>
+        {label}
       </Txt>
-    </Row>
+    </View>
   );
 }

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>A few questions for coaches — AthleteOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --canvas:#F8FAFC; --canvas2:#F1F5F9; --card:#FFFFFF;
+  --text:#0F172A; --text2:#64748B; --text3:#94A3B8;
+  --blue:#2563EB; --blue-light:#3B82F6; --blue-surface:#EFF6FF; --blue-border:#DBEAFE; --blue-border2:#BFDBFE;
+  --green:#22C55E; --green-deep:#16A34A;
+  --hair:#EAEEF3;
+  --r-card:22px; --r-pill:16px; --r-chip:12px;
+  --shadow-card:0 1px 2px rgba(15,23,42,.04),0 6px 18px rgba(15,23,42,.05);
+  --shadow-elev:0 10px 30px rgba(15,23,42,.06);
+  --shadow-glow:0 8px 22px rgba(37,99,235,.28);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif;
+  background:var(--canvas); color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  display:flex; flex-direction:column; min-height:100dvh;
+}
+
+/* progress */
+#progress-wrap{position:sticky;top:0;z-index:20;padding:14px 20px 0;background:linear-gradient(var(--canvas),rgba(248,250,252,.85));backdrop-filter:blur(6px)}
+#progress-track{height:4px;background:var(--hair);border-radius:99px;overflow:hidden;opacity:0;transition:opacity .3s}
+#progress-track.on{opacity:1}
+#progress-bar{height:100%;width:0;background:var(--blue);border-radius:99px;transition:width .45s cubic-bezier(.22,1,.36,1)}
+
+/* stage */
+#stage{flex:1;display:flex;flex-direction:column;justify-content:center;
+  width:100%;max-width:560px;margin:0 auto;padding:24px 20px 8px}
+.screen{animation:up .42s cubic-bezier(.22,1,.36,1)}
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.kicker{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);margin:0 0 12px}
+h1.q{font-size:26px;line-height:1.18;font-weight:800;letter-spacing:-.025em;margin:0 0 8px}
+p.help{font-size:15px;font-weight:500;color:var(--text2);margin:0 0 22px;line-height:1.5}
+.q em{font-style:normal;color:var(--blue);font-weight:800}
+
+/* option buttons */
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{display:flex;align-items:center;gap:13px;width:100%;text-align:left;cursor:pointer;
+  background:var(--card);border:1.5px solid var(--hair);border-radius:var(--r-pill);
+  padding:16px 18px;font-family:inherit;font-size:15.5px;font-weight:700;color:var(--text);
+  box-shadow:var(--shadow-card);transition:transform .12s,border-color .15s,background .15s,box-shadow .15s}
+.opt:hover{border-color:var(--blue-border2)}
+.opt:active{transform:scale(.985)}
+.opt.sel{border-color:var(--blue);background:var(--blue-surface);box-shadow:var(--shadow-glow)}
+.opt .tick{flex:0 0 22px;height:22px;border-radius:7px;border:1.5px solid var(--text3);
+  display:grid;place-items:center;transition:all .15s}
+.opt.multi .tick{border-radius:7px}
+.opt:not(.multi) .tick{border-radius:50%}
+.opt.sel .tick{background:var(--blue);border-color:var(--blue)}
+.opt .tick svg{opacity:0;transition:opacity .15s}
+.opt.sel .tick svg{opacity:1}
+
+/* scale */
+.scale{display:flex;flex-direction:column;gap:10px}
+.scale .opt{justify-content:flex-start}
+.scale-meta{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--text3);margin-top:4px}
+
+/* text inputs */
+textarea,input[type=text],input[type=email],input[type=tel]{
+  width:100%;font-family:inherit;font-size:16px;font-weight:600;color:var(--text);
+  background:var(--card);border:1.5px solid var(--hair);border-radius:14px;padding:15px 16px;
+  box-shadow:var(--shadow-card);transition:border-color .15s}
+textarea{min-height:130px;resize:vertical;line-height:1.5}
+textarea:focus,input:focus{outline:none;border-color:var(--blue)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text2);margin:0 0 7px}
+.field .opt-row{margin-top:2px}
+
+/* footer / nav */
+#nav{position:sticky;bottom:0;background:linear-gradient(rgba(248,250,252,0),var(--canvas) 28%);
+  padding:14px 20px calc(16px + env(safe-area-inset-bottom));display:flex;gap:12px;align-items:center;
+  max-width:560px;margin:0 auto;width:100%}
+.btn{flex:1;height:56px;border:none;border-radius:18px;font-family:inherit;font-size:16px;font-weight:800;
+  cursor:pointer;display:grid;place-items:center;transition:transform .12s,opacity .15s,box-shadow .15s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--blue);color:#fff;box-shadow:var(--shadow-glow)}
+.btn.primary:disabled{opacity:.4;box-shadow:none;cursor:default}
+.btn.ghost{flex:0 0 56px;background:var(--card);border:1.5px solid var(--hair);color:var(--text2);box-shadow:var(--shadow-card)}
+.skip{background:none;border:none;color:var(--text3);font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;padding:6px;text-decoration:underline;text-underline-offset:3px}
+.skipwrap{text-align:center;margin-top:14px}
+
+/* intro / end */
+.center{text-align:center}
+.brandmark{width:54px;height:54px;margin:0 auto 22px;display:grid;place-items:center;border-radius:16px;
+  background:var(--blue);box-shadow:var(--shadow-glow)}
+.lede{font-size:16px;font-weight:500;color:var(--text2);line-height:1.55;max-width:420px;margin:0 auto 8px}
+.timechip{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--blue);background:var(--blue-surface);border:1px solid var(--blue-border);
+  padding:7px 13px;border-radius:99px;margin-top:18px}
+.spin{width:30px;height:30px;border:3px solid var(--blue-border);border-top-color:var(--blue);border-radius:50%;
+  margin:0 auto;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err{color:#DC2626;font-size:13px;font-weight:700;margin-top:10px;min-height:18px}
+</style>
+</head>
+<body>
+<div id="progress-wrap"><div id="progress-track"><div id="progress-bar"></div></div></div>
+<main id="stage"></main>
+<footer id="nav"></footer>
+
+<script>
+/* ============================================================
+   AthleteOS — Coach Validation Survey
+   Standalone, data-driven, branching. No framework.
+   Set ENDPOINT to your Apps Script Web App URL (see README).
+   ============================================================ */
+const ENDPOINT = ""; // <-- paste your Google Apps Script /exec URL here
+
+const CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+/* ---- routing helpers ---------------------------------------------------- */
+const ATHLETE = new Set(['Youth athletes','High school athletes','College athletes','Professional athletes','Mixed population']);
+const state = {}; // answers keyed by question id
+function who(){ // primary clientele label, lowercased for piping
+  const p = state.q2b || (state.q2 && state.q2.length===1 ? state.q2[0] : null);
+  return p ? p.toLowerCase() : 'the people you develop';
+}
+function isAthlete(){
+  const p = state.q2b || (state.q2 && state.q2[0]);
+  return p ? ATHLETE.has(p) : true;
+}
+function pipe(s){ return s.replace(/\{\{who\}\}/g, who()).replace(/\{\{role\}\}/g,(state.q1||'coach').toLowerCase()); }
+
+/* ---- question bank ------------------------------------------------------ */
+/* type: intro|single|multi|scale|long|short|contact|end
+   when(state): optional predicate to include the screen
+   options: [..]  or  optionsFn(): [..]  for routed screens
+   required: bool ; pipeable stems via {{who}} {{role}} */
+const Q = [
+{ id:'intro', type:'intro' },
+
+{ id:'q1', type:'single', kicker:'About you', required:true,
+  stem:'What best describes your role?',
+  options:['Personal Trainer','Sports Performance Coach','Nutritionist / Dietitian','Strength Coach','High School Coach','College Coach','Other'] },
+
+{ id:'q2', type:'multi', kicker:'About you', required:true,
+  stem:'Who do you primarily develop?',
+  help:'Pick all that apply — next we’ll nail down your #1.',
+  options:['Youth athletes','High school athletes','College athletes','Professional athletes','Weight-loss clients','Muscle-gain clients','General fitness clients','Mixed population'] },
+
+{ id:'q2b', type:'single', kicker:'About you', required:true,
+  when:s=> (s.q2||[]).length>1,
+  stem:'Which one is the core of your business right now?',
+  optionsFn:()=> state.q2 },
+
+{ id:'q3', type:'single', kicker:'The hard part', required:true,
+  stem:'When you’re developing <em>{{who}}</em>, what’s the hardest part to actually control?',
+  optionsFn:()=> isAthlete()
+    ? ['Nutrition / fueling habits','Recovery & sleep','Consistency outside the facility','Hitting weight or body-comp goals','Motivation & buy-in','Communication with the athlete','Monitoring them when they’re not in front of me','Performance plateaus']
+    : ['Nutrition adherence','Consistency between sessions','Long-term behavior change','Motivation & follow-through','Client retention / drop-off','Weight-loss results stalling','Communication between sessions'] },
+
+{ id:'q4', type:'single', kicker:'How you know', required:true,
+  stem: 'Right now, how do you actually know if <em>{{who}}</em> are following the plan when you’re not with them?',
+  options:['They text me','Weekly check-ins','Meal photos / logs','In-person conversation only','An app or software','Honestly… I mostly don’t know'] },
+
+{ id:'q4b', type:'short', kicker:'How you know',
+  when:s=> s.q4==='An app or software',
+  stem:'Which app or software?',
+  help:'Just the name is fine.', placeholder:'e.g. MyFitnessPal, Trainerize, a spreadsheet…' },
+
+{ id:'q5', type:'single', kicker:'When it slips', required:true,
+  stem:'When someone <em>isn’t</em> following the plan, what usually happens?',
+  optionsFn:()=> isAthlete()
+    ? ['Progress stalls','Weight / body-comp doesn’t move','Performance drops','Recovery suffers or they get hurt','I don’t find out until it’s too late','Something else']
+    : ['Progress stalls','The weight doesn’t move','Motivation drops off','They start missing sessions','I don’t find out until it’s too late','Something else'] },
+
+{ id:'q6', type:'scale', kicker:'When it slips', required:true,
+  stem:'How often do you find out about a problem <em>only after</em> progress has already stalled?',
+  options:['Never','Rarely','Sometimes','Often','Very often'], lo:'Never', hi:'Very often' },
+
+{ id:'q7', type:'single', kicker:'What it costs', required:true,
+  stem:'When that happens, what does it actually cost you?',
+  optionsFn:()=> isAthlete()
+    ? ['A player underperforms when it counts','Lost development time I can’t get back','Tension with the athlete, parents, or staff','It reflects on me and my program','Honestly, not much']
+    : ['The client doesn’t get results','They cancel or don’t renew','A bad review or no referral','It reflects on me','Honestly, not much'] },
+
+{ id:'q8', type:'long', kicker:'The one thing', required:true,
+  stem:'If you could solve <em>one</em> problem about developing {{who}} tomorrow — wave a wand, it’s gone — what would it be?',
+  help:'Be specific. The thing that actually keeps you up at night.',
+  placeholder:'Type as much or as little as you want…', allowSkip:true },
+
+{ id:'q9', type:'scale', kicker:'Worth it?', required:true,
+  stem:'How valuable would it be to know, <em>every day</em>, who’s following the plan and who isn’t?',
+  options:['Not valuable','A little','Useful','Very valuable','Game-changing'], lo:'Not valuable', hi:'Game-changing' },
+
+{ id:'q10', type:'scale', kicker:'Worth it?', required:true,
+  stem:'How valuable would it be to catch a problem <em>before</em> progress stalls?',
+  options:['Not valuable','A little','Useful','Very valuable','Game-changing'], lo:'Not valuable', hi:'Game-changing' },
+
+{ id:'q11', type:'scale', kicker:'Worth it?', required:true,
+  stem:'How valuable would it be to have more visibility into <em>{{who}}</em> between sessions?',
+  options:['Not valuable','A little','Useful','Very valuable','Game-changing'], lo:'Not valuable', hi:'Game-changing' },
+
+{ id:'q11b', type:'single', kicker:'Worth it?',
+  stem:'Have you ever paid for a tool or service to help with this?',
+  options:['Yes','No','Considered it but didn’t'] },
+
+{ id:'q12', type:'single', kicker:'Last one', required:true,
+  stem:'Would you want to help shape something built to fix the accountability gap between sessions?',
+  help:'No commitment — just early access and a say in how it works.',
+  options:['Yes','Maybe','No'] },
+
+{ id:'capture', type:'contact', kicker:'Stay in the loop', required:true,
+  when:s=> s.q12==='Yes' || s.q12==='Maybe',
+  stem:'Where should we reach you?' },
+
+{ id:'end', type:'end' },
+];
+
+/* ---- engine ------------------------------------------------------------- */
+let i = 0; // index into visible flow
+function visible(){ return Q.filter(q=> !q.when || q.when(state)); }
+const stage = document.getElementById('stage');
+const nav = document.getElementById('nav');
+const pTrack = document.getElementById('progress-track');
+const pBar = document.getElementById('progress-bar');
+
+function haptic(){ try{ navigator.vibrate && navigator.vibrate(8);}catch(e){} }
+
+function render(){
+  const flow = visible();
+  const q = flow[i];
+  // progress: show after q2, based on questions answered vs total visible
+  if(i>=2){ pTrack.classList.add('on'); pBar.style.width = Math.round((i/(flow.length-1))*100)+'%'; }
+  else pTrack.classList.remove('on');
+
+  stage.innerHTML=''; nav.innerHTML='';
+  const s = document.createElement('div'); s.className='screen'; stage.appendChild(s);
+
+  if(q.type==='intro') return renderIntro(s);
+  if(q.type==='end') return renderEnd(s);
+
+  if(q.kicker){ const k=document.createElement('p'); k.className='kicker'; k.textContent=q.kicker; s.appendChild(k); }
+  const h=document.createElement('h1'); h.className='q'; h.innerHTML=pipe(q.stem); s.appendChild(h);
+  if(q.help){ const p=document.createElement('p'); p.className='help'; p.innerHTML=pipe(q.help); s.appendChild(p); }
+
+  if(q.type==='single'||q.type==='multi'||q.type==='scale') renderOptions(s,q);
+  if(q.type==='long') renderText(s,q,true);
+  if(q.type==='short') renderText(s,q,false);
+  if(q.type==='contact') renderContact(s,q);
+
+  renderNav(q,flow);
+}
+
+function renderIntro(s){
+  s.className='screen center';
+  s.innerHTML = `
+    <div class="brandmark"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".4"/><polyline points="8 12.5 11 15.5 16.5 9"/></svg></div>
+    <h1 class="q">A few questions for coaches.</h1>
+    <p class="lede">This isn’t a pitch. I’m trying to understand the <strong>real</strong> problems coaches and trainers hit developing people — in your words. No right answers.</p>
+    <div class="timechip">● About 5 minutes</div>`;
+  nav.innerHTML='';
+  const b=document.createElement('button'); b.className='btn primary'; b.textContent='Start';
+  b.onclick=()=>{ haptic(); next(); }; nav.appendChild(b);
+}
+
+function renderEnd(s){
+  s.className='screen center';
+  const yes = state.q12==='Yes', maybe = state.q12==='Maybe';
+  const line = yes ? 'You’re on the early list — I’ll reach out personally.'
+             : maybe ? 'No pressure. I’ll only send something if it’s genuinely worth your time.'
+             : 'Genuinely appreciate the honesty — it helps more than a yes would.';
+  s.innerHTML = `<div id="endbody">
+    <div class="brandmark" style="background:var(--green);box-shadow:0 8px 22px rgba(34,197,94,.28)"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <h1 class="q">That’s it. Thank you.</h1>
+    <p class="lede">${line}</p></div>`;
+  nav.innerHTML='';
+  submit(); // fire-and-forget; UI already complete
+}
+
+function renderOptions(s,q){
+  const wrap=document.createElement('div'); wrap.className = q.type==='scale'?'scale':'opts';
+  const opts = q.optionsFn? q.optionsFn() : q.options;
+  const multi = q.type==='multi';
+  const cur = state[q.id] || (multi?[]:null);
+  opts.forEach(opt=>{
+    const b=document.createElement('button');
+    b.className='opt'+(multi?' multi':'')+(((multi&&cur.includes(opt))||cur===opt)?' sel':'');
+    b.innerHTML = `<span class="tick">${CHECK}</span><span>${opt}</span>`;
+    b.onclick=()=>{
+      haptic();
+      if(multi){
+        const a = state[q.id]||[];
+        state[q.id] = a.includes(opt)? a.filter(x=>x!==opt) : [...a,opt];
+      } else {
+        state[q.id]=opt;
+      }
+      render();
+      if(!multi && q.type!=='scale'){ setTimeout(()=>autoAdvance(q), 180); }
+      else if(q.type==='scale'){ setTimeout(()=>autoAdvance(q), 180); }
+    };
+    wrap.appendChild(b);
+  });
+  s.appendChild(wrap);
+  if(q.type==='scale'){
+    const m=document.createElement('div'); m.className='scale-meta';
+    m.innerHTML=`<span>${q.lo}</span><span>${q.hi}</span>`; s.appendChild(m);
+  }
+}
+
+function renderText(s,q,long){
+  const el = long?document.createElement('textarea'):document.createElement('input');
+  if(!long) el.type='text';
+  el.placeholder=q.placeholder||''; el.value=state[q.id]||'';
+  el.oninput=()=>{ state[q.id]=el.value; updateNav(q); };
+  s.appendChild(el);
+  setTimeout(()=>el.focus(),60);
+}
+
+function renderContact(s,q){
+  const fields=[
+    ['name','Name','text','Your name',true],
+    ['email','Email','email','you@email.com',true],
+    ['phone','Phone','tel','Only if you’re open to a 15-min call',false],
+    ['org','Organization / business','text','Team, gym, or business name',false],
+  ];
+  state.capture = state.capture||{};
+  fields.forEach(([k,label,type,ph,req])=>{
+    const f=document.createElement('div'); f.className='field';
+    f.innerHTML=`<label>${label}${req?'':' <span style="color:var(--text3);text-transform:none;letter-spacing:0;font-weight:600">(optional)</span>'}</label>`;
+    const inp=document.createElement('input'); inp.type=type; inp.placeholder=ph; inp.value=state.capture[k]||'';
+    inp.oninput=()=>{ state.capture[k]=inp.value; updateNav(q); };
+    f.appendChild(inp); s.appendChild(f);
+  });
+  // count bucket
+  const f=document.createElement('div'); f.className='field';
+  f.innerHTML=`<label>How many ${isAthlete()?'athletes':'clients'} do you work with?</label>`;
+  const row=document.createElement('div'); row.className='opts opt-row';
+  ['1–10','11–25','26–50','51–100','100+'].forEach(b=>{
+    const o=document.createElement('button'); o.className='opt'+(state.capture.count===b?' sel':'');
+    o.innerHTML=`<span class="tick">${CHECK}</span><span>${b}</span>`;
+    o.onclick=()=>{ haptic(); state.capture.count=b; render(); };
+    row.appendChild(o);
+  });
+  f.appendChild(row); s.appendChild(f);
+}
+
+/* ---- navigation --------------------------------------------------------- */
+function answered(q){
+  if(q.type==='multi') return (state[q.id]||[]).length>0;
+  if(q.type==='contact'){ const c=state.capture||{}; return c.name && /\S+@\S+\.\S+/.test(c.email||''); }
+  if(q.type==='long'||q.type==='short') return !!(state[q.id]&&state[q.id].trim());
+  return !!state[q.id];
+}
+function autoAdvance(q){ if(answered(q)) next(); }
+
+function renderNav(q,flow){
+  const back=document.createElement('button'); back.className='btn ghost';
+  back.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+  back.onclick=()=>{ if(i>0){ i--; render(); } };
+  if(i>0) nav.appendChild(back);
+
+  const fwd=document.createElement('button'); fwd.className='btn primary'; fwd.id='fwd';
+  const last = i===flow.length-1;
+  fwd.textContent = q.type==='contact' ? 'Send it' : 'Continue';
+  fwd.disabled = q.required && !answered(q);
+  fwd.onclick=()=>{ if(!fwd.disabled){ haptic(); next(); } };
+  nav.appendChild(fwd);
+
+  if(q.allowSkip && !answered(q)){
+    const sk=document.createElement('div'); sk.className='skipwrap';
+    const b=document.createElement('button'); b.className='skip'; b.textContent='Skip this one';
+    b.onclick=()=>{ state[q.id]='(skipped)'; next(); };
+    sk.appendChild(b); stage.querySelector('.screen').appendChild(sk);
+  }
+}
+function updateNav(q){ const f=document.getElementById('fwd'); if(f) f.disabled = q.required && !answered(q); }
+
+function next(){
+  const flow=visible();
+  if(i < flow.length-1){ i++; render(); window.scrollTo(0,0); }
+}
+
+/* ---- submit to Google Sheet -------------------------------------------- */
+function flatten(){
+  const out={ submitted_at:new Date().toISOString(), is_athlete:isAthlete(), primary_clientele:who() };
+  Q.forEach(q=>{
+    if(q.type==='intro'||q.type==='end') return;
+    let v=state[q.id];
+    if(q.id==='capture' && state.capture){
+      const c=state.capture;
+      out.name=c.name||''; out.email=c.email||''; out.phone=c.phone||'';
+      out.org=c.org||''; out.client_count=c.count||''; return;
+    }
+    if(Array.isArray(v)) v=v.join(' | ');
+    out[q.id]= v==null?'':v;
+  });
+  return out;
+}
+function submit(){
+  const payload=flatten();
+  if(!ENDPOINT){ console.log('[survey] no ENDPOINT set. Payload:', payload); return; }
+  try{
+    fetch(ENDPOINT,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+  }catch(e){ console.warn('submit failed',e); }
+}
+
+render();
+</script>
+</body>
+</html>
