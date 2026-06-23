@@ -2,6 +2,7 @@
 // draws exactly these paths), so pin the projection, clamping, and trend summary.
 import {
   appendDayScore,
+  COMPLIANCE_THRESHOLD,
   DEFAULT_CHART_BOX,
   HISTORY_CAP,
   recentDayLabels,
@@ -10,6 +11,7 @@ import {
   trendSeries,
   trendSummary,
   TREND_WINDOW,
+  weeklyCompliance,
 } from './history';
 import type { DayScore } from './types';
 
@@ -153,6 +155,50 @@ describe('appendDayScore', () => {
     // oldest five fell off; the window ends at the newest entry.
     expect(hist[0].date).toBe('day-5');
     expect(hist[hist.length - 1].date).toBe(`day-${HISTORY_CAP + 4}`);
+  });
+});
+
+describe('weeklyCompliance', () => {
+  // Tuesday 2026-06-16 (getDay() === 2) — pins the weekday labels.
+  const tue = new Date(2026, 5, 16);
+
+  it('marks the last day as today (in progress), never counted as on-plan', () => {
+    const wc = weeklyCompliance([], 99, COMPLIANCE_THRESHOLD, TREND_WINDOW, tue);
+    expect(wc.days).toHaveLength(TREND_WINDOW);
+    const last = wc.days[wc.days.length - 1];
+    expect(last.today).toBe(true);
+    expect(last.ok).toBe(false); // today is never "on plan" even at 99
+    expect(last.label).toBe('Tue');
+  });
+
+  it('flags completed days below the threshold as off-plan', () => {
+    const hist = [
+      { date: 'a', score: 90 },
+      { date: 'b', score: 70 }, // below 80 -> off plan
+      { date: 'c', score: 85 },
+    ];
+    const wc = weeklyCompliance(hist, 88, COMPLIANCE_THRESHOLD, TREND_WINDOW, tue);
+    const completed = wc.days.filter((d) => !d.today);
+    expect(wc.total).toBe(TREND_WINDOW - 1);
+    // every completed day at/above 80 is on plan; the single 70 is not.
+    expect(completed.filter((d) => !d.ok)).toHaveLength(1);
+    expect(wc.onPlan).toBe(wc.total - 1);
+  });
+
+  it('reports the mean completed score as the headline percent (excludes today)', () => {
+    const hist = Array.from({ length: 6 }, (_, i) => ({ date: `d${i}`, score: 80 }));
+    // 6 completed days all 80; today live = 50 must NOT pull the percent down.
+    const wc = weeklyCompliance(hist, 50, COMPLIANCE_THRESHOLD, TREND_WINDOW, tue);
+    expect(wc.pct).toBe(80);
+    expect(wc.total).toBe(6);
+    expect(wc.onPlan).toBe(6);
+  });
+
+  it('shares the padded series with the trend chart (dots match the line)', () => {
+    const hist = [{ date: 'a', score: 91 }];
+    const series = trendSeries(hist, 92);
+    const wc = weeklyCompliance(hist, 92, COMPLIANCE_THRESHOLD, TREND_WINDOW, tue);
+    expect(wc.days.map((d) => d.score)).toEqual(series);
   });
 });
 

@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, weeklyCompliance } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -12,20 +12,15 @@ import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Account } from '@/screens/overlays/Account';
 
-const WEEK = [
-  { d: 'M', ok: true },
-  { d: 'T', ok: true },
-  { d: 'W', ok: false },
-  { d: 'T', ok: true },
-  { d: 'F', ok: true },
-  { d: 'S', ok: true },
-  { d: 'S', today: true },
-];
 const NUTRI_BARS = [86, 100, 72, 100, 90, 94, 79];
 
 export function ParentView() {
   const s = useStore();
   const d = useDerived();
+  // Weekly compliance derived from the SAME real score history the Home trend
+  // chart draws, so the parent's view tracks the athlete's actual week instead
+  // of a static 6/7 mock. Today is shown in progress; the % is the completed-day mean.
+  const week = weeklyCompliance(s.scoreHistory, d.athleteScore);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -93,15 +88,15 @@ export function ParentView() {
                   Weekly Compliance
                 </Txt>
                 <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
-                  6 of 7 days on plan
+                  {week.onPlan} of {week.total} days on plan
                 </Txt>
               </View>
               <Txt w="eb" size={30} color={colors.success} ls={-0.5}>
-                86%
+                {week.pct}%
               </Txt>
             </Row>
             <Row style={{ justifyContent: 'space-between' }}>
-              {WEEK.map((w, i) => (
+              {week.days.map((w, i) => (
                 <View key={i} style={{ alignItems: 'center', gap: 8 }}>
                   <View
                     style={{
@@ -124,7 +119,7 @@ export function ParentView() {
                     )}
                   </View>
                   <Txt w="b" size={11} color={w.today ? colors.accent : colors.textTertiary}>
-                    {w.d}
+                    {w.label}
                   </Txt>
                 </View>
               ))}

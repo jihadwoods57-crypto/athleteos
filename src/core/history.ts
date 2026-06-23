@@ -100,6 +100,65 @@ export function trendSummary(scores: number[]): TrendSummary {
   return { dir: 'flat', delta: 0, label: '→ steady' };
 }
 
+/** A completed day at or above this accountability score counts as "on plan".
+ *  Same bar as the coach alert threshold — a passing, on-track day. */
+export const COMPLIANCE_THRESHOLD = 80;
+
+export interface ComplianceDay {
+  /** Weekday short label (M/T/W…). */
+  label: string;
+  score: number;
+  /** A completed day at/above the threshold. False for today (in progress). */
+  ok: boolean;
+  /** The live, in-progress day (the last point) — rendered as an indicator,
+   *  not counted in the weekly summary. */
+  today: boolean;
+}
+
+export interface WeeklyCompliance {
+  /** One entry per day in the window, oldest -> newest; the last is today. */
+  days: ComplianceDay[];
+  /** Completed days (excludes today) that were on plan. */
+  onPlan: number;
+  /** Completed days in the window (window - 1). */
+  total: number;
+  /** Mean accountability score across the completed days, 0..100. */
+  pct: number;
+}
+
+/**
+ * Summarize the week's accountability for the Parent compliance card from real
+ * persisted history. Reuses the SAME padded series the trend chart draws, so the
+ * day dots and the trend line can never disagree. Today is shown as an
+ * in-progress indicator; the headline % (mean completed score) and the
+ * "N of M on plan" count consider only completed days, so an early-morning live
+ * score can't drag the week down.
+ */
+export function weeklyCompliance(
+  history: DayScore[],
+  liveScore: number,
+  threshold: number = COMPLIANCE_THRESHOLD,
+  window: number = TREND_WINDOW,
+  today: Date = new Date(),
+): WeeklyCompliance {
+  const scores = trendSeries(history, liveScore, window);
+  const labels = recentDayLabels(scores.length, today);
+  const lastIdx = scores.length - 1;
+  const days: ComplianceDay[] = scores.map((score, i) => ({
+    label: labels[i],
+    score,
+    ok: i !== lastIdx && score >= threshold,
+    today: i === lastIdx,
+  }));
+  const completed = days.filter((d) => !d.today);
+  const onPlan = completed.filter((d) => d.ok).length;
+  const total = completed.length;
+  const pct = total
+    ? Math.round(completed.reduce((a, d) => a + d.score, 0) / total)
+    : 0;
+  return { days, onPlan, total, pct };
+}
+
 /** Weekday short labels for the last `n` days ending today (oldest -> newest). */
 export function recentDayLabels(n: number, today: Date = new Date()): string[] {
   const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
