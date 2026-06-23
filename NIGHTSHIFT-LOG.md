@@ -2,13 +2,14 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
-## 2026-06-23 (run 5) — the Trainer portal header goes data-driven
+## 2026-06-23 (run 5) — Coach/Trainer/Athlete-detail go fully data-driven
 
-One commit, all three gates green (`tsc --noEmit`, jest, `expo export -p ios`).
-Test count 203 → **206** (never dropped). Router untouched (app/_layout +
-app/index, no src/app). Phase-2 Supabase scaffold not touched. This run closed
-the last open item from the run-3 Coach-KPI pattern: the **Trainer View** still
-had hardcoded header numbers that contradicted the client list below.
+Three code commits + this log, all three gates green every commit (`tsc
+--noEmit`, jest, `expo export -p ios`). Test count 203 → **210** (never
+dropped). Router untouched (app/_layout + app/index, no src/app). Phase-2
+Supabase scaffold not touched. This run retired the last hardcoded numbers that
+could contradict live state on the **role dashboards and the athlete-detail
+overlay** (item 6 / item 8 of the Definition of Done).
 
 - **feat(trainer): derive the Trainer book KPIs from the live client list.** The
   Trainer header showed `12 CLIENTS`, `84% AVG COMPLY`, a `12 active` count, a
@@ -22,14 +23,40 @@ had hardcoded header numbers that contradicted the client list below.
   source. The honest fixture now reads **5 clients / 83% compliance** (was the
   cosmetic 12 / 84%). RETENTION stays a presentation constant (no per-row
   source). +3 tests.
+- **fix(coach): derive the roster count + AI summary from the live roster.** The
+  Coach view printed `ROSTER · 6 ATHLETES` and an AI summary opening "4 of 6
+  logged every meal this week" as literals — so if the athlete tanked their own
+  you-row score the header KPIs moved but the summary stayed frozen. The count
+  now reads `roster.length` and the summary derives "N of M athletes are on
+  track this week" (M = roster size, N = M − the below-threshold alert count from
+  `coachRosterKpis`) plus a how-many-need-attention clause with a clean
+  zero-alerts empty state. The summary now tracks the same KPIs as the header.
+- **fix(person): anchor the athlete-detail breakdown + copy to the real
+  athlete.** The coach/trainer Athlete Profile overlay showed a fixed Score
+  Breakdown (92/80/88/100), a constant 96% COMPLIANCE, and an AI summary calling
+  *every* athlete "one of your most consistent" — so opening M. Cole (68, 58%
+  compliant) rendered low-90s bars, 96% compliance, and glowing copy that all
+  contradicted his 68 headline. New pure `personBreakdown(score)` (four bars
+  whose integer offsets sum to zero, so they average to the headline score;
+  recovery the laggard, check-in strongest) drives the breakdown; COMPLIANCE
+  reads a real `comp` now threaded through `openPerson` from the Coach roster,
+  the NEEDS ATTENTION rows (71 / 58), and the Trainer book; the AI summary
+  branches on the score band (≥85 praise / ≥75 steady / else needs-attention).
+  +4 tests.
 
 ### For the founder (QC this run)
 - **Trainer view** — the three header KPIs now read **5 CLIENTS · 83% AVG
-  COMPLY · 92% RETENTION**, the client section subtitle reads "5 active", the
-  Book Compliance card headline reads 83%, and the AI Practice Summary opens
-  "Your book is healthy — 83% average compliance" — all consistent with the five
-  clients listed below and impossible to drift apart. No data to wire up;
-  deterministic + offline (no Supabase touched).
+  COMPLY · 92% RETENTION**, the client subtitle reads "5 active", the Book
+  Compliance headline reads 83%, and the AI Practice Summary opens "83% average
+  compliance" — all consistent with the five clients listed below.
+- **Coach view** — "ROSTER · 6 ATHLETES" and the AI TEAM SUMMARY now track the
+  live roster: tank the athlete's own score (skip meals/tasks) and the summary's
+  "on track" / "needs attention" counts move with the header ALERTS KPI.
+- **Athlete Profile overlay** (tap any coach/trainer roster row) — the Score
+  Breakdown bars, the COMPLIANCE tile, and the AI summary now all reflect the
+  tapped athlete: tap **M. Cole** (68) vs **D. Brooks** (88) and the bars,
+  compliance %, and the tone of the summary visibly differ. All deterministic +
+  offline (no Supabase touched).
 
 ## 2026-06-23 (run 4) — the Parent portal goes fully data-driven (no static charts)
 
@@ -224,9 +251,10 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    findings remain in NIGHTSHIFT-PRIORITIES.)
 2. **UX/UI fidelity, every screen/overlay/role** — athlete tabs, overlays, and
    role chrome have had fidelity + a11y passes. Still worth a dedicated
-   critique+audit on: **Squad** (leaderboard), **Onboarding** (multi-step),
-   **PersonDetail**, **MealDetail**, and **TrainerView** body. Verify type scale /
-   spacing / radii against the `.dc.html` handoff one screen per commit.
+   critique+audit on: **Squad** (leaderboard), **Onboarding** (multi-step), and
+   **MealDetail**. (Run 5 made **PersonDetail** + **TrainerView** body data-driven
+   per-athlete/per-roster.) Verify type scale / spacing / radii against the
+   `.dc.html` handoff one screen per commit.
 3. **Motion / micro-interactions** — ring draw, bar grow, overlay slide-up,
    meal scan-line, spinner, and haptics are in. Reduce-motion now honored in
    Overlay **and Ring + ProgressBar** ✅ (shared `useReduceMotion` hook). Remaining:
@@ -253,15 +281,18 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    **The Trainer view header is now data-driven** ✅ (run 5): CLIENTS, AVG COMPLY,
    the "N active" count, the Book Compliance headline, and the AI-summary
    compliance figure all derive from `TRAINER_CLIENTS` via `trainerBookKpis`.
-   Still open: the **Coach view** has a static NEEDS ATTENTION list and a static
-   AI team summary string, and the **Trainer view** keeps a curated NEEDS
-   FOLLOW-UP list (Silva / Cole) + a demo Book Compliance trend SVG — all "demo
-   data" over fixed mock athletes by design, not hardcoded charts over real
-   state. No per-day chart remains on Coach or Trainer that contradicts live data.
+   **The Coach AI team summary + roster count now derive from the live roster**
+   ✅ (run 5: "N of M on track" + alert count, `roster.length`). **The
+   coach/trainer Athlete Profile overlay is now per-athlete** ✅ (run 5:
+   `personBreakdown` bars anchored to the headline score, real `comp`, score-band
+   AI copy). Still open (by design): the **Coach NEEDS ATTENTION list** and the
+   **Trainer NEEDS FOLLOW-UP list** (Silva / Cole) + the demo Book Compliance
+   trend SVG are "demo data" over fixed mock athletes, not charts that contradict
+   real state. No per-day chart on Coach or Trainer drifts from live data.
 7. **Test safety net** — ✅ recommendation/leaderboard/content + store-level
    addMeal/toggleTask/addWater/submitCi score-movement tests exist; `npm run
-   verify` green. **206 tests** (run 5 added `trainerBookKpis` coverage).
-   (Optional: a smoke test for the Ring web-shim.)
+   verify` green. **210 tests** (run 5 added `trainerBookKpis` + `personBreakdown`
+   coverage). (Optional: a smoke test for the Ring web-shim.)
 8. **No dead UI** — Account Notifications now live ✅. Remaining static/no-op
    affordances: Account "Team & roster / Billing / Help" rows and the Profile
    "Units" row show a "›" but have no destination (they are non-interactive
