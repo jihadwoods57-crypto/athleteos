@@ -25,6 +25,20 @@ export function createInitialState(): AppState {
     compMode: 'position',
     coachTrack: { nutrition: true, recovery: true, hydration: true, weight: true, tasks: true },
 
+    // onboarding (redesign)
+    primaryGoal: null,
+    trainingFreq: null,
+    supportTeam: [],
+    inviteCode: '',
+    baseNutritionConfidence: 6,
+    baseMealsPerDay: 3,
+    baseWaterL: 2.0,
+    baseSleepH: 7,
+    baseProteinFreq: 1,
+    baseConsistency: 6,
+    startScore: null,
+    obMeta: {},
+
     // day
     dateStamp: todayStamp(),
     scoreHistory: [],

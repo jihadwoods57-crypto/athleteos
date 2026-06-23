@@ -4,7 +4,7 @@
 // disclosures. The team-row detail derives from the real roster / client book
 // per role, so the numbers can never be invented or drift from the dashboards.
 import type { Role } from './types';
-import { APP_VERSION, ROSTER, TRAINER_CLIENTS } from './constants';
+import { APP_VERSION, flowForRole, ROSTER, TRAINER_CLIENTS } from './constants';
 
 export interface AccountRow {
   key: 'team' | 'plan' | 'help';
@@ -36,7 +36,8 @@ export function accountRows(role: Role | null): AccountRow[] {
 }
 
 function teamRow(role: Role | null): AccountRow {
-  if (role === 'coach') {
+  const flow = flowForRole(role);
+  if (flow === 'coach') {
     const n = ROSTER.length;
     return {
       key: 'team',
@@ -45,17 +46,18 @@ function teamRow(role: Role | null): AccountRow {
       detail: `You manage ${n} athletes on the Eastside HS roster. Add or remove players from the Coach dashboard.`,
     };
   }
-  if (role === 'trainer') {
+  if (flow === 'trainer') {
     const n = TRAINER_CLIENTS.length;
     const orgs = new Set(TRAINER_CLIENTS.map((c) => c.org)).size;
+    const noun = role === 'nutritionist' ? 'nutrition clients' : 'clients';
     return {
       key: 'team',
-      label: 'Team & roster',
-      hint: `${n} clients`,
-      detail: `You coach ${n} clients across ${orgs} organizations. Manage your book from the Trainer dashboard.`,
+      label: role === 'nutritionist' ? 'Clients & nutrition' : 'Clients & book',
+      hint: `${n} ${noun}`,
+      detail: `You coach ${n} ${noun} across ${orgs} organizations. Manage your book from the dashboard.`,
     };
   }
-  if (role === 'parent') {
+  if (flow === 'parent') {
     return {
       key: 'team',
       label: 'Team & roster',

@@ -1,921 +1,688 @@
-// AthleteOS — onboarding flow. Welcome → role → role-specific steps → success.
-// Ported from AthleteOS.dc.html onboarding block.
-import React from 'react';
+// AthleteOS — activation-first onboarding. The goal is the first moment of value
+// (Starting Point Score -> first meal -> AI coaching), not account setup. One question
+// per screen, tap-first, in-system premium. 7 roles personalize onto the 4 dashboards.
+// See docs/specs/2026-06-23-onboarding-redesign.md.
+import React, { useEffect } from 'react';
 import { ScrollView, View } from 'react-native';
 import {
-  ATHLETE_GOALS,
-  BASE_GOAL_CHIPS,
-  CHECKIN_QUESTIONS,
-  COMP_MODES,
-  INVITE_DATA,
-  LEVELS,
-  ONBOARDING_SEQS,
-  PARENT_FOCUS,
-  POSITION_MAP,
-  SPORTS,
-  TRACK_DATA,
-  accountStepValid,
-  baselineRec,
-  displayWeight,
   formatHeight,
-  isValidEmail,
-  weightStepLb,
-  weightUnit,
+  flowForRole,
+  GOAL_GROUPS,
+  POSITION_MAP,
+  PROTEIN_FREQ,
+  ROLE_DEFS,
+  SPORTS,
+  TRAIN_FREQ,
+  SUPPORT_OPTIONS,
 } from '@/core';
+import type { Role } from '@/core';
 import { useStore } from '@/store';
-import { colors, font, radius, shadow } from '@/ui/tokens';
-import { Btn, Chip, Card, Input, Pill, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
+import type { Store } from '@/store';
+import { colors } from '@/ui/tokens';
+import { Btn, Card, Input, ProgressBar, Row, Stepper, Txt, Pressable } from '@/ui/primitives';
+import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
-import { Icon } from '@/icons';
+import { Icon, type IconName } from '@/icons';
 import { LogoMark } from '@/brand/Logo';
+import { ROLE_FLOWS, type GenStep } from './flows';
+import { ScoreReveal } from './ScoreReveal';
 
-function StepHeader({ label, onBack }: { label: string; onBack: () => void }) {
+/* ------------------------------------------------------------------ shared shell */
+function StepShell({
+  progress,
+  onBack,
+  eyebrow,
+  title,
+  sub,
+  children,
+  footer,
+}: {
+  progress: number | null;
+  onBack?: () => void;
+  eyebrow?: string;
+  title: string;
+  sub?: string;
+  children: React.ReactNode;
+  footer: React.ReactNode;
+}) {
   return (
-    <Row style={{ justifyContent: 'space-between' }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-        hitSlop={6}
-        onPress={() => {
-          haptics.tap();
-          onBack();
-        }}
-        style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
-      >
-        <Icon name="chevronLeft" size={22} color={colors.slate600} />
-      </Pressable>
-      {label ? (
-        <Txt w="b" size={13} color={colors.textTertiary}>
-          {label}
-        </Txt>
-      ) : (
-        <View />
-      )}
-    </Row>
-  );
-}
-
-function Title({ children, sub }: { children: React.ReactNode; sub?: string }) {
-  return (
-    <View style={{ marginTop: 24 }}>
-      <Txt w="eb" size={30} ls={-0.9} style={{ lineHeight: 33 }}>
-        {children}
-      </Txt>
-      {sub ? (
-        <Txt w="m" size={15} color={colors.textSecondary} style={{ marginTop: 8 }}>
-          {sub}
-        </Txt>
-      ) : null}
-    </View>
-  );
-}
-
-export function Onboarding() {
-  const s = useStore();
-  const obRole = s.role ?? 'athlete';
-  const seq = ONBOARDING_SEQS[obRole];
-
-  let screen: string;
-  if (s.signinMode) screen = 'signin';
-  else if (s.obStep === 0) screen = 'welcome';
-  else if (s.obStep === 1) screen = 'role';
-  else screen = seq[s.obStep - 2] ?? 'success';
-
-  const pIdx = s.obStep - 2;
-  const inPersona = screen !== 'welcome' && screen !== 'role' && screen !== 'signin';
-  const stepLabel = inPersona ? `Step ${pIdx + 1} of ${seq.length}` : '';
-
-  return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1, paddingTop: 64, paddingHorizontal: 24, paddingBottom: 36 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {screen === 'welcome' && <Welcome />}
-        {screen === 'signin' && <SignIn />}
-        {screen === 'role' && <RolePicker />}
-        {screen === 'account' && <AccountStep label={stepLabel} />}
-        {screen === 'level' && <LevelStep label={stepLabel} />}
-        {screen === 'sport' && <SportStep label={stepLabel} />}
-        {screen === 'baseline' && <BaselineStep label={stepLabel} />}
-        {screen === 'connect' && <ConnectStep label={stepLabel} />}
-        {screen === 'link' && <LinkStep label={stepLabel} />}
-        {screen === 'focus' && <FocusStep label={stepLabel} />}
-        {screen === 'team' && <TeamStep label={stepLabel} />}
-        {screen === 'roster' && <RosterStep label={stepLabel} />}
-        {screen === 'track' && <TrackStep label={stepLabel} />}
-        {screen === 'practice' && <PracticeStep label={stepLabel} />}
-        {screen === 'clients' && <ClientsStep label={stepLabel} />}
-        {screen === 'success' && <Success role={obRole} />}
-      </ScrollView>
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------ Welcome */
-function Welcome() {
-  const { obNext, startSignin } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <Row style={{ gap: 9, marginTop: 6 }}>
-        <View style={{ width: 30, height: 30, borderRadius: 9, overflow: 'hidden' }}>
-          <LogoMark size={30} />
-        </View>
-        <Txt w="eb" size={17} ls={-0.34}>
-          Athlete<Txt w="eb" size={17} color={colors.accent}>OS</Txt>
-        </Txt>
-      </Row>
-
-      <View style={{ marginTop: 'auto' }}>
-        <Txt w="eb" size={42} ls={-1.5} style={{ lineHeight: 44 }}>
-          The accountability platform for <Txt w="eb" size={42} color={colors.accent} ls={-1.5}>serious athletes.</Txt>
-        </Txt>
-        <Txt w="m" size={17} color={colors.textSecondary} style={{ marginTop: 18, lineHeight: 25, maxWidth: 310 }}>
-          Nutrition, recovery, and habits — measured every day, visible to the people helping you win.
-        </Txt>
-      </View>
-
-      <View style={{ gap: 14, marginVertical: 34 }}>
-        <FeatureRow icon="camera" text="AI meal analysis in one tap" />
-        <FeatureRow icon="bolt" text="A daily Athlete Score that means something" />
-        <FeatureRow icon="squad" text="Coach & parent visibility, built in" />
-      </View>
-
-      <Btn label="Create account" onPress={obNext} />
-      <Row style={{ justifyContent: 'center', marginTop: 16 }}>
-        <Txt w="m" size={14} color={colors.textTertiary}>
-          Already have one?{' '}
-        </Txt>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Sign in"
-          hitSlop={8}
-          onPress={() => {
-            haptics.tap();
-            startSignin();
-          }}
-          style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1 })}
-        >
-          <Txt w="b" size={14} color={colors.accent}>
-            Sign in
-          </Txt>
-        </Pressable>
-      </Row>
-    </View>
-  );
-}
-
-function FeatureRow({ icon, text }: { icon: any; text: string }) {
-  return (
-    <Row style={{ gap: 13 }}>
-      <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name={icon} size={17} color={colors.accent} />
-      </View>
-      <Txt w="sb" size={15} color={colors.slate700} style={{ flex: 1 }}>
-        {text}
-      </Txt>
-    </Row>
-  );
-}
-
-/* ------------------------------------------------------------------ Sign in */
-function SignIn() {
-  const { exitSignin, signinDone, athleteEmail, setEmail } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label="Sign in" onBack={exitSignin} />
-      <Title sub="Pick up right where you left off.">Welcome back</Title>
-      <View style={{ gap: 12, marginTop: 24 }}>
-        <Input value={athleteEmail} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
-        <Input value="password" secureTextEntry placeholder="Password" />
-        <Txt w="b" size={13} color={colors.accent} style={{ textAlign: 'right' }}>
-          Forgot password?
-        </Txt>
-      </View>
-      <View style={{ marginTop: 'auto' }}>
-        <Btn label="Sign in" onPress={signinDone} />
-        <Row style={{ justifyContent: 'center', marginTop: 16 }}>
-          <Txt w="m" size={14} color={colors.textTertiary}>
-            New here?{' '}
-          </Txt>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Create an account"
-            hitSlop={8}
-            onPress={() => {
-              haptics.tap();
-              exitSignin();
-            }}
-            style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1 })}
-          >
-            <Txt w="b" size={14} color={colors.accent}>
-              Create an account
-            </Txt>
-          </Pressable>
-        </Row>
-      </View>
-    </View>
-  );
-}
-
-/* -------------------------------------------------------------- Role picker */
-const ROLE_INFO: { key: 'athlete' | 'parent' | 'coach' | 'trainer'; icon: any; title: string; sub: string }[] = [
-  { key: 'athlete', icon: 'bolt', title: 'Athlete', sub: 'Track meals, score & habits' },
-  { key: 'parent', icon: 'user', title: 'Parent', sub: "Follow your athlete's progress" },
-  { key: 'coach', icon: 'checkin', title: 'Coach', sub: 'Manage a team & leaderboards' },
-  { key: 'trainer', icon: 'plan', title: 'Trainer', sub: 'Coach clients beyond sessions' },
-];
-
-function RolePicker() {
-  const { role, setRole, obNext, obBack } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label="Choose your role" onBack={obBack} />
-      <Title sub="Pick the role that fits you — we'll tailor the rest.">How will you use AthleteOS?</Title>
-      <View style={{ gap: 11, marginTop: 24 }}>
-        {ROLE_INFO.map((r) => {
-          const sel = role === r.key;
-          return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <View style={{ paddingTop: 60, paddingHorizontal: 24 }}>
+        <Row style={{ gap: 14, height: 40 }}>
+          {onBack ? (
             <Pressable
-              key={r.key}
               accessibilityRole="button"
-              accessibilityLabel={r.title}
-              accessibilityState={{ selected: sel }}
+              accessibilityLabel="Go back"
+              hitSlop={8}
               onPress={() => {
-                haptics.select();
-                setRole(r.key);
+                haptics.tap();
+                onBack();
               }}
-              style={({ pressed }) => [
-                {
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 15,
-                  padding: 18,
-                  borderRadius: 18,
-                  backgroundColor: sel ? colors.accentSurface : colors.card,
-                  borderWidth: 2,
-                  borderColor: sel ? colors.accent : 'transparent',
-                  opacity: pressed ? 0.85 : 1,
-                },
-                sel ? undefined : shadow.card,
-              ]}
+              style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
             >
-              <View style={{ width: 46, height: 46, borderRadius: 13, backgroundColor: sel ? '#fff' : colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name={r.icon} size={23} color={sel ? colors.accent : colors.textTertiary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Txt w="b" size={16}>
-                  {r.title}
-                </Txt>
-                <Txt w="m" size={13} color={colors.textSecondary}>
-                  {r.sub}
-                </Txt>
-              </View>
-              <View
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 11,
-                  borderWidth: 2,
-                  borderColor: sel ? colors.accent : '#CBD5E1',
-                  backgroundColor: sel ? colors.accent : '#fff',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {sel ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' }} /> : null}
-              </View>
+              <Icon name="chevronLeft" size={22} color={colors.slate600} />
             </Pressable>
-          );
-        })}
-      </View>
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
-
-/* ----------------------------------------------------------------- Account */
-function AccountStep({ label }: { label: string }) {
-  const { athleteName, athleteEmail, setName, setEmail, obNext, obBack } = useStore();
-  // Gate Continue until both fields are sane; show the email hint only once the
-  // athlete has typed something invalid (never nag an empty, untouched field).
-  const emailInvalid = athleteEmail.trim().length > 0 && !isValidEmail(athleteEmail);
-  const canContinue = accountStepValid(athleteName, athleteEmail);
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="This sets up your profile and login.">Create your account</Title>
-      <View style={{ gap: 14, marginTop: 24 }}>
-        <Field label="FULL NAME">
-          <Input value={athleteName} onChangeText={setName} placeholder="e.g. Jihad Carter" />
-        </Field>
-        <Field label="EMAIL">
-          <Input value={athleteEmail} onChangeText={setEmail} placeholder="you@email.com" autoCapitalize="none" keyboardType="email-address" />
-          {emailInvalid ? (
-            <Txt w="sb" size={12} color={colors.alert} style={{ marginTop: 6, marginLeft: 4 }}>
-              Enter a valid email address
-            </Txt>
-          ) : null}
-        </Field>
-      </View>
-      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 14, paddingHorizontal: 4, lineHeight: 17 }}>
-        By continuing you agree to the AthleteOS Terms & Privacy Policy. Athletes under 13 need a parent to create the account.
-      </Txt>
-      <Btn label="Continue" onPress={obNext} disabled={!canContinue} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <View>
-      <Txt w="b" size={12} color={colors.textTertiary} style={{ marginBottom: 7, marginLeft: 4 }}>
-        {label}
-      </Txt>
-      {children}
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------- Level */
-function LevelStep({ label }: { label: string }) {
-  const { level, setLevel, obNext, obBack } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="We tailor targets, templates, and norms to your level.">What level do you compete at?</Title>
-      <View style={{ gap: 11, marginTop: 24 }}>
-        {LEVELS.map((l) => (
-          <Pressable
-            key={l}
-            accessibilityRole="button"
-            accessibilityLabel={l}
-            accessibilityState={{ selected: level === l }}
-            onPress={() => {
-              haptics.select();
-              setLevel(l);
-            }}
-            style={({ pressed }) => [
-              {
-                padding: 18,
-                borderRadius: 16,
-                backgroundColor: level === l ? colors.accent : colors.card,
-                borderWidth: 2,
-                borderColor: level === l ? colors.accent : 'transparent',
-                opacity: pressed ? 0.85 : 1,
-              },
-              level === l ? undefined : shadow.card,
-            ]}
-          >
-            <Txt w="b" size={16} color={level === l ? '#fff' : colors.text}>
-              {l}
-            </Txt>
-          </Pressable>
-        ))}
-      </View>
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------- Sport */
-function SportStep({ label }: { label: string }) {
-  const { sport, position, setSport, setPosition, obNext, obBack } = useStore();
-  const positions = POSITION_MAP[sport ?? ''] ?? POSITION_MAP.default;
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="We'll tailor your targets and templates.">What's your sport?</Title>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 11, marginTop: 22 }}>
-        {SPORTS.map((name) => {
-          const active = sport === name;
-          return (
-            <Pressable
-              key={name}
-              accessibilityRole="button"
-              accessibilityLabel={name}
-              accessibilityState={{ selected: active }}
-              onPress={() => {
-                haptics.select();
-                setSport(name);
-              }}
-              style={({ pressed }) => [
-                {
-                  width: '47.5%',
-                  height: 62,
-                  borderRadius: 16,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: active ? colors.accent : colors.card,
-                  borderWidth: 2,
-                  borderColor: active ? colors.accent : 'transparent',
-                  opacity: pressed ? 0.85 : 1,
-                },
-                active ? shadow.cta : shadow.card,
-              ]}
-            >
-              <Txt w="b" size={15} color={active ? '#fff' : colors.text}>
-                {name}
-              </Txt>
-            </Pressable>
-          );
-        })}
-      </View>
-      {sport ? (
-        <>
-          <Txt w="b" size={14} style={{ marginTop: 24, marginBottom: 12 }}>
-            Select your position
-          </Txt>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-            {positions.map((p) => (
-              <Chip key={p} label={p} active={position === p} onPress={() => setPosition(p)} />
-            ))}
-          </View>
-        </>
-      ) : null}
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
-
-/* ---------------------------------------------------------------- Baseline */
-function BaselineStep({ label }: { label: string }) {
-  const s = useStore();
-  const rec = baselineRec(s.baseWeight, s.baseGoal);
-  const units = s.units ?? 'imperial';
-  const wStepLb = weightStepLb(units);
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={s.obBack} />
-      <Title sub="We'll set smart targets — your coach can fine-tune them.">Your baseline</Title>
-      <Row style={{ gap: 10, marginTop: 22, alignItems: 'stretch' }}>
-        <BaseTile label="HEIGHT" value={formatHeight(s.baseHeight)} onDec={() => s.hStep(-1)} onInc={() => s.hStep(1)} />
-        <BaseTile label="WEIGHT" value={`${displayWeight(s.baseWeight, units)}`} unit={weightUnit(units)} onDec={() => s.bwStep(-wStepLb)} onInc={() => s.bwStep(wStepLb)} />
-        <BaseTile label="AGE" value={`${s.baseAge}`} onDec={() => s.ageStep(-1)} onInc={() => s.ageStep(1)} />
-      </Row>
-      <Txt w="b" size={14} style={{ marginTop: 24, marginBottom: 12 }}>
-        What's the goal?
-      </Txt>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-        {BASE_GOAL_CHIPS.map((g) => (
-          <Chip key={g.key} label={g.label} active={s.baseGoal === g.key} onPress={() => s.setBaseGoal(g.key)} />
-        ))}
-      </View>
-      <View style={{ marginTop: 22, borderRadius: 20, padding: 18, backgroundColor: colors.accentSurface, borderWidth: 1, borderColor: colors.accentBorder }}>
-        <Row style={{ gap: 8 }}>
-          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent }} />
-          <Txt w="eb" size={11} color={colors.accent} ls={1.1}>
-            AI RECOMMENDATION
-          </Txt>
+          ) : (
+            <View style={{ width: 40, height: 40 }} />
+          )}
+          {progress != null ? (
+            <View style={{ flex: 1 }}>
+              <ProgressBar pct={progress * 100} height={6} />
+            </View>
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
         </Row>
-        <Row style={{ justifyContent: 'space-between', marginTop: 15 }}>
-          <RecStat value={`${rec.recProtein}g`} label="Protein/day" />
-          <RecStat value={rec.recCalStr} label="Calories" />
-          <RecStat value={rec.recChange} label="12-wk goal" color={rec.recChangeColor} />
-        </Row>
-        <Txt w="m" size={12} color={colors.slate600} style={{ marginTop: 13, lineHeight: 17 }}>
-          Tuned to your build & goal. Your coach or nutritionist can override these anytime.
-        </Txt>
       </View>
-      <Btn label="Continue" onPress={s.obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
-
-function BaseTile({ label, value, unit, onDec, onInc }: { label: string; value: string; unit?: string; onDec: () => void; onInc: () => void }) {
-  return (
-    <View style={[{ flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 13, alignItems: 'center' }, shadow.card]}>
-      <Txt w="b" size={11} color={colors.textTertiary} ls={0.4}>
-        {label}
-      </Txt>
-      <Row style={{ marginVertical: 6 }}>
-        <Txt w="eb" size={20}>
-          {value}
-        </Txt>
-        {unit ? (
-          <Txt w="sb" size={12} color={colors.textTertiary}>
-            {unit}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 22, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+        {eyebrow ? (
+          <Txt w="eb" size={12} color={colors.accent} ls={1} upper style={{ marginBottom: 10 }}>
+            {eyebrow}
           </Txt>
         ) : null}
-      </Row>
-      <Row style={{ gap: 6 }}>
-        <MiniStep glyph="−" onPress={onDec} />
-        <MiniStep glyph="+" onPress={onInc} />
-      </Row>
+        <Txt w="eb" size={28} ls={-0.8} style={{ lineHeight: 32 }}>
+          {title}
+        </Txt>
+        {sub ? (
+          <Txt w="m" size={15} color={colors.textSecondary} style={{ marginTop: 8, lineHeight: 21 }}>
+            {sub}
+          </Txt>
+        ) : null}
+        <View style={{ marginTop: 24 }}>{children}</View>
+      </ScrollView>
+      <View style={{ paddingHorizontal: 24, paddingBottom: 34, paddingTop: 6 }}>{footer}</View>
     </View>
   );
 }
 
-function MiniStep({ glyph, onPress }: { glyph: string; onPress: () => void }) {
+/** Big tappable option row — the primary answer affordance. */
+function OptionRow({ label, selected, onPress, sub }: { label: string; selected: boolean; onPress: () => void; sub?: string }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={glyph === '+' ? 'Increase' : 'Decrease'}
-      hitSlop={10}
+      accessibilityLabel={label}
+      accessibilityState={{ selected }}
       onPress={() => {
         haptics.select();
         onPress();
       }}
-      style={({ pressed }) => ({ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+      style={({ pressed }) => ({
+        backgroundColor: selected ? colors.accentSurface : colors.card,
+        borderWidth: 1.5,
+        borderColor: selected ? colors.accent : colors.border,
+        borderRadius: 16,
+        paddingVertical: 17,
+        paddingHorizontal: 18,
+        marginBottom: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        opacity: pressed ? 0.92 : 1,
+      })}
     >
-      <Txt w="b" size={17} color={colors.slate700}>
+      <View style={{ flex: 1 }}>
+        <Txt w="b" size={16} color={selected ? colors.accent : colors.text}>
+          {label}
+        </Txt>
+        {sub ? (
+          <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
+            {sub}
+          </Txt>
+        ) : null}
+      </View>
+      <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: selected ? colors.accent : '#CBD5E1', backgroundColor: selected ? colors.accent : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+        {selected ? <Icon name="check" size={13} color="#fff" /> : null}
+      </View>
+    </Pressable>
+  );
+}
+
+/* ------------------------------------------------------------------ welcome */
+function Welcome() {
+  const { athleteName, setName, obNext, startSignin } = useStore();
+  const ready = athleteName.trim().length > 1;
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingTop: 76, paddingHorizontal: 26, paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
+        <Row style={{ gap: 10 }}>
+          <LogoMark size={30} />
+          <Txt w="eb" size={20} ls={-0.4}>
+            Athlete<Txt w="eb" size={20} color={colors.accent}>OS</Txt>
+          </Txt>
+        </Row>
+        <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 28 }}>
+          <Txt w="eb" size={38} ls={-1.4} style={{ lineHeight: 42 }}>
+            Let's build your{'\n'}development plan.
+          </Txt>
+          <Txt w="m" size={16} color={colors.textSecondary} style={{ marginTop: 14, lineHeight: 23 }}>
+            A few quick questions, your Starting Point Score, and your first AI coaching moment. Under five minutes.
+          </Txt>
+          <Txt w="eb" size={12} color={colors.textTertiary} ls={0.8} upper style={{ marginTop: 32, marginBottom: 9 }}>
+            First, what should we call you?
+          </Txt>
+          <Input value={athleteName} onChangeText={setName} placeholder="First name" autoCapitalize="words" returnKeyType="done" />
+        </View>
+      </ScrollView>
+      <View style={{ paddingHorizontal: 26, paddingBottom: 34, gap: 14 }}>
+        <Btn label="Get started" disabled={!ready} onPress={obNext} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Sign in" hitSlop={8} onPress={() => { haptics.tap(); startSignin(); }} style={({ pressed }) => ({ alignSelf: 'center', opacity: pressed ? 0.6 : 1 })}>
+          <Txt w="b" size={14} color={colors.textSecondary}>
+            Already have an account? <Txt w="b" size={14} color={colors.accent}>Sign in</Txt>
+          </Txt>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function SignIn() {
+  const { exitSignin, signinDone } = useStore();
+  return (
+    <StepShell
+      progress={null}
+      onBack={exitSignin}
+      title="Welcome back"
+      sub="Pick up right where you left off."
+      footer={<Btn label="Sign in" onPress={signinDone} />}
+    >
+      <View style={{ gap: 12 }}>
+        <Input placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
+        <Input placeholder="Password" secureTextEntry />
+      </View>
+    </StepShell>
+  );
+}
+
+/* ------------------------------------------------------------------ role picker */
+function RolePicker() {
+  const { role, setRole, obNext, obBack } = useStore();
+  return (
+    <StepShell
+      progress={null}
+      onBack={obBack}
+      eyebrow="Who are you?"
+      title="How will you use AthleteOS?"
+      sub="We tailor everything — your plan, your dashboard, your language — to this."
+      footer={<Btn label="Continue" disabled={!role} onPress={obNext} />}
+    >
+      {ROLE_DEFS.map((r) => {
+        const selected = role === r.key;
+        return (
+          <Pressable
+            key={r.key}
+            accessibilityRole="button"
+            accessibilityLabel={r.title}
+            accessibilityState={{ selected }}
+            onPress={() => {
+              haptics.select();
+              setRole(r.key);
+            }}
+            style={({ pressed }) => ({
+              backgroundColor: selected ? colors.accentSurface : colors.card,
+              borderWidth: 1.5,
+              borderColor: selected ? colors.accent : colors.border,
+              borderRadius: 16,
+              padding: 15,
+              marginBottom: 10,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 14,
+              opacity: pressed ? 0.92 : 1,
+            })}
+          >
+            <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: selected ? colors.accent : colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={r.icon as IconName} size={21} color={selected ? '#fff' : colors.slate600} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="b" size={16} color={selected ? colors.accent : colors.text}>
+                {r.title}
+              </Txt>
+              <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 1 }}>
+                {r.sub}
+              </Txt>
+            </View>
+          </Pressable>
+        );
+      })}
+    </StepShell>
+  );
+}
+
+/* ------------------------------------------------------------------ athlete flow */
+const ATHLETE_KEYS = [
+  'goal', 'sport', 'position', 'profile', 'frequency', 'support',
+  'b_conf', 'b_protein', 'b_consistency', 'b_meals', 'b_water', 'b_sleep',
+  'score', 'challenge',
+] as const;
+
+function AthleteFlow() {
+  const s = useStore();
+  const idx = s.obStep - 2;
+  const key = ATHLETE_KEYS[idx] ?? 'challenge';
+  const progress = (idx + 1) / ATHLETE_KEYS.length;
+
+  // Compute the Starting Point Score the moment we land on the reveal.
+  useEffect(() => {
+    if (key === 'score' && s.startScore == null) s.commitStartingScore();
+  }, [key, s.startScore]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const cont = (canContinue: boolean, label = 'Continue') => (
+    <Btn label={label} disabled={!canContinue} onPress={s.obNext} />
+  );
+
+  switch (key) {
+    case 'goal':
+      return (
+        <StepShell progress={progress} onBack={s.obBack} eyebrow="Your plan" title="What's your #1 goal right now?" sub="This shapes every piece of AI coaching you'll get." footer={cont(!!s.primaryGoal)}>
+          {GOAL_GROUPS.map((g) => (
+            <View key={g.group} style={{ marginBottom: 18 }}>
+              <Txt w="eb" size={12} color={colors.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
+                {g.group}
+              </Txt>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+                {g.options.map((o) => {
+                  const sel = s.primaryGoal === o.key;
+                  return (
+                    <Pressable
+                      key={o.key}
+                      accessibilityRole="button"
+                      accessibilityLabel={o.label}
+                      accessibilityState={{ selected: sel }}
+                      onPress={() => { haptics.select(); s.setPrimaryGoal(o.key); }}
+                      style={({ pressed }) => ({ backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 13, paddingVertical: 12, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
+                    >
+                      <Txt w="b" size={14} color={sel ? '#fff' : colors.slate700}>
+                        {o.label}
+                      </Txt>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+        </StepShell>
+      );
+
+    case 'sport':
+      return (
+        <StepShell progress={progress} onBack={s.obBack} title="What sport do you play?" footer={cont(!!s.sport)}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+            {[...SPORTS, 'Other'].map((sp) => {
+              const sel = s.sport === sp;
+              return (
+                <Pressable
+                  key={sp}
+                  accessibilityRole="button"
+                  accessibilityLabel={sp}
+                  accessibilityState={{ selected: sel }}
+                  onPress={() => { haptics.select(); s.setSport(sp); }}
+                  style={({ pressed }) => ({ width: '31.5%', backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 14, paddingVertical: 18, alignItems: 'center', opacity: pressed ? 0.9 : 1 })}
+                >
+                  <Txt w="b" size={14} color={sel ? '#fff' : colors.slate700}>
+                    {sp}
+                  </Txt>
+                </Pressable>
+              );
+            })}
+          </View>
+        </StepShell>
+      );
+
+    case 'position': {
+      const positions = (s.sport && POSITION_MAP[s.sport]) || POSITION_MAP.default;
+      return (
+        <StepShell progress={progress} onBack={s.obBack} title="What position?" sub="So your recommendations fit your role on the field." footer={<Btn label={s.position ? 'Continue' : 'Skip'} onPress={s.obNext} />}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+            {positions.map((p) => {
+              const sel = s.position === p;
+              return (
+                <Pressable
+                  key={p}
+                  accessibilityRole="button"
+                  accessibilityLabel={p}
+                  accessibilityState={{ selected: sel }}
+                  onPress={() => { haptics.select(); s.setPosition(p); }}
+                  style={({ pressed }) => ({ backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 13, paddingVertical: 13, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
+                >
+                  <Txt w="b" size={15} color={sel ? '#fff' : colors.slate700}>
+                    {p}
+                  </Txt>
+                </Pressable>
+              );
+            })}
+          </View>
+        </StepShell>
+      );
+    }
+
+    case 'profile':
+      return (
+        <StepShell progress={progress} onBack={s.obBack} title="Your physical profile" sub="Tap to adjust. This calibrates your targets." footer={cont(true)}>
+          <View style={{ gap: 14 }}>
+            <Row style={{ gap: 12 }}>
+              <Stepper label="Age" value={String(s.baseAge)} unit="years" onDec={() => s.ageStep(-1)} onInc={() => s.ageStep(1)} />
+              <Stepper label="Height" value={formatHeight(s.baseHeight)} onDec={() => s.hStep(-1)} onInc={() => s.hStep(1)} />
+            </Row>
+            <Row style={{ gap: 12 }}>
+              <Stepper label="Weight" value={String(s.baseWeight)} unit="lb" onDec={() => s.bwStep(-1)} onInc={() => s.bwStep(1)} />
+              <Stepper label="Target weight" value={String(s.weightTarget)} unit="lb" onDec={() => s.adjustWeightTarget(-1)} onInc={() => s.adjustWeightTarget(1)} />
+            </Row>
+          </View>
+        </StepShell>
+      );
+
+    case 'frequency':
+      return (
+        <StepShell progress={progress} onBack={s.obBack} title="How often do you train?" footer={cont(!!s.trainingFreq)}>
+          {TRAIN_FREQ.map((o) => (
+            <OptionRow key={o.key} label={o.label} selected={s.trainingFreq === o.key} onPress={() => s.setTrainingFreq(o.key)} />
+          ))}
+        </StepShell>
+      );
+
+    case 'support':
+      return (
+        <StepShell progress={progress} onBack={s.obBack} title="Who's on your team?" sub="Connect coaches, trainers, or family so the right people can see your work." footer={cont(true)}>
+          {SUPPORT_OPTIONS.map((o) => (
+            <OptionRow key={o.key} label={o.label} selected={s.supportTeam.includes(o.key)} onPress={() => s.toggleSupport(o.key)} />
+          ))}
+          <OptionRow label="Just me for now" selected={s.supportTeam.length === 0} onPress={() => s.toggleSupport('none')} />
+          {s.supportTeam.length > 0 ? (
+            <View style={{ marginTop: 8 }}>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} upper style={{ marginBottom: 8 }}>
+                Have an invite code? (optional)
+              </Txt>
+              <Input value={s.inviteCode} onChangeText={s.setInviteCode} placeholder="Enter code" autoCapitalize="characters" />
+            </View>
+          ) : null}
+        </StepShell>
+      );
+
+    case 'b_conf':
+      return (
+        <ScaleStep
+          progress={progress}
+          onBack={s.obBack}
+          title="How confident are you in your nutrition?"
+          value={s.baseNutritionConfidence}
+          low="Not at all"
+          high="Dialed in"
+          onChange={(v) => s.setBaseAnswer('baseNutritionConfidence', v)}
+          onContinue={s.obNext}
+        />
+      );
+
+    case 'b_protein':
+      return (
+        <StepShell progress={progress} onBack={s.obBack} eyebrow="Baseline" title="How often do you hit your protein target?" footer={cont(true)}>
+          {PROTEIN_FREQ.map((o) => (
+            <OptionRow key={o.key} label={o.label} selected={s.baseProteinFreq === Number(o.key)} onPress={() => s.setBaseAnswer('baseProteinFreq', Number(o.key))} />
+          ))}
+        </StepShell>
+      );
+
+    case 'b_consistency':
+      return (
+        <ScaleStep
+          progress={progress}
+          onBack={s.obBack}
+          title="How consistent are you, week to week?"
+          value={s.baseConsistency}
+          low="All over"
+          high="Locked in"
+          onChange={(v) => s.setBaseAnswer('baseConsistency', v)}
+          onContinue={s.obNext}
+        />
+      );
+
+    case 'b_meals':
+      return (
+        <CounterStep
+          progress={progress}
+          onBack={s.obBack}
+          title="How many meals a day, typically?"
+          value={s.baseMealsPerDay}
+          unit="meals / day"
+          fmt={(v) => String(v)}
+          onDec={() => s.setBaseAnswer('baseMealsPerDay', Math.max(2, s.baseMealsPerDay - 1))}
+          onInc={() => s.setBaseAnswer('baseMealsPerDay', Math.min(6, s.baseMealsPerDay + 1))}
+          onContinue={s.obNext}
+        />
+      );
+
+    case 'b_water':
+      return (
+        <CounterStep
+          progress={progress}
+          onBack={s.obBack}
+          title="How much water do you drink daily?"
+          value={s.baseWaterL}
+          unit="liters / day"
+          fmt={(v) => v.toFixed(1)}
+          onDec={() => s.setBaseAnswer('baseWaterL', Math.max(0, +(s.baseWaterL - 0.5).toFixed(1)))}
+          onInc={() => s.setBaseAnswer('baseWaterL', Math.min(5, +(s.baseWaterL + 0.5).toFixed(1)))}
+          onContinue={s.obNext}
+        />
+      );
+
+    case 'b_sleep':
+      return (
+        <CounterStep
+          progress={progress}
+          onBack={s.obBack}
+          title="How many hours of sleep, on average?"
+          value={s.baseSleepH}
+          unit="hours / night"
+          fmt={(v) => v.toFixed(1)}
+          onDec={() => s.setBaseAnswer('baseSleepH', Math.max(4, +(s.baseSleepH - 0.5).toFixed(1)))}
+          onInc={() => s.setBaseAnswer('baseSleepH', Math.min(10, +(s.baseSleepH + 0.5).toFixed(1)))}
+          onContinue={s.obNext}
+        />
+      );
+
+    case 'score': {
+      const score = s.startScore ?? 0;
+      const name = s.athleteName.trim();
+      return (
+        <StepShell
+          progress={progress}
+          onBack={s.obBack}
+          eyebrow="Your Starting Point Score"
+          title={name ? `${name}, here's where you stand.` : "Here's where you stand."}
+          sub="This is your starting point, estimated from your habits. It rises as AthleteOS learns from what you actually do."
+          footer={<Btn label="See today's challenge" onPress={s.obNext} />}
+        >
+          <View style={{ alignItems: 'center', marginTop: 12 }}>
+            <ScoreReveal score={score} />
+          </View>
+        </StepShell>
+      );
+    }
+
+    case 'challenge':
+    default:
+      return (
+        <StepShell
+          progress={progress}
+          onBack={s.obBack}
+          eyebrow="Today's challenge"
+          title="Upload your first meal"
+          sub="One photo. Your AI nutrition coach reads it, scores it, and shows you exactly what to do next, instantly."
+          footer={<Btn label="Start now" haptic="success" onPress={s.startFirstMealChallenge} />}
+        >
+          <Card style={{ alignItems: 'center', paddingVertical: 34, marginTop: 6 }} elevated>
+            <View style={{ width: 86, height: 86, borderRadius: 28, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="camera" size={38} color={colors.accent} />
+            </View>
+            <Txt w="eb" size={17} style={{ marginTop: 16 }}>
+              +3 to your score
+            </Txt>
+            <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 4, textAlign: 'center', paddingHorizontal: 20 }}>
+              Logging your first meal proves the loop. Your score moves the moment you do the work.
+            </Txt>
+          </Card>
+        </StepShell>
+      );
+  }
+}
+
+/** 1-10 slider step (baseline confidence / consistency). */
+function ScaleStep({
+  progress, onBack, title, value, low, high, onChange, onContinue,
+}: {
+  progress: number; onBack: () => void; title: string; value: number; low: string; high: string; onChange: (v: number) => void; onContinue: () => void;
+}) {
+  return (
+    <StepShell progress={progress} onBack={onBack} eyebrow="Baseline" title={title} footer={<Btn label="Continue" onPress={onContinue} />}>
+      <View style={{ alignItems: 'center', marginBottom: 22 }}>
+        <Txt w="eb" size={56} ls={-2} color={colors.accent}>
+          {value}
+        </Txt>
+        <Txt w="sb" size={13} color={colors.textTertiary}>
+          out of 10
+        </Txt>
+      </View>
+      <Slider value={value} min={1} max={10} onChange={onChange} />
+      <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
+        <Txt w="sb" size={12} color={colors.textTertiary}>{low}</Txt>
+        <Txt w="sb" size={12} color={colors.textTertiary}>{high}</Txt>
+      </Row>
+    </StepShell>
+  );
+}
+
+/** ± counter step (meals / water / sleep). */
+function CounterStep({
+  progress, onBack, title, value, unit, fmt, onDec, onInc, onContinue,
+}: {
+  progress: number; onBack: () => void; title: string; value: number; unit: string; fmt: (v: number) => string; onDec: () => void; onInc: () => void; onContinue: () => void;
+}) {
+  return (
+    <StepShell progress={progress} onBack={onBack} eyebrow="Baseline" title={title} footer={<Btn label="Continue" onPress={onContinue} />}>
+      <View style={{ alignItems: 'center' }}>
+        <Row style={{ gap: 18 }}>
+          <RoundStep glyph="−" onPress={onDec} />
+          <View style={{ alignItems: 'center', minWidth: 110 }}>
+            <Txt w="eb" size={52} ls={-2}>
+              {fmt(value)}
+            </Txt>
+          </View>
+          <RoundStep glyph="+" onPress={onInc} />
+        </Row>
+        <Txt w="sb" size={13} color={colors.textTertiary} style={{ marginTop: 10 }}>
+          {unit}
+        </Txt>
+      </View>
+    </StepShell>
+  );
+}
+
+function RoundStep({ glyph, onPress }: { glyph: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={glyph === '+' ? 'Increase' : 'Decrease'}
+      hitSlop={8}
+      onPress={() => { haptics.select(); onPress(); }}
+      style={({ pressed }) => ({ width: 60, height: 60, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}
+    >
+      <Txt w="b" size={30} color={colors.accent}>
         {glyph}
       </Txt>
     </Pressable>
   );
 }
 
-function RecStat({ value, label, color }: { value: string; label: string; color?: string }) {
-  return (
-    <View>
-      <Txt w="eb" size={24} color={color}>
-        {value}
-      </Txt>
-      <Txt w="sb" size={11} color={colors.textSecondary} style={{ marginTop: 2 }}>
-        {label}
-      </Txt>
-    </View>
-  );
+/* ------------------------------------------------------------------ generic (non-athlete) flow */
+function GenericFlow() {
+  const s = useStore();
+  const role = (s.role ?? 'athlete') as Role;
+  const flow = ROLE_FLOWS[role] ?? [];
+  const idx = s.obStep - 2;
+  const step = flow[idx] as GenStep | undefined;
+
+  if (!step) {
+    // Past the defined flow — route to the personalized dashboard.
+    s.finishOb();
+    return null;
+  }
+  const progress = (idx + 1) / flow.length;
+  return <GenericStep step={step} progress={progress} />;
 }
 
-/* ----------------------------------------------------------------- Connect */
-function ConnectStep({ label }: { label: string }) {
-  const { inviteWho, toggleInvite, obNext, obBack } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="Invite the people who keep you accountable.">Connect your circle</Title>
-      <TeamCodeCard code="EAGLES24" />
-      <View style={{ gap: 10, marginTop: 16 }}>
-        {INVITE_DATA.map((iv) => {
-          const sel = inviteWho.includes(iv.key);
-          return (
-            <Pressable
-              key={iv.key}
-              accessibilityRole="checkbox"
-              accessibilityLabel={iv.name}
-              accessibilityState={{ checked: sel }}
-              onPress={() => {
-                haptics.select();
-                toggleInvite(iv.key);
-              }}
-              style={({ pressed }) => [
-                {
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  padding: 16,
-                  borderRadius: 16,
-                  backgroundColor: sel ? colors.accentSurface : colors.card,
-                  borderWidth: 1.5,
-                  borderColor: sel ? colors.accentBorderStrong : 'transparent',
-                  opacity: pressed ? 0.85 : 1,
-                },
-                sel ? undefined : shadow.card,
-              ]}
-            >
-              <View style={{ flex: 1 }}>
-                <Txt w="b" size={15}>
-                  {iv.name}
-                </Txt>
-                <Txt w="m" size={13} color={colors.textSecondary}>
-                  {iv.desc}
-                </Txt>
-              </View>
-              <View
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 8,
-                  backgroundColor: sel ? colors.accent : '#fff',
-                  borderWidth: 2,
-                  borderColor: sel ? colors.accent : '#CBD5E1',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {sel ? <Icon name="check" size={14} color="#fff" /> : null}
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
+function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
+  const s = useStore();
+  const val = step.kind !== 'invite' ? s.obMeta[step.field] : undefined;
 
-function TeamCodeCard({ code }: { code: string }) {
-  return (
-    <Row style={{ marginTop: 20, borderRadius: 18, padding: 18, backgroundColor: colors.text, justifyContent: 'space-between' }}>
-      <View>
-        <Txt w="eb" size={11} color="rgba(255,255,255,0.5)" ls={1.1}>
-          YOUR TEAM CODE
-        </Txt>
-        <Txt w="eb" size={26} color="#fff" ls={2} style={{ marginTop: 4 }}>
-          {code}
-        </Txt>
-      </View>
-      <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="copy" size={18} color="#fff" />
-      </View>
-    </Row>
-  );
-}
-
-/* ------------------------------------------------------------ Parent: link */
-function LinkStep({ label }: { label: string }) {
-  const { obNext, obBack } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="Enter the invite code from your athlete or coach.">Connect to your athlete</Title>
-      <Row style={{ gap: 8, marginTop: 22 }}>
-        <View style={[{ flex: 1, height: 58, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
-          <Txt w="eb" size={22} ls={6}>
-            EAGLES24
+  if (step.kind === 'invite') {
+    return (
+      <StepShell
+        progress={progress}
+        onBack={s.obBack}
+        eyebrow="Activate"
+        title={step.title}
+        sub={step.sub}
+        footer={<Btn label={step.cta} haptic="success" onPress={s.finishOb} />}
+      >
+        <Card style={{ marginTop: 6 }} elevated>
+          <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} upper>
+            {step.codeLabel}
           </Txt>
-        </View>
-        <View style={{ width: 58, height: 58, borderRadius: 14, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="check" size={24} color="#fff" />
-        </View>
-      </Row>
-      <Card style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <View style={{ width: 52, height: 52, borderRadius: 15, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <Txt w="eb" size={20} color="#fff">
-            J
-          </Txt>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="eb" size={17}>
-            Jihad Carter
-          </Txt>
-          <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
-            Linebacker · Eastside HS
-          </Txt>
-        </View>
-        <Row style={{ gap: 6 }}>
-          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success }} />
-          <Txt w="b" size={12} color={colors.success}>
-            Found
-          </Txt>
-        </Row>
-      </Card>
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
-
-/* ----------------------------------------------------------- Parent: focus */
-function FocusStep({ label }: { label: string }) {
-  const { parentFocus, toggleFocus, obNext, obBack } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="We'll highlight these in your weekly reports.">What matters most to you?</Title>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 22 }}>
-        {PARENT_FOCUS.map((f) => (
-          <Chip key={f} label={f} active={parentFocus.includes(f)} onPress={() => toggleFocus(f)} />
-        ))}
-      </View>
-      <View style={{ marginTop: 22, borderRadius: 20, padding: 18, backgroundColor: colors.accentSurface, borderWidth: 1, borderColor: colors.accentBorder }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Txt w="eb" size={16}>
-            Parent Plan
-          </Txt>
-          <Txt w="eb" size={18} color={colors.accent}>
-            $24.99
-            <Txt w="sb" size={12} color={colors.textSecondary}>
-              /mo
+          <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
+            <Txt w="eb" size={26} ls={1}>
+              EAGLES24
             </Txt>
-          </Txt>
-        </Row>
-        <View style={{ gap: 8, marginTop: 13 }}>
-          <PlanRow text="Full athlete dashboard & alerts" />
-          <PlanRow text="AI weekly summaries & trends" />
-        </View>
-      </View>
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
-
-function PlanRow({ text }: { text: string }) {
-  return (
-    <Row style={{ gap: 9 }}>
-      <Icon name="check" size={14} color={colors.accent} />
-      <Txt w="sb" size={13} color={colors.slate700}>
-        {text}
-      </Txt>
-    </Row>
-  );
-}
-
-/* ------------------------------------------------------------- Coach: team */
-function TeamStep({ label }: { label: string }) {
-  const { compMode, setCompMode, obNext, obBack } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="You can edit any of this later.">Set up your team</Title>
-      <View style={{ gap: 10, marginTop: 22 }}>
-        <SettingRow label="SCHOOL / ORG" value="Eastside High School" />
-        <SettingRow label="TEAM" value="Varsity Football" />
-      </View>
-      <Txt w="b" size={14} style={{ marginTop: 22, marginBottom: 12 }}>
-        Competition mode
-      </Txt>
-      <Row style={{ gap: 8 }}>
-        {COMP_MODES.map((c) => {
-          const sel = compMode === c.key;
-          return (
-            <Pressable
-              key={c.key}
-              accessibilityRole="button"
-              accessibilityLabel={c.label}
-              accessibilityState={{ selected: sel }}
-              onPress={() => {
-                haptics.select();
-                setCompMode(c.key);
-              }}
-              style={({ pressed }) => [
-                { flex: 1, paddingVertical: 11, borderRadius: 11, alignItems: 'center', backgroundColor: sel ? colors.accent : colors.card, opacity: pressed ? 0.85 : 1 },
-                sel ? undefined : shadow.card,
-              ]}
-            >
-              <Txt w="b" size={13} color={sel ? '#fff' : colors.textSecondary}>
-                {c.label}
-              </Txt>
-            </Pressable>
-          );
-        })}
-      </Row>
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
-
-function SettingRow({ label, value }: { label: string; value: string }) {
-  return (
-    <Row style={[{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 15, paddingHorizontal: 16, justifyContent: 'space-between' }, shadow.card]}>
-      <View>
-        <Txt w="b" size={11} color={colors.textTertiary}>
-          {label}
-        </Txt>
-        <Txt w="b" size={16} style={{ marginTop: 3 }}>
-          {value}
-        </Txt>
-      </View>
-      <Icon name="settings" size={18} color={colors.textTertiary} />
-    </Row>
-  );
-}
-
-/* ----------------------------------------------------------- Coach: roster */
-function RosterStep({ label }: { label: string }) {
-  const { obNext, obBack } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="Athletes join with your code, or import a roster.">Add your athletes</Title>
-      <TeamCodeCard code="EAGLES24" />
-      <Card style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="plan" size={22} color={colors.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="b" size={15}>
-            Import from CSV
-          </Txt>
-          <Txt w="m" size={13} color={colors.textSecondary}>
-            Name, email, position
-          </Txt>
-        </View>
-        <Icon name="chevronRight" size={20} color={colors.textTertiary} />
-      </Card>
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------ Coach: track */
-function TrackStep({ label }: { label: string }) {
-  const { coachTrack, toggleTrack, ciConfig, toggleCiQ, obNext, obBack } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="Choose what your athletes track and report.">What do you track?</Title>
-      <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} style={{ marginTop: 22, marginBottom: 10 }}>
-        DAILY METRICS
-      </Txt>
-      <Card style={{ paddingVertical: 4 }}>
-        {TRACK_DATA.map((t, i) => (
-          <Row key={t.key} style={{ justifyContent: 'space-between', paddingVertical: 13, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.border }}>
-            <View style={{ flex: 1 }}>
-              <Txt w="b" size={15}>
-                {t.name}
-              </Txt>
-              <Txt w="m" size={13} color={colors.textSecondary}>
-                {t.desc}
-              </Txt>
+            <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="copy" size={19} color={colors.accent} />
             </View>
-            <Toggle on={coachTrack[t.key]} onPress={() => toggleTrack(t.key)} />
           </Row>
+        </Card>
+        <Pressable accessibilityRole="button" accessibilityLabel="Skip for now" hitSlop={8} onPress={() => { haptics.tap(); s.finishOb(); }} style={({ pressed }) => ({ alignSelf: 'center', marginTop: 18, opacity: pressed ? 0.6 : 1 })}>
+          <Txt w="b" size={14} color={colors.textSecondary}>
+            Skip for now
+          </Txt>
+        </Pressable>
+      </StepShell>
+    );
+  }
+
+  if (step.kind === 'text') {
+    const cur = typeof val === 'string' ? val : '';
+    return (
+      <StepShell progress={progress} onBack={s.obBack} title={step.title} sub={step.sub} footer={<Btn label="Continue" disabled={cur.trim().length < 1} onPress={s.obNext} />}>
+        <Input value={cur} onChangeText={(v) => s.setObMeta(step.field, v)} placeholder={step.placeholder} autoCapitalize="words" />
+      </StepShell>
+    );
+  }
+
+  if (step.kind === 'multiselect') {
+    const arr = Array.isArray(val) ? val : [];
+    return (
+      <StepShell progress={progress} onBack={s.obBack} title={step.title} sub={step.sub} footer={<Btn label="Continue" disabled={arr.length < 1} onPress={s.obNext} />}>
+        {step.options.map((o) => (
+          <OptionRow key={o.key} label={o.label} selected={arr.includes(o.key)} onPress={() => s.toggleObMetaItem(step.field, o.key)} />
         ))}
-      </Card>
-      <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} style={{ marginTop: 22, marginBottom: 10 }}>
-        WEEKLY CHECK-IN QUESTIONS
-      </Txt>
-      <Card style={{ paddingVertical: 4 }}>
-        {CHECKIN_QUESTIONS.map((q, i) => (
-          <Row key={q.key} style={{ justifyContent: 'space-between', paddingVertical: 13, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.border }}>
-            <Txt w="b" size={15}>
-              {q.label}
-            </Txt>
-            <Toggle on={ciConfig[q.key]} onPress={() => toggleCiQ(q.key)} />
-          </Row>
-        ))}
-      </Card>
-      <Btn label="Finish setup" onPress={obNext} style={{ marginTop: 24 }} />
-    </View>
+      </StepShell>
+    );
+  }
+
+  // select
+  return (
+    <StepShell progress={progress} onBack={s.obBack} title={step.title} sub={step.sub} footer={<Btn label="Continue" disabled={!val} onPress={s.obNext} />}>
+      {step.options.map((o) => (
+        <OptionRow key={o.key} label={o.label} selected={val === o.key} onPress={() => s.setObMeta(step.field, o.key)} />
+      ))}
+    </StepShell>
   );
 }
 
-/* -------------------------------------------------------- Trainer: practice */
-function PracticeStep({ label }: { label: string }) {
-  const { obNext, obBack } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="Set up your training practice.">Your practice</Title>
-      <View style={{ gap: 14, marginTop: 24 }}>
-        <Field label="PRACTICE NAME">
-          <Input defaultValue="Apex Performance" placeholder="Practice name" />
-        </Field>
-        <SettingRow label="PLAN" value="Pro · up to 50 clients" />
-      </View>
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
+/* ------------------------------------------------------------------ entry */
+export function Onboarding() {
+  const signinMode = useStore((s: Store) => s.signinMode);
+  const obStep = useStore((s: Store) => s.obStep);
+  const role = useStore((s: Store) => s.role);
 
-/* --------------------------------------------------------- Trainer: clients */
-function ClientsStep({ label }: { label: string }) {
-  const { obNext, obBack } = useStore();
-  return (
-    <View style={{ flex: 1 }}>
-      <StepHeader label={label} onBack={obBack} />
-      <Title sub="Clients join across any org with your code.">Invite clients</Title>
-      <TeamCodeCard code="APEX01" />
-      <Card style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="send" size={20} color={colors.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="b" size={15}>
-            Send invite links
-          </Txt>
-          <Txt w="m" size={13} color={colors.textSecondary}>
-            Text or email each client
-          </Txt>
-        </View>
-        <Icon name="chevronRight" size={20} color={colors.textTertiary} />
-      </Card>
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
-    </View>
-  );
-}
-
-/* ----------------------------------------------------------------- Success */
-const SUCCESS_COPY: Record<string, { title: string; sub: string; cta: string; code?: string }> = {
-  athlete: { title: "You're all set", sub: 'Your first Athlete Score is ready. Log a meal to start your streak.', cta: 'Enter AthleteOS', code: 'EAGLES24' },
-  parent: { title: "You're connected", sub: "You'll get Jihad's weekly summaries and alerts. Welcome aboard.", cta: 'Go to dashboard' },
-  coach: { title: 'Team is live', sub: 'Share your code and athletes will start showing up on your roster.', cta: 'Open coach view', code: 'EAGLES24' },
-  trainer: { title: 'Practice is live', sub: 'Invite clients and start tracking compliance across your book.', cta: 'Open trainer view', code: 'APEX01' },
-};
-
-function Success({ role }: { role: string }) {
-  const { finishOb } = useStore();
-  const copy = SUCCESS_COPY[role] ?? SUCCESS_COPY.athlete;
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: colors.successSurface, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="check" size={48} color={colors.successDeep} strokeWidth={3} />
-      </View>
-      <Txt w="eb" size={30} ls={-0.9} style={{ marginTop: 28, textAlign: 'center' }}>
-        {copy.title}
-      </Txt>
-      <Txt w="m" size={15} color={colors.textSecondary} style={{ marginTop: 10, textAlign: 'center', lineHeight: 22, maxWidth: 300 }}>
-        {copy.sub}
-      </Txt>
-      {copy.code ? (
-        <Pill bg={colors.text} color="#fff" style={{ marginTop: 22, paddingHorizontal: 18, paddingVertical: 11 }}>
-          <Txt w="eb" size={18} color="#fff" ls={1.5}>
-            {copy.code}
-          </Txt>
-        </Pill>
-      ) : null}
-      <Btn label={copy.cta} onPress={finishOb} style={{ marginTop: 36, alignSelf: 'stretch' }} />
-    </View>
-  );
+  if (signinMode) return <SignIn />;
+  if (obStep === 0) return <Welcome />;
+  if (obStep === 1) return <RolePicker />;
+  return flowForRole(role) === 'app' && (role === 'athlete' || role == null) ? <AthleteFlow /> : <GenericFlow />;
 }

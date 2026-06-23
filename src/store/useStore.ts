@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import {
   createInitialState,
+  flowForRole,
   HYDRATION_TARGET,
   MEAL_MACROS,
   PROTEIN_TARGET,
@@ -13,6 +14,9 @@ import {
   recordDayNutrition,
   recordDayScore,
   recordDayWeight,
+  scoreAfterFirstMeal,
+  sleepHoursToSlider,
+  startingScore,
   WEIGHT_TARGET,
   rollDayIfStale,
   todayStamp,
@@ -31,6 +35,13 @@ import type {
 } from '@/core';
 
 type CiSliderKey = 'ciEnergy' | 'ciRecovery' | 'ciSleep' | 'ciConfidence' | 'ciSoreness' | 'ciMotivation';
+export type BaselineKey =
+  | 'baseNutritionConfidence'
+  | 'baseMealsPerDay'
+  | 'baseWaterL'
+  | 'baseSleepH'
+  | 'baseProteinFreq'
+  | 'baseConsistency';
 
 export interface Actions {
   // onboarding
@@ -55,6 +66,19 @@ export interface Actions {
   startSignin: () => void;
   exitSignin: () => void;
   signinDone: () => void;
+
+  // onboarding (redesign)
+  setPrimaryGoal: (k: string) => void;
+  setTrainingFreq: (k: string) => void;
+  toggleSupport: (k: string) => void;
+  setInviteCode: (v: string) => void;
+  setBaseAnswer: (key: BaselineKey, value: number) => void;
+  setObMeta: (key: string, value: string | string[] | number) => void;
+  toggleObMetaItem: (key: string, item: string) => void;
+  /** Compute + store the Starting Point Score and seed engine state from the baseline. */
+  commitStartingScore: () => void;
+  /** Activation: leave onboarding into the app and open the first-meal challenge. */
+  startFirstMealChallenge: () => void;
 
   // nav
   setTab: (t: Tab) => void;
@@ -142,11 +166,8 @@ export const useStore = create<Store>()(
       obNext: () => set((s) => ({ obStep: s.obStep + 1 })),
       obBack: () => set((s) => ({ obStep: Math.max(0, s.obStep - 1) })),
       finishOb: () => {
-        const r = get().role ?? 'athlete';
-        if (r === 'parent') set({ flow: 'parent' });
-        else if (r === 'coach') set({ flow: 'coach' });
-        else if (r === 'trainer') set({ flow: 'trainer' });
-        else set({ flow: 'app', tab: 'home' });
+        const flow = flowForRole(get().role);
+        set(flow === 'app' ? { flow, tab: 'home' } : { flow });
       },
       setRole: (r) => set({ role: r }),
       toggleInvite: (k) =>
@@ -169,6 +190,41 @@ export const useStore = create<Store>()(
       startSignin: () => set({ signinMode: true }),
       exitSignin: () => set({ signinMode: false }),
       signinDone: () => set({ signinMode: false, flow: 'app', tab: 'home' }),
+
+      // ---- onboarding (redesign) ----
+      setPrimaryGoal: (k) => set({ primaryGoal: k }),
+      setTrainingFreq: (k) => set({ trainingFreq: k }),
+      toggleSupport: (k) =>
+        set((s) => {
+          if (k === 'none') return { supportTeam: [] };
+          const has = s.supportTeam.includes(k);
+          return { supportTeam: has ? s.supportTeam.filter((x) => x !== k) : [...s.supportTeam, k] };
+        }),
+      setInviteCode: (v) => set({ inviteCode: v }),
+      setBaseAnswer: (key, value) => set({ [key]: value } as Partial<AppState>),
+      setObMeta: (key, value) => set((s) => ({ obMeta: { ...s.obMeta, [key]: value } })),
+      toggleObMetaItem: (key, item) =>
+        set((s) => {
+          const cur = Array.isArray(s.obMeta[key]) ? (s.obMeta[key] as string[]) : [];
+          const next = cur.includes(item) ? cur.filter((x) => x !== item) : [...cur, item];
+          return { obMeta: { ...s.obMeta, [key]: next } };
+        }),
+      commitStartingScore: () =>
+        set((s) => {
+          const score = startingScore({
+            nutritionConfidence: s.baseNutritionConfidence,
+            mealsPerDay: s.baseMealsPerDay,
+            waterL: s.baseWaterL,
+            sleepH: s.baseSleepH,
+            proteinFreq: s.baseProteinFreq,
+            consistency: s.baseConsistency,
+          });
+          // Seed the in-app check-in sleep slider so the recovery score continues
+          // sensibly from self-report instead of a flat default.
+          return { startScore: score, ciSleep: sleepHoursToSlider(s.baseSleepH) };
+        }),
+      startFirstMealChallenge: () =>
+        set({ flow: 'app', tab: 'home', mealOpen: true, mealStage: 'capture' }),
 
       // ---- nav ----
       setTab: (t) => set({ tab: t }),
@@ -308,6 +364,19 @@ export const useStore = create<Store>()(
         inviteWho: s.inviteWho,
         parentFocus: s.parentFocus,
         coachTrack: s.coachTrack,
+        // onboarding (redesign) — cross-day identity + baseline
+        primaryGoal: s.primaryGoal,
+        trainingFreq: s.trainingFreq,
+        supportTeam: s.supportTeam,
+        inviteCode: s.inviteCode,
+        baseNutritionConfidence: s.baseNutritionConfidence,
+        baseMealsPerDay: s.baseMealsPerDay,
+        baseWaterL: s.baseWaterL,
+        baseSleepH: s.baseSleepH,
+        baseProteinFreq: s.baseProteinFreq,
+        baseConsistency: s.baseConsistency,
+        startScore: s.startScore,
+        obMeta: s.obMeta,
         // day / check-in slice
         dateStamp: s.dateStamp,
         scoreHistory: s.scoreHistory,

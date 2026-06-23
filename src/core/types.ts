@@ -2,7 +2,16 @@
 // Ported faithfully from the design prototype's state model.
 import type { Units } from './units';
 
-export type Role = 'athlete' | 'parent' | 'coach' | 'trainer';
+/** The 7 onboarding identities. Each maps onto one of the 4 dashboard flows
+ *  (see ROLE_DEFS in constants) and personalizes copy/labels/goals. */
+export type Role =
+  | 'athlete'
+  | 'parent'
+  | 'personal_trainer'
+  | 'sports_perf_coach'
+  | 'nutritionist'
+  | 'hs_coach'
+  | 'college_coach';
 export type Flow = 'onboarding' | 'app' | 'coach' | 'parent' | 'trainer';
 export type BaseGoal = 'gain' | 'lose' | 'maintain' | 'performance';
 export type MealKey = 'breakfast' | 'lunch' | 'snack' | 'dinner';
@@ -68,6 +77,28 @@ export interface AppState {
   parentFocus: string[];
   compMode: CompMode;
   coachTrack: CoachTrack;
+
+  // ---- onboarding (redesign) ----
+  /** Athlete primary goal key (e.g. 'get_faster'); drives AI coaching copy. */
+  primaryGoal: string | null;
+  /** Training frequency key: 'once' | 'twice' | 'three_plus'. */
+  trainingFreq: string | null;
+  /** Selected support roles (coach/trainer/nutritionist/parent) building the network. */
+  supportTeam: string[];
+  /** Optional invite/join code entered during onboarding. */
+  inviteCode: string;
+  // Baseline assessment answers — feed startingScore() AND seed engine state.
+  baseNutritionConfidence: number; // 1-10
+  baseMealsPerDay: number; // count (e.g. 2-6)
+  baseWaterL: number; // liters/day
+  baseSleepH: number; // hours/night
+  baseProteinFreq: number; // 0=never 1=sometimes 2=often 3=always
+  baseConsistency: number; // 1-10 week-to-week consistency
+  /** The Starting Point Score (day-0), or null until the baseline is computed. */
+  startScore: number | null;
+  /** Role-specific onboarding answers (coach/trainer/nutritionist/parent) for
+   *  personalization. Free-form bag so the 7 flows share one renderer. */
+  obMeta: Record<string, string | string[] | number>;
 
   // ---- day ----
   dateStamp: string;

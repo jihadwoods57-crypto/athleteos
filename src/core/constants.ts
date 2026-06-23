@@ -1,5 +1,5 @@
 // AthleteOS — domain constants, ported verbatim from the prototype.
-import type { BaseGoal, LeaderRow, MealKey } from './types';
+import type { BaseGoal, Flow, LeaderRow, MealKey, Role } from './types';
 
 /** App version string, surfaced in Account / Profile footers + Help row. */
 export const APP_VERSION = 'v1.0';
@@ -41,11 +41,101 @@ export const SPORTS = [
 ];
 
 export const POSITION_MAP: Record<string, string[]> = {
-  Football: ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB'],
+  Football: ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB'],
   Basketball: ['PG', 'SG', 'SF', 'PF', 'C'],
   Baseball: ['P', 'C', 'IF', 'OF'],
+  Soccer: ['GK', 'DEF', 'MID', 'FWD'],
+  'Track & Field': ['Sprints', 'Distance', 'Jumps', 'Throws'],
+  Wrestling: ['Lightweight', 'Middleweight', 'Heavyweight'],
+  Volleyball: ['OH', 'MB', 'S', 'L', 'OPP'],
+  Hockey: ['G', 'D', 'C', 'W'],
   default: ['Starter', 'Reserve', 'Captain'],
 };
+
+// ---------------------------------------------------------------- onboarding (redesign)
+/** The 7 onboarding roles. `flow` is the dashboard archetype each routes onto;
+ *  `archetype` distinguishes personalization variants that share a flow
+ *  (e.g. nutritionist vs personal_trainer both ride the trainer/client dash). */
+export interface RoleDef {
+  key: Role;
+  title: string;
+  sub: string;
+  icon: string;
+  flow: Flow;
+  archetype: 'athlete' | 'parent' | 'client' | 'team' | 'nutrition';
+}
+export const ROLE_DEFS: RoleDef[] = [
+  { key: 'athlete', title: 'Athlete', sub: 'Build your development plan', icon: 'bolt', flow: 'app', archetype: 'athlete' },
+  { key: 'parent', title: 'Parent', sub: "Follow your athlete's progress", icon: 'user', flow: 'parent', archetype: 'parent' },
+  { key: 'personal_trainer', title: 'Personal Trainer', sub: 'Coach clients beyond sessions', icon: 'plan', flow: 'trainer', archetype: 'client' },
+  { key: 'sports_perf_coach', title: 'Sports Performance Coach', sub: 'Develop a roster of athletes', icon: 'checkin', flow: 'coach', archetype: 'team' },
+  { key: 'nutritionist', title: 'Nutritionist', sub: 'Drive client nutrition compliance', icon: 'utensils', flow: 'trainer', archetype: 'nutrition' },
+  { key: 'hs_coach', title: 'High School Coach', sub: 'Manage your team & leaderboards', icon: 'checkin', flow: 'coach', archetype: 'team' },
+  { key: 'college_coach', title: 'College Coach', sub: 'Run your program', icon: 'checkin', flow: 'coach', archetype: 'team' },
+];
+
+/** Map any role to its dashboard flow. New roles fall back to the athlete app. */
+export function flowForRole(role: Role | null): Flow {
+  return ROLE_DEFS.find((r) => r.key === role)?.flow ?? 'app';
+}
+
+/** Athlete Step 1 — primary goal, grouped. Single-select; drives AI coaching copy. */
+export interface GoalOption { key: string; label: string }
+export const GOAL_GROUPS: { group: string; options: GoalOption[] }[] = [
+  {
+    group: 'Performance',
+    options: [
+      { key: 'get_faster', label: 'Get Faster' },
+      { key: 'get_stronger', label: 'Get Stronger' },
+      { key: 'improve_recovery', label: 'Improve Recovery' },
+      { key: 'improve_endurance', label: 'Improve Endurance' },
+    ],
+  },
+  {
+    group: 'Body Composition',
+    options: [
+      { key: 'gain_weight', label: 'Gain Weight' },
+      { key: 'gain_muscle', label: 'Gain Muscle' },
+      { key: 'lose_fat', label: 'Lose Fat' },
+      { key: 'maintain', label: 'Maintain Weight' },
+    ],
+  },
+  {
+    group: 'Athletic Development',
+    options: [
+      { key: 'playing_time', label: 'Earn More Playing Time' },
+      { key: 'prep_season', label: 'Prepare For Season' },
+      { key: 'scholarship', label: 'Earn A Scholarship' },
+      { key: 'next_level', label: 'Reach The Next Level' },
+    ],
+  },
+];
+
+/** Flat goal lookup (key -> label) for personalized copy. */
+export const GOAL_LABELS: Record<string, string> = Object.fromEntries(
+  GOAL_GROUPS.flatMap((g) => g.options.map((o) => [o.key, o.label])),
+);
+
+export const TRAIN_FREQ: GoalOption[] = [
+  { key: 'once', label: 'Once per day' },
+  { key: 'twice', label: 'Twice per day' },
+  { key: 'three_plus', label: 'Three or more per day' },
+];
+
+export const SUPPORT_OPTIONS: GoalOption[] = [
+  { key: 'coach', label: 'Coach' },
+  { key: 'trainer', label: 'Trainer' },
+  { key: 'nutritionist', label: 'Nutritionist' },
+  { key: 'parent', label: 'Parent' },
+];
+
+/** Protein-target frequency answer (index = stored baseProteinFreq 0-3). */
+export const PROTEIN_FREQ: GoalOption[] = [
+  { key: '0', label: 'Rarely' },
+  { key: '1', label: 'Sometimes' },
+  { key: '2', label: 'Often' },
+  { key: '3', label: 'Almost always' },
+];
 
 export const ATHLETE_GOALS = [
   'Performance', 'Scholarship', 'Body composition', 'Playing time', 'NIL opportunities',
