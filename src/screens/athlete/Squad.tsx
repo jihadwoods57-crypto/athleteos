@@ -14,7 +14,7 @@ export function Squad() {
   const setSquadMode = useStore((s) => s.setSquadMode);
   const d = useDerived();
   const board = buildLeaderboard(squadMode, d.athleteScore);
-  const caption = squadMode === 'team' ? 'Full roster · 6 athletes' : 'Linebacker room · 3 athletes';
+  const caption = `${squadMode === 'team' ? 'Full roster' : 'Linebacker room'} · ${board.length} athlete${board.length === 1 ? '' : 's'}`;
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
