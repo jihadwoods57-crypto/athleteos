@@ -84,7 +84,7 @@ export function Nutrition() {
             Macros
           </Txt>
           <Txt w="b" size={14}>
-            {d.kcalToday.toLocaleString()} <Txt w="b" size={14} color="#CBD5E1">/ {d.calTarget.toLocaleString()} cal</Txt>
+            {d.kcalToday.toLocaleString()} <Txt w="b" size={14} color={colors.textSecondary}>/ {d.calTarget.toLocaleString()} cal</Txt>
           </Txt>
         </Row>
         <View style={{ marginBottom: 22 }}>

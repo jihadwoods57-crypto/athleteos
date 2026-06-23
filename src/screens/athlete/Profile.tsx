@@ -177,7 +177,7 @@ export function Profile() {
           Sign out
         </Txt>
       </Pressable>
-      <Txt w="sb" size={12} color="#CBD5E1" style={{ textAlign: 'center', marginTop: 16 }}>
+      <Txt w="sb" size={12} color={colors.textSecondary} style={{ textAlign: 'center', marginTop: 16 }}>
         AthleteOS · v1.0
       </Txt>
     </ScrollView>
