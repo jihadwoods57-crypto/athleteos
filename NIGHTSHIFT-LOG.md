@@ -2,6 +2,54 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+## 2026-06-23 (run 4) — the Parent portal goes fully data-driven (no static charts)
+
+Three commits, all three gates green every commit (`tsc --noEmit`, jest,
+`expo export -p ios`). Test count 182 → **201** (never dropped). Router
+untouched (app/_layout + app/index, no src/app). Phase-2 Supabase scaffold not
+touched. This run retired every remaining hardcoded chart on the **Parent View**
+(item 6 of the Definition of Done: "wire the Parent/Coach chart geometry to real
+history") so the parent's whole screen now reflects the athlete's real week.
+
+- **feat(parent): Weekly Compliance derived from real score history.** The
+  card's day dots (a fixed WEEK array), "6 of 7 days on plan", and the cosmetic
+  86% were static. New pure `weeklyCompliance()` reuses the SAME padded series
+  the Home trend chart draws (so the dots and the trend line can never disagree):
+  each completed day at/above `COMPLIANCE_THRESHOLD` (80 — the coach alert bar)
+  counts as on-plan, **today** renders as an in-progress indicator and is never
+  counted, and the headline % is the completed-day mean (so an early-morning live
+  score can't tank the week). +4 tests.
+- **feat(parent): Weight Trend drawn from real recorded weights.** The weight
+  chart was a hand-drawn SVG path + a fixed dashed goal line at y=30 + an end dot
+  at a literal coordinate. Added a **per-day body-weight history** (new
+  `WeightPoint` type + persisted `weightHistory`, `appendDayWeight`, and
+  `recordDayWeight` snapshotting the cross-day `currentWeight` against its day on
+  rollover). New pure `weightSeries()` (real weights, live `currentWeight` as the
+  last point, ramping from `WEIGHT_START` while history fills) +
+  `weightTrendGeometry()` which **fits the y-axis to the data AND the goal** so
+  neither the line nor the dashed goal marker clips, and returns the goal line's
+  y on the same axis. The line/area/end-dot and goal line are now live; the goal
+  line tracks the editable weight target. +10 tests.
+- **feat(parent): Nutrition Trend bars driven from real history.** The last
+  static chart — a frozen `NUTRI_BARS` array + cosmetic 92% — now reads a per-day
+  **nutrition-score history** (persisted `nutritionHistory` +
+  `recordDayNutrition` snapshotting the derived nutrition sub-score on rollover).
+  Pure `nutritionTrend()` reuses the score-trend series shape: today's live
+  nutrition score is the final (accent) bar; the weekly-avg headline is the
+  completed-day mean (today excluded). Bars use real weekday labels + clamped
+  heights. +5 tests.
+
+### For the founder (QC this run)
+- **Parent View** — every chart is now live. There are **no remaining hardcoded
+  numbers/paths** on this screen: Weekly Compliance, the Weight Trend line +
+  dashed goal, and the Nutrition bars all derive from persisted history +
+  today's live derived state. On a fresh install the charts still read as a
+  believable build (seed/ramp padding) and converge on **real** data as the app
+  survives day rollovers on a device. Today's column is shown as in-progress and
+  is intentionally excluded from the weekly summaries (% / on-plan / avg).
+- Nothing to wire up — these are deterministic, offline, and persist across
+  reload + rollover via the existing `aos_day` store (no Supabase touched).
+
 ## 2026-06-23 (run 3) — editable weight goal, weight-trend drift fix, live Coach KPIs
 
 Three commits, all three gates green every commit (`tsc --noEmit`, jest,
@@ -160,16 +208,17 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
 6. **Feature completeness (phase-2 backlog)** — `notif` persists ✅; score history
    feeds Home trend + week delta ✅; **editable protein + calorie targets** flow
    into scoring + Nutrition ✅; **onboarding name/email validation** gates Continue
-   ✅; **editable weight target** is now one source of truth ✅ (Profile → Edit →
-   Weight stepper; persisted, clamped 120–350, survives rollover; flows into Home
-   SEASON GOAL + Check-In/Parent captions); **Parent + Check-In weight trend now
-   read live `currentWeight` / WEIGHT_START gain** ✅ (no more static 178 / +7).
-   **Coach header KPIs (team avg / compliance / alerts) now derive from the live
-   roster** ✅. Still open: the **Parent & Coach trend SVG paths/arrays** themselves
-   are still static (Weekly Compliance 86%, NUTRI_BARS, the weight-trend `Path`
-   geometry) — wire the chart geometry to real history/derived where possible (the
-   surrounding numbers/labels are now live). Needs a per-day weight/nutrition
-   history store first (only `scoreHistory` exists today).
+   ✅; **editable weight target** is now one source of truth ✅; **Parent + Check-In
+   weight captions read live `currentWeight` / WEIGHT_START gain** ✅; **Coach
+   header KPIs derive from the live roster** ✅. **The entire Parent View is now
+   data-driven** ✅ (run 4): Weekly Compliance (`weeklyCompliance`), the Weight
+   Trend line + dashed goal (`weightSeries`/`weightTrendGeometry` on a new
+   persisted `weightHistory`), and the Nutrition bars (`nutritionTrend` on a new
+   persisted `nutritionHistory`) all derive from real history + today's live state.
+   Still open: the **Coach view** still has a static NEEDS ATTENTION list (Silva /
+   Cole are fixed mock athletes — the ROSTER is a fixture by design, so this is
+   "demo data", not a hardcoded chart) and a static AI team summary string; no
+   per-day chart remains on Coach. Trainer view not yet audited for static charts.
 7. **Test safety net** — ✅ recommendation/leaderboard/content + store-level
    addMeal/toggleTask/addWater/submitCi score-movement tests exist; `npm run
    verify` green. 165 tests. (Optional: a smoke test for the Ring web-shim.)
