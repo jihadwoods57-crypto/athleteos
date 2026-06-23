@@ -3,7 +3,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
@@ -37,7 +37,17 @@ export function Account() {
         </Card>
 
         <Card elevated style={{ marginTop: 14, borderRadius: 24, paddingVertical: 8 }}>
-          <SettingRow label="Notifications" value="On ›" border />
+          <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Txt w="b" size={15}>
+                Notifications
+              </Txt>
+              <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                {s.notif ? 'Alerts & reminders on' : 'All alerts paused'}
+              </Txt>
+            </View>
+            <Toggle on={s.notif} onPress={s.toggleNotif} label="Notifications" />
+          </Row>
           <SettingRow label="Team & roster" value="Manage ›" border />
           <SettingRow label="Billing & plan" value="›" border />
           <SettingRow label="Help & support" value="›" />
