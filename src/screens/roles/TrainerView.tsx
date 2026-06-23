@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-import { ORG_COLORS, TRAINER_CLIENTS, gradeFor } from '@/core';
+import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, trainerBookKpis } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -15,6 +15,7 @@ import { PersonDetail } from '@/screens/overlays/PersonDetail';
 
 export function TrainerView() {
   const s = useStore();
+  const kpis = trainerBookKpis(TRAINER_CLIENTS);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -42,8 +43,8 @@ export function TrainerView() {
           </Row>
 
           <Row style={{ gap: 10, marginTop: 20 }}>
-            <Kpi value="12" label="CLIENTS" />
-            <Kpi value="84%" label="AVG COMPLY" />
+            <Kpi value={String(kpis.clients)} label="CLIENTS" />
+            <Kpi value={`${kpis.avgCompliance}%`} label="AVG COMPLY" />
             <Kpi value="92%" label="RETENTION" color={colors.success} />
           </Row>
 
@@ -60,7 +61,7 @@ export function TrainerView() {
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Txt w="eb" size={22}>
-                  84%
+                  {kpis.avgCompliance}%
                 </Txt>
                 <Txt w="b" size={12} color={colors.success}>
                   ↑ +6%
@@ -102,7 +103,7 @@ export function TrainerView() {
               All Clients
             </Txt>
             <Txt w="b" size={13} color={colors.textTertiary}>
-              12 active
+              {kpis.clients} active
             </Txt>
           </Row>
           <View style={{ gap: 8 }}>
@@ -158,7 +159,7 @@ export function TrainerView() {
               </Txt>
             </Row>
             <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
-              Your book is healthy — 84% average compliance, up 6% this month. Two clients are retention risks: Silva went quiet 5 days ago and Cole hasn't logged since joining. A nudge today usually recovers 70% of at-risk clients before they churn.
+              Your book is healthy — {kpis.avgCompliance}% average compliance, up 6% this month. Two clients are retention risks: Silva went quiet 5 days ago and Cole hasn't logged since joining. A nudge today usually recovers 70% of at-risk clients before they churn.
             </Txt>
           </Card>
         </ScrollView>

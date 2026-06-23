@@ -1,15 +1,16 @@
 // AthleteOS — leaderboard selector tests. The athlete's own row reflects the live
 // score, and the whole board is RE-RANKED by score so the medal + position are
 // truthful (no more pinning the "you" row at its static rank).
-import { buildLeaderboard, coachRosterKpis, medalColor, trendInfo } from './leaderboard';
+import { buildLeaderboard, coachRosterKpis, medalColor, trainerBookKpis, trendInfo } from './leaderboard';
 import {
   POS_BOARD,
   POS_BOARD_SCORES,
   ROSTER,
   TEAM_BOARD,
   TEAM_BOARD_SCORES,
+  TRAINER_CLIENTS,
 } from './constants';
-import type { RosterRow } from './constants';
+import type { ClientRow, RosterRow } from './constants';
 
 describe('medalColor', () => {
   it('gives gold/silver/bronze for the podium', () => {
@@ -55,6 +56,31 @@ describe('coachRosterKpis', () => {
 
   it('is safe on an empty roster', () => {
     expect(coachRosterKpis([])).toEqual({ avgScore: 0, compliance: 0, alerts: 0 });
+  });
+});
+
+describe('trainerBookKpis', () => {
+  const mk = (score: number, comp: number): ClientRow => ({
+    name: 'x', initials: 'X', org: 'Independent', sport: 'LB', comp, score, last: 'Today', dir: 'flat',
+  });
+
+  it('counts the book, averages compliance, and flags below-threshold clients', () => {
+    const book = [mk(90, 96), mk(85, 80), mk(74, 64), mk(60, 40)];
+    // clients = 4; compliance (96+80+64+40)/4 = 70; below 80 by score: 74 and 60 -> 2.
+    expect(trainerBookKpis(book)).toEqual({ clients: 4, avgCompliance: 70, followUps: 2 });
+  });
+
+  it('matches the real client fixture (header can never drift from the list)', () => {
+    const k = trainerBookKpis(TRAINER_CLIENTS);
+    expect(k.clients).toBe(TRAINER_CLIENTS.length);
+    // compliance is the mean of the fixture comps, rounded.
+    const mean = Math.round(TRAINER_CLIENTS.reduce((a, c) => a + c.comp, 0) / TRAINER_CLIENTS.length);
+    expect(k.avgCompliance).toBe(mean);
+    expect(k.followUps).toBe(TRAINER_CLIENTS.filter((c) => c.score < 80).length);
+  });
+
+  it('is safe on an empty book', () => {
+    expect(trainerBookKpis([])).toEqual({ clients: 0, avgCompliance: 0, followUps: 0 });
   });
 });
 

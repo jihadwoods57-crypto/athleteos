@@ -1,6 +1,6 @@
 // AthleteOS — leaderboard selector (pure). The athlete's own row score is live.
 import { POS_BOARD, POS_BOARD_SCORES, TEAM_BOARD, TEAM_BOARD_SCORES } from './constants';
-import type { RosterRow } from './constants';
+import type { ClientRow, RosterRow } from './constants';
 import type { LeaderRow, SquadMode } from './types';
 
 const MEDAL: Record<number, string> = { 1: '#F59E0B', 2: '#94A3B8', 3: '#D97706' };
@@ -63,6 +63,32 @@ export function coachRosterKpis(roster: RosterRow[]): CoachKpis {
     avgScore: avg(roster.map((r) => r.score)),
     compliance: avg(roster.map((r) => r.comp)),
     alerts: roster.filter((r) => r.score < COACH_ALERT_THRESHOLD).length,
+  };
+}
+
+export interface TrainerKpis {
+  /** Number of active clients in the book. */
+  clients: number;
+  /** Mean client book-compliance %, rounded. */
+  avgCompliance: number;
+  /** Count of clients scoring below COACH_ALERT_THRESHOLD (retention risks). */
+  followUps: number;
+}
+
+/**
+ * Pure Trainer-dashboard KPIs over the client book. The header CLIENTS count, the
+ * AVG COMPLY KPI, and the Book Compliance headline all derive from TRAINER_CLIENTS
+ * so they can never drift from the client list rendered below (the same discipline
+ * applied to the Coach roster KPIs). RETENTION is a business metric with no per-row
+ * source, so it stays a presentation constant in the view.
+ */
+export function trainerBookKpis(clients: ClientRow[]): TrainerKpis {
+  if (clients.length === 0) return { clients: 0, avgCompliance: 0, followUps: 0 };
+  const avg = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+  return {
+    clients: clients.length,
+    avgCompliance: avg(clients.map((c) => c.comp)),
+    followUps: clients.filter((c) => c.score < COACH_ALERT_THRESHOLD).length,
   };
 }
 
