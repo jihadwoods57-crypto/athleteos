@@ -14,8 +14,10 @@ import {
   POSITION_MAP,
   SPORTS,
   TRACK_DATA,
+  accountStepValid,
   baselineRec,
   formatHeight,
+  isValidEmail,
 } from '@/core';
 import { useStore } from '@/store';
 import { colors, font, radius, shadow } from '@/ui/tokens';
@@ -261,6 +263,10 @@ function RolePicker() {
 /* ----------------------------------------------------------------- Account */
 function AccountStep({ label }: { label: string }) {
   const { athleteName, athleteEmail, setName, setEmail, obNext, obBack } = useStore();
+  // Gate Continue until both fields are sane; show the email hint only once the
+  // athlete has typed something invalid (never nag an empty, untouched field).
+  const emailInvalid = athleteEmail.trim().length > 0 && !isValidEmail(athleteEmail);
+  const canContinue = accountStepValid(athleteName, athleteEmail);
   return (
     <View style={{ flex: 1 }}>
       <StepHeader label={label} onBack={obBack} />
@@ -271,12 +277,17 @@ function AccountStep({ label }: { label: string }) {
         </Field>
         <Field label="EMAIL">
           <Input value={athleteEmail} onChangeText={setEmail} placeholder="you@email.com" autoCapitalize="none" keyboardType="email-address" />
+          {emailInvalid ? (
+            <Txt w="sb" size={12} color={colors.alert} style={{ marginTop: 6, marginLeft: 4 }}>
+              Enter a valid email address
+            </Txt>
+          ) : null}
         </Field>
       </View>
       <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 14, paddingHorizontal: 4, lineHeight: 17 }}>
         By continuing you agree to the AthleteOS Terms & Privacy Policy. Athletes under 13 need a parent to create the account.
       </Txt>
-      <Btn label="Continue" onPress={obNext} style={{ marginTop: 'auto' }} />
+      <Btn label="Continue" onPress={obNext} disabled={!canContinue} style={{ marginTop: 'auto' }} />
     </View>
   );
 }
