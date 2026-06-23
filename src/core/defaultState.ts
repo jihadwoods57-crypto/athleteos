@@ -1,6 +1,7 @@
 // AthleteOS — initial session state, ported verbatim from the prototype.
 import type { AppState } from './types';
 import { todayStamp } from './clock';
+import { CAL_TARGET, PROTEIN_TARGET } from './constants';
 
 export function createInitialState(): AppState {
   return {
@@ -67,6 +68,8 @@ export function createInitialState(): AppState {
 
     // misc
     weeklyGoalLb: 1.0,
+    proteinTarget: PROTEIN_TARGET,
+    calTarget: CAL_TARGET,
     visibility: 'parent',
     notif: true,
     mealDesc: '',

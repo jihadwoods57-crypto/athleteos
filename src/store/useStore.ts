@@ -64,6 +64,8 @@ export interface Actions {
   setSquadMode: (m: SquadMode) => void;
   toggleNotif: () => void;
   goalStep: (d: number) => void;
+  adjustProteinTarget: (d: number) => void;
+  adjustCalTarget: (d: number) => void;
   signOut: () => void;
 
   // overlays
@@ -174,6 +176,18 @@ export const useStore = create<Store>()(
       setSquadMode: (m) => set({ squadMode: m }),
       toggleNotif: () => set((s) => ({ notif: !s.notif })),
       goalStep: (d) => set((s) => ({ weeklyGoalLb: +clamp(s.weeklyGoalLb + d, 0.5, 2).toFixed(1) })),
+      // Editable daily nutrition targets. Protein feeds scoring + the id-2 task row,
+      // so re-derive that visible flag here (mirrors addMeal/toggleQuick) to keep the
+      // Plan row honest the instant the target moves. Calories feed the Nutrition/Profile
+      // labels + bars. Clamped to sane ranges; stepped by the UI's ± controls.
+      adjustProteinTarget: (d) =>
+        set((s) => {
+          const proteinTarget = clamp(s.proteinTarget + d, 80, 320);
+          const protein = computeProteinToday(s.meals, s.quickAdded);
+          const tasks = s.tasks.map((x) => (x.id === 2 ? { ...x, done: protein >= proteinTarget } : x));
+          return { proteinTarget, tasks };
+        }),
+      adjustCalTarget: (d) => set((s) => ({ calTarget: clamp(s.calTarget + d, 1200, 6000) })),
       signOut: () => set({ flow: 'onboarding', obStep: 0, role: null, accountOpen: false }),
 
       // ---- overlays ----
@@ -191,7 +205,7 @@ export const useStore = create<Store>()(
           const meals = { ...s.meals, [key]: true };
           const protein = computeProteinToday(meals, s.quickAdded);
           const tasks = s.tasks.map((x) => {
-            if (x.id === 2) return { ...x, done: protein >= PROTEIN_TARGET };
+            if (x.id === 2) return { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) };
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
             return x;
           });
@@ -210,7 +224,7 @@ export const useStore = create<Store>()(
           const q = [...s.quickAdded];
           q[i] = !q[i];
           const protein = computeProteinToday(s.meals, q);
-          const tasks = s.tasks.map((x) => (x.id === 2 ? { ...x, done: protein >= PROTEIN_TARGET } : x));
+          const tasks = s.tasks.map((x) => (x.id === 2 ? { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) } : x));
           return { quickAdded: q, tasks };
         }),
       openPerson: (p) => set({ personDetail: p }),
@@ -278,6 +292,8 @@ export const useStore = create<Store>()(
         baseWeight: s.baseWeight,
         baseAge: s.baseAge,
         weeklyGoalLb: s.weeklyGoalLb,
+        proteinTarget: s.proteinTarget,
+        calTarget: s.calTarget,
         compMode: s.compMode,
         goals: s.goals,
         inviteWho: s.inviteWho,

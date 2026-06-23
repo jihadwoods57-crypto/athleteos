@@ -106,6 +106,10 @@ export interface AppState {
 
   // ---- misc ----
   weeklyGoalLb: number;
+  /** Athlete-editable daily nutrition targets. Feed scoring (protein) + the
+   *  Nutrition/Profile screens; default to the PROTEIN_TARGET/CAL_TARGET constants. */
+  proteinTarget: number;
+  calTarget: number;
   visibility: string;
   notif: boolean;
   mealDesc: string;

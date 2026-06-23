@@ -3,15 +3,17 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { athleteSubtitle } from '@/core';
+import { athleteSubtitle, computeDerived } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Card, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Profile() {
   const insets = useSafeAreaInsets();
   const s = useStore();
+  const d = computeDerived(s);
+  const [editingTargets, setEditingTargets] = React.useState(false);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
@@ -50,15 +52,41 @@ export function Profile() {
           <Txt w="eb" size={16} ls={-0.3}>
             Your Targets
           </Txt>
-          <Txt w="b" size={13} color={colors.accent}>
-            Edit
-          </Txt>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={editingTargets ? 'Done editing targets' : 'Edit nutrition targets'}
+            hitSlop={10}
+            onPress={() => setEditingTargets((e) => !e)}
+          >
+            <Txt w="b" size={13} color={colors.accent}>
+              {editingTargets ? 'Done' : 'Edit'}
+            </Txt>
+          </Pressable>
         </Row>
-        <Row style={{ gap: 10 }}>
-          <TargetTile value="180g" label="PROTEIN" />
-          <TargetTile value="3,200" label="CALORIES" />
-          <TargetTile value="184lb" label="WEIGHT" />
-        </Row>
+        {editingTargets ? (
+          <Row style={{ gap: 10, alignItems: 'flex-start' }}>
+            <Stepper
+              label="Protein"
+              unit="g / day"
+              value={`${d.proteinTarget}g`}
+              onDec={() => s.adjustProteinTarget(-10)}
+              onInc={() => s.adjustProteinTarget(10)}
+            />
+            <Stepper
+              label="Calories"
+              unit="kcal / day"
+              value={d.calTarget.toLocaleString()}
+              onDec={() => s.adjustCalTarget(-50)}
+              onInc={() => s.adjustCalTarget(50)}
+            />
+          </Row>
+        ) : (
+          <Row style={{ gap: 10 }}>
+            <TargetTile value={`${d.proteinTarget}g`} label="PROTEIN" />
+            <TargetTile value={d.calTarget.toLocaleString()} label="CALORIES" />
+            <TargetTile value="184lb" label="WEIGHT" />
+          </Row>
+        )}
         <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 14 }}>
           WORKING TOWARD
         </Txt>

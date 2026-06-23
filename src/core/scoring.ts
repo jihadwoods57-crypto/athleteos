@@ -56,10 +56,15 @@ export function computeDerived(s: AppState): Derived {
     }
   });
 
+  // Athlete-editable daily targets; fall back to the constants for legacy
+  // persisted blobs written before the targets were editable.
+  const proteinTarget = s.proteinTarget ?? PROTEIN_TARGET;
+  const calTarget = s.calTarget ?? CAL_TARGET;
+
   const proteinToday = proteinBase + quickGrams;
   const kcalToday = kcalBase + quickKcal;
-  const proteinGap = Math.max(0, PROTEIN_TARGET - proteinToday);
-  const proteinPct = Math.min(100, Math.round((proteinToday / PROTEIN_TARGET) * 100));
+  const proteinGap = Math.max(0, proteinTarget - proteinToday);
+  const proteinPct = Math.min(100, Math.round((proteinToday / proteinTarget) * 100));
   const hydrationPct = clamp(Math.round((s.hydrationL / HYDRATION_TARGET) * 100), 0, 100);
 
   // Drift-proof: two tasks must reflect derived day-state, never a stored flag,
@@ -69,7 +74,7 @@ export function computeDerived(s: AppState): Derived {
   // Non-mutating: spread a fresh task object for each override; s.tasks/s.meals
   // are never written.
   const effectiveTasks = s.tasks.map((t) => {
-    if (t.id === 2) return { ...t, done: proteinToday >= PROTEIN_TARGET };
+    if (t.id === 2) return { ...t, done: proteinToday >= proteinTarget };
     if (t.id === 3) return { ...t, done: Boolean(s.meals.dinner) };
     return t;
   });
@@ -78,7 +83,7 @@ export function computeDerived(s: AppState): Derived {
 
   const nutritionScore = Math.min(
     100,
-    Math.round(57 + (Math.min(proteinToday, PROTEIN_TARGET) / PROTEIN_TARGET) * 30 + (mealsLoggedCount / 4) * 15),
+    Math.round(57 + (Math.min(proteinToday, proteinTarget) / proteinTarget) * 30 + (mealsLoggedCount / 4) * 15),
   );
   // Recovery sub-score averages ONLY the coach-enabled check-in questions
   // (s.ciConfig), each on a 0–10 scale — not a hard-coded energy/recovery/sleep
@@ -142,12 +147,12 @@ export function computeDerived(s: AppState): Derived {
     tasksScore,
     checkinScore,
     proteinToday,
-    proteinTarget: PROTEIN_TARGET,
+    proteinTarget,
     proteinGap,
     proteinPct,
     proteinRingOffset,
     kcalToday,
-    calTarget: CAL_TARGET,
+    calTarget,
     mealsLoggedCount,
     hydrationPct,
     tasksDone,

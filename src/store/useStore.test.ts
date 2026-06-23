@@ -155,6 +155,56 @@ describe('submitCi', () => {
   });
 });
 
+describe('editable nutrition targets', () => {
+  it('default to the PROTEIN_TARGET/CAL_TARGET constants and surface in derived', () => {
+    const d = derived();
+    expect(d.proteinTarget).toBe(180);
+    expect(d.calTarget).toBe(3200);
+  });
+
+  it('lowering the protein target raises proteinPct + nutrition score and completes the protein task', () => {
+    const before = derived();
+    expect(before.proteinPct).toBe(79); // seed 142g / 180g target
+    expect(useStore.getState().tasks.find((t) => t.id === 2)?.done).toBe(false);
+
+    useStore.getState().adjustProteinTarget(-40); // 180 -> 140; seed 142g now clears it
+    const after = derived();
+    expect(useStore.getState().proteinTarget).toBe(140);
+    expect(after.proteinTarget).toBe(140);
+    expect(after.proteinPct).toBe(100);
+    expect(after.nutritionScore).toBeGreaterThan(before.nutritionScore);
+    expect(after.athleteScore).toBeGreaterThan(before.athleteScore);
+    // the visible id-2 task row re-derives to done the instant the target drops
+    expect(useStore.getState().tasks.find((t) => t.id === 2)?.done).toBe(true);
+  });
+
+  it('raising the protein target lowers proteinPct and the nutrition score', () => {
+    const before = derived();
+    useStore.getState().adjustProteinTarget(60); // 180 -> 240
+    const after = derived();
+    expect(useStore.getState().proteinTarget).toBe(240);
+    expect(after.proteinPct).toBeLessThan(before.proteinPct);
+    expect(after.nutritionScore).toBeLessThan(before.nutritionScore);
+  });
+
+  it('clamps the protein target to [80, 320]', () => {
+    for (let i = 0; i < 100; i++) useStore.getState().adjustProteinTarget(-10);
+    expect(useStore.getState().proteinTarget).toBe(80);
+    for (let i = 0; i < 100; i++) useStore.getState().adjustProteinTarget(10);
+    expect(useStore.getState().proteinTarget).toBe(320);
+  });
+
+  it('edits the calorie target (clamped to [1200, 6000]) and reflects it in derived', () => {
+    useStore.getState().adjustCalTarget(300); // 3200 -> 3500
+    expect(useStore.getState().calTarget).toBe(3500);
+    expect(derived().calTarget).toBe(3500);
+    for (let i = 0; i < 200; i++) useStore.getState().adjustCalTarget(50);
+    expect(useStore.getState().calTarget).toBe(6000);
+    for (let i = 0; i < 300; i++) useStore.getState().adjustCalTarget(-50);
+    expect(useStore.getState().calTarget).toBe(1200);
+  });
+});
+
 describe('wStep clamp', () => {
   it('cannot drop ciWeight below the 70 lb floor on repeated large negative steps', () => {
     for (let i = 0; i < 100; i++) useStore.getState().wStep(-50);

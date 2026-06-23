@@ -91,7 +91,7 @@ export function Nutrition() {
           <ProgressBar pct={calPct} height={8} />
         </View>
         <Row style={{ justifyContent: 'space-around' }}>
-          <MacroRing label="Protein" value={d.proteinToday} target="/180g" pct={d.proteinPct} color={colors.accent} />
+          <MacroRing label="Protein" value={d.proteinToday} target={`/${d.proteinTarget}g`} pct={d.proteinPct} color={colors.accent} />
           <MacroRing label="Carbs" value={210} target="/300g" pct={70} color={colors.hydration} />
           <MacroRing label="Fat" value={58} target="/80g" pct={73} color="#8B5CF6" />
         </Row>
