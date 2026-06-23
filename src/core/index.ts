@@ -7,6 +7,7 @@ export * from './recommendation';
 export * from './leaderboard';
 export * from './content';
 export * from './units';
+export * from './contrast';
 export * from './history';
 export * from './person';
 export * from './account';
