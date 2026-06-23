@@ -25,6 +25,7 @@ import {
 import { useStore } from '@/store';
 import { colors, font, radius, shadow } from '@/ui/tokens';
 import { Btn, Chip, Card, Input, Pill, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { LogoMark } from '@/brand/Logo';
 
@@ -32,8 +33,14 @@ function StepHeader({ label, onBack }: { label: string; onBack: () => void }) {
   return (
     <Row style={{ justifyContent: 'space-between' }}>
       <Pressable
-        onPress={onBack}
-        style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        hitSlop={6}
+        onPress={() => {
+          haptics.tap();
+          onBack();
+        }}
+        style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
       >
         <Icon name="chevronLeft" size={22} color={colors.slate600} />
       </Pressable>
@@ -140,7 +147,16 @@ function Welcome() {
         <Txt w="m" size={14} color={colors.textTertiary}>
           Already have one?{' '}
         </Txt>
-        <Pressable onPress={startSignin}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sign in"
+          hitSlop={8}
+          onPress={() => {
+            haptics.tap();
+            startSignin();
+          }}
+          style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1 })}
+        >
           <Txt w="b" size={14} color={colors.accent}>
             Sign in
           </Txt>
@@ -183,7 +199,16 @@ function SignIn() {
           <Txt w="m" size={14} color={colors.textTertiary}>
             New here?{' '}
           </Txt>
-          <Pressable onPress={exitSignin}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create an account"
+            hitSlop={8}
+            onPress={() => {
+              haptics.tap();
+              exitSignin();
+            }}
+            style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1 })}
+          >
             <Txt w="b" size={14} color={colors.accent}>
               Create an account
             </Txt>
@@ -214,8 +239,14 @@ function RolePicker() {
           return (
             <Pressable
               key={r.key}
-              onPress={() => setRole(r.key)}
-              style={[
+              accessibilityRole="button"
+              accessibilityLabel={r.title}
+              accessibilityState={{ selected: sel }}
+              onPress={() => {
+                haptics.select();
+                setRole(r.key);
+              }}
+              style={({ pressed }) => [
                 {
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -225,6 +256,7 @@ function RolePicker() {
                   backgroundColor: sel ? colors.accentSurface : colors.card,
                   borderWidth: 2,
                   borderColor: sel ? colors.accent : 'transparent',
+                  opacity: pressed ? 0.85 : 1,
                 },
                 sel ? undefined : shadow.card,
               ]}
@@ -317,14 +349,21 @@ function LevelStep({ label }: { label: string }) {
         {LEVELS.map((l) => (
           <Pressable
             key={l}
-            onPress={() => setLevel(l)}
-            style={[
+            accessibilityRole="button"
+            accessibilityLabel={l}
+            accessibilityState={{ selected: level === l }}
+            onPress={() => {
+              haptics.select();
+              setLevel(l);
+            }}
+            style={({ pressed }) => [
               {
                 padding: 18,
                 borderRadius: 16,
                 backgroundColor: level === l ? colors.accent : colors.card,
                 borderWidth: 2,
                 borderColor: level === l ? colors.accent : 'transparent',
+                opacity: pressed ? 0.85 : 1,
               },
               level === l ? undefined : shadow.card,
             ]}
@@ -354,8 +393,14 @@ function SportStep({ label }: { label: string }) {
           return (
             <Pressable
               key={name}
-              onPress={() => setSport(name)}
-              style={[
+              accessibilityRole="button"
+              accessibilityLabel={name}
+              accessibilityState={{ selected: active }}
+              onPress={() => {
+                haptics.select();
+                setSport(name);
+              }}
+              style={({ pressed }) => [
                 {
                   width: '47.5%',
                   height: 62,
@@ -365,6 +410,7 @@ function SportStep({ label }: { label: string }) {
                   backgroundColor: active ? colors.accent : colors.card,
                   borderWidth: 2,
                   borderColor: active ? colors.accent : 'transparent',
+                  opacity: pressed ? 0.85 : 1,
                 },
                 active ? shadow.cta : shadow.card,
               ]}
@@ -463,7 +509,16 @@ function BaseTile({ label, value, unit, onDec, onInc }: { label: string; value: 
 
 function MiniStep({ glyph, onPress }: { glyph: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={glyph === '+' ? 'Increase' : 'Decrease'}
+      hitSlop={10}
+      onPress={() => {
+        haptics.select();
+        onPress();
+      }}
+      style={({ pressed }) => ({ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+    >
       <Txt w="b" size={17} color={colors.slate700}>
         {glyph}
       </Txt>
@@ -498,8 +553,14 @@ function ConnectStep({ label }: { label: string }) {
           return (
             <Pressable
               key={iv.key}
-              onPress={() => toggleInvite(iv.key)}
-              style={[
+              accessibilityRole="checkbox"
+              accessibilityLabel={iv.name}
+              accessibilityState={{ checked: sel }}
+              onPress={() => {
+                haptics.select();
+                toggleInvite(iv.key);
+              }}
+              style={({ pressed }) => [
                 {
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -508,6 +569,7 @@ function ConnectStep({ label }: { label: string }) {
                   backgroundColor: sel ? colors.accentSurface : colors.card,
                   borderWidth: 1.5,
                   borderColor: sel ? colors.accentBorderStrong : 'transparent',
+                  opacity: pressed ? 0.85 : 1,
                 },
                 sel ? undefined : shadow.card,
               ]}
@@ -669,9 +731,15 @@ function TeamStep({ label }: { label: string }) {
           return (
             <Pressable
               key={c.key}
-              onPress={() => setCompMode(c.key)}
-              style={[
-                { flex: 1, paddingVertical: 11, borderRadius: 11, alignItems: 'center', backgroundColor: sel ? colors.accent : colors.card },
+              accessibilityRole="button"
+              accessibilityLabel={c.label}
+              accessibilityState={{ selected: sel }}
+              onPress={() => {
+                haptics.select();
+                setCompMode(c.key);
+              }}
+              style={({ pressed }) => [
+                { flex: 1, paddingVertical: 11, borderRadius: 11, alignItems: 'center', backgroundColor: sel ? colors.accent : colors.card, opacity: pressed ? 0.85 : 1 },
                 sel ? undefined : shadow.card,
               ]}
             >
