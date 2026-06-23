@@ -2,6 +2,41 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+## 2026-06-23 (run 3) — editable weight goal + weight-trend drift fix
+
+Two commits, all three gates green every commit (`tsc --noEmit`, jest,
+`expo export -p ios`). Test count 175 → **179** (never dropped). Router
+untouched (app/_layout + app/index, no src/app). Phase-2 Supabase scaffold not
+touched.
+
+- **feat(targets): the season weight goal is now one editable source of truth.**
+  The 184 lb season weight target was a magic literal in four places — the Home
+  SEASON GOAL card, the Profile "WEIGHT" target tile, and the Check-In + Parent
+  weight-trend captions ("goal 184 lb") plus the Check-In chart's "Goal 184" SVG
+  label — and it wasn't editable (Profile's "Edit" card stepped only protein +
+  calories). Centralized it: new `WEIGHT_START`/`WEIGHT_TARGET` constants, a
+  persisted athlete-editable `weightTarget` state field (cross-day pref, clamped
+  120–350 lb via the new `adjustWeightTarget` action), and every screen now reads
+  the live value with a constant fallback for legacy persisted blobs. The Profile
+  target editor gains a **Weight stepper on its own row** (kept off the
+  protein/calorie row so the "3,200" calorie value can't clip). +4 store tests.
+- **fix(weight): drive the Parent + Check-In weight trend from live state.** The
+  Parent portal printed a hardcoded "178 lb" current weight while Home already
+  showed the live `currentWeight`, and both the Parent and Check-In trend cards
+  hardcoded "↑ +7 lb" — so the parent view drifted the instant the athlete logged
+  a new weight at check-in. Wired the current weight to `s.currentWeight` and the
+  gain to `currentWeight - WEIGHT_START` (the same start anchor Home's season goal
+  uses), with a down-arrow + alert color if the athlete drops below start.
+
+### For the founder (QC this run)
+- **Profile → Your Targets → Edit**: a third **Weight** stepper now appears; the
+  goal flows live into the Home SEASON GOAL card ("N lb target" + the progress
+  bar / "to go"), the Check-In and Parent weight-trend captions, and persists
+  across reload + a day rollover.
+- **Check-In → step the current weight → submit**, then open the **Parent view**:
+  the parent's "current weight" and the "↑ +N lb" gain now track the athlete's
+  real weight instead of the old static 178 / +7.
+
 ## 2026-06-23 (run 2) — reduce-motion, editable targets, onboarding validation
 
 Three commits, all three gates green every commit (`tsc --noEmit`, jest,
@@ -114,12 +149,15 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    font sizes for clipping (Dynamic Type) on the score hero + KPI rows.
 6. **Feature completeness (phase-2 backlog)** — `notif` persists ✅; score history
    feeds Home trend + week delta ✅; **editable protein + calorie targets** flow
-   into scoring + Nutrition ✅ (Profile → Edit; persisted, clamped, survive
-   rollover); **onboarding name/email validation** gates Continue ✅. Still open:
-   editable **weight** target (the 184 lb season goal is hardcoded in Home/CheckIn/
-   ParentView — make it one source of truth, then editable); **Parent & Coach trend
-   charts** still hardcoded SVG/arrays (Weekly Compliance 86%, NUTRI_BARS, Coach
-   KPIs 84/88%/2) — wire to real history/derived where possible.
+   into scoring + Nutrition ✅; **onboarding name/email validation** gates Continue
+   ✅; **editable weight target** is now one source of truth ✅ (Profile → Edit →
+   Weight stepper; persisted, clamped 120–350, survives rollover; flows into Home
+   SEASON GOAL + Check-In/Parent captions); **Parent + Check-In weight trend now
+   read live `currentWeight` / WEIGHT_START gain** ✅ (no more static 178 / +7).
+   Still open: the **Parent & Coach trend SVG paths/arrays** themselves are still
+   static (Weekly Compliance 86%, NUTRI_BARS, the weight-trend `Path` geometry,
+   Coach KPIs 84/88%/2) — wire the chart geometry to real history/derived where
+   possible (the numbers/labels around them are now live).
 7. **Test safety net** — ✅ recommendation/leaderboard/content + store-level
    addMeal/toggleTask/addWater/submitCi score-movement tests exist; `npm run
    verify` green. 165 tests. (Optional: a smoke test for the Ring web-shim.)
