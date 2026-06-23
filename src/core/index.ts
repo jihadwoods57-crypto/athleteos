@@ -6,6 +6,7 @@ export * from './scoring';
 export * from './recommendation';
 export * from './leaderboard';
 export * from './content';
+export * from './units';
 export * from './history';
 export * from './person';
 export * from './validate';

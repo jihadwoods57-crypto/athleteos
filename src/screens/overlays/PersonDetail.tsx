@@ -1,7 +1,7 @@
 // AthleteOS — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { gradeFor, personBreakdown } from '@/core';
+import { displayWeightDelta, gradeFor, personBreakdown, weightUnit } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -15,6 +15,7 @@ export function PersonDetail() {
   if (!pd) return null;
   const grade = gradeFor(pd.score);
   const bd = personBreakdown(pd.score);
+  const units = s.units ?? 'imperial';
 
   return (
     <Overlay title="Athlete Profile" onClose={s.closePerson}>
@@ -46,7 +47,7 @@ export function PersonDetail() {
         <Row style={{ gap: 10, marginTop: 14 }}>
           <StatTile value={`${pd.comp ?? pd.score}%`} label="COMPLIANCE" color={colors.success} />
           <StatTile value="12" label="DAY STREAK" />
-          <StatTile value="+7lb" label="WEIGHT Δ" />
+          <StatTile value={`+${displayWeightDelta(7, units)}${weightUnit(units)}`} label="WEIGHT Δ" />
         </Row>
 
         <Card style={{ marginTop: 14, borderRadius: 20 }}>

@@ -1,5 +1,6 @@
 // AthleteOS — core domain types (pure TS, no React/RN imports).
 // Ported faithfully from the design prototype's state model.
+import type { Units } from './units';
 
 export type Role = 'athlete' | 'parent' | 'coach' | 'trainer';
 export type Flow = 'onboarding' | 'app' | 'coach' | 'parent' | 'trainer';
@@ -122,6 +123,9 @@ export interface AppState {
   weightTarget: number;
   visibility: string;
   notif: boolean;
+  /** Athlete-chosen display unit system. Body weights are stored in lb and
+   *  converted at the edge; defaults to imperial. */
+  units: Units;
   mealDesc: string;
   chatDraft: string;
   msgDraft: string;

@@ -7,10 +7,13 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 import {
   aiInsight,
   DEFAULT_CHART_BOX,
+  displayWeight,
+  displayWeightDelta,
   heroStatus,
   HYDRATION_TARGET,
   recentDayLabels,
   seasonGoalProgress,
+  weightUnit,
   WEIGHT_START,
   WEIGHT_TARGET,
   trendGeometry,
@@ -39,6 +42,9 @@ export function Home() {
   const START = WEIGHT_START;
   const TARGET = s.weightTarget ?? WEIGHT_TARGET;
   const goal = seasonGoalProgress(s.currentWeight, START, TARGET);
+  const units = s.units ?? 'imperial';
+  const wUnit = weightUnit(units);
+  const remainingDisp = displayWeightDelta(goal.remaining, units);
 
   // Reactive score-hero status line + standing badge (pure-core helper). Tone
   // maps to existing surface/text tokens at this call site — no new tokens.
@@ -130,7 +136,7 @@ export function Home() {
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
           <View>
             <Txt w="eb" size={29} ls={-0.9}>
-              {TARGET} lb
+              {displayWeight(TARGET, units)} {wUnit}
               <Txt w="b" size={15} color={colors.textTertiary}>
                 {' '}
                 target
@@ -142,10 +148,10 @@ export function Home() {
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Txt w="eb" size={20} color={colors.success}>
-              {goal.remaining > 0 ? `+${goal.remaining}` : goal.remaining} to go
+              {remainingDisp > 0 ? `+${remainingDisp}` : remainingDisp} to go
             </Txt>
             <Txt w="sb" size={12} color={colors.textTertiary}>
-              now {s.currentWeight} lb
+              now {displayWeight(s.currentWeight, units)} {wUnit}
             </Txt>
           </View>
         </Row>
@@ -154,13 +160,13 @@ export function Home() {
         </View>
         <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
           <Txt w="b" size={11} color={colors.textTertiary}>
-            {START} start
+            {displayWeight(START, units)} start
           </Txt>
           <Txt w="b" size={11} color={colors.textTertiary}>
             {goal.pctThere}% there
           </Txt>
           <Txt w="b" size={11} color={colors.textTertiary}>
-            {TARGET} goal
+            {displayWeight(TARGET, units)} goal
           </Txt>
         </Row>
         <View style={{ marginTop: 14, borderRadius: 14, padding: 13, backgroundColor: '#ECFDF5' }}>
@@ -169,8 +175,8 @@ export function Home() {
               {goal.pctThere < 100 ? 'On track ·' : 'Goal reached ·'}{' '}
             </Txt>
             {goal.pctThere < 100
-              ? `At your current pace you'll reach ${TARGET} lb by Nov 7 — a week ahead of playoffs.`
-              : `You hit ${TARGET} lb — season weight goal complete.`}
+              ? `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit} by Nov 7 — a week ahead of playoffs.`
+              : `You hit ${displayWeight(TARGET, units)} ${wUnit} — season weight goal complete.`}
           </Txt>
         </View>
       </Card>

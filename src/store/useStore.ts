@@ -66,6 +66,7 @@ export interface Actions {
   goNutrition: () => void;
   setSquadMode: (m: SquadMode) => void;
   toggleNotif: () => void;
+  toggleUnits: () => void;
   goalStep: (d: number) => void;
   adjustProteinTarget: (d: number) => void;
   adjustCalTarget: (d: number) => void;
@@ -179,6 +180,7 @@ export const useStore = create<Store>()(
       goNutrition: () => set({ flow: 'app', tab: 'nutrition' }),
       setSquadMode: (m) => set({ squadMode: m }),
       toggleNotif: () => set((s) => ({ notif: !s.notif })),
+      toggleUnits: () => set((s) => ({ units: s.units === 'metric' ? 'imperial' : 'metric' })),
       goalStep: (d) => set((s) => ({ weeklyGoalLb: +clamp(s.weeklyGoalLb + d, 0.5, 2).toFixed(1) })),
       // Editable daily nutrition targets. Protein feeds scoring + the id-2 task row,
       // so re-derive that visible flag here (mirrors addMeal/toggleQuick) to keep the
@@ -328,6 +330,7 @@ export const useStore = create<Store>()(
         ciConfig: s.ciConfig,
         visibility: s.visibility,
         notif: s.notif,
+        units: s.units,
       }),
       // Roll the persisted day forward BEFORE the first UI/selector read: on a new
       // calendar day the stale day slice resets to fresh defaults; same-day restores

@@ -16,8 +16,11 @@ import {
   TRACK_DATA,
   accountStepValid,
   baselineRec,
+  displayWeight,
   formatHeight,
   isValidEmail,
+  weightStepLb,
+  weightUnit,
 } from '@/core';
 import { useStore } from '@/store';
 import { colors, font, radius, shadow } from '@/ui/tokens';
@@ -394,13 +397,15 @@ function SportStep({ label }: { label: string }) {
 function BaselineStep({ label }: { label: string }) {
   const s = useStore();
   const rec = baselineRec(s.baseWeight, s.baseGoal);
+  const units = s.units ?? 'imperial';
+  const wStepLb = weightStepLb(units);
   return (
     <View style={{ flex: 1 }}>
       <StepHeader label={label} onBack={s.obBack} />
       <Title sub="We'll set smart targets — your coach can fine-tune them.">Your baseline</Title>
       <Row style={{ gap: 10, marginTop: 22, alignItems: 'stretch' }}>
         <BaseTile label="HEIGHT" value={formatHeight(s.baseHeight)} onDec={() => s.hStep(-1)} onInc={() => s.hStep(1)} />
-        <BaseTile label="WEIGHT" value={`${s.baseWeight}`} unit="lb" onDec={() => s.bwStep(-1)} onInc={() => s.bwStep(1)} />
+        <BaseTile label="WEIGHT" value={`${displayWeight(s.baseWeight, units)}`} unit={weightUnit(units)} onDec={() => s.bwStep(-wStepLb)} onInc={() => s.bwStep(wStepLb)} />
         <BaseTile label="AGE" value={`${s.baseAge}`} onDec={() => s.ageStep(-1)} onInc={() => s.ageStep(1)} />
       </Row>
       <Txt w="b" size={14} style={{ marginTop: 24, marginBottom: 12 }}>

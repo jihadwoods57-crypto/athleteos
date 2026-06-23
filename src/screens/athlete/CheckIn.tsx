@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
-import { CHECKIN_QUESTIONS, WEIGHT_START, WEIGHT_TARGET } from '@/core';
+import { CHECKIN_QUESTIONS, displayWeight, displayWeightDelta, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -25,6 +25,10 @@ export function CheckIn() {
   const insets = useSafeAreaInsets();
   const s = useStore();
   const pad = { paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 };
+  const units = s.units ?? 'imperial';
+  const wUnit = weightUnit(units);
+  const wStepLb = weightStepLb(units);
+  const weightTarget = s.weightTarget ?? WEIGHT_TARGET;
 
   if (s.ciStage === 'done') {
     const name = s.athleteName?.split(' ')[0] || 'Jihad';
@@ -83,16 +87,16 @@ export function CheckIn() {
             Current weight
           </Txt>
           <Txt w="eb" size={28} style={{ marginTop: 4 }}>
-            {s.ciWeight}
+            {displayWeight(s.ciWeight, units)}
             <Txt w="sb" size={14} color={colors.textTertiary}>
               {' '}
-              lb
+              {wUnit}
             </Txt>
           </Txt>
         </View>
         <Row style={{ gap: 8 }}>
-          <BigStep glyph="−" onPress={() => s.wStep(-1)} />
-          <BigStep glyph="+" onPress={() => s.wStep(1)} />
+          <BigStep glyph="−" onPress={() => s.wStep(-wStepLb)} />
+          <BigStep glyph="+" onPress={() => s.wStep(wStepLb)} />
         </Row>
       </Row>
 
@@ -104,22 +108,22 @@ export function CheckIn() {
               Weight Trend
             </Txt>
             <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
-              8-week build · goal {s.weightTarget ?? WEIGHT_TARGET} lb
+              8-week build · goal {displayWeight(weightTarget, units)} {wUnit}
             </Txt>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Txt w="eb" size={22}>
-              {s.currentWeight}
+              {displayWeight(s.currentWeight, units)}
               <Txt w="sb" size={12} color={colors.textTertiary}>
                 {' '}
-                lb
+                {wUnit}
               </Txt>
             </Txt>
             {(() => {
-              const gain = Math.round((s.currentWeight - WEIGHT_START) * 10) / 10;
+              const gain = displayWeightDelta(s.currentWeight - WEIGHT_START, units);
               return (
                 <Txt w="b" size={12} color={gain >= 0 ? colors.success : colors.alert}>
-                  {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} lb
+                  {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}
                 </Txt>
               );
             })()}
@@ -134,7 +138,7 @@ export function CheckIn() {
           </Defs>
           <Line x1="0" y1="25" x2="322" y2="25" stroke="#22C55E" strokeWidth="1.5" strokeDasharray="5 5" strokeOpacity="0.5" />
           <SvgText x="4" y="19" fontSize="10" fontWeight="700" fill="#22C55E">
-            Goal {s.weightTarget ?? WEIGHT_TARGET}
+            Goal {displayWeight(weightTarget, units)}
           </SvgText>
           <Path d="M12,68 L62,65 L111,61 L161,58 L211,51 L260,48 L310,45 L310,96 L12,96 Z" fill="url(#ciw)" />
           <Path d="M12,68 L62,65 L111,61 L161,58 L211,51 L260,48 L310,45" fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />

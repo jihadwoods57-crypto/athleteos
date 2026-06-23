@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -24,6 +24,8 @@ export function ParentView() {
   // dashed goal line tracks the athlete's editable weight target.
   const weightTarget = s.weightTarget ?? WEIGHT_TARGET;
   const wt = weightTrendGeometry(weightSeries(s.weightHistory, s.currentWeight, WEIGHT_START), weightTarget);
+  const units = s.units ?? 'imperial';
+  const wUnit = weightUnit(units);
   // Nutrition bars from real per-day nutrition sub-scores; today's live score is
   // the last (accent) bar, the weekly avg headline is the completed-day mean.
   const nutri = nutritionTrend(s.nutritionHistory, d.nutritionScore);
@@ -140,22 +142,22 @@ export function ParentView() {
                   Weight Trend
                 </Txt>
                 <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
-                  8-week build · goal {weightTarget} lb
+                  8-week build · goal {displayWeight(weightTarget, units)} {wUnit}
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Txt w="eb" size={26} ls={-0.5}>
-                  {s.currentWeight}
+                  {displayWeight(s.currentWeight, units)}
                   <Txt w="sb" size={13} color={colors.textTertiary}>
                     {' '}
-                    lb
+                    {wUnit}
                   </Txt>
                 </Txt>
                 {(() => {
-                  const gain = Math.round((s.currentWeight - WEIGHT_START) * 10) / 10;
+                  const gain = displayWeightDelta(s.currentWeight - WEIGHT_START, units);
                   return (
                     <Txt w="b" size={12} color={gain >= 0 ? colors.success : colors.alert}>
-                      {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} lb
+                      {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}
                     </Txt>
                   );
                 })()}

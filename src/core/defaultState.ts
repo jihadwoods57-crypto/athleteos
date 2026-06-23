@@ -75,6 +75,7 @@ export function createInitialState(): AppState {
     weightTarget: WEIGHT_TARGET,
     visibility: 'parent',
     notif: true,
+    units: 'imperial',
     mealDesc: '',
     chatDraft: '',
     msgDraft: '',

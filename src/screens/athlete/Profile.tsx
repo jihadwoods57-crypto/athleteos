@@ -3,7 +3,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { athleteSubtitle, computeDerived, WEIGHT_TARGET } from '@/core';
+import { athleteSubtitle, computeDerived, displayWeight, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
@@ -13,6 +13,9 @@ export function Profile() {
   const insets = useSafeAreaInsets();
   const s = useStore();
   const d = computeDerived(s);
+  const units = s.units ?? 'imperial';
+  const wStepLb = weightStepLb(units);
+  const weightTarget = s.weightTarget ?? WEIGHT_TARGET;
   const [editingTargets, setEditingTargets] = React.useState(false);
 
   return (
@@ -83,17 +86,17 @@ export function Profile() {
             </Row>
             <Stepper
               label="Weight"
-              unit="lb season goal"
-              value={`${s.weightTarget ?? WEIGHT_TARGET}`}
-              onDec={() => s.adjustWeightTarget(-1)}
-              onInc={() => s.adjustWeightTarget(1)}
+              unit={`${weightUnit(units)} season goal`}
+              value={`${displayWeight(weightTarget, units)}`}
+              onDec={() => s.adjustWeightTarget(-wStepLb)}
+              onInc={() => s.adjustWeightTarget(wStepLb)}
             />
           </View>
         ) : (
           <Row style={{ gap: 10 }}>
             <TargetTile value={`${d.proteinTarget}g`} label="PROTEIN" />
             <TargetTile value={d.calTarget.toLocaleString()} label="CALORIES" />
-            <TargetTile value={`${s.weightTarget ?? WEIGHT_TARGET}lb`} label="WEIGHT" />
+            <TargetTile value={`${displayWeight(weightTarget, units)}${weightUnit(units)}`} label="WEIGHT" />
           </Row>
         )}
         <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 14 }}>
@@ -146,14 +149,21 @@ export function Profile() {
           </View>
           <Toggle on={s.notif} onPress={s.toggleNotif} label="Notifications" />
         </Row>
-        <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-          <Txt w="b" size={15}>
-            Units
-          </Txt>
-          <Txt w="sb" size={14} color={colors.textSecondary}>
-            Imperial (lb) ›
-          </Txt>
-        </Row>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Units: ${units === 'metric' ? 'Metric, kilograms' : 'Imperial, pounds'}. Tap to switch.`}
+          onPress={s.toggleUnits}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Txt w="b" size={15}>
+              Units
+            </Txt>
+            <Txt w="sb" size={14} color={colors.accent}>
+              {units === 'metric' ? 'Metric (kg)' : 'Imperial (lb)'}
+            </Txt>
+          </Row>
+        </Pressable>
         <Row style={{ justifyContent: 'space-between', paddingVertical: 15 }}>
           <Txt w="b" size={15}>
             Help & support
