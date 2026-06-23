@@ -47,8 +47,8 @@ export function CoachView() {
             <Txt w="eb" size={11} color={colors.alert} ls={0.7} style={{ marginBottom: 13 }}>
               NEEDS ATTENTION
             </Txt>
-            <AttentionRow initials="AS" name="A. Silva" meta="Missed 3 meals · recovery dropping" score={79} color={colors.warning} onPress={() => s.openPerson({ name: 'Andre Silva', initials: 'AS', pos: 'Linebacker', score: 79 })} />
-            <AttentionRow initials="MC" name="M. Cole" meta="No check-in · 58% compliance" score={68} color={colors.alert} onPress={() => s.openPerson({ name: 'Marcus Cole', initials: 'MC', pos: 'Linebacker', score: 68 })} last />
+            <AttentionRow initials="AS" name="A. Silva" meta="Missed 3 meals · recovery dropping" score={79} color={colors.warning} onPress={() => s.openPerson({ name: 'Andre Silva', initials: 'AS', pos: 'Linebacker', score: 79, comp: 71 })} />
+            <AttentionRow initials="MC" name="M. Cole" meta="No check-in · 58% compliance" score={68} color={colors.alert} onPress={() => s.openPerson({ name: 'Marcus Cole', initials: 'MC', pos: 'Linebacker', score: 68, comp: 58 })} last />
           </View>
 
           <Card elevated style={{ marginTop: 18, borderRadius: 20 }}>
@@ -80,7 +80,7 @@ export function CoachView() {
               return (
                 <Pressable
                   key={a.name}
-                  onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: 'Linebacker', score: a.score })}
+                  onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: 'Linebacker', score: a.score, comp: a.comp })}
                   style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, padding: 14 }, shadow.card]}
                 >
                   <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>

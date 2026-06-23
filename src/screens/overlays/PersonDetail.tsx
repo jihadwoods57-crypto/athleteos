@@ -1,7 +1,7 @@
 // AthleteOS — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { gradeFor } from '@/core';
+import { gradeFor, personBreakdown } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -14,6 +14,7 @@ export function PersonDetail() {
   const pd = s.personDetail;
   if (!pd) return null;
   const grade = gradeFor(pd.score);
+  const bd = personBreakdown(pd.score);
 
   return (
     <Overlay title="Athlete Profile" onClose={s.closePerson}>
@@ -43,7 +44,7 @@ export function PersonDetail() {
         </Card>
 
         <Row style={{ gap: 10, marginTop: 14 }}>
-          <StatTile value="96%" label="COMPLIANCE" color={colors.success} />
+          <StatTile value={`${pd.comp ?? pd.score}%`} label="COMPLIANCE" color={colors.success} />
           <StatTile value="12" label="DAY STREAK" />
           <StatTile value="+7lb" label="WEIGHT Δ" />
         </Row>
@@ -53,10 +54,10 @@ export function PersonDetail() {
             Score Breakdown
           </Txt>
           <View style={{ gap: 12 }}>
-            <BreakdownRow label="Nutrition" pct={92} />
-            <BreakdownRow label="Recovery" pct={80} accent />
-            <BreakdownRow label="Tasks" pct={88} />
-            <BreakdownRow label="Check-in" pct={100} />
+            <BreakdownRow label="Nutrition" pct={bd.nutrition} />
+            <BreakdownRow label="Recovery" pct={bd.recovery} accent />
+            <BreakdownRow label="Tasks" pct={bd.tasks} />
+            <BreakdownRow label="Check-in" pct={bd.checkin} />
           </View>
         </Card>
 
@@ -70,7 +71,11 @@ export function PersonDetail() {
             </Txt>
           </Row>
           <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
-            {pd.name} is one of your most consistent — nutrition is locked in and the streak is alive. Watch recovery; a small sleep gain would push this to an A+.
+            {pd.score >= 85
+              ? `${pd.name} is one of your most consistent — nutrition is locked in and the streak is alive. Watch recovery; a small sleep gain would push this to an A+.`
+              : pd.score >= 75
+              ? `${pd.name} is holding steady — nutrition and tasks are solid. Recovery is the gap; a sleep nudge would move the grade.`
+              : `${pd.name} needs attention — recovery and check-in are slipping and it's dragging the score down. A 1-on-1 this week would help reset the routine.`}
           </Txt>
         </Card>
 

@@ -7,6 +7,7 @@ export * from './recommendation';
 export * from './leaderboard';
 export * from './content';
 export * from './history';
+export * from './person';
 export * from './validate';
 export * from './dayRollover';
 export { createInitialState } from './defaultState';

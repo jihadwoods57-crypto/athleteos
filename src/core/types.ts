@@ -153,6 +153,8 @@ export interface PersonDetail {
   pos?: string;
   score: number;
   org?: string;
+  /** Real book/roster compliance % for this person, when the caller has it. */
+  comp?: number;
 }
 
 export interface Grade {
