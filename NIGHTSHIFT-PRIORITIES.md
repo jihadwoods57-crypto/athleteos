@@ -4,6 +4,40 @@ The overnight crew ranks the work queue toward these. Higher = more valuable.
 Each job must end with the app still compiling (`tsc --noEmit`), tests passing
 (`jest`), and bundling (`expo export -p ios`). One job = one clean commit.
 
+## 🎯 GOAL: ship a COMPLETE, production-ready AthleteOS app
+You are one run in a recurring autonomous crew series; each run **continues** toward this
+goal (read `NIGHTSHIFT-LOG.md` + `git log` to learn state — never restart). Be ambitious:
+ship as much high-value, VERIFIED work as you safely can before context fills. Work the
+queue below toward this **Definition of Done** (track progress in `NIGHTSHIFT-LOG.md`):
+
+1. **QC findings cleared** — `collapsable={false}` react-native-web DOM warning fixed on web only.
+2. **UX/UI fidelity on EVERY screen + overlay + role view** (athlete Home/Plan/Squad/Check-In/
+   Profile/Nutrition; Coach, Parent, Trainer dashboards; Meal Detail, Messages, Notifications,
+   Person Detail, Account, onboarding) — driven through the `impeccable` skill (`critique` +
+   `audit` first, then the matching command). Honor DESIGN.md; do NOT migrate to OKLCH or trip
+   impeccable's absolute bans.
+3. **Motion + micro-interactions** — ring draw, bar grow, overlay slide-up, scan-line, pulse;
+   press/active states + `expo-haptics` on key taps; reduce-motion respected.
+4. **Empty + edge states everywhere** (zero meals, all tasks done, score at 100 / at floor, new
+   athlete with no history).
+5. **Accessibility** — hit targets ≥44px, contrast vs tokens, `accessibilityLabel` on icon-only
+   buttons, tolerate large system fonts without clipping.
+6. **Feature completeness** — settings/account toggles persist; editable targets (protein/calories/
+   weight) flow into scoring + nutrition; onboarding input validation + persisted selections;
+   local score history feeding the real Score Trend + Coach/Parent trends.
+7. **Test-coverage safety net** — unit tests for recommendation.ts / leaderboard.ts / content.ts +
+   a store-level test that addMeal/toggleTask/addWater/submitCi move the derived score; `npm run verify` green.
+8. **No dead UI** — every button/tab/row does something real or shows an intentional state.
+
+**Operating rules (every run):** `cd` into repo root → `npm install --legacy-peer-deps` → read this
+file + `NIGHTSHIFT-LOG.md` + `git log --oneline -40`. One job = one commit; EVERY commit keeps all
+three gates green (typecheck/test/bundle, 165+ tests, never drop); push after each (`git pull --rebase`
+if rejected). Do NOT touch the Phase 2 Supabase scaffold (`src/lib/supabase`, `src/store/sync.ts`) —
+human-in-the-loop milestone. Never `expo start` / external sends / paid services. **WRAP UP:** update
+`NIGHTSHIFT-LOG.md` with a per-commit plain-English summary (what + which screen), the test count, and a
+refreshed "REMAINING TO COMPLETE" checklist; commit + push. When the whole Definition of Done is met,
+write **"APP COMPLETE — ready for founder review"** at the top of `NIGHTSHIFT-LOG.md`.
+
 ## Doctrine
 - This is a real Expo + React Native + TypeScript app at this repo root.
 - `src/core` is **pure TS** (no RN imports) — the scoring engine + domain. Keep it pure.
