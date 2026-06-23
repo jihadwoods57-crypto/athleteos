@@ -10,6 +10,7 @@ import {
   DEFAULT_CHART_BOX,
   displayWeight,
   firstName,
+  greeting,
   initials,
   displayWeightDelta,
   heroStatus,
@@ -67,7 +68,7 @@ export function Home() {
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View>
           <Txt w="sb" size={14} color={colors.textSecondary}>
-            Good morning,
+            {greeting()},
           </Txt>
           <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
             {name}

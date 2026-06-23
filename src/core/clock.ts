@@ -10,3 +10,16 @@ export function todayStamp(now: Date = new Date()): string {
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
+
+/**
+ * Time-of-day greeting for the Home header. Uses the LOCAL hour so it tracks the
+ * athlete's clock: morning < 12:00, afternoon 12:00–16:59, evening from 17:00.
+ * `now` is injectable for tests. Replaces the hardcoded "Good morning," that
+ * showed at every hour of the day.
+ */
+export function greeting(now: Date = new Date()): string {
+  const h = now.getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}

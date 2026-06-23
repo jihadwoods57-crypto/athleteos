@@ -14,4 +14,5 @@ export * from './identity';
 export * from './account';
 export * from './validate';
 export * from './dayRollover';
+export * from './clock';
 export { createInitialState } from './defaultState';
