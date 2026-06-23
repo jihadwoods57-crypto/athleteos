@@ -99,5 +99,12 @@ export const shadow = {
 
 export const DEVICE_MAX_WIDTH = 440; // keep the phone frame centered on web/tablet
 
+// Dynamic Type ceiling for text in FIXED-GEOMETRY chrome (the score/macro ring
+// numerals, tab labels, button/stepper/avatar/pill text) where the OS "larger
+// text" setting at 2–3x would spill or break a non-reflowing container. Body
+// text inside scrollable cards is intentionally left uncapped so it can still
+// reach the WCAG 1.4.4 200% target (cards reflow and the screen scrolls).
+export const MAX_FONT_SCALE = 1.3;
+
 // Some web environments need a hint that letterSpacing is in px.
 export const isWeb = Platform.OS === 'web';

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { mealRowsFor, QUICK_FOODS, paceProjection } from '@/core';
 import { useStore, useDerived } from '@/store';
-import { colors, shadow } from '@/ui/tokens';
+import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
@@ -219,10 +219,10 @@ function MacroRing({ label, value, target, pct, color }: { label: string; value:
           <Circle cx={50} cy={50} r={r} fill="none" stroke="#EFF2F6" strokeWidth={9} />
           <Circle cx={50} cy={50} r={r} fill="none" stroke={color} strokeWidth={9} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
         </Svg>
-        <Txt w="eb" size={17}>
+        <Txt w="eb" size={17} maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {value}
         </Txt>
-        <Txt w="b" size={9} color={colors.textTertiary}>
+        <Txt w="b" size={9} color={colors.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {target}
         </Txt>
       </View>
