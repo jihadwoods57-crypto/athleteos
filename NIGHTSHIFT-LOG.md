@@ -2,10 +2,10 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
-## 2026-06-23 (run 3) — editable weight goal + weight-trend drift fix
+## 2026-06-23 (run 3) — editable weight goal, weight-trend drift fix, live Coach KPIs
 
-Two commits, all three gates green every commit (`tsc --noEmit`, jest,
-`expo export -p ios`). Test count 175 → **179** (never dropped). Router
+Three commits, all three gates green every commit (`tsc --noEmit`, jest,
+`expo export -p ios`). Test count 175 → **182** (never dropped). Router
 untouched (app/_layout + app/index, no src/app). Phase-2 Supabase scaffold not
 touched.
 
@@ -27,6 +27,14 @@ touched.
   a new weight at check-in. Wired the current weight to `s.currentWeight` and the
   gain to `currentWeight - WEIGHT_START` (the same start anchor Home's season goal
   uses), with a down-arrow + alert color if the athlete drops below start.
+- **feat(coach): derive the Coach dashboard KPIs from the live roster.** The
+  Coach header KPIs (TEAM AVG 84, COMPLIANCE 88%, ALERTS 2) were static literals
+  while the roster below already injected the athlete's live score, so the headline
+  could contradict the roster and never moved. New pure
+  `coachRosterKpis(roster)` (mean score, mean compliance, count below
+  `COACH_ALERT_THRESHOLD` = 80); CoachView renders those. When the athlete tanks
+  their own score the team average drops and they roll into the alert count. The
+  honest defaults read 82 / 82% / 2 (vs the old cosmetic 84 / 88% / 2). +3 tests.
 
 ### For the founder (QC this run)
 - **Profile → Your Targets → Edit**: a third **Weight** stepper now appears; the
@@ -36,6 +44,8 @@ touched.
 - **Check-In → step the current weight → submit**, then open the **Parent view**:
   the parent's "current weight" and the "↑ +N lb" gain now track the athlete's
   real weight instead of the old static 178 / +7.
+- **Coach view header KPIs** now reflect the roster: tank the athlete's own score
+  (skip meals/tasks) and the TEAM AVG should drop and ALERTS should tick up.
 
 ## 2026-06-23 (run 2) — reduce-motion, editable targets, onboarding validation
 
@@ -154,10 +164,12 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    Weight stepper; persisted, clamped 120–350, survives rollover; flows into Home
    SEASON GOAL + Check-In/Parent captions); **Parent + Check-In weight trend now
    read live `currentWeight` / WEIGHT_START gain** ✅ (no more static 178 / +7).
-   Still open: the **Parent & Coach trend SVG paths/arrays** themselves are still
-   static (Weekly Compliance 86%, NUTRI_BARS, the weight-trend `Path` geometry,
-   Coach KPIs 84/88%/2) — wire the chart geometry to real history/derived where
-   possible (the numbers/labels around them are now live).
+   **Coach header KPIs (team avg / compliance / alerts) now derive from the live
+   roster** ✅. Still open: the **Parent & Coach trend SVG paths/arrays** themselves
+   are still static (Weekly Compliance 86%, NUTRI_BARS, the weight-trend `Path`
+   geometry) — wire the chart geometry to real history/derived where possible (the
+   surrounding numbers/labels are now live). Needs a per-day weight/nutrition
+   history store first (only `scoreHistory` exists today).
 7. **Test safety net** — ✅ recommendation/leaderboard/content + store-level
    addMeal/toggleTask/addWater/submitCi score-movement tests exist; `npm run
    verify` green. 165 tests. (Optional: a smoke test for the Ring web-shim.)
