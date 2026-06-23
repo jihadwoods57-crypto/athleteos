@@ -201,7 +201,7 @@ function RolePicker() {
       onBack={obBack}
       eyebrow="Who are you?"
       title="How will you use AthleteOS?"
-      sub="We tailor everything — your plan, your dashboard, your language — to this."
+      sub="We tailor everything to this: your plan, your dashboard, your language."
       footer={<Btn label="Continue" disabled={!role} onPress={obNext} />}
     >
       {ROLE_DEFS.map((r) => {
