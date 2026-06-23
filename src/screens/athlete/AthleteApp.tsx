@@ -4,7 +4,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store';
-import { colors, shadow } from '@/ui/tokens';
+import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Txt, Pressable } from '@/ui/primitives';
 import { Icon, IconName } from '@/icons';
 import type { Tab } from '@/core';
@@ -119,7 +119,7 @@ function TabItem({ item, active, onPress }: { item: { label: string; icon: IconN
       style={{ flex: 1, alignItems: 'center', gap: 4 }}
     >
       <Icon name={item.icon} size={23} color={color} />
-      <Txt w={active ? 'b' : 'sb'} size={11} color={color}>
+      <Txt w={active ? 'b' : 'sb'} size={11} color={color} maxFontSizeMultiplier={MAX_FONT_SCALE}>
         {item.label}
       </Txt>
     </Pressable>

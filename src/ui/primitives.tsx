@@ -18,7 +18,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, font, radius, shadow, space } from './tokens';
+import { colors, font, MAX_FONT_SCALE, radius, shadow, space } from './tokens';
 import { haptics } from './haptics';
 import { useReduceMotion } from './useReduceMotion';
 
@@ -136,7 +136,7 @@ export function Btn({
       {loading ? (
         <ActivityIndicator color={primary ? '#fff' : colors.accent} />
       ) : (
-        <Txt w="b" size={16} color={primary ? '#fff' : colors.slate700}>
+        <Txt w="b" size={16} color={primary ? '#fff' : colors.slate700} maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {label}
         </Txt>
       )}
@@ -163,7 +163,7 @@ export function Pill({
       ]}
     >
       {typeof children === 'string' ? (
-        <Txt w="b" size={12} color={color}>
+        <Txt w="b" size={12} color={color} maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {children}
         </Txt>
       ) : (
@@ -237,11 +237,11 @@ export function Stepper({
       <Row style={{ justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: radius.tile, padding: 10, ...shadow.card }}>
         <StepBtn glyph="−" onPress={onDec} />
         <View style={{ alignItems: 'center' }}>
-          <Txt w="eb" size={22}>
+          <Txt w="eb" size={22} maxFontSizeMultiplier={MAX_FONT_SCALE}>
             {value}
           </Txt>
           {unit ? (
-            <Txt w="sb" size={10} color={colors.textTertiary}>
+            <Txt w="sb" size={10} color={colors.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {unit}
             </Txt>
           ) : null}
@@ -272,7 +272,7 @@ function StepBtn({ glyph, onPress }: { glyph: string; onPress: () => void }) {
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Txt w="b" size={22} color={colors.accent}>
+      <Txt w="b" size={22} color={colors.accent} maxFontSizeMultiplier={MAX_FONT_SCALE}>
         {glyph}
       </Txt>
     </Pressable>
@@ -360,7 +360,7 @@ export function Avatar({
 }) {
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
-      <Txt w="eb" size={size * 0.36} color={color}>
+      <Txt w="eb" size={size * 0.36} color={color} maxFontSizeMultiplier={MAX_FONT_SCALE}>
         {initials}
       </Txt>
     </View>
@@ -371,6 +371,7 @@ export function Input(props: TextInputProps) {
   return (
     <TextInput
       placeholderTextColor={colors.textTertiary}
+      maxFontSizeMultiplier={MAX_FONT_SCALE}
       {...props}
       style={[
         {

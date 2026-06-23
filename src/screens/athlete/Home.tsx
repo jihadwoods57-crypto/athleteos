@@ -21,7 +21,7 @@ import {
   trendSummary,
 } from '@/core';
 import { useStore, useDerived } from '@/store';
-import { colors, shadow } from '@/ui/tokens';
+import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
@@ -88,11 +88,11 @@ export function Home() {
       {/* score hero */}
       <Card elevated style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 20, padding: 24 }}>
         <Ring size={138} pct={d.athleteScore} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">
-          <Txt w="eb" size={48} ls={-2} style={{ lineHeight: 50 }}>
+          <Txt w="eb" size={48} ls={-2} style={{ lineHeight: 50 }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
             {d.athleteScore}
           </Txt>
           <View style={{ marginTop: 5, paddingHorizontal: 9, paddingVertical: 2, borderRadius: 7, backgroundColor: d.grade.bg }}>
-            <Txt w="eb" size={11} color={d.grade.c} ls={0.4}>
+            <Txt w="eb" size={11} color={d.grade.c} ls={0.4} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               GRADE {d.grade.g}
             </Txt>
           </View>
