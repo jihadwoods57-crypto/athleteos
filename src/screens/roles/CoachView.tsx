@@ -17,6 +17,7 @@ export function CoachView() {
   const d = useDerived();
   const roster = ROSTER.map((r) => (r.you ? { ...r, score: d.athleteScore } : r));
   const kpis = coachRosterKpis(roster);
+  const onTrack = roster.length - kpis.alerts;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -70,7 +71,7 @@ export function CoachView() {
           </Card>
 
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 22, marginBottom: 12 }}>
-            ROSTER · 6 ATHLETES
+            ROSTER · {roster.length} ATHLETES
           </Txt>
           <View style={{ gap: 8 }}>
             {roster.map((a) => {
@@ -121,7 +122,10 @@ export function CoachView() {
               </Txt>
             </Row>
             <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
-              The room is trending up — 4 of 6 logged every meal this week. Silva and Cole are pulling the average down; both show recovery and check-in gaps, not nutrition. Recommend a 1-on-1 before Friday.
+              The room is trending up — {onTrack} of {roster.length} athletes are on track this week.{' '}
+              {kpis.alerts === 0
+                ? 'No one is below the alert line right now — keep the cadence going.'
+                : `${kpis.alerts} ${kpis.alerts === 1 ? 'athlete is' : 'athletes are'} pulling the average down with recovery and check-in gaps, not nutrition. Recommend a 1-on-1 before Friday.`}
             </Txt>
           </Card>
         </ScrollView>
