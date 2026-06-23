@@ -2,6 +2,158 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+# ⭐ APP COMPLETE — ready for founder review (end-of-series wrap-up · 2026-06-23, final run)
+
+This is the **final run of the autonomous nightshift series**. All eight items of
+the Definition of Done in `NIGHTSHIFT-PRIORITIES.md` are substantively met. What
+remains is exactly the work that *requires a human*: a visual QC pass on a real
+device/browser (the crew cannot SEE renders), plus the deliberately-deferred
+Phase-2 human-in-the-loop milestones (Supabase wiring, desktop dashboards). The
+engineering bar — pure-core discipline, three green gates on every commit, no dead
+UI, no static number that contradicts live state — is clean.
+
+## State of the build at hand-off
+- **Tests: 269 passing across 16 suites** (started the series at 140; never dropped
+  a single test on any commit). `npm run verify` (typecheck + jest + iOS bundle) is
+  green on the pushed `master`.
+- **All three gates green every commit:** `tsc --noEmit` clean · `jest` green ·
+  `expo export -p ios` bundles (~2.9 MB hbc).
+- **51 commits since the initial import** (38 feat/fix code commits + tests + log),
+  across 11+ runs. Router never broken (`app/_layout.tsx` + `app/index.tsx`, **no
+  `src/app/`**). The **Phase-2 Supabase scaffold** (`src/lib/supabase`,
+  `src/store/sync.ts`) was **never touched** — it stays inert until a human adds keys.
+- **Architecture intact:** `src/core` is pure TS (no RN imports), unit-tested in a
+  node jest env; `src/store` is Zustand + AsyncStorage; `src/ui` is tokens/primitives;
+  `src/screens` is per-role. The two-layer discipline (pure core vs UI) held all series.
+
+## What the whole series shipped (by theme)
+**Honest, live data everywhere (retired every "frozen number contradicts reality"):**
+- Real persisted **daily score history** feeding the Home Score Trend + the "this week"
+  delta (no more magic 86); the chart geometry is computed in pure `core/history.ts`.
+- Home **streak flame** is derived (`currentStreak`) — consecutive on-plan days ending
+  today, honest live today + real history + seed-padded pre-history; no more frozen "12".
+- Home + Profile **avatar monograms** and the Squad **you-row name** derive from
+  `athleteName` (`core/identity.ts`); default `''` renders identically to before.
+- Home **greeting** tracks the local time of day (`core/clock.ts greeting`).
+- Home Score-Trend **caption** now reads "Building history · N of 7 days" until a real
+  week accrues, then "Past 7 days" (final-run commit — honest new-athlete empty state).
+- **Squad** leaderboard re-ranks by live score, and the you-row's **trend arrow** now
+  tracks real score history (`buildLeaderboard` `youDir`/`youIdentity` overrides).
+- **Parent portal** is fully data-driven: Weekly Compliance (`weeklyCompliance`), the
+  Weight Trend line + dashed goal (`weightSeries`/`weightTrendGeometry` on a persisted
+  `weightHistory`), and the Nutrition bars (`nutritionTrend` on `nutritionHistory`) —
+  all from real history + today's live state, plus live current-weight / gain.
+- **Coach** header KPIs + AI team summary + roster count derive from the live roster
+  (`coachRosterKpis`); **Trainer** book KPIs + AI summary derive from `TRAINER_CLIENTS`
+  (`trainerBookKpis`); the **Athlete-Profile overlay** breakdown + compliance + AI copy
+  are per-athlete (`personBreakdown`, real `comp`, score-band tone).
+- **Nutrition** Macros: all three rings (Protein/Carbs/Fat) live off logged meals
+  against editable targets — honest 0g on a zero-meal day.
+
+**Feature completeness / persistence:**
+- Editable **protein + calorie + weight targets**, one source of truth each, persisted
+  cross-day, flowing into the scoring engine + Nutrition + Home + Check-In + Parent.
+- **Day-rollover** resets the day slice on a new calendar day while preserving streak /
+  score / weight / nutrition history (and snapshots the prior day on merge).
+- **Settings persist:** Notifications toggle, real **Imperial/Metric units** toggle that
+  converts every weight display at the edge (weight is presentational — never moves a score).
+- **Onboarding:** name/email validation gates Continue; every tile/control has
+  press-opacity + haptics + a11y; selections persist so a returning user lands right.
+- Session persistence (flow + role + identity survive reload).
+
+**Motion / micro-interactions / a11y:**
+- Ring draw, ProgressBar grow, overlay slide-up (`aos-up`), meal scan-line, spinner,
+  pulse; **`expo-haptics`** on key taps (log meal, complete task, submit); **Reduce
+  Motion** honored in Overlay + Ring + ProgressBar (shared `useReduceMotion`).
+- **Accessibility:** ≥44px hit targets (hitSlop), `accessibilityLabel` on every
+  icon-only control, **WCAG AA contrast** on readable text (retired stray `#CBD5E1`;
+  pure `core/contrast.ts` guard test), **Dynamic Type cap** (`MAX_FONT_SCALE` 1.3) on
+  fixed-geometry chrome so big OS fonts can't spill the score hero or break the tab bar.
+- **QC finding #1 cleared:** the `collapsable={false}` react-native-web DOM warning
+  (web-only Ring shim; native byte-for-byte unchanged).
+
+**No dead UI:** every button/tab/row does something real or shows an intentional state
+(Account Notifications toggle, Units toggle, Team/Billing/Help disclosures, etc.).
+
+**Test safety net:** unit tests for `recommendation.ts` / `leaderboard.ts` /
+`content.ts` + store-level tests asserting addMeal / toggleTask / addWater / submitCi
+move the derived score the intended way; `npm run verify` script.
+
+## State against each Definition-of-Done item
+1. **QC findings cleared** — ✅ `collapsable` web warning fixed (web-only, native unchanged).
+2. **UX/UI fidelity on every screen + overlay + role view** — ✅ *substantively*, with a
+   caveat: the `impeccable` skill and the `../athleteos-design-ref/` sibling are **not
+   present in this runner environment**, so per-screen fidelity work was grounded in
+   `DESIGN.md` + `src/ui/tokens.ts` (which mirror the handoff tokens) rather than literal
+   `impeccable critique/audit` runs + pixel diffs. Every screen/overlay/role got
+   structural fidelity + a11y attention; **a human visual QC pass is the right final check**
+   (see next steps) since the crew cannot see renders.
+3. **Motion + micro-interactions** — ✅ all listed animations + haptics + reduce-motion.
+4. **Empty + edge states** — ✅ Plan all-done, Nutrition 0g, score floor/100, and the
+   Home trend "building history" caption. *Caveat:* the seed is always populated and
+   there's no "un-log" action, so a *true* zero-everything state is only reachable on a
+   brand-new pre-onboarding install — low risk, intentional.
+5. **Accessibility** — ✅ hit targets, AA contrast on readable text, icon labels, Dynamic
+   Type cap. *Follow-up (not a hard fail):* `textTertiary` (#94A3B8, 2.56:1) is used for
+   some small captions/metadata; much of it is ≥14px-bold "large" text where it passes,
+   but a sweep to lift the smallest normal-size captions would tighten AA fully.
+6. **Feature completeness** — ✅ toggles persist; editable targets flow into scoring +
+   nutrition; onboarding validation + persisted selections; local score/weight/nutrition
+   history feeding the real trends. *By-design demo data (not drift):* the Coach NEEDS
+   ATTENTION and Trainer NEEDS FOLLOW-UP lists + the Book-Compliance trend SVG are mock
+   athletes, not charts that contradict live state.
+7. **Test safety net** — ✅ 269 tests, `npm run verify` green.
+8. **No dead UI** — ✅ no remaining dead chevron / no-op affordance.
+
+## Recommended next steps for the founder (in priority order)
+1. **Do a real visual QC pass** on a device + the web preview — this is the one thing the
+   autonomous crew structurally could not do. Walk every screen (athlete Home/Plan/Squad/
+   Check-In/Profile/Nutrition; Coach/Parent/Trainer; Meal Detail, Messages, Notifications,
+   Person Detail, Account, onboarding) against `AthleteOS.dc.html` + the dashboard handoffs.
+   The per-run "For the founder (QC this run)" notes below give a targeted checklist.
+2. **Phase 2 — Supabase (human-in-the-loop):** the scaffold (`src/lib/supabase`,
+   `src/store/sync.ts`) is inert and waiting for keys. Wiring real auth/sync + adding keys
+   is deliberately a human milestone — the crew never touched it. Decide auth model + data
+   schema, add keys to a secrets store (not the repo), and enable sync behind a flag.
+3. **Phase 2 — Desktop dashboards:** stand up a sibling web target that **reuses
+   `src/core`** (extract to `packages/core` or a shared path alias) and recreate the three
+   1320×880 desktop dashboards from the handoff (Coach / Parent / Trainer) on the same
+   tokens + scoring engine. Backlog item #2 in `NIGHTSHIFT-PRIORITIES.md` has the spec.
+4. **Optional polish:** lift the smallest `textTertiary` captions to a token that clears
+   AA at normal size (item 5 follow-up); add an explicit "un-log meal" affordance if you
+   want a reachable true-empty Nutrition state; a render-harness smoke test for the Ring
+   web-shim (jest is currently pure-core node-env only, so it isn't covered by a test).
+5. **Ops note for future automated runs:** `git push origin master` worked cleanly this
+   run (runs 7–9 hit a 403 / non-fast-forward relay wall and fell back to the GitHub API
+   `push_files`; the playbook for that wall is in the run-9 note below if it recurs).
+
+— End of series. The app is production-shaped, fully offline/deterministic, and ready for
+the founder's hands-on review. Per-run detail follows below (newest first).
+
+## 2026-06-23 (run 12, final) — honest "building history" trend caption + series wrap-up
+
+One code commit + this wrap-up, all three gates green on the pushed tree
+(`tsc --noEmit` clean, jest **269 passing** — never dropped, `expo export -p ios`
+bundles). `git push origin master` worked cleanly. Router untouched, Phase-2
+Supabase scaffold not touched.
+
+- **feat(home): honest "building history" trend caption on a new athlete.** The Home
+  Score Trend card always read "Past 7 days", but until a real week of scores accrues
+  the chart's left side is seeded demo padding (`SEEDED_LEAD`) — so a brand-new athlete
+  saw a confident 7-day trend they hadn't lived. New pure `realTrendDays(history, window)`
+  counts how many plotted points are real (persisted days + today's live score; ≥1, ≤window).
+  Home now shows **"Building history · N of 7 days"** until a real week fills the window,
+  then reverts to "Past 7 days". Presentation-only — chart geometry, score, streak, and
+  labels unchanged. Closes the Definition-of-Done item-4 "no history yet" empty-state
+  nice-to-have for the Home trend. +3 core tests. 266 → **269 tests**.
+
+### For the founder (QC this run)
+- **Home → Score Trend card**: on a fresh install the subtitle now reads "Building
+  history · 1 of 7 days" (honest — the chart's earlier points are a sample lead-in, not
+  days you've logged). As real days accrue past rollovers it counts up and, once a full
+  real week exists, reads "Past 7 days" again. The chart line/score/streak are unchanged.
+- All deterministic + offline (no Supabase touched).
+
 ## 2026-06-23 (run 11) — last frozen identity/time bits go live: streak flame + avatar/you-row name + greeting
 
 Three code commits + this log, all three gates green on the pushed tree
