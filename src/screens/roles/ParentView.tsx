@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_TARGET } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -144,15 +144,20 @@ export function ParentView() {
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Txt w="eb" size={26} ls={-0.5}>
-                  178
+                  {s.currentWeight}
                   <Txt w="sb" size={13} color={colors.textTertiary}>
                     {' '}
                     lb
                   </Txt>
                 </Txt>
-                <Txt w="b" size={12} color={colors.success}>
-                  ↑ +7 lb
-                </Txt>
+                {(() => {
+                  const gain = Math.round((s.currentWeight - WEIGHT_START) * 10) / 10;
+                  return (
+                    <Txt w="b" size={12} color={gain >= 0 ? colors.success : colors.alert}>
+                      {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} lb
+                    </Txt>
+                  );
+                })()}
               </View>
             </Row>
             <Svg viewBox="0 0 322 134" width="100%" height={120} preserveAspectRatio="none" style={{ marginTop: 6 }}>

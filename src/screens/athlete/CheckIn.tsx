@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
-import { CHECKIN_QUESTIONS, WEIGHT_TARGET } from '@/core';
+import { CHECKIN_QUESTIONS, WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -115,9 +115,14 @@ export function CheckIn() {
                 lb
               </Txt>
             </Txt>
-            <Txt w="b" size={12} color={colors.success}>
-              ↑ +7 lb
-            </Txt>
+            {(() => {
+              const gain = Math.round((s.currentWeight - WEIGHT_START) * 10) / 10;
+              return (
+                <Txt w="b" size={12} color={gain >= 0 ? colors.success : colors.alert}>
+                  {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} lb
+                </Txt>
+              );
+            })()}
           </View>
         </Row>
         <Svg viewBox="0 0 322 96" width="100%" height={92} preserveAspectRatio="none" style={{ marginTop: 6 }}>
