@@ -2,6 +2,53 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+## 2026-06-23 (run 10) — Squad: the athlete's OWN trend arrow now tracks live score history
+
+One code commit + this log, all three gates green on the pushed tree
+(`tsc --noEmit` clean, jest **244 passing** — never dropped, `expo export -p ios`
+bundles). Router untouched (app/_layout + app/index, no src/app). Phase-2
+Supabase scaffold not touched. This run retires the last static element that
+could contradict the athlete's live score on the Squad screen (Definition of
+Done items 6 + 8).
+
+- **fix(squad): make the athlete's own leaderboard trend arrow live, not frozen.**
+  The Squad leaderboard already injects the athlete's **live** score into their
+  row and re-ranks the whole board by it — but the you-row's trend arrow (↑/↓/→)
+  stayed pinned to a constant `'up'` from the board seed. So a falling score could
+  drop the athlete down the ranking while their own arrow still pointed up — the
+  exact "static number contradicts live state" pattern the crew has been retiring
+  everywhere else. Added an optional `youDir` arg to `buildLeaderboard` (pure
+  core) that, when supplied, overrides **only** the you-row's direction; every
+  other row keeps its demo trend untouched and the default call signature is
+  unchanged (existing callers/tests intact). `Squad.tsx` now derives that
+  direction from the **same real score history the Home Score Trend draws**
+  (`trendSummary(trendSeries(scoreHistory, athleteScore)).dir`), so the athlete's
+  Squad arrow and their Home trend can never disagree. No score, rank, or layout
+  logic changed — only the you-row's arrow is now honest. +4 tests in
+  `core/leaderboard.test.ts` (override only the you-row, leave other rows on their
+  constants, fall back to the seed when omitted, pass a `flat` trend straight
+  through). 240 → **244 tests**.
+
+### For the founder (QC this run)
+- **Squad → Leaderboard**: the arrow on **your** row (the highlighted "YOU" row)
+  now reflects your real recent score trend instead of always showing ↑. On the
+  seeded demo (empty real history) it reads the seed-trend direction, the same one
+  the Home "Score Trend" card shows; as real days accrue and your score moves, the
+  Squad arrow and the Home trend stay in lockstep. Everyone else's arrow is
+  unchanged demo data. The score numbers, ranking, and medals are unchanged.
+- All deterministic + offline (no Supabase touched).
+
+### Ops note — `git push origin master` worked cleanly this run
+Unlike runs 7–9 (which hit a 403 / non-fast-forward relay wall and fell back to
+the GitHub API `push_files`), `git push origin master` fast-forwarded
+`1ca594c..b3b2e6f` with no error this session. Also seen on fetch: `origin/master`
+had briefly carried a stray `docs(priorities)` "QC findings" commit (dated
+2026-06-21) that was **force-reset back to `1ca594c`** before this run — its
+"Nutrition unreachable" finding no longer applies (Nutrition **is** reachable via
+the Home "Nutrition" entry card → `goNutrition`), and its `collapsable` finding
+was already cleared in run 6. Nothing to action there; flagged only so a future
+run isn't surprised by the dropped commit.
+
 ## 2026-06-23 (run 9) — Dynamic Type ceiling so big system fonts can't break fixed chrome
 
 One code commit, all three gates green on the verified tree (`tsc --noEmit`
@@ -460,11 +507,15 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
 1. **QC findings** — ✅ `collapsable` web warning cleared this run. (No open QC
    findings remain in NIGHTSHIFT-PRIORITIES.)
 2. **UX/UI fidelity, every screen/overlay/role** — athlete tabs, overlays, and
-   role chrome have had fidelity + a11y passes. Still worth a dedicated
-   critique+audit on: **Squad** (leaderboard), **Onboarding** (multi-step), and
-   **MealDetail**. (Run 5 made **PersonDetail** + **TrainerView** body data-driven
+   role chrome have had fidelity + a11y passes. **Squad** is now fully
+   data-honest (run 10: the you-row trend arrow tracks live history). Still worth
+   a dedicated critique+audit on: **Onboarding** (multi-step) and **MealDetail**.
+   (Run 5 made **PersonDetail** + **TrainerView** body data-driven
    per-athlete/per-roster.) Verify type scale / spacing / radii against the
-   `.dc.html` handoff one screen per commit.
+   `.dc.html` handoff one screen per commit. (Note: the design-ref sibling
+   `../athleteos-design-ref/` and the `impeccable` skill are **not present** in
+   the current runner environment — fidelity work this run was grounded in
+   `DESIGN.md` + `tokens.ts`, which mirror the handoff tokens.)
 3. **Motion / micro-interactions** — ring draw, bar grow, overlay slide-up,
    meal scan-line, spinner, and haptics are in. Reduce-motion now honored in
    Overlay **and Ring + ProgressBar** ✅ (shared `useReduceMotion` hook). **Every
@@ -519,12 +570,15 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    list** and the
    **Trainer NEEDS FOLLOW-UP list** (Silva / Cole) + the demo Book Compliance
    trend SVG are "demo data" over fixed mock athletes, not charts that contradict
-   real state. No per-day chart on Coach or Trainer drifts from live data.
+   real state. No per-day chart on Coach or Trainer drifts from live data. **The
+   Squad you-row trend arrow now derives from live score history** ✅ (run 10) — the
+   last static element on Squad that could contradict the athlete's live ranking.
 7. **Test safety net** — ✅ recommendation/leaderboard/content + store-level
    addMeal/toggleTask/addWater/submitCi score-movement tests exist; `npm run
-   verify` green. **240 tests** (run 8 added `core/macros` carb/fat derivation
-   coverage; run 7 added the `core/contrast` WCAG utility + token guard; run 6
-   added `units` + `accountRows` coverage).
+   verify` green. **244 tests** (run 10 added 4 `core/leaderboard` you-row live-trend
+   tests; run 8 added `core/macros` carb/fat derivation coverage; run 7 added the
+   `core/contrast` WCAG utility + token guard; run 6 added `units` + `accountRows`
+   coverage).
    (Optional: a smoke test for the Ring web-shim.)
 8. **No dead UI** — ✅ **cleared this run.** Account Notifications is a live toggle;
    the Profile **Units** row is now a real persisted lb/kg toggle (run 6); and the
