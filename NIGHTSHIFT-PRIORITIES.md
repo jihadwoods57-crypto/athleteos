@@ -60,13 +60,24 @@ gradient text, glassmorphism-by-default, hero-metric template, identical card gr
 7. **Polish the role views + overlays too** (Coach/Parent/Trainer, Meal Detail, Messages,
    Notifications, Person Detail), not just the athlete tabs.
 
-**Specific open items to fold in:**
-- **Refresh logs you out.** `flow`/`role` aren't persisted, so a reload returns to Welcome.
-  Persist enough session state (flow + role + onboarding identity) so a reload keeps the
-  user where they were. (Good UX win.)
-- **Web dev warning `collapsable={false}`** leaks to the DOM via react-native-web (red dev
-  toast on web preview only; harmless on native). Track down the source (Animated/SVG
-  wrapper) and stop passing it on web. Must not change native behavior.
+**⚑ TOP OF QUEUE — QC finding (do this first):**
+1. **Web dev warning `collapsable={false}`** leaks to the DOM via react-native-web (an
+   intrusive red dev toast on web preview that intercepts taps during QC; harmless on
+   native). Track down the source (Animated/SVG wrapper) and stop passing it on web only.
+   Must not change native behavior.
+
+**Already shipped & human-QC'd (do NOT redo):** persist session (flow+role+identity survives
+reload), reactive heroStatus line + standing badge, aiInsight "Day complete" fix, overlay
+slide-up (`aos-up`), drift-proof Log-dinner task, meal-quality badge label tracks score,
+ciConfig rollover persistence, **require-cycle fix** (`clock.ts` leaf breaks
+dayRollover↔defaultState), **Phase 2 Supabase scaffold** (`src/lib/supabase` + `src/store/sync.ts`,
+inert until keys — do NOT wire it up or add keys; that's a human-in-the-loop milestone).
+
+**After the two findings, continue the queue:** finish the UX/UI fidelity pass on the
+screens/overlays NOT yet touched (role views — Coach/Parent/Trainer — Meal Detail, Messages,
+Notifications, Person Detail), each via `impeccable critique`+`audit` then the matching
+command. Then start phase-2 backlog #1 (the test-coverage safety net) since it protects every
+later job. Same guardrails: one screen/primitive per commit, `tsc`+`jest`+`expo export` green.
 
 **Design-session guardrails (because the crew can't SEE the render):**
 - Keep changes **small, tokenized, and reversible** — one screen/primitive per commit.
