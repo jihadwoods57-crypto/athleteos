@@ -2,6 +2,62 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+## 2026-06-23 (run 6) — real Units toggle, last dead UI cleared, onboarding press/a11y
+
+Three code commits (the first carried over un-logged from the prior run) + this
+log, all three gates green every commit (`tsc --noEmit`, jest, `expo export
+-p ios`). Test count 210 → **227** (never dropped). Router untouched (app/_layout
++ app/index, no src/app). Phase-2 Supabase scaffold not touched. This run retired
+the **last flagged dead UI** and finished the onboarding micro-interaction +
+a11y pass (Definition of Done items 8, 3, 5).
+
+- **feat(units): real Imperial/Metric toggle that flows into every weight
+  display.** (commit carried over from the prior run, now logged.) The Profile
+  "Units" row showed "Imperial (lb) ›" but was dead UI — tapping did nothing. It
+  is now a real, persisted preference. New pure `src/core/units.ts`
+  (`lbToKg`/`kgToLb`, `displayWeight`, `formatWeight`, `displayWeightDelta`,
+  `weightStepLb`, `weightUnit`) keeps all weights stored in lb and converts at the
+  edge; body weight does not feed the score, so switching units is purely
+  presentational and never moves a score. Wired through Home season-goal, Check-In
+  (stepper / caption / gain / chart goal), Parent weight trend, Profile target,
+  Onboarding baseline, and the coach/trainer Athlete-Profile weight Δ. +13 tests.
+- **feat(account): the Team/Billing/Help rows are real disclosures, not dead
+  chevrons.** The Account overlay's "Team & roster", "Billing & plan", and "Help &
+  support" rows each rendered a "›" affordance implying tappability but did
+  nothing — the last open dead-UI item. They are now tappable accordion
+  disclosures revealing an intentional, deterministic detail line. New pure
+  `src/core/account.ts` (`accountRows(role)`): the team-row detail + hint DERIVE
+  from live domain data (coach → `ROSTER.length` athletes; trainer →
+  `TRAINER_CLIENTS` count across its distinct orgs; parent → linked; athlete →
+  roster name) so the numbers can never be invented or drift from the dashboards;
+  Billing states the honest free-preview status; Help states the offline build +
+  version. `DisclosureRow` adds press-opacity, `haptics.select`,
+  `accessibilityState.expanded`, a rotating chevron, and an at-most-one-open
+  accordion. Centralized the "v1.0" literal as `APP_VERSION`. +7 tests (incl. an
+  em-dash ban guard on the copy).
+- **feat(onboarding): press feedback + a11y on every raw tile/control.** The
+  onboarding flow's selectable tiles (role / level / sport / invite /
+  competition-mode) and nav controls (StepHeader back, the Sign-in /
+  Create-account links, the baseline ± MiniStep) were raw Pressables with no
+  pressed feedback, no screen-reader labels, and no haptics. Brought them in line
+  with the shared Btn/Chip pattern — `haptics`, a 0.85/0.6 press-opacity, hitSlop
+  to clear 44px on the small controls, and `accessibilityRole` +
+  `accessibilityState` (selected / checked) — with no layout change.
+
+### For the founder (QC this run)
+- **Profile → Units row** — tap it: every body-weight figure across Home,
+  Check-In, Parent, Profile, and the coach/trainer Athlete Profile flips between
+  lb and kg. Scores never move (weight is presentational). Persists across reload.
+- **Account overlay (role chrome ☰ → Account)** — tap **Team & roster**, **Billing
+  & plan**, or **Help & support**: each now expands an intentional detail line
+  (one open at a time, chevron rotates). The Team line shows the real roster/client
+  count for coach/trainer. No row is a dead chevron anymore.
+- **Onboarding** — every role/level/sport/invite/competition tile now dims on
+  press and ticks a haptic; the back arrow and the sign-in/create links respond to
+  touch and have hit targets ≥44px; VoiceOver/TalkBack announce each tile + its
+  selected state.
+- All deterministic + offline (no Supabase touched).
+
 ## 2026-06-23 (run 5) — Coach/Trainer/Athlete-detail go fully data-driven
 
 Four code commits + this log, all three gates green every commit (`tsc
@@ -264,17 +320,22 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    `.dc.html` handoff one screen per commit.
 3. **Motion / micro-interactions** — ring draw, bar grow, overlay slide-up,
    meal scan-line, spinner, and haptics are in. Reduce-motion now honored in
-   Overlay **and Ring + ProgressBar** ✅ (shared `useReduceMotion` hook). Remaining:
-   add press/active opacity to a few remaining raw Pressables (StepHeader back
-   button, Onboarding role/level/sport tiles use Pressable without a pressed style).
+   Overlay **and Ring + ProgressBar** ✅ (shared `useReduceMotion` hook). **Every
+   raw Pressable in Onboarding now has a press-opacity state + haptics** ✅ (run 6:
+   role/level/sport/invite/competition tiles, StepHeader back, sign-in links, the
+   baseline ± MiniStep). The Account disclosure rows also press + haptic ✅. No
+   known raw Pressable without a pressed state remains.
 4. **Empty / edge states** — Plan "all done" ✅, Nutrition logged/unlogged rows ✅.
    Note: the always-populated seed + no "un-log" action means a true zero-state is
    only reachable on a brand-new install pre-onboarding; the score-floor/100 states
    are reachable by interaction and render. Low remaining risk; nice-to-have: an
    explicit "no history yet" treatment for the Home trend on a first-ever day.
-5. **Accessibility** — labels ✅, 44px hit targets ✅. Remaining: audit color
-   contrast of `textTertiary`/`#CBD5E1` on white vs WCAG AA, and test large system
-   font sizes for clipping (Dynamic Type) on the score hero + KPI rows.
+5. **Accessibility** — labels ✅, 44px hit targets ✅ (run 6 added labels +
+   hitSlop to the onboarding tiles, back arrow, sign-in links, and ± steppers).
+   Remaining: audit color contrast of `textTertiary`/`#CBD5E1` on white vs WCAG AA
+   (the `#CBD5E1` version-footer text fails AA at ~1.5:1 — a candidate next job),
+   and test large system font sizes for clipping (Dynamic Type) on the score hero
+   + KPI rows.
 6. **Feature completeness (phase-2 backlog)** — `notif` persists ✅; score history
    feeds Home trend + week delta ✅; **editable protein + calorie targets** flow
    into scoring + Nutrition ✅; **onboarding name/email validation** gates Continue
@@ -298,13 +359,14 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    real state. No per-day chart on Coach or Trainer drifts from live data.
 7. **Test safety net** — ✅ recommendation/leaderboard/content + store-level
    addMeal/toggleTask/addWater/submitCi score-movement tests exist; `npm run
-   verify` green. **210 tests** (run 5 added `trainerBookKpis` + `personBreakdown`
-   coverage). (Optional: a smoke test for the Ring web-shim.)
-8. **No dead UI** — Account Notifications now live ✅. Remaining static/no-op
-   affordances: Account "Team & roster / Billing / Help" rows and the Profile
-   "Units" row show a "›" but have no destination (they are non-interactive
-   informational rows, not dead buttons). Decide: build the destinations, make them
-   real toggles, or drop the chevron affordance.
+   verify` green. **227 tests** (run 6 added `units` + `accountRows` coverage).
+   (Optional: a smoke test for the Ring web-shim.)
+8. **No dead UI** — ✅ **cleared this run.** Account Notifications is a live toggle;
+   the Profile **Units** row is now a real persisted lb/kg toggle (run 6); and the
+   Account **Team & roster / Billing / Help** rows are now real disclosures that
+   reveal intentional, data-derived detail (run 6). No remaining dead chevron /
+   no-op affordance is known. (Profile's "Units" informational sub-rows and the
+   read-only "Who can see your data" rows are intentionally non-interactive.)
 
 ## 2026-06-22
 
