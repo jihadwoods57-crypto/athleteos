@@ -2,7 +2,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { buildLeaderboard, medalColor, trendInfo } from '@/core';
+import { buildLeaderboard, medalColor, trendInfo, trendSeries, trendSummary } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Row, Txt, Pressable } from '@/ui/primitives';
@@ -12,8 +12,13 @@ export function Squad() {
   const insets = useSafeAreaInsets();
   const squadMode = useStore((s) => s.squadMode);
   const setSquadMode = useStore((s) => s.setSquadMode);
+  const scoreHistory = useStore((s) => s.scoreHistory);
   const d = useDerived();
-  const board = buildLeaderboard(squadMode, d.athleteScore);
+  // The athlete's own row carries a LIVE score, so its trend arrow should follow
+  // the same real score history the Home Score Trend draws — not a frozen
+  // constant. Everyone else's arrow stays demo data.
+  const youDir = trendSummary(trendSeries(scoreHistory, d.athleteScore)).dir;
+  const board = buildLeaderboard(squadMode, d.athleteScore, youDir);
   const caption = `${squadMode === 'team' ? 'Full roster' : 'Linebacker room'} · ${board.length} athlete${board.length === 1 ? '' : 's'}`;
 
   return (

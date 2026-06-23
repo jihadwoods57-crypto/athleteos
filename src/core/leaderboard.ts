@@ -1,7 +1,7 @@
 // AthleteOS — leaderboard selector (pure). The athlete's own row score is live.
 import { POS_BOARD, POS_BOARD_SCORES, TEAM_BOARD, TEAM_BOARD_SCORES } from './constants';
 import type { ClientRow, RosterRow } from './constants';
-import type { LeaderRow, SquadMode } from './types';
+import type { LeaderRow, SquadMode, TrendDir } from './types';
 
 const MEDAL: Record<number, string> = { 1: '#F59E0B', 2: '#94A3B8', 3: '#D97706' };
 
@@ -92,13 +92,22 @@ export function trainerBookKpis(clients: ClientRow[]): TrainerKpis {
   };
 }
 
-export function buildLeaderboard(mode: SquadMode, athleteScore: number): LeaderRow[] {
+export function buildLeaderboard(
+  mode: SquadMode,
+  athleteScore: number,
+  youDir?: TrendDir,
+): LeaderRow[] {
   const base = mode === 'team' ? TEAM_BOARD : POS_BOARD;
   const scores = mode === 'team' ? TEAM_BOARD_SCORES : POS_BOARD_SCORES;
-  // 1. Inject live score (other rows keep their static score by ORIGINAL rank).
+  // 1. Inject the athlete's live score AND, when supplied, their live trend
+  //    direction into the you-row (the other rows keep their static demo score
+  //    and trend by ORIGINAL rank). Passing `youDir` lets the you-row's arrow
+  //    track the same real score history the Home trend draws, instead of a
+  //    frozen constant that can contradict a moving score.
   const rows = base.map((r) => ({
     ...r,
     score: r.you ? athleteScore : scores[r.rank],
+    dir: r.you && youDir ? youDir : r.dir,
   }));
   // 2. Sort by score DESC into a new array; tie-break on original rank ascending.
   // 3. Reassign rank from the re-sorted index.

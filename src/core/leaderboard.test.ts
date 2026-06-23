@@ -189,3 +189,30 @@ describe('buildLeaderboard — position mode', () => {
     expect(POS_BOARD.every((r) => !('score' in r))).toBe(true);
   });
 });
+
+describe('buildLeaderboard — live you-row trend (youDir)', () => {
+  it('overrides ONLY the you-row arrow when a live direction is supplied', () => {
+    // TEAM_BOARD seeds the you-row at dir 'up'; force it 'down'.
+    const b = buildLeaderboard('team', 73, 'down');
+    expect(b.find((r) => r.you)!.dir).toBe('down');
+  });
+
+  it('leaves every other row on its static demo trend', () => {
+    const live = buildLeaderboard('team', 73, 'down');
+    const base = buildLeaderboard('team', 73);
+    // Match non-you rows by name so a re-rank can not confuse the comparison.
+    for (const row of live.filter((r) => !r.you)) {
+      const same = base.find((r) => r.name === row.name)!;
+      expect(row.dir).toBe(same.dir);
+    }
+  });
+
+  it('falls back to the constant you-row trend when no direction is passed', () => {
+    const you = buildLeaderboard('position', 88).find((r) => r.you)!;
+    expect(you.dir).toBe(POS_BOARD.find((r) => r.you)!.dir);
+  });
+
+  it('passes a flat live trend straight through to the you-row', () => {
+    expect(buildLeaderboard('position', 88, 'flat').find((r) => r.you)!.dir).toBe('flat');
+  });
+});
