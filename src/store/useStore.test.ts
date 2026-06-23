@@ -347,6 +347,46 @@ describe('session persistence / rehydrate', () => {
     expect(s.currentWeight).toBe(185);
   });
 
+  it('(e2) stale-day rollover also records the prior day weight + nutrition history once', async () => {
+    await seedPersisted({
+      flow: 'app',
+      role: 'athlete',
+      currentWeight: 183,
+      dateStamp: '2020-01-01',
+      scoreHistory: [],
+      weightHistory: [],
+      nutritionHistory: [],
+      meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+    });
+    await useStore.persist.rehydrate();
+    const s = useStore.getState();
+
+    // weight snapshot is the cross-day currentWeight, stamped to the stale day.
+    expect(s.weightHistory).toHaveLength(1);
+    expect(s.weightHistory[0]).toEqual({ date: '2020-01-01', weight: 183 });
+    // currentWeight (cross-day) survives the roll, so the trend's live last point holds.
+    expect(s.currentWeight).toBe(183);
+
+    // nutrition sub-score for the pre-roll (all meals logged) day is recorded once.
+    expect(s.nutritionHistory).toHaveLength(1);
+    expect(s.nutritionHistory[0].date).toBe('2020-01-01');
+    expect(s.nutritionHistory[0].score).toBeGreaterThan(0);
+  });
+
+  it('(e3) same-day rehydrate does not append weight or nutrition history', async () => {
+    await seedPersisted({
+      flow: 'app',
+      role: 'athlete',
+      dateStamp: todayStamp(),
+      weightHistory: [{ date: '2020-01-01', weight: 180 }],
+      nutritionHistory: [{ date: '2020-01-01', score: 70 }],
+    });
+    await useStore.persist.rehydrate();
+    const s = useStore.getState();
+    expect(s.weightHistory).toEqual([{ date: '2020-01-01', weight: 180 }]);
+    expect(s.nutritionHistory).toEqual([{ date: '2020-01-01', score: 70 }]);
+  });
+
   it('(f) same-day rehydrate leaves the day slice untouched and does not double-append history', async () => {
     await seedPersisted({
       flow: 'app',

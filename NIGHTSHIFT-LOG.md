@@ -4,8 +4,8 @@ Newest entries at the top. Each entry = what shipped + anything the founder need
 
 ## 2026-06-23 (run 4) — the Parent portal goes fully data-driven (no static charts)
 
-Three commits, all three gates green every commit (`tsc --noEmit`, jest,
-`expo export -p ios`). Test count 182 → **201** (never dropped). Router
+Four commits, all three gates green every commit (`tsc --noEmit`, jest,
+`expo export -p ios`). Test count 182 → **203** (never dropped). Router
 untouched (app/_layout + app/index, no src/app). Phase-2 Supabase scaffold not
 touched. This run retired every remaining hardcoded chart on the **Parent View**
 (item 6 of the Definition of Done: "wire the Parent/Coach chart geometry to real
@@ -38,6 +38,12 @@ history") so the parent's whole screen now reflects the athlete's real week.
   nutrition score is the final (accent) bar; the weekly-avg headline is the
   completed-day mean (today excluded). Bars use real weekday labels + clamped
   heights. +5 tests.
+- **test(store): rollover records weight + nutrition history end-to-end.** Two
+  store-level integration cases drive the real Zustand persist/merge: a stale-day
+  rehydrate now asserts `weightHistory` (the cross-day `currentWeight`, stamped to
+  the stale day) and `nutritionHistory` (the derived nutrition sub-score) are each
+  appended exactly once, and a same-day rehydrate appends neither — locking the
+  run-4 wiring against regressions. +2 tests.
 
 ### For the founder (QC this run)
 - **Parent View** — every chart is now live. There are **no remaining hardcoded
