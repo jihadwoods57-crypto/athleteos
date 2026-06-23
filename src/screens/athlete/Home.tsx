@@ -9,6 +9,8 @@ import {
   currentStreak,
   DEFAULT_CHART_BOX,
   displayWeight,
+  firstName,
+  initials,
   displayWeightDelta,
   heroStatus,
   HYDRATION_TARGET,
@@ -31,7 +33,8 @@ export function Home() {
   const insets = useSafeAreaInsets();
   const s = useStore();
   const d = useDerived();
-  const name = s.athleteName?.split(' ')[0] || 'Jihad';
+  const name = firstName(s.athleteName, 'Jihad');
+  const monogram = initials(s.athleteName, 'J');
 
   // Real trend geometry: persisted prior-day scores + today's live score as the
   // final point (seed pads the left only while real history is still filling up).
@@ -86,8 +89,8 @@ export function Home() {
             </Txt>
           </Row>
           <Pressable accessibilityRole="button" accessibilityLabel="Profile" hitSlop={6} onPress={s.goProfile} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt w="b" size={14} color="#fff">
-              J
+            <Txt w="b" size={14} color="#fff" maxFontSizeMultiplier={MAX_FONT_SCALE}>
+              {monogram}
             </Txt>
           </Pressable>
         </Row>

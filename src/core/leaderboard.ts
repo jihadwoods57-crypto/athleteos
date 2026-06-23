@@ -92,22 +92,33 @@ export function trainerBookKpis(clients: ClientRow[]): TrainerKpis {
   };
 }
 
+/** Live identity for the athlete's own leaderboard row (their display name +
+ *  avatar monogram). When omitted, the you-row keeps its seed name/initials. */
+export interface YouIdentity {
+  name?: string;
+  initials?: string;
+}
+
 export function buildLeaderboard(
   mode: SquadMode,
   athleteScore: number,
   youDir?: TrendDir,
+  youIdentity?: YouIdentity,
 ): LeaderRow[] {
   const base = mode === 'team' ? TEAM_BOARD : POS_BOARD;
   const scores = mode === 'team' ? TEAM_BOARD_SCORES : POS_BOARD_SCORES;
   // 1. Inject the athlete's live score AND, when supplied, their live trend
-  //    direction into the you-row (the other rows keep their static demo score
-  //    and trend by ORIGINAL rank). Passing `youDir` lets the you-row's arrow
-  //    track the same real score history the Home trend draws, instead of a
-  //    frozen constant that can contradict a moving score.
+  //    direction + display identity into the you-row (the other rows keep their
+  //    static demo score, trend, and name by ORIGINAL rank). Passing `youDir`
+  //    lets the you-row's arrow track the same real score history the Home trend
+  //    draws; `youIdentity` keeps the name + monogram in sync with the athlete's
+  //    onboarded profile instead of the frozen "Jihad" / "J" seed.
   const rows = base.map((r) => ({
     ...r,
     score: r.you ? athleteScore : scores[r.rank],
     dir: r.you && youDir ? youDir : r.dir,
+    name: r.you && youIdentity?.name ? youIdentity.name : r.name,
+    initials: r.you && youIdentity?.initials ? youIdentity.initials : r.initials,
   }));
   // 2. Sort by score DESC into a new array; tie-break on original rank ascending.
   // 3. Reassign rank from the re-sorted index.

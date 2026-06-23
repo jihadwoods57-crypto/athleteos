@@ -3,9 +3,9 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { athleteSubtitle, computeDerived, displayWeight, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
+import { athleteSubtitle, computeDerived, displayWeight, firstName, initials, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
-import { colors, shadow } from '@/ui/tokens';
+import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
@@ -30,13 +30,13 @@ export function Profile() {
       {/* identity */}
       <Card elevated style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
         <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <Txt w="eb" size={24} color="#fff">
-            J
+          <Txt w="eb" size={24} color="#fff" maxFontSizeMultiplier={MAX_FONT_SCALE}>
+            {initials(s.athleteName, 'J')}
           </Txt>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Txt w="eb" size={20} ls={-0.3}>
-            {s.athleteName?.split(' ')[0] || 'Jihad'}
+            {firstName(s.athleteName, 'Jihad')}
           </Txt>
           <Txt w="sb" size={14} color={colors.textSecondary} style={{ marginTop: 2 }}>
             {athleteSubtitle(s.position)}

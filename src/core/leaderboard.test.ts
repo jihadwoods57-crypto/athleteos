@@ -216,3 +216,35 @@ describe('buildLeaderboard — live you-row trend (youDir)', () => {
     expect(buildLeaderboard('position', 88, 'flat').find((r) => r.you)!.dir).toBe('flat');
   });
 });
+
+describe('buildLeaderboard — live you-row identity (youIdentity)', () => {
+  it('overrides ONLY the you-row name + initials when an identity is supplied', () => {
+    const b = buildLeaderboard('team', 73, undefined, { name: 'Jihad Woods', initials: 'JW' });
+    const you = b.find((r) => r.you)!;
+    expect(you.name).toBe('Jihad Woods');
+    expect(you.initials).toBe('JW');
+  });
+
+  it('leaves every other row on its seed name + initials', () => {
+    const live = buildLeaderboard('team', 73, undefined, { name: 'Jihad Woods', initials: 'JW' });
+    const base = buildLeaderboard('team', 73);
+    // Other rows keep their demo identity; the you-row is the only one renamed.
+    const baseOthers = base.filter((r) => !r.you).map((r) => r.initials).sort();
+    const liveOthers = live.filter((r) => !r.you).map((r) => r.initials).sort();
+    expect(liveOthers).toEqual(baseOthers);
+  });
+
+  it('falls back to the seed identity when no identity is passed', () => {
+    const you = buildLeaderboard('position', 88).find((r) => r.you)!;
+    const seed = POS_BOARD.find((r) => r.you)!;
+    expect(you.name).toBe(seed.name);
+    expect(you.initials).toBe(seed.initials);
+  });
+
+  it('ignores partial/blank identity fields and keeps the seed for them', () => {
+    const you = buildLeaderboard('team', 73, undefined, { name: '', initials: 'ZZ' }).find((r) => r.you)!;
+    const seed = TEAM_BOARD.find((r) => r.you)!;
+    expect(you.name).toBe(seed.name); // empty name ignored
+    expect(you.initials).toBe('ZZ');
+  });
+});

@@ -10,6 +10,7 @@ export * from './units';
 export * from './contrast';
 export * from './history';
 export * from './person';
+export * from './identity';
 export * from './account';
 export * from './validate';
 export * from './dayRollover';
