@@ -58,6 +58,18 @@ export function recordDayWeight(preRoll: AppState, todayIso: string): WeightPoin
   return appendDayWeight(history, preRoll.dateStamp, preRoll.currentWeight);
 }
 
+/**
+ * Record the prior day's nutrition sub-score into history BEFORE the day slice
+ * resets, mirroring `recordDayScore`. Snapshots the derived nutrition score
+ * against the day it belonged to; same-day or a stamp-less install is a no-op.
+ */
+export function recordDayNutrition(preRoll: AppState, todayIso: string): DayScore[] {
+  const history = preRoll.nutritionHistory ?? [];
+  if (!preRoll.dateStamp || preRoll.dateStamp === todayIso) return history;
+  const nutrition = computeDerived(preRoll).nutritionScore;
+  return appendDayScore(history, preRoll.dateStamp, nutrition);
+}
+
 function pick<T extends object, K extends keyof T>(src: T, keys: readonly K[]): Pick<T, K> {
   const out = {} as Pick<T, K>;
   for (const k of keys) out[k] = src[k];

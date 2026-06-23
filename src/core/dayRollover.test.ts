@@ -1,6 +1,6 @@
 // AthleteOS — calendar-day rollover tests. Pure, injected dates, no real clock.
 // Each case maps 1:1 to an acceptance criterion for the day-rollover fix.
-import { recordDayScore, recordDayWeight, rollDayIfStale, todayStamp } from './dayRollover';
+import { recordDayNutrition, recordDayScore, recordDayWeight, rollDayIfStale, todayStamp } from './dayRollover';
 import { createInitialState } from './defaultState';
 import { computeDerived } from './scoring';
 import type { AppState } from './types';
@@ -171,6 +171,22 @@ describe('recordDayWeight — logs the prior day weight before reset', () => {
     expect(recordDayWeight(same, TODAY)).toEqual([{ date: 'x', weight: 175 }]);
     const fresh = { ...createInitialState(), dateStamp: '', weightHistory: [] } as AppState;
     expect(recordDayWeight(fresh, TODAY)).toEqual([]);
+  });
+});
+
+describe('recordDayNutrition — logs the prior day nutrition sub-score before reset', () => {
+  it('appends the derived nutrition score, stamped with the prior date', () => {
+    const preRoll: AppState = { ...createInitialState(), dateStamp: '2026-06-20', nutritionHistory: [] };
+    const expected = computeDerived(preRoll).nutritionScore;
+    const hist = recordDayNutrition(preRoll, TODAY);
+    expect(hist).toEqual([{ date: '2026-06-20', score: expected }]);
+  });
+
+  it('is a no-op on the same day or a stamp-less install', () => {
+    const same: AppState = { ...createInitialState(), dateStamp: TODAY, nutritionHistory: [{ date: 'x', score: 80 }] };
+    expect(recordDayNutrition(same, TODAY)).toEqual([{ date: 'x', score: 80 }]);
+    const fresh = { ...createInitialState(), dateStamp: '', nutritionHistory: [] } as AppState;
+    expect(recordDayNutrition(fresh, TODAY)).toEqual([]);
   });
 });
 

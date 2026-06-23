@@ -29,6 +29,7 @@ export function createInitialState(): AppState {
     dateStamp: todayStamp(),
     scoreHistory: [],
     weightHistory: [],
+    nutritionHistory: [],
     meals: { breakfast: true, lunch: true, snack: true, dinner: false },
     hydrationL: 2.4,
     quickAdded: [false, false, false],

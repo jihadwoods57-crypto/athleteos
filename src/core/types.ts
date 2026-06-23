@@ -76,6 +76,9 @@ export interface AppState {
   /** Rolling log of prior days' recorded body weight (oldest -> newest), capped
    *  to the last HISTORY_CAP days. Feeds the Parent weight-trend chart. */
   weightHistory: WeightPoint[];
+  /** Rolling log of prior days' nutrition sub-score (oldest -> newest), capped
+   *  to the last HISTORY_CAP days. Feeds the Parent nutrition-trend bars. */
+  nutritionHistory: DayScore[];
   meals: Meals;
   hydrationL: number;
   tasks: Task[];

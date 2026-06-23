@@ -16,6 +16,7 @@ import {
   weeklyCompliance,
   weightSeries,
   weightTrendGeometry,
+  nutritionTrend,
 } from './history';
 import type { DayScore, WeightPoint } from './types';
 
@@ -203,6 +204,27 @@ describe('weeklyCompliance', () => {
     const series = trendSeries(hist, 92);
     const wc = weeklyCompliance(hist, 92, COMPLIANCE_THRESHOLD, TREND_WINDOW, tue);
     expect(wc.days.map((d) => d.score)).toEqual(series);
+  });
+});
+
+describe('nutritionTrend', () => {
+  it('uses the live nutrition score as the final (today) bar', () => {
+    const nt = nutritionTrend([], 77);
+    expect(nt.bars).toHaveLength(TREND_WINDOW);
+    expect(nt.bars[nt.bars.length - 1]).toBe(77);
+  });
+
+  it('averages only the completed bars, never today', () => {
+    const hist = Array.from({ length: 6 }, (_, i) => ({ date: `d${i}`, score: 90 }));
+    // 6 completed days at 90; a low live score must not pull the weekly avg down.
+    const nt = nutritionTrend(hist, 10);
+    expect(nt.avg).toBe(90);
+    expect(nt.bars[nt.bars.length - 1]).toBe(10);
+  });
+
+  it('shares the padded series shape with the score trend', () => {
+    const hist = [{ date: 'a', score: 88 }];
+    expect(nutritionTrend(hist, 91).bars).toEqual(trendSeries(hist, 91));
   });
 });
 

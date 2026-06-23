@@ -10,6 +10,7 @@ import {
   MEAL_MACROS,
   PROTEIN_TARGET,
   QUICK_FOODS,
+  recordDayNutrition,
   recordDayScore,
   recordDayWeight,
   WEIGHT_TARGET,
@@ -309,6 +310,7 @@ export const useStore = create<Store>()(
         dateStamp: s.dateStamp,
         scoreHistory: s.scoreHistory,
         weightHistory: s.weightHistory,
+        nutritionHistory: s.nutritionHistory,
         meals: s.meals,
         hydrationL: s.hydrationL,
         tasks: s.tasks,
@@ -340,8 +342,9 @@ export const useStore = create<Store>()(
         const preRoll = { ...current, ...p } as AppState;
         const scoreHistory = recordDayScore(preRoll, today);
         const weightHistory = recordDayWeight(preRoll, today);
+        const nutritionHistory = recordDayNutrition(preRoll, today);
         const rolled = rollDayIfStale(p, today);
-        const merged = { ...current, ...rolled, scoreHistory, weightHistory } as Store;
+        const merged = { ...current, ...rolled, scoreHistory, weightHistory, nutritionHistory } as Store;
         // New install / legacy pre-fix blob: a persisted blob with no `flow` (either a
         // brand-new install or a blob written before session persistence existed) must
         // start clean at onboarding step 0. When `flow` IS present, `...rolled` already

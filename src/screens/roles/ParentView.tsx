@@ -4,15 +4,13 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Account } from '@/screens/overlays/Account';
-
-const NUTRI_BARS = [86, 100, 72, 100, 90, 94, 79];
 
 export function ParentView() {
   const s = useStore();
@@ -26,6 +24,9 @@ export function ParentView() {
   // dashed goal line tracks the athlete's editable weight target.
   const weightTarget = s.weightTarget ?? WEIGHT_TARGET;
   const wt = weightTrendGeometry(weightSeries(s.weightHistory, s.currentWeight, WEIGHT_START), weightTarget);
+  // Nutrition bars from real per-day nutrition sub-scores; today's live score is
+  // the last (accent) bar, the weekly avg headline is the completed-day mean.
+  const nutri = nutritionTrend(s.nutritionHistory, d.nutritionScore);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -187,7 +188,7 @@ export function ParentView() {
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Txt w="eb" size={26} ls={-0.5}>
-                  92%
+                  {nutri.avg}%
                 </Txt>
                 <Txt w="sb" size={12} color={colors.textSecondary}>
                   weekly avg
@@ -195,16 +196,19 @@ export function ParentView() {
               </View>
             </Row>
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', height: 96 }}>
-              {NUTRI_BARS.map((h, i) => (
-                <View key={i} style={{ alignItems: 'center', gap: 7, flex: 1 }}>
-                  <View style={{ width: 22, height: 86, borderRadius: 6, backgroundColor: colors.track, justifyContent: 'flex-end', overflow: 'hidden' }}>
-                    <View style={{ width: '100%', height: `${h}%`, borderRadius: 6, backgroundColor: i === 6 ? '#93C5FD' : colors.accent }} />
+              {nutri.bars.map((h, i) => {
+                const today = i === nutri.bars.length - 1;
+                return (
+                  <View key={i} style={{ alignItems: 'center', gap: 7, flex: 1 }}>
+                    <View style={{ width: 22, height: 86, borderRadius: 6, backgroundColor: colors.track, justifyContent: 'flex-end', overflow: 'hidden' }}>
+                      <View style={{ width: '100%', height: `${Math.max(0, Math.min(100, h))}%`, borderRadius: 6, backgroundColor: today ? '#93C5FD' : colors.accent }} />
+                    </View>
+                    <Txt w="b" size={11} color={today ? colors.accent : colors.textTertiary}>
+                      {week.days[i]?.label ?? ''}
+                    </Txt>
                   </View>
-                  <Txt w="b" size={11} color={i === 6 ? colors.accent : colors.textTertiary}>
-                    {['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}
-                  </Txt>
-                </View>
-              ))}
+                );
+              })}
             </Row>
           </Card>
 

@@ -100,6 +100,32 @@ export function trendSummary(scores: number[]): TrendSummary {
   return { dir: 'flat', delta: 0, label: '→ steady' };
 }
 
+export interface NutritionTrend {
+  /** Padded daily nutrition scores, oldest -> newest; the last is today (live). */
+  bars: number[];
+  /** Mean nutrition score across the completed days (excludes today), 0..100. */
+  avg: number;
+}
+
+/**
+ * Build the Parent nutrition-trend bars from real per-day nutrition sub-scores,
+ * reusing the same padded-series shape as the score trend (today's live
+ * nutrition score is the final bar). The weekly-average headline excludes today
+ * so an early in-progress day can't drag it down.
+ */
+export function nutritionTrend(
+  history: DayScore[],
+  liveScore: number,
+  window: number = TREND_WINDOW,
+): NutritionTrend {
+  const bars = trendSeries(history, liveScore, window);
+  const completed = bars.slice(0, -1);
+  const avg = completed.length
+    ? Math.round(completed.reduce((a, b) => a + b, 0) / completed.length)
+    : 0;
+  return { bars, avg };
+}
+
 /** A completed day at or above this accountability score counts as "on plan".
  *  Same bar as the coach alert threshold — a passing, on-track day. */
 export const COMPLIANCE_THRESHOLD = 80;
