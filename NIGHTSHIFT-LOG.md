@@ -2,6 +2,56 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+## 2026-06-23 (run 11) — last frozen identity numbers go live: streak flame + avatar/you-row name
+
+Two code commits + this log, all three gates green on the pushed tree
+(`tsc --noEmit` clean, jest **262 passing** — never dropped, `expo export -p ios`
+bundles). Router untouched (app/_layout + app/index, no src/app). Phase-2
+Supabase scaffold not touched. `git push origin master` worked cleanly both
+commits (no 403/relay wall this run). This run retires two remaining "frozen
+number/identity contradicts live state" spots on the athlete tabs (Definition of
+Done items 6 + 8).
+
+- **feat(home): make the header streak flame live, not a frozen "12".** The Home
+  header's flame badge showed a hardcoded **12** day streak with no live source —
+  while the onboarding success copy already promises "log a meal to start your
+  streak." New pure `currentStreak()` in `core/history.ts` counts consecutive
+  on-plan days (≥ `COMPLIANCE_THRESHOLD` = 80) ending today: **today is honest**
+  (a sub-threshold live score breaks the streak to 0 right now), prior days read
+  the real persisted `scoreHistory` (the first recorded miss ends the count), and
+  when real history is unbroken all the way back the unknown pre-history is padded
+  with the **same `SEEDED_LEAD`** the trend chart draws — so a fresh install reads
+  a believable 7-day streak consistent with the seeded trend instead of a lone
+  "1", and that seed drops out the moment a real miss lands. Home wires the flame
+  to it (+ `accessibilityLabel` "N day streak" + Dynamic Type cap). +5 tests.
+- **feat(identity): derive the avatar monogram + you-row name from
+  `athleteName`.** The athlete's own identity was a frozen "Jihad" / "J" seed in
+  three spots: the Home header avatar and the Profile avatar hardcoded the letter
+  **J**, and the Squad leaderboard **you-row** showed seed name "Jihad" / initials
+  "J" — so onboarding under any other name showed someone else's monogram on your
+  own profile + leaderboard row. New pure `core/identity.ts` (`initials` →
+  first+last letter uppercased; `firstName`; both with safe fallbacks). Home +
+  Profile now render the monogram + first name from `athleteName`; Squad threads a
+  live `youIdentity` (name + monogram) through `buildLeaderboard` via a new
+  optional 4th param, **mirroring the run-10 `youDir` pattern** — the you-row picks
+  up the onboarded name while every other row keeps its demo identity. The store
+  default `athleteName` is `''`, so default/unseeded state renders **identically**
+  to before (Home/Profile fall back to "Jihad"/"J", Squad keeps the seed row); the
+  displayed identity only changes once a real name is set. Both avatar monograms
+  also got the run-9 `MAX_FONT_SCALE` Dynamic-Type cap. +13 tests.
+
+### For the founder (QC this run)
+- **Home header** — the 🔥 streak count is now derived: on the seeded demo it
+  reads **7** (consistent with the 7-day Score Trend, all on-plan); skip your
+  meals/tasks so today's score drops below 80 and the streak honestly reads **0**.
+  As real on-plan days accrue past the seed it climbs truthfully.
+- **Identity** — onboard (or change your name) to e.g. "Marcus Cole": the Home
+  header avatar, the **Profile** avatar, and your **Squad** leaderboard row now
+  show **MC** / "Marcus Cole" instead of the old "J" / "Jihad". Every other
+  leaderboard athlete is unchanged demo data. On a fresh install with no name set,
+  nothing changes (still "Jihad" / "J").
+- All deterministic + offline (no Supabase touched).
+
 ## 2026-06-23 (run 10) — Squad: the athlete's OWN trend arrow now tracks live score history
 
 One code commit + this log, all three gates green on the pushed tree
@@ -573,12 +623,21 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    real state. No per-day chart on Coach or Trainer drifts from live data. **The
    Squad you-row trend arrow now derives from live score history** ✅ (run 10) — the
    last static element on Squad that could contradict the athlete's live ranking.
+   **The Home header streak flame is now live** ✅ (run 11): `currentStreak`
+   counts consecutive on-plan days ending today (honest live today + real
+   `scoreHistory`, seed-padded pre-history) instead of a frozen "12". **The
+   athlete's displayed identity is now live** ✅ (run 11): the Home + Profile avatar
+   monograms and the Squad you-row name/initials derive from `athleteName` via
+   `core/identity.ts` instead of the frozen "Jihad"/"J" seed (default `''` →
+   identical to before until a name is set). No remaining frozen number/identity on
+   the athlete tabs is known to contradict live state.
 7. **Test safety net** — ✅ recommendation/leaderboard/content + store-level
    addMeal/toggleTask/addWater/submitCi score-movement tests exist; `npm run
-   verify` green. **244 tests** (run 10 added 4 `core/leaderboard` you-row live-trend
-   tests; run 8 added `core/macros` carb/fat derivation coverage; run 7 added the
-   `core/contrast` WCAG utility + token guard; run 6 added `units` + `accountRows`
-   coverage).
+   verify` green. **262 tests** (run 11 added `core/identity` name/monogram coverage
+   + `core/history` `currentStreak` cases + `core/leaderboard` you-row identity
+   override; run 10 added 4 `core/leaderboard` you-row live-trend tests; run 8 added
+   `core/macros` carb/fat derivation coverage; run 7 added the `core/contrast` WCAG
+   utility + token guard; run 6 added `units` + `accountRows` coverage).
    (Optional: a smoke test for the Ring web-shim.)
 8. **No dead UI** — ✅ **cleared this run.** Account Notifications is a live toggle;
    the Profile **Units** row is now a real persisted lb/kg toggle (run 6); and the
