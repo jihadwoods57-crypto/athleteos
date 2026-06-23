@@ -108,7 +108,14 @@ export function Squad() {
 
 function Seg({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: active ? colors.accent : 'transparent' }}>
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      hitSlop={{ top: 8, bottom: 8 }}
+      onPress={onPress}
+      style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: active ? colors.accent : 'transparent' }}
+    >
       <Txt w="b" size={13} color={active ? '#fff' : colors.textSecondary}>
         {label}
       </Txt>

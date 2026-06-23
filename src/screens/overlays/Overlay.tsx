@@ -52,6 +52,7 @@ export function Overlay({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={closeIcon === 'close' ? 'Close' : 'Back'}
+              hitSlop={6}
               onPress={onClose}
               style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}
             >

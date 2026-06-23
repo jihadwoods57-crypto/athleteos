@@ -256,6 +256,7 @@ function StepBtn({ glyph, onPress }: { glyph: string; onPress: () => void }) {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={glyph === '+' ? 'Increase' : 'Decrease'}
+      hitSlop={6}
       onPress={() => {
         haptics.select();
         onPress();
@@ -284,6 +285,7 @@ export function Toggle({ on, onPress, label }: { on: boolean; onPress: () => voi
       accessibilityRole="switch"
       accessibilityLabel={label}
       accessibilityState={{ checked: on }}
+      hitSlop={{ top: 9, bottom: 9 }}
       onPress={() => {
         haptics.select();
         onPress();

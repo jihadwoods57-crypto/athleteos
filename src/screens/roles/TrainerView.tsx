@@ -22,7 +22,7 @@ export function TrainerView() {
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           <Row style={{ justifyContent: 'space-between' }}>
             <Row style={{ gap: 12 }}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" onPress={s.openAccount} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" hitSlop={6} onPress={s.openAccount} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
                 <Icon name="menu" size={20} color={colors.slate600} />
               </Pressable>
               <View>

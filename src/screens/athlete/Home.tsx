@@ -59,7 +59,7 @@ export function Home() {
           </Txt>
         </View>
         <Row style={{ gap: 10 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={s.openNotif} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Notifications" hitSlop={6} onPress={s.openNotif} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
             <Icon name="bell" size={19} color={colors.slate600} />
             <View style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.alert, borderWidth: 1.5, borderColor: '#fff' }} />
           </Pressable>
@@ -69,7 +69,7 @@ export function Home() {
               12
             </Txt>
           </Row>
-          <Pressable accessibilityRole="button" accessibilityLabel="Profile" onPress={s.goProfile} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Profile" hitSlop={6} onPress={s.goProfile} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
             <Txt w="b" size={14} color="#fff">
               J
             </Txt>
