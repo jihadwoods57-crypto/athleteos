@@ -8,6 +8,7 @@ import {
   DEFAULT_CHART_BOX,
   DEFAULT_WEIGHT_BOX,
   HISTORY_CAP,
+  realTrendDays,
   recentDayLabels,
   seededHistory,
   trendGeometry,
@@ -320,6 +321,30 @@ describe('trendSeries', () => {
     expect(s).toHaveLength(TREND_WINDOW);
     // tail is the real days then today; head is seed padding.
     expect(s.slice(-3)).toEqual([90, 91, 92]);
+  });
+});
+
+describe('realTrendDays', () => {
+  it('is 1 on a brand-new athlete with no history (only today is real)', () => {
+    expect(realTrendDays([])).toBe(1);
+  });
+
+  it('counts each persisted day plus today, matching the trendSeries tail', () => {
+    const hist: DayScore[] = [
+      { date: 'a', score: 90 },
+      { date: 'b', score: 91 },
+    ];
+    expect(realTrendDays(hist)).toBe(3); // 2 real + today
+    // and never claims more than the chart actually plots
+    expect(realTrendDays(hist)).toBeLessThanOrEqual(trendSeries(hist, 92).length);
+  });
+
+  it('saturates at the window once real history fills it (seed has dropped out)', () => {
+    const hist: DayScore[] = Array.from({ length: 10 }, (_, i) => ({
+      date: `day-${i}`,
+      score: 80 + i,
+    }));
+    expect(realTrendDays(hist)).toBe(TREND_WINDOW);
   });
 });
 

@@ -254,6 +254,21 @@ export function trendSeries(
 }
 
 /**
+ * How many points of the `window`-length trend series are backed by REAL data —
+ * persisted history days plus today's live score — rather than the seeded lead
+ * that pads a sparse chart. Today always counts, so the result is at least 1 and
+ * at most `window`. A screen can use this to tell an honest story on a brand-new
+ * athlete (mostly-seeded chart) instead of claiming a full "Past 7 days" of real
+ * data the athlete hasn't lived yet.
+ */
+export function realTrendDays(
+  history: DayScore[],
+  window: number = TREND_WINDOW,
+): number {
+  return Math.min(history.length, window - 1) + 1; // +1 for today (always real)
+}
+
+/**
  * The athlete's current accountability streak: consecutive days, ending today,
  * that cleared the on-plan threshold. Today is honest — a sub-threshold live
  * score ends the streak at 0 right now. Prior days read real persisted history

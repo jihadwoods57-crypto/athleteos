@@ -15,11 +15,13 @@ import {
   displayWeightDelta,
   heroStatus,
   HYDRATION_TARGET,
+  realTrendDays,
   recentDayLabels,
   seasonGoalProgress,
   weightUnit,
   WEIGHT_START,
   WEIGHT_TARGET,
+  TREND_WINDOW,
   trendGeometry,
   trendSeries,
   trendSummary,
@@ -42,6 +44,12 @@ export function Home() {
   const series = trendSeries(s.scoreHistory, d.athleteScore);
   const trend = trendSummary(series);
   const dayLabels = recentDayLabels(series.length);
+  // Honest trend subtitle: until a real week has accrued, the chart's left is
+  // seeded padding — say "Building history · N of 7 days" instead of claiming a
+  // full "Past 7 days" the brand-new athlete hasn't lived yet.
+  const realDays = realTrendDays(s.scoreHistory);
+  const trendCaption =
+    realDays >= TREND_WINDOW ? 'Past 7 days' : `Building history · ${realDays} of ${TREND_WINDOW} days`;
   // Day streak: consecutive on-plan days ending today (live score + real
   // history; seeded baseline pads the unknown pre-history like the trend chart).
   const streak = currentStreak(s.scoreHistory, d.athleteScore);
@@ -201,7 +209,7 @@ export function Home() {
               Score Trend
             </Txt>
             <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
-              Past 7 days
+              {trendCaption}
             </Txt>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
