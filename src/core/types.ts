@@ -73,6 +73,9 @@ export interface AppState {
   /** Rolling log of prior days' final scores (oldest -> newest), capped to the
    *  last HISTORY_CAP days. Fed to the Home/role trend charts as real geometry. */
   scoreHistory: DayScore[];
+  /** Rolling log of prior days' recorded body weight (oldest -> newest), capped
+   *  to the last HISTORY_CAP days. Feeds the Parent weight-trend chart. */
+  weightHistory: WeightPoint[];
   meals: Meals;
   hydrationL: number;
   tasks: Task[];
@@ -131,6 +134,14 @@ export interface DayScore {
   /** ISO date (YYYY-MM-DD) the score is for. */
   date: string;
   score: number;
+}
+
+/** A single day's recorded body weight (lb), stamped with its local ISO date.
+ *  Feeds the Parent weight-trend chart from real data instead of a static path. */
+export interface WeightPoint {
+  /** ISO date (YYYY-MM-DD) the weight is for. */
+  date: string;
+  weight: number;
 }
 
 export interface PersonDetail {

@@ -2,8 +2,10 @@
 // draws exactly these paths), so pin the projection, clamping, and trend summary.
 import {
   appendDayScore,
+  appendDayWeight,
   COMPLIANCE_THRESHOLD,
   DEFAULT_CHART_BOX,
+  DEFAULT_WEIGHT_BOX,
   HISTORY_CAP,
   recentDayLabels,
   seededHistory,
@@ -12,8 +14,10 @@ import {
   trendSummary,
   TREND_WINDOW,
   weeklyCompliance,
+  weightSeries,
+  weightTrendGeometry,
 } from './history';
-import type { DayScore } from './types';
+import type { DayScore, WeightPoint } from './types';
 
 describe('trendGeometry — projection', () => {
   const box = DEFAULT_CHART_BOX;
@@ -199,6 +203,68 @@ describe('weeklyCompliance', () => {
     const series = trendSeries(hist, 92);
     const wc = weeklyCompliance(hist, 92, COMPLIANCE_THRESHOLD, TREND_WINDOW, tue);
     expect(wc.days.map((d) => d.score)).toEqual(series);
+  });
+});
+
+describe('appendDayWeight', () => {
+  it('appends a dated, rounded weight and caps to HISTORY_CAP', () => {
+    expect(appendDayWeight([], '2026-06-21', 181.27)).toEqual([{ date: '2026-06-21', weight: 181.3 }]);
+    let hist: WeightPoint[] = [];
+    for (let i = 0; i < HISTORY_CAP + 3; i++) hist = appendDayWeight(hist, `d${i}`, 170 + i);
+    expect(hist).toHaveLength(HISTORY_CAP);
+    expect(hist[0].date).toBe('d3');
+  });
+
+  it('overwrites the same date (idempotent re-roll)', () => {
+    const seed: WeightPoint[] = [{ date: 'a', weight: 180 }];
+    expect(appendDayWeight(seed, 'a', 183)).toEqual([{ date: 'a', weight: 183 }]);
+  });
+});
+
+describe('weightSeries', () => {
+  it('ramps from start toward the first known point while history is sparse', () => {
+    const s = weightSeries([], 178, 171);
+    expect(s).toHaveLength(TREND_WINDOW);
+    expect(s[s.length - 1]).toBe(178); // live weight is the final point
+    // monotonic ramp from ~start up to the live weight (the build narrative).
+    for (let i = 1; i < s.length; i++) expect(s[i]).toBeGreaterThanOrEqual(s[i - 1]);
+    expect(s[0]).toBeGreaterThan(171); // first lead step is start + one increment
+    expect(s[0]).toBeLessThan(178);
+  });
+
+  it('uses only real weights once history fills the window', () => {
+    const hist: WeightPoint[] = Array.from({ length: 10 }, (_, i) => ({ date: `d${i}`, weight: 170 + i }));
+    const s = weightSeries(hist, 185, 171);
+    expect(s).toHaveLength(TREND_WINDOW);
+    expect(s[s.length - 1]).toBe(185);
+    expect(s.slice(0, TREND_WINDOW - 1)).toEqual([174, 175, 176, 177, 178, 179]);
+  });
+});
+
+describe('weightTrendGeometry', () => {
+  it('fits the axis so neither the line nor the goal line clips', () => {
+    const g = weightTrendGeometry([171, 175, 178], 184);
+    const box = DEFAULT_WEIGHT_BOX;
+    const top = box.padTop;
+    const bottom = box.height - box.padBottom;
+    // every plotted point and the goal line stay within the drawing area.
+    for (const p of g.points) {
+      expect(p.y).toBeGreaterThanOrEqual(top);
+      expect(p.y).toBeLessThanOrEqual(bottom);
+    }
+    expect(g.goalY).toBeGreaterThanOrEqual(top);
+    expect(g.goalY).toBeLessThanOrEqual(bottom);
+  });
+
+  it('places the goal above the current weight when the goal is higher (smaller y)', () => {
+    const g = weightTrendGeometry([171, 175, 178], 184);
+    expect(g.goalY).toBeLessThan(g.last.y); // higher goal -> drawn higher up
+  });
+
+  it('renders a path + end dot even with an empty series', () => {
+    const g = weightTrendGeometry([], 184);
+    expect(g.linePath.startsWith('M')).toBe(true);
+    expect(g.last).toBeDefined();
   });
 });
 

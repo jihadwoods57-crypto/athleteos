@@ -2,9 +2,9 @@
 // Turns a series of daily scores into the SVG geometry the Home/Parent/Coach
 // trend charts draw, replacing the prototype's hard-coded path. The live score
 // is the last point, so the chart reacts to today's accountability.
-import type { DayScore, TrendDir } from './types';
+import type { DayScore, TrendDir, WeightPoint } from './types';
 
-export type { DayScore } from './types';
+export type { DayScore, WeightPoint } from './types';
 
 /** Chart drawing box, matching the prototype's TrendChart viewBox. */
 export interface ChartBox {
@@ -225,4 +225,88 @@ export function trendSeries(
   const padCount = window - series.length;
   const lead = SEEDED_LEAD.slice(Math.max(0, SEEDED_LEAD.length - padCount));
   return [...lead, ...series];
+}
+
+/**
+ * Append a day's recorded body weight to the rolling history, keyed by ISO date.
+ * Same idempotent-overwrite + cap semantics as `appendDayScore`, with a sane
+ * weight clamp so a corrupt blob can't blow out the chart axis.
+ */
+export function appendDayWeight(
+  history: WeightPoint[],
+  date: string,
+  weight: number,
+  cap: number = HISTORY_CAP,
+): WeightPoint[] {
+  const next = history.filter((h) => h.date !== date);
+  next.push({ date, weight: clamp(r1(weight), 40, 600) });
+  return next.slice(-cap);
+}
+
+/**
+ * Build the weight series the Parent chart plots: the last `window-1` persisted
+ * daily weights followed by the live `currentWeight` as the final point. When
+ * real history is too short, the left is padded with a straight ramp from
+ * `start` toward the first known point, so a fresh install reads as a build
+ * toward goal instead of a flat line.
+ */
+export function weightSeries(
+  history: WeightPoint[],
+  currentWeight: number,
+  start: number,
+  window: number = TREND_WINDOW,
+): number[] {
+  const past = history.map((h) => h.weight).slice(-(window - 1));
+  const series = [...past, currentWeight];
+  if (series.length >= window) return series;
+  const padCount = window - series.length;
+  const firstKnown = series[0];
+  const lead: number[] = [];
+  for (let i = 0; i < padCount; i++) {
+    const t = (i + 1) / (padCount + 1);
+    lead.push(r1(start + (firstKnown - start) * t));
+  }
+  return [...lead, ...series];
+}
+
+export interface WeightChartGeometry extends TrendChartGeometry {
+  /** y of the season goal line within the box (same axis as the trend line). */
+  goalY: number;
+}
+
+/** Chart box for the Parent weight trend (matches its 322×134 viewBox). The
+ *  y-range (min/max) is fitted to the data + goal per call, so only the box
+ *  dimensions/pads matter here. */
+export const DEFAULT_WEIGHT_BOX: ChartBox = {
+  width: 322,
+  height: 134,
+  padX: 12,
+  padTop: 12,
+  padBottom: 0,
+  min: 160,
+  max: 190,
+};
+
+/**
+ * Project a weight series into chart geometry, fitting the y-axis to the data
+ * AND the season goal so neither the line nor the dashed goal marker clips.
+ * Returns the trend line/area paths plus the goal line's y on the same axis.
+ */
+export function weightTrendGeometry(
+  weights: number[],
+  target: number,
+  box: ChartBox = DEFAULT_WEIGHT_BOX,
+): WeightChartGeometry {
+  const all = weights.length ? weights : [target];
+  const lo = Math.min(target, ...all);
+  const hi = Math.max(target, ...all);
+  const pad = Math.max(2, (hi - lo) * 0.15);
+  const fit: ChartBox = { ...box, min: Math.floor(lo - pad), max: Math.ceil(hi + pad) };
+  const g = trendGeometry(weights, fit);
+  const span = fit.max - fit.min || 1;
+  const top = fit.padTop;
+  const bottom = fit.height - fit.padBottom;
+  const norm = clamp((target - fit.min) / span, 0, 1);
+  const goalY = r1(bottom - norm * (bottom - top));
+  return { ...g, goalY };
 }

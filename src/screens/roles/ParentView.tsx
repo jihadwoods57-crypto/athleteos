@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET, weeklyCompliance } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -21,6 +21,11 @@ export function ParentView() {
   // chart draws, so the parent's view tracks the athlete's actual week instead
   // of a static 6/7 mock. Today is shown in progress; the % is the completed-day mean.
   const week = weeklyCompliance(s.scoreHistory, d.athleteScore);
+  // Weight trend drawn from real recorded weights (live currentWeight as the
+  // last point), ramping from WEIGHT_START while history is still filling. The
+  // dashed goal line tracks the athlete's editable weight target.
+  const weightTarget = s.weightTarget ?? WEIGHT_TARGET;
+  const wt = weightTrendGeometry(weightSeries(s.weightHistory, s.currentWeight, WEIGHT_START), weightTarget);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -134,7 +139,7 @@ export function ParentView() {
                   Weight Trend
                 </Txt>
                 <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
-                  8-week build · goal {s.weightTarget ?? WEIGHT_TARGET} lb
+                  8-week build · goal {weightTarget} lb
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
@@ -162,10 +167,10 @@ export function ParentView() {
                   <Stop offset="1" stopColor="#2563EB" stopOpacity="0" />
                 </LinearGradient>
               </Defs>
-              <Line x1="0" y1="30" x2="322" y2="30" stroke="#22C55E" strokeWidth="1.5" strokeDasharray="5 5" strokeOpacity="0.5" />
-              <Path d="M12,95 L55,90 L97,95 L140,85 L182,80 L225,70 L267,65 L310,60 L310,134 L12,134 Z" fill="url(#pwt)" />
-              <Path d="M12,95 L55,90 L97,95 L140,85 L182,80 L225,70 L267,65 L310,60" fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-              <Circle cx={310} cy={60} r={5.5} fill="#2563EB" stroke="#fff" strokeWidth={2.5} />
+              <Line x1="0" y1={wt.goalY} x2="322" y2={wt.goalY} stroke="#22C55E" strokeWidth="1.5" strokeDasharray="5 5" strokeOpacity="0.5" />
+              <Path d={wt.areaPath} fill="url(#pwt)" />
+              <Path d={wt.linePath} fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+              <Circle cx={wt.last.x} cy={wt.last.y} r={5.5} fill="#2563EB" stroke="#fff" strokeWidth={2.5} />
             </Svg>
           </Card>
 

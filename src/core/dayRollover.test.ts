@@ -1,6 +1,6 @@
 // AthleteOS — calendar-day rollover tests. Pure, injected dates, no real clock.
 // Each case maps 1:1 to an acceptance criterion for the day-rollover fix.
-import { recordDayScore, rollDayIfStale, todayStamp } from './dayRollover';
+import { recordDayScore, recordDayWeight, rollDayIfStale, todayStamp } from './dayRollover';
 import { createInitialState } from './defaultState';
 import { computeDerived } from './scoring';
 import type { AppState } from './types';
@@ -142,6 +142,35 @@ describe('recordDayScore — logs the prior day before reset', () => {
   it('does NOT log a brand-new install with no prior stamp', () => {
     const preRoll = { ...createInitialState(), dateStamp: '', scoreHistory: [] } as AppState;
     expect(recordDayScore(preRoll, TODAY)).toEqual([]);
+  });
+});
+
+describe('recordDayWeight — logs the prior day weight before reset', () => {
+  it('appends the pre-roll currentWeight, stamped with the prior date', () => {
+    const preRoll: AppState = { ...createInitialState(), dateStamp: '2026-06-20', currentWeight: 181, weightHistory: [] };
+    const hist = recordDayWeight(preRoll, TODAY);
+    expect(hist).toEqual([{ date: '2026-06-20', weight: 181 }]);
+  });
+
+  it('grows existing weight history across rollovers', () => {
+    const preRoll: AppState = {
+      ...createInitialState(),
+      dateStamp: '2026-06-20',
+      currentWeight: 182,
+      weightHistory: [{ date: '2026-06-19', weight: 180 }],
+    };
+    const hist = recordDayWeight(preRoll, TODAY);
+    expect(hist).toEqual([
+      { date: '2026-06-19', weight: 180 },
+      { date: '2026-06-20', weight: 182 },
+    ]);
+  });
+
+  it('does NOT log on the same day or a stamp-less install', () => {
+    const same: AppState = { ...createInitialState(), dateStamp: TODAY, weightHistory: [{ date: 'x', weight: 175 }] };
+    expect(recordDayWeight(same, TODAY)).toEqual([{ date: 'x', weight: 175 }]);
+    const fresh = { ...createInitialState(), dateStamp: '', weightHistory: [] } as AppState;
+    expect(recordDayWeight(fresh, TODAY)).toEqual([]);
   });
 });
 

@@ -3,10 +3,10 @@
 // tasks, check-in). On a new calendar day that data is stale and must reset to the
 // fresh day defaults, while cross-day fields (weight, prefs) survive. This file owns
 // the date stamp + the pure rollover used by the store on rehydrate.
-import type { AppState, DayScore } from './types';
+import type { AppState, DayScore, WeightPoint } from './types';
 import { createInitialState } from './defaultState';
 import { computeDerived } from './scoring';
-import { appendDayScore } from './history';
+import { appendDayScore, appendDayWeight } from './history';
 
 // `todayStamp` now lives in the leaf `clock` module to break the
 // dayRollover <-> defaultState import cycle. Re-exported here so existing
@@ -44,6 +44,18 @@ export function recordDayScore(preRoll: AppState, todayIso: string): DayScore[] 
   if (!preRoll.dateStamp || preRoll.dateStamp === todayIso) return history;
   const score = computeDerived(preRoll).athleteScore;
   return appendDayScore(history, preRoll.dateStamp, score);
+}
+
+/**
+ * Record the prior day's body weight into history BEFORE the day slice resets,
+ * mirroring `recordDayScore`. currentWeight is a cross-day field, so it survives
+ * the roll; we snapshot it against the day it belonged to. Same-day or a
+ * stamp-less brand-new install leaves history untouched.
+ */
+export function recordDayWeight(preRoll: AppState, todayIso: string): WeightPoint[] {
+  const history = preRoll.weightHistory ?? [];
+  if (!preRoll.dateStamp || preRoll.dateStamp === todayIso) return history;
+  return appendDayWeight(history, preRoll.dateStamp, preRoll.currentWeight);
 }
 
 function pick<T extends object, K extends keyof T>(src: T, keys: readonly K[]): Pick<T, K> {
