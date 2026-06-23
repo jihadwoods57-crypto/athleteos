@@ -1,5 +1,6 @@
 // AthleteOS — leaderboard selector (pure). The athlete's own row score is live.
 import { POS_BOARD, POS_BOARD_SCORES, TEAM_BOARD, TEAM_BOARD_SCORES } from './constants';
+import type { RosterRow } from './constants';
 import type { LeaderRow, SquadMode } from './types';
 
 const MEDAL: Record<number, string> = { 1: '#F59E0B', 2: '#94A3B8', 3: '#D97706' };
@@ -37,6 +38,34 @@ export function trendInfo(dir: LeaderRow['dir']): Trend {
  *     live standing. medalColor keeps keying off rank, so the medal follows the
  *     true standing automatically.
  */
+/** Score at/below which a roster athlete is flagged as "needs attention". */
+export const COACH_ALERT_THRESHOLD = 80;
+
+export interface CoachKpis {
+  /** Mean roster accountability score, rounded. */
+  avgScore: number;
+  /** Mean roster compliance %, rounded. */
+  compliance: number;
+  /** Count of athletes scoring below COACH_ALERT_THRESHOLD. */
+  alerts: number;
+}
+
+/**
+ * Pure Coach-dashboard KPIs over the LIVE roster (the you-row already carries the
+ * athlete's live score). Team average + compliance react when the athlete's own
+ * number moves, and the alerts count tracks how many athletes sit below the
+ * attention threshold — so the header KPIs can never drift from the roster below.
+ */
+export function coachRosterKpis(roster: RosterRow[]): CoachKpis {
+  if (roster.length === 0) return { avgScore: 0, compliance: 0, alerts: 0 };
+  const avg = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+  return {
+    avgScore: avg(roster.map((r) => r.score)),
+    compliance: avg(roster.map((r) => r.comp)),
+    alerts: roster.filter((r) => r.score < COACH_ALERT_THRESHOLD).length,
+  };
+}
+
 export function buildLeaderboard(mode: SquadMode, athleteScore: number): LeaderRow[] {
   const base = mode === 'team' ? TEAM_BOARD : POS_BOARD;
   const scores = mode === 'team' ? TEAM_BOARD_SCORES : POS_BOARD_SCORES;

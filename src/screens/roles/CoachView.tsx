@@ -3,7 +3,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CHECKIN_QUESTIONS, ROSTER, gradeFor, trendInfo } from '@/core';
+import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, gradeFor, trendInfo } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
@@ -16,6 +16,7 @@ export function CoachView() {
   const s = useStore();
   const d = useDerived();
   const roster = ROSTER.map((r) => (r.you ? { ...r, score: d.athleteScore } : r));
+  const kpis = coachRosterKpis(roster);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -36,9 +37,9 @@ export function CoachView() {
           </Row>
 
           <Row style={{ gap: 10, marginTop: 20 }}>
-            <Kpi value="84" label="TEAM AVG" />
-            <Kpi value="88%" label="COMPLIANCE" color={colors.success} />
-            <Kpi value="2" label="ALERTS" color={colors.alert} />
+            <Kpi value={`${kpis.avgScore}`} label="TEAM AVG" />
+            <Kpi value={`${kpis.compliance}%`} label="COMPLIANCE" color={colors.success} />
+            <Kpi value={`${kpis.alerts}`} label="ALERTS" color={colors.alert} />
           </Row>
 
           <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.alertSurface, borderWidth: 1, borderColor: colors.alertBorder }}>

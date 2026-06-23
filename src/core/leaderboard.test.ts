@@ -1,13 +1,15 @@
 // AthleteOS — leaderboard selector tests. The athlete's own row reflects the live
 // score, and the whole board is RE-RANKED by score so the medal + position are
 // truthful (no more pinning the "you" row at its static rank).
-import { buildLeaderboard, medalColor, trendInfo } from './leaderboard';
+import { buildLeaderboard, coachRosterKpis, medalColor, trendInfo } from './leaderboard';
 import {
   POS_BOARD,
   POS_BOARD_SCORES,
+  ROSTER,
   TEAM_BOARD,
   TEAM_BOARD_SCORES,
 } from './constants';
+import type { RosterRow } from './constants';
 
 describe('medalColor', () => {
   it('gives gold/silver/bronze for the podium', () => {
@@ -27,6 +29,32 @@ describe('trendInfo', () => {
     expect(trendInfo('up')).toEqual({ t: '↑', c: '#22C55E' });
     expect(trendInfo('down')).toEqual({ t: '↓', c: '#EF4444' });
     expect(trendInfo('flat')).toEqual({ t: '→', c: '#94A3B8' });
+  });
+});
+
+describe('coachRosterKpis', () => {
+  const mk = (score: number, comp: number): RosterRow => ({
+    name: 'x', initials: 'X', pos: 'LB', comp, score, dir: 'flat',
+  });
+
+  it('averages score + compliance and counts athletes below the alert threshold', () => {
+    const roster = [mk(90, 100), mk(80, 80), mk(70, 60), mk(60, 40)];
+    // avg score (90+80+70+60)/4 = 75; compliance (100+80+60+40)/4 = 70.
+    // below 80: 70 and 60 -> 2 alerts (80 is NOT below the threshold).
+    expect(coachRosterKpis(roster)).toEqual({ avgScore: 75, compliance: 70, alerts: 2 });
+  });
+
+  it('reacts to the live you-score (lower score drops the avg and can add an alert)', () => {
+    const base = ROSTER.map((r) => (r.you ? { ...r, score: 92 } : r));
+    const tanked = ROSTER.map((r) => (r.you ? { ...r, score: 55 } : r));
+    const a = coachRosterKpis(base);
+    const b = coachRosterKpis(tanked);
+    expect(b.avgScore).toBeLessThan(a.avgScore);
+    expect(b.alerts).toBe(a.alerts + 1); // the athlete crosses below 80
+  });
+
+  it('is safe on an empty roster', () => {
+    expect(coachRosterKpis([])).toEqual({ avgScore: 0, compliance: 0, alerts: 0 });
   });
 });
 
