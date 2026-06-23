@@ -2,6 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { useReduceMotion } from './useReduceMotion';
 
 // react-native-web's Animated forces `collapsable: false` onto every animated
 // component's props (a native view-flattening hint). react-native-svg forwards
@@ -39,8 +40,13 @@ export function Ring({
   const circ = 2 * Math.PI * radius; // ≈540
   const clamped = Math.max(0, Math.min(100, pct));
   const anim = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      anim.setValue(clamped);
+      return;
+    }
     Animated.timing(anim, {
       toValue: clamped,
       duration: 1500,
@@ -48,7 +54,7 @@ export function Ring({
       easing: Easing.bezier(0.4, 0, 0.2, 1),
       useNativeDriver: false,
     }).start();
-  }, [clamped, anim]);
+  }, [clamped, anim, reduceMotion]);
 
   const dashoffset = anim.interpolate({
     inputRange: [0, 100],

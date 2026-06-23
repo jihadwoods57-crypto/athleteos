@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, font, radius, shadow, space } from './tokens';
 import { haptics } from './haptics';
+import { useReduceMotion } from './useReduceMotion';
 
 type Weight = keyof typeof font;
 
@@ -319,15 +320,20 @@ export function ProgressBar({
 }) {
   const w = Math.max(0, Math.min(100, pct));
   const anim = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      anim.setValue(w);
+      return;
+    }
     Animated.timing(anim, {
       toValue: w,
       duration: 450,
       easing: Easing.bezier(0.4, 0, 0.2, 1),
       useNativeDriver: false,
     }).start();
-  }, [w, anim]);
+  }, [w, anim, reduceMotion]);
 
   const fillWidth = anim.interpolate({
     inputRange: [0, 100],
