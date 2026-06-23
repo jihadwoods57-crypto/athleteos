@@ -2,15 +2,15 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
-## 2026-06-23 (run 11) — last frozen identity numbers go live: streak flame + avatar/you-row name
+## 2026-06-23 (run 11) — last frozen identity/time bits go live: streak flame + avatar/you-row name + greeting
 
-Two code commits + this log, all three gates green on the pushed tree
-(`tsc --noEmit` clean, jest **262 passing** — never dropped, `expo export -p ios`
+Three code commits + this log, all three gates green on the pushed tree
+(`tsc --noEmit` clean, jest **266 passing** — never dropped, `expo export -p ios`
 bundles). Router untouched (app/_layout + app/index, no src/app). Phase-2
-Supabase scaffold not touched. `git push origin master` worked cleanly both
-commits (no 403/relay wall this run). This run retires two remaining "frozen
-number/identity contradicts live state" spots on the athlete tabs (Definition of
-Done items 6 + 8).
+Supabase scaffold not touched. `git push origin master` worked cleanly all three
+commits (no 403/relay wall this run). This run retires the remaining "frozen
+number/identity/time contradicts reality" spots on the athlete Home + Profile +
+Squad tabs (Definition of Done items 6 + 8).
 
 - **feat(home): make the header streak flame live, not a frozen "12".** The Home
   header's flame badge showed a hardcoded **12** day streak with no live source —
@@ -39,8 +39,16 @@ Done items 6 + 8).
   to before (Home/Profile fall back to "Jihad"/"J", Squad keeps the seed row); the
   displayed identity only changes once a real name is set. Both avatar monograms
   also got the run-9 `MAX_FONT_SCALE` Dynamic-Type cap. +13 tests.
+- **feat(home): time-of-day greeting instead of a hardcoded "Good morning".** The
+  Home header greeted "Good morning," at every hour — wrong all afternoon/evening.
+  New pure `greeting()` in `core/clock.ts` returns morning/afternoon/evening from
+  the LOCAL hour (morning < 12:00, afternoon 12:00–16:59, evening from 17:00),
+  `now` injectable for tests; exported `clock` from the core barrel (it imports
+  nothing — no cycle). +4 tests.
 
 ### For the founder (QC this run)
+- **Home header greeting** — now reads "Good morning / afternoon / evening" to
+  match the time of day instead of always "Good morning".
 - **Home header** — the 🔥 streak count is now derived: on the seeded demo it
   reads **7** (consistent with the 7-day Score Trend, all on-plan); skip your
   meals/tasks so today's score drops below 80 and the streak honestly reads **0**.
@@ -629,13 +637,16 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    athlete's displayed identity is now live** ✅ (run 11): the Home + Profile avatar
    monograms and the Squad you-row name/initials derive from `athleteName` via
    `core/identity.ts` instead of the frozen "Jihad"/"J" seed (default `''` →
-   identical to before until a name is set). No remaining frozen number/identity on
-   the athlete tabs is known to contradict live state.
+   identical to before until a name is set). The **Home greeting** now tracks the
+   local time of day (`core/clock.ts` `greeting`) instead of a fixed "Good
+   morning". No remaining frozen number/identity/time on the athlete tabs is known
+   to contradict reality.
 7. **Test safety net** — ✅ recommendation/leaderboard/content + store-level
    addMeal/toggleTask/addWater/submitCi score-movement tests exist; `npm run
-   verify` green. **262 tests** (run 11 added `core/identity` name/monogram coverage
+   verify` green. **266 tests** (run 11 added `core/identity` name/monogram coverage
    + `core/history` `currentStreak` cases + `core/leaderboard` you-row identity
-   override; run 10 added 4 `core/leaderboard` you-row live-trend tests; run 8 added
+   override + `core/clock` greeting/stamp; run 10 added 4 `core/leaderboard` you-row
+   live-trend tests; run 8 added
    `core/macros` carb/fat derivation coverage; run 7 added the `core/contrast` WCAG
    utility + token guard; run 6 added `units` + `accountRows` coverage).
    (Optional: a smoke test for the Ring web-shim.)
