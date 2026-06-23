@@ -1,6 +1,6 @@
 // AthleteOS — initial session state, ported verbatim from the prototype.
 import type { AppState } from './types';
-import { todayStamp } from './dayRollover';
+import { todayStamp } from './clock';
 
 export function createInitialState(): AppState {
   return {

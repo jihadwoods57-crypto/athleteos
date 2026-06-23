@@ -8,14 +8,10 @@ import { createInitialState } from './defaultState';
 import { computeDerived } from './scoring';
 import { appendDayScore } from './history';
 
-/** Local-date ISO stamp (YYYY-MM-DD). Uses LOCAL parts, never toISOString/UTC, so
- *  it never shifts a day near midnight in negative-UTC zones. `now` injectable for tests. */
-export function todayStamp(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+// `todayStamp` now lives in the leaf `clock` module to break the
+// dayRollover <-> defaultState import cycle. Re-exported here so existing
+// `./dayRollover` and `@/core` import sites keep working unchanged.
+export { todayStamp } from './clock';
 
 /** The day-level fields reset on rollover. The invariant is one-directional: every key
  *  that resets here MUST also be persisted in the store's partialize whitelist — but not
