@@ -22,7 +22,7 @@ export function CoachView() {
       <SafeAreaView edges={['top']} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           <Row style={{ gap: 12 }}>
-            <Pressable onPress={s.openAccount} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" onPress={s.openAccount} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
               <Icon name="menu" size={20} color={colors.slate600} />
             </Pressable>
             <View>
@@ -62,7 +62,7 @@ export function CoachView() {
                   <Txt w="b" size={14}>
                     {q.label}
                   </Txt>
-                  <Toggle on={s.ciConfig[q.key]} onPress={() => s.toggleCiQ(q.key)} />
+                  <Toggle on={s.ciConfig[q.key]} onPress={() => s.toggleCiQ(q.key)} label={q.label} />
                 </Row>
               ))}
             </View>

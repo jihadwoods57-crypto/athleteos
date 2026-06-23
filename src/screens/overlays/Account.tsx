@@ -43,7 +43,7 @@ export function Account() {
           <SettingRow label="Help & support" value="›" />
         </Card>
 
-        <Pressable onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
           <Txt w="b" size={15} color={colors.alert}>
             Sign out
           </Txt>

@@ -49,7 +49,12 @@ export function Overlay({
       <Animated.View style={{ flex: 1, opacity: anim, transform: [{ translateY }] }}>
         <SafeAreaView edges={['top']} style={{ flex: 1 }}>
           <Row style={{ justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 14 }}>
-            <Pressable onPress={onClose} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={closeIcon === 'close' ? 'Close' : 'Back'}
+              onPress={onClose}
+              style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}
+            >
               <Icon name={closeIcon} size={20} color={colors.slate600} />
             </Pressable>
             <Txt w="eb" size={17} ls={-0.3}>

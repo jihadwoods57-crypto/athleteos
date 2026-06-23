@@ -187,7 +187,7 @@ function Chat() {
           placeholderTextColor={colors.textTertiary}
           style={{ flex: 1, height: 46, borderRadius: 13, backgroundColor: colors.bg, paddingHorizontal: 14, fontFamily: font.m, fontSize: 14, color: colors.text }}
         />
-        <Pressable onPress={sendChat} style={{ width: 46, height: 46, borderRadius: 13, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Send message" onPress={sendChat} style={{ width: 46, height: 46, borderRadius: 13, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="send" size={18} color="#fff" />
         </Pressable>
       </Row>

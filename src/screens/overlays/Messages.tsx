@@ -18,7 +18,7 @@ export function Messages() {
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.bg, zIndex: 110 }}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: colors.divider2 }}>
         <Row style={{ gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 14 }}>
-          <Pressable onPress={s.closeMsg} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={s.closeMsg} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="chevronLeft" size={20} color={colors.slate600} />
           </Pressable>
           <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' }}>
@@ -64,7 +64,7 @@ export function Messages() {
             placeholderTextColor={colors.textTertiary}
             style={{ flex: 1, height: 48, borderRadius: 14, backgroundColor: colors.bg, paddingHorizontal: 15, fontFamily: font.m, fontSize: 15, color: colors.text }}
           />
-          <Pressable onPress={s.sendMsg} style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Send message" onPress={s.sendMsg} style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="send" size={19} color="#fff" />
           </Pressable>
         </Row>

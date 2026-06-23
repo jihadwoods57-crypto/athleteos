@@ -90,6 +90,8 @@ function TabBar() {
       {/* center camera FAB */}
       <View style={{ width: 72, alignItems: 'center' }}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Log a meal"
           onPress={openMeal}
           style={[
             { width: 58, height: 58, borderRadius: 18, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginTop: -28 },
@@ -109,7 +111,13 @@ function TabBar() {
 function TabItem({ item, active, onPress }: { item: { label: string; icon: IconName }; active: boolean; onPress: () => void }) {
   const color = active ? colors.accent : colors.textTertiary;
   return (
-    <Pressable onPress={onPress} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityLabel={item.label}
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={{ flex: 1, alignItems: 'center', gap: 4 }}
+    >
       <Icon name={item.icon} size={23} color={color} />
       <Txt w={active ? 'b' : 'sb'} size={11} color={color}>
         {item.label}
