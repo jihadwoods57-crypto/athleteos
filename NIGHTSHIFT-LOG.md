@@ -2,6 +2,48 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+## 2026-06-23 (run 2) — reduce-motion, editable targets, onboarding validation
+
+Three commits, all three gates green every commit (`tsc --noEmit`, jest,
+`expo export -p ios`). Test count 165 → **175** (never dropped). Router
+untouched (app/_layout + app/index, no src/app). Phase-2 Supabase scaffold not
+touched.
+
+- **feat(a11y): respect Reduce Motion in the Ring + ProgressBar fills.** The
+  score-ring draw and every ProgressBar grow-in animated unconditionally,
+  ignoring the OS "Reduce Motion" preference that Overlay already honored. Added
+  a shared, live `src/ui/useReduceMotion.ts` hook (reads the setting on mount,
+  updates if toggled mid-session, resolves false on web) and gated both: with
+  Reduce Motion on, the ring offset and bar fills **snap to their final value**
+  instead of animating. No change when the setting is off; native animation is
+  byte-for-byte identical.
+- **feat(targets): editable daily protein + calorie targets that flow into
+  scoring.** The Profile "Your Targets" card was dead UI — hardcoded
+  `180g / 3,200 / 184lb` tiles and an inert "Edit" label — while the engine read
+  fixed constants. Now protein + calorie targets are real, persisted,
+  athlete-editable state: `computeDerived` reads `s.proteinTarget`/`s.calTarget`
+  (constant fallback for legacy blobs) for the protein gap/pct, nutrition
+  sub-score, and the drift-proof protein task (id 2). Store adds
+  `adjustProteinTarget` (clamp 80–320g) + `adjustCalTarget` (clamp
+  1200–6000 kcal), persisted as cross-day prefs (survive rollover). Profile tiles
+  now show live targets; the "Edit" toggle reveals two `Stepper`s. The Nutrition
+  protein ring label reads the live target too. +5 store tests.
+- **feat(onboarding): validate name + email before Continue.** The account step's
+  "Continue" fired unconditionally. New pure `src/core/validate.ts`
+  (`isValidName` / `isValidEmail` / `accountStepValid`); Continue is now disabled
+  until the name has 2+ chars and the email is well-formed, with a small
+  alert-colored hint under the email field that appears only after invalid input
+  (never nags an empty field). +5 core tests.
+
+### For the founder (QC this run)
+- Turn on iOS/Android **Reduce Motion**: the score ring and progress bars should
+  appear already-filled (no sweep) while everything else still works.
+- **Profile → Your Targets → Edit**: stepping protein/calories should move the
+  Nutrition macro ring/label and the Athlete Score live, and the new values
+  persist across reload and a day rollover.
+- **Onboarding → Create your account**: Continue stays greyed until a real name +
+  email are entered.
+
 ## 2026-06-23 — QC finding cleared + accessibility / micro-interaction pass
 
 Six commits, gates green every commit (`tsc --noEmit`, 165 jest tests, `expo
@@ -58,9 +100,10 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    **PersonDetail**, **MealDetail**, and **TrainerView** body. Verify type scale /
    spacing / radii against the `.dc.html` handoff one screen per commit.
 3. **Motion / micro-interactions** — ring draw, bar grow, overlay slide-up,
-   meal scan-line, spinner, and (new) haptics are in. Reduce-motion is honored in
-   Overlay; **extend the reduce-motion check to ProgressBar + Ring** (they animate
-   unconditionally). Add press/active opacity to a few remaining raw Pressables.
+   meal scan-line, spinner, and haptics are in. Reduce-motion now honored in
+   Overlay **and Ring + ProgressBar** ✅ (shared `useReduceMotion` hook). Remaining:
+   add press/active opacity to a few remaining raw Pressables (StepHeader back
+   button, Onboarding role/level/sport tiles use Pressable without a pressed style).
 4. **Empty / edge states** — Plan "all done" ✅, Nutrition logged/unlogged rows ✅.
    Note: the always-populated seed + no "un-log" action means a true zero-state is
    only reachable on a brand-new install pre-onboarding; the score-floor/100 states
@@ -69,13 +112,14 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
 5. **Accessibility** — labels ✅, 44px hit targets ✅. Remaining: audit color
    contrast of `textTertiary`/`#CBD5E1` on white vs WCAG AA, and test large system
    font sizes for clipping (Dynamic Type) on the score hero + KPI rows.
-6. **Feature completeness (phase-2 backlog)** — `notif` persists (Profile +
-   Account) ✅; score history feeds Home trend + week delta ✅ (prior run). Still
-   open: **editable protein/calorie/weight targets** flowing into scoring +
-   Nutrition (currently `PROTEIN_TARGET`/`CAL_TARGET` are constants); **Parent &
-   Coach trend charts** are still hardcoded SVG/arrays (Weekly Compliance 86%,
-   NUTRI_BARS, Coach KPIs 84/88%/2) — wire to real history/derived where possible;
-   **onboarding input validation** (disable Continue until name/email valid).
+6. **Feature completeness (phase-2 backlog)** — `notif` persists ✅; score history
+   feeds Home trend + week delta ✅; **editable protein + calorie targets** flow
+   into scoring + Nutrition ✅ (Profile → Edit; persisted, clamped, survive
+   rollover); **onboarding name/email validation** gates Continue ✅. Still open:
+   editable **weight** target (the 184 lb season goal is hardcoded in Home/CheckIn/
+   ParentView — make it one source of truth, then editable); **Parent & Coach trend
+   charts** still hardcoded SVG/arrays (Weekly Compliance 86%, NUTRI_BARS, Coach
+   KPIs 84/88%/2) — wire to real history/derived where possible.
 7. **Test safety net** — ✅ recommendation/leaderboard/content + store-level
    addMeal/toggleTask/addWater/submitCi score-movement tests exist; `npm run
    verify` green. 165 tests. (Optional: a smoke test for the Ring web-shim.)
