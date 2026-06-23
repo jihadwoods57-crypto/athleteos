@@ -2,6 +2,8 @@
 // Ported verbatim from AthleteOS.dc.html renderVals() / gradeFor().
 import {
   CAL_TARGET,
+  CARB_TARGET,
+  FAT_TARGET,
   MEAL_MACROS,
   PROTEIN_TARGET,
   QUICK_FOODS,
@@ -46,13 +48,19 @@ export function computeDerived(s: AppState): Derived {
 
   const quickGrams = QUICK_FOODS.reduce((a, f, i) => a + (s.quickAdded[i] ? f.g : 0), 0);
   const quickKcal = QUICK_FOODS.reduce((a, f, i) => a + (s.quickAdded[i] ? f.k : 0), 0);
+  const quickCarbs = QUICK_FOODS.reduce((a, f, i) => a + (s.quickAdded[i] ? f.c : 0), 0);
+  const quickFat = QUICK_FOODS.reduce((a, f, i) => a + (s.quickAdded[i] ? f.f : 0), 0);
 
   let proteinBase = 0;
   let kcalBase = 0;
+  let carbsBase = 0;
+  let fatBase = 0;
   mealKeys.forEach((k) => {
     if (s.meals[k]) {
       proteinBase += MEAL_MACROS[k].p;
       kcalBase += MEAL_MACROS[k].k;
+      carbsBase += MEAL_MACROS[k].c;
+      fatBase += MEAL_MACROS[k].f;
     }
   });
 
@@ -63,6 +71,10 @@ export function computeDerived(s: AppState): Derived {
 
   const proteinToday = proteinBase + quickGrams;
   const kcalToday = kcalBase + quickKcal;
+  const carbsToday = carbsBase + quickCarbs;
+  const fatToday = fatBase + quickFat;
+  const carbPct = clamp(Math.round((carbsToday / CARB_TARGET) * 100), 0, 100);
+  const fatPct = clamp(Math.round((fatToday / FAT_TARGET) * 100), 0, 100);
   const proteinGap = Math.max(0, proteinTarget - proteinToday);
   const proteinPct = Math.min(100, Math.round((proteinToday / proteinTarget) * 100));
   const hydrationPct = clamp(Math.round((s.hydrationL / HYDRATION_TARGET) * 100), 0, 100);
@@ -153,6 +165,12 @@ export function computeDerived(s: AppState): Derived {
     proteinRingOffset,
     kcalToday,
     calTarget,
+    carbsToday,
+    carbTarget: CARB_TARGET,
+    carbPct,
+    fatToday,
+    fatTarget: FAT_TARGET,
+    fatPct,
     mealsLoggedCount,
     hydrationPct,
     tasksDone,

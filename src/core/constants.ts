@@ -6,6 +6,10 @@ export const APP_VERSION = 'v1.0';
 
 export const PROTEIN_TARGET = 180;
 export const CAL_TARGET = 3200;
+/** Daily carb + fat targets (g) for the Nutrition macro rings. Not athlete-editable
+ *  (protein + calories carry the scoring); shown so all three rings read live. */
+export const CARB_TARGET = 300;
+export const FAT_TARGET = 80;
 export const HYDRATION_TARGET = 3.8; // liters (≈1 gallon)
 
 /** Season weight goal anchors. WEIGHT_START is the (historical) starting weight
@@ -13,19 +17,22 @@ export const HYDRATION_TARGET = 3.8; // liters (≈1 gallon)
 export const WEIGHT_START = 171;
 export const WEIGHT_TARGET = 184;
 
-/** Per-meal macro contributions (protein g / kcal). */
-export const MEAL_MACROS: Record<MealKey, { p: number; k: number }> = {
-  breakfast: { p: 42, k: 520 },
-  lunch: { p: 51, k: 680 },
-  snack: { p: 49, k: 300 },
-  dinner: { p: 52, k: 680 },
+/** Per-meal macro contributions (protein g / kcal / carbs g / fat g). The carb +
+ *  fat grams are calorie-consistent with kcal (≈ 4·p + 4·c + 9·f) so the Macros
+ *  rings tell the same story as the calorie bar. */
+export const MEAL_MACROS: Record<MealKey, { p: number; k: number; c: number; f: number }> = {
+  breakfast: { p: 42, k: 520, c: 48, f: 16 },
+  lunch: { p: 51, k: 680, c: 62, f: 24 },
+  snack: { p: 49, k: 300, c: 12, f: 6 },
+  dinner: { p: 52, k: 680, c: 60, f: 25 },
 };
 
-/** AI quick-add foods on the Nutrition screen (index-aligned with quickAdded[]). */
+/** AI quick-add foods on the Nutrition screen (index-aligned with quickAdded[]).
+ *  g = protein grams; c/f = carb/fat grams (calorie-consistent with k). */
 export const QUICK_FOODS = [
-  { n: 'Greek yogurt cup', g: 18, k: 150 },
-  { n: 'Protein shake', g: 30, k: 160 },
-  { n: 'Turkey roll-ups', g: 22, k: 120 },
+  { n: 'Greek yogurt cup', g: 18, k: 150, c: 12, f: 4 },
+  { n: 'Protein shake', g: 30, k: 160, c: 6, f: 2 },
+  { n: 'Turkey roll-ups', g: 22, k: 120, c: 4, f: 2 },
 ];
 
 export const SPORTS = [

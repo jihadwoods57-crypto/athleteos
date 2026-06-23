@@ -189,6 +189,12 @@ export interface Derived {
   proteinRingOffset: number;
   kcalToday: number;
   calTarget: number;
+  carbsToday: number;
+  carbTarget: number;
+  carbPct: number;
+  fatToday: number;
+  fatTarget: number;
+  fatPct: number;
   mealsLoggedCount: number;
   // hydration / tasks
   hydrationPct: number;

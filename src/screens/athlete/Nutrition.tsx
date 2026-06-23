@@ -92,8 +92,8 @@ export function Nutrition() {
         </View>
         <Row style={{ justifyContent: 'space-around' }}>
           <MacroRing label="Protein" value={d.proteinToday} target={`/${d.proteinTarget}g`} pct={d.proteinPct} color={colors.accent} />
-          <MacroRing label="Carbs" value={210} target="/300g" pct={70} color={colors.hydration} />
-          <MacroRing label="Fat" value={58} target="/80g" pct={73} color="#8B5CF6" />
+          <MacroRing label="Carbs" value={d.carbsToday} target={`/${d.carbTarget}g`} pct={d.carbPct} color={colors.hydration} />
+          <MacroRing label="Fat" value={d.fatToday} target={`/${d.fatTarget}g`} pct={d.fatPct} color="#8B5CF6" />
         </Row>
       </Card>
 
