@@ -1,9 +1,21 @@
 // AthleteOS — animated SVG progress ring (score hero + macro rings).
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, View } from 'react-native';
+import { Animated, Easing, Platform, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+// react-native-web's Animated forces `collapsable: false` onto every animated
+// component's props (a native view-flattening hint). react-native-svg forwards
+// unknown props straight to the DOM <circle>, so on web that leaks an invalid
+// `collapsable` attribute and trips a noisy React DOM dev warning. Strip it on
+// web only; native keeps the raw Circle so its behavior is unchanged.
+const RingCircle =
+  Platform.OS === 'web'
+    ? React.forwardRef<any, any>(({ collapsable, ...rest }, ref) => (
+        <Circle ref={ref} {...rest} />
+      ))
+    : Circle;
+
+const AnimatedCircle = Animated.createAnimatedComponent(RingCircle as typeof Circle);
 
 export function Ring({
   size = 138,
