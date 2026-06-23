@@ -2,6 +2,67 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+## 2026-06-23 (run 9) — Dynamic Type ceiling so big system fonts can't break fixed chrome
+
+One code commit, all three gates green on the verified tree (`tsc --noEmit`
+clean, jest **240 passing** — never dropped, `expo export -p ios` bundles).
+Router untouched (app/_layout + app/index, no src/app). Phase-2 Supabase
+scaffold not touched. This run closes the last open accessibility item flagged
+on the run-7/8 checklist (Definition of Done item 5: "tolerate larger system
+font sizes without clipping — score hero + KPI rows").
+
+- **feat(a11y): cap Dynamic Type on fixed-geometry text so it can't spill.**
+  The OS "larger text" / Dynamic Type setting (up to ~3x on iOS/Android) scaled
+  ALL app text unbounded, including text that lives in **non-reflowing**
+  containers: the 48px score numeral inside the fixed 138px score ring, the
+  three 84px Nutrition macro-ring numerals, the 58px primary buttons, the ±
+  steppers, avatars, pills, inputs, and the fixed bottom tab-bar labels. At
+  large settings those would overflow their geometry and break the layout
+  (the score number spilling out of its ring, tab labels wrapping/clipping).
+  Added a single tokenized `MAX_FONT_SCALE` (1.3) and applied it via React
+  Native's `maxFontSizeMultiplier` at exactly those fixed-geometry spots —
+  driven from the **shared primitives** (`Btn`/`Input`/`Stepper`/`Avatar`/
+  `Pill` in `src/ui/primitives.tsx`) so the cap propagates app-wide, plus the
+  athlete tab labels (`AthleteApp.tsx`) and the Home score hero + grade chip
+  and the Nutrition macro-ring numerals. **Body text inside scrollable cards is
+  left uncapped on purpose** so it can still scale to the WCAG 1.4.4 200%
+  target (cards reflow and the screen scrolls — only the truly fixed chrome is
+  bounded). At the default font size nothing changes; native scaling below the
+  cap is unchanged. No store/scoring/layout change.
+  - *No new unit test:* the cap is a render-time RN prop and this repo's jest is
+    node-env pure-core only (no react-native-render harness; `tokens.ts` imports
+    `react-native` so it can't be imported under the core test env). Verified
+    via typecheck (prop types) + the existing 240-test suite + the iOS bundle.
+
+### For the founder (QC this run with a device pass)
+- Turn iOS/Android system font size up to the largest accessibility setting:
+  the **Home score number stays inside its ring** (instead of spilling out),
+  the **Nutrition Carbs/Protein/Fat ring numbers stay inside their rings**, the
+  **bottom tab labels** (Home/Plan/Squad/Check-In) stay on one line, and primary
+  buttons / ± steppers / avatars don't blow out. Body copy in the cards still
+  grows for readability (those scroll). At the normal font size the app looks
+  identical to before.
+- All deterministic + offline (no Supabase touched).
+
+### Founder / ops note — BLOCKED on landing to `master` this run (action may be needed)
+The verified commit **`f954d5e`** is safe on GitHub as branch
+**`nightshift-probe`** (the local git relay accepts non-master branch pushes),
+but it is **not yet on `master`**:
+- `git push origin master` is rejected by the local relay as "non-fast-forward"
+  even though `f954d5e`'s parent IS the live `origin/master` (369f155) — i.e. a
+  genuine fast-forward. The relay blocks direct `master` writes (prior runs hit
+  the same wall and landed via the GitHub API instead).
+- The GitHub API fallback that previous runs used is **down this session**:
+  every MCP write POST (`push_files`, `create_or_update_file`, regardless of
+  payload size) returns `upstream connect error … reset reason: overflow`,
+  while GitHub **reads** (`list_commits`, etc.) succeed. The agent proxy reports
+  healthy (no relay failures), so this is the GitHub MCP write upstream, not the
+  egress proxy.
+- **To land this run:** merge `nightshift-probe` into `master` (it is exactly
+  `master` + this one commit — a clean fast-forward), or re-run once the GitHub
+  MCP write path recovers. Nothing is lost; the work is committed, pushed to the
+  branch, and gate-verified.
+
 ## 2026-06-23 (run 8) — Nutrition Carbs + Fat macro rings go live (last static numbers on the screen)
 
 One code commit + this log, all three gates green on the pushed tree
@@ -425,8 +486,12 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    **Contrast ✅ (run 7):** the stray `#CBD5E1` *readable text* (Profile +
    Account footers, the Nutrition Macros "/ cal" label) failed WCAG AA at
    ~1.48:1 and now uses `textSecondary` (4.76:1); a pure `core/contrast.ts` guard
-   test locks the faint-text palette above AA. Remaining: test large system font
-   sizes for clipping (Dynamic Type) on the score hero + KPI rows. (Note:
+   test locks the faint-text palette above AA. **Dynamic Type ✅ (run 9):** a
+   tokenized `MAX_FONT_SCALE` (1.3) now caps `maxFontSizeMultiplier` on the
+   fixed-geometry chrome (score + macro ring numerals, tab labels, Btn/Input/
+   Stepper/Avatar/Pill) so large OS font sizes can't spill the score hero out of
+   its ring or break the tab bar; body text in scrollable cards is left uncapped
+   to keep the WCAG 1.4.4 200% headroom. (Note:
    `textTertiary` #94A3B8 at 2.56:1 still under-shoots AA for *normal* text where
    it's used for small captions/labels — a possible follow-up, though much of it
    is ≥14px-bold "large" or non-essential metadata; not a hard fail like the
