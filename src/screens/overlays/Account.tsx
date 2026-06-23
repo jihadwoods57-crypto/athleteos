@@ -1,10 +1,11 @@
 // AthleteOS — Account overlay (role chrome ☰ → here). Sign out → onboarding.
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useStore } from '@/store';
+import { accountRows, APP_VERSION, type AccountRow } from '@/core';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
-import { Icon } from '@/icons';
+import { haptics } from '@/ui/haptics';
 import { Overlay } from './Overlay';
 
 const ACCT_BY_ROLE: Record<string, { name: string; role: string; initials: string }> = {
@@ -16,6 +17,9 @@ const ACCT_BY_ROLE: Record<string, { name: string; role: string; initials: strin
 export function Account() {
   const s = useStore();
   const acct = ACCT_BY_ROLE[s.role ?? ''] ?? { name: s.athleteName || 'Jihad Carter', role: 'Athlete · Eastside HS', initials: 'JC' };
+  const rows = accountRows(s.role);
+  // Accordion: at most one disclosure open at a time.
+  const [openKey, setOpenKey] = useState<string | null>(null);
 
   return (
     <Overlay title="Account" onClose={s.closeAccount}>
@@ -48,9 +52,15 @@ export function Account() {
             </View>
             <Toggle on={s.notif} onPress={s.toggleNotif} label="Notifications" />
           </Row>
-          <SettingRow label="Team & roster" value="Manage ›" border />
-          <SettingRow label="Billing & plan" value="›" border />
-          <SettingRow label="Help & support" value="›" />
+          {rows.map((row, i) => (
+            <DisclosureRow
+              key={row.key}
+              row={row}
+              open={openKey === row.key}
+              onToggle={() => setOpenKey((k) => (k === row.key ? null : row.key))}
+              border={i < rows.length - 1}
+            />
+          ))}
         </Card>
 
         <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
@@ -59,22 +69,55 @@ export function Account() {
           </Txt>
         </Pressable>
         <Txt w="sb" size={12} color="#CBD5E1" style={{ textAlign: 'center', marginTop: 16 }}>
-          AthleteOS · v1.0
+          AthleteOS · {APP_VERSION}
         </Txt>
       </ScrollView>
     </Overlay>
   );
 }
 
-function SettingRow({ label, value, border }: { label: string; value: string; border?: boolean }) {
+function DisclosureRow({
+  row,
+  open,
+  onToggle,
+  border,
+}: {
+  row: AccountRow;
+  open: boolean;
+  onToggle: () => void;
+  border?: boolean;
+}) {
   return (
-    <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: border ? 1 : 0, borderBottomColor: colors.border }}>
-      <Txt w="b" size={15}>
-        {label}
-      </Txt>
-      <Txt w="sb" size={14} color={colors.textSecondary}>
-        {value}
-      </Txt>
-    </Row>
+    <View style={{ borderBottomWidth: border ? 1 : 0, borderBottomColor: colors.border }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${row.label}, ${row.hint}`}
+        accessibilityState={{ expanded: open }}
+        onPress={() => {
+          haptics.select();
+          onToggle();
+        }}
+        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+      >
+        <Row style={{ justifyContent: 'space-between', paddingVertical: 15 }}>
+          <Txt w="b" size={15}>
+            {row.label}
+          </Txt>
+          <Row style={{ gap: 8 }}>
+            <Txt w="sb" size={14} color={colors.textSecondary}>
+              {row.hint}
+            </Txt>
+            <Txt w="b" size={15} color={colors.textTertiary} style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
+              ›
+            </Txt>
+          </Row>
+        </Row>
+      </Pressable>
+      {open ? (
+        <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19, paddingBottom: 15, paddingRight: 8 }}>
+          {row.detail}
+        </Txt>
+      ) : null}
+    </View>
   );
 }

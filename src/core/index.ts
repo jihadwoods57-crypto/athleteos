@@ -9,6 +9,7 @@ export * from './content';
 export * from './units';
 export * from './history';
 export * from './person';
+export * from './account';
 export * from './validate';
 export * from './dayRollover';
 export { createInitialState } from './defaultState';

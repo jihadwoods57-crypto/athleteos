@@ -1,6 +1,9 @@
 // AthleteOS — domain constants, ported verbatim from the prototype.
 import type { BaseGoal, LeaderRow, MealKey } from './types';
 
+/** App version string, surfaced in Account / Profile footers + Help row. */
+export const APP_VERSION = 'v1.0';
+
 export const PROTEIN_TARGET = 180;
 export const CAL_TARGET = 3200;
 export const HYDRATION_TARGET = 3.8; // liters (≈1 gallon)
