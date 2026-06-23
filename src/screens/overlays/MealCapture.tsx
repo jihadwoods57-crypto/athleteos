@@ -6,6 +6,7 @@ import type { MealLabel } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
@@ -85,7 +86,13 @@ function CaptureControls() {
           return (
             <Pressable
               key={m}
-              onPress={() => s.setMealType(m)}
+              accessibilityRole="button"
+              accessibilityLabel={`Meal type: ${m}`}
+              accessibilityState={{ selected: active }}
+              onPress={() => {
+                haptics.select();
+                s.setMealType(m);
+              }}
               style={[
                 { flex: 1, paddingVertical: 11, borderRadius: 12, alignItems: 'center', backgroundColor: active ? colors.accent : '#fff' },
                 active ? undefined : shadow.card,
@@ -103,7 +110,15 @@ function CaptureControls() {
         <View style={[{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
           <Icon name="gallery" size={20} color={colors.textSecondary} />
         </View>
-        <Pressable onPress={s.capture} style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: colors.accent, padding: 5 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Capture meal photo"
+          onPress={() => {
+            haptics.tap();
+            s.capture();
+          }}
+          style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: colors.accent, padding: 5 }}
+        >
           <View style={{ flex: 1, borderRadius: 30, backgroundColor: colors.accent }} />
         </Pressable>
         <View style={[{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
@@ -233,7 +248,7 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           </View>
         </View>
       </View>
-      <Btn label="Add to Log" onPress={onAdd} style={{ marginTop: 18 }} />
+      <Btn label="Add to Log" haptic="success" onPress={onAdd} style={{ marginTop: 18 }} />
     </View>
   );
 }

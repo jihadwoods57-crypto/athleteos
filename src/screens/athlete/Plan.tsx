@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 
 export function Plan() {
@@ -48,7 +49,16 @@ export function Plan() {
                 {t.group}
               </Txt>
             ) : null}
-            <Pressable onPress={() => toggleTask(t.id)} style={[{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#fff', borderRadius: 16, padding: 16 }, shadow.card]}>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: t.done }}
+              accessibilityLabel={`${t.title}${t.done ? ', completed' : ''}`}
+              onPress={() => {
+                haptics[t.done ? 'tap' : 'success']();
+                toggleTask(t.id);
+              }}
+              style={[{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#fff', borderRadius: 16, padding: 16 }, shadow.card]}
+            >
               <View
                 style={{
                   width: 26,

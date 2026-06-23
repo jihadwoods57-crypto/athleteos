@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, font, radius, shadow, space } from './tokens';
+import { haptics } from './haptics';
 
 type Weight = keyof typeof font;
 
@@ -95,6 +96,7 @@ export function Btn({
   variant = 'primary',
   disabled,
   loading,
+  haptic = 'tap',
   style,
 }: {
   label: string;
@@ -102,12 +104,20 @@ export function Btn({
   variant?: 'primary' | 'secondary';
   disabled?: boolean;
   loading?: boolean;
+  /** Tactile intent fired on press (native only). Use 'success' on goal-completing CTAs. */
+  haptic?: 'tap' | 'success' | 'none';
   style?: StyleProp<ViewStyle>;
 }) {
   const primary = variant === 'primary';
   return (
     <Pressable
-      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
+      onPress={() => {
+        if (haptic !== 'none') haptics[haptic]();
+        onPress?.();
+      }}
       disabled={disabled || loading}
       style={({ pressed }) => [
         {
@@ -176,7 +186,13 @@ export function Chip({
 }) {
   return (
     <Pressable
-      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: !!active }}
+      onPress={() => {
+        haptics.select();
+        onPress?.();
+      }}
       style={({ pressed }) => [
         {
           paddingHorizontal: 17,
@@ -238,7 +254,12 @@ export function Stepper({
 function StepBtn({ glyph, onPress }: { glyph: string; onPress: () => void }) {
   return (
     <Pressable
-      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={glyph === '+' ? 'Increase' : 'Decrease'}
+      onPress={() => {
+        haptics.select();
+        onPress();
+      }}
       style={({ pressed }) => ({
         width: 38,
         height: 38,
@@ -257,10 +278,16 @@ function StepBtn({ glyph, onPress }: { glyph: string; onPress: () => void }) {
 }
 
 /** Pill toggle switch. */
-export function Toggle({ on, onPress }: { on: boolean; onPress: () => void }) {
+export function Toggle({ on, onPress, label }: { on: boolean; onPress: () => void; label?: string }) {
   return (
     <Pressable
-      onPress={onPress}
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: on }}
+      onPress={() => {
+        haptics.select();
+        onPress();
+      }}
       style={{
         width: 46,
         height: 28,

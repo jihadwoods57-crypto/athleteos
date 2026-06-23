@@ -8,6 +8,7 @@ import { CHECKIN_QUESTIONS } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Slider } from '@/ui/Slider';
 
@@ -163,14 +164,22 @@ export function CheckIn() {
         </Txt>
       </Card>
 
-      <Btn label="Submit Check-In" onPress={s.submitCi} style={{ marginTop: 18 }} />
+      <Btn label="Submit Check-In" haptic="success" onPress={s.submitCi} style={{ marginTop: 18 }} />
     </ScrollView>
   );
 }
 
 function BigStep({ glyph, onPress }: { glyph: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={glyph === '+' ? 'Increase weight' : 'Decrease weight'}
+      onPress={() => {
+        haptics.select();
+        onPress();
+      }}
+      style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}
+    >
       <Txt w="b" size={24} color={colors.slate700}>
         {glyph}
       </Txt>
