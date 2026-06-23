@@ -2,6 +2,35 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+## 2026-06-23 (run 5) — the Trainer portal header goes data-driven
+
+One commit, all three gates green (`tsc --noEmit`, jest, `expo export -p ios`).
+Test count 203 → **206** (never dropped). Router untouched (app/_layout +
+app/index, no src/app). Phase-2 Supabase scaffold not touched. This run closed
+the last open item from the run-3 Coach-KPI pattern: the **Trainer View** still
+had hardcoded header numbers that contradicted the client list below.
+
+- **feat(trainer): derive the Trainer book KPIs from the live client list.** The
+  Trainer header showed `12 CLIENTS`, `84% AVG COMPLY`, a `12 active` count, a
+  Book Compliance headline of `84%`, and an AI-summary "84% average compliance"
+  — all fixed literals — while `TRAINER_CLIENTS` holds **five** real clients, so
+  the header drifted from the roster and never moved. New pure
+  `trainerBookKpis(clients)` (count, mean compliance, count below
+  `COACH_ALERT_THRESHOLD`) mirrors `coachRosterKpis`; `TrainerView` now renders
+  the CLIENTS count, the AVG COMPLY KPI, the "N active" count, the Book
+  Compliance headline, and the AI summary's compliance figure from that one
+  source. The honest fixture now reads **5 clients / 83% compliance** (was the
+  cosmetic 12 / 84%). RETENTION stays a presentation constant (no per-row
+  source). +3 tests.
+
+### For the founder (QC this run)
+- **Trainer view** — the three header KPIs now read **5 CLIENTS · 83% AVG
+  COMPLY · 92% RETENTION**, the client section subtitle reads "5 active", the
+  Book Compliance card headline reads 83%, and the AI Practice Summary opens
+  "Your book is healthy — 83% average compliance" — all consistent with the five
+  clients listed below and impossible to drift apart. No data to wire up;
+  deterministic + offline (no Supabase touched).
+
 ## 2026-06-23 (run 4) — the Parent portal goes fully data-driven (no static charts)
 
 Four commits, all three gates green every commit (`tsc --noEmit`, jest,
@@ -221,13 +250,18 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    Trend line + dashed goal (`weightSeries`/`weightTrendGeometry` on a new
    persisted `weightHistory`), and the Nutrition bars (`nutritionTrend` on a new
    persisted `nutritionHistory`) all derive from real history + today's live state.
-   Still open: the **Coach view** still has a static NEEDS ATTENTION list (Silva /
-   Cole are fixed mock athletes — the ROSTER is a fixture by design, so this is
-   "demo data", not a hardcoded chart) and a static AI team summary string; no
-   per-day chart remains on Coach. Trainer view not yet audited for static charts.
+   **The Trainer view header is now data-driven** ✅ (run 5): CLIENTS, AVG COMPLY,
+   the "N active" count, the Book Compliance headline, and the AI-summary
+   compliance figure all derive from `TRAINER_CLIENTS` via `trainerBookKpis`.
+   Still open: the **Coach view** has a static NEEDS ATTENTION list and a static
+   AI team summary string, and the **Trainer view** keeps a curated NEEDS
+   FOLLOW-UP list (Silva / Cole) + a demo Book Compliance trend SVG — all "demo
+   data" over fixed mock athletes by design, not hardcoded charts over real
+   state. No per-day chart remains on Coach or Trainer that contradicts live data.
 7. **Test safety net** — ✅ recommendation/leaderboard/content + store-level
    addMeal/toggleTask/addWater/submitCi score-movement tests exist; `npm run
-   verify` green. 165 tests. (Optional: a smoke test for the Ring web-shim.)
+   verify` green. **206 tests** (run 5 added `trainerBookKpis` coverage).
+   (Optional: a smoke test for the Ring web-shim.)
 8. **No dead UI** — Account Notifications now live ✅. Remaining static/no-op
    affordances: Account "Team & roster / Billing / Help" rows and the Profile
    "Units" row show a "›" but have no destination (they are non-interactive
