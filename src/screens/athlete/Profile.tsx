@@ -3,7 +3,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { athleteSubtitle, computeDerived } from '@/core';
+import { athleteSubtitle, computeDerived, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
@@ -64,27 +64,36 @@ export function Profile() {
           </Pressable>
         </Row>
         {editingTargets ? (
-          <Row style={{ gap: 10, alignItems: 'flex-start' }}>
+          <View style={{ gap: 12 }}>
+            <Row style={{ gap: 10, alignItems: 'flex-start' }}>
+              <Stepper
+                label="Protein"
+                unit="g / day"
+                value={`${d.proteinTarget}g`}
+                onDec={() => s.adjustProteinTarget(-10)}
+                onInc={() => s.adjustProteinTarget(10)}
+              />
+              <Stepper
+                label="Calories"
+                unit="kcal / day"
+                value={d.calTarget.toLocaleString()}
+                onDec={() => s.adjustCalTarget(-50)}
+                onInc={() => s.adjustCalTarget(50)}
+              />
+            </Row>
             <Stepper
-              label="Protein"
-              unit="g / day"
-              value={`${d.proteinTarget}g`}
-              onDec={() => s.adjustProteinTarget(-10)}
-              onInc={() => s.adjustProteinTarget(10)}
+              label="Weight"
+              unit="lb season goal"
+              value={`${s.weightTarget ?? WEIGHT_TARGET}`}
+              onDec={() => s.adjustWeightTarget(-1)}
+              onInc={() => s.adjustWeightTarget(1)}
             />
-            <Stepper
-              label="Calories"
-              unit="kcal / day"
-              value={d.calTarget.toLocaleString()}
-              onDec={() => s.adjustCalTarget(-50)}
-              onInc={() => s.adjustCalTarget(50)}
-            />
-          </Row>
+          </View>
         ) : (
           <Row style={{ gap: 10 }}>
             <TargetTile value={`${d.proteinTarget}g`} label="PROTEIN" />
             <TargetTile value={d.calTarget.toLocaleString()} label="CALORIES" />
-            <TargetTile value="184lb" label="WEIGHT" />
+            <TargetTile value={`${s.weightTarget ?? WEIGHT_TARGET}lb`} label="WEIGHT" />
           </Row>
         )}
         <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 14 }}>

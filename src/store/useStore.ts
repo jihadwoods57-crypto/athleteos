@@ -11,6 +11,7 @@ import {
   PROTEIN_TARGET,
   QUICK_FOODS,
   recordDayScore,
+  WEIGHT_TARGET,
   rollDayIfStale,
   todayStamp,
 } from '@/core';
@@ -66,6 +67,7 @@ export interface Actions {
   goalStep: (d: number) => void;
   adjustProteinTarget: (d: number) => void;
   adjustCalTarget: (d: number) => void;
+  adjustWeightTarget: (d: number) => void;
   signOut: () => void;
 
   // overlays
@@ -188,6 +190,8 @@ export const useStore = create<Store>()(
           return { proteinTarget, tasks };
         }),
       adjustCalTarget: (d) => set((s) => ({ calTarget: clamp(s.calTarget + d, 1200, 6000) })),
+      adjustWeightTarget: (d) =>
+        set((s) => ({ weightTarget: clamp((s.weightTarget ?? WEIGHT_TARGET) + d, 120, 350) })),
       signOut: () => set({ flow: 'onboarding', obStep: 0, role: null, accountOpen: false }),
 
       // ---- overlays ----
@@ -294,6 +298,7 @@ export const useStore = create<Store>()(
         weeklyGoalLb: s.weeklyGoalLb,
         proteinTarget: s.proteinTarget,
         calTarget: s.calTarget,
+        weightTarget: s.weightTarget,
         compMode: s.compMode,
         goals: s.goals,
         inviteWho: s.inviteWho,

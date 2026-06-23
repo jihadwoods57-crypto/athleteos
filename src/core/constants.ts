@@ -5,6 +5,11 @@ export const PROTEIN_TARGET = 180;
 export const CAL_TARGET = 3200;
 export const HYDRATION_TARGET = 3.8; // liters (≈1 gallon)
 
+/** Season weight goal anchors. WEIGHT_START is the (historical) starting weight
+ *  the progress bar measures from; WEIGHT_TARGET is the athlete-editable goal. */
+export const WEIGHT_START = 171;
+export const WEIGHT_TARGET = 184;
+
 /** Per-meal macro contributions (protein g / kcal). */
 export const MEAL_MACROS: Record<MealKey, { p: number; k: number }> = {
   breakfast: { p: 42, k: 520 },

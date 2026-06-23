@@ -11,6 +11,8 @@ import {
   HYDRATION_TARGET,
   recentDayLabels,
   seasonGoalProgress,
+  WEIGHT_START,
+  WEIGHT_TARGET,
   trendGeometry,
   trendSeries,
   trendSummary,
@@ -33,9 +35,9 @@ export function Home() {
   const trend = trendSummary(series);
   const dayLabels = recentDayLabels(series.length);
 
-  // Season weight goal — fixed anchors, live current weight.
-  const START = 171;
-  const TARGET = 184;
+  // Season weight goal — fixed start anchor, athlete-editable target, live weight.
+  const START = WEIGHT_START;
+  const TARGET = s.weightTarget ?? WEIGHT_TARGET;
   const goal = seasonGoalProgress(s.currentWeight, START, TARGET);
 
   // Reactive score-hero status line + standing badge (pure-core helper). Tone
@@ -128,7 +130,7 @@ export function Home() {
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
           <View>
             <Txt w="eb" size={29} ls={-0.9}>
-              184 lb
+              {TARGET} lb
               <Txt w="b" size={15} color={colors.textTertiary}>
                 {' '}
                 target

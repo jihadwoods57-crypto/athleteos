@@ -7,7 +7,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStore } from './useStore';
-import { computeDerived } from '@/core';
+import { computeDerived, seasonGoalProgress, WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { createInitialState } from '@/core/defaultState';
 import { todayStamp } from '@/core/dayRollover';
 import type { AppState } from '@/core/types';
@@ -202,6 +202,38 @@ describe('editable nutrition targets', () => {
     expect(useStore.getState().calTarget).toBe(6000);
     for (let i = 0; i < 300; i++) useStore.getState().adjustCalTarget(-50);
     expect(useStore.getState().calTarget).toBe(1200);
+  });
+});
+
+describe('editable season weight target', () => {
+  it('defaults to the WEIGHT_TARGET constant', () => {
+    expect(useStore.getState().weightTarget).toBe(WEIGHT_TARGET);
+  });
+
+  it('lowering the weight target raises season-goal progress and shrinks "to go"', () => {
+    const w = useStore.getState().currentWeight;
+    const before = seasonGoalProgress(w, WEIGHT_START, useStore.getState().weightTarget);
+
+    useStore.getState().adjustWeightTarget(-4); // 184 -> 180, closer to current weight
+    expect(useStore.getState().weightTarget).toBe(180);
+
+    const after = seasonGoalProgress(w, WEIGHT_START, useStore.getState().weightTarget);
+    expect(after.remaining).toBeLessThan(before.remaining);
+    expect(after.pctThere).toBeGreaterThan(before.pctThere);
+  });
+
+  it('clamps the weight target to [120, 350]', () => {
+    for (let i = 0; i < 400; i++) useStore.getState().adjustWeightTarget(-1);
+    expect(useStore.getState().weightTarget).toBe(120);
+    for (let i = 0; i < 400; i++) useStore.getState().adjustWeightTarget(1);
+    expect(useStore.getState().weightTarget).toBe(350);
+  });
+
+  it('falls back to the constant for a legacy blob with no weightTarget', () => {
+    // Action must not produce NaN when the persisted state predates the field.
+    useStore.setState({ weightTarget: undefined as unknown as number });
+    useStore.getState().adjustWeightTarget(2);
+    expect(useStore.getState().weightTarget).toBe(WEIGHT_TARGET + 2);
   });
 });
 

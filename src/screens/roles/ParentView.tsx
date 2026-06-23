@@ -4,6 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
+import { WEIGHT_TARGET } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -138,7 +139,7 @@ export function ParentView() {
                   Weight Trend
                 </Txt>
                 <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
-                  8-week build · goal 184 lb
+                  8-week build · goal {s.weightTarget ?? WEIGHT_TARGET} lb
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end' }}>

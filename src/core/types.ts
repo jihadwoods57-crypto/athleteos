@@ -110,6 +110,10 @@ export interface AppState {
    *  Nutrition/Profile screens; default to the PROTEIN_TARGET/CAL_TARGET constants. */
   proteinTarget: number;
   calTarget: number;
+  /** Athlete-editable season weight goal (lb). Single source of truth for the
+   *  Home season-goal card, Check-In + Parent weight trends, and Profile.
+   *  Defaults to the WEIGHT_TARGET constant. */
+  weightTarget: number;
   visibility: string;
   notif: boolean;
   mealDesc: string;

@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
-import { CHECKIN_QUESTIONS } from '@/core';
+import { CHECKIN_QUESTIONS, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -104,7 +104,7 @@ export function CheckIn() {
               Weight Trend
             </Txt>
             <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
-              8-week build · goal 184 lb
+              8-week build · goal {s.weightTarget ?? WEIGHT_TARGET} lb
             </Txt>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -129,7 +129,7 @@ export function CheckIn() {
           </Defs>
           <Line x1="0" y1="25" x2="322" y2="25" stroke="#22C55E" strokeWidth="1.5" strokeDasharray="5 5" strokeOpacity="0.5" />
           <SvgText x="4" y="19" fontSize="10" fontWeight="700" fill="#22C55E">
-            Goal 184
+            Goal {s.weightTarget ?? WEIGHT_TARGET}
           </SvgText>
           <Path d="M12,68 L62,65 L111,61 L161,58 L211,51 L260,48 L310,45 L310,96 L12,96 Z" fill="url(#ciw)" />
           <Path d="M12,68 L62,65 L111,61 L161,58 L211,51 L260,48 L310,45" fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
