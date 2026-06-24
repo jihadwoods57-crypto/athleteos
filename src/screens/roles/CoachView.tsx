@@ -3,7 +3,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, gradeFor, needsAttention, rankByRisk, trendInfo } from '@/core';
+import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, coachTeamTitle, gradeFor, needsAttention, rankByRisk, trendInfo } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
@@ -23,6 +23,10 @@ export function CoachView() {
   // derived reason), so the list length matches the ALERTS KPI and the live
   // athlete shows up here the moment their own score drops below the line.
   const attention = needsAttention(roster);
+  // The header title: the seeded demo keeps "Linebackers · Varsity"; a real coach
+  // gets their own onboarding context (school, else sport) so they never see
+  // another team's name.
+  const teamTitle = coachTeamTitle({ isReal: s.athleteName.trim().length > 0, sport: s.obMeta.sport, school: s.obMeta.school });
   const rosterMeta: Record<string, { initials: string; pos: string; comp: number }> = Object.fromEntries(
     roster.map((r) => [r.name, { initials: r.initials, pos: r.pos, comp: r.comp }]),
   );
@@ -40,7 +44,7 @@ export function CoachView() {
                 Coach Dashboard
               </Txt>
               <Txt w="eb" size={21} ls={-0.3}>
-                Linebackers · Varsity
+                {teamTitle}
               </Txt>
             </View>
           </Row>

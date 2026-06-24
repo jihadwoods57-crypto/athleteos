@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, needsAttention, rankByRisk, trainerBookKpis } from '@/core';
+import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, initials, needsAttention, rankByRisk, trainerBookKpis, trainerOrgTitle } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -21,6 +21,12 @@ export function TrainerView() {
   // badge count always equals the rows shown and only REAL clients can appear
   // (the old list hand-named a client who was not in the book at all).
   const followUps = needsAttention(TRAINER_CLIENTS);
+  // Header identity: the seeded demo keeps the showcase gym + "MA"; a real trainer
+  // gets a neutral practice label (no business name is collected) and their own
+  // initials, so neither leaks another trainer's brand.
+  const isReal = s.athleteName.trim().length > 0;
+  const orgTitle = trainerOrgTitle(isReal);
+  const monogram = initials(s.athleteName, 'MA');
   const clientByName: Record<string, (typeof TRAINER_CLIENTS)[number]> = Object.fromEntries(
     TRAINER_CLIENTS.map((c) => [c.name, c]),
   );
@@ -36,7 +42,7 @@ export function TrainerView() {
               </Pressable>
               <View>
                 <Txt w="sb" size={13} color={colors.textSecondary}>
-                  Apex Performance
+                  {orgTitle}
                 </Txt>
                 <Txt w="eb" size={21} ls={-0.3}>
                   Your Clients
@@ -45,7 +51,7 @@ export function TrainerView() {
             </Row>
             <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.trainer, alignItems: 'center', justifyContent: 'center' }}>
               <Txt w="b" size={15} color="#fff">
-                MA
+                {monogram}
               </Txt>
             </View>
           </Row>

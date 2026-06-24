@@ -1,6 +1,6 @@
 // AthleteOS — identity helpers. The avatar monogram + you-row name derive from
 // the live athleteName, so pin the name-parsing edge cases.
-import { firstName, initials, monitoredAthlete } from './identity';
+import { coachTeamTitle, firstName, initials, monitoredAthlete, trainerOrgTitle } from './identity';
 
 describe('initials', () => {
   it('takes first + last initial of a full name, uppercased', () => {
@@ -71,5 +71,32 @@ describe('monitoredAthlete', () => {
     expect(m.name).toBe('Sam');
     expect(m.monogram).toBe('S');
     expect(m.isDemo).toBe(false);
+  });
+});
+
+describe('coachTeamTitle', () => {
+  it('keeps the seeded demo showcase title', () => {
+    expect(coachTeamTitle({ isReal: false, sport: 'Football', school: 'Lincoln' })).toBe('Linebackers · Varsity');
+  });
+
+  it('prefers a real coach\'s school, then sport', () => {
+    expect(coachTeamTitle({ isReal: true, sport: 'Football', school: 'Lincoln High' })).toBe('Lincoln High');
+    expect(coachTeamTitle({ isReal: true, sport: 'Soccer', school: '' })).toBe('Soccer');
+  });
+
+  it('falls back to a neutral title and tolerates non-string meta', () => {
+    expect(coachTeamTitle({ isReal: true })).toBe('Your Team');
+    expect(coachTeamTitle({ isReal: true, sport: ['x'], school: 0 })).toBe('Your Team');
+  });
+
+  it('never leaks the demo team to a real coach', () => {
+    expect(coachTeamTitle({ isReal: true, sport: 'Lacrosse' })).not.toContain('Linebackers');
+  });
+});
+
+describe('trainerOrgTitle', () => {
+  it('keeps the seeded demo gym, gives a real trainer a neutral practice label', () => {
+    expect(trainerOrgTitle(false)).toBe('Apex Performance');
+    expect(trainerOrgTitle(true)).toBe('Your Practice');
   });
 });

@@ -44,3 +44,25 @@ export function monitoredAthlete(metaName: unknown): {
   const name = isDemo ? 'Jihad' : entered;
   return { name, first: firstName(name, 'Jihad'), monogram: initials(name, 'J'), isDemo };
 }
+
+const asText = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+
+/**
+ * The team title on the Coach dashboard. The seeded demo keeps the showcase
+ * "Linebackers · Varsity"; a real coach gets their own onboarding context (their
+ * school, else the sport they train), so the header never hands them another
+ * team's name. Falls back to a neutral "Your Team" when neither is set.
+ */
+export function coachTeamTitle(opts: { isReal: boolean; sport?: unknown; school?: unknown }): string {
+  if (!opts.isReal) return 'Linebackers · Varsity';
+  return asText(opts.school) || asText(opts.sport) || 'Your Team';
+}
+
+/**
+ * The organization label on the Trainer dashboard. The seeded demo keeps the
+ * showcase gym "Apex Performance"; a real trainer (onboarding does not capture a
+ * business name) gets a neutral "Your Practice" rather than another trainer's gym.
+ */
+export function trainerOrgTitle(isReal: boolean): string {
+  return isReal ? 'Your Practice' : 'Apex Performance';
+}
