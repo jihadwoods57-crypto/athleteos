@@ -43,6 +43,116 @@ Newest entries at the top. Each entry = what shipped + anything the founder need
 
 ---
 
+# HONESTY & COPY PASS run (2026-06-24, continuation) - stop the demo data masquerading as real, fix trust-damaging copy
+
+Continues the series (does not restart). The app stays **APP COMPLETE** (header
+intact). This run acted ONLY on the SAFE, copy/labeling subset of the 7-persona
+review (`docs/PERSONA-REVIEW-2026-06-24.md`): it did NOT add features, build a
+backend, restyle the UI, or touch the Supabase/auth/AI seams. `src/core` stayed
+pure; no `src/app`.
+
+Ten commits, all three gates green on EVERY commit (`npm run typecheck` clean,
+`npm run test` went 522 -> **525** and never dropped, `expo export -p ios`
+bundles). Pushed after each. (Environment note: `@supabase/supabase-js` +
+`react-native-url-polyfill` were missing from the fresh `node_modules` and had
+to be installed with `--legacy-peer-deps` so `tsc` could resolve the inert
+Supabase scaffold; the scaffold itself was not modified.)
+
+The single loudest cross-persona complaint was "nothing on screen is real" -
+hardcoded showcase numbers shown as if live. The fix throughout is to LABEL the
+demo as sample (a new reusable `SampleTag` primitive), not delete it, so the
+showcase still demos while it stops lying about being the user's real data.
+
+Per-commit, newest last:
+
+1. **feat(honesty): label the seeded trainer book as sample** (`3ce791e`). New
+   `SampleTag` primitive (amber, reuses the grade-C tokens, no new tokens). On
+   the Trainer dashboard: a "Demo book, not your real clients" header line, a
+   Sample tag on the fabricated 92% RETENTION KPI and the +6% book-compliance
+   trend card, and a Sample tag on the AI PRACTICE SUMMARY. Addresses Marcus
+   "headline KPIs are fake (92% retention, +6% trend)".
+2. **feat(honesty): label the seeded coach roster + AI summary** (`80dd869`).
+   "Demo roster, not your real team" header line + a Sample tag on the AI TEAM
+   SUMMARY (the coach dashboard still runs on the seeded ROSTER). Addresses
+   Coach Tucker/Vance "seeded LB room he never entered".
+3. **feat(honesty): label PersonDetail's constant streak/weight + AI summary**
+   (`e3bfb05`). The "12 DAY STREAK" and "+7 WEIGHT delta" tiles are constants
+   identical for every athlete; added a Sample caption ("the same for every
+   athlete") + a Sample tag on the AI SUMMARY. COMPLIANCE (per-client) left
+   unmarked. Addresses Coach Reyes "same +7 lb delta and 12-day streak".
+4. **feat(honesty): label the seeded leaderboard + drop the surveillance
+   footer** (`0f99cea`). Sample tag on the demo Squad board caption, and the
+   guilt footer "Visible to Coach Davis · resets Sunday" became the neutral
+   "Sample leaderboard · resets Sunday". Addresses Jayden "surveillance dread".
+5. **fix(copy): cut invented retention stats + soften canned AI claims**
+   (`87de095`). Removed the made-up "recovers 70% of at-risk clients" and "up
+   6% this month"; replaced the coach summary's frozen "Recommend a 1-on-1
+   before Friday" (and its unfounded "recovery and check-in gaps, not nutrition"
+   attribution) and PersonDetail's "A 1-on-1 this week" with non-dated,
+   conditional phrasing. Addresses cross-agent "invented 70%", "frozen 1-on-1".
+6. **fix(copy): athlete-first check-in reminders** (`e62aa92`). Every "Your
+   coach is waiting on it" variant became the neutral "Your coach will see your
+   update" (guilt -> fact). Updated the two locked `content.test` assertions
+   (count unchanged). Addresses Jayden "feels like homework his coach grades".
+7. **fix(copy): match the welcome promise to what the app does** (`71c538c`).
+   "Let's build your development plan" -> "Let's build your nutrition routine";
+   the athlete role subtitle "Build your development plan" -> "Track nutrition,
+   stay accountable". Addresses Jayden/Marcus "development plan overpromises".
+8. **feat(honesty): label meal macros + quality as photo estimates**
+   (`3ad581d`). Prefixed macros with "~", added "Estimated from your meal photo,
+   not weighed. Portions may vary" under the macro rows on both the capture
+   result and MealDetail, captioned the Quality Breakdown as an estimate not a
+   lab value, and replaced the dead "Re-analyze" link with a plain "Estimated"
+   label. Copy/labeling only; no editing/recompute wired. Addresses Dana (RD)
+   "macros presented as measured, dead Re-analyze, no estimate/confidence".
+9. **feat(honesty): "What's in this score?" breakdown on Home** (`db25436`). A
+   tappable panel surfacing the EXISTING weights in plain language, read from a
+   new pure-core `SCORE_WEIGHTS` table that mirrors `computeDerived` exactly
+   (Nutrition 40, Recovery 20, Weight 20, Tasks 10, Check-in 10), honest that
+   recovery/check-in are self-reported and weight is a sample baseline. +3 tests
+   lock the table to the formula. Addresses "nobody could explain the score".
+10. **feat(honesty): label the parent dashboard as sample** (`c533cb9`). A
+    "Sample data, not yet linked to your athlete" header caption, since there is
+    no real parent->athlete link. Addresses Sharon "can't tell if it's her
+    child, a sample, or nothing real".
+
+Also confirmed already-shipped: the onboarding `trainingFreq` is already
+surfaced on Profile via `trainingCadence` (commit `287ee1d`), so the
+"collected-but-unused" persona note is closed; no action needed.
+
+## NEEDS YOU (out of scope for autonomous work - the big persona findings)
+
+These are the structural items the personas flagged that need a human + real
+infrastructure. They were deliberately NOT attempted (no backend, no restyle,
+no fabricated data); they are the gating work before a real beta:
+
+1. **Real invite -> roster -> athlete -> data pipeline.** Today coach/trainer/
+   parent dashboards run on seeded rosters (now labeled Sample) and the invite
+   code is the static `EAGLES24`. Without this the coach AND parent products do
+   not function. The single most-cited blocker.
+2. **Minor / student-athlete consent + data-governance layer** (consent
+   capture, athlete-controlled sharing, role-based visibility, FERPA/NCAA
+   posture). A hard gate for the parent persona and college/P5 procurement.
+3. **A defensible score with a real performance signal.** The Weight component
+   is still a hardcoded stub (`weightScore = 95` in `src/core/scoring.ts`); the
+   "What's in this score?" panel now discloses it as a sample baseline, but the
+   real fix is a real weigh-in/lift/sprint/readiness signal, or renaming the
+   "Athlete Score". 60-40% of the score is still self-report.
+4. **Real, editable meal analysis.** Macros/quality are now labeled estimates,
+   but the ± steppers and (removed) Re-analyze never recomputed and the analysis
+   does not actually read the photo (4-item lookup). Needs real vision + editable
+   foods/portions that recompute, with per-macro confidence.
+5. **A real coach/trainer action beyond a blind nudge** - an attachable message/
+   note + a documentation trail, not just a one-tap canned nudge.
+6. **Dashboard scale for real rosters** - position-group filters/segmentation,
+   search, a "who hasn't logged today" view, real empty states, and college
+   roster bands past "51+" (to ~85-110) with staff seats.
+7. **Per-persona first-class support** - non-athlete client book + goal-based
+   targets/voice for the personal trainer (not athlete-coded), and plan/target
+   authoring for the nutritionist.
+
+---
+
 # PRE-LAUNCH AUDIT + iOS APP STORE COMPLIANCE run (2026-06-24, continuation) — harden for submission, do NOT churn shipped features
 
 Continues the series (does not restart). The app stays **APP COMPLETE** (header
