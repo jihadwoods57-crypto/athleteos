@@ -1,6 +1,6 @@
 // AthleteOS — identity helpers. The avatar monogram + you-row name derive from
 // the live athleteName, so pin the name-parsing edge cases.
-import { firstName, initials } from './identity';
+import { firstName, initials, monitoredAthlete } from './identity';
 
 describe('initials', () => {
   it('takes first + last initial of a full name, uppercased', () => {
@@ -44,5 +44,32 @@ describe('firstName', () => {
     expect(firstName('', 'Jihad')).toBe('Jihad');
     expect(firstName(undefined, 'Jihad')).toBe('Jihad');
     expect(firstName('   ', 'Jihad')).toBe('Jihad');
+  });
+});
+
+describe('monitoredAthlete', () => {
+  it('uses the child name a real parent entered (name, first, monogram)', () => {
+    const m = monitoredAthlete('Jordan Reyes');
+    expect(m.name).toBe('Jordan Reyes');
+    expect(m.first).toBe('Jordan');
+    expect(m.monogram).toBe('JR');
+    expect(m.isDemo).toBe(false);
+  });
+
+  it('falls back to the seeded demo athlete when the name is blank', () => {
+    for (const blank of ['', '   ', undefined, [], 0]) {
+      const m = monitoredAthlete(blank);
+      expect(m.name).toBe('Jihad');
+      expect(m.first).toBe('Jihad');
+      expect(m.monogram).toBe('J');
+      expect(m.isDemo).toBe(true);
+    }
+  });
+
+  it('trims a single-word name and is not flagged as demo', () => {
+    const m = monitoredAthlete('  Sam  ');
+    expect(m.name).toBe('Sam');
+    expect(m.monogram).toBe('S');
+    expect(m.isDemo).toBe(false);
   });
 });

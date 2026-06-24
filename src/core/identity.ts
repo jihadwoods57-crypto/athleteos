@@ -23,3 +23,24 @@ export function firstName(name: string | undefined, fallback: string): string {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
   return parts.length ? parts[0] : fallback;
 }
+
+/**
+ * The athlete a PARENT monitors, derived from the child's name they typed in
+ * onboarding (stored in `obMeta.athleteName`, so it may arrive as a string,
+ * array, or number). A real parent entered their child's name; the seeded demo
+ * leaves it blank, so the Parent dashboard keeps showing the showcase athlete
+ * "Jihad". Returns the display name, its first name, an avatar monogram, and
+ * whether this is the seeded demo, so the demo-only "Coach Davis" note stays
+ * gated to the showcase instead of fabricating a coach for a real family.
+ */
+export function monitoredAthlete(metaName: unknown): {
+  name: string;
+  first: string;
+  monogram: string;
+  isDemo: boolean;
+} {
+  const entered = typeof metaName === 'string' ? metaName.trim() : '';
+  const isDemo = entered === '';
+  const name = isDemo ? 'Jihad' : entered;
+  return { name, first: firstName(name, 'Jihad'), monogram: initials(name, 'J'), isDemo };
+}

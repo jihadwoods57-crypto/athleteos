@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -30,6 +30,13 @@ export function ParentView() {
   // Nutrition bars from real per-day nutrition sub-scores; today's live score is
   // the last (accent) bar, the weekly avg headline is the completed-day mean.
   const nutri = nutritionTrend(s.nutritionHistory, d.nutritionScore);
+  // The athlete this parent monitors: a real parent typed their child's name in
+  // onboarding (obMeta.athleteName); the seeded demo leaves it blank and keeps
+  // the showcase athlete "Jihad". So the header, reassurance line, and AI summary
+  // never hand a real family the demo name, and the seeded "Coach Davis" note
+  // only renders for the showcase (a real parent gets a pending empty state
+  // instead of a fabricated coach quote).
+  const athlete = monitoredAthlete(s.obMeta.athleteName);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -52,11 +59,11 @@ export function ParentView() {
             <Row style={[{ gap: 7, backgroundColor: '#fff', padding: 7, borderRadius: 13 }, shadow.card]}>
               <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
                 <Txt w="b" size={13} color="#fff">
-                  J
+                  {athlete.monogram}
                 </Txt>
               </View>
               <Txt w="b" size={13} style={{ paddingRight: 3 }}>
-                Jihad
+                {athlete.first}
               </Txt>
             </Row>
           </Row>
@@ -84,7 +91,7 @@ export function ParentView() {
                 </Txt>
               </Row>
               <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 11, lineHeight: 20 }}>
-                Jihad is on track and building strong habits this week.
+                {athlete.first} is on track and building strong habits this week.
               </Txt>
             </View>
           </Card>
@@ -220,26 +227,42 @@ export function ParentView() {
             <Txt w="eb" size={16} ls={-0.3} style={{ marginBottom: 16 }}>
               Coach Notes
             </Txt>
-            <Row style={{ gap: 13, alignItems: 'flex-start' }}>
-              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' }}>
-                <Txt w="b" size={14} color="#fff">
-                  CD
-                </Txt>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Row style={{ justifyContent: 'space-between' }}>
+            {athlete.isDemo ? (
+              <Row style={{ gap: 13, alignItems: 'flex-start' }}>
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' }}>
+                  <Txt w="b" size={14} color="#fff">
+                    CD
+                  </Txt>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Row style={{ justifyContent: 'space-between' }}>
+                    <Txt w="b" size={14}>
+                      Coach Davis
+                    </Txt>
+                    <Txt w="sb" size={12} color={colors.textTertiary}>
+                      2 days ago
+                    </Txt>
+                  </Row>
+                  <Txt w="m" size={14} color={colors.slate700} style={{ marginTop: 7, lineHeight: 21 }}>
+                    Jihad's nutrition has been excellent. He's one of the most consistent in the linebacker room. We're focused on adding sleep to convert this into on-field strength. Great support at home.
+                  </Txt>
+                </View>
+              </Row>
+            ) : (
+              <Row style={{ gap: 13, alignItems: 'flex-start' }}>
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="user" size={18} color={colors.slate600} />
+                </View>
+                <View style={{ flex: 1 }}>
                   <Txt w="b" size={14}>
-                    Coach Davis
+                    No notes yet
                   </Txt>
-                  <Txt w="sb" size={12} color={colors.textTertiary}>
-                    2 days ago
+                  <Txt w="m" size={14} color={colors.slate700} style={{ marginTop: 7, lineHeight: 21 }}>
+                    When {athlete.first}'s coach leaves a note, it shows up here so you stay in the loop.
                   </Txt>
-                </Row>
-                <Txt w="m" size={14} color={colors.slate700} style={{ marginTop: 7, lineHeight: 21 }}>
-                  Jihad's nutrition has been excellent. He's one of the most consistent in the linebacker room. We're focused on adding sleep to convert this into on-field strength. Great support at home.
-                </Txt>
-              </View>
-            </Row>
+                </View>
+              </Row>
+            )}
           </Card>
 
           {/* AI parent summary */}
@@ -251,7 +274,7 @@ export function ParentView() {
               <Txt w="b" size={14} color={colors.accent}>
                 For you ·{' '}
               </Txt>
-              No action needed this week. Jihad is meeting his protein and recovery targets and trending toward his weight goal. You'll get an alert if anything slips.
+              No action needed this week. {athlete.first} is meeting protein and recovery targets and trending toward the weight goal. You'll get an alert if anything slips.
             </Txt>
           </View>
         </ScrollView>
