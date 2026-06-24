@@ -39,6 +39,27 @@ export function seasonGoalProgress(
   return { remaining, pctThere };
 }
 
+export type SeasonGoalPhase = 'first-run' | 'tracking' | 'reached';
+
+/**
+ * Decide whether the season-goal card may make a pace claim yet.
+ * A brand-new athlete sits at their starting anchor with no recorded weight
+ * history, so claiming "On track, you'll reach X by Nov 7" is a lie (there is no
+ * pace to project from zero data). Return 'first-run' until they have moved off
+ * the start weight OR logged at least one prior-day weight point; 'reached' once
+ * at/over the goal; otherwise 'tracking'.
+ */
+export function seasonGoalPhase(opts: {
+  pctThere: number;
+  currentWeight: number;
+  start: number;
+  weightHistoryLen: number;
+}): SeasonGoalPhase {
+  if (opts.pctThere >= 100) return 'reached';
+  if (opts.currentWeight === opts.start && opts.weightHistoryLen === 0) return 'first-run';
+  return 'tracking';
+}
+
 /** Letter grade + colors for a 0–100 score. */
 export function gradeFor(score: number): Grade {
   if (score >= 90) return { g: 'A', bg: '#DCFCE7', c: '#16A34A' };

@@ -1,6 +1,6 @@
 // AthleteOS — scoring engine tests. Asserts the ported math against the
 // prototype's default state and known transitions.
-import { computeDerived, gradeFor, seasonGoalProgress } from './scoring';
+import { computeDerived, gradeFor, seasonGoalProgress, seasonGoalPhase } from './scoring';
 import { createInitialState } from './defaultState';
 import { HYDRATION_TARGET } from './constants';
 import type { AppState } from './types';
@@ -284,6 +284,38 @@ describe('seasonGoalProgress', () => {
         expect(r.pctThere).toBeLessThanOrEqual(100);
       }
     });
+  });
+});
+
+describe('seasonGoalPhase — only claims a pace once real movement exists', () => {
+  it('day-0 athlete at the start anchor with no history -> first-run (no on-track lie)', () => {
+    expect(
+      seasonGoalPhase({ pctThere: 0, currentWeight: 171, start: 171, weightHistoryLen: 0 }),
+    ).toBe('first-run');
+  });
+
+  it('moved off the start weight -> tracking (a pace can be projected)', () => {
+    expect(
+      seasonGoalPhase({ pctThere: 54, currentWeight: 178, start: 171, weightHistoryLen: 0 }),
+    ).toBe('tracking');
+  });
+
+  it('still at start but has logged weight history -> tracking', () => {
+    expect(
+      seasonGoalPhase({ pctThere: 0, currentWeight: 171, start: 171, weightHistoryLen: 3 }),
+    ).toBe('tracking');
+  });
+
+  it('at or over the goal -> reached, regardless of history', () => {
+    expect(
+      seasonGoalPhase({ pctThere: 100, currentWeight: 184, start: 171, weightHistoryLen: 0 }),
+    ).toBe('reached');
+  });
+
+  it('seeded demo default (178 from 171) never reads as first-run', () => {
+    expect(
+      seasonGoalPhase({ pctThere: 54, currentWeight: 178, start: 171, weightHistoryLen: 0 }),
+    ).not.toBe('first-run');
   });
 });
 

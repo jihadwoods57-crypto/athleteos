@@ -19,6 +19,7 @@ import {
   realTrendDays,
   recentDayLabels,
   seasonGoalProgress,
+  seasonGoalPhase,
   supportAudience,
   weightUnit,
   WEIGHT_START,
@@ -71,6 +72,14 @@ export function Home() {
   const START = s.startWeight ?? WEIGHT_START;
   const TARGET = s.weightTarget ?? WEIGHT_TARGET;
   const goal = seasonGoalProgress(s.currentWeight, START, TARGET);
+  // Honesty gate: don't claim "On track, you'll reach X by Nov 7" before any real
+  // weight movement exists (a day-0 athlete still sits at their start anchor).
+  const goalPhase = seasonGoalPhase({
+    pctThere: goal.pctThere,
+    currentWeight: s.currentWeight,
+    start: START,
+    weightHistoryLen: (s.weightHistory ?? []).length,
+  });
   const units = s.units ?? 'imperial';
   const wUnit = weightUnit(units);
   const remainingDisp = displayWeightDelta(goal.remaining, units);
@@ -202,14 +211,32 @@ export function Home() {
             {displayWeight(TARGET, units)} goal
           </Txt>
         </Row>
-        <View style={{ marginTop: 14, borderRadius: 14, padding: 13, backgroundColor: '#ECFDF5' }}>
-          <Txt w="m" size={13} color="#065F46" style={{ lineHeight: 19 }}>
-            <Txt w="b" size={13} color="#065F46">
-              {goal.pctThere < 100 ? 'On track ·' : 'Goal reached ·'}{' '}
+        <View
+          style={{
+            marginTop: 14,
+            borderRadius: 14,
+            padding: 13,
+            backgroundColor: goalPhase === 'first-run' ? '#F1F5F9' : '#ECFDF5',
+          }}
+        >
+          <Txt
+            w="m"
+            size={13}
+            color={goalPhase === 'first-run' ? colors.textSecondary : '#065F46'}
+            style={{ lineHeight: 19 }}
+          >
+            <Txt
+              w="b"
+              size={13}
+              color={goalPhase === 'first-run' ? colors.textSecondary : '#065F46'}
+            >
+              {goalPhase === 'reached' ? 'Goal reached ·' : goalPhase === 'first-run' ? 'Just getting started ·' : 'On track ·'}{' '}
             </Txt>
-            {goal.pctThere < 100
-              ? `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit} by Nov 7, a week ahead of playoffs.`
-              : `You hit ${displayWeight(TARGET, units)} ${wUnit}. Season weight goal complete.`}
+            {goalPhase === 'reached'
+              ? `You hit ${displayWeight(TARGET, units)} ${wUnit}. Season weight goal complete.`
+              : goalPhase === 'first-run'
+                ? 'Log your check-ins and weight to see your pace toward the season goal.'
+                : `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit} by Nov 7, a week ahead of playoffs.`}
           </Txt>
         </View>
       </Card>
