@@ -2,7 +2,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { buildLeaderboard, initials, medalColor, trendInfo, trendSeries, trendSummary } from '@/core';
+import { athleteSubtitle, buildLeaderboard, initials, medalColor, squadView, trendInfo, trendSeries, trendSummary } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Row, Txt, Pressable } from '@/ui/primitives';
@@ -14,17 +14,22 @@ export function Squad() {
   const setSquadMode = useStore((s) => s.setSquadMode);
   const scoreHistory = useStore((s) => s.scoreHistory);
   const athleteName = useStore((s) => s.athleteName);
+  const sport = useStore((s) => s.sport);
+  const position = useStore((s) => s.position);
   const d = useDerived();
   // The athlete's own row carries a LIVE score, so its trend arrow should follow
   // the same real score history the Home Score Trend draws — not a frozen
   // constant. Everyone else's arrow stays demo data.
   const youDir = trendSummary(trendSeries(scoreHistory, d.athleteScore)).dir;
   // The you-row name + monogram track the onboarded profile, not the seed.
-  const youIdentity = athleteName
+  const isReal = athleteName.trim().length > 0;
+  const youIdentity = isReal
     ? { name: athleteName, initials: initials(athleteName, 'J') }
     : undefined;
-  const board = buildLeaderboard(squadMode, d.athleteScore, youDir, youIdentity);
-  const caption = `${squadMode === 'team' ? 'Full roster' : 'Linebacker room'} · ${board.length} athlete${board.length === 1 ? '' : 's'}`;
+  // The seeded peer board, the "Linebackers" room, and the "Visible to Coach
+  // Davis" footer are all seed data with no real offline source, so a real
+  // athlete sees their own week plus an honest "no squad yet" panel instead.
+  const view = squadView({ isReal });
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
@@ -37,14 +42,56 @@ export function Squad() {
             Leaderboard
           </Txt>
         </View>
-        <Row style={[{ gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11, backgroundColor: '#fff' }, shadow.card]}>
-          <Icon name="trophy" size={14} color={colors.accent} />
-          <Txt w="b" size={13} color={colors.accent}>
-            Linebackers
-          </Txt>
-        </Row>
+        {view.showLeague ? (
+          <Row style={[{ gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11, backgroundColor: '#fff' }, shadow.card]}>
+            <Icon name="trophy" size={14} color={colors.accent} />
+            <Txt w="b" size={13} color={colors.accent}>
+              Linebackers
+            </Txt>
+          </Row>
+        ) : null}
       </Row>
 
+      {view.kind === 'solo' && view.empty ? (
+        <SoloSquad
+          name={athleteName}
+          monogram={initials(athleteName, 'J')}
+          subtitle={athleteSubtitle(position, sport)}
+          score={d.athleteScore}
+          dir={youDir}
+          empty={view.empty}
+        />
+      ) : (
+        <DemoBoard
+          squadMode={squadMode}
+          setSquadMode={setSquadMode}
+          athleteScore={d.athleteScore}
+          youDir={youDir}
+          youIdentity={youIdentity}
+        />
+      )}
+    </ScrollView>
+  );
+}
+
+function DemoBoard({
+  squadMode,
+  setSquadMode,
+  athleteScore,
+  youDir,
+  youIdentity,
+}: {
+  squadMode: 'team' | 'position';
+  setSquadMode: (m: 'team' | 'position') => void;
+  athleteScore: number;
+  youDir: ReturnType<typeof trendSummary>['dir'];
+  youIdentity: { name: string; initials: string } | undefined;
+}) {
+  const board = buildLeaderboard(squadMode, athleteScore, youDir, youIdentity);
+  const caption = `${squadMode === 'team' ? 'Full roster' : 'Linebacker room'} · ${board.length} athlete${board.length === 1 ? '' : 's'}`;
+
+  return (
+    <>
       {/* segmented control */}
       <Row style={[{ marginTop: 18, gap: 6, backgroundColor: '#fff', borderRadius: 14, padding: 5 }, shadow.card]}>
         <Seg label="Team" active={squadMode === 'team'} onPress={() => setSquadMode('team')} />
@@ -112,7 +159,87 @@ export function Squad() {
       <Txt w="sb" size={12} color={colors.textTertiary} style={{ marginTop: 16, textAlign: 'center' }}>
         Visible to Coach Davis · resets Sunday
       </Txt>
-    </ScrollView>
+    </>
+  );
+}
+
+function SoloSquad({
+  name,
+  monogram,
+  subtitle,
+  score,
+  dir,
+  empty,
+}: {
+  name: string;
+  monogram: string;
+  subtitle: string;
+  score: number;
+  dir: ReturnType<typeof trendSummary>['dir'];
+  empty: { title: string; body: string };
+}) {
+  const tr = trendInfo(dir);
+  return (
+    <>
+      <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 18 }}>
+        Your week
+      </Txt>
+      {/* The athlete's own live row — honest while no real peers are connected. */}
+      <Row
+        style={[
+          {
+            marginTop: 10,
+            gap: 12,
+            borderRadius: 16,
+            paddingVertical: 13,
+            paddingHorizontal: 15,
+            backgroundColor: colors.accentSurface,
+            borderWidth: 1.5,
+            borderColor: colors.accentBorderStrong,
+          },
+        ]}
+      >
+        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt w="b" size={14} color="#fff">
+            {monogram}
+          </Txt>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Row style={{ gap: 7 }}>
+            <Txt w="b" size={15}>
+              {name}
+            </Txt>
+            <View style={{ backgroundColor: colors.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+              <Txt w="eb" size={10} color={colors.accent}>
+                YOU
+              </Txt>
+            </View>
+          </Row>
+          <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+            {subtitle}
+          </Txt>
+        </View>
+        <Txt w="eb" size={16} color={tr.c} accessibilityLabel={dir === 'up' ? 'Trending up' : dir === 'down' ? 'Trending down' : 'Trend flat'}>
+          {tr.t}
+        </Txt>
+        <Txt w="eb" size={20} style={{ width: 34, textAlign: 'right' }}>
+          {score}
+        </Txt>
+      </Row>
+
+      {/* Honest empty-peer state: no fabricated teammates for a real athlete. */}
+      <View style={[{ marginTop: 14, borderRadius: 16, backgroundColor: '#fff', padding: 20, alignItems: 'center' }, shadow.card]}>
+        <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="squad" size={22} color={colors.textTertiary} />
+        </View>
+        <Txt w="eb" size={16} style={{ marginTop: 12, textAlign: 'center' }}>
+          {empty.title}
+        </Txt>
+        <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
+          {empty.body}
+        </Txt>
+      </View>
+    </>
   );
 }
 

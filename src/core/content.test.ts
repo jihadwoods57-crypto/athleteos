@@ -10,6 +10,7 @@ import {
   MEAL_RESULTS,
   paceProjection,
   qualityLabel,
+  squadView,
   supportAudience,
   taskVisibilityNote,
 } from './content';
@@ -399,6 +400,30 @@ describe('coachGuidance', () => {
   it('prefers the coach monogram when both coach and nutritionist are connected', () => {
     const g = coachGuidance({ isReal: true, supportTeam: ['nutritionist', 'coach'], coachNote: NOTE });
     expect(g.monogram).toBe('C');
+  });
+});
+
+describe('squadView', () => {
+  it('keeps the full seeded showcase for the demo (league chrome on, no empty panel)', () => {
+    const v = squadView({ isReal: false });
+    expect(v.kind).toBe('demo');
+    expect(v.showLeague).toBe(true);
+    expect(v.empty).toBeNull();
+  });
+
+  it('drops the seeded peer board + league chrome for a real athlete', () => {
+    const v = squadView({ isReal: true });
+    expect(v.kind).toBe('solo');
+    expect(v.showLeague).toBe(false);
+  });
+
+  it('gives a real athlete an honest no-squad empty state instead of fabricated peers', () => {
+    const v = squadView({ isReal: true });
+    expect(v.empty).not.toBeNull();
+    expect(v.empty?.title).toMatch(/no squad/i);
+    // never fabricates the seed team identity in the real-athlete copy
+    expect(v.empty?.title).not.toMatch(/Coach Davis|Linebacker/i);
+    expect(v.empty?.body).not.toMatch(/Coach Davis|Linebacker/i);
   });
 });
 

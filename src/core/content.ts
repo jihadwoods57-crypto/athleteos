@@ -464,3 +464,43 @@ export function athleteSubtitle(position: string | null, sport?: string | null):
   const label = POSITION_LABELS[position] ?? position;
   return `${label} · ${hasSport ? sport : 'Eastside HS'}`;
 }
+
+export interface SquadView {
+  /**
+   * 'demo'  = the seeded showcase leaderboard (Marcus Cole et al.) — unchanged.
+   * 'solo'  = a real athlete with no real peer/team source connected; show their
+   *           own week plus an honest "no squad yet" panel instead of fabricated
+   *           peers, a "Linebackers" room, and a "Visible to Coach Davis" footer.
+   */
+  kind: 'demo' | 'solo';
+  /**
+   * Render the league chrome (Team/position segmented control, the "Linebackers"
+   * trophy badge, and the "Visible to Coach Davis · resets Sunday" footer). These
+   * are all seed identity, so only the demo shows them.
+   */
+  showLeague: boolean;
+  /** Empty-peer panel copy for a real athlete with no connected squad (null in demo). */
+  empty: { title: string; body: string } | null;
+}
+
+/**
+ * Gates the Squad tab so the seeded peer leaderboard, the "Linebackers" labels,
+ * and the "Visible to Coach Davis" footer (all seed data, with no real team/peer
+ * source offline) never leak to a brand-new real athlete. The seeded demo
+ * (athleteName '') keeps the full showcase exactly as before; a real athlete sees
+ * their own live week plus an honest "no squad connected yet" empty state.
+ * Mirrors coachGuidance's gating convention (`isReal` = a name set).
+ */
+export function squadView(opts: { isReal: boolean }): SquadView {
+  if (!opts.isReal) {
+    return { kind: 'demo', showLeague: true, empty: null };
+  }
+  return {
+    kind: 'solo',
+    showLeague: false,
+    empty: {
+      title: 'No squad connected yet',
+      body: 'When your team or training group joins AthleteOS, your weekly leaderboard shows up here. Your own score keeps tracking in the meantime.',
+    },
+  };
+}
