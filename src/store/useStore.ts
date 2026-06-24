@@ -5,7 +5,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import {
+  appendDayScore,
   createInitialState,
+  emptyDaySlice,
   flowForRole,
   HYDRATION_TARGET,
   MEAL_MACROS,
@@ -224,10 +226,25 @@ export const useStore = create<Store>()(
           });
           // Seed the in-app check-in sleep slider so the recovery score continues
           // sensibly from self-report instead of a flat default.
-          return { startScore: score, ciSleep: sleepHoursToSlider(s.baseSleepH) };
+          //
+          // Day-0 reconcile: write the Starting Point Score as the day-0 anchor in
+          // scoreHistory so the in-app Athlete Score TREND continues FROM the reveal
+          // instead of contradicting it. Only when no real history exists yet (never
+          // clobber a returning user or the seeded demo). The first calendar rollover
+          // overwrites this provisional anchor (same date key) with the real completed
+          // day-0 score, so it self-heals into honest history.
+          const scoreHistory =
+            s.scoreHistory.length === 0 ? appendDayScore([], s.dateStamp, score) : s.scoreHistory;
+          return { startScore: score, ciSleep: sleepHoursToSlider(s.baseSleepH), scoreHistory };
         }),
+      // Activation: leave onboarding into the app and open the first-meal capture.
+      // Swap the SEEDED DEMO day for a genuinely empty day so a brand-new athlete's
+      // first Home is honest — nothing pre-logged, every task open, score building
+      // up from the Starting Point Score anchor and rising the moment they log their
+      // first meal (the activation reward). The seeded demo is untouched because only
+      // the athlete activation path calls this (other roles use finishOb).
       startFirstMealChallenge: () =>
-        set({ flow: 'app', tab: 'home', mealOpen: true, mealStage: 'capture' }),
+        set({ ...emptyDaySlice(), flow: 'app', tab: 'home', mealOpen: true, mealStage: 'capture' }),
 
       // ---- nav ----
       setTab: (t) => set({ tab: t }),
