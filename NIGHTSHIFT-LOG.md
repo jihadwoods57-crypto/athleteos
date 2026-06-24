@@ -2,6 +2,77 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+# COHERENCE series (2026-06-24, run 1) — reconcile the whole app around the new onboarding + AI Coach
+
+Mission: make the app COHERENT (consistent, sensible navigation + endpoints) around
+the freshly built onboarding redesign and AI Nutrition Coach (which were NOT redone).
+Seven commits, all three gates green on every commit (`tsc --noEmit` clean, `jest`
+**315 passing**, up from 288 and never dropped, `expo export -p ios` bundles ~2.9 MB).
+`src/core` stayed pure; the Phase-2 Supabase scaffold was not touched; no `src/app`.
+
+Per-commit, newest last:
+1. **docs(nav): NAV-MAP.md.** Traced every screen to its entry points and exits across
+   onboarding, the athlete app, and the three overseer dashboards. Flags the dead ends
+   this series fixes and documents the intentional display-only surfaces so they are not
+   mistaken for dead ends. New `docs/NAV-MAP.md`.
+2. **feat(overseer): the Nudge is now a real action.** The product spec names the
+   lightweight nudge as the ONLY overseer action this phase, and the Trainer AI summary
+   literally tells the trainer to send one, but every "Send nudge" / "View" button was a
+   static `<View>` with no handler and the Coach Needs-Attention rows had no nudge at all.
+   Added a deterministic, offline `sendNudge(name)` store action (day-scoped via rollover,
+   never moves an athlete score) and wired it through the Trainer follow-up rows, the Coach
+   Needs-Attention rows, and the PersonDetail overlay (replacing the dead "Adjust goals"),
+   each with a "Nudged" confirmation, haptics, and a11y. +5 tests.
+3. **feat(activation): a new athlete's Day-0 continues honestly from the reveal.** The
+   onboarding reveal computed a Starting Point Score but Home then showed the SEEDED DEMO
+   day (3 meals pre-logged, ~78) that contradicted the reveal (e.g. 49). `commitStartingScore`
+   now writes the Starting Point Score as the day-0 anchor in `scoreHistory` (only when no
+   real history exists; the first rollover overwrites it with the real completed score), and
+   `startFirstMealChallenge` swaps the seeded demo day for a genuinely empty day (new pure
+   `emptyDaySlice`). The seeded-demo experience and rollover defaults are untouched. +8 tests.
+4. **feat(profile): retire the demo-identity leaks for a real athlete.** A real athlete saw
+   the seed's "Eastside HS", the "EAGLES24" team code, and "Coach Davis" / "Sarah (Parent)"
+   on their own Profile. Now the subtitle uses their real sport, the identity chip shows
+   their real code or primary goal, "Working toward" shows the real `primaryGoal`, and "Who
+   can see your data" derives from `supportTeam` (new pure `supportVisibilityRows`) with a
+   "Just you, for now" empty state when solo. All gated so the seeded demo is unchanged.
+   Also wired the dead Profile "Help & support" row to open Account. +6 tests.
+5. **test(onboarding): cover the redesigned onboarding store actions.** Node-env store tests
+   for `setPrimaryGoal`, `setTrainingFreq`, the six `setBaseAnswer` baseline setters,
+   `toggleSupport` ('none' clears), and the 7-role to 4-dashboard routing
+   (`flowForRole` + `finishOb`). +8 tests.
+6. **fix(copy): remove em dashes from all user-facing copy (design ban).** Replaced every em
+   dash in shipped strings with grammatical punctuation across the seed coachNote / meal chat
+   / message thread, the meal notes + Home insight + score-hero status + pace projection
+   (`content.ts`), the PersonDetail and Coach/Trainer/Parent AI summaries, the Home
+   season-goal + "day complete" copy, the Notifications cards, and the Check-In + Plan labels.
+   Code comments (not shipped copy) are left untouched. Presentation-only.
+
+### For the founder (QC this series)
+- **Coach / Trainer dashboards**: the "Nudge" / "Send nudge" button on at-risk athletes now
+  works (flips to "Nudged" with a check, resets next day). "View" on the Trainer follow-up
+  rows now opens the athlete detail.
+- **Onboard a brand-new athlete** (use your own name, pick a sport/position, a goal, and skip
+  the support team): your Home no longer shows three pre-logged meals you never ate, the Score
+  Trend continues from your Starting Point Score, and your Profile shows your real sport,
+  goal, and a "Just you, for now" sharing card instead of Coach Davis / Eastside HS / EAGLES24.
+  Logging your first meal moves the score. (The seeded demo, with no name set, is unchanged.)
+- **Copy**: no more em dashes anywhere a user can read.
+
+### Ops + recommended next steps
+- **Push mechanism**: the local git relay rejects direct `master` writes as non-fast-forward
+  even on a genuine fast-forward (the documented wall). Every commit is preserved with full
+  per-job history on the **`coherence-nightshift`** branch (pushed via git after each commit);
+  `master` is landed via the GitHub API (`push_files`) with the gate-verified tree.
+- **Render-smoke safety net (deferred, needs a human or a careful setup):** the jest harness is
+  node-env pure-core only (no `react-test-renderer` / jest-expo project), so a "mount every
+  screen with edge state and assert no throw" test would require standing up an RN render
+  environment. That is worth doing but risks the green tree to set up blind, so it is left as a
+  follow-up; the bundle + typecheck + the expanded store tests cover the changed surfaces today.
+- **Remaining intentional display-only surfaces** (NOT dead ends): MealDetail re-analyze /
+  food steppers, the Notifications "Earlier" cards, and the MealCapture description field are
+  deliberate placeholders for the deterministic (no-LLM, no-camera) build.
+
 # ⭐ APP COMPLETE — ready for founder review (end-of-series wrap-up · 2026-06-23, final run)
 
 This is the **final run of the autonomous nightshift series**. All eight items of
