@@ -293,6 +293,28 @@ export function paceProjection(weeklyGoalLb: number): PaceProjection {
   return { daysLeft, surplus, goalPct, onPace, paceLabel, paceAi, projected };
 }
 
+export interface VisibilityRow {
+  key: string;
+  title: string;
+  sub: string;
+}
+
+/**
+ * "Who can see your data" rows derived from the athlete's chosen support team
+ * (onboarding `supportTeam`). Empty when the athlete is solo, so the Profile can
+ * show an intentional empty state instead of leaking the demo's Coach Davis /
+ * Sarah to a brand-new athlete who connected no one.
+ */
+export function supportVisibilityRows(supportTeam: string[]): VisibilityRow[] {
+  const map: Record<string, VisibilityRow> = {
+    coach: { key: 'coach', title: 'Your coach', sub: 'Full profile & history' },
+    trainer: { key: 'trainer', title: 'Your trainer', sub: 'Full profile & history' },
+    nutritionist: { key: 'nutritionist', title: 'Your nutritionist', sub: 'Meals & nutrition' },
+    parent: { key: 'parent', title: 'Parent / guardian', sub: 'Weekly reports & alerts' },
+  };
+  return supportTeam.map((k) => map[k]).filter(Boolean);
+}
+
 /** Position abbreviation → full label for the profile subtitle. */
 export const POSITION_LABELS: Record<string, string> = {
   QB: 'Quarterback', RB: 'Running Back', WR: 'Wide Receiver', OL: 'Offensive Line',
@@ -300,7 +322,16 @@ export const POSITION_LABELS: Record<string, string> = {
   SG: 'Shooting Guard', SF: 'Small Forward', PF: 'Power Forward', C: 'Center',
 };
 
-export function athleteSubtitle(position: string | null): string {
-  const label = position ? POSITION_LABELS[position] ?? position : 'Linebacker';
-  return `${label} · Eastside HS`;
+/**
+ * Profile subtitle from the athlete's REAL onboarding selections. A real athlete
+ * who chose a sport gets "{position} · {sport}" (or "{sport} athlete" if they
+ * skipped position), so it never hard-codes the seed school. With no sport set
+ * (the seeded demo, athleteName ''), it falls back to the demo identity
+ * "Linebacker · Eastside HS" so the showcase is unchanged.
+ */
+export function athleteSubtitle(position: string | null, sport?: string | null): string {
+  const hasSport = !!(sport && sport.trim());
+  if (!position) return hasSport ? `${sport} athlete` : 'Linebacker · Eastside HS';
+  const label = POSITION_LABELS[position] ?? position;
+  return `${label} · ${hasSport ? sport : 'Eastside HS'}`;
 }
