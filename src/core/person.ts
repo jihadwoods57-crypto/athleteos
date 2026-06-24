@@ -3,6 +3,17 @@
 // overlay's category breakdown has to be ANCHORED to that score rather than a
 // fixed template — otherwise tapping a struggling athlete shows the same ~90s
 // bars as a top performer and the breakdown silently contradicts the headline.
+import type { Flow } from './types';
+
+/**
+ * The noun an overseer uses for the people they manage, so the SHARED
+ * person-detail overlay is titled in the opener's own language: a personal
+ * trainer / nutritionist runs a book of "clients" (flow 'trainer'), while a
+ * coach manages "athletes". Anything else (coach/parent/app) reads "Athlete".
+ */
+export function rosterNoun(flow: Flow): 'Athlete' | 'Client' {
+  return flow === 'trainer' ? 'Client' : 'Athlete';
+}
 
 export interface PersonBreakdown {
   nutrition: number;

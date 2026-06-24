@@ -1,7 +1,7 @@
 // AthleteOS — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { displayWeightDelta, gradeFor, personBreakdown, weightUnit } from '@/core';
+import { displayWeightDelta, gradeFor, personBreakdown, rosterNoun, weightUnit } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -18,9 +18,12 @@ export function PersonDetail() {
   const bd = personBreakdown(pd.score);
   const units = s.units ?? 'imperial';
   const nudged = s.nudged.includes(pd.name);
+  // Title in the opener's own noun: a trainer/nutritionist sees "Client
+  // Profile", a coach sees "Athlete Profile" (the overlay is shared).
+  const noun = rosterNoun(s.flow);
 
   return (
-    <Overlay title="Athlete Profile" onClose={s.closePerson}>
+    <Overlay title={`${noun} Profile`} onClose={s.closePerson}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <Card elevated style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
           <Ring size={96} pct={pd.score} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">

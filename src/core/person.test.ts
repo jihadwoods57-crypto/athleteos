@@ -1,4 +1,17 @@
-import { personBreakdown } from './person';
+import { personBreakdown, rosterNoun } from './person';
+
+describe('rosterNoun', () => {
+  it('a trainer/nutritionist book is "Client"; a coach roster is "Athlete"', () => {
+    expect(rosterNoun('trainer')).toBe('Client');
+    expect(rosterNoun('coach')).toBe('Athlete');
+  });
+
+  it('defaults to "Athlete" for the athlete-app, parent, and onboarding flows', () => {
+    expect(rosterNoun('app')).toBe('Athlete');
+    expect(rosterNoun('parent')).toBe('Athlete');
+    expect(rosterNoun('onboarding')).toBe('Athlete');
+  });
+});
 
 describe('personBreakdown', () => {
   it('anchors the four bars to the headline score (mean stays at the score)', () => {
