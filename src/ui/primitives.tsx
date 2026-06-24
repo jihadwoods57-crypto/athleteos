@@ -173,6 +173,29 @@ export function Pill({
   );
 }
 
+/**
+ * Unmistakable "Sample" marker for seeded/demo values that are not yet sourced
+ * from a real athlete, roster, or measurement. Keeps the showcase visible (per
+ * design) while making clear the number is illustrative, not live data. Amber
+ * surface + deep-amber text reuse the existing grade-C tokens (no new tokens).
+ */
+export function SampleTag({ label = 'Sample', style }: { label?: string; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View
+      accessible
+      accessibilityLabel="Sample data, not live"
+      style={[
+        { backgroundColor: '#FEF3C7', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, alignSelf: 'flex-start' },
+        style,
+      ]}
+    >
+      <Txt w="eb" size={10} color="#B45309" ls={0.4} upper maxFontSizeMultiplier={MAX_FONT_SCALE}>
+        {label}
+      </Txt>
+    </View>
+  );
+}
+
 /** Selectable chip (filled when active). */
 export function Chip({
   label,

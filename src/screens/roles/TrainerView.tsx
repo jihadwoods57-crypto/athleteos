@@ -7,7 +7,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, initials, needsAttention, rankByRisk, trainerBookKpis, trainerLens } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
@@ -51,6 +51,12 @@ export function TrainerView() {
                 <Txt w="eb" size={21} ls={-0.3}>
                   {lens.headerTitle}
                 </Txt>
+                <Row style={{ gap: 7, marginTop: 5 }}>
+                  <SampleTag />
+                  <Txt w="sb" size={12} color={colors.textTertiary}>
+                    Demo book, not your real clients
+                  </Txt>
+                </Row>
               </View>
             </Row>
             <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.trainer, alignItems: 'center', justifyContent: 'center' }}>
@@ -63,16 +69,19 @@ export function TrainerView() {
           <Row style={{ gap: 10, marginTop: 20 }}>
             <Kpi value={String(kpis.clients)} label="CLIENTS" />
             <Kpi value={`${kpis.avgCompliance}%`} label="AVG COMPLY" />
-            <Kpi value="92%" label="RETENTION" color={colors.success} />
+            <Kpi value="92%" label="RETENTION" color={colors.success} sample />
           </Row>
 
           {/* book compliance trend */}
           <Card elevated style={{ marginTop: 14, borderRadius: 20 }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View>
-                <Txt w="eb" size={15} ls={-0.3}>
-                  {lens.complianceTitle}
-                </Txt>
+                <Row style={{ gap: 8 }}>
+                  <Txt w="eb" size={15} ls={-0.3}>
+                    {lens.complianceTitle}
+                  </Txt>
+                  <SampleTag />
+                </Row>
                 <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
                   All clients · 8-week average
                 </Txt>
@@ -204,6 +213,7 @@ export function TrainerView() {
               <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
                 AI PRACTICE SUMMARY
               </Txt>
+              <SampleTag />
             </Row>
             <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
               Your book is healthy: {kpis.avgCompliance}% average compliance, up 6% this month.{' '}
@@ -222,7 +232,7 @@ export function TrainerView() {
   );
 }
 
-function Kpi({ value, label, color }: { value: string; label: string; color?: string }) {
+function Kpi({ value, label, color, sample }: { value: string; label: string; color?: string; sample?: boolean }) {
   return (
     <Card style={{ flex: 1, borderRadius: 18, padding: 16 }}>
       <Txt w="eb" size={28} color={color}>
@@ -231,6 +241,7 @@ function Kpi({ value, label, color }: { value: string; label: string; color?: st
       <Txt w="b" size={11} color={colors.textTertiary} style={{ marginTop: 3 }}>
         {label}
       </Txt>
+      {sample ? <SampleTag style={{ marginTop: 7 }} /> : null}
     </Card>
   );
 }
