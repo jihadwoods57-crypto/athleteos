@@ -2,21 +2,18 @@
 import React, { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useStore } from '@/store';
-import { accountRows, APP_VERSION, type AccountRow } from '@/core';
+import { accountIdentity, accountRows, APP_VERSION, type AccountRow } from '@/core';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Overlay } from './Overlay';
 
-const ACCT_BY_ROLE: Record<string, { name: string; role: string; initials: string }> = {
-  coach: { name: 'Coach Davis', role: 'Head Coach · Eastside HS', initials: 'CD' },
-  parent: { name: 'Sarah Carter', role: 'Parent · linked to Jihad', initials: 'SC' },
-  trainer: { name: 'Maya Anders', role: 'Trainer · Apex Performance', initials: 'MA' },
-};
-
 export function Account() {
   const s = useStore();
-  const acct = ACCT_BY_ROLE[s.role ?? ''] ?? { name: s.athleteName || 'Jihad Carter', role: 'Athlete · Eastside HS', initials: 'JC' };
+  // Identity card derives from real onboarding data per role (the demo keeps the
+  // showcase). Account was the last identity surface still hardcoding "Coach
+  // Davis" / "Eastside HS" for a real user.
+  const acct = accountIdentity({ role: s.role, athleteName: s.athleteName, sport: s.sport, obMeta: s.obMeta });
   const rows = accountRows(s.role);
   // Accordion: at most one disclosure open at a time.
   const [openKey, setOpenKey] = useState<string | null>(null);

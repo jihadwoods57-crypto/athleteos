@@ -66,3 +66,60 @@ export function coachTeamTitle(opts: { isReal: boolean; sport?: unknown; school?
 export function trainerOrgTitle(isReal: boolean): string {
   return isReal ? 'Your Practice' : 'Apex Performance';
 }
+
+/**
+ * The identity card on the Account overlay (name + role line + avatar monogram),
+ * derived per role from real onboarding data. Every other identity surface in the
+ * series (Home, Profile, the three dashboard headers) was gated this way; Account
+ * was the last one still hardcoding the showcase, so a real coach saw "Coach Davis
+ * · Eastside HS" and a real athlete saw "JC · Eastside HS" instead of themselves.
+ *
+ * The seeded demo (no `athleteName`, so not real) keeps the exact showcase strings
+ * per role. A real user gets their own name + monogram and a role line built from
+ * what onboarding actually captured: a coach's school/sport (`obMeta`), the child a
+ * parent linked (`obMeta.athleteName`), an athlete's sport, and a neutral practice
+ * label for a trainer (no business name is collected). No affiliation -> just the
+ * role noun, never another account's school.
+ */
+export function accountIdentity(opts: {
+  role?: unknown;
+  athleteName?: unknown;
+  sport?: unknown;
+  obMeta?: Record<string, unknown>;
+}): { name: string; role: string; initials: string } {
+  const name = asText(opts.athleteName);
+  const role = asText(opts.role);
+  const meta = opts.obMeta ?? {};
+
+  if (name === '') {
+    // Seeded demo showcase — unchanged.
+    switch (role) {
+      case 'coach':
+        return { name: 'Coach Davis', role: 'Head Coach · Eastside HS', initials: 'CD' };
+      case 'parent':
+        return { name: 'Sarah Carter', role: 'Parent · linked to Jihad', initials: 'SC' };
+      case 'trainer':
+        return { name: 'Maya Anders', role: 'Trainer · Apex Performance', initials: 'MA' };
+      default:
+        return { name: 'Jihad Carter', role: 'Athlete · Eastside HS', initials: 'JC' };
+    }
+  }
+
+  const mono = initials(name, '?');
+  switch (role) {
+    case 'coach': {
+      const where = asText(meta.school) || asText(meta.sport);
+      return { name, role: where ? `Coach · ${where}` : 'Coach', initials: mono };
+    }
+    case 'parent': {
+      const child = monitoredAthlete(meta.athleteName);
+      return { name, role: `Parent · linked to ${child.first}`, initials: mono };
+    }
+    case 'trainer':
+      return { name, role: 'Trainer · Your Practice', initials: mono };
+    default: {
+      const where = asText(opts.sport) || asText(meta.school);
+      return { name, role: where ? `Athlete · ${where}` : 'Athlete', initials: mono };
+    }
+  }
+}

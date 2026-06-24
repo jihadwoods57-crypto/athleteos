@@ -1,6 +1,6 @@
 // AthleteOS — identity helpers. The avatar monogram + you-row name derive from
 // the live athleteName, so pin the name-parsing edge cases.
-import { coachTeamTitle, firstName, initials, monitoredAthlete, trainerOrgTitle } from './identity';
+import { accountIdentity, coachTeamTitle, firstName, initials, monitoredAthlete, trainerOrgTitle } from './identity';
 
 describe('initials', () => {
   it('takes first + last initial of a full name, uppercased', () => {
@@ -98,5 +98,51 @@ describe('trainerOrgTitle', () => {
   it('keeps the seeded demo gym, gives a real trainer a neutral practice label', () => {
     expect(trainerOrgTitle(false)).toBe('Apex Performance');
     expect(trainerOrgTitle(true)).toBe('Your Practice');
+  });
+});
+
+describe('accountIdentity', () => {
+  it('keeps the seeded demo showcase per role when no name is set', () => {
+    expect(accountIdentity({ role: 'coach', athleteName: '' })).toEqual({ name: 'Coach Davis', role: 'Head Coach · Eastside HS', initials: 'CD' });
+    expect(accountIdentity({ role: 'parent', athleteName: '' })).toEqual({ name: 'Sarah Carter', role: 'Parent · linked to Jihad', initials: 'SC' });
+    expect(accountIdentity({ role: 'trainer', athleteName: '' })).toEqual({ name: 'Maya Anders', role: 'Trainer · Apex Performance', initials: 'MA' });
+    expect(accountIdentity({ role: 'athlete', athleteName: '' })).toEqual({ name: 'Jihad Carter', role: 'Athlete · Eastside HS', initials: 'JC' });
+    // An unknown/blank role still lands on the athlete showcase, never empty.
+    expect(accountIdentity({ role: '', athleteName: '   ' }).name).toBe('Jihad Carter');
+  });
+
+  it('derives a real coach from their own name + school/sport, never the demo', () => {
+    const a = accountIdentity({ role: 'coach', athleteName: 'Dana Cole', obMeta: { school: 'Lincoln High', sport: 'Football' } });
+    expect(a).toEqual({ name: 'Dana Cole', role: 'Coach · Lincoln High', initials: 'DC' });
+    // School wins; sport is the fallback; neither leaks "Eastside" / "Davis".
+    expect(accountIdentity({ role: 'coach', athleteName: 'Dana Cole', obMeta: { sport: 'Soccer' } }).role).toBe('Coach · Soccer');
+    expect(accountIdentity({ role: 'coach', athleteName: 'Dana Cole' }).role).toBe('Coach');
+    expect(accountIdentity({ role: 'coach', athleteName: 'Dana Cole', obMeta: { school: 'X' } }).name).not.toBe('Coach Davis');
+  });
+
+  it('derives a real parent linked to the child they entered', () => {
+    expect(accountIdentity({ role: 'parent', athleteName: 'Pat Reyes', obMeta: { athleteName: 'Jordan Reyes' } }))
+      .toEqual({ name: 'Pat Reyes', role: 'Parent · linked to Jordan', initials: 'PR' });
+    // No child captured falls back to the monitoredAthlete default first name.
+    expect(accountIdentity({ role: 'parent', athleteName: 'Pat Reyes' }).role).toBe('Parent · linked to Jihad');
+  });
+
+  it('gives a real trainer a neutral practice label (no business name is captured)', () => {
+    expect(accountIdentity({ role: 'trainer', athleteName: 'Maya Lopez' }))
+      .toEqual({ name: 'Maya Lopez', role: 'Trainer · Your Practice', initials: 'ML' });
+  });
+
+  it('derives a real athlete from their name + sport, falling back to just "Athlete"', () => {
+    expect(accountIdentity({ role: 'athlete', athleteName: 'Marcus Cole', sport: 'Basketball' }))
+      .toEqual({ name: 'Marcus Cole', role: 'Athlete · Basketball', initials: 'MC' });
+    expect(accountIdentity({ role: 'athlete', athleteName: 'Marcus Cole' }).role).toBe('Athlete');
+    // The app-flow athlete may arrive with role undefined; still their own identity.
+    expect(accountIdentity({ athleteName: 'Marcus Cole', sport: 'Track' }))
+      .toEqual({ name: 'Marcus Cole', role: 'Athlete · Track', initials: 'MC' });
+  });
+
+  it('tolerates non-string meta without leaking the demo', () => {
+    const a = accountIdentity({ role: 'coach', athleteName: 'Dana Cole', sport: ['x'], obMeta: { school: 0, sport: ['y'] } });
+    expect(a).toEqual({ name: 'Dana Cole', role: 'Coach', initials: 'DC' });
   });
 });
