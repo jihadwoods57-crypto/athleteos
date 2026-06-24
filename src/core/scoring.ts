@@ -132,6 +132,13 @@ export function computeDerived(s: AppState): Derived {
     (Object.keys(s.ciConfig) as (keyof CiConfig)[]).forEach((key) => {
       if (s.ciConfig[key] !== true) return;
       const raw = s[CI_FIELDS[key]] as number;
+      // A corrupt/legacy persisted blob can carry ciSubmitted:true while an enabled
+      // answer is undefined/NaN (written before that question existed, or hand-edited).
+      // Averaging that in makes recoverySum -> NaN, poisoning recoveryScore AND the
+      // whole athleteScore. Skip any non-finite answer so it never counts (and never
+      // inflates the divisor); if EVERY enabled answer is missing, enabledCount stays
+      // 0 and we fall back to 86, exactly as if no questions were enabled.
+      if (typeof raw !== 'number' || !Number.isFinite(raw)) return;
       // Soreness has inverse polarity: high soreness = worse recovery, so it
       // contributes (10 - ciSoreness). All other questions contribute raw value.
       recoverySum += key === 'soreness' ? 10 - raw : raw;

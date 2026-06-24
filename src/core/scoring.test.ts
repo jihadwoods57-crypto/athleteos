@@ -407,6 +407,42 @@ describe('computeDerived — recovery sub-score from ciConfig', () => {
     expect(s.ciSubmitted).toBe(false);
     expect(d.recoveryScore).toBe(86);
   });
+
+  it('a single undefined answer (corrupt blob, ciSubmitted) does not poison the score with NaN', () => {
+    const s = createInitialState();
+    // ciEnergy is enabled by default but missing in the blob — must be skipped,
+    // not averaged in as NaN. Recovery falls back to the other three enabled
+    // answers (recovery 7 + sleep 8 + confidence 9 = 24 over 3) = 80.
+    const d = computeDerived({ ...s, ciSubmitted: true, ciEnergy: undefined } as unknown as AppState);
+    expect(Number.isFinite(d.recoveryScore)).toBe(true);
+    expect(Number.isNaN(d.recoveryScore)).toBe(false);
+    expect(d.recoveryScore).toBe(80); // (7 + 8 + 9) / 30 * 100
+    expect(Number.isFinite(d.athleteScore)).toBe(true);
+    expect(Number.isInteger(d.athleteScore)).toBe(true);
+  });
+
+  it('all enabled answers missing (corrupt blob, ciSubmitted) falls back to 86, not NaN', () => {
+    const s = createInitialState();
+    const d = computeDerived({
+      ...s,
+      ciSubmitted: true,
+      ciEnergy: undefined,
+      ciRecovery: undefined,
+      ciSleep: undefined,
+      ciConfidence: undefined,
+    } as unknown as AppState);
+    expect(d.recoveryScore).toBe(86); // every enabled answer skipped -> same as none enabled
+    expect(Number.isFinite(d.athleteScore)).toBe(true);
+  });
+
+  it('a NaN/Infinity answer is skipped (treated as missing), not averaged in', () => {
+    const s = createInitialState();
+    const allOff2 = { energy: false, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false };
+    // sleep enabled but NaN -> no finite enabled answer -> fallback 86.
+    const d = computeDerived({ ...s, ciSubmitted: true, ciSleep: NaN, ciConfig: { ...allOff2, sleep: true } } as AppState);
+    expect(d.recoveryScore).toBe(86);
+    expect(Number.isFinite(d.athleteScore)).toBe(true);
+  });
 });
 
 describe('computeDerived — hydrationPct clamp', () => {
