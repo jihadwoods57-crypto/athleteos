@@ -54,9 +54,23 @@ coach sees that athlete's **real** numbers — no seeds. Kills most of root #1 a
 Until 1a ships, Phases 2-5 run against seeded data and stay labeled "Sample."
 
 ### Phase 2 — A defensible, honestly-named score **[AUTO for 2a/2b, FOUNDER for 2c]**
-- **2a. Kill the `weightScore = 95` stub [AUTO]** — derive the weight sub-score from the
-  app's existing `seasonGoalProgress` (real `currentWeight` vs `startWeight`/`weightTarget`),
-  with a neutral baseline before any real movement exists. *First slice — executed today.*
+- **2a. Kill the `weightScore = 95` stub [FOUNDER decision — was thought AUTO]** —
+  derive the weight sub-score from the app's existing `seasonGoalProgress` instead of a
+  constant. **Finding (attempted 2026-06-24, reverted to keep gates green):** the fake
+  `95` was load-bearing — it quietly propped *every* perfect-compliance day up to an A.
+  Wired to real progress, a flawless day caps at ~85 mid-season (the demo athlete is only
+  54% to their weight goal: 178 of a 171→184 range). Five tests that encode "a complete
+  perfect day is an A (>=90)" / "B day (>=80)" failed. Lowering those thresholds would be
+  silently redefining what an A means, so this is a founder call, **coupled to 2c**:
+  - **Option A — weight as real progress:** honest, but a perfect daily effort can't earn
+    an A until season weight progress is high (weight is partly outside daily control).
+  - **Option B — rebalance the daily score:** drop/shrink weight's 20% in the *daily*
+    score and show weight as a separate long-arc indicator, so daily effort earns the A.
+    (Pairs naturally with renaming to "Accountability Score.")
+  - **Option C — keep weight, neutral baseline early:** real progress once tracking, but a
+    neutral baseline for longer so early-season daily effort still earns an A.
+  Recommended: **B** (rebalance + rename) — it matches what the score actually measures
+  and removes the inflation without punishing a great day.
 - **2b. Disclose inputs [AUTO]** — in the "what's in this score?" panel, mark which inputs
   are self-reported (recovery/check-in) vs logged (nutrition/tasks) vs progress (weight).
 - **2c. Earn the name [FOUNDER]** — either add ONE real performance signal (a weekly
@@ -108,6 +122,6 @@ Real account standup (1a), product naming (2c), the performance-signal decision 
 minor-consent legal posture (6), and any external send. The crew flags these; Bo decides.
 
 ## Recommended execution order
-Phase 0 (tonight) → **2a/2b** (safe, today) → 5 (dashboard scale, safe) → 4 (nudge+note,
-safe) → 3 (editable macros, safe) → **1 (keystone, founder gate)** → 2c → 6.
+Phase 0 (tonight) → **decide 2a+2c together** (founder, ~9pm) → 2b → 5 (dashboard scale,
+safe) → 4 (nudge+note, safe) → 3 (editable macros, safe) → **1 (keystone, founder gate)** → 6.
 The safe phases (2,3,4,5) can proceed against labeled sample data; Phase 1 makes them real.
