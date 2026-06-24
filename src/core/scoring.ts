@@ -60,6 +60,32 @@ export function seasonGoalPhase(opts: {
   return 'tracking';
 }
 
+export interface ScoreWeight {
+  key: 'nutrition' | 'recovery' | 'weight' | 'tasks' | 'checkin';
+  label: string;
+  /** Whole-number percent weight in the Athlete Score (the five sum to 100). */
+  pct: number;
+  /** Plain-language, honest description of the input behind this component. */
+  desc: string;
+}
+
+/**
+ * Plain-language breakdown of what the Athlete Score is made of, mirrored
+ * EXACTLY from computeDerived's athleteScore formula:
+ *   0.4*nutrition + 0.2*recovery + 0.2*weight + 0.1*tasks + 0.1*checkin.
+ * Surfaced by the Home "What's in this score?" panel so the number stops being
+ * opaque. Descriptions are honest about which inputs are self-reported or still
+ * a sample baseline (the weight component is a fixed stub today). No new data is
+ * introduced here; these are the existing weights, named.
+ */
+export const SCORE_WEIGHTS: ScoreWeight[] = [
+  { key: 'nutrition', label: 'Nutrition', pct: 40, desc: 'Protein and the meals you log each day' },
+  { key: 'recovery', label: 'Recovery', pct: 20, desc: 'Your own weekly check-in answers, so this part is self-reported' },
+  { key: 'weight', label: 'Weight', pct: 20, desc: 'Progress toward your goal weight, a sample baseline until real weigh-ins land' },
+  { key: 'tasks', label: 'Tasks', pct: 10, desc: 'The daily tasks you complete' },
+  { key: 'checkin', label: 'Check-in', pct: 10, desc: 'Completing your weekly check-in at all' },
+];
+
 /** Letter grade + colors for a 0–100 score. */
 export function gradeFor(score: number): Grade {
   if (score >= 90) return { g: 'A', bg: '#DCFCE7', c: '#16A34A' };

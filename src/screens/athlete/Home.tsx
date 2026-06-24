@@ -18,6 +18,7 @@ import {
   HYDRATION_TARGET,
   realTrendDays,
   recentDayLabels,
+  SCORE_WEIGHTS,
   seasonGoalProgress,
   seasonGoalPhase,
   supportAudience,
@@ -32,6 +33,7 @@ import {
 import { useStore, useDerived } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 
@@ -161,6 +163,9 @@ export function Home() {
           </View>
         </View>
       </Card>
+
+      {/* what's in this score */}
+      <ScoreBreakdownPanel />
 
       {/* season goal */}
       <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
@@ -411,6 +416,55 @@ export function Home() {
         </View>
       )}
     </ScrollView>
+  );
+}
+
+function ScoreBreakdownPanel() {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Card elevated style={{ marginTop: 14, borderRadius: 20, padding: 18 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="What's in this score?"
+        accessibilityState={{ expanded: open }}
+        onPress={() => { haptics.tap(); setOpen((v) => !v); }}
+        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+      >
+        <Row style={{ gap: 9, flex: 1 }}>
+          <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="sparkle" size={16} color={colors.accent} />
+          </View>
+          <Txt w="eb" size={15} ls={-0.3}>
+            What's in this score?
+          </Txt>
+        </Row>
+        <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
+          <Icon name="chevronRight" size={20} color="#CBD5E1" />
+        </View>
+      </Pressable>
+      {open ? (
+        <View style={{ marginTop: 16, gap: 13 }}>
+          {SCORE_WEIGHTS.map((w) => (
+            <View key={w.key}>
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Txt w="b" size={14}>
+                  {w.label}
+                </Txt>
+                <Txt w="eb" size={14} color={colors.accent}>
+                  {w.pct}%
+                </Txt>
+              </Row>
+              <Txt w="m" size={12} color={colors.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>
+                {w.desc}
+              </Txt>
+            </View>
+          ))}
+          <Txt w="m" size={12} color={colors.textTertiary} style={{ lineHeight: 17 }}>
+            Nutrition counts the most. Recovery and check-in are answers you give yourself.
+          </Txt>
+        </View>
+      ) : null}
+    </Card>
   );
 }
 

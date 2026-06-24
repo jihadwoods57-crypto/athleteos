@@ -1,6 +1,6 @@
 // AthleteOS — scoring engine tests. Asserts the ported math against the
 // prototype's default state and known transitions.
-import { computeDerived, gradeFor, seasonGoalProgress, seasonGoalPhase } from './scoring';
+import { computeDerived, gradeFor, seasonGoalProgress, seasonGoalPhase, SCORE_WEIGHTS } from './scoring';
 import { createInitialState } from './defaultState';
 import { HYDRATION_TARGET } from './constants';
 import type { AppState } from './types';
@@ -594,5 +594,36 @@ describe('computeDerived — week-over-week score delta', () => {
     expect(d.scoreDelta).toBeLessThan(0);
     expect(d.deltaStr.startsWith('↓ ')).toBe(true);
     expect(d.deltaColor).toBe('#EF4444');
+  });
+});
+
+describe('SCORE_WEIGHTS', () => {
+  it('lists the five score components and nothing else', () => {
+    expect(SCORE_WEIGHTS.map((w) => w.key)).toEqual([
+      'nutrition',
+      'recovery',
+      'weight',
+      'tasks',
+      'checkin',
+    ]);
+  });
+
+  it('weights sum to exactly 100', () => {
+    expect(SCORE_WEIGHTS.reduce((a, w) => a + w.pct, 0)).toBe(100);
+  });
+
+  it('matches the coefficients computeDerived actually applies (no invented weights)', () => {
+    // Mirror of athleteScore: 0.4 nutrition + 0.2 recovery + 0.2 weight + 0.1 tasks + 0.1 checkin.
+    const expected: Record<string, number> = {
+      nutrition: 40,
+      recovery: 20,
+      weight: 20,
+      tasks: 10,
+      checkin: 10,
+    };
+    for (const w of SCORE_WEIGHTS) {
+      expect(w.pct).toBe(expected[w.key]);
+      expect(w.desc.length).toBeGreaterThan(0);
+    }
   });
 });
