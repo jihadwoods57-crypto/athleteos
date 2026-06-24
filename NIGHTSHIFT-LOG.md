@@ -4,6 +4,80 @@ Newest entries at the top. Each entry = what shipped + anything the founder need
 
 ---
 
+# COHERENCE + DASHBOARD run (2026-06-24, continuation) — close the last demo leaks, surface dead data, sharpen the at-risk reasons
+
+Continues the series (does not restart). Five commits, all three gates green on
+EVERY commit (`tsc --noEmit` clean, `jest` went 429 -> **442 passing** and never
+dropped, `expo export -p ios` bundles). `src/core` stayed pure; the Phase-2
+Supabase scaffold was untouched; no `src/app`. `git push origin master`
+fast-forwarded cleanly on all five (no relay wall this run). This run cleared the
+TWO remaining NEEDS-HUMAN code items from the morning summary (Squad demo leak,
+unused `trainingFreq`), killed one more demo-identity leak (Notifications), and
+made the overseer Needs-Attention reason name the specific spec signal.
+
+Per-commit, newest last:
+
+1. **feat(squad): a real athlete sees their own week, not a fabricated demo squad.**
+   The Squad tab was the LAST surface leaking the seeded demo identity to a real
+   new athlete: the peer leaderboard (Marcus Cole et al.), the "Linebackers" room
+   labels, and the "Visible to Coach Davis · resets Sunday" footer are all seed
+   data with no real team/peer source offline. New pure `squadView({ isReal })`
+   (mirrors the coachGuidance gating): the seeded demo keeps the full showcase
+   unchanged; a real athlete gets a "Your week" card with their own live score +
+   monogram + trend, plus an honest "No squad connected yet" empty-peer panel.
+   +3 tests. (Closes morning-summary NEEDS HUMAN #1 with the crew's recommended
+   shape.)
+2. **feat(profile): surface the onboarding training cadence.** Onboarding asks
+   "How often do you train?" and persisted `trainingFreq`, but nothing displayed
+   it (collected-but-dead). New pure `trainingCadence(trainingFreq)` -> a short
+   Profile line ("Trains twice a day") under the sport/position subtitle for a
+   real athlete who answered; null for the seeded demo (unchanged) or an unknown
+   key. +2 tests. (Closes morning-summary NEEDS HUMAN #2.)
+3. **fix(notifications): stop the inbox fabricating a coach, parent, and rank.**
+   The Notifications inbox told every athlete "Your coach and parent are waiting
+   on it", "You're #2 in the linebacker room" (contradicting the new solo Squad),
+   and showed a fabricated "Coach Davis" praise note. New pure
+   `notificationCopy({ isReal, supportTeam, athleteScore })`: the demo keeps the
+   showcase; a real athlete's reminder names only the overseers they connected
+   (or a neutral line solo), the score update drops the room rank, and the coach
+   praise note is removed. +4 tests.
+4. **feat(overseer): the Needs-Attention reason names the specific signal.** The
+   coach Needs-Attention / trainer Needs-Follow-Up rows read only a generic
+   "58% compliant · trending down". `AtRiskInput` now carries optional signal
+   fields (proteinMissed, hydrationLow, weightStalled, checkinDaysAgo) and
+   `atRiskReason` reports them nutrition-first when present (e.g. "Protein missed
+   4 of 7 days · hydration down · no check-in 4 days"), capped at three clauses;
+   a row with no signals still falls back to the honest compliance/trend/recency
+   read. The two at-risk coach rows + the at-risk trainer client carry
+   spec-aligned signals; both dashboards render them with no view change. +5
+   tests. (Definition of Done item 3, the spec's named at-risk reasons.)
+5. **test(smoke): lock this run's new gated selectors across every edge state.**
+   Extends the screen-data smoke net to drive squadView / notificationCopy /
+   trainingCadence / the Needs-Attention reason over the same edge-state +
+   per-role matrix, so a regression in any of them fails CI. Test-only.
+
+### For the founder (QC this run)
+- **Squad tab as a real athlete**: onboard under your own name and you no longer
+  see a demo team (Marcus Cole, "Linebackers", "Visible to Coach Davis"). You see
+  a "Your week" card with your own live score and an honest "No squad connected
+  yet" panel. The seeded demo (no name set) is unchanged.
+- **Profile**: a real athlete who answered "How often do you train?" now sees it
+  ("Trains twice a day") under their sport/position. The demo is unchanged.
+- **Notifications (bell)**: a real solo athlete is no longer told a coach/parent
+  is waiting, isn't ranked "#2 in the linebacker room", and gets no fabricated
+  Coach Davis note. A real athlete with a coach sees their coach named.
+- **Coach / Trainer dashboards**: the at-risk rows now say exactly what's wrong
+  ("Protein missed 4 of 7 days · hydration down · no check-in 4 days") instead of
+  just a compliance percent, so you can act without opening the athlete.
+
+### NEEDS HUMAN (unchanged from the morning summary, minus the two cleared above)
+- **Visual QC is still unverified** — the crew has no eyes; every change this run
+  was logic/wiring/copy/data-flow/test only. A device/browser pass is the right
+  final check.
+- **Real mount-the-tree render tests remain blocked** by the jest 30 vs
+  jest-expo peer conflict; the node-env screen-DATA smoke net (now broader) is the
+  stand-in until a human makes the toolchain call.
+
 # ☀️ MORNING SUMMARY — overnight COHERENCE series (2026-06-24, FINAL run)
 
 Good morning. The overnight crew finished the COHERENCE mission: make the app
@@ -60,15 +134,13 @@ None of these are bugs in today's build; each is a product/visual decision the
 no-eyes crew deliberately did not make alone. Full detail at the bottom of
 `docs/NAV-MAP.md`.
 
-1. **Squad tab is a seeded showcase for everyone.** The peer leaderboard, the
-   "Linebackers" labels, and the "Visible to Coach Davis" line are all seed data;
-   there is no real team/peer source yet, so a real athlete sees a demo squad.
-   Relabeling pieces in isolation would make it less coherent, not more. The
-   honest fix is a real-athlete empty state ("no squad connected yet") — your call
-   on the product shape.
-2. **`trainingFreq` is collected in onboarding but never displayed.** Either
-   surface it (Profile identity or coaching copy) or drop the question. A
-   placement decision.
+1. **[RESOLVED in the 2026-06-24 continuation run]** Squad tab demo leak: a real
+   athlete now sees a "Your week" card with their own live score plus an honest
+   "No squad connected yet" empty state (the recommended shape); the seeded demo
+   keeps the full showcase. See the top entry, commit 1.
+2. **[RESOLVED in the 2026-06-24 continuation run]** `trainingFreq` is now
+   surfaced on the Profile identity card ("Trains twice a day") for a real athlete
+   who answered. See the top entry, commit 2.
 3. **Visual QC is unverified.** The crew has no eyes — every change was
    logic/wiring/copy/data-flow/test only. The DESIGN.md polish, motion, and a11y
    items in `docs/COMPLETION-PLAN.md` Phase 5 are coded where applicable but need
@@ -1152,7 +1224,18 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
 
 ## REMAINING TO COMPLETE (mapped to the Definition of Done)
 
-1. **QC findings** — ✅ `collapsable` web warning cleared this run. (No open QC
+> **Updated by the 2026-06-24 continuation run (442 tests).** Deltas since the
+> list below was written: (item 1/5) the **Squad** demo leak is closed — a real
+> athlete sees their own week + an honest "no squad connected yet" state, and the
+> **Notifications** inbox no longer fabricates a coach/parent/room rank for a real
+> athlete; (item 6) `trainingFreq` is now surfaced on the Profile; (item 3) the
+> coach/trainer **Needs-Attention reason** now names the specific spec signals
+> (protein missed N of 7, hydration down, weight stalled, no check-in). The only
+> items that remain are the **human-only** ones: a visual QC pass on a device, and
+> a real mount-the-tree render harness (toolchain-blocked). The engineering
+> Definition of Done is substantively met; what is left needs human eyes/decisions.
+
+1. **QC findings** — ✅ `collapsable` web warning cleared. (No open QC
    findings remain in NIGHTSHIFT-PRIORITIES.)
 2. **UX/UI fidelity, every screen/overlay/role** — athlete tabs, overlays, and
    role chrome have had fidelity + a11y passes. **Squad** is now fully
