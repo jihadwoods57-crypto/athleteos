@@ -8,6 +8,7 @@ import {
   heroStatus,
   mealResultFor,
   MEAL_RESULTS,
+  notificationCopy,
   paceProjection,
   qualityLabel,
   squadView,
@@ -401,6 +402,40 @@ describe('coachGuidance', () => {
   it('prefers the coach monogram when both coach and nutritionist are connected', () => {
     const g = coachGuidance({ isReal: true, supportTeam: ['nutritionist', 'coach'], coachNote: NOTE });
     expect(g.monogram).toBe('C');
+  });
+});
+
+describe('notificationCopy', () => {
+  it('keeps the full seeded showcase for the demo', () => {
+    const c = notificationCopy({ isReal: false, supportTeam: [], athleteScore: 78 });
+    expect(c.checkin).toContain('coach and parent');
+    expect(c.score).toContain('linebacker room');
+    expect(c.score).toContain('78');
+    expect(c.coachNote).toEqual({
+      initials: 'CD',
+      title: 'Coach Davis',
+      text: '"Strong week. Your nutrition is the best in the room. Keep it up."',
+    });
+  });
+
+  it('drops the fabricated coach note + linebacker rank for a real athlete', () => {
+    const c = notificationCopy({ isReal: true, supportTeam: ['coach'], athleteScore: 91 });
+    expect(c.coachNote).toBeNull();
+    expect(c.score).not.toMatch(/linebacker/i);
+    expect(c.score).toContain('91');
+  });
+
+  it('names only the overseers a real athlete actually connected in the reminder', () => {
+    expect(notificationCopy({ isReal: true, supportTeam: ['coach', 'parent'], athleteScore: 80 }).checkin)
+      .toBe('Takes 2 minutes. Your coach and your parent are waiting on it.');
+    expect(notificationCopy({ isReal: true, supportTeam: ['coach'], athleteScore: 80 }).checkin)
+      .toBe('Takes 2 minutes. Your coach is waiting on it.');
+  });
+
+  it('never fabricates a coach or parent for a real solo athlete', () => {
+    const c = notificationCopy({ isReal: true, supportTeam: [], athleteScore: 80 });
+    expect(c.checkin).not.toMatch(/coach|parent/i);
+    expect(c.coachNote).toBeNull();
   });
 });
 

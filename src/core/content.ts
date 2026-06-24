@@ -465,6 +465,51 @@ export function athleteSubtitle(position: string | null, sport?: string | null):
   return `${label} · ${hasSport ? sport : 'Eastside HS'}`;
 }
 
+export interface NotificationCopy {
+  /** The "weekly check-in due" reminder body, with an honest audience clause. */
+  checkin: string;
+  /** The "score update" body; only the seeded demo claims a linebacker-room rank. */
+  score: string;
+  /** The EARLIER coach-praise card, or null when it must not be fabricated. */
+  coachNote: { initials: string; title: string; text: string } | null;
+}
+
+/**
+ * Gated copy for the Notifications inbox so a real athlete is never told that a
+ * coach, parent, or position room they don't have is waiting on, ranking, or
+ * praising them. The seeded demo (isReal false) keeps the exact showcase strings;
+ * a real athlete's reminders name only the overseers they actually connected, the
+ * score update drops the fabricated "#2 in the linebacker room" rank (matching the
+ * honest solo Squad view), and the fabricated Coach Davis praise note is removed.
+ * Mirrors the supportAudience / coachGuidance gating convention.
+ */
+export function notificationCopy(opts: {
+  isReal: boolean;
+  supportTeam: string[];
+  athleteScore: number;
+}): NotificationCopy {
+  if (!opts.isReal) {
+    return {
+      checkin: 'Takes 2 minutes. Your coach and parent are waiting on it.',
+      score: `Your Athlete Score is ${opts.athleteScore}. You're #2 in the linebacker room.`,
+      coachNote: { initials: 'CD', title: 'Coach Davis', text: '"Strong week. Your nutrition is the best in the room. Keep it up."' },
+    };
+  }
+  const has = (k: string) => opts.supportTeam.includes(k);
+  let checkin: string;
+  if (has('coach') && has('parent')) checkin = 'Takes 2 minutes. Your coach and your parent are waiting on it.';
+  else if (has('coach')) checkin = 'Takes 2 minutes. Your coach is waiting on it.';
+  else if (has('parent')) checkin = 'Takes 2 minutes. Your parent is waiting on it.';
+  else if (has('trainer')) checkin = 'Takes 2 minutes. Your trainer is waiting on it.';
+  else if (has('nutritionist')) checkin = 'Takes 2 minutes. Your nutritionist is waiting on it.';
+  else checkin = 'Takes 2 minutes. Your weekly check-in keeps your score honest.';
+  return {
+    checkin,
+    score: `Your Athlete Score is ${opts.athleteScore}. Tap to see your week.`,
+    coachNote: null,
+  };
+}
+
 /** Onboarding training-frequency key → a short Profile cadence phrase. */
 const TRAIN_CADENCE: Record<string, string> = {
   once: 'Trains once a day',
