@@ -86,6 +86,16 @@ export function needsAttention(list: AtRiskInput[], threshold: number = COACH_AL
 }
 
 /**
+ * Sort a whole roster/book worst-first (most at-risk leading), using the same
+ * `riskValue` ranking the Needs-Attention list uses. So the full table below the
+ * alert card agrees with it: the athletes a coach should act on first lead the
+ * list instead of sitting in arbitrary seed order. Pure + non-mutating.
+ */
+export function rankByRisk<T extends AtRiskInput>(list: T[]): T[] {
+  return [...list].sort((a, b) => riskValue(a) - riskValue(b));
+}
+
+/**
  * The plain-language read of a score, so the words a coach sees always match the
  * number: "On standard" (dialed in), "On the bubble" (real but inconsistent),
  * "Needs intervention" (not accountable yet). Anchored to the spec's 95 / 75 / 60.

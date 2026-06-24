@@ -3,7 +3,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, gradeFor, needsAttention, trendInfo } from '@/core';
+import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, gradeFor, needsAttention, rankByRisk, trendInfo } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
@@ -108,7 +108,7 @@ export function CoachView() {
             ROSTER · {roster.length} ATHLETES
           </Txt>
           <View style={{ gap: 8 }}>
-            {roster.map((a) => {
+            {rankByRisk(roster).map((a) => {
               const g = gradeFor(a.score);
               const tr = trendInfo(a.dir);
               return (

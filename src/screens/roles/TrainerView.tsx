@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, needsAttention, trainerBookKpis } from '@/core';
+import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, needsAttention, rankByRisk, trainerBookKpis } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -144,7 +144,7 @@ export function TrainerView() {
             </Txt>
           </Row>
           <View style={{ gap: 8 }}>
-            {TRAINER_CLIENTS.map((c) => {
+            {rankByRisk(TRAINER_CLIENTS).map((c) => {
               const g = gradeFor(c.score);
               const org = ORG_COLORS[c.org] ?? ORG_COLORS.Independent;
               return (

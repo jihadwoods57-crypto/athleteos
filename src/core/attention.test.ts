@@ -3,6 +3,7 @@ import {
   riskTone,
   atRiskReason,
   needsAttention,
+  rankByRisk,
   scoreLanguage,
 } from './attention';
 import { ROSTER, TRAINER_CLIENTS } from './constants';
@@ -80,6 +81,25 @@ describe('needsAttention', () => {
     const row = needsAttention(ROSTER)[0];
     expect(row.reason.length).toBeGreaterThan(5);
     expect(['warning', 'alert']).toContain(row.tone);
+  });
+});
+
+describe('rankByRisk', () => {
+  it('orders a full roster worst-first (most at-risk leading)', () => {
+    const ranked = rankByRisk(ROSTER);
+    const values = ranked.map((r) => riskValue(r));
+    // non-decreasing riskValue == worst (smallest) first
+    for (let i = 1; i < values.length; i++) expect(values[i]).toBeGreaterThanOrEqual(values[i - 1]);
+    // the lowest-scoring at-risk athlete leads both the roster and Needs-Attention
+    expect(ranked[0].name).toBe(needsAttention(ROSTER)[0].name);
+  });
+
+  it('keeps every member (a sort, not a filter) and does not mutate the input', () => {
+    const before = [...TRAINER_CLIENTS];
+    const ranked = rankByRisk(TRAINER_CLIENTS);
+    expect(ranked.length).toBe(TRAINER_CLIENTS.length);
+    expect(new Set(ranked.map((c) => c.name))).toEqual(new Set(TRAINER_CLIENTS.map((c) => c.name)));
+    expect(TRAINER_CLIENTS).toEqual(before); // original order untouched
   });
 });
 
