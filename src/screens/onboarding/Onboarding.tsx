@@ -151,7 +151,7 @@ function Welcome() {
         </Row>
         <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 28 }}>
           <Txt w="eb" size={38} ls={-1.4} style={{ lineHeight: 42 }}>
-            Let's build your{'\n'}development plan.
+            Let's build your{'\n'}nutrition routine.
           </Txt>
           <Txt w="m" size={16} color={colors.textSecondary} style={{ marginTop: 14, lineHeight: 23 }}>
             A few quick questions, your Starting Point Score, and your first AI coaching moment. Under five minutes.

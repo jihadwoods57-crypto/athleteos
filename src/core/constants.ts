@@ -65,7 +65,7 @@ export interface RoleDef {
   archetype: 'athlete' | 'parent' | 'client' | 'team' | 'nutrition';
 }
 export const ROLE_DEFS: RoleDef[] = [
-  { key: 'athlete', title: 'Athlete', sub: 'Build your development plan', icon: 'bolt', flow: 'app', archetype: 'athlete' },
+  { key: 'athlete', title: 'Athlete', sub: 'Track nutrition, stay accountable', icon: 'bolt', flow: 'app', archetype: 'athlete' },
   { key: 'parent', title: 'Parent', sub: "Follow your athlete's progress", icon: 'user', flow: 'parent', archetype: 'parent' },
   { key: 'personal_trainer', title: 'Personal Trainer', sub: 'Coach clients beyond sessions', icon: 'plan', flow: 'trainer', archetype: 'client' },
   { key: 'sports_perf_coach', title: 'Sports Performance Coach', sub: 'Develop a roster of athletes', icon: 'checkin', flow: 'coach', archetype: 'team' },
