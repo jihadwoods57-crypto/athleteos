@@ -114,7 +114,7 @@ phase. It is now real across all three surfaces (🔧 this series).
 | --- | --- |
 | Menu (☰) | `openAccount` → Account ✅ |
 | KPI cards (Team Avg / Compliance / Alerts) | display-only (derive from live roster) ⬜ |
-| NEEDS ATTENTION rows | `openPerson` → PersonDetail ✅; 🔧 each row now has a **Nudge** action (`sendNudge`) |
+| NEEDS ATTENTION rows | `openPerson` → PersonDetail ✅; each row has a **Nudge** action (`sendNudge`); 🔧 the whole list now DERIVES from the live roster (`needsAttention`): everyone below the alert line, most-at-risk first, with a derived reason, list length == ALERTS KPI, and the live athlete appears here once their own score drops below 80. Empty → an all-clear state ⬜ |
 | Check-in question toggles | `toggleCiQ` ✅ |
 | Roster rows | `openPerson` → PersonDetail ✅ |
 | AI team summary | display-only ⬜ |
@@ -124,8 +124,8 @@ phase. It is now real across all three surfaces (🔧 this series).
 | --- | --- |
 | Menu (☰) | `openAccount` → Account ✅ |
 | KPI cards / Book Compliance trend | display-only ⬜ |
-| NEEDS FOLLOW-UP → "Send nudge" | 🔧 `sendNudge(name)` (was a dead `<View>`) |
-| NEEDS FOLLOW-UP → "View" | 🔧 `openPerson` → PersonDetail (was a dead `<View>`) |
+| NEEDS FOLLOW-UP → "Send nudge" | `sendNudge(name)`; 🔧 the list now DERIVES from the real client book (`needsAttention(TRAINER_CLIENTS)`) — badge count == list length, only real clients appear (a phantom client who was not in the book was removed), most-at-risk first. Empty → an all-clear state ⬜ |
+| NEEDS FOLLOW-UP → "View" | `openPerson` → PersonDetail (threads the client's real `last` recency) ✅ |
 | All Clients rows | `openPerson` → PersonDetail ✅ |
 | AI practice summary | display-only ⬜ |
 
@@ -141,7 +141,8 @@ phase. It is now real across all three surfaces (🔧 this series).
 | Title | 🔧 "{noun} Profile" — "Client Profile" from the Trainer book, "Athlete Profile" from the Coach roster (`rosterNoun(flow)`) |
 | Back | `closePerson` ✅ |
 | "Message" | `openMsg` → Messages ✅ |
-| Second action | 🔧 "Send nudge" `sendNudge` (was a dead "Adjust goals" `<View>`) |
+| Second action | "Send nudge" `sendNudge` ✅ |
+| Status word + "Last active" | 🔧 display-only ⬜ — a band-colored `scoreLanguage` word (On standard / On the bubble / Needs intervention) so the word matches the ring, and an honest "Last active · {last}" from the trainer book (Today when no recency) |
 
 ---
 
@@ -155,6 +156,10 @@ phase. It is now real across all three surfaces (🔧 this series).
    nudge — now the button it recommends works.)
 2. **Profile "Help & support"** — a chevron row with no `onPress`; now opens the
    Account help disclosure.
+3. **Phantom at-risk client** (run 3) — the Trainer NEEDS FOLLOW-UP hand-named a
+   client who did not exist in the client book, behind a hardcoded count badge.
+   The list now derives from the real book so only real clients can appear and
+   the badge count always matches the rows.
 
 ## Intentional display-only (NOT dead ends)
 
