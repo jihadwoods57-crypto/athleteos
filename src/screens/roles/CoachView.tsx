@@ -7,6 +7,7 @@ import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, gradeFor, trendInfo } from 
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
 import { Messages } from '@/screens/overlays/Messages';
@@ -47,8 +48,27 @@ export function CoachView() {
             <Txt w="eb" size={11} color={colors.alert} ls={0.7} style={{ marginBottom: 13 }}>
               NEEDS ATTENTION
             </Txt>
-            <AttentionRow initials="AS" name="A. Silva" meta="Missed 3 meals · recovery dropping" score={79} color={colors.warning} onPress={() => s.openPerson({ name: 'Andre Silva', initials: 'AS', pos: 'Linebacker', score: 79, comp: 71 })} />
-            <AttentionRow initials="MC" name="M. Cole" meta="No check-in · 58% compliance" score={68} color={colors.alert} onPress={() => s.openPerson({ name: 'Marcus Cole', initials: 'MC', pos: 'Linebacker', score: 68, comp: 58 })} last />
+            <AttentionRow
+              initials="AS"
+              name="A. Silva"
+              meta="Missed 3 meals · recovery dropping"
+              score={79}
+              color={colors.warning}
+              nudged={s.nudged.includes('Andre Silva')}
+              onNudge={() => { haptics.success(); s.sendNudge('Andre Silva'); }}
+              onPress={() => s.openPerson({ name: 'Andre Silva', initials: 'AS', pos: 'Linebacker', score: 79, comp: 71 })}
+            />
+            <AttentionRow
+              initials="MC"
+              name="M. Cole"
+              meta="No check-in · 58% compliance"
+              score={68}
+              color={colors.alert}
+              nudged={s.nudged.includes('Marcus Cole')}
+              onNudge={() => { haptics.success(); s.sendNudge('Marcus Cole'); }}
+              onPress={() => s.openPerson({ name: 'Marcus Cole', initials: 'MC', pos: 'Linebacker', score: 68, comp: 58 })}
+              last
+            />
           </View>
 
           <Card elevated style={{ marginTop: 18, borderRadius: 20 }}>
@@ -151,9 +171,9 @@ function Kpi({ value, label, color }: { value: string; label: string; color?: st
   );
 }
 
-function AttentionRow({ initials, name, meta, score, color, onPress, last }: { initials: string; name: string; meta: string; score: number; color: string; onPress: () => void; last?: boolean }) {
+function AttentionRow({ initials, name, meta, score, color, nudged, onNudge, onPress, last }: { initials: string; name: string; meta: string; score: number; color: string; nudged: boolean; onNudge: () => void; onPress: () => void; last?: boolean }) {
   return (
-    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: last ? 0 : 13 }}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${name}, score ${score}. ${meta}. View athlete.`} onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: last ? 0 : 13 }}>
       <Row style={{ gap: 11, flex: 1 }}>
         <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
           <Txt w="b" size={13} color={colors.slate600}>
@@ -169,9 +189,23 @@ function AttentionRow({ initials, name, meta, score, color, onPress, last }: { i
           </Txt>
         </View>
       </Row>
-      <Txt w="eb" size={19} color={color}>
+      <Txt w="eb" size={19} color={color} style={{ marginRight: 12 }}>
         {score}
       </Txt>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={nudged ? `Nudge sent to ${name}` : `Send a nudge to ${name}`}
+        accessibilityState={{ disabled: nudged }}
+        disabled={nudged}
+        hitSlop={8}
+        onPress={onNudge}
+        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9, backgroundColor: nudged ? colors.successSurface : colors.accent, opacity: pressed ? 0.85 : 1 })}
+      >
+        {nudged ? <Icon name="check" size={12} color={colors.successDeep} /> : null}
+        <Txt w="b" size={12} color={nudged ? colors.successDeep : '#fff'}>
+          {nudged ? 'Nudged' : 'Nudge'}
+        </Txt>
+      </Pressable>
     </Pressable>
   );
 }

@@ -22,6 +22,7 @@ export const DAY_DEFAULT_KEYS = [
   'meals',
   'hydrationL',
   'quickAdded',
+  'nudged',
   'tasks',
   'ciStage',
   'ciSubmitted',

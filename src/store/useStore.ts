@@ -126,6 +126,9 @@ export interface Actions {
   enterParent: () => void;
   enterTrainer: () => void;
 
+  // overseer action (coach/trainer/nutritionist): the lightweight nudge
+  sendNudge: (name: string) => void;
+
   // tasks
   toggleTask: (id: number) => void;
 
@@ -320,6 +323,14 @@ export const useStore = create<Store>()(
       enterParent: () => set({ flow: 'parent' }),
       enterTrainer: () => set({ flow: 'trainer' }),
 
+      // ---- overseer action ----
+      // The only overseer action this phase (product spec): a lightweight nudge
+      // to an at-risk athlete. Deterministic + offline — it records the athlete as
+      // nudged today (idempotent), which flips the dashboard button to "Nudged".
+      // Day-scoped via rollover so the coach can nudge again tomorrow.
+      sendNudge: (name) =>
+        set((s) => (s.nudged.includes(name) ? {} : { nudged: [...s.nudged, name] })),
+
       // ---- tasks ----
       toggleTask: (id) =>
         set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) })),
@@ -386,6 +397,7 @@ export const useStore = create<Store>()(
         hydrationL: s.hydrationL,
         tasks: s.tasks,
         quickAdded: s.quickAdded,
+        nudged: s.nudged,
         ciStage: s.ciStage,
         ciSubmitted: s.ciSubmitted,
         ciWeight: s.ciWeight,
