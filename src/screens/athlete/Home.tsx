@@ -195,8 +195,8 @@ export function Home() {
               {goal.pctThere < 100 ? 'On track ·' : 'Goal reached ·'}{' '}
             </Txt>
             {goal.pctThere < 100
-              ? `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit} by Nov 7 — a week ahead of playoffs.`
-              : `You hit ${displayWeight(TARGET, units)} ${wUnit} — season weight goal complete.`}
+              ? `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit} by Nov 7, a week ahead of playoffs.`
+              : `You hit ${displayWeight(TARGET, units)} ${wUnit}. Season weight goal complete.`}
           </Txt>
         </View>
       </Card>
@@ -327,7 +327,7 @@ export function Home() {
               Dinner logged
             </Txt>
             <Txt w="m" size={13} color={colors.textSecondary}>
-              All meals in — day complete
+              All meals in · day complete
             </Txt>
           </View>
           <Txt w="eb" size={13} color={colors.successDeep}>

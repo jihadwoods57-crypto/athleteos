@@ -55,7 +55,7 @@ export function CheckIn() {
             </Txt>
           </Row>
           <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
-            Strong week, {name}. Energy and confidence are up, and your nutrition is locked in. Recovery dipped slightly — prioritize sleep and you'll convert this into an A next week.
+            Strong week, {name}. Energy and confidence are up, and your nutrition is locked in. Recovery dipped slightly, so prioritize sleep and you'll convert this into an A next week.
           </Txt>
         </Card>
         <Btn label="Back to Home" variant="secondary" onPress={s.goHome} style={{ marginTop: 16 }} />
@@ -169,7 +169,7 @@ export function CheckIn() {
 
       <Card style={{ marginTop: 14, borderRadius: 18, paddingVertical: 17 }}>
         <Txt w="m" size={14} color={colors.textTertiary}>
-          Notes for your coach <Txt w="m" size={14} color={colors.textTertiary} style={{ opacity: 0.7 }}>— optional</Txt>
+          Notes for your coach <Txt w="m" size={14} color={colors.textTertiary} style={{ opacity: 0.7 }}>· optional</Txt>
         </Txt>
       </Card>
 

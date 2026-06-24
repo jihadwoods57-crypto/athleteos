@@ -181,7 +181,7 @@ export function TrainerView() {
               </Txt>
             </Row>
             <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
-              Your book is healthy — {kpis.avgCompliance}% average compliance, up 6% this month. Two clients are retention risks: Silva went quiet 5 days ago and Cole hasn't logged since joining. A nudge today usually recovers 70% of at-risk clients before they churn.
+              Your book is healthy: {kpis.avgCompliance}% average compliance, up 6% this month. Two clients are retention risks: Silva went quiet 5 days ago and Cole hasn't logged since joining. A nudge today usually recovers 70% of at-risk clients before they churn.
             </Txt>
           </Card>
         </ScrollView>

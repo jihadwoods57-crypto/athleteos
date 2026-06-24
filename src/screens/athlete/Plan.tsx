@@ -35,7 +35,7 @@ export function Plan() {
         </Txt>
         <View style={{ flex: 1 }}>
           <Txt w="b" size={14} style={{ marginBottom: 8 }}>
-            {left === 0 ? 'All done — nice work' : `${left} task${left === 1 ? '' : 's'} left today`}
+            {left === 0 ? 'All done, nice work' : `${left} task${left === 1 ? '' : 's'} left today`}
           </Txt>
           <ProgressBar pct={d.tasksScore} height={9} />
         </View>

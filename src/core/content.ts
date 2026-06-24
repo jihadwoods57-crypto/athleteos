@@ -65,7 +65,7 @@ export const MEALS_LOG: LoggedMeal[] = [
       { l: 'Macro balance', s: 92 },
       { l: 'Meal timing', s: 88 },
     ],
-    note: 'Excellent lunch — high protein with clean carbs. Ideal 2-3 hours before practice.',
+    note: 'Excellent lunch with high protein and clean carbs. Ideal 2-3 hours before practice.',
   },
   {
     id: 's',
@@ -89,7 +89,7 @@ export const MEALS_LOG: LoggedMeal[] = [
       { l: 'Macro balance', s: 80 },
       { l: 'Meal timing', s: 90 },
     ],
-    note: 'Smart high-protein snack between lunch and dinner — keeps you in a surplus.',
+    note: 'Smart high-protein snack between lunch and dinner. Keeps you in a surplus.',
   },
 ];
 
@@ -106,7 +106,7 @@ export interface MealResult {
 
 export const MEAL_RESULTS: Record<MealLabel, MealResult> = {
   Breakfast: { name: 'Veggie Omelette & Toast', quality: 90, protein: 38, kcal: 480, carbs: 34, fat: 22, detected: ['Eggs', 'Spinach', 'Whole-grain toast', 'Feta'], note: 'Strong protein start. Add fruit for micronutrients and you’re at an A.' },
-  Lunch: { name: 'Turkey & Quinoa Bowl', quality: 92, protein: 46, kcal: 620, carbs: 58, fat: 18, detected: ['Ground turkey', 'Quinoa', 'Peppers', 'Avocado'], note: 'Excellent lunch — lean protein with clean carbs, ideal pre-practice.' },
+  Lunch: { name: 'Turkey & Quinoa Bowl', quality: 92, protein: 46, kcal: 620, carbs: 58, fat: 18, detected: ['Ground turkey', 'Quinoa', 'Peppers', 'Avocado'], note: 'Excellent lunch with lean protein and clean carbs, ideal pre-practice.' },
   Dinner: { name: 'Chicken, Rice & Broccoli', quality: 94, protein: 52, kcal: 680, carbs: 64, fat: 18, detected: ['Grilled chicken', 'Brown rice', 'Broccoli', 'Olive oil'], note: 'Excellent protein hit for dinner. Add a piece of fruit and this is a perfect plate.' },
   Snack: { name: 'Greek Yogurt & Berries', quality: 89, protein: 24, kcal: 240, carbs: 22, fat: 6, detected: ['Greek yogurt', 'Blueberries', 'Honey', 'Almonds'], note: 'Great high-protein snack to close the gap before bed.' },
 };
@@ -193,12 +193,12 @@ export function aiInsight(state: AppState, derived: Derived): string {
   const dayComplete =
     derived.mealsLoggedCount === 4 && derived.proteinToday >= derived.proteinTarget;
   if (dayComplete) {
-    return 'Day complete — every meal logged and protein over target. This is what an A week looks like; keep the streak alive.';
+    return 'Day complete. Every meal logged and protein over target. This is what an A week looks like; keep the streak alive.';
   }
   const close = state.meals.dinner
     ? 'log your remaining meals to close the day at an A.'
     : 'log dinner to close the day at an A.';
-  return `Protein and recovery are tracking well. You’re ${derived.proteinGap}g from your protein target — ${close}`;
+  return `Protein and recovery are tracking well. You’re ${derived.proteinGap}g from your protein target, so ${close}`;
 }
 
 export type HeroTone = 'positive' | 'neutral' | 'warn';
@@ -242,23 +242,23 @@ export function heroStatus(state: AppState, derived: Derived): HeroStatus {
     // builds an `ask` from proteinGap/mealsLeft (both zero here), which would nag an
     // athlete who has nothing left to do. Band only sets tone/copy, never an ask.
     if (score >= 90) {
-      return { line: 'Day complete and you cleared an A — keep the streak rolling.', standingLabel, tone: 'positive' };
+      return { line: 'Day complete and you cleared an A. Keep the streak rolling.', standingLabel, tone: 'positive' };
     }
     if (score >= 80) {
-      return { line: 'Day complete — every meal in and protein cleared. Recovery is the only thing keeping you off an A.', standingLabel, tone: 'positive' };
+      return { line: 'Day complete. Every meal in and protein cleared. Recovery is the only thing keeping you off an A.', standingLabel, tone: 'positive' };
     }
-    return { line: 'Day complete — everything logged. Lock in recovery to lift the grade.', standingLabel, tone: 'neutral' };
+    return { line: 'Day complete. Everything logged. Lock in recovery to lift the grade.', standingLabel, tone: 'neutral' };
   }
   if (score >= 80) {
     // On pace (A/B), day not yet complete.
-    return { line: `Tracking well — ${ask} to lock in an A today.`, standingLabel, tone: 'positive' };
+    return { line: `Tracking well: ${ask} to lock in an A today.`, standingLabel, tone: 'positive' };
   }
   if (score < 70) {
     // Behind (D/F) — honest, never "on pace".
-    return { line: `You're behind today — ${ask} to climb back up.`, standingLabel, tone: 'warn' };
+    return { line: `You're behind today: ${ask} to climb back up.`, standingLabel, tone: 'warn' };
   }
   // Mid 70..79 (C): neutral nudge.
-  return { line: `You're close — ${ask} to push into the green.`, standingLabel, tone: 'neutral' };
+  return { line: `You're close: ${ask} to push into the green.`, standingLabel, tone: 'neutral' };
 }
 
 export interface PaceProjection {
@@ -284,9 +284,9 @@ export function paceProjection(weeklyGoalLb: number): PaceProjection {
   const paceLabel = onPace ? '↑ On pace' : '↓ Behind pace';
   let paceAi: string;
   if (projected > goal) {
-    paceAi = `You're tracking to +${projected} lb by Sunday — a touch ahead. Ease back ~${Math.round(((projected - goal) * 3500) / 3)} cal/day to land exactly on target.`;
+    paceAi = `You're tracking to +${projected} lb by Sunday, a touch ahead. Ease back ~${Math.round(((projected - goal) * 3500) / 3)} cal/day to land exactly on target.`;
   } else if (onPace) {
-    paceAi = `You're tracking to +${projected} lb by Sunday — right on target. Keep the surplus steady.`;
+    paceAi = `You're tracking to +${projected} lb by Sunday, right on target. Keep the surplus steady.`;
   } else {
     paceAi = `At today's intake you'll reach +${projected} lb. Add ~${Math.round(((goal - projected) * 3500) / 3)} cal/day over the next ${daysLeft} days to stay on track.`;
   }

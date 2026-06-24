@@ -235,7 +235,7 @@ export function ParentView() {
                   </Txt>
                 </Row>
                 <Txt w="m" size={14} color={colors.slate700} style={{ marginTop: 7, lineHeight: 21 }}>
-                  Jihad's nutrition has been excellent — he's one of the most consistent in the linebacker room. We're focused on adding sleep to convert this into on-field strength. Great support at home.
+                  Jihad's nutrition has been excellent. He's one of the most consistent in the linebacker room. We're focused on adding sleep to convert this into on-field strength. Great support at home.
                 </Txt>
               </View>
             </Row>
