@@ -27,7 +27,7 @@ export function Notifications() {
   });
 
   return (
-    <Overlay title="Notifications" onClose={s.closeNotif} right={<Pressable onPress={s.closeNotif}><Txt w="b" size={13} color={colors.accent}>Clear</Txt></Pressable>}>
+    <Overlay title="Notifications" onClose={s.closeNotif} right={<Pressable accessibilityRole="button" accessibilityLabel="Clear notifications" hitSlop={8} onPress={s.closeNotif}><Txt w="b" size={13} color={colors.accent}>Clear</Txt></Pressable>}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <SectionLabel>NEW</SectionLabel>
         <View style={{ gap: 10 }}>

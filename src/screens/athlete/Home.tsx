@@ -287,7 +287,7 @@ export function Home() {
       </Card>
 
       {/* nutrition entry */}
-      <Pressable onPress={s.goNutrition} style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Nutrition: see today's meals, protein, and fuel" onPress={s.goNutrition} style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
         <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="flame" size={22} color={colors.accent} />
         </View>
@@ -382,7 +382,7 @@ export function Home() {
 
       {/* check-in banner */}
       {!s.ciSubmitted ? (
-        <Pressable onPress={s.goCheckin} style={[{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, shadow.cta]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Weekly check-in due: 6 questions, about 2 minutes" onPress={s.goCheckin} style={[{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, shadow.cta]}>
           <View>
             <Txt w="eb" size={11} color="rgba(255,255,255,0.85)" ls={0.7}>
               WEEKLY CHECK-IN DUE
