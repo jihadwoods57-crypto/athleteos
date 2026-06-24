@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, trainerBookKpis } from '@/core';
+import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, needsAttention, trainerBookKpis } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -17,6 +17,13 @@ import { PersonDetail } from '@/screens/overlays/PersonDetail';
 export function TrainerView() {
   const s = useStore();
   const kpis = trainerBookKpis(TRAINER_CLIENTS);
+  // Needs-Follow-Up derives from the same book the FOLLOW-UPS KPI counts, so the
+  // badge count always equals the rows shown and only REAL clients can appear
+  // (the old list hand-named a client who was not in the book at all).
+  const followUps = needsAttention(TRAINER_CLIENTS);
+  const clientByName: Record<string, (typeof TRAINER_CLIENTS)[number]> = Object.fromEntries(
+    TRAINER_CLIENTS.map((c) => [c.name, c]),
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -83,41 +90,49 @@ export function TrainerView() {
           </Card>
 
           {/* needs follow-up */}
-          <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.alertSurface, borderWidth: 1, borderColor: colors.alertBorder }}>
-            <Row style={{ gap: 8, marginBottom: 13 }}>
-              <Txt w="eb" size={12} color={colors.alertDeep} ls={0.7}>
+          {followUps.length > 0 ? (
+            <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.alertSurface, borderWidth: 1, borderColor: colors.alertBorder }}>
+              <Row style={{ gap: 8, marginBottom: 13 }}>
+                <Txt w="eb" size={12} color={colors.alertDeep} ls={0.7}>
+                  NEEDS FOLLOW-UP
+                </Txt>
+                <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                  <Txt w="eb" size={11} color={colors.alertDeep}>
+                    {followUps.length}
+                  </Txt>
+                </View>
+              </Row>
+              {followUps.map((a, i) => {
+                const c = clientByName[a.name];
+                const org = (c && ORG_COLORS[c.org]) ?? ORG_COLORS.Independent;
+                return (
+                  <FollowUp
+                    key={a.name}
+                    initials={c?.initials ?? a.name.slice(0, 2).toUpperCase()}
+                    iconBg={org.bg}
+                    iconColor={org.c}
+                    name={a.name}
+                    meta={a.reason}
+                    score={a.score}
+                    color={a.tone === 'alert' ? colors.alert : colors.warning}
+                    nudged={s.nudged.includes(a.name)}
+                    onNudge={() => { haptics.success(); s.sendNudge(a.name); }}
+                    onView={() => s.openPerson({ name: a.name, initials: c?.initials ?? a.name.slice(0, 2).toUpperCase(), pos: c?.sport ?? '', org: c?.org, score: a.score, comp: a.comp })}
+                    last={i === followUps.length - 1}
+                  />
+                );
+              })}
+            </View>
+          ) : (
+            <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.successSurface }}>
+              <Txt w="eb" size={12} color={colors.successDeep} ls={0.7} style={{ marginBottom: 6 }}>
                 NEEDS FOLLOW-UP
               </Txt>
-              <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
-                <Txt w="eb" size={11} color={colors.alertDeep}>
-                  2
-                </Txt>
-              </View>
-            </Row>
-            <FollowUp
-              initials="AS"
-              iconBg="#F5F3FF"
-              iconColor={colors.trainer}
-              name="Andre Silva"
-              meta="64% compliance · 5 days quiet"
-              score={74}
-              color={colors.warning}
-              nudged={s.nudged.includes('Andre Silva')}
-              onNudge={() => { haptics.success(); s.sendNudge('Andre Silva'); }}
-              onView={() => s.openPerson({ name: 'Andre Silva', initials: 'AS', pos: 'Linebacker', org: 'Westlake Club', score: 74, comp: 64 })}
-            />
-            <FollowUp
-              initials="MC"
-              name="Marcus Cole"
-              meta="No logs yet · churn risk"
-              score={68}
-              color={colors.alert}
-              nudged={s.nudged.includes('Marcus Cole')}
-              onNudge={() => { haptics.success(); s.sendNudge('Marcus Cole'); }}
-              onView={() => s.openPerson({ name: 'Marcus Cole', initials: 'MC', pos: 'Linebacker', org: 'Independent', score: 68, comp: 0 })}
-              last
-            />
-          </View>
+              <Txt w="sb" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>
+                Every client is above the line. Nothing to chase today.
+              </Txt>
+            </View>
+          )}
 
           {/* all clients */}
           <Row style={{ justifyContent: 'space-between', marginTop: 22, marginBottom: 12, marginHorizontal: 4 }}>
@@ -181,7 +196,10 @@ export function TrainerView() {
               </Txt>
             </Row>
             <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
-              Your book is healthy: {kpis.avgCompliance}% average compliance, up 6% this month. Two clients are retention risks: Silva went quiet 5 days ago and Cole hasn't logged since joining. A nudge today usually recovers 70% of at-risk clients before they churn.
+              Your book is healthy: {kpis.avgCompliance}% average compliance, up 6% this month.{' '}
+              {followUps.length === 0
+                ? 'No clients are at risk right now, so keep the momentum with the steady ones.'
+                : `${followUps.length === 1 ? '1 client is a retention risk' : `${followUps.length} clients are retention risks`}: ${followUps.map((a) => a.name).join(', ')}. A nudge today usually recovers 70% of at-risk clients before they churn.`}
             </Txt>
           </Card>
         </ScrollView>
