@@ -316,6 +316,34 @@ describe('paceProjection', () => {
   it('never returns a negative goal percentage on a cut', () => {
     expect(paceProjection(1.0, -2).goalPct).toBe(0);
   });
+
+  it('stays finite on a zero weekly goal (corrupt blob) — never NaN%/Infinity%', () => {
+    // goal 0 + 0 progress is the 0/0 = NaN trap; goal 0 + positive progress is the
+    // x/0 = Infinity trap. Both must resolve to a finite 0..100.
+    for (const [goal, prog] of [[0, 0], [0, 0.6], [0, -1]] as [number, number][]) {
+      const p = paceProjection(goal, prog);
+      expect(Number.isFinite(p.goalPct)).toBe(true);
+      expect(p.goalPct).toBeGreaterThanOrEqual(0);
+      expect(p.goalPct).toBeLessThanOrEqual(100);
+    }
+    // At/above the (degenerate) line reads 100, below reads 0 — mirrors seasonGoalProgress.
+    expect(paceProjection(0, 0).goalPct).toBe(100);
+    expect(paceProjection(0, 0.6).goalPct).toBe(100);
+    expect(paceProjection(0, -1).goalPct).toBe(0);
+  });
+
+  it('stays finite across a sweep of degenerate goal/progress combinations', () => {
+    for (const goal of [-1, 0, 0.5, 1, 2]) {
+      for (const prog of [-3, 0, 0.6, 5]) {
+        const p = paceProjection(goal, prog);
+        expect(Number.isFinite(p.goalPct)).toBe(true);
+        expect(Number.isFinite(p.projected)).toBe(true);
+        expect(Number.isFinite(p.surplus)).toBe(true);
+        expect(p.goalPct).toBeGreaterThanOrEqual(0);
+        expect(p.goalPct).toBeLessThanOrEqual(100);
+      }
+    }
+  });
 });
 
 describe('athleteSubtitle', () => {

@@ -307,7 +307,18 @@ export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): 
   const surplus = Math.round((goal * 3500) / 7);
   const projected = +((progressLb / daysElapsed) * 7).toFixed(1);
   const onPace = projected >= goal - 0.001;
-  const goalPct = Math.max(0, Math.min(100, Math.round((progressLb / goal) * 100)));
+  // The UI clamps the weekly goal to >= 0.5, but a corrupt/legacy persisted blob (or a
+  // future maintain goal) could carry 0/negative/NaN, making progressLb/goal divide as
+  // Infinity (any progress) or 0/0 = NaN (a fresh athlete at 0 progress) and rendering
+  // "NaN%"/"Infinity%" on the goal ring. With no positive goal there is no span to
+  // measure against, so mirror seasonGoalProgress's degenerate handling: at/above the
+  // line (progress >= 0) reads 100%, below reads 0% — always a finite 0..100.
+  const goalPct =
+    goal > 0
+      ? Math.max(0, Math.min(100, Math.round((progressLb / goal) * 100)))
+      : progressLb >= 0
+        ? 100
+        : 0;
   const paceLabel = onPace ? '↑ On pace' : '↓ Behind pace';
   let paceAi: string;
   if (projected > goal) {
