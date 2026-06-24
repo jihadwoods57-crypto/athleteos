@@ -8,6 +8,7 @@ import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, trainerBookKpis } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
 import { Messages } from '@/screens/overlays/Messages';
@@ -93,8 +94,29 @@ export function TrainerView() {
                 </Txt>
               </View>
             </Row>
-            <FollowUp initials="AS" iconBg="#F5F3FF" iconColor={colors.trainer} name="Andre Silva" meta="64% compliance · 5 days quiet" score={74} color={colors.warning} />
-            <FollowUp initials="MC" name="Marcus Cole" meta="No logs yet · churn risk" score={68} color={colors.alert} last />
+            <FollowUp
+              initials="AS"
+              iconBg="#F5F3FF"
+              iconColor={colors.trainer}
+              name="Andre Silva"
+              meta="64% compliance · 5 days quiet"
+              score={74}
+              color={colors.warning}
+              nudged={s.nudged.includes('Andre Silva')}
+              onNudge={() => { haptics.success(); s.sendNudge('Andre Silva'); }}
+              onView={() => s.openPerson({ name: 'Andre Silva', initials: 'AS', pos: 'Linebacker', org: 'Westlake Club', score: 74, comp: 64 })}
+            />
+            <FollowUp
+              initials="MC"
+              name="Marcus Cole"
+              meta="No logs yet · churn risk"
+              score={68}
+              color={colors.alert}
+              nudged={s.nudged.includes('Marcus Cole')}
+              onNudge={() => { haptics.success(); s.sendNudge('Marcus Cole'); }}
+              onView={() => s.openPerson({ name: 'Marcus Cole', initials: 'MC', pos: 'Linebacker', org: 'Independent', score: 68, comp: 0 })}
+              last
+            />
           </View>
 
           {/* all clients */}
@@ -185,7 +207,7 @@ function Kpi({ value, label, color }: { value: string; label: string; color?: st
   );
 }
 
-function FollowUp({ initials, iconBg, iconColor, name, meta, score, color, last }: { initials: string; iconBg?: string; iconColor?: string; name: string; meta: string; score: number; color: string; last?: boolean }) {
+function FollowUp({ initials, iconBg, iconColor, name, meta, score, color, nudged, onNudge, onView, last }: { initials: string; iconBg?: string; iconColor?: string; name: string; meta: string; score: number; color: string; nudged: boolean; onNudge: () => void; onView: () => void; last?: boolean }) {
   return (
     <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: last ? 0 : 10 }}>
       <Row style={{ justifyContent: 'space-between' }}>
@@ -209,16 +231,29 @@ function FollowUp({ initials, iconBg, iconColor, name, meta, score, color, last 
         </Txt>
       </Row>
       <Row style={{ gap: 8, marginTop: 12 }}>
-        <View style={{ flex: 1, height: 34, borderRadius: 9, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <Txt w="b" size={12} color="#fff">
-            Send nudge
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={nudged ? `Nudge sent to ${name}` : `Send a nudge to ${name}`}
+          accessibilityState={{ disabled: nudged }}
+          disabled={nudged}
+          onPress={onNudge}
+          style={({ pressed }) => ({ flex: 1, height: 34, borderRadius: 9, backgroundColor: nudged ? colors.successSurface : colors.accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6, opacity: pressed ? 0.85 : 1 })}
+        >
+          {nudged ? <Icon name="check" size={14} color={colors.successDeep} /> : null}
+          <Txt w="b" size={12} color={nudged ? colors.successDeep : '#fff'}>
+            {nudged ? 'Nudged' : 'Send nudge'}
           </Txt>
-        </View>
-        <View style={{ flex: 1, height: 34, borderRadius: 9, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`View ${name}`}
+          onPress={() => { haptics.tap(); onView(); }}
+          style={({ pressed }) => ({ flex: 1, height: 34, borderRadius: 9, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
+        >
           <Txt w="b" size={12} color={colors.slate700}>
             View
           </Txt>
-        </View>
+        </Pressable>
       </Row>
     </View>
   );

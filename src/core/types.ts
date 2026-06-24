@@ -115,6 +115,10 @@ export interface AppState {
   hydrationL: number;
   tasks: Task[];
   quickAdded: boolean[];
+  /** Names of at-risk athletes the overseer has nudged today. Day-scoped (clears
+   *  on rollover) so a coach/trainer can act again tomorrow. Backs the dashboard
+   *  "Nudged" confirmation state on the Needs-Attention / follow-up rows. */
+  nudged: string[];
 
   // ---- check-in ----
   ciStage: CiStage;

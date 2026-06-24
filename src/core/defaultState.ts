@@ -47,6 +47,7 @@ export function createInitialState(): AppState {
     meals: { breakfast: true, lunch: true, snack: true, dinner: false },
     hydrationL: 2.4,
     quickAdded: [false, false, false],
+    nudged: [],
     tasks: [
       { id: 1, group: 'NUTRITION', title: 'Log breakfast', meta: '42g protein', done: true },
       { id: 2, group: null, title: 'Hit 180g protein', meta: 'protein goal', done: false },

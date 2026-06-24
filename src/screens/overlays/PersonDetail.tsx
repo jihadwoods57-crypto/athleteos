@@ -5,6 +5,7 @@ import { displayWeightDelta, gradeFor, personBreakdown, weightUnit } from '@/cor
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Overlay } from './Overlay';
@@ -16,6 +17,7 @@ export function PersonDetail() {
   const grade = gradeFor(pd.score);
   const bd = personBreakdown(pd.score);
   const units = s.units ?? 'imperial';
+  const nudged = s.nudged.includes(pd.name);
 
   return (
     <Overlay title="Athlete Profile" onClose={s.closePerson}>
@@ -81,16 +83,24 @@ export function PersonDetail() {
         </Card>
 
         <Row style={{ gap: 10, marginTop: 18 }}>
-          <Pressable onPress={s.openMsg} style={[{ flex: 1, height: 54, borderRadius: 16, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }, shadow.cta]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Message ${pd.name}`} onPress={s.openMsg} style={[{ flex: 1, height: 54, borderRadius: 16, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }, shadow.cta]}>
             <Txt w="b" size={15} color="#fff">
               Message
             </Txt>
           </Pressable>
-          <View style={[{ flex: 1, height: 54, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
-            <Txt w="b" size={15} color={colors.slate700}>
-              Adjust goals
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={nudged ? `Nudge sent to ${pd.name}` : `Send a nudge to ${pd.name}`}
+            accessibilityState={{ disabled: nudged }}
+            disabled={nudged}
+            onPress={() => { haptics.success(); s.sendNudge(pd.name); }}
+            style={({ pressed }) => [{ flex: 1, height: 54, borderRadius: 16, backgroundColor: nudged ? colors.successSurface : '#fff', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, opacity: pressed ? 0.8 : 1 }, shadow.card]}
+          >
+            {nudged ? <Icon name="check" size={17} color={colors.successDeep} /> : null}
+            <Txt w="b" size={15} color={nudged ? colors.successDeep : colors.slate700}>
+              {nudged ? 'Nudged' : 'Send nudge'}
             </Txt>
-          </View>
+          </Pressable>
         </Row>
       </ScrollView>
     </Overlay>
