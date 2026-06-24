@@ -75,10 +75,10 @@ export function PersonDetail() {
           </Row>
           <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
             {pd.score >= 85
-              ? `${pd.name} is one of your most consistent — nutrition is locked in and the streak is alive. Watch recovery; a small sleep gain would push this to an A+.`
+              ? `${pd.name} is one of your most consistent. Nutrition is locked in and the streak is alive. Watch recovery; a small sleep gain would push this to an A+.`
               : pd.score >= 75
-              ? `${pd.name} is holding steady — nutrition and tasks are solid. Recovery is the gap; a sleep nudge would move the grade.`
-              : `${pd.name} needs attention — recovery and check-in are slipping and it's dragging the score down. A 1-on-1 this week would help reset the routine.`}
+              ? `${pd.name} is holding steady. Nutrition and tasks are solid. Recovery is the gap; a sleep nudge would move the grade.`
+              : `${pd.name} needs attention. Recovery and check-in are slipping and it's dragging the score down. A 1-on-1 this week would help reset the routine.`}
           </Txt>
         </Card>
 

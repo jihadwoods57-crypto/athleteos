@@ -22,13 +22,13 @@ export function Notifications() {
         <SectionLabel>NEW</SectionLabel>
         <View style={{ gap: 10 }}>
           <NotifCard icon="checkin" accent={colors.accent} title="Weekly check-in due" time="2m" text="Takes 2 minutes. Your coach and parent are waiting on it." onPress={go(s.goCheckin)} />
-          <NotifCard icon="camera" accent={colors.accent} title="Time to log dinner" time="18m" text={`You're ${d.proteinGap}g of protein from your target — one more meal does it.`} onPress={go(s.openMeal)} />
-          <NotifCard icon="trophy" accent={colors.success} iconBg={colors.successSurface} iconColor={colors.successDeep} title="Score update" time="1h" text={`Your Athlete Score is ${d.athleteScore} — you're #2 in the linebacker room.`} onPress={go(s.goSquad)} />
+          <NotifCard icon="camera" accent={colors.accent} title="Time to log dinner" time="18m" text={`You're ${d.proteinGap}g of protein from your target. One more meal does it.`} onPress={go(s.openMeal)} />
+          <NotifCard icon="trophy" accent={colors.success} iconBg={colors.successSurface} iconColor={colors.successDeep} title="Score update" time="1h" text={`Your Athlete Score is ${d.athleteScore}. You're #2 in the linebacker room.`} onPress={go(s.goSquad)} />
         </View>
 
         <SectionLabel style={{ marginTop: 20 }}>EARLIER</SectionLabel>
         <View style={{ gap: 10 }}>
-          <NotifCard initials="CD" title="Coach Davis" time="4h" text={'"Strong week — your nutrition is the best in the room. Keep it up."'} />
+          <NotifCard initials="CD" title="Coach Davis" time="4h" text={'"Strong week. Your nutrition is the best in the room. Keep it up."'} />
           <NotifCard icon="drop" accent={colors.hydration} iconColor={colors.hydration} title="Hydration reminder" time="6h" text="You're behind on water. Knock out 500ml before practice." />
         </View>
       </ScrollView>

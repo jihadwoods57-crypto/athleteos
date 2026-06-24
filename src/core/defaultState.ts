@@ -96,14 +96,14 @@ export function createInitialState(): AppState {
     msgDraft: '',
 
     // chat / memory
-    coachNote: 'Ease up on refined carbs at dinner — swap bread for rice or sweet potato.',
+    coachNote: 'Ease up on refined carbs at dinner. Swap bread for rice or sweet potato.',
     mealChat: [
-      { who: 'ai', text: 'Detected grilled chicken, brown rice & broccoli. Quality 94 — strong protein, clean carbs, good timing.' },
-      { who: 'coach', text: 'Great plate. Ease up on the rice portion at night though — keep carbs earlier in the day.' },
+      { who: 'ai', text: 'Detected grilled chicken, brown rice & broccoli. Quality 94. Strong protein, clean carbs, good timing.' },
+      { who: 'coach', text: 'Great plate. Ease up on the rice portion at night though, and keep carbs earlier in the day.' },
       { who: 'ai', text: 'Noted. I’ll flag smaller dinner carbs on Jihad’s plan and remind him going forward.' },
     ],
     msgThread: [
-      { who: 'them', text: 'Thanks for staying on top of this — it really helps to see the daily numbers.' },
+      { who: 'them', text: 'Thanks for staying on top of this. It really helps to see the daily numbers.' },
       { who: 'me', text: 'Of course. I’ll flag anything that looks off this week.' },
     ],
   };
