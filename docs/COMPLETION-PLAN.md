@@ -12,6 +12,11 @@ count, `npm run bundle`). One job = one commit. Guardrails in NIGHTSHIFT-PRIORIT
 
 ---
 
+## Founder QC findings to fold in (2026-06-24 visual pass)
+A real new-athlete visual pass confirmed Phase 0/1 render correctly. Two nits to fold into the phases below:
+- [ ] **Season Goal "On track" lies at 0%** (honesty; do with Phase 0/5). A brand-new athlete at start weight shows the Season Goal card asserting "On track, you'll reach 184 lb by Nov 7" while progress reads "0% there" with no logged weight history. The weight-pace projection must NOT claim "on track" with zero data. Show a neutral first-run state ("Just getting started. Log check-ins to see your pace.") until real weight history exists, then project.
+- [ ] **Profile subtitle drops the position** (data-flow; do with Phase 0/4). Onboarding collects `position` but the Profile subtitle reads "Football athlete" instead of surfacing it (e.g. "Quarterback, Football"). Show the chosen position; fall back to "{sport} athlete" only when no position was given.
+
 ## Phase 0 — Foundation reconcile (do FIRST; everything builds on this)
 The new onboarding and dashboards are only honest if a real new athlete's state flows through.
 - [x] **New-athlete day-0 reconcile**: a brand-new athlete's first day continues from the
