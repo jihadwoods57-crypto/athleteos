@@ -3,11 +3,15 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { athleteSubtitle, computeDerived, displayWeight, firstName, initials, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
+import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS, initials, supportVisibilityRows, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
+
+/** Avatar initial + color per support-team role for the visibility rows. */
+const VIS_INITIALS: Record<string, string> = { coach: 'C', trainer: 'T', nutritionist: 'N', parent: 'P' };
+const VIS_COLORS: Record<string, string> = { coach: colors.text, trainer: colors.trainer, nutritionist: colors.success, parent: colors.warning };
 
 export function Profile() {
   const insets = useSafeAreaInsets();
@@ -17,6 +21,26 @@ export function Profile() {
   const wStepLb = weightStepLb(units);
   const weightTarget = s.weightTarget ?? WEIGHT_TARGET;
   const [editingTargets, setEditingTargets] = React.useState(false);
+
+  // Real athlete (completed the new onboarding, so a name is set) vs the seeded
+  // demo (athleteName ''). For a real athlete every identity surface derives from
+  // their own onboarding answers; the demo keeps the Jihad / Eastside / Coach
+  // Davis showcase so it is unchanged.
+  const isReal = s.athleteName.trim().length > 0;
+  const goalLabel = s.primaryGoal ? GOAL_LABELS[s.primaryGoal] : null;
+  const idChip = isReal
+    ? s.inviteCode.trim()
+      ? `Team code · ${s.inviteCode.trim()}`
+      : goalLabel
+        ? `Goal · ${goalLabel}`
+        : 'Solo athlete'
+    : 'Team code · EAGLES24';
+  const workingToward = isReal
+    ? goalLabel
+      ? [goalLabel]
+      : []
+    : ['Performance', 'Scholarship', 'Body composition'];
+  const visRows = supportVisibilityRows(s.supportTeam);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
@@ -39,11 +63,11 @@ export function Profile() {
             {firstName(s.athleteName, 'Jihad')}
           </Txt>
           <Txt w="sb" size={14} color={colors.textSecondary} style={{ marginTop: 2 }}>
-            {athleteSubtitle(s.position)}
+            {athleteSubtitle(s.position, s.sport)}
           </Txt>
           <View style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
             <Txt w="b" size={12} color={colors.accent}>
-              Team code · EAGLES24
+              {idChip}
             </Txt>
           </View>
         </View>
@@ -99,40 +123,79 @@ export function Profile() {
             <TargetTile value={`${displayWeight(weightTarget, units)}${weightUnit(units)}`} label="WEIGHT" />
           </Row>
         )}
-        <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 14 }}>
-          WORKING TOWARD
-        </Txt>
-        <Row style={{ flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-          {['Performance', 'Scholarship', 'Body composition'].map((g) => (
-            <View key={g} style={{ paddingHorizontal: 13, paddingVertical: 7, borderRadius: 10, backgroundColor: colors.accentSurface }}>
-              <Txt w="b" size={13} color={colors.accent}>
-                {g}
-              </Txt>
-            </View>
-          ))}
-        </Row>
+        {workingToward.length > 0 ? (
+          <>
+            <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 14 }}>
+              WORKING TOWARD
+            </Txt>
+            <Row style={{ flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+              {workingToward.map((g) => (
+                <View key={g} style={{ paddingHorizontal: 13, paddingVertical: 7, borderRadius: 10, backgroundColor: colors.accentSurface }}>
+                  <Txt w="b" size={13} color={colors.accent}>
+                    {g}
+                  </Txt>
+                </View>
+              ))}
+            </Row>
+          </>
+        ) : null}
       </Card>
 
-      {/* visibility — managed by program (read-only) */}
+      {/* visibility — derived from the athlete's chosen support team (read-only) */}
       <View style={{ marginTop: 14 }}>
         <Txt w="eb" size={16} ls={-0.3} style={{ marginLeft: 4, marginBottom: 12 }}>
           Who can see your data
         </Txt>
         <Card style={{ borderRadius: 18 }}>
-          <Row style={{ gap: 9, marginBottom: 8 }}>
-            <Icon name="shield" size={16} color={colors.accent} />
-            <Txt w="eb" size={14}>
-              Managed by your program
-            </Txt>
-          </Row>
-          <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
-            Coach Davis controls who sees your scores — that's the point of accountability. You can't hide a tough week.
-          </Txt>
-          <View style={{ marginTop: 16, gap: 13 }}>
-            <VisRow initials="CD" bg={colors.text} title="Coach Davis" sub="Full profile & history" />
-            <VisRow initials="S" bg={colors.warning} title="Sarah (Parent)" sub="Weekly reports & alerts" />
-            <VisRow icon="trophy" title="Linebacker room" sub="Position leaderboard" />
-          </View>
+          {isReal ? (
+            visRows.length > 0 ? (
+              <>
+                <Row style={{ gap: 9, marginBottom: 8 }}>
+                  <Icon name="shield" size={16} color={colors.accent} />
+                  <Txt w="eb" size={14}>
+                    Your accountability circle
+                  </Txt>
+                </Row>
+                <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
+                  These people see your scores. Accountability works when the right people are watching, so you can't hide a tough week.
+                </Txt>
+                <View style={{ marginTop: 16, gap: 13 }}>
+                  {visRows.map((r) => (
+                    <VisRow key={r.key} initials={VIS_INITIALS[r.key] ?? r.title[0]} bg={VIS_COLORS[r.key] ?? colors.text} title={r.title} sub={r.sub} />
+                  ))}
+                </View>
+              </>
+            ) : (
+              <>
+                <Row style={{ gap: 9, marginBottom: 8 }}>
+                  <Icon name="shield" size={16} color={colors.accent} />
+                  <Txt w="eb" size={14}>
+                    Just you, for now
+                  </Txt>
+                </Row>
+                <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
+                  No one else is connected yet. Add a coach, trainer, or parent from your support team and they'll see your weekly progress, so the accountability has someone to answer to.
+                </Txt>
+              </>
+            )
+          ) : (
+            <>
+              <Row style={{ gap: 9, marginBottom: 8 }}>
+                <Icon name="shield" size={16} color={colors.accent} />
+                <Txt w="eb" size={14}>
+                  Managed by your program
+                </Txt>
+              </Row>
+              <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
+                Coach Davis controls who sees your scores, and that's the point of accountability. You can't hide a tough week.
+              </Txt>
+              <View style={{ marginTop: 16, gap: 13 }}>
+                <VisRow initials="CD" bg={colors.text} title="Coach Davis" sub="Full profile & history" />
+                <VisRow initials="S" bg={colors.warning} title="Sarah (Parent)" sub="Weekly reports & alerts" />
+                <VisRow icon="trophy" title="Linebacker room" sub="Position leaderboard" />
+              </View>
+            </>
+          )}
         </Card>
       </View>
 
@@ -164,12 +227,19 @@ export function Profile() {
             </Txt>
           </Row>
         </Pressable>
-        <Row style={{ justifyContent: 'space-between', paddingVertical: 15 }}>
-          <Txt w="b" size={15}>
-            Help & support
-          </Txt>
-          <Icon name="chevronRight" size={20} color="#CBD5E1" />
-        </Row>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Help and support"
+          onPress={s.openAccount}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          <Row style={{ justifyContent: 'space-between', paddingVertical: 15 }}>
+            <Txt w="b" size={15}>
+              Help & support
+            </Txt>
+            <Icon name="chevronRight" size={20} color="#CBD5E1" />
+          </Row>
+        </Pressable>
       </Card>
 
       <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
