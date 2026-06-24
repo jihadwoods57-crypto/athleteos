@@ -7,12 +7,18 @@ import { Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// The seeded-demo contact when Messages is opened without a specific person in
+// context (the showcase). A real thread always names the person actually tapped.
 const THEM_BY_ROLE: Record<string, string> = { coach: 'Jihad Carter', parent: 'Coach Davis', trainer: 'Maya Lopez' };
 
 export function Messages() {
   const s = useStore();
-  const them = THEM_BY_ROLE[s.role ?? ''] ?? 'Coach Davis';
-  const initials = them.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  // Messages is opened from PersonDetail's "Message", which leaves the tapped
+  // person in context. Name THAT person so the thread header agrees with the
+  // overlay it was opened from (tapping Marcus must not show a "Jihad" thread);
+  // fall back to the role's showcase contact only when no person is in context.
+  const them = s.personDetail?.name?.trim() || THEM_BY_ROLE[s.role ?? ''] || 'Coach Davis';
+  const initials = them.split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.bg, zIndex: 110 }}>
