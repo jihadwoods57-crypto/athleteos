@@ -195,16 +195,28 @@ export function aiInsight(state: AppState, derived: Derived): string {
   if (dayComplete) {
     return 'Day complete. Every meal logged and protein over target. This is what an A week looks like; keep the streak alive.';
   }
+  // Band the copy on the SAME thresholds heroStatus uses (>=80 positive "tracking
+  // well", 70-79 neutral "you're close", <70 warn "behind"), so the two cards on
+  // Home never contradict each other or the number sitting right above them.
+  //
   // A behind athlete (score below the C band, i.e. the spec's "needs intervention"
-  // line) must never be told they are "tracking well" or promised a still-reachable
-  // A. Mirror heroStatus's <70 warn threshold so the two cards never contradict the
-  // number sitting right above them on Home.
+  // line) must never be told they are "tracking well" or promised a still-reachable A.
   if (derived.athleteScore < 70) {
     const climb = state.meals.dinner
       ? 'log your remaining meals to start climbing back.'
       : 'logging dinner is the fastest way to start climbing back.';
     return `You’re behind today. You’re ${derived.proteinGap}g from your protein target, so ${climb}`;
   }
+  // A C-grade day (70-79) is "real but inconsistent" per the spec — doing some of the
+  // work, missing protein or days. It must NOT claim "tracking well" (a B/A sentiment)
+  // or promise an A; heroStatus calls the same band a neutral "you're close". Match it.
+  if (derived.athleteScore < 80) {
+    const push = state.meals.dinner
+      ? 'log your remaining meals to push into the green.'
+      : 'log dinner to push into the green.';
+    return `You’re close today. You’re ${derived.proteinGap}g from your protein target, so ${push}`;
+  }
+  // B/A (>=80), day not yet complete: genuinely on pace, an A is still reachable.
   const close = state.meals.dinner
     ? 'log your remaining meals to close the day at an A.'
     : 'log dinner to close the day at an A.';

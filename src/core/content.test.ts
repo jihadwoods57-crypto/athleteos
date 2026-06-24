@@ -116,6 +116,36 @@ describe('aiInsight', () => {
     expect(msg).toContain(`${d.proteinGap}g`);
   });
 
+  it('a C-grade day (70-79) is "close", never "tracking well" or a promised A — matches heroStatus neutral band', () => {
+    // The default seeded day scores in the C band (70-79).
+    const s = createInitialState();
+    const d = computeDerived(s);
+    expect(d.athleteScore).toBeGreaterThanOrEqual(70);
+    expect(d.athleteScore).toBeLessThan(80);
+    const msg = aiInsight(s, d);
+    expect(msg).not.toContain('tracking well'); // that is a B/A sentiment
+    expect(msg).not.toContain('close the day at an A'); // do not promise an A from a C
+    expect(msg).toMatch(/close/i); // honest neutral framing
+    expect(msg).toContain(`${d.proteinGap}g`);
+    // heroStatus calls the same band neutral, not positive — the two cards agree.
+    const h = heroStatus(s, d);
+    expect(h.tone).toBe('neutral');
+  });
+
+  it('a B/A day not yet complete (>=80) keeps the positive "tracking well -> reachable A" copy', () => {
+    // Default day + a submitted strong check-in lifts the score into the B band
+    // while the day is still incomplete (dinner unlogged).
+    const s = { ...createInitialState(), ciSubmitted: true } as AppState;
+    const d = computeDerived(s);
+    expect(d.athleteScore).toBeGreaterThanOrEqual(80);
+    expect(d.mealsLoggedCount).toBeLessThan(4); // not a complete day
+    const msg = aiInsight(s, d);
+    expect(msg).toContain('tracking well');
+    expect(msg).toContain('close the day at an A');
+    const h = heroStatus(s, d);
+    expect(h.tone).toBe('positive'); // both cards positive on the same >=80 state
+  });
+
   it('does not contradict heroStatus: both go warn/behind on the same sub-70 state', () => {
     const s = {
       ...createInitialState(),
