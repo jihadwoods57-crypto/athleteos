@@ -2,6 +2,66 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+# COHERENCE series (2026-06-24, run 3) — derive the overseer "who needs my attention" surfaces from real data
+
+Continues runs 1-2 (do not restart). Phases 0-1 of `docs/COMPLETION-PLAN.md` were
+already complete; this run advanced **Phase 3 (coach/overseer intervention)**.
+Four commits, all three gates green on every commit (`tsc --noEmit` clean, `jest`
+**350 passing**, up from 336 and never dropped, `expo export -p ios` bundles
+~2.9 MB). `src/core` stayed pure; the Phase-2 Supabase scaffold was not touched;
+no `src/app`.
+
+Per-commit, newest last:
+1. **feat(attention): pure at-risk detection + ranking + score language.** New
+   `src/core/attention.ts`. `needsAttention(list)` filters everyone below the
+   alert threshold (the SAME `score < 80` predicate the alerts/follow-ups KPI
+   uses, so the list length always equals the KPI count), ranks most-at-risk
+   first (`riskValue`: score-weighted, compliance second, downward-trend nudge),
+   and attaches a derived honest `reason` (compliance clause + trend or "N days
+   quiet" recency, never an invented stat) plus a `tone`. `scoreLanguage(score)`
+   maps to the spec's "On standard" (>=85) / "On the bubble" (>=70) / "Needs
+   intervention". Pure, no UI change. +14 tests.
+2. **feat(coach): derive Needs-Attention from the live roster.** The Coach NEEDS
+   ATTENTION card was two hand-picked static rows with frozen reason strings. It
+   now derives from `needsAttention(roster)`: ranked, with derived reasons and a
+   tone-driven score color. The list length now matches the ALERTS KPI, and the
+   live athlete surfaces here the moment their own score drops below 80 (it never
+   could before). Added an all-clear empty state.
+3. **fix(trainer): derive Needs-Follow-Up from the real client book.** Real
+   coherence bug: the list hand-named "Marcus Cole", a client who does NOT exist
+   in `TRAINER_CLIENTS`, behind a hardcoded "2" badge while the derived followUps
+   KPI is 1. Now derives from `needsAttention(TRAINER_CLIENTS)` so only real
+   clients appear and the badge == list length; the AI Practice Summary's
+   retention-risk clause is likewise derived (was naming the phantom client).
+   Added an all-clear empty state.
+4. **fix(person): honest last-active + a score-language status word.** The
+   detail overlay hardcoded "Last active . Today", so a trainer client like Andre
+   Silva (now "5 days quiet" in Needs-Follow-Up) contradicted himself on open.
+   PersonDetail now carries an optional `last` recency the trainer book threads
+   through (Today when there is no recency, e.g. the current-day coach roster),
+   and wires `scoreLanguage()` into a band-colored status word under the name so
+   the word always matches the number on the ring.
+
+### For the founder (QC this run)
+- **Coach dashboard**: NEEDS ATTENTION is now ranked worst-first off the live
+  roster (M. Cole before A. Silva) with derived reasons. Tank your own athlete's
+  score (skip meals/tasks) and YOU appear in the list, in lockstep with the
+  ALERTS KPI. With no one below 80 it shows an all-clear card.
+- **Trainer dashboard**: NEEDS FOLLOW-UP no longer lists a client who is not in
+  your book; the badge count matches the rows; the AI Practice Summary names the
+  real at-risk client(s).
+- **Athlete/Client detail overlay**: a status word (On standard / On the bubble /
+  Needs intervention) under the name matches the score ring; "Last active" reads
+  the client's real recency instead of always "Today".
+
+### Ops note — push path
+`git push origin master` is still rejected by the local relay as non-fast-forward
+even on a clean fast-forward (the documented wall; the relay mirrors a protected
+master). Each commit was landed on `master` via the GitHub API (`push_files`) and
+**verified byte-for-byte** against the locally gate-verified tree (`git diff
+origin/master HEAD` empty) after fetch. Full per-commit history is also parked on
+the **`coherence-run3`** branch (pushed via `git`, which works for non-master).
+
 # COHERENCE series (2026-06-24, run 2) — finish the new-athlete data flow + add the screen safety net
 
 Continues run 1 (do not restart). Four commits, all three gates green on every

@@ -48,14 +48,21 @@ The new onboarding and dashboards are only honest if a real new athlete's state 
   every meal type and goal. **(HUMAN)** final visual polish of the coach screen.
 
 ## Phase 3 — Coach / overseer intervention ("who needs my attention today")
-- [ ] **At-risk detection** (pure core): per-athlete derived reason from real data (protein
-  missed N of 7, hydration down, weight stalled, no check-in, compliance under X), ranked
-  most-at-risk first; replace the static "Needs Attention" strings; sort the roster worst-first.
-- [ ] **Score language**: 95 "on standard" / 75 "on the bubble" / 60 "needs intervention", wired
-  so words always match the number.
+- [x] **At-risk detection** (pure core): per-athlete derived reason from real data, ranked
+  most-at-risk first; replace the static "Needs Attention" strings. (run 3: pure
+  `core/attention.ts` `needsAttention()` drives the Coach NEEDS ATTENTION and Trainer NEEDS
+  FOLLOW-UP lists off the live roster/book; same `score < threshold` predicate as the
+  alerts/follow-ups KPI so the list length always matches the badge; derived reason = compliance +
+  trend + "days quiet" recency; tone-driven color. Fixed a real coherence bug: a phantom trainer
+  client not in the book. Remaining: sort the All-Clients/Roster tables worst-first too.)
+- [x] **Score language**: 95 "on standard" / 75 "on the bubble" / 60 "needs intervention", wired
+  so words always match the number. (run 3: `scoreLanguage()` + a band-colored status word in the
+  PersonDetail overlay.)
 - [ ] **Nudge + acknowledgement model** (loop #3): structured coach->athlete nudge + a
   seen/acted-on state + a derived "did compliance move after the nudge" read; store actions +
-  selectors + tests. Wire the derived data into existing dashboard rows.
+  selectors + tests. Wire the derived data into existing dashboard rows. (`sendNudge` + the
+  day-scoped "Nudged" confirmation exist from runs 1-2; the seen/acted-on + compliance-moved read
+  is still open.)
 - **Acceptance**: detection + ranking + nudge model fully unit-tested. **(HUMAN)** the nudge UI /
   acknowledgement screen rendering.
 
