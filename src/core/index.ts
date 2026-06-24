@@ -12,6 +12,7 @@ export * from './units';
 export * from './contrast';
 export * from './history';
 export * from './person';
+export * from './attention';
 export * from './identity';
 export * from './account';
 export * from './validate';
