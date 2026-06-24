@@ -2,6 +2,96 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+---
+
+# ☀️ MORNING SUMMARY — overnight COHERENCE series (2026-06-24, FINAL run)
+
+Good morning. The overnight crew finished the COHERENCE mission: make the app
+consistent and sensible, with navigation and endpoints that make sense. Here is
+the whole picture so you can pick up without scrolling.
+
+## Where the app stands
+**Navigation and endpoints are now coherent.** Every screen, every tab, every
+overlay, and every interactive control has a real destination or an intentional,
+documented display-only state. The full map is in `docs/NAV-MAP.md` (consolidated
+this run): screen -> entry points -> exits, with the remaining showcase surfaces
+called out explicitly. There are **no known dead CTAs** (a button that looks
+tappable but does nothing) and **no known identity contradictions** left in the
+real-user path. Gates are green: `npm run typecheck` clean, **426 tests pass**
+(up from 269 at the start of the series, never dropped on any commit),
+`npm run bundle` exports.
+
+## What the series shipped (newest first)
+The series ran in several passes; each commit kept all three gates green.
+
+- **Final run (identity coherence, this run, +14 tests -> 426):**
+  - `accountIdentity` — the Account overlay was the LAST surface still hardcoding
+    the demo ("Coach Davis · Eastside HS" for a real coach, "JC · Eastside HS" for
+    a real athlete). It now derives name + monogram + role line per role from real
+    onboarding; the seeded demo is unchanged.
+  - Messages now names the person you actually tapped (`personDetail.name`) — an
+    overseer who tapped "Marcus Cole -> Message" used to see a thread headed
+    "Jihad Carter". The header now matches the overlay it opened from.
+  - The Home check-in banner, the Check-In "Sent to ..." line, and the "Tailored
+    by ..." badge no longer fabricate "Coach Davis" for a real solo athlete
+    (`supportAudience` / `checkinAttribution` derive the real audience, or drop
+    the clause/badge).
+- **LOGIC / CORRECTNESS runs 1-2 (+40 tests):** fuzzed the pure scoring engine and
+  fixed every reachable NaN/Infinity poison (degenerate weight goal, non-positive
+  nutrition target, missing check-in answer, zeroed weekly goal) plus a Home
+  insight that called a C-grade day "tracking well". Each invariant is locked by a
+  test, so a regression fails CI.
+- **COHERENCE runs 1-4:** the navigation + endpoint map itself; the overseer
+  **Nudge** made real across coach/trainer/PersonDetail (the spec's only overseer
+  action, previously dead); pure **at-risk detection + ranking** driving the Coach
+  NEEDS ATTENTION and Trainer NEEDS FOLLOW-UP lists off the live roster/book (and
+  removing a phantom client that was not in the book); **score language** so the
+  status word always matches the number; the Profile "Help & support" dead chevron
+  wired; and a sweep that stopped the seeded demo identity (Jihad / Coach Davis /
+  Eastside / Apex / a frozen weekday) from leaking to a real athlete, parent,
+  coach, or trainer across Home, Profile, Plan, Nutrition, and the three
+  dashboards. Em dashes removed from shipped copy (design ban).
+- **Foundation (pre-series, do not redo):** the activation-first onboarding
+  redesign (7 roles, Starting Point Score, step engine) and the AI Nutrition Coach
+  showcase. A new athlete's Day-0 now continues honestly from their reveal.
+
+## Still needs a human (NEEDS HUMAN)
+None of these are bugs in today's build; each is a product/visual decision the
+no-eyes crew deliberately did not make alone. Full detail at the bottom of
+`docs/NAV-MAP.md`.
+
+1. **Squad tab is a seeded showcase for everyone.** The peer leaderboard, the
+   "Linebackers" labels, and the "Visible to Coach Davis" line are all seed data;
+   there is no real team/peer source yet, so a real athlete sees a demo squad.
+   Relabeling pieces in isolation would make it less coherent, not more. The
+   honest fix is a real-athlete empty state ("no squad connected yet") — your call
+   on the product shape.
+2. **`trainingFreq` is collected in onboarding but never displayed.** Either
+   surface it (Profile identity or coaching copy) or drop the question. A
+   placement decision.
+3. **Visual QC is unverified.** The crew has no eyes — every change was
+   logic/wiring/copy/data-flow/test only. The DESIGN.md polish, motion, and a11y
+   items in `docs/COMPLETION-PLAN.md` Phase 5 are coded where applicable but need
+   your on-device/browser pass.
+4. **Real mount-the-tree render tests are blocked** by a toolchain conflict
+   (jest 30 vs jest-expo's `@react-native/jest-preset` peer). The crew shipped a
+   node-env screen-DATA smoke net instead (drives the same pure selectors every
+   screen renders from, across edge states + every role). A true React-render
+   test needs a human toolchain call.
+
+## Recommended next steps for the founder
+1. **Do a browser/device pass** of the real-user path (complete onboarding as a
+   brand-new athlete with no coach) and confirm the identity coherence reads
+   right. Then repeat as a coach, parent, and trainer.
+2. **Decide the Squad product shape** (item 1 above) — it is the one remaining
+   surface where a real user sees demo data, and it needs you, not the crew.
+3. **Place or cut `trainingFreq`** (item 2).
+4. When ready for the backend, the Phase-2 Supabase scaffold (`src/lib/supabase`,
+   `src/store/sync.ts`) is inert and waiting for keys — a deliberate
+   human-in-the-loop milestone the crew never touched.
+
+The tree is green and pushed to `master`. Detailed per-run notes follow below.
+
 # LOGIC / CORRECTNESS series (2026-06-24, run 2) - two more NaN poisons + a score-band honesty fix
 
 Continues run 1 (does not restart). Three commits, all three gates green on every
