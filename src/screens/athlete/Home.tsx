@@ -7,6 +7,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 import {
   aiInsight,
   currentStreak,
+  coachGuidance,
   DEFAULT_CHART_BOX,
   displayWeight,
   firstName,
@@ -38,6 +39,13 @@ export function Home() {
   const d = useDerived();
   const name = firstName(s.athleteName, 'Jihad');
   const monogram = initials(s.athleteName, 'J');
+  // Human-coach guidance, gated so a brand-new real athlete with no coach never
+  // sees the seeded demo's "Coach Davis" note (the demo showcase is unchanged).
+  const guidance = coachGuidance({
+    isReal: s.athleteName.trim().length > 0,
+    supportTeam: s.supportTeam,
+    coachNote: s.coachNote,
+  });
 
   // Real trend geometry: persisted prior-day scores + today's live score as the
   // final point (seed pads the left only while real history is still filling up).
@@ -277,29 +285,33 @@ export function Home() {
         </View>
       </Card>
 
-      {/* coach guidance */}
-      <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
-        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' }}>
-          <Txt w="b" size={13} color="#fff">
-            CD
-          </Txt>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Row style={{ gap: 7, flexWrap: 'wrap' }}>
-            <Txt w="eb" size={12} ls={0.4}>
-              COACH GUIDANCE
+      {/* coach guidance — hidden for a solo real athlete (no coach to quote) */}
+      {guidance.show ? (
+        <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt w="b" size={13} color="#fff">
+              {guidance.monogram}
             </Txt>
-            <View style={{ backgroundColor: colors.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-              <Txt w="b" size={10} color={colors.accent}>
-                Remembered by AI
+          </View>
+          <View style={{ flex: 1 }}>
+            <Row style={{ gap: 7, flexWrap: 'wrap' }}>
+              <Txt w="eb" size={12} ls={0.4}>
+                COACH GUIDANCE
               </Txt>
-            </View>
-          </Row>
-          <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 6, lineHeight: 20 }}>
-            {s.coachNote}
-          </Txt>
-        </View>
-      </Card>
+              {guidance.pending ? null : (
+                <View style={{ backgroundColor: colors.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                  <Txt w="b" size={10} color={colors.accent}>
+                    Remembered by AI
+                  </Txt>
+                </View>
+              )}
+            </Row>
+            <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 6, lineHeight: 20 }}>
+              {guidance.note ?? 'Your coach can leave a standing note here. The AI keeps it in front of you every day until it sticks.'}
+            </Txt>
+          </View>
+        </Card>
+      ) : null}
 
       {/* next action */}
       {!s.meals.dinner ? (

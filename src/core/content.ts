@@ -315,6 +315,42 @@ export function supportVisibilityRows(supportTeam: string[]): VisibilityRow[] {
   return supportTeam.map((k) => map[k]).filter(Boolean);
 }
 
+export interface CoachGuidance {
+  /** Whether to render the human-coach guidance surface at all. */
+  show: boolean;
+  /** Avatar monogram for the guidance source (e.g. 'CD' demo, 'C' coach, 'N' nutritionist). */
+  monogram: string;
+  /** The standing coach directive, or null when none has landed yet (pending). */
+  note: string | null;
+  /** True when an overseer is connected but no directive exists yet (intentional empty state). */
+  pending: boolean;
+}
+
+/**
+ * The athlete's human-coach guidance, gated so the seeded demo's "Coach Davis"
+ * note never leaks to a brand-new real athlete who has no coach.
+ *   - seeded demo (not real): the showcase note from Coach Davis ("CD") — unchanged.
+ *   - real athlete with a coach or nutritionist on their support team: a pending
+ *     empty state (their first real directive will appear here) — no fabricated note.
+ *   - real solo athlete: no guidance surface at all.
+ * `isReal` mirrors the Profile convention (a name set means onboarding completed).
+ */
+export function coachGuidance(opts: {
+  isReal: boolean;
+  supportTeam: string[];
+  coachNote: string;
+}): CoachGuidance {
+  if (!opts.isReal) {
+    return { show: true, monogram: 'CD', note: opts.coachNote, pending: false };
+  }
+  const hasCoach = opts.supportTeam.includes('coach');
+  const hasNutritionist = opts.supportTeam.includes('nutritionist');
+  if (!hasCoach && !hasNutritionist) {
+    return { show: false, monogram: '', note: null, pending: false };
+  }
+  return { show: true, monogram: hasCoach ? 'C' : 'N', note: null, pending: true };
+}
+
 /** Position abbreviation → full label for the profile subtitle. */
 export const POSITION_LABELS: Record<string, string> = {
   QB: 'Quarterback', RB: 'Running Back', WR: 'Wide Receiver', OL: 'Offensive Line',

@@ -1,7 +1,7 @@
 // AthleteOS — Meal capture overlay: capture → analyzing (~2.3s) → result.
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, ScrollView, View } from 'react-native';
-import { mealResultFor, qualityLabel, mealCoaching, mealScoreImpact } from '@/core';
+import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact } from '@/core';
 import type { MealLabel } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
@@ -205,7 +205,15 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
     accent: { bg: colors.accentSurface, fg: colors.accent },
     warning: { bg: '#FEF3C7', fg: colors.warningDeep },
   }[q.tone];
-  const coaching = mealCoaching(mealType, s.primaryGoal, derived, s.scoreHistory.length, s.coachNote);
+  // Gate the carried-forward coach note: only a real standing directive (the
+  // seeded demo, or a future real note) drives the "your coach, carried forward"
+  // card. A brand-new real athlete with no coach gets no fabricated quote.
+  const guidance = coachGuidance({
+    isReal: s.athleteName.trim().length > 0,
+    supportTeam: s.supportTeam,
+    coachNote: s.coachNote,
+  });
+  const coaching = mealCoaching(mealType, s.primaryGoal, derived, s.scoreHistory.length, guidance.note);
   const impact = mealScoreImpact(s, mealType);
 
   return (
@@ -258,13 +266,13 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
       {coaching.coachEcho ? (
         <Card style={{ marginTop: 12, borderRadius: 18 }}>
           <Row style={{ gap: 10 }}>
-            <Avatar initials="CD" size={34} bg={colors.text} color="#fff" />
+            <Avatar initials={guidance.monogram} size={34} bg={colors.text} color="#fff" />
             <View style={{ flex: 1 }}>
               <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5}>
                 YOUR COACH · CARRIED FORWARD
               </Txt>
               <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 4, lineHeight: 20 }}>
-                {`"${s.coachNote}"`}
+                {`"${guidance.note}"`}
               </Txt>
             </View>
           </Row>

@@ -3,6 +3,7 @@
 import {
   aiInsight,
   athleteSubtitle,
+  coachGuidance,
   heroStatus,
   mealResultFor,
   MEAL_RESULTS,
@@ -246,5 +247,44 @@ describe('athleteSubtitle', () => {
 
   it('defaults to Linebacker when no position is set', () => {
     expect(athleteSubtitle(null)).toBe('Linebacker · Eastside HS');
+  });
+});
+
+describe('coachGuidance', () => {
+  const NOTE = 'Ease up on refined carbs at dinner.';
+
+  it('keeps the seeded demo showcase: Coach Davis note, no gating', () => {
+    const g = coachGuidance({ isReal: false, supportTeam: [], coachNote: NOTE });
+    expect(g).toEqual({ show: true, monogram: 'CD', note: NOTE, pending: false });
+  });
+
+  it('hides the card for a real solo athlete (no coach to quote)', () => {
+    const g = coachGuidance({ isReal: true, supportTeam: [], coachNote: NOTE });
+    expect(g.show).toBe(false);
+    expect(g.note).toBeNull();
+  });
+
+  it('does not leak the seeded note even when the real athlete is solo', () => {
+    const g = coachGuidance({ isReal: true, supportTeam: ['parent'], coachNote: NOTE });
+    // parent is not a meal-guidance overseer
+    expect(g.show).toBe(false);
+    expect(g.note).toBeNull();
+  });
+
+  it('shows a pending empty state for a real athlete who connected a coach', () => {
+    const g = coachGuidance({ isReal: true, supportTeam: ['coach'], coachNote: NOTE });
+    expect(g).toEqual({ show: true, monogram: 'C', note: null, pending: true });
+  });
+
+  it('uses the nutritionist monogram when only a nutritionist is connected', () => {
+    const g = coachGuidance({ isReal: true, supportTeam: ['nutritionist'], coachNote: NOTE });
+    expect(g.monogram).toBe('N');
+    expect(g.pending).toBe(true);
+    expect(g.note).toBeNull();
+  });
+
+  it('prefers the coach monogram when both coach and nutritionist are connected', () => {
+    const g = coachGuidance({ isReal: true, supportTeam: ['nutritionist', 'coach'], coachNote: NOTE });
+    expect(g.monogram).toBe('C');
   });
 });
