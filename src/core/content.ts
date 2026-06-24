@@ -444,11 +444,25 @@ export function checkinAttribution(opts: { isReal: boolean; supportTeam: string[
   return null;
 }
 
-/** Position abbreviation → full label for the profile subtitle. */
-export const POSITION_LABELS: Record<string, string> = {
-  QB: 'Quarterback', RB: 'Running Back', WR: 'Wide Receiver', OL: 'Offensive Line',
-  DL: 'Defensive Line', LB: 'Linebacker', DB: 'Defensive Back', PG: 'Point Guard',
-  SG: 'Shooting Guard', SF: 'Small Forward', PF: 'Power Forward', C: 'Center',
+/**
+ * Position abbreviation → full label, keyed by sport. Abbreviations are NOT
+ * global: "C" is a Center in basketball/hockey but a Catcher in baseball, "S" a
+ * Setter in volleyball. The onboarding position picker (POSITION_MAP in
+ * constants) emits these per-sport codes, so the label lookup must be per-sport
+ * too or a baseball catcher reads as "Center". Mirrors POSITION_MAP exactly.
+ */
+export const POSITION_LABELS: Record<string, Record<string, string>> = {
+  Football: {
+    QB: 'Quarterback', RB: 'Running Back', WR: 'Wide Receiver', TE: 'Tight End',
+    OL: 'Offensive Line', DL: 'Defensive Line', LB: 'Linebacker', DB: 'Defensive Back',
+  },
+  Basketball: { PG: 'Point Guard', SG: 'Shooting Guard', SF: 'Small Forward', PF: 'Power Forward', C: 'Center' },
+  Baseball: { P: 'Pitcher', C: 'Catcher', IF: 'Infielder', OF: 'Outfielder' },
+  Soccer: { GK: 'Goalkeeper', DEF: 'Defender', MID: 'Midfielder', FWD: 'Forward' },
+  'Track & Field': { Sprints: 'Sprints', Distance: 'Distance', Jumps: 'Jumps', Throws: 'Throws' },
+  Wrestling: { Lightweight: 'Lightweight', Middleweight: 'Middleweight', Heavyweight: 'Heavyweight' },
+  Volleyball: { OH: 'Outside Hitter', MB: 'Middle Blocker', S: 'Setter', L: 'Libero', OPP: 'Opposite' },
+  Hockey: { G: 'Goaltender', D: 'Defenseman', C: 'Center', W: 'Wing' },
 };
 
 /**
@@ -456,12 +470,13 @@ export const POSITION_LABELS: Record<string, string> = {
  * who chose a sport gets "{position} · {sport}" (or "{sport} athlete" if they
  * skipped position), so it never hard-codes the seed school. With no sport set
  * (the seeded demo, athleteName ''), it falls back to the demo identity
- * "Linebacker · Eastside HS" so the showcase is unchanged.
+ * "Linebacker · Eastside HS" so the showcase is unchanged. The position label is
+ * resolved against the athlete's sport (or Football, the demo sport, when none).
  */
 export function athleteSubtitle(position: string | null, sport?: string | null): string {
   const hasSport = !!(sport && sport.trim());
   if (!position) return hasSport ? `${sport} athlete` : 'Linebacker · Eastside HS';
-  const label = POSITION_LABELS[position] ?? position;
+  const label = (POSITION_LABELS[hasSport ? (sport as string) : 'Football'] ?? {})[position] ?? position;
   return `${label} · ${hasSport ? sport : 'Eastside HS'}`;
 }
 

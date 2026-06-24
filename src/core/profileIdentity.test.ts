@@ -18,6 +18,29 @@ describe('athleteSubtitle — derives from the real sport, not a hard-coded scho
     expect(athleteSubtitle(null)).toBe('Linebacker · Eastside HS');
     expect(athleteSubtitle('QB')).toBe('Quarterback · Eastside HS');
   });
+
+  it('expands position codes per-sport so a baseball catcher is not a "Center"', () => {
+    // "C" is a Catcher in baseball but a Center in basketball/hockey - the label
+    // must follow the sport, never a global abbreviation.
+    expect(athleteSubtitle('C', 'Baseball')).toBe('Catcher · Baseball');
+    expect(athleteSubtitle('C', 'Basketball')).toBe('Center · Basketball');
+    expect(athleteSubtitle('C', 'Hockey')).toBe('Center · Hockey');
+  });
+
+  it('expands every onboarding position code for each sport (no raw abbreviation leaks)', () => {
+    expect(athleteSubtitle('TE', 'Football')).toBe('Tight End · Football');
+    expect(athleteSubtitle('GK', 'Soccer')).toBe('Goalkeeper · Soccer');
+    expect(athleteSubtitle('OH', 'Volleyball')).toBe('Outside Hitter · Volleyball');
+    expect(athleteSubtitle('S', 'Volleyball')).toBe('Setter · Volleyball');
+    expect(athleteSubtitle('P', 'Baseball')).toBe('Pitcher · Baseball');
+    expect(athleteSubtitle('G', 'Hockey')).toBe('Goaltender · Hockey');
+  });
+
+  it('passes an unrecognized code through verbatim rather than mislabeling it', () => {
+    expect(athleteSubtitle('ZZ', 'Soccer')).toBe('ZZ · Soccer');
+    // Track & Field / Wrestling codes are already readable words - kept verbatim.
+    expect(athleteSubtitle('Sprints', 'Track & Field')).toBe('Sprints · Track & Field');
+  });
 });
 
 describe('supportVisibilityRows — derives the accountability circle from supportTeam', () => {
