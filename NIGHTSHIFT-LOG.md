@@ -2,6 +2,76 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+# LOGIC / CORRECTNESS series (2026-06-24, run 2) - two more NaN poisons + a score-band honesty fix
+
+Continues run 1 (does not restart). Three commits, all three gates green on every
+commit (`tsc --noEmit` clean, `jest` went 405 -> 412 passing and never dropped,
+`expo export -p ios` bundles). `src/core` stayed pure; the Phase-2 Supabase scaffold
+was untouched; no `src/app`.
+
+Method: continued the run-1 fuzz, this time targeting the two derived numbers run 1's
+sweep did NOT exercise under a corrupt persisted blob (the recovery sub-score's
+per-question average, and the weekly pace ring's goal %), plus an audit of the Home
+band-derived copy against the live score band. Found two more reachable NaN/Infinity
+poisons and one score-band copy mismatch; fixed each and locked it with tests.
+
+Per-commit, newest last:
+
+1. **fix(scoring): recoveryScore NaN on an undefined/non-finite check-in answer.**
+   `computeDerived` averages the coach-enabled check-in answers into the 20%-weighted
+   recovery sub-score. A corrupt/legacy persisted blob carrying `ciSubmitted: true`
+   while an enabled answer (e.g. `ciEnergy`) is undefined/NaN made `recoverySum` NaN,
+   so `recoveryScore` AND the whole `athleteScore` went NaN and the Home hero rendered
+   "NaN". Run 1 guarded the nutrition target's 0/0; this is the same class on the
+   recovery side, which run 1 didn't reach. Now any non-finite enabled answer is
+   skipped (never counted, never inflates the divisor); if every enabled answer is
+   missing, recovery falls back to 86, exactly as if no questions were enabled.
+   Out-of-range numeric values were already absorbed by the final 0..100 clamp. +3 tests.
+
+2. **fix(content): Home AI insight stops calling a C-grade athlete "tracking well".**
+   Run 1 fixed the <70 behind case but left `aiInsight` with only two bands (<70 vs
+   everything else), so a C-grade day (70-79) still got the B/A copy ("Protein and
+   recovery are tracking well ... close the day at an A"). `heroStatus` already splits
+   that range three ways (>=80 positive, 70-79 NEUTRAL, <70 warn), so the two Home cards
+   disagreed about the same number. This was the copy MOST users saw: the default
+   seeded day scores 78, a C. `aiInsight` now bands on the same thresholds as
+   `heroStatus` - 70-79 reads a neutral "You're close ... push into the green" (no
+   "tracking well", no promised A), >=80 keeps the positive copy, <70 keeps behind.
+   Matches the spec's "C = real but inconsistent". +2 tests.
+
+3. **fix(content): paceProjection goalPct div-by-zero on a zero weekly goal.** The
+   Nutrition weekly-goal ring fills from `progressLb / weeklyGoalLb`. The UI clamps the
+   goal to >= 0.5, but it's persisted, so a corrupt blob carrying 0 made the ring read
+   "Infinity%" (any progress) or "NaN%" (a fresh athlete at 0 progress). Every other
+   number the projection returns divided only by constants and was safe; `goalPct` was
+   the one hole. With no positive goal there's no span to measure, so it now mirrors
+   `seasonGoalProgress`'s degenerate handling: at/above the line reads 100%, below 0% -
+   always finite 0..100. The positive-goal path is unchanged. +2 tests.
+
+Verified clean (audited, no fix needed this run): the history/trend chart geometry
+(`trendGeometry`, `weightTrendGeometry`, `weightSeries`, `currentStreak`,
+`nutritionTrend`, `weeklyCompliance`) stays finite on empty/degenerate REAL inputs - the
+only way to make them emit NaN is to feed a literal NaN, which the store pipeline never
+produces (history scores are clamped integers, weights clamp 70..350, and `athleteScore`
+is now guaranteed finite by commit 1). `personBreakdown` offsets sum to zero (bars
+average to the headline). `accountRows` / `mealRowsFor` / `identity` / `clock` /
+`startingScore` (`gradeWithSuffix` bands, weights summing to 100) all re-audited clean.
+
+### For the founder
+- Three more correctness bugs were shipping. Two were NaN/Infinity poisons reachable
+  only from a corrupted persisted blob (a missing check-in answer; a zeroed weekly
+  goal) - rare, but each would have blanked the score / goal ring as "NaN". The third
+  was visible to essentially every user: the Home insight card called a C-grade day
+  "tracking well" and promised a reachable A, contradicting the honest hero line right
+  above it. All three are fixed and covered by tests, so a regression fails CI.
+- No NEEDS HUMAN items this run. One behavior noted for context (NOT a bug, working as
+  the spec intends): a brand-new athlete whose onboarding Starting Point Score is high
+  (a strong self-report) will see their measured day-0 Home score start lower (~59 on an
+  empty day) and rise as they log. The Starting Point Score is explicitly a self-report
+  estimate "replaced by measured behavior" (see `startingScore.ts`), so the reveal and
+  the live score measure different things by design. Flagging only so it isn't mistaken
+  for a drift bug.
+
 # LOGIC / CORRECTNESS series (2026-06-24, run 1) - prove the math, lock the invariants
 
 Continues the build (does not restart). A logic-only run: hunt real correctness
