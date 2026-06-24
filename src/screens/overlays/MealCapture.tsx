@@ -216,6 +216,9 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
   });
   const coaching = mealCoaching(mealType, s.primaryGoal, derived, s.scoreHistory.length, guidance.note);
   const impact = mealScoreImpact(s, mealType);
+  // When a real AI analysis is present, its note IS the coaching (goal-aware, from the
+  // photo); otherwise use the deterministic goal-aligned insight.
+  const heroInsight = s.mealAnalysis?.note ?? coaching.insight;
 
   return (
     <View>
@@ -242,7 +245,7 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           </Txt>
         </Row>
         <Txt w="sb" size={16} color={colors.slate700} style={{ marginTop: 12, lineHeight: 23 }}>
-          {coaching.insight}
+          {heroInsight}
         </Txt>
       </View>
 
