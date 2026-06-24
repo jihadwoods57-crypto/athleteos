@@ -71,6 +71,27 @@ export function recordDayNutrition(preRoll: AppState, todayIso: string): DayScor
   return appendDayScore(history, preRoll.dateStamp, nutrition);
 }
 
+/**
+ * A genuinely EMPTY day slice for a brand-new athlete at activation: nothing
+ * logged yet, every task still open, no hydration, no nudges. This is distinct
+ * from `createInitialState`'s SEEDED DEMO day (which pre-logs 3 meals + marks
+ * some tasks done for the showcase). The activation flow swaps the seeded day
+ * for this one so a new athlete's first Home is honest — their live score builds
+ * up from an empty day (continuing from the Starting Point Score anchor written
+ * into scoreHistory) and rises as they log, instead of inheriting someone else's
+ * demo day (the "reveal said 49, Home said 78" contradiction). It does NOT touch
+ * the rollover defaults, so the seeded-demo experience is unchanged.
+ */
+export function emptyDaySlice(): Pick<AppState, 'meals' | 'hydrationL' | 'quickAdded' | 'nudged' | 'tasks'> {
+  return {
+    meals: { breakfast: false, lunch: false, snack: false, dinner: false },
+    hydrationL: 0,
+    quickAdded: [false, false, false],
+    nudged: [],
+    tasks: createInitialState().tasks.map((t) => ({ ...t, done: false })),
+  };
+}
+
 function pick<T extends object, K extends keyof T>(src: T, keys: readonly K[]): Pick<T, K> {
   const out = {} as Pick<T, K>;
   for (const k of keys) out[k] = src[k];
