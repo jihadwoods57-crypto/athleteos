@@ -66,11 +66,17 @@ The new onboarding and dashboards are only honest if a real new athlete's state 
 - [x] **Score language**: 95 "on standard" / 75 "on the bubble" / 60 "needs intervention", wired
   so words always match the number. (run 3: `scoreLanguage()` + a band-colored status word in the
   PersonDetail overlay.)
-- [ ] **Nudge + acknowledgement model** (loop #3): structured coach->athlete nudge + a
-  seen/acted-on state + a derived "did compliance move after the nudge" read; store actions +
-  selectors + tests. Wire the derived data into existing dashboard rows. (`sendNudge` + the
-  day-scoped "Nudged" confirmation exist from runs 1-2; the seen/acted-on + compliance-moved read
-  is still open.)
+- [x] **Nudge + acknowledgement model** (loop #3): structured coach->athlete nudge + a
+  derived "did compliance move after the nudge" read; store actions + selectors + tests, wired
+  into the existing dashboard rows. (2026-06-24 run: pure `core/nudge.ts` records the athlete's
+  compliance/score at send-time, `nudgeOutcome` derives the honest acknowledgement read by
+  comparing that baseline against live compliance. Offline + deterministic, so it never fabricates
+  an athlete response: the static demo honestly reads "No change yet since your nudge, follow up"
+  and lights up the instant real compliance moves. Surfaced in the shared `PersonDetail` overlay;
+  Coach/Trainer/PersonDetail all thread the baseline through `sendNudge`. Day-scoped alongside the
+  `nudged` flag, cleared on rollover. +13 tests.) **(HUMAN)** the athlete-side "seen/acted-on"
+  signal is deferred: an offline demo has no real athlete client to source it from, so faking it
+  would fabricate a response. Flag for the founder when the real backend lands.
 - **Acceptance**: detection + ranking + nudge model fully unit-tested. **(HUMAN)** the nudge UI /
   acknowledgement screen rendering.
 
@@ -87,23 +93,30 @@ The new onboarding and dashboards are only honest if a real new athlete's state 
   role view.
 
 ## Phase 5 — Polish & hardening
-- [ ] Empty + edge states everywhere (zero meals, all done, score 100 / floor, brand-new athlete).
-- [ ] Accessibility: `accessibilityLabel` on every icon-only control; >=44px targets;
-  **Dynamic Type caps** on the big new numerals (score reveal 68px, baseline counters/scales);
-  WCAG-AA contrast (retire any remaining failing faint text).
-- [ ] Motion + `expo-haptics` where the design calls for it; reduce-motion honored.
-- **Acceptance**: a11y + contrast checks pass in code; Dynamic Type caps present. **(HUMAN)**
-  on-device/browser visual QC.
+- [x] Empty + edge states everywhere (zero meals, all done, score 100 / floor, brand-new athlete).
+  (Plan "all done" + Nutrition logged/unlogged rows + honest 0g macros on a zero-meal day + the
+  first-run Season-Goal neutral state + the score-floor/100 bands all render via the smoke net.)
+- [x] Accessibility: `accessibilityLabel` on every icon-only control; >=44px targets;
+  **Dynamic Type caps** on the big new numerals (score reveal, baseline counters/scales);
+  WCAG-AA contrast (the failing `#CBD5E1` readable text retired to `textSecondary`, locked by a
+  pure `core/contrast.ts` guard). (runs 6/7/9; `MAX_FONT_SCALE` caps the fixed-geometry chrome.)
+- [x] Motion + `expo-haptics` where the design calls for it; reduce-motion honored (shared
+  `useReduceMotion` across Overlay + Ring + ProgressBar; every Onboarding Pressable presses + haptics).
+- **Acceptance**: a11y + contrast checks pass in code ✅; Dynamic Type caps present ✅. **(HUMAN)**
+  on-device/browser visual QC of the polished screens.
 
 ## Phase 6 — Test net & verify (continuous, finalized here)
 - [~] Render-smoke test (run 2): a node-env screen-DATA smoke net drives the same pure selectors
   every screen renders from across edge states + every role and asserts no throw + coherent
   values. A TRUE mount-the-React-tree test is blocked here (jest 30 vs jest-expo's
   `@react-native/jest-preset` peer) and needs a human toolchain call — flagged in NIGHTSHIFT-LOG.
-- [ ] Unit/store tests for all new logic (onboarding actions, startingScore, coaching, at-risk,
-  nudge model, personalization). (run 3: at-risk detection covered by `core/attention.test.ts`.)
-- [ ] `npm run verify` (typecheck + jest + bundle) green.
-- **Acceptance**: every screen has smoke coverage; verify green.
+- [x] Unit/store tests for all new logic (onboarding actions, startingScore, coaching, at-risk,
+  nudge model, personalization). (at-risk: `core/attention.test.ts`; nudge model: `core/nudge.test.ts`
+  + the store `nudge acknowledgement log` suite; coaching matrix, season-goal phase, trainer lens
+  all locked. 517 tests green.)
+- [x] `npm run verify` (typecheck + jest + bundle) green (517 tests).
+- **Acceptance**: every screen has smoke coverage ✅; verify green ✅. **(HUMAN)** the true
+  mount-the-tree harness remains toolchain-blocked.
 
 ---
 

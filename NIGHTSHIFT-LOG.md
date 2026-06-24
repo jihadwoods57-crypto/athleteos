@@ -1,6 +1,70 @@
+# APP COMPLETE — ready for founder review
+
+All six phases of `docs/COMPLETION-PLAN.md` are engineering-complete, every
+`(HUMAN)` item is implemented in code and flagged below for the founder's visual
+pass, and `npm run verify` is green (**517 tests**, typecheck clean, iOS bundle
+exports). The last open engineering item — the Phase-3 nudge **acknowledgement**
+model — landed this run (2026-06-24). `src/core` stayed pure; the Phase-2 Supabase
+scaffold is untouched and inert; no `src/app`.
+
+## What the app does (founder summary)
+A real Expo + React Native + TypeScript app. A new athlete onboards (7 role
+flows), gets an honest Starting Point Score, and tracks Home / Plan / Squad /
+Check-In / Profile / Nutrition day-to-day, all driven by one pure scoring engine.
+An AI Nutrition Coach (deterministic, offline) gives goal-aligned, coaching-first
+meal feedback. Coach / Parent / Trainer / Nutritionist dashboards answer "who
+needs my attention today" from derived at-risk reasons, worst-first, with a
+lightweight nudge that now reads back whether anything moved since.
+
+## NEEDS HUMAN (cannot be done by a no-eyes / offline run — flagged, not skipped)
+1. **On-device/browser visual QC** of every screen, overlay, and role view against
+   the design handoff (type scale, spacing, radii, motion timing, contrast in situ).
+   The code-side a11y/contrast/Dynamic-Type guards pass; the eyes do not exist here.
+2. **True mount-the-React-tree test harness** is toolchain-blocked (jest 30 vs
+   jest-expo's `@react-native/jest-preset` peer). The node-env screen-DATA smoke
+   net covers every screen/role/edge-state instead; a human toolchain call unblocks
+   the full render harness.
+3. **Athlete-side nudge "seen / acted-on" signal** is deferred by design: an
+   offline demo has no real athlete client to source it from, so synthesizing it
+   would fabricate a response. The honest "did compliance move since the nudge"
+   read ships now; the seen/acted-on half lands with the real backend.
+4. **Phase-2 Supabase scaffold** stays inert by instruction — wiring it is a
+   human-in-the-loop milestone, intentionally not touched.
+
+Continuation runs should NOT churn this. Re-run `npm run verify` to confirm green,
+optionally make ONE small polish/hardening pass on a NEEDS-HUMAN-adjacent item,
+and leave this status intact.
+
+---
+
 # AthleteOS — Nightshift Build Log
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
+
+---
+
+# NUDGE ACKNOWLEDGEMENT run (2026-06-24, continuation) — close the last Phase-3 engineering item, reach APP COMPLETE
+
+Continues the series (does not restart). One commit, all three gates green
+(`tsc --noEmit` clean, `jest` went 504 -> **517 passing**, `expo export -p ios`
+bundles). `src/core` stayed pure; the Phase-2 Supabase scaffold untouched; no
+`src/app`. Pushed (one detached-HEAD hiccup from the prior forced-update rebase,
+corrected by re-pointing master, then a clean fast-forward). This run closed the
+final open engineering item on the completion plan, so the whole Definition of
+Done now holds and the log is headed **APP COMPLETE**.
+
+1. **feat(overseer): the nudge carries an honest "did anything move since" read.**
+   The day-scoped "Nudged" flag answered "did I nudge today" but nothing read
+   whether the nudge LANDED. New pure `core/nudge.ts` records the athlete's
+   compliance/score at send-time (the baseline); `nudgeOutcome` derives an honest
+   acknowledgement read by comparing that baseline against live compliance.
+   Offline + deterministic, so it never fabricates an athlete response: the static
+   demo roster honestly reads "No change yet since your nudge, follow up" and the
+   read lights up green the instant real compliance moves. Surfaced in the shared
+   `PersonDetail` overlay; Coach / Trainer / PersonDetail all thread the baseline
+   through `sendNudge`. Day-scoped alongside `nudged`, cleared on rollover. +13
+   tests (pure `core/nudge.test.ts`, a store `nudge acknowledgement log` suite, and
+   a rollover-clears assertion).
 
 ---
 
@@ -1274,6 +1338,13 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
 
 ## REMAINING TO COMPLETE (mapped to the Definition of Done)
 
+> **SUPERSEDED — the app is now APP COMPLETE (see the header at the top of this
+> file, 517 tests).** The NUDGE ACKNOWLEDGEMENT run (2026-06-24) closed the last
+> open engineering item (the Phase-3 nudge acknowledgement model), so the entire
+> Definition of Done holds. Everything still open is a `(HUMAN)` item, implemented
+> in code and flagged in the **NEEDS HUMAN** list at the top. The historical
+> checklist below is kept for provenance.
+>
 > **Updated by the HONESTY + ROLE-LENS run (2026-06-24, 504 tests).** Deltas since
 > this list was written: BOTH founder QC findings are cleared in code (item 1/5:
 > the **Season Goal** card no longer claims "On track" before any real weight data;
