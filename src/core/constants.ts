@@ -219,14 +219,19 @@ export interface RosterRow {
   score: number;
   dir: 'up' | 'down' | 'flat';
   you?: boolean;
+  /** Specific at-risk signals for the Needs-Attention reason (see AtRiskInput). */
+  proteinMissed?: number;
+  hydrationLow?: boolean;
+  weightStalled?: boolean;
+  checkinDaysAgo?: number;
 }
 export const ROSTER: RosterRow[] = [
   { name: 'Jihad', initials: 'J', pos: 'LB', comp: 96, score: 92, dir: 'up', you: true },
   { name: 'D. Brooks', initials: 'DB', pos: 'LB', comp: 92, score: 88, dir: 'up' },
   { name: 'T. Nguyen', initials: 'TN', pos: 'LB', comp: 90, score: 85, dir: 'flat' },
   { name: 'R. Okafor', initials: 'RO', pos: 'LB', comp: 84, score: 82, dir: 'up' },
-  { name: 'A. Silva', initials: 'AS', pos: 'LB', comp: 71, score: 79, dir: 'down' },
-  { name: 'M. Cole', initials: 'MC', pos: 'LB', comp: 58, score: 68, dir: 'down' },
+  { name: 'A. Silva', initials: 'AS', pos: 'LB', comp: 71, score: 79, dir: 'down', proteinMissed: 3, weightStalled: true },
+  { name: 'M. Cole', initials: 'MC', pos: 'LB', comp: 58, score: 68, dir: 'down', proteinMissed: 4, hydrationLow: true, checkinDaysAgo: 4 },
 ];
 
 /** Trainer client book (multi-org). */
@@ -239,13 +244,18 @@ export interface ClientRow {
   comp: number;
   last: string;
   dir: 'up' | 'down' | 'flat';
+  /** Specific at-risk signals for the Needs-Follow-Up reason (see AtRiskInput). */
+  proteinMissed?: number;
+  hydrationLow?: boolean;
+  weightStalled?: boolean;
+  checkinDaysAgo?: number;
 }
 export const TRAINER_CLIENTS: ClientRow[] = [
   { name: 'Jihad Carter', initials: 'JC', org: 'Eastside HS', sport: 'Linebacker', score: 92, comp: 96, last: 'Today', dir: 'up' },
   { name: 'Maya Lopez', initials: 'ML', org: 'Westlake Club', sport: 'Soccer', score: 88, comp: 90, last: 'Today', dir: 'up' },
   { name: 'Eli Brooks', initials: 'EB', org: 'Independent', sport: 'Basketball', score: 85, comp: 88, last: 'Yesterday', dir: 'flat' },
   { name: 'Sofia Reyes', initials: 'SR', org: 'Eastside HS', sport: 'Volleyball', score: 81, comp: 78, last: '2 days ago', dir: 'down' },
-  { name: 'Andre Silva', initials: 'AS', org: 'Westlake Club', sport: 'Linebacker', score: 74, comp: 64, last: '5 days ago', dir: 'down' },
+  { name: 'Andre Silva', initials: 'AS', org: 'Westlake Club', sport: 'Linebacker', score: 74, comp: 64, last: '5 days ago', dir: 'down', proteinMissed: 4, hydrationLow: true, checkinDaysAgo: 5 },
 ];
 
 /** Org tag colors for the trainer client book. */

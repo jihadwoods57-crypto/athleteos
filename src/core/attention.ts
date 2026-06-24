@@ -11,13 +11,25 @@ import { COACH_ALERT_THRESHOLD } from './leaderboard';
 export type RiskTone = 'warning' | 'alert';
 
 /** Minimal shape both RosterRow (coach) and ClientRow (trainer) satisfy. `last`
- *  is the trainer book's "last logged" label (e.g. "Today", "5 days ago"). */
+ *  is the trainer book's "last logged" label (e.g. "Today", "5 days ago").
+ *  The optional signal fields let a row carry the SPECIFIC reasons the product
+ *  spec names (protein missed N of 7, hydration down, weight stalled, no
+ *  check-in) so the dashboard reads like a real coaching tool; a row that omits
+ *  them still gets an honest reason from compliance + trend + recency. */
 export interface AtRiskInput {
   name: string;
   score: number;
   comp: number;
   dir: 'up' | 'down' | 'flat';
   last?: string;
+  /** Days in the last 7 the athlete missed their protein target (0-7). */
+  proteinMissed?: number;
+  /** Hydration trending below target this week. */
+  hydrationLow?: boolean;
+  /** Weight goal stalled (no movement toward the target). */
+  weightStalled?: boolean;
+  /** Days since the athlete's last weekly check-in (undefined = unknown). */
+  checkinDaysAgo?: number;
 }
 
 export interface AtRisk extends AtRiskInput {
@@ -54,12 +66,28 @@ function daysQuiet(last: string | undefined): number | null {
 }
 
 /**
- * A derived, honest reason for why this athlete needs attention. Built only from
- * signals the roster actually carries (compliance, trend, recency), so it never
- * invents a stat the data can't back. Nutrition-first per the spec: the compliance
- * clause leads, then a trend or "days quiet" clause when there is one.
+ * A derived, honest reason for why this athlete needs attention. When the row
+ * carries the SPECIFIC spec signals (protein missed N of 7, hydration down,
+ * weight stalled, no check-in for N days) the reason names them, nutrition-first,
+ * so a coach reads exactly what to act on. A row that carries none of those falls
+ * back to a reason built only from compliance + trend + recency, so it never
+ * invents a stat the data can't back. Capped at the three most-actionable clauses
+ * so the line stays glanceable.
  */
 export function atRiskReason(a: AtRiskInput): string {
+  const signals: string[] = [];
+  // Nutrition-first: the protein signal leads (>= 2 missed days is worth saying).
+  if (typeof a.proteinMissed === 'number' && a.proteinMissed >= 2) {
+    signals.push(`Protein missed ${a.proteinMissed} of 7 days`);
+  }
+  if (a.hydrationLow) signals.push('hydration down');
+  if (a.weightStalled) signals.push('weight stalled');
+  if (typeof a.checkinDaysAgo === 'number' && a.checkinDaysAgo >= 3) {
+    signals.push(`no check-in ${a.checkinDaysAgo} days`);
+  }
+  if (signals.length > 0) return signals.slice(0, 3).join(' · ');
+
+  // Fallback: no specific signal carried, so read compliance + trend + recency.
   const clauses: string[] = [];
   if (a.comp <= 0) clauses.push('No meals logged yet');
   else if (a.comp < 60) clauses.push(`${a.comp}% compliant, logging slipping`);

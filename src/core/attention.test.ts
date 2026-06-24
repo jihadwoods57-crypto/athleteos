@@ -49,6 +49,36 @@ describe('atRiskReason', () => {
   it('never contains an em dash (design ban)', () => {
     expect(atRiskReason({ name: 'a', score: 60, comp: 40, dir: 'down', last: '3 days ago' })).not.toContain('—');
   });
+
+  it('names the specific spec signals when the row carries them (nutrition-first)', () => {
+    const r = atRiskReason({
+      name: 'a', score: 68, comp: 58, dir: 'down',
+      proteinMissed: 4, hydrationLow: true, checkinDaysAgo: 4,
+    });
+    expect(r).toBe('Protein missed 4 of 7 days · hydration down · no check-in 4 days');
+    // the specific signals replace the generic "% compliant" fallback
+    expect(r).not.toContain('compliant');
+  });
+
+  it('reports a stalled weight goal as a distinct reason', () => {
+    expect(atRiskReason({ name: 'a', score: 79, comp: 71, dir: 'down', weightStalled: true, proteinMissed: 3 }))
+      .toBe('Protein missed 3 of 7 days · weight stalled');
+  });
+
+  it('ignores a trivial protein miss / fresh check-in (no noise)', () => {
+    // 1 missed protein day and a 1-day-old check-in are below the reporting bar,
+    // so it falls back to the compliance read rather than crying wolf.
+    const r = atRiskReason({ name: 'a', score: 79, comp: 71, dir: 'down', proteinMissed: 1, checkinDaysAgo: 1 });
+    expect(r).toContain('compliant');
+  });
+
+  it('caps the reason at three clauses so the line stays glanceable', () => {
+    const r = atRiskReason({
+      name: 'a', score: 60, comp: 50, dir: 'down',
+      proteinMissed: 5, hydrationLow: true, weightStalled: true, checkinDaysAgo: 6,
+    });
+    expect(r.split(' · ')).toHaveLength(3);
+  });
 });
 
 describe('needsAttention', () => {
