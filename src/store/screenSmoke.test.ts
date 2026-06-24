@@ -40,8 +40,12 @@ import {
   nutritionTrend,
   coachRosterKpis,
   trainerBookKpis,
+  needsAttention,
   personBreakdown,
   rosterNoun,
+  squadView,
+  notificationCopy,
+  trainingCadence,
   gradeFor,
   mealResultFor,
   qualityLabel,
@@ -98,12 +102,26 @@ function exerciseAthleteSurfaces(s: AppState) {
   expect(Array.isArray(supportVisibilityRows(s.supportTeam))).toBe(true);
   expect(typeof athleteSubtitle(s.position, s.sport)).toBe('string');
 
-  // Squad — both segmented modes
+  // Squad — the gated view (demo board vs real-athlete solo) + both modes
+  const isReal = s.athleteName.trim().length > 0;
+  const sv = squadView({ isReal });
+  expect(sv.kind).toBe(isReal ? 'solo' : 'demo');
+  if (sv.kind === 'solo') expect(sv.empty?.title.length).toBeGreaterThan(0);
   SQUAD_MODES.forEach((m) => {
     const board = buildLeaderboard(m, d.athleteScore);
     expect(board.length).toBeGreaterThan(0);
     board.forEach((r) => expectScore(r.score));
   });
+
+  // Notifications overlay — gated copy must never crash or leak for any state
+  const notif = notificationCopy({ isReal, supportTeam: s.supportTeam, athleteScore: d.athleteScore });
+  expect(notif.checkin.length).toBeGreaterThan(0);
+  expect(notif.score).toContain(String(d.athleteScore));
+  if (isReal) expect(notif.coachNote).toBeNull();
+
+  // Profile training-cadence line — string when answered, null otherwise
+  const cadence = trainingCadence(s.trainingFreq);
+  expect(cadence === null || cadence.length > 0).toBe(true);
 
   // Parent charts
   expect(weeklyCompliance(s.scoreHistory, d.athleteScore)).toHaveProperty('pct');
@@ -200,6 +218,8 @@ describe('overseer dashboard-data smoke (every role surface)', () => {
         Object.values(bd).forEach(expectScore);
         expect(gradeFor(r.score)).toHaveProperty('g');
       });
+      // Needs-Attention rows each carry a non-empty derived reason.
+      needsAttention(roster).forEach((a) => expect(a.reason.length).toBeGreaterThan(0));
     }).not.toThrow();
   });
 
@@ -211,6 +231,7 @@ describe('overseer dashboard-data smoke (every role surface)', () => {
       TRAINER_CLIENTS.forEach((c) => {
         Object.values(personBreakdown(c.score)).forEach(expectScore);
       });
+      needsAttention(TRAINER_CLIENTS).forEach((a) => expect(a.reason.length).toBeGreaterThan(0));
     }).not.toThrow();
   });
 
