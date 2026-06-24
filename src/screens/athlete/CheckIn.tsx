@@ -120,7 +120,7 @@ export function CheckIn() {
               </Txt>
             </Txt>
             {(() => {
-              const gain = displayWeightDelta(s.currentWeight - WEIGHT_START, units);
+              const gain = displayWeightDelta(s.currentWeight - (s.startWeight ?? WEIGHT_START), units);
               return (
                 <Txt w="b" size={12} color={gain >= 0 ? colors.success : colors.alert}>
                   {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}

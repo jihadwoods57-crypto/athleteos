@@ -9,7 +9,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 import { useStore } from './useStore';
-import { emptyDaySlice, trendSeries } from '@/core';
+import { emptyDaySlice, trendSeries, WEIGHT_START } from '@/core';
 import { createInitialState } from '@/core/defaultState';
 
 /** Put the store into a brand-new-athlete shape: cleared identity + no history,
@@ -98,6 +98,18 @@ describe('startFirstMealChallenge — swaps the seeded demo day for an empty one
     const series = trendSeries(s.scoreHistory, 40);
     expect(series[series.length - 2]).toBe(start);
   });
+
+  it('surfaces the onboarding weight as the start anchor + live + check-in weight', () => {
+    freshAthlete();
+    useStore.setState({ baseWeight: 195 }); // a weight distinct from the seed 178
+    useStore.getState().startFirstMealChallenge();
+    const s = useStore.getState();
+    expect(s.startWeight).toBe(195);
+    expect(s.currentWeight).toBe(195);
+    expect(s.ciWeight).toBe(195);
+    // No progress yet, so "gained since start" is honestly zero (not the seed's +7).
+    expect(s.currentWeight - s.startWeight).toBe(0);
+  });
 });
 
 describe('resetDemo — the seeded demo day is untouched by the activation path', () => {
@@ -106,5 +118,13 @@ describe('resetDemo — the seeded demo day is untouched by the activation path'
     const s = useStore.getState();
     expect(s.meals).toEqual({ breakfast: true, lunch: true, snack: true, dinner: false });
     expect(s.hydrationL).toBe(2.4);
+  });
+
+  it('keeps the demo weight anchor at WEIGHT_START (171/178/+7), unchanged', () => {
+    useStore.getState().resetDemo();
+    const s = useStore.getState();
+    expect(s.startWeight).toBe(WEIGHT_START);
+    expect(s.currentWeight).toBe(178);
+    expect(s.currentWeight - s.startWeight).toBe(7);
   });
 });

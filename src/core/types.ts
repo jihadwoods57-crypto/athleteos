@@ -124,6 +124,10 @@ export interface AppState {
   ciStage: CiStage;
   ciWeight: number;
   currentWeight: number;
+  /** The athlete's starting weight, the anchor the season-goal progress measures
+   *  from. Defaults to WEIGHT_START for the seeded demo; a real athlete's is seeded
+   *  from their onboarding baseWeight at activation so "gained since start" is honest. */
+  startWeight: number;
   ciEnergy: number;
   ciRecovery: number;
   ciSleep: number;

@@ -244,7 +244,21 @@ export const useStore = create<Store>()(
       // first meal (the activation reward). The seeded demo is untouched because only
       // the athlete activation path calls this (other roles use finishOb).
       startFirstMealChallenge: () =>
-        set({ ...emptyDaySlice(), flow: 'app', tab: 'home', mealOpen: true, mealStage: 'capture' }),
+        set((s) => ({
+          ...emptyDaySlice(),
+          flow: 'app',
+          tab: 'home',
+          mealOpen: true,
+          mealStage: 'capture',
+          // Surface the weight the athlete entered in onboarding: it anchors the
+          // season-goal progress (start) and is their live current weight (no
+          // progress yet, so "gained since start" honestly reads 0). Check-in
+          // starts from the same number. Only the activation path runs this, so
+          // the seeded demo's 171/178 stays intact.
+          startWeight: s.baseWeight,
+          currentWeight: s.baseWeight,
+          ciWeight: s.baseWeight,
+        })),
 
       // ---- nav ----
       setTab: (t) => set({ tab: t }),
@@ -419,6 +433,7 @@ export const useStore = create<Store>()(
         ciSubmitted: s.ciSubmitted,
         ciWeight: s.ciWeight,
         currentWeight: s.currentWeight,
+        startWeight: s.startWeight,
         ciEnergy: s.ciEnergy,
         ciRecovery: s.ciRecovery,
         ciSleep: s.ciSleep,

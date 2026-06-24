@@ -62,8 +62,9 @@ export function Home() {
   // history; seeded baseline pads the unknown pre-history like the trend chart).
   const streak = currentStreak(s.scoreHistory, d.athleteScore);
 
-  // Season weight goal — fixed start anchor, athlete-editable target, live weight.
-  const START = WEIGHT_START;
+  // Season weight goal — per-athlete start anchor (their onboarding weight, or the
+  // demo's WEIGHT_START), athlete-editable target, live weight.
+  const START = s.startWeight ?? WEIGHT_START;
   const TARGET = s.weightTarget ?? WEIGHT_TARGET;
   const goal = seasonGoalProgress(s.currentWeight, START, TARGET);
   const units = s.units ?? 'imperial';

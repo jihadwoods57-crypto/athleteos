@@ -23,7 +23,8 @@ export function ParentView() {
   // last point), ramping from WEIGHT_START while history is still filling. The
   // dashed goal line tracks the athlete's editable weight target.
   const weightTarget = s.weightTarget ?? WEIGHT_TARGET;
-  const wt = weightTrendGeometry(weightSeries(s.weightHistory, s.currentWeight, WEIGHT_START), weightTarget);
+  const startWeight = s.startWeight ?? WEIGHT_START;
+  const wt = weightTrendGeometry(weightSeries(s.weightHistory, s.currentWeight, startWeight), weightTarget);
   const units = s.units ?? 'imperial';
   const wUnit = weightUnit(units);
   // Nutrition bars from real per-day nutrition sub-scores; today's live score is
@@ -154,7 +155,7 @@ export function ParentView() {
                   </Txt>
                 </Txt>
                 {(() => {
-                  const gain = displayWeightDelta(s.currentWeight - WEIGHT_START, units);
+                  const gain = displayWeightDelta(s.currentWeight - startWeight, units);
                   return (
                     <Txt w="b" size={12} color={gain >= 0 ? colors.success : colors.alert}>
                       {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}
