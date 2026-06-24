@@ -1,7 +1,7 @@
 // AthleteOS — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { displayWeightDelta, gradeFor, personBreakdown, rosterNoun, weightUnit } from '@/core';
+import { displayWeightDelta, gradeFor, personBreakdown, rosterNoun, scoreLanguage, weightUnit } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -21,6 +21,14 @@ export function PersonDetail() {
   // Title in the opener's own noun: a trainer/nutritionist sees "Client
   // Profile", a coach sees "Athlete Profile" (the overlay is shared).
   const noun = rosterNoun(s.flow);
+  // The plain-language read of the score, so the status word always matches the
+  // number (spec: "on standard" / "on the bubble" / "needs intervention").
+  const status = scoreLanguage(pd.score);
+  const statusColor = pd.score >= 85 ? colors.successDeep : pd.score >= 70 ? colors.warningDeep : colors.alert;
+  const statusBg = pd.score >= 85 ? colors.successSurface : pd.score >= 70 ? '#FEF3C7' : colors.alertSurface;
+  // Honest "last active": the trainer book carries real recency; otherwise the
+  // roster is current-day, so it reads Today.
+  const lastActive = pd.last ?? 'Today';
 
   return (
     <Overlay title={`${noun} Profile`} onClose={s.closePerson}>
@@ -41,11 +49,14 @@ export function PersonDetail() {
             <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
               {pd.pos} · {pd.org ?? 'Eastside HS'}
             </Txt>
-            <View style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: colors.accentSurface }}>
-              <Txt w="b" size={12} color={colors.accent}>
-                Last active · Today
+            <View style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: statusBg }}>
+              <Txt w="b" size={12} color={statusColor}>
+                {status}
               </Txt>
             </View>
+            <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 6 }}>
+              Last active · {lastActive}
+            </Txt>
           </View>
         </Card>
 

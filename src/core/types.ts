@@ -198,6 +198,9 @@ export interface PersonDetail {
   org?: string;
   /** Real book/roster compliance % for this person, when the caller has it. */
   comp?: number;
+  /** Human "last logged" label (trainer book recency, e.g. "5 days ago"), when
+   *  the caller has it. Drives the honest "Last active" chip in the overlay. */
+  last?: string;
 }
 
 export interface Grade {

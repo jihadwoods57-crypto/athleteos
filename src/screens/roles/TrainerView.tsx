@@ -117,7 +117,7 @@ export function TrainerView() {
                     color={a.tone === 'alert' ? colors.alert : colors.warning}
                     nudged={s.nudged.includes(a.name)}
                     onNudge={() => { haptics.success(); s.sendNudge(a.name); }}
-                    onView={() => s.openPerson({ name: a.name, initials: c?.initials ?? a.name.slice(0, 2).toUpperCase(), pos: c?.sport ?? '', org: c?.org, score: a.score, comp: a.comp })}
+                    onView={() => s.openPerson({ name: a.name, initials: c?.initials ?? a.name.slice(0, 2).toUpperCase(), pos: c?.sport ?? '', org: c?.org, score: a.score, comp: a.comp, last: c?.last })}
                     last={i === followUps.length - 1}
                   />
                 );
@@ -150,7 +150,7 @@ export function TrainerView() {
               return (
                 <Pressable
                   key={c.name}
-                  onPress={() => s.openPerson({ name: c.name, initials: c.initials, pos: c.sport, score: c.score, org: c.org, comp: c.comp })}
+                  onPress={() => s.openPerson({ name: c.name, initials: c.initials, pos: c.sport, score: c.score, org: c.org, comp: c.comp, last: c.last })}
                   style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 13, paddingHorizontal: 14 }, shadow.card]}
                 >
                   <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
