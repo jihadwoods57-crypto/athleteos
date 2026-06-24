@@ -4,7 +4,7 @@ import { ScrollView, View } from 'react-native';
 import { displayWeightDelta, findNudge, gradeFor, nudgeOutcome, personBreakdown, rosterNoun, scoreLanguage, weightUnit } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { Card, ProgressBar, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
@@ -71,6 +71,12 @@ export function PersonDetail() {
           <StatTile value="12" label="DAY STREAK" />
           <StatTile value={`+${displayWeightDelta(7, units)}${weightUnit(units)}`} label="WEIGHT Δ" />
         </Row>
+        <Row style={{ gap: 7, marginTop: 10 }}>
+          <SampleTag />
+          <Txt w="sb" size={12} color={colors.textTertiary} style={{ flex: 1 }}>
+            Day streak and weight change are sample values, the same for every athlete
+          </Txt>
+        </Row>
 
         <Card style={{ marginTop: 14, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 16 }}>
@@ -92,6 +98,7 @@ export function PersonDetail() {
             <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
               AI SUMMARY
             </Txt>
+            <SampleTag />
           </Row>
           <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
             {pd.score >= 85
