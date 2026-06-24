@@ -2,6 +2,85 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+# LOGIC / CORRECTNESS series (2026-06-24, run 1) - prove the math, lock the invariants
+
+Continues the build (does not restart). A logic-only run: hunt real correctness
+bugs in the pure scoring engine, the state machine, and the persistence layer, fix
+them, and lock each invariant with a test. No UI restyle. Five commits, all three
+gates green on every commit (`tsc --noEmit` clean, `jest` went 372 -> 405 passing
+and never dropped, `expo export -p ios` bundles). `src/core` stayed pure; the
+Phase-2 Supabase scaffold was untouched; no `src/app`.
+
+Method: fuzzed the whole pure core for NaN / Infinity / out-of-range outputs under
+edge inputs (empty day, complete day, score boundaries, undefined optionals,
+out-of-range and zero targets), then fixed every non-finite result the fuzz found
+and converted the probe into permanent boundary tests.
+
+Per-commit, newest last:
+
+1. **fix(scoring): season weight goal NaN on a degenerate start==target range.**
+   `seasonGoalProgress` computed `pctThere = (current - start) / (target - start)`.
+   When `start === target` the span is zero, so the ratio is 0/0 = NaN and the Home
+   season-goal ring rendered "NaN%". This is REACHABLE ON DAY 0, not a corner case:
+   an athlete whose onboarding weight equals the default weight target (184) has
+   `currentWeight === startWeight === weightTarget`, all 184, before logging
+   anything. Now a zero span reads 100% there when at/above the line, 0% below -
+   always a finite 0..100. +4 boundary tests.
+
+2. **fix(scoring): computeDerived NaN on a non-positive nutrition target.**
+   The engine divides `proteinToday` by `proteinTarget` for the nutrition sub-score
+   and the protein ring. The UI clamps the target to a positive range, but a corrupt
+   or hand-edited persisted blob carrying `proteinTarget: 0` produced 0/0 = NaN and
+   poisoned the entire `athleteScore`. Now any non-positive/NaN protein or calorie
+   target falls back to the constant, so the engine always returns a finite, in-range
+   score regardless of the blob. +3 tests (incl. the empty-day 0/0 case).
+
+3. **test(store): lock the persistence invariants.** Reads the store's REAL persist
+   whitelist (`partialize` via `persist.getOptions()`) and proves: every key in
+   `DAY_DEFAULT_KEYS` (the day-rollover reset set) is persisted - so a day field can
+   never reset on rollover while being dropped from persistence (which would lose
+   same-day progress and archive a default-computed score); every onboarding identity
+   + baseline field and every editable target is persisted; and a serialize -> merge
+   round-trip restores a same-day session verbatim while a no-flow blob lands at
+   onboarding step 0. The invariants currently hold; this guards them. +6 tests.
+
+4. **fix(content): Home AI insight stops telling a behind athlete they are "tracking
+   well".** `aiInsight` (the Home AI INSIGHT card) led with "Protein and recovery are
+   tracking well ... close the day at an A" for every non-complete day, including a
+   behind athlete at a D/F score - contradicting the number on the same screen and
+   the honest `heroStatus` line built (with a <70 warn threshold) to avoid exactly
+   this. `aiInsight` now branches on the same <70 threshold and gives honest,
+   actionable copy when behind. A/B/C copy unchanged. +2 tests (behind-case honesty
+   + agreement with heroStatus).
+
+5. **test(core): edge-state correctness net.** Permanent version of the fuzz: proves
+   `computeDerived` never throws and stays finite + in range (integer score 0..100,
+   pcts 0..100, ring offsets >= 0) across empty / complete / zero-target / undefined /
+   out-of-range states; pins the `gradeFor` boundaries as exact and total over 0..100;
+   asserts `STARTING_WEIGHTS` sum to exactly 100; and sweeps `seasonGoalProgress` for
+   NaN/Infinity. +18 tests.
+
+Verified clean (audited, no fix needed): the 0.40/0.20/0.20/0.10/0.10 athlete-score
+weighting; `gradeWithSuffix` +/- band math; carb/fat/hydration pct (all divide by
+non-zero constants); `paceProjection` (weekly goal clamped >= 0.5, no div-by-zero);
+`buildLeaderboard` re-rank + tie-break; `coachRosterKpis` / `trainerBookKpis`;
+`needsAttention` / `rankByRisk` ordering; `scoreLanguage` bands (On standard 85+ /
+On the bubble 70+ / Needs intervention) consistent with the spec's 95/75/60 and with
+`heroStatus`; day-rollover reset vs cross-day preservation; `flowForRole` over all 7
+roles. History geometry stays finite on empty/sparse/full series.
+
+### For the founder
+- Two real NaN bugs were shipping in the scoring engine. Bug 1 (the weight-goal
+  ring) needed nothing more than an athlete who weighs 184 lb and has not changed
+  the default goal - it would have shown "NaN%" on the very first Home screen. Both
+  are fixed and now covered by tests, so a future refactor that reintroduces either
+  divide-by-zero fails CI.
+- No NEEDS HUMAN items this run. One non-bug noted for context: the onboarding
+  `obNext` setter has no upper clamp, but the onboarding screens guard the overrun
+  (the terminal step routes via `finishOb` / activation, never `obNext`), so `obStep`
+  cannot actually run past a role's flow today. Left as-is rather than adding a
+  per-role max that the UI already enforces.
+
 # COHERENCE series (2026-06-24, run 4) — finish the demo-leak sweep across every role + rank the rosters
 
 Continues runs 1-3 (do not restart). Six commits, all three gates green on every
