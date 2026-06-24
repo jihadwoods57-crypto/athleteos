@@ -77,6 +77,7 @@ export function createInitialState(): AppState {
     mealOpen: false,
     mealStage: 'capture',
     mealType: 'Dinner',
+    mealAnalysis: null,
     mealDetailOpen: false,
     selectedMeal: null,
     notifOpen: false,

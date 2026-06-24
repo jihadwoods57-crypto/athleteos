@@ -198,7 +198,8 @@ function Spinner() {
 function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void }) {
   const s = useStore();
   const derived = useDerived();
-  const mr = mealResultFor(mealType);
+  // Prefer the real AI analysis (Claude vision) when present; else the deterministic result.
+  const mr = s.mealAnalysis ?? mealResultFor(mealType);
   const q = qualityLabel(mr.quality);
   const tone = {
     success: { bg: colors.successSurface, fg: colors.successDeep },

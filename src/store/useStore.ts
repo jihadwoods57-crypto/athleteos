@@ -4,6 +4,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { analyzeMeal, isAiConfigured } from '@/lib/ai';
 import {
   appendDayScore,
   createInitialState,
@@ -289,13 +290,21 @@ export const useStore = create<Store>()(
       signOut: () => set({ flow: 'onboarding', obStep: 0, role: null, accountOpen: false }),
 
       // ---- overlays ----
-      openMeal: () => set({ mealOpen: true, mealStage: 'capture' }),
+      openMeal: () => set({ mealOpen: true, mealStage: 'capture', mealAnalysis: null }),
       closeMeal: () => set({ mealOpen: false }),
       setMealType: (m) => set({ mealType: m }),
       capture: () => {
-        set({ mealStage: 'analyzing' });
+        set({ mealStage: 'analyzing', mealAnalysis: null });
         if (mealTimer) clearTimeout(mealTimer);
-        mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);
+        if (isAiConfigured) {
+          // Real Claude-vision analysis via the backend; on any failure analyzeMeal
+          // resolves the deterministic result, so logging never blocks on the AI.
+          const st = get();
+          analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined })
+            .then((res) => set({ mealAnalysis: res, mealStage: 'result' }));
+        } else {
+          mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);
+        }
       },
       addMeal: () =>
         set((s) => {
@@ -307,7 +316,7 @@ export const useStore = create<Store>()(
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
             return x;
           });
-          return { mealOpen: false, mealStage: 'capture', meals, tasks };
+          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, meals, tasks };
         }),
       addWater: () =>
         set((s) => {

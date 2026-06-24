@@ -1,6 +1,7 @@
 // AthleteOS — core domain types (pure TS, no React/RN imports).
 // Ported faithfully from the design prototype's state model.
 import type { Units } from './units';
+import type { MealResult } from './content';
 
 /** The 7 onboarding identities. Each maps onto one of the 4 dashboard flows
  *  (see ROLE_DEFS in constants) and personalizes copy/labels/goals. */
@@ -143,6 +144,9 @@ export interface AppState {
   mealOpen: boolean;
   mealStage: MealStage;
   mealType: MealLabel;
+  /** Real AI analysis of the captured meal (Claude vision), or null to use the
+   *  deterministic prototype result. Ephemeral; never persisted. */
+  mealAnalysis: MealResult | null;
   mealDetailOpen: boolean;
   selectedMeal: string | null;
   notifOpen: boolean;

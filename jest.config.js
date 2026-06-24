@@ -7,6 +7,9 @@ module.exports = {
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    // babel-preset-expo rewrites EXPO_PUBLIC_* reads to import expo/virtual/env (an ESM
+    // module in node_modules that babel-jest won't transform). Stub it to real process.env.
+    '^expo/virtual/env$': '<rootDir>/jest/expoEnvMock.js',
   },
   testMatch: ['**/*.test.ts', '**/*.test.tsx'],
 };
