@@ -7,7 +7,7 @@ import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-nativ
 import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Account } from '@/screens/overlays/Account';
@@ -54,6 +54,12 @@ export function ParentView() {
                 <Txt w="eb" size={21} ls={-0.3}>
                   This week
                 </Txt>
+                <Row style={{ gap: 7, marginTop: 5 }}>
+                  <SampleTag />
+                  <Txt w="sb" size={12} color={colors.textTertiary}>
+                    Sample data, not yet linked to your athlete
+                  </Txt>
+                </Row>
               </View>
             </Row>
             <Row style={[{ gap: 7, backgroundColor: '#fff', padding: 7, borderRadius: 13 }, shadow.card]}>
