@@ -75,9 +75,15 @@ export function computeDerived(s: AppState): Derived {
   });
 
   // Athlete-editable daily targets; fall back to the constants for legacy
-  // persisted blobs written before the targets were editable.
-  const proteinTarget = s.proteinTarget ?? PROTEIN_TARGET;
-  const calTarget = s.calTarget ?? CAL_TARGET;
+  // persisted blobs written before the targets were editable. The UI clamps these
+  // to sane positive ranges (protein 80-320, calories 1200-6000), but a corrupt or
+  // hand-edited persisted blob could carry 0/negative/NaN, which would divide into
+  // the nutrition sub-score + protein ring as 0/0 -> NaN and poison athleteScore.
+  // Treat any non-positive/NaN target as "missing" and fall back to the constant.
+  const safeTarget = (v: number | undefined, fallback: number) =>
+    typeof v === 'number' && v > 0 ? v : fallback;
+  const proteinTarget = safeTarget(s.proteinTarget, PROTEIN_TARGET);
+  const calTarget = safeTarget(s.calTarget, CAL_TARGET);
 
   const proteinToday = proteinBase + quickGrams;
   const kcalToday = kcalBase + quickKcal;

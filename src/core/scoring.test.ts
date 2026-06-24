@@ -287,6 +287,49 @@ describe('seasonGoalProgress', () => {
   });
 });
 
+describe('computeDerived — corrupt/zero target guards (no NaN, no throw)', () => {
+  // The UI clamps proteinTarget to [80,320] and calTarget to [1200,6000], but a
+  // corrupt or hand-edited persisted blob could carry a non-positive target. The
+  // engine must never let that divide into the score as 0/0 -> NaN.
+  const finiteInRange = (n: number) => {
+    expect(Number.isFinite(n)).toBe(true);
+    expect(n).toBeGreaterThanOrEqual(0);
+    expect(n).toBeLessThanOrEqual(100);
+  };
+
+  it('proteinTarget = 0 falls back to PROTEIN_TARGET; score stays finite + in range', () => {
+    const s = createInitialState();
+    const d = computeDerived({ ...s, proteinTarget: 0 } as AppState);
+    expect(Number.isNaN(d.athleteScore)).toBe(false);
+    finiteInRange(d.athleteScore);
+    finiteInRange(d.nutritionScore);
+    finiteInRange(d.proteinPct);
+    // Falls back to the constant 180, so derived numbers match the default state.
+    expect(d.proteinTarget).toBe(computeDerived(s).proteinTarget);
+  });
+
+  it('proteinTarget = 0 with an empty day (proteinToday 0) is still finite (0/0 guarded)', () => {
+    const s = createInitialState();
+    const d = computeDerived({
+      ...s,
+      proteinTarget: 0,
+      meals: { breakfast: false, lunch: false, snack: false, dinner: false },
+      quickAdded: [false, false, false],
+    } as AppState);
+    finiteInRange(d.athleteScore);
+    finiteInRange(d.proteinPct);
+    expect(d.proteinGap).toBeGreaterThanOrEqual(0);
+  });
+
+  it('negative proteinTarget and zero calTarget both fall back, no NaN', () => {
+    const s = createInitialState();
+    const d = computeDerived({ ...s, proteinTarget: -50, calTarget: 0 } as AppState);
+    finiteInRange(d.athleteScore);
+    expect(d.calTarget).toBeGreaterThan(0);
+    expect(d.proteinTarget).toBeGreaterThan(0);
+  });
+});
+
 describe('computeDerived — reactivity', () => {
   it('logging dinner raises nutrition + total score', () => {
     const base = createInitialState();
