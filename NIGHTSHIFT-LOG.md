@@ -4,6 +4,56 @@ Newest entries at the top. Each entry = what shipped + anything the founder need
 
 ---
 
+# HONESTY + ROLE-LENS run (2026-06-24, continuation) — clear the two founder QC findings, give the nutritionist its own lens, lock the AI coach
+
+Continues the series (does not restart). Five commits, all three gates green on
+EVERY commit (`tsc --noEmit` clean, `jest` went 442 -> **504 passing** and never
+dropped, `expo export -p ios` bundles). `src/core` stayed pure; the Phase-2
+Supabase scaffold untouched; no `src/app`. Pushed after each (one detached-HEAD
+hiccup from a forced-update rebase, corrected by re-pointing master, then clean
+fast-forwards). This run cleared BOTH open founder QC findings, closed a real
+nutritionist coherence gap, and locked the AI Nutrition Coach across the full
+goal x meal matrix.
+
+Per-commit, newest last:
+
+1. **fix(home): Season Goal stops claiming "On track" before any real weight
+   data.** Founder QC finding #1: a brand-new athlete at their start anchor with
+   empty `weightHistory` saw "On track, you'll reach 184 lb by Nov 7" beside a 0%
+   bar - a pace projected from zero data. New pure `seasonGoalPhase()` gates the
+   claim: a first-run athlete sees a neutral "Just getting started" line on a
+   muted background; tracking/reached are unchanged; the seeded demo (178 from
+   171) stays "On track". +5 tests.
+2. **fix(profile): position labels expand per-sport, not by a global
+   abbreviation.** Founder QC finding #2 (the subtitle already surfaced position;
+   this finishes it). `POSITION_LABELS` was a flat map: a baseball "C" Catcher
+   rendered as "Center" and most sports' codes (TE, GK, OH, S, P, G, ...) leaked
+   raw. Now nested by sport, mirroring `POSITION_MAP`, with Football (the demo
+   sport) as the no-sport fallback. +3 tests.
+3. **feat(trainer): a nutritionist sees the dashboard through a nutrition lens.**
+   The nutritionist rides the shared trainer/client flow but saw identical chrome
+   to a personal trainer ("Your Clients", "Apex Performance", "Book Compliance"),
+   contradicting the Account overlay's "nutrition clients". New pure
+   `trainerLens(role, isReal)` personalizes the header, org label, compliance-card
+   title, and follow-up empty state per role. +5 tests (incl. an em-dash guard).
+4. **test(coaching): lock the AI Nutrition Coach across every goal x meal.** A
+   matrix test drives `mealCoaching` across all 12 onboarding goals x 4 meal slots,
+   asserting non-empty, theme-aligned, em-dash-free copy that names the slot. This
+   surfaced one inconsistency: the engine-theme insight was the only one that did
+   not name the slot - now unified. +48 tests. (Phase 2 acceptance met.)
+5. **test(smoke): lock the season-goal phase + trainer role lens across edge
+   states.** The screen-data smoke net now exercises both new gated selectors
+   across every edge state + role. +1 test.
+
+## For the founder
+- The two QC findings from your 2026-06-24 visual pass are both fixed in code
+  (Season Goal honesty, per-sport position labels). Worth a quick look on a real
+  device to confirm the new first-run Season Goal copy reads well.
+- The nutritionist dashboard now speaks nutrition (header/compliance/empty state).
+  Visual QC of that role view is still a **NEEDS HUMAN** item.
+
+---
+
 # COHERENCE + DASHBOARD run (2026-06-24, continuation) — close the last demo leaks, surface dead data, sharpen the at-risk reasons
 
 Continues the series (does not restart). Five commits, all three gates green on
@@ -1224,16 +1274,25 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
 
 ## REMAINING TO COMPLETE (mapped to the Definition of Done)
 
-> **Updated by the 2026-06-24 continuation run (442 tests).** Deltas since the
-> list below was written: (item 1/5) the **Squad** demo leak is closed — a real
-> athlete sees their own week + an honest "no squad connected yet" state, and the
-> **Notifications** inbox no longer fabricates a coach/parent/room rank for a real
-> athlete; (item 6) `trainingFreq` is now surfaced on the Profile; (item 3) the
-> coach/trainer **Needs-Attention reason** now names the specific spec signals
-> (protein missed N of 7, hydration down, weight stalled, no check-in). The only
-> items that remain are the **human-only** ones: a visual QC pass on a device, and
-> a real mount-the-tree render harness (toolchain-blocked). The engineering
-> Definition of Done is substantively met; what is left needs human eyes/decisions.
+> **Updated by the HONESTY + ROLE-LENS run (2026-06-24, 504 tests).** Deltas since
+> this list was written: BOTH founder QC findings are cleared in code (item 1/5:
+> the **Season Goal** card no longer claims "On track" before any real weight data;
+> item 4/5: **Profile position labels** now expand per-sport, so a baseball catcher
+> is never a "Center"); (item 4) the **nutritionist** now rides the trainer
+> dashboard through its own **nutrition lens** (`trainerLens`); (item 2/7) the **AI
+> Nutrition Coach** is locked across the full 12-goal x 4-meal matrix and its
+> engine-theme insight now names the meal slot like the other themes.
+>
+> Earlier continuation deltas (still true): the **Squad** demo leak and the
+> **Notifications** fabricated coach/parent/rank are closed; `trainingFreq` shows on
+> the Profile; the coach/trainer **Needs-Attention reason** names the specific spec
+> signals. The only items that remain are the **human-only** ones: a visual QC pass
+> on a device (now incl. the new Season-Goal first-run copy + the nutritionist role
+> view), a real mount-the-tree render harness (toolchain-blocked), and the
+> Phase-3 nudge **seen/acted-on + compliance-moved** read (a product call, since
+> "did compliance move after the nudge" over fixed mock athletes would be fabricated
+> offline). The engineering Definition of Done is substantively met; what is left
+> needs human eyes/decisions.
 
 1. **QC findings** — ✅ `collapsable` web warning cleared. (No open QC
    findings remain in NIGHTSHIFT-PRIORITIES.)

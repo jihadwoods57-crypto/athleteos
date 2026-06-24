@@ -14,8 +14,8 @@ count, `npm run bundle`). One job = one commit. Guardrails in NIGHTSHIFT-PRIORIT
 
 ## Founder QC findings to fold in (2026-06-24 visual pass)
 A real new-athlete visual pass confirmed Phase 0/1 render correctly. Two nits to fold into the phases below:
-- [ ] **Season Goal "On track" lies at 0%** (honesty; do with Phase 0/5). A brand-new athlete at start weight shows the Season Goal card asserting "On track, you'll reach 184 lb by Nov 7" while progress reads "0% there" with no logged weight history. The weight-pace projection must NOT claim "on track" with zero data. Show a neutral first-run state ("Just getting started. Log check-ins to see your pace.") until real weight history exists, then project.
-- [ ] **Profile subtitle drops the position** (data-flow; do with Phase 0/4). Onboarding collects `position` but the Profile subtitle reads "Football athlete" instead of surfacing it (e.g. "Quarterback, Football"). Show the chosen position; fall back to "{sport} athlete" only when no position was given.
+- [x] **Season Goal "On track" lies at 0%** (honesty; do with Phase 0/5). Fixed (2026-06-24 run): pure `seasonGoalPhase()` gates the claim. A brand-new athlete still at their start anchor with empty `weightHistory` now sees a neutral first-run state ("Just getting started. Log your check-ins and weight to see your pace") on a muted background; the on-track/reached copy only renders once real weight movement exists. The seeded demo (178 from 171) is unchanged.
+- [x] **Profile subtitle drops the position** (data-flow; do with Phase 0/4). The subtitle already surfaced position via `athleteSubtitle`; the 2026-06-24 run finished it by making `POSITION_LABELS` sport-keyed (a baseball "C" Catcher was rendering as a basketball "Center", and most sports' codes leaked raw). Every onboarding position code now expands per the athlete's sport.
 
 ## Phase 0 — Foundation reconcile (do FIRST; everything builds on this)
 The new onboarding and dashboards are only honest if a real new athlete's state flows through.
@@ -45,12 +45,14 @@ The new onboarding and dashboards are only honest if a real new athlete's state 
   render-smoke tests (Phase 6) cover every screen.
 
 ## Phase 2 — AI Nutrition Coach completeness
-- [ ] Coaching content is goal-aligned across all goal themes (muscle / lean / engine) and reads
-  like a nutritionist, not a tracker; macros stay demoted.
-- [ ] The coach's note is carried forward and reinforced (loop #2); the score impact is the
-  honest engine delta.
+- [x] Coaching content is goal-aligned across all goal themes (muscle / lean / engine) and reads
+  like a nutritionist, not a tracker; macros stay demoted. (2026-06-24 run: a goal x meal matrix
+  test locks theme-aligned copy for all 12 goals x 4 slots; unified the engine-theme insight to
+  name the meal slot like the other two themes.)
+- [x] The coach's note is carried forward and reinforced (loop #2, `coachEcho`); the score impact
+  is the honest engine delta (`mealScoreImpact` recomputes the real engine).
 - **Acceptance**: `coaching.ts` tests cover every theme + edge cases; the result renders for
-  every meal type and goal. **(HUMAN)** final visual polish of the coach screen.
+  every meal type and goal ✅. **(HUMAN)** final visual polish of the coach screen.
 
 ## Phase 3 — Coach / overseer intervention ("who needs my attention today")
 - [x] **At-risk detection** (pure core): per-athlete derived reason from real data, ranked
@@ -73,10 +75,16 @@ The new onboarding and dashboards are only honest if a real new athlete's state 
   acknowledgement screen rendering.
 
 ## Phase 4 — Role personalization (all 7 roles)
-- [ ] Language / labels / goals personalize per role across dashboards + onboarding; nutritionist
+- [x] Language / labels / goals personalize per role across dashboards + onboarding; nutritionist
   rides the trainer foundation with a nutrition lens (compliance, protein adherence, meal consistency).
-- **Acceptance**: a tested personalization map; each role surfaces its own nouns. **(HUMAN)**
-  visual check of each role view.
+  (2026-06-24 run: pure `trainerLens(role, isReal)` personalizes the shared trainer/client
+  dashboard header, org label, compliance-card title, and follow-up empty state so a nutritionist
+  reads "Your Nutrition Clients / Nutrition Compliance" while a personal trainer keeps the generic
+  book framing - consistent with the Account "nutrition clients" copy. Coach archetype already
+  personalizes via `coachTeamTitle`; the parent + athlete flows already surface their own nouns.)
+- **Acceptance**: a tested personalization map (`trainerLens` + `accountRows` + `coachTeamTitle`,
+  all unit + smoke tested); each role surfaces its own nouns ✅. **(HUMAN)** visual check of each
+  role view.
 
 ## Phase 5 — Polish & hardening
 - [ ] Empty + edge states everywhere (zero meals, all done, score 100 / floor, brand-new athlete).
