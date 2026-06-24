@@ -216,10 +216,10 @@ export function TrainerView() {
               <SampleTag />
             </Row>
             <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
-              Your book is healthy: {kpis.avgCompliance}% average compliance, up 6% this month.{' '}
+              Your book is healthy: {kpis.avgCompliance}% average compliance.{' '}
               {followUps.length === 0
                 ? 'No clients are at risk right now, so keep the momentum with the steady ones.'
-                : `${followUps.length === 1 ? '1 client is a retention risk' : `${followUps.length} clients are retention risks`}: ${followUps.map((a) => a.name).join(', ')}. A nudge today usually recovers 70% of at-risk clients before they churn.`}
+                : `${followUps.length === 1 ? '1 client is a retention risk' : `${followUps.length} clients are retention risks`}: ${followUps.map((a) => a.name).join(', ')}. Reaching out today is the move before they drift.`}
             </Txt>
           </Card>
         </ScrollView>

@@ -170,7 +170,7 @@ export function CoachView() {
               The room is trending up: {onTrack} of {roster.length} athletes are on track this week.{' '}
               {kpis.alerts === 0
                 ? 'No one is below the alert line right now, so keep the cadence going.'
-                : `${kpis.alerts} ${kpis.alerts === 1 ? 'athlete is' : 'athletes are'} pulling the average down with recovery and check-in gaps, not nutrition. Recommend a 1-on-1 before Friday.`}
+                : `${kpis.alerts} ${kpis.alerts === 1 ? 'athlete is' : 'athletes are'} pulling the average down. A quick check-in with them could help before it slips further.`}
             </Txt>
           </Card>
         </ScrollView>
