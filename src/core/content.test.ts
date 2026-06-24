@@ -95,6 +95,42 @@ describe('aiInsight', () => {
     expect(msg).not.toContain('log dinner');
   });
 
+  it('a behind athlete (empty day, score < 70) is told the honest truth, never "tracking well" or a reachable A', () => {
+    const s = {
+      ...createInitialState(),
+      meals: { breakfast: false, lunch: false, snack: false, dinner: false },
+      hydrationL: 0,
+      quickAdded: [false, false, false],
+      tasks: createInitialState().tasks.map((t) => ({ ...t, done: false })),
+      ciSubmitted: false,
+    } as AppState;
+    const d = computeDerived(s);
+    // The band is REAL (driven through computeDerived), not hand-set.
+    expect(d.athleteScore).toBeLessThan(70);
+
+    const msg = aiInsight(s, d);
+    expect(msg).toMatch(/behind/i);
+    expect(msg).not.toContain('tracking well');
+    expect(msg).not.toContain('close the day at an A');
+    // Still honest + actionable: it shows the live protein gap.
+    expect(msg).toContain(`${d.proteinGap}g`);
+  });
+
+  it('does not contradict heroStatus: both go warn/behind on the same sub-70 state', () => {
+    const s = {
+      ...createInitialState(),
+      meals: { breakfast: false, lunch: false, snack: false, dinner: false },
+      ciSubmitted: false,
+    } as AppState;
+    const d = computeDerived(s);
+    expect(d.athleteScore).toBeLessThan(70);
+    const h = heroStatus(s, d);
+    const msg = aiInsight(s, d);
+    expect(h.tone).toBe('warn');
+    expect(h.line.toLowerCase()).toContain('behind');
+    expect(msg.toLowerCase()).toContain('behind'); // the two cards agree
+  });
+
   it('gates the day-complete copy on the protein boundary, not meals alone', () => {
     // MEAL_MACROS protein sums to 42+51+49+52 = 194g, which always >= the 180g
     // PROTEIN_TARGET. So an "all-four-logged but protein below target" state is

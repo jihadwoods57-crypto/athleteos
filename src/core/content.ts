@@ -195,6 +195,16 @@ export function aiInsight(state: AppState, derived: Derived): string {
   if (dayComplete) {
     return 'Day complete. Every meal logged and protein over target. This is what an A week looks like; keep the streak alive.';
   }
+  // A behind athlete (score below the C band, i.e. the spec's "needs intervention"
+  // line) must never be told they are "tracking well" or promised a still-reachable
+  // A. Mirror heroStatus's <70 warn threshold so the two cards never contradict the
+  // number sitting right above them on Home.
+  if (derived.athleteScore < 70) {
+    const climb = state.meals.dinner
+      ? 'log your remaining meals to start climbing back.'
+      : 'logging dinner is the fastest way to start climbing back.';
+    return `You’re behind today. You’re ${derived.proteinGap}g from your protein target, so ${climb}`;
+  }
   const close = state.meals.dinner
     ? 'log your remaining meals to close the day at an A.'
     : 'log dinner to close the day at an A.';
