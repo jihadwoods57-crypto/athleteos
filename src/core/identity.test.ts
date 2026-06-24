@@ -1,6 +1,6 @@
 // AthleteOS — identity helpers. The avatar monogram + you-row name derive from
 // the live athleteName, so pin the name-parsing edge cases.
-import { accountIdentity, coachTeamTitle, firstName, initials, monitoredAthlete, trainerOrgTitle } from './identity';
+import { accountIdentity, coachTeamTitle, firstName, initials, monitoredAthlete, trainerLens, trainerOrgTitle } from './identity';
 
 describe('initials', () => {
   it('takes first + last initial of a full name, uppercased', () => {
@@ -98,6 +98,44 @@ describe('trainerOrgTitle', () => {
   it('keeps the seeded demo gym, gives a real trainer a neutral practice label', () => {
     expect(trainerOrgTitle(false)).toBe('Apex Performance');
     expect(trainerOrgTitle(true)).toBe('Your Practice');
+  });
+});
+
+describe('trainerLens — a nutritionist rides the trainer dash through a nutrition lens', () => {
+  it('a personal trainer keeps the generic book framing', () => {
+    const real = trainerLens('personal_trainer', true);
+    expect(real.orgTitle).toBe('Your Practice');
+    expect(real.headerTitle).toBe('Your Clients');
+    expect(real.complianceTitle).toBe('Book Compliance');
+    expect(real.allClearLine).toContain('above the line');
+  });
+
+  it('the seeded-demo trainer keeps the showcase gym', () => {
+    expect(trainerLens('personal_trainer', false).orgTitle).toBe('Apex Performance');
+    expect(trainerLens(null, false).headerTitle).toBe('Your Clients');
+  });
+
+  it('a nutritionist gets a nutrition-lensed header, org, compliance card, and empty state', () => {
+    const real = trainerLens('nutritionist', true);
+    expect(real.orgTitle).toBe('Your Nutrition Practice');
+    expect(real.headerTitle).toBe('Your Nutrition Clients');
+    expect(real.complianceTitle).toBe('Nutrition Compliance');
+    expect(real.allClearLine).toContain('nutrition targets');
+  });
+
+  it('the seeded-demo nutritionist keeps a showcase nutrition practice', () => {
+    expect(trainerLens('nutritionist', false).orgTitle).toBe('Apex Nutrition');
+  });
+
+  it('contains no em dashes in any lensed copy', () => {
+    for (const role of ['personal_trainer', 'nutritionist'] as const) {
+      for (const isReal of [true, false]) {
+        const l = trainerLens(role, isReal);
+        for (const v of [l.orgTitle, l.headerTitle, l.complianceTitle, l.allClearLine]) {
+          expect(v).not.toMatch(/—/);
+        }
+      }
+    }
   });
 });
 

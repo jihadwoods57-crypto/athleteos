@@ -3,6 +3,7 @@
 // frozen "Jihad" / "J" seed, so an athlete who onboards under a different name
 // saw someone else's initials on their own profile. Deriving the monogram from
 // the live name keeps the identity honest everywhere it's shown.
+import type { Role } from './types';
 
 /**
  * Monogram for an avatar: the first letter of the first name plus the first
@@ -65,6 +66,39 @@ export function coachTeamTitle(opts: { isReal: boolean; sport?: unknown; school?
  */
 export function trainerOrgTitle(isReal: boolean): string {
   return isReal ? 'Your Practice' : 'Apex Performance';
+}
+
+/** Personalized chrome for the shared trainer/client dashboard. A nutritionist
+ *  rides the same flow as a personal trainer but through a NUTRITION lens, so the
+ *  header, the compliance card, and the empty state speak nutrition rather than a
+ *  generic "book". account.ts already calls a nutritionist's people "nutrition
+ *  clients"; this keeps the main dashboard consistent with that. */
+export interface TrainerLens {
+  /** Org/practice label above the H1 (real overseer + the seeded-demo showcase). */
+  orgTitle: string;
+  /** The dashboard H1. */
+  headerTitle: string;
+  /** Compliance trend card title (also the framing the AI summary leans on). */
+  complianceTitle: string;
+  /** Line shown when no client needs following up today. */
+  allClearLine: string;
+}
+
+export function trainerLens(role: Role | null, isReal: boolean): TrainerLens {
+  if (role === 'nutritionist') {
+    return {
+      orgTitle: isReal ? 'Your Nutrition Practice' : 'Apex Nutrition',
+      headerTitle: 'Your Nutrition Clients',
+      complianceTitle: 'Nutrition Compliance',
+      allClearLine: 'Every client is hitting their nutrition targets. Nothing to chase today.',
+    };
+  }
+  return {
+    orgTitle: trainerOrgTitle(isReal),
+    headerTitle: 'Your Clients',
+    complianceTitle: 'Book Compliance',
+    allClearLine: 'Every client is above the line. Nothing to chase today.',
+  };
 }
 
 /**

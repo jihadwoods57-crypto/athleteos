@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, initials, needsAttention, rankByRisk, trainerBookKpis, trainerOrgTitle } from '@/core';
+import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, initials, needsAttention, rankByRisk, trainerBookKpis, trainerLens } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -25,7 +25,11 @@ export function TrainerView() {
   // gets a neutral practice label (no business name is collected) and their own
   // initials, so neither leaks another trainer's brand.
   const isReal = s.athleteName.trim().length > 0;
-  const orgTitle = trainerOrgTitle(isReal);
+  // A nutritionist rides this same dashboard but through a nutrition lens (header,
+  // compliance card, and empty state), consistent with the Account "nutrition
+  // clients" copy; a personal trainer keeps the generic book framing.
+  const lens = trainerLens(s.role, isReal);
+  const orgTitle = lens.orgTitle;
   const monogram = initials(s.athleteName, 'MA');
   const clientByName: Record<string, (typeof TRAINER_CLIENTS)[number]> = Object.fromEntries(
     TRAINER_CLIENTS.map((c) => [c.name, c]),
@@ -45,7 +49,7 @@ export function TrainerView() {
                   {orgTitle}
                 </Txt>
                 <Txt w="eb" size={21} ls={-0.3}>
-                  Your Clients
+                  {lens.headerTitle}
                 </Txt>
               </View>
             </Row>
@@ -67,7 +71,7 @@ export function TrainerView() {
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View>
                 <Txt w="eb" size={15} ls={-0.3}>
-                  Book Compliance
+                  {lens.complianceTitle}
                 </Txt>
                 <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
                   All clients · 8-week average
@@ -135,7 +139,7 @@ export function TrainerView() {
                 NEEDS FOLLOW-UP
               </Txt>
               <Txt w="sb" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>
-                Every client is above the line. Nothing to chase today.
+                {lens.allClearLine}
               </Txt>
             </View>
           )}
