@@ -315,11 +315,14 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           ))}
         </Row>
         <Row style={{ gap: 14, marginTop: 14 }}>
-          <MacroChip value={`${mr.protein}g`} label="Protein" color={colors.accent} />
-          <MacroChip value={`${mr.kcal}`} label="Cal" />
-          <MacroChip value={`${mr.carbs}g`} label="Carbs" />
-          <MacroChip value={`${mr.fat}g`} label="Fat" />
+          <MacroChip value={`~${mr.protein}g`} label="Protein" color={colors.accent} />
+          <MacroChip value={`~${mr.kcal}`} label="Cal" />
+          <MacroChip value={`~${mr.carbs}g`} label="Carbs" />
+          <MacroChip value={`~${mr.fat}g`} label="Fat" />
         </Row>
+        <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 12, lineHeight: 17 }}>
+          Estimated from your photo, not weighed. Portions may vary, so treat these as a guide.
+        </Txt>
       </Card>
 
       <Btn label="Add to Log" haptic="success" onPress={onAdd} style={{ marginTop: 18 }} />

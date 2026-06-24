@@ -63,19 +63,22 @@ export function MealDetail() {
         </Row>
 
         <Row style={{ gap: 8, marginTop: 16 }}>
-          <Tile value={`${meal.protein}g`} label="PROTEIN" color={colors.accent} />
-          <Tile value={`${meal.kcal}`} label="CALORIES" />
-          <Tile value={`${meal.carbs}g`} label="CARBS" />
-          <Tile value={`${meal.fat}g`} label="FAT" />
+          <Tile value={`~${meal.protein}g`} label="PROTEIN" color={colors.accent} />
+          <Tile value={`~${meal.kcal}`} label="CALORIES" />
+          <Tile value={`~${meal.carbs}g`} label="CARBS" />
+          <Tile value={`~${meal.fat}g`} label="FAT" />
         </Row>
+        <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 10, lineHeight: 17 }}>
+          Estimated from your meal photo, not weighed. Portions may vary, so treat these as a guide.
+        </Txt>
 
         <Card style={{ marginTop: 14, borderRadius: 20 }}>
           <Row style={{ justifyContent: 'space-between', marginBottom: 14 }}>
             <Txt w="eb" size={15} ls={-0.3}>
               Foods
             </Txt>
-            <Txt w="b" size={13} color={colors.accent}>
-              Re-analyze
+            <Txt w="b" size={12} color={colors.textTertiary}>
+              Estimated
             </Txt>
           </Row>
           <View style={{ gap: 14 }}>
@@ -99,8 +102,11 @@ export function MealDetail() {
         </Card>
 
         <Card style={{ marginTop: 14, borderRadius: 20 }}>
-          <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 16 }}>
+          <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 4 }}>
             Quality Breakdown
+          </Txt>
+          <Txt w="m" size={12} color={colors.textTertiary} style={{ marginBottom: 16, lineHeight: 17 }}>
+            An estimated score from the photo, not a measured lab value.
           </Txt>
           <View style={{ gap: 13 }}>
             {meal.sub.map((x) => (
