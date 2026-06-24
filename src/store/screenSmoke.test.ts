@@ -31,6 +31,8 @@ import {
   realTrendDays,
   recentDayLabels,
   seasonGoalProgress,
+  seasonGoalPhase,
+  trainerLens,
   buildLeaderboard,
   supportVisibilityRows,
   athleteSubtitle,
@@ -91,7 +93,14 @@ function exerciseAthleteSurfaces(s: AppState) {
   expect(streak).toBeGreaterThanOrEqual(0);
   expect(realTrendDays(s.scoreHistory)).toBeGreaterThanOrEqual(0);
   expect(recentDayLabels(series.length).length).toBe(series.length);
-  expect(seasonGoalProgress(s.currentWeight, WEIGHT_START, s.weightTarget ?? WEIGHT_TARGET)).toHaveProperty('remaining');
+  const sgStart = s.startWeight ?? WEIGHT_START;
+  const sg = seasonGoalProgress(s.currentWeight, sgStart, s.weightTarget ?? WEIGHT_TARGET);
+  expect(sg).toHaveProperty('remaining');
+  // The season-goal card always resolves to one of the three honest phases (it
+  // must never claim a pace before real weight movement exists).
+  expect(['first-run', 'tracking', 'reached']).toContain(
+    seasonGoalPhase({ pctThere: sg.pctThere, currentWeight: s.currentWeight, start: sgStart, weightHistoryLen: (s.weightHistory ?? []).length }),
+  );
   expect(coachGuidance({ isReal: s.athleteName.trim().length > 0, supportTeam: s.supportTeam, coachNote: s.coachNote })).toHaveProperty('show');
 
   // Nutrition
@@ -233,6 +242,22 @@ describe('overseer dashboard-data smoke (every role surface)', () => {
       });
       needsAttention(TRAINER_CLIENTS).forEach((a) => expect(a.reason.length).toBeGreaterThan(0));
     }).not.toThrow();
+  });
+
+  it('the trainer dashboard chrome resolves per role (trainer vs nutritionist lens)', () => {
+    (['personal_trainer', 'nutritionist'] as const).forEach((role) => {
+      [true, false].forEach((isReal) => {
+        const l = trainerLens(role, isReal);
+        // Every chrome string is non-empty and free of the banned em dash.
+        [l.orgTitle, l.headerTitle, l.complianceTitle, l.allClearLine].forEach((v) => {
+          expect(v.length).toBeGreaterThan(0);
+          expect(v).not.toContain('—');
+        });
+      });
+    });
+    // The nutritionist surfaces its own nouns, never the generic trainer chrome.
+    expect(trainerLens('nutritionist', true).headerTitle).toContain('Nutrition');
+    expect(trainerLens('personal_trainer', true).headerTitle).not.toContain('Nutrition');
   });
 
   it('the shared person-detail title noun resolves for every flow', () => {
