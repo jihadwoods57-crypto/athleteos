@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { mealRowsFor, QUICK_FOODS, paceProjection } from '@/core';
+import { mealRowsFor, QUICK_FOODS, paceProjection, weekdayLong } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -21,7 +21,7 @@ export function Nutrition() {
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
       <Txt w="sb" size={14} color={colors.textSecondary}>
-        Tuesday · in-season
+        {weekdayLong()} · in-season
       </Txt>
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
         Nutrition

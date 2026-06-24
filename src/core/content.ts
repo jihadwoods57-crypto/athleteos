@@ -351,6 +351,22 @@ export function coachGuidance(opts: {
   return { show: true, monogram: hasCoach ? 'C' : 'N', note: null, pending: true };
 }
 
+/**
+ * The Plan-tab footer explaining where completed tasks go. The seeded demo keeps
+ * the showcase "Coach Davis"; a real athlete with an overseer connected sees that
+ * overseer's noun (coach > trainer > nutritionist); a real solo athlete sees no
+ * coach clause at all, so the seed coach never leaks to someone who has no coach.
+ * Mirrors coachGuidance's gating convention.
+ */
+export function taskVisibilityNote(opts: { isReal: boolean; supportTeam: string[] }): string {
+  const base = 'Completed tasks feed your Athlete Score';
+  if (!opts.isReal) return `${base} and stay visible to Coach Davis.`;
+  if (opts.supportTeam.includes('coach')) return `${base} and stay visible to your coach.`;
+  if (opts.supportTeam.includes('trainer')) return `${base} and stay visible to your trainer.`;
+  if (opts.supportTeam.includes('nutritionist')) return `${base} and stay visible to your nutritionist.`;
+  return `${base}.`;
+}
+
 /** Position abbreviation → full label for the profile subtitle. */
 export const POSITION_LABELS: Record<string, string> = {
   QB: 'Quarterback', RB: 'Running Back', WR: 'Wide Receiver', OL: 'Offensive Line',

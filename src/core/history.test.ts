@@ -10,6 +10,7 @@ import {
   HISTORY_CAP,
   realTrendDays,
   recentDayLabels,
+  weekdayLong,
   seededHistory,
   trendGeometry,
   trendSeries,
@@ -118,6 +119,14 @@ describe('recentDayLabels', () => {
     expect(labels[6]).toBe('Tue'); // today is last
     expect(labels[5]).toBe('Mon'); // yesterday
     expect(labels[0]).toBe('Wed'); // 6 days ago
+  });
+});
+
+describe('weekdayLong', () => {
+  it('returns the full weekday name for a given day', () => {
+    expect(weekdayLong(new Date(2026, 5, 16))).toBe('Tuesday'); // getDay() === 2
+    expect(weekdayLong(new Date(2026, 5, 21))).toBe('Sunday'); // getDay() === 0
+    expect(weekdayLong(new Date(2026, 5, 20))).toBe('Saturday'); // getDay() === 6
   });
 });
 

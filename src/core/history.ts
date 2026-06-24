@@ -185,6 +185,14 @@ export function weeklyCompliance(
   return { days, onPlan, total, pct };
 }
 
+/** Full weekday name for a given day (defaults to today), e.g. "Tuesday". Used
+ *  for the Plan / Nutrition headers so they read the real day instead of a frozen
+ *  "Tuesday". */
+export function weekdayLong(today: Date = new Date()): string {
+  const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return names[today.getDay()];
+}
+
 /** Weekday short labels for the last `n` days ending today (oldest -> newest). */
 export function recentDayLabels(n: number, today: Date = new Date()): string[] {
   const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

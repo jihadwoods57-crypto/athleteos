@@ -2,6 +2,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { taskVisibilityNote, weekdayLong } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -12,13 +13,16 @@ export function Plan() {
   const insets = useSafeAreaInsets();
   const tasks = useStore((s) => s.tasks);
   const toggleTask = useStore((s) => s.toggleTask);
+  const athleteName = useStore((s) => s.athleteName);
+  const supportTeam = useStore((s) => s.supportTeam);
   const d = useDerived();
   const left = d.tasksTotal - d.tasksDone;
+  const visibilityNote = taskVisibilityNote({ isReal: athleteName.trim().length > 0, supportTeam });
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
       <Txt w="sb" size={14} color={colors.textSecondary}>
-        Tuesday · in-season
+        {weekdayLong()} · in-season
       </Txt>
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
         Today's Plan
@@ -87,7 +91,7 @@ export function Plan() {
       </View>
 
       <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 18, textAlign: 'center', lineHeight: 19, paddingHorizontal: 16 }}>
-        Completed tasks feed your Athlete Score and stay visible to Coach Davis.
+        {visibilityNote}
       </Txt>
     </ScrollView>
   );

@@ -9,6 +9,7 @@ import {
   MEAL_RESULTS,
   paceProjection,
   qualityLabel,
+  taskVisibilityNote,
 } from './content';
 import { computeDerived, gradeFor } from './scoring';
 import { createInitialState } from './defaultState';
@@ -286,5 +287,31 @@ describe('coachGuidance', () => {
   it('prefers the coach monogram when both coach and nutritionist are connected', () => {
     const g = coachGuidance({ isReal: true, supportTeam: ['nutritionist', 'coach'], coachNote: NOTE });
     expect(g.monogram).toBe('C');
+  });
+});
+
+describe('taskVisibilityNote', () => {
+  it('keeps the seeded demo showcase (Coach Davis)', () => {
+    expect(taskVisibilityNote({ isReal: false, supportTeam: [] })).toContain('Coach Davis');
+  });
+
+  it('drops the coach clause for a real solo athlete (no coach to leak)', () => {
+    const note = taskVisibilityNote({ isReal: true, supportTeam: [] });
+    expect(note).not.toContain('Coach Davis');
+    expect(note).not.toContain('visible to');
+    expect(note).toBe('Completed tasks feed your Athlete Score.');
+  });
+
+  it('names the connected overseer for a real athlete (coach > trainer > nutritionist)', () => {
+    expect(taskVisibilityNote({ isReal: true, supportTeam: ['coach'] })).toContain('your coach');
+    expect(taskVisibilityNote({ isReal: true, supportTeam: ['trainer'] })).toContain('your trainer');
+    expect(taskVisibilityNote({ isReal: true, supportTeam: ['nutritionist'] })).toContain('your nutritionist');
+    expect(taskVisibilityNote({ isReal: true, supportTeam: ['nutritionist', 'coach'] })).toContain('your coach');
+  });
+
+  it('never leaks Coach Davis to any real athlete', () => {
+    for (const team of [[], ['coach'], ['trainer'], ['nutritionist'], ['parent']]) {
+      expect(taskVisibilityNote({ isReal: true, supportTeam: team })).not.toContain('Coach Davis');
+    }
   });
 });
