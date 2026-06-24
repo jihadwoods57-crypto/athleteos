@@ -23,6 +23,7 @@ export const DAY_DEFAULT_KEYS = [
   'hydrationL',
   'quickAdded',
   'nudged',
+  'nudgeLog',
   'tasks',
   'ciStage',
   'ciSubmitted',
@@ -82,12 +83,13 @@ export function recordDayNutrition(preRoll: AppState, todayIso: string): DayScor
  * demo day (the "reveal said 49, Home said 78" contradiction). It does NOT touch
  * the rollover defaults, so the seeded-demo experience is unchanged.
  */
-export function emptyDaySlice(): Pick<AppState, 'meals' | 'hydrationL' | 'quickAdded' | 'nudged' | 'tasks'> {
+export function emptyDaySlice(): Pick<AppState, 'meals' | 'hydrationL' | 'quickAdded' | 'nudged' | 'nudgeLog' | 'tasks'> {
   return {
     meals: { breakfast: false, lunch: false, snack: false, dinner: false },
     hydrationL: 0,
     quickAdded: [false, false, false],
     nudged: [],
+    nudgeLog: [],
     tasks: createInitialState().tasks.map((t) => ({ ...t, done: false })),
   };
 }

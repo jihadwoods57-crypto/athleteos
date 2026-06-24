@@ -15,6 +15,8 @@ function staleSlice(): Partial<AppState> {
     meals: { breakfast: true, lunch: true, snack: true, dinner: true },
     hydrationL: 3.8,
     quickAdded: [true, true, true],
+    nudged: ['Andre Silva'],
+    nudgeLog: [{ name: 'Andre Silva', day: '2026-06-20', comp: 64, score: 71 }],
     tasks: createInitialState().tasks.map((t) => ({ ...t, done: true })),
     ciStage: 'done',
     ciSubmitted: true,
@@ -51,6 +53,8 @@ describe('rollDayIfStale — stale stamp resets the day (criterion 2)', () => {
     expect(rolled.hydrationL).toBe(init.hydrationL); // 2.4
     expect(rolled.tasks).toEqual(init.tasks); // ids 3 & 4 done:false
     expect(rolled.quickAdded).toEqual([false, false, false]);
+    expect(rolled.nudged).toEqual([]); // yesterday's nudges clear with the day
+    expect(rolled.nudgeLog).toEqual([]); // and so does the acknowledgement log
     expect(rolled.ciSubmitted).toBe(false);
     expect(rolled.ciStage).toBe('open');
     expect(rolled.ciEnergy).toBe(init.ciEnergy);

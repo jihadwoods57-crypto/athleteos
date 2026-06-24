@@ -71,7 +71,7 @@ export function CoachView() {
                     score={a.score}
                     color={a.tone === 'alert' ? colors.alert : colors.warning}
                     nudged={s.nudged.includes(a.name)}
-                    onNudge={() => { haptics.success(); s.sendNudge(a.name); }}
+                    onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }); }}
                     onPress={() => s.openPerson({ name: a.name, initials: m.initials, pos: m.pos, score: a.score, comp: m.comp })}
                     last={i === attention.length - 1}
                   />

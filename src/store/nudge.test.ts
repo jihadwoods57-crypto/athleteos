@@ -43,3 +43,38 @@ describe('sendNudge', () => {
     expect(derived().athleteScore).toBe(before);
   });
 });
+
+describe('nudge acknowledgement log', () => {
+  it('starts with an empty log', () => {
+    expect(useStore.getState().nudgeLog).toEqual([]);
+  });
+
+  it('records the athlete baseline (compliance + score) at send-time', () => {
+    useStore.getState().sendNudge('Andre Silva', { score: 71, comp: 64 });
+    const log = useStore.getState().nudgeLog;
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({ name: 'Andre Silva', comp: 64, score: 71 });
+    // Stamped with the current day so it is read as "since you nudged today".
+    expect(log[0].day).toBe(useStore.getState().dateStamp);
+  });
+
+  it('defaults the baseline to 0 when none is supplied (back-compat)', () => {
+    useStore.getState().sendNudge('Marcus Cole');
+    expect(useStore.getState().nudgeLog[0]).toMatchObject({ comp: 0, score: 0 });
+  });
+
+  it('is idempotent — a repeat nudge does not double-log', () => {
+    useStore.getState().sendNudge('Andre Silva', { score: 71, comp: 64 });
+    useStore.getState().sendNudge('Andre Silva', { score: 99, comp: 99 });
+    const log = useStore.getState().nudgeLog;
+    expect(log).toHaveLength(1);
+    expect(log[0].comp).toBe(64); // the first baseline is preserved
+  });
+
+  it('stays in lockstep with the day-scoped nudged flag', () => {
+    useStore.getState().sendNudge('Andre Silva', { score: 71, comp: 64 });
+    const s = useStore.getState();
+    expect(s.nudged.includes('Andre Silva')).toBe(true);
+    expect(s.nudgeLog.map((n) => n.name)).toEqual(s.nudged);
+  });
+});

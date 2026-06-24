@@ -2,6 +2,7 @@
 // Ported faithfully from the design prototype's state model.
 import type { Units } from './units';
 import type { MealResult } from './content';
+import type { NudgeRecord } from './nudge';
 
 /** The 7 onboarding identities. Each maps onto one of the 4 dashboard flows
  *  (see ROLE_DEFS in constants) and personalizes copy/labels/goals. */
@@ -120,6 +121,10 @@ export interface AppState {
    *  on rollover) so a coach/trainer can act again tomorrow. Backs the dashboard
    *  "Nudged" confirmation state on the Needs-Attention / follow-up rows. */
   nudged: string[];
+  /** Structured record of each nudge sent today, capturing the athlete's
+   *  compliance/score at send-time so the dashboard can read whether anything
+   *  has moved since (see core/nudge.ts). Day-scoped alongside `nudged`. */
+  nudgeLog: NudgeRecord[];
 
   // ---- check-in ----
   ciStage: CiStage;

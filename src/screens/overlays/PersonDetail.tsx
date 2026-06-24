@@ -1,7 +1,7 @@
 // AthleteOS — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { displayWeightDelta, gradeFor, personBreakdown, rosterNoun, scoreLanguage, weightUnit } from '@/core';
+import { displayWeightDelta, findNudge, gradeFor, nudgeOutcome, personBreakdown, rosterNoun, scoreLanguage, weightUnit } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -18,6 +18,12 @@ export function PersonDetail() {
   const bd = personBreakdown(pd.score);
   const units = s.units ?? 'imperial';
   const nudged = s.nudged.includes(pd.name);
+  // Once nudged, the honest "did anything move since" read: compares the
+  // athlete's live compliance against the baseline captured at send-time. For
+  // the static demo this reads "no change yet, follow up" rather than faking a
+  // response; it lights up the instant real compliance data moves.
+  const nudgeRec = findNudge(s.nudgeLog, pd.name);
+  const outcome = nudgeRec ? nudgeOutcome(nudgeRec, pd.comp ?? pd.score) : null;
   // Title in the opener's own noun: a trainer/nutritionist sees "Client
   // Profile", a coach sees "Athlete Profile" (the overlay is shared).
   const noun = rosterNoun(s.flow);
@@ -107,7 +113,7 @@ export function PersonDetail() {
             accessibilityLabel={nudged ? `Nudge sent to ${pd.name}` : `Send a nudge to ${pd.name}`}
             accessibilityState={{ disabled: nudged }}
             disabled={nudged}
-            onPress={() => { haptics.success(); s.sendNudge(pd.name); }}
+            onPress={() => { haptics.success(); s.sendNudge(pd.name, { score: pd.score, comp: pd.comp ?? pd.score }); }}
             style={({ pressed }) => [{ flex: 1, height: 54, borderRadius: 16, backgroundColor: nudged ? colors.successSurface : '#fff', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, opacity: pressed ? 0.8 : 1 }, shadow.card]}
           >
             {nudged ? <Icon name="check" size={17} color={colors.successDeep} /> : null}
@@ -116,6 +122,19 @@ export function PersonDetail() {
             </Txt>
           </Pressable>
         </Row>
+
+        {outcome ? (
+          <View
+            accessibilityRole="text"
+            accessibilityLabel={`Nudge follow-up: ${outcome.label}`}
+            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: outcome.improved ? colors.successSurface : colors.accentSurface }}
+          >
+            <Icon name={outcome.improved ? 'bolt' : 'bell'} size={15} color={outcome.improved ? colors.successDeep : colors.accent} />
+            <Txt w="sb" size={13} color={outcome.improved ? colors.successDeep : colors.slate700} style={{ flex: 1 }}>
+              {outcome.label}
+            </Txt>
+          </View>
+        ) : null}
       </ScrollView>
     </Overlay>
   );

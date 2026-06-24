@@ -126,7 +126,7 @@ export function TrainerView() {
                     score={a.score}
                     color={a.tone === 'alert' ? colors.alert : colors.warning}
                     nudged={s.nudged.includes(a.name)}
-                    onNudge={() => { haptics.success(); s.sendNudge(a.name); }}
+                    onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }); }}
                     onView={() => s.openPerson({ name: a.name, initials: c?.initials ?? a.name.slice(0, 2).toUpperCase(), pos: c?.sport ?? '', org: c?.org, score: a.score, comp: a.comp, last: c?.last })}
                     last={i === followUps.length - 1}
                   />

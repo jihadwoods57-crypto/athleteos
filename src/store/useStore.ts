@@ -129,8 +129,10 @@ export interface Actions {
   enterParent: () => void;
   enterTrainer: () => void;
 
-  // overseer action (coach/trainer/nutritionist): the lightweight nudge
-  sendNudge: (name: string) => void;
+  // overseer action (coach/trainer/nutritionist): the lightweight nudge. The
+  // optional baseline captures the athlete's compliance/score at send-time so
+  // the dashboard can later read whether anything moved (see core/nudge.ts).
+  sendNudge: (name: string, baseline?: { score: number; comp: number }) => void;
 
   // tasks
   toggleTask: (id: number) => void;
@@ -366,10 +368,22 @@ export const useStore = create<Store>()(
       // ---- overseer action ----
       // The only overseer action this phase (product spec): a lightweight nudge
       // to an at-risk athlete. Deterministic + offline — it records the athlete as
-      // nudged today (idempotent), which flips the dashboard button to "Nudged".
+      // nudged today (idempotent), which flips the dashboard button to "Nudged",
+      // and logs the athlete's compliance/score at send-time (the baseline the
+      // "did anything move since the nudge" read compares against, core/nudge.ts).
       // Day-scoped via rollover so the coach can nudge again tomorrow.
-      sendNudge: (name) =>
-        set((s) => (s.nudged.includes(name) ? {} : { nudged: [...s.nudged, name] })),
+      sendNudge: (name, baseline) =>
+        set((s) =>
+          s.nudged.includes(name)
+            ? {}
+            : {
+                nudged: [...s.nudged, name],
+                nudgeLog: [
+                  ...s.nudgeLog,
+                  { name, day: s.dateStamp, comp: baseline?.comp ?? 0, score: baseline?.score ?? 0 },
+                ],
+              },
+        ),
 
       // ---- tasks ----
       toggleTask: (id) =>
@@ -438,6 +452,7 @@ export const useStore = create<Store>()(
         tasks: s.tasks,
         quickAdded: s.quickAdded,
         nudged: s.nudged,
+        nudgeLog: s.nudgeLog,
         ciStage: s.ciStage,
         ciSubmitted: s.ciSubmitted,
         ciWeight: s.ciWeight,
