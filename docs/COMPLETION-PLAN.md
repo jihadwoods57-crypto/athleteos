@@ -14,23 +14,28 @@ count, `npm run bundle`). One job = one commit. Guardrails in NIGHTSHIFT-PRIORIT
 
 ## Phase 0 — Foundation reconcile (do FIRST; everything builds on this)
 The new onboarding and dashboards are only honest if a real new athlete's state flows through.
-- [ ] **New-athlete day-0 reconcile**: a brand-new athlete's first day continues from the
+- [x] **New-athlete day-0 reconcile**: a brand-new athlete's first day continues from the
   Starting Point Score (seed day-0 + write `startScore` into `scoreHistory`); no seeded demo
-  data (Jihad / Eastside HS) leaks for a real new user. Keep the seeded-demo experience intact
-  and do not break day-rollover.
-- [ ] **Onboarding -> app data-flow**: `primaryGoal`, `sport`, `position`, and the editable
-  targets actually SURFACE in the app (Profile shows real sport/position; scoring uses chosen
-  targets; the AI coach uses `primaryGoal`). No onboarding answer dead-ends in state.
+  data (Jihad / Eastside HS / Coach Davis note / seed weight) leaks for a real new user. Keep
+  the seeded-demo experience intact and do not break day-rollover. (run 1 + run 2: the coach
+  note and the body weight were the last two leaks.)
+- [x] **Onboarding -> app data-flow**: `primaryGoal` (AI coach), `sport` + `position` (Profile),
+  the editable targets (scoring), and the onboarding body weight (`startWeight`/current/check-in)
+  all SURFACE in the app. Remaining: `trainingFreq` is collected + persisted but not yet
+  displayed (a founder visual/product call on where it belongs — see NIGHTSHIFT-LOG).
 - **Acceptance**: tests prove a fresh athlete (no persisted blob) who completes onboarding sees
   their own sport/position/targets and a Home score consistent with their reveal, with zero demo
   leakage. `npm run verify` green.
 
 ## Phase 1 — Navigation & coherence (no dead ends)
-- [ ] Complete `docs/NAV-MAP.md` (every screen -> entry points -> exits).
-- [ ] Fix every dead end / wrong destination (CTA with no handler, unreachable screen,
-  inconsistent back behavior, a row that should open something but does not).
-- [ ] Consistency sweep: consistent role nouns, consistent "AI Nutrition Coach" naming, NO em
-  dashes anywhere (incl. seed copy), no value showing two different numbers on two screens.
+- [x] Complete `docs/NAV-MAP.md` (every screen -> entry points -> exits).
+- [x] Fix every dead end / wrong destination (run 1: overseer Nudge, Profile Help row; run 2:
+  the leaked Coach Davis guidance card now gates to an intentional state, PersonDetail title
+  noun matches the opener). No known CTA-with-no-handler / unreachable screen remains.
+- [x] Consistency sweep: role nouns consistent (coach=athletes, trainer/nutritionist=clients,
+  parent=athlete; shared overlay titled per opener), "AI Nutrition Coach" naming consistent, NO
+  em dashes in shipped copy (grep clean; comments exempt), no value showing two different numbers
+  on two screens (the seed weight was the last; fixed run 2).
 - **Acceptance**: NAV-MAP has zero unresolved dead ends; a grep finds no em dashes in `src/`;
   render-smoke tests (Phase 6) cover every screen.
 
@@ -70,7 +75,10 @@ The new onboarding and dashboards are only honest if a real new athlete's state 
   on-device/browser visual QC.
 
 ## Phase 6 — Test net & verify (continuous, finalized here)
-- [ ] Render-smoke test mounting every screen/overlay/role in default + edge states (no throw).
+- [~] Render-smoke test (run 2): a node-env screen-DATA smoke net drives the same pure selectors
+  every screen renders from across edge states + every role and asserts no throw + coherent
+  values. A TRUE mount-the-React-tree test is blocked here (jest 30 vs jest-expo's
+  `@react-native/jest-preset` peer) and needs a human toolchain call — flagged in NIGHTSHIFT-LOG.
 - [ ] Unit/store tests for all new logic (onboarding actions, startingScore, coaching, at-risk,
   nudge model, personalization).
 - [ ] `npm run verify` (typecheck + jest + bundle) green.

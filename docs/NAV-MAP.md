@@ -47,7 +47,8 @@ Bottom tab bar + center camera FAB; full-screen overlays mount above.
 | Bell | `openNotif` → Notifications ✅ |
 | Streak flame badge | display-only (role="text") ⬜ |
 | Profile monogram | `goProfile` → Profile tab ✅ |
-| Score hero / Season goal / Score trend / AI insight / Coach guidance | display-only ⬜ |
+| Score hero / Season goal / Score trend / AI insight | display-only ⬜ |
+| Coach guidance card | display-only ⬜ — 🔧 now gated: a real solo athlete (no coach) sees no card; a real athlete with a coach/nutritionist sees a pending empty state; the seeded demo keeps the Coach Davis note |
 | Today's Progress → Hydration "+ " | `addWater` ✅ |
 | "Nutrition" entry card | `goNutrition` → Nutrition tab ✅ |
 | "Log dinner" card (if dinner unlogged) | `openMeal` → MealCapture ✅ |
@@ -137,6 +138,7 @@ phase. It is now real across all three surfaces (🔧 this series).
 ### PersonDetail (overlay, from Coach/Trainer rows)
 | Element | → |
 | --- | --- |
+| Title | 🔧 "{noun} Profile" — "Client Profile" from the Trainer book, "Athlete Profile" from the Coach roster (`rosterNoun(flow)`) |
 | Back | `closePerson` ✅ |
 | "Message" | `openMsg` → Messages ✅ |
 | Second action | 🔧 "Send nudge" `sendNudge` (was a dead "Adjust goals" `<View>`) |

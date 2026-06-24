@@ -2,6 +2,67 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+# COHERENCE series (2026-06-24, run 2) — finish the new-athlete data flow + add the screen safety net
+
+Continues run 1 (do not restart). Four commits, all three gates green on every
+commit (`tsc --noEmit` clean, `jest` **336 passing**, up from 315 and never
+dropped, `expo export -p ios` bundles ~2.9 MB). `src/core` stayed pure; the
+Phase-2 Supabase scaffold was not touched; no `src/app`. `git push origin master`
+fast-forwarded cleanly on all four (no relay 403 this run).
+
+Per-commit, newest last:
+1. **feat(activation): stop the seeded coach note leaking to a brand-new athlete.**
+   Home's COACH GUIDANCE card and the MealCapture "your coach, carried forward"
+   note both rendered the seed's Coach Davis ("CD") directive ("Ease up on refined
+   carbs...") for ANY athlete, including a brand-new real one with no coach. New
+   pure `coachGuidance()`: the seeded demo keeps the showcase; a real athlete who
+   connected a coach/nutritionist gets a pending empty state (their monogram, no
+   fabricated quote); a real solo athlete gets no guidance surface at all. +6 tests.
+2. **fix(person): title the shared detail overlay in the opener's own noun.** The
+   PersonDetail overlay (shared by the Coach roster and Trainer book) hardcoded
+   "Athlete Profile", so a trainer/nutritionist tapping a CLIENT saw "Athlete
+   Profile", contradicting the "Your Clients" screen they came from. New pure
+   `rosterNoun(flow)` -> the title reads "Client Profile" for the trainer flow,
+   "Athlete Profile" otherwise. +2 tests.
+3. **test(smoke): screen-data safety net across edge states + every role.** The
+   deferred "mount each screen, assert no throw" test could not be a true RN render
+   test here (jest 30 conflicts with jest-expo's `@react-native/jest-preset` peer;
+   installing a render harness blind would risk the green tree). This is the
+   node-env equivalent: it drives the SAME pure selectors every screen renders from
+   over the historically-crashy states (seeded demo, brand-new athlete empty/solo/
+   coach-connected, empty day, score floor, maxed day, plus the activation path
+   through the real store) and the role dashboards (Coach/Trainer KPIs +
+   per-person breakdown, the title noun for every flow), asserting no throw +
+   coherent values (finite, 0..100, non-empty). +11 tests.
+4. **feat(activation): surface the onboarding weight as the athlete's real start +
+   live weight.** Onboarding collected the athlete's weight (`baseWeight`) but it
+   dead-ended: `currentWeight`/`ciWeight` stayed at the seed 178 and the season-goal
+   measured from the constant `WEIGHT_START` (171), so a real athlete who entered
+   195 lb saw 178 and a fabricated "+24 gained". New per-athlete `startWeight`
+   (defaults to `WEIGHT_START` so the demo is unchanged; seeded from `baseWeight` at
+   activation along with current/check-in weight, so "gained since start" honestly
+   reads 0). Home, Check-In, and the Parent weight trend read it; it persists and
+   survives rollover. +4 tests.
+
+### For the founder (QC this run)
+- **Onboard a brand-new athlete** (your name, a sport, a goal, skip the support
+  team): your Home no longer shows a "COACH GUIDANCE" card from Coach Davis you
+  never had, and logging your first meal no longer quotes a coach in the AI
+  Nutrition Coach overlay. Connect a coach in onboarding instead and the card
+  shows a pending "your coach can leave a note here" state. (The seeded demo, with
+  no name set, still shows the Coach Davis showcase.)
+- **Onboarding weight**: enter a weight different from 178 in the physical-profile
+  step. Home's SEASON GOAL, the Check-In "gained" caption, and the Parent weight
+  trend now start from YOUR weight with "0 gained", instead of the seed's 178/+7.
+- **Trainer / nutritionist**: tapping a client row now opens "Client Profile"
+  (was "Athlete Profile").
+
+### Known minor gap (founder product call, not wired this run)
+- **`trainingFreq`** (onboarding "How often do you train?") is collected + persisted
+  but not yet surfaced in the app. Its best display home is a visual/product
+  decision (it is not a goal, so it does not fit the Profile "Working toward"
+  chips), so it is left for the founder rather than placed blind.
+
 # COHERENCE series (2026-06-24, run 1) — reconcile the whole app around the new onboarding + AI Coach
 
 Mission: make the app COHERENT (consistent, sensible navigation + endpoints) around
