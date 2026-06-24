@@ -13,6 +13,7 @@ import {
   squadView,
   supportAudience,
   taskVisibilityNote,
+  trainingCadence,
 } from './content';
 import { computeDerived, gradeFor } from './scoring';
 import { createInitialState } from './defaultState';
@@ -400,6 +401,20 @@ describe('coachGuidance', () => {
   it('prefers the coach monogram when both coach and nutritionist are connected', () => {
     const g = coachGuidance({ isReal: true, supportTeam: ['nutritionist', 'coach'], coachNote: NOTE });
     expect(g.monogram).toBe('C');
+  });
+});
+
+describe('trainingCadence', () => {
+  it('maps each known onboarding frequency key to a phrase', () => {
+    expect(trainingCadence('once')).toBe('Trains once a day');
+    expect(trainingCadence('twice')).toBe('Trains twice a day');
+    expect(trainingCadence('three_plus')).toBe('Trains 3+ times a day');
+  });
+
+  it('returns null when unset (seeded demo) or unknown, so the caller drops the line', () => {
+    expect(trainingCadence(null)).toBeNull();
+    expect(trainingCadence('')).toBeNull();
+    expect(trainingCadence('weekly')).toBeNull();
   });
 });
 

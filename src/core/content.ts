@@ -465,6 +465,24 @@ export function athleteSubtitle(position: string | null, sport?: string | null):
   return `${label} · ${hasSport ? sport : 'Eastside HS'}`;
 }
 
+/** Onboarding training-frequency key → a short Profile cadence phrase. */
+const TRAIN_CADENCE: Record<string, string> = {
+  once: 'Trains once a day',
+  twice: 'Trains twice a day',
+  three_plus: 'Trains 3+ times a day',
+};
+
+/**
+ * The athlete's training cadence for the Profile identity card, derived from the
+ * onboarding `trainingFreq` answer (which was collected but never surfaced). Returns
+ * null when unset (the seeded demo, so it stays unchanged) or for an unknown key, so
+ * the caller drops the line rather than rendering a stray value.
+ */
+export function trainingCadence(trainingFreq: string | null): string | null {
+  if (!trainingFreq) return null;
+  return TRAIN_CADENCE[trainingFreq] ?? null;
+}
+
 export interface SquadView {
   /**
    * 'demo'  = the seeded showcase leaderboard (Marcus Cole et al.) — unchanged.
