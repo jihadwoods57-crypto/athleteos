@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
-import { CHECKIN_QUESTIONS, displayWeight, displayWeightDelta, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
+import { CHECKIN_QUESTIONS, checkinAttribution, displayWeight, displayWeightDelta, supportAudience, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -30,6 +30,12 @@ export function CheckIn() {
   const wStepLb = weightStepLb(units);
   const weightTarget = s.weightTarget ?? WEIGHT_TARGET;
 
+  const isReal = s.athleteName.trim().length > 0;
+  // Where the check-in is sent / who tuned it, gated so a real solo athlete is not
+  // told it went to (or was tailored by) "Coach Davis"; the demo keeps the showcase.
+  const audience = supportAudience({ isReal, supportTeam: s.supportTeam, demo: 'Coach Davis & your parent' });
+  const attribution = checkinAttribution({ isReal, supportTeam: s.supportTeam });
+
   if (s.ciStage === 'done') {
     const name = s.athleteName?.split(' ')[0] || 'Jihad';
     return (
@@ -42,7 +48,7 @@ export function CheckIn() {
             Check-In Complete
           </Txt>
           <Txt w="sb" size={14} color={colors.textSecondary} style={{ marginTop: 8 }}>
-            Sent to Coach Davis & your parent
+            {audience ? `Sent to ${audience}` : 'Saved to your record'}
           </Txt>
         </View>
         <Card elevated style={{ marginTop: 22, borderRadius: 20 }}>
@@ -73,12 +79,14 @@ export function CheckIn() {
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
         Weekly Check-In
       </Txt>
-      <Row style={{ marginTop: 8, alignSelf: 'flex-start', gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
-        <Icon name="sparkle" size={12} color={colors.accent} />
-        <Txt w="b" size={12} color={colors.accent}>
-          Tailored by Coach Davis
-        </Txt>
-      </Row>
+      {attribution ? (
+        <Row style={{ marginTop: 8, alignSelf: 'flex-start', gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
+          <Icon name="sparkle" size={12} color={colors.accent} />
+          <Txt w="b" size={12} color={colors.accent}>
+            {attribution}
+          </Txt>
+        </Row>
+      ) : null}
 
       {/* weight stepper */}
       <Row style={[{ marginTop: 18, backgroundColor: '#fff', borderRadius: 20, padding: 18, justifyContent: 'space-between' }, shadow.card]}>

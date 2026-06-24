@@ -3,12 +3,14 @@
 import {
   aiInsight,
   athleteSubtitle,
+  checkinAttribution,
   coachGuidance,
   heroStatus,
   mealResultFor,
   MEAL_RESULTS,
   paceProjection,
   qualityLabel,
+  supportAudience,
   taskVisibilityNote,
 } from './content';
 import { computeDerived, gradeFor } from './scoring';
@@ -422,6 +424,52 @@ describe('taskVisibilityNote', () => {
   it('never leaks Coach Davis to any real athlete', () => {
     for (const team of [[], ['coach'], ['trainer'], ['nutritionist'], ['parent']]) {
       expect(taskVisibilityNote({ isReal: true, supportTeam: team })).not.toContain('Coach Davis');
+    }
+  });
+});
+
+describe('supportAudience', () => {
+  it('keeps the exact seeded-demo showcase string', () => {
+    expect(supportAudience({ isReal: false, supportTeam: [], demo: 'Coach Davis' })).toBe('Coach Davis');
+    expect(supportAudience({ isReal: false, supportTeam: [], demo: 'Coach Davis & your parent' })).toBe('Coach Davis & your parent');
+  });
+
+  it('returns an empty clause for a real solo athlete (nothing to fabricate)', () => {
+    expect(supportAudience({ isReal: true, supportTeam: [], demo: 'Coach Davis' })).toBe('');
+  });
+
+  it('names the real overseers a real athlete connected, in overseer order', () => {
+    expect(supportAudience({ isReal: true, supportTeam: ['coach'], demo: 'X' })).toBe('your coach');
+    expect(supportAudience({ isReal: true, supportTeam: ['parent', 'coach'], demo: 'X' })).toBe('your coach & your parent');
+    expect(supportAudience({ isReal: true, supportTeam: ['parent', 'nutritionist', 'coach'], demo: 'X' })).toBe('your coach, your nutritionist & your parent');
+  });
+
+  it('never leaks Coach Davis to any real athlete', () => {
+    for (const team of [[], ['coach'], ['trainer'], ['nutritionist'], ['parent']]) {
+      expect(supportAudience({ isReal: true, supportTeam: team, demo: 'Coach Davis' })).not.toContain('Coach Davis');
+    }
+  });
+});
+
+describe('checkinAttribution', () => {
+  it('keeps the seeded demo attribution', () => {
+    expect(checkinAttribution({ isReal: false, supportTeam: [] })).toBe('Tailored by Coach Davis');
+  });
+
+  it('drops the badge entirely for a real solo athlete', () => {
+    expect(checkinAttribution({ isReal: true, supportTeam: [] })).toBeNull();
+  });
+
+  it('credits the connected overseer for a real athlete (coach > nutritionist > trainer)', () => {
+    expect(checkinAttribution({ isReal: true, supportTeam: ['coach'] })).toBe('Tailored by your coach');
+    expect(checkinAttribution({ isReal: true, supportTeam: ['nutritionist'] })).toBe('Tailored by your nutritionist');
+    expect(checkinAttribution({ isReal: true, supportTeam: ['trainer'] })).toBe('Tailored by your trainer');
+    expect(checkinAttribution({ isReal: true, supportTeam: ['parent'] })).toBeNull();
+  });
+
+  it('never leaks Coach Davis to any real athlete', () => {
+    for (const team of [[], ['coach'], ['trainer'], ['nutritionist'], ['parent']]) {
+      expect(checkinAttribution({ isReal: true, supportTeam: team }) ?? '').not.toContain('Coach Davis');
     }
   });
 });

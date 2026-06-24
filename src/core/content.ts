@@ -405,6 +405,45 @@ export function taskVisibilityNote(opts: { isReal: boolean; supportTeam: string[
   return `${base}.`;
 }
 
+/**
+ * The audience a real athlete's submission is shared with, for the "sent to ..."
+ * / "visible to ..." lines on Home and Check-In. The seeded demo keeps the exact
+ * showcase string passed in `demo`; a real athlete sees the overseers they
+ * actually connected ("your coach & your parent"); a real SOLO athlete gets '' so
+ * the caller drops the clause rather than fabricate a Coach Davis who is not on
+ * their support team. Mirrors taskVisibilityNote's gating + overseer order.
+ */
+export function supportAudience(opts: { isReal: boolean; supportTeam: string[]; demo: string }): string {
+  if (!opts.isReal) return opts.demo;
+  const labels: Record<string, string> = {
+    coach: 'your coach',
+    trainer: 'your trainer',
+    nutritionist: 'your nutritionist',
+    parent: 'your parent',
+  };
+  const present = ['coach', 'trainer', 'nutritionist', 'parent']
+    .filter((k) => opts.supportTeam.includes(k))
+    .map((k) => labels[k]);
+  if (present.length === 0) return '';
+  if (present.length === 1) return present[0];
+  return present.slice(0, -1).join(', ') + ' & ' + present[present.length - 1];
+}
+
+/**
+ * The "Tailored by ..." attribution badge on the Check-In header. The seeded demo
+ * keeps "Coach Davis"; a real athlete whose coach/nutritionist/trainer tunes the
+ * check-in sees that overseer's noun; a real solo athlete's check-in is the
+ * standard set tuned by no one, so this returns null and the caller drops the badge
+ * rather than crediting a coach who does not exist.
+ */
+export function checkinAttribution(opts: { isReal: boolean; supportTeam: string[] }): string | null {
+  if (!opts.isReal) return 'Tailored by Coach Davis';
+  if (opts.supportTeam.includes('coach')) return 'Tailored by your coach';
+  if (opts.supportTeam.includes('nutritionist')) return 'Tailored by your nutritionist';
+  if (opts.supportTeam.includes('trainer')) return 'Tailored by your trainer';
+  return null;
+}
+
 /** Position abbreviation → full label for the profile subtitle. */
 export const POSITION_LABELS: Record<string, string> = {
   QB: 'Quarterback', RB: 'Running Back', WR: 'Wide Receiver', OL: 'Offensive Line',

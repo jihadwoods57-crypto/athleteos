@@ -19,6 +19,7 @@ import {
   realTrendDays,
   recentDayLabels,
   seasonGoalProgress,
+  supportAudience,
   weightUnit,
   WEIGHT_START,
   WEIGHT_TARGET,
@@ -46,6 +47,9 @@ export function Home() {
     supportTeam: s.supportTeam,
     coachNote: s.coachNote,
   });
+  // Where a completed check-in is sent, gated so a real solo athlete (no coach)
+  // is not told it went to "Coach Davis"; the demo keeps the showcase recipient.
+  const checkinAudience = supportAudience({ isReal: s.athleteName.trim().length > 0, supportTeam: s.supportTeam, demo: 'Coach Davis' });
 
   // Real trend geometry: persisted prior-day scores + today's live score as the
   // final point (seed pads the left only while real history is still filling up).
@@ -371,7 +375,7 @@ export function Home() {
               WEEKLY CHECK-IN
             </Txt>
             <Txt w="b" size={15} color="#065F46" style={{ marginTop: 5 }}>
-              Completed · sent to Coach Davis
+              {checkinAudience ? `Completed · sent to ${checkinAudience}` : 'Completed'}
             </Txt>
           </View>
           <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }}>
