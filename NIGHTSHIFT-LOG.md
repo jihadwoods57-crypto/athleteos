@@ -43,6 +43,67 @@ Newest entries at the top. Each entry = what shipped + anything the founder need
 
 ---
 
+# PRE-LAUNCH AUDIT + iOS APP STORE COMPLIANCE run (2026-06-24, continuation) — harden for submission, do NOT churn shipped features
+
+Continues the series (does not restart). The app stays **APP COMPLETE** (header
+intact). Three commits, all three gates green on EVERY commit (`npm run
+typecheck` clean, `npm run test` went 517 -> **522** and never dropped, `expo
+export -p ios` bundles ~3 MB). `src/core` stayed pure; the Phase-2 Supabase
+scaffold + the `src/lib/ai` backend seam were audited but NOT modified; no
+`src/app`. Pushed after each commit.
+
+This was a hardening + launch-readiness pass, not a feature run. The bug hunt
+came up clean (the scoring engine, store, persistence, and seams have been
+fuzzed and audited across many prior runs; the only `TODO`s are the intentional
+go-live hooks in the untouchable `sync.ts`). The real gap was iOS submission
+config, which is now compliant, plus a small a11y fix and the deliverable doc.
+
+Per-commit, newest last:
+
+1. **chore(ios): App Store compliance config** (`4ae1a04`). Pure `app.json`,
+   validated with `expo config` + a green iOS export. Adds the
+   `ios.bundleIdentifier` (`com.athleteos.app`, a PLACEHOLDER flagged for the
+   founder) + `buildNumber`; the export-compliance flags
+   (`usesNonExemptEncryption` / `ITSAppUsesNonExemptEncryption` = false); the
+   Info.plist usage strings Apple rejects apps for omitting
+   (`NSCameraUsageDescription` for the meal camera, `NSPhotoLibraryUsageDescription`,
+   `NSPhotoLibraryAddUsageDescription`); and an iOS privacy manifest
+   (`NSPrivacyTracking=false`, no tracking domains, no collected-data types for
+   the offline build, plus the RN/AsyncStorage required-reason API declarations).
+2. **fix(a11y): label the Home nutrition/check-in cards + the Notifications
+   Clear button** (`7d25db5`). Three tappable navigation controls were announced
+   by VoiceOver as only their inner text with no button role: the Home ->
+   Nutrition entry card (the sole path to the Nutrition screen, which is
+   intentionally not a bottom tab), the Home weekly Check-In banner, and the
+   Notifications "Clear" action (also given a hitSlop for the 44px target). Now
+   each has `accessibilityRole="button"` + a clear label. No visual change.
+3. **test(ios): lock the App Store compliance config** (`8a04300`). New
+   `app.config.test.ts` reads `app.json` and asserts the bundle id, build
+   number, encryption flags, every usage string (non-empty + em-dash-free), and
+   the privacy manifest. A future change that drops any of these — each a
+   guaranteed App Review rejection — now fails CI. +5 tests.
+
+Deliverable: **`docs/APP-STORE-READINESS.md`** — a categorized, three-bucket
+checklist (✅ already compliant / 🔧 fixed this run / 👤 NEEDS HUMAN).
+
+### For the founder
+- **The iOS build config is now submission-shaped** (bundle id, version/build,
+  camera + photo usage strings, privacy manifest, encryption answer). Read
+  `docs/APP-STORE-READINESS.md` — the 👤 NEEDS HUMAN section is your actual
+  launch to-do list: Apple Developer enrollment ($99/yr), owning the real
+  bundle id (the current one is a placeholder), EAS Build + signing, App Store
+  Connect listing + screenshots + age rating, a real privacy policy + support
+  URL, the splash screen (`expo-splash-screen` needs installing), and the iPad
+  support decision.
+- **The biggest review risk is in section D of that doc**: AthleteOS targets
+  MINORS (13-22) with nutrition + body-weight data, which triggers age-rating,
+  parental-consent (COPPA), data-from-kids, and no-medical-claims scrutiny.
+  Shipped copy is clean of medical claims today; the live AI coach (once the
+  backend is on) needs a human review pass + a "not medical advice" disclaimer.
+- **No secret is bundled** and the Anthropic key is server-only — verified.
+
+---
+
 # NUDGE ACKNOWLEDGEMENT run (2026-06-24, continuation) — close the last Phase-3 engineering item, reach APP COMPLETE
 
 Continues the series (does not restart). One commit, all three gates green
