@@ -2,6 +2,73 @@
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
+# COHERENCE series (2026-06-24, run 4) — finish the demo-leak sweep across every role + rank the rosters
+
+Continues runs 1-3 (do not restart). Six commits, all three gates green on every
+commit (`tsc --noEmit` clean, `jest` **372 passing**, up from 350 and never
+dropped, `expo export -p ios` bundles ~2.9 MB). `src/core` stayed pure; the
+Phase-2 Supabase scaffold was not touched; no `src/app`.
+
+This run finished the Phase-3 roster ranking and swept the LAST of the seeded-demo
+identity leaks out of every role dashboard (run 2 had done the athlete Home +
+Profile; the overseer and parent surfaces still leaked).
+
+Per-commit, newest last:
+1. **feat(overseer): rank the full roster/book worst-first.** The Coach Roster and
+   Trainer All-Clients tables rendered in seed order while the NEEDS ATTENTION /
+   NEEDS FOLLOW-UP cards above them are ranked most-at-risk first, so one dashboard
+   sorted the same athletes two different ways. New pure `rankByRisk()` reuses the
+   existing `riskValue` ranking to order the full table worst-first too. +2 tests.
+2. **fix(parent): stop the seeded Jihad / Coach Davis leak.** The Parent dashboard
+   hardcoded the showcase athlete "Jihad" (header, reassurance line, AI summary)
+   and the seed coach "Coach Davis", so a real parent who entered their own child's
+   name in onboarding still saw someone else's name and a fabricated coach quote
+   about that child. New pure `monitoredAthlete()` derives the athlete from
+   `obMeta.athleteName`; the Coach Davis note is gated to the demo, and a real
+   parent sees a pending "no notes yet" state. +3 tests.
+3. **fix(athlete): honest day header + gate the Coach Davis leak on Plan/Nutrition.**
+   The Plan + Nutrition headers hardcoded "Tuesday" (wrong six days a week); new
+   pure `weekdayLong()` reads the real weekday. The Plan footer told every athlete
+   tasks "stay visible to Coach Davis", leaking the seed coach; new pure
+   `taskVisibilityNote()` keeps Coach Davis for the demo, names the real connected
+   overseer for a real athlete, and drops the clause for a real solo athlete. +6 tests.
+4. **fix(nutrition): real weekly weight progress so the goal card matches Home.** The
+   weekly-goal card hardcoded "+0.6 lb so far" and `paceProjection` baked the same
+   0.6 into its math, so a brand-new athlete saw "+0.6 lb so far · On pace" while
+   Home/Check-In honestly showed "0 gained" from the same weight data. New pure
+   `weeklyWeightProgress()` derives the real change (0.0 for a new athlete);
+   `paceProjection` now takes it (default 0.6 keeps the demo) and echoes it so the
+   label reads the number it projects from. +7 tests.
+5. **fix(overseer): stop the demo gym/team leaking to a real coach or trainer.** The
+   Coach header hardcoded "Linebackers · Varsity" and the Trainer header the gym
+   "Apex Performance" + "MA" avatar. New pure `coachTeamTitle()` derives a real
+   coach's title from onboarding (school, else sport); `trainerOrgTitle()` gives a
+   real trainer a neutral "Your Practice" and the avatar reads their own initials.
+   +6 tests.
+6. **docs: record run 4** (this entry + NAV-MAP + COMPLETION-PLAN).
+
+### For the founder (QC this run)
+- **Coach / Trainer dashboards**: the full Roster / All-Clients table now lists the
+  most-at-risk athletes first (matching the red Needs-Attention card), instead of a
+  fixed order.
+- **Onboard each role and check the header is YOURS, not the demo's**: a real coach
+  no longer sees "Linebackers · Varsity" (shows your school/sport), a real trainer
+  no longer sees "Apex Performance"/"MA" (shows "Your Practice" + your initials), and
+  a real parent who typed their child's name no longer sees "Jihad" or a "Coach Davis"
+  note about a child that is not theirs.
+- **Brand-new athlete**: the Plan + Nutrition headers show today's real weekday (not
+  "Tuesday"), the Plan footer no longer name-drops "Coach Davis" if you have no coach,
+  and the Nutrition weekly-goal card reads "+0.0 lb so far" (matching Home's "0
+  gained") instead of a fabricated "+0.6 lb · On pace".
+- The seeded demo (no name set) is unchanged on every one of these surfaces.
+
+### Known minor gaps (founder product calls, not wired this run)
+- **Trainer RETENTION KPI ("92%")** and the **Book-Compliance trend line** stay static
+  display-only (no churn/8-week data exists offline to derive them) — documented as
+  display-only in NAV-MAP, left for a founder/data call rather than an invented metric.
+- **`trainingFreq`** (athlete onboarding) is still collected + persisted but not surfaced
+  (a visual/product call on where it belongs, flagged earlier).
+
 # COHERENCE series (2026-06-24, run 2) — finish the new-athlete data flow + add the screen safety net
 
 Continues run 1 (do not restart). Four commits, all three gates green on every

@@ -54,7 +54,8 @@ The new onboarding and dashboards are only honest if a real new athlete's state 
   FOLLOW-UP lists off the live roster/book; same `score < threshold` predicate as the
   alerts/follow-ups KPI so the list length always matches the badge; derived reason = compliance +
   trend + "days quiet" recency; tone-driven color. Fixed a real coherence bug: a phantom trainer
-  client not in the book. Remaining: sort the All-Clients/Roster tables worst-first too.)
+  client not in the book. run 4: pure `rankByRisk()` now sorts the full Coach Roster + Trainer
+  All-Clients tables worst-first too, so the table agrees with the ranked Needs-Attention card.)
 - [x] **Score language**: 95 "on standard" / 75 "on the bubble" / 60 "needs intervention", wired
   so words always match the number. (run 3: `scoreLanguage()` + a band-colored status word in the
   PersonDetail overlay.)

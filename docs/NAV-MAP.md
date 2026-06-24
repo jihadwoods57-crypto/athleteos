@@ -116,7 +116,8 @@ phase. It is now real across all three surfaces (🔧 this series).
 | KPI cards (Team Avg / Compliance / Alerts) | display-only (derive from live roster) ⬜ |
 | NEEDS ATTENTION rows | `openPerson` → PersonDetail ✅; each row has a **Nudge** action (`sendNudge`); 🔧 the whole list now DERIVES from the live roster (`needsAttention`): everyone below the alert line, most-at-risk first, with a derived reason, list length == ALERTS KPI, and the live athlete appears here once their own score drops below 80. Empty → an all-clear state ⬜ |
 | Check-in question toggles | `toggleCiQ` ✅ |
-| Roster rows | `openPerson` → PersonDetail ✅ |
+| Roster rows | `openPerson` → PersonDetail ✅; 🔧 (run 4) the full table now sorts worst-first via `rankByRisk`, so it agrees with the ranked Needs-Attention card above instead of seed order |
+| Header title | 🔧 (run 4) display-only ⬜ — `coachTeamTitle` derives a real coach's title from onboarding (school, else sport); the seeded demo keeps "Linebackers · Varsity" |
 | AI team summary | display-only ⬜ |
 
 ### Trainer (`flow = 'trainer'` — `TrainerView.tsx`)
@@ -126,14 +127,17 @@ phase. It is now real across all three surfaces (🔧 this series).
 | KPI cards / Book Compliance trend | display-only ⬜ |
 | NEEDS FOLLOW-UP → "Send nudge" | `sendNudge(name)`; 🔧 the list now DERIVES from the real client book (`needsAttention(TRAINER_CLIENTS)`) — badge count == list length, only real clients appear (a phantom client who was not in the book was removed), most-at-risk first. Empty → an all-clear state ⬜ |
 | NEEDS FOLLOW-UP → "View" | `openPerson` → PersonDetail (threads the client's real `last` recency) ✅ |
-| All Clients rows | `openPerson` → PersonDetail ✅ |
+| All Clients rows | `openPerson` → PersonDetail ✅; 🔧 (run 4) sorted worst-first via `rankByRisk`, matching the Needs-Follow-Up ranking |
+| Header (org + avatar) | 🔧 (run 4) display-only ⬜ — `trainerOrgTitle` gives a real trainer a neutral "Your Practice" and the avatar reads their own initials; the seeded demo keeps "Apex Performance" / "MA" |
 | AI practice summary | display-only ⬜ |
 
 ### Parent (`flow = 'parent'` — `ParentView.tsx`)
 | Element | → |
 | --- | --- |
 | Menu (☰) | `openAccount` → Account ✅ |
-| Score / compliance / weight / nutrition / coach-note cards | display-only by design (single-athlete read view) ⬜ |
+| Header (athlete name + avatar) | 🔧 (run 4) display-only ⬜ — `monitoredAthlete` reads the child's name a real parent entered in onboarding; the seeded demo keeps "Jihad" |
+| Score / compliance / weight / nutrition cards | display-only by design (single-athlete read view) ⬜ |
+| Coach-note card | 🔧 (run 4) display-only ⬜ — the seeded "Coach Davis" note is gated to the demo; a real parent sees a pending "no notes yet" state instead of a fabricated coach quote about their child |
 
 ### PersonDetail (overlay, from Coach/Trainer rows)
 | Element | → |
@@ -160,6 +164,21 @@ phase. It is now real across all three surfaces (🔧 this series).
    client who did not exist in the client book, behind a hardcoded count badge.
    The list now derives from the real book so only real clients can appear and
    the badge count always matches the rows.
+4. **Seed demo identity leaking to a real overseer/parent/athlete** (run 4) —
+   the Parent dashboard hardcoded "Jihad" + a "Coach Davis" note, the Coach
+   header "Linebackers · Varsity", the Trainer header "Apex Performance"/"MA",
+   the Plan footer "stay visible to Coach Davis", and the Plan/Nutrition headers
+   a frozen "Tuesday". Each now derives from real onboarding data (the seeded
+   demo showcase is unchanged).
+5. **One value, two numbers** (run 4) — a brand-new athlete saw "+0.6 lb so far ·
+   On pace" on Nutrition while Home/Check-In showed "0 gained" from the same
+   weight data. The Nutrition weekly-goal card now derives real weekly progress.
+
+## Display-only surfaces now sorted worst-first (run 4)
+
+The Coach Roster and Trainer All-Clients tables render in `rankByRisk` order so
+the full table agrees with the ranked Needs-Attention / Needs-Follow-Up card
+above it (same `riskValue` ranking), instead of arbitrary seed order.
 
 ## Intentional display-only (NOT dead ends)
 
