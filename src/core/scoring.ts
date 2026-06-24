@@ -25,7 +25,17 @@ export function seasonGoalProgress(
   target: number,
 ): { remaining: number; pctThere: number } {
   const remaining = Math.round((target - currentWeight) * 10) / 10;
-  const pctThere = Math.round(clamp(((currentWeight - start) / (target - start)) * 100, 0, 100));
+  // Degenerate range (start === target, e.g. a maintain goal, or a day-0 athlete
+  // whose onboarding weight equals the default target): there is no span to
+  // measure progress across, so (current - start)/(target - start) is 0/0 = NaN.
+  // Treat "at or above the line" as 100% there, below as 0% — never NaN%.
+  const span = target - start;
+  const pctThere =
+    span === 0
+      ? currentWeight >= target
+        ? 100
+        : 0
+      : Math.round(clamp(((currentWeight - start) / span) * 100, 0, 100));
   return { remaining, pctThere };
 }
 

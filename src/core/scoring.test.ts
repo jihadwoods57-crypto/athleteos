@@ -252,6 +252,39 @@ describe('seasonGoalProgress', () => {
     const s = createInitialState();
     expect(seasonGoalProgress(s.currentWeight, 171, 184)).toEqual({ remaining: 6, pctThere: 54 });
   });
+
+  describe('degenerate range (start === target) never yields NaN%', () => {
+    // Reachable on day 0: an athlete whose onboarding weight equals the default
+    // weight target (184) has currentWeight === startWeight === weightTarget, so
+    // the span is zero. The progress ring must read a finite 0..100, never NaN.
+    it('current === start === target (184/184/184) -> 100% there, not NaN', () => {
+      const r = seasonGoalProgress(184, 184, 184);
+      expect(Number.isNaN(r.pctThere)).toBe(false);
+      expect(r.pctThere).toBe(100);
+      expect(r.remaining).toBe(0);
+    });
+
+    it('maintain goal, current above the line (180 with start===target===178) -> 100%', () => {
+      const r = seasonGoalProgress(180, 178, 178);
+      expect(r.pctThere).toBe(100);
+      expect(Number.isNaN(r.pctThere)).toBe(false);
+    });
+
+    it('maintain goal, current below the line (175 with start===target===178) -> 0%', () => {
+      const r = seasonGoalProgress(175, 178, 178);
+      expect(r.pctThere).toBe(0);
+      expect(Number.isNaN(r.pctThere)).toBe(false);
+    });
+
+    it('pctThere stays finite and in 0..100 across a sweep of degenerate ranges', () => {
+      for (const w of [120, 170, 178, 184, 200, 350]) {
+        const r = seasonGoalProgress(w, w, w);
+        expect(Number.isFinite(r.pctThere)).toBe(true);
+        expect(r.pctThere).toBeGreaterThanOrEqual(0);
+        expect(r.pctThere).toBeLessThanOrEqual(100);
+      }
+    });
+  });
 });
 
 describe('computeDerived — reactivity', () => {
