@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { athleteSubtitle, buildLeaderboard, initials, medalColor, squadView, trendInfo, trendSeries, trendSummary } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Row, Txt, Pressable } from '@/ui/primitives';
+import { Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Squad() {
@@ -97,9 +97,12 @@ function DemoBoard({
         <Seg label="Team" active={squadMode === 'team'} onPress={() => setSquadMode('team')} />
         <Seg label="Linebackers" active={squadMode === 'position'} onPress={() => setSquadMode('position')} />
       </Row>
-      <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 10 }}>
-        {caption}
-      </Txt>
+      <Row style={{ gap: 7, marginTop: 10 }}>
+        <SampleTag />
+        <Txt w="m" size={13} color={colors.textTertiary}>
+          {caption}
+        </Txt>
+      </Row>
 
       <View style={{ marginTop: 14, gap: 8 }}>
         {board.map((r) => {
@@ -157,7 +160,7 @@ function DemoBoard({
       </View>
 
       <Txt w="sb" size={12} color={colors.textTertiary} style={{ marginTop: 16, textAlign: 'center' }}>
-        Visible to Coach Davis · resets Sunday
+        Sample leaderboard · resets Sunday
       </Txt>
     </>
   );
