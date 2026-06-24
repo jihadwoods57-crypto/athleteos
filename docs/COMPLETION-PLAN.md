@@ -1,0 +1,89 @@
+# AthleteOS — Plan to Completion
+
+The ordered roadmap the autonomous crew works against to reach **APP COMPLETE**. Work the
+phases **in order** (later phases depend on earlier ones). Within a phase, finish every task
+and meet the **acceptance criteria** before moving on. Check items off here (`[ ]` -> `[x]`) as
+you complete them, and mirror progress in NIGHTSHIFT-LOG.md. Items marked **(HUMAN)** cannot be
+done by a no-eyes crew run: implement the code/logic, then flag them under NEEDS HUMAN for the
+founder's visual pass instead of claiming they are done.
+
+Every commit keeps all three gates green (`npm run typecheck`, `npm run test` never dropping the
+count, `npm run bundle`). One job = one commit. Guardrails in NIGHTSHIFT-PRIORITIES.md always apply.
+
+---
+
+## Phase 0 — Foundation reconcile (do FIRST; everything builds on this)
+The new onboarding and dashboards are only honest if a real new athlete's state flows through.
+- [ ] **New-athlete day-0 reconcile**: a brand-new athlete's first day continues from the
+  Starting Point Score (seed day-0 + write `startScore` into `scoreHistory`); no seeded demo
+  data (Jihad / Eastside HS) leaks for a real new user. Keep the seeded-demo experience intact
+  and do not break day-rollover.
+- [ ] **Onboarding -> app data-flow**: `primaryGoal`, `sport`, `position`, and the editable
+  targets actually SURFACE in the app (Profile shows real sport/position; scoring uses chosen
+  targets; the AI coach uses `primaryGoal`). No onboarding answer dead-ends in state.
+- **Acceptance**: tests prove a fresh athlete (no persisted blob) who completes onboarding sees
+  their own sport/position/targets and a Home score consistent with their reveal, with zero demo
+  leakage. `npm run verify` green.
+
+## Phase 1 — Navigation & coherence (no dead ends)
+- [ ] Complete `docs/NAV-MAP.md` (every screen -> entry points -> exits).
+- [ ] Fix every dead end / wrong destination (CTA with no handler, unreachable screen,
+  inconsistent back behavior, a row that should open something but does not).
+- [ ] Consistency sweep: consistent role nouns, consistent "AI Nutrition Coach" naming, NO em
+  dashes anywhere (incl. seed copy), no value showing two different numbers on two screens.
+- **Acceptance**: NAV-MAP has zero unresolved dead ends; a grep finds no em dashes in `src/`;
+  render-smoke tests (Phase 6) cover every screen.
+
+## Phase 2 — AI Nutrition Coach completeness
+- [ ] Coaching content is goal-aligned across all goal themes (muscle / lean / engine) and reads
+  like a nutritionist, not a tracker; macros stay demoted.
+- [ ] The coach's note is carried forward and reinforced (loop #2); the score impact is the
+  honest engine delta.
+- **Acceptance**: `coaching.ts` tests cover every theme + edge cases; the result renders for
+  every meal type and goal. **(HUMAN)** final visual polish of the coach screen.
+
+## Phase 3 — Coach / overseer intervention ("who needs my attention today")
+- [ ] **At-risk detection** (pure core): per-athlete derived reason from real data (protein
+  missed N of 7, hydration down, weight stalled, no check-in, compliance under X), ranked
+  most-at-risk first; replace the static "Needs Attention" strings; sort the roster worst-first.
+- [ ] **Score language**: 95 "on standard" / 75 "on the bubble" / 60 "needs intervention", wired
+  so words always match the number.
+- [ ] **Nudge + acknowledgement model** (loop #3): structured coach->athlete nudge + a
+  seen/acted-on state + a derived "did compliance move after the nudge" read; store actions +
+  selectors + tests. Wire the derived data into existing dashboard rows.
+- **Acceptance**: detection + ranking + nudge model fully unit-tested. **(HUMAN)** the nudge UI /
+  acknowledgement screen rendering.
+
+## Phase 4 — Role personalization (all 7 roles)
+- [ ] Language / labels / goals personalize per role across dashboards + onboarding; nutritionist
+  rides the trainer foundation with a nutrition lens (compliance, protein adherence, meal consistency).
+- **Acceptance**: a tested personalization map; each role surfaces its own nouns. **(HUMAN)**
+  visual check of each role view.
+
+## Phase 5 — Polish & hardening
+- [ ] Empty + edge states everywhere (zero meals, all done, score 100 / floor, brand-new athlete).
+- [ ] Accessibility: `accessibilityLabel` on every icon-only control; >=44px targets;
+  **Dynamic Type caps** on the big new numerals (score reveal 68px, baseline counters/scales);
+  WCAG-AA contrast (retire any remaining failing faint text).
+- [ ] Motion + `expo-haptics` where the design calls for it; reduce-motion honored.
+- **Acceptance**: a11y + contrast checks pass in code; Dynamic Type caps present. **(HUMAN)**
+  on-device/browser visual QC.
+
+## Phase 6 — Test net & verify (continuous, finalized here)
+- [ ] Render-smoke test mounting every screen/overlay/role in default + edge states (no throw).
+- [ ] Unit/store tests for all new logic (onboarding actions, startingScore, coaching, at-risk,
+  nudge model, personalization).
+- [ ] `npm run verify` (typecheck + jest + bundle) green.
+- **Acceptance**: every screen has smoke coverage; verify green.
+
+---
+
+## Definition of Done
+All six phases complete and their acceptance criteria met, every **(HUMAN)** item implemented in
+code and flagged for the founder's visual pass, `npm run verify` green. When that holds, write
+**"APP COMPLETE — ready for founder review"** at the TOP of NIGHTSHIFT-LOG.md with the open
+NEEDS HUMAN list.
+
+## Out of scope (do NOT build)
+Phase-2 Supabase wiring (scaffold stays inert), real LLM / camera (stay deterministic), wearables,
+Apple Health / Garmin / Whoop, recruiting, NIL, social / community, advanced reporting, team chat.

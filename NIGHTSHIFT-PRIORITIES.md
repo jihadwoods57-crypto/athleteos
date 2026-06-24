@@ -1,5 +1,11 @@
 # AthleteOS — Autonomous Build Priorities
 
+> ⚑ **FOLLOW `docs/COMPLETION-PLAN.md` — it is the ordered plan to APP COMPLETE.**
+> Work its phases IN ORDER (Phase 0 reconcile first; later phases depend on earlier ones),
+> meet each phase's acceptance criteria before moving on, and check items off in that file as
+> you go. Items marked **(HUMAN)** = implement the code, then flag under NEEDS HUMAN for the
+> founder's visual pass; do not claim visual QC. The guardrails + Definition of Done below still apply.
+
 The overnight crew ranks the work queue toward these. Higher = more valuable.
 Each job must end with the app still compiling (`tsc --noEmit`), tests passing
 (`jest`), and bundling (`expo export -p ios`). One job = one clean commit.
