@@ -427,9 +427,9 @@ describe('notificationCopy', () => {
 
   it('names only the overseers a real athlete actually connected in the reminder', () => {
     expect(notificationCopy({ isReal: true, supportTeam: ['coach', 'parent'], athleteScore: 80 }).checkin)
-      .toBe('Takes 2 minutes. Your coach and your parent are waiting on it.');
+      .toBe('Takes 2 minutes. Your coach and your parent will see your update.');
     expect(notificationCopy({ isReal: true, supportTeam: ['coach'], athleteScore: 80 }).checkin)
-      .toBe('Takes 2 minutes. Your coach is waiting on it.');
+      .toBe('Takes 2 minutes. Your coach will see your update.');
   });
 
   it('never fabricates a coach or parent for a real solo athlete', () => {

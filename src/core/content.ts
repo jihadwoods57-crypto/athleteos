@@ -505,18 +505,18 @@ export function notificationCopy(opts: {
 }): NotificationCopy {
   if (!opts.isReal) {
     return {
-      checkin: 'Takes 2 minutes. Your coach and parent are waiting on it.',
+      checkin: 'Takes 2 minutes. Your coach and parent will see your update.',
       score: `Your Athlete Score is ${opts.athleteScore}. You're #2 in the linebacker room.`,
       coachNote: { initials: 'CD', title: 'Coach Davis', text: '"Strong week. Your nutrition is the best in the room. Keep it up."' },
     };
   }
   const has = (k: string) => opts.supportTeam.includes(k);
   let checkin: string;
-  if (has('coach') && has('parent')) checkin = 'Takes 2 minutes. Your coach and your parent are waiting on it.';
-  else if (has('coach')) checkin = 'Takes 2 minutes. Your coach is waiting on it.';
-  else if (has('parent')) checkin = 'Takes 2 minutes. Your parent is waiting on it.';
-  else if (has('trainer')) checkin = 'Takes 2 minutes. Your trainer is waiting on it.';
-  else if (has('nutritionist')) checkin = 'Takes 2 minutes. Your nutritionist is waiting on it.';
+  if (has('coach') && has('parent')) checkin = 'Takes 2 minutes. Your coach and your parent will see your update.';
+  else if (has('coach')) checkin = 'Takes 2 minutes. Your coach will see your update.';
+  else if (has('parent')) checkin = 'Takes 2 minutes. Your parent will see your update.';
+  else if (has('trainer')) checkin = 'Takes 2 minutes. Your trainer will see your update.';
+  else if (has('nutritionist')) checkin = 'Takes 2 minutes. Your nutritionist will see your update.';
   else checkin = 'Takes 2 minutes. Your weekly check-in keeps your score honest.';
   return {
     checkin,
