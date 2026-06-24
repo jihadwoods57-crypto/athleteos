@@ -269,18 +269,23 @@ export interface PaceProjection {
   paceLabel: string;
   paceAi: string;
   projected: number;
+  /** Weight change so far this week (lb). Echoed so the screen's "+N lb so far"
+   *  label reads the same number the projection math uses (no second hardcode). */
+  progressLb: number;
 }
 
-/** Nutrition weekly-goal pace projection from the coach-set weekly lb goal. */
-export function paceProjection(weeklyGoalLb: number): PaceProjection {
+/** Nutrition weekly-goal pace projection from the coach-set weekly lb goal.
+ *  `progressLb` defaults to the seeded-demo showcase (0.6) so a one-arg call is
+ *  unchanged; a real athlete passes their actual weekly progress so the card
+ *  never contradicts Home's "gained since start". */
+export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): PaceProjection {
   const goal = weeklyGoalLb;
   const daysLeft = 3;
-  const progressLb = 0.6;
   const daysElapsed = 4;
   const surplus = Math.round((goal * 3500) / 7);
   const projected = +((progressLb / daysElapsed) * 7).toFixed(1);
   const onPace = projected >= goal - 0.001;
-  const goalPct = Math.min(100, Math.round((progressLb / goal) * 100));
+  const goalPct = Math.max(0, Math.min(100, Math.round((progressLb / goal) * 100)));
   const paceLabel = onPace ? '↑ On pace' : '↓ Behind pace';
   let paceAi: string;
   if (projected > goal) {
@@ -290,7 +295,7 @@ export function paceProjection(weeklyGoalLb: number): PaceProjection {
   } else {
     paceAi = `At today's intake you'll reach +${projected} lb. Add ~${Math.round(((goal - projected) * 3500) / 3)} cal/day over the next ${daysLeft} days to stay on track.`;
   }
-  return { daysLeft, surplus, goalPct, onPace, paceLabel, paceAi, projected };
+  return { daysLeft, surplus, goalPct, onPace, paceLabel, paceAi, projected, progressLb };
 }
 
 export interface VisibilityRow {

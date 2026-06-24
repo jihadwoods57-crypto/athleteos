@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { mealRowsFor, QUICK_FOODS, paceProjection, weekdayLong } from '@/core';
+import { mealRowsFor, QUICK_FOODS, paceProjection, weekdayLong, weeklyWeightProgress, WEIGHT_START } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -14,7 +14,14 @@ export function Nutrition() {
   const insets = useSafeAreaInsets();
   const s = useStore();
   const d = useDerived();
-  const pace = paceProjection(s.weeklyGoalLb);
+  // A real athlete's weekly weight progress comes from their actual recorded
+  // weight (so a brand-new athlete reads 0.0, matching Home's "0 gained"); the
+  // seeded demo keeps the showcase via paceProjection's default.
+  const isReal = s.athleteName.trim().length > 0;
+  const weeklyProgress = isReal
+    ? weeklyWeightProgress(s.weightHistory, s.currentWeight, s.startWeight ?? WEIGHT_START)
+    : undefined;
+  const pace = paceProjection(s.weeklyGoalLb, weeklyProgress);
   const calPct = Math.round((d.kcalToday / d.calTarget) * 100);
   const rows = mealRowsFor(s);
 
@@ -61,7 +68,7 @@ export function Nutrition() {
         </View>
         <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
           <Txt w="b" size={13} color={colors.slate700}>
-            +0.6 lb so far
+            {pace.progressLb >= 0 ? '+' : ''}{pace.progressLb.toFixed(1)} lb so far
           </Txt>
           <Txt w="eb" size={13} color={pace.onPace ? colors.successDeep : colors.warningDeep}>
             {pace.paceLabel}

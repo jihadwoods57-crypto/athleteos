@@ -234,6 +234,22 @@ describe('paceProjection', () => {
   it('always leaves 3 days remaining (prototype constant)', () => {
     expect(paceProjection(1.0).daysLeft).toBe(3);
   });
+
+  it('defaults progressLb to the seeded showcase (0.6) when omitted', () => {
+    expect(paceProjection(1.0).progressLb).toBe(0.6);
+  });
+
+  it('takes a real athlete\'s weekly progress and echoes it back', () => {
+    const p = paceProjection(1.5, 0); // brand-new athlete: 0 gained
+    expect(p.progressLb).toBe(0);
+    expect(p.projected).toBe(0);
+    expect(p.goalPct).toBe(0); // clamped, never negative
+    expect(p.onPace).toBe(false);
+  });
+
+  it('never returns a negative goal percentage on a cut', () => {
+    expect(paceProjection(1.0, -2).goalPct).toBe(0);
+  });
 });
 
 describe('athleteSubtitle', () => {

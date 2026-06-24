@@ -11,6 +11,7 @@ import {
   realTrendDays,
   recentDayLabels,
   weekdayLong,
+  weeklyWeightProgress,
   seededHistory,
   trendGeometry,
   trendSeries,
@@ -119,6 +120,31 @@ describe('recentDayLabels', () => {
     expect(labels[6]).toBe('Tue'); // today is last
     expect(labels[5]).toBe('Mon'); // yesterday
     expect(labels[0]).toBe('Wed'); // 6 days ago
+  });
+});
+
+describe('weeklyWeightProgress', () => {
+  it('is 0 for a brand-new athlete with no history (current == start)', () => {
+    expect(weeklyWeightProgress([], 195, 195)).toBe(0);
+  });
+
+  it('measures current minus the oldest weight in the recent window', () => {
+    const hist = [
+      { date: '2026-06-18', weight: 180 },
+      { date: '2026-06-19', weight: 181 },
+      { date: '2026-06-20', weight: 182 },
+    ];
+    // oldest recent (window-1 = 6 back, but only 3 entries) is 180; current 183 -> +3
+    expect(weeklyWeightProgress(hist, 183, 171)).toBe(3);
+  });
+
+  it('can be negative on a cut', () => {
+    const hist = [{ date: '2026-06-19', weight: 200 }];
+    expect(weeklyWeightProgress(hist, 197.5, 205)).toBe(-2.5);
+  });
+
+  it('falls back to the season start when there is no history', () => {
+    expect(weeklyWeightProgress([], 174, 171)).toBe(3);
   });
 });
 

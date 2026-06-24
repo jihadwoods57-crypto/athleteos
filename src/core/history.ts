@@ -350,6 +350,24 @@ export function weightSeries(
   return [...lead, ...series];
 }
 
+/**
+ * Weight change so far this week: current weight minus the weight at the start of
+ * the recorded window (the oldest of the last `window` recorded days), falling
+ * back to the season start when no history has accrued yet. So a brand-new
+ * athlete reads 0.0 (current == start) instead of the seed's fabricated +0.6,
+ * matching the "0 gained" Home and Check-In already show. Can be negative (cut).
+ */
+export function weeklyWeightProgress(
+  history: WeightPoint[],
+  currentWeight: number,
+  start: number,
+  window: number = TREND_WINDOW,
+): number {
+  const recent = history.slice(-(window - 1));
+  const weekStart = recent.length ? recent[0].weight : start;
+  return +(currentWeight - weekStart).toFixed(1);
+}
+
 export interface WeightChartGeometry extends TrendChartGeometry {
   /** y of the season goal line within the box (same axis as the trend line). */
   goalY: number;
