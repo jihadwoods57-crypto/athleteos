@@ -3,7 +3,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, gradeFor, trendInfo } from '@/core';
+import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, gradeFor, needsAttention, trendInfo } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
@@ -19,6 +19,13 @@ export function CoachView() {
   const roster = ROSTER.map((r) => (r.you ? { ...r, score: d.athleteScore } : r));
   const kpis = coachRosterKpis(roster);
   const onTrack = roster.length - kpis.alerts;
+  // Needs-Attention derives from the SAME live roster (most-at-risk first, with a
+  // derived reason), so the list length matches the ALERTS KPI and the live
+  // athlete shows up here the moment their own score drops below the line.
+  const attention = needsAttention(roster);
+  const rosterMeta: Record<string, { initials: string; pos: string; comp: number }> = Object.fromEntries(
+    roster.map((r) => [r.name, { initials: r.initials, pos: r.pos, comp: r.comp }]),
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -44,32 +51,39 @@ export function CoachView() {
             <Kpi value={`${kpis.alerts}`} label="ALERTS" color={colors.alert} />
           </Row>
 
-          <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.alertSurface, borderWidth: 1, borderColor: colors.alertBorder }}>
-            <Txt w="eb" size={11} color={colors.alert} ls={0.7} style={{ marginBottom: 13 }}>
-              NEEDS ATTENTION
-            </Txt>
-            <AttentionRow
-              initials="AS"
-              name="A. Silva"
-              meta="Missed 3 meals · recovery dropping"
-              score={79}
-              color={colors.warning}
-              nudged={s.nudged.includes('Andre Silva')}
-              onNudge={() => { haptics.success(); s.sendNudge('Andre Silva'); }}
-              onPress={() => s.openPerson({ name: 'Andre Silva', initials: 'AS', pos: 'Linebacker', score: 79, comp: 71 })}
-            />
-            <AttentionRow
-              initials="MC"
-              name="M. Cole"
-              meta="No check-in · 58% compliance"
-              score={68}
-              color={colors.alert}
-              nudged={s.nudged.includes('Marcus Cole')}
-              onNudge={() => { haptics.success(); s.sendNudge('Marcus Cole'); }}
-              onPress={() => s.openPerson({ name: 'Marcus Cole', initials: 'MC', pos: 'Linebacker', score: 68, comp: 58 })}
-              last
-            />
-          </View>
+          {attention.length > 0 ? (
+            <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.alertSurface, borderWidth: 1, borderColor: colors.alertBorder }}>
+              <Txt w="eb" size={11} color={colors.alert} ls={0.7} style={{ marginBottom: 13 }}>
+                NEEDS ATTENTION
+              </Txt>
+              {attention.map((a, i) => {
+                const m = rosterMeta[a.name] ?? { initials: a.name.slice(0, 2).toUpperCase(), pos: '', comp: a.comp };
+                return (
+                  <AttentionRow
+                    key={a.name}
+                    initials={m.initials}
+                    name={a.name}
+                    meta={a.reason}
+                    score={a.score}
+                    color={a.tone === 'alert' ? colors.alert : colors.warning}
+                    nudged={s.nudged.includes(a.name)}
+                    onNudge={() => { haptics.success(); s.sendNudge(a.name); }}
+                    onPress={() => s.openPerson({ name: a.name, initials: m.initials, pos: m.pos, score: a.score, comp: m.comp })}
+                    last={i === attention.length - 1}
+                  />
+                );
+              })}
+            </View>
+          ) : (
+            <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.successSurface }}>
+              <Txt w="eb" size={11} color={colors.successDeep} ls={0.7} style={{ marginBottom: 6 }}>
+                NEEDS ATTENTION
+              </Txt>
+              <Txt w="sb" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>
+                Everyone is above the line today. No one needs a nudge right now.
+              </Txt>
+            </View>
+          )}
 
           <Card elevated style={{ marginTop: 18, borderRadius: 20 }}>
             <Txt w="eb" size={15} ls={-0.3}>
@@ -100,7 +114,7 @@ export function CoachView() {
               return (
                 <Pressable
                   key={a.name}
-                  onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: 'Linebacker', score: a.score, comp: a.comp })}
+                  onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: a.pos, score: a.score, comp: a.comp })}
                   style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, padding: 14 }, shadow.card]}
                 >
                   <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
