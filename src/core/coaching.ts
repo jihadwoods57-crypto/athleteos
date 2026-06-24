@@ -69,7 +69,7 @@ function insightFor(theme: GoalTheme, mealType: MealLabel): string {
     return `Smart ${slot} for staying lean. ${food} brings ${mr.protein}g of protein that keeps you full and protects muscle while you're in a deficit, without overshooting calories.`;
   }
   if (theme === 'engine') {
-    return `Good fuel for your engine. The carbs here replenish glycogen so your next session has gas in the tank, and ${food} adds ${mr.protein}g of protein to drive recovery.`;
+    return `Great ${slot} fuel for your engine. The carbs here replenish glycogen so your next session has gas in the tank, and ${food} adds ${mr.protein}g of protein to drive recovery.`;
   }
   return `Strong ${slot} for building. ${food} delivers ${mr.protein}g of high-quality protein for muscle repair, and the carbs refuel you for tomorrow's work.`;
 }

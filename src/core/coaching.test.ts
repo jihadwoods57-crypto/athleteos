@@ -1,6 +1,8 @@
 import { createInitialState } from './defaultState';
 import { computeDerived } from './scoring';
+import { GOAL_LABELS } from './constants';
 import { themeForGoal, mealScoreImpact, mealCoaching, coachReinforcement } from './coaching';
+import type { MealLabel } from './types';
 
 describe('themeForGoal', () => {
   it('maps goals to the three coaching themes', () => {
@@ -71,6 +73,44 @@ describe('mealCoaching', () => {
       if (v) expect(v).not.toContain('—');
     }
   });
+});
+
+describe('mealCoaching — renders coherently for every goal x every meal (Phase 2 acceptance)', () => {
+  const s = createInitialState();
+  const d = computeDerived(s);
+  const MEALS: MealLabel[] = ['Breakfast', 'Lunch', 'Snack', 'Dinner'];
+  const GOALS = Object.keys(GOAL_LABELS);
+
+  // Theme-specific words that must surface so the coaching reads goal-aligned, not
+  // generic. (themeForGoal collapses the 12 goals into muscle/lean/engine.)
+  const THEME_WORDS: Record<string, RegExp> = {
+    lean: /lean|deficit|cut/i,
+    engine: /engine|glycogen|fuel/i,
+    muscle: /build|muscle|repair/i,
+  };
+
+  for (const goal of GOALS) {
+    for (const meal of MEALS) {
+      it(`${goal} / ${meal}: non-empty, em-dash-free, theme-aligned copy`, () => {
+        const c = mealCoaching(meal, goal, d, 5, 'Hold your protein at dinner');
+        const theme = themeForGoal(goal);
+        // Every field is present and substantive (never a blank coaching card).
+        expect(c.insight.length).toBeGreaterThan(20);
+        expect(c.education.length).toBeGreaterThan(20);
+        expect(c.nextStep.length).toBeGreaterThan(10);
+        expect(c.dailyContext.length).toBeGreaterThan(10);
+        expect(c.weeklyContext).toBeTruthy();
+        expect(c.coachEcho).toBeTruthy();
+        // The hero insight names the meal slot and reflects the goal's theme.
+        expect(c.insight.toLowerCase()).toContain(meal.toLowerCase());
+        expect(c.insight).toMatch(THEME_WORDS[theme]);
+        // Design ban: no em dashes anywhere in the payload.
+        for (const v of [c.insight, c.education, c.nextStep, c.dailyContext, c.weeklyContext, c.coachEcho]) {
+          if (v) expect(v).not.toContain('—');
+        }
+      });
+    }
+  }
 });
 
 describe('coachReinforcement', () => {
