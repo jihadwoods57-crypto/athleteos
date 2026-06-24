@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, coachTeamTitle, gradeFor, needsAttention, rankByRisk, trendInfo } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Card, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
@@ -46,6 +46,12 @@ export function CoachView() {
               <Txt w="eb" size={21} ls={-0.3}>
                 {teamTitle}
               </Txt>
+              <Row style={{ gap: 7, marginTop: 5 }}>
+                <SampleTag />
+                <Txt w="sb" size={12} color={colors.textTertiary}>
+                  Demo roster, not your real team
+                </Txt>
+              </Row>
             </View>
           </Row>
 
@@ -158,6 +164,7 @@ export function CoachView() {
               <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
                 AI TEAM SUMMARY
               </Txt>
+              <SampleTag />
             </Row>
             <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
               The room is trending up: {onTrack} of {roster.length} athletes are on track this week.{' '}
