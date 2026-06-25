@@ -43,6 +43,41 @@ Newest entries at the top. Each entry = what shipped + anything the founder need
 
 ---
 
+# Day 1 AM progress (2026-06-25, 6am ET) — P0 backend keystone (NOT the day's report)
+
+In-progress handoff note for the 1pm run, which writes the full per-commit Day-1 report
++ adversarial self-review + `day1-end` tag. The AM run drained **P0** (backend wiring,
+flag-gated OFF) end-to-end on `crew/4day-sprint`. Tests **559 → 590**; `typecheck` +
+`test` + `bundle` green on every commit; `EXPO_PUBLIC_BACKEND_LIVE` never enabled; no
+live-DB mutation; `src/core` stayed pure.
+
+Eight commits (newest last):
+1. consent-gate the day-sync write path behind `isBackendLive` (Stage C core). `pushDay`
+   fails closed: writes only when live AND `realDataConsent` passes. +10 tests.
+2. live auth store seam + `create_team` RPC (Stage B). signUp/In/Out + recordConsent;
+   migration 0004 (coach creates team + real join code). +7 tests.
+3. **runtime-verified the round-trip on a LOCAL Docker supabase stack** (path used:
+   Docker, not the mock harness): coach signUp → create_team → athlete join → pushDay →
+   coach roster read sees it → stranger sees nothing (RLS) → athlete reads own. All 6
+   pass. Surfaced + fixed a real Stage-A gap (no table GRANTs) via migration 0005.
+4. founder decisions queued (D1 migrations 0004/0005 must be applied at go-live; D2
+   email-confirmation policy).
+5. wire the day-sync hooks behind the flag (Stage C): hydrate after auth + debounced
+   `pushDay` in addMeal/addWater/toggleTask/toggleQuick/submitCi. +3 tests.
+6. athlete real-data consent screen, flag-gated onboarding step (hard gate before any
+   real push; guardian wording for minors). +3 tests.
+7. real roster reads behind the flag (Stage D): pure `mapLinkedDaysToRoster` + a
+   flag-gated `useLiveRoster` hook on CoachView; drops the Sample tag when real. +8 tests.
+8. wire the Sign in screen to live auth (Stage B).
+
+HONESTY: items 1-3 (and the read in 7) are runtime-verified against the local stack.
+The UI paths (consent screen, SignIn live branch, CoachView live roster) are **built,
+not runtime-verified** — the flag is off in every build/test, so they never render in
+CI; their pure logic is unit-tested and the bundle compiles. Remaining P0-adjacent
+follow-ups: TrainerView/ClientRow swap + profile-name enrichment on the live roster.
+
+---
+
 # HONESTY & COPY PASS run (2026-06-24, continuation) - stop the demo data masquerading as real, fix trust-damaging copy
 
 Continues the series (does not restart). The app stays **APP COMPLETE** (header
