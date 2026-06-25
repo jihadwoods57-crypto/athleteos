@@ -229,6 +229,12 @@ export interface PersonDetail {
   /** Human "last logged" label (trainer book recency, e.g. "5 days ago"), when
    *  the caller has it. Drives the honest "Last active" chip in the overlay. */
   last?: string;
+  /** A compact performance/PR summary line (see core/performance.ts
+   *  topPerformanceLine), e.g. "Bench Press · 225 lb PR (+15 lb)". Present only
+   *  when the caller has real PR data for this person — the coach roster will
+   *  carry it once per-athlete performance syncs through the backend (P0). Absent
+   *  on the demo roster rather than fabricated. */
+  perf?: string;
 }
 
 export interface Grade {

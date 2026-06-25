@@ -81,6 +81,22 @@ export function PersonDetail() {
           </Txt>
         </Row>
 
+        {pd.perf ? (
+          <Card style={{ marginTop: 14, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="trophy" size={18} color={colors.accent} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6}>
+                PERFORMANCE
+              </Txt>
+              <Txt w="b" size={14} color={colors.slate700} style={{ marginTop: 2 }}>
+                {pd.perf}
+              </Txt>
+            </View>
+          </Card>
+        ) : null}
+
         <Card style={{ marginTop: 14, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 16 }}>
             Score Breakdown

@@ -307,6 +307,22 @@ export function Home() {
         <Icon name="chevronRight" size={22} color="#CBD5E1" />
       </Pressable>
 
+      {/* performance entry */}
+      <Pressable accessibilityRole="button" accessibilityLabel="Performance: log a PR and see your trends" onPress={s.goPerformance} style={[{ marginTop: 12, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
+        <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="trophy" size={22} color={colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="b" size={15}>
+            Performance
+          </Txt>
+          <Txt w="m" size={13} color={colors.textSecondary}>
+            Log a PR and see your trends
+          </Txt>
+        </View>
+        <Icon name="chevronRight" size={22} color="#CBD5E1" />
+      </Pressable>
+
       {/* AI insight */}
       <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
         <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
