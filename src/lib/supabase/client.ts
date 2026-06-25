@@ -17,6 +17,16 @@ const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 export const isSupabaseConfigured = Boolean(url && anonKey);
 
 /**
+ * Separate go-live gate for the DATA backend (auth + day sync + roster reads),
+ * independent of `isSupabaseConfigured` — which is already true whenever the AI
+ * Edge Function's project URL/key are set. Real account + data wiring stays OFF
+ * until EXPO_PUBLIC_BACKEND_LIVE is explicitly "true", so AI can run while the
+ * database backend is staged, and it doubles as the instant kill-switch.
+ */
+export const isBackendLive =
+  isSupabaseConfigured && process.env.EXPO_PUBLIC_BACKEND_LIVE?.trim() === 'true';
+
+/**
  * The typed client, or null when unconfigured. Prefer `requireSupabase()` at call
  * sites that have already checked `isSupabaseConfigured`; use this for the guard.
  */

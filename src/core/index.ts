@@ -15,6 +15,7 @@ export * from './person';
 export * from './attention';
 export * from './roster';
 export * from './mealEdit';
+export * from './consent';
 export * from './nudge';
 export * from './identity';
 export * from './account';
