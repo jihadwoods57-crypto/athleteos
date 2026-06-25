@@ -109,6 +109,18 @@ below. **+31 tests (559 → 590).**
   (honest empty state) so nothing fabricated masquerades as real.
 - **Gates:** `npm run verify` green at **639 tests**; no revert needed.
 
+## ⚠ Day-1 tag — blocked by the git bridge (founder action)
+The annotated tag `day1-end` was created locally but **could not be pushed**: the
+local git bridge (`127.0.0.1`, NOT the egress proxy — `recentRelayFailures`
+empty) returns a hard **HTTP 403 on every tag-ref push** (`refs/tags/*`), while
+branch-ref pushes succeed. Per the proxy README, 403 policy denials are reported,
+not retried. As a durable substitute the day-end commit is pushed as the branch
+**`checkpoint/day1-end`**. To materialize the real annotated tag once you're back
+(from a normal git client):
+`git fetch origin && git tag -a day1-end origin/checkpoint/day1-end -m "Day 1 end" && git push origin day1-end`.
+`crew/4day-sprint` is green and fully pushed at the same commit; you can delete
+`checkpoint/day1-end` after tagging.
+
 ---
 
 # Day 1 AM progress (2026-06-25, 6am ET) — P0 backend keystone (NOT the day's report)
