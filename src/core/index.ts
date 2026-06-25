@@ -14,6 +14,7 @@ export * from './history';
 export * from './person';
 export * from './attention';
 export * from './roster';
+export * from './rosterSync';
 export * from './mealEdit';
 export * from './consent';
 export * from './nudge';

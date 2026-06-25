@@ -12,11 +12,15 @@ import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
+import { useLiveRoster } from './useLiveRoster';
 
 export function CoachView() {
   const s = useStore();
   const d = useDerived();
-  const roster = ROSTER.map((r) => (r.you ? { ...r, score: d.athleteScore } : r));
+  // Stage D: real roster from fetchLinkedDays when isBackendLive, else the seeded
+  // showcase (identical when the flag is off). `live` drops the Sample tag once real.
+  const { roster: rosterSource, live: rosterLive } = useLiveRoster(ROSTER);
+  const roster = rosterSource.map((r) => (r.you ? { ...r, score: d.athleteScore } : r));
   const kpis = coachRosterKpis(roster);
   const onTrack = roster.length - kpis.alerts;
   // Needs-Attention derives from the SAME live roster (most-at-risk first, with a
@@ -55,12 +59,14 @@ export function CoachView() {
               <Txt w="eb" size={21} ls={-0.3}>
                 {teamTitle}
               </Txt>
-              <Row style={{ gap: 7, marginTop: 5 }}>
-                <SampleTag />
-                <Txt w="sb" size={12} color={colors.textTertiary}>
-                  Demo roster, not your real team
-                </Txt>
-              </Row>
+              {rosterLive ? null : (
+                <Row style={{ gap: 7, marginTop: 5 }}>
+                  <SampleTag />
+                  <Txt w="sb" size={12} color={colors.textTertiary}>
+                    Demo roster, not your real team
+                  </Txt>
+                </Row>
+              )}
             </View>
           </Row>
 
