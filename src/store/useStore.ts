@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { analyzeMeal, isAiConfigured } from '@/lib/ai';
+import { auth, isBackendLive } from '@/lib/supabase';
 import {
   appendDayScore,
   createInitialState,
@@ -142,6 +143,14 @@ export interface Actions {
   setCi: (key: CiSliderKey, value: number) => void;
   toggleCiQ: (k: keyof CiConfig) => void;
   submitCi: () => void;
+
+  // backend auth (go-live, gated behind isBackendLive; no-ops when off so the
+  // mock onboarding flow is untouched)
+  signUpLive: (email: string, password: string, fullName: string) => Promise<boolean>;
+  signInLive: (email: string, password: string) => Promise<boolean>;
+  signOutLive: () => Promise<void>;
+  recordConsent: (given: boolean) => void;
+  setAuthError: (msg: string | null) => void;
 
   // dev
   resetDemo: () => void;
@@ -394,6 +403,38 @@ export const useStore = create<Store>()(
       setCi: (key, value) => set({ [key]: value } as Partial<AppState>),
       toggleCiQ: (k) => set((s) => ({ ciConfig: { ...s.ciConfig, [k]: !s.ciConfig[k] } })),
       submitCi: () => set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight })),
+
+      // ---- backend auth (go-live) ----
+      // All gated behind isBackendLive: with the flag off they are inert no-ops and
+      // the screens keep their mock auth path, so flag-OFF behaviour is identical.
+      // On success the userId is stored; routing stays with the caller (the screen),
+      // which falls back to the mock router when the flag is off.
+      signUpLive: async (email, password, fullName) => {
+        if (!isBackendLive) return false;
+        const res = await auth.signUp(email.trim(), password, fullName.trim() || undefined);
+        if (!res.ok) {
+          set({ authError: res.error });
+          return false;
+        }
+        set({ userId: res.userId, authError: null });
+        return true;
+      },
+      signInLive: async (email, password) => {
+        if (!isBackendLive) return false;
+        const res = await auth.signIn(email.trim(), password);
+        if (!res.ok) {
+          set({ authError: res.error });
+          return false;
+        }
+        set({ userId: res.userId, authError: null });
+        return true;
+      },
+      signOutLive: async () => {
+        if (isBackendLive) await auth.signOut();
+        set({ userId: null, realDataConsent: false, authError: null });
+      },
+      recordConsent: (given) => set({ realDataConsent: given }),
+      setAuthError: (msg) => set({ authError: msg }),
 
       // ---- dev ----
       resetDemo: () => set({ ...createInitialState() }),

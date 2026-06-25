@@ -83,6 +83,19 @@ export async function fetchLinkedDays(date: string): Promise<DayRow[]> {
 }
 
 // ---------------------------------------------------------------- secure RPCs
+/** Coach creates a team and is added as its head_coach staff (atomic, via the
+ *  SECURITY DEFINER create_team RPC). Returns the real, server-generated join code
+ *  that replaces the static EAGLES24 — share it so athletes can joinTeam(code). */
+export async function createTeam(name: string, sport?: string): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('create_team', {
+    team_name: name,
+    team_sport: sport ?? null,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function joinTeam(code: string, position?: string): Promise<string | null> {
   if (!isSupabaseConfigured) return null;
   const { data, error } = await requireSupabase().rpc('join_team', {

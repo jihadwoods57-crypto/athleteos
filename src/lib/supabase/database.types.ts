@@ -127,6 +127,10 @@ export interface Database {
     };
     Views: { [_ in never]: never };
     Functions: {
+      create_team: {
+        Args: { team_name: string; team_sport?: string | null };
+        Returns: string;
+      };
       join_team: {
         Args: { code: string; athlete_position?: string | null };
         Returns: string;
