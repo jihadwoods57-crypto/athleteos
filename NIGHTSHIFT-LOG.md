@@ -43,6 +43,74 @@ Newest entries at the top. Each entry = what shipped + anything the founder need
 
 ---
 
+# Day 1 REPORT (2026-06-25) — P0 backend keystone + P1 performance signal
+
+The full Day-1 report (the AM handoff note below it is kept for detail). Two
+Max-intensity runs worked the ranked queue top-down on `crew/4day-sprint`:
+**AM drained P0** (backend wiring, flag-gated OFF), **PM drained P1** (the
+performance signal — the #1 persona gap). Tests **559 → 639** across the day
+(AM +31, PM +49); `npm run verify` (typecheck + jest + iOS bundle) green on
+EVERY commit; `EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB mutation;
+`src/core` stayed pure; no `src/app`; one job = one commit; branch pushed after
+each. Tag: `day1-end`.
+
+## PM run (1pm ET) — P1 performance signal (4 commits, newest last)
+
+1. **`feat(performance)`: pure PR/entry model + trend/personal-record engine.**
+   New `src/core/performance.ts`: a logged-result model (lifts, sprints, jumps,
+   body weight, custom metrics) with PR/best, an *oriented* trend (a faster
+   sprint AND a heavier bench both read as improvement), per-metric summaries, a
+   coach one-liner (`topPerformanceLine`), value/improvement formatting, and a
+   self-fitting trend sparkline. Kept OUT of the daily Accountability Score by
+   design — a separate "am I getting better?" track. **+39 tests.** *(Pure
+   logic, unit-tested — verified.)*
+2. **`feat(performance)`: persist PR entries in the store + log/delete actions.**
+   Cross-day `perfEntries` added to `AppState` (persisted; survives day rollover
+   — not a day-slice field), plus `logPr`/`deletePr`/`goPerformance` actions and
+   a new `'performance'` Tab. Ids are collision-free from the max existing suffix
+   (no clock/RNG in the store). Honest empty seed — no fabricated PRs. A store
+   test locks that logging PRs does NOT move the daily score. **+10 tests.**
+   *(Pure store logic, unit-tested — verified.)*
+3. **`feat(performance)`: athlete Performance view + coach PersonDetail summary.**
+   New athlete Performance screen (reached from a Home card): log a result
+   (metric chips incl. custom, value, date), then per-metric PR cards with a
+   trend sparkline, latest-vs-PR, oriented improvement, and per-entry delete;
+   honest empty state until the first log. PersonDetail gains an optional,
+   present-gated Performance line — it renders only when a caller supplies real
+   PR data, so the demo roster shows nothing (no fabrication). *(UI + the
+   inert PersonDetail seam are **built, not runtime-verified** — no device/expo
+   in this runner; they compile, bundle, and their pure logic is unit-tested.)*
+4. **`docs`: queue P1 founder decisions.** D3 (keep performance separate from the
+   score vs. an opt-in PR bonus — recommended: separate) and D4 (PR date is a
+   text field; native picker + a `performance_entries` table/`pushPerf` sync +
+   wiring the PersonDetail line from the live roster are go-live/device seams).
+   *(Docs.)*
+
+## AM run (6am ET) — P0 backend keystone
+
+Eight commits drained P0 end-to-end (auth Stage B, day-sync Stage C, athlete
+consent screen, roster reads Stage D — all behind `isBackendLive`, flag-OFF
+behaviour identical). The round-trip was **runtime-verified on a local Docker
+supabase stack** (not the live project); the flag-gated UI paths are built, not
+runtime-verified. Full per-commit detail in the AM handoff note immediately
+below. **+31 tests (559 → 590).**
+
+## Adversarial self-review of the Day-1 diff (PM)
+- **Flag-OFF / existing behaviour:** P1 is purely additive — a new tab only
+  reachable via a new Home card, new store fields/actions called by nothing
+  existing, and a present-gated PersonDetail line with no caller. No `switch`/
+  `Record<Tab>` exhaustiveness breaks (none exist). `EXPO_PUBLIC_BACKEND_LIVE` /
+  `isBackendLive` untouched by the P1 diff. Existing screens/score unchanged.
+- **Dead/broken UI:** the PersonDetail Performance line is an *inert seam* (no
+  caller sets `pd.perf`) — labelled as such here and in D4, the same documented-
+  seam pattern as the flag-gated Stage C/D UI, not a no-op affordance. The
+  athlete Performance screen is fully wired (Home → screen → log/delete → render).
+- **Honesty:** UI is labelled "built, not runtime-verified"; no PRs are seeded
+  (honest empty state) so nothing fabricated masquerades as real.
+- **Gates:** `npm run verify` green at **639 tests**; no revert needed.
+
+---
+
 # Day 1 AM progress (2026-06-25, 6am ET) — P0 backend keystone (NOT the day's report)
 
 In-progress handoff note for the 1pm run, which writes the full per-commit Day-1 report
