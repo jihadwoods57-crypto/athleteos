@@ -178,18 +178,41 @@ function Welcome() {
 }
 
 function SignIn() {
-  const { exitSignin, signinDone } = useStore();
+  const { exitSignin, signinDone, signInLive, setAuthError } = useStore();
+  const authError = useStore((st: Store) => st.authError);
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+
+  // Flag OFF: the mock router (signinDone) runs exactly as today. Flag ON: route
+  // through live auth; on success hydrate + enter the app, else surface the error.
+  const onSubmit = async () => {
+    if (!isBackendLive) {
+      signinDone();
+      return;
+    }
+    setBusy(true);
+    const ok = await signInLive(email, password);
+    setBusy(false);
+    if (ok) signinDone();
+  };
+
   return (
     <StepShell
       progress={null}
-      onBack={exitSignin}
+      onBack={() => { setAuthError(null); exitSignin(); }}
       title="Welcome back"
       sub="Pick up right where you left off."
-      footer={<Btn label="Sign in" onPress={signinDone} />}
+      footer={<Btn label={busy ? 'Signing in...' : 'Sign in'} disabled={busy} onPress={onSubmit} />}
     >
       <View style={{ gap: 12 }}>
-        <Input placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
-        <Input placeholder="Password" secureTextEntry />
+        <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
+        <Input value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
+        {authError ? (
+          <Txt w="sb" size={13} color={colors.alert} style={{ marginTop: 2 }}>
+            {authError}
+          </Txt>
+        ) : null}
       </View>
     </StepShell>
   );
