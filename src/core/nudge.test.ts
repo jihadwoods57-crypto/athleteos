@@ -2,7 +2,7 @@
 // is deterministic + offline: it records the athlete's compliance at send-time
 // and derives "did anything move since" honestly from live data, never inventing
 // an athlete response. See core/nudge.ts.
-import { findNudge, nudgeOutcome, type NudgeRecord } from './nudge';
+import { findNudge, nudgeOutcome, nudgeTrail, type NudgeRecord } from './nudge';
 
 const rec = (over: Partial<NudgeRecord> = {}): NudgeRecord => ({
   name: 'Andre Silva',
@@ -10,6 +10,18 @@ const rec = (over: Partial<NudgeRecord> = {}): NudgeRecord => ({
   comp: 64,
   score: 71,
   ...over,
+});
+
+describe('nudgeTrail', () => {
+  it('reads "Nudged today" with no note', () => {
+    expect(nudgeTrail(rec())).toBe('Nudged today');
+  });
+  it('includes the attached note in quotes', () => {
+    expect(nudgeTrail(rec({ note: 'Eat before practice' }))).toBe('Nudged today: “Eat before practice”');
+  });
+  it('treats a blank note as no note', () => {
+    expect(nudgeTrail(rec({ note: '   ' }))).toBe('Nudged today');
+  });
 });
 
 describe('findNudge', () => {

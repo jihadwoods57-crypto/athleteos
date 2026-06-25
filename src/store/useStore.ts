@@ -132,7 +132,7 @@ export interface Actions {
   // overseer action (coach/trainer/nutritionist): the lightweight nudge. The
   // optional baseline captures the athlete's compliance/score at send-time so
   // the dashboard can later read whether anything moved (see core/nudge.ts).
-  sendNudge: (name: string, baseline?: { score: number; comp: number }) => void;
+  sendNudge: (name: string, baseline?: { score: number; comp: number }, note?: string) => void;
 
   // tasks
   toggleTask: (id: number) => void;
@@ -372,7 +372,7 @@ export const useStore = create<Store>()(
       // and logs the athlete's compliance/score at send-time (the baseline the
       // "did anything move since the nudge" read compares against, core/nudge.ts).
       // Day-scoped via rollover so the coach can nudge again tomorrow.
-      sendNudge: (name, baseline) =>
+      sendNudge: (name, baseline, note) =>
         set((s) =>
           s.nudged.includes(name)
             ? {}
@@ -380,7 +380,7 @@ export const useStore = create<Store>()(
                 nudged: [...s.nudged, name],
                 nudgeLog: [
                   ...s.nudgeLog,
-                  { name, day: s.dateStamp, comp: baseline?.comp ?? 0, score: baseline?.score ?? 0 },
+                  { name, day: s.dateStamp, comp: baseline?.comp ?? 0, score: baseline?.score ?? 0, note: note?.trim() || undefined },
                 ],
               },
         ),

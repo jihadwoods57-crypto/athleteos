@@ -1,10 +1,10 @@
 // AthleteOS — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { displayWeightDelta, findNudge, gradeFor, nudgeOutcome, personBreakdown, rosterNoun, scoreLanguage, weightUnit } from '@/core';
+import { displayWeightDelta, findNudge, gradeFor, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, weightUnit } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, ProgressBar, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
+import { Card, Input, ProgressBar, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
@@ -24,6 +24,9 @@ export function PersonDetail() {
   // response; it lights up the instant real compliance data moves.
   const nudgeRec = findNudge(s.nudgeLog, pd.name);
   const outcome = nudgeRec ? nudgeOutcome(nudgeRec, pd.comp ?? pd.score) : null;
+  // Optional note the coach attaches to the nudge — the documentation trail (and
+  // the message that rides to the athlete once the backend is live).
+  const [note, setNote] = React.useState('');
   // Title in the opener's own noun: a trainer/nutritionist sees "Client
   // Profile", a coach sees "Athlete Profile" (the overlay is shared).
   const noun = rosterNoun(s.flow);
@@ -109,7 +112,19 @@ export function PersonDetail() {
           </Txt>
         </Card>
 
-        <Row style={{ gap: 10, marginTop: 18 }}>
+        {!nudged ? (
+          <Input
+            value={note}
+            onChangeText={setNote}
+            placeholder={`Add a note for ${pd.name} (optional)`}
+            accessibilityLabel={`Note to attach to the nudge for ${pd.name}`}
+            multiline
+            maxLength={240}
+            style={{ marginTop: 18, height: 78, paddingTop: 14, textAlignVertical: 'top' }}
+          />
+        ) : null}
+
+        <Row style={{ gap: 10, marginTop: nudged ? 18 : 10 }}>
           <Pressable accessibilityRole="button" accessibilityLabel={`Message ${pd.name}`} onPress={s.openMsg} style={[{ flex: 1, height: 54, borderRadius: 16, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }, shadow.cta]}>
             <Txt w="b" size={15} color="#fff">
               Message
@@ -117,18 +132,31 @@ export function PersonDetail() {
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={nudged ? `Nudge sent to ${pd.name}` : `Send a nudge to ${pd.name}`}
+            accessibilityLabel={nudged ? `Nudge sent to ${pd.name}` : note.trim() ? `Send a nudge with your note to ${pd.name}` : `Send a nudge to ${pd.name}`}
             accessibilityState={{ disabled: nudged }}
             disabled={nudged}
-            onPress={() => { haptics.success(); s.sendNudge(pd.name, { score: pd.score, comp: pd.comp ?? pd.score }); }}
+            onPress={() => { haptics.success(); s.sendNudge(pd.name, { score: pd.score, comp: pd.comp ?? pd.score }, note); }}
             style={({ pressed }) => [{ flex: 1, height: 54, borderRadius: 16, backgroundColor: nudged ? colors.successSurface : '#fff', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, opacity: pressed ? 0.8 : 1 }, shadow.card]}
           >
             {nudged ? <Icon name="check" size={17} color={colors.successDeep} /> : null}
             <Txt w="b" size={15} color={nudged ? colors.successDeep : colors.slate700}>
-              {nudged ? 'Nudged' : 'Send nudge'}
+              {nudged ? 'Nudged' : note.trim() ? 'Send nudge + note' : 'Send nudge'}
             </Txt>
           </Pressable>
         </Row>
+
+        {nudgeRec ? (
+          <View
+            accessibilityRole="text"
+            accessibilityLabel={`Nudge record: ${nudgeTrail(nudgeRec)}`}
+            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.bg2 }}
+          >
+            <Icon name="check" size={15} color={colors.successDeep} />
+            <Txt w="sb" size={13} color={colors.slate700} style={{ flex: 1, lineHeight: 19 }}>
+              {nudgeTrail(nudgeRec)}
+            </Txt>
+          </View>
+        ) : null}
 
         {outcome ? (
           <View

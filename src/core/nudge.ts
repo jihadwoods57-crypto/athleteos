@@ -24,6 +24,9 @@ export interface NudgeRecord {
   comp: number;
   /** Athlete score captured at send-time (kept for parity / future reads). */
   score: number;
+  /** Optional note the overseer attached to the nudge — the documentation trail,
+   *  and the message that rides to the athlete once the backend is live. */
+  note?: string;
 }
 
 /** The derived, honest acknowledgement read for a nudged athlete. */
@@ -39,6 +42,16 @@ export interface NudgeOutcome {
 /** Find the nudge record for an athlete, if they were nudged today. */
 export function findNudge(log: NudgeRecord[], name: string): NudgeRecord | undefined {
   return log.find((n) => n.name === name);
+}
+
+/**
+ * Human documentation line for a sent nudge — the overseer's trail. Day-scoped,
+ * so it always reads "today"; includes the attached note when one was written.
+ */
+export function nudgeTrail(record: NudgeRecord): string {
+  const base = 'Nudged today';
+  const note = record.note?.trim();
+  return note ? `${base}: “${note}”` : base;
 }
 
 /**

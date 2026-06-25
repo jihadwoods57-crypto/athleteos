@@ -77,4 +77,17 @@ describe('nudge acknowledgement log', () => {
     expect(s.nudged.includes('Andre Silva')).toBe(true);
     expect(s.nudgeLog.map((n) => n.name)).toEqual(s.nudged);
   });
+
+  it('stores an attached note (trimmed) as the documentation trail', () => {
+    useStore.getState().sendNudge('Andre Silva', { score: 71, comp: 64 }, '  Eat before practice  ');
+    expect(useStore.getState().nudgeLog[0].note).toBe('Eat before practice');
+  });
+
+  it('leaves note undefined when blank or omitted (no empty trail)', () => {
+    useStore.getState().sendNudge('Andre Silva', { score: 71, comp: 64 }, '   ');
+    useStore.getState().sendNudge('Marcus Cole', { score: 68, comp: 58 });
+    const log = useStore.getState().nudgeLog;
+    expect(log[0].note).toBeUndefined();
+    expect(log[1].note).toBeUndefined();
+  });
 });
