@@ -61,12 +61,15 @@ go-live needs its **own** gate, distinct from `isAiConfigured` / `isSupabaseConf
 
 ## 3. The plan (staged, each stage independently verifiable)
 
-### Stage A — Database is real
-1. Link the CLI to `ftwrvylzoyznhbzhgism` and `supabase db push` the three migrations.
-2. Verify in the dashboard: tables exist, RLS is ON for every table, the join-by-code RPCs
-   and `handle_new_user` trigger are present.
-3. **No app change yet.** Confirm the AI function still works (same project, untouched).
-   *Verification: tables + RLS visible; AI meal analysis still returns.*
+### Stage A — Database is real ✅ DONE (2026-06-24)
+1. Linked the CLI to `ftwrvylzoyznhbzhgism`; `supabase migration list` shows
+   Local 0001/0002/0003 == Remote 0001/0002/0003. Schema, RLS, storage buckets, the
+   join-by-code RPCs, and `handle_new_user` are live. No app change made.
+   *Verified: all three migrations applied remotely; AI function untouched.*
+
+> **CREW GUARDRAIL:** the database is live, but `EXPO_PUBLIC_BACKEND_LIVE` stays OFF and
+> no real athlete (esp. minor) data is collected until the founder flips it. Build B-D
+> flag-gated only; never enable the flag or sign up real users autonomously.
 
 ### Stage B — Auth flow (behind `EXPO_PUBLIC_BACKEND_LIVE`)
 1. Add the flag to `client.ts` (`isBackendLive = isSupabaseConfigured && EXPO_PUBLIC_BACKEND_LIVE`).
