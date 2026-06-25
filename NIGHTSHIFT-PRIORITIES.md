@@ -1,174 +1,101 @@
-# AthleteOS — Autonomous Build Priorities
+# Crew Priorities — 4-Day Founder-Away Sprint (Thu Jun 25 → Sun Jun 28, 2026)
 
-> ⚑ **FOLLOW `docs/COMPLETION-PLAN.md` — it is the ordered plan to APP COMPLETE.**
-> Work its phases IN ORDER (Phase 0 reconcile first; later phases depend on earlier ones),
-> meet each phase's acceptance criteria before moving on, and check items off in that file as
-> you go. Items marked **(HUMAN)** = implement the code, then flag under NEEDS HUMAN for the
-> founder's visual pass; do not claim visual QC. The guardrails + Definition of Done below still apply.
+The founder is away Thu-Sun. **Two** Max-intensity autonomous runs start each day at
+**6am ET (10:00 UTC)** and **1pm ET (17:00 UTC)**; each works the day's themed queue,
+the PM run also closes the day. The app is APP COMPLETE — this is hardening, wiring, and
+launch-readiness, not a rebuild.
 
-The overnight crew ranks the work queue toward these. Higher = more valuable.
-Each job must end with the app still compiling (`tsc --noEmit`), tests passing
-(`jest`), and bundling (`expo export -p ios`). One job = one clean commit.
+## ⚑ HOW THIS SPRINT IS RUN (read every run)
 
-## 🎯 GOAL: ship a COMPLETE, production-ready AthleteOS app
-You are one run in a recurring autonomous crew series; each run **continues** toward this
-goal (read `NIGHTSHIFT-LOG.md` + `git log` to learn state — never restart). Be ambitious:
-ship as much high-value, VERIFIED work as you safely can before context fills. Work the
-queue below toward this **Definition of Done** (track progress in `NIGHTSHIFT-LOG.md`):
+**1. Work on a BRANCH, never master.** All work lands on `crew/4day-sprint`.
+- First thing every run: `git fetch origin`; if `crew/4day-sprint` exists,
+  `git checkout crew/4day-sprint && git pull`; else `git checkout -b crew/4day-sprint` from
+  `master`. Commit + push to that branch only. NEVER push to `master`.
+- The PM run each day creates an annotated tag `dayN-end` (N = 1..4) after its report and
+  pushes the tag, so the founder can diff/revert a whole day.
 
-1. **QC findings cleared** — `collapsable={false}` react-native-web DOM warning fixed on web only.
-2. **UX/UI fidelity on EVERY screen + overlay + role view** (athlete Home/Plan/Squad/Check-In/
-   Profile/Nutrition; Coach, Parent, Trainer dashboards; Meal Detail, Messages, Notifications,
-   Person Detail, Account, onboarding) — driven through the `impeccable` skill (`critique` +
-   `audit` first, then the matching command). Honor DESIGN.md; do NOT migrate to OKLCH or trip
-   impeccable's absolute bans.
-3. **Motion + micro-interactions** — ring draw, bar grow, overlay slide-up, scan-line, pulse;
-   press/active states + `expo-haptics` on key taps; reduce-motion respected.
-4. **Empty + edge states everywhere** (zero meals, all tasks done, score at 100 / at floor, new
-   athlete with no history).
-5. **Accessibility** — hit targets ≥44px, contrast vs tokens, `accessibilityLabel` on icon-only
-   buttons, tolerate large system fonts without clipping.
-6. **Feature completeness** — settings/account toggles persist; editable targets (protein/calories/
-   weight) flow into scoring + nutrition; onboarding input validation + persisted selections;
-   local score history feeding the real Score Trend + Coach/Parent trends.
-7. **Test-coverage safety net** — unit tests for recommendation.ts / leaderboard.ts / content.ts +
-   a store-level test that addMeal/toggleTask/addWater/submitCi move the derived score; `npm run verify` green.
-8. **No dead UI** — every button/tab/row does something real or shows an intentional state.
+**2. Two runs/day.** The **AM run** opens the day: re-run all three gates on the existing
+branch to confirm no drift, then work the day's queue. The **PM run** continues the queue,
+then CLOSES the day: an adversarial self-review of the day's diff, the daily report, the
+`dayN-end` tag.
 
-**Operating rules (every run):** `cd` into repo root → `npm install --legacy-peer-deps` → read this
-file + `NIGHTSHIFT-LOG.md` + `git log --oneline -40`. One job = one commit; EVERY commit keeps all
-three gates green (typecheck/test/bundle, 165+ tests, never drop); push after each (`git pull --rebase`
-if rejected). Do NOT touch the Phase 2 Supabase scaffold (`src/lib/supabase`, `src/store/sync.ts`) —
-human-in-the-loop milestone. Never `expo start` / external sends / paid services. **WRAP UP:** update
-`NIGHTSHIFT-LOG.md` with a per-commit plain-English summary (what + which screen), the test count, and a
-refreshed "REMAINING TO COMPLETE" checklist; commit + push. When the whole Definition of Done is met,
-write **"APP COMPLETE — ready for founder review"** at the top of `NIGHTSHIFT-LOG.md`.
+**3. Adversarial self-review closes each day (PM run).** Before the report, re-read the full
+day's diff (`git diff master...crew/4day-sprint` since the day's start tag) hunting for: real
+regressions, dead/broken UI, dishonest "done" claims, and ANY change to flag-OFF behavior.
+Fix or revert what it finds. Only then write the report.
 
-## Doctrine
-- This is a real Expo + React Native + TypeScript app at this repo root.
-- `src/core` is **pure TS** (no RN imports) — the scoring engine + domain. Keep it pure.
-- `src/store` Zustand + AsyncStorage. `src/ui` tokens/primitives. `src/screens` per role.
-- Match existing conventions. Read neighboring files before writing. No new heavy deps
-  without a clear need. Never break the two-layer discipline (pure core vs UI).
-- AI features are deterministic simulations for now (no API keys). Keep them offline.
+**4. Judgment calls are QUEUED, never guessed.** If a change needs a PRODUCT decision (renaming
+something, changing what a number/word means, a real UX tradeoff, dropping a feature), DO NOT
+decide it. Append it to `docs/FOUNDER-DECISIONS.md` (what, why it's ambiguous, the options) and
+move on. The `weightScore` rename was exactly this kind of call — log, don't guess.
 
-## ⭐ THIS SESSION'S FOCUS: UX / UI DESIGN
-This session is a **design polish pass**, not a feature/logic session. The scoring/logic
-is solid (140 tests). Rank UX/UI jobs above everything else below. The bar is high — the
-founder has zero tolerance for generic "AI-slop" design. Make it feel hand-crafted and
-faithful to the handoff.
+**5. Definition of Done + scope lock + circuit breaker + honesty:**
+- Each day has a Definition of Done (below). Meet it; do NOT bleed into the next day's theme.
+- Circuit breaker: if a job can't keep all gates green after two honest attempts, `git revert`
+  it, log it to `FOUNDER-DECISIONS.md`, and move on. NEVER leave the tree red.
+- Honesty rule: in the report, flag-gated code that was NOT runtime-verified must be labeled
+  "built, not runtime-verified" — never claimed "working."
 
-**Ground every change in the source of truth.** The original high-fidelity design lives at
-`../athleteos-design-ref/design_handoff_athleteos/` — `README.md` (full design tokens:
-colors, the type scale, radii, the standard/elevated/CTA shadows, the animation list) and
-the per-screen `.dc.html` files (`AthleteOS.dc.html`, the dashboards). READ the relevant
-handoff file before touching a screen. Refine **toward** the handoff — do NOT invent a new
-visual language or restyle wholesale.
+## STANDING GUARDRAILS (never violate)
+- **NEVER enable `EXPO_PUBLIC_BACKEND_LIVE`. NEVER create real accounts or collect real (esp.
+  minor) athlete data. NEVER run `supabase db push` or any live-DB mutation.** The remote DB is
+  live (migrations applied) but the data backend stays OFF until the founder flips it in person.
+- `src/core` stays PURE TypeScript (no RN imports). Never create a `src/app` dir.
+- Never send anything external. Never spend money / add paid services. Never run `expo start`.
+- One logical job = one commit (on the branch). EVERY commit keeps all three gates green:
+  `npm run typecheck`, `npm run test` (never drop the count, 559+), `npm run bundle`
+  (`expo export -p ios`). Push the branch after each (`git pull --rebase`; if `git push` 403s,
+  push via the GitHub API and verify).
+- Honor DESIGN.md (no OKLCH, no em dashes, no banned patterns). No visual-QC claims (no eyes).
+- Setup each run: `cd` repo root → `npm install --legacy-peer-deps` → checkout the branch (rule 1)
+  → read this file, NIGHTSHIFT-LOG.md, `docs/PERSONA-REVIEW-2026-06-24.md`,
+  `docs/specs/2026-06-24-beta-blocker-build-plan.md`, `docs/specs/2026-06-24-phase1-backend-go-live.md`,
+  `docs/APP-STORE-READINESS.md`, and `git log --oneline -40`.
 
-**Drive EVERY design job through the `impeccable` skill — this is mandatory this session.**
-The repo now has `PRODUCT.md` + `DESIGN.md` at root, so impeccable runs grounded (not
-generic). For each screen/area, follow impeccable's own method:
-1. **Evaluate first** — run `impeccable critique <target>` (UX/heuristic review) and
-   `impeccable audit <target>` (a11y / responsive / technical). Capture the findings.
-2. **Act through the matching impeccable command**, not freehand:
-   `typeset` (type hierarchy) · `layout` (spacing/rhythm) · `animate` (motion) ·
-   `colorize` (strategic color) · `delight` (personality) · `polish` (final pass) ·
-   `harden` (errors/edge cases/i18n) · `onboard` (first-run/empty states) ·
-   `clarify` (copy/labels/errors) · `adapt` (device/size) · `distill` (remove cruft).
-3. Over the session, exercise the FULL suite across the app — every screen should get a
-   critique+audit, and the high-value fixes from each should ship.
-Honor impeccable's laws AND DESIGN.md: refine within the established system. Do NOT migrate
-color to OKLCH, restyle wholesale, or trip impeccable's absolute bans (side-stripe borders,
-gradient text, glassmorphism-by-default, hero-metric template, identical card grids, em dashes).
+---
 
-**High-value UX/UI jobs (pick the sharpest each cycle):**
-1. **Fidelity pass, screen by screen** vs the handoff: spacing rhythm, type scale/weights,
-   color/token usage, corner radii, shadow tiers, copy. Fix drift. One screen per job.
-2. **Motion the README specifies but the app is missing:** score-ring draw (`aos-ring`),
-   bar grow, overlay slide-up (`aos-up`), meal scan-line (`aos-scan`), spinner, subtle
-   pulse. Use `Animated`; respect reduce-motion. (ProgressBar + Ring already animate — extend
-   the pattern to overlays, the meal-capture scan, etc.)
-3. **Micro-interactions:** press/active states on every tappable, `expo-haptics` on key
-   taps (log meal, complete task, submit), smooth tab/overlay transitions.
-4. **Empty & edge states:** zero meals logged, all tasks done, score at 100 / at the floor,
-   a brand-new athlete (no history). Make each intentional, not blank.
-5. **Accessibility:** hit targets ≥44px, text contrast vs tokens, `accessibilityLabel` on
-   icon-only buttons, tolerate larger system font sizes without clipping.
-6. **Tokenize & unify:** replace any stray inline hex/spacing with `src/ui/tokens`; improve
-   shared primitives in `src/ui` so polish propagates to every screen (prefer this over
-   per-screen one-offs).
-7. **Polish the role views + overlays too** (Coach/Parent/Trainer, Meal Detail, Messages,
-   Notifications, Person Detail), not just the athlete tabs.
+## Day 1 — Thu Jun 25: Phase 1 backend wiring (FLAG-GATED, OFF) + local verification
+Build the go-live so the founder flips ONE switch on return. All behind `isBackendLive`
+(false by default); the deterministic local-mock path stays IDENTICAL when off.
+- **Auth (Stage B):** wire sign-in / sign-up screens to `lib/supabase/auth` when `isBackendLive`,
+  else today's mock. Store `userId` + role. Coach creates team + real invite code; athlete
+  `joinTeam(code)` binds to the roster. Handle email-confirmation-on gracefully ("check your email").
+- **Day sync (Stage C):** the two TODO hooks in `src/store/sync.ts` — `hydrateDay(userId)` after
+  auth, debounced `pushDay(get(), userId)` in addMeal/addWater/toggleTask/submitCi. Gate every real
+  `pushDay` behind `realDataConsent(...)` (core/consent.ts). AsyncStorage stays the offline cache.
+- **Consent screen:** an athlete onboarding step recording consent (guardian wording for minors via
+  `consentSummary`), flag-gated; it's the hard gate before any real-data push.
+- **Roster reads (Stage D):** when `isBackendLive`, swap CoachView/TrainerView from seeded
+  ROSTER/TRAINER_CLIENTS to `fetchLinkedDays` + `fetchAthleteProfile`; Phase-5 filters run on real
+  rows; drop "Sample" tags only on now-real screens. OFF = unchanged.
+- **★ Runtime-verify the backend locally (improvement #5):** if Docker is available, `supabase start`
+  a throwaway LOCAL stack, apply the migrations, and write an integration test of the auth →
+  `joinTeam` → `pushDay` → `fetchLinkedDays` round-trip against localhost (NOT the live project).
+  If Docker is unavailable, build a typed mock-client harness instead. Report which path was used.
+- Unit-test every pure seam (mapping, consent gating, flag logic). **Do NOT enable the flag.**
+- **DoD:** go-live is fully wired behind the off-flag, gates green, backend round-trip verified
+  locally or by mock; flag-OFF behavior provably unchanged.
 
-**⚑ TOP OF QUEUE — QC finding (do this first):**
-1. **Web dev warning `collapsable={false}`** leaks to the DOM via react-native-web (an
-   intrusive red dev toast on web preview that intercepts taps during QC; harmless on
-   native). Track down the source (Animated/SVG wrapper) and stop passing it on web only.
-   Must not change native behavior.
+## Day 2 — Fri Jun 26: Remaining persona fixes + credibility (safe, no backend)
+- AI-coach voice **prescriptive → educational** (RD): meal coaching reads as guidance, never a
+  directive ("general guidance; your nutritionist sets the plan").
+- **Non-athlete trainer support** (Marcus): goal-based targets + AI voice from the `clientType`
+  already collected (fat-loss / general / muscle-gain), not athlete defaults (180g / "glycogen").
+- Surface the collected-but-unused `trainingFreq`; parent data-freshness caption; finish any
+  "Sample"-tag consistency. Deepen tests; tie each change to the persona finding it closes.
+- **DoD:** the safe persona findings are closed or queued to FOUNDER-DECISIONS.md; tests up.
 
-**Already shipped & human-QC'd (do NOT redo):** persist session (flow+role+identity survives
-reload), reactive heroStatus line + standing badge, aiInsight "Day complete" fix, overlay
-slide-up (`aos-up`), drift-proof Log-dinner task, meal-quality badge label tracks score,
-ciConfig rollover persistence, **require-cycle fix** (`clock.ts` leaf breaks
-dayRollover↔defaultState), **Phase 2 Supabase scaffold** (`src/lib/supabase` + `src/store/sync.ts`,
-inert until keys — do NOT wire it up or add keys; that's a human-in-the-loop milestone).
+## Day 3 — Sat Jun 27: App Store readiness + hardening
+- Work the code-side 🔧 items in `docs/APP-STORE-READINESS.md`. Full a11y sweep (labels, WCAG-AA
+  contrast, Dynamic Type), perf (no leaked timers/animations), error resilience (every network/AI
+  path has a graceful fallback). Bug hunt with a regression test per fix. Copy/legal (no placeholder
+  or medical claims; privacy/consent wording).
+- **DoD:** the code-side readiness checklist is green or queued; a11y/perf/resilience pass done.
 
-**After the two findings, continue the queue:** finish the UX/UI fidelity pass on the
-screens/overlays NOT yet touched (role views — Coach/Parent/Trainer — Meal Detail, Messages,
-Notifications, Person Detail), each via `impeccable critique`+`audit` then the matching
-command. Then start phase-2 backlog #1 (the test-coverage safety net) since it protects every
-later job. Same guardrails: one screen/primitive per commit, `tsc`+`jest`+`expo export` green.
-
-**Design-session guardrails (because the crew can't SEE the render):**
-- Keep changes **small, tokenized, and reversible** — one screen/primitive per commit.
-- Never break routing (`app/_layout.tsx` + `app/index.tsx`, no `src/app/`), keep `tsc`,
-  `jest`, and `expo export` green every commit.
-- In the `NIGHTSHIFT-LOG.md` entry, describe **what changed visually and on which screen**
-  so the human can QC it quickly with a browser pass.
-
-## Phase 2 backlog (highest value first)
-
-### 1. Test coverage + safety net (do early — protects every later job)
-- Unit-test `recommendation.ts`, `leaderboard.ts`, `content.ts` (paceProjection, mealResultFor, aiInsight).
-- Add a store-level test: simulate addMeal / toggleTask / addWater / submitCi and assert the
-  derived score moves the way the prototype intends.
-- Add a tiny CI-style script `npm run verify` = typecheck + test + bundle.
-
-### 2. Desktop dashboards (the deferred phase-2 surfaces)
-- Stand up a sibling web target that **reuses `src/core`** (extract to `packages/core` or a
-  shared path alias). Recreate the 3 desktop dashboards from the design handoff
-  (`../athleteos-design-ref/design_handoff_athleteos/Coach Dashboard.dc.html`,
-  `Parent Portal.dc.html`, `Trainer Portal.dc.html`): 1320×880, left sidebar (248px),
-  top bar (72px), KPI rows, roster table, trend + bar charts, empty states.
-- Use the SAME design tokens and scoring engine. Coach = roster table + breakdown;
-  Parent = score ring + KPIs + weight/nutrition charts + coach notes; Trainer = multi-org
-  client table (org tag colors) + book-compliance trend + needs-follow-up.
-
-### 3. Polish + parity pass on the mobile app
-- Audit each screen against the handoff (`AthleteOS.dc.html`) for spacing, color, copy,
-  and interaction fidelity. Fix drift. Add the animations called out in the README
-  (ring draw, bar grow, overlay slide-up, scan-line, pulse) where missing.
-- Empty/edge states: zero meals logged, all tasks done, score at 100 / at floor.
-- Accessibility: hit targets ≥44px, color contrast, screen-reader labels on icon buttons.
-
-### 4. Real persistence depth
-- Day-rollover logic (a new calendar day resets the day slice but preserves streak/history).
-- A simple local history store (last N days of scores) feeding the Home "Score Trend" and
-  the Parent/Coach trends from real data instead of static SVG paths.
-
-### 5. Settings & account depth
-- Make the Profile/Account toggles actually persist (units, notifications).
-- Editable targets (protein/calories/weight) that flow into the scoring + nutrition screens.
-
-### 6. Onboarding completeness
-- Validate inputs (name/email), disable Continue until required fields are set per step.
-- Persist onboarding selections so a returning user lands in the right role.
-
-## Free-pick
-Beyond this list, pick the highest-leverage improvement to correctness, fidelity, or
-robustness. Prefer small, verifiable, revertible jobs over big risky ones.
-
-## Never
-- Never send anything external. Never add paid services/signups. Never run `expo start`
-  or any long-running/interactive command (only `tsc`, `jest`, `expo export`).
-- Never delete `node_modules`, `.git`, or another job's committed work.
+## Day 4 — Sun Jun 28: QA, regression, polish + founder-ready report
+- Full coverage + edge-case pass; tidy rough edges. Then write `docs/FOUNDER-RETURN-2026-06-28.md`:
+  what changed each day, final test count, and the exact **"Needs You to go live"** checklist —
+  flip `EXPO_PUBLIC_BACKEND_LIVE`, set the email-confirmation policy, Apple enrollment + bundle id,
+  and the manual verification steps to run together (coach invites athlete; RLS cross-team isolation).
+- **DoD:** branch is green and tagged `day4-end`; FOUNDER-RETURN doc is complete and honest; a clear
+  PR-style summary of the whole sprint sits at the top of NIGHTSHIFT-LOG.md.
