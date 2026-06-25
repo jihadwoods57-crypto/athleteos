@@ -3,10 +3,10 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, coachTeamTitle, gradeFor, needsAttention, rankByRisk, trendInfo } from '@/core';
+import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, coachTeamTitle, filterRoster, gradeFor, needsAttention, notLoggedCount, rankByRisk, rosterGroups, trendInfo } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Card, Input, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
@@ -30,6 +30,15 @@ export function CoachView() {
   const rosterMeta: Record<string, { initials: string; pos: string; comp: number }> = Object.fromEntries(
     roster.map((r) => [r.name, { initials: r.initials, pos: r.pos, comp: r.comp }]),
   );
+  // Roster-at-scale controls: a real coach with 40+ across position groups needs to
+  // segment, search, and see who hasn't logged today, not scroll one long list.
+  const groups = rosterGroups(roster);
+  const notLogged = notLoggedCount(roster);
+  const [query, setQuery] = React.useState('');
+  const [group, setGroup] = React.useState<string | null>(null);
+  const [notLoggedOnly, setNotLoggedOnly] = React.useState(false);
+  const filtered = rankByRisk(filterRoster(roster, { group, query, notLoggedOnly }));
+  const filtering = group !== null || query.trim().length > 0 || notLoggedOnly;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -114,47 +123,107 @@ export function CoachView() {
             </View>
           </Card>
 
-          <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 22, marginBottom: 12 }}>
-            ROSTER · {roster.length} ATHLETES
-          </Txt>
-          <View style={{ gap: 8 }}>
-            {rankByRisk(roster).map((a) => {
-              const g = gradeFor(a.score);
-              const tr = trendInfo(a.dir);
-              return (
-                <Pressable
-                  key={a.name}
-                  onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: a.pos, score: a.score, comp: a.comp })}
-                  style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, padding: 14 }, shadow.card]}
-                >
-                  <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
-                    <Txt w="b" size={13} color={colors.slate600}>
-                      {a.initials}
+          <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 22, marginBottom: 12 }}>
+            <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
+              ROSTER · {filtering ? `${filtered.length} OF ${roster.length}` : `${roster.length} ATHLETES`}
+            </Txt>
+            {notLogged > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Filter to the ${notLogged} athletes who have not logged today`}
+                accessibilityState={{ selected: notLoggedOnly }}
+                onPress={() => { haptics.tap(); setNotLoggedOnly((v) => !v); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9, backgroundColor: notLoggedOnly ? colors.alert : colors.alertSurface }}
+              >
+                <Icon name="bell" size={13} color={notLoggedOnly ? '#fff' : colors.alert} />
+                <Txt w="b" size={12} color={notLoggedOnly ? '#fff' : colors.alert}>
+                  {notLogged} not logged today
+                </Txt>
+              </Pressable>
+            ) : null}
+          </Row>
+
+          <Input
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search athletes"
+            accessibilityLabel="Search athletes by name"
+            autoCapitalize="words"
+            autoCorrect={false}
+            style={{ marginBottom: 10 }}
+          />
+
+          {groups.length > 1 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
+              <GroupChip label="All" active={group === null} onPress={() => { haptics.tap(); setGroup(null); }} />
+              {groups.map((g) => (
+                <GroupChip key={g} label={g} active={group === g} onPress={() => { haptics.tap(); setGroup(group === g ? null : g); }} />
+              ))}
+            </ScrollView>
+          ) : null}
+
+          {filtered.length > 0 ? (
+            <View style={{ gap: 8 }}>
+              {filtered.map((a) => {
+                const g = gradeFor(a.score);
+                const tr = trendInfo(a.dir);
+                return (
+                  <Pressable
+                    key={a.name}
+                    onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: a.pos, score: a.score, comp: a.comp })}
+                    style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, padding: 14 }, shadow.card]}
+                  >
+                    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
+                      <Txt w="b" size={13} color={colors.slate600}>
+                        {a.initials}
+                      </Txt>
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Row style={{ gap: 6 }}>
+                        <Txt w="b" size={14}>
+                          {a.name}
+                        </Txt>
+                        {a.loggedToday === false ? (
+                          <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 5, backgroundColor: colors.alertSurface }}>
+                            <Txt w="b" size={10} color={colors.alert}>
+                              Not logged
+                            </Txt>
+                          </View>
+                        ) : null}
+                      </Row>
+                      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                        {a.pos} · {a.comp}% compliant
+                      </Txt>
+                    </View>
+                    <Txt w="eb" size={16} color={tr.c}>
+                      {tr.t}
                     </Txt>
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Txt w="b" size={14}>
-                      {a.name}
+                    <Txt w="eb" size={20} style={{ width: 32, textAlign: 'right' }}>
+                      {a.score}
                     </Txt>
-                    <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
-                      {a.pos} · {a.comp}% compliant
-                    </Txt>
-                  </View>
-                  <Txt w="eb" size={16} color={tr.c}>
-                    {tr.t}
-                  </Txt>
-                  <Txt w="eb" size={20} style={{ width: 32, textAlign: 'right' }}>
-                    {a.score}
-                  </Txt>
-                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg }}>
-                    <Txt w="eb" size={12} color={g.c}>
-                      {g.g}
-                    </Txt>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg }}>
+                      <Txt w="eb" size={12} color={g.c}>
+                        {g.g}
+                      </Txt>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <Card style={{ borderRadius: 16, padding: 18, alignItems: 'center' }}>
+              <Txt w="sb" size={14} color={colors.textSecondary} style={{ textAlign: 'center', lineHeight: 20 }}>
+                {notLoggedOnly
+                  ? 'Everyone in this view has logged today.'
+                  : `No athletes match${group ? ` in ${group}` : ''}${query.trim() ? ` for "${query.trim()}"` : ''}.`}
+              </Txt>
+              <Pressable accessibilityRole="button" onPress={() => { haptics.tap(); setQuery(''); setGroup(null); setNotLoggedOnly(false); }} style={{ marginTop: 12, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9, backgroundColor: colors.bg2 }}>
+                <Txt w="b" size={13} color={colors.slate700}>
+                  Clear filters
+                </Txt>
+              </Pressable>
+            </Card>
+          )}
 
           <Card elevated style={{ marginTop: 18, borderRadius: 20 }}>
             <Row style={{ gap: 9, marginBottom: 12 }}>
@@ -193,6 +262,22 @@ function Kpi({ value, label, color }: { value: string; label: string; color?: st
         {label}
       </Txt>
     </Card>
+  );
+}
+
+function GroupChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Show ${label}`}
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: active ? colors.accent : '#fff', borderWidth: 1, borderColor: active ? colors.accent : colors.border }}
+    >
+      <Txt w="b" size={13} color={active ? '#fff' : colors.slate600}>
+        {label}
+      </Txt>
+    </Pressable>
   );
 }
 

@@ -76,7 +76,7 @@ describe('monitoredAthlete', () => {
 
 describe('coachTeamTitle', () => {
   it('keeps the seeded demo showcase title', () => {
-    expect(coachTeamTitle({ isReal: false, sport: 'Football', school: 'Lincoln' })).toBe('Linebackers · Varsity');
+    expect(coachTeamTitle({ isReal: false, sport: 'Football', school: 'Lincoln' })).toBe('Defense · Varsity');
   });
 
   it('prefers a real coach\'s school, then sport', () => {

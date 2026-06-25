@@ -224,14 +224,33 @@ export interface RosterRow {
   hydrationLow?: boolean;
   weightStalled?: boolean;
   checkinDaysAgo?: number;
+  /** Whether this athlete has logged anything today. `false` surfaces them in the
+   *  coach's "not logged today" filter — at the HS level, who hasn't logged is the
+   *  real early signal. Undefined is treated as logged. */
+  loggedToday?: boolean;
 }
+// A multi-group defensive roster so the coach dashboard's position-group filter,
+// search, and "not logged today" view are real, not decoration. All non-LB athletes
+// sit at or above the alert line (80) so the team KPIs + Needs-Attention stay driven
+// by Silva/Cole; this is labeled demo data on the dashboard, not a real team.
 export const ROSTER: RosterRow[] = [
-  { name: 'Jihad', initials: 'J', pos: 'LB', comp: 96, score: 92, dir: 'up', you: true },
-  { name: 'D. Brooks', initials: 'DB', pos: 'LB', comp: 92, score: 88, dir: 'up' },
-  { name: 'T. Nguyen', initials: 'TN', pos: 'LB', comp: 90, score: 85, dir: 'flat' },
-  { name: 'R. Okafor', initials: 'RO', pos: 'LB', comp: 84, score: 82, dir: 'up' },
-  { name: 'A. Silva', initials: 'AS', pos: 'LB', comp: 71, score: 79, dir: 'down', proteinMissed: 3, weightStalled: true },
-  { name: 'M. Cole', initials: 'MC', pos: 'LB', comp: 58, score: 68, dir: 'down', proteinMissed: 4, hydrationLow: true, checkinDaysAgo: 4 },
+  // Linebackers
+  { name: 'Jihad', initials: 'J', pos: 'LB', comp: 96, score: 92, dir: 'up', you: true, loggedToday: true },
+  { name: 'D. Brooks', initials: 'DB', pos: 'LB', comp: 92, score: 88, dir: 'up', loggedToday: true },
+  { name: 'T. Nguyen', initials: 'TN', pos: 'LB', comp: 90, score: 85, dir: 'flat', loggedToday: false },
+  { name: 'R. Okafor', initials: 'RO', pos: 'LB', comp: 84, score: 82, dir: 'up', loggedToday: true },
+  { name: 'A. Silva', initials: 'AS', pos: 'LB', comp: 71, score: 79, dir: 'down', proteinMissed: 3, weightStalled: true, loggedToday: true },
+  { name: 'M. Cole', initials: 'MC', pos: 'LB', comp: 58, score: 68, dir: 'down', proteinMissed: 4, hydrationLow: true, checkinDaysAgo: 4, loggedToday: false },
+  // Defensive backs
+  { name: 'K. Mensah', initials: 'KM', pos: 'DB', comp: 91, score: 87, dir: 'up', loggedToday: true },
+  { name: 'J. Park', initials: 'JP', pos: 'DB', comp: 85, score: 83, dir: 'flat', loggedToday: false },
+  { name: 'C. Ruiz', initials: 'CR', pos: 'DB', comp: 80, score: 81, dir: 'down', loggedToday: true },
+  { name: 'D. Hayes', initials: 'DH', pos: 'DB', comp: 88, score: 85, dir: 'up', loggedToday: false },
+  // Defensive line
+  { name: 'B. Osei', initials: 'BO', pos: 'DL', comp: 94, score: 90, dir: 'up', loggedToday: true },
+  { name: 'L. Tran', initials: 'LT', pos: 'DL', comp: 82, score: 84, dir: 'flat', loggedToday: true },
+  { name: 'M. Diaz', initials: 'MD', pos: 'DL', comp: 86, score: 82, dir: 'up', loggedToday: false },
+  { name: 'S. Carter', initials: 'SC', pos: 'DL', comp: 80, score: 80, dir: 'down', loggedToday: true },
 ];
 
 /** Trainer client book (multi-org). */

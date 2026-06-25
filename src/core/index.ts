@@ -13,6 +13,7 @@ export * from './contrast';
 export * from './history';
 export * from './person';
 export * from './attention';
+export * from './roster';
 export * from './nudge';
 export * from './identity';
 export * from './account';

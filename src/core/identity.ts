@@ -55,7 +55,7 @@ const asText = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
  * team's name. Falls back to a neutral "Your Team" when neither is set.
  */
 export function coachTeamTitle(opts: { isReal: boolean; sport?: unknown; school?: unknown }): string {
-  if (!opts.isReal) return 'Linebackers · Varsity';
+  if (!opts.isReal) return 'Defense · Varsity';
   return asText(opts.school) || asText(opts.sport) || 'Your Team';
 }
 

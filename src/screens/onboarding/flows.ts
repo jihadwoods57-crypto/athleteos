@@ -26,6 +26,15 @@ const COUNT_BANDS: Opt[] = [
   { key: '51+', label: '51 or more' },
 ];
 
+// College programs are sized 85-110 (scholarship + walk-ons), so the generic
+// "51 or more" top band undersells them. Give the college coach realistic bands.
+const COLLEGE_ROSTER_BANDS: Opt[] = [
+  { key: 'under-50', label: 'Under 50' },
+  { key: '50-85', label: '50 to 85' },
+  { key: '86-105', label: '86 to 105' },
+  { key: '105+', label: '105 or more' },
+];
+
 const PARENT_GOALS: Opt[] = [
   { key: 'performance', label: 'Performance' },
   { key: 'scholarship', label: 'Earn a scholarship' },
@@ -162,7 +171,7 @@ export const ROLE_FLOWS: Partial<Record<Role, GenStep[]>> = {
         { key: 'special', label: 'Special teams' },
       ],
     },
-    { kind: 'select', field: 'rosterSize', title: 'Roster size?', options: COUNT_BANDS },
+    { kind: 'select', field: 'rosterSize', title: 'Roster size?', options: COLLEGE_ROSTER_BANDS },
     { kind: 'invite', title: 'Invite your athletes', sub: 'Get the room on the same number. Share your program code.', cta: 'Share program code', codeLabel: 'YOUR PROGRAM CODE' },
   ],
   parent: [
