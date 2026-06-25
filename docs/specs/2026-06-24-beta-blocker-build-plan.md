@@ -126,6 +126,7 @@ Phase 0 (done) → **2a+2c DONE** (Option B shipped 2026-06-24, commit `383f1e9`
 Accountability Score, weight pulled out of the daily score and tracked separately) →
 **5 DONE** (dashboard scale shipped 2026-06-24, commit `67f4008`: position-group filter,
 search, "not logged today", honest empty states, college roster bands) →
-**next:** 4 (nudge+note, safe) → 3 (editable macros, safe) →
+**4 DONE** (nudge + attachable note + documentation trail shipped 2026-06-24, commit
+`a60f919`) → **next:** 3 (editable macros, safe) →
 **1 (keystone, founder gate)** → 6.
 The safe phases (2,3,4,5) can proceed against labeled sample data; Phase 1 makes them real.
