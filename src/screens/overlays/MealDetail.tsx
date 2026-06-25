@@ -1,8 +1,8 @@
 // AthleteOS — Meal Detail: hero, macros, foods, quality breakdown, 3-way chat.
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { MEALS_LOG } from '@/core';
-import type { LoggedMeal } from '@/core';
+import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods } from '@/core';
+import type { EditableFood, LoggedMeal } from '@/core';
 import { useStore } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
 import { Btn, Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -38,6 +38,18 @@ export function MealDetail() {
   const s = useStore();
   const meal = MEALS_LOG.find((m) => m.id === s.selectedMeal) ?? DINNER;
 
+  // Editable estimate: each food carries a numeric share of the meal, so adjusting
+  // a portion recomputes macros + quality + composition live (the persona fix for
+  // the dead steppers). Re-seed when the opened meal changes.
+  const [foods, setFoods] = React.useState<EditableFood[]>(() => toEditableFoods(meal));
+  React.useEffect(() => { setFoods(toEditableFoods(meal)); }, [s.selectedMeal]); // eslint-disable-line react-hooks/exhaustive-deps
+  const macros = mealMacros(foods);
+  const quality = mealQuality(macros);
+  const comp = macroComposition(macros);
+  const edited = foods.some((f) => f.servings !== 1);
+  const adjust = (i: number, delta: number) =>
+    setFoods((prev) => prev.map((f, j) => (j === i ? { ...f, servings: stepServings(f.servings, delta) } : f)));
+
   return (
     <Overlay title="Meal Detail" onClose={s.closeMealDetail}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
@@ -54,7 +66,7 @@ export function MealDetail() {
           </View>
           <View style={{ alignItems: 'center', marginLeft: 14 }}>
             <Txt w="eb" size={26} color={colors.successDeep} ls={-0.5}>
-              {meal.quality}
+              {quality}
             </Txt>
             <Txt w="eb" size={10} color={colors.textTertiary}>
               QUALITY
@@ -63,13 +75,15 @@ export function MealDetail() {
         </Row>
 
         <Row style={{ gap: 8, marginTop: 16 }}>
-          <Tile value={`~${meal.protein}g`} label="PROTEIN" color={colors.accent} />
-          <Tile value={`~${meal.kcal}`} label="CALORIES" />
-          <Tile value={`~${meal.carbs}g`} label="CARBS" />
-          <Tile value={`~${meal.fat}g`} label="FAT" />
+          <Tile value={`~${macros.protein}g`} label="PROTEIN" color={colors.accent} />
+          <Tile value={`~${macros.kcal}`} label="CALORIES" />
+          <Tile value={`~${macros.carbs}g`} label="CARBS" />
+          <Tile value={`~${macros.fat}g`} label="FAT" />
         </Row>
         <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 10, lineHeight: 17 }}>
-          Estimated from your meal photo, not weighed. Portions may vary, so treat these as a guide.
+          {edited
+            ? 'Updated from your portions. This is an adjustable estimate, not a weighed value.'
+            : 'Estimated from your meal photo, not weighed. Adjust any portion below to correct it.'}
         </Txt>
 
         <Card style={{ marginTop: 14, borderRadius: 20 }}>
@@ -82,19 +96,20 @@ export function MealDetail() {
             </Txt>
           </Row>
           <View style={{ gap: 14 }}>
-            {meal.foods.map((f) => (
-              <Row key={f.n} style={{ gap: 12 }}>
+            {foods.map((f, i) => (
+              <Row key={f.name} style={{ gap: 12 }}>
                 <View style={{ flex: 1 }}>
                   <Txt w="b" size={14}>
-                    {f.n}
+                    {f.name}
                   </Txt>
                   <Txt w="m" size={12} color={colors.textTertiary}>
-                    {f.p}
+                    {f.portion}
+                    {f.servings !== 1 ? `  ·  ×${f.servings}` : ''}
                   </Txt>
                 </View>
-                <Row style={{ gap: 10 }}>
-                  <Step glyph="−" />
-                  <Step glyph="+" />
+                <Row style={{ gap: 10, alignItems: 'center' }}>
+                  <Step glyph="−" label={`Less ${f.name}`} onPress={() => adjust(i, -0.5)} />
+                  <Step glyph="+" label={`More ${f.name}`} onPress={() => adjust(i, 0.5)} />
                 </Row>
               </Row>
             ))}
@@ -103,22 +118,22 @@ export function MealDetail() {
 
         <Card style={{ marginTop: 14, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 4 }}>
-            Quality Breakdown
+            Calorie composition
           </Txt>
           <Txt w="m" size={12} color={colors.textTertiary} style={{ marginBottom: 16, lineHeight: 17 }}>
-            An estimated score from the photo, not a measured lab value.
+            Where this meal's calories come from, recalculated from your portions.
           </Txt>
           <View style={{ gap: 13 }}>
-            {meal.sub.map((x) => (
-              <Row key={x.l} style={{ gap: 12 }}>
-                <Txt w="sb" size={13} style={{ width: 118 }}>
-                  {x.l}
+            {comp.map((x) => (
+              <Row key={x.label} style={{ gap: 12 }}>
+                <Txt w="sb" size={13} style={{ width: 78 }}>
+                  {x.label}
                 </Txt>
                 <View style={{ flex: 1 }}>
-                  <ProgressBar pct={x.s} height={7} color={x.s >= 90 ? colors.success : colors.accent} />
+                  <ProgressBar pct={x.pct} height={7} color={x.label === 'Protein' ? colors.accent : colors.success} />
                 </View>
-                <Txt w="eb" size={13} style={{ width: 26, textAlign: 'right' }}>
-                  {x.s}
+                <Txt w="eb" size={13} style={{ width: 38, textAlign: 'right' }}>
+                  {x.pct}%
                 </Txt>
               </Row>
             ))}
@@ -214,12 +229,18 @@ function Tile({ value, label, color }: { value: string; label: string; color?: s
   );
 }
 
-function Step({ glyph }: { glyph: string }) {
+function Step({ glyph, label, onPress }: { glyph: string; label: string; onPress: () => void }) {
   return (
-    <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={6}
+      onPress={onPress}
+      style={({ pressed }) => ({ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+    >
       <Txt w="b" size={17} color={colors.slate600}>
         {glyph}
       </Txt>
-    </View>
+    </Pressable>
   );
 }
