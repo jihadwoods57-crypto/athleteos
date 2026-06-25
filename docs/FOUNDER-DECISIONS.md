@@ -57,3 +57,56 @@ email may go to a guardian).
 (2) Confirmations ON (standard, needs a working email sender configured in Supabase).
 
 **Status:** seam handles both; default not chosen. Awaiting you.
+
+---
+
+## D3 — Performance track (P1): should PRs ever fold into the daily score?
+
+**What.** The new Performance feature (lifts/sprints/jumps/body weight/custom PRs,
+`src/core/performance.ts`) is shipped as a SEPARATE development track — it does NOT touch
+the daily Accountability Score. The P1 spec asked to keep it out "unless a clean opt-in
+weighting is obvious." It is not obvious: PRs are episodic (logged every few weeks), while
+the daily score measures today's adherence — mixing a stale PR into a daily number would
+distort it, and there is no clean per-day signal from a sparse PR log.
+
+**Why it needs you.** Whether "getting stronger/faster" should influence the headline
+Accountability Score is a product-philosophy call (accountability vs. outcomes).
+
+**Options.**
+1. Keep them fully separate (current). Performance answers "am I improving?"; the score
+   answers "did I stay on plan?". (Recommended.)
+2. Add an optional, athlete-visible "recent PR" bonus/streak that nudges the score when a
+   new PR lands in the last N days — tell the crew the rule and it will build it as pure
+   logic + tests.
+
+**Status:** shipped separate; no score coupling. Awaiting you if you want option 2.
+
+---
+
+## D4 — Performance PR date entry + backend sync (P1 seams)
+
+**What.** Two device/backend parts of the Performance feature were built only to the safe
+line:
+- **Date entry.** The "log a result" form takes the date as a `YYYY-MM-DD` text field
+  (defaulting to today), validated by a format check. A native date picker
+  (`@react-native-community/datetimepicker` or Expo equivalent) is a device concern and
+  was not added.
+- **Backend sync.** PR entries persist locally (`perfEntries`, AsyncStorage) and survive
+  day rollover. They do NOT yet sync to Supabase: the `days` table holds the daily slice,
+  not a PR history, so syncing performance needs its own table + a `pushPerf`/`fetchPerf`
+  seam (mirroring the Stage C day-sync). The coach PersonDetail performance line
+  (`topPerformanceLine`) is built and renders when a caller supplies real PR data, but the
+  live roster does not carry per-athlete PRs yet — so it is intentionally absent on the
+  demo roster rather than fabricated.
+
+**Why it needs you.** A new `performance_entries` table + RLS is a schema/migration
+decision (guardrailed), and the date picker is a device/dependency choice.
+
+**Options.**
+1. Add a native date picker dependency (tell the crew; it will wire it behind the existing
+   UI) — or keep the text field for the beta.
+2. At go-live, author a `performance_entries` table (athlete_id, metric_key, custom_*,
+   value, date) + RLS mirroring `days`, then the crew wires `pushPerf`/`fetchPerf` and
+   populates the PersonDetail line from the live roster.
+
+**Status:** local persistence shipped + tested; sync + date picker are seams. Awaiting you.
