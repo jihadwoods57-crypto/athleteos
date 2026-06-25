@@ -19,6 +19,25 @@ export type GenStep =
 
 const sportOpts: Opt[] = SPORTS.map((s) => ({ key: s, label: s }));
 
+// The athlete onboarding is bespoke (Onboarding.tsx) but its STEP ORDER lives here so
+// it can be unit-tested. The real-data consent gate is inserted right before activation
+// and ONLY when the data backend is live, so with the flag off the flow is byte-identical
+// to today (no extra step, same indices, same progress denominator).
+export type AthleteFlowKey =
+  | 'goal' | 'sport' | 'position' | 'profile' | 'frequency' | 'support'
+  | 'b_conf' | 'b_protein' | 'b_consistency' | 'b_meals' | 'b_water' | 'b_sleep'
+  | 'score' | 'consent' | 'challenge';
+
+export function athleteFlowKeys(backendLive: boolean): AthleteFlowKey[] {
+  return [
+    'goal', 'sport', 'position', 'profile', 'frequency', 'support',
+    'b_conf', 'b_protein', 'b_consistency', 'b_meals', 'b_water', 'b_sleep',
+    'score',
+    ...(backendLive ? (['consent'] as AthleteFlowKey[]) : []),
+    'challenge',
+  ];
+}
+
 const COUNT_BANDS: Opt[] = [
   { key: '1-10', label: '1 to 10' },
   { key: '11-25', label: '11 to 25' },

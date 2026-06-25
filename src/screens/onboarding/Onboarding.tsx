@@ -7,7 +7,9 @@ import { ScrollView, View } from 'react-native';
 import {
   formatHeight,
   flowForRole,
+  consentSummary,
   GOAL_GROUPS,
+  isMinor,
   POSITION_MAP,
   PROTEIN_FREQ,
   ROLE_DEFS,
@@ -16,6 +18,7 @@ import {
   SUPPORT_OPTIONS,
 } from '@/core';
 import type { Role } from '@/core';
+import { isBackendLive } from '@/lib/supabase';
 import { useStore } from '@/store';
 import type { Store } from '@/store';
 import { colors } from '@/ui/tokens';
@@ -24,7 +27,7 @@ import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
 import { Icon, type IconName } from '@/icons';
 import { LogoMark } from '@/brand/Logo';
-import { ROLE_FLOWS, type GenStep } from './flows';
+import { ROLE_FLOWS, athleteFlowKeys, type GenStep } from './flows';
 import { ScoreReveal } from './ScoreReveal';
 
 /* ------------------------------------------------------------------ shared shell */
@@ -248,11 +251,9 @@ function RolePicker() {
 }
 
 /* ------------------------------------------------------------------ athlete flow */
-const ATHLETE_KEYS = [
-  'goal', 'sport', 'position', 'profile', 'frequency', 'support',
-  'b_conf', 'b_protein', 'b_consistency', 'b_meals', 'b_water', 'b_sleep',
-  'score', 'challenge',
-] as const;
+// Step order from flows.ts: includes the real-data consent gate only when the backend
+// is live, so with the flag OFF this is byte-identical to the prior fixed list.
+const ATHLETE_KEYS = athleteFlowKeys(isBackendLive);
 
 function AthleteFlow() {
   const s = useStore();
@@ -493,6 +494,37 @@ function AthleteFlow() {
         >
           <View style={{ alignItems: 'center', marginTop: 12 }}>
             <ScoreReveal score={score} />
+          </View>
+        </StepShell>
+      );
+    }
+
+    case 'consent': {
+      // The hard gate before any real-data push (only present when isBackendLive).
+      // Activation stays disabled until consent is recorded; guardian wording for minors.
+      const minor = isMinor(s.baseAge);
+      return (
+        <StepShell
+          progress={progress}
+          onBack={s.obBack}
+          eyebrow="Before you start"
+          title={minor ? 'Your data, with a guardian' : 'Your data, your control'}
+          sub="AthleteOS only ever shares what you allow, and you can stop any time."
+          footer={<Btn label="I agree, continue" disabled={!s.realDataConsent} onPress={s.obNext} />}
+        >
+          <Card style={{ marginTop: 6 }} elevated>
+            <Txt w="m" size={15} color={colors.slate700} style={{ lineHeight: 22 }}>
+              {consentSummary(minor)}
+            </Txt>
+          </Card>
+          <View style={{ marginTop: 14 }}>
+            <OptionRow
+              label={minor
+                ? 'A parent or guardian and I agree to share this data'
+                : 'I agree to share this data with my linked coach'}
+              selected={s.realDataConsent}
+              onPress={() => { haptics.select(); s.recordConsent(!s.realDataConsent); }}
+            />
           </View>
         </StepShell>
       );
