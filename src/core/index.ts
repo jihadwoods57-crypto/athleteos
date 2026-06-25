@@ -11,6 +11,7 @@ export * from './coaching';
 export * from './units';
 export * from './contrast';
 export * from './history';
+export * from './performance';
 export * from './person';
 export * from './attention';
 export * from './roster';
