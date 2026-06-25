@@ -27,7 +27,7 @@ export function themeForGoal(goal: string | null): GoalTheme {
 
 const mealKeyOf = (m: MealLabel): MealKey => m.toLowerCase() as MealKey;
 
-/** Projected change in today's Athlete Score from logging this meal (>= 0).
+/** Projected change in today's Accountability Score from logging this meal (>= 0).
  *  Returns 0 if the slot is already logged. Honest: it recomputes the real engine
  *  with the meal added, so the "+N" the coach promises is exactly what happens. */
 export function mealScoreImpact(state: AppState, mealType: MealLabel): number {

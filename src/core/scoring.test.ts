@@ -51,9 +51,10 @@ describe('computeDerived — default state', () => {
     expect(d.checkinScore).toBe(0);
   });
 
-  it('athlete score = clamp(round(.4*92 + .2*86 + .2*95 + .1*50 + .1*0)) = 78', () => {
-    // 36.8 + 17.2 + 19 + 5 + 0 = 78 -> grade C (protein task no longer fakes done)
-    expect(d.athleteScore).toBe(78);
+  it('accountability score = clamp(round(.5*92 + .25*86 + .15*50 + .1*0)) = 75', () => {
+    // 46 + 21.5 + 7.5 + 0 = 75 -> grade C. Weight is no longer in the daily score
+    // (tracked separately); the protein task no longer fakes done.
+    expect(d.athleteScore).toBe(75);
     expect(d.grade.g).toBe('C');
   });
 
@@ -598,11 +599,10 @@ describe('computeDerived — week-over-week score delta', () => {
 });
 
 describe('SCORE_WEIGHTS', () => {
-  it('lists the five score components and nothing else', () => {
+  it('lists the four daily score components and nothing else (weight is tracked separately)', () => {
     expect(SCORE_WEIGHTS.map((w) => w.key)).toEqual([
       'nutrition',
       'recovery',
-      'weight',
       'tasks',
       'checkin',
     ]);
@@ -613,12 +613,11 @@ describe('SCORE_WEIGHTS', () => {
   });
 
   it('matches the coefficients computeDerived actually applies (no invented weights)', () => {
-    // Mirror of athleteScore: 0.4 nutrition + 0.2 recovery + 0.2 weight + 0.1 tasks + 0.1 checkin.
+    // Mirror of athleteScore: 0.5 nutrition + 0.25 recovery + 0.15 tasks + 0.1 checkin.
     const expected: Record<string, number> = {
-      nutrition: 40,
-      recovery: 20,
-      weight: 20,
-      tasks: 10,
+      nutrition: 50,
+      recovery: 25,
+      tasks: 15,
       checkin: 10,
     };
     for (const w of SCORE_WEIGHTS) {

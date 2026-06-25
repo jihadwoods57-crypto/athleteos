@@ -143,7 +143,7 @@ export function Home() {
         </Ring>
         <View style={{ flex: 1 }}>
           <Txt w="b" size={13} color={colors.textSecondary}>
-            Athlete Score
+            Accountability Score
           </Txt>
           <Row style={{ gap: 6, marginTop: 7 }}>
             <Txt w="eb" size={15} color={d.deltaColor}>
@@ -460,7 +460,7 @@ function ScoreBreakdownPanel() {
             </View>
           ))}
           <Txt w="m" size={12} color={colors.textTertiary} style={{ lineHeight: 17 }}>
-            Nutrition counts the most. Recovery and check-in are answers you give yourself.
+            Nutrition counts the most. Recovery and check-in are answers you give yourself. Your weight progress is tracked separately, not folded into this daily score.
           </Txt>
         </View>
       ) : null}

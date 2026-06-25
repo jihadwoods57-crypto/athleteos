@@ -8,6 +8,8 @@ import {
   PROTEIN_TARGET,
   QUICK_FOODS,
   HYDRATION_TARGET,
+  WEIGHT_START,
+  WEIGHT_TARGET,
 } from './constants';
 import { trendSeries } from './history';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
@@ -61,28 +63,27 @@ export function seasonGoalPhase(opts: {
 }
 
 export interface ScoreWeight {
-  key: 'nutrition' | 'recovery' | 'weight' | 'tasks' | 'checkin';
+  key: 'nutrition' | 'recovery' | 'tasks' | 'checkin';
   label: string;
-  /** Whole-number percent weight in the Athlete Score (the five sum to 100). */
+  /** Whole-number percent weight in the Accountability Score (the four sum to 100). */
   pct: number;
   /** Plain-language, honest description of the input behind this component. */
   desc: string;
 }
 
 /**
- * Plain-language breakdown of what the Athlete Score is made of, mirrored
+ * Plain-language breakdown of what the Accountability Score is made of, mirrored
  * EXACTLY from computeDerived's athleteScore formula:
- *   0.4*nutrition + 0.2*recovery + 0.2*weight + 0.1*tasks + 0.1*checkin.
+ *   0.5*nutrition + 0.25*recovery + 0.15*tasks + 0.1*checkin.
  * Surfaced by the Home "What's in this score?" panel so the number stops being
- * opaque. Descriptions are honest about which inputs are self-reported or still
- * a sample baseline (the weight component is a fixed stub today). No new data is
- * introduced here; these are the existing weights, named.
+ * opaque. Descriptions are honest about which inputs are self-reported. Weight
+ * progress is tracked SEPARATELY (a long-arc goal), not folded into this daily
+ * score. No new data is introduced here; these are the existing weights, named.
  */
 export const SCORE_WEIGHTS: ScoreWeight[] = [
-  { key: 'nutrition', label: 'Nutrition', pct: 40, desc: 'Protein and the meals you log each day' },
-  { key: 'recovery', label: 'Recovery', pct: 20, desc: 'Your own weekly check-in answers, so this part is self-reported' },
-  { key: 'weight', label: 'Weight', pct: 20, desc: 'Progress toward your goal weight, a sample baseline until real weigh-ins land' },
-  { key: 'tasks', label: 'Tasks', pct: 10, desc: 'The daily tasks you complete' },
+  { key: 'nutrition', label: 'Nutrition', pct: 50, desc: 'Protein and the meals you log each day' },
+  { key: 'recovery', label: 'Recovery', pct: 25, desc: 'Your own weekly check-in answers, so this part is self-reported' },
+  { key: 'tasks', label: 'Tasks', pct: 15, desc: 'The daily tasks you complete' },
   { key: 'checkin', label: 'Check-in', pct: 10, desc: 'Completing your weekly check-in at all' },
 ];
 
@@ -195,12 +196,32 @@ export function computeDerived(s: AppState): Derived {
       recoveryScore = Math.min(100, Math.max(0, Math.round((recoverySum / (enabledCount * 10)) * 100)));
     }
   }
-  const weightScore = 95;
+  // Weight is a LONG-ARC goal, not a daily-accountability signal, so it is no
+  // longer mixed into the daily score (a flawless day shouldn't be denied an A
+  // because season weight progress is slow, which is partly outside daily control).
+  // weightScore is kept as a REAL, separate progress indicator (replacing a
+  // hardcoded 95 every athlete shared — the #1 "this is fake" persona finding):
+  // clamped goal progress once tracking, a neutral baseline before any real
+  // movement/history exists. Surfaced on its own, never folded into athleteScore.
+  const startW = safeTarget(s.startWeight, WEIGHT_START);
+  const targetW = safeTarget(s.weightTarget, WEIGHT_TARGET);
+  const curW = safeTarget(s.currentWeight, startW);
+  const weightProgress = seasonGoalProgress(curW, startW, targetW);
+  const weightPhase = seasonGoalPhase({
+    pctThere: weightProgress.pctThere,
+    currentWeight: curW,
+    start: startW,
+    weightHistoryLen: (s.weightHistory ?? []).length,
+  });
+  const weightScore = weightPhase === 'first-run' ? 80 : clamp(weightProgress.pctThere, 0, 100);
   const tasksScore = tasksTotal > 0 ? Math.round((tasksDone / tasksTotal) * 100) : 0;
   const checkinScore = s.ciSubmitted ? 100 : 0;
 
+  // Daily accountability score: what you did TODAY. Nutrition leads (the heaviest
+  // lever and the one the staff cares most about); recovery is self-reported; tasks
+  // and check-in round it out. The four weights mirror SCORE_WEIGHTS exactly.
   const athleteScore = clamp(
-    Math.round(0.4 * nutritionScore + 0.2 * recoveryScore + 0.2 * weightScore + 0.1 * tasksScore + 0.1 * checkinScore),
+    Math.round(0.5 * nutritionScore + 0.25 * recoveryScore + 0.15 * tasksScore + 0.1 * checkinScore),
     0,
     100,
   );
