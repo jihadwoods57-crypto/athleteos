@@ -8,6 +8,9 @@ import { analyzeMeal, isAiConfigured } from '@/lib/ai';
 import { auth, isBackendLive } from '@/lib/supabase';
 import { hydrateDay, pushDay } from './sync';
 import {
+  addPerfEntry,
+  removePerfEntry,
+  CUSTOM_METRIC_KEY,
   appendDayScore,
   createInitialState,
   emptyDaySlice,
@@ -28,6 +31,8 @@ import {
 } from '@/core';
 import type {
   AppState,
+  PerfDir,
+  PerfEntry,
   BaseGoal,
   CiConfig,
   CoachTrackKey,
@@ -47,6 +52,30 @@ export type BaselineKey =
   | 'baseSleepH'
   | 'baseProteinFreq'
   | 'baseConsistency';
+
+/** What the UI hands `logPr`. The store fills in the stable id + clamps the
+ *  value; custom* fields are only read when `metricKey` is the custom key. */
+export interface PrInput {
+  metricKey: string;
+  value: number;
+  /** ISO date (YYYY-MM-DD); defaults to today when omitted. */
+  date?: string;
+  customLabel?: string;
+  customUnit?: string;
+  customDir?: PerfDir;
+}
+
+/** Next collision-free PR id: one past the max existing `pr_<n>` suffix, so it
+ *  stays unique across restarts (persisted entries carry their ids) without
+ *  needing a clock or RNG in the store. */
+function nextPerfId(entries: PerfEntry[]): string {
+  let max = 0;
+  for (const e of entries) {
+    const m = /^pr_(\d+)$/.exec(e.id);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `pr_${max + 1}`;
+}
 
 export interface Actions {
   // onboarding
@@ -93,6 +122,12 @@ export interface Actions {
   goCheckin: () => void;
   goProfile: () => void;
   goNutrition: () => void;
+  goPerformance: () => void;
+  /** Log a performance result (PR). The store assigns a stable id + persists it.
+   *  A separate development track from the daily score (never folds into it). */
+  logPr: (spec: PrInput) => void;
+  /** Remove a logged performance result by id. */
+  deletePr: (id: string) => void;
   setSquadMode: (m: SquadMode) => void;
   toggleNotif: () => void;
   toggleUnits: () => void;
@@ -297,6 +332,33 @@ export const useStore = create<Store>()(
       goCheckin: () => set({ flow: 'app', tab: 'checkin', ciStage: 'open' }),
       goProfile: () => set({ flow: 'app', tab: 'profile' }),
       goNutrition: () => set({ flow: 'app', tab: 'nutrition' }),
+      goPerformance: () => set({ flow: 'app', tab: 'performance' }),
+
+      // ---- performance (P1) — a separate development track; never folds into
+      // the daily Accountability Score. Persisted locally; when the backend goes
+      // live (P0) this list is what a future `pushPerf` seam would sync.
+      logPr: (spec) =>
+        set((s) => {
+          const value = Number(spec.value);
+          if (!Number.isFinite(value)) return {}; // ignore a non-numeric entry
+          const isCustom = spec.metricKey === CUSTOM_METRIC_KEY;
+          const entry: PerfEntry = {
+            id: nextPerfId(s.perfEntries),
+            metricKey: spec.metricKey,
+            value: clamp(value, 0, 100000),
+            date: spec.date ?? todayStamp(),
+            ...(isCustom
+              ? {
+                  customLabel: spec.customLabel,
+                  customUnit: spec.customUnit,
+                  customDir: spec.customDir ?? 'higher',
+                }
+              : {}),
+          };
+          return { perfEntries: addPerfEntry(s.perfEntries, entry) };
+        }),
+      deletePr: (id) => set((s) => ({ perfEntries: removePerfEntry(s.perfEntries, id) })),
+
       setSquadMode: (m) => set({ squadMode: m }),
       toggleNotif: () => set((s) => ({ notif: !s.notif })),
       toggleUnits: () => set((s) => ({ units: s.units === 'metric' ? 'imperial' : 'metric' })),
@@ -528,6 +590,7 @@ export const useStore = create<Store>()(
         scoreHistory: s.scoreHistory,
         weightHistory: s.weightHistory,
         nutritionHistory: s.nutritionHistory,
+        perfEntries: s.perfEntries,
         meals: s.meals,
         hydrationL: s.hydrationL,
         tasks: s.tasks,

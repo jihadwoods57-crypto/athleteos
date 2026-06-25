@@ -3,6 +3,7 @@
 import type { Units } from './units';
 import type { MealResult } from './content';
 import type { NudgeRecord } from './nudge';
+import type { PerfEntry } from './performance';
 
 /** The 7 onboarding identities. Each maps onto one of the 4 dashboard flows
  *  (see ROLE_DEFS in constants) and personalizes copy/labels/goals. */
@@ -18,7 +19,7 @@ export type Flow = 'onboarding' | 'app' | 'coach' | 'parent' | 'trainer';
 export type BaseGoal = 'gain' | 'lose' | 'maintain' | 'performance';
 export type MealKey = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 export type MealLabel = 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
-export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutrition';
+export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutrition' | 'performance';
 export type MealStage = 'capture' | 'analyzing' | 'result';
 export type CiStage = 'open' | 'done';
 export type SquadMode = 'team' | 'position';
@@ -126,6 +127,11 @@ export interface AppState {
   /** Rolling log of prior days' nutrition sub-score (oldest -> newest), capped
    *  to the last HISTORY_CAP days. Feeds the Parent nutrition-trend bars. */
   nutritionHistory: DayScore[];
+  /** The athlete's logged performance results (PRs) — lifts, sprints, jumps,
+   *  body weight, custom metrics. Cross-day, persisted, capped to PERF_ENTRY_CAP.
+   *  A SEPARATE development track from the daily Accountability Score (see
+   *  core/performance.ts); never folded into the day score. */
+  perfEntries: PerfEntry[];
   meals: Meals;
   hydrationL: number;
   tasks: Task[];
