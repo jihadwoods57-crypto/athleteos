@@ -39,6 +39,11 @@ export function createInitialState(): AppState {
     startScore: null,
     obMeta: {},
 
+    // backend session (Phase 1 go-live, gated behind isBackendLive; inert by default)
+    userId: null,
+    realDataConsent: false,
+    authError: null,
+
     // day
     dateStamp: todayStamp(),
     scoreHistory: [],

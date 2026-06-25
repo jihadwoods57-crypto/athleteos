@@ -442,6 +442,10 @@ export const useStore = create<Store>()(
         baseConsistency: s.baseConsistency,
         startScore: s.startScore,
         obMeta: s.obMeta,
+        // backend session (cross-day; inert unless isBackendLive). authError is
+        // ephemeral and deliberately NOT persisted.
+        userId: s.userId,
+        realDataConsent: s.realDataConsent,
         // day / check-in slice
         dateStamp: s.dateStamp,
         scoreHistory: s.scoreHistory,

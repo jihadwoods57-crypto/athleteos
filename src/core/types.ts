@@ -102,6 +102,19 @@ export interface AppState {
    *  personalization. Free-form bag so the 7 flows share one renderer. */
   obMeta: Record<string, string | string[] | number>;
 
+  // ---- backend session (Phase 1 go-live, gated behind isBackendLive) ----
+  /** The authenticated Supabase user id, or null in the offline/mock build. Set
+   *  only by the live auth seam when EXPO_PUBLIC_BACKEND_LIVE is on; null keeps the
+   *  whole sync path inert, so flag-OFF behaviour is identical to today. */
+  userId: string | null;
+  /** Whether the athlete (or a guardian, for a minor) granted real-data sharing
+   *  consent. The hard gate the live data path checks before any real pushDay
+   *  (see core/consent.ts realDataConsent). Defaults false: fail-closed. */
+  realDataConsent: boolean;
+  /** Last live-auth error message for the sign-in / sign-up screen to surface, or
+   *  null. Ephemeral (not persisted); only ever set when isBackendLive. */
+  authError: string | null;
+
   // ---- day ----
   dateStamp: string;
   /** Rolling log of prior days' final scores (oldest -> newest), capped to the
