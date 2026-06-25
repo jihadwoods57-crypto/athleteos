@@ -124,6 +124,8 @@ minor-consent legal posture (6), and any external send. The crew flags these; Bo
 ## Recommended execution order
 Phase 0 (done) → **2a+2c DONE** (Option B shipped 2026-06-24, commit `383f1e9`:
 Accountability Score, weight pulled out of the daily score and tracked separately) →
-**next:** 5 (dashboard scale, safe) → 4 (nudge+note, safe) → 3 (editable macros, safe) →
+**5 DONE** (dashboard scale shipped 2026-06-24, commit `67f4008`: position-group filter,
+search, "not logged today", honest empty states, college roster bands) →
+**next:** 4 (nudge+note, safe) → 3 (editable macros, safe) →
 **1 (keystone, founder gate)** → 6.
 The safe phases (2,3,4,5) can proceed against labeled sample data; Phase 1 makes them real.
