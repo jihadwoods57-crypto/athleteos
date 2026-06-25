@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { analyzeMeal, isAiConfigured } from '@/lib/ai';
 import { auth, isBackendLive } from '@/lib/supabase';
+import { hydrateDay, pushDay } from './sync';
 import {
   appendDayScore,
   createInitialState,
@@ -159,6 +160,22 @@ export interface Actions {
 export type Store = AppState & Actions;
 
 let mealTimer: ReturnType<typeof setTimeout> | undefined;
+
+// Stage C day-sync: a debounced write-through of the day slice to Postgres after a
+// mutating action. Gated HARD on isBackendLive so that with the flag OFF no timer is
+// ever scheduled and the action behaves exactly as today (flag-OFF identical). pushDay
+// itself enforces realDataConsent + fails closed, so a scheduled push still never
+// writes a non-consenting (or minor) athlete's data. AsyncStorage stays the cache.
+const SYNC_DEBOUNCE_MS = 1200;
+let syncTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleDaySync(get: () => Store): void {
+  if (!isBackendLive) return;
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    const s = get();
+    if (s.userId) void pushDay(s, s.userId).catch(() => undefined);
+  }, SYNC_DEBOUNCE_MS);
+}
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -317,7 +334,7 @@ export const useStore = create<Store>()(
           mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);
         }
       },
-      addMeal: () =>
+      addMeal: () => {
         set((s) => {
           const key = (s.mealType || 'Dinner').toLowerCase() as keyof typeof s.meals;
           const meals = { ...s.meals, [key]: true };
@@ -328,23 +345,29 @@ export const useStore = create<Store>()(
             return x;
           });
           return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, meals, tasks };
-        }),
-      addWater: () =>
+        });
+        scheduleDaySync(get);
+      },
+      addWater: () => {
         set((s) => {
           const h = Math.min(HYDRATION_TARGET, +(s.hydrationL + 0.3).toFixed(1));
           const tasks = s.tasks.map((x) => (x.id === 4 ? { ...x, done: h >= HYDRATION_TARGET } : x));
           return { hydrationL: h, tasks };
-        }),
+        });
+        scheduleDaySync(get);
+      },
       openMealDetail: (meal) => set({ mealDetailOpen: true, selectedMeal: meal }),
       closeMealDetail: () => set({ mealDetailOpen: false }),
-      toggleQuick: (i) =>
+      toggleQuick: (i) => {
         set((s) => {
           const q = [...s.quickAdded];
           q[i] = !q[i];
           const protein = computeProteinToday(s.meals, q);
           const tasks = s.tasks.map((x) => (x.id === 2 ? { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) } : x));
           return { quickAdded: q, tasks };
-        }),
+        });
+        scheduleDaySync(get);
+      },
       openPerson: (p) => set({ personDetail: p }),
       closePerson: () => set({ personDetail: null }),
       openAccount: () => set({ accountOpen: true }),
@@ -395,14 +418,19 @@ export const useStore = create<Store>()(
         ),
 
       // ---- tasks ----
-      toggleTask: (id) =>
-        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) })),
+      toggleTask: (id) => {
+        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) }));
+        scheduleDaySync(get);
+      },
 
       // ---- check-in ----
       wStep: (d) => set((s) => ({ ciWeight: clamp(s.ciWeight + d, 70, 350) })),
       setCi: (key, value) => set({ [key]: value } as Partial<AppState>),
       toggleCiQ: (k) => set((s) => ({ ciConfig: { ...s.ciConfig, [k]: !s.ciConfig[k] } })),
-      submitCi: () => set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight })),
+      submitCi: () => {
+        set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight }));
+        scheduleDaySync(get);
+      },
 
       // ---- backend auth (go-live) ----
       // All gated behind isBackendLive: with the flag off they are inert no-ops and
@@ -427,6 +455,14 @@ export const useStore = create<Store>()(
           return false;
         }
         set({ userId: res.userId, authError: null });
+        // Resume the athlete's real day from Postgres. A hydrate failure (offline,
+        // no row yet) must never block sign-in: fall back to the local cache.
+        try {
+          const slice = await hydrateDay(res.userId);
+          if (slice) set(slice);
+        } catch {
+          /* keep the AsyncStorage-cached day */
+        }
         return true;
       },
       signOutLive: async () => {

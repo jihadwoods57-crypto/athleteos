@@ -20,7 +20,8 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
       isBackendLive: backendLive,
       isSupabaseConfigured: backendLive,
       auth: { signIn, signUp, signOut },
-      db: {},
+      // signInLive hydrates the day after auth; no remote row in these unit tests.
+      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined) },
     }));
     store = require('./useStore').useStore;
   });
@@ -82,6 +83,55 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(useStore.getState().userId).toBeNull();
     expect(useStore.getState().realDataConsent).toBe(false);
+  });
+});
+
+describe('Stage C: a mutating action debounces a consent-gated pushDay', () => {
+  let upsertDay: jest.Mock;
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  function loadStoreWithDb(backendLive: boolean) {
+    upsertDay = jest.fn().mockResolvedValue(undefined);
+    let useStore!: UseBoundStore<StoreApi<Store>>;
+    jest.isolateModules(() => {
+      jest.doMock('@react-native-async-storage/async-storage', () =>
+        require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+      );
+      jest.doMock('@/lib/supabase', () => ({
+        isBackendLive: backendLive,
+        isSupabaseConfigured: backendLive,
+        auth: { signIn, signUp, signOut },
+        db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay },
+      }));
+      useStore = require('./useStore').useStore;
+    });
+    return useStore;
+  }
+
+  it('flag ON + consent: addMeal schedules one pushDay after the debounce', async () => {
+    const useStore = loadStoreWithDb(true);
+    useStore.setState({ userId: 'u-1', realDataConsent: true, role: 'athlete', baseAge: 22 });
+    useStore.getState().addMeal();
+    expect(upsertDay).not.toHaveBeenCalled(); // debounced, not immediate
+    await jest.advanceTimersByTimeAsync(1300);
+    expect(upsertDay).toHaveBeenCalledTimes(1);
+  });
+
+  it('flag ON but NO consent: addMeal schedules a push that fails closed (no write)', async () => {
+    const useStore = loadStoreWithDb(true);
+    useStore.setState({ userId: 'u-1', realDataConsent: false, role: 'athlete', baseAge: 16 });
+    useStore.getState().addMeal();
+    await jest.advanceTimersByTimeAsync(1300);
+    expect(upsertDay).not.toHaveBeenCalled();
+  });
+
+  it('flag OFF: addMeal schedules nothing (flag-OFF behaviour identical)', async () => {
+    const useStore = loadStoreWithDb(false);
+    useStore.setState({ userId: 'u-1', realDataConsent: true, role: 'athlete', baseAge: 22 });
+    useStore.getState().addMeal();
+    await jest.advanceTimersByTimeAsync(1300);
+    expect(upsertDay).not.toHaveBeenCalled();
   });
 });
 
