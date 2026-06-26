@@ -43,6 +43,71 @@ Newest entries at the top. Each entry = what shipped + anything the founder need
 
 ---
 
+# Day 2 AM progress (2026-06-26, 6am ET) — P2 meal logging + P3 reminders core (NOT the day's report)
+
+In-progress handoff note for the 1pm run, which continues P3 (settings UI + the
+local-notification seam glue), then writes the full per-commit Day-2 report +
+adversarial self-review + the `day2-end` tag. The AM run first **re-ran all three
+gates on the branch (typecheck clean, 639 tests, iOS bundle exports) — no drift** —
+then worked the queue forward from where Day 1 left off (P0 + P1 drained): it
+**drained P2 (better meal logging)** and **started P3 (reminders)**. Tests
+**639 → 689** (+50); `typecheck` + `test` + `bundle` green on EVERY commit;
+`EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB mutation; `src/core` stayed
+pure; no `src/app`; one job = one commit; branch pushed after each.
+
+Seven commits (newest last):
+
+1. **`feat(food)`: curated local food database + pure search (P2).** New
+   `src/core/foodDb.ts` — a curated starter table (~55 common foods across
+   protein/grain/dairy/fruit/veg/fat/snack/drink) with honest per-serving macros,
+   a deterministic case-insensitive `searchFoods()` (ranked exact > prefix >
+   word-prefix > substring, matches aliases), and `foodById()`. +15 tests (incl.
+   an Atwater kcal-consistency check on every food). *(Pure logic — verified.)*
+2. **`feat(food)`: extend `mealEdit` to add real foods, not just even-split (P2).**
+   The photo estimate even-splits across foods; a food added from the DB now
+   carries its OWN real per-serving macros, so totals/quality/composition recompute
+   from a real number. New pure `foodToEditable` / `addFood` (bumps servings on a
+   duplicate name) / `removeFood`. +7 tests. *(Pure logic — verified.)*
+3. **`feat(food)`: food search + quick-add UI in MealDetail (P2).** A search box
+   surfaces matching foods (name + serving + protein/kcal); tapping adds via
+   `addFood` and the macros recompute live; each food row gains a remove control;
+   honest empty + no-match states. Additive only (no flag, no existing behaviour
+   changed). *(UI **built, not runtime-verified** — no device; the search/add/remove
+   logic it calls is unit-tested + the bundle compiles.)*
+4. **`feat(food)`: barcode food-scan SEAM, inert behind a flag (P2).** Barcode
+   needs a real camera + product DB, so `src/lib/foodscan` ships inert
+   (`isFoodScanAvailable=false`; `scanBarcode`/`lookupBarcode` no-op to the
+   `AddableFood` shape `addFood` already consumes). A guard test locks it inert.
+   +3 tests. *(Seam — built, not runtime-verified by design.)*
+5. **`docs`: queue P2 founder decisions (D5).** Food catalog scope (curated
+   starter vs. USDA/licensed DB) + barcode product-data source — both external/
+   licensing/device calls left for the founder. *(Docs.)*
+6. **`feat(reminders)`: pure schedule model + conditions + copy (P3).** New
+   `src/core/reminders.ts` — the reminder catalog (protein-behind, hydration,
+   log-dinner, check-in-due) with default time + on/off, per-reminder settings,
+   the day CONDITION each fires on (from a small `ReminderSnapshot`, safe on
+   zero/invalid targets), an hour clamp, `activeReminders()`, and athlete-first
+   copy (factual, no guilt, no em dash). +18 tests. *(Pure logic — verified.)*
+7. **`feat(reminders)`: persist per-reminder settings + toggle/hour actions (P3).**
+   `reminderSettings` (enabled + local hour per reminder) added to `AppState`,
+   seeded from `defaultReminderSettings()`, persisted (cross-day, alongside
+   `notif`); new `toggleReminder` / `setReminderHour` (hour clamped) actions.
+   +7 store tests. *(Pure store logic — verified.)*
+
+**Remaining P3 (for the 1pm run):** the Reminders **settings UI** (toggle/time per
+reminder, reading/writing the persisted `reminderSettings`), and the
+**local-notification seam glue** — extend `src/lib/notify` to (re)schedule the
+`activeReminders` LOCALLY via `expo-notifications`, gated by `isNotifyAvailable`
+(still false) and the `notif` flag; NO remote/push, NO external send. Then P4+.
+
+HONESTY: commits 1, 2, 6, 7 are pure logic/store, unit-tested + verified. The
+MealDetail quick-add UI (commit 3) and the barcode seam (commit 4) are **built,
+not runtime-verified** — the flag/seam is inert and there is no device/expo in
+this runner, so they never render in CI; their pure logic is unit-tested and the
+bundle compiles.
+
+---
+
 # Day 1 REPORT (2026-06-25) — P0 backend keystone + P1 performance signal
 
 The full Day-1 report (the AM handoff note below it is kept for detail). Two
