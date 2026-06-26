@@ -10,6 +10,7 @@ import { hydrateDay, pushDay } from './sync';
 import {
   addPerfEntry,
   removePerfEntry,
+  clampHour,
   CUSTOM_METRIC_KEY,
   appendDayScore,
   createInitialState,
@@ -33,6 +34,7 @@ import type {
   AppState,
   PerfDir,
   PerfEntry,
+  ReminderKind,
   BaseGoal,
   CiConfig,
   CoachTrackKey,
@@ -130,6 +132,10 @@ export interface Actions {
   deletePr: (id: string) => void;
   setSquadMode: (m: SquadMode) => void;
   toggleNotif: () => void;
+  /** Toggle a single reminder on/off (P3). */
+  toggleReminder: (kind: ReminderKind) => void;
+  /** Set a reminder's local fire hour (0-23, clamped) (P3). */
+  setReminderHour: (kind: ReminderKind, hour: number) => void;
   toggleUnits: () => void;
   goalStep: (d: number) => void;
   adjustProteinTarget: (d: number) => void;
@@ -361,6 +367,20 @@ export const useStore = create<Store>()(
 
       setSquadMode: (m) => set({ squadMode: m }),
       toggleNotif: () => set((s) => ({ notif: !s.notif })),
+      toggleReminder: (kind) =>
+        set((s) => ({
+          reminderSettings: {
+            ...s.reminderSettings,
+            [kind]: { ...s.reminderSettings[kind], enabled: !s.reminderSettings[kind].enabled },
+          },
+        })),
+      setReminderHour: (kind, hour) =>
+        set((s) => ({
+          reminderSettings: {
+            ...s.reminderSettings,
+            [kind]: { ...s.reminderSettings[kind], hour: clampHour(hour) },
+          },
+        })),
       toggleUnits: () => set((s) => ({ units: s.units === 'metric' ? 'imperial' : 'metric' })),
       goalStep: (d) => set((s) => ({ weeklyGoalLb: +clamp(s.weeklyGoalLb + d, 0.5, 2).toFixed(1) })),
       // Editable daily nutrition targets. Protein feeds scoring + the id-2 task row,
@@ -611,6 +631,7 @@ export const useStore = create<Store>()(
         ciConfig: s.ciConfig,
         visibility: s.visibility,
         notif: s.notif,
+        reminderSettings: s.reminderSettings,
         units: s.units,
       }),
       // Roll the persisted day forward BEFORE the first UI/selector read: on a new

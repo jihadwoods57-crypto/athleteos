@@ -4,6 +4,7 @@ import type { Units } from './units';
 import type { MealResult } from './content';
 import type { NudgeRecord } from './nudge';
 import type { PerfEntry } from './performance';
+import type { ReminderSettings } from './reminders';
 
 /** The 7 onboarding identities. Each maps onto one of the 4 dashboard flows
  *  (see ROLE_DEFS in constants) and personalizes copy/labels/goals. */
@@ -190,6 +191,10 @@ export interface AppState {
   weightTarget: number;
   visibility: string;
   notif: boolean;
+  /** Per-reminder settings (enabled + local hour) for the P3 reminder schedule.
+   *  Persisted; defaults from defaultReminderSettings(). The master `notif` flag
+   *  still gates whether any reminder is scheduled at all. */
+  reminderSettings: ReminderSettings;
   /** Athlete-chosen display unit system. Body weights are stored in lb and
    *  converted at the edge; defaults to imperial. */
   units: Units;
