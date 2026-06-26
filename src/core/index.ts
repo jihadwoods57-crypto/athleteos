@@ -17,6 +17,7 @@ export * from './attention';
 export * from './roster';
 export * from './rosterSync';
 export * from './mealEdit';
+export * from './foodDb';
 export * from './consent';
 export * from './nudge';
 export * from './identity';
