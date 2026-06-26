@@ -158,3 +158,35 @@ export function reminderCopy(kind: ReminderKind, s: ReminderSnapshot): { title: 
       };
   }
 }
+
+/** Format a 0-23 local hour as a 12-hour label for the settings UI ("4 PM", "12 PM"). */
+export function formatReminderHour(hour: number): string {
+  const h = clampHour(hour);
+  const period = h < 12 ? 'AM' : 'PM';
+  const display = h % 12 === 0 ? 12 : h % 12;
+  return `${display} ${period}`;
+}
+
+/** A fully-resolved local-notification spec: which reminder, when, and the copy to show. */
+export interface ReminderNotifySpec {
+  kind: ReminderKind;
+  title: string;
+  body: string;
+  /** Local hour 0-23 to fire. */
+  hour: number;
+}
+
+/**
+ * The local notifications to (re)schedule today: one per active reminder, carrying
+ * its user-set hour and its athlete-first copy. This is the PURE hand-off the device
+ * seam (src/lib/notify) consumes; it fires nothing. Order follows REMINDER_DEFS.
+ */
+export function reminderNotifySpecs(
+  settings: ReminderSettings,
+  snapshot: ReminderSnapshot,
+): ReminderNotifySpec[] {
+  return activeReminders(settings, snapshot).map((d) => {
+    const { title, body } = reminderCopy(d.kind, snapshot);
+    return { kind: d.kind, title, body, hour: clampHour(settings[d.kind].hour) };
+  });
+}

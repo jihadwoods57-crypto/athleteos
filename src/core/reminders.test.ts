@@ -5,6 +5,8 @@ import {
   clampHour,
   activeReminders,
   reminderCopy,
+  formatReminderHour,
+  reminderNotifySpecs,
   BEHIND_RATIO,
   type ReminderSnapshot,
   type ReminderSettings,
@@ -135,6 +137,52 @@ describe('reminderCopy', () => {
       expect(body.length).toBeGreaterThan(0);
       expect(title).not.toContain('—');
       expect(body).not.toContain('—');
+    }
+  });
+});
+
+describe('formatReminderHour', () => {
+  it('formats midnight and noon edges', () => {
+    expect(formatReminderHour(0)).toBe('12 AM');
+    expect(formatReminderHour(12)).toBe('12 PM');
+  });
+  it('formats morning and evening hours', () => {
+    expect(formatReminderHour(7)).toBe('7 AM');
+    expect(formatReminderHour(16)).toBe('4 PM');
+    expect(formatReminderHour(23)).toBe('11 PM');
+  });
+  it('clamps out-of-range / non-finite input before formatting', () => {
+    expect(formatReminderHour(30)).toBe('11 PM');
+    expect(formatReminderHour(-5)).toBe('12 AM');
+    expect(formatReminderHour(NaN)).toBe('12 AM');
+  });
+});
+
+describe('reminderNotifySpecs', () => {
+  it('produces one spec per active reminder with its hour + copy', () => {
+    const specs = reminderNotifySpecs(defaultReminderSettings(), behind);
+    expect(specs.map((s) => s.kind)).toEqual(['protein', 'hydration', 'log_dinner', 'checkin']);
+    const protein = specs.find((s) => s.kind === 'protein')!;
+    expect(protein.hour).toBe(16); // the default protein hour
+    expect(protein.title).toBe('Protein check');
+    expect(protein.body).toContain('140g');
+  });
+  it('is empty when no condition holds', () => {
+    expect(reminderNotifySpecs(defaultReminderSettings(), onTrack)).toEqual([]);
+  });
+  it('carries the user-set hour, clamped', () => {
+    const settings: ReminderSettings = { ...defaultReminderSettings(), protein: { enabled: true, hour: 99 } };
+    const protein = reminderNotifySpecs(settings, behind).find((s) => s.kind === 'protein')!;
+    expect(protein.hour).toBe(23);
+  });
+  it('omits a disabled reminder', () => {
+    const settings: ReminderSettings = { ...defaultReminderSettings(), hydration: { enabled: false, hour: 14 } };
+    expect(reminderNotifySpecs(settings, behind).map((s) => s.kind)).not.toContain('hydration');
+  });
+  it('emits no em dash in any spec copy', () => {
+    for (const spec of reminderNotifySpecs(defaultReminderSettings(), behind)) {
+      expect(spec.title).not.toContain('—');
+      expect(spec.body).not.toContain('—');
     }
   });
 });
