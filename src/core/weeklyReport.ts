@@ -1,0 +1,140 @@
+// AthleteOS — weekly auto-report (P4, pure TS, no RN imports).
+//
+// The coach/parent leverage feature: a per-athlete weekly digest the app can show
+// in-app or export (to paste into a message), so an overseer gets the week at a
+// glance without nagging. This is the PURE generator — score, compliance, what
+// moved week-over-week, and the single most important flag. Delivery to a real
+// person (push/email) is the backend/founder step; this only builds the content.
+// Copy follows the shipped guardrails: factual, no guilt, no em dash.
+import { scoreLanguage } from './attention';
+
+export interface WeeklyReportInput {
+  name: string;
+  /** This week's completed-day accountability scores, oldest -> newest (0..100). */
+  scores: number[];
+  /** Last week's average score, if known, for the week-over-week read. null/undefined = unknown. */
+  priorAvg?: number | null;
+  /** Weekly nutrition compliance: share of days on plan, 0..100. */
+  compliance: number;
+  /** Days in the last 7 the athlete missed their protein target (0-7). */
+  proteinMissed?: number;
+  /** Hydration trending below target this week. */
+  hydrationLow?: boolean;
+  /** Weight goal stalled (no movement toward the target). */
+  weightStalled?: boolean;
+  /** Days since the athlete's last weekly check-in (undefined = unknown). */
+  checkinDaysAgo?: number;
+}
+
+export interface WeeklyReport {
+  name: string;
+  /** Mean of this week's completed scores, rounded (0 if no days logged). */
+  avgScore: number;
+  /** Completed days logged this week. */
+  daysLogged: number;
+  /** Plain band word for avgScore ("On standard" / "On the bubble" / ...). */
+  status: string;
+  /** "Strong week" / "Mixed week" / "Tough week" / "No data yet". */
+  headline: string;
+  /** One-line score summary. */
+  scoreLine: string;
+  /** One-line compliance summary. */
+  complianceLine: string;
+  /** What moved week-over-week. */
+  movedLine: string;
+  /** The single most important thing to act on this week, or null if none. */
+  flag: string | null;
+}
+
+/** Threshold (in score points) for a week-over-week move to count as real movement. */
+export const MOVE_THRESHOLD = 3;
+
+function mean(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  return Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+}
+
+function clampPct(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+/**
+ * The single most important flag for the week, nutrition-first, or null when the
+ * week is clean. Only ONE line so the digest stays glanceable; ordered by how
+ * much it should pull the overseer's attention.
+ */
+function weeklyFlag(input: WeeklyReportInput, daysLogged: number, compliance: number): string | null {
+  if (daysLogged === 0) return 'No days logged this week, accountability has stalled.';
+  if (typeof input.proteinMissed === 'number' && input.proteinMissed >= 2) {
+    return `Protein behind on ${input.proteinMissed} of 7 days.`;
+  }
+  if (compliance < 60) return `Logging is slipping at ${compliance}% of days on plan.`;
+  if (typeof input.checkinDaysAgo === 'number' && input.checkinDaysAgo >= 3) {
+    return `No check-in in ${input.checkinDaysAgo} days.`;
+  }
+  if (input.hydrationLow) return 'Hydration trended low this week.';
+  if (input.weightStalled) return 'Weight goal has stalled.';
+  return null;
+}
+
+/** Build the per-athlete weekly digest from this week's scores + signals. Pure. */
+export function weeklyReport(input: WeeklyReportInput): WeeklyReport {
+  const scores = input.scores.filter((s) => Number.isFinite(s));
+  const daysLogged = scores.length;
+  const avgScore = mean(scores);
+  const compliance = clampPct(input.compliance);
+  const status = scoreLanguage(avgScore);
+
+  const headline =
+    daysLogged === 0 ? 'No data yet' : avgScore >= 85 ? 'Strong week' : avgScore >= 70 ? 'Mixed week' : 'Tough week';
+
+  const scoreLine =
+    daysLogged === 0
+      ? 'No days logged this week yet.'
+      : `Averaged ${avgScore} across ${daysLogged} ${daysLogged === 1 ? 'day' : 'days'} (${status}).`;
+
+  const complianceLine =
+    daysLogged === 0 ? 'No meals on plan logged yet.' : `${compliance}% of days on plan.`;
+
+  let movedLine: string;
+  if (daysLogged === 0) {
+    movedLine = 'Nothing logged yet, so there is nothing to compare.';
+  } else if (input.priorAvg == null || !Number.isFinite(input.priorAvg)) {
+    movedLine = 'First week tracked, this sets the baseline.';
+  } else {
+    const delta = avgScore - Math.round(input.priorAvg);
+    if (delta >= MOVE_THRESHOLD) movedLine = `Up ${delta} points from last week.`;
+    else if (delta <= -MOVE_THRESHOLD) movedLine = `Down ${Math.abs(delta)} points from last week.`;
+    else movedLine = 'Holding steady from last week.';
+  }
+
+  return {
+    name: input.name,
+    avgScore,
+    daysLogged,
+    status,
+    headline,
+    scoreLine,
+    complianceLine,
+    movedLine,
+    flag: weeklyFlag(input, daysLogged, compliance),
+  };
+}
+
+/**
+ * Plain-text rendering of the digest, for the exportable / paste-into-a-message
+ * path. No em dash (design ban); ASCII only so it survives any channel.
+ */
+export function weeklyReportText(report: WeeklyReport): string {
+  const lines = [
+    `Weekly report: ${report.name}`,
+    report.headline,
+    '',
+    report.scoreLine,
+    report.complianceLine,
+    report.movedLine,
+    report.flag ? `Flag: ${report.flag}` : 'No flags this week.',
+  ];
+  return lines.join('\n');
+}
