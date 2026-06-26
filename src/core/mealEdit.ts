@@ -97,3 +97,40 @@ export function stepServings(current: number, delta: number): number {
   const next = Math.round((current + delta) * 2) / 2;
   return Math.max(0, Math.min(10, next));
 }
+
+// ---- adding real foods (P2: food search + quick-add) ----
+// The photo estimate even-splits across its foods (above); a food added from the
+// curated DB carries its OWN real per-serving macros instead, so the meal totals,
+// quality, and composition recompute from a real number rather than a guess.
+
+/** The shape `addFood` consumes — a curated food's name, serving label, and per-serving macros. */
+export interface AddableFood {
+  name: string;
+  /** Serving label these macros describe (e.g. "1 cup"). */
+  serving: string;
+  per: MacroSet;
+}
+
+/** Convert a curated food into an editable line at one serving (real per-serving macros). */
+export function foodToEditable(item: AddableFood): EditableFood {
+  return { name: item.name, portion: item.serving, servings: 1, per: { ...item.per } };
+}
+
+/**
+ * Add a real food to the meal's editable foods. If a food with the same name is
+ * already present, bump its servings by one (keeps names unique so list keys stay
+ * stable and avoids a duplicate row); otherwise append it. Pure — returns a new array.
+ */
+export function addFood(foods: EditableFood[], item: AddableFood): EditableFood[] {
+  const i = foods.findIndex((f) => f.name === item.name);
+  if (i >= 0) {
+    return foods.map((f, j) => (j === i ? { ...f, servings: stepServings(f.servings, 1) } : f));
+  }
+  return [...foods, foodToEditable(item)];
+}
+
+/** Remove the food at `index` (no-op for an out-of-range index). Pure — returns a new array. */
+export function removeFood(foods: EditableFood[], index: number): EditableFood[] {
+  if (index < 0 || index >= foods.length) return foods.slice();
+  return foods.filter((_, j) => j !== index);
+}
