@@ -29,6 +29,7 @@ import {
   WEIGHT_TARGET,
   rollDayIfStale,
   todayStamp,
+  appendMessage,
 } from '@/core';
 import type {
   AppState,
@@ -462,9 +463,9 @@ export const useStore = create<Store>()(
       setMsgDraft: (v) => set({ msgDraft: v }),
       sendMsg: () =>
         set((s) => {
-          const t = (s.msgDraft || '').trim();
-          if (!t) return {};
-          return { msgThread: [...s.msgThread, { who: 'me', text: t }], msgDraft: '' };
+          const next = appendMessage(s.msgThread, 'me', s.msgDraft);
+          if (next === s.msgThread) return {}; // empty draft, nothing sent
+          return { msgThread: next, msgDraft: '' };
         }),
       openNotif: () => set({ notifOpen: true }),
       closeNotif: () => set({ notifOpen: false }),
