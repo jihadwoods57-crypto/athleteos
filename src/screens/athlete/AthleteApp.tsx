@@ -15,6 +15,7 @@ import { CheckIn } from './CheckIn';
 import { Nutrition } from './Nutrition';
 import { Profile } from './Profile';
 import { Performance } from './Performance';
+import { Reminders } from './Reminders';
 import { MealCapture } from '@/screens/overlays/MealCapture';
 import { MealDetail } from '@/screens/overlays/MealDetail';
 import { Account } from '@/screens/overlays/Account';
@@ -45,6 +46,7 @@ export function AthleteApp() {
         {tab === 'checkin' && <CheckIn />}
         {tab === 'nutrition' && <Nutrition />}
         {tab === 'performance' && <Performance />}
+        {tab === 'reminders' && <Reminders />}
         {tab === 'profile' && <Profile />}
       </View>
 

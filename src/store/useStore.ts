@@ -125,6 +125,8 @@ export interface Actions {
   goProfile: () => void;
   goNutrition: () => void;
   goPerformance: () => void;
+  /** Open the Reminders settings screen (P3). */
+  goReminders: () => void;
   /** Log a performance result (PR). The store assigns a stable id + persists it.
    *  A separate development track from the daily score (never folds into it). */
   logPr: (spec: PrInput) => void;
@@ -339,6 +341,7 @@ export const useStore = create<Store>()(
       goProfile: () => set({ flow: 'app', tab: 'profile' }),
       goNutrition: () => set({ flow: 'app', tab: 'nutrition' }),
       goPerformance: () => set({ flow: 'app', tab: 'performance' }),
+      goReminders: () => set({ flow: 'app', tab: 'reminders' }),
 
       // ---- performance (P1) — a separate development track; never folds into
       // the daily Accountability Score. Persisted locally; when the backend goes

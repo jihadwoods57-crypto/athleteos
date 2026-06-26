@@ -213,14 +213,23 @@ export function Profile() {
       {/* settings */}
       <Card elevated style={{ marginTop: 14, borderRadius: 24, paddingVertical: 8 }}>
         <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-          <View>
-            <Txt w="b" size={15}>
-              Notifications
-            </Txt>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Reminders settings"
+            onPress={s.goReminders}
+            hitSlop={6}
+            style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.6 : 1 })}
+          >
+            <Row style={{ gap: 6, alignItems: 'center' }}>
+              <Txt w="b" size={15}>
+                Notifications
+              </Txt>
+              <Icon name="chevronRight" size={18} color="#CBD5E1" />
+            </Row>
             <Txt w="m" size={13} color={colors.textTertiary}>
-              Meal, hydration & check-in reminders
+              Protein, hydration, dinner & check-in reminders
             </Txt>
-          </View>
+          </Pressable>
           <Toggle on={s.notif} onPress={s.toggleNotif} label="Notifications" />
         </Row>
         <Pressable
