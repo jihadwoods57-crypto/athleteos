@@ -133,6 +133,16 @@ triggers), **D7** (messaging real delivery + minors/safety policy), **D8** (whet
 an objective recovery reading should move the score + the 0.6/0.4 blend weight +
 HealthKit/Health-Connect device wiring).
 
+## ⚠ Day-2 tag — blocked by the git bridge (same as Day 1; founder action)
+The annotated tag `day2-end` was created locally but **could not be pushed**: the
+git bridge returns a hard **HTTP 403 on every tag-ref push** (`refs/tags/*`) while
+branch-ref pushes succeed — identical to the Day-1 blocker. As the durable
+substitute the day-end commit is pushed as the branch **`checkpoint/day2-end`**.
+To materialize the real annotated tag once you're back (from a normal git client):
+`git fetch origin && git tag -a day2-end origin/checkpoint/day2-end -m "Day 2 end" && git push origin day2-end`.
+`crew/4day-sprint` is green and fully pushed at the same commit; you can delete
+`checkpoint/day2-end` after tagging.
+
 ---
 
 # Day 2 AM progress (2026-06-26, 6am ET) — P2 meal logging + P3 reminders core (NOT the day's report)
