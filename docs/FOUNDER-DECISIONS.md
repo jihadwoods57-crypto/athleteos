@@ -110,3 +110,40 @@ decision (guardrailed), and the date picker is a device/dependency choice.
    populates the PersonDetail line from the live roster.
 
 **Status:** local persistence shipped + tested; sync + date picker are seams. Awaiting you.
+
+---
+
+## D5 — Food database scope + barcode data source (P2 seams)
+
+**What.** P2 (better meal logging) shipped food search + manual quick-add against a
+**curated, offline STARTER table** (`src/core/foodDb.ts`, ~55 common foods across
+protein/grain/dairy/fruit/veg/fat/snack/drink, with honest per-serving macros). An
+athlete can search it and add a real food, and the existing `mealEdit` engine recomputes
+the meal from real macros. Two parts were left to the safe line:
+
+- **Database breadth.** The starter table is everyday whole foods, not a full nutrition
+  database (no thousands of items, no branded/restaurant products, no per-100g vs.
+  per-serving toggle). A real catalog is a data/licensing step, not crew-authorable
+  offline. The in-app "no match" copy already tells the user a fuller DB lands with the
+  backend, so the UI is honest about the gap.
+- **Barcode scan.** Shipped as an INERT seam only (`src/lib/foodscan`,
+  `isFoodScanAvailable=false`): it needs a real camera AND a product database. Both
+  `scanBarcode()` and `lookupBarcode()` no-op; nothing fires.
+
+**Why it needs you.** The food catalog and the barcode lookup are both **external data
+sources with licensing implications**, and the barcode scanner is a device concern — all
+guardrailed. The crew will not pick a paid/licensed data source or fire a network lookup
+without your call.
+
+**Options.**
+1. **Food catalog.** (a) Keep the curated starter table for the beta (recommended to start
+   — it covers the common athlete plate). (b) License/import a nutrition DB (USDA
+   FoodData Central is free/public-domain; commercial DBs add branded items) — tell the
+   crew the source and it will wire an importer + search against it.
+2. **Barcode.** At go-live: `npx expo install expo-camera`, pick a product DB (Open Food
+   Facts is free/open; a licensed DB is richer), then the crew wires
+   `scanBarcode -> lookupBarcode -> addFood` (the same add path the manual quick-add
+   already uses). Until then the seam stays inert.
+
+**Status:** curated search + quick-add shipped + tested (UI built, not runtime-verified);
+barcode is an inert seam; catalog breadth + barcode source await you.
