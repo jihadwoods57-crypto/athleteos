@@ -147,3 +147,96 @@ without your call.
 
 **Status:** curated search + quick-add shipped + tested (UI built, not runtime-verified);
 barcode is an inert seam; catalog breadth + barcode source await you.
+
+---
+
+## D6 — Local notifications: device wiring + the firing model (P3 seam)
+
+**What.** P3 shipped the reminders feature to the safe line: the pure schedule model
+(`src/core/reminders.ts` — which reminders, their condition, copy, and active set), a
+persisted per-reminder settings UI (toggle + local hour), and the device seam
+(`src/lib/notify`, `isNotifyAvailable=false`). `refreshReminderSchedule(specs, notif)`
+is the glue that WOULD (re)schedule one daily LOCAL notification per active reminder; it
+no-ops until the seam is wired. Nothing fires today.
+
+**Why it needs you.** Local notifications need `expo-notifications` installed, on-device
+permission, and a real device to test (untestable in this runner). Two product calls
+also sit on top: (a) when should the app recompute + reschedule the active set (on app
+foreground? after each meal/check-in? a daily background task?), and (b) the conditional
+reminders read a `ReminderSnapshot` (protein/hydration behind, dinner unlogged, check-in
+due) — confirm those are the right triggers + the default hours (protein 4pm, hydration
+2pm, dinner 8pm, check-in 6pm).
+
+**Options.**
+1. At go-live: `npx expo install expo-notifications`, request permission, set
+   `isNotifyAvailable=true`, and call `refreshReminderSchedule(reminderNotifySpecs(...))`
+   on foreground + after the day's meals/check-in change. LOCAL only (no push server).
+   (Recommended — the pure model + gating are already tested.)
+2. Adjust the catalog (add/remove reminders, change default hours/conditions) — tell the
+   crew and it will re-author the pure model + tests.
+3. Add REMOTE push (overseer -> athlete nudge) — a bigger step needing the backend to
+   store device tokens + send; out of the local-only scope shipped here.
+
+**Status:** pure model + settings UI + scheduling glue built + tested (UI/seam built,
+not runtime-verified; nothing fires). Device wiring + the reschedule-trigger call await
+you.
+
+---
+
+## D7 — Messaging: real delivery to a real person (P4 seam)
+
+**What.** P4 shipped lightweight two-way messaging to the safe line: the pure model
+(`src/core/messaging.ts` — compose/validate/append + an honest delivery note), the
+existing Messages overlay now shows whether a message is delivered or only saved on this
+device, and a delivery seam (`src/lib/messaging`, `deliverMessage`) gated on
+`isBackendLive`. With the backend off, a sent message is kept locally and the composer
+says so; **nothing is sent to a real person.**
+
+**Why it needs you.** Actual delivery (write to a backend `messages` table under RLS, and
+optionally a push) is the go-live step, and it carries a minors/safety dimension: who can
+message a student-athlete, retention/moderation, and parent visibility all need a policy.
+
+**Options.**
+1. At go-live: implement `deliverMessage` against a `messages` table (RLS so only the
+   thread's two parties read it); it already gates on `isBackendLive` so it stays inert
+   until the flag flips. Decide the push half separately.
+2. Keep messaging local-only for the beta (current honest behaviour) and revisit delivery
+   later.
+3. Define the messaging safety policy first (who may message whom, moderation, parent
+   visibility) — tell the crew and it will encode the allowed-pairs logic as pure rules.
+
+**Status:** model + overlay note + inert delivery seam built + tested (pure logic
+verified; overlay built, not runtime-verified; delivery inert). Delivery + policy await
+you.
+
+---
+
+## D8 — Wearable recovery: fold real sleep/HRV into the score? + device wiring (P5 seam)
+
+**What.** P5 shipped the recovery-credibility groundwork to the safe line: a pure mapping
+(`src/core/recovery.ts`) that turns a real `RecoverySample` (sleep / HRV / resting HR)
+into a 0..100 recovery score and `blendRecovery(selfReport, sample)` that folds it into
+the recovery sub-score when a sample exists — and returns the self-report **unchanged**
+when it does not. The device seam (`src/lib/health`, `isHealthAvailable=false`,
+`readRecoverySample -> null`) models HealthKit / Health Connect ingestion inert. It is
+**not yet wired into live scoring** (no real sample source), so the daily score is
+byte-for-byte unchanged today.
+
+**Why it needs you.** Two calls: (a) **should** an objective recovery reading move the
+Accountability Score at all (it currently weights a real sample 0.6 vs self-report 0.4 in
+`blendRecovery`) — this changes what the headline number means, and the HRV/HR maps are
+generic population bands, not person-calibrated; and (b) native HealthKit/Health-Connect
+wiring + on-device permission + testing is a device step the crew cannot do.
+
+**Options.**
+1. At go-live: add a health module, request read permission for sleep + HRV + resting HR,
+   set `isHealthAvailable=true`, and pass `readRecoverySample()` into `blendRecovery` at
+   the recovery fold point in scoring. Confirm the 0.6/0.4 blend weight + the band cutoffs
+   first (or ask the crew to make them configurable).
+2. Keep recovery fully self-report for the beta (current behaviour) and ship the wearable
+   fold later.
+3. Person-calibrate the HRV/HR maps (rolling baseline per athlete instead of fixed bands)
+   — a richer model the crew can author as pure logic once you confirm the approach.
+
+**Status:** pure mapping + inert health seam built + tested; NOT wired into live scoring
+(score unchanged). Blend-weight sign-off + device wiring await you.

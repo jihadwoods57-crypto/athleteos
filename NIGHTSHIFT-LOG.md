@@ -43,6 +43,98 @@ Newest entries at the top. Each entry = what shipped + anything the founder need
 
 ---
 
+# Day 2 REPORT (2026-06-26) — P2 meal logging + P3 reminders + P4 report/messaging + P5 recovery
+
+The full Day-2 report (the AM handoff note below it is kept for detail). Two
+Max-intensity runs worked the ranked queue top-down on `crew/4day-sprint`:
+**AM drained P2** (better meal logging) and started P3; **PM drained P3**
+(reminders settings UI + the local-notification seam glue), **drained P4**
+(weekly auto-report + lightweight messaging) and **P5** (wearable recovery) to
+the safe line. Tests **639 → 741 across the day** (AM +50, PM +52); `npm run
+verify` (typecheck + jest + iOS bundle) green on EVERY commit;
+`EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB mutation; `src/core`
+stayed pure; no `src/app`; one job = one commit; branch pushed after each.
+Tag: `day2-end`.
+
+## PM run (1pm ET) — P3 finish + P4 + P5 (6 commits, newest last)
+
+1. **`feat(reminders)`: pure hour-format + active-reminder notify specs (P3).**
+   Two pure helpers the settings UI + the device seam share: `formatReminderHour`
+   (0-23 hour to a clamped 12-hour label) and `reminderNotifySpecs` (active
+   reminders to resolved `{kind,title,body,hour}` local-notification specs).
+   **+11 tests.** *(Pure logic — verified.)*
+2. **`feat(reminders)`: Reminders settings screen, per-reminder toggle + hour (P3).**
+   New athlete Reminders screen (reached from Profile > Notifications): a toggle
+   + a local-hour stepper per reminder, reading/writing the persisted
+   `reminderSettings`. Honest about the device seam — when the master `notif`
+   flag is off it says so and still saves choices; a footer explains conditional
+   reminders stay quiet on an on-track day. Additive only (new `reminders` tab +
+   `goReminders`); no existing behaviour/flag changed. *(UI **built, not
+   runtime-verified** — no device; its logic is unit-tested + the bundle compiles.)*
+3. **`feat(reminders)`: local-notification seam glue, inert + gated (P3).**
+   Extended `src/lib/notify`: `refreshReminderSchedule(specs, notif)` would
+   (re)schedule one daily LOCAL notification per active reminder at its hour,
+   inert behind `isNotifyAvailable` (false) and gated by the master `notif` flag
+   via a unit-testable `shouldSchedule`. No remote/push; nothing fired at a real
+   person. A guard test locks it inert. **+5 tests.** *(Seam — built, not
+   runtime-verified by design.)*
+4. **`feat(report)`: pure weekly auto-report generator + text export (P4).**
+   New `src/core/weeklyReport.ts`: a per-athlete weekly digest (avg score + band,
+   days logged, compliance, what moved week-over-week, and the SINGLE most
+   important flag, nutrition-first) plus `weeklyReportText` for the paste-into-a-
+   message export. Resilient to non-finite scores + out-of-range compliance; copy
+   is factual, no guilt, no em dash. Delivery to a real person stays the founder
+   step. **+15 tests.** *(Pure logic — verified.)*
+5. **`feat(messaging)`: pure thread model + honest delivery seam, gated (P4).**
+   New `src/core/messaging.ts`: `composeMessage` (trim/non-empty/1000-char cap),
+   `appendMessage` (non-mutating), and `messageDeliveryNote` so the composer never
+   implies a message reached a real person while the backend is off. The store's
+   `sendMsg` now routes through the shared guard (behaviour identical). The
+   Messages overlay shows the honest delivery note. New `src/lib/messaging` seam:
+   `deliverMessage` no-ops + reports not-delivered until `isBackendLive` flips;
+   guard test locks it inert. **+12 tests.** *(Pure logic verified; overlay note
+   built, not runtime-verified; delivery seam inert by design.)*
+6. **`feat(recovery)`: pure wearable recovery mapping + inert health seam (P5).**
+   New `src/core/recovery.ts` maps a real `RecoverySample` (sleep/HRV/resting HR)
+   to a 0..100 recovery score (averaging only present signals, sleep weighted
+   highest); `blendRecovery(selfReport, sample)` is the single fold point — a null
+   sample returns the self-report **byte-for-byte**, so flag-off behaviour is
+   identical. New `src/lib/health` seam (`isHealthAvailable=false`,
+   `readRecoverySample -> null`) models HealthKit/Health-Connect ingestion inert.
+   NOT wired into live scoring (no real sample source), so the daily score is
+   untouched. **+17 tests.** *(Pure logic verified; seam inert by design.)*
+
+## Adversarial self-review of the Day-2 (PM) diff
+
+- **Flag-OFF / existing behaviour:** the recovery mapping is NOT wired into
+  `computeDerived` (no real sample source), so the daily Accountability Score is
+  byte-for-byte unchanged. The notify, messaging, and health seams are all inert
+  (`isNotifyAvailable`/`isHealthAvailable` false, delivery gated on `isBackendLive`,
+  all off) and called by no runtime path that fires anything. `EXPO_PUBLIC_BACKEND_LIVE`
+  untouched. P3/P4/P5 are otherwise additive (a new `reminders` tab + screen, new
+  core modules called by tests + the new UI).
+- **One deliberate existing-behaviour change, reviewed + kept:** `sendMsg` now caps
+  a message at 1000 chars via `composeMessage` (previously uncapped). A sane input
+  guard, not a regression — the seeded showcase threads and any normal message are
+  far under the cap; only a runaway paste truncates. Logged here for honesty.
+- **Dead/broken UI:** the Reminders screen is fully wired (Profile → `goReminders`
+  → screen → toggle/hour → persisted → back to Profile). The notify/messaging/health
+  seams are inert by design (the documented seam pattern), labelled as such here +
+  in D6/D7/D8, not no-op affordances. The Messages delivery note is honest copy, not
+  a dead control.
+- **Honesty:** pure logic is labelled "verified"; UI is "built, not runtime-verified";
+  seams are "inert by design". No fabricated data; the delivery note tells the truth
+  that off-backend messages are local-only.
+- **Gates:** `npm run verify` green at **741 tests**; no revert needed.
+
+## Founder decisions queued this run
+`docs/FOUNDER-DECISIONS.md` **D6** (local-notification device wiring + reschedule
+triggers), **D7** (messaging real delivery + minors/safety policy), **D8** (whether
+an objective recovery reading should move the score + the 0.6/0.4 blend weight +
+HealthKit/Health-Connect device wiring).
+
+---
+
 # Day 2 AM progress (2026-06-26, 6am ET) — P2 meal logging + P3 reminders core (NOT the day's report)
 
 In-progress handoff note for the 1pm run, which continues P3 (settings UI + the
