@@ -62,7 +62,7 @@ export function Performance() {
         </Txt>
       </Row>
       <Txt w="sb" size={14} color={colors.textSecondary} style={{ marginTop: 2, marginLeft: 30 }}>
-        Your development track · separate from your daily score
+        Your performance track · separate from your daily Development Score
       </Txt>
 
       <LogForm onSave={logPr} />

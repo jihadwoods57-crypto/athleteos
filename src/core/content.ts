@@ -398,7 +398,7 @@ export function coachGuidance(opts: {
  * Mirrors coachGuidance's gating convention.
  */
 export function taskVisibilityNote(opts: { isReal: boolean; supportTeam: string[] }): string {
-  const base = 'Completed tasks feed your Accountability Score';
+  const base = 'Completed tasks feed your Development Score';
   if (!opts.isReal) return `${base} and stay visible to Coach Davis.`;
   if (opts.supportTeam.includes('coach')) return `${base} and stay visible to your coach.`;
   if (opts.supportTeam.includes('trainer')) return `${base} and stay visible to your trainer.`;
@@ -507,7 +507,7 @@ export function notificationCopy(opts: {
   if (!opts.isReal) {
     return {
       checkin: 'Takes 2 minutes. Your coach and parent will see your update.',
-      score: `Your Accountability Score is ${opts.athleteScore}. You're #2 in the linebacker room.`,
+      score: `Your Development Score is ${opts.athleteScore}. You're #2 in the linebacker room.`,
       coachNote: { initials: 'CD', title: 'Coach Davis', text: '"Strong week. Your nutrition is the best in the room. Keep it up."' },
     };
   }
@@ -521,7 +521,7 @@ export function notificationCopy(opts: {
   else checkin = 'Takes 2 minutes. Your weekly check-in keeps your score honest.';
   return {
     checkin,
-    score: `Your Accountability Score is ${opts.athleteScore}. Tap to see your week.`,
+    score: `Your Development Score is ${opts.athleteScore}. Tap to see your week.`,
     coachNote: null,
   };
 }

@@ -143,7 +143,7 @@ export function Home() {
         </Ring>
         <View style={{ flex: 1 }}>
           <Txt w="b" size={13} color={colors.textSecondary}>
-            Accountability Score
+            Development Score
           </Txt>
           <Row style={{ gap: 6, marginTop: 7 }}>
             <Txt w="eb" size={15} color={d.deltaColor}>
