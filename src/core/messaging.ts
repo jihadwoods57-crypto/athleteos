@@ -43,3 +43,38 @@ export function messageDeliveryNote(isBackendLive: boolean): string {
     ? 'Delivered to your connected team.'
     : 'Saved on this device. Connect your team to deliver messages.';
 }
+
+/** At or above this age an athlete is treated as an adult for messaging governance. */
+export const MESSAGING_ADULT_AGE = 18;
+
+/**
+ * Who is in a thread, for the beta messaging governance check. `counterpartAuthorized`
+ * is true only when the other party is an established relationship for THIS athlete —
+ * a coach/trainer on a team the athlete belongs to, or an active guardian.
+ */
+export interface MessagingParticipants {
+  athleteAge: number | null | undefined;
+  counterpartAuthorized: boolean;
+}
+
+/**
+ * Beta messaging governance (Trust & safety, Tier 2). Day-2 shipped athlete<->overseer
+ * messaging with no age gate, so a minor athlete could sit in an unsupervised thread
+ * with an arbitrary adult. For the closed beta (HS coaches + their athletes), a minor's
+ * ONLY permitted counterpart is an authorized relationship; everyone else is blocked.
+ * Fail-closed: a missing / non-finite age is treated as a minor. The real enforcement
+ * is server-side RLS (migration 0006); this is the shared rule the UI reads so it never
+ * offers a channel the backend would reject.
+ */
+export function messagingAllowed(p: MessagingParticipants): boolean {
+  const age = typeof p.athleteAge === 'number' && Number.isFinite(p.athleteAge) ? p.athleteAge : 0;
+  if (age >= MESSAGING_ADULT_AGE) return true; // adult athlete: standard channel
+  return p.counterpartAuthorized === true; // minor: only an authorized relationship
+}
+
+/** Honest one-line note explaining why a minor's thread is limited, or '' when allowed. */
+export function messagingGateNote(allowed: boolean): string {
+  return allowed
+    ? ''
+    : 'Messaging with an athlete under 18 is limited to their coach and guardians.';
+}

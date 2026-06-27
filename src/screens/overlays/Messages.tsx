@@ -38,9 +38,10 @@ export function Messages() {
             <Txt w="eb" size={16} ls={-0.3}>
               {them}
             </Txt>
-            <Txt w="b" size={12} color={colors.success}>
-              Active now
-            </Txt>
+            {/* No "Active now" presence claim: the app has no real-time presence
+                signal and delivery is gated to the backend, so an always-green
+                "Active now" was a fabrication. The honest delivery state lives in
+                the composer footer (messageDeliveryNote). */}
           </View>
         </Row>
       </SafeAreaView>

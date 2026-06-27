@@ -1,4 +1,12 @@
-import { composeMessage, appendMessage, messageDeliveryNote, MAX_MESSAGE_LEN } from './messaging';
+import {
+  composeMessage,
+  appendMessage,
+  messageDeliveryNote,
+  messagingAllowed,
+  messagingGateNote,
+  MAX_MESSAGE_LEN,
+  MESSAGING_ADULT_AGE,
+} from './messaging';
 import type { ChatMsg } from './types';
 
 describe('composeMessage', () => {
@@ -41,5 +49,32 @@ describe('messageDeliveryNote', () => {
   });
   it('confirms delivery only when the backend is live', () => {
     expect(messageDeliveryNote(true).toLowerCase()).toContain('delivered');
+  });
+});
+
+describe('messagingAllowed (beta minor-messaging governance)', () => {
+  it('allows an adult athlete to message anyone', () => {
+    expect(messagingAllowed({ athleteAge: MESSAGING_ADULT_AGE, counterpartAuthorized: false })).toBe(true);
+    expect(messagingAllowed({ athleteAge: 25, counterpartAuthorized: false })).toBe(true);
+  });
+  it('blocks a minor athlete from an unauthorized counterpart', () => {
+    expect(messagingAllowed({ athleteAge: 16, counterpartAuthorized: false })).toBe(false);
+    expect(messagingAllowed({ athleteAge: 17, counterpartAuthorized: false })).toBe(false);
+  });
+  it('allows a minor athlete only with an authorized relationship (coach/guardian)', () => {
+    expect(messagingAllowed({ athleteAge: 16, counterpartAuthorized: true })).toBe(true);
+  });
+  it('fails closed when the age is unknown / non-finite (treated as a minor)', () => {
+    expect(messagingAllowed({ athleteAge: undefined, counterpartAuthorized: false })).toBe(false);
+    expect(messagingAllowed({ athleteAge: null, counterpartAuthorized: false })).toBe(false);
+    expect(messagingAllowed({ athleteAge: NaN, counterpartAuthorized: false })).toBe(false);
+    // ...but an authorized relationship still opens it.
+    expect(messagingAllowed({ athleteAge: undefined, counterpartAuthorized: true })).toBe(true);
+  });
+  it('gate note is empty when allowed and explains the limit when blocked (no em dash)', () => {
+    expect(messagingGateNote(true)).toBe('');
+    const note = messagingGateNote(false);
+    expect(note.toLowerCase()).toContain('under 18');
+    expect(note).not.toContain('—');
   });
 });

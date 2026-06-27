@@ -278,3 +278,45 @@ wiring + on-device permission + testing is a device step the crew cannot do.
 **Status:** all three voice fixes shipped pure + tested (coaching scope, trainer clientType
 lens, parent digest); UI labels built, not runtime-verified. The two deeper items above are
 queued, not attempted (one needs the backend, one needs a product call).
+
+---
+
+## D10 — Minor-messaging governance model + the RLS gate (Tier 2 Trust & safety)
+
+**What.** Day-2 shipped athlete<->counterpart messaging whose RLS (`0002_rls.sql:139-149`)
+let ANY thread participant read/write with no age or relationship governance — a minor
+athlete could sit in an unsupervised thread with an arbitrary adult. This run closed the
+hole to the safe line:
+- A pure app-layer guard `messagingAllowed` / `messagingGateNote` (`src/core/messaging.ts`,
+  unit-tested) encoding the beta rule: an adult athlete messages anyone; a **minor** athlete's
+  only permitted counterpart is an **authorized relationship** (a coach on their team, a
+  trainer whose client they are, or an active guardian). **Fail-closed:** unknown age = minor.
+- A server-side gate `0006_messaging_minor_gate.sql` (the REAL enforcement) adding
+  `messaging_authorized(athlete, counterpart)` to the threads-insert + messages-insert RLS.
+- Removed the fabricated **"Active now"** presence claim in the Messages overlay (no real
+  presence signal exists); persisted `msgThread` so a coach<->athlete message survives reload.
+
+**Why it needs you.** The governance *model* is a legal/product call, not an engineering one:
+1. **Policy choice.** The crew picked "minor messaging restricted to authorized coach/guardian
+   relationships" (keeps the HS-coach beta working while closing open adult->minor DMs). The
+   work-queue offered an alternative: "scope messaging to **adults-only** for beta." Adults-only
+   would *disable* coach<->athlete messaging for an all-minor HS cohort, so the crew did not pick
+   it — confirm you agree with the relationship-gated model over adults-only.
+2. **Legal review.** Minor messaging touches COPPA / FERPA / state minor-safety law. The
+   relationship gate is a floor, not a compliance sign-off. Before any real cohort messages,
+   this needs counsel (mandatory-reporting posture, message retention/audit, guardian
+   visibility, blocking/reporting tooling).
+3. **`0006` is NOT runtime-verified** (no live DB this run). Review it and run it against a
+   LOCAL supabase stack (the path the P0 round-trip used) before applying; do NOT `supabase db
+   push` to the live project without per-migration sign-off (D1).
+
+**Options.**
+1. Keep the relationship-gated model as shipped; book legal review before the cohort messages.
+   (Recommended — preserves the beta use case while closing the open hole.)
+2. Switch to adults-only messaging for beta (disables coach<->minor DMs) — say so and the crew
+   flips the guard + RLS.
+3. Defer messaging from the beta entirely until the governance + legal layer exists.
+
+**Status:** app-layer guard shipped pure + unit-tested; "Active now" lie removed and `msgThread`
+persisted (built, not runtime-verified — no device render here); RLS `0006` authored as a
+documented seam, NOT applied, NOT runtime-verified.

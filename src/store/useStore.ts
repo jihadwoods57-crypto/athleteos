@@ -677,6 +677,9 @@ export const useStore = create<Store>()(
         notif: s.notif,
         reminderSettings: s.reminderSettings,
         units: s.units,
+        // Cross-day (not a DAY_DEFAULT_KEY): a coach<->athlete message must leave a
+        // record that survives reload, not vanish with the in-memory session.
+        msgThread: s.msgThread,
       }),
       // Roll the persisted day forward BEFORE the first UI/selector read: on a new
       // calendar day the stale day slice resets to fresh defaults; same-day restores
