@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { analyzeMeal, isAiConfigured } from '@/lib/ai';
+import { capturePhotoBase64, isCameraAvailable } from '@/lib/capture';
 import { auth, db, isBackendLive } from '@/lib/supabase';
 import { hydrateDay, pushDay } from './sync';
 import {
@@ -442,12 +443,18 @@ export const useStore = create<Store>()(
           // Real Claude-vision analysis via the backend; on any failure analyzeMeal
           // resolves the deterministic result, so logging never blocks on the AI.
           const st = get();
-          analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined })
+          // Capture a real meal photo when a camera is wired (device only); on web /
+          // cancel / denial this resolves undefined and the model infers from context.
+          (isCameraAvailable ? capturePhotoBase64() : Promise.resolve<string | undefined>(undefined))
+            .catch(() => undefined)
+            .then((photoBase64) =>
+              analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64 }),
+            )
             .then((res) => set({ mealAnalysis: res, mealStage: 'result' }))
             // analyzeMeal already degrades to a deterministic result internally, but a
-            // failure in the .then or an unexpected throw must NEVER strand the user on
-            // the "analyzing" spinner. Fall through to the result stage (the UI fills
-            // the deterministic estimate when mealAnalysis is null).
+            // failure anywhere in the chain must NEVER strand the user on the "analyzing"
+            // spinner. Fall through to the result stage (the UI fills the deterministic
+            // estimate when mealAnalysis is null).
             .catch(() => set({ mealAnalysis: null, mealStage: 'result' }));
         } else {
           mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);

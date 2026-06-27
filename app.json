@@ -60,7 +60,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "AthleteOS lets you pick an existing meal photo to log and analyze.",
+          "cameraPermission": "AthleteOS uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

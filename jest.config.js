@@ -13,6 +13,11 @@ module.exports = {
     // react-native-url-polyfill/auto is an RN-only side-effect ESM import (it installs
     // a URL global) pulled in by the supabase client; node already has URL, so stub it.
     '^react-native-url-polyfill/auto$': '<rootDir>/jest/rnUrlPolyfillMock.js',
+    // The meal-capture module imports react-native (Platform) + expo-image-picker; both
+    // are native ESM modules babel-jest won't transform. Stub them for node tests — the
+    // camera is device-only and degrades to undefined here.
+    '^react-native$': '<rootDir>/jest/reactNativeMock.js',
+    '^expo-image-picker$': '<rootDir>/jest/expoImagePickerMock.js',
   },
   testMatch: ['**/*.test.ts', '**/*.test.tsx'],
 };
