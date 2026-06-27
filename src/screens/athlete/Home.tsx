@@ -42,6 +42,9 @@ export function Home() {
   const insets = useSafeAreaInsets();
   const s = useStore();
   const d = useDerived();
+  // Reward moment: when the score changes (e.g. after logging a meal), the hero number +
+  // ring count up to the new value instead of snapping — the satisfying "it moved" beat.
+  const shownScore = useCountUp(d.athleteScore);
   const name = firstName(s.athleteName, 'Jihad');
   const monogram = initials(s.athleteName, 'J');
   // A real athlete has set their name; the unnamed seeded state is the demo showcase.
@@ -142,9 +145,9 @@ export function Home() {
 
       {/* score hero */}
       <Card elevated style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 20, padding: 24 }}>
-        <Ring size={138} pct={d.athleteScore} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">
+        <Ring size={138} pct={shownScore} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">
           <Txt w="eb" size={48} ls={-2} style={{ lineHeight: 50 }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-            {d.athleteScore}
+            {shownScore}
           </Txt>
           <View style={{ marginTop: 5, paddingHorizontal: 9, paddingVertical: 2, borderRadius: 7, backgroundColor: d.grade.bg }}>
             <Txt w="eb" size={11} color={d.grade.c} ls={0.4} maxFontSizeMultiplier={MAX_FONT_SCALE}>
@@ -485,21 +488,48 @@ function ScoreBreakdownPanel() {
 }
 
 function ProgressRow({ label, meta, pct, color, metaColor, onMeta, last }: { label: string; meta: string; pct: number; color: string; metaColor?: string; onMeta?: () => void; last?: boolean }) {
+  // Semantic color: a met target (>=100%) turns the bar + a check green, so "done" reads
+  // at a glance instead of only from the numbers.
+  const met = pct >= 100;
   return (
     <View style={{ marginBottom: last ? 0 : 17 }}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-        <Txt w="b" size={14}>
-          {label}
-        </Txt>
+        <Row style={{ gap: 5, alignItems: 'center' }}>
+          <Txt w="b" size={14}>
+            {label}
+          </Txt>
+          {met ? <Icon name="check" size={13} color={colors.successDeep} /> : null}
+        </Row>
         <Pressable onPress={onMeta} disabled={!onMeta}>
           <Txt w={onMeta ? 'b' : 'sb'} size={13} color={metaColor ?? colors.textSecondary}>
             {meta}
           </Txt>
         </Pressable>
       </Row>
-      <ProgressBar pct={pct} height={9} color={color} />
+      <ProgressBar pct={pct} height={9} color={met ? colors.successDeep : color} />
     </View>
   );
+}
+
+/** Animate a number toward `target` in small steps (no Animated/Date — resume-safe and
+ *  cheap). Snaps on first mount; counts up only when the value actually changes, so the
+ *  hero score "moves" right after a log instead of jumping. */
+function useCountUp(target: number, steps = 18, intervalMs = 28): number {
+  const [val, setVal] = React.useState(target);
+  const prev = React.useRef(target);
+  React.useEffect(() => {
+    const from = prev.current;
+    prev.current = target;
+    if (from === target) return;
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setVal(i >= steps ? target : Math.round(from + (target - from) * (i / steps)));
+      if (i >= steps) clearInterval(id);
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [target, steps, intervalMs]);
+  return val;
 }
 
 function TrendChart({ series }: { series: number[] }) {
