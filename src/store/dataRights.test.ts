@@ -33,3 +33,20 @@ describe('exportMyData', () => {
     expect(json.app).toBe('AthleteOS');
   });
 });
+
+describe('requestGuardianConsent (VPC)', () => {
+  it('marks pending on a valid email (flag off: no send)', async () => {
+    useStore.setState({ guardianEmail: 'parent@email.com' });
+    const ok = await state().requestGuardianConsent();
+    expect(ok).toBe(true);
+    expect(state().guardianStatus).toBe('pending');
+  });
+
+  it('rejects an invalid email and surfaces an error', async () => {
+    useStore.setState({ guardianEmail: 'nope' });
+    const ok = await state().requestGuardianConsent();
+    expect(ok).toBe(false);
+    expect(state().guardianStatus).toBe('none');
+    expect(state().authError).toMatch(/valid/i);
+  });
+});

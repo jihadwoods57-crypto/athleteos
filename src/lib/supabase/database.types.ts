@@ -135,6 +135,10 @@ export interface Database {
         Args: Record<string, never>;
         Returns: undefined;
       };
+      request_guardian_consent: {
+        Args: { guardian_email: string };
+        Returns: undefined;
+      };
       join_team: {
         Args: { code: string; athlete_position?: string | null };
         Returns: string;

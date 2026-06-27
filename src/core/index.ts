@@ -32,4 +32,5 @@ export * from './dayRollover';
 export * from './clock';
 export * from './nextAction';
 export * from './dataExport';
+export * from './guardianConsent';
 export { createInitialState } from './defaultState';

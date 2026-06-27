@@ -32,6 +32,8 @@ export function createInitialState(): AppState {
     supportTeam: [],
     inviteCode: '',
     teamCode: '',
+    guardianEmail: '',
+    guardianStatus: 'none',
     baseNutritionConfidence: 6,
     baseMealsPerDay: 3,
     baseWaterL: 2.0,

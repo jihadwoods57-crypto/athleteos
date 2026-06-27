@@ -32,6 +32,7 @@ import {
   appendMessage,
   loggedDayMacros,
   exportUserDataText,
+  isValidGuardianEmail,
 } from '@/core';
 import type {
   AppState,
@@ -210,6 +211,10 @@ export interface Actions {
    *  server-generated join code in teamCode. Inert (returns null) when the flag
    *  is off, so the onboarding invite step keeps its EAGLES24 showcase code. */
   createTeamLive: (name: string, sport?: string) => Promise<string | null>;
+  setGuardianEmail: (v: string) => void;
+  /** COPPA VPC: email a minor's guardian an approval request. Gated — sends only when
+   *  the backend is live; marks status 'pending' on a valid email. Returns success. */
+  requestGuardianConsent: () => Promise<boolean>;
   recordConsent: (given: boolean) => void;
   setAuthError: (msg: string | null) => void;
 
@@ -621,6 +626,26 @@ export const useStore = create<Store>()(
           return null;
         }
       },
+      setGuardianEmail: (v) => set({ guardianEmail: v }),
+      requestGuardianConsent: async () => {
+        const email = get().guardianEmail.trim();
+        if (!isValidGuardianEmail(email)) {
+          set({ authError: 'Enter a valid parent or guardian email.' });
+          return false;
+        }
+        if (isBackendLive) {
+          try {
+            await db.requestGuardianConsent(email);
+          } catch (e) {
+            set({ authError: e instanceof Error ? e.message : 'Could not send the request.' });
+            return false;
+          }
+        }
+        // 'pending' until the guardian confirms server-side; a real minor's data stays
+        // on-device (guardianConsentRequired) until guardianStatus becomes 'verified'.
+        set({ guardianStatus: 'pending', authError: null });
+        return true;
+      },
       recordConsent: (given) => set({ realDataConsent: given }),
       setAuthError: (msg) => set({ authError: msg }),
 
@@ -664,6 +689,8 @@ export const useStore = create<Store>()(
         supportTeam: s.supportTeam,
         inviteCode: s.inviteCode,
         teamCode: s.teamCode,
+        guardianEmail: s.guardianEmail,
+        guardianStatus: s.guardianStatus,
         baseNutritionConfidence: s.baseNutritionConfidence,
         baseMealsPerDay: s.baseMealsPerDay,
         baseWaterL: s.baseWaterL,

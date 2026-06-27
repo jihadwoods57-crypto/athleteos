@@ -8,6 +8,7 @@ import {
   formatHeight,
   flowForRole,
   consentSummary,
+  guardianConsentCopy,
   GOAL_GROUPS,
   isMinor,
   POSITION_MAP,
@@ -533,7 +534,7 @@ function AthleteFlow() {
           eyebrow="Before you start"
           title={minor ? 'Your data, with a guardian' : 'Your data, your control'}
           sub="AthleteOS only ever shares what you allow, and you can stop any time."
-          footer={<Btn label="I agree, continue" disabled={!s.realDataConsent} onPress={s.obNext} />}
+          footer={<Btn label="I agree, continue" disabled={!s.realDataConsent || (minor && s.guardianStatus === 'none')} onPress={s.obNext} />}
         >
           <Card style={{ marginTop: 6 }} elevated>
             <Txt w="m" size={15} color={colors.slate700} style={{ lineHeight: 22 }}>
@@ -549,6 +550,30 @@ function AthleteFlow() {
               onPress={() => { haptics.select(); s.recordConsent(!s.realDataConsent); }}
             />
           </View>
+          {minor ? (
+            <View style={{ marginTop: 14 }}>
+              <Txt w="eb" size={12} color={colors.textTertiary} ls={0.6} upper style={{ marginBottom: 8 }}>
+                Parent or guardian approval
+              </Txt>
+              <Input
+                value={s.guardianEmail}
+                onChangeText={s.setGuardianEmail}
+                placeholder="parent@email.com"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                editable={s.guardianStatus !== 'pending'}
+              />
+              <Btn
+                label={s.guardianStatus === 'pending' ? 'Approval request sent' : 'Send for approval'}
+                disabled={s.guardianEmail.trim().length < 3 || s.guardianStatus === 'pending'}
+                onPress={() => { void s.requestGuardianConsent(); }}
+                style={{ marginTop: 10 }}
+              />
+              <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 17 }}>
+                {guardianConsentCopy(s.guardianStatus)}
+              </Txt>
+            </View>
+          ) : null}
         </StepShell>
       );
     }

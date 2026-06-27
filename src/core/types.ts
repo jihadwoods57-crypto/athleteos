@@ -3,6 +3,7 @@
 import type { Units } from './units';
 import type { MealResult } from './content';
 import type { EditableFood } from './mealEdit';
+import type { GuardianStatus } from './guardianConsent';
 import type { NudgeRecord } from './nudge';
 import type { PerfEntry } from './performance';
 import type { ReminderSettings } from './reminders';
@@ -96,6 +97,10 @@ export interface AppState {
    *  createTeamLive when the backend is live; '' in demo/flag-off, where the UI
    *  falls back to the EAGLES24 showcase code). */
   teamCode: string;
+  /** Verifiable parental consent (VPC): the guardian's email and approval status. A
+   *  minor's real data stays on-device until guardianStatus is 'verified'. */
+  guardianEmail: string;
+  guardianStatus: GuardianStatus;
   // Baseline assessment answers — feed startingScore() AND seed engine state.
   baseNutritionConfidence: number; // 1-10
   baseMealsPerDay: number; // count (e.g. 2-6)
