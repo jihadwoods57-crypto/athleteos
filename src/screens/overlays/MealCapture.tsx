@@ -1,7 +1,7 @@
 // AthleteOS — Meal capture overlay: capture → analyzing (~2.3s) → result.
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, ScrollView, View } from 'react-native';
-import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact } from '@/core';
+import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer } from '@/core';
 import type { MealLabel } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
@@ -294,6 +294,11 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           about what it is and protects against reading as clinical advice) */}
       <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 10, paddingHorizontal: 4, lineHeight: 17 }}>
         {coaching.scope}
+      </Txt>
+      {/* persistent medical-safety disclaimer (Tier 1.5): nutrition education, not
+          medical advice — present on every AI coaching surface */}
+      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 6, paddingHorizontal: 4, lineHeight: 17 }}>
+        {medicalDisclaimer()}
       </Txt>
 
       {/* weekly context, when earned */}

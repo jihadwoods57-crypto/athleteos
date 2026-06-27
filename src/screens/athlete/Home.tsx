@@ -8,6 +8,7 @@ import {
   aiInsight,
   currentStreak,
   coachGuidance,
+  medicalDisclaimer,
   DEFAULT_CHART_BOX,
   displayWeight,
   firstName,
@@ -334,6 +335,9 @@ export function Home() {
           </Txt>
           <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 5, lineHeight: 20 }}>
             {aiInsight(s, d)}
+          </Txt>
+          <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 15 }}>
+            {medicalDisclaimer()}
           </Txt>
         </View>
       </Card>

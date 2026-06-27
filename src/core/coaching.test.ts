@@ -1,7 +1,7 @@
 import { createInitialState } from './defaultState';
 import { computeDerived } from './scoring';
 import { GOAL_LABELS } from './constants';
-import { themeForGoal, mealScoreImpact, mealCoaching, coachReinforcement, coachingScopeNote } from './coaching';
+import { themeForGoal, mealScoreImpact, mealCoaching, coachReinforcement, coachingScopeNote, medicalDisclaimer } from './coaching';
 import type { MealLabel } from './types';
 
 describe('themeForGoal', () => {
@@ -94,6 +94,30 @@ describe('coachingScopeNote', () => {
     expect(note.length).toBeGreaterThan(20);
     expect(note).not.toContain('—');
     expect(note.toLowerCase()).toMatch(/nutritionist|doctor/);
+  });
+});
+
+describe('medicalDisclaimer', () => {
+  it('explicitly states it is not medical advice and points to a doctor/RD, no em dash', () => {
+    const note = medicalDisclaimer();
+    expect(note.length).toBeGreaterThan(20);
+    expect(note).not.toContain('—');
+    expect(note.toLowerCase()).toContain('not medical advice');
+    expect(note.toLowerCase()).toMatch(/doctor|dietitian/);
+  });
+});
+
+describe('lean coaching is non-restrictive for a minor population (Tier 1.5)', () => {
+  const s = createInitialState();
+  const d = computeDerived(s);
+  it('does not frame eating as a deficit / cut / weight to lose', () => {
+    for (const meal of ['Breakfast', 'Lunch', 'Snack', 'Dinner'] as MealLabel[]) {
+      const c = mealCoaching(meal, 'lose_fat', d, 5, null);
+      const blob = `${c.insight} ${c.education}`.toLowerCase();
+      expect(blob).not.toMatch(/deficit|on a cut|weight you lose/);
+      // still goal-aligned (reads as a lean/leanness message)
+      expect(blob).toContain('lean');
+    }
   });
 });
 

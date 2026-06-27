@@ -66,6 +66,14 @@ export function coachingScopeNote(): string {
   return 'General guidance to learn from, not a prescription. If a nutritionist or doctor set your plan, theirs comes first.';
 }
 
+/** A persistent medical-safety disclaimer shown on EVERY AI coaching surface (meal
+ *  analysis, the meal AI chat, the Home insight). The app gives nutrition education,
+ *  not medical advice; for a teen population, big diet changes should go through a
+ *  doctor or registered dietitian. Factual, no em dash, no guilt. */
+export function medicalDisclaimer(): string {
+  return 'Nutrition education, not medical advice. Talk to a doctor or registered dietitian before making big changes to how you eat.';
+}
+
 /** The AI's reinforcement of the coach's standing directive — makes the coach feel
  *  heard (their words get repeated every relevant day, louder than a one-off text). */
 export function coachReinforcement(coachNote: string | null | undefined): string | null {
@@ -78,7 +86,7 @@ function insightFor(theme: GoalTheme, mealType: MealLabel): string {
   const food = mr.detected[0] ?? 'the protein here';
   const slot = mealType.toLowerCase();
   if (theme === 'lean') {
-    return `Smart ${slot} for staying lean. ${food} brings ${mr.protein}g of protein that keeps you full and protects muscle while you're in a deficit, without overshooting calories.`;
+    return `Smart ${slot} for staying lean. ${food} brings ${mr.protein}g of protein that keeps you full and protects muscle, so you stay lean by fueling well, not by under-eating.`;
   }
   if (theme === 'engine') {
     return `Great ${slot} fuel for your engine. The carbs here replenish glycogen so your next session has gas in the tank, and ${food} adds ${mr.protein}g of protein to drive recovery.`;
@@ -88,7 +96,7 @@ function insightFor(theme: GoalTheme, mealType: MealLabel): string {
 
 function educationFor(theme: GoalTheme): string {
   if (theme === 'lean') {
-    return 'Higher protein on a cut preserves the muscle you have built, so the weight you lose comes off as fat, not hard-won mass.';
+    return 'Higher protein keeps you full and protects the muscle you have built, so you can stay lean by fueling well, not by skipping meals or under-eating.';
   }
   if (theme === 'engine') {
     return 'Replenishing glycogen now is what lets you train hard again sooner. Under-fueling is the hidden reason sessions go flat.';
