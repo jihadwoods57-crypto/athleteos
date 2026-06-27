@@ -84,7 +84,26 @@ export interface TrainerLens {
   allClearLine: string;
 }
 
-export function trainerLens(role: Role | null, isReal: boolean): TrainerLens {
+/** The non-athlete population a personal trainer coaches, from the onboarding
+ *  `clientType` field (weight_loss / muscle_gain / general / athletes / hybrid).
+ *  The personas flagged the trainer product as "athlete-first, non-athlete adults
+ *  an afterthought"; reflecting the trainer's own answer in the dashboard header
+ *  makes a fat-loss / general-fitness book first-class instead of sport-coded.
+ *  Anything else (athletes, hybrid, blank, unknown) keeps the neutral book framing. */
+function trainerClientFraming(clientType: unknown): { headerTitle: string; allClearLine: string } | null {
+  switch (asText(clientType)) {
+    case 'weight_loss':
+      return { headerTitle: 'Your Weight-Loss Clients', allClearLine: 'Every client is on plan. Nothing to chase today.' };
+    case 'muscle_gain':
+      return { headerTitle: 'Your Muscle-Gain Clients', allClearLine: 'Every client is on plan. Nothing to chase today.' };
+    case 'general':
+      return { headerTitle: 'Your Fitness Clients', allClearLine: 'Every client is on plan. Nothing to chase today.' };
+    default:
+      return null;
+  }
+}
+
+export function trainerLens(role: Role | null, isReal: boolean, clientType?: unknown): TrainerLens {
   if (role === 'nutritionist') {
     return {
       orgTitle: isReal ? 'Your Nutrition Practice' : 'Apex Nutrition',
@@ -93,11 +112,14 @@ export function trainerLens(role: Role | null, isReal: boolean): TrainerLens {
       allClearLine: 'Every client is hitting their nutrition targets. Nothing to chase today.',
     };
   }
+  // A personal trainer with a non-athlete book sees their population reflected; the
+  // seeded demo (no clientType) and an athlete/hybrid book keep the neutral framing.
+  const framing = trainerClientFraming(clientType);
   return {
     orgTitle: trainerOrgTitle(isReal),
-    headerTitle: 'Your Clients',
+    headerTitle: framing?.headerTitle ?? 'Your Clients',
     complianceTitle: 'Book Compliance',
-    allClearLine: 'Every client is above the line. Nothing to chase today.',
+    allClearLine: framing?.allClearLine ?? 'Every client is above the line. Nothing to chase today.',
   };
 }
 

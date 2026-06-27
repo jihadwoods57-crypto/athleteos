@@ -28,7 +28,10 @@ export function TrainerView() {
   // A nutritionist rides this same dashboard but through a nutrition lens (header,
   // compliance card, and empty state), consistent with the Account "nutrition
   // clients" copy; a personal trainer keeps the generic book framing.
-  const lens = trainerLens(s.role, isReal);
+  // A real personal trainer's onboarding clientType (weight-loss / muscle-gain /
+  // general) re-frames the header so a non-athlete book reads first-class, not
+  // sport-coded; the seeded demo and an athlete/hybrid book keep the neutral framing.
+  const lens = trainerLens(s.role, isReal, s.obMeta.clientType);
   const orgTitle = lens.orgTitle;
   const monogram = initials(s.athleteName, 'MA');
   const clientByName: Record<string, (typeof TRAINER_CLIENTS)[number]> = Object.fromEntries(

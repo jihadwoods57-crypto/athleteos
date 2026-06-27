@@ -115,6 +115,24 @@ describe('trainerLens — a nutritionist rides the trainer dash through a nutrit
     expect(trainerLens(null, false).headerTitle).toBe('Your Clients');
   });
 
+  it('reflects a non-athlete clientType in the header (non-athlete book is first-class)', () => {
+    expect(trainerLens('personal_trainer', true, 'weight_loss').headerTitle).toBe('Your Weight-Loss Clients');
+    expect(trainerLens('personal_trainer', true, 'muscle_gain').headerTitle).toBe('Your Muscle-Gain Clients');
+    expect(trainerLens('personal_trainer', true, 'general').headerTitle).toBe('Your Fitness Clients');
+    // a non-athlete book gets an "on plan" empty state, not the athlete-coded "above the line"
+    expect(trainerLens('personal_trainer', true, 'weight_loss').allClearLine).toContain('on plan');
+  });
+
+  it('an athlete/hybrid/blank/unknown clientType keeps the neutral book framing', () => {
+    for (const ct of ['athletes', 'hybrid', '', undefined, 'nonsense', 42]) {
+      expect(trainerLens('personal_trainer', true, ct).headerTitle).toBe('Your Clients');
+    }
+  });
+
+  it('clientType never overrides the nutritionist lens', () => {
+    expect(trainerLens('nutritionist', true, 'weight_loss').headerTitle).toBe('Your Nutrition Clients');
+  });
+
   it('a nutritionist gets a nutrition-lensed header, org, compliance card, and empty state', () => {
     const real = trainerLens('nutritionist', true);
     expect(real.orgTitle).toBe('Your Nutrition Practice');
