@@ -189,6 +189,8 @@ export interface AppState {
    *  deterministic prototype result. Ephemeral; never persisted. */
   mealAnalysis: MealResult | null;
   mealDetailOpen: boolean;
+  /** Restaurant Coach overlay ("what should I eat?"). */
+  foodCoachOpen: boolean;
   selectedMeal: string | null;
   notifOpen: boolean;
   personDetail: PersonDetail | null;

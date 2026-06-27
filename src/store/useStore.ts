@@ -168,6 +168,8 @@ export interface Actions {
   /** Persist an edited meal's foods into the day slice and mark the slot logged, so
    *  reopening shows the saved plate and the daily score reflects its real macros. */
   saveMeal: (key: MealKey, foods: EditableFood[]) => void;
+  openFoodCoach: () => void;
+  closeFoodCoach: () => void;
   toggleQuick: (i: number) => void;
   openPerson: (p: PersonDetail) => void;
   closePerson: () => void;
@@ -489,6 +491,8 @@ export const useStore = create<Store>()(
       },
       openMealDetail: (meal) => set({ mealDetailOpen: true, selectedMeal: meal }),
       closeMealDetail: () => set({ mealDetailOpen: false }),
+      openFoodCoach: () => set({ foodCoachOpen: true }),
+      closeFoodCoach: () => set({ foodCoachOpen: false }),
       saveMeal: (key, foods) => {
         set((s) => {
           // Saving a meal's edited plate logs the slot AND records its real foods.

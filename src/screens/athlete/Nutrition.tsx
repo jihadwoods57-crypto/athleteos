@@ -34,6 +34,27 @@ export function Nutrition() {
         Nutrition
       </Txt>
 
+      {/* Restaurant Coach entry — "what should I eat?" before you order */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Restaurant Coach: what should I eat"
+        onPress={s.openFoodCoach}
+        style={[{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', gap: 13 }, shadow.cta]}
+      >
+        <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="sparkle" size={20} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="eb" size={15} color="#fff">
+            What should I eat?
+          </Txt>
+          <Txt w="m" size={13} color="rgba(255,255,255,0.85)" style={{ marginTop: 1 }}>
+            Tell the coach where you are — get the best order for your goal
+          </Txt>
+        </View>
+        <Icon name="chevronRight" size={22} color="rgba(255,255,255,0.7)" />
+      </Pressable>
+
       {/* weekly goal (coach-set) */}
       <Card elevated style={{ marginTop: 18, borderRadius: 24 }}>
         <Row style={{ justifyContent: 'space-between' }}>

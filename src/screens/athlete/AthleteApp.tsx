@@ -21,6 +21,7 @@ import { MealDetail } from '@/screens/overlays/MealDetail';
 import { Account } from '@/screens/overlays/Account';
 import { Messages } from '@/screens/overlays/Messages';
 import { Notifications } from '@/screens/overlays/Notifications';
+import { FoodCoach } from '@/screens/overlays/FoodCoach';
 
 const TABS: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: 'home', label: 'Home', icon: 'home' },
@@ -36,6 +37,7 @@ export function AthleteApp() {
   const accountOpen = useStore((s) => s.accountOpen);
   const msgOpen = useStore((s) => s.msgOpen);
   const notifOpen = useStore((s) => s.notifOpen);
+  const foodCoachOpen = useStore((s) => s.foodCoachOpen);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -58,6 +60,7 @@ export function AthleteApp() {
       {accountOpen && <Account />}
       {msgOpen && <Messages />}
       {notifOpen && <Notifications />}
+      {foodCoachOpen && <FoodCoach />}
     </View>
   );
 }

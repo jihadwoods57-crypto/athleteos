@@ -93,6 +93,7 @@ export function createInitialState(): AppState {
     mealType: 'Dinner',
     mealAnalysis: null,
     mealDetailOpen: false,
+    foodCoachOpen: false,
     selectedMeal: null,
     notifOpen: false,
     personDetail: null,
