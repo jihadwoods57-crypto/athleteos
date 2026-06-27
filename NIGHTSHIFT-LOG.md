@@ -1,3 +1,66 @@
+# Day 3 AM progress (2026-06-27, 6am ET) — P6 persona voice fixes (NOT the day's report)
+
+In-progress handoff note for the 1pm run, which continues the queue (P6 tail → P7
+App Store readiness / hardening) and then CLOSES the day (adversarial self-review of
+the full Day-3 diff + per-commit report + `day3-end` tag). The AM run first **re-ran
+all three gates on the branch — typecheck clean, 741 tests, iOS bundle exports — no
+drift** — then, since Day 2 drained P0–P5, worked the queue forward into **P6
+(remaining persona voice fixes)**. Tests **741 → 756** (+15); `typecheck` + `test` +
+`bundle` green on EVERY commit; `EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB
+mutation; `src/core` stayed pure; no `src/app`; one job = one commit; branch pushed
+after each.
+
+Four commits (newest last):
+
+1. **`feat(coaching)`: scope AI meal advice as optional education, not a prescription
+   (P6).** Addresses the RD persona's clinical-overreach/liability finding. The
+   next-step copy now suggests foods as optional ("if that fits your plan") instead of
+   directing ("closes the gap"); every coaching payload carries a `scope` disclaimer
+   ("General guidance to learn from, not a prescription. If a nutritionist or doctor
+   set your plan, theirs comes first.") surfaced under the meal result. Pure logic +
+   label; no behaviour/flag change. **+6 tests.** *(Pure logic verified; UI label
+   built, not runtime-verified.)*
+2. **`feat(trainer)`: non-athlete client book reflected in the dashboard header (P6).**
+   Addresses the personal-trainer finding that the product is athlete-first. A real
+   trainer's onboarding `clientType` (weight-loss / muscle-gain / general) re-frames
+   the trainer header ("Your Weight-Loss Clients") + the all-clear empty state ("on
+   plan" vs the sport-coded "above the line"). The seeded demo + an athlete/hybrid book
+   keep the neutral "Your Clients" framing. `trainerLens` gains an optional, back-
+   compatible `clientType` arg. **+3 tests.** *(Pure logic verified.)*
+3. **`feat(parent)`: honest weekly read + history-coverage line (P6).** Addresses the
+   parent finding that the AI summary always read "No action needed this week" and
+   partial history showed as a full week. New pure `src/core/parent.ts`:
+   `parentHistoryCoverage` labels a partial week ("Building history: 3 of 7 days logged
+   this week"); `parentDigest` derives the summary from the athlete's REAL score band
+   (≥80 reassures, 70-79 qualifies, <70 flags a calm check-in). ParentView surfaces the
+   coverage on the score card + the derived summary in the AI block. Resilient to
+   NaN/blank inputs. **+8 tests.** *(Pure logic verified; UI built, not runtime-verified.)*
+4. **`test(smoke)`: lock this run's new gated selectors across edge states (P6).**
+   Drives the trainer `clientType` lens (every onboarding value: string, blank, array,
+   number, unknown key) + the parent digest (full score range + partial/overflow weeks)
+   through the screen-data smoke net, asserting non-empty, em-dash-free copy and that
+   the frozen reassurance never reappears below the top band. **Test-only.**
+
+**Founder decisions queued this run:** `docs/FOUNDER-DECISIONS.md` **D9** — the two
+deeper persona items that exceed the safe line: (a) real parent data-freshness needs a
+backend "last synced" timestamp + the parent↔athlete link (P0); the coverage line uses
+real recorded-day count as an honest proxy until then; (b) full non-athlete trainer
+support (per-population score/targets/voice) is a feature that needs a product call on
+what those targets are, beyond this run's header-framing slice.
+
+**Remaining P6 (assessed, largely already done):** `trainingFreq` is already surfaced
+(`trainingCadence`, prior run); Sample-tag consistency was audited this run and is
+already solid across all three dashboards + PersonDetail (streak/Δ, roster/AI, retention/AI
+all tagged) from prior runs — no gap found. The 1pm run continues into **P7** (App Store
+readiness code items + a11y/perf/resilience hardening).
+
+HONESTY: commits 1-3 are pure core logic, unit-tested + verified; their UI surfaces
+(MealCapture scope line, Trainer header, Parent summary/coverage) are **built, not
+runtime-verified** — no device/expo renders in this runner; the pure logic they call is
+unit-tested and the bundle compiles. Commit 4 is test-only.
+
+---
+
 # APP COMPLETE — ready for founder review
 
 All six phases of `docs/COMPLETION-PLAN.md` are engineering-complete, every

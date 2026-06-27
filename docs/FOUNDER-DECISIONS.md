@@ -240,3 +240,41 @@ wiring + on-device permission + testing is a device step the crew cannot do.
 
 **Status:** pure mapping + inert health seam built + tested; NOT wired into live scoring
 (score unchanged). Blend-weight sign-off + device wiring await you.
+
+---
+
+## D9 — Persona-voice fixes shipped to the safe line; two deeper items still need you (P6)
+
+**What.** P6 (Day 3 AM) shipped the safe, copy/logic subset of the persona review:
+- **AI coach scoped as education, not a prescription** (RD finding). The meal coaching now
+  suggests foods as optional ("if that fits your plan") instead of directing ("closes the
+  gap"), and every payload carries a scope line ("General guidance to learn from, not a
+  prescription. If a nutritionist or doctor set your plan, theirs comes first.").
+- **Non-athlete trainer book reflected in the dashboard** (personal-trainer finding). A real
+  trainer's onboarding `clientType` (weight-loss / muscle-gain / general) re-frames the
+  trainer header + empty state so a non-athlete book reads first-class.
+- **Honest parent weekly read** (parent finding). The parent AI summary now derives from the
+  athlete's real score band instead of a frozen "no action needed", and a coverage line
+  ("Building history: N of 7 days logged this week") labels a partial week.
+
+**Why these two still need you.**
+1. **Real parent data-freshness needs the backend.** The coverage line currently counts real
+   recorded days (`scoreHistory.length`) as an honest proxy. The persona's actual ask — a
+   true "last synced from [child]: today 6:40pm" timestamp — needs the live backend + the
+   parent↔athlete link (P0, flag-off today). Until then there is no real sync clock to read.
+2. **Full non-athlete trainer support is bigger than header copy.** Reflecting `clientType` in
+   the chrome is the safe slice. The persona's deeper ask — a non-athlete client SCORE,
+   goal-based targets, and an AI voice tuned per population (fat-loss / general / muscle-gain)
+   instead of athlete metaphors — is a real feature (new per-population targets + scoring) that
+   wants a product call on what those targets are before the crew builds it.
+
+**Options.**
+1. Confirm the parent freshness should become a real synced timestamp at go-live (wired through
+   P0) and keep the day-count proxy until then. (Recommended.)
+2. Specify the non-athlete trainer targets (e.g. a fat-loss client's protein floor + calorie
+   ceiling, a general-fitness adherence target) and the crew will encode them as pure
+   per-population scoring, or defer the full trainer-as-first-class build past the beta.
+
+**Status:** all three voice fixes shipped pure + tested (coaching scope, trainer clientType
+lens, parent digest); UI labels built, not runtime-verified. The two deeper items above are
+queued, not attempted (one needs the backend, one needs a product call).
