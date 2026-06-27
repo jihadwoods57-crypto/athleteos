@@ -4,6 +4,13 @@ import type { BaseGoal, Flow, LeaderRow, MealKey, Role } from './types';
 /** App version string, surfaced in Account / Profile footers + Help row. */
 export const APP_VERSION = 'v1.0';
 
+/** Support + legal endpoints. App Store requires a working support contact and a
+ *  reachable privacy policy. Replace these with the real hosted values before
+ *  submission (the URLs must resolve to the legal-reviewed documents in docs/legal). */
+export const SUPPORT_EMAIL = 'support@athleteos.app';
+export const PRIVACY_POLICY_URL = 'https://athleteos.app/privacy';
+export const TERMS_URL = 'https://athleteos.app/terms';
+
 export const PROTEIN_TARGET = 180;
 export const CAL_TARGET = 3200;
 /** Daily carb + fat targets (g) for the Nutrition macro rings. Not athlete-editable

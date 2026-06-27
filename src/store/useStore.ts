@@ -427,7 +427,12 @@ export const useStore = create<Store>()(
           // resolves the deterministic result, so logging never blocks on the AI.
           const st = get();
           analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined })
-            .then((res) => set({ mealAnalysis: res, mealStage: 'result' }));
+            .then((res) => set({ mealAnalysis: res, mealStage: 'result' }))
+            // analyzeMeal already degrades to a deterministic result internally, but a
+            // failure in the .then or an unexpected throw must NEVER strand the user on
+            // the "analyzing" spinner. Fall through to the result stage (the UI fills
+            // the deterministic estimate when mealAnalysis is null).
+            .catch(() => set({ mealAnalysis: null, mealStage: 'result' }));
         } else {
           mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);
         }

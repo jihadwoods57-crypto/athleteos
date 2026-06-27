@@ -4,10 +4,10 @@
 // disclosures. The team-row detail derives from the real roster / client book
 // per role, so the numbers can never be invented or drift from the dashboards.
 import type { Role } from './types';
-import { APP_VERSION, flowForRole, ROSTER, TRAINER_CLIENTS } from './constants';
+import { APP_VERSION, PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL, flowForRole, ROSTER, TRAINER_CLIENTS } from './constants';
 
 export interface AccountRow {
-  key: 'team' | 'plan' | 'help';
+  key: 'team' | 'plan' | 'help' | 'legal';
   label: string;
   /** Compact summary shown to the right of the label on the collapsed row. */
   hint: string;
@@ -30,7 +30,13 @@ export function accountRows(role: Role | null): AccountRow[] {
       key: 'help',
       label: 'Help & support',
       hint: APP_VERSION,
-      detail: `AthleteOS ${APP_VERSION} runs fully offline on this device. No data leaves the app.`,
+      detail: `Questions or a problem? Email ${SUPPORT_EMAIL} and we will help. When your account is connected to a coach or guardian, your data syncs securely to the people you have linked; until then it stays on this device.`,
+    },
+    {
+      key: 'legal',
+      label: 'Privacy & terms',
+      hint: 'Required reading',
+      detail: `How we handle your data (and a minor's data) is described in our Privacy Policy at ${PRIVACY_POLICY_URL} and Terms at ${TERMS_URL}. You can request account deletion or a copy of your data any time from this screen.`,
     },
   ];
 }
