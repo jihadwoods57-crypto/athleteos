@@ -87,6 +87,25 @@ export function Profile() {
       {/* this week — the weekly digest (generator existed but rendered nowhere) */}
       {(() => {
         const wr = weeklyReportFromState({ name: firstName(s.athleteName, 'Jihad'), scoreHistory: s.scoreHistory, liveScore: d.athleteScore });
+        // Warm empty state: a brand-new athlete (no history yet) gets a welcoming, directive
+        // start instead of a "nothing logged / accountability has stalled" report on day one.
+        if (wr.daysLogged === 0 && (s.scoreHistory?.length ?? 0) === 0) {
+          return (
+            <Card elevated style={{ marginTop: 14, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="flame" size={20} color={colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Txt w="eb" size={15} ls={-0.2}>
+                  Your week starts now
+                </Txt>
+                <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 2, lineHeight: 19 }}>
+                  Log your first meal to start building your weekly trend. Every day you log stacks up here.
+                </Txt>
+              </View>
+            </Card>
+          );
+        }
         return (
           <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
