@@ -1,3 +1,127 @@
+# Day 3 REPORT (2026-06-27) — loop validation: rescale, messaging governance, score rename, honesty pass
+
+The full Day-3 report (the AM handoff note below is kept for detail). Mid-morning the
+board convener landed two founder decisions and **redirected the crew off the old P6
+queue onto `docs/board-review/day3-4-work-queue.md`** (Tier 1 loop → Tier 2 reliability
+→ Tier 1.5 trust): **D-A** rename the headline score to "Development Score" (founder
+confirmed, board reservation on record), and **D-C** authorize a closed HS-coach beta
+cohort (the flag stays OFF until the founder flips it; minor-consent kept non-load-bearing).
+
+Across the day the crew worked the new queue top-down on `crew/4day-sprint`. Tests
+**741 → 782 across the day** (AM +15, midday +16, PM +10); `npm run verify` (typecheck +
+jest + iOS bundle) green on **every** commit; `EXPO_PUBLIC_BACKEND_LIVE` never enabled;
+no live-DB mutation; `src/core` stayed pure; no `src/app`; one job = one commit; branch
+pushed after each. Tag: `day3-end`.
+
+## AM run (6am ET) — P6 persona voice (4 commits) — superseded mid-day by the redirect
+The AM run shipped the P6 tail (AI-coaching scope disclaimer, trainer clientType lens,
+parent honest weekly digest + history-coverage, a smoke-net lock) before the board
+redirected to the loop queue. Full per-commit detail in the AM handoff note below. **+15
+tests (741 → 756).** The parent "honest weekly read" was explicitly kept (it closes a
+board finding); remaining P6 is deferred per D-C until the loop is validated.
+
+## Mid-day (loop keystone, 2 commits) — Tier 1
+1. **`fix(onboarding)`: wire the real create_team join code, retire static EAGLES24.** A
+   gated `createTeamLive` action calls the `create_team` RPC and stores the server-minted
+   code in a new persisted `teamCode`; the invite step renders `teamCode || EAGLES24`.
+   Flag-OFF behaviour byte-identical (still the EAGLES24 showcase). **+4 tests.**
+2. **`feat(meal)`: make the loop real — persist edits + score from real macros (Tier 1
+   #1+#2).** New persisted day-scoped `mealFoods`; a `saveMeal` action writes the edited
+   plate; the nutrition score now reads REAL saved macros (`mealSlotMacros`/
+   `loggedDayMacros`) instead of a slot constant keyed on a boolean, so an edited plate
+   moves the headline. The seeded demo carries no `mealFoods`, so its numbers were
+   unchanged at that point. **+12 tests.** *(Pure logic verified; UI built, not
+   runtime-verified. Tier 1 #3 — cross-context coach delivery — needs the live backend.)*
+
+## PM run (1pm ET) — Tier 2 + Tier 1.5 (5 commits, newest last)
+
+1. **`fix(scoring)`: remove the 57-pt nutrition floor + rescale (Tier 2 #4, D-B).** The
+   nutrition sub-score was `round(57 + protein·30 + meals·15)`, floored at 57, so a
+   zero-effort day still read 57. Per D-B the floor is gone:
+   `round(protein·65 + meals·35)` — protein dominant, a full honest day ~100 and an empty
+   day ~0. This **deliberately deflates the seeded day** (3 meals, protein short, no
+   check-in) from a propped-up **C (75) to an honest D (68)** — the drop is the point,
+   not a regression. Updated the band fixtures in scoring/content tests to land in their
+   target bands under the new scale (a submitted check-in reaches C; +a protein quick-add
+   reaches B) — real states, not hand-set scores. **(net tests 772, fixtures updated.)**
+   *(Pure logic — verified.)*
+2. **`fix(messaging)`: close the minor-messaging governance hole (Tier 2 #5).** Day-2
+   shipped athlete↔counterpart messaging with no age/relationship gate, a fake "Active
+   now" presence claim, and a thread that vanished on reload. Fixed to the safe line: a
+   pure `messagingAllowed`/`messagingGateNote` guard (adult athlete → anyone; a **minor**
+   → only an authorized coach/trainer/guardian; fail-closed on unknown age); the real
+   server-side enforcement in **`0006_messaging_minor_gate.sql`** (a
+   `messaging_authorized` gate on the threads/messages insert policies); removed the
+   "Active now" lie; persisted `msgThread`. **+5 tests.** Queued **D10** (the
+   governance-model + legal-review judgment call). *(Pure guard verified; RLS authored as
+   a documented seam — NOT applied, NOT runtime-verified; UI built, not runtime-verified.)*
+3. **`feat(score)`: rename the headline score to "Development Score" (Tier 2 #6, D-A).**
+   Complete user-facing rename — Home + Parent score cards, both notificationCopy lines,
+   the task-visibility note, the onboarding intro + reveal eyebrow ("Starting Development
+   Score"). Performance is relabeled "your performance track" to avoid colliding with the
+   new name, and names the Development Score in its cross-ref. Internal identifiers/
+   comments (the metric is an accountability/adherence measure) are unchanged — not
+   user-facing, and they keep the board's on-record reservation honest in code.
+   **(1 string-exact test updated.)** *(UI strings built, not runtime-verified.)*
+4. **`feat(coaching)`: persistent medical disclaimer + non-restrictive lean framing
+   (Tier 1.5 #8).** New pure `medicalDisclaimer()` ("Nutrition education, not medical
+   advice. Talk to a doctor or registered dietitian before making big changes to how you
+   eat.") now shown on **every** AI coaching surface (meal analysis, the meal AI chat, the
+   Home insight). Softened the lean-goal coaching: dropped "in a deficit" / "on a cut" /
+   "the weight you lose" for "stay lean by fueling well, not by under-eating" — non-
+   restrictive language for a minor population, still goal-aligned. **+2 tests.** *(Pure
+   logic verified; UI built, not runtime-verified.)*
+5. **`fix(honesty)`: kill demo strings on live screens for a real athlete (Tier 1.5 #7).**
+   Showcase data with no real source stopped masquerading as a real user's own data, each
+   gated to the seeded demo or derived from real input: Home Season-Goal "38 days left" /
+   "by Playoffs · Nov 14" / "by Nov 7" deadlines, the always-on red notification dot, the
+   check-in banner's "2 days left"; CheckIn "Week 14" → "This week", the static "AI weekly
+   summary" → a new pure `checkinSummary` reading the athlete's ACTUAL slider answers, and
+   the static rising weight-trend SVG → a chart from the athlete's own logged weights (via
+   `trendGeometry`) or an honest empty state; and `currentStreak` no longer seed-pads by
+   default (a fresh real athlete sees 1 earned day, not a fabricated 7; the demo opts into
+   the pad via a new `seedPad` arg). **+7 tests.** *(Pure logic verified; the gated UI +
+   the real weight SVG are built, not runtime-verified — no device render here.)*
+
+## Adversarial self-review of the full Day-3 diff
+- **Flag-OFF / `isBackendLive`:** untouched. The create_team code, the messaging delivery
+  seam, and the RLS gate are all behind the flag / unapplied; nothing fires at a real
+  person. The new pure guards (`messagingAllowed`, etc.) are the shared rule the **RLS
+  enforces server-side** — app-layer wiring lands when participant context is real
+  (post-backend); built + unit-tested, intentionally not yet wired into the offline
+  overlay (the documented seam pattern), so it is a seam, not dead UI.
+- **One deliberate, founder-authorized behaviour change (kept):** the nutrition rescale
+  (D-B) lowers the **seeded demo's own daily score 75→68**. This is intended honesty (a
+  zero-effort day must score low), disclosed in the commit + here; it is NOT flag-gated
+  and applies to everyone by design. No other existing behaviour changed.
+- **Seeded demo / showcase:** every demo-string change is gated on `isReal` (empty
+  athlete name = demo), so the showcase renders unchanged; only a real athlete loses the
+  fabricated data. Verified through the node-env screen-data smoke net (all roles + edge
+  states green).
+- **Dead/broken UI:** none found. The rename left no half-renamed user-facing strings
+  (only internal comments retain "Accountability", deliberately). The real weight chart
+  falls back to an honest empty state below two points; `checkinSummary` is resilient to
+  blank/NaN input.
+- **Dishonest "done":** labelled throughout — pure logic "verified"; UI "built, not
+  runtime-verified" (no device/expo render here); the messaging RLS "authored as a seam,
+  not applied, not runtime-verified".
+- **Gates:** `npm run verify` green at **782 tests**; no revert needed.
+
+## Founder decisions this run
+`docs/FOUNDER-DECISIONS.md` **D10** — the minor-messaging governance MODEL
+(relationship-gated vs adults-only) + the legal (COPPA/FERPA) review + that `0006` must be
+run against a local stack before any apply. (D-A/D-C were confirmed by the founder and
+recorded in the board handoff.)
+
+## ⚠ Day-3 tag — see the push result recorded by this run (same git-bridge 403 risk as D1/D2)
+Per Day 1 + Day 2, the git bridge returns HTTP 403 on every tag-ref push while branch
+pushes succeed. This run attempts `day3-end`; if the 403 recurs, the durable substitute is
+the branch **`checkpoint/day3-end`** at the same commit. To materialize the real annotated
+tag from a normal client: `git fetch origin && git tag -a day3-end origin/checkpoint/day3-end
+-m "Day 3 end" && git push origin day3-end`. (The exact outcome is appended just below.)
+
+---
+
 # Day 3 AM progress (2026-06-27, 6am ET) — P6 persona voice fixes (NOT the day's report)
 
 In-progress handoff note for the 1pm run, which continues the queue (P6 tail → P7
