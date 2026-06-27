@@ -32,7 +32,7 @@ import {
   trendSummary,
 } from '@/core';
 import { useStore, useDerived } from '@/store';
-import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
+import { colors, gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
@@ -145,8 +145,8 @@ export function Home() {
 
       {/* score hero */}
       <Card elevated style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 20, padding: 24 }}>
-        <Ring size={138} pct={shownScore} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">
-          <Txt w="eb" size={48} ls={-2} style={{ lineHeight: 50 }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+        <Ring size={138} pct={shownScore} stroke={17} gradient={gradeRing[d.grade.g] ?? gradeRing.C} track="#EFF2F6">
+          <Txt w="eb" size={typeScale.display.size} ls={typeScale.display.ls} style={{ lineHeight: typeScale.display.lineHeight }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
             {shownScore}
           </Txt>
           <View style={{ marginTop: 5, paddingHorizontal: 9, paddingVertical: 2, borderRadius: 7, backgroundColor: d.grade.bg }}>

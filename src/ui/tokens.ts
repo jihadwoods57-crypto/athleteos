@@ -51,6 +51,34 @@ export const font = {
   eb: 'PlusJakartaSans_800ExtraBold',
 } as const;
 
+/**
+ * Named type scale — one source of truth for hierarchy so weight/size/spacing work
+ * together instead of everything defaulting to extra-bold. Use these presets for new
+ * text instead of ad-hoc size/weight pairs. (size, lineHeight in pt; ls = letterSpacing.)
+ */
+export const typeScale = {
+  display: { size: 48, weight: font.eb, ls: -2, lineHeight: 50 },
+  title: { size: 28, weight: font.eb, ls: -0.8, lineHeight: 32 },
+  heading: { size: 16, weight: font.eb, ls: -0.3, lineHeight: 22 },
+  body: { size: 14, weight: font.m, ls: 0, lineHeight: 20 },
+  bodyStrong: { size: 14, weight: font.b, ls: 0, lineHeight: 20 },
+  caption: { size: 12, weight: font.sb, ls: 0.2, lineHeight: 16 },
+  overline: { size: 11, weight: font.eb, ls: 0.6, lineHeight: 14 },
+} as const;
+
+/**
+ * The Development Score's color story, keyed on the letter grade so the ring, number, and
+ * grade chip all speak ONE status color that shifts A (green) -> F (red) — instead of a
+ * fixed-green ring fighting an orange chip. [light, deep] for the ring gradient.
+ */
+export const gradeRing: Record<string, [string, string]> = {
+  A: ['#34D399', '#16A34A'],
+  B: ['#60A5FA', '#2563EB'],
+  C: ['#FBBF24', '#D97706'],
+  D: ['#FB923C', '#EA580C'],
+  F: ['#F87171', '#DC2626'],
+};
+
 export const radius = {
   card: 22,
   cardLg: 24,
