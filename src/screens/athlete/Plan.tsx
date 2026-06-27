@@ -2,7 +2,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { taskVisibilityNote, weekdayLong } from '@/core';
+import { taskVisibilityNote, weekdayLong, activePlan, mealWindowStatuses, escalation, planAdherence } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -18,6 +18,25 @@ export function Plan() {
   const d = useDerived();
   const left = d.tasksTotal - d.tasksDone;
   const visibilityNote = taskVisibilityNote({ isReal: athleteName.trim().length > 0, supportTeam });
+
+  // Accountability Engine: today's execution against the coach plan.
+  const meals = useStore((s) => s.meals);
+  const hydrationL = useStore((s) => s.hydrationL);
+  const proteinTarget = useStore((s) => s.proteinTarget);
+  const calTarget = useStore((s) => s.calTarget);
+  const weightTarget = useStore((s) => s.weightTarget);
+  const plan = activePlan({ proteinTarget, calTarget, weightTarget });
+  const windowStatuses = mealWindowStatuses(plan, meals);
+  const adherence = planAdherence(plan, { proteinToday: d.proteinToday, kcalToday: d.kcalToday, hydrationL }, windowStatuses);
+  const missedToday = windowStatuses.filter((w) => w.window.required && w.state === 'missed').length;
+  const approaching = windowStatuses.find((w) => w.state === 'open' && w.minutesToDeadline >= 0 && w.minutesToDeadline <= 45);
+  const esc = escalation({ missedToday, approachingMeal: approaching ? approaching.window.label.toLowerCase() : null, consecutiveDaysMissed: 0 });
+  const stateColor: Record<string, string> = {
+    logged: colors.successDeep,
+    missed: colors.alert,
+    open: colors.warningDeep,
+    upcoming: colors.textTertiary,
+  };
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
@@ -44,6 +63,39 @@ export function Plan() {
           <ProgressBar pct={d.tasksScore} height={9} />
         </View>
       </Row>
+
+      {/* Accountability Engine — plan execution today (meal windows + escalation) */}
+      <View style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 18 }, shadow.card]}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Txt w="eb" size={15} ls={-0.3}>
+            Plan execution
+          </Txt>
+          <Txt w="eb" size={15} color={adherence.adherencePct >= 80 ? colors.successDeep : adherence.adherencePct >= 50 ? colors.warningDeep : colors.alert}>
+            {adherence.adherencePct}%
+          </Txt>
+        </Row>
+        <Row style={{ gap: 8, marginTop: 12 }}>
+          {windowStatuses.map((w) => (
+            <View key={w.window.key} style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 12, backgroundColor: colors.bg }}>
+              <Txt w="eb" size={14} color={stateColor[w.state]}>
+                {w.window.label[0]}
+              </Txt>
+              <Txt w="b" size={9} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                {w.state === 'logged' ? 'IN' : w.state === 'missed' ? 'MISSED' : w.state === 'open' ? 'OPEN' : 'SOON'}
+              </Txt>
+            </View>
+          ))}
+        </Row>
+        {esc.level > 0 ? (
+          <Txt w="m" size={13} color={esc.tone === 'reminder' ? colors.slate700 : colors.warningDeep} style={{ marginTop: 12, lineHeight: 19 }}>
+            {esc.message}
+          </Txt>
+        ) : (
+          <Txt w="m" size={13} color={colors.successDeep} style={{ marginTop: 12, lineHeight: 19 }}>
+            {esc.message}
+          </Txt>
+        )}
+      </View>
 
       <View style={{ marginTop: 18, gap: 10 }}>
         {tasks.map((t) => (
