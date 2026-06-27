@@ -22,10 +22,12 @@ export function Plan() {
   // Accountability Engine: today's execution against the coach plan.
   const meals = useStore((s) => s.meals);
   const hydrationL = useStore((s) => s.hydrationL);
+  const planInstructions = useStore((s) => s.planInstructions);
+  const openPlanEditor = useStore((s) => s.openPlanEditor);
   const proteinTarget = useStore((s) => s.proteinTarget);
   const calTarget = useStore((s) => s.calTarget);
   const weightTarget = useStore((s) => s.weightTarget);
-  const plan = activePlan({ proteinTarget, calTarget, weightTarget });
+  const plan = activePlan({ proteinTarget, calTarget, weightTarget, planInstructions });
   const windowStatuses = mealWindowStatuses(plan, meals);
   const adherence = planAdherence(plan, { proteinToday: d.proteinToday, kcalToday: d.kcalToday, hydrationL }, windowStatuses);
   const missedToday = windowStatuses.filter((w) => w.window.required && w.state === 'missed').length;
@@ -67,9 +69,12 @@ export function Plan() {
       {/* Accountability Engine — plan execution today (meal windows + escalation) */}
       <View style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 18 }, shadow.card]}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <Txt w="eb" size={15} ls={-0.3}>
-            Plan execution
-          </Txt>
+          <Pressable accessibilityRole="button" accessibilityLabel="Edit coach plan" onPress={openPlanEditor} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 })}>
+            <Txt w="eb" size={15} ls={-0.3}>
+              Plan execution
+            </Txt>
+            <Icon name="settings" size={14} color={colors.textTertiary} />
+          </Pressable>
           <Txt w="eb" size={15} color={adherence.adherencePct >= 80 ? colors.successDeep : adherence.adherencePct >= 50 ? colors.warningDeep : colors.alert}>
             {adherence.adherencePct}%
           </Txt>
@@ -95,6 +100,21 @@ export function Plan() {
             {esc.message}
           </Txt>
         )}
+        {planInstructions.length > 0 ? (
+          <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border, gap: 7 }}>
+            <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5} upper>
+              Coach instructions
+            </Txt>
+            {planInstructions.map((ins) => (
+              <Row key={ins} style={{ gap: 8, alignItems: 'center' }}>
+                <Icon name="check" size={13} color={colors.accent} />
+                <Txt w="b" size={13} color={colors.slate700} style={{ flex: 1 }}>
+                  {ins}
+                </Txt>
+              </Row>
+            ))}
+          </View>
+        ) : null}
       </View>
 
       <View style={{ marginTop: 18, gap: 10 }}>

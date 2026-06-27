@@ -22,6 +22,7 @@ import { Account } from '@/screens/overlays/Account';
 import { Messages } from '@/screens/overlays/Messages';
 import { Notifications } from '@/screens/overlays/Notifications';
 import { FoodCoach } from '@/screens/overlays/FoodCoach';
+import { CoachPlanEditor } from '@/screens/overlays/CoachPlanEditor';
 
 // Nutrition is the core daily surface, so it gets a tab (was buried behind a Home card).
 // Check-In is reached from its Home banner; Profile via the header avatar.
@@ -40,6 +41,7 @@ export function AthleteApp() {
   const msgOpen = useStore((s) => s.msgOpen);
   const notifOpen = useStore((s) => s.notifOpen);
   const foodCoachOpen = useStore((s) => s.foodCoachOpen);
+  const planEditorOpen = useStore((s) => s.planEditorOpen);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -63,6 +65,7 @@ export function AthleteApp() {
       {msgOpen && <Messages />}
       {notifOpen && <Notifications />}
       {foodCoachOpen && <FoodCoach />}
+      {planEditorOpen && <CoachPlanEditor />}
     </View>
   );
 }

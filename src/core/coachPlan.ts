@@ -74,7 +74,7 @@ export function mealTarget(plan: CoachPlan, key: MealKey): { calories: number; p
  *  engines read one source of truth. (A coach editor overrides windows/instructions; until
  *  then the defaults apply.) */
 export function activePlan(
-  s: Pick<AppState, 'proteinTarget' | 'calTarget' | 'weightTarget'> & { planInstructions?: string[] },
+  s: Pick<AppState, 'proteinTarget' | 'calTarget' | 'weightTarget' | 'planInstructions'>,
 ): CoachPlan {
   const pos = (v: number | undefined, fallback: number) => (typeof v === 'number' && v > 0 ? v : fallback);
   return {

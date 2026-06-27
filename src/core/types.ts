@@ -191,6 +191,8 @@ export interface AppState {
   mealDetailOpen: boolean;
   /** Restaurant Coach overlay ("what should I eat?"). */
   foodCoachOpen: boolean;
+  /** Coach Plan editor overlay. */
+  planEditorOpen: boolean;
   selectedMeal: string | null;
   notifOpen: boolean;
   personDetail: PersonDetail | null;
@@ -203,6 +205,9 @@ export interface AppState {
    *  Nutrition/Profile screens; default to the PROTEIN_TARGET/CAL_TARGET constants. */
   proteinTarget: number;
   calTarget: number;
+  /** Coach/overseer standing instructions for the plan ("Pre-bed protein shake",
+   *  "No sugary drinks"). Read by activePlan() so both engines reflect them. */
+  planInstructions: string[];
   /** Athlete-editable season weight goal (lb). Single source of truth for the
    *  Home season-goal card, Check-In + Parent weight trends, and Profile.
    *  Defaults to the WEIGHT_TARGET constant. */

@@ -34,6 +34,23 @@ describe('exportMyData', () => {
   });
 });
 
+describe('coach plan instructions', () => {
+  it('adds, trims, dedupes, and removes standing instructions', () => {
+    state().addPlanInstruction('  Pre-bed protein shake ');
+    state().addPlanInstruction('Pre-bed protein shake'); // dup -> ignored
+    state().addPlanInstruction('No sugary drinks');
+    expect(state().planInstructions).toEqual(['Pre-bed protein shake', 'No sugary drinks']);
+    state().removePlanInstruction(0);
+    expect(state().planInstructions).toEqual(['No sugary drinks']);
+  });
+  it('ignores empty input and caps the list', () => {
+    state().addPlanInstruction('   ');
+    expect(state().planInstructions).toEqual([]);
+    for (let i = 0; i < 12; i++) state().addPlanInstruction(`rule ${i}`);
+    expect(state().planInstructions.length).toBe(8);
+  });
+});
+
 describe('requestGuardianConsent (VPC)', () => {
   it('marks pending on a valid email (flag off: no send)', async () => {
     useStore.setState({ guardianEmail: 'parent@email.com' });

@@ -170,6 +170,11 @@ export interface Actions {
   saveMeal: (key: MealKey, foods: EditableFood[]) => void;
   openFoodCoach: () => void;
   closeFoodCoach: () => void;
+  openPlanEditor: () => void;
+  closePlanEditor: () => void;
+  /** Add a standing coach instruction (trimmed, deduped, capped). */
+  addPlanInstruction: (text: string) => void;
+  removePlanInstruction: (index: number) => void;
   toggleQuick: (i: number) => void;
   openPerson: (p: PersonDetail) => void;
   closePerson: () => void;
@@ -493,6 +498,16 @@ export const useStore = create<Store>()(
       closeMealDetail: () => set({ mealDetailOpen: false }),
       openFoodCoach: () => set({ foodCoachOpen: true }),
       closeFoodCoach: () => set({ foodCoachOpen: false }),
+      openPlanEditor: () => set({ planEditorOpen: true }),
+      closePlanEditor: () => set({ planEditorOpen: false }),
+      addPlanInstruction: (text) =>
+        set((s) => {
+          const t = text.trim();
+          if (!t || s.planInstructions.includes(t) || s.planInstructions.length >= 8) return {};
+          return { planInstructions: [...s.planInstructions, t] };
+        }),
+      removePlanInstruction: (index) =>
+        set((s) => ({ planInstructions: s.planInstructions.filter((_, i) => i !== index) })),
       saveMeal: (key, foods) => {
         set((s) => {
           // Saving a meal's edited plate logs the slot AND records its real foods.
@@ -680,6 +695,7 @@ export const useStore = create<Store>()(
         baseAge: s.baseAge,
         weeklyGoalLb: s.weeklyGoalLb,
         proteinTarget: s.proteinTarget,
+        planInstructions: s.planInstructions,
         calTarget: s.calTarget,
         weightTarget: s.weightTarget,
         compMode: s.compMode,
