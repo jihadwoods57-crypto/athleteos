@@ -9,6 +9,7 @@ import {
   currentStreak,
   coachGuidance,
   medicalDisclaimer,
+  nextBestAction,
   DEFAULT_CHART_BOX,
   displayWeight,
   firstName,
@@ -389,40 +390,46 @@ export function Home() {
         </Card>
       ) : null}
 
-      {/* next action */}
-      {!s.meals.dinner ? (
-        <Pressable onPress={s.openMeal} style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
-          <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="camera" size={22} color={colors.accent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Txt w="b" size={15}>
-              Log dinner
-            </Txt>
-            <Txt w="m" size={13} color={colors.textSecondary}>
-              Due by 8:00 PM · last meal of the day
-            </Txt>
-          </View>
-          <Icon name="chevronRight" size={22} color="#CBD5E1" />
-        </Pressable>
-      ) : (
-        <View style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
-          <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.successSurface, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="check" size={20} color={colors.successDeep} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Txt w="b" size={15}>
-              Dinner logged
-            </Txt>
-            <Txt w="m" size={13} color={colors.textSecondary}>
-              All meals in · day complete
-            </Txt>
-          </View>
-          <Txt w="eb" size={13} color={colors.successDeep}>
-            +5 pts
-          </Txt>
-        </View>
-      )}
+      {/* your next move — the single highest-impact action right now, forward-looking
+          (a coach, not a scorekeeper). Derived from real logged data + the hour. */}
+      {(() => {
+        const na = nextBestAction(s, d);
+        const onPress =
+          na.cta === 'meal' ? s.openMeal
+          : na.cta === 'water' ? s.addWater
+          : na.cta === 'checkin' ? s.goCheckin
+          : na.cta === 'plan' ? s.goTasks
+          : undefined;
+        const accent = na.done ? colors.successDeep : colors.accent;
+        const tileBg = na.done ? colors.successSurface : colors.accentSurface;
+        const body = (
+          <>
+            <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: tileBg, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={na.done ? 'check' : 'sparkle'} size={20} color={accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="eb" size={11} color={accent} ls={0.4}>
+                YOUR NEXT MOVE
+              </Txt>
+              <Txt w="b" size={15} style={{ marginTop: 3 }}>
+                {na.title}
+              </Txt>
+              <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>
+                {na.detail}
+              </Txt>
+            </View>
+            {onPress ? <Icon name="chevronRight" size={22} color="#CBD5E1" /> : null}
+          </>
+        );
+        const boxStyle = [{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14 }, shadow.card];
+        return onPress ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={na.title} onPress={onPress} style={boxStyle}>
+            {body}
+          </Pressable>
+        ) : (
+          <View style={boxStyle}>{body}</View>
+        );
+      })()}
 
       {/* check-in banner */}
       {!s.ciSubmitted ? (

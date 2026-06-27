@@ -30,4 +30,5 @@ export * from './account';
 export * from './validate';
 export * from './dayRollover';
 export * from './clock';
+export * from './nextAction';
 export { createInitialState } from './defaultState';
