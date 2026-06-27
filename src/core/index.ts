@@ -25,6 +25,7 @@ export * from './recovery';
 export * from './consent';
 export * from './nudge';
 export * from './identity';
+export * from './parent';
 export * from './account';
 export * from './validate';
 export * from './dayRollover';

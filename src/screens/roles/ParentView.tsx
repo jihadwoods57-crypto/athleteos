@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
@@ -37,6 +37,11 @@ export function ParentView() {
   // only renders for the showcase (a real parent gets a pending empty state
   // instead of a fabricated coach quote).
   const athlete = monitoredAthlete(s.obMeta.athleteName);
+  // Honest weekly read for the parent: the summary derives from the athlete's REAL
+  // score band (not a frozen "no action needed"), and carries a coverage line so a
+  // partial week is labelled "Building history: N of 7" instead of implying a full
+  // week (parent persona finding). completedDays = real recorded days this week.
+  const digest = parentDigest({ score: d.athleteScore, completedDays: s.scoreHistory.length, first: athlete.first });
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -97,7 +102,7 @@ export function ParentView() {
                 </Txt>
               </Row>
               <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 11, lineHeight: 20 }}>
-                {athlete.first} is on track and building strong habits this week.
+                {digest.coverage}
               </Txt>
             </View>
           </Card>
@@ -280,7 +285,7 @@ export function ParentView() {
               <Txt w="b" size={14} color={colors.accent}>
                 For you ·{' '}
               </Txt>
-              No action needed this week. {athlete.first} is meeting protein and recovery targets and trending toward the weight goal. You'll get an alert if anything slips.
+              {digest.summary}
             </Txt>
           </View>
         </ScrollView>
