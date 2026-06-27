@@ -2,6 +2,7 @@
 // Ported faithfully from the design prototype's state model.
 import type { Units } from './units';
 import type { MealResult } from './content';
+import type { EditableFood } from './mealEdit';
 import type { NudgeRecord } from './nudge';
 import type { PerfEntry } from './performance';
 import type { ReminderSettings } from './reminders';
@@ -138,6 +139,12 @@ export interface AppState {
    *  core/performance.ts); never folded into the day score. */
   perfEntries: PerfEntry[];
   meals: Meals;
+  /** Saved, edited per-meal plates (real per-food macros). A slot is present here
+   *  once the athlete edits + saves its Meal Detail; the daily score then reads
+   *  these real macros for that slot instead of the MEAL_MACROS constant. Day-scoped
+   *  (resets on rollover). Absent slots fall back to the constant, so the seeded
+   *  demo — which has none — is unchanged. */
+  mealFoods: Partial<Record<MealKey, EditableFood[]>>;
   hydrationL: number;
   tasks: Task[];
   quickAdded: boolean[];

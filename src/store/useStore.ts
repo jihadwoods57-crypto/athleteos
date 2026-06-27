@@ -17,7 +17,6 @@ import {
   emptyDaySlice,
   flowForRole,
   HYDRATION_TARGET,
-  MEAL_MACROS,
   PROTEIN_TARGET,
   QUICK_FOODS,
   recordDayNutrition,
@@ -30,9 +29,12 @@ import {
   rollDayIfStale,
   todayStamp,
   appendMessage,
+  loggedDayMacros,
 } from '@/core';
 import type {
   AppState,
+  EditableFood,
+  MealKey,
   PerfDir,
   PerfEntry,
   ReminderKind,
@@ -155,6 +157,9 @@ export interface Actions {
   addWater: () => void;
   openMealDetail: (meal: string) => void;
   closeMealDetail: () => void;
+  /** Persist an edited meal's foods into the day slice and mark the slot logged, so
+   *  reopening shows the saved plate and the daily score reflects its real macros. */
+  saveMeal: (key: MealKey, foods: EditableFood[]) => void;
   toggleQuick: (i: number) => void;
   openPerson: (p: PersonDetail) => void;
   closePerson: () => void;
@@ -230,11 +235,14 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 // Mirror of core computeDerived's proteinToday formula (meal macros + quick-add
 // grams). Used only to flip the visible "Hit 180g protein" task row (id 2) in
 // store actions for immediate UI feedback — core scoring remains the authority.
-const computeProteinToday = (meals: AppState['meals'], quickAdded: AppState['quickAdded']): number => {
-  let proteinBase = 0;
-  (Object.keys(meals) as (keyof AppState['meals'])[]).forEach((k) => {
-    if (meals[k]) proteinBase += MEAL_MACROS[k].p;
-  });
+const computeProteinToday = (
+  meals: AppState['meals'],
+  mealFoods: AppState['mealFoods'],
+  quickAdded: AppState['quickAdded'],
+): number => {
+  // Mirror core scoring: saved edited plates win over the slot constant, so the
+  // task row's optimistic protein matches the authoritative computeDerived value.
+  const proteinBase = loggedDayMacros({ meals, mealFoods }).protein;
   const quickGrams = QUICK_FOODS.reduce((a, f, i) => a + (quickAdded[i] ? f.g : 0), 0);
   return proteinBase + quickGrams;
 };
@@ -398,7 +406,7 @@ export const useStore = create<Store>()(
       adjustProteinTarget: (d) =>
         set((s) => {
           const proteinTarget = clamp(s.proteinTarget + d, 80, 320);
-          const protein = computeProteinToday(s.meals, s.quickAdded);
+          const protein = computeProteinToday(s.meals, s.mealFoods, s.quickAdded);
           const tasks = s.tasks.map((x) => (x.id === 2 ? { ...x, done: protein >= proteinTarget } : x));
           return { proteinTarget, tasks };
         }),
@@ -428,7 +436,7 @@ export const useStore = create<Store>()(
         set((s) => {
           const key = (s.mealType || 'Dinner').toLowerCase() as keyof typeof s.meals;
           const meals = { ...s.meals, [key]: true };
-          const protein = computeProteinToday(meals, s.quickAdded);
+          const protein = computeProteinToday(meals, s.mealFoods, s.quickAdded);
           const tasks = s.tasks.map((x) => {
             if (x.id === 2) return { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) };
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
@@ -448,11 +456,26 @@ export const useStore = create<Store>()(
       },
       openMealDetail: (meal) => set({ mealDetailOpen: true, selectedMeal: meal }),
       closeMealDetail: () => set({ mealDetailOpen: false }),
+      saveMeal: (key, foods) => {
+        set((s) => {
+          // Saving a meal's edited plate logs the slot AND records its real foods.
+          const meals = { ...s.meals, [key]: true };
+          const mealFoods = { ...s.mealFoods, [key]: foods };
+          const protein = computeProteinToday(meals, mealFoods, s.quickAdded);
+          const tasks = s.tasks.map((x) => {
+            if (x.id === 2) return { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) };
+            if (x.id === 3 && key === 'dinner') return { ...x, done: true };
+            return x;
+          });
+          return { meals, mealFoods, tasks, mealDetailOpen: false };
+        });
+        scheduleDaySync(get);
+      },
       toggleQuick: (i) => {
         set((s) => {
           const q = [...s.quickAdded];
           q[i] = !q[i];
-          const protein = computeProteinToday(s.meals, q);
+          const protein = computeProteinToday(s.meals, s.mealFoods, q);
           const tasks = s.tasks.map((x) => (x.id === 2 ? { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) } : x));
           return { quickAdded: q, tasks };
         });
@@ -632,6 +655,7 @@ export const useStore = create<Store>()(
         nutritionHistory: s.nutritionHistory,
         perfEntries: s.perfEntries,
         meals: s.meals,
+        mealFoods: s.mealFoods,
         hydrationL: s.hydrationL,
         tasks: s.tasks,
         quickAdded: s.quickAdded,

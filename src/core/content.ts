@@ -1,7 +1,7 @@
 // AthleteOS — content data + display-string helpers (pure).
 // Ported from the prototype: meal log, meal-analysis results, AI insight, pace.
 import type { AppState, Derived, MealKey, MealLabel } from './types';
-import { MEAL_MACROS } from './constants';
+import { mealSlotMacros } from './scoring';
 
 export interface LoggedMeal {
   id: string;
@@ -164,23 +164,24 @@ const SLOT_META: Record<MealKey, { label: MealLabel; detailId: string; thumb: st
 
 /**
  * Build the per-slot row model for all four meal slots from day state.
- * Name + quality come from mealResultFor(); protein + kcal come from MEAL_MACROS
- * (the same source computeDerived sums) so the rendered rows agree with the
- * "N of 4 logged" header and the macro totals.
+ * Name + quality come from mealResultFor(); protein + kcal come from mealSlotMacros
+ * (the same source computeDerived sums — a saved edited plate when present, the slot
+ * constant otherwise) so the rendered rows agree with the "N of 4 logged" header and
+ * the macro totals even after the athlete edits a meal.
  */
 export function mealRowsFor(state: AppState): MealRow[] {
   return SLOT_ORDER.map((key) => {
     const meta = SLOT_META[key];
     const result = mealResultFor(meta.label);
-    const macros = MEAL_MACROS[key];
+    const macros = mealSlotMacros(state, key);
     return {
       key,
       label: meta.label,
       detailId: meta.detailId,
       logged: state.meals[key],
       name: result.name,
-      protein: macros.p,
-      kcal: macros.k,
+      protein: macros.protein,
+      kcal: macros.kcal,
       quality: result.quality,
       thumb: meta.thumb,
       dueTime: meta.dueTime,

@@ -20,6 +20,7 @@ export { todayStamp } from './clock';
  *  handled specially (seeded from currentWeight); currentWeight is a cross-day field, not here. */
 export const DAY_DEFAULT_KEYS = [
   'meals',
+  'mealFoods',
   'hydrationL',
   'quickAdded',
   'nudged',

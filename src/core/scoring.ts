@@ -12,7 +12,39 @@ import {
   WEIGHT_TARGET,
 } from './constants';
 import { trendSeries } from './history';
+import { mealMacros, type MacroSet } from './mealEdit';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
+
+/**
+ * The macros a single logged meal slot contributes. When the athlete has SAVED an
+ * edited plate for the slot (`mealFoods[k]`), the totals come from those real
+ * per-food macros; otherwise we fall back to the per-slot `MEAL_MACROS` constant.
+ * This is what makes the loop real — a logged-and-edited meal moves the score,
+ * while the seeded demo (no `mealFoods`) stays byte-for-byte unchanged.
+ */
+export function mealSlotMacros(s: Pick<AppState, 'mealFoods'>, k: MealKey): MacroSet {
+  const saved = s.mealFoods?.[k];
+  if (saved) return mealMacros(saved);
+  const m = MEAL_MACROS[k];
+  return { protein: m.p, kcal: m.k, carbs: m.c, fat: m.f };
+}
+
+/** Sum the macros across every LOGGED slot, using saved edited plates when present. */
+export function loggedDayMacros(s: Pick<AppState, 'meals' | 'mealFoods'>): MacroSet {
+  return (Object.keys(s.meals) as MealKey[]).reduce<MacroSet>(
+    (a, k) => {
+      if (!s.meals[k]) return a;
+      const mm = mealSlotMacros(s, k);
+      return {
+        protein: a.protein + mm.protein,
+        kcal: a.kcal + mm.kcal,
+        carbs: a.carbs + mm.carbs,
+        fat: a.fat + mm.fat,
+      };
+    },
+    { protein: 0, kcal: 0, carbs: 0, fat: 0 },
+  );
+}
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -109,18 +141,13 @@ export function computeDerived(s: AppState): Derived {
   const quickCarbs = QUICK_FOODS.reduce((a, f, i) => a + (s.quickAdded[i] ? f.c : 0), 0);
   const quickFat = QUICK_FOODS.reduce((a, f, i) => a + (s.quickAdded[i] ? f.f : 0), 0);
 
-  let proteinBase = 0;
-  let kcalBase = 0;
-  let carbsBase = 0;
-  let fatBase = 0;
-  mealKeys.forEach((k) => {
-    if (s.meals[k]) {
-      proteinBase += MEAL_MACROS[k].p;
-      kcalBase += MEAL_MACROS[k].k;
-      carbsBase += MEAL_MACROS[k].c;
-      fatBase += MEAL_MACROS[k].f;
-    }
-  });
+  // Real macros: saved edited plates per slot when present, the slot constant
+  // otherwise. The seeded demo carries no mealFoods, so its numbers are unchanged.
+  const mealBase = loggedDayMacros(s);
+  const proteinBase = mealBase.protein;
+  const kcalBase = mealBase.kcal;
+  const carbsBase = mealBase.carbs;
+  const fatBase = mealBase.fat;
 
   // Athlete-editable daily targets; fall back to the constants for legacy
   // persisted blobs written before the targets were editable. The UI clamps these

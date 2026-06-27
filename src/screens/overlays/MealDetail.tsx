@@ -2,7 +2,7 @@
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods, searchFoods, addFood, removeFood } from '@/core';
-import type { EditableFood, LoggedMeal, FoodItem } from '@/core';
+import type { EditableFood, LoggedMeal, FoodItem, MealKey } from '@/core';
 import { useStore } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
 import { Btn, Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -34,15 +34,22 @@ const DINNER: LoggedMeal = {
   note: 'Excellent protein hit for dinner. Add a piece of fruit and this is a perfect plate.',
 };
 
+// The detail overlay is opened with a slot's detailId (b/l/s/dinner); map it back
+// to the MealKey so edits save into — and seed from — that slot's day state.
+const DETAIL_TO_KEY: Record<string, MealKey> = { b: 'breakfast', l: 'lunch', s: 'snack', dinner: 'dinner' };
+
 export function MealDetail() {
   const s = useStore();
   const meal = MEALS_LOG.find((m) => m.id === s.selectedMeal) ?? DINNER;
+  const mealKey: MealKey = DETAIL_TO_KEY[s.selectedMeal ?? ''] ?? 'dinner';
 
   // Editable estimate: each food carries a numeric share of the meal, so adjusting
   // a portion recomputes macros + quality + composition live (the persona fix for
-  // the dead steppers). Re-seed when the opened meal changes.
-  const [foods, setFoods] = React.useState<EditableFood[]>(() => toEditableFoods(meal));
-  React.useEffect(() => { setFoods(toEditableFoods(meal)); }, [s.selectedMeal]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the dead steppers). Seed from the SAVED plate for this slot when one exists,
+  // else the photo estimate; re-seed when the opened meal changes.
+  const seedFoods = () => s.mealFoods[mealKey] ?? toEditableFoods(meal);
+  const [foods, setFoods] = React.useState<EditableFood[]>(seedFoods);
+  React.useEffect(() => { setFoods(seedFoods()); }, [s.selectedMeal]); // eslint-disable-line react-hooks/exhaustive-deps
   const macros = mealMacros(foods);
   const quality = mealQuality(macros);
   const comp = macroComposition(macros);
@@ -220,7 +227,7 @@ export function MealDetail() {
 
         <Chat />
 
-        <Btn label="Save Changes" onPress={s.closeMealDetail} style={{ marginTop: 18 }} />
+        <Btn label="Save Changes" onPress={() => s.saveMeal(mealKey, foods)} style={{ marginTop: 18 }} />
       </ScrollView>
     </Overlay>
   );
