@@ -7,6 +7,8 @@
 // person (push/email) is the backend/founder step; this only builds the content.
 // Copy follows the shipped guardrails: factual, no guilt, no em dash.
 import { scoreLanguage } from './attention';
+import { weeklyCompliance } from './history';
+import type { DayScore } from './types';
 
 export interface WeeklyReportInput {
   name: string;
@@ -120,6 +122,30 @@ export function weeklyReport(input: WeeklyReportInput): WeeklyReport {
     movedLine,
     flag: weeklyFlag(input, daysLogged, compliance),
   };
+}
+
+/**
+ * Build the weekly digest straight from persisted store state, so a screen can show
+ * it with no plumbing. `scoreHistory` is the recorded completed-day scores; the last
+ * 7 are this week, the 7 before set `priorAvg`. Compliance reuses `weeklyCompliance`
+ * (share of completed days on plan). A brand-new athlete with no history yields the
+ * honest "No data yet" report. Pure.
+ */
+export function weeklyReportFromState(opts: {
+  name: string;
+  scoreHistory: DayScore[];
+  liveScore: number;
+  now?: Date;
+}): WeeklyReport {
+  const history = opts.scoreHistory ?? [];
+  const recent = history.slice(-7);
+  const prior = history.slice(-14, -7);
+  const priorAvg = prior.length
+    ? Math.round(prior.reduce((a, d) => a + d.score, 0) / prior.length)
+    : null;
+  const comp = weeklyCompliance(history, opts.liveScore, undefined, undefined, opts.now);
+  const compliance = comp.total ? Math.round((comp.onPlan / comp.total) * 100) : 0;
+  return weeklyReport({ name: opts.name, scores: recent.map((d) => d.score), priorAvg, compliance });
 }
 
 /**

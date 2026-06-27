@@ -3,7 +3,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS, initials, supportVisibilityRows, trainingCadence, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
+import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS, initials, supportVisibilityRows, trainingCadence, weeklyReportFromState, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
@@ -83,6 +83,41 @@ export function Profile() {
           </View>
         </View>
       </Card>
+
+      {/* this week — the weekly digest (generator existed but rendered nowhere) */}
+      {(() => {
+        const wr = weeklyReportFromState({ name: firstName(s.athleteName, 'Jihad'), scoreHistory: s.scoreHistory, liveScore: d.athleteScore });
+        return (
+          <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+            <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Txt w="eb" size={16} ls={-0.3}>
+                This week
+              </Txt>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9, backgroundColor: colors.accentSurface }}>
+                <Txt w="b" size={12} color={colors.accent}>
+                  {wr.headline}
+                </Txt>
+              </View>
+            </Row>
+            <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>
+              {wr.scoreLine}
+            </Txt>
+            <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 20, marginTop: 2 }}>
+              {wr.complianceLine}
+            </Txt>
+            <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 20, marginTop: 2 }}>
+              {wr.movedLine}
+            </Txt>
+            {wr.flag ? (
+              <View style={{ marginTop: 12, padding: 12, borderRadius: 14, backgroundColor: colors.bg2 }}>
+                <Txt w="sb" size={13} color={colors.warning} style={{ lineHeight: 18 }}>
+                  Heads up: {wr.flag}
+                </Txt>
+              </View>
+            ) : null}
+          </Card>
+        );
+      })()}
 
       {/* targets */}
       <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>

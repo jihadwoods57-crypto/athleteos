@@ -1,4 +1,5 @@
-import { weeklyReport, weeklyReportText, MOVE_THRESHOLD, type WeeklyReportInput } from './weeklyReport';
+import { weeklyReport, weeklyReportText, weeklyReportFromState, MOVE_THRESHOLD, type WeeklyReportInput } from './weeklyReport';
+import type { DayScore } from './types';
 
 const strong: WeeklyReportInput = {
   name: 'Marcus Cole',
@@ -98,5 +99,24 @@ describe('weeklyReportText', () => {
   });
   it('says "No flags" when the week is clean', () => {
     expect(weeklyReportText(weeklyReport(strong))).toContain('No flags this week.');
+  });
+});
+
+describe('weeklyReportFromState', () => {
+  const mkHist = (scores: number[]): DayScore[] =>
+    scores.map((s, i) => ({ date: `2026-06-${String(i + 1).padStart(2, '0')}`, score: s }));
+
+  it('builds the digest from persisted score history (recent 7 vs prior 7)', () => {
+    const hist = mkHist([78, 80, 82, 79, 81, 80, 80, 88, 90, 86, 91, 89, 87, 90]);
+    const r = weeklyReportFromState({ name: 'Marcus', scoreHistory: hist, liveScore: 90, now: new Date(2026, 5, 27) });
+    expect(r.daysLogged).toBe(7);
+    expect(r.avgScore).toBe(89);
+    expect(r.movedLine).toContain('Up'); // 89 vs prior 80
+  });
+
+  it('a brand-new athlete with no history reads the honest "No data yet"', () => {
+    const r = weeklyReportFromState({ name: 'New', scoreHistory: [], liveScore: 0, now: new Date(2026, 5, 27) });
+    expect(r.headline).toBe('No data yet');
+    expect(r.daysLogged).toBe(0);
   });
 });
