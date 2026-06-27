@@ -118,7 +118,13 @@ Per Day 1 + Day 2, the git bridge returns HTTP 403 on every tag-ref push while b
 pushes succeed. This run attempts `day3-end`; if the 403 recurs, the durable substitute is
 the branch **`checkpoint/day3-end`** at the same commit. To materialize the real annotated
 tag from a normal client: `git fetch origin && git tag -a day3-end origin/checkpoint/day3-end
--m "Day 3 end" && git push origin day3-end`. (The exact outcome is appended just below.)
+-m "Day 3 end" && git push origin day3-end`.
+
+**Confirmed this run:** `git tag -a day3-end` was created locally; `git push origin
+day3-end` returned the same **HTTP 403** on the tag-ref. The durable substitute branch
+**`checkpoint/day3-end`** was pushed at the day-end commit, and `crew/4day-sprint` is green
+and fully pushed at the same commit. Delete `checkpoint/day3-end` after you materialize the
+real tag.
 
 ---
 
