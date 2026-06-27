@@ -7,7 +7,7 @@
 //   • the Accountability Engine evaluates execution against THIS plan ("did you do it?").
 // Generic nutrition advice is never the yardstick; the coach's plan is.
 import { CAL_TARGET, HYDRATION_TARGET, PROTEIN_TARGET } from './constants';
-import type { MealKey } from './types';
+import type { AppState, MealKey } from './types';
 
 /** A coach-defined expected meal window with a deadline (Feature 2). Times are local
  *  minutes-from-midnight so the logic is timezone-pure and testable. */
@@ -66,6 +66,23 @@ export function mealTarget(plan: CoachPlan, key: MealKey): { calories: number; p
   return {
     calories: Math.round((plan.calorieTarget / slots) * weight),
     protein: Math.round((plan.proteinTarget / slots) * weight),
+  };
+}
+
+/** The live plan for the signed-in athlete: the coach-set windows/instructions, with the
+ *  calorie/protein/weight targets taken from the athlete's real editable targets so both
+ *  engines read one source of truth. (A coach editor overrides windows/instructions; until
+ *  then the defaults apply.) */
+export function activePlan(
+  s: Pick<AppState, 'proteinTarget' | 'calTarget' | 'weightTarget'> & { planInstructions?: string[] },
+): CoachPlan {
+  const pos = (v: number | undefined, fallback: number) => (typeof v === 'number' && v > 0 ? v : fallback);
+  return {
+    ...DEFAULT_PLAN,
+    calorieTarget: pos(s.calTarget, DEFAULT_PLAN.calorieTarget),
+    proteinTarget: pos(s.proteinTarget, DEFAULT_PLAN.proteinTarget),
+    weightGoalLb: typeof s.weightTarget === 'number' && s.weightTarget > 0 ? s.weightTarget : DEFAULT_PLAN.weightGoalLb,
+    instructions: s.planInstructions ?? DEFAULT_PLAN.instructions,
   };
 }
 
