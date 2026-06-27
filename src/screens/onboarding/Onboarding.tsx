@@ -668,6 +668,18 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
   const s = useStore();
   const val = step.kind !== 'invite' ? s.obMeta[step.field] : undefined;
 
+  // On the invite step, when the backend is live, mint the overseer's real team
+  // via the create_team RPC so the shared code is the genuine server-generated one.
+  // Inert when the flag is off (createTeamLive no-ops) — the demo keeps EAGLES24.
+  const { teamCode, obMeta, createTeamLive } = s;
+  useEffect(() => {
+    if (step.kind !== 'invite' || !isBackendLive || teamCode) return;
+    const sport = typeof obMeta.sport === 'string' ? obMeta.sport : undefined;
+    const school = typeof obMeta.school === 'string' ? obMeta.school.trim() : '';
+    const name = school || (sport ? `${sport} team` : 'My Team');
+    void createTeamLive(name, sport);
+  }, [step.kind, teamCode, obMeta, createTeamLive]);
+
   if (step.kind === 'invite') {
     return (
       <StepShell
@@ -684,7 +696,7 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
           </Txt>
           <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
             <Txt w="eb" size={26} ls={1}>
-              EAGLES24
+              {s.teamCode || 'EAGLES24'}
             </Txt>
             <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="copy" size={19} color={colors.accent} />

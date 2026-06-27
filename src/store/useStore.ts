@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { analyzeMeal, isAiConfigured } from '@/lib/ai';
-import { auth, isBackendLive } from '@/lib/supabase';
+import { auth, db, isBackendLive } from '@/lib/supabase';
 import { hydrateDay, pushDay } from './sync';
 import {
   addPerfEntry,
@@ -194,6 +194,10 @@ export interface Actions {
   signUpLive: (email: string, password: string, fullName: string) => Promise<boolean>;
   signInLive: (email: string, password: string) => Promise<boolean>;
   signOutLive: () => Promise<void>;
+  /** Coach/overseer creates a real team via the create_team RPC and stores the
+   *  server-generated join code in teamCode. Inert (returns null) when the flag
+   *  is off, so the onboarding invite step keeps its EAGLES24 showcase code. */
+  createTeamLive: (name: string, sport?: string) => Promise<string | null>;
   recordConsent: (given: boolean) => void;
   setAuthError: (msg: string | null) => void;
 
@@ -555,6 +559,17 @@ export const useStore = create<Store>()(
         if (isBackendLive) await auth.signOut();
         set({ userId: null, realDataConsent: false, authError: null });
       },
+      createTeamLive: async (name, sport) => {
+        if (!isBackendLive) return null;
+        try {
+          const code = await db.createTeam(name.trim() || 'My Team', sport?.trim() || undefined);
+          if (code) set({ teamCode: code, authError: null });
+          return code;
+        } catch (e) {
+          set({ authError: e instanceof Error ? e.message : 'Could not create team' });
+          return null;
+        }
+      },
       recordConsent: (given) => set({ realDataConsent: given }),
       setAuthError: (msg) => set({ authError: msg }),
 
@@ -597,6 +612,7 @@ export const useStore = create<Store>()(
         trainingFreq: s.trainingFreq,
         supportTeam: s.supportTeam,
         inviteCode: s.inviteCode,
+        teamCode: s.teamCode,
         baseNutritionConfidence: s.baseNutritionConfidence,
         baseMealsPerDay: s.baseMealsPerDay,
         baseWaterL: s.baseWaterL,

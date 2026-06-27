@@ -89,8 +89,12 @@ export interface AppState {
   trainingFreq: string | null;
   /** Selected support roles (coach/trainer/nutritionist/parent) building the network. */
   supportTeam: string[];
-  /** Optional invite/join code entered during onboarding. */
+  /** Optional invite/join code entered during onboarding (athlete joining a team). */
   inviteCode: string;
+  /** The real, server-generated team code an overseer shares to recruit (set by
+   *  createTeamLive when the backend is live; '' in demo/flag-off, where the UI
+   *  falls back to the EAGLES24 showcase code). */
+  teamCode: string;
   // Baseline assessment answers — feed startingScore() AND seed engine state.
   baseNutritionConfidence: number; // 1-10
   baseMealsPerDay: number; // count (e.g. 2-6)

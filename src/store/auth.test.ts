@@ -9,6 +9,7 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 const signIn = jest.fn<Promise<AuthResult>, [string, string]>();
 const signUp = jest.fn<Promise<AuthResult>, [string, string, string | undefined]>();
 const signOut = jest.fn<Promise<void>, []>();
+const createTeam = jest.fn<Promise<string | null>, [string, string | undefined]>();
 
 function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
   let store!: UseBoundStore<StoreApi<Store>>;
@@ -21,7 +22,7 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
       isSupabaseConfigured: backendLive,
       auth: { signIn, signUp, signOut },
       // signInLive hydrates the day after auth; no remote row in these unit tests.
-      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined) },
+      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam },
     }));
     store = require('./useStore').useStore;
   });
@@ -32,6 +33,7 @@ beforeEach(() => {
   signIn.mockReset();
   signUp.mockReset();
   signOut.mockReset().mockResolvedValue(undefined);
+  createTeam.mockReset();
 });
 
 describe('flag OFF: live auth is inert (mock path preserved)', () => {
@@ -42,6 +44,13 @@ describe('flag OFF: live auth is inert (mock path preserved)', () => {
     expect(signIn).not.toHaveBeenCalled();
     expect(signUp).not.toHaveBeenCalled();
     expect(useStore.getState().userId).toBeNull();
+  });
+
+  it('createTeamLive no-ops and leaves the EAGLES24-fallback teamCode empty', async () => {
+    const useStore = loadStore(false);
+    expect(await useStore.getState().createTeamLive('Eastside Eagles', 'Football')).toBeNull();
+    expect(createTeam).not.toHaveBeenCalled();
+    expect(useStore.getState().teamCode).toBe('');
   });
 });
 
@@ -83,6 +92,31 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(useStore.getState().userId).toBeNull();
     expect(useStore.getState().realDataConsent).toBe(false);
+  });
+
+  it('createTeamLive mints a team + stores the real server code', async () => {
+    createTeam.mockResolvedValue('K7M2QX');
+    const useStore = loadStore(true);
+    const code = await useStore.getState().createTeamLive('  Eastside Eagles ', 'Football');
+    expect(code).toBe('K7M2QX');
+    expect(createTeam).toHaveBeenCalledWith('Eastside Eagles', 'Football'); // trimmed
+    expect(useStore.getState().teamCode).toBe('K7M2QX');
+  });
+
+  it('createTeamLive falls back to a default team name when none given', async () => {
+    createTeam.mockResolvedValue('AB12CD');
+    const useStore = loadStore(true);
+    await useStore.getState().createTeamLive('   ', undefined);
+    expect(createTeam).toHaveBeenCalledWith('My Team', undefined);
+  });
+
+  it('createTeamLive surfaces an RPC error and leaves teamCode empty', async () => {
+    createTeam.mockRejectedValue(new Error('rpc boom'));
+    const useStore = loadStore(true);
+    const code = await useStore.getState().createTeamLive('Team', 'Soccer');
+    expect(code).toBeNull();
+    expect(useStore.getState().teamCode).toBe('');
+    expect(useStore.getState().authError).toBe('rpc boom');
   });
 });
 

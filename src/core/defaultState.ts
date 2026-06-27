@@ -31,6 +31,7 @@ export function createInitialState(): AppState {
     trainingFreq: null,
     supportTeam: [],
     inviteCode: '',
+    teamCode: '',
     baseNutritionConfidence: 6,
     baseMealsPerDay: 3,
     baseWaterL: 2.0,
