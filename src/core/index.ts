@@ -33,4 +33,6 @@ export * from './clock';
 export * from './nextAction';
 export * from './dataExport';
 export * from './guardianConsent';
+export * from './restaurants';
+export * from './restaurantCoach';
 export { createInitialState } from './defaultState';
