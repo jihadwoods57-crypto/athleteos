@@ -93,6 +93,16 @@ Deno.serve(async (request) => {
     return new Response(JSON.stringify({ error: 'bad request' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
   }
 
+  // Input guards: reject a missing/oversized photo before spending an Anthropic call.
+  // A base64 JPEG over ~8MB raw (~6MB image) is almost certainly abuse and would risk a
+  // Deno timeout / token burn; cap it. mealType is required for the prompt.
+  if (typeof req?.mealType !== 'string' || !req.mealType.trim()) {
+    return new Response(JSON.stringify({ error: 'mealType required' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+  }
+  if (typeof req.photoBase64 === 'string' && req.photoBase64.length > 8_000_000) {
+    return new Response(JSON.stringify({ error: 'photo too large' }), { status: 413, headers: { ...CORS, 'Content-Type': 'application/json' } });
+  }
+
   try {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
