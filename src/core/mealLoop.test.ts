@@ -62,4 +62,11 @@ describe('computeDerived — an edited plate moves the score', () => {
     // snack 49 removed: 142 -> 93
     expect(d.proteinToday).toBe(93);
   });
+
+  it('an enormous plate cannot push the nutrition sub-score or headline past 100', () => {
+    const d = computeDerived({ ...createInitialState(), mealFoods: { breakfast: plate(5000) } });
+    expect(d.nutritionScore).toBeLessThanOrEqual(100);
+    expect(d.athleteScore).toBeLessThanOrEqual(100);
+    expect(Number.isFinite(d.proteinToday)).toBe(true);
+  });
 });

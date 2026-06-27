@@ -13,6 +13,7 @@ function staleSlice(): Partial<AppState> {
   return {
     dateStamp: '2026-06-20',
     meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+    mealFoods: { dinner: [{ name: 'Chicken', portion: '8 oz', servings: 2, per: { protein: 50, kcal: 330, carbs: 0, fat: 7 } }] },
     hydrationL: 3.8,
     quickAdded: [true, true, true],
     nudged: ['Andre Silva'],
@@ -50,6 +51,7 @@ describe('rollDayIfStale — stale stamp resets the day (criterion 2)', () => {
 
   it('resets every day field to fresh defaults', () => {
     expect(rolled.meals).toEqual(init.meals);
+    expect(rolled.mealFoods).toEqual(init.mealFoods); // {} — yesterday's saved plates clear with the day
     expect(rolled.hydrationL).toBe(init.hydrationL); // 2.4
     expect(rolled.tasks).toEqual(init.tasks); // ids 3 & 4 done:false
     expect(rolled.quickAdded).toEqual([false, false, false]);
