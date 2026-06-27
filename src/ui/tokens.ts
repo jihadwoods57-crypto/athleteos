@@ -42,6 +42,64 @@ export const colors = {
   white: '#FFFFFF',
 } as const;
 
+// ----------------------------------------------------------------- theming foundation
+// `colors` above is the LIGHT palette and the app's default (every existing import keeps
+// working unchanged, so nothing looks different today). Dark mode is now a palette swap:
+// `darkColors` mirrors every key, and components migrate from the static `colors` import
+// to the `useColors()` hook (src/ui/theme.tsx) incrementally. Surfaces still hardcoding
+// '#fff' / '#0F172A' must move to a token before they theme — tracked as the migration.
+
+/** The light palette, named for clarity once a dark one exists. Same object as `colors`. */
+export const lightColors = colors;
+
+/** Structural palette type: every color key, valued as a string (so the dark palette can
+ *  hold different hexes than the light literals). */
+export type ColorTheme = { [K in keyof typeof colors]: string };
+
+/** Designed dark palette — same keys as light. Surfaces become elevated grays (not pure
+ *  black), accents/status brighten for contrast on dark, white stays white (text on
+ *  colored buttons). Tuned for WCAG-AA; run src/core/contrast.ts over pairs at QA time. */
+export const darkColors: ColorTheme = {
+  bg: '#0B1120',
+  bg2: '#111827',
+  card: '#1E293B',
+  text: '#F1F5F9',
+  textSecondary: '#94A3B8',
+  textTertiary: '#64748B',
+  slate500: '#94A3B8',
+  slate600: '#CBD5E1',
+  slate700: '#E2E8F0',
+
+  accent: '#3B82F6',
+  accentLight: '#60A5FA',
+  accentSurface: '#172554',
+  accentBorder: '#1E3A8A',
+  accentBorderStrong: '#2563EB',
+
+  success: '#22C55E',
+  successDeep: '#4ADE80',
+  successSurface: '#052E16',
+
+  warning: '#F59E0B',
+  warningDeep: '#FBBF24',
+
+  alert: '#F87171',
+  alertDeep: '#FCA5A5',
+  alertSurface: '#450A0A',
+  alertBorder: '#7F1D1D',
+
+  hydration: '#38BDF8',
+  trainer: '#A855F7',
+  trainerLight: '#C084FC',
+
+  divider: '#1E293B',
+  divider2: '#172033',
+  track: '#334155',
+  border: '#1E293B',
+
+  white: '#FFFFFF',
+};
+
 export const font = {
   // Plus Jakarta Sans weights loaded via @expo-google-fonts.
   r: 'PlusJakartaSans_400Regular',
