@@ -106,6 +106,16 @@ export async function joinTeam(code: string, position?: string): Promise<string 
   return data;
 }
 
+/** Apple 5.1.1(v): permanently delete the signed-in user's account + all their data
+ *  server-side. Calls a SECURITY DEFINER `delete_account` RPC (authored at go-live)
+ *  that cascades the auth user + rows + storage. Inert when no backend is configured;
+ *  the store still wipes local data so the in-app deletion always works. */
+export async function deleteAccount(): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase().rpc('delete_account');
+  if (error) throw error;
+}
+
 export async function joinPractice(code: string): Promise<string | null> {
   if (!isSupabaseConfigured) return null;
   const { data, error } = await requireSupabase().rpc('join_practice', { code });

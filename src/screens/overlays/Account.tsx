@@ -1,6 +1,6 @@
 // AthleteOS — Account overlay (role chrome ☰ → here). Sign out → onboarding.
 import React, { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Alert, ScrollView, Share, View } from 'react-native';
 import { useStore } from '@/store';
 import { accountIdentity, accountRows, APP_VERSION, type AccountRow } from '@/core';
 import { colors, shadow } from '@/ui/tokens';
@@ -58,6 +58,57 @@ export function Account() {
               border={i < rows.length - 1}
             />
           ))}
+        </Card>
+
+        {/* Your data — GDPR/CCPA portability + Apple-required in-app deletion */}
+        <Card elevated style={{ marginTop: 14, borderRadius: 24, paddingVertical: 4 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Export my data"
+            onPress={async () => {
+              haptics.tap();
+              try { await Share.share({ message: s.exportMyData() }); } catch { /* user cancelled the share sheet */ }
+            }}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <Row style={{ justifyContent: 'space-between', paddingVertical: 15, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Txt w="b" size={15}>
+                  Export my data
+                </Txt>
+                <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                  Download a copy of everything in your account
+                </Txt>
+              </View>
+            </Row>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete account"
+            onPress={() => {
+              haptics.tap();
+              Alert.alert(
+                'Delete account',
+                'This permanently deletes your account and all of your data. This cannot be undone.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => { void s.deleteAccount(); } },
+                ],
+              );
+            }}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <Row style={{ justifyContent: 'space-between', paddingVertical: 15, paddingHorizontal: 2 }}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Txt w="b" size={15} color={colors.alert}>
+                  Delete account
+                </Txt>
+                <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                  Permanently erase your account and data
+                </Txt>
+              </View>
+            </Row>
+          </Pressable>
         </Card>
 
         <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>

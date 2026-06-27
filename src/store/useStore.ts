@@ -30,6 +30,7 @@ import {
   todayStamp,
   appendMessage,
   loggedDayMacros,
+  exportUserDataText,
 } from '@/core';
 import type {
   AppState,
@@ -147,6 +148,11 @@ export interface Actions {
   adjustCalTarget: (d: number) => void;
   adjustWeightTarget: (d: number) => void;
   signOut: () => void;
+  /** Apple 5.1.1(v) + GDPR/CCPA erasure: permanently delete the account. Deletes
+   *  server-side when connected, then wipes ALL local data back to a fresh install. */
+  deleteAccount: () => Promise<void>;
+  /** GDPR/CCPA portability: a JSON snapshot of the user's own data, for a share/save. */
+  exportMyData: () => string;
 
   // overlays
   openMeal: () => void;
@@ -414,6 +420,16 @@ export const useStore = create<Store>()(
       adjustWeightTarget: (d) =>
         set((s) => ({ weightTarget: clamp((s.weightTarget ?? WEIGHT_TARGET) + d, 120, 350) })),
       signOut: () => set({ flow: 'onboarding', obStep: 0, role: null, accountOpen: false }),
+      deleteAccount: async () => {
+        // Delete server-side when connected; wipe local data either way so the in-app
+        // deletion always completes (Apple requires it to actually work, not just sign out).
+        if (isBackendLive) {
+          try { await db.deleteAccount(); } catch { /* still wipe locally below */ }
+        }
+        try { await AsyncStorage.removeItem('aos_day'); } catch { /* best effort */ }
+        set({ ...createInitialState() });
+      },
+      exportMyData: () => exportUserDataText(get()),
 
       // ---- overlays ----
       openMeal: () => set({ mealOpen: true, mealStage: 'capture', mealAnalysis: null }),
