@@ -131,6 +131,10 @@ export interface Database {
         Args: { team_name: string; team_sport?: string | null };
         Returns: string;
       };
+      delete_account: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
       join_team: {
         Args: { code: string; athlete_position?: string | null };
         Returns: string;
