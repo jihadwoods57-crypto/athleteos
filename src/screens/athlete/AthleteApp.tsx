@@ -23,11 +23,13 @@ import { Messages } from '@/screens/overlays/Messages';
 import { Notifications } from '@/screens/overlays/Notifications';
 import { FoodCoach } from '@/screens/overlays/FoodCoach';
 
+// Nutrition is the core daily surface, so it gets a tab (was buried behind a Home card).
+// Check-In is reached from its Home banner; Profile via the header avatar.
 const TABS: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: 'home', label: 'Home', icon: 'home' },
+  { tab: 'nutrition', label: 'Nutrition', icon: 'utensils' },
   { tab: 'tasks', label: 'Plan', icon: 'plan' },
   { tab: 'squad', label: 'Squad', icon: 'squad' },
-  { tab: 'checkin', label: 'Check-In', icon: 'checkin' },
 ];
 
 export function AthleteApp() {
@@ -92,7 +94,7 @@ function TabBar() {
       ]}
     >
       <TabItem item={TABS[0]} active={isAthleteTab('home')} onPress={() => setTab('home')} />
-      <TabItem item={TABS[1]} active={isAthleteTab('tasks')} onPress={() => setTab('tasks')} />
+      <TabItem item={TABS[1]} active={isAthleteTab('nutrition')} onPress={() => setTab('nutrition')} />
 
       {/* center camera FAB */}
       <View style={{ width: 72, alignItems: 'center' }}>
@@ -109,8 +111,8 @@ function TabBar() {
         </Pressable>
       </View>
 
-      <TabItem item={TABS[2]} active={isAthleteTab('squad')} onPress={() => setTab('squad')} />
-      <TabItem item={TABS[3]} active={isAthleteTab('checkin')} onPress={() => setTab('checkin')} />
+      <TabItem item={TABS[2]} active={isAthleteTab('tasks')} onPress={() => setTab('tasks')} />
+      <TabItem item={TABS[3]} active={isAthleteTab('squad')} onPress={() => setTab('squad')} />
     </View>
   );
 }

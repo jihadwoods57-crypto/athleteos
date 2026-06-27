@@ -5,7 +5,6 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import {
-  aiInsight,
   currentStreak,
   coachGuidance,
   medicalDisclaimer,
@@ -313,22 +312,7 @@ export function Home() {
       </Card>
 
       {/* nutrition entry */}
-      <Pressable accessibilityRole="button" accessibilityLabel="Nutrition: see today's meals, protein, and fuel" onPress={s.goNutrition} style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
-        <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="flame" size={22} color={colors.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="b" size={15}>
-            Nutrition
-          </Txt>
-          <Txt w="m" size={13} color={colors.textSecondary}>
-            See today's meals, protein, and fuel
-          </Txt>
-        </View>
-        <Icon name="chevronRight" size={22} color="#CBD5E1" />
-      </Pressable>
-
-      {/* performance entry */}
+      {/* performance entry (Nutrition + Check-In now live in the tab bar / their banners) */}
       <Pressable accessibilityRole="button" accessibilityLabel="Performance: log a PR and see your trends" onPress={s.goPerformance} style={[{ marginTop: 12, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
         <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="trophy" size={22} color={colors.accent} />
@@ -344,23 +328,6 @@ export function Home() {
         <Icon name="chevronRight" size={22} color="#CBD5E1" />
       </Pressable>
 
-      {/* AI insight */}
-      <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
-        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="sparkle" size={20} color={colors.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
-            AI INSIGHT
-          </Txt>
-          <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 5, lineHeight: 20 }}>
-            {aiInsight(s, d)}
-          </Txt>
-          <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 15 }}>
-            {medicalDisclaimer()}
-          </Txt>
-        </View>
-      </Card>
 
       {/* coach guidance — hidden for a solo real athlete (no coach to quote) */}
       {guidance.show ? (
@@ -416,6 +383,9 @@ export function Home() {
               </Txt>
               <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>
                 {na.detail}
+              </Txt>
+              <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 15 }}>
+                {medicalDisclaimer()}
               </Txt>
             </View>
             {onPress ? <Icon name="chevronRight" size={22} color="#CBD5E1" /> : null}
