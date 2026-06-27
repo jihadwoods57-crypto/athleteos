@@ -39,4 +39,8 @@ describe('consentSummary', () => {
   it('is athlete-only for an adult', () => {
     expect(consentSummary(false).startsWith('You control')).toBe(true);
   });
+  it('discloses third-party AI photo analysis (Anthropic)', () => {
+    expect(consentSummary(false)).toContain('Anthropic');
+    expect(consentSummary(true)).toContain('Anthropic');
+  });
 });

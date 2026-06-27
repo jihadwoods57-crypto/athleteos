@@ -74,6 +74,13 @@ export function medicalDisclaimer(): string {
   return 'Nutrition education, not medical advice. Talk to a doctor or registered dietitian before making big changes to how you eat.';
 }
 
+/** Supportive framing shown wherever body weight is entered or displayed, to keep a
+ *  young athlete oriented to performance over the number on the scale. Safety copy for
+ *  a minor-facing weight tracker; pairs with a help resource in the UI. */
+export function bodyImageNote(): string {
+  return 'Weight moves day to day and that is normal. Focus on fueling, training, and recovery, not the number. If food or your body feels stressful, talk to someone you trust or a doctor.';
+}
+
 /** The AI's reinforcement of the coach's standing directive — makes the coach feel
  *  heard (their words get repeated every relevant day, louder than a one-off text). */
 export function coachReinforcement(coachNote: string | null | undefined): string | null {

@@ -40,9 +40,12 @@ export function realDataConsent(c: ConsentContext): { ok: boolean; reason: Conse
   return { ok: true, reason: 'ok' };
 }
 
-/** Plain-language line for the consent screen, honest about what linking shares. */
+/** Plain-language line for the consent screen, honest about what linking shares AND
+ *  that meal photos are analyzed by a third-party AI (Anthropic) — a disclosure App
+ *  Store + privacy law require before that data leaves the device. */
 export function consentSummary(isMinorAthlete: boolean): string {
   const who = isMinorAthlete ? 'You and a parent or guardian' : 'You';
   return `${who} control what is shared. Linking lets your coach see your daily score, ` +
-    `compliance, and weight trend. You can stop sharing at any time.`;
+    `compliance, and weight trend. Meal photos you log are analyzed by a third-party AI ` +
+    `(Anthropic) to estimate nutrition. You can stop sharing at any time.`;
 }

@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
-import { CHECKIN_QUESTIONS, checkinAttribution, checkinSummary, displayWeight, displayWeightDelta, supportAudience, trendGeometry, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
+import { bodyImageNote, CHECKIN_QUESTIONS, checkinAttribution, checkinSummary, displayWeight, displayWeightDelta, supportAudience, trendGeometry, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -129,6 +129,10 @@ export function CheckIn() {
           <BigStep glyph="+" onPress={() => s.wStep(wStepLb)} />
         </Row>
       </Row>
+      {/* body-image safeguard for a minor-facing weight tracker */}
+      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 17, paddingHorizontal: 2 }}>
+        {bodyImageNote()}
+      </Txt>
 
       {/* weight trend */}
       <Card style={{ marginTop: 14, borderRadius: 20 }}>
