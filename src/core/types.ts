@@ -150,6 +150,10 @@ export interface AppState {
    *  (resets on rollover). Absent slots fall back to the constant, so the seeded
    *  demo — which has none — is unchanged. */
   mealFoods: Partial<Record<MealKey, EditableFood[]>>;
+  /** Local minutes-from-midnight when each slot was logged, for on-time accountability.
+   *  Day-scoped. Absent = treated as on-time, so the seeded demo + legacy days are
+   *  unchanged; only a meal logged AFTER its window deadline is scored as late. */
+  mealLoggedAt: Partial<Record<MealKey, number>>;
   hydrationL: number;
   tasks: Task[];
   quickAdded: boolean[];

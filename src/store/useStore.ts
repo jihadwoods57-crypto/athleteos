@@ -266,6 +266,12 @@ const computeProteinToday = (
   return proteinBase + quickGrams;
 };
 
+/** Local minutes-from-midnight, stamped when a meal is logged for on-time accountability. */
+const nowMinutes = (): number => {
+  const n = new Date();
+  return n.getHours() * 60 + n.getMinutes();
+};
+
 export const useStore = create<Store>()(
   persist(
     (set, get) => ({
@@ -482,7 +488,8 @@ export const useStore = create<Store>()(
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
             return x;
           });
-          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, meals, tasks };
+          const mealLoggedAt = { ...s.mealLoggedAt, [key]: nowMinutes() };
+          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, meals, mealLoggedAt, tasks };
         });
         scheduleDaySync(get);
       },
@@ -519,7 +526,8 @@ export const useStore = create<Store>()(
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
             return x;
           });
-          return { meals, mealFoods, tasks, mealDetailOpen: false };
+          const mealLoggedAt = { ...s.mealLoggedAt, [key]: nowMinutes() };
+          return { meals, mealFoods, mealLoggedAt, tasks, mealDetailOpen: false };
         });
         scheduleDaySync(get);
       },
@@ -731,6 +739,7 @@ export const useStore = create<Store>()(
         perfEntries: s.perfEntries,
         meals: s.meals,
         mealFoods: s.mealFoods,
+        mealLoggedAt: s.mealLoggedAt,
         hydrationL: s.hydrationL,
         tasks: s.tasks,
         quickAdded: s.quickAdded,

@@ -21,6 +21,7 @@ export { todayStamp } from './clock';
 export const DAY_DEFAULT_KEYS = [
   'meals',
   'mealFoods',
+  'mealLoggedAt',
   'hydrationL',
   'quickAdded',
   'nudged',

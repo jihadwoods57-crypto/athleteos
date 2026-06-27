@@ -2,7 +2,7 @@
 // edited plate's REAL macros for a slot, falls back to the slot constant when no
 // plate is saved (so the seeded demo is unchanged), and that an edit MOVES the
 // nutrition sub-score + headline. Pure: drives computeDerived against crafted state.
-import { computeDerived, mealSlotMacros, loggedDayMacros } from './scoring';
+import { computeDerived, mealSlotMacros, loggedDayMacros, effectiveMealsLogged } from './scoring';
 import { createInitialState } from './defaultState';
 import { MEAL_MACROS } from './constants';
 import type { AppState } from './types';
@@ -68,5 +68,24 @@ describe('computeDerived — an edited plate moves the score', () => {
     expect(d.nutritionScore).toBeLessThanOrEqual(100);
     expect(d.athleteScore).toBeLessThanOrEqual(100);
     expect(Number.isFinite(d.proteinToday)).toBe(true);
+  });
+});
+
+describe('punctuality in the Development Score (Feature 8)', () => {
+  it('absent timestamps count as on-time, so the seeded demo is unchanged', () => {
+    expect(effectiveMealsLogged(createInitialState())).toBe(3); // breakfast/lunch/snack
+  });
+
+  it('a meal logged after its window deadline counts half', () => {
+    // breakfast window deadline is 09:30 (570 min); logged 11:40 (700) = late.
+    const s: AppState = { ...createInitialState(), mealLoggedAt: { breakfast: 700 } };
+    expect(effectiveMealsLogged(s)).toBe(2.5);
+  });
+
+  it('a late meal lowers the nutrition + headline score vs the same meal on time', () => {
+    const onTime = computeDerived({ ...createInitialState(), mealLoggedAt: { breakfast: 480 } }); // 08:00
+    const late = computeDerived({ ...createInitialState(), mealLoggedAt: { breakfast: 700 } }); // 11:40
+    expect(late.nutritionScore).toBeLessThan(onTime.nutritionScore);
+    expect(late.athleteScore).toBeLessThanOrEqual(onTime.athleteScore);
   });
 });

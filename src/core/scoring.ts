@@ -13,7 +13,27 @@ import {
 } from './constants';
 import { trendSeries } from './history';
 import { mealMacros, type MacroSet } from './mealEdit';
+import { DEFAULT_PLAN } from './coachPlan';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
+
+/** A meal logged after its window deadline counts half toward the score's "meals" share. */
+const LATE_MEAL_WEIGHT = 0.5;
+
+/**
+ * Logged meals weighted by punctuality — the Accountability Engine's execution signal in
+ * the Development Score (Feature 8). A meal logged AFTER its window deadline counts half; a
+ * slot with NO recorded time counts full (on-time), so the seeded demo + every legacy day
+ * (no timestamps) score exactly as before. Only real late logging lowers the number.
+ */
+export function effectiveMealsLogged(s: Pick<AppState, 'meals' | 'mealLoggedAt'>): number {
+  return (Object.keys(s.meals) as MealKey[]).reduce((sum, k) => {
+    if (!s.meals[k]) return sum;
+    const at = s.mealLoggedAt?.[k];
+    const deadline = DEFAULT_PLAN.windows.find((w) => w.key === k)?.deadlineMin ?? 1440;
+    const onTime = at == null || at <= deadline;
+    return sum + (onTime ? 1 : LATE_MEAL_WEIGHT);
+  }, 0);
+}
 
 /**
  * The macros a single logged meal slot contributes. When the athlete has SAVED an
@@ -191,7 +211,7 @@ export function computeDerived(s: AppState): Derived {
   // deflates the seeded roster — that drop is the honesty, not a regression.
   const nutritionScore = Math.min(
     100,
-    Math.round((Math.min(proteinToday, proteinTarget) / proteinTarget) * 65 + (mealsLoggedCount / 4) * 35),
+    Math.round((Math.min(proteinToday, proteinTarget) / proteinTarget) * 65 + (effectiveMealsLogged(s) / 4) * 35),
   );
   // Recovery sub-score averages ONLY the coach-enabled check-in questions
   // (s.ciConfig), each on a 0–10 scale — not a hard-coded energy/recovery/sleep
