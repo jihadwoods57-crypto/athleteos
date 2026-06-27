@@ -4,16 +4,33 @@
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { RESTAURANTS, recommendOrder, type RecommendedOrder } from '@/core';
+import type { EditableFood, MealKey } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
-import { Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
 const GOAL_LABEL: Record<string, string> = { gain: 'gaining', lose: 'leaning out', maintain: 'maintaining', performance: 'performance' };
+const SLOTS: MealKey[] = ['breakfast', 'lunch', 'snack', 'dinner'];
 
 export function FoodCoach() {
   const s = useStore();
+  const [openAlt, setOpenAlt] = React.useState<string | null>(null);
+
+  // "Use this order" logs the recommended order's foods into the next unlogged meal slot,
+  // so a recommendation flows straight into the day's plan + score.
+  const useOrder = (order: RecommendedOrder) => {
+    const foods: EditableFood[] = order.lines.map((l) => ({
+      name: l.item.name,
+      portion: l.item.servingSize,
+      servings: 1,
+      per: { protein: l.item.protein, kcal: l.item.calories, carbs: l.item.carbs, fat: l.item.fat },
+    }));
+    const slot = SLOTS.find((k) => !s.meals[k]) ?? 'dinner';
+    s.saveMeal(slot, foods);
+    s.closeFoodCoach();
+  };
   const d = useDerived();
   const [restaurantId, setRestaurantId] = React.useState(RESTAURANTS[0].id);
   const [budgetText, setBudgetText] = React.useState('');
@@ -77,15 +94,27 @@ export function FoodCoach() {
           </View>
         </Row>
 
-        {/* recommended order */}
-        <OrderCard title="Recommended order" order={result.primary} highlight />
+        {/* recommended order — owns the visual weight */}
+        <OrderCard order={result.primary} onUse={() => useOrder(result.primary)} />
 
-        {/* alternatives */}
+        {/* alternatives — scannable one-line rows that expand on tap */}
+        {result.alternatives.length > 0 ? (
+          <Txt w="eb" size={12} color={colors.textTertiary} ls={0.6} upper style={{ marginTop: 22, marginBottom: 4 }}>
+            Other options
+          </Txt>
+        ) : null}
         {result.alternatives.map((a) => (
-          <OrderCard key={a.label} title={a.label} order={a.order} />
+          <AltRow
+            key={a.label}
+            label={a.label}
+            order={a.order}
+            expanded={openAlt === a.label}
+            onToggle={() => setOpenAlt((k) => (k === a.label ? null : a.label))}
+            onUse={() => useOrder(a.order)}
+          />
         ))}
 
-        <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 16, lineHeight: 16 }}>
+        <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 18, lineHeight: 16 }}>
           Nutrition estimates from a curated menu database; values vary by location and order. Coaching, not medical advice.
         </Txt>
       </ScrollView>
@@ -93,14 +122,14 @@ export function FoodCoach() {
   );
 }
 
-function OrderCard({ title, order, highlight }: { title: string; order: RecommendedOrder; highlight?: boolean }) {
+function OrderCard({ order, onUse }: { order: RecommendedOrder; onUse: () => void }) {
   if (order.lines.length === 0) return null;
   const t = order.totals;
   return (
-    <Card elevated={highlight} style={{ marginTop: 14, borderRadius: 20, borderWidth: highlight ? 1.5 : 0, borderColor: highlight ? colors.accent : undefined }}>
+    <Card elevated style={{ marginTop: 16, borderRadius: 20, borderWidth: 1.5, borderColor: colors.accent }}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <Txt w="eb" size={highlight ? 16 : 14} ls={-0.3} color={highlight ? colors.accent : colors.text}>
-          {title}
+        <Txt w="eb" size={16} ls={-0.3} color={colors.accent}>
+          Recommended order
         </Txt>
         <Txt w="b" size={13} color={colors.textTertiary}>
           ${t.price.toFixed(2)}
@@ -124,12 +153,46 @@ function OrderCard({ title, order, highlight }: { title: string; order: Recommen
         <Stat value={`${t.carbs}g`} label="CARBS" />
         <Stat value={`${t.fat}g`} label="FAT" />
       </Row>
-      {highlight ? (
-        <Txt w="m" size={13} color={colors.slate700} style={{ marginTop: 12, lineHeight: 19 }}>
-          {order.why}
-        </Txt>
-      ) : null}
+      <Txt w="m" size={13} color={colors.slate700} style={{ marginTop: 12, lineHeight: 19 }}>
+        {order.why}
+      </Txt>
+      <Btn label="Use this order" haptic="success" onPress={onUse} style={{ marginTop: 14 }} />
     </Card>
+  );
+}
+
+function AltRow({ label, order, expanded, onToggle, onUse }: { label: string; order: RecommendedOrder; expanded: boolean; onToggle: () => void; onUse: () => void }) {
+  if (order.lines.length === 0) return null;
+  const t = order.totals;
+  return (
+    <View style={[{ marginTop: 10, backgroundColor: '#fff', borderRadius: 16, padding: 14 }, shadow.card]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${label} option`} accessibilityState={{ expanded }} onPress={onToggle} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Txt w="b" size={14} style={{ flex: 1 }}>
+            {label}
+          </Txt>
+          <Txt w="m" size={12} color={colors.textTertiary} style={{ marginRight: 8 }}>
+            {t.protein}g · {t.calories}cal · ${t.price.toFixed(2)}
+          </Txt>
+          <Icon name={expanded ? 'minus' : 'chevronRight'} size={18} color="#CBD5E1" />
+        </Row>
+      </Pressable>
+      {expanded ? (
+        <View style={{ marginTop: 10, gap: 5 }}>
+          {order.lines.map((l) => (
+            <Row key={l.item.id} style={{ justifyContent: 'space-between' }}>
+              <Txt w="m" size={13} color={colors.slate700} style={{ flex: 1 }}>
+                {l.item.name}
+              </Txt>
+              <Txt w="m" size={11} color={colors.textTertiary}>
+                {l.item.protein}g · {l.item.calories} cal
+              </Txt>
+            </Row>
+          ))}
+          <Btn label="Use this order" onPress={onUse} style={{ marginTop: 10 }} />
+        </View>
+      ) : null}
+    </View>
   );
 }
 
