@@ -184,9 +184,14 @@ export function computeDerived(s: AppState): Derived {
   const tasksDone = effectiveTasks.filter((t) => t.done).length;
   const tasksTotal = effectiveTasks.length;
 
+  // No floor (founder D-B): a zero-effort day must score near 0, not a feel-good
+  // 57. Rescaled so a full honest day (protein target met + all four slots logged)
+  // lands at ~100 and an empty day at ~0, with protein the dominant lever
+  // (65 of 100) over slot count (35). Removing the old `57 +` baseline deliberately
+  // deflates the seeded roster — that drop is the honesty, not a regression.
   const nutritionScore = Math.min(
     100,
-    Math.round(57 + (Math.min(proteinToday, proteinTarget) / proteinTarget) * 30 + (mealsLoggedCount / 4) * 15),
+    Math.round((Math.min(proteinToday, proteinTarget) / proteinTarget) * 65 + (mealsLoggedCount / 4) * 35),
   );
   // Recovery sub-score averages ONLY the coach-enabled check-in questions
   // (s.ciConfig), each on a 0–10 scale — not a hard-coded energy/recovery/sleep
