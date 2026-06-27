@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
-import { CHECKIN_QUESTIONS, checkinAttribution, displayWeight, displayWeightDelta, supportAudience, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
+import { CHECKIN_QUESTIONS, checkinAttribution, checkinSummary, displayWeight, displayWeightDelta, supportAudience, trendGeometry, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -36,8 +36,21 @@ export function CheckIn() {
   const audience = supportAudience({ isReal, supportTeam: s.supportTeam, demo: 'Coach Davis & your parent' });
   const attribution = checkinAttribution({ isReal, supportTeam: s.supportTeam });
 
+  // Real weight trend: the fabricated static SVG below is a showcase rising line with
+  // no data source, so a real athlete gets a chart drawn from their OWN logged weights
+  // (history + today's current), or an honest empty state until they have two points.
+  const wSeries = [...(s.weightHistory ?? []).map((p) => p.weight), s.currentWeight].filter(
+    (w): w is number => typeof w === 'number' && Number.isFinite(w),
+  );
+  const wReal = isReal && wSeries.length >= 2;
+  const wLo = Math.min(...wSeries, weightTarget);
+  const wHi = Math.max(...wSeries, weightTarget);
+  const wPad = Math.max(2, (wHi - wLo) * 0.15);
+  const wGeo = wReal
+    ? trendGeometry(wSeries, { width: 322, height: 92, padX: 12, padTop: 16, padBottom: 8, min: wLo - wPad, max: wHi + wPad })
+    : null;
+
   if (s.ciStage === 'done') {
-    const name = s.athleteName?.split(' ')[0] || 'Jihad';
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={pad} showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: 'center', paddingTop: 24 }}>
@@ -61,7 +74,16 @@ export function CheckIn() {
             </Txt>
           </Row>
           <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
-            Strong week, {name}. Energy and confidence are up, and your nutrition is locked in. Recovery dipped slightly, so prioritize sleep and you'll convert this into an A next week.
+            {checkinSummary({
+              name: s.athleteName,
+              energy: s.ciEnergy,
+              recovery: s.ciRecovery,
+              sleep: s.ciSleep,
+              confidence: s.ciConfidence,
+              soreness: s.ciSoreness,
+              motivation: s.ciMotivation,
+              config: s.ciConfig,
+            })}
           </Txt>
         </Card>
         <Btn label="Back to Home" variant="secondary" onPress={s.goHome} style={{ marginTop: 16 }} />
@@ -74,7 +96,7 @@ export function CheckIn() {
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={pad} showsVerticalScrollIndicator={false}>
       <Txt w="sb" size={14} color={colors.textSecondary}>
-        Week 14 · in-season
+        {isReal ? 'This week' : 'Week 14 · in-season'}
       </Txt>
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
         Weekly Check-In
@@ -116,7 +138,7 @@ export function CheckIn() {
               Weight Trend
             </Txt>
             <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
-              8-week build · goal {displayWeight(weightTarget, units)} {wUnit}
+              {isReal ? '' : '8-week build · '}goal {displayWeight(weightTarget, units)} {wUnit}
             </Txt>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -137,21 +159,44 @@ export function CheckIn() {
             })()}
           </View>
         </Row>
-        <Svg viewBox="0 0 322 96" width="100%" height={92} preserveAspectRatio="none" style={{ marginTop: 6 }}>
-          <Defs>
-            <LinearGradient id="ciw" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#2563EB" stopOpacity="0.16" />
-              <Stop offset="1" stopColor="#2563EB" stopOpacity="0" />
-            </LinearGradient>
-          </Defs>
-          <Line x1="0" y1="25" x2="322" y2="25" stroke="#22C55E" strokeWidth="1.5" strokeDasharray="5 5" strokeOpacity="0.5" />
-          <SvgText x="4" y="19" fontSize="10" fontWeight="700" fill="#22C55E">
-            Goal {displayWeight(weightTarget, units)}
-          </SvgText>
-          <Path d="M12,68 L62,65 L111,61 L161,58 L211,51 L260,48 L310,45 L310,96 L12,96 Z" fill="url(#ciw)" />
-          <Path d="M12,68 L62,65 L111,61 L161,58 L211,51 L260,48 L310,45" fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-          <Circle cx={310} cy={45} r={5.5} fill="#2563EB" stroke="#fff" strokeWidth={2.5} />
-        </Svg>
+        {wGeo ? (
+          // Real athlete with >=2 logged weights: draw their own trend.
+          <Svg viewBox="0 0 322 96" width="100%" height={92} preserveAspectRatio="none" style={{ marginTop: 6 }}>
+            <Defs>
+              <LinearGradient id="ciw" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor="#2563EB" stopOpacity="0.16" />
+                <Stop offset="1" stopColor="#2563EB" stopOpacity="0" />
+              </LinearGradient>
+            </Defs>
+            <Path d={wGeo.areaPath} fill="url(#ciw)" />
+            <Path d={wGeo.linePath} fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+            <Circle cx={wGeo.last.x} cy={wGeo.last.y} r={5.5} fill="#2563EB" stroke="#fff" strokeWidth={2.5} />
+          </Svg>
+        ) : isReal ? (
+          // Real athlete without enough history yet: honest empty state, no fake line.
+          <View style={{ marginTop: 10, paddingVertical: 18, alignItems: 'center' }}>
+            <Txt w="sb" size={13} color={colors.textTertiary} style={{ textAlign: 'center', lineHeight: 19 }}>
+              Your weight trend builds as you log your weekly check-ins.
+            </Txt>
+          </View>
+        ) : (
+          // Seeded demo: the showcase trend (unchanged).
+          <Svg viewBox="0 0 322 96" width="100%" height={92} preserveAspectRatio="none" style={{ marginTop: 6 }}>
+            <Defs>
+              <LinearGradient id="ciw" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor="#2563EB" stopOpacity="0.16" />
+                <Stop offset="1" stopColor="#2563EB" stopOpacity="0" />
+              </LinearGradient>
+            </Defs>
+            <Line x1="0" y1="25" x2="322" y2="25" stroke="#22C55E" strokeWidth="1.5" strokeDasharray="5 5" strokeOpacity="0.5" />
+            <SvgText x="4" y="19" fontSize="10" fontWeight="700" fill="#22C55E">
+              Goal {displayWeight(weightTarget, units)}
+            </SvgText>
+            <Path d="M12,68 L62,65 L111,61 L161,58 L211,51 L260,48 L310,45 L310,96 L12,96 Z" fill="url(#ciw)" />
+            <Path d="M12,68 L62,65 L111,61 L161,58 L211,51 L260,48 L310,45" fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+            <Circle cx={310} cy={45} r={5.5} fill="#2563EB" stroke="#fff" strokeWidth={2.5} />
+          </Svg>
+        )}
       </Card>
 
       {/* sliders — only enabled questions */}

@@ -4,6 +4,7 @@ import {
   aiInsight,
   athleteSubtitle,
   checkinAttribution,
+  checkinSummary,
   coachGuidance,
   heroStatus,
   mealResultFor,
@@ -67,6 +68,43 @@ describe('qualityLabel', () => {
     expect(qualityLabel(MEAL_RESULTS.Lunch.quality).tone).toBe('success');
     expect(qualityLabel(MEAL_RESULTS.Dinner.quality).tone).toBe('success');
     expect(qualityLabel(MEAL_RESULTS.Snack.quality)).toEqual({ label: 'GOOD', tone: 'accent' });
+  });
+});
+
+describe('checkinSummary — reflects the real slider inputs (no static blurb)', () => {
+  const allOn = { energy: true, recovery: true, sleep: true, confidence: true, soreness: true, motivation: true };
+  it('names strong (>=8) signals and a watch (<5) signal, soreness read inversely', () => {
+    const out = checkinSummary({
+      name: 'Maya Lopez', energy: 9, recovery: 4, sleep: 8, confidence: 9, soreness: 7, motivation: 6, config: allOn,
+    });
+    expect(out).toContain('Maya');
+    expect(out.toLowerCase()).toContain('energy');
+    expect(out.toLowerCase()).toContain('confidence');
+    expect(out.toLowerCase()).toContain('strong');
+    // recovery (4) is low and soreness (7) is high -> both on the watch list
+    expect(out.toLowerCase()).toMatch(/keep an eye on/);
+    expect(out.toLowerCase()).toContain('recovery');
+    expect(out.toLowerCase()).toContain('soreness');
+    expect(out).not.toContain('—');
+  });
+  it('only considers enabled questions', () => {
+    const out = checkinSummary({
+      name: 'Sam', energy: 9, recovery: 2, sleep: 9, confidence: 9, soreness: 9, motivation: 9,
+      config: { energy: true, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false },
+    });
+    // recovery is disabled, so a low recovery never surfaces
+    expect(out.toLowerCase()).not.toContain('recovery');
+    expect(out.toLowerCase()).toContain('energy');
+  });
+  it('is resilient to a blank name and non-finite answers', () => {
+    const out = checkinSummary({ name: '', energy: NaN, recovery: undefined, sleep: 8, confidence: undefined, soreness: undefined, motivation: undefined, config: allOn });
+    expect(out.length).toBeGreaterThan(10);
+    expect(out).toContain('there'); // blank-name fallback
+    expect(out.toLowerCase()).toContain('sleep'); // the one finite strong signal
+  });
+  it('falls back to a steady line when nothing is strong or low', () => {
+    const out = checkinSummary({ name: 'Jo', energy: 6, recovery: 6, sleep: 6, confidence: 6, soreness: 4, motivation: 6, config: allOn });
+    expect(out.toLowerCase()).toContain('steady');
   });
 });
 

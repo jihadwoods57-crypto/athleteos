@@ -44,16 +44,20 @@ export function Home() {
   const d = useDerived();
   const name = firstName(s.athleteName, 'Jihad');
   const monogram = initials(s.athleteName, 'J');
+  // A real athlete has set their name; the unnamed seeded state is the demo showcase.
+  // Used to gate showcase-only strings that have no real data source (a season
+  // deadline, an unread-notification dot) so a real user never sees fabricated data.
+  const isReal = s.athleteName.trim().length > 0;
   // Human-coach guidance, gated so a brand-new real athlete with no coach never
   // sees the seeded demo's "Coach Davis" note (the demo showcase is unchanged).
   const guidance = coachGuidance({
-    isReal: s.athleteName.trim().length > 0,
+    isReal,
     supportTeam: s.supportTeam,
     coachNote: s.coachNote,
   });
   // Where a completed check-in is sent, gated so a real solo athlete (no coach)
   // is not told it went to "Coach Davis"; the demo keeps the showcase recipient.
-  const checkinAudience = supportAudience({ isReal: s.athleteName.trim().length > 0, supportTeam: s.supportTeam, demo: 'Coach Davis' });
+  const checkinAudience = supportAudience({ isReal, supportTeam: s.supportTeam, demo: 'Coach Davis' });
 
   // Real trend geometry: persisted prior-day scores + today's live score as the
   // final point (seed pads the left only while real history is still filling up).
@@ -68,7 +72,8 @@ export function Home() {
     realDays >= TREND_WINDOW ? 'Past 7 days' : `Building history · ${realDays} of ${TREND_WINDOW} days`;
   // Day streak: consecutive on-plan days ending today (live score + real
   // history; seeded baseline pads the unknown pre-history like the trend chart).
-  const streak = currentStreak(s.scoreHistory, d.athleteScore);
+  // Real athlete: only days actually earned. Seeded demo: pad with the showcase lead.
+  const streak = currentStreak(s.scoreHistory, d.athleteScore, undefined, !isReal);
 
   // Season weight goal — per-athlete start anchor (their onboarding weight, or the
   // demo's WEIGHT_START), athlete-editable target, live weight.
@@ -110,7 +115,12 @@ export function Home() {
         <Row style={{ gap: 10 }}>
           <Pressable accessibilityRole="button" accessibilityLabel="Notifications" hitSlop={6} onPress={s.openNotif} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
             <Icon name="bell" size={19} color={colors.slate600} />
-            <View style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.alert, borderWidth: 1.5, borderColor: '#fff' }} />
+            {/* The unread-notification dot is showcase only: there is no real
+                seen/unseen model, so an always-on dot would fake unread urgency for
+                a real athlete. Shown for the seeded demo, hidden for a real user. */}
+            {!isReal ? (
+              <View style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.alert, borderWidth: 1.5, borderColor: '#fff' }} />
+            ) : null}
           </Pressable>
           <Row
             accessibilityRole="text"
@@ -174,12 +184,17 @@ export function Home() {
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
             SEASON GOAL
           </Txt>
-          <Row style={{ gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
-            <Icon name="checkin" size={12} color={colors.accent} />
-            <Txt w="eb" size={12} color={colors.accent}>
-              38 days left
-            </Txt>
-          </Row>
+          {/* "38 days left" / "Nov 14" are showcase deadlines with no real data
+              source (no season deadline is collected yet). Demo keeps the showcase;
+              a real athlete sees no fabricated countdown. */}
+          {!isReal ? (
+            <Row style={{ gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
+              <Icon name="checkin" size={12} color={colors.accent} />
+              <Txt w="eb" size={12} color={colors.accent}>
+                38 days left
+              </Txt>
+            </Row>
+          ) : null}
         </Row>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
           <View>
@@ -190,9 +205,11 @@ export function Home() {
                 target
               </Txt>
             </Txt>
-            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
-              by Playoffs · Nov 14
-            </Txt>
+            {!isReal ? (
+              <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+                by Playoffs · Nov 14
+              </Txt>
+            ) : null}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Txt w="eb" size={20} color={colors.success}>
@@ -242,6 +259,8 @@ export function Home() {
               ? `You hit ${displayWeight(TARGET, units)} ${wUnit}. Season weight goal complete.`
               : goalPhase === 'first-run'
                 ? 'Log your check-ins and weight to see your pace toward the season goal.'
+                : isReal
+                ? `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit}.`
                 : `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit} by Nov 7, a week ahead of playoffs.`}
           </Txt>
         </View>
@@ -413,7 +432,7 @@ export function Home() {
               WEEKLY CHECK-IN DUE
             </Txt>
             <Txt w="b" size={15} color="#fff" style={{ marginTop: 5 }}>
-              6 questions · 2 min · 2 days left
+              6 questions · 2 min
             </Txt>
           </View>
           <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>

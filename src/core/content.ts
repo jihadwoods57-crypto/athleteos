@@ -1,6 +1,6 @@
 // AthleteOS — content data + display-string helpers (pure).
 // Ported from the prototype: meal log, meal-analysis results, AI insight, pace.
-import type { AppState, Derived, MealKey, MealLabel } from './types';
+import type { AppState, CiConfig, Derived, MealKey, MealLabel } from './types';
 import { mealSlotMacros } from './scoring';
 
 export interface LoggedMeal {
@@ -582,4 +582,55 @@ export function squadView(opts: { isReal: boolean }): SquadView {
       body: 'When your team or training group joins AthleteOS, your weekly leaderboard shows up here. Your own score keeps tracking in the meantime.',
     },
   };
+}
+
+/** The just-submitted weekly check-in answers, for an honest derived summary. */
+export interface CheckinAnswers {
+  name?: string;
+  energy?: number;
+  recovery?: number;
+  sleep?: number;
+  confidence?: number;
+  soreness?: number;
+  motivation?: number;
+  /** Which questions the coach enabled (mirrors AppState.ciConfig). */
+  config: CiConfig;
+}
+
+/**
+ * Honest weekly check-in summary derived from the athlete's ACTUAL slider answers
+ * (replaces a static "Energy and confidence are up..." blurb that ignored what was
+ * entered). Names only the enabled questions, classifies each strong (>=8) / watch
+ * (<5), with soreness read inversely (high soreness = something to watch). Resilient
+ * to missing/non-finite answers; factual, no guilt, no em dash.
+ */
+export function checkinSummary(a: CheckinAnswers): string {
+  const first = (a.name ?? '').trim().split(/\s+/)[0] || 'there';
+  const fin = (v: number | undefined): number | null =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null;
+  const strong: string[] = [];
+  const watch: string[] = [];
+  const consider = (on: boolean | undefined, label: string, v: number | null) => {
+    if (on !== true || v === null) return;
+    if (v >= 8) strong.push(label);
+    else if (v < 5) watch.push(label);
+  };
+  consider(a.config.energy, 'energy', fin(a.energy));
+  consider(a.config.recovery, 'recovery', fin(a.recovery));
+  consider(a.config.sleep, 'sleep', fin(a.sleep));
+  consider(a.config.confidence, 'confidence', fin(a.confidence));
+  consider(a.config.motivation, 'motivation', fin(a.motivation));
+  // Soreness is inverse: a HIGH score is worse, so it only ever goes on the watch list.
+  const sore = fin(a.soreness);
+  if (a.config.soreness === true && sore !== null && sore >= 6) watch.push('soreness');
+
+  const join = (xs: string[]): string =>
+    xs.length <= 1 ? (xs[0] ?? '') : xs.length === 2 ? `${xs[0]} and ${xs[1]}` : `${xs.slice(0, -1).join(', ')}, and ${xs[xs.length - 1]}`;
+  const cap = (str: string): string => (str ? str[0].toUpperCase() + str.slice(1) : str);
+
+  const sentences: string[] = [];
+  if (strong.length) sentences.push(`${cap(join(strong))} ${strong.length === 1 ? 'is' : 'are'} strong this week.`);
+  if (watch.length) sentences.push(`Keep an eye on ${join(watch)}.`);
+  if (sentences.length === 0) sentences.push('Your numbers are steady across the board.');
+  return `Check-in saved, ${first}. ${sentences.join(' ')}`;
 }
