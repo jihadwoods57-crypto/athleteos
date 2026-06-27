@@ -290,6 +290,12 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
       <CoachBlock tag="DO THIS NEXT" icon="utensils" text={coaching.nextStep} />
       <CoachBlock tag="WHY IT MATTERS" icon="bolt" text={coaching.education} muted />
 
+      {/* scope: this is optional education, not a prescription (keeps the AI honest
+          about what it is and protects against reading as clinical advice) */}
+      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 10, paddingHorizontal: 4, lineHeight: 17 }}>
+        {coaching.scope}
+      </Txt>
+
       {/* weekly context, when earned */}
       {coaching.weeklyContext ? (
         <Row style={{ gap: 9, marginTop: 12, paddingHorizontal: 4 }}>

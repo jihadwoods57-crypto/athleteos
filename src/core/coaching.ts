@@ -52,6 +52,18 @@ export interface MealCoaching {
   /** Loop #2: the AI reinforcing the overseer's carried-forward directive, so the
    *  coach's voice is amplified inside the athlete's daily experience. Null if no note. */
   coachEcho: string | null;
+  /** Scope disclaimer: this is general, optional education, not a prescription. Keeps
+   *  the AI from reading as clinical advice a real nutritionist would be liable for
+   *  (RD persona finding). Always present so the coaching never implies authority. */
+  scope: string;
+}
+
+/** The standing scope note shown alongside any AI coaching: it is general, optional
+ *  education, not a prescription, and a real nutritionist's or doctor's plan comes
+ *  first. Addresses the RD persona's clinical-overreach/liability finding — the
+ *  coaching should suggest and teach, never prescribe over a professional's plan. */
+export function coachingScopeNote(): string {
+  return 'General guidance to learn from, not a prescription. If a nutritionist or doctor set your plan, theirs comes first.';
 }
 
 /** The AI's reinforcement of the coach's standing directive — makes the coach feel
@@ -94,10 +106,12 @@ export function mealCoaching(
 ): MealCoaching {
   const theme = themeForGoal(goal);
   const gap = derived.proteinGap;
+  // Educational/optional framing, not a directive: suggest foods as easy options
+  // "if that fits your plan" rather than prescribing what to eat (RD finding).
   const nextStep =
     gap > 0
-      ? `You're about ${gap}g behind your protein target today. Greek yogurt, eggs, lean meat, or a shake this evening closes the gap.`
-      : 'Protein is handled for today. Keep carbs earlier tomorrow and you are set for an A.';
+      ? `You're about ${gap}g under your protein target so far. Foods like Greek yogurt, eggs, or lean meat are easy ways to add protein if that fits your plan.`
+      : 'Protein is handled for today. If you want, keeping carbs earlier tomorrow tends to set up a strong day.';
   const dailyContext =
     gap > 0
       ? `So far today: ${derived.proteinToday}g protein of ${derived.proteinTarget}g, ${derived.kcalToday} cal. About ${gap}g to go.`
@@ -112,5 +126,6 @@ export function mealCoaching(
     dailyContext,
     weeklyContext,
     coachEcho: coachReinforcement(coachNote),
+    scope: coachingScopeNote(),
   };
 }
