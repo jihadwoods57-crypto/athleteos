@@ -306,7 +306,15 @@ export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): 
   const daysLeft = 3;
   const daysElapsed = 4;
   const surplus = Math.round((goal * 3500) / 7);
-  const projected = +((progressLb / daysElapsed) * 7).toFixed(1);
+  // Clamp the linear extrapolation to a believable weekly band. A brand-new athlete
+  // with no weekly weight history yet has `progressLb` fall back to their season-total
+  // gain (e.g. +7 lb), which would otherwise project an absurd "+12.3 lb by Sunday"
+  // and, downstream, "ease back ~13,000 cal/day". No real weekly weight change exceeds
+  // a few pounds, so cap the projection — honest and never nonsensical.
+  const projected = +Math.max(-5, Math.min(5, (progressLb / daysElapsed) * 7)).toFixed(1);
+  // Calorie adjustment to hit the goal, bounded to a realistic ceiling (no one
+  // meaningfully eats 1,000+ cal/day off-plan; a larger raw number is an artifact).
+  const calAdjust = (lb: number) => Math.max(0, Math.min(1000, Math.round((lb * 3500) / daysLeft)));
   const onPace = projected >= goal - 0.001;
   // The UI clamps the weekly goal to >= 0.5, but a corrupt/legacy persisted blob (or a
   // future maintain goal) could carry 0/negative/NaN, making progressLb/goal divide as
@@ -323,11 +331,11 @@ export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): 
   const paceLabel = onPace ? '↑ On pace' : '↓ Behind pace';
   let paceAi: string;
   if (projected > goal) {
-    paceAi = `You're tracking to +${projected} lb by Sunday, a touch ahead. Ease back ~${Math.round(((projected - goal) * 3500) / 3)} cal/day to land exactly on target.`;
+    paceAi = `You're tracking to +${projected} lb by Sunday, a touch ahead. Ease back ~${calAdjust(projected - goal)} cal/day to land exactly on target.`;
   } else if (onPace) {
     paceAi = `You're tracking to +${projected} lb by Sunday, right on target. Keep the surplus steady.`;
   } else {
-    paceAi = `At today's intake you'll reach +${projected} lb. Add ~${Math.round(((goal - projected) * 3500) / 3)} cal/day over the next ${daysLeft} days to stay on track.`;
+    paceAi = `At today's intake you'll reach +${projected} lb. Add ~${calAdjust(goal - projected)} cal/day over the next ${daysLeft} days to stay on track.`;
   }
   return { daysLeft, surplus, goalPct, onPace, paceLabel, paceAi, projected, progressLb };
 }

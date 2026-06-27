@@ -366,6 +366,16 @@ describe('paceProjection', () => {
     expect(paceProjection(1.0, -2).goalPct).toBe(0);
   });
 
+  it('caps the projection + calorie advice so a season-total fallback never reads absurdly', () => {
+    // A new athlete with no weekly history feeds their season-total gain (e.g. +8 lb).
+    // The old math projected "+14 lb by Sunday" -> "ease back ~13,000 cal/day".
+    const p = paceProjection(1.0, 8);
+    expect(p.projected).toBeLessThanOrEqual(5); // believable weekly band
+    const calNum = Number((p.paceAi.match(/~(\d+) cal\/day/) ?? [])[1]);
+    expect(Number.isFinite(calNum)).toBe(true);
+    expect(calNum).toBeLessThanOrEqual(1000); // sane ceiling, never 13,183
+  });
+
   it('stays finite on a zero weekly goal (corrupt blob) — never NaN%/Infinity%', () => {
     // goal 0 + 0 progress is the 0/0 = NaN trap; goal 0 + positive progress is the
     // x/0 = Infinity trap. Both must resolve to a finite 0..100.
