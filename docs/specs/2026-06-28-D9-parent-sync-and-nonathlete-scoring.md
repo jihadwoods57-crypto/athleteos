@@ -167,3 +167,34 @@ profile is a re-weighting of the SAME engine, never a second formula. Default pr
 'athlete' so every existing user and test is byte-for-byte unchanged. Once approved, the build
 is: `ScoringProfile` flag -> the general weight set -> `computeDerived` honors it -> tests prove
 the athlete path is untouched.
+
+---
+
+## The control model (who sets what) — resolves "should the coach control the score?"
+
+Founder decision (encoded as Constitution Rule #13): **separate the PLAN from the FORMULA.**
+
+- **Coach/trainer/nutritionist controls THE PLAN:**
+  - **Targets** — protein, calories, meal count, windows, restrictions (already settable via
+    the Coach Plan; the AI recommends evidence-based numbers, the coach overrides).
+  - **Profile** — picks the scoring shape from a curated set (Athlete / General / Performance),
+    AI recommends which fits. Not a free-form formula.
+  - **Component relevance** — toggles which components apply (on/off), e.g. exclude check-in
+    for a client whose trainer doesn't run one. The platform re-normalizes among active
+    components; it does NOT change their relative weights. (Extends the existing
+    check-in-question toggles in `ciConfig`.)
+- **Platform controls THE FORMULA:** the weights within each profile, the 0-100 scale, the band
+  language. Coaches cannot re-weight or invent metrics. This keeps an "84" meaning "84% of YOUR
+  plan executed" for everyone — comparable across a roster and un-gameable.
+- **AI recommends, never dictates:** evidence-based deterministic math proposes targets +
+  profile (no hallucinated numbers, safe for minors); the coach accepts/overrides; the LLM
+  layer explains the number rather than inventing it.
+
+**Implication for the v1 weights above:** the proposed weights are the PLATFORM DEFAULT for the
+`general` profile (the standard every general client is measured against), which the coach then
+personalizes via TARGETS — not a per-client formula. The five sign-off questions still stand;
+they define a standard, not a single client's score.
+
+**Implication for the build:** `ScoringProfile` selects the platform weight set; the coach's
+levers are targets (already in the Coach Plan) + a relevance mask (new, mirrors `ciConfig`).
+`computeDerived` honors profile + mask; the athlete default stays byte-for-byte unchanged.

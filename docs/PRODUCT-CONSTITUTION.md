@@ -133,6 +133,31 @@ budget/any context). Coach visibility + intervention (once backend's on). Real A
 4. **The Development Score as a category standard** — own the language sports uses for
    nutrition execution (the Whoop-Recovery moat).
 
+## 11a. The Scoring Contract (who controls what)
+The single most important architectural rule for the Development Score, because it resolves a
+real conflict between Human Connection (give the coach control) and Proof + the category moat
+(the score must be consistent to be trustworthy). The resolution: **separate the PLAN from the
+FORMULA.**
+
+- **The coach/trainer/nutritionist OWNS THE PLAN.** Targets (protein, calories, meals, windows,
+  restrictions), the scoring **profile** (a curated set: Athlete / General / Performance), and
+  which components are **relevant** (on/off — never penalize a client for a check-in their
+  trainer doesn't run; this extends the existing check-in-question toggles). The professional
+  personalizes *what the client is trying to hit*.
+- **The PLATFORM owns the FORMULA.** The weights within a profile, the 0-100 scale, the band
+  language. The coach may NOT re-weight or invent metrics. An "84" always means "84% execution
+  of YOUR plan," whoever set the plan — so the number stays comparable across a roster, a team,
+  and the platform, and stays un-gameable.
+- **The AI RECOMMENDS, never dictates.** It proposes evidence-based targets and the right
+  profile; the coach accepts or overrides. Target *recommendation* stays evidence-based
+  deterministic math (you never want a model hallucinating a minor's calorie target); the AI
+  layer *explains and refines* the number, it does not invent it.
+
+Why free re-weighting is rejected: per-coach formulas make an "84" mean something different for
+every athlete (kills comparability), let a coach flatter their roster (gameable), and end the
+Proof pillar (you can't prove a rising score predicts improvement if the score isn't constant).
+Targets + profile + on/off already give a coach all the real personalization they need.
+
 ## 12. Product Principles (how the product behaves)
 One number, not four. Always explain why. Reward execution, not perfection. Reduce decisions,
 never add choices. Every screen answers "what do I do next?". Fail honest (never fake data or
@@ -151,6 +176,8 @@ fake AI). The coach is amplified, never replaced. Make the right action the easy
 10. Demo data never touches a real user.
 11. Validate the loop before you widen it. Proof is earned with real athletes, not built.
 12. When in doubt, do the smaller thing exceptionally well.
+13. The coach owns the plan; the platform owns the formula; the AI recommends, never dictates.
+    A score must mean the same thing for everyone or it means nothing.
 
 ---
 
