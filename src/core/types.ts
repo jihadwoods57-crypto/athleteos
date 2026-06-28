@@ -227,6 +227,8 @@ export interface AppState {
   mealDetailOpen: boolean;
   /** Overseer (coach/trainer/parent) self-profile overlay. */
   overseerProfileOpen: boolean;
+  /** Coach per-athlete targets + scoring editor overlay (from PersonDetail). */
+  coachGoalsOpen: boolean;
   /** Client meal-history overlay (past uploads). */
   mealHistoryOpen: boolean;
   /** Meals fetched from the backend for the history overlay (null = not fetched /

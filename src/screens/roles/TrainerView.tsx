@@ -16,6 +16,7 @@ import { Account } from '@/screens/overlays/Account';
 import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
+import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
 
 export function TrainerView() {
   const s = useStore();
@@ -234,6 +235,7 @@ export function TrainerView() {
       </SafeAreaView>
 
       {s.personDetail && <PersonDetail />}
+      {s.personDetail && s.coachGoalsOpen && <CoachGoalsEditor />}
       {s.msgOpen && <Messages />}
       {s.accountOpen && <Account />}
       {s.overseerProfileOpen && <OverseerProfile />}

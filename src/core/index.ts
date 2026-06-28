@@ -22,6 +22,7 @@ export * from './rosterSync';
 export * from './mealEdit';
 export * from './mealHistory';
 export * from './credentials';
+export * from './coachGoals';
 export * from './foodDb';
 export * from './reminders';
 export * from './weeklyReport';

@@ -175,6 +175,11 @@ export interface Actions {
   closeMealHistory: () => void;
   openOverseerProfile: () => void;
   closeOverseerProfile: () => void;
+  openCoachGoals: () => void;
+  closeCoachGoals: () => void;
+  /** Coach sets a roster athlete's targets via the coach_set_goals RPC (gated). The
+   *  coach owns the plan (Constitution Rule #13). Returns success; inert when off. */
+  pushAthleteGoals: (athleteId: string, targets: { protein: number; calories: number; weight: number }) => Promise<boolean>;
   /** Overseer self-profile edits (coach/trainer/parent). Update the display name +
    *  org/team name; when live they also push to the profiles row (gated seam). */
   setDisplayName: (v: string) => void;
@@ -606,6 +611,19 @@ export const useStore = create<Store>()(
       closeMealHistory: () => set({ mealHistoryOpen: false }),
       openOverseerProfile: () => set({ overseerProfileOpen: true }),
       closeOverseerProfile: () => set({ overseerProfileOpen: false }),
+      openCoachGoals: () => set({ coachGoalsOpen: true }),
+      closeCoachGoals: () => set({ coachGoalsOpen: false }),
+      pushAthleteGoals: async (athleteId, targets) => {
+        if (!isBackendLive || !athleteId) return false;
+        try {
+          await db.coachSetGoals(athleteId, targets, null);
+          set({ authError: null });
+          return true;
+        } catch (e) {
+          set({ authError: e instanceof Error ? e.message : 'Could not save goals' });
+          return false;
+        }
+      },
       setDisplayName: (v) => {
         set({ athleteName: v });
         pushProfile(get);

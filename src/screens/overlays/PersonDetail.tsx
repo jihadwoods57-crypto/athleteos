@@ -123,6 +123,28 @@ export function PersonDetail() {
           </View>
         </Card>
 
+        {/* Coach owns the plan (Constitution Rule #13): set this athlete's targets +
+            scoring profile. Shown to the overseer flows that open this overlay. */}
+        {s.flow === 'coach' || s.flow === 'trainer' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Set ${pd.name}'s targets and scoring`}
+            onPress={s.openCoachGoals}
+            style={({ pressed }) => [{ marginTop: 14, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', opacity: pressed ? 0.9 : 1 }, shadow.card]}
+          >
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="shield" size={18} color={colors.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="b" size={15}>Targets &amp; scoring</Txt>
+              <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 1 }}>
+                Set {pd.name.split(/\s+/)[0]}'s protein, calories &amp; scoring profile
+              </Txt>
+            </View>
+            <Icon name="chevronRight" size={18} color={colors.textTertiary} />
+          </Pressable>
+        ) : null}
+
         <RecentMeals athleteId={pd.athleteId} name={pd.name} />
 
         <Card style={{ marginTop: 14, borderRadius: 20 }}>

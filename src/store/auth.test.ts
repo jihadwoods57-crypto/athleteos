@@ -12,6 +12,7 @@ const signOut = jest.fn<Promise<void>, []>();
 const resetPassword = jest.fn<Promise<AuthResult>, [string]>();
 const signInWithAppleToken = jest.fn<Promise<AuthResult>, [string]>();
 const createTeam = jest.fn<Promise<string | null>, [string, string | undefined]>();
+const coachSetGoals = jest.fn<Promise<void>, [string, unknown, unknown]>();
 
 function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
   let store!: UseBoundStore<StoreApi<Store>>;
@@ -24,7 +25,7 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
       isSupabaseConfigured: backendLive,
       auth: { signIn, signUp, signOut, resetPassword, signInWithAppleToken },
       // signInLive hydrates the day after auth; no remote row in these unit tests.
-      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam },
+      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam, coachSetGoals },
     }));
     store = require('./useStore').useStore;
   });
@@ -38,6 +39,7 @@ beforeEach(() => {
   resetPassword.mockReset();
   signInWithAppleToken.mockReset();
   createTeam.mockReset();
+  coachSetGoals.mockReset().mockResolvedValue(undefined);
 });
 
 describe('flag OFF: live auth is inert (mock path preserved)', () => {
@@ -55,6 +57,12 @@ describe('flag OFF: live auth is inert (mock path preserved)', () => {
     expect(await useStore.getState().createTeamLive('Eastside Eagles', 'Football')).toBeNull();
     expect(createTeam).not.toHaveBeenCalled();
     expect(useStore.getState().teamCode).toBe('');
+  });
+
+  it('pushAthleteGoals no-ops when off (never touches the RPC)', async () => {
+    const useStore = loadStore(false);
+    expect(await useStore.getState().pushAthleteGoals('ath-1', { protein: 180, calories: 3200, weight: 184 })).toBe(false);
+    expect(coachSetGoals).not.toHaveBeenCalled();
   });
 
   it('signInWithApple no-ops; requestPasswordReset shows a neutral local confirmation', async () => {
@@ -124,6 +132,14 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(ok).toBe(true);
     expect(signInWithAppleToken).toHaveBeenCalledWith('tok');
     expect(useStore.getState().userId).toBe('u-apple');
+  });
+
+  it('pushAthleteGoals routes a roster athlete plan through coach_set_goals', async () => {
+    const useStore = loadStore(true);
+    const t = { protein: 180, calories: 3200, weight: 184 };
+    const ok = await useStore.getState().pushAthleteGoals('ath-1', t);
+    expect(ok).toBe(true);
+    expect(coachSetGoals).toHaveBeenCalledWith('ath-1', t, null);
   });
 
   it('signOutLive calls the wrapper and clears the session', async () => {
