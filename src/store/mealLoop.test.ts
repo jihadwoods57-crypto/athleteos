@@ -54,4 +54,21 @@ describe('saveMeal', () => {
     const proteinTask = state().tasks.find((t) => t.id === 2);
     expect(proteinTask?.done).toBe(true);
   });
+
+  // Keystone: the engines master switch is OFF in the test env (EXPO_PUBLIC_ENGINES_ENABLED
+  // unset). The Accountability Engine's on-time punctuality signal (Feature 8) feeds the
+  // Development Score, so with engines off it must NOT be recorded — a meal logged at any
+  // hour stays full-credit and the score is byte-for-byte the pre-engines number.
+  it('does NOT record a punctuality timestamp when the engines switch is off', () => {
+    expect(state().mealLoggedAt).toEqual({});
+    state().saveMeal('dinner', plate(50));
+    expect(state().mealLoggedAt).toEqual({}); // no late-penalty signal collected
+  });
+
+  it('addMeal also records no punctuality timestamp with engines off', () => {
+    useStore.setState({ mealType: 'Lunch' });
+    state().addMeal();
+    expect(state().meals.lunch).toBe(true); // the slot still logs
+    expect(state().mealLoggedAt).toEqual({}); // but no on-time stamp with engines off
+  });
 });

@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { analyzeMeal, isAiConfigured } from '@/lib/ai';
 import { capturePhotoBase64, isCameraAvailable } from '@/lib/capture';
+import { isEnginesEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
 import { refreshReminderSchedule } from '@/lib/notify';
 import { hydrateDay, pushDay } from './sync';
@@ -511,7 +512,12 @@ export const useStore = create<Store>()(
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
             return x;
           });
-          const mealLoggedAt = { ...s.mealLoggedAt, [key]: nowMinutes() };
+          // On-time stamping is the Accountability Engine's punctuality signal (Feature 8),
+          // and it feeds the Development Score — so it's gated by the engines master switch.
+          // With engines OFF (the first-beta config) we record NO timestamp: every meal counts
+          // on-time and the score stays byte-for-byte untouched, per the ratified keystone
+          // ("engines off -> score untouched"). Engines ON: stamp -> late logging lowers it.
+          const mealLoggedAt = isEnginesEnabled ? { ...s.mealLoggedAt, [key]: nowMinutes() } : s.mealLoggedAt;
           return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, meals, mealLoggedAt, tasks };
         });
         scheduleDaySync(get);
@@ -549,7 +555,9 @@ export const useStore = create<Store>()(
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
             return x;
           });
-          const mealLoggedAt = { ...s.mealLoggedAt, [key]: nowMinutes() };
+          // Punctuality stamp gated by the engines switch — see addMeal above (keystone:
+          // engines off -> Development Score untouched).
+          const mealLoggedAt = isEnginesEnabled ? { ...s.mealLoggedAt, [key]: nowMinutes() } : s.mealLoggedAt;
           return { meals, mealFoods, mealLoggedAt, tasks, mealDetailOpen: false };
         });
         scheduleDaySync(get);

@@ -25,6 +25,11 @@ const LATE_MEAL_WEIGHT = 0.5;
  * the Development Score (Feature 8). A meal logged AFTER its window deadline counts half; a
  * slot with NO recorded time counts full (on-time), so the seeded demo + every legacy day
  * (no timestamps) score exactly as before. Only real late logging lowers the number.
+ *
+ * Whether punctuality is even collected is the engines master switch's call: the store only
+ * stamps `mealLoggedAt` when `isEnginesEnabled` (see useStore `addMeal`/`saveMeal`). With the
+ * engines OFF (first-beta config) no timestamps exist, so every meal is on-time here and the
+ * score is untouched, honoring the ratified keystone. This function stays pure + flag-agnostic.
  */
 export function effectiveMealsLogged(s: Pick<AppState, 'meals' | 'mealLoggedAt'>): number {
   return (Object.keys(s.meals) as MealKey[]).reduce((sum, k) => {
