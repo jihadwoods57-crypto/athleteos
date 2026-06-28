@@ -7,6 +7,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, initials, needsAttention, rankByRisk, trainerBookKpis, trainerLens } from '@/core';
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
+import { aiPrefix } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -217,7 +218,7 @@ export function TrainerView() {
                 <Icon name="sparkle" size={17} color={colors.accent} />
               </View>
               <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
-                AI PRACTICE SUMMARY
+                {aiPrefix}PRACTICE SUMMARY
               </Txt>
               <SampleTag />
             </Row>

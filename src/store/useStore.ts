@@ -737,6 +737,7 @@ export const useStore = create<Store>()(
         planInstructions: s.planInstructions,
         calTarget: s.calTarget,
         weightTarget: s.weightTarget,
+        scoringProfile: s.scoringProfile,
         compMode: s.compMode,
         goals: s.goals,
         inviteWho: s.inviteWho,

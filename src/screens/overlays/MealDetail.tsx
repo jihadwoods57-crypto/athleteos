@@ -3,7 +3,7 @@ import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods, searchFoods, addFood, removeFood, resolvePortion, medicalDisclaimer, activePlan, planMealNote } from '@/core';
 import { isEnginesEnabled } from '@/lib/features';
-import { aiCoachName } from '@/lib/ai';
+import { aiCoachName, isAiConfigured } from '@/lib/ai';
 import type { EditableFood, LoggedMeal, FoodItem, MealKey } from '@/core';
 import { useStore } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
@@ -274,7 +274,7 @@ function Chat() {
         </Txt>
         <View style={{ backgroundColor: colors.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
           <Txt w="b" size={10} color={colors.accent}>
-            YOU · AI · COACH
+            {isAiConfigured ? 'YOU · AI · COACH' : 'YOU · COACH'}
           </Txt>
         </View>
       </Row>

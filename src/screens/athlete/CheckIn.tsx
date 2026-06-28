@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
 import { bodyImageNote, CHECKIN_QUESTIONS, checkinAttribution, checkinSummary, displayWeight, displayWeightDelta, supportAudience, trendGeometry, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
+import { aiPrefix } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
 import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -70,7 +71,7 @@ export function CheckIn() {
               <Icon name="sparkle" size={17} color={colors.accent} />
             </View>
             <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
-              AI WEEKLY SUMMARY
+              {aiPrefix}WEEKLY SUMMARY
             </Txt>
           </Row>
           <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>

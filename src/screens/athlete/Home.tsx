@@ -399,7 +399,7 @@ export function Home() {
               )}
             </Row>
             <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 6, lineHeight: 20 }}>
-              {guidance.note ?? 'Your coach can leave a standing note here. The AI keeps it in front of you every day until it sticks.'}
+              {guidance.note ?? 'Your coach can leave a standing note here, and it stays in front of you every day until it sticks.'}
             </Txt>
           </View>
         </Card>
