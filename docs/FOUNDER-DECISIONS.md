@@ -320,3 +320,49 @@ hole to the safe line:
 **Status:** app-layer guard shipped pure + unit-tested; "Active now" lie removed and `msgThread`
 persisted (built, not runtime-verified — no device render here); RLS `0006` authored as a
 documented seam, NOT applied, NOT runtime-verified.
+
+---
+
+## D11 — Local-only activation for minors (loosened the onboarding consent gate)
+
+**What.** The persona play-test (athlete persona) flagged the guardian-consent step as a
+day-0 activation killer: a minor was hard-blocked at onboarding until a guardian request was
+sent, a typo'd guardian email left them permanently stuck with no feedback, and a pending
+request locked the field with no way to resend. This run changed the policy to **local-only
+activation**:
+- A minor can **start the app immediately** in local-only mode. The onboarding continue CTA
+  now needs only the athlete's own agreement, with a banner: *"your meals and score stay
+  private on this device. Nothing is shared with a coach until a guardian approves."*
+- This is only safe because the **sync gate was hardened first** (`src/core/consent.ts`,
+  commit `f7f1e8b`): `realDataConsent` now **fails closed** for a minor whose `guardianStatus`
+  is not `verified` — a self-tapped checkbox or a merely `pending` request never pushes a
+  minor's real data. So nothing leaves the device until a guardian is verified.
+- Guardian email now validates (`isValidGuardianEmail`) with inline typo feedback, and the
+  request can be **resent / the email corrected** while pending.
+- Only renders when the backend is live (flag off today) — this is go-live prep.
+
+**Why it needs you.** Loosening a minor-consent gate is a **legal/product call, not an
+engineering one**, even though the data-protection invariant is intact (no sync until a
+verified guardian):
+1. **Policy choice.** The crew picked "activate local-only, prompt for guardian approval"
+   over the prior "hard-block until a request is sent." Confirm you want minors to be able to
+   use the app on-device before any guardian action — the alternative is to keep the hard gate.
+2. **Legal review.** COPPA's "verifiable parental consent" still governs *collection*. The
+   crew's read is that on-device-only use with nothing transmitted is not "collection," so
+   local activation is permissible and the verified-guardian gate covers the moment data would
+   leave the device. **This needs counsel sign-off** before a real minor cohort runs.
+3. **"Re-prompt after ~3 meals" not yet built.** The synthesis recommended nudging a
+   local-mode minor to get guardian approval after a few meals. That in-app reminder banner is
+   NOT in this change — flag if you want it next.
+
+**Options.**
+1. Keep local-only activation as shipped; book legal review before a minor cohort.
+   (Recommended — fixes the activation killer while keeping data on-device until verified.)
+2. Revert to the hard gate (block onboarding until a guardian request is sent) — say so and
+   the crew restores the prior disabled-until-sent CTA.
+3. Keep local activation but require the guardian **request to be sent** (not verified) before
+   proceeding — a middle ground.
+
+**Status:** sync gate hardened pure + unit-tested (`f7f1e8b`); onboarding local-mode + email
+validation + resend shipped (`ec185e4`), behind the backend-live flag, not device-rendered
+this run; the "re-prompt after N meals" banner is NOT built.
