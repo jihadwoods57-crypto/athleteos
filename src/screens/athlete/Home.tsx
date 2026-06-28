@@ -9,6 +9,7 @@ import {
   coachGuidance,
   medicalDisclaimer,
   nextBestAction,
+  projectedScore,
   DEFAULT_CHART_BOX,
   displayWeight,
   firstName,
@@ -42,6 +43,9 @@ export function Home() {
   const insets = useSafeAreaInsets();
   const s = useStore();
   const d = useDerived();
+  // Forward-looking framing: where the score reaches if the day's controllable actions
+  // get done, and the checklist to get there. Shown only while actions remain.
+  const projection = projectedScore(s);
   // Reward moment: when the score changes (e.g. after logging a meal), the hero number +
   // ring count up to the new value instead of snapping — the satisfying "it moved" beat.
   const shownScore = useCountUp(d.athleteScore);
@@ -177,6 +181,46 @@ export function Home() {
           </View>
         </View>
       </Card>
+
+      {/* finish today — projected score + the checklist to reach it */}
+      {projection.actions.length > 0 ? (
+        <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
+          <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <View>
+              <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
+                FINISH TODAY
+              </Txt>
+              <Row style={{ gap: 8, alignItems: 'center', marginTop: 6 }}>
+                <Txt w="sb" size={15} color={colors.textTertiary}>
+                  {projection.current}
+                </Txt>
+                <Icon name="chevronRight" size={16} color={colors.textTertiary} />
+                <Txt w="eb" size={30} ls={-0.5} color={colors.accent}>
+                  {projection.projected}
+                </Txt>
+              </Row>
+            </View>
+            <View style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, backgroundColor: colors.successSurface }}>
+              <Txt w="eb" size={15} color={colors.successDeep}>
+                +{projection.gain}
+              </Txt>
+            </View>
+          </Row>
+          <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 12, lineHeight: 19 }}>
+            Finish today&apos;s plan and your Development Score reaches {projection.projected}.
+          </Txt>
+          <View style={{ marginTop: 12, gap: 10 }}>
+            {projection.actions.map((a) => (
+              <Row key={a.key} style={{ gap: 11, alignItems: 'center' }}>
+                <View style={{ width: 20, height: 20, borderRadius: 7, borderWidth: 2, borderColor: colors.accentBorder }} />
+                <Txt w="b" size={14} color={colors.slate700} style={{ flex: 1 }}>
+                  {a.label}
+                </Txt>
+              </Row>
+            ))}
+          </View>
+        </Card>
+      ) : null}
 
       {/* what's in this score */}
       <ScoreBreakdownPanel />
