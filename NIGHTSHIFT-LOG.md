@@ -1,3 +1,62 @@
+# Day 4 AM progress (2026-06-28, 6am ET) — P8 QA + regression (NOT the day's report)
+
+In-progress handoff note for the **1pm run**, which continues the queue toward done and
+then CLOSES the sprint (adversarial self-review of the whole-sprint diff +
+`docs/FOUNDER-RETURN-2026-06-28.md` + the whole-sprint PR-style summary atop this log +
+the `day4-end` tag — see the Day-1/2/3 tag-push 403 note; use a `checkpoint/day4-end`
+branch substitute if the bridge still 403s the tag-ref). **Do NOT close the sprint here.**
+
+The build queue is effectively DRAINED (see `docs/board-review/2026-06-28-DAILY-DIGEST.md`):
+P0–P6 shipped earlier; P7/P8 substantially advanced via the account-deletion, consent,
+messaging-gate, and legal work. The remaining blockers to launch are HUMAN (legal sign-off,
+a consent vendor, flipping the backend, device wiring, Apple submission), not more code.
+So this AM run worked **P8 (QA + regression)** — hardening what shipped, not new breadth.
+
+The run first **re-ran all three gates on the branch and confirmed NO DRIFT** —
+`npm run typecheck` clean, `npm run test` **857 passing** (58 suites), `npm run bundle`
+(iOS export) green. Then it added targeted regression coverage to the newest keystones.
+Tests **857 → 868** (+11); `typecheck` + `test` + `bundle` green on EVERY commit;
+`EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB mutation; `src/core` stayed pure;
+no `src/app`; one job = one commit; branch pushed after each.
+
+Two commits (newest last), both **test-only — no behaviour/flag change**:
+
+1. **`test(plan)`: lock the Coach Plan keystone.** The Coach Plan (`src/core/coachPlan.ts`)
+   is the single source of truth BOTH engines read (Nutrition Intelligence + Accountability),
+   but two of its exported pure functions — `activePlan` and `formatWindowTime` — had zero
+   coverage and `mealTarget`'s no-required / degenerate-plan fallbacks were unguarded.
+   Locked: `formatWindowTime` midnight/noon meridiem + ≥24h wraparound (never "24:.."),
+   `activePlan` using real editable targets when present and falling back to `DEFAULT_PLAN`
+   on any zero/negative/undefined target (a corrupt or legacy persisted blob must not poison
+   the plan both engines read), and `mealTarget` required-full vs snack-half shares + the
+   mealsPerDay fallback + no NaN/0-division for a degenerate plan. New `coachPlan.test.ts`,
+   **+10 tests.** *(Pure logic — verified; my hand-computed expectations matched the
+   implementation exactly, confirming the keystone is correct.)*
+2. **`test(safety)`: lock the body-image safeguard on weight entry.** `bodyImageNote()`
+   renders live on the CheckIn weight-entry screen (`CheckIn.tsx:134`) for a MINOR
+   population but had no test. Locked its safety contract: normalize day-to-day weight
+   fluctuation, offer a safe off-ramp to a trusted adult/doctor, stay em-dash-free, and
+   never contain shaming weight/eating language. **+1 test.** *(Safety copy — verified.)*
+
+**Adversarial QA notes for the 1pm run (checked this AM, no fix needed):**
+- The Feature-8 score driver (`effectiveMealsLogged` + `mealLoggedAt`) is sound: `addMeal`
+  only ever sets a slot `true` (never toggles off), so no stale-timestamp path exists; all
+  three meal day-fields (`meals`/`mealFoods`/`mealLoggedAt`) are in the partialize whitelist
+  and reset on rollover (`DAY_DEFAULT_KEYS`), so the rollover invariant holds.
+- The board's keystone loop ("edit a plate → score moves") has real store-level coverage
+  (`src/store/mealLoop.test.ts`: saveMeal persists, logs the slot, routes saved macros into
+  `athleteScore`, and moves the number off the slot constant).
+- `teamWeeklyReport` (Coach dashboard) is well-covered incl. the empty-roster path.
+- **One honest rough edge logged, not actioned:** `itemsByTag` in `src/core/restaurants.ts`
+  is exported but has NO caller (dead code). Left in place — removing an exported helper is
+  a small API change that could be an intended seam; flagged here for the 1pm run / founder
+  to remove if unwanted. Not worth a behaviour-risking commit this run.
+
+HONESTY: both commits are pure/test-only and the figures above are this run's actual
+`npm run verify` results (typecheck + full jest + iOS export), green on every commit.
+
+---
+
 # Day 3 REPORT (2026-06-27) — loop validation: rescale, messaging governance, score rename, honesty pass
 
 The full Day-3 report (the AM handoff note below is kept for detail). Mid-morning the
