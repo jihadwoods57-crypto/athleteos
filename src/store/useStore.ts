@@ -47,6 +47,7 @@ import type {
   PerfDir,
   PerfEntry,
   ReminderKind,
+  OverseerAlertKey,
   BaseGoal,
   CiConfig,
   CoachTrackKey,
@@ -177,6 +178,8 @@ export interface Actions {
   closeOverseerProfile: () => void;
   openCoachGoals: () => void;
   closeCoachGoals: () => void;
+  /** Toggle one overseer per-event alert preference (OverseerProfile). */
+  toggleOverseerAlert: (key: OverseerAlertKey) => void;
   /** Coach sets a roster athlete's targets via the coach_set_goals RPC (gated). The
    *  coach owns the plan (Constitution Rule #13). Returns success; inert when off. */
   pushAthleteGoals: (athleteId: string, targets: { protein: number; calories: number; weight: number }) => Promise<boolean>;
@@ -613,6 +616,8 @@ export const useStore = create<Store>()(
       closeOverseerProfile: () => set({ overseerProfileOpen: false }),
       openCoachGoals: () => set({ coachGoalsOpen: true }),
       closeCoachGoals: () => set({ coachGoalsOpen: false }),
+      toggleOverseerAlert: (key) =>
+        set((s) => ({ overseerAlerts: { ...s.overseerAlerts, [key]: !s.overseerAlerts[key] } })),
       pushAthleteGoals: async (athleteId, targets) => {
         if (!isBackendLive || !athleteId) return false;
         try {
@@ -938,6 +943,7 @@ export const useStore = create<Store>()(
         visibility: s.visibility,
         notif: s.notif,
         reminderSettings: s.reminderSettings,
+        overseerAlerts: s.overseerAlerts,
         units: s.units,
         // Cross-day (not a DAY_DEFAULT_KEY): a coach<->athlete message must leave a
         // record that survives reload, not vanish with the in-memory session.

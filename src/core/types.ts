@@ -7,6 +7,7 @@ import type { GuardianStatus } from './guardianConsent';
 import type { NudgeRecord } from './nudge';
 import type { PerfEntry } from './performance';
 import type { ReminderSettings } from './reminders';
+import type { OverseerAlerts } from './overseerAlerts';
 
 /** The 7 onboarding identities. Each maps onto one of the 4 dashboard flows
  *  (see ROLE_DEFS in constants) and personalizes copy/labels/goals. */
@@ -268,6 +269,10 @@ export interface AppState {
    *  Persisted; defaults from defaultReminderSettings(). The master `notif` flag
    *  still gates whether any reminder is scheduled at all. */
   reminderSettings: ReminderSettings;
+  /** Per-event notification preferences for an overseer (coach/trainer/parent). The
+   *  master `notif` flag still gates whether any fire. Persisted; defaults from
+   *  defaultOverseerAlerts(). Delivery rides the backend alert pipeline at go-live. */
+  overseerAlerts: OverseerAlerts;
   /** Athlete-chosen display unit system. Body weights are stored in lb and
    *  converted at the edge; defaults to imperial. */
   units: Units;

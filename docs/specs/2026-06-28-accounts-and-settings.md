@@ -1,7 +1,16 @@
 # Spec — Accounts & Settings Upgrade
 
 **Date:** 2026-06-28
-**Status:** Phase 1 (auth) IN PROGRESS · Phases 2–5 PLANNED
+**Status:** Phases 1–5 BUILT (gated; verify-green)
+
+## Go-live follow-ups (need the founder's machine / Apple portal / a migration)
+- **Apple Sign-In:** add `expo-apple-authentication`, the Apple Sign-In capability,
+  and a Services ID (app.json + Apple Developer portal). The seam + button are wired
+  and gated; they light up once the native module resolves. (src/lib/auth/apple.ts)
+- **Org name persistence:** add an `org_name` column to `profiles` (or write a team
+  row) so the overseer's edited org/practice name syncs; it's local-display today.
+- **Overseer alert delivery:** the per-event prefs are stored + edited; wire them to
+  the backend alert pipeline that pushes the notifications at go-live.
 **Owner:** founder (jihadwoods57)
 
 Closes the gaps the profile/auth audit surfaced. Two buckets: **(1) the

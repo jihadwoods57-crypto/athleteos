@@ -8,7 +8,7 @@
 // dashboard title immediately.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { accountIdentity, rosterNoun, ROSTER, TRAINER_CLIENTS } from '@/core';
+import { accountIdentity, enabledAlertCount, OVERSEER_ALERT_DEFS, rosterNoun, ROSTER, TRAINER_CLIENTS } from '@/core';
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
 import { colors, shadow } from '@/ui/tokens';
@@ -99,6 +99,32 @@ export function OverseerProfile() {
               <Icon name="chevronRight" size={17} color={colors.textTertiary} />
             </Row>
           </Pressable>
+        </Card>
+
+        {/* per-event alert preferences */}
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 22, marginBottom: 10, marginLeft: 2 }}>
+          <Txt w="eb" size={12} color={colors.textTertiary} ls={0.5} upper>
+            Alerts you receive
+          </Txt>
+          <Txt w="b" size={12} color={colors.textTertiary}>
+            {enabledAlertCount(s.overseerAlerts)} of {OVERSEER_ALERT_DEFS.length} on
+          </Txt>
+        </Row>
+        {!s.notif ? (
+          <Txt w="m" size={12} color={colors.textTertiary} style={{ marginBottom: 10, marginLeft: 2, lineHeight: 17 }}>
+            Notifications are off, so none of these fire. Turn them on above. Your choices below are saved either way.
+          </Txt>
+        ) : null}
+        <Card style={{ borderRadius: 20, paddingVertical: 4 }}>
+          {OVERSEER_ALERT_DEFS.map((d, i) => (
+            <Row key={d.key} style={{ justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, borderBottomWidth: i < OVERSEER_ALERT_DEFS.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Txt w="b" size={14}>{d.label}</Txt>
+                <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2, lineHeight: 17 }}>{d.desc}</Txt>
+              </View>
+              <Toggle on={s.overseerAlerts[d.key]} onPress={() => s.toggleOverseerAlert(d.key)} label={d.label} />
+            </Row>
+          ))}
         </Card>
 
         {/* sync status — honest about what leaves the device */}
