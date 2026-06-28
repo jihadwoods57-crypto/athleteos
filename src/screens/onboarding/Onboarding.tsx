@@ -11,6 +11,7 @@ import {
   guardianConsentCopy,
   GOAL_GROUPS,
   isMinor,
+  isValidGuardianEmail,
   POSITION_MAP,
   PROTEIN_FREQ,
   ROLE_DEFS,
@@ -524,9 +525,16 @@ function AthleteFlow() {
     }
 
     case 'consent': {
-      // The hard gate before any real-data push (only present when isBackendLive).
-      // Activation stays disabled until consent is recorded; guardian wording for minors.
+      // Consent step (only present when isBackendLive). A minor may ACTIVATE now in
+      // local-only mode — the real-data sync gate (core/consent.ts realDataConsent)
+      // keeps their meals + score on-device until a guardian is VERIFIED, so we no
+      // longer hard-block onboarding on a sent request. Proceeding needs only the
+      // athlete's own agreement; the guardian request is encouraged, not required.
       const minor = isMinor(s.baseAge);
+      const verified = s.guardianStatus === 'verified';
+      const pending = s.guardianStatus === 'pending';
+      const emailEntered = s.guardianEmail.trim().length > 0;
+      const emailValid = isValidGuardianEmail(s.guardianEmail);
       return (
         <StepShell
           progress={progress}
@@ -534,7 +542,13 @@ function AthleteFlow() {
           eyebrow="Before you start"
           title={minor ? 'Your data, with a guardian' : 'Your data, your control'}
           sub="AthleteOS only ever shares what you allow, and you can stop any time."
-          footer={<Btn label="I agree, continue" disabled={!s.realDataConsent || (minor && s.guardianStatus === 'none')} onPress={s.obNext} />}
+          footer={
+            <Btn
+              label={minor && !verified ? 'Start — my data stays on this device' : 'I agree, continue'}
+              disabled={!s.realDataConsent}
+              onPress={s.obNext}
+            />
+          }
         >
           <Card style={{ marginTop: 6 }} elevated>
             <Txt w="m" size={15} color={colors.slate700} style={{ lineHeight: 22 }}>
@@ -561,17 +575,28 @@ function AthleteFlow() {
                 placeholder="parent@email.com"
                 autoCapitalize="none"
                 keyboardType="email-address"
-                editable={s.guardianStatus !== 'pending'}
+                editable={!verified}
               />
+              {emailEntered && !emailValid ? (
+                <Txt w="m" size={12} color={colors.alert} style={{ marginTop: 6, lineHeight: 17 }}>
+                  That doesn&apos;t look like a valid email. Check for typos (e.g. &quot;gmial.com&quot;).
+                </Txt>
+              ) : null}
               <Btn
-                label={s.guardianStatus === 'pending' ? 'Approval request sent' : 'Send for approval'}
-                disabled={s.guardianEmail.trim().length < 3 || s.guardianStatus === 'pending'}
+                label={verified ? 'Approved' : pending ? 'Resend approval request' : 'Send for approval'}
+                disabled={!emailValid || verified}
                 onPress={() => { void s.requestGuardianConsent(); }}
                 style={{ marginTop: 10 }}
               />
               <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 17 }}>
                 {guardianConsentCopy(s.guardianStatus)}
               </Txt>
+              {!verified ? (
+                <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 6, lineHeight: 17 }}>
+                  You can start now — your meals and score stay private on this device.
+                  Nothing is shared with a coach until a guardian approves.
+                </Txt>
+              ) : null}
             </View>
           ) : null}
         </StepShell>
