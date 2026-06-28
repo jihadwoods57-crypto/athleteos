@@ -3,6 +3,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { displayWeightDelta, findNudge, gradeFor, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, weightUnit } from '@/core';
 import { useStore } from '@/store';
+import { isBackendLive } from '@/lib/supabase';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Input, ProgressBar, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -56,7 +57,7 @@ export function PersonDetail() {
               {pd.name}
             </Txt>
             <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
-              {pd.pos} · {pd.org ?? 'Eastside HS'}
+              {[pd.pos, pd.org ?? (isBackendLive ? null : 'Eastside HS')].filter(Boolean).join(' · ')}
             </Txt>
             <View style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: statusBg }}>
               <Txt w="b" size={12} color={statusColor}>
@@ -69,17 +70,26 @@ export function PersonDetail() {
           </View>
         </Card>
 
+        {/* COMPLIANCE is real (derived from the roster). DAY STREAK + WEIGHT Δ are sample
+            showcase values, the same for every athlete, so they are shown ONLY in the demo
+            and hidden once the backend is live — a real coach never sees fabricated stats. */}
         <Row style={{ gap: 10, marginTop: 14 }}>
           <StatTile value={`${pd.comp ?? pd.score}%`} label="COMPLIANCE" color={colors.success} />
-          <StatTile value="12" label="DAY STREAK" />
-          <StatTile value={`+${displayWeightDelta(7, units)}${weightUnit(units)}`} label="WEIGHT Δ" />
+          {isBackendLive ? null : (
+            <>
+              <StatTile value="12" label="DAY STREAK" />
+              <StatTile value={`+${displayWeightDelta(7, units)}${weightUnit(units)}`} label="WEIGHT Δ" />
+            </>
+          )}
         </Row>
-        <Row style={{ gap: 7, marginTop: 10 }}>
-          <SampleTag />
-          <Txt w="sb" size={12} color={colors.textTertiary} style={{ flex: 1 }}>
-            Day streak and weight change are sample values, the same for every athlete
-          </Txt>
-        </Row>
+        {isBackendLive ? null : (
+          <Row style={{ gap: 7, marginTop: 10 }}>
+            <SampleTag />
+            <Txt w="sb" size={12} color={colors.textTertiary} style={{ flex: 1 }}>
+              Day streak and weight change are sample values, the same for every athlete
+            </Txt>
+          </Row>
+        )}
 
         {pd.perf ? (
           <Card style={{ marginTop: 14, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>

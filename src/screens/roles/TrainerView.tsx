@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, initials, needsAttention, rankByRisk, trainerBookKpis, trainerLens } from '@/core';
 import { useStore } from '@/store';
+import { isBackendLive } from '@/lib/supabase';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -69,10 +70,12 @@ export function TrainerView() {
             </View>
           </Row>
 
+          {/* RETENTION is a showcase sample with no real source yet, so it shows only in the
+              demo and is hidden once the backend is live (no fabricated metric for a real trainer). */}
           <Row style={{ gap: 10, marginTop: 20 }}>
             <Kpi value={String(kpis.clients)} label="CLIENTS" />
             <Kpi value={`${kpis.avgCompliance}%`} label="AVG COMPLY" />
-            <Kpi value="92%" label="RETENTION" color={colors.success} sample />
+            {isBackendLive ? null : <Kpi value="92%" label="RETENTION" color={colors.success} sample />}
           </Row>
 
           {/* book compliance trend */}
