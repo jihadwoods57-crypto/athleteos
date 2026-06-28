@@ -5,6 +5,7 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { mealRowsFor, QUICK_FOODS, paceProjection, weekdayLong, weeklyWeightProgress, WEIGHT_START } from '@/core';
+import { isEnginesEnabled } from '@/lib/features';
 import { useStore, useDerived } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -34,26 +35,29 @@ export function Nutrition() {
         Nutrition
       </Txt>
 
-      {/* Restaurant Coach entry — "what should I eat?" before you order */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Restaurant Coach: what should I eat"
-        onPress={s.openFoodCoach}
-        style={[{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', gap: 13 }, shadow.cta]}
-      >
-        <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="sparkle" size={20} color="#fff" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="eb" size={15} color="#fff">
-            What should I eat?
-          </Txt>
-          <Txt w="m" size={13} color="rgba(255,255,255,0.85)" style={{ marginTop: 1 }}>
-            Tell the coach where you are — get the best order for your goal
-          </Txt>
-        </View>
-        <Icon name="chevronRight" size={22} color="rgba(255,255,255,0.7)" />
-      </Pressable>
+      {/* Restaurant Coach entry — "what should I eat?" before you order.
+          Gated by the engines master switch (OFF for the prove-the-loop beta). */}
+      {isEnginesEnabled ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Restaurant Coach: what should I eat"
+          onPress={s.openFoodCoach}
+          style={[{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', gap: 13 }, shadow.cta]}
+        >
+          <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="sparkle" size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt w="eb" size={15} color="#fff">
+              What should I eat?
+            </Txt>
+            <Txt w="m" size={13} color="rgba(255,255,255,0.85)" style={{ marginTop: 1 }}>
+              Tell the coach where you are — get the best order for your goal
+            </Txt>
+          </View>
+          <Icon name="chevronRight" size={22} color="rgba(255,255,255,0.7)" />
+        </Pressable>
+      ) : null}
 
       {/* weekly goal (coach-set) */}
       <Card elevated style={{ marginTop: 18, borderRadius: 24 }}>

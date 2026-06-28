@@ -2,6 +2,7 @@
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods, searchFoods, addFood, removeFood, resolvePortion, medicalDisclaimer, activePlan, planMealNote } from '@/core';
+import { isEnginesEnabled } from '@/lib/features';
 import type { EditableFood, LoggedMeal, FoodItem, MealKey } from '@/core';
 import { useStore } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
@@ -229,20 +230,23 @@ export function MealDetail() {
           </Txt>
         </View>
 
-        {/* Accountability Engine — how this meal measures against the athlete's plan */}
-        <View style={{ marginTop: 12, borderRadius: 18, padding: 16, backgroundColor: colors.bg2, flexDirection: 'row', gap: 12 }}>
-          <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="check" size={16} color={colors.successDeep} />
+        {/* Accountability Engine — how this meal measures against the athlete's plan.
+            Gated by the engines master switch (OFF for the prove-the-loop beta). */}
+        {isEnginesEnabled ? (
+          <View style={{ marginTop: 12, borderRadius: 18, padding: 16, backgroundColor: colors.bg2, flexDirection: 'row', gap: 12 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="check" size={16} color={colors.successDeep} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} upper>
+                Plan check
+              </Txt>
+              <Txt w="m" size={14} color={colors.slate700} style={{ marginTop: 3, lineHeight: 20 }}>
+                {planNote}
+              </Txt>
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} upper>
-              Plan check
-            </Txt>
-            <Txt w="m" size={14} color={colors.slate700} style={{ marginTop: 3, lineHeight: 20 }}>
-              {planNote}
-            </Txt>
-          </View>
-        </View>
+        ) : null}
 
         <Chat />
 

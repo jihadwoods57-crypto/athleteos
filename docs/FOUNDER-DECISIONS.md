@@ -404,3 +404,30 @@ shadowing the column) which is fixed.
 
 **Status:** `0007` + `0008` authored and locally verified; NOT applied to live; guardian
 email-send + verify endpoint still founder/vendor work.
+
+---
+
+## RATIFIED (founder, this session) + the engines keystone
+
+The founder ruled on the four highest-leverage calls; all went the crew's recommended way:
+
+- **KEYSTONE — engines OFF for the first beta.** The two new engines (Nutrition Intelligence
+  / Restaurant Coach + the Accountability surfaces) are now behind a SINGLE master switch,
+  `isEnginesEnabled` (`src/lib/features.ts`), **default OFF**, so the first closed beta proves
+  the core loop (log a meal -> score moves). Flip on with `EXPO_PUBLIC_ENGINES_ENABLED=true`
+  (env only, rebuild — no code change), exactly like the backend flag. Gated entry points:
+  the Restaurant Coach card (Nutrition), the Plan-execution card + Coach Plan editor (Plan),
+  and the per-meal Plan check (Meal Detail). The engines stay fully built + unit-tested; only
+  their UI is hidden. The core meal loop, macros, tasks, score are untouched.
+- **D1 — apply the go-live migrations as-written at go-live.** Approved. 0004/0005/0007/0008
+  applied per-migration by the founder when flipping the backend; never by the crew.
+- **D2 — require email confirmation for real sign-up.** `enable_confirmations = true` set in
+  `supabase/config.toml` (live project still needs the same toggle in the dashboard).
+- **D11 — local-only activation for minors: YES.** A minor may use the app on-device before
+  any guardian action; nothing syncs until a guardian is `verified` (gate hardened earlier).
+
+Still open for a later round (built to the safe line, awaiting your call): D3 (PRs into the
+score — crew: keep separate), D4 (PR date picker + sync table), D5 (food DB: keep starter vs
+license USDA + barcode source), D6 (reminder triggers + notification library), D7 (messaging
+delivery + minors policy first), D8 (wearable recovery into the score), D9 (parent "last
+synced" + non-athlete-trainer scoring), D10 (minor-messaging governance model + legal review).

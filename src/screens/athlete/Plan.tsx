@@ -3,6 +3,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { taskVisibilityNote, weekdayLong, activePlan, mealWindowStatuses, escalation, planAdherence } from '@/core';
+import { isEnginesEnabled } from '@/lib/features';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -66,56 +67,60 @@ export function Plan() {
         </View>
       </Row>
 
-      {/* Accountability Engine — plan execution today (meal windows + escalation) */}
-      <View style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 18 }, shadow.card]}>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Edit coach plan" onPress={openPlanEditor} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 })}>
-            <Txt w="eb" size={15} ls={-0.3}>
-              Plan execution
-            </Txt>
-            <Icon name="settings" size={14} color={colors.textTertiary} />
-          </Pressable>
-          <Txt w="eb" size={15} color={adherence.adherencePct >= 80 ? colors.successDeep : adherence.adherencePct >= 50 ? colors.warningDeep : colors.alert}>
-            {adherence.adherencePct}%
-          </Txt>
-        </Row>
-        <Row style={{ gap: 8, marginTop: 12 }}>
-          {windowStatuses.map((w) => (
-            <View key={w.window.key} style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 12, backgroundColor: colors.bg }}>
-              <Txt w="eb" size={14} color={stateColor[w.state]}>
-                {w.window.label[0]}
+      {/* Accountability Engine — plan execution today (meal windows + escalation).
+          Gated by the engines master switch (OFF for the prove-the-loop beta); the core
+          task list + count below stay visible either way. */}
+      {isEnginesEnabled ? (
+        <View style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 18 }, shadow.card]}>
+          <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Edit coach plan" onPress={openPlanEditor} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 })}>
+              <Txt w="eb" size={15} ls={-0.3}>
+                Plan execution
               </Txt>
-              <Txt w="b" size={9} color={colors.textTertiary} style={{ marginTop: 2 }}>
-                {w.state === 'logged' ? 'IN' : w.state === 'missed' ? 'MISSED' : w.state === 'open' ? 'OPEN' : 'SOON'}
-              </Txt>
-            </View>
-          ))}
-        </Row>
-        {esc.level > 0 ? (
-          <Txt w="m" size={13} color={esc.tone === 'reminder' ? colors.slate700 : colors.warningDeep} style={{ marginTop: 12, lineHeight: 19 }}>
-            {esc.message}
-          </Txt>
-        ) : (
-          <Txt w="m" size={13} color={colors.successDeep} style={{ marginTop: 12, lineHeight: 19 }}>
-            {esc.message}
-          </Txt>
-        )}
-        {planInstructions.length > 0 ? (
-          <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border, gap: 7 }}>
-            <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5} upper>
-              Coach instructions
+              <Icon name="settings" size={14} color={colors.textTertiary} />
+            </Pressable>
+            <Txt w="eb" size={15} color={adherence.adherencePct >= 80 ? colors.successDeep : adherence.adherencePct >= 50 ? colors.warningDeep : colors.alert}>
+              {adherence.adherencePct}%
             </Txt>
-            {planInstructions.map((ins) => (
-              <Row key={ins} style={{ gap: 8, alignItems: 'center' }}>
-                <Icon name="check" size={13} color={colors.accent} />
-                <Txt w="b" size={13} color={colors.slate700} style={{ flex: 1 }}>
-                  {ins}
+          </Row>
+          <Row style={{ gap: 8, marginTop: 12 }}>
+            {windowStatuses.map((w) => (
+              <View key={w.window.key} style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 12, backgroundColor: colors.bg }}>
+                <Txt w="eb" size={14} color={stateColor[w.state]}>
+                  {w.window.label[0]}
                 </Txt>
-              </Row>
+                <Txt w="b" size={9} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                  {w.state === 'logged' ? 'IN' : w.state === 'missed' ? 'MISSED' : w.state === 'open' ? 'OPEN' : 'SOON'}
+                </Txt>
+              </View>
             ))}
-          </View>
-        ) : null}
-      </View>
+          </Row>
+          {esc.level > 0 ? (
+            <Txt w="m" size={13} color={esc.tone === 'reminder' ? colors.slate700 : colors.warningDeep} style={{ marginTop: 12, lineHeight: 19 }}>
+              {esc.message}
+            </Txt>
+          ) : (
+            <Txt w="m" size={13} color={colors.successDeep} style={{ marginTop: 12, lineHeight: 19 }}>
+              {esc.message}
+            </Txt>
+          )}
+          {planInstructions.length > 0 ? (
+            <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border, gap: 7 }}>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5} upper>
+                Coach instructions
+              </Txt>
+              {planInstructions.map((ins) => (
+                <Row key={ins} style={{ gap: 8, alignItems: 'center' }}>
+                  <Icon name="check" size={13} color={colors.accent} />
+                  <Txt w="b" size={13} color={colors.slate700} style={{ flex: 1 }}>
+                    {ins}
+                  </Txt>
+                </Row>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={{ marginTop: 18, gap: 10 }}>
         {tasks.map((t) => (

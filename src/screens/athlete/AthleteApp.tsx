@@ -23,6 +23,7 @@ import { Messages } from '@/screens/overlays/Messages';
 import { Notifications } from '@/screens/overlays/Notifications';
 import { FoodCoach } from '@/screens/overlays/FoodCoach';
 import { CoachPlanEditor } from '@/screens/overlays/CoachPlanEditor';
+import { isEnginesEnabled } from '@/lib/features';
 
 // Nutrition is the core daily surface, so it gets a tab (was buried behind a Home card).
 // Check-In is reached from its Home banner; Profile via the header avatar.
@@ -64,8 +65,10 @@ export function AthleteApp() {
       {accountOpen && <Account />}
       {msgOpen && <Messages />}
       {notifOpen && <Notifications />}
-      {foodCoachOpen && <FoodCoach />}
-      {planEditorOpen && <CoachPlanEditor />}
+      {/* Engine overlays only mount when the master switch is on (defense in depth —
+          their entry points are already hidden when off). */}
+      {isEnginesEnabled && foodCoachOpen && <FoodCoach />}
+      {isEnginesEnabled && planEditorOpen && <CoachPlanEditor />}
     </View>
   );
 }
