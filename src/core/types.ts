@@ -20,6 +20,9 @@ export type Role =
   | 'college_coach';
 export type Flow = 'onboarding' | 'app' | 'coach' | 'parent' | 'trainer';
 export type BaseGoal = 'gain' | 'lose' | 'maintain' | 'performance';
+/** Which platform-owned scoring formula measures an account's execution. The coach picks the
+ *  profile + sets the targets; the platform owns the weights (Constitution Rule #13). */
+export type ScoringProfile = 'athlete' | 'general';
 export type MealKey = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 export type MealLabel = 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
 export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutrition' | 'performance' | 'reminders';
@@ -209,6 +212,10 @@ export interface AppState {
    *  Nutrition/Profile screens; default to the PROTEIN_TARGET/CAL_TARGET constants. */
   proteinTarget: number;
   calTarget: number;
+  /** Which scoring profile measures this account's execution (the coach/trainer sets it;
+   *  AI recommends it). Absent = 'athlete', so every existing user/test is unchanged.
+   *  The platform owns these formulas (Constitution Rule #13); the coach owns the targets. */
+  scoringProfile?: ScoringProfile;
   /** Coach/overseer standing instructions for the plan ("Pre-bed protein shake",
    *  "No sugary drinks"). Read by activePlan() so both engines reflect them. */
   planInstructions: string[];

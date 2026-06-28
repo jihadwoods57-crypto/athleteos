@@ -3,6 +3,7 @@
 export * from './types';
 export * from './constants';
 export * from './scoring';
+export * from './scoringProfiles';
 export * from './projection';
 export * from './startingScore';
 export * from './recommendation';

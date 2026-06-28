@@ -14,6 +14,7 @@ import {
 import { trendSeries } from './history';
 import { mealMacros, type MacroSet } from './mealEdit';
 import { DEFAULT_PLAN } from './coachPlan';
+import { profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
 
 /** A meal logged after its window deadline counts half toward the score's "meals" share. */
@@ -209,10 +210,17 @@ export function computeDerived(s: AppState): Derived {
   // lands at ~100 and an empty day at ~0, with protein the dominant lever
   // (65 of 100) over slot count (35). Removing the old `57 +` baseline deliberately
   // deflates the seeded roster — that drop is the honesty, not a regression.
-  const nutritionScore = Math.min(
-    100,
-    Math.round((Math.min(proteinToday, proteinTarget) / proteinTarget) * 65 + (effectiveMealsLogged(s) / 4) * 35),
-  );
+  // Profile-aware nutrition sub-score. 'athlete' (the default) reproduces the formula above
+  // byte-for-byte; 'general' re-weights to calorie-adherence for a trainer's general-fitness
+  // client. The platform owns these weights; the coach owns the targets (Constitution #13).
+  const profile = resolveProfile(s.scoringProfile);
+  const nutritionScore = profileNutritionScore(profile, {
+    proteinToday,
+    proteinTarget,
+    kcalToday,
+    calTarget,
+    effectiveMeals: effectiveMealsLogged(s),
+  });
   // Recovery sub-score averages ONLY the coach-enabled check-in questions
   // (s.ciConfig), each on a 0–10 scale — not a hard-coded energy/recovery/sleep
   // trio. Mirrors CheckIn.tsx's CI_KEYS so the score reflects exactly the
@@ -271,9 +279,11 @@ export function computeDerived(s: AppState): Derived {
 
   // Daily accountability score: what you did TODAY. Nutrition leads (the heaviest
   // lever and the one the staff cares most about); recovery is self-reported; tasks
-  // and check-in round it out. The four weights mirror SCORE_WEIGHTS exactly.
+  // and check-in round it out. Weights come from the account's scoring profile
+  // ('athlete' default = the shipped .5/.25/.15/.1 mix, unchanged).
+  const w = PROFILE_WEIGHTS[profile];
   const athleteScore = clamp(
-    Math.round(0.5 * nutritionScore + 0.25 * recoveryScore + 0.15 * tasksScore + 0.1 * checkinScore),
+    Math.round(w.nutrition * nutritionScore + w.recovery * recoveryScore + w.tasks * tasksScore + w.checkin * checkinScore),
     0,
     100,
   );
