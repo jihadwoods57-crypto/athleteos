@@ -151,6 +151,9 @@ export interface AppState {
   /** True once a password-reset email has been requested, so the reset screen shows
    *  its neutral confirmation. Ephemeral (not persisted). */
   passwordResetSent: boolean;
+  /** Athlete pressed "Pause all sharing" (Profile data-sharing controls). While true
+   *  the push gate fails closed — nothing leaves the device. Persisted. */
+  sharingPaused: boolean;
 
   // ---- day ----
   dateStamp: string;

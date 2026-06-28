@@ -42,6 +42,15 @@ describe('realDataConsent', () => {
   it('does not gate non-athlete roles (they generate no athlete health data)', () => {
     expect(realDataConsent({ backendLive: true, role: 'coach', consentGiven: false })).toEqual({ ok: true, reason: 'ok' });
   });
+
+  it('blocks a consenting adult who paused sharing (revocable control)', () => {
+    expect(realDataConsent({ backendLive: true, role: 'athlete', age: 25, consentGiven: true, sharingPaused: true }))
+      .toEqual({ ok: false, reason: 'sharing-paused' });
+  });
+  it('resumes once sharing is un-paused (otherwise unchanged)', () => {
+    expect(realDataConsent({ backendLive: true, role: 'athlete', age: 25, consentGiven: true, sharingPaused: false }))
+      .toEqual({ ok: true, reason: 'ok' });
+  });
 });
 
 describe('consentSummary', () => {

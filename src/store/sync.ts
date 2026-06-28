@@ -43,6 +43,7 @@ export function consentContextFromState(s: AppState, backendLive: boolean): Cons
     age: s.baseAge,
     consentGiven: s.realDataConsent,
     guardianStatus: s.guardianStatus,
+    sharingPaused: s.sharingPaused,
   };
 }
 

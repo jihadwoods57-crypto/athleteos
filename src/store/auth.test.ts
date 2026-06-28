@@ -210,6 +210,24 @@ describe('Stage C: a mutating action debounces a consent-gated pushDay', () => {
     await jest.advanceTimersByTimeAsync(1300);
     expect(upsertDay).not.toHaveBeenCalled();
   });
+
+  it('paused sharing fails the push closed even with consent; un-pausing resumes it', async () => {
+    const useStore = loadStoreWithDb(true);
+    useStore.setState({ userId: 'u-1', realDataConsent: true, role: 'athlete', baseAge: 22, sharingPaused: true });
+    useStore.getState().addMeal();
+    await jest.advanceTimersByTimeAsync(1300);
+    expect(upsertDay).not.toHaveBeenCalled(); // paused -> nothing leaves the device
+    useStore.getState().togglePauseSharing(); // resume -> schedules a push
+    await jest.advanceTimersByTimeAsync(1300);
+    expect(upsertDay).toHaveBeenCalledTimes(1);
+  });
+
+  it('removeViewer revokes a linked role from the accountability circle', () => {
+    const useStore = loadStoreWithDb(true);
+    useStore.setState({ supportTeam: ['coach', 'parent', 'trainer'] });
+    useStore.getState().removeViewer('parent');
+    expect(useStore.getState().supportTeam).toEqual(['coach', 'trainer']);
+  });
 });
 
 describe('recordConsent / setAuthError', () => {

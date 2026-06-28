@@ -7,6 +7,7 @@ import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS,
 import { useStore } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 
 /** Avatar initial + color per support-team role for the visibility rows. */
@@ -224,11 +225,28 @@ export function Profile() {
                 <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
                   These people see your scores. Accountability works when the right people are watching, so you can't hide a tough week.
                 </Txt>
-                <View style={{ marginTop: 16, gap: 13 }}>
+                <View style={{ marginTop: 16, gap: 13, opacity: s.sharingPaused ? 0.45 : 1 }}>
                   {visRows.map((r) => (
-                    <VisRow key={r.key} initials={VIS_INITIALS[r.key] ?? r.title[0]} bg={VIS_COLORS[r.key] ?? colors.text} title={r.title} sub={r.sub} />
+                    <VisRow
+                      key={r.key}
+                      initials={VIS_INITIALS[r.key] ?? r.title[0]}
+                      bg={VIS_COLORS[r.key] ?? colors.text}
+                      title={r.title}
+                      sub={r.sub}
+                      onRemove={() => s.removeViewer(r.key)}
+                    />
                   ))}
                 </View>
+                {/* Pause-all + the honest status line: while paused nothing leaves the device. */}
+                <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Txt w="b" size={14}>Pause all sharing</Txt>
+                    <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2, lineHeight: 17 }}>
+                      {s.sharingPaused ? 'Paused — your data stays on this device.' : 'Stop sharing with everyone, anytime.'}
+                    </Txt>
+                  </View>
+                  <Toggle on={s.sharingPaused} onPress={s.togglePauseSharing} label="Pause all sharing" />
+                </Row>
               </>
             ) : (
               <>
@@ -341,7 +359,7 @@ function TargetTile({ value, label }: { value: string; label: string }) {
   );
 }
 
-function VisRow({ initials, bg, icon, title, sub }: { initials?: string; bg?: string; icon?: any; title: string; sub: string }) {
+function VisRow({ initials, bg, icon, title, sub, onRemove }: { initials?: string; bg?: string; icon?: any; title: string; sub: string; onRemove?: () => void }) {
   return (
     <Row style={{ gap: 12 }}>
       <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: icon ? colors.accentSurface : bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -355,9 +373,15 @@ function VisRow({ initials, bg, icon, title, sub }: { initials?: string; bg?: st
           {sub}
         </Txt>
       </View>
-      <Txt w="b" size={12} color={colors.success}>
-        On
-      </Txt>
+      {onRemove ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={8} onPress={() => { haptics.tap(); onRemove(); }} style={({ pressed }) => ({ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: colors.bg2, opacity: pressed ? 0.6 : 1 })}>
+          <Txt w="b" size={12} color={colors.alert}>Remove</Txt>
+        </Pressable>
+      ) : (
+        <Txt w="b" size={12} color={colors.success}>
+          On
+        </Txt>
+      )}
     </Row>
   );
 }

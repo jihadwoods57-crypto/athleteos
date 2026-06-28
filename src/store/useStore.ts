@@ -244,6 +244,10 @@ export interface Actions {
   requestGuardianConsent: () => Promise<boolean>;
   recordConsent: (given: boolean) => void;
   setAuthError: (msg: string | null) => void;
+  /** Athlete data-sharing controls (Profile). Pause stops every push immediately;
+   *  removeViewer revokes a linked role from the accountability circle. */
+  togglePauseSharing: () => void;
+  removeViewer: (key: string) => void;
 
   // dev
   resetDemo: () => void;
@@ -820,6 +824,14 @@ export const useStore = create<Store>()(
       },
       recordConsent: (given) => set({ realDataConsent: given }),
       setAuthError: (msg) => set({ authError: msg }),
+      togglePauseSharing: () => {
+        // Flipping OFF pause resumes syncing, so push the current day right away
+        // (the pure consent gate still has the final say). Flipping ON just stops.
+        set((s) => ({ sharingPaused: !s.sharingPaused }));
+        scheduleDaySync(get);
+      },
+      removeViewer: (key) =>
+        set((s) => ({ supportTeam: s.supportTeam.filter((k) => k !== key) })),
 
       // ---- dev ----
       resetDemo: () => set({ ...createInitialState() }),
@@ -878,6 +890,7 @@ export const useStore = create<Store>()(
         // ephemeral and deliberately NOT persisted.
         userId: s.userId,
         realDataConsent: s.realDataConsent,
+        sharingPaused: s.sharingPaused,
         // day / check-in slice
         dateStamp: s.dateStamp,
         scoreHistory: s.scoreHistory,

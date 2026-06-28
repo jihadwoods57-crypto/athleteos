@@ -18,6 +18,10 @@ export interface ConsentContext {
   /** For a minor, the guardian-verification state. Absent is treated as 'none' (fail-safe):
    *  a minor's real data only leaves the device once a guardian is 'verified'. */
   guardianStatus?: GuardianStatus;
+  /** Athlete pressed "Pause all sharing" (Profile data-sharing controls). While true
+   *  nothing leaves the device, regardless of consent — honors "stop sharing at any
+   *  time". Absent/false = not paused (unchanged behaviour). */
+  sharingPaused?: boolean;
 }
 
 export type ConsentReason =
@@ -25,6 +29,7 @@ export type ConsentReason =
   | 'minor-consent-required'
   | 'minor-guardian-unverified'
   | 'consent-required'
+  | 'sharing-paused'
   | 'ok';
 
 /** True for a known age under 18. Unknown age is treated as a minor (fail-safe). */
@@ -46,6 +51,9 @@ export function isMinor(age?: number | null): boolean {
 export function realDataConsent(c: ConsentContext): { ok: boolean; reason: ConsentReason } {
   if (!c.backendLive) return { ok: false, reason: 'backend-off' };
   if (c.role !== 'athlete') return { ok: true, reason: 'ok' };
+  // Athlete paused sharing — block every push regardless of consent (revocable
+  // control; flipping it back on resumes syncing).
+  if (c.sharingPaused) return { ok: false, reason: 'sharing-paused' };
   if (!c.consentGiven) {
     return { ok: false, reason: isMinor(c.age) ? 'minor-consent-required' : 'consent-required' };
   }
