@@ -15,11 +15,20 @@ This is the single source of truth for go-live. The deeper "why" for any item li
 - Core loop (photo → score → log → tasks), the daily score, onboarding, the role dashboards.
 - The two new engines (Restaurant Coach + Accountability) are built, tested, and hidden behind
   one off-by-default switch (your call: prove the loop first).
+- **Accounts:** sign-up (email + password) wired into onboarding behind the live flag, sign-in,
+  forgot-password, and the Sign in with Apple seam (gated — see Phase 2). The mock/local flow is
+  byte-identical until you flip the flag.
+- **Settings:** coach/trainer/parent self-profile (edit name + team/practice), athlete
+  data-sharing controls (pause-all + remove a viewer, wired into the consent gate), the coach's
+  per-athlete targets + scoring editor (via the `coach_set_goals` RPC), and per-event overseer
+  alert preferences.
+- **Meal library:** logged meals + photos persist (the `meals` table + `meal-photos` bucket),
+  with client + coach meal-history views. Needs only the backend flag on.
 - Account deletion + guardian-consent database functions written and tested on a throwaway DB.
 - The consent gate fails closed: a minor's data cannot sync until a real guardian is verified.
 - Email-confirmation default set to ON in the config file.
 - Reminders integration wired (waiting only on the phone library + a device).
-- 870+ automated tests passing; the app builds.
+- 960+ automated tests passing; the app builds.
 
 ---
 
@@ -55,6 +64,15 @@ Do these together, in order. Nothing here should touch the live database until P
 - [ ] **Wire the guardian-consent verify step.** The database records the request and a token;
       you still need the small endpoint that the parent's email link hits to mark them
       "verified." (Vendor + a short function — flagged in the D12 decision note.)
+- [ ] **Add the `profiles.org_name` column (one small migration) so the overseer's edited
+      team/practice name syncs.** Today a coach/trainer can edit their org name and it drives the
+      dashboard title locally, but it's saved only on the device — `db.updateProfile` already
+      pushes the display name; extend the `profiles` row + that call with `org_name`. Until then,
+      org name is local-display. (Spec: `docs/specs/2026-06-28-accounts-and-settings.md`.)
+- [ ] **Wire the overseer alert pipeline.** The per-event alert preferences (athlete below the
+      line, missed logging, check-in submitted, weekly digest) are stored + editable per overseer;
+      connect them to whatever pushes those notifications so they actually fire. The master
+      notifications toggle already gates them.
 
 ## PHASE 2 — The phone + the App Store
 Needs a real device; can't be done in the cloud.
@@ -66,6 +84,13 @@ Needs a real device; can't be done in the cloud.
       can't).
 - [ ] **Accessibility pass:** run through with VoiceOver on; confirm labels and contrast.
       See `docs/APP-STORE-READINESS.md`.
+- [ ] **Sign in with Apple** (Apple **requires** it because you offer email login — Guideline
+      4.8): install the native module (`expo install expo-apple-authentication`), enable the Apple
+      Sign-In capability + a Services ID in the Apple Developer portal and `app.json`, then confirm
+      the button appears and completes on a real device. The app-side seam
+      (`src/lib/auth/apple.ts`) + the Supabase token exchange are already wired and gated — the
+      button stays hidden until the module resolves, then lights up automatically with no code
+      change.
 - [ ] **Apple submission:** confirm the bundle id (`com.athleteos.app`), set the age rating,
       prepare screenshots, and make sure the in-app account deletion is reachable (Apple
       requires it — the function is built). Submit for review.
