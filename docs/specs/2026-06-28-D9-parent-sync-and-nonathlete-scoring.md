@@ -114,3 +114,56 @@ Both are real, both are post-backend. Part A is small and low-risk (mostly pure 
 one read-path field). Part B is a model-design decision that should NOT be built until the
 re-weighting is signed off to the same standard as the athlete score. Suggest landing Part A's
 pure helpers opportunistically and holding Part B's weights for an explicit founder/RD review.
+
+---
+
+## APPROVAL NEEDED — concrete "general" scoring weights (v1 proposal)
+
+This is the strawman from Part B made specific, for founder (and ideally RD) sign-off. It
+becomes critical-path the moment a trainer's general-fitness clients are in the product.
+Nothing is built until these numbers are approved. The athlete profile is UNCHANGED.
+
+### The two profiles side by side
+| Component | Athlete (today, unchanged) | General (proposed) | Why the shift |
+|---|---|---|---|
+| **Headline mix** | Nutrition .50 / Recovery .25 / Tasks .15 / Check-in .10 | **Nutrition .55 / Recovery .20 / Tasks .15 / Check-in .10** | A general client is nutrition-driven, not training-load-driven, so nutrition up, recovery down. |
+| **Nutrition sub-score (of 100)** | Protein 65 / Meals-on-time 35 | **Calorie-target adherence 45 / Protein 25 / Meal consistency 30** | For fat-loss/general, hitting the calorie *target* is the lever; protein matters for satiety/lean mass but isn't dominant. |
+| **Primary target** | Protein floor (180g default) | **Calorie target** (deficit/maintenance/surplus by goal); protein ~0.7 g/lb | Athletes chase a protein floor; general clients chase a calorie number. |
+
+### The exact general nutrition sub-score
+- **Calorie adherence (45):** full 45 when within ±10% of the calorie target; linear falloff to
+  0 at ±40%. **Both over AND under lose points** (crash-undereating is penalized, not rewarded —
+  this is the honest, safe choice and the thing an RD will care about most).
+- **Protein (25):** `min(proteinToday, proteinTarget) / proteinTarget * 25`, same shape as the
+  athlete protein term, lower weight, lower target.
+- **Meal consistency (30):** `loggedOnTime / expectedMeals * 30` (expectedMeals configurable,
+  default 3 for general vs 4 for athletes).
+- Recovery / Tasks / Check-in: unchanged from the athlete engine.
+
+### Worked example (fat-loss client)
+Targets: 2000 kcal (deficit), 120g protein, 3 meals. Day: 3 meals on time, ate 1,900 kcal,
+95g protein, check-in not submitted.
+- Calorie adherence: |1900-2000|/2000 = 5% -> full **45**
+- Protein: 95/120 * 25 = **20**
+- Consistency: 3/3 * 30 = **30**
+- Nutrition = **95**
+- Headline = .55(95) + .20(86 recovery default) + .15(100 tasks) + .10(0 check-in) = **~84**
+
+A clean fat-loss day scores ~84 ("on the bubble / solid"), and it would have *dropped* if she'd
+blown past 2000 or crash-dieted to 1,200. That's the behavior we want to reward.
+
+### What needs your decision (the sign-off)
+1. **The headline mix** (.55/.20/.15/.10) — approve or adjust.
+2. **The nutrition split** (45 calories / 25 protein / 30 consistency) — approve or adjust.
+3. **The calorie-adherence band** (±10% full credit, 0 at ±40%, two-sided penalty) — this is the
+   most RD-sensitive number; confirm the two-sided penalty (penalize under-eating) is right.
+4. **The general protein target** (~0.7 g/lb vs the athlete 1 g/lb) — set the number.
+5. **Naming:** does a general client see "Development Score" or a neutral "Progress Score"?
+   (Recommend profile-aware label so the athlete framing doesn't read wrong to a 35-year-old.)
+
+### Guardrail
+Same standard as the athlete score: deterministic, transparent, reproducible. The general
+profile is a re-weighting of the SAME engine, never a second formula. Default profile stays
+'athlete' so every existing user and test is byte-for-byte unchanged. Once approved, the build
+is: `ScoringProfile` flag -> the general weight set -> `computeDerived` honors it -> tests prove
+the athlete path is untouched.
