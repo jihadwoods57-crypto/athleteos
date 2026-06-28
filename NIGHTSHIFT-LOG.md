@@ -58,7 +58,10 @@ branch pushed. Judgment calls were queued to `docs/FOUNDER-DECISIONS.md`, never 
 
 > **Tag note (carried from Day 1–3):** the bridge has 403'd annotated-tag ref pushes all
 > sprint, so each day also pushed a `checkpoint/dayN-end` **branch** as a durable substitute.
-> `day4-end` is attempted as a tag; if the push 403s, `checkpoint/day4-end` is the fallback.
+> **Confirmed again at close:** the annotated `day4-end` tag was created locally but its push
+> disconnected/403'd on all four retries (same block), so **`checkpoint/day4-end` is the
+> durable marker** for this commit. The `day4-end` tag object exists locally for the founder
+> to push when merging.
 
 ---
 
