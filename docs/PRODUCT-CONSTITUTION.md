@@ -158,6 +158,42 @@ every athlete (kills comparability), let a coach flatter their roster (gameable)
 Proof pillar (you can't prove a rising score predicts improvement if the score isn't constant).
 Targets + profile + on/off already give a coach all the real personalization they need.
 
+## 11b. Goal-Aware Intelligence (shared interface, personalized intelligence)
+AthleteOS is NOT an athlete-only app. It is one premium app whose INTERFACE stays consistent
+for everyone (Home / Nutrition / Camera / Plan / Team) while its INTELLIGENCE — coaching
+language, recommendations, accountability emphasis, education, and which cards show — adapts to
+WHO the user is and WHAT they're trying to do. Athlete, weight-loss client, busy professional,
+teen, bodybuilder, general-wellness user: same screens, different brain. The user should never
+think "this is an athlete app." They should think "this app understands me." Do NOT build
+separate apps or separate experiences.
+
+**The Context model (the abstraction that makes this real).** Every adaptive surface reads from
+ONE context object — who the user is, their primary goal, who guides them (coach/trainer/
+nutritionist/none), the plan they're on, and today's state (what they ate, what's left, their
+schedule, recent struggles). Scoring, copy, recommendations, and card selection all read the
+same context, so they can never disagree about who the user is. Adding a new user type = adding
+a profile entry, never a new code path. This is the successor to `ScoringProfile`.
+
+**The five questions every analysis answers, in order** (the meal-result screen already does
+this; the work is making 2–5 adapt by context):
+1. What did I eat? (objective: foods, macros, quality, confidence)
+2. How does this affect MY goal? (adapts hard by user type)
+3. Did I execute today's plan? (the defining feature — execution, not perfection)
+4. What should I do next? (exactly ONE clear, easy action)
+5. Why does this matter? (relevant-to-today education, rotated, never generic)
+
+**The deterministic / LLM split (same as Rule #8).** The Context model and the per-profile
+adaptation are DETERMINISTIC and buildable today — trustworthy, no hallucination, the floor.
+The truly per-user *generated* coaching language is the LLM layer, added when a real model is
+configured. The LLM PHRASES the coaching over the context; it never INVENTS the scoring or the
+safety-bounded numbers (especially for minors and weight-loss clients). Adaptive coaching always
+REINFORCES a human professional's plan when one exists; it never overrides it (Rule #3).
+
+**Design for many, ship two.** The architecture must flex to N user types, but we POPULATE only
+the profiles the current wedge needs (today: athlete + general). "Never hardcode / expansion is
+simple" is an architecture instruction, not a "build twelve personalities now" instruction.
+More profiles ship only after the loop retains. Breadth still follows proof.
+
 ## 12. Product Principles (how the product behaves)
 One number, not four. Always explain why. Reward execution, not perfection. Reduce decisions,
 never add choices. Every screen answers "what do I do next?". Fail honest (never fake data or
@@ -178,6 +214,8 @@ fake AI). The coach is amplified, never replaced. Make the right action the easy
 12. When in doubt, do the smaller thing exceptionally well.
 13. The coach owns the plan; the platform owns the formula; the AI recommends, never dictates.
     A score must mean the same thing for everyone or it means nothing.
+14. The interface is shared; the intelligence is personalized. One app, one Context model,
+    many user types. Design for many, ship two — breadth follows proof.
 
 ---
 
