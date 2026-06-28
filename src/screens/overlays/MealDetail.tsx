@@ -1,7 +1,7 @@
 // AthleteOS — Meal Detail: hero, macros, foods, quality breakdown, 3-way chat.
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods, searchFoods, addFood, removeFood, medicalDisclaimer, activePlan, planMealNote } from '@/core';
+import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods, searchFoods, addFood, removeFood, resolvePortion, medicalDisclaimer, activePlan, planMealNote } from '@/core';
 import type { EditableFood, LoggedMeal, FoodItem, MealKey } from '@/core';
 import { useStore } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
@@ -121,8 +121,9 @@ export function MealDetail() {
                     {f.name}
                   </Txt>
                   <Txt w="m" size={12} color={colors.textTertiary}>
-                    {f.portion}
-                    {f.servings !== 1 ? `  ·  ×${f.servings}` : ''}
+                    {f.servings !== 1
+                      ? `${resolvePortion(f.portion, f.servings) ?? f.portion}  ·  ×${f.servings}`
+                      : f.portion}
                   </Txt>
                 </View>
                 <Row style={{ gap: 10, alignItems: 'center' }}>

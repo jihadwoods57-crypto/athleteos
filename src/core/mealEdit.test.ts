@@ -1,4 +1,4 @@
-import { toEditableFoods, mealMacros, macroComposition, mealQuality, stepServings, foodToEditable, addFood, removeFood, type EditableFood } from './mealEdit';
+import { toEditableFoods, mealMacros, macroComposition, mealQuality, stepServings, resolvePortion, foodToEditable, addFood, removeFood, type EditableFood } from './mealEdit';
 
 const dinner = {
   protein: 52,
@@ -110,6 +110,30 @@ describe('addFood', () => {
     const base = toEditableFoods(dinner);
     addFood(base, eggs);
     expect(base).toHaveLength(4);
+  });
+});
+
+describe('resolvePortion — the actual amount at a serving multiplier', () => {
+  it('scales the leading number and keeps the unit', () => {
+    expect(resolvePortion('7 oz', 1.5)).toBe('10.5 oz');
+    expect(resolvePortion('1 cup', 0.5)).toBe('0.5 cup');
+    expect(resolvePortion('1.5 cups', 2)).toBe('3 cups');
+  });
+  it('drops a trailing .0 (no "10.0 oz")', () => {
+    expect(resolvePortion('5 oz', 2)).toBe('10 oz');
+  });
+  it('returns the label unchanged at 1 serving', () => {
+    expect(resolvePortion('7 oz', 1)).toBe('7 oz');
+  });
+  it('handles a multi-word unit', () => {
+    expect(resolvePortion('2 slices bread', 2)).toBe('4 slices bread');
+  });
+  it('returns null when there is no parseable leading number', () => {
+    expect(resolvePortion('a handful', 2)).toBeNull();
+    expect(resolvePortion('', 2)).toBeNull();
+  });
+  it('resolves a bare number with no unit', () => {
+    expect(resolvePortion('2', 1.5)).toBe('3');
   });
 });
 

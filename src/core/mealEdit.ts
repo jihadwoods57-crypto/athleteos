@@ -98,6 +98,28 @@ export function stepServings(current: number, delta: number): number {
   return Math.max(0, Math.min(10, next));
 }
 
+/** Format a number for a portion label: drop a trailing ".0", keep up to 2 decimals. */
+function fmtAmount(n: number): string {
+  return Number(n.toFixed(2)).toString();
+}
+
+/**
+ * Resolve a portion label to the ACTUAL amount at the given serving multiplier, so an
+ * edited portion reads "10.5 oz" instead of an opaque "×1.5". Scales the leading number
+ * in the label and keeps its unit (e.g. "7 oz" ×1.5 -> "10.5 oz", "1.5 cups" ×2 -> "3 cups").
+ * Returns null when the label has no parseable leading number (e.g. "a handful") so the
+ * caller can fall back to the multiplier form. Pure.
+ */
+export function resolvePortion(portion: string, servings: number): string | null {
+  const m = /^\s*(\d+(?:\.\d+)?)\s*(.*)$/.exec(portion);
+  if (!m) return null;
+  const base = parseFloat(m[1]);
+  if (!Number.isFinite(base)) return null;
+  const unit = m[2].trim();
+  const amount = fmtAmount(base * servings);
+  return unit ? `${amount} ${unit}` : amount;
+}
+
 // ---- adding real foods (P2: food search + quick-add) ----
 // The photo estimate even-splits across its foods (above); a food added from the
 // curated DB carries its OWN real per-serving macros instead, so the meal totals,
