@@ -127,6 +127,20 @@ export function trainerLens(role: Role | null, isReal: boolean, clientType?: unk
   };
 }
 
+/** Onboarding roles that map onto the coach / trainer dashboards (the parent +
+ *  athlete roles already match their bucket name). */
+const COACH_ROLE_KEYS = new Set(['sports_perf_coach', 'hs_coach', 'college_coach']);
+const TRAINER_ROLE_KEYS = new Set(['personal_trainer', 'nutritionist']);
+
+/** Collapse an onboarding role (or an already-bucketed flow word) into one of the
+ *  four identity buckets the showcase + role line switch on. */
+function identityBucket(role: string): 'coach' | 'trainer' | 'parent' | 'athlete' {
+  if (role === 'coach' || COACH_ROLE_KEYS.has(role)) return 'coach';
+  if (role === 'trainer' || TRAINER_ROLE_KEYS.has(role)) return 'trainer';
+  if (role === 'parent') return 'parent';
+  return 'athlete';
+}
+
 /**
  * The identity card on the Account overlay (name + role line + avatar monogram),
  * derived per role from real onboarding data. Every other identity surface in the
@@ -149,7 +163,12 @@ export function accountIdentity(opts: {
   orgName?: unknown;
 }): { name: string; role: string; initials: string } {
   const name = asText(opts.athleteName);
-  const role = asText(opts.role);
+  // Callers pass the stored onboarding role (e.g. 'hs_coach'), but the identity
+  // showcase + role line are keyed by the 4 dashboard buckets. Bucket here so a real
+  // coach/trainer reads their own identity instead of falling through to "Athlete".
+  // Already-bucketed inputs ('coach'/'trainer'/'parent'/'athlete') pass through, so
+  // the tested contract is preserved.
+  const role = identityBucket(asText(opts.role));
   const meta = opts.obMeta ?? {};
   const org = asText(opts.orgName);
 

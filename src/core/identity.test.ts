@@ -203,6 +203,31 @@ describe('accountIdentity', () => {
   });
 });
 
+describe('accountIdentity buckets the stored ONBOARDING role (regression)', () => {
+  // Bug: callers pass s.role ('hs_coach'/'personal_trainer'/…), but the switch only
+  // matched flow words ('coach'/'trainer'), so every real coach/trainer fell through
+  // to the athlete identity. Bucket the onboarding role first.
+  it('maps real coach roles to the coach identity (real + demo)', () => {
+    for (const r of ['hs_coach', 'sports_perf_coach', 'college_coach']) {
+      expect(accountIdentity({ role: r, athleteName: 'Sam Reyes', obMeta: { school: 'North HS' } }))
+        .toEqual({ name: 'Sam Reyes', role: 'Coach · North HS', initials: 'SR' });
+      // demo showcase (no name) now resolves to the coach, not Jihad the athlete
+      expect(accountIdentity({ role: r }).name).toBe('Coach Davis');
+    }
+  });
+  it('maps real trainer roles to the trainer identity', () => {
+    for (const r of ['personal_trainer', 'nutritionist']) {
+      expect(accountIdentity({ role: r, athleteName: 'Maya Lopez' }).role).toBe('Trainer · Your Practice');
+      expect(accountIdentity({ role: r }).name).toBe('Maya Anders');
+    }
+  });
+  it('still handles parent + athlete (and already-bucketed inputs)', () => {
+    expect(accountIdentity({ role: 'parent', athleteName: 'Sarah' }).role).toContain('Parent');
+    expect(accountIdentity({ role: 'athlete', athleteName: 'Jordan', sport: 'Track' }).role).toBe('Athlete · Track');
+    expect(accountIdentity({ role: 'coach', athleteName: 'Dana', obMeta: { school: 'X HS' } }).role).toBe('Coach · X HS');
+  });
+});
+
 describe('orgName (OverseerProfile self-edit) wins over onboarding context', () => {
   it('coachTeamTitle prefers an edited org name over school/sport', () => {
     expect(coachTeamTitle({ isReal: true, school: 'Eastside HS', sport: 'Football', orgName: 'Apex Academy' })).toBe('Apex Academy');
