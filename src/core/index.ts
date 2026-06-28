@@ -5,6 +5,7 @@ export * from './constants';
 export * from './scoring';
 export * from './scoringProfiles';
 export * from './projection';
+export * from './freshness';
 export * from './startingScore';
 export * from './recommendation';
 export * from './leaderboard';
