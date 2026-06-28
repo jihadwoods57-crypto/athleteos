@@ -166,6 +166,73 @@ function explain(ctx: RecommendContext, goal: EngineGoal, t: OrderTotals): strin
   }
 }
 
+/** Goal-aware guidance when the athlete is NOT at a chain in the database (a cafeteria,
+ *  a local spot, an unlisted chain). Same targets the order builder uses, expressed as a
+ *  "build your plate" template instead of a specific order — so the coach is useful
+ *  anywhere, never a dead end. Pure. */
+export interface GenericGuidance {
+  /** Protein (g) to aim for at THIS meal. */
+  proteinTarget: number;
+  /** Calorie ceiling for this meal on a fat-loss day (omitted otherwise — gain/perf fuel). */
+  calorieCeiling?: number;
+  /** Goal-aware one-line framing. */
+  headline: string;
+  /** Concrete "build your plate" picks, ordered. */
+  pick: string[];
+  /** What to skip for this goal. */
+  skip: string[];
+}
+
+export function genericMealGuidance(ctx: {
+  goal: EngineGoal;
+  proteinRemaining: number;
+  caloriesRemaining: number;
+  context?: EatingContext;
+}): GenericGuidance {
+  const context = ctx.context ?? 'general';
+  const proteinTarget = Math.round(clamp(ctx.proteinRemaining || 40, 25, 60));
+  const calorieCeiling = ctx.goal === 'lose' ? Math.round(clamp(ctx.caloriesRemaining || 650, 350, 800)) : undefined;
+  const protein = `Anchor with a lean protein — grilled chicken, turkey, lean beef, fish, eggs, or a protein shake. Aim for ~${proteinTarget}g.`;
+  const carb = context === 'post-workout'
+    ? 'Add a real carb to refill the tank: rice, potato, pasta, fruit, or bread.'
+    : 'Add a smart carb: rice, potato, whole-grain bread, beans, or fruit.';
+  const veg = 'Fill the rest of the plate with vegetables or a side salad.';
+
+  switch (ctx.goal) {
+    case 'gain':
+      return {
+        proteinTarget,
+        headline: `You have room to fuel — get ${proteinTarget}g+ protein and don't shy from calories.`,
+        pick: [protein, carb, 'Add a calorie-dense extra: avocado/guac, cheese, nuts, or olive oil.', veg],
+        skip: ['Diet sodas and "light" options — today you want the calories.'],
+      };
+    case 'lose':
+      return {
+        proteinTarget,
+        calorieCeiling,
+        headline: `Stay lean: hit ${proteinTarget}g protein and keep this meal near ${calorieCeiling} calories.`,
+        pick: [protein, 'Double the non-starchy vegetables — they fill you up for few calories.', 'Keep one fist-sized carb, choose grilled over fried.', 'Sauces and dressing on the side.'],
+        skip: ['Fried items, sugary drinks, and refined-carb sides (fries, chips, white bread).'],
+      };
+    case 'performance':
+      return {
+        proteinTarget,
+        headline: context === 'post-workout'
+          ? `Recover: ${proteinTarget}g protein plus carbs to repair muscle and refill glycogen.`
+          : `Fuel to train: ${proteinTarget}g protein with quality carbs you can move on.`,
+        pick: [protein, carb, veg, 'Hydrate — water or milk over soda.'],
+        skip: ['Heavy fried/greasy food right before training — it sits hard.'],
+      };
+    default: // maintain
+      return {
+        proteinTarget,
+        headline: `Build a balanced plate: ${proteinTarget}g protein, a smart carb, and vegetables.`,
+        pick: [protein, carb, veg],
+        skip: ['Sugary drinks — make it water or milk.'],
+      };
+  }
+}
+
 /**
  * Recommend an order for the athlete's primary goal, plus ranked alternatives (leaner,
  * budget, recovery, muscle-gain) — every one a real order off the same menu. Pure.

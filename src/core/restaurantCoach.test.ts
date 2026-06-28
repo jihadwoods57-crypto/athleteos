@@ -1,7 +1,7 @@
 // AthleteOS — Restaurant Coach engine. Proves goal-awareness (the SAME restaurant yields
 // different orders for a gainer vs a fat-loss athlete), budget respect, protein targeting,
 // and that alternatives are real non-empty orders.
-import { recommendOrder, type RecommendContext } from './restaurantCoach';
+import { recommendOrder, genericMealGuidance, type RecommendContext } from './restaurantCoach';
 import { RESTAURANT_ITEMS, itemsForRestaurant, findRestaurant } from './restaurants';
 
 const base = (over: Partial<RecommendContext> = {}): RecommendContext => ({
@@ -60,6 +60,42 @@ describe('budget awareness', () => {
     const r = recommendOrder({ restaurantId: 'wendys', goal: 'lose', proteinRemaining: 30, caloriesRemaining: 600, budget: 8 });
     expect(r.primary.totals.price).toBeLessThanOrEqual(8);
     expect(r.primary.totals.protein).toBeGreaterThan(0);
+  });
+});
+
+describe('genericMealGuidance — the off-menu fallback (works anywhere)', () => {
+  const g = (over: Partial<Parameters<typeof genericMealGuidance>[0]> = {}) =>
+    genericMealGuidance({ goal: 'maintain', proteinRemaining: 40, caloriesRemaining: 1200, ...over });
+
+  it('always returns a protein target, a headline, and at least one pick + skip', () => {
+    const out = g();
+    expect(out.proteinTarget).toBeGreaterThanOrEqual(25);
+    expect(out.proteinTarget).toBeLessThanOrEqual(60);
+    expect(out.headline.length).toBeGreaterThan(0);
+    expect(out.pick.length).toBeGreaterThan(0);
+    expect(out.skip.length).toBeGreaterThan(0);
+  });
+
+  it('fat-loss carries a calorie ceiling within a sane single-meal range', () => {
+    const out = g({ goal: 'lose', caloriesRemaining: 600 });
+    expect(out.calorieCeiling).toBeGreaterThanOrEqual(350);
+    expect(out.calorieCeiling).toBeLessThanOrEqual(800);
+    expect(out.skip.join(' ').toLowerCase()).toMatch(/fried|sugary/);
+  });
+
+  it('gain/maintain carry no calorie ceiling (the point is to fuel)', () => {
+    expect(g({ goal: 'gain' }).calorieCeiling).toBeUndefined();
+    expect(g({ goal: 'maintain' }).calorieCeiling).toBeUndefined();
+  });
+
+  it('post-workout performance guidance emphasises carbs/recovery', () => {
+    const out = g({ goal: 'performance', context: 'post-workout' });
+    expect(`${out.headline} ${out.pick.join(' ')}`.toLowerCase()).toMatch(/carb|glycogen|refill/);
+  });
+
+  it('clamps a missing/zero protein remaining to a sane meal target', () => {
+    expect(g({ proteinRemaining: 0 }).proteinTarget).toBe(40);
+    expect(g({ proteinRemaining: 999 }).proteinTarget).toBe(60);
   });
 });
 

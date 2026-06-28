@@ -3,7 +3,7 @@
 // the real menu, personalized to your goal + what's LEFT in today's plan, under budget.
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { RESTAURANTS, recommendOrder, type RecommendedOrder } from '@/core';
+import { RESTAURANTS, recommendOrder, genericMealGuidance, type RecommendedOrder, type GenericGuidance } from '@/core';
 import type { EditableFood, MealKey } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
@@ -13,6 +13,8 @@ import { Overlay } from './Overlay';
 
 const GOAL_LABEL: Record<string, string> = { gain: 'gaining', lose: 'leaning out', maintain: 'maintaining', performance: 'performance' };
 const SLOTS: MealKey[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+/** Sentinel restaurant id for the off-menu fallback ("I'm somewhere else"). */
+const ELSEWHERE = 'elsewhere';
 
 export function FoodCoach() {
   const s = useStore();
@@ -40,9 +42,14 @@ export function FoodCoach() {
   const caloriesRemaining = Math.max(0, Math.round(d.calTarget - d.kcalToday));
   const budget = budgetText.trim() ? Number(budgetText.trim()) : undefined;
 
+  const elsewhere = restaurantId === ELSEWHERE;
   const result = React.useMemo(
     () => recommendOrder({ restaurantId, goal, proteinRemaining, caloriesRemaining, budget: budget && budget > 0 ? budget : undefined }),
     [restaurantId, goal, proteinRemaining, caloriesRemaining, budget],
+  );
+  const guidance = React.useMemo(
+    () => genericMealGuidance({ goal, proteinRemaining, caloriesRemaining }),
+    [goal, proteinRemaining, caloriesRemaining],
   );
 
   return (
@@ -71,54 +78,123 @@ export function FoodCoach() {
               </Pressable>
             );
           })}
-        </Row>
-
-        {/* budget */}
-        <Row style={{ gap: 10, marginTop: 12, alignItems: 'center' }}>
-          <Txt w="b" size={14} color={colors.textSecondary}>
-            Budget
-          </Txt>
-          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, height: 44, borderRadius: 13, backgroundColor: colors.bg, paddingHorizontal: 14 }}>
-            <Txt w="b" size={15} color={colors.textTertiary}>
-              $
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Somewhere else"
+            accessibilityState={{ selected: elsewhere }}
+            onPress={() => setRestaurantId(elsewhere ? RESTAURANTS[0].id : ELSEWHERE)}
+            style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: elsewhere ? colors.accent : colors.border, backgroundColor: elsewhere ? colors.accentSurface : colors.card }}
+          >
+            <Txt w="b" size={13} color={elsewhere ? colors.accent : colors.textSecondary}>
+              Somewhere else
             </Txt>
-            <TextInput
-              value={budgetText}
-              onChangeText={setBudgetText}
-              placeholder="any"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="number-pad"
-              accessibilityLabel="Budget in dollars"
-              style={{ flex: 1, marginLeft: 4, fontFamily: font.m, fontSize: 15, color: colors.text }}
-            />
-          </View>
+          </Pressable>
         </Row>
 
-        {/* recommended order — owns the visual weight */}
-        <OrderCard order={result.primary} onUse={() => useOrder(result.primary)} />
-
-        {/* alternatives — scannable one-line rows that expand on tap */}
-        {result.alternatives.length > 0 ? (
-          <Txt w="eb" size={12} color={colors.textTertiary} ls={0.6} upper style={{ marginTop: 22, marginBottom: 4 }}>
-            Other options
-          </Txt>
+        {/* budget — only meaningful when ordering off a real menu */}
+        {!elsewhere ? (
+          <Row style={{ gap: 10, marginTop: 12, alignItems: 'center' }}>
+            <Txt w="b" size={14} color={colors.textSecondary}>
+              Budget
+            </Txt>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, height: 44, borderRadius: 13, backgroundColor: colors.bg, paddingHorizontal: 14 }}>
+              <Txt w="b" size={15} color={colors.textTertiary}>
+                $
+              </Txt>
+              <TextInput
+                value={budgetText}
+                onChangeText={setBudgetText}
+                placeholder="any"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="number-pad"
+                accessibilityLabel="Budget in dollars"
+                style={{ flex: 1, marginLeft: 4, fontFamily: font.m, fontSize: 15, color: colors.text }}
+              />
+            </View>
+          </Row>
         ) : null}
-        {result.alternatives.map((a) => (
-          <AltRow
-            key={a.label}
-            label={a.label}
-            order={a.order}
-            expanded={openAlt === a.label}
-            onToggle={() => setOpenAlt((k) => (k === a.label ? null : a.label))}
-            onUse={() => useOrder(a.order)}
+
+        {elsewhere ? (
+          /* off-menu fallback — goal-aware "build your plate" guidance, then log it */
+          <GuidanceCard
+            guidance={guidance}
+            onLog={() => { s.closeFoodCoach(); s.openMeal(); }}
           />
-        ))}
+        ) : (
+          <>
+            {/* recommended order — owns the visual weight */}
+            <OrderCard order={result.primary} onUse={() => useOrder(result.primary)} />
+
+            {/* alternatives — scannable one-line rows that expand on tap */}
+            {result.alternatives.length > 0 ? (
+              <Txt w="eb" size={12} color={colors.textTertiary} ls={0.6} upper style={{ marginTop: 22, marginBottom: 4 }}>
+                Other options
+              </Txt>
+            ) : null}
+            {result.alternatives.map((a) => (
+              <AltRow
+                key={a.label}
+                label={a.label}
+                order={a.order}
+                expanded={openAlt === a.label}
+                onToggle={() => setOpenAlt((k) => (k === a.label ? null : a.label))}
+                onUse={() => useOrder(a.order)}
+              />
+            ))}
+          </>
+        )}
 
         <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 18, lineHeight: 16 }}>
-          Nutrition estimates from a curated menu database; values vary by location and order. Coaching, not medical advice.
+          {elsewhere
+            ? 'General guidance from your remaining targets — adjust to what they actually serve. Coaching, not medical advice.'
+            : 'Nutrition estimates from a curated menu database; values vary by location and order. Coaching, not medical advice.'}
         </Txt>
       </ScrollView>
     </Overlay>
+  );
+}
+
+function GuidanceCard({ guidance, onLog }: { guidance: GenericGuidance; onLog: () => void }) {
+  return (
+    <Card elevated style={{ marginTop: 16, borderRadius: 20, borderWidth: 1.5, borderColor: colors.accent }}>
+      <Row style={{ gap: 9, marginBottom: 10 }}>
+        <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="sparkle" size={16} color={colors.accent} />
+        </View>
+        <Txt w="eb" size={16} ls={-0.3} color={colors.accent} style={{ flex: 1 }}>
+          Build your plate
+        </Txt>
+      </Row>
+      <Txt w="sb" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>
+        {guidance.headline}
+      </Txt>
+
+      <Row style={{ gap: 8, marginTop: 12 }}>
+        <Stat value={`${guidance.proteinTarget}g`} label="PROTEIN TARGET" />
+        {guidance.calorieCeiling ? <Stat value={`≤${guidance.calorieCeiling}`} label="CALORIES" /> : null}
+      </Row>
+
+      <View style={{ marginTop: 14, gap: 8 }}>
+        {guidance.pick.map((p) => (
+          <Row key={p} style={{ gap: 9, alignItems: 'flex-start' }}>
+            <Icon name="check" size={15} color={colors.successDeep} />
+            <Txt w="m" size={13} color={colors.slate700} style={{ flex: 1, lineHeight: 19 }}>
+              {p}
+            </Txt>
+          </Row>
+        ))}
+        {guidance.skip.map((sk) => (
+          <Row key={sk} style={{ gap: 9, alignItems: 'flex-start' }}>
+            <Icon name="close" size={15} color={colors.textTertiary} />
+            <Txt w="m" size={13} color={colors.textSecondary} style={{ flex: 1, lineHeight: 19 }}>
+              {sk}
+            </Txt>
+          </Row>
+        ))}
+      </View>
+
+      <Btn label="Log what you ate" haptic="success" onPress={onLog} style={{ marginTop: 16 }} />
+    </Card>
   );
 }
 
