@@ -1,7 +1,7 @@
 import { createInitialState } from './defaultState';
 import { computeDerived } from './scoring';
 import { GOAL_LABELS } from './constants';
-import { themeForGoal, mealScoreImpact, mealCoaching, coachReinforcement, coachingScopeNote, medicalDisclaimer } from './coaching';
+import { themeForGoal, mealScoreImpact, mealCoaching, coachReinforcement, coachingScopeNote, medicalDisclaimer, bodyImageNote } from './coaching';
 import type { MealLabel } from './types';
 
 describe('themeForGoal', () => {
@@ -104,6 +104,22 @@ describe('medicalDisclaimer', () => {
     expect(note).not.toContain('—');
     expect(note.toLowerCase()).toContain('not medical advice');
     expect(note.toLowerCase()).toMatch(/doctor|dietitian/);
+  });
+});
+
+describe('bodyImageNote (weight-entry safeguard for a minor population)', () => {
+  it('normalizes weight fluctuation, is non-shaming, and points to a trusted adult/doctor', () => {
+    const note = bodyImageNote();
+    expect(note.length).toBeGreaterThan(20);
+    expect(note).not.toContain('—'); // design em-dash ban
+    // Reframes the number: day-to-day movement is normal, focus off the scale.
+    expect(note.toLowerCase()).toMatch(/day to day|fluctuat|normal/);
+    // Always offers a safe off-ramp to a person if it feels stressful.
+    expect(note.toLowerCase()).toMatch(/talk to|trust|doctor/);
+    // Safeguard copy must never shame the athlete about weight/eating.
+    for (const banned of ['fat', 'overweight', 'lose weight', 'too much', 'bad']) {
+      expect(note.toLowerCase()).not.toContain(banned);
+    }
   });
 });
 
