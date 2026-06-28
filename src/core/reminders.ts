@@ -10,6 +10,7 @@
 // The actual LOCAL scheduling (expo-notifications) is a device seam (src/lib/notify),
 // gated by isNotifyAvailable; nothing here fires a notification. Copy follows the
 // shipped guardrails: factual, no guilt, no em dash.
+import { HYDRATION_TARGET } from './constants';
 
 export type ReminderKind = 'protein' | 'hydration' | 'log_dinner' | 'checkin';
 
@@ -189,4 +190,27 @@ export function reminderNotifySpecs(
     const { title, body } = reminderCopy(d.kind, snapshot);
     return { kind: d.kind, title, body, hour: clampHour(settings[d.kind].hour) };
   });
+}
+
+/**
+ * Build the reminder snapshot from the live day state, so the store can hand the device
+ * seam its specs without re-deriving the conditions inline. `proteinToday` is passed in
+ * (it is a derived value); hydration target is the app constant; check-in is "due" while
+ * it has not been submitted (mirrors nextAction's read). Pure.
+ */
+export function reminderSnapshotFromState(s: {
+  proteinToday: number;
+  proteinTarget: number;
+  hydrationL: number;
+  meals: { dinner: boolean };
+  ciSubmitted: boolean;
+}): ReminderSnapshot {
+  return {
+    proteinToday: s.proteinToday,
+    proteinTarget: s.proteinTarget,
+    hydrationL: s.hydrationL,
+    hydrationTargetL: HYDRATION_TARGET,
+    dinnerLogged: s.meals.dinner,
+    checkinDue: !s.ciSubmitted,
+  };
 }

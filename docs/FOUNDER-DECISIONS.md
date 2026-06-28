@@ -431,3 +431,34 @@ score — crew: keep separate), D4 (PR date picker + sync table), D5 (food DB: k
 license USDA + barcode source), D6 (reminder triggers + notification library), D7 (messaging
 delivery + minors policy first), D8 (wearable recovery into the score), D9 (parent "last
 synced" + non-athlete-trainer scoring), D10 (minor-messaging governance model + legal review).
+
+---
+
+## RATIFIED (founder, this session) — D3 through D10
+
+- **D3 — keep PRs OUT of the daily score.** Confirmed. Performance PRs stay on their own
+  page; the daily score remains habit/nutrition/recovery. No code change (already separate).
+- **D4 — PR date-picker + cloud sync: NOT yet.** Hold; revisit after the loop is validated
+  (needs backend anyway). No code change.
+- **D5 — keep the 55-food starter list.** No USDA license / barcode source for the beta. No
+  code change. (Restaurant Coach coverage was already widened to 13 chains separately.)
+- **D6 — APPROVE on-device reminders.** Wired the integration to the safe line: the store now
+  calls the notification seam (`refreshReminderSchedule`) on every reminder-settings change,
+  via a pure `reminderSnapshotFromState` (core). It is a NO-OP today and stays CI-green/web-
+  safe. **Remaining founder/device steps** (cannot be done by the crew): (1) `npx expo install
+  expo-notifications`, (2) request permission + set the Android channel, (3) implement the
+  scheduling bodies in `src/lib/notify/index.ts` against `scheduleNotificationAsync`,
+  (4) set `isNotifyAvailable = true`, (5) test actual firing on a real device.
+- **D7 — messaging delivery: NOT yet.** Keep messages local + labeled "not delivered" until
+  the backend is live AND D10's policy + legal review are locked. No code change (already
+  inert via `isMessagingLive`).
+- **D8 — wearable recovery into the score: NOT now.** Recovery stays from the self-reported
+  check-in for the beta. No code change.
+- **D9 — START SPECCING.** Authored `docs/specs/2026-06-28-D9-parent-sync-and-nonathlete-
+  scoring.md`: Part A (parent "last synced" timestamp) and Part B (a `general` scoring profile
+  for trainers' non-athlete clients). Both are post-backend; Part B's re-weighting needs an
+  explicit founder/RD sign-off before build.
+- **D10 — minor-messaging governance: RELATIONSHIP-GATED.** Confirmed the shipped model (a
+  minor may only message a connected coach/trainer/guardian; app-layer guard + RLS `0006`).
+  Still REQUIRES a real COPPA/FERPA legal review before any minor cohort messages — that
+  review is the gate, the relationship model is the floor.

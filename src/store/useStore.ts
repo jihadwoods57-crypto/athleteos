@@ -7,6 +7,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { analyzeMeal, isAiConfigured } from '@/lib/ai';
 import { capturePhotoBase64, isCameraAvailable } from '@/lib/capture';
 import { auth, db, isBackendLive } from '@/lib/supabase';
+import { refreshReminderSchedule } from '@/lib/notify';
 import { hydrateDay, pushDay } from './sync';
 import {
   addPerfEntry,
@@ -33,6 +34,8 @@ import {
   loggedDayMacros,
   exportUserDataText,
   isValidGuardianEmail,
+  reminderNotifySpecs,
+  reminderSnapshotFromState,
 } from '@/core';
 import type {
   AppState,
@@ -266,6 +269,22 @@ const computeProteinToday = (
   return proteinBase + quickGrams;
 };
 
+/** Hand the device notification seam the day's active reminders. No-op today (the seam in
+ *  src/lib/notify is inert until expo-notifications is installed + isNotifyAvailable flips
+ *  on a device, and only fires when the master `notif` flag is on) — wired here so the
+ *  call site is complete and the founder's remaining work is the device install, not glue. */
+const syncReminders = (s: AppState): void => {
+  const proteinToday = computeProteinToday(s.meals, s.mealFoods, s.quickAdded);
+  const snapshot = reminderSnapshotFromState({
+    proteinToday,
+    proteinTarget: s.proteinTarget,
+    hydrationL: s.hydrationL,
+    meals: s.meals,
+    ciSubmitted: s.ciSubmitted,
+  });
+  void refreshReminderSchedule(reminderNotifySpecs(s.reminderSettings, snapshot), s.notif);
+};
+
 /** Local minutes-from-midnight, stamped when a meal is logged for on-time accountability. */
 const nowMinutes = (): number => {
   const n = new Date();
@@ -407,21 +426,25 @@ export const useStore = create<Store>()(
       deletePr: (id) => set((s) => ({ perfEntries: removePerfEntry(s.perfEntries, id) })),
 
       setSquadMode: (m) => set({ squadMode: m }),
-      toggleNotif: () => set((s) => ({ notif: !s.notif })),
-      toggleReminder: (kind) =>
+      toggleNotif: () => { set((s) => ({ notif: !s.notif })); syncReminders(get()); },
+      toggleReminder: (kind) => {
         set((s) => ({
           reminderSettings: {
             ...s.reminderSettings,
             [kind]: { ...s.reminderSettings[kind], enabled: !s.reminderSettings[kind].enabled },
           },
-        })),
-      setReminderHour: (kind, hour) =>
+        }));
+        syncReminders(get());
+      },
+      setReminderHour: (kind, hour) => {
         set((s) => ({
           reminderSettings: {
             ...s.reminderSettings,
             [kind]: { ...s.reminderSettings[kind], hour: clampHour(hour) },
           },
-        })),
+        }));
+        syncReminders(get());
+      },
       toggleUnits: () => set((s) => ({ units: s.units === 'metric' ? 'imperial' : 'metric' })),
       goalStep: (d) => set((s) => ({ weeklyGoalLb: +clamp(s.weeklyGoalLb + d, 0.5, 2).toFixed(1) })),
       // Editable daily nutrition targets. Protein feeds scoring + the id-2 task row,

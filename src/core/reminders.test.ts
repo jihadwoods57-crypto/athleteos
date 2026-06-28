@@ -7,10 +7,12 @@ import {
   reminderCopy,
   formatReminderHour,
   reminderNotifySpecs,
+  reminderSnapshotFromState,
   BEHIND_RATIO,
   type ReminderSnapshot,
   type ReminderSettings,
 } from './reminders';
+import { HYDRATION_TARGET } from './constants';
 
 const onTrack: ReminderSnapshot = {
   proteinToday: 150,
@@ -184,5 +186,31 @@ describe('reminderNotifySpecs', () => {
       expect(spec.title).not.toContain('—');
       expect(spec.body).not.toContain('—');
     }
+  });
+});
+
+describe('reminderSnapshotFromState', () => {
+  const base = { proteinToday: 90, proteinTarget: 180, hydrationL: 1.5, meals: { dinner: false }, ciSubmitted: false };
+
+  it('maps day state to a snapshot the spec builder consumes', () => {
+    expect(reminderSnapshotFromState(base)).toEqual({
+      proteinToday: 90,
+      proteinTarget: 180,
+      hydrationL: 1.5,
+      hydrationTargetL: HYDRATION_TARGET,
+      dinnerLogged: false,
+      checkinDue: true,
+    });
+  });
+
+  it('reads dinnerLogged from the meal slot and checkinDue from ciSubmitted', () => {
+    const snap = reminderSnapshotFromState({ ...base, meals: { dinner: true }, ciSubmitted: true });
+    expect(snap.dinnerLogged).toBe(true);
+    expect(snap.checkinDue).toBe(false);
+  });
+
+  it('feeds straight into reminderNotifySpecs (an at-target athlete with all done -> no specs)', () => {
+    const snap = reminderSnapshotFromState({ proteinToday: 180, proteinTarget: 180, hydrationL: HYDRATION_TARGET, meals: { dinner: true }, ciSubmitted: true });
+    expect(reminderNotifySpecs(defaultReminderSettings(), snap)).toEqual([]);
   });
 });
