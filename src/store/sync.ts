@@ -42,6 +42,7 @@ export function consentContextFromState(s: AppState, backendLive: boolean): Cons
     role: s.role ?? 'athlete',
     age: s.baseAge,
     consentGiven: s.realDataConsent,
+    guardianStatus: s.guardianStatus,
   };
 }
 

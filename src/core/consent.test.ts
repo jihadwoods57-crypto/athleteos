@@ -24,8 +24,20 @@ describe('realDataConsent', () => {
   it('blocks an adult athlete without consent', () => {
     expect(realDataConsent({ ...base, age: 20 })).toEqual({ ok: false, reason: 'consent-required' });
   });
-  it('allows an athlete with consent', () => {
-    expect(realDataConsent({ ...base, consentGiven: true })).toEqual({ ok: true, reason: 'ok' });
+  it('allows an adult athlete with consent', () => {
+    expect(realDataConsent({ ...base, age: 20, consentGiven: true })).toEqual({ ok: true, reason: 'ok' });
+  });
+  it('blocks a minor with consent but no guardian (fail-closed: absent status)', () => {
+    expect(realDataConsent({ ...base, consentGiven: true })).toEqual({ ok: false, reason: 'minor-guardian-unverified' });
+  });
+  it('blocks a minor with consent while guardian approval is only pending', () => {
+    expect(realDataConsent({ ...base, consentGiven: true, guardianStatus: 'pending' })).toEqual({ ok: false, reason: 'minor-guardian-unverified' });
+  });
+  it('allows a minor with consent once the guardian is verified', () => {
+    expect(realDataConsent({ ...base, consentGiven: true, guardianStatus: 'verified' })).toEqual({ ok: true, reason: 'ok' });
+  });
+  it('treats unknown age as a minor (guardian still required)', () => {
+    expect(realDataConsent({ ...base, age: null, consentGiven: true })).toEqual({ ok: false, reason: 'minor-guardian-unverified' });
   });
   it('does not gate non-athlete roles (they generate no athlete health data)', () => {
     expect(realDataConsent({ backendLive: true, role: 'coach', consentGiven: false })).toEqual({ ok: true, reason: 'ok' });
