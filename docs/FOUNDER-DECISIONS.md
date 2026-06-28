@@ -366,3 +366,41 @@ verified guardian):
 **Status:** sync gate hardened pure + unit-tested (`f7f1e8b`); onboarding local-mode + email
 validation + resend shipped (`ec185e4`), behind the backend-live flag, not device-rendered
 this run; the "re-prompt after N meals" banner is NOT built.
+
+---
+
+## D12 — The two missing go-live RPCs are now authored + locally verified (delete_account, guardian consent)
+
+**What.** The app already called `delete_account` and `request_guardian_consent` (and
+database.types.ts declared them), but **no migration created them** — they'd have failed at
+runtime the moment the backend flipped. Written as additive migrations and **verified on a
+throwaway local Postgres running the real 0001→0008 set**:
+- `0007_delete_account.sql` — Apple 5.1.1(v) account deletion. SECURITY DEFINER, deletes the
+  caller's meal-photo storage objects then their `auth.users` row, which FK-cascades the
+  profile + every day/meal/checkin/link. Only ever targets `auth.uid()`; fails closed when
+  signed out.
+- `0008_guardian_consent.sql` — COPPA VPC. New `guardian_consent_requests` table + a
+  SECURITY DEFINER `request_guardian_consent(guardian_email)` that records/refreshes a
+  PENDING request (email normalized, token rotated on resend). Athletes can READ their own
+  request but never write it — only the RPC and a service_role verify endpoint can — so a
+  minor can't self-verify.
+
+Local verification (6 assertions, all green): consent created pending + email normalized;
+resend rotates the token with no duplicate; invalid email rejected; both RPCs fail closed
+when signed out; delete_account wipes all of A's data + photo and leaves an unrelated user
+intact. The run caught one real bug (an ambiguous `ON CONFLICT` from the RPC parameter
+shadowing the column) which is fixed.
+
+**Why it needs you.**
+1. **Apply per-migration at go-live (D1).** These are authored only, NOT applied to live.
+2. **Guardian consent is only half a system in SQL.** `request_guardian_consent` records the
+   request and a token; it does NOT send email or grant consent. Before relying on it you
+   must wire (a) an email sender for the verification link and (b) a **service_role** endpoint
+   that flips a row to `verified` after a real identity/payment check. Until then every minor
+   stays local-only (which is safe — the client gate blocks sync until 'verified').
+3. **delete_account assumes the platform FK cascade.** Verified against the real schema
+   locally; still re-confirm on the live project that no table was added outside the
+   profiles-cascade chain.
+
+**Status:** `0007` + `0008` authored and locally verified; NOT applied to live; guardian
+email-send + verify endpoint still founder/vendor work.
