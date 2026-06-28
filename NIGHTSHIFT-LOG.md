@@ -1,3 +1,67 @@
+# ⭐ SPRINT CLOSE — PR: 4-Day Founder-Away Sprint (Thu Jun 25 → Sun Jun 28, 2026)
+
+> **`crew/4day-sprint` → `master`** · **104 commits** · **tests 559 → 894** (+335, 62 suites) ·
+> `typecheck` + `test` + `bundle` (iOS export) **green on every commit** · tag `day4-end`.
+> **NOT merged — yours to review + merge.** Founder-return report:
+> `docs/FOUNDER-RETURN-2026-06-28.md`.
+
+**What this PR does.** The app was already app-complete. This sprint added the **backend
+wiring**, **five new features**, and **readiness/hardening** — *all behind two off-by-default
+master switches and inert device/data seams.* **Nothing went live:** `EXPO_PUBLIC_BACKEND_LIVE`
+never enabled, no real accounts or data, no `supabase db push`, no external sends. `src/core`
+stayed pure TypeScript; no `src/app`; one job = one commit; the branch was pushed after each.
+Everything left between here and a closed beta is a **human** step — see **NEEDS YOU** in the
+founder-return report.
+
+**Highlights by priority item** (full detail + per-feature VERIFIED vs
+BUILT-NOT-RUNTIME-VERIFIED status in `docs/FOUNDER-RETURN-2026-06-28.md`):
+- **P0 — Backend wiring (keystone).** Auth + day-sync + consent + roster behind `isBackendLive`;
+  flag-off identical. Full `auth → joinTeam → pushDay → fetchLinkedDays` round-trip **proven on
+  a throwaway LOCAL stack** (never the live project). Migrations `0004`/`0005` authored + locally
+  verified.
+- **P1 — Performance signal.** `core/performance.ts` PR/trend model + athlete Performance view +
+  coach PersonDetail line; kept out of the daily score (D3). Date-picker + sync = seams (D4).
+- **P2 — Better meal logging.** `core/foodDb.ts` 55-food starter table + search + quick-add
+  through `mealEdit`; barcode = inert seam (D5).
+- **P3 — Reminders.** `core/reminders.ts` schedule model + settings UI + local-notify seam
+  (`refreshReminderSchedule`, no-op today) (D6).
+- **P4 — Messaging + weekly report.** `core/weeklyReport.ts` (now on Profile + a Coach team
+  report) + `core/messaging.ts` (honest "not delivered", minor relationship-gate + RLS `0006`).
+  Delivery = seam (D7/D10).
+- **P5 — Wearable recovery.** `core/recovery.ts` mapping + `blendRecovery` (self-report unchanged
+  when no sample) + inert health seam; not in live scoring (D8).
+- **P6 — Persona voice.** Educational coach scope, trainer `clientType` lens, honest parent
+  digest, and a trust pass (stop calling deterministic logic "AI"; hide demo stats when live).
+- **P7 — Readiness.** In-app account deletion + export (Apple 5.1.1(v)); `0007`/`0008` (COPPA
+  VPC) locally verified; fail-closed minor consent; legal drafts; body-image safeguard; input
+  validation; iPhone-only scope; AI-honesty labeling.
+- **P8 — QA + regression.** Keystone locks (Coach Plan, body-image copy, meal loop, rollover)
+  and this run's flag-OFF fix; tests grew to 894.
+- **Beyond the queue.** Engines master switch (default OFF); Development Score + Daily Game Plan
+  projection; Coach Plan editor; Restaurant Coach (13 chains + off-menu); profile-aware scoring
+  (`athlete` byte-for-byte unchanged, `general` an inert D9 seam); Product Constitution, Launch
+  Checklist, GO-LIVE-NOW runbook.
+
+**Day-4 final run (this run) — adversarial self-review + close.** Re-ran all three gates on the
+branch (no drift: typecheck clean, 892 passing, iOS export green), then reviewed the full Day-4
+diff (UI + core/store) adversarially. **UI clean.** Found + **fixed one real flag-OFF behavior
+change**: Feature 8's late-meal punctuality penalty fed the Development Score but was gated only
+at the UI, so with engines OFF a late meal silently dropped the score (84 → 82) against the
+ratified keystone. Fix: the store records the punctuality timestamp only when `isEnginesEnabled`
+(engines off → score byte-for-byte unchanged); two regression tests lock it; `src/core` stayed
+pure. Tests **892 → 894**. Then wrote `docs/FOUNDER-RETURN-2026-06-28.md`, this summary, and
+tagged `day4-end`. Branch left green + fully pushed.
+
+**Guardrails honored every commit:** `EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB
+mutation; no external send; `src/core` pure; no `src/app`; one job = one commit; gates green;
+branch pushed. Judgment calls were queued to `docs/FOUNDER-DECISIONS.md`, never guessed.
+
+> **Tag note (carried from Day 1–3):** the bridge has 403'd annotated-tag ref pushes all
+> sprint, so each day also pushed a `checkpoint/dayN-end` **branch** as a durable substitute.
+> `day4-end` is attempted as a tag; if the push 403s, `checkpoint/day4-end` is the fallback.
+
+---
+
 # Day 4 AM progress (2026-06-28, 6am ET) — P8 QA + regression (NOT the day's report)
 
 In-progress handoff note for the **1pm run**, which continues the queue toward done and
