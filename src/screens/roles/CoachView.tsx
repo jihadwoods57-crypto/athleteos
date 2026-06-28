@@ -5,6 +5,7 @@ import { ScrollView, Share, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, coachTeamTitle, filterRoster, gradeFor, needsAttention, notLoggedCount, rankByRisk, rosterGroups, teamWeeklyReport, teamWeeklyReportText, trendInfo } from '@/core';
 import { useStore, useDerived } from '@/store';
+import { aiTeamSummaryTag } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Input, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -286,7 +287,7 @@ export function CoachView() {
                 <Icon name="sparkle" size={17} color={colors.accent} />
               </View>
               <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
-                AI TEAM SUMMARY
+                {aiTeamSummaryTag}
               </Txt>
               <SampleTag />
             </Row>

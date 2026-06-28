@@ -3,6 +3,7 @@ import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods, searchFoods, addFood, removeFood, resolvePortion, medicalDisclaimer, activePlan, planMealNote } from '@/core';
 import { isEnginesEnabled } from '@/lib/features';
+import { aiCoachName } from '@/lib/ai';
 import type { EditableFood, LoggedMeal, FoodItem, MealKey } from '@/core';
 import { useStore } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
@@ -224,7 +225,7 @@ export function MealDetail() {
           </View>
           <Txt w="m" size={14} color={colors.slate700} style={{ flex: 1, lineHeight: 20 }}>
             <Txt w="b" size={14} color={colors.accent}>
-              Coach AI ·{' '}
+              {aiCoachName} ·{' '}
             </Txt>
             {meal.note}
           </Txt>
@@ -262,7 +263,7 @@ function Chat() {
   const setChatDraft = useStore((s) => s.setChatDraft);
   const sendChat = useStore((s) => s.sendChat);
 
-  const nameFor = (who: string) => (who === 'ai' ? 'Coach AI' : who === 'coach' ? 'Coach Davis' : 'You');
+  const nameFor = (who: string) => (who === 'ai' ? aiCoachName : who === 'coach' ? 'Coach Davis' : 'You');
   const isMe = (who: string) => who === 'athlete';
 
   return (

@@ -21,6 +21,7 @@ import {
 } from '@/core';
 import type { Role } from '@/core';
 import { isBackendLive } from '@/lib/supabase';
+import { aiPrefix, isAiConfigured } from '@/lib/ai';
 import { useStore } from '@/store';
 import type { Store } from '@/store';
 import { colors } from '@/ui/tokens';
@@ -159,7 +160,7 @@ function Welcome() {
             Let's build your{'\n'}nutrition routine.
           </Txt>
           <Txt w="m" size={16} color={colors.textSecondary} style={{ marginTop: 14, lineHeight: 23 }}>
-            A few quick questions, your starting Development Score, and your first AI coaching moment. Under five minutes.
+            A few quick questions, your starting Development Score, and your first {aiPrefix}coaching moment. Under five minutes.
           </Txt>
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.8} upper style={{ marginTop: 32, marginBottom: 9 }}>
             First, what should we call you?
@@ -298,7 +299,7 @@ function AthleteFlow() {
   switch (key) {
     case 'goal':
       return (
-        <StepShell progress={progress} onBack={s.obBack} eyebrow="Your plan" title="What's your #1 goal right now?" sub="This shapes every piece of AI coaching you'll get." footer={cont(!!s.primaryGoal)}>
+        <StepShell progress={progress} onBack={s.obBack} eyebrow="Your plan" title="What's your #1 goal right now?" sub={`This shapes every piece of ${aiPrefix}coaching you'll get.`} footer={cont(!!s.primaryGoal)}>
           {GOAL_GROUPS.map((g) => (
             <View key={g.group} style={{ marginBottom: 18 }}>
               <Txt w="eb" size={12} color={colors.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
@@ -611,7 +612,9 @@ function AthleteFlow() {
           onBack={s.obBack}
           eyebrow="Today's challenge"
           title="Upload your first meal"
-          sub="One photo. Your AI nutrition coach reads it, scores it, and shows you exactly what to do next, instantly."
+          sub={isAiConfigured
+            ? 'One photo. Your AI nutrition coach reads it, scores it, and shows you exactly what to do next, instantly.'
+            : 'Log your meal and your nutrition coach scores it and shows you exactly what to do next, instantly.'}
           footer={<Btn label="Start now" haptic="success" onPress={s.startFirstMealChallenge} />}
         >
           <Card style={{ alignItems: 'center', paddingVertical: 34, marginTop: 6 }} elevated>

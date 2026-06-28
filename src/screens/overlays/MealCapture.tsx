@@ -4,6 +4,7 @@ import { Animated, Easing, ScrollView, View } from 'react-native';
 import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer } from '@/core';
 import type { MealLabel } from '@/core';
 import { useStore, useDerived } from '@/store';
+import { aiCoachTag } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
 import { Avatar, Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -241,7 +242,7 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
             <Icon name="sparkle" size={16} color={colors.accent} />
           </View>
           <Txt w="eb" size={12} color={colors.accent} ls={0.6}>
-            AI NUTRITION COACH
+            {aiCoachTag}
           </Txt>
         </Row>
         <Txt w="sb" size={16} color={colors.slate700} style={{ marginTop: 12, lineHeight: 23 }}>

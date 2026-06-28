@@ -33,6 +33,7 @@ import {
   trendSummary,
 } from '@/core';
 import { useStore, useDerived } from '@/store';
+import { aiMemoryTag } from '@/lib/ai';
 import { colors, gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
 import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -392,7 +393,7 @@ export function Home() {
               {guidance.pending ? null : (
                 <View style={{ backgroundColor: colors.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
                   <Txt w="b" size={10} color={colors.accent}>
-                    Remembered by AI
+                    {aiMemoryTag}
                   </Txt>
                 </View>
               )}
