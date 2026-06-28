@@ -10,6 +10,7 @@ import { isEnginesEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
 import { refreshReminderSchedule } from '@/lib/notify';
 import { hydrateDay, pushDay } from './sync';
+import { recordMeal } from './mealSync';
 import {
   addPerfEntry,
   removePerfEntry,
@@ -253,6 +254,19 @@ function scheduleDaySync(get: () => Store): void {
   }, SYNC_DEBOUNCE_MS);
 }
 
+// Persist the individual meal (macros + photo) to the `meals` table when a slot is
+// logged. Gated HARD on isBackendLive (flag OFF -> nothing armed, the photo is just
+// dropped as today); recordMeal itself enforces realDataConsent + fails closed, so a
+// scheduled record still never writes a non-consenting (or minor) athlete's meal.
+// Read off the state at log-time so the upload sees the captured photo before addMeal
+// clears it.
+function scheduleMealRecord(get: () => Store, key: MealKey): void {
+  if (!isBackendLive) return;
+  const s = get();
+  if (!s.userId) return;
+  void recordMeal(s, s.userId, key).catch(() => undefined);
+}
+
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 // Mirror of core computeDerived's proteinToday formula (meal macros + quick-add
@@ -475,7 +489,7 @@ export const useStore = create<Store>()(
       exportMyData: () => exportUserDataText(get()),
 
       // ---- overlays ----
-      openMeal: () => set({ mealOpen: true, mealStage: 'capture', mealAnalysis: null }),
+      openMeal: () => set({ mealOpen: true, mealStage: 'capture', mealAnalysis: null, mealPhoto: null }),
       closeMeal: () => set({ mealOpen: false }),
       setMealType: (m) => set({ mealType: m }),
       capture: () => {
@@ -489,9 +503,12 @@ export const useStore = create<Store>()(
           // cancel / denial this resolves undefined and the model infers from context.
           (isCameraAvailable ? capturePhotoBase64() : Promise.resolve<string | undefined>(undefined))
             .catch(() => undefined)
-            .then((photoBase64) =>
-              analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64 }),
-            )
+            .then((photoBase64) => {
+              // Hold the captured photo so addMeal/saveMeal can upload it to the
+              // meal-photos bucket on log (recordMeal). Ephemeral, never persisted.
+              if (photoBase64) set({ mealPhoto: photoBase64 });
+              return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64 });
+            })
             .then((res) => set({ mealAnalysis: res, mealStage: 'result' }))
             // analyzeMeal already degrades to a deterministic result internally, but a
             // failure anywhere in the chain must NEVER strand the user on the "analyzing"
@@ -520,6 +537,11 @@ export const useStore = create<Store>()(
           const mealLoggedAt = isEnginesEnabled ? { ...s.mealLoggedAt, [key]: nowMinutes() } : s.mealLoggedAt;
           return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, meals, mealLoggedAt, tasks };
         });
+        // Persist the meal (macros + photo) BEFORE clearing the captured photo —
+        // recordMeal reads the photo off current state. No-op unless backend live.
+        const key = (get().mealType || 'Dinner').toLowerCase() as MealKey;
+        scheduleMealRecord(get, key);
+        set({ mealPhoto: null });
         scheduleDaySync(get);
       },
       addWater: () => {
@@ -560,6 +582,9 @@ export const useStore = create<Store>()(
           const mealLoggedAt = isEnginesEnabled ? { ...s.mealLoggedAt, [key]: nowMinutes() } : s.mealLoggedAt;
           return { meals, mealFoods, mealLoggedAt, tasks, mealDetailOpen: false };
         });
+        // Persist the corrected plate (edited macros + photo). No-op unless backend live.
+        scheduleMealRecord(get, key);
+        set({ mealPhoto: null });
         scheduleDaySync(get);
       },
       toggleQuick: (i) => {

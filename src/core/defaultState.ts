@@ -93,6 +93,7 @@ export function createInitialState(): AppState {
     mealStage: 'capture',
     mealType: 'Dinner',
     mealAnalysis: null,
+    mealPhoto: null,
     mealDetailOpen: false,
     foodCoachOpen: false,
     planEditorOpen: false,

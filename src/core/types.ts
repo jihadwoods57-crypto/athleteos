@@ -195,6 +195,10 @@ export interface AppState {
   /** Real AI analysis of the captured meal (Claude vision), or null to use the
    *  deterministic prototype result. Ephemeral; never persisted. */
   mealAnalysis: MealResult | null;
+  /** The last captured meal photo (base64 JPEG, no data: prefix), held only long
+   *  enough to upload it to the meal-photos bucket on log. Ephemeral; never
+   *  persisted (kept out of partialize so a multi-MB blob never hits AsyncStorage). */
+  mealPhoto: string | null;
   mealDetailOpen: boolean;
   /** Restaurant Coach overlay ("what should I eat?"). */
   foodCoachOpen: boolean;
