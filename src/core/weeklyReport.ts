@@ -6,7 +6,7 @@
 // moved week-over-week, and the single most important flag. Delivery to a real
 // person (push/email) is the backend/founder step; this only builds the content.
 // Copy follows the shipped guardrails: factual, no guilt, no em dash.
-import { scoreLanguage } from './attention';
+import { riskValue, scoreLanguage } from './attention';
 import { weeklyCompliance } from './history';
 import type { DayScore } from './types';
 
@@ -146,6 +146,107 @@ export function weeklyReportFromState(opts: {
   const comp = weeklyCompliance(history, opts.liveScore, undefined, undefined, opts.now);
   const compliance = comp.total ? Math.round((comp.onPlan / comp.total) * 100) : 0;
   return weeklyReport({ name: opts.name, scores: recent.map((d) => d.score), priorAvg, compliance });
+}
+
+// ---------------------------------------------------------------- team-level (coach)
+
+/** Minimal per-athlete shape the team digest needs (RosterRow satisfies it). */
+export interface TeamMember {
+  name: string;
+  score: number;
+  comp: number;
+  dir: 'up' | 'down' | 'flat';
+}
+
+export interface TeamWeeklyReport {
+  athletes: number;
+  /** Mean roster score, rounded (0 for an empty roster). */
+  avgScore: number;
+  /** Mean roster compliance %, rounded. */
+  compliance: number;
+  /** Plain band word for avgScore. */
+  status: string;
+  /** "Strong week" / "Mixed week" / "Tough week" / "No athletes yet". */
+  headline: string;
+  /** Counts across the score bands (mirrors scoreLanguage). */
+  onStandard: number;
+  onBubble: number;
+  needsIntervention: number;
+  /** Trend-direction counts across the roster. */
+  trendingUp: number;
+  trendingDown: number;
+  /** Honest week-direction read from the trend distribution (no fabricated prior week). */
+  movedLine: string;
+  /** Best mover (trending up, highest score) and most-at-risk (lowest risk rank), or null. */
+  mostImproved: { name: string; score: number } | null;
+  mostAtRisk: { name: string; score: number } | null;
+}
+
+/**
+ * Aggregate a roster into a team weekly digest a coach can glance at or share: average
+ * score + compliance, the band distribution, how many are trending which way, the best
+ * mover, and the athlete most at risk. Honest by construction: it reports only what the
+ * roster carries (no invented week-over-week when prior data is absent). Pure.
+ */
+export function teamWeeklyReport(roster: TeamMember[]): TeamWeeklyReport {
+  const n = roster.length;
+  if (n === 0) {
+    return {
+      athletes: 0, avgScore: 0, compliance: 0, status: scoreLanguage(0),
+      headline: 'No athletes yet', onStandard: 0, onBubble: 0, needsIntervention: 0,
+      trendingUp: 0, trendingDown: 0, movedLine: 'No athletes on the roster yet.',
+      mostImproved: null, mostAtRisk: null,
+    };
+  }
+  const avg = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+  const avgScore = avg(roster.map((r) => r.score));
+  const compliance = clampPct(avg(roster.map((r) => r.comp)));
+
+  let onStandard = 0, onBubble = 0, needsIntervention = 0;
+  for (const r of roster) {
+    const band = scoreLanguage(r.score);
+    if (band === 'On standard') onStandard++;
+    else if (band === 'On the bubble') onBubble++;
+    else needsIntervention++;
+  }
+  const trendingUp = roster.filter((r) => r.dir === 'up').length;
+  const trendingDown = roster.filter((r) => r.dir === 'down').length;
+
+  const headline = avgScore >= 85 ? 'Strong week' : avgScore >= 70 ? 'Mixed week' : 'Tough week';
+  const movedLine =
+    trendingUp === 0 && trendingDown === 0
+      ? 'The room is holding steady this week.'
+      : `${trendingUp} trending up, ${trendingDown} trending down.`;
+
+  // Best mover: an athlete trending up, highest score among them.
+  const risers = roster.filter((r) => r.dir === 'up').sort((a, b) => b.score - a.score);
+  const mostImproved = risers.length ? { name: risers[0].name, score: risers[0].score } : null;
+  // Most at risk: lowest risk rank (same ordering the Needs-Attention list uses).
+  const ranked = [...roster].sort((a, b) => riskValue(a) - riskValue(b));
+  const worst = ranked[0];
+  const mostAtRisk = worst ? { name: worst.name, score: worst.score } : null;
+
+  return {
+    athletes: n, avgScore, compliance, status: scoreLanguage(avgScore), headline,
+    onStandard, onBubble, needsIntervention, trendingUp, trendingDown, movedLine,
+    mostImproved, mostAtRisk,
+  };
+}
+
+/** Plain-text team digest for the share/paste path. ASCII only, no em dash. */
+export function teamWeeklyReportText(report: TeamWeeklyReport, teamName: string): string {
+  const lines = [
+    `Team weekly report: ${teamName}`,
+    report.headline,
+    '',
+    `Team average: ${report.avgScore} (${report.status}) across ${report.athletes} athletes.`,
+    `Compliance: ${report.compliance}% of days on plan.`,
+    `Standing: ${report.onStandard} on standard, ${report.onBubble} on the bubble, ${report.needsIntervention} needs intervention.`,
+    report.movedLine,
+    report.mostImproved ? `Best mover: ${report.mostImproved.name} (${report.mostImproved.score}).` : 'Best mover: none trending up yet.',
+    report.mostAtRisk ? `Most at risk: ${report.mostAtRisk.name} (${report.mostAtRisk.score}).` : 'Most at risk: none.',
+  ];
+  return lines.join('\n');
 }
 
 /**

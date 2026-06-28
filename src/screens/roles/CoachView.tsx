@@ -1,9 +1,9 @@
 // AthleteOS — Coach mobile view: KPIs, needs-attention, check-in question
 // toggles, roster (→ athlete detail), AI team summary.
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, Share, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, coachTeamTitle, filterRoster, gradeFor, needsAttention, notLoggedCount, rankByRisk, rosterGroups, trendInfo } from '@/core';
+import { CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, coachTeamTitle, filterRoster, gradeFor, needsAttention, notLoggedCount, rankByRisk, rosterGroups, teamWeeklyReport, teamWeeklyReportText, trendInfo } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Input, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
@@ -31,6 +31,13 @@ export function CoachView() {
   // gets their own onboarding context (school, else sport) so they never see
   // another team's name.
   const teamTitle = coachTeamTitle({ isReal: s.athleteName.trim().length > 0, sport: s.obMeta.sport, school: s.obMeta.school });
+  // Team weekly digest (week-over-week standing, best mover, most at risk) — the
+  // glanceable program-health read coaches asked for. Shareable as plain text for an AD.
+  const teamReport = teamWeeklyReport(roster);
+  const shareTeamReport = async () => {
+    try { await Share.share({ message: teamWeeklyReportText(teamReport, teamTitle) }); }
+    catch { /* user cancelled the share sheet */ }
+  };
   const rosterMeta: Record<string, { initials: string; pos: string; comp: number }> = Object.fromEntries(
     roster.map((r) => [r.name, { initials: r.initials, pos: r.pos, comp: r.comp }]),
   );
@@ -75,6 +82,48 @@ export function CoachView() {
             <Kpi value={`${kpis.compliance}%`} label="COMPLIANCE" color={colors.success} />
             <Kpi value={`${kpis.alerts}`} label="ALERTS" color={colors.alert} />
           </Row>
+
+          <Card elevated style={{ marginTop: 14, borderRadius: 20 }}>
+            <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1 }}>
+                <Txt w="eb" size={11} color={colors.textTertiary} ls={0.7}>
+                  THIS WEEK
+                </Txt>
+                <Txt w="eb" size={18} ls={-0.3} style={{ marginTop: 3 }}>
+                  {teamReport.headline}
+                </Txt>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Share team weekly report"
+                hitSlop={6}
+                onPress={shareTeamReport}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.accentSurface, opacity: pressed ? 0.8 : 1 })}
+              >
+                <Icon name="send" size={14} color={colors.accent} />
+                <Txt w="b" size={12} color={colors.accent}>
+                  Share
+                </Txt>
+              </Pressable>
+            </Row>
+            <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>
+              {teamReport.movedLine} {teamReport.onStandard} on standard, {teamReport.onBubble} on the bubble, {teamReport.needsIntervention} need intervention.
+            </Txt>
+            <Row style={{ gap: 10, marginTop: 14 }}>
+              <ReportStat
+                label="BEST MOVER"
+                name={teamReport.mostImproved?.name ?? 'None yet'}
+                score={teamReport.mostImproved?.score}
+                color={colors.successDeep}
+              />
+              <ReportStat
+                label="MOST AT RISK"
+                name={teamReport.mostAtRisk?.name ?? 'None'}
+                score={teamReport.mostAtRisk?.score}
+                color={colors.alert}
+              />
+            </Row>
+          </Card>
 
           {attention.length > 0 ? (
             <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.alertSurface, borderWidth: 1, borderColor: colors.alertBorder }}>
@@ -268,6 +317,26 @@ function Kpi({ value, label, color }: { value: string; label: string; color?: st
         {label}
       </Txt>
     </Card>
+  );
+}
+
+function ReportStat({ label, name, score, color }: { label: string; name: string; score?: number; color: string }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg, borderRadius: 14, padding: 13 }}>
+      <Txt w="eb" size={10} color={colors.textTertiary} ls={0.5}>
+        {label}
+      </Txt>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginTop: 5 }}>
+        <Txt w="b" size={14} color={colors.slate700} style={{ flex: 1 }} numberOfLines={1}>
+          {name}
+        </Txt>
+        {typeof score === 'number' ? (
+          <Txt w="eb" size={16} color={color} style={{ marginLeft: 8 }}>
+            {score}
+          </Txt>
+        ) : null}
+      </Row>
+    </View>
   );
 }
 

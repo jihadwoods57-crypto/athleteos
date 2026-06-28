@@ -1,4 +1,4 @@
-import { weeklyReport, weeklyReportText, weeklyReportFromState, MOVE_THRESHOLD, type WeeklyReportInput } from './weeklyReport';
+import { weeklyReport, weeklyReportText, weeklyReportFromState, teamWeeklyReport, teamWeeklyReportText, MOVE_THRESHOLD, type WeeklyReportInput, type TeamMember } from './weeklyReport';
 import type { DayScore } from './types';
 
 const strong: WeeklyReportInput = {
@@ -99,6 +99,60 @@ describe('weeklyReportText', () => {
   });
   it('says "No flags" when the week is clean', () => {
     expect(weeklyReportText(weeklyReport(strong))).toContain('No flags this week.');
+  });
+});
+
+describe('teamWeeklyReport — coach roster aggregate', () => {
+  const roster: TeamMember[] = [
+    { name: 'Cole', score: 92, comp: 95, dir: 'up' },
+    { name: 'Diaz', score: 88, comp: 90, dir: 'up' },
+    { name: 'Vance', score: 74, comp: 70, dir: 'flat' },
+    { name: 'Silva', score: 62, comp: 55, dir: 'down' },
+  ];
+
+  it('averages score + compliance and bands the standing', () => {
+    const r = teamWeeklyReport(roster);
+    expect(r.athletes).toBe(4);
+    expect(r.avgScore).toBe(79); // round(mean(92,88,74,62))
+    expect(r.compliance).toBe(78); // round(mean(95,90,70,55))
+    expect(r.onStandard).toBe(2); // 92, 88
+    expect(r.onBubble).toBe(1); // 74
+    expect(r.needsIntervention).toBe(1); // 62
+  });
+
+  it('reports trend distribution and the best mover (trending up, highest)', () => {
+    const r = teamWeeklyReport(roster);
+    expect(r.trendingUp).toBe(2);
+    expect(r.trendingDown).toBe(1);
+    expect(r.movedLine).toContain('2 trending up');
+    expect(r.mostImproved).toEqual({ name: 'Cole', score: 92 });
+  });
+
+  it('names the most-at-risk athlete (lowest risk rank)', () => {
+    expect(teamWeeklyReport(roster).mostAtRisk).toEqual({ name: 'Silva', score: 62 });
+  });
+
+  it('handles an empty roster honestly', () => {
+    const r = teamWeeklyReport([]);
+    expect(r.headline).toBe('No athletes yet');
+    expect(r.mostImproved).toBeNull();
+    expect(r.mostAtRisk).toBeNull();
+    expect(r.movedLine).toContain('No athletes');
+  });
+
+  it('reads "holding steady" when nothing is trending', () => {
+    const flat: TeamMember[] = [{ name: 'A', score: 80, comp: 80, dir: 'flat' }];
+    const r = teamWeeklyReport(flat);
+    expect(r.movedLine).toContain('holding steady');
+    expect(r.mostImproved).toBeNull();
+  });
+
+  it('renders a shareable text digest with no em dash', () => {
+    const text = teamWeeklyReportText(teamWeeklyReport(roster), 'Linebackers');
+    expect(text).toContain('Team weekly report: Linebackers');
+    expect(text).toContain('Best mover: Cole');
+    expect(text).toContain('Most at risk: Silva');
+    expect(text).not.toContain('—');
   });
 });
 
