@@ -179,12 +179,26 @@ export function Nutrition() {
       {/* today's meals */}
       <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
         <Row style={{ justifyContent: 'space-between', marginBottom: 16 }}>
-          <Txt w="eb" size={16} ls={-0.3}>
-            Today's Meals
-          </Txt>
-          <Txt w="sb" size={13} color={colors.textSecondary}>
-            {d.mealsLoggedCount} of 4 logged
-          </Txt>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Txt w="eb" size={16} ls={-0.3}>
+              Today's Meals
+            </Txt>
+            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
+              {d.mealsLoggedCount} of 4 logged
+            </Txt>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View meal history"
+            onPress={s.openMealHistory}
+            hitSlop={8}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+          >
+            <Txt w="b" size={13} color={colors.accent}>
+              History
+            </Txt>
+            <Icon name="chevronRight" size={15} color={colors.accent} />
+          </Pressable>
         </Row>
         <View style={{ gap: 12 }}>
           {rows.map((row) =>

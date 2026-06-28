@@ -25,6 +25,21 @@ export type BaseGoal = 'gain' | 'lose' | 'maintain' | 'performance';
 export type ScoringProfile = 'athlete' | 'general';
 export type MealKey = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 export type MealLabel = 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
+
+/** The minimal slice of a stored `meals` row the history view model reads. A
+ *  MealRow (lib/supabase/database.types) satisfies it structurally, so core never
+ *  imports the lib type and stays pure. Defined here (not in mealHistory) so
+ *  AppState can hold StoredMeal[] without an import cycle. */
+export interface StoredMeal {
+  type: string | null;
+  name: string | null;
+  protein: number | null;
+  kcal: number | null;
+  quality: number | null;
+  photo_path: string | null;
+  day_date: string;
+  logged_at: string;
+}
 export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutrition' | 'performance' | 'reminders';
 export type MealStage = 'capture' | 'analyzing' | 'result';
 export type CiStage = 'open' | 'done';
@@ -200,6 +215,12 @@ export interface AppState {
    *  persisted (kept out of partialize so a multi-MB blob never hits AsyncStorage). */
   mealPhoto: string | null;
   mealDetailOpen: boolean;
+  /** Client meal-history overlay (past uploads). */
+  mealHistoryOpen: boolean;
+  /** Meals fetched from the backend for the history overlay (null = not fetched /
+   *  backend off, so the overlay falls back to today's locally-logged meals).
+   *  Ephemeral; never persisted. */
+  mealHistory: StoredMeal[] | null;
   /** Restaurant Coach overlay ("what should I eat?"). */
   foodCoachOpen: boolean;
   /** Coach Plan editor overlay. */
@@ -267,6 +288,10 @@ export interface PersonDetail {
   pos?: string;
   score: number;
   org?: string;
+  /** The linked athlete's backend id, when the roster came from real `days` rows.
+   *  Drives the coach/trainer "Recent Meals" history read (RLS-scoped). Absent on
+   *  the seeded demo roster, so that surface shows its honest not-connected state. */
+  athleteId?: string;
   /** Real book/roster compliance % for this person, when the caller has it. */
   comp?: number;
   /** Human "last logged" label (trainer book recency, e.g. "5 days ago"), when

@@ -20,6 +20,7 @@ export * from './attention';
 export * from './roster';
 export * from './rosterSync';
 export * from './mealEdit';
+export * from './mealHistory';
 export * from './foodDb';
 export * from './reminders';
 export * from './weeklyReport';

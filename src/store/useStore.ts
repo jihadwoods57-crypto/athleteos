@@ -32,6 +32,7 @@ import {
   WEIGHT_TARGET,
   rollDayIfStale,
   todayStamp,
+  daysAgoStamp,
   appendMessage,
   loggedDayMacros,
   exportUserDataText,
@@ -170,6 +171,8 @@ export interface Actions {
   addWater: () => void;
   openMealDetail: (meal: string) => void;
   closeMealDetail: () => void;
+  openMealHistory: () => void;
+  closeMealHistory: () => void;
   /** Persist an edited meal's foods into the day slice and mark the slot logged, so
    *  reopening shows the saved plate and the daily score reflects its real macros. */
   saveMeal: (key: MealKey, foods: EditableFood[]) => void;
@@ -244,6 +247,8 @@ let mealTimer: ReturnType<typeof setTimeout> | undefined;
 // itself enforces realDataConsent + fails closed, so a scheduled push still never
 // writes a non-consenting (or minor) athlete's data. AsyncStorage stays the cache.
 const SYNC_DEBOUNCE_MS = 1200;
+// How far back the client meal-history overlay pulls (one stored meal per slot/day).
+const MEAL_HISTORY_DAYS = 14;
 let syncTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleDaySync(get: () => Store): void {
   if (!isBackendLive) return;
@@ -554,6 +559,21 @@ export const useStore = create<Store>()(
       },
       openMealDetail: (meal) => set({ mealDetailOpen: true, selectedMeal: meal }),
       closeMealDetail: () => set({ mealDetailOpen: false }),
+      openMealHistory: () => {
+        set({ mealHistoryOpen: true });
+        // Pull the athlete's own stored meals when the backend is live; otherwise the
+        // overlay falls back to today's locally-logged meals (mealHistory stays null).
+        // Reading own data needs only the flag gate (consent gates collecting, not
+        // resuming) — mirrors hydrateDay.
+        if (!isBackendLive) return;
+        const s = get();
+        if (!s.userId) return;
+        void db
+          .fetchRecentMeals(s.userId, daysAgoStamp(MEAL_HISTORY_DAYS))
+          .then((rows) => set({ mealHistory: rows }))
+          .catch(() => undefined); // keep the local fallback on error
+      },
+      closeMealHistory: () => set({ mealHistoryOpen: false }),
       openFoodCoach: () => set({ foodCoachOpen: true }),
       closeFoodCoach: () => set({ foodCoachOpen: false }),
       openPlanEditor: () => set({ planEditorOpen: true }),

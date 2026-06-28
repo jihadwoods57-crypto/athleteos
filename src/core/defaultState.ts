@@ -95,6 +95,8 @@ export function createInitialState(): AppState {
     mealAnalysis: null,
     mealPhoto: null,
     mealDetailOpen: false,
+    mealHistoryOpen: false,
+    mealHistory: null,
     foodCoachOpen: false,
     planEditorOpen: false,
     selectedMeal: null,

@@ -50,6 +50,33 @@ export async function insertMeal(row: Omit<MealRow, 'id' | 'logged_at'>): Promis
   if (error) throw error;
 }
 
+/** Meal history: every stored meal on or after `sinceDate`, newest day first
+ *  (then by logged_at within a day). RLS scopes it to the athlete + linked
+ *  overseers, so the same call powers the client's own history and a coach's
+ *  view of a linked athlete. Empty when unconfigured. */
+export async function fetchRecentMeals(athleteId: string, sinceDate: string): Promise<MealRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('meals')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .gte('day_date', sinceDate)
+    .order('day_date', { ascending: false })
+    .order('logged_at', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Resolve a meal-photo storage path to a short-lived signed URL (the bucket is
+ *  private). Null when unconfigured or on any error — the UI falls back to the
+ *  color thumbnail, so a missing photo never breaks the list. */
+export async function signedMealPhotoUrl(path: string, ttlSeconds = 3600): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().storage.from('meal-photos').createSignedUrl(path, ttlSeconds);
+  if (error) return null;
+  return data?.signedUrl ?? null;
+}
+
 export async function submitCheckin(row: Omit<CheckinRow, 'id' | 'submitted_at'>): Promise<void> {
   if (!isSupabaseConfigured) return;
   const { error } = await requireSupabase()

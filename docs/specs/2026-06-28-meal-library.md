@@ -1,7 +1,7 @@
 # Spec — Meal Library & History
 
 **Date:** 2026-06-28
-**Status:** Part A (the save seam) IN PROGRESS · Parts B/C (the screens) PLANNED
+**Status:** Parts A (save seam), B (client history), C (coach/trainer history) — BUILT
 **Owner:** founder (jihadwoods57)
 
 ## Why
@@ -101,27 +101,45 @@ every other real-data write.
 each file single-responsibility and matches the existing `pushDay`/`hydrateDay`
 shape, so the consent gate reads identically in both.
 
-## Part B — client meal history (planned)
+## Part B — client meal history (BUILT)
 
-- New overlay `MealHistory` (or a Nutrition-screen section): reads
-  `fetchMeals(userId, date)` across a small date window (this change persists one
-  row per slot per day; history is the union over recent days).
-- Card per meal: photo thumbnail (signed URL from the bucket), name, quality chip,
-  macro row, day label. Tap → re-open the existing `MealCapture` result view
-  hydrated from the stored row (so the coaching insight regenerates from the saved
-  macros/goal — no need to store the AI prose).
-- Honest empty state until the backend is live / the athlete has logged a meal
-  (no fabricated history), matching the Performance-screen pattern.
+- New overlay `src/screens/overlays/MealHistory.tsx`, reached from a **History**
+  link in the Nutrition "Today's Meals" header; mounted in `AthleteApp`.
+- Data: `openMealHistory()` fetches `fetchRecentMeals(userId, daysAgoStamp(14))`
+  when the backend is live and stores it in `AppState.mealHistory` (ephemeral,
+  never persisted). The overlay groups it by day (`groupMealsByDay`, newest first,
+  Today/Yesterday/"Mon, Jun 23" headings).
+- Offline/demo: with the backend off, `mealHistory` stays null and the overlay
+  falls back to today's locally-logged meals (`localTodayCards` — real logs, never
+  fabricated), under a "Sample" note explaining full cross-day history lights up
+  once connected.
+- Card per meal (`MealCardItem`, shared with Part C): photo thumbnail via a
+  short-lived **signed URL** (`signedMealPhotoUrl`) with the app's per-slot color
+  block as the fallback, name, slot · macros, quality chip.
+- Honest empty state ("No meals yet") when nothing is logged.
 
-## Part C — coach/trainer meal history (planned)
+## Part C — coach/trainer meal history (BUILT)
 
-- A "Recent Meals" `Card` in `PersonDetail`, below the Score Breakdown.
-- Reads `fetchMeals(pd.athleteId, today)` — RLS already restricts this to athletes
-  the opener is linked to, so no new permission work.
-- Same card design as Part B, read-only (a coach reviews, doesn't edit the plate).
-- Gated on `isBackendLive`; in the demo it shows the sample/"connect to see real
-  meals" state rather than fabricated food, consistent with the existing
-  DAY-STREAK / WEIGHT-Δ sample handling in that overlay.
+- A "Recent Meals" `Card` in `PersonDetail`, directly below the Score Breakdown.
+- Reads `fetchRecentMeals(pd.athleteId, daysAgoStamp(14))` in a cancel-safe effect
+  — RLS already restricts it to athletes the opener is linked to, so no new
+  permission work. `athleteId` now flows `mapLinkedDaysToRoster` → `RosterRow` →
+  `openPerson` → `PersonDetail` (live roster only).
+- Same `MealCardItem` design as Part B, read-only (a coach reviews, doesn't edit
+  the plate). Grouped by day with the same headings.
+- Gated on `isBackendLive && pd.athleteId`; on the demo roster (no athleteId) or
+  with the backend off it shows the honest "appears here once connected" state with
+  a Sample tag — never fabricated food, consistent with the existing
+  DAY-STREAK / WEIGHT-Δ sample handling in that overlay. The seeded TrainerView
+  clients carry no athleteId, so that surface also shows the not-connected state.
+
+## Follow-ups (not in this change)
+
+- Tap a history card → re-open the full `MealCapture` analysis hydrated from the
+  stored row (regenerate the coaching insight from saved macros/goal; no need to
+  store AI prose). Currently the cards are read-only.
+- Real per-athlete name/photo on the live coach roster (depends on the profile
+  read landing).
 
 ## Guardrails honored
 

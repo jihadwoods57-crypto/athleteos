@@ -39,8 +39,8 @@ export function CoachView() {
     try { await Share.share({ message: teamWeeklyReportText(teamReport, teamTitle) }); }
     catch { /* user cancelled the share sheet */ }
   };
-  const rosterMeta: Record<string, { initials: string; pos: string; comp: number }> = Object.fromEntries(
-    roster.map((r) => [r.name, { initials: r.initials, pos: r.pos, comp: r.comp }]),
+  const rosterMeta: Record<string, { initials: string; pos: string; comp: number; athleteId?: string }> = Object.fromEntries(
+    roster.map((r) => [r.name, { initials: r.initials, pos: r.pos, comp: r.comp, athleteId: r.athleteId }]),
   );
   // Roster-at-scale controls: a real coach with 40+ across position groups needs to
   // segment, search, and see who hasn't logged today, not scroll one long list.
@@ -143,7 +143,7 @@ export function CoachView() {
                     color={a.tone === 'alert' ? colors.alert : colors.warning}
                     nudged={s.nudged.includes(a.name)}
                     onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }); }}
-                    onPress={() => s.openPerson({ name: a.name, initials: m.initials, pos: m.pos, score: a.score, comp: m.comp })}
+                    onPress={() => s.openPerson({ name: a.name, initials: m.initials, pos: m.pos, score: a.score, comp: m.comp, athleteId: m.athleteId })}
                     last={i === attention.length - 1}
                   />
                 );
@@ -226,7 +226,7 @@ export function CoachView() {
                 return (
                   <Pressable
                     key={a.name}
-                    onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: a.pos, score: a.score, comp: a.comp })}
+                    onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: a.pos, score: a.score, comp: a.comp, athleteId: a.athleteId })}
                     style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, padding: 14 }, shadow.card]}
                   >
                     <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>

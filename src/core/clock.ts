@@ -11,6 +11,13 @@ export function todayStamp(now: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Local-date stamp `n` days before `now` (YYYY-MM-DD), for bounded history windows
+ *  (e.g. "meals in the last 7 days"). Uses local parts like todayStamp; `now` injectable. */
+export function daysAgoStamp(n: number, now: Date = new Date()): string {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - n);
+  return todayStamp(d);
+}
+
 /**
  * Time-of-day greeting for the Home header. Uses the LOCAL hour so it tracks the
  * athlete's clock: morning < 12:00, afternoon 12:00–16:59, evening from 17:00.

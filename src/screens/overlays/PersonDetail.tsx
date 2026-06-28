@@ -1,9 +1,9 @@
 // AthleteOS — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { displayWeightDelta, findNudge, gradeFor, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, weightUnit } from '@/core';
+import { displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal } from '@/core';
 import { useStore } from '@/store';
-import { isBackendLive } from '@/lib/supabase';
+import { db, isBackendLive } from '@/lib/supabase';
 import { aiPrefix } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Input, ProgressBar, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
@@ -11,6 +11,9 @@ import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Overlay } from './Overlay';
+import { MealCardItem } from './MealCardItem';
+
+const RECENT_MEAL_DAYS = 14;
 
 export function PersonDetail() {
   const s = useStore();
@@ -120,6 +123,8 @@ export function PersonDetail() {
           </View>
         </Card>
 
+        <RecentMeals athleteId={pd.athleteId} name={pd.name} />
+
         <Card style={{ marginTop: 14, borderRadius: 20 }}>
           <Row style={{ gap: 9, marginBottom: 12 }}>
             <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
@@ -199,6 +204,70 @@ export function PersonDetail() {
         ) : null}
       </ScrollView>
     </Overlay>
+  );
+}
+
+/**
+ * Coach/trainer meal history (Part C): the linked athlete's recent stored meals,
+ * read via fetchRecentMeals (RLS scopes it to athletes the opener is linked to).
+ * Only renders real data — on the demo roster (no athleteId) or with the backend
+ * off it shows the honest not-connected state, never fabricated food, matching the
+ * DAY-STREAK / WEIGHT-Δ sample handling elsewhere in this overlay.
+ */
+function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) {
+  const live = isBackendLive && !!athleteId;
+  const [meals, setMeals] = React.useState<StoredMeal[] | null>(null);
+  React.useEffect(() => {
+    if (!live || !athleteId) return;
+    let cancelled = false;
+    db.fetchRecentMeals(athleteId, daysAgoStamp(RECENT_MEAL_DAYS))
+      .then((rows) => {
+        if (!cancelled) setMeals(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [live, athleteId]);
+
+  const days: MealHistoryDay[] = meals ? groupMealsByDay(meals, todayStamp()) : [];
+  const firstName = name.split(/\s+/)[0] || name;
+
+  return (
+    <Card style={{ marginTop: 14, borderRadius: 20 }}>
+      <Row style={{ gap: 9, marginBottom: 12 }}>
+        <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="utensils" size={16} color={colors.accent} />
+        </View>
+        <Txt w="eb" size={15} ls={-0.3} style={{ flex: 1 }}>
+          Recent Meals
+        </Txt>
+        {live ? null : <SampleTag />}
+      </Row>
+
+      {!live ? (
+        <Txt w="sb" size={13} color={colors.textTertiary} style={{ lineHeight: 19 }}>
+          {firstName}’s logged meals — photo, macros, and quality — appear here once your team is connected to the backend.
+        </Txt>
+      ) : days.length === 0 ? (
+        <Txt w="sb" size={13} color={colors.textTertiary} style={{ lineHeight: 19 }}>
+          No meals logged in the last {RECENT_MEAL_DAYS} days.
+        </Txt>
+      ) : (
+        <View style={{ gap: 16 }}>
+          {days.map((day) => (
+            <View key={day.dateKey} style={{ gap: 12 }}>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5}>
+                {day.dayLabel.toUpperCase()}
+              </Txt>
+              {day.cards.map((c) => (
+                <MealCardItem key={c.id} card={c} />
+              ))}
+            </View>
+          ))}
+        </View>
+      )}
+    </Card>
   );
 }
 

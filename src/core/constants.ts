@@ -226,6 +226,9 @@ export interface RosterRow {
   score: number;
   dir: 'up' | 'down' | 'flat';
   you?: boolean;
+  /** The athlete's backend id, set only on the live roster (mapLinkedDaysToRoster).
+   *  Flows into PersonDetail to drive the RLS-scoped meal-history read. */
+  athleteId?: string;
   /** Specific at-risk signals for the Needs-Attention reason (see AtRiskInput). */
   proteinMissed?: number;
   hydrationLow?: boolean;

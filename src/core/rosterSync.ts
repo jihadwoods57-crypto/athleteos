@@ -78,6 +78,7 @@ export function mapLinkedDaysToRoster(
       score,
       dir: trendDir(score, m.prevScore),
       loggedToday: true,
+      athleteId: d.athlete_id,
     };
   });
 }
