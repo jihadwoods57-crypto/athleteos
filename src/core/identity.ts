@@ -54,9 +54,11 @@ const asText = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
  * school, else the sport they train), so the header never hands them another
  * team's name. Falls back to a neutral "Your Team" when neither is set.
  */
-export function coachTeamTitle(opts: { isReal: boolean; sport?: unknown; school?: unknown }): string {
+export function coachTeamTitle(opts: { isReal: boolean; sport?: unknown; school?: unknown; orgName?: unknown }): string {
   if (!opts.isReal) return 'Defense · Varsity';
-  return asText(opts.school) || asText(opts.sport) || 'Your Team';
+  // An explicit, self-edited org name (OverseerProfile) wins over the onboarding
+  // school/sport — the coach owns their own team title.
+  return asText(opts.orgName) || asText(opts.school) || asText(opts.sport) || 'Your Team';
 }
 
 /**
@@ -103,10 +105,12 @@ function trainerClientFraming(clientType: unknown): { headerTitle: string; allCl
   }
 }
 
-export function trainerLens(role: Role | null, isReal: boolean, clientType?: unknown): TrainerLens {
+export function trainerLens(role: Role | null, isReal: boolean, clientType?: unknown, orgName?: unknown): TrainerLens {
+  // A self-edited practice name (OverseerProfile) wins over the role default.
+  const org = asText(orgName);
   if (role === 'nutritionist') {
     return {
-      orgTitle: isReal ? 'Your Nutrition Practice' : 'Apex Nutrition',
+      orgTitle: org || (isReal ? 'Your Nutrition Practice' : 'Apex Nutrition'),
       headerTitle: 'Your Nutrition Clients',
       complianceTitle: 'Nutrition Compliance',
       allClearLine: 'Every client is hitting their nutrition targets. Nothing to chase today.',
@@ -116,7 +120,7 @@ export function trainerLens(role: Role | null, isReal: boolean, clientType?: unk
   // seeded demo (no clientType) and an athlete/hybrid book keep the neutral framing.
   const framing = trainerClientFraming(clientType);
   return {
-    orgTitle: trainerOrgTitle(isReal),
+    orgTitle: org || trainerOrgTitle(isReal),
     headerTitle: framing?.headerTitle ?? 'Your Clients',
     complianceTitle: 'Book Compliance',
     allClearLine: framing?.allClearLine ?? 'Every client is above the line. Nothing to chase today.',
@@ -142,10 +146,12 @@ export function accountIdentity(opts: {
   athleteName?: unknown;
   sport?: unknown;
   obMeta?: Record<string, unknown>;
+  orgName?: unknown;
 }): { name: string; role: string; initials: string } {
   const name = asText(opts.athleteName);
   const role = asText(opts.role);
   const meta = opts.obMeta ?? {};
+  const org = asText(opts.orgName);
 
   if (name === '') {
     // Seeded demo showcase — unchanged.
@@ -164,7 +170,7 @@ export function accountIdentity(opts: {
   const mono = initials(name, '?');
   switch (role) {
     case 'coach': {
-      const where = asText(meta.school) || asText(meta.sport);
+      const where = org || asText(meta.school) || asText(meta.sport);
       return { name, role: where ? `Coach · ${where}` : 'Coach', initials: mono };
     }
     case 'parent': {
@@ -172,7 +178,7 @@ export function accountIdentity(opts: {
       return { name, role: `Parent · linked to ${child.first}`, initials: mono };
     }
     case 'trainer':
-      return { name, role: 'Trainer · Your Practice', initials: mono };
+      return { name, role: org ? `Trainer · ${org}` : 'Trainer · Your Practice', initials: mono };
     default: {
       const where = asText(opts.sport) || asText(meta.school);
       return { name, role: where ? `Athlete · ${where}` : 'Athlete', initials: mono };

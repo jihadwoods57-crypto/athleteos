@@ -13,6 +13,7 @@ import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
+import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
 
@@ -33,7 +34,7 @@ export function TrainerView() {
   // A real personal trainer's onboarding clientType (weight-loss / muscle-gain /
   // general) re-frames the header so a non-athlete book reads first-class, not
   // sport-coded; the seeded demo and an athlete/hybrid book keep the neutral framing.
-  const lens = trainerLens(s.role, isReal, s.obMeta.clientType);
+  const lens = trainerLens(s.role, isReal, s.obMeta.clientType, s.orgName);
   const orgTitle = lens.orgTitle;
   const monogram = initials(s.athleteName, 'MA');
   const clientByName: Record<string, (typeof TRAINER_CLIENTS)[number]> = Object.fromEntries(
@@ -235,6 +236,7 @@ export function TrainerView() {
       {s.personDetail && <PersonDetail />}
       {s.msgOpen && <Messages />}
       {s.accountOpen && <Account />}
+      {s.overseerProfileOpen && <OverseerProfile />}
     </View>
   );
 }

@@ -89,6 +89,10 @@ export interface AppState {
   signinMode: boolean;
   athleteName: string;
   athleteEmail: string;
+  /** Overseer-editable org/team/practice name (OverseerProfile). When set it wins
+   *  over the onboarding school/sport in the dashboard title + Account role line.
+   *  Empty by default, so demo + un-edited accounts read exactly as before. */
+  orgName: string;
   level: string | null;
   sport: string | null;
   position: string | null;
@@ -218,6 +222,8 @@ export interface AppState {
    *  persisted (kept out of partialize so a multi-MB blob never hits AsyncStorage). */
   mealPhoto: string | null;
   mealDetailOpen: boolean;
+  /** Overseer (coach/trainer/parent) self-profile overlay. */
+  overseerProfileOpen: boolean;
   /** Client meal-history overlay (past uploads). */
   mealHistoryOpen: boolean;
   /** Meals fetched from the backend for the history overlay (null = not fetched /

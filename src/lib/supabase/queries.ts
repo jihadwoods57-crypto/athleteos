@@ -85,6 +85,15 @@ export async function submitCheckin(row: Omit<CheckinRow, 'id' | 'submitted_at'>
   if (error) throw error;
 }
 
+/** Update the signed-in user's own profile row (RLS restricts it to their own id).
+ *  Currently carries the display name; org/practice name needs a `profiles` column
+ *  (or a team row) added at go-live — tracked in the accounts-and-settings spec. */
+export async function updateProfile(userId: string, fields: { full_name?: string | null }): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase().from('profiles').update(fields).eq('id', userId);
+  if (error) throw error;
+}
+
 export async function fetchAthleteProfile(athleteId: string): Promise<AthleteProfileRow | null> {
   if (!isSupabaseConfigured) return null;
   const { data, error } = await requireSupabase()

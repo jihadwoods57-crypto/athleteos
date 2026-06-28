@@ -173,6 +173,12 @@ export interface Actions {
   closeMealDetail: () => void;
   openMealHistory: () => void;
   closeMealHistory: () => void;
+  openOverseerProfile: () => void;
+  closeOverseerProfile: () => void;
+  /** Overseer self-profile edits (coach/trainer/parent). Update the display name +
+   *  org/team name; when live they also push to the profiles row (gated seam). */
+  setDisplayName: (v: string) => void;
+  setOrgName: (v: string) => void;
   /** Persist an edited meal's foods into the day slice and mark the slot logged, so
    *  reopening shows the saved plate and the daily score reflects its real macros. */
   saveMeal: (key: MealKey, foods: EditableFood[]) => void;
@@ -276,6 +282,20 @@ function scheduleMealRecord(get: () => Store, key: MealKey): void {
   const s = get();
   if (!s.userId) return;
   void recordMeal(s, s.userId, key).catch(() => undefined);
+}
+
+// Debounced write-through of the overseer's editable profile (display name) to the
+// profiles row. Gated on isBackendLive: flag OFF -> nothing armed, the edit stays
+// local exactly as today. orgName is a local display field until a profiles column
+// exists for it (see accounts-and-settings spec).
+let profileTimer: ReturnType<typeof setTimeout> | undefined;
+function pushProfile(get: () => Store): void {
+  if (!isBackendLive) return;
+  if (profileTimer) clearTimeout(profileTimer);
+  profileTimer = setTimeout(() => {
+    const s = get();
+    if (s.userId) void db.updateProfile(s.userId, { full_name: s.athleteName.trim() || null }).catch(() => undefined);
+  }, SYNC_DEBOUNCE_MS);
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -580,6 +600,16 @@ export const useStore = create<Store>()(
           .catch(() => undefined); // keep the local fallback on error
       },
       closeMealHistory: () => set({ mealHistoryOpen: false }),
+      openOverseerProfile: () => set({ overseerProfileOpen: true }),
+      closeOverseerProfile: () => set({ overseerProfileOpen: false }),
+      setDisplayName: (v) => {
+        set({ athleteName: v });
+        pushProfile(get);
+      },
+      setOrgName: (v) => {
+        set({ orgName: v });
+        pushProfile(get);
+      },
       openFoodCoach: () => set({ foodCoachOpen: true }),
       closeFoodCoach: () => set({ foodCoachOpen: false }),
       openPlanEditor: () => set({ planEditorOpen: true }),
@@ -809,6 +839,7 @@ export const useStore = create<Store>()(
         signinMode: s.signinMode,
         athleteName: s.athleteName,
         athleteEmail: s.athleteEmail,
+        orgName: s.orgName,
         level: s.level,
         sport: s.sport,
         position: s.position,

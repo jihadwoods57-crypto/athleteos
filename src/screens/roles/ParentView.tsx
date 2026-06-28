@@ -11,6 +11,7 @@ import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Account } from '@/screens/overlays/Account';
+import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 
 export function ParentView() {
   const s = useStore();
@@ -292,6 +293,7 @@ export function ParentView() {
       </SafeAreaView>
 
       {s.accountOpen && <Account />}
+      {s.overseerProfileOpen && <OverseerProfile />}
     </View>
   );
 }

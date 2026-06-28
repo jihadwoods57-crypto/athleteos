@@ -202,3 +202,22 @@ describe('accountIdentity', () => {
     expect(a).toEqual({ name: 'Dana Cole', role: 'Coach', initials: 'DC' });
   });
 });
+
+describe('orgName (OverseerProfile self-edit) wins over onboarding context', () => {
+  it('coachTeamTitle prefers an edited org name over school/sport', () => {
+    expect(coachTeamTitle({ isReal: true, school: 'Eastside HS', sport: 'Football', orgName: 'Apex Academy' })).toBe('Apex Academy');
+    expect(coachTeamTitle({ isReal: true, school: 'Eastside HS' })).toBe('Eastside HS');
+    expect(coachTeamTitle({ isReal: false, orgName: 'Apex Academy' })).toBe('Defense · Varsity');
+  });
+
+  it('trainerLens orgTitle prefers an edited practice name', () => {
+    expect(trainerLens('personal_trainer', true, undefined, 'My Gym').orgTitle).toBe('My Gym');
+    expect(trainerLens('nutritionist', true, undefined, 'Fuel Co').orgTitle).toBe('Fuel Co');
+    expect(trainerLens('personal_trainer', true).orgTitle).toBe('Your Practice');
+  });
+
+  it('accountIdentity role line uses the edited org for coach + trainer', () => {
+    expect(accountIdentity({ role: 'coach', athleteName: 'Dana Cole', orgName: 'Apex Academy' }).role).toBe('Coach · Apex Academy');
+    expect(accountIdentity({ role: 'trainer', athleteName: 'Maya Lopez', orgName: 'My Gym' }).role).toBe('Trainer · My Gym');
+  });
+});

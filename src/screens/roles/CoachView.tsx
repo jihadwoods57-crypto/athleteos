@@ -11,6 +11,7 @@ import { Card, Input, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primit
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
+import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
 import { useLiveRoster } from './useLiveRoster';
@@ -31,7 +32,7 @@ export function CoachView() {
   // The header title: the seeded demo keeps "Linebackers · Varsity"; a real coach
   // gets their own onboarding context (school, else sport) so they never see
   // another team's name.
-  const teamTitle = coachTeamTitle({ isReal: s.athleteName.trim().length > 0, sport: s.obMeta.sport, school: s.obMeta.school });
+  const teamTitle = coachTeamTitle({ isReal: s.athleteName.trim().length > 0, sport: s.obMeta.sport, school: s.obMeta.school, orgName: s.orgName });
   // Team weekly digest (week-over-week standing, best mover, most at risk) — the
   // glanceable program-health read coaches asked for. Shareable as plain text for an AD.
   const teamReport = teamWeeklyReport(roster);
@@ -304,6 +305,7 @@ export function CoachView() {
       {s.personDetail && <PersonDetail />}
       {s.msgOpen && <Messages />}
       {s.accountOpen && <Account />}
+      {s.overseerProfileOpen && <OverseerProfile />}
     </View>
   );
 }
