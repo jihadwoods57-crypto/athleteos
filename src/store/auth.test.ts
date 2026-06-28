@@ -9,6 +9,8 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 const signIn = jest.fn<Promise<AuthResult>, [string, string]>();
 const signUp = jest.fn<Promise<AuthResult>, [string, string, string | undefined]>();
 const signOut = jest.fn<Promise<void>, []>();
+const resetPassword = jest.fn<Promise<AuthResult>, [string]>();
+const signInWithAppleToken = jest.fn<Promise<AuthResult>, [string]>();
 const createTeam = jest.fn<Promise<string | null>, [string, string | undefined]>();
 
 function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
@@ -20,7 +22,7 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
     jest.doMock('@/lib/supabase', () => ({
       isBackendLive: backendLive,
       isSupabaseConfigured: backendLive,
-      auth: { signIn, signUp, signOut },
+      auth: { signIn, signUp, signOut, resetPassword, signInWithAppleToken },
       // signInLive hydrates the day after auth; no remote row in these unit tests.
       db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam },
     }));
@@ -33,6 +35,8 @@ beforeEach(() => {
   signIn.mockReset();
   signUp.mockReset();
   signOut.mockReset().mockResolvedValue(undefined);
+  resetPassword.mockReset();
+  signInWithAppleToken.mockReset();
   createTeam.mockReset();
 });
 
@@ -51,6 +55,17 @@ describe('flag OFF: live auth is inert (mock path preserved)', () => {
     expect(await useStore.getState().createTeamLive('Eastside Eagles', 'Football')).toBeNull();
     expect(createTeam).not.toHaveBeenCalled();
     expect(useStore.getState().teamCode).toBe('');
+  });
+
+  it('signInWithApple no-ops; requestPasswordReset shows a neutral local confirmation', async () => {
+    const useStore = loadStore(false);
+    expect(await useStore.getState().signInWithApple('tok')).toBe(false);
+    expect(signInWithAppleToken).not.toHaveBeenCalled();
+    // reset is allowed to "succeed" locally so the screen behaves the same, but the
+    // wrapper is never called and no email goes out.
+    expect(await useStore.getState().requestPasswordReset('a@b.io')).toBe(true);
+    expect(resetPassword).not.toHaveBeenCalled();
+    expect(useStore.getState().passwordResetSent).toBe(true);
   });
 });
 
@@ -74,13 +89,41 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(useStore.getState().authError).toBe('Invalid login credentials');
   });
 
-  it('signUpLive stores userId + forwards the full name', async () => {
+  it('signUpLive stores userId + forwards the full name + keeps the email', async () => {
     signUp.mockResolvedValue({ ok: true, userId: 'u-2' });
     const useStore = loadStore(true);
-    const ok = await useStore.getState().signUpLive('c@d.io', 'pw', ' Carla ');
+    const ok = await useStore.getState().signUpLive(' c@d.io ', 'pw', ' Carla ');
     expect(ok).toBe(true);
     expect(signUp).toHaveBeenCalledWith('c@d.io', 'pw', 'Carla');
     expect(useStore.getState().userId).toBe('u-2');
+    expect(useStore.getState().athleteEmail).toBe('c@d.io');
+  });
+
+  it('requestPasswordReset routes through the wrapper + sets the sent flag', async () => {
+    resetPassword.mockResolvedValue({ ok: true, userId: '' });
+    const useStore = loadStore(true);
+    const ok = await useStore.getState().requestPasswordReset('a@b.io');
+    expect(ok).toBe(true);
+    expect(resetPassword).toHaveBeenCalledWith('a@b.io');
+    expect(useStore.getState().passwordResetSent).toBe(true);
+  });
+
+  it('requestPasswordReset stays neutral on a real error but surfaces it', async () => {
+    resetPassword.mockResolvedValue({ ok: false, error: 'rate limited' });
+    const useStore = loadStore(true);
+    const ok = await useStore.getState().requestPasswordReset('a@b.io');
+    expect(ok).toBe(false);
+    expect(useStore.getState().authError).toBe('rate limited');
+    expect(useStore.getState().passwordResetSent).toBe(false);
+  });
+
+  it('signInWithApple stores userId on a valid token', async () => {
+    signInWithAppleToken.mockResolvedValue({ ok: true, userId: 'u-apple' });
+    const useStore = loadStore(true);
+    const ok = await useStore.getState().signInWithApple('tok');
+    expect(ok).toBe(true);
+    expect(signInWithAppleToken).toHaveBeenCalledWith('tok');
+    expect(useStore.getState().userId).toBe('u-apple');
   });
 
   it('signOutLive calls the wrapper and clears the session', async () => {

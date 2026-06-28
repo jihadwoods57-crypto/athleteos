@@ -222,6 +222,12 @@ export interface Actions {
   signUpLive: (email: string, password: string, fullName: string) => Promise<boolean>;
   signInLive: (email: string, password: string) => Promise<boolean>;
   signOutLive: () => Promise<void>;
+  /** Send a password-reset email. Gated; sets passwordResetSent on success so the
+   *  reset screen can show its neutral confirmation. Inert without a backend. */
+  requestPasswordReset: (email: string) => Promise<boolean>;
+  /** Exchange an Apple identity token (from expo-apple-authentication) for a session.
+   *  Gated; the obtaining button is iOS + isBackendLive only. */
+  signInWithApple: (identityToken: string) => Promise<boolean>;
   /** Coach/overseer creates a real team via the create_team RPC and stores the
    *  server-generated join code in teamCode. Inert (returns null) when the flag
    *  is off, so the onboarding invite step keeps its EAGLES24 showcase code. */
@@ -693,7 +699,40 @@ export const useStore = create<Store>()(
           set({ authError: res.error });
           return false;
         }
+        // Keep the email for the account/verify panels (password is never stored).
+        set({ userId: res.userId, athleteEmail: email.trim(), authError: null });
+        return true;
+      },
+      requestPasswordReset: async (email) => {
+        if (!isBackendLive) {
+          // Neutral local confirmation so the screen behaves the same flag-off.
+          set({ passwordResetSent: true, authError: null });
+          return true;
+        }
+        const res = await auth.resetPassword(email);
+        // Never leak whether the email exists: surface the same confirmation unless
+        // the request itself errored on the network.
+        if (!res.ok && res.error !== 'notConfigured') {
+          set({ authError: res.error });
+          return false;
+        }
+        set({ passwordResetSent: true, authError: null });
+        return true;
+      },
+      signInWithApple: async (identityToken) => {
+        if (!isBackendLive) return false;
+        const res = await auth.signInWithAppleToken(identityToken);
+        if (!res.ok) {
+          set({ authError: res.error });
+          return false;
+        }
         set({ userId: res.userId, authError: null });
+        try {
+          const slice = await hydrateDay(res.userId);
+          if (slice) set(slice);
+        } catch {
+          /* keep the AsyncStorage-cached day */
+        }
         return true;
       },
       signInLive: async (email, password) => {

@@ -15,7 +15,25 @@ export type GenStep =
   | { kind: 'select'; field: string; title: string; sub?: string; options: Opt[]; columns?: number }
   | { kind: 'multiselect'; field: string; title: string; sub?: string; options: Opt[] }
   | { kind: 'text'; field: string; title: string; sub?: string; placeholder: string }
+  | { kind: 'account'; title: string; sub: string }
   | { kind: 'invite'; title: string; sub: string; cta: string; codeLabel: string };
+
+/** The overseer account-creation step, inserted right before the invite step and
+ *  ONLY when the data backend is live (mirrors the athlete flow). With the flag off
+ *  the generic flows are byte-identical to today. */
+const ACCOUNT_STEP: GenStep = {
+  kind: 'account',
+  title: 'Create your account',
+  sub: 'Save your roster and settings so they sync across devices.',
+};
+
+/** A role's flow with the account step spliced in before the invite when live. */
+export function roleFlowFor(steps: GenStep[], backendLive: boolean): GenStep[] {
+  if (!backendLive) return steps;
+  const i = steps.findIndex((s) => s.kind === 'invite');
+  if (i < 0) return [...steps, ACCOUNT_STEP];
+  return [...steps.slice(0, i), ACCOUNT_STEP, ...steps.slice(i)];
+}
 
 const sportOpts: Opt[] = SPORTS.map((s) => ({ key: s, label: s }));
 
@@ -26,14 +44,17 @@ const sportOpts: Opt[] = SPORTS.map((s) => ({ key: s, label: s }));
 export type AthleteFlowKey =
   | 'goal' | 'sport' | 'position' | 'profile' | 'frequency' | 'support'
   | 'b_conf' | 'b_protein' | 'b_consistency' | 'b_meals' | 'b_water' | 'b_sleep'
-  | 'score' | 'consent' | 'challenge';
+  | 'score' | 'account' | 'consent' | 'challenge';
 
 export function athleteFlowKeys(backendLive: boolean): AthleteFlowKey[] {
   return [
     'goal', 'sport', 'position', 'profile', 'frequency', 'support',
     'b_conf', 'b_protein', 'b_consistency', 'b_meals', 'b_water', 'b_sleep',
     'score',
-    ...(backendLive ? (['consent'] as AthleteFlowKey[]) : []),
+    // Account creation + consent exist only when the data backend is live, so with
+    // the flag OFF the flow is byte-identical to today (no account step, same
+    // indices, same progress denominator). Create the account, then consent.
+    ...(backendLive ? (['account', 'consent'] as AthleteFlowKey[]) : []),
     'challenge',
   ];
 }

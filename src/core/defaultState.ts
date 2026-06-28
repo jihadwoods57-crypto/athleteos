@@ -47,6 +47,7 @@ export function createInitialState(): AppState {
     userId: null,
     realDataConsent: false,
     authError: null,
+    passwordResetSent: false,
 
     // day
     dateStamp: todayStamp(),

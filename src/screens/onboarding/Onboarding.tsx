@@ -3,7 +3,7 @@
 // per screen, tap-first, in-system premium. 7 roles personalize onto the 4 dashboards.
 // See docs/specs/2026-06-23-onboarding-redesign.md.
 import React, { useEffect } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 import {
   formatHeight,
   flowForRole,
@@ -11,6 +11,7 @@ import {
   guardianConsentCopy,
   GOAL_GROUPS,
   isMinor,
+  isValidEmail,
   isValidGuardianEmail,
   POSITION_MAP,
   PROTEIN_FREQ,
@@ -18,9 +19,12 @@ import {
   SPORTS,
   TRAIN_FREQ,
   SUPPORT_OPTIONS,
+  validateCredentials,
+  credentialsOk,
 } from '@/core';
 import type { Role } from '@/core';
 import { isBackendLive } from '@/lib/supabase';
+import { isAppleAuthAvailable, requestAppleIdentityToken } from '@/lib/auth/apple';
 import { aiPrefix, isAiConfigured } from '@/lib/ai';
 import { useStore } from '@/store';
 import type { Store } from '@/store';
@@ -30,7 +34,7 @@ import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
 import { Icon, type IconName } from '@/icons';
 import { LogoMark } from '@/brand/Logo';
-import { ROLE_FLOWS, athleteFlowKeys, type GenStep } from './flows';
+import { ROLE_FLOWS, athleteFlowKeys, roleFlowFor, type GenStep } from './flows';
 import { ScoreReveal } from './ScoreReveal';
 
 /* ------------------------------------------------------------------ shared shell */
@@ -181,8 +185,10 @@ function Welcome() {
 }
 
 function SignIn() {
-  const { exitSignin, signinDone, signInLive, setAuthError } = useStore();
+  const { exitSignin, signinDone, signInLive, signInWithApple, requestPasswordReset, setAuthError } = useStore();
   const authError = useStore((st: Store) => st.authError);
+  const resetSent = useStore((st: Store) => st.passwordResetSent);
+  const [mode, setMode] = React.useState<'in' | 'forgot'>('in');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -200,6 +206,46 @@ function SignIn() {
     if (ok) signinDone();
   };
 
+  const onApple = async () => {
+    setBusy(true);
+    const token = await requestAppleIdentityToken();
+    if (token) {
+      const ok = await signInWithApple(token);
+      if (ok) { setBusy(false); signinDone(); return; }
+    }
+    setBusy(false);
+  };
+
+  // ---- forgot-password sub-mode ----
+  if (mode === 'forgot') {
+    return (
+      <StepShell
+        progress={null}
+        onBack={() => { setAuthError(null); setMode('in'); }}
+        title="Reset your password"
+        sub="Enter your email and we'll send a link to set a new one."
+        footer={
+          resetSent
+            ? <Btn label="Back to sign in" onPress={() => { setMode('in'); }} />
+            : <Btn label={busy ? 'Sending...' : 'Send reset link'} disabled={busy || !isValidEmail(email)} onPress={async () => { setBusy(true); await requestPasswordReset(email); setBusy(false); }} />
+        }
+      >
+        {resetSent ? (
+          <Card style={{ marginTop: 6 }} elevated>
+            <Txt w="sb" size={15} color={colors.slate700} style={{ lineHeight: 22 }}>
+              If an account exists for that email, a reset link is on its way. Check your inbox (and spam).
+            </Txt>
+          </Card>
+        ) : (
+          <View style={{ gap: 12 }}>
+            <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
+            {authError ? <Txt w="sb" size={13} color={colors.alert}>{authError}</Txt> : null}
+          </View>
+        )}
+      </StepShell>
+    );
+  }
+
   return (
     <StepShell
       progress={null}
@@ -216,9 +262,107 @@ function SignIn() {
             {authError}
           </Txt>
         ) : null}
+        <Pressable accessibilityRole="button" accessibilityLabel="Forgot password" hitSlop={8} onPress={() => { setAuthError(null); setMode('forgot'); }} style={({ pressed }) => ({ alignSelf: 'flex-start', opacity: pressed ? 0.6 : 1 })}>
+          <Txt w="b" size={13} color={colors.accent}>Forgot password?</Txt>
+        </Pressable>
+        <AppleButton busy={busy} onPress={onApple} />
       </View>
     </StepShell>
   );
+}
+
+/** Sign in with Apple button — renders only when the native seam is available AND
+ *  the backend is live (App Store 4.8). Hidden today; lights up at go-live once
+ *  expo-apple-authentication is added. See src/lib/auth/apple.ts. */
+function AppleButton({ busy, onPress }: { busy: boolean; onPress: () => void }) {
+  if (!isAppleAuthAvailable || !isBackendLive || Platform.OS !== 'ios') return null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Sign in with Apple"
+      disabled={busy}
+      onPress={onPress}
+      style={({ pressed }) => ({ height: 52, borderRadius: 14, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 4, opacity: pressed ? 0.85 : 1 })}
+    >
+      <Txt w="b" size={15} color="#fff"> Sign in with Apple</Txt>
+    </Pressable>
+  );
+}
+
+/**
+ * Shared account-creation form (athlete + overseer flows, only mounted when the
+ * backend is live). Collects email + password, validates inline, and calls
+ * signUpLive; on success it shows a "confirm your email" panel (the Supabase project
+ * has email-confirmation on) and a Continue button that advances the flow. The
+ * account works locally immediately; sync waits on confirmation + consent.
+ */
+function CreateAccountForm({ progress, title, sub, onDone }: { progress: number; title: string; sub: string; onDone: () => void }) {
+  const s = useStore();
+  const authError = useStore((st: Store) => st.authError);
+  const [email, setEmail] = React.useState(s.athleteEmail ?? '');
+  const [password, setPassword] = React.useState('');
+  const [confirm, setConfirm] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [created, setCreated] = React.useState(false);
+  const errors = validateCredentials(email, password, confirm);
+  const ready = credentialsOk(errors);
+
+  const onCreate = async () => {
+    setBusy(true);
+    const ok = await s.signUpLive(email, password, s.athleteName);
+    setBusy(false);
+    if (ok) setCreated(true);
+  };
+
+  const onApple = async () => {
+    setBusy(true);
+    const token = await requestAppleIdentityToken();
+    if (token) { const ok = await s.signInWithApple(token); if (ok) { setBusy(false); onDone(); return; } }
+    setBusy(false);
+  };
+
+  if (created) {
+    return (
+      <StepShell progress={progress} onBack={s.obBack} eyebrow="Almost there" title="Confirm your email" sub="We sent a confirmation link to keep your account secure." footer={<Btn label="Continue" haptic="success" onPress={onDone} />}>
+        <Card style={{ marginTop: 6 }} elevated>
+          <Row style={{ gap: 10 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="bell" size={19} color={colors.accent} />
+            </View>
+            <Txt w="sb" size={14} color={colors.slate700} style={{ flex: 1, lineHeight: 20 }}>
+              Check {email.trim()} for a link. You can keep going now — your data stays on this device until you confirm.
+            </Txt>
+          </Row>
+        </Card>
+      </StepShell>
+    );
+  }
+
+  return (
+    <StepShell
+      progress={progress}
+      onBack={s.obBack}
+      eyebrow="Create your account"
+      title={title}
+      sub={sub}
+      footer={<Btn label={busy ? 'Creating...' : 'Create account'} disabled={busy || !ready} onPress={onCreate} />}
+    >
+      <View style={{ gap: 12 }}>
+        <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
+        {email.length > 0 && errors.email ? <FieldError text={errors.email} /> : null}
+        <Input value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
+        {password.length > 0 && errors.password ? <FieldError text={errors.password} /> : null}
+        <Input value={confirm} onChangeText={setConfirm} placeholder="Confirm password" secureTextEntry />
+        {confirm.length > 0 && errors.confirm ? <FieldError text={errors.confirm} /> : null}
+        {authError ? <Txt w="sb" size={13} color={colors.alert} style={{ marginTop: 2 }}>{authError}</Txt> : null}
+        <AppleButton busy={busy} onPress={onApple} />
+      </View>
+    </StepShell>
+  );
+}
+
+function FieldError({ text }: { text: string }) {
+  return <Txt w="m" size={12} color={colors.alert} style={{ marginTop: -4, marginLeft: 2, lineHeight: 16 }}>{text}</Txt>;
 }
 
 /* ------------------------------------------------------------------ role picker */
@@ -525,6 +669,18 @@ function AthleteFlow() {
       );
     }
 
+    case 'account':
+      // Only present when isBackendLive (see athleteFlowKeys). Creates the real
+      // account before consent so a userId exists for the data path.
+      return (
+        <CreateAccountForm
+          progress={progress}
+          title={s.athleteName.trim() ? `Save your progress, ${s.athleteName.trim()}.` : 'Save your progress.'}
+          sub="Create an account so your score and meals sync across devices."
+          onDone={s.obNext}
+        />
+      );
+
     case 'consent': {
       // Consent step (only present when isBackendLive). A minor may ACTIVATE now in
       // local-only mode — the real-data sync gate (core/consent.ts realDataConsent)
@@ -704,7 +860,7 @@ function RoundStep({ glyph, onPress }: { glyph: string; onPress: () => void }) {
 function GenericFlow() {
   const s = useStore();
   const role = (s.role ?? 'athlete') as Role;
-  const flow = ROLE_FLOWS[role] ?? [];
+  const flow = roleFlowFor(ROLE_FLOWS[role] ?? [], isBackendLive);
   const idx = s.obStep - 2;
   const step = flow[idx] as GenStep | undefined;
 
@@ -719,7 +875,7 @@ function GenericFlow() {
 
 function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
   const s = useStore();
-  const val = step.kind !== 'invite' ? s.obMeta[step.field] : undefined;
+  const val = step.kind === 'select' || step.kind === 'multiselect' || step.kind === 'text' ? s.obMeta[step.field] : undefined;
 
   // On the invite step, when the backend is live, mint the overseer's real team
   // via the create_team RPC so the shared code is the genuine server-generated one.
@@ -763,6 +919,10 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
         </Pressable>
       </StepShell>
     );
+  }
+
+  if (step.kind === 'account') {
+    return <CreateAccountForm progress={progress} title={step.title} sub={step.sub} onDone={s.obNext} />;
   }
 
   if (step.kind === 'text') {

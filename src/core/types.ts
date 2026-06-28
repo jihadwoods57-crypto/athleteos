@@ -144,6 +144,9 @@ export interface AppState {
   /** Last live-auth error message for the sign-in / sign-up screen to surface, or
    *  null. Ephemeral (not persisted); only ever set when isBackendLive. */
   authError: string | null;
+  /** True once a password-reset email has been requested, so the reset screen shows
+   *  its neutral confirmation. Ephemeral (not persisted). */
+  passwordResetSent: boolean;
 
   // ---- day ----
   dateStamp: string;
