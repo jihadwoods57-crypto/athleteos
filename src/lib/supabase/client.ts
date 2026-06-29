@@ -6,9 +6,9 @@
 // so the app runs exactly as it does today. Drop the two env vars in `.env` (see
 // `.env.example`) to light the backend up — no other code change required to connect.
 import 'react-native-url-polyfill/auto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
+import { secureStorage } from './secureStorage';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
@@ -33,7 +33,9 @@ export const isBackendLive =
 export const supabase: SupabaseClient<Database> | null = isSupabaseConfigured
   ? createClient<Database>(url as string, anonKey as string, {
       auth: {
-        storage: AsyncStorage,
+        // Encrypted at rest via the OS keychain (security audit L1); web falls back to
+        // AsyncStorage inside the adapter. See secureStorage.ts.
+        storage: secureStorage,
         persistSession: true,
         autoRefreshToken: true,
         // React Native has no URL bar; the OAuth/redirect detection web uses
