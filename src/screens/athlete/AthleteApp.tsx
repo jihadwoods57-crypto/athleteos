@@ -19,6 +19,7 @@ import { Reminders } from './Reminders';
 import { MealCapture } from '@/screens/overlays/MealCapture';
 import { MealDetail } from '@/screens/overlays/MealDetail';
 import { MealHistory } from '@/screens/overlays/MealHistory';
+import { NutritionMemory } from '@/screens/overlays/NutritionMemory';
 import { Account } from '@/screens/overlays/Account';
 import { Plans } from '@/screens/overlays/Plans';
 import { Messages } from '@/screens/overlays/Messages';
@@ -47,6 +48,7 @@ export function AthleteApp() {
   const foodCoachOpen = useStore((s) => s.foodCoachOpen);
   const planEditorOpen = useStore((s) => s.planEditorOpen);
   const mealHistoryOpen = useStore((s) => s.mealHistoryOpen);
+  const nutritionMemoryOpen = useStore((s) => s.nutritionMemoryOpen);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -67,6 +69,7 @@ export function AthleteApp() {
       {mealOpen && <MealCapture />}
       {mealDetailOpen && <MealDetail />}
       {mealHistoryOpen && <MealHistory />}
+      {nutritionMemoryOpen && <NutritionMemory />}
       {accountOpen && <Account />}
       {plansOpen && <Plans />}
       {msgOpen && <Messages />}

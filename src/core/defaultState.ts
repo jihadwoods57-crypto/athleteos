@@ -108,6 +108,7 @@ export function createInitialState(): AppState {
     plansOpen: false,
     coachGoalsOpen: false,
     mealHistoryOpen: false,
+    nutritionMemoryOpen: false,
     mealHistory: null,
     foodCoachOpen: false,
     planEditorOpen: false,

@@ -187,6 +187,8 @@ export interface Actions {
   closeMealDetail: () => void;
   openMealHistory: () => void;
   closeMealHistory: () => void;
+  openNutritionMemory: () => void;
+  closeNutritionMemory: () => void;
   openOverseerProfile: () => void;
   closeOverseerProfile: () => void;
   openPlans: () => void;
@@ -692,6 +694,20 @@ export const useStore = create<Store>()(
           .catch(() => undefined); // keep the local fallback on error
       },
       closeMealHistory: () => set({ mealHistoryOpen: false }),
+      openNutritionMemory: () => {
+        set({ nutritionMemoryOpen: true });
+        // Pull the athlete's own stored meals so memory runs on REAL per-slot history when
+        // live; offline it falls back to the sample seed (the view flags it). Same own-data
+        // read as openMealHistory — only the flag gate applies.
+        if (!isBackendLive) return;
+        const s = get();
+        if (!s.userId) return;
+        void db
+          .fetchRecentMeals(s.userId, daysAgoStamp(MEAL_HISTORY_DAYS))
+          .then((rows) => set({ mealHistory: rows }))
+          .catch(() => undefined);
+      },
+      closeNutritionMemory: () => set({ nutritionMemoryOpen: false }),
       openOverseerProfile: () => set({ overseerProfileOpen: true }),
       closeOverseerProfile: () => set({ overseerProfileOpen: false }),
       openPlans: () => set({ plansOpen: true }),

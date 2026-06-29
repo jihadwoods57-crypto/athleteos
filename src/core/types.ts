@@ -249,6 +249,8 @@ export interface AppState {
   coachGoalsOpen: boolean;
   /** Client meal-history overlay (past uploads). */
   mealHistoryOpen: boolean;
+  /** Nutrition Memory overlay (longitudinal "what the AthleteOS remembers" insights). */
+  nutritionMemoryOpen: boolean;
   /** Meals fetched from the backend for the history overlay (null = not fetched /
    *  backend off, so the overlay falls back to today's locally-logged meals).
    *  Ephemeral; never persisted. */

@@ -6,9 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { mealRowsFor, QUICK_FOODS, paceProjection, weekdayLong, weeklyWeightProgress, WEIGHT_START } from '@/core';
 import { isEnginesEnabled } from '@/lib/features';
-import { useStore, useDerived } from '@/store';
+import { useStore, useDerived, useNutritionMemory } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
-import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { Card, ProgressBar, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Nutrition() {
@@ -34,6 +34,8 @@ export function Nutrition() {
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
         Nutrition
       </Txt>
+
+      <MemoryEntry />
 
       {/* Restaurant Coach entry — "what should I eat?" before you order.
           Gated by the engines master switch (OFF for the prove-the-loop beta). */}
@@ -276,5 +278,44 @@ function MacroRing({ label, value, target, pct, color }: { label: string; value:
         {label}
       </Txt>
     </View>
+  );
+}
+
+/**
+ * Nutrition Memory entry — teases the top remembered insight and opens the full surface.
+ * The differentiator in one tap: "this app remembers how you eat." Uses the same engine
+ * the overlay does, so the teaser headline always matches what's inside.
+ */
+function MemoryEntry() {
+  const open = useStore((s) => s.openNutritionMemory);
+  const { insights, sampled } = useNutritionMemory();
+  const top = insights[0];
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open Nutrition Memory"
+      onPress={open}
+      style={({ pressed }) => [{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: colors.card, flexDirection: 'row', alignItems: 'center', gap: 13, opacity: pressed ? 0.85 : 1 }, shadow.card]}
+    >
+      <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="sparkle" size={20} color={colors.accent} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Row style={{ gap: 7, alignItems: 'center' }}>
+          <Txt w="eb" size={15} ls={-0.2}>Nutrition Memory</Txt>
+          {sampled ? <SampleTag /> : null}
+        </Row>
+        <Txt w="m" size={12} color={colors.textTertiary} numberOfLines={1} style={{ marginTop: 2 }}>
+          {top ? top.headline : 'What AthleteOS remembers about how you eat'}
+        </Txt>
+      </View>
+      {top?.metric ? (
+        <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
+          <Txt w="eb" size={13} color={colors.accent}>{top.metric}</Txt>
+        </View>
+      ) : (
+        <Icon name="chevronRight" size={18} color="#CBD5E1" />
+      )}
+    </Pressable>
   );
 }
