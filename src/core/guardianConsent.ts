@@ -1,11 +1,13 @@
-// AthleteOS — verifiable parental consent (VPC) model (pure TS, no RN imports).
+// AthleteOS — verifiable guardian-consent model for MINORS (pure TS, no RN imports).
 //
-// COPPA/App Store: a minor's personal data may not be collected for backend use until a
-// guardian has VERIFIABLY consented. A self-tapped checkbox is not verifiable. This is
-// the client-side state machine + gate; the actual verification (a link emailed to the
-// guardian, confirmed against a real identity/payment check) is a backend + vendor step.
-// Until a guardian is 'verified', the consent gate (consent.ts) must keep a minor's real
-// data on-device only.
+// A minor's (under-18) personal data may not be collected for backend use until a guardian has
+// VERIFIABLY consented. A self-tapped checkbox is not verifiable. This protects minors' health
+// data and satisfies app-store policy for apps used by minors; it is NOT COPPA. COPPA governs
+// children under 13, and the app bars under-13 signup by construction (MIN_SIGNUP_AGE), so COPPA
+// is out of scope. This is the client-side state machine + gate; the actual verification (a link
+// emailed to the guardian, confirmed by the chosen consent vendor) is a backend + vendor step.
+// Until a guardian is 'verified', the consent gate (consent.ts) keeps a minor's real data
+// on-device only.
 
 export type GuardianStatus = 'none' | 'pending' | 'verified';
 

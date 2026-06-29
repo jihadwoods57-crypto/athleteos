@@ -201,7 +201,7 @@ export async function deleteAccount(): Promise<void> {
   if (error) throw error;
 }
 
-/** COPPA VPC: email a minor's guardian an approval request. Calls a
+/** Minor guardian consent: email a minor's guardian an approval request. Calls a
  *  `request_guardian_consent` RPC (authored at go-live) that records a pending
  *  guardianship and sends the verification link. Inert without a backend. */
 export async function requestGuardianConsent(guardianEmail: string): Promise<void> {

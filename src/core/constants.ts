@@ -11,6 +11,12 @@ export const SUPPORT_EMAIL = 'support@athleteos.app';
 export const PRIVACY_POLICY_URL = 'https://athleteos.app/privacy';
 export const TERMS_URL = 'https://athleteos.app/terms';
 
+/** Minimum age the app will sign up. Set to 13 so the product does not knowingly collect data
+ *  from a child under 13, which keeps it out of COPPA's scope entirely (COPPA governs under-13).
+ *  Users 13-17 are still minors and pass through the guardian-consent gate (see consent.ts); the
+ *  under-13 case is barred here by construction. The age stepper floors at this value. */
+export const MIN_SIGNUP_AGE = 13;
+
 export const PROTEIN_TARGET = 180;
 export const CAL_TARGET = 3200;
 /** Daily carb + fat targets (g) for the Nutrition macro rings. Not athlete-editable

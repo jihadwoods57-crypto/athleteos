@@ -21,6 +21,7 @@ import {
   emptyDaySlice,
   flowForRole,
   HYDRATION_TARGET,
+  MIN_SIGNUP_AGE,
   PROTEIN_TARGET,
   QUICK_FOODS,
   recordDayNutrition,
@@ -277,8 +278,8 @@ export interface Actions {
    *  is off, so the onboarding invite step keeps its EAGLES24 showcase code. */
   createTeamLive: (name: string, sport?: string) => Promise<string | null>;
   setGuardianEmail: (v: string) => void;
-  /** COPPA VPC: email a minor's guardian an approval request. Gated — sends only when
-   *  the backend is live; marks status 'pending' on a valid email. Returns success. */
+  /** Minor guardian consent: email a minor's guardian an approval request. Gated, sends only
+   *  when the backend is live; marks status 'pending' on a valid email. Returns success. */
   requestGuardianConsent: () => Promise<boolean>;
   recordConsent: (given: boolean) => void;
   setAuthError: (msg: string | null) => void;
@@ -411,7 +412,9 @@ export const useStore = create<Store>()(
       setCompMode: (m) => set({ compMode: m }),
       hStep: (d) => set((s) => ({ baseHeight: clamp(s.baseHeight + d, 54, 84) })),
       bwStep: (d) => set((s) => ({ baseWeight: clamp(s.baseWeight + d, 70, 350) })),
-      ageStep: (d) => set((s) => ({ baseAge: clamp(s.baseAge + d, 8, 24) })),
+      // Floor at MIN_SIGNUP_AGE (13): the app does not sign up under-13s, keeping it out of
+      // COPPA scope. 13-17 still flow through the minor guardian-consent gate (consent.ts).
+      ageStep: (d) => set((s) => ({ baseAge: clamp(s.baseAge + d, MIN_SIGNUP_AGE, 24) })),
       startSignin: () => set({ signinMode: true }),
       exitSignin: () => set({ signinMode: false }),
       signinDone: () => set({ signinMode: false, flow: 'app', tab: 'home' }),

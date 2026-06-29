@@ -42,7 +42,7 @@ export function isMinor(age?: number | null): boolean {
  *  - backend off  -> never (local-only; nothing leaves the device);
  *  - a minor athlete without recorded consent -> blocked (the hard gate);
  *  - a minor athlete whose guardian is not 'verified' -> blocked (a self-tapped
- *    checkbox is not verifiable consent; COPPA requires a verified guardian);
+ *    checkbox is not verifiable consent for a minor; a verified guardian is required);
  *  - any athlete without consent -> blocked;
  *  - otherwise ok.
  * Non-athlete roles (coach / parent / trainer) generate no athlete health data,
@@ -57,8 +57,8 @@ export function realDataConsent(c: ConsentContext): { ok: boolean; reason: Conse
   if (!c.consentGiven) {
     return { ok: false, reason: isMinor(c.age) ? 'minor-consent-required' : 'consent-required' };
   }
-  // A minor's real data stays on-device until a guardian has VERIFIABLY approved —
-  // a self-tapped checkbox is not verifiable consent (COPPA). Fails closed: an
+  // A minor's real data stays on-device until a guardian has VERIFIABLY approved;
+  // a self-tapped checkbox is not verifiable consent for a minor. Fails closed: an
   // absent or non-'verified' status blocks the push, so local-only activation is safe.
   if (isMinor(c.age) && c.guardianStatus !== 'verified') {
     return { ok: false, reason: 'minor-guardian-unverified' };

@@ -7,7 +7,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 import { useStore } from './useStore';
-import { flowForRole } from '@/core';
+import { flowForRole, MIN_SIGNUP_AGE } from '@/core';
 import type { Role } from '@/core';
 
 beforeEach(() => {
@@ -23,6 +23,19 @@ describe('athlete onboarding setters', () => {
   it('setTrainingFreq stores the frequency', () => {
     useStore.getState().setTrainingFreq('twice');
     expect(useStore.getState().trainingFreq).toBe('twice');
+  });
+
+  it('the age stepper floors at the 13+ signup minimum (no under-13 -> out of COPPA scope)', () => {
+    expect(MIN_SIGNUP_AGE).toBe(13);
+    useStore.setState({ baseAge: MIN_SIGNUP_AGE });
+    for (let i = 0; i < 12; i++) useStore.getState().ageStep(-1); // try to push well below
+    expect(useStore.getState().baseAge).toBe(MIN_SIGNUP_AGE); // clamped, never under 13
+  });
+
+  it('the age stepper still ranges up through college age', () => {
+    useStore.setState({ baseAge: MIN_SIGNUP_AGE });
+    for (let i = 0; i < 20; i++) useStore.getState().ageStep(1);
+    expect(useStore.getState().baseAge).toBe(24); // upper clamp unchanged
   });
 
   it('setBaseAnswer writes each baseline assessment answer', () => {
