@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Alert, ScrollView, Share, View } from 'react-native';
 import { useStore } from '@/store';
-import { accountIdentity, accountRows, APP_VERSION, type AccountRow } from '@/core';
+import { accountIdentity, accountRows, APP_VERSION, isPro, type AccountRow } from '@/core';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
@@ -76,6 +76,25 @@ export function Account() {
             />
           ))}
         </Card>
+
+        {/* Plans / billing — opens the compliant checkout (price, auto-renewal, trial, cancel). */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isPro(s.entitlement) ? 'Manage your plan' : 'See plans'}
+          onPress={s.openPlans}
+          style={({ pressed }) => [{ marginTop: 14, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', opacity: pressed ? 0.9 : 1 }, shadow.card]}
+        >
+          <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="bolt" size={18} color={colors.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt w="b" size={15}>{isPro(s.entitlement) ? 'Manage your plan' : 'See plans'}</Txt>
+            <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 1 }}>
+              {isPro(s.entitlement) ? 'Billing, seats & cancellation' : 'Pricing, trials & what’s included'}
+            </Txt>
+          </View>
+          <Icon name="chevronRight" size={18} color={colors.textTertiary} />
+        </Pressable>
 
         {/* Your data — GDPR/CCPA portability + Apple-required in-app deletion */}
         <Card elevated style={{ marginTop: 14, borderRadius: 24, paddingVertical: 4 }}>

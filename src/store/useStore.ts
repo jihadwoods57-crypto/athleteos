@@ -177,6 +177,8 @@ export interface Actions {
   closeMealHistory: () => void;
   openOverseerProfile: () => void;
   closeOverseerProfile: () => void;
+  openPlans: () => void;
+  closePlans: () => void;
   openCoachGoals: () => void;
   closeCoachGoals: () => void;
   /** Toggle one overseer per-event alert preference (OverseerProfile). */
@@ -621,6 +623,8 @@ export const useStore = create<Store>()(
       closeMealHistory: () => set({ mealHistoryOpen: false }),
       openOverseerProfile: () => set({ overseerProfileOpen: true }),
       closeOverseerProfile: () => set({ overseerProfileOpen: false }),
+      openPlans: () => set({ plansOpen: true }),
+      closePlans: () => set({ plansOpen: false }),
       openCoachGoals: () => set({ coachGoalsOpen: true }),
       closeCoachGoals: () => set({ coachGoalsOpen: false }),
       toggleOverseerAlert: (key) =>

@@ -25,6 +25,7 @@ export * from './credentials';
 export * from './coachGoals';
 export * from './overseerAlerts';
 export * from './subscription';
+export * from './pricing';
 export * from './membership';
 export * from './workspace';
 export * from './foodDb';

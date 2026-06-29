@@ -11,6 +11,7 @@ import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Account } from '@/screens/overlays/Account';
+import { Plans } from '@/screens/overlays/Plans';
 import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 
 export function ParentView() {
@@ -293,6 +294,7 @@ export function ParentView() {
       </SafeAreaView>
 
       {s.accountOpen && <Account />}
+      {s.plansOpen && <Plans />}
       {s.overseerProfileOpen && <OverseerProfile />}
     </View>
   );

@@ -20,6 +20,7 @@ import { MealCapture } from '@/screens/overlays/MealCapture';
 import { MealDetail } from '@/screens/overlays/MealDetail';
 import { MealHistory } from '@/screens/overlays/MealHistory';
 import { Account } from '@/screens/overlays/Account';
+import { Plans } from '@/screens/overlays/Plans';
 import { Messages } from '@/screens/overlays/Messages';
 import { Notifications } from '@/screens/overlays/Notifications';
 import { FoodCoach } from '@/screens/overlays/FoodCoach';
@@ -40,6 +41,7 @@ export function AthleteApp() {
   const mealOpen = useStore((s) => s.mealOpen);
   const mealDetailOpen = useStore((s) => s.mealDetailOpen);
   const accountOpen = useStore((s) => s.accountOpen);
+  const plansOpen = useStore((s) => s.plansOpen);
   const msgOpen = useStore((s) => s.msgOpen);
   const notifOpen = useStore((s) => s.notifOpen);
   const foodCoachOpen = useStore((s) => s.foodCoachOpen);
@@ -66,6 +68,7 @@ export function AthleteApp() {
       {mealDetailOpen && <MealDetail />}
       {mealHistoryOpen && <MealHistory />}
       {accountOpen && <Account />}
+      {plansOpen && <Plans />}
       {msgOpen && <Messages />}
       {notifOpen && <Notifications />}
       {/* Engine overlays only mount when the master switch is on (defense in depth —

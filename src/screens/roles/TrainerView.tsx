@@ -13,6 +13,7 @@ import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
+import { Plans } from '@/screens/overlays/Plans';
 import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
@@ -238,6 +239,7 @@ export function TrainerView() {
       {s.personDetail && s.coachGoalsOpen && <CoachGoalsEditor />}
       {s.msgOpen && <Messages />}
       {s.accountOpen && <Account />}
+      {s.plansOpen && <Plans />}
       {s.overseerProfileOpen && <OverseerProfile />}
     </View>
   );
