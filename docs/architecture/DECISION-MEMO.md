@@ -3,6 +3,51 @@
 **Date:** 2026-06-29 · **For:** the founder · **From:** the architecture crew
 **Source:** `docs/architecture/11-strategy-risks-decisions.md` §7, reconciled across docs `01`–`10`.
 
+---
+
+> ## ✅ RATIFIED — 2026-06-29 (founder)
+> **All seven decisions approved as recommended.** Every sub-question answered in line with
+> the crew's recommendation, plus two sharpenings the founder added:
+>
+> - **D1 Profile ownership — APPROVED.** Organizations never own athletes; they own *access*
+>   only. The athlete owns history, meals, progress, score history, photos, habits, AI memory.
+>   Graduation/transfer lose nothing. *(Founder's "decision 7": orgs never own athletes — this
+>   is D1, ratified emphatically as the core differentiator vs. team-trapping competitors.)*
+> - **D2 Membership/scope schema — APPROVED**, incl. both conventions: **trainer/nutritionist/
+>   parent = an organization of one**, and **a family = an organization type** (one owner, the
+>   children as members). "The only difference is organization size." No special-case logic.
+> - **D2(b) Unlimited organizations per athlete — APPROVED** *(founder's "decision 6")*. One
+>   athlete, one profile, many orgs (family + HS football + baseball + strength coach +
+>   nutritionist + PT + private QB coach + summer camp), each seeing only what it's permitted.
+>   This is an explicit moat. Locks the `org_memberships` shape as the single grant.
+> - **D3 Scoring integrity — APPROVED with the founder's evidence-based rails** (supersedes the
+>   crew's placeholder 10–50%). Customizable per org **only within these limits**:
+>   | Component | Allowed range |
+>   |---|---|
+>   | Protein | 10–40% |
+>   | Meal Consistency | 20–40% |
+>   | Hydration | 10–25% |
+>   | Recovery | 10–25% |
+>   | Coach Compliance | 10–40% |
+>   | Sport-specific metrics | 0–20% |
+>   No org may set Protein = 90% / rest = 10%. *(Note: this is a **6-component** model; today's
+>   engine has 4 components (nutrition/recovery/tasks/checkin). The rails are now governance
+>   canon; expanding the component set to match is a [DON'T BUILD YET] target reconciled when the
+>   weight-set table ships — and the exact ranges still want a dietitian's blessing before launch.)*
+> - **D4 Entitlements — APPROVED.** Org-keyed, pricing-as-data.
+> - **D5 Workspace scoping — APPROVED.** The **athlete chooses ONE Primary Plan** that drives the
+>   Development Score, accountability, Daily Game Plan, and recommendations; every other org's
+>   plan is a Reference Plan. Schools/trainers/parents assign plans but never control the score.
+> - **D6 Audit immutability — APPROVED.** DB-enforced append-only.
+> - **D7 Consent/COPPA — APPROVED**, incl. **re-prompt on every new organization** (new school /
+>   gym / trainer / nutritionist requires fresh authorization). Verifier ≠ viewer.
+>
+> **Next:** the keystone (D1 + D2) is signed off → the crew may execute **Phase A** (author the
+> `org_memberships` grant + `can_view` body-swap as pure `src/core` seams + unpushed migrations,
+> flag-OFF, tests green; nothing user-visible changes).
+
+---
+
 ## How to read this
 These are the **seven decisions that are expensive or impossible to change once real data
 exists.** Everything else in the 10-year set is a non-destructive evolution on top of them.

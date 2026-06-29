@@ -6,6 +6,31 @@ the options. Newest first.
 
 ---
 
+## ARCH — Enterprise architecture: 7 keystone decisions RATIFIED (2026-06-29)
+
+**What.** The founder reviewed `docs/architecture/DECISION-MEMO.md` and **approved all seven**
+keystone architectural decisions as recommended. Canonical record + specifics live in that memo's
+"✅ RATIFIED" block; summary:
+
+- **Athletes own their data forever; organizations own access only** (never own athletes) — the
+  biggest differentiator; graduation/transfer lose nothing.
+- **Everything is an Organization** — trainer / nutritionist / parent / **family** are just orgs
+  (of one, or a household); "the only difference is organization size." One unified
+  `org_memberships` grant; **unlimited orgs per athlete**, one profile, scoped visibility.
+- **Scoring integrity with evidence-based weight rails** (Protein 10–40, Meal Consistency 20–40,
+  Hydration 10–25, Recovery 10–25, Coach Compliance 10–40, Sport-specific 0–20); customizable
+  within limits only, no per-coach formula. *(6-component target vs. today's 4 — reconciled when
+  the weight-set table ships; ranges want RD sign-off before launch.)*
+- **Athlete picks ONE Primary Plan** (drives score/accountability/Game Plan; others are Reference
+  Plans). **Org-keyed entitlements, pricing-as-data. DB-enforced audit immutability. Consent
+  re-prompts on every new org; verifier ≠ viewer.**
+
+**Status.** Keystone (D1+D2) signed off → crew cleared to execute **Phase A** (author the
+`org_memberships` grant + `can_view` body-swap as pure `src/core` seams + unpushed migrations,
+flag-OFF, ~970 tests green, nothing user-visible). No live migration applied (guardrail).
+
+---
+
 ## D1 — Two new go-live migrations (0004, 0005) must be applied to the live project
 
 **What.** Stage A recorded migrations `0001`-`0003` as the applied set on the live
