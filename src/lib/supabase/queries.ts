@@ -8,6 +8,7 @@ import type {
   CheckinRow,
   DayRow,
   MealRow,
+  ProfileRow,
   SubscriptionRow,
 } from './database.types';
 
@@ -84,6 +85,20 @@ export async function submitCheckin(row: Omit<CheckinRow, 'id' | 'submitted_at'>
     .from('checkins')
     .upsert(row, { onConflict: 'athlete_id,week' });
   if (error) throw error;
+}
+
+/** Read the signed-in user's own profile row (display name + org name + email), so a
+ *  fresh device shows their real identity instead of the seeded demo. RLS scopes it to
+ *  their own id; null when unconfigured / no row. */
+export async function fetchProfile(userId: string): Promise<ProfileRow | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase()
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 /** Update the signed-in user's own profile row (RLS restricts it to their own id).

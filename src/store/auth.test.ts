@@ -14,6 +14,7 @@ const signInWithAppleToken = jest.fn<Promise<AuthResult>, [string]>();
 const createTeam = jest.fn<Promise<string | null>, [string, string | undefined]>();
 const coachSetGoals = jest.fn<Promise<void>, [string, unknown, unknown]>();
 const fetchEntitlement = jest.fn<Promise<unknown>, [string]>();
+const fetchProfile = jest.fn<Promise<unknown>, [string]>();
 
 function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
   let store!: UseBoundStore<StoreApi<Store>>;
@@ -26,7 +27,7 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
       isSupabaseConfigured: backendLive,
       auth: { signIn, signUp, signOut, resetPassword, signInWithAppleToken },
       // signInLive hydrates the day after auth; no remote row in these unit tests.
-      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam, coachSetGoals, fetchEntitlement },
+      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam, coachSetGoals, fetchEntitlement, fetchProfile },
     }));
     store = require('./useStore').useStore;
   });
@@ -42,6 +43,7 @@ beforeEach(() => {
   createTeam.mockReset();
   coachSetGoals.mockReset().mockResolvedValue(undefined);
   fetchEntitlement.mockReset().mockResolvedValue(null);
+  fetchProfile.mockReset().mockResolvedValue(null);
 });
 
 describe('flag OFF: live auth is inert (mock path preserved)', () => {
@@ -73,6 +75,13 @@ describe('flag OFF: live auth is inert (mock path preserved)', () => {
     await useStore.getState().refreshEntitlement();
     expect(fetchEntitlement).not.toHaveBeenCalled();
     expect(useStore.getState().entitlement.tier).toBe('preview');
+  });
+
+  it('hydrateProfile no-ops when off (identity stays local)', async () => {
+    const useStore = loadStore(false);
+    useStore.setState({ userId: 'coach-1' });
+    await useStore.getState().hydrateProfile();
+    expect(fetchProfile).not.toHaveBeenCalled();
   });
 
   it('signInWithApple no-ops; requestPasswordReset shows a neutral local confirmation', async () => {
@@ -142,6 +151,26 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(ok).toBe(true);
     expect(signInWithAppleToken).toHaveBeenCalledWith('tok');
     expect(useStore.getState().userId).toBe('u-apple');
+  });
+
+  it('hydrateProfile reads the real name/org/email back from the profile row', async () => {
+    fetchProfile.mockResolvedValue({ id: 'u1', full_name: 'Coach Reyes', org_name: 'North HS', email: 'c@s.io', primary_role: 'coach' });
+    const useStore = loadStore(true);
+    useStore.setState({ userId: 'u1', athleteName: '', orgName: '', athleteEmail: '' });
+    await useStore.getState().hydrateProfile();
+    expect(fetchProfile).toHaveBeenCalledWith('u1');
+    expect(useStore.getState().athleteName).toBe('Coach Reyes');
+    expect(useStore.getState().orgName).toBe('North HS');
+    expect(useStore.getState().athleteEmail).toBe('c@s.io');
+  });
+
+  it('hydrateProfile keeps the local identity when the backend fields are empty', async () => {
+    fetchProfile.mockResolvedValue({ id: 'u1', full_name: null, org_name: null, email: null, primary_role: 'coach' });
+    const useStore = loadStore(true);
+    useStore.setState({ userId: 'u1', athleteName: 'Local Name', orgName: 'Local Org' });
+    await useStore.getState().hydrateProfile();
+    expect(useStore.getState().athleteName).toBe('Local Name');
+    expect(useStore.getState().orgName).toBe('Local Org');
   });
 
   it('refreshEntitlement reads a team subscription into the entitlement', async () => {

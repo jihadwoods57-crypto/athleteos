@@ -186,6 +186,10 @@ export interface Actions {
   /** Refresh the subscription entitlement from the backend (gated). Inert when off
    *  or signed out; falls back to free preview on no row / error. */
   refreshEntitlement: () => Promise<void>;
+  /** Read the user's profile (display name / org name / email) back from the backend
+   *  after sign-in, so a fresh device shows their real identity, not the seeded demo.
+   *  Gated; soft-fails to the local cache. */
+  hydrateProfile: () => Promise<void>;
   /** Coach sets a roster athlete's targets via the coach_set_goals RPC (gated). The
    *  coach owns the plan (Constitution Rule #13). Returns success; inert when off. */
   pushAthleteGoals: (athleteId: string, targets: { protein: number; calories: number; weight: number }) => Promise<boolean>;
@@ -640,6 +644,24 @@ export const useStore = create<Store>()(
           /* keep the cached/preview entitlement on error */
         }
       },
+      hydrateProfile: async () => {
+        if (!isBackendLive) return;
+        const uid = get().userId;
+        if (!uid) return;
+        try {
+          const p = await db.fetchProfile(uid);
+          if (!p) return;
+          // Prefer the backend's stored values; fall back to whatever's local so an
+          // empty column never blanks a name the user just typed.
+          set((s) => ({
+            athleteName: p.full_name?.trim() || s.athleteName,
+            orgName: p.org_name?.trim() || s.orgName,
+            athleteEmail: p.email?.trim() || s.athleteEmail,
+          }));
+        } catch {
+          /* keep the local identity on error */
+        }
+      },
       pushAthleteGoals: async (athleteId, targets) => {
         if (!isBackendLive || !athleteId) return false;
         try {
@@ -812,7 +834,9 @@ export const useStore = create<Store>()(
         } catch {
           /* keep the AsyncStorage-cached day */
         }
-        // Pull the coach/org subscription entitlement (gated; falls back to preview).
+        // Read the real identity (name/org/email) + entitlement back from the backend
+        // so a fresh device isn't stuck on the seeded demo identity. Both gated + soft-fail.
+        void get().hydrateProfile();
         void get().refreshEntitlement();
         return true;
       },
@@ -832,7 +856,9 @@ export const useStore = create<Store>()(
         } catch {
           /* keep the AsyncStorage-cached day */
         }
-        // Pull the coach/org subscription entitlement (gated; falls back to preview).
+        // Read the real identity (name/org/email) + entitlement back from the backend
+        // so a fresh device isn't stuck on the seeded demo identity. Both gated + soft-fail.
+        void get().hydrateProfile();
         void get().refreshEntitlement();
         return true;
       },

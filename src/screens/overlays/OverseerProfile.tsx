@@ -2,10 +2,10 @@
 // roles had no way to edit their own identity after onboarding — only the athlete
 // had a Profile. This overlay (entry: the Account identity card) lets an overseer
 // edit their display name + org/team name, with the shared notifications + units
-// controls and a read-only roster/join-code summary. Name persists to the profiles
-// row when live (pushProfile); org name is local-display until a backend column
-// exists (see accounts-and-settings spec). Demo-safe: edits update the live
-// dashboard title immediately.
+// controls and a read-only roster/join-code summary. Both name AND org name persist to
+// the profiles row when live (setDisplayName/setOrgName -> pushProfile -> updateProfile,
+// full_name + org_name; org_name added in migration 0009) and are read back on sign-in
+// (hydrateProfile). Demo-safe: edits update the live dashboard title immediately.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { accountIdentity, enabledAlertCount, OVERSEER_ALERT_DEFS, rosterNoun, ROSTER, TRAINER_CLIENTS } from '@/core';
