@@ -45,6 +45,25 @@ export type MealRow = {
   logged_at: string;
 }
 
+/** The unified access grant (Phase A keystone, migration 0011). One row generalizes
+ *  today's team_members/team_staff/practice_clients/guardianships. Mirrors
+ *  src/core/membership.ts Membership. Reads are RLS-scoped to own/admin; writes are
+ *  service_role/RPC only. INERT until the backend is live + the can_view cutover. */
+export type OrgMembershipRow = {
+  id: string;
+  organization_id: string;
+  member_id: string;
+  role: 'athlete' | 'client' | 'guardian' | 'admin' | 'head_coach' | 'assistant_coach' | 'trainer' | 'nutritionist';
+  scope_kind: 'organization' | 'program' | 'group' | 'individual';
+  scope_id: string | null;
+  permissions: Record<string, boolean>;
+  status: 'invited' | 'active' | 'suspended' | 'left' | 'transferred' | 'graduated' | 'removed';
+  invited_by: string | null;
+  joined_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+}
+
 /** A coach/org subscription (B2B per-seat). Written by the Stripe webhook
  *  (service_role) at go-live; the owner reads their own row. Added in migration 0010. */
 export type SubscriptionRow = {
@@ -142,6 +161,7 @@ export interface Database {
       team_members: Table<TeamMemberRow>;
       practice_clients: Table<PracticeClientRow>;
       subscriptions: Table<SubscriptionRow>;
+      org_memberships: Table<OrgMembershipRow>;
     };
     Views: { [_ in never]: never };
     Functions: {
