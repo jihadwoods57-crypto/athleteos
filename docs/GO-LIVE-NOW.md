@@ -1,5 +1,11 @@
 # Go-Live — do this when you're back at your computer
 
+> **SUPERSEDED (2026-06-29) by [`docs/RUNBOOK-go-live.md`](RUNBOOK-go-live.md).** That runbook is
+> the full, current go-live sequence (staging-first, migrations `0004→0013` incl. the `0012`
+> cutover + `0013` hardening, dashboard toggles, the kill-switch rebuild, endpoint wiring, and
+> rollback). This file predates the `0009→0013` migrations and the security audit; it's kept only
+> for the live project ref + the desk-side framing. **Follow `RUNBOOK-go-live.md`.**
+
 A short, ordered runbook for finishing the backend turn-on. Most of the hard part is
 already done; this is the desk-side finish. Updated 2026-06-28.
 
