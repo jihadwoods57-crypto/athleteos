@@ -10,6 +10,28 @@ deciding now unblocks the next moves.
 
 ---
 
+> ## ✅ RATIFIED — 2026-06-29 (founder)
+> **All six approved as recommended.**
+> 1. **Gyms first**, schools next.
+> 2. **Gym is the launch focus, kept simple** — owner dashboard + opt-in leaderboard; TV-mode &
+>    rewards wait until after retention is proven.
+> 3. **Price tweaks approved** — add a solo-trainer entry plan (~$59–79 / 25 clients) below the
+>    $124.99/50 plan; add a premium individual tier (~$24.99) above the $14.99 graduation starter;
+>    keep gym/team tiers ($249/$499/$799) low for the land phase while we instrument ROI to raise
+>    later. (Exact final numbers + trial length still to be set when we seed the catalog — see note.)
+> 4. **Signature experience = the morning game plan + finish-today projection** — ships at launch,
+>    never cut.
+> 5. **Honest score naming** — the in-app number is named for what it measures today; "Development
+>    Score" stays the marketing destination, earned later.
+> 6. **Start the human launch chain this week** — lawyer (privacy/minors), parent-verification
+>    vendor, email service.
+>
+> **Unblocks:** the queued subscription-checkout build now has its pricing *structure*. One input
+> still needed before the checkout UI can render: the **exact prices + billing frequency + trial
+> length** for the launch tiers (the structure is set; the final numbers are a catalog seed).
+
+---
+
 ## 1. Who do we sell to FIRST — gyms or high-school coaches?
 
 **Recommendation: Gyms / performance facilities first. Coaches and schools come next.**

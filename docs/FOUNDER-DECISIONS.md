@@ -6,6 +6,26 @@ the options. Newest first.
 
 ---
 
+## STRATEGY — 6 strategic decisions RATIFIED (2026-06-29)
+
+**What.** The founder approved all six business/strategy decisions in
+`docs/founding/STRATEGIC-DECISIONS.md` (distinct from the 7 architecture keystone decisions).
+Summary: (1) **gyms / performance facilities are the launch beachhead**, schools next;
+(2) the gym is the **launch focus, kept simple** — owner dashboard + opt-in leaderboard, with
+TV-mode/rewards deferred until retention is proven; (3) **price tweaks** — add a solo-trainer
+entry plan (~$59–79/25), a premium individual tier (~$24.99) above the $14.99 graduation starter,
+keep gym/team tiers low for the land phase; (4) the **morning game-plan + finish-today projection
+is the signature experience**, shipped at launch; (5) **the in-app score is named honestly today**
+("Development Score" is the marketing destination, earned later); (6) the founder **starts the
+human launch chain this week** (lawyer / parent-verification vendor / email service).
+
+**Status / unblocks.** The queued subscription-checkout build (Task #6) now has its pricing
+*structure*; the remaining input before the checkout UI can render is the **exact prices +
+billing frequency + trial length** (a catalog seed, no code/schema change). #6 (the human chain)
+is the real next milestone and only the founder can start it.
+
+---
+
 ## ARCH — Enterprise architecture: 7 keystone decisions RATIFIED (2026-06-29)
 
 **What.** The founder reviewed `docs/architecture/DECISION-MEMO.md` and **approved all seven**
