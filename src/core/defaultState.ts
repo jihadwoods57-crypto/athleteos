@@ -94,6 +94,7 @@ export function createInitialState(): AppState {
 
     // nav / overlays
     tab: 'home',
+    coachTab: 'dashboard',
     squadMode: 'team',
     mealOpen: false,
     mealStage: 'capture',

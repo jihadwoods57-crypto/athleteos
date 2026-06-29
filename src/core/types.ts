@@ -44,6 +44,9 @@ export interface StoredMeal {
   logged_at: string;
 }
 export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutrition' | 'performance' | 'reminders';
+/** Coach dashboard destinations (the 5-tab bar): one Home, one Work area, one Action,
+ *  one Insights, one Admin. Mirrors the athlete tab model. */
+export type CoachTab = 'dashboard' | 'roster' | 'attention' | 'reports' | 'profile';
 export type MealStage = 'capture' | 'analyzing' | 'result';
 /** Which camera flow the meal overlay is in: estimate a plate, or transcribe a label. */
 export type MealCaptureMode = 'meal' | 'label';
@@ -222,6 +225,7 @@ export interface AppState {
 
   // ---- nav / overlays ----
   tab: Tab;
+  coachTab: CoachTab;
   squadMode: SquadMode;
   mealOpen: boolean;
   mealStage: MealStage;

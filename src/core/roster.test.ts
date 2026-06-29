@@ -1,8 +1,8 @@
-import { rosterGroups, filterRoster, notLoggedCount } from './roster';
+import { rosterGroups, filterRoster, notLoggedCount, rosterGroupStats } from './roster';
 import type { RosterRow } from './constants';
 
-const mk = (name: string, pos: string, loggedToday?: boolean): RosterRow => ({
-  name, initials: name.slice(0, 2).toUpperCase(), pos, comp: 80, score: 85, dir: 'flat', loggedToday,
+const mk = (name: string, pos: string, loggedToday?: boolean, score = 85, comp = 80): RosterRow => ({
+  name, initials: name.slice(0, 2).toUpperCase(), pos, comp, score, dir: 'flat', loggedToday,
 });
 
 const sample: RosterRow[] = [
@@ -19,6 +19,23 @@ describe('rosterGroups', () => {
   });
   it('is empty for an empty roster', () => {
     expect(rosterGroups([])).toEqual([]);
+  });
+});
+
+describe('rosterGroupStats', () => {
+  it('rolls up count + average score + average compliance per group, in order', () => {
+    const r: RosterRow[] = [
+      mk('A', 'LB', true, 90, 100),
+      mk('B', 'LB', true, 80, 80),
+      mk('C', 'DB', true, 70, 60),
+    ];
+    expect(rosterGroupStats(r)).toEqual([
+      { group: 'LB', count: 2, avgScore: 85, avgCompliance: 90 },
+      { group: 'DB', count: 1, avgScore: 70, avgCompliance: 60 },
+    ]);
+  });
+  it('is empty for an empty roster (no divide-by-zero)', () => {
+    expect(rosterGroupStats([])).toEqual([]);
   });
 });
 

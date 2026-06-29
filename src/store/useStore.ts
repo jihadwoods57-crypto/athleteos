@@ -65,6 +65,7 @@ import type {
   Role,
   SquadMode,
   Tab,
+  CoachTab,
 } from '@/core';
 
 type CiSliderKey = 'ciEnergy' | 'ciRecovery' | 'ciSleep' | 'ciConfidence' | 'ciSoreness' | 'ciMotivation';
@@ -139,6 +140,7 @@ export interface Actions {
 
   // nav
   setTab: (t: Tab) => void;
+  setCoachTab: (t: CoachTab) => void;
   goHome: () => void;
   goTasks: () => void;
   goSquad: () => void;
@@ -485,6 +487,7 @@ export const useStore = create<Store>()(
 
       // ---- nav ----
       setTab: (t) => set({ tab: t }),
+      setCoachTab: (t) => set({ coachTab: t }),
       goHome: () => set({ flow: 'app', tab: 'home' }),
       goTasks: () => set({ tab: 'tasks' }),
       goSquad: () => set({ tab: 'squad' }),
