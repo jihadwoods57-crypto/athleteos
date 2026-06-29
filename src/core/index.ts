@@ -26,6 +26,7 @@ export * from './coachGoals';
 export * from './overseerAlerts';
 export * from './subscription';
 export * from './membership';
+export * from './workspace';
 export * from './foodDb';
 export * from './reminders';
 export * from './weeklyReport';

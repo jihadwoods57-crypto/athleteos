@@ -71,6 +71,49 @@ export function isPro(e: Entitlement): boolean {
   return e.tier === 'team' && (e.status === 'active' || e.status === 'past_due');
 }
 
+// ---------------------------------------------------------------- feature entitlements
+// The single gate every paid-only feature should check (memo D4 / doc 11 future-proofing
+// #3): generalize isPro() into hasFeature(entitlement, key). The tier->feature map below
+// is the DEFAULT catalog; at go-live it becomes pricing-catalog DATA (so prices, bundles,
+// and limits change without an app build). NOTHING is wired to a screen in Phase A — this
+// is the seam only; the beta stays all-features-on until the catalog says otherwise.
+
+/** Features the app may gate behind a plan. */
+export type FeatureKey =
+  | 'dev_score' | 'meal_analysis' | 'daily_game_plan'        // the core loop — free tier
+  | 'ai_coach' | 'restaurant_intel' | 'weekly_insights'      // individual+ value
+  | 'client_dashboard' | 'accountability_engine' | 'reports' | 'groups'; // professional/program
+
+export const FEATURE_KEYS: readonly FeatureKey[] = [
+  'dev_score', 'meal_analysis', 'daily_game_plan',
+  'ai_coach', 'restaurant_intel', 'weekly_insights',
+  'client_dashboard', 'accountability_engine', 'reports', 'groups',
+];
+
+// Default entitlement catalog. `preview` keeps the core loop free; `team` unlocks
+// everything. (Today's beta policy is effectively all-on; the live catalog overrides
+// this map.) A team plan that lapses (canceled) falls back to the free set.
+const FEATURES_BY_TIER: Record<PlanTier, ReadonlySet<FeatureKey>> = {
+  preview: new Set<FeatureKey>(['dev_score', 'meal_analysis', 'daily_game_plan']),
+  team: new Set<FeatureKey>(FEATURE_KEYS),
+};
+
+/** The tier whose features are actually in force (a canceled team plan reverts to free). */
+function effectiveTier(e: Entitlement): PlanTier {
+  return isPro(e) ? 'team' : 'preview';
+}
+
+/** The single feature gate. Replaces ad-hoc isPro() checks at call sites so the eventual
+ *  paywall is a catalog/data change, never a code hunt. */
+export function hasFeature(e: Entitlement, key: FeatureKey): boolean {
+  return FEATURES_BY_TIER[effectiveTier(e)].has(key);
+}
+
+/** The full set a given entitlement unlocks (for surfacing "what's included"). */
+export function entitlementFeatures(e: Entitlement): FeatureKey[] {
+  return FEATURE_KEYS.filter((k) => hasFeature(e, k));
+}
+
 /** Short status label for chips/headers. */
 export function planLabel(e: Entitlement): string {
   if (e.tier !== 'team') return 'Free preview';

@@ -1,6 +1,9 @@
 import {
   billingRowCopy,
+  entitlementFeatures,
   entitlementFromRow,
+  FEATURE_KEYS,
+  hasFeature,
   isPro,
   normalizeEntitlement,
   planLabel,
@@ -44,6 +47,29 @@ describe('planLabel', () => {
     expect(planLabel({ tier: 'team', status: 'active' })).toBe('Team plan');
     expect(planLabel({ tier: 'team', status: 'past_due' })).toBe('Team · payment due');
     expect(planLabel({ tier: 'team', status: 'canceled' })).toBe('Team · canceled');
+  });
+});
+
+describe('hasFeature (the single gate; memo D4)', () => {
+  it('preview unlocks the free core loop but not paid features', () => {
+    const p = previewEntitlement();
+    expect(hasFeature(p, 'dev_score')).toBe(true);
+    expect(hasFeature(p, 'meal_analysis')).toBe(true);
+    expect(hasFeature(p, 'reports')).toBe(false);
+    expect(hasFeature(p, 'accountability_engine')).toBe(false);
+  });
+  it('an active team plan unlocks everything', () => {
+    const t: Entitlement = { tier: 'team', status: 'active' };
+    expect(hasFeature(t, 'reports')).toBe(true);
+    expect(hasFeature(t, 'groups')).toBe(true);
+    expect(entitlementFeatures(t).length).toBe(FEATURE_KEYS.length);
+  });
+  it('a canceled team plan reverts to the free set', () => {
+    expect(hasFeature({ tier: 'team', status: 'canceled' }, 'reports')).toBe(false);
+    expect(hasFeature({ tier: 'team', status: 'canceled' }, 'dev_score')).toBe(true);
+  });
+  it('past_due keeps paid access (grace)', () => {
+    expect(hasFeature({ tier: 'team', status: 'past_due' }, 'reports')).toBe(true);
   });
 });
 
