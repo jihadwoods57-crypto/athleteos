@@ -18,7 +18,6 @@ import {
   ROLE_DEFS,
   SPORTS,
   TRAIN_FREQ,
-  SUPPORT_OPTIONS,
   validateCredentials,
   credentialsOk,
 } from '@/core';
@@ -164,7 +163,7 @@ function Welcome() {
             Let's build your{'\n'}nutrition routine.
           </Txt>
           <Txt w="m" size={16} color={colors.textSecondary} style={{ marginTop: 14, lineHeight: 23 }}>
-            A few quick questions, your starting Execution Score, and your first {aiPrefix}coaching moment. Under five minutes.
+            A few quick questions, your starting Execution Score, and your first {aiPrefix}coaching moment. About two minutes.
           </Txt>
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.8} upper style={{ marginTop: 32, marginBottom: 9 }}>
             First, what should we call you?
@@ -473,7 +472,10 @@ function AthleteFlow() {
         </StepShell>
       );
 
-    case 'sport':
+    case 'sport': {
+      // Position is merged in here (optional): it only appears once a sport is picked,
+      // so the old standalone position step is gone but the data is still collected.
+      const positions = (s.sport && POSITION_MAP[s.sport]) || POSITION_MAP.default;
       return (
         <StepShell progress={progress} onBack={s.obBack} title="What sport do you play?" footer={cont(!!s.sport)}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
@@ -495,39 +497,40 @@ function AthleteFlow() {
               );
             })}
           </View>
-        </StepShell>
-      );
-
-    case 'position': {
-      const positions = (s.sport && POSITION_MAP[s.sport]) || POSITION_MAP.default;
-      return (
-        <StepShell progress={progress} onBack={s.obBack} title="What position?" sub="So your recommendations fit your role on the field." footer={<Btn label={s.position ? 'Continue' : 'Skip'} onPress={s.obNext} />}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-            {positions.map((p) => {
-              const sel = s.position === p;
-              return (
-                <Pressable
-                  key={p}
-                  accessibilityRole="button"
-                  accessibilityLabel={p}
-                  accessibilityState={{ selected: sel }}
-                  onPress={() => { haptics.select(); s.setPosition(p); }}
-                  style={({ pressed }) => ({ backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 13, paddingVertical: 13, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
-                >
-                  <Txt w="b" size={15} color={sel ? '#fff' : colors.slate700}>
-                    {p}
-                  </Txt>
-                </Pressable>
-              );
-            })}
-          </View>
+          {s.sport ? (
+            <View style={{ marginTop: 22 }}>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
+                Your position (optional)
+              </Txt>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+                {positions.map((p) => {
+                  const sel = s.position === p;
+                  return (
+                    <Pressable
+                      key={p}
+                      accessibilityRole="button"
+                      accessibilityLabel={p}
+                      accessibilityState={{ selected: sel }}
+                      onPress={() => { haptics.select(); s.setPosition(p); }}
+                      style={({ pressed }) => ({ backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 13, paddingVertical: 13, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
+                    >
+                      <Txt w="b" size={15} color={sel ? '#fff' : colors.slate700}>
+                        {p}
+                      </Txt>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
         </StepShell>
       );
     }
 
     case 'profile':
+      // Training frequency is merged in here (compact chips) so it isn't its own step.
       return (
-        <StepShell progress={progress} onBack={s.obBack} title="Your physical profile" sub="Tap to adjust. This calibrates your targets." footer={cont(true)}>
+        <StepShell progress={progress} onBack={s.obBack} title="About you" sub="Tap to adjust. This calibrates your targets." footer={cont(true)}>
           <View style={{ gap: 14 }}>
             <Row style={{ gap: 12 }}>
               <Stepper label="Age" value={String(s.baseAge)} unit="years" onDec={() => s.ageStep(-1)} onInc={() => s.ageStep(1)} />
@@ -537,117 +540,65 @@ function AthleteFlow() {
               <Stepper label="Weight" value={String(s.baseWeight)} unit="lb" onDec={() => s.bwStep(-1)} onInc={() => s.bwStep(1)} />
               <Stepper label="Target weight" value={String(s.weightTarget)} unit="lb" onDec={() => s.adjustWeightTarget(-1)} onInc={() => s.adjustWeightTarget(1)} />
             </Row>
+            <View>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} upper style={{ marginTop: 4, marginBottom: 10 }}>
+                How often do you train?
+              </Txt>
+              <Row style={{ flexWrap: 'wrap', gap: 8 }}>
+                {TRAIN_FREQ.map((o) => {
+                  const sel = s.trainingFreq === o.key;
+                  return (
+                    <Pressable
+                      key={o.key}
+                      accessibilityRole="button"
+                      accessibilityLabel={o.label}
+                      accessibilityState={{ selected: sel }}
+                      onPress={() => { haptics.select(); s.setTrainingFreq(o.key); }}
+                      style={({ pressed }) => ({ backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
+                    >
+                      <Txt w="b" size={14} color={sel ? '#fff' : colors.slate700}>{o.label}</Txt>
+                    </Pressable>
+                  );
+                })}
+              </Row>
+            </View>
           </View>
         </StepShell>
       );
 
-    case 'frequency':
+    case 'baseline':
+      // All six habit questions on ONE screen (was six separate steps). Same setters,
+      // same starting-score math; compact controls so it's a ~30-second scroll.
       return (
-        <StepShell progress={progress} onBack={s.obBack} title="How often do you train?" footer={cont(!!s.trainingFreq)}>
-          {TRAIN_FREQ.map((o) => (
-            <OptionRow key={o.key} label={o.label} selected={s.trainingFreq === o.key} onPress={() => s.setTrainingFreq(o.key)} />
-          ))}
-        </StepShell>
-      );
-
-    case 'support':
-      return (
-        <StepShell progress={progress} onBack={s.obBack} title="Who's on your team?" sub="Connect coaches, trainers, or family so the right people can see your work." footer={cont(true)}>
-          {SUPPORT_OPTIONS.map((o) => (
-            <OptionRow key={o.key} label={o.label} selected={s.supportTeam.includes(o.key)} onPress={() => s.toggleSupport(o.key)} />
-          ))}
-          <OptionRow label="Just me for now" selected={s.supportTeam.length === 0} onPress={() => s.toggleSupport('none')} />
-          {s.supportTeam.length > 0 ? (
-            <View style={{ marginTop: 8 }}>
-              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} upper style={{ marginBottom: 8 }}>
-                Have an invite code? (optional)
-              </Txt>
-              <Input value={s.inviteCode} onChangeText={s.setInviteCode} placeholder="Enter code" autoCapitalize="characters" />
+        <StepShell progress={progress} onBack={s.obBack} eyebrow="Baseline" title="A few quick habits" sub="Roughly is fine. This is what sets your starting score." footer={cont(true)}>
+          <View style={{ gap: 20 }}>
+            <MiniScale label="Confidence in your nutrition" value={s.baseNutritionConfidence} low="Not at all" high="Dialed in" onChange={(v) => s.setBaseAnswer('baseNutritionConfidence', v)} />
+            <MiniScale label="Week-to-week consistency" value={s.baseConsistency} low="All over" high="Locked in" onChange={(v) => s.setBaseAnswer('baseConsistency', v)} />
+            <View>
+              <Txt w="b" size={14} color={colors.slate700} style={{ marginBottom: 9 }}>How often do you hit your protein target?</Txt>
+              <Row style={{ flexWrap: 'wrap', gap: 8 }}>
+                {PROTEIN_FREQ.map((o) => {
+                  const sel = s.baseProteinFreq === Number(o.key);
+                  return (
+                    <Pressable
+                      key={o.key}
+                      accessibilityRole="button"
+                      accessibilityLabel={o.label}
+                      accessibilityState={{ selected: sel }}
+                      onPress={() => { haptics.select(); s.setBaseAnswer('baseProteinFreq', Number(o.key)); }}
+                      style={({ pressed }) => ({ backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
+                    >
+                      <Txt w="b" size={14} color={sel ? '#fff' : colors.slate700}>{o.label}</Txt>
+                    </Pressable>
+                  );
+                })}
+              </Row>
             </View>
-          ) : null}
+            <MiniCounter label="Meals a day" display={String(s.baseMealsPerDay)} onDec={() => s.setBaseAnswer('baseMealsPerDay', Math.max(2, s.baseMealsPerDay - 1))} onInc={() => s.setBaseAnswer('baseMealsPerDay', Math.min(6, s.baseMealsPerDay + 1))} />
+            <MiniCounter label="Water (liters / day)" display={s.baseWaterL.toFixed(1)} onDec={() => s.setBaseAnswer('baseWaterL', Math.max(0, +(s.baseWaterL - 0.5).toFixed(1)))} onInc={() => s.setBaseAnswer('baseWaterL', Math.min(5, +(s.baseWaterL + 0.5).toFixed(1)))} />
+            <MiniCounter label="Sleep (hours / night)" display={s.baseSleepH.toFixed(1)} onDec={() => s.setBaseAnswer('baseSleepH', Math.max(4, +(s.baseSleepH - 0.5).toFixed(1)))} onInc={() => s.setBaseAnswer('baseSleepH', Math.min(10, +(s.baseSleepH + 0.5).toFixed(1)))} />
+          </View>
         </StepShell>
-      );
-
-    case 'b_conf':
-      return (
-        <ScaleStep
-          progress={progress}
-          onBack={s.obBack}
-          title="How confident are you in your nutrition?"
-          value={s.baseNutritionConfidence}
-          low="Not at all"
-          high="Dialed in"
-          onChange={(v) => s.setBaseAnswer('baseNutritionConfidence', v)}
-          onContinue={s.obNext}
-        />
-      );
-
-    case 'b_protein':
-      return (
-        <StepShell progress={progress} onBack={s.obBack} eyebrow="Baseline" title="How often do you hit your protein target?" footer={cont(true)}>
-          {PROTEIN_FREQ.map((o) => (
-            <OptionRow key={o.key} label={o.label} selected={s.baseProteinFreq === Number(o.key)} onPress={() => s.setBaseAnswer('baseProteinFreq', Number(o.key))} />
-          ))}
-        </StepShell>
-      );
-
-    case 'b_consistency':
-      return (
-        <ScaleStep
-          progress={progress}
-          onBack={s.obBack}
-          title="How consistent are you, week to week?"
-          value={s.baseConsistency}
-          low="All over"
-          high="Locked in"
-          onChange={(v) => s.setBaseAnswer('baseConsistency', v)}
-          onContinue={s.obNext}
-        />
-      );
-
-    case 'b_meals':
-      return (
-        <CounterStep
-          progress={progress}
-          onBack={s.obBack}
-          title="How many meals a day, typically?"
-          value={s.baseMealsPerDay}
-          unit="meals / day"
-          fmt={(v) => String(v)}
-          onDec={() => s.setBaseAnswer('baseMealsPerDay', Math.max(2, s.baseMealsPerDay - 1))}
-          onInc={() => s.setBaseAnswer('baseMealsPerDay', Math.min(6, s.baseMealsPerDay + 1))}
-          onContinue={s.obNext}
-        />
-      );
-
-    case 'b_water':
-      return (
-        <CounterStep
-          progress={progress}
-          onBack={s.obBack}
-          title="How much water do you drink daily?"
-          value={s.baseWaterL}
-          unit="liters / day"
-          fmt={(v) => v.toFixed(1)}
-          onDec={() => s.setBaseAnswer('baseWaterL', Math.max(0, +(s.baseWaterL - 0.5).toFixed(1)))}
-          onInc={() => s.setBaseAnswer('baseWaterL', Math.min(5, +(s.baseWaterL + 0.5).toFixed(1)))}
-          onContinue={s.obNext}
-        />
-      );
-
-    case 'b_sleep':
-      return (
-        <CounterStep
-          progress={progress}
-          onBack={s.obBack}
-          title="How many hours of sleep, on average?"
-          value={s.baseSleepH}
-          unit="hours / night"
-          fmt={(v) => v.toFixed(1)}
-          onDec={() => s.setBaseAnswer('baseSleepH', Math.max(4, +(s.baseSleepH - 0.5).toFixed(1)))}
-          onInc={() => s.setBaseAnswer('baseSleepH', Math.min(10, +(s.baseSleepH + 0.5).toFixed(1)))}
-          onContinue={s.obNext}
-        />
       );
 
     case 'score': {
@@ -790,68 +741,47 @@ function AthleteFlow() {
 }
 
 /** 1-10 slider step (baseline confidence / consistency). */
-function ScaleStep({
-  progress, onBack, title, value, low, high, onChange, onContinue,
-}: {
-  progress: number; onBack: () => void; title: string; value: number; low: string; high: string; onChange: (v: number) => void; onContinue: () => void;
-}) {
+/** Compact 1-10 slider row for the combined baseline screen. */
+function MiniScale({ label, value, low, high, onChange }: { label: string; value: number; low: string; high: string; onChange: (v: number) => void }) {
   return (
-    <StepShell progress={progress} onBack={onBack} eyebrow="Baseline" title={title} footer={<Btn label="Continue" onPress={onContinue} />}>
-      <View style={{ alignItems: 'center', marginBottom: 22 }}>
-        <Txt w="eb" size={56} ls={-2} color={colors.accent}>
-          {value}
-        </Txt>
-        <Txt w="sb" size={13} color={colors.textTertiary}>
-          out of 10
-        </Txt>
-      </View>
-      <Slider value={value} min={1} max={10} onChange={onChange} />
-      <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
-        <Txt w="sb" size={12} color={colors.textTertiary}>{low}</Txt>
-        <Txt w="sb" size={12} color={colors.textTertiary}>{high}</Txt>
+    <View>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
+        <Txt w="b" size={14} color={colors.slate700} style={{ flex: 1 }}>{label}</Txt>
+        <Txt w="eb" size={16} color={colors.accent}>{value}<Txt w="sb" size={11} color={colors.textTertiary}> / 10</Txt></Txt>
       </Row>
-    </StepShell>
+      <Slider value={value} min={1} max={10} onChange={onChange} />
+      <Row style={{ justifyContent: 'space-between', marginTop: 6 }}>
+        <Txt w="sb" size={11} color={colors.textTertiary}>{low}</Txt>
+        <Txt w="sb" size={11} color={colors.textTertiary}>{high}</Txt>
+      </Row>
+    </View>
   );
 }
 
-/** ± counter step (meals / water / sleep). */
-function CounterStep({
-  progress, onBack, title, value, unit, fmt, onDec, onInc, onContinue,
-}: {
-  progress: number; onBack: () => void; title: string; value: number; unit: string; fmt: (v: number) => string; onDec: () => void; onInc: () => void; onContinue: () => void;
-}) {
+/** Compact ± counter row for the combined baseline screen (meals / water / sleep). */
+function MiniCounter({ label, display, onDec, onInc }: { label: string; display: string; onDec: () => void; onInc: () => void }) {
   return (
-    <StepShell progress={progress} onBack={onBack} eyebrow="Baseline" title={title} footer={<Btn label="Continue" onPress={onContinue} />}>
-      <View style={{ alignItems: 'center' }}>
-        <Row style={{ gap: 18 }}>
-          <RoundStep glyph="−" onPress={onDec} />
-          <View style={{ alignItems: 'center', minWidth: 110 }}>
-            <Txt w="eb" size={52} ls={-2}>
-              {fmt(value)}
-            </Txt>
-          </View>
-          <RoundStep glyph="+" onPress={onInc} />
-        </Row>
-        <Txt w="sb" size={13} color={colors.textTertiary} style={{ marginTop: 10 }}>
-          {unit}
-        </Txt>
-      </View>
-    </StepShell>
+    <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+      <Txt w="b" size={14} color={colors.slate700} style={{ flex: 1 }}>{label}</Txt>
+      <Row style={{ gap: 14, alignItems: 'center' }}>
+        <MiniRound glyph="−" onPress={onDec} />
+        <Txt w="eb" size={18} style={{ minWidth: 48, textAlign: 'center' }}>{display}</Txt>
+        <MiniRound glyph="+" onPress={onInc} />
+      </Row>
+    </Row>
   );
 }
 
-function RoundStep({ glyph, onPress }: { glyph: string; onPress: () => void }) {
+function MiniRound({ glyph, onPress }: { glyph: string; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={glyph === '+' ? 'Increase' : 'Decrease'}
       hitSlop={8}
       onPress={() => { haptics.select(); onPress(); }}
-      style={({ pressed }) => ({ width: 60, height: 60, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}
+      style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 14, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}
     >
-      <Txt w="b" size={30} color={colors.accent}>
-        {glyph}
-      </Txt>
+      <Txt w="b" size={24} color={colors.accent}>{glyph}</Txt>
     </Pressable>
   );
 }

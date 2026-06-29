@@ -41,15 +41,17 @@ const sportOpts: Opt[] = SPORTS.map((s) => ({ key: s, label: s }));
 // it can be unit-tested. The real-data consent gate is inserted right before activation
 // and ONLY when the data backend is live, so with the flag off the flow is byte-identical
 // to today (no extra step, same indices, same progress denominator).
+// Lean flow (2026-06-29): the path to the Starting Score reveal (the aha) is short.
+// Position is merged into the sport screen (optional), training frequency into the
+// profile screen, and the six baseline questions collapse onto one 'baseline' screen.
+// "Who's on your team?" is deferred off the critical path (connect a coach later in app).
 export type AthleteFlowKey =
-  | 'goal' | 'sport' | 'position' | 'profile' | 'frequency' | 'support'
-  | 'b_conf' | 'b_protein' | 'b_consistency' | 'b_meals' | 'b_water' | 'b_sleep'
+  | 'goal' | 'sport' | 'profile' | 'baseline'
   | 'score' | 'account' | 'consent' | 'challenge';
 
 export function athleteFlowKeys(backendLive: boolean): AthleteFlowKey[] {
   return [
-    'goal', 'sport', 'position', 'profile', 'frequency', 'support',
-    'b_conf', 'b_protein', 'b_consistency', 'b_meals', 'b_water', 'b_sleep',
+    'goal', 'sport', 'profile', 'baseline',
     'score',
     // Account creation + consent exist only when the data backend is live, so with
     // the flag OFF the flow is byte-identical to today (no account step, same
