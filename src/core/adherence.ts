@@ -76,7 +76,7 @@ export function escalation(opts: {
     return {
       level: 3,
       tone: 'score',
-      message: `Your Development Score reflects ${opts.missedToday} expected meals not logged today. Logging the next one starts the climb back.`,
+      message: `Your Execution Score reflects ${opts.missedToday} expected meals not logged today. Logging the next one starts the climb back.`,
     };
   }
   if (opts.missedToday >= 1) {

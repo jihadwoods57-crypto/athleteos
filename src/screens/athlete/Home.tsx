@@ -162,7 +162,7 @@ export function Home() {
         </Ring>
         <View style={{ flex: 1 }}>
           <Txt w="b" size={13} color={colors.textSecondary}>
-            Development Score
+            Execution Score
           </Txt>
           <Row style={{ gap: 6, marginTop: 7 }}>
             <Txt w="eb" size={15} color={d.deltaColor}>
@@ -208,7 +208,7 @@ export function Home() {
             </View>
           </Row>
           <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 12, lineHeight: 19 }}>
-            Finish today&apos;s plan and your Development Score reaches {projection.projected}.
+            Finish today&apos;s plan and your Execution Score reaches {projection.projected}.
           </Txt>
           <View style={{ marginTop: 12, gap: 10 }}>
             {projection.actions.map((a) => (

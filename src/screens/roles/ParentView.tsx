@@ -93,7 +93,7 @@ export function ParentView() {
             </Ring>
             <View style={{ flex: 1 }}>
               <Txt w="b" size={13} color={colors.textSecondary}>
-                Development Score
+                Execution Score
               </Txt>
               <Row style={{ gap: 6, marginTop: 6 }}>
                 <Txt w="eb" size={15} color={d.deltaColor}>

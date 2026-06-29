@@ -164,7 +164,7 @@ function Welcome() {
             Let's build your{'\n'}nutrition routine.
           </Txt>
           <Txt w="m" size={16} color={colors.textSecondary} style={{ marginTop: 14, lineHeight: 23 }}>
-            A few quick questions, your starting Development Score, and your first {aiPrefix}coaching moment. Under five minutes.
+            A few quick questions, your starting Execution Score, and your first {aiPrefix}coaching moment. Under five minutes.
           </Txt>
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.8} upper style={{ marginTop: 32, marginBottom: 9 }}>
             First, what should we call you?
@@ -657,7 +657,7 @@ function AthleteFlow() {
         <StepShell
           progress={progress}
           onBack={s.obBack}
-          eyebrow="Your Starting Development Score"
+          eyebrow="Your Starting Execution Score"
           title={name ? `${name}, here's where you stand.` : "Here's where you stand."}
           sub="This is your starting point, estimated from your habits. It rises as AthleteOS learns from what you actually do."
           footer={<Btn label="See today's challenge" onPress={s.obNext} />}
