@@ -129,6 +129,10 @@ export interface Actions {
   setPrimaryGoal: (k: string) => void;
   setTrainingFreq: (k: string) => void;
   toggleSupport: (k: string) => void;
+  /** Athlete joins a coach/trainer by team code: stores the code, marks a coach connected in the
+   *  local model (so coach guidance + visibility activate), and when the backend is live actually
+   *  joins their roster via the join_team RPC. Inert/best-effort when off. */
+  connectCoach: (code: string) => void;
   setInviteCode: (v: string) => void;
   setBaseAnswer: (key: BaselineKey, value: number) => void;
   setObMeta: (key: string, value: string | string[] | number) => void;
@@ -431,6 +435,13 @@ export const useStore = create<Store>()(
           return { supportTeam: has ? s.supportTeam.filter((x) => x !== k) : [...s.supportTeam, k] };
         }),
       setInviteCode: (v) => set({ inviteCode: v }),
+      connectCoach: (code) => {
+        const c = code.trim().toUpperCase();
+        if (!c) return;
+        set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('coach') ? s.supportTeam : [...s.supportTeam, 'coach'] }));
+        // When live + signed in, join the coach's roster by code; inert + best-effort when off.
+        if (isBackendLive) void db.joinTeam(c).catch(() => undefined);
+      },
       setBaseAnswer: (key, value) => set({ [key]: value } as Partial<AppState>),
       setObMeta: (key, value) => set((s) => ({ obMeta: { ...s.obMeta, [key]: value } })),
       toggleObMetaItem: (key, item) =>

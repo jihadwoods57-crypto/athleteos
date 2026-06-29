@@ -38,6 +38,22 @@ describe('athlete onboarding setters', () => {
     expect(useStore.getState().baseAge).toBe(24); // upper clamp unchanged
   });
 
+  it('connectCoach stores the code (uppercased) and marks a coach connected, idempotently', () => {
+    useStore.setState({ supportTeam: [], inviteCode: '' });
+    useStore.getState().connectCoach('  eagles24 ');
+    expect(useStore.getState().inviteCode).toBe('EAGLES24');
+    expect(useStore.getState().supportTeam).toContain('coach');
+    useStore.getState().connectCoach('eagles24'); // again -> no duplicate coach
+    expect(useStore.getState().supportTeam.filter((x) => x === 'coach')).toHaveLength(1);
+  });
+
+  it('connectCoach ignores an empty code', () => {
+    useStore.setState({ supportTeam: [], inviteCode: '' });
+    useStore.getState().connectCoach('   ');
+    expect(useStore.getState().supportTeam).toEqual([]);
+    expect(useStore.getState().inviteCode).toBe('');
+  });
+
   it('setBaseAnswer writes each baseline assessment answer', () => {
     const g = useStore.getState();
     g.setBaseAnswer('baseNutritionConfidence', 8);

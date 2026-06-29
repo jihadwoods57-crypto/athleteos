@@ -35,7 +35,7 @@ import {
 import { useStore, useDerived } from '@/store';
 import { aiMemoryTag } from '@/lib/ai';
 import { colors, gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
-import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Input, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
@@ -403,6 +403,8 @@ export function Home() {
             </Txt>
           </View>
         </Card>
+      ) : s.supportTeam.length === 0 ? (
+        <ConnectCoachCard />
       ) : null}
 
       {/* your next move — the single highest-impact action right now, forward-looking
@@ -480,6 +482,32 @@ export function Home() {
         </View>
       )}
     </ScrollView>
+  );
+}
+
+/** Shown on Home when a real athlete has no one connected yet: enter a coach/trainer team code
+ *  so the accountability has someone watching. Restores the connect step the lean onboarding
+ *  moved off the critical path; sits where the coach-guidance card goes once a coach exists. */
+function ConnectCoachCard() {
+  const connectCoach = useStore((st) => st.connectCoach);
+  const [code, setCode] = React.useState('');
+  const ready = code.trim().length > 0;
+  return (
+    <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 20 }}>
+      <Row style={{ gap: 11 }}>
+        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="squad" size={20} color={colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="eb" size={12} color={colors.accent} ls={0.4}>CONNECT YOUR COACH</Txt>
+          <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 4, lineHeight: 20 }}>
+            Got a team or trainer code? Enter it so your coach can see your work and leave you a game plan.
+          </Txt>
+        </View>
+      </Row>
+      <Input value={code} onChangeText={setCode} placeholder="Team code (e.g. EAGLES24)" autoCapitalize="characters" autoCorrect={false} style={{ marginTop: 12 }} />
+      <Btn label="Connect" disabled={!ready} onPress={() => { haptics.success(); connectCoach(code); }} style={{ marginTop: 12 }} />
+    </Card>
   );
 }
 
