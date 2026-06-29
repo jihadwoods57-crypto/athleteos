@@ -1037,8 +1037,13 @@ export const useStore = create<Store>()(
         set((s) => ({ sharingPaused: !s.sharingPaused }));
         scheduleDaySync(get);
       },
-      removeViewer: (key) =>
-        set((s) => ({ supportTeam: s.supportTeam.filter((k) => k !== key) })),
+      removeViewer: (key) => {
+        set((s) => ({ supportTeam: s.supportTeam.filter((k) => k !== key) }));
+        // When live, actually revoke that viewer kind's server access (security G1) so a removed
+        // coach/parent loses can_view, not just the local label. Best-effort, gated; inert until
+        // the revoke_viewer RPC is applied at go-live (see docs/specs/2026-06-29-g1-revoke-viewer.md).
+        if (isBackendLive) void db.revokeViewer(key).catch(() => undefined);
+      },
 
       // ---- dev ----
       resetDemo: () => set({ ...createInitialState() }),

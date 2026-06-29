@@ -191,6 +191,13 @@ export interface Database {
         Args: { guardian_email: string };
         Returns: undefined;
       };
+      // Go-live (security G1): revoke a viewer KIND's server access (sets the athlete's matching
+      // link rows status <> 'active', which can_view excludes). RPC authored at go-live; see
+      // docs/specs/2026-06-29-g1-revoke-viewer.md. The client seam below is wired + inert until then.
+      revoke_viewer: {
+        Args: { viewer_kind: string };
+        Returns: undefined;
+      };
       join_team: {
         Args: { code: string; athlete_position?: string | null };
         Returns: string;

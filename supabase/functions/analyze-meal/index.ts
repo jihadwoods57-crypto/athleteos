@@ -24,11 +24,42 @@ import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6';
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
+// Security hardening (audit G4). CORS: reflect the request Origin ONLY if it's on the allowlist.
+// A native app sends no Origin header (and there's no browser to enforce CORS for it), so it's
+// allowed; a browser Origin that isn't on the list gets no Access-Control-Allow-Origin, so the
+// browser blocks the response. Set ALLOWED_ORIGINS to a comma-separated list of your web origins
+// (e.g. "https://app.athleteos.app"); leave unset for native-only.
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
+const BASE_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Headers': 'authorization, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  Vary: 'Origin',
 };
+function corsFor(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin');
+  if (!origin) return BASE_HEADERS; // native app, no browser CORS
+  if (ALLOWED_ORIGINS.includes(origin)) return { ...BASE_HEADERS, 'Access-Control-Allow-Origin': origin };
+  return BASE_HEADERS; // unknown browser origin -> no ACAO, the browser blocks the read
+}
+
+// Best-effort per-IP rate limit so the paid Anthropic endpoint can't be hammered. In-memory and
+// per-instance (resets on cold start, not shared across instances) — enough to blunt a single
+// abusive client; a production-grade distributed limit needs a shared store (e.g. Upstash Redis).
+// Tunable via RATE_LIMIT_PER_MIN.
+const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '20');
+const RL_WINDOW_MS = 60_000;
+const rlHits = new Map<string, { count: number; resetAt: number }>();
+function rateLimited(req: Request): boolean {
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const now = Date.now();
+  const e = rlHits.get(ip);
+  if (!e || now > e.resetAt) {
+    rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS });
+    return false;
+  }
+  e.count++;
+  return e.count > RL_MAX;
+}
 
 interface MemoryInsightIn {
   id: string;
@@ -243,17 +274,19 @@ function groundMacros<T>(analysis: T): T {
 }
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS });
-  if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: CORS });
+  const cors = corsFor(request);
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: cors });
+  if (rateLimited(request)) return new Response(JSON.stringify({ error: 'rate limited, slow down' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
 
   const key = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!key) return new Response(JSON.stringify({ error: 'server not configured' }), { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } });
+  if (!key) return new Response(JSON.stringify({ error: 'server not configured' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
 
   let req: AnalyzeReq;
   try {
     req = await request.json();
   } catch {
-    return new Response(JSON.stringify({ error: 'bad request' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'bad request' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 
   const isLabel = req?.mode === 'label';
@@ -264,32 +297,32 @@ Deno.serve(async (request) => {
   // A base64 JPEG over ~8MB raw (~6MB image) is almost certainly abuse and would risk a
   // Deno timeout / token burn; cap it.
   if (typeof req.photoBase64 === 'string' && req.photoBase64.length > 8_000_000) {
-    return new Response(JSON.stringify({ error: 'photo too large' }), { status: 413, headers: { ...CORS, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'photo too large' }), { status: 413, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
   if (isMemory) {
     // Rewording needs at least one insight, and no more than a sane cap (memory shows ~6).
     if (!Array.isArray(req.insights) || req.insights.length === 0) {
-      return new Response(JSON.stringify({ error: 'insights required for memory rephrase' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'insights required for memory rephrase' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
     if (req.insights.length > 12 || !req.insights.every((i) => i && typeof i.id === 'string' && typeof i.headline === 'string' && typeof i.detail === 'string')) {
-      return new Response(JSON.stringify({ error: 'bad insights' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'bad insights' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
   } else if (isOrder) {
     // Rewording needs at least one order, and no more than a sane cap (primary + a few alternatives).
     if (!Array.isArray(req.orders) || req.orders.length === 0) {
-      return new Response(JSON.stringify({ error: 'orders required for order rephrase' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'orders required for order rephrase' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
     if (req.orders.length > 8 || !req.orders.every((o) => o && typeof o.id === 'string' && typeof o.why === 'string')) {
-      return new Response(JSON.stringify({ error: 'bad orders' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'bad orders' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
   } else if (isLabel) {
     // A label scan is pure transcription — it MUST have the panel image; nothing to read otherwise.
     if (typeof req.photoBase64 !== 'string' || !req.photoBase64) {
-      return new Response(JSON.stringify({ error: 'photo required for label scan' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'photo required for label scan' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
   } else if (typeof req?.mealType !== 'string' || !req.mealType.trim()) {
     // The meal prompt needs the slot (and can infer a typical meal when no photo is sent).
-    return new Response(JSON.stringify({ error: 'mealType required' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'mealType required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 
   const system = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
@@ -311,8 +344,8 @@ Deno.serve(async (request) => {
     // Label facts + memory/order prose are returned as-is (the CLIENT bounds the numbers); meal
     // macros pass through groundMacros.
     const result = isLabel || isMemory || isOrder ? used.input : groundMacros(used.input);
-    return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify(result), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: String(e) }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 });

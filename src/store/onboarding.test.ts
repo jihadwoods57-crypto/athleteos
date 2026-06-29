@@ -54,6 +54,12 @@ describe('athlete onboarding setters', () => {
     expect(useStore.getState().inviteCode).toBe('');
   });
 
+  it('removeViewer drops the viewer from the local support circle (server revoke is gated to live)', () => {
+    useStore.setState({ supportTeam: ['coach', 'parent'] });
+    useStore.getState().removeViewer('coach');
+    expect(useStore.getState().supportTeam).toEqual(['parent']);
+  });
+
   it('setCachedRoster stores the roster + userId; sign-out purges it (no cross-user leak)', async () => {
     const roster = [{ name: 'A', initials: 'A', pos: 'LB', comp: 80, score: 85, dir: 'flat' as const }];
     useStore.getState().setCachedRoster(roster, 'u1');

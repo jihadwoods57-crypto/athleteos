@@ -88,6 +88,16 @@ export async function submitCheckin(row: Omit<CheckinRow, 'id' | 'submitted_at'>
   if (error) throw error;
 }
 
+/** Revoke a viewer KIND's server access (security G1): the athlete removing a coach/trainer/parent
+ *  from their circle should actually drop that side's `can_view`, not just hide a local label.
+ *  Calls the revoke_viewer RPC (authored at go-live); inert when unconfigured. See
+ *  docs/specs/2026-06-29-g1-revoke-viewer.md. */
+export async function revokeViewer(viewerKind: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase().rpc('revoke_viewer', { viewer_kind: viewerKind });
+  if (error) throw error;
+}
+
 /** Read the signed-in athlete's own guardian-consent requests (status only). The 0008 RLS
  *  policy gcr_read scopes this to their own rows; `status` is server-owned (only the
  *  verification endpoint writes 'verified'). Empty when unconfigured — callers reduce these

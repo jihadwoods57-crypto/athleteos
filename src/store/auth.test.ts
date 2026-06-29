@@ -27,7 +27,7 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
       isSupabaseConfigured: backendLive,
       auth: { signIn, signUp, signOut, resetPassword, signInWithAppleToken },
       // signInLive hydrates the day after auth; no remote row in these unit tests.
-      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam, coachSetGoals, fetchEntitlement, fetchProfile, fetchGuardianRequests: jest.fn().mockResolvedValue([]) },
+      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam, coachSetGoals, fetchEntitlement, fetchProfile, fetchGuardianRequests: jest.fn().mockResolvedValue([]), revokeViewer: jest.fn().mockResolvedValue(undefined) },
     }));
     store = require('./useStore').useStore;
   });
@@ -272,7 +272,7 @@ describe('Stage C: a mutating action debounces a consent-gated pushDay', () => {
         isBackendLive: backendLive,
         isSupabaseConfigured: backendLive,
         auth: { signIn, signUp, signOut },
-        db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay },
+        db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay, revokeViewer: jest.fn().mockResolvedValue(undefined) },
       }));
       useStore = require('./useStore').useStore;
     });
