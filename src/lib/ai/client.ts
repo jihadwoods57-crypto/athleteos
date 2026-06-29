@@ -6,7 +6,7 @@
 // the app falls back to the deterministic analysis (mealResultFor) so it runs exactly
 // as today. Set EXPO_PUBLIC_AI_ENDPOINT (or EXPO_PUBLIC_SUPABASE_URL, from which the
 // function URL is derived) + EXPO_PUBLIC_SUPABASE_ANON_KEY to light it up.
-import type { LabelFacts, MealLabel, MealResult, MemoryInsight, RephrasedInsight } from '@/core';
+import type { LabelFacts, MealLabel, MealResult, MemoryInsight, RephrasedInsight, RephrasedOrder } from '@/core';
 
 const explicit = process.env.EXPO_PUBLIC_AI_ENDPOINT?.trim();
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -120,6 +120,40 @@ export async function rephraseMemoryRemote(req: RephraseMemoryRequest): Promise<
     if (!res.ok) throw new Error(`rephrase-memory HTTP ${res.status}`);
     const data = (await res.json()) as { insights?: RephrasedInsight[] };
     return Array.isArray(data?.insights) ? data.insights : [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export interface RephraseOrdersRequest {
+  /** The recommended orders to reword, keyed ('primary' / alt label). Prose only is returned. */
+  orders: RephrasedOrder[];
+}
+
+/**
+ * Ask the model to reword the Restaurant Coach order explanations in a warmer voice via the SAME
+ * backend Edge Function (mode: 'order'). It returns prose only — {id, why} per order — which the
+ * caller runs through the core voice guard (mergeRephrasedOrders) so every macro/price number and
+ * the item lines stay exactly the engine's. Throws on transport/HTTP error (callers fall back to
+ * the deterministic orders). 20s timeout, key stays server-side.
+ */
+export async function rephraseOrdersRemote(req: RephraseOrdersRequest): Promise<RephrasedOrder[]> {
+  if (!isAiConfigured) throw new Error('AI endpoint not configured');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ mode: 'order', ...req }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`rephrase-order HTTP ${res.status}`);
+    const data = (await res.json()) as { orders?: RephrasedOrder[] };
+    return Array.isArray(data?.orders) ? data.orders : [];
   } finally {
     clearTimeout(timer);
   }

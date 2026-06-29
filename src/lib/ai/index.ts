@@ -1,9 +1,9 @@
 // AthleteOS — AI meal analysis seam. One entry point the app calls; it uses the real
 // backend (Claude vision) when configured, else the deterministic prototype analysis.
 // The UI renders the identical MealResult shape either way.
-import { groundMealResult, mealResultFor, mergeRephrasedInsights, sampleScannedLabel } from '@/core';
-import type { LabelFacts, MealResult, MemoryInsight } from '@/core';
-import { analyzeLabelRemote, analyzeMealRemote, isAiConfigured, rephraseMemoryRemote, type AnalyzeLabelRequest, type AnalyzeMealRequest } from './client';
+import { groundMealResult, mealResultFor, mergeRephrasedInsights, mergeRephrasedOrders, ordersToRephrase, sampleScannedLabel } from '@/core';
+import type { LabelFacts, MealResult, MemoryInsight, RecommendResult } from '@/core';
+import { analyzeLabelRemote, analyzeMealRemote, isAiConfigured, rephraseMemoryRemote, rephraseOrdersRemote, type AnalyzeLabelRequest, type AnalyzeMealRequest } from './client';
 
 export { isAiConfigured, AI_ENDPOINT } from './client';
 export type { AnalyzeMealRequest, AnalyzeLabelRequest } from './client';
@@ -17,6 +17,7 @@ export const aiCoachTag = isAiConfigured ? 'AI NUTRITION COACH' : 'NUTRITION COA
 export const aiCoachName = isAiConfigured ? 'AI Nutrition Coach' : 'Nutrition Coach';
 export const aiTeamSummaryTag = isAiConfigured ? 'AI TEAM SUMMARY' : 'TEAM SUMMARY';
 export const aiMemoryTag = isAiConfigured ? 'Remembered by AI' : 'Coach memory';
+export const aiRestaurantCoachTag = isAiConfigured ? 'AI RESTAURANT COACH' : 'RESTAURANT COACH';
 /** "AI " prefix for inline sentence copy, empty until a real model runs. */
 export const aiPrefix = isAiConfigured ? 'AI ' : '';
 
@@ -70,5 +71,23 @@ export async function rephraseMemoryInsights(insights: MemoryInsight[]): Promise
     return mergeRephrasedInsights(insights, proposed);
   } catch {
     return insights;
+  }
+}
+
+/**
+ * "AI Restaurant Coach": reword the goal-aware order explanations (`why`) in a warmer coach voice
+ * when a model is configured. The engine's orders are the ground truth AND the fallback — this only
+ * rewords the prose. Every rewrite is run through the core voice guard (mergeRephrasedOrders), which
+ * keeps the macros, price, item lines, and tags exactly the engine's and drops any rewrite that
+ * would change a number. Inert without a backend (returns the result untouched), and never throws:
+ * any network/AI hiccup falls back to the deterministic recommendation. The numbers never change.
+ */
+export async function rephraseOrders(result: RecommendResult): Promise<RecommendResult> {
+  if (!isAiConfigured) return result;
+  try {
+    const proposed = await rephraseOrdersRemote({ orders: ordersToRephrase(result) });
+    return mergeRephrasedOrders(result, proposed);
+  } catch {
+    return result;
   }
 }

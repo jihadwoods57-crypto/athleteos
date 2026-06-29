@@ -3,8 +3,9 @@
 // the real menu, personalized to your goal + what's LEFT in today's plan, under budget.
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { RESTAURANTS, recommendOrder, genericMealGuidance, type RecommendedOrder, type GenericGuidance } from '@/core';
+import { RESTAURANTS, recommendOrder, genericMealGuidance, type RecommendedOrder, type RecommendResult, type GenericGuidance } from '@/core';
 import type { EditableFood, MealKey } from '@/core';
+import { aiRestaurantCoachTag, isAiConfigured, rephraseOrders } from '@/lib/ai';
 import { useStore, useDerived } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
 import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
@@ -43,10 +44,14 @@ export function FoodCoach() {
   const budget = budgetText.trim() ? Number(budgetText.trim()) : undefined;
 
   const elsewhere = restaurantId === ELSEWHERE;
-  const result = React.useMemo(
+  const deterministic = React.useMemo(
     () => recommendOrder({ restaurantId, goal, proteinRemaining, caloriesRemaining, budget: budget && budget > 0 ? budget : undefined }),
     [restaurantId, goal, proteinRemaining, caloriesRemaining, budget],
   );
+  // The deterministic recommendation renders instantly (ground truth). When a model is configured,
+  // the explanations are reworded in a warmer voice and swapped in when they land; the core guard
+  // keeps every macro/price exactly the engine's. byAI flips the label only when a rewrite lands.
+  const { display: result, byAI } = useRephrasedOrders(deterministic);
   const guidance = React.useMemo(
     () => genericMealGuidance({ goal, proteinRemaining, caloriesRemaining }),
     [goal, proteinRemaining, caloriesRemaining],
@@ -123,7 +128,7 @@ export function FoodCoach() {
         ) : (
           <>
             {/* recommended order — owns the visual weight */}
-            <OrderCard order={result.primary} onUse={() => useOrder(result.primary)} />
+            <OrderCard order={result.primary} byAI={byAI} onUse={() => useOrder(result.primary)} />
 
             {/* alternatives — scannable one-line rows that expand on tap */}
             {result.alternatives.length > 0 ? (
@@ -198,11 +203,19 @@ function GuidanceCard({ guidance, onLog }: { guidance: GenericGuidance; onLog: (
   );
 }
 
-function OrderCard({ order, onUse }: { order: RecommendedOrder; onUse: () => void }) {
+function OrderCard({ order, byAI, onUse }: { order: RecommendedOrder; byAI: boolean; onUse: () => void }) {
   if (order.lines.length === 0) return null;
   const t = order.totals;
   return (
     <Card elevated style={{ marginTop: 16, borderRadius: 20, borderWidth: 1.5, borderColor: colors.accent }}>
+      {/* Provenance chip: only when the AI actually reworded the explanation (byAI). Otherwise the
+          card is the deterministic coach recommendation and shows no AI badge. */}
+      {byAI ? (
+        <Row style={{ gap: 6, marginBottom: 8 }}>
+          <Icon name="sparkle" size={13} color={colors.accent} />
+          <Txt w="eb" size={11} color={colors.accent} ls={0.6}>{aiRestaurantCoachTag}</Txt>
+        </Row>
+      ) : null}
       <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <Txt w="eb" size={16} ls={-0.3} color={colors.accent}>
           Recommended order
@@ -270,6 +283,32 @@ function AltRow({ label, order, expanded, onToggle, onUse }: { label: string; or
       ) : null}
     </View>
   );
+}
+
+/**
+ * Returns the recommendation to render plus whether AI actually warmed it. The deterministic
+ * recommendation shows immediately; AI-warmed explanations replace it once they resolve (when a
+ * model is configured) and pass the number guard. `byAI` is true only when a rewrite genuinely
+ * landed (the seam returns the SAME result object when nothing safely warms). Race-guarded; a
+ * literal no-op when AI is unconfigured, so today it just returns the engine's recommendation.
+ */
+function useRephrasedOrders(result: RecommendResult): { display: RecommendResult; byAI: boolean } {
+  const [warmed, setWarmed] = React.useState<RecommendResult | null>(null);
+
+  React.useEffect(() => {
+    setWarmed(null); // new deterministic input -> show ground truth, drop any prior warmed prose
+    if (!isAiConfigured) return;
+    let active = true;
+    void rephraseOrders(result).then((next) => {
+      // Apply only if still current AND the model genuinely reworded something (changed reference).
+      if (active && next !== result) setWarmed(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [result]);
+
+  return { display: warmed ?? result, byAI: warmed !== null };
 }
 
 function Stat({ value, label }: { value: string; label: string }) {

@@ -7,6 +7,9 @@
 //   * 'memory'         — reword the app's COMPUTED memory insights in a warmer coach voice. The
 //                        numbers are the app's ground truth: the model may only rephrase, never
 //                        change a figure, and the client re-checks every number before showing it.
+//   * 'order'          — reword the Restaurant Coach order explanations (`why`) in a warmer voice.
+//                        Same contract as 'memory': prose only, every number preserved exactly,
+//                        client re-verifies before showing.
 // Deploy:
 //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 //   supabase functions deploy analyze-meal
@@ -36,15 +39,22 @@ interface MemoryInsightIn {
   metric?: string;
 }
 
+interface OrderIn {
+  id: string;
+  why: string;
+}
+
 interface AnalyzeReq {
-  /** 'meal' (default) estimates a plate; 'label' transcribes a panel; 'memory' rewords insights. */
-  mode?: 'meal' | 'label' | 'memory';
+  /** 'meal' estimates a plate; 'label' transcribes a panel; 'memory'/'order' reword prose. */
+  mode?: 'meal' | 'label' | 'memory' | 'order';
   mealType: 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
   goal: string | null;
   description?: string;
   photoBase64?: string;
   /** For mode 'memory': the deterministic insights to reword (prose only is returned). */
   insights?: MemoryInsightIn[];
+  /** For mode 'order': the recommended-order explanations to reword (prose only is returned). */
+  orders?: OrderIn[];
 }
 
 // The exact shape the app renders (src/core MealResult). The model fills this via a
@@ -150,6 +160,47 @@ function memoryContent(req: AnalyzeReq): unknown[] {
   }];
 }
 
+// Mode 'order': reword the Restaurant Coach explanations. Same shape/contract as memory but a single
+// `why` string per order. The CLIENT (core/restaurantCoachVoice.ts) re-verifies every number before
+// showing any of it, so macros/prices can never drift here.
+const ORDER_TOOL = {
+  name: 'report_order_voice',
+  description: 'Return the reworded order explanations, prose only, one entry per input id.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      orders: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'The exact id of the input order being reworded.' },
+            why: { type: 'string', description: 'Reworded one-to-two sentence explanation. Keep every number identical to the input.' },
+          },
+          required: ['id', 'why'],
+        },
+      },
+    },
+    required: ['orders'],
+  },
+} as const;
+
+const ORDER_SYSTEM = `You are the AthleteOS nutrition coach telling an athlete why a restaurant order fits
+their goal. You are handed explanations the app already COMPUTED from a menu database. Your only job is
+to reword each one in a warmer, more personal coach voice. Hard rules: keep EVERY number exactly as given
+(never change, add, or drop a gram, calorie, or dollar figure); never invent a food, claim, or number not
+in the input; keep the same meaning and goal framing; one or two short sentences per order; direct and
+encouraging, never hype, never cutesy, no em dashes. Return one entry per input id, with its id unchanged,
+by calling report_order_voice.`;
+
+function orderContent(req: AnalyzeReq): unknown[] {
+  const items = (req.orders ?? []).map((o) => ({ id: o.id, why: o.why }));
+  return [{
+    type: 'text',
+    text: `Reword these order explanations in a warmer coach voice, keeping every number exactly. Return one entry per id.\n\n${JSON.stringify(items, null, 2)}`,
+  }];
+}
+
 function userContent(req: AnalyzeReq): unknown[] {
   const blocks: unknown[] = [];
   if (req.photoBase64) {
@@ -207,6 +258,7 @@ Deno.serve(async (request) => {
 
   const isLabel = req?.mode === 'label';
   const isMemory = req?.mode === 'memory';
+  const isOrder = req?.mode === 'order';
 
   // Input guards: reject an oversized/missing photo before spending an Anthropic call.
   // A base64 JPEG over ~8MB raw (~6MB image) is almost certainly abuse and would risk a
@@ -222,6 +274,14 @@ Deno.serve(async (request) => {
     if (req.insights.length > 12 || !req.insights.every((i) => i && typeof i.id === 'string' && typeof i.headline === 'string' && typeof i.detail === 'string')) {
       return new Response(JSON.stringify({ error: 'bad insights' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
     }
+  } else if (isOrder) {
+    // Rewording needs at least one order, and no more than a sane cap (primary + a few alternatives).
+    if (!Array.isArray(req.orders) || req.orders.length === 0) {
+      return new Response(JSON.stringify({ error: 'orders required for order rephrase' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
+    if (req.orders.length > 8 || !req.orders.every((o) => o && typeof o.id === 'string' && typeof o.why === 'string')) {
+      return new Response(JSON.stringify({ error: 'bad orders' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
   } else if (isLabel) {
     // A label scan is pure transcription — it MUST have the panel image; nothing to read otherwise.
     if (typeof req.photoBase64 !== 'string' || !req.photoBase64) {
@@ -232,9 +292,9 @@ Deno.serve(async (request) => {
     return new Response(JSON.stringify({ error: 'mealType required' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
   }
 
-  const system = isMemory ? MEMORY_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
-  const tool = isMemory ? MEMORY_TOOL : isLabel ? LABEL_TOOL : MEAL_TOOL;
-  const content = isMemory ? memoryContent(req) : isLabel ? labelContent(req) : userContent(req);
+  const system = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
+  const tool = isMemory ? MEMORY_TOOL : isOrder ? ORDER_TOOL : isLabel ? LABEL_TOOL : MEAL_TOOL;
+  const content = isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req) : userContent(req);
 
   try {
     const client = new Anthropic({ apiKey: key });
@@ -248,9 +308,9 @@ Deno.serve(async (request) => {
     });
     const used = msg.content.find((b) => b.type === 'tool_use');
     if (!used || used.type !== 'tool_use') throw new Error('no structured output');
-    // Label facts + memory prose are returned as-is (the CLIENT bounds memory numbers); meal
+    // Label facts + memory/order prose are returned as-is (the CLIENT bounds the numbers); meal
     // macros pass through groundMacros.
-    const result = isLabel || isMemory ? used.input : groundMacros(used.input);
+    const result = isLabel || isMemory || isOrder ? used.input : groundMacros(used.input);
     return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json' } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } });

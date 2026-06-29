@@ -50,6 +50,7 @@ export * from './dataExport';
 export * from './guardianConsent';
 export * from './restaurants';
 export * from './restaurantCoach';
+export * from './restaurantCoachVoice';
 export * from './coachPlan';
 export * from './adherence';
 export { createInitialState } from './defaultState';
