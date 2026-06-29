@@ -96,6 +96,8 @@ export function createInitialState(): AppState {
     tab: 'home',
     coachTab: 'dashboard',
     squadMode: 'team',
+    cachedRoster: null,
+    cachedRosterUserId: null,
     mealOpen: false,
     mealStage: 'capture',
     mealCaptureMode: 'meal',

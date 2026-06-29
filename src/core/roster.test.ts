@@ -1,4 +1,4 @@
-import { rosterGroups, filterRoster, notLoggedCount, rosterGroupStats } from './roster';
+import { rosterGroups, filterRoster, notLoggedCount, rosterGroupStats, cachedRosterFor } from './roster';
 import type { RosterRow } from './constants';
 
 const mk = (name: string, pos: string, loggedToday?: boolean, score = 85, comp = 80): RosterRow => ({
@@ -36,6 +36,20 @@ describe('rosterGroupStats', () => {
   });
   it('is empty for an empty roster (no divide-by-zero)', () => {
     expect(rosterGroupStats([])).toEqual([]);
+  });
+});
+
+describe('cachedRosterFor (snappy paint, no cross-user leak)', () => {
+  const cached: RosterRow[] = [mk('A', 'LB')];
+  it('returns the cache when it belongs to the signed-in user', () => {
+    expect(cachedRosterFor('u1', 'u1', cached)).toBe(cached);
+  });
+  it('refuses a cache that belongs to a DIFFERENT user (no cross-user paint)', () => {
+    expect(cachedRosterFor('u2', 'u1', cached)).toBeNull();
+  });
+  it('null when signed out or there is no cache', () => {
+    expect(cachedRosterFor(null, 'u1', cached)).toBeNull();
+    expect(cachedRosterFor('u1', 'u1', null)).toBeNull();
   });
 });
 

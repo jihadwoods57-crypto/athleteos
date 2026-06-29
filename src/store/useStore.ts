@@ -63,6 +63,7 @@ import type {
   MealLabel,
   PersonDetail,
   Role,
+  RosterRow,
   SquadMode,
   Tab,
   CoachTab,
@@ -145,6 +146,9 @@ export interface Actions {
   // nav
   setTab: (t: Tab) => void;
   setCoachTab: (t: CoachTab) => void;
+  /** Cache the overseer's freshly-fetched roster (namespaced by userId) so their dashboard
+   *  paints instantly next time before revalidating. Inert path; purged on sign-out. */
+  setCachedRoster: (roster: RosterRow[], userId: string) => void;
   goHome: () => void;
   goTasks: () => void;
   goSquad: () => void;
@@ -499,6 +503,7 @@ export const useStore = create<Store>()(
       // ---- nav ----
       setTab: (t) => set({ tab: t }),
       setCoachTab: (t) => set({ coachTab: t }),
+      setCachedRoster: (roster, userId) => set({ cachedRoster: roster, cachedRosterUserId: userId }),
       goHome: () => set({ flow: 'app', tab: 'home' }),
       goTasks: () => set({ tab: 'tasks' }),
       goSquad: () => set({ tab: 'squad' }),
@@ -989,7 +994,9 @@ export const useStore = create<Store>()(
       },
       signOutLive: async () => {
         if (isBackendLive) await auth.signOut();
-        set({ userId: null, realDataConsent: false, authError: null, entitlement: entitlementFromRow(null) });
+        // Purge the overseer read-cache on sign-out so the next user never sees the prior
+        // user's roster (cross-user paint guard, cache do-NOT list).
+        set({ userId: null, realDataConsent: false, authError: null, entitlement: entitlementFromRow(null), cachedRoster: null, cachedRosterUserId: null });
       },
       createTeamLive: async (name, sport) => {
         if (!isBackendLive) return null;
@@ -1092,6 +1099,9 @@ export const useStore = create<Store>()(
         realDataConsent: s.realDataConsent,
         sharingPaused: s.sharingPaused,
         entitlement: s.entitlement,
+        // overseer read-cache (snappy paint); namespaced by cachedRosterUserId, purged on sign-out
+        cachedRoster: s.cachedRoster,
+        cachedRosterUserId: s.cachedRosterUserId,
         // day / check-in slice
         dateStamp: s.dateStamp,
         scoreHistory: s.scoreHistory,

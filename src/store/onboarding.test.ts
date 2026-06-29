@@ -54,6 +54,16 @@ describe('athlete onboarding setters', () => {
     expect(useStore.getState().inviteCode).toBe('');
   });
 
+  it('setCachedRoster stores the roster + userId; sign-out purges it (no cross-user leak)', async () => {
+    const roster = [{ name: 'A', initials: 'A', pos: 'LB', comp: 80, score: 85, dir: 'flat' as const }];
+    useStore.getState().setCachedRoster(roster, 'u1');
+    expect(useStore.getState().cachedRoster).toEqual(roster);
+    expect(useStore.getState().cachedRosterUserId).toBe('u1');
+    await useStore.getState().signOutLive();
+    expect(useStore.getState().cachedRoster).toBeNull();
+    expect(useStore.getState().cachedRosterUserId).toBeNull();
+  });
+
   it('setBaseAnswer writes each baseline assessment answer', () => {
     const g = useStore.getState();
     g.setBaseAnswer('baseNutritionConfidence', 8);

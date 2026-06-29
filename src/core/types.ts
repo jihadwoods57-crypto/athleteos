@@ -4,6 +4,7 @@ import type { Units } from './units';
 import type { MealResult } from './content';
 import type { EditableFood } from './mealEdit';
 import type { LabelFacts } from './nutritionLabel';
+import type { RosterRow } from './constants';
 import type { GuardianStatus } from './guardianConsent';
 import type { NudgeRecord } from './nudge';
 import type { PerfEntry } from './performance';
@@ -227,6 +228,11 @@ export interface AppState {
   tab: Tab;
   coachTab: CoachTab;
   squadMode: SquadMode;
+  // ---- overseer read-cache (snappy paint, revalidated on mount) ----
+  /** Last real roster fetched for the signed-in overseer, so their dashboard paints instantly
+   *  instead of flashing the seeded sample. Namespaced by cachedRosterUserId; purged on sign-out. */
+  cachedRoster: RosterRow[] | null;
+  cachedRosterUserId: string | null;
   mealOpen: boolean;
   mealStage: MealStage;
   /** 'meal' = photograph a plate (estimated); 'label' = scan a Nutrition Facts panel (exact). */

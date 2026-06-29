@@ -42,6 +42,18 @@ export function notLoggedCount(roster: RosterRow[]): number {
   return roster.filter((r) => r.loggedToday === false).length;
 }
 
+/**
+ * The roster to paint IMMEDIATELY on an overseer screen (snappy, no sample-flash): the last
+ * cached real roster, but ONLY when it belongs to the currently signed-in user. Returning the
+ * cache for a different user would paint user A's athletes for user B, so that is refused here
+ * (a security guard from the cache do-NOT list). Null means "no usable cache, fall back to the
+ * seeded sample". The caller revalidates from the backend right after painting this.
+ */
+export function cachedRosterFor(userId: string | null, cachedUserId: string | null, cached: RosterRow[] | null): RosterRow[] | null {
+  if (!userId || !cached || cachedUserId !== userId) return null;
+  return cached;
+}
+
 export interface RosterGroupStat {
   group: string;
   count: number;

@@ -6,6 +6,7 @@
 // so the app runs exactly as it does today. Drop the two env vars in `.env` (see
 // `.env.example`) to light the backend up — no other code change required to connect.
 import 'react-native-url-polyfill/auto';
+import { AppState } from 'react-native';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 import { secureStorage } from './secureStorage';
@@ -44,6 +45,17 @@ export const supabase: SupabaseClient<Database> | null = isSupabaseConfigured
       },
     })
   : null;
+
+// Keep the session token fresh across app foreground/background. Without this, the auto-refresh
+// timer can stall while the app is backgrounded and the access token silently expires, forcing a
+// surprise re-auth. The documented Supabase/RN fix: run the refresher only while the app is active.
+// Inert when unconfigured (supabase is null) and a no-op in node tests (AppState is stubbed).
+if (supabase) {
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') supabase.auth.startAutoRefresh();
+    else supabase.auth.stopAutoRefresh();
+  });
+}
 
 /** Narrow `supabase` to non-null. Throws if called while unconfigured — only use
  *  after an `isSupabaseConfigured` check. */
