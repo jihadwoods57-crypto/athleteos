@@ -12,6 +12,7 @@ export * from './leaderboard';
 export * from './content';
 export * from './nutritionLabel';
 export * from './nutritionMemory';
+export * from './nutritionMemoryVoice';
 export * from './macroGrounding';
 export * from './coaching';
 export * from './units';

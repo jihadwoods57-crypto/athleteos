@@ -8,7 +8,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import type { MemoryInsight, MemoryTone } from '@/core';
 import { useStore, useNutritionMemory } from '@/store';
-import { aiMemoryTag } from '@/lib/ai';
+import { aiMemoryTag, isAiConfigured, rephraseMemoryInsights } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, SampleTag, Txt } from '@/ui/primitives';
 import { Icon } from '@/icons';
@@ -23,6 +23,12 @@ const TONE: Record<MemoryTone, { bg: string; fg: string; bar: string }> = {
 export function NutritionMemory() {
   const s = useStore();
   const { insights, sampled, readiness } = useNutritionMemory();
+  // "Remembered by AI": the deterministic insights render instantly (ground truth). When a model
+  // is configured, ask it to reword them in a warmer voice and swap the warmed text in when it
+  // arrives. The core voice guard keeps every number exactly the engine's, so this only ever
+  // changes wording. Inert without a backend (the effect early-returns), and any failure simply
+  // leaves the deterministic text on screen — the surface never blanks or blocks on AI.
+  const display = useRephrasedMemory(insights);
 
   return (
     <Overlay title="Nutrition Memory" onClose={s.closeNutritionMemory} right={sampled ? <SampleTag /> : undefined}>
@@ -49,7 +55,7 @@ export function NutritionMemory() {
 
         {/* the remembered insights */}
         <View style={{ marginTop: 14, gap: 12 }}>
-          {insights.map((it) => <InsightCard key={it.id} insight={it} />)}
+          {display.map((it) => <InsightCard key={it.id} insight={it} />)}
         </View>
 
         {/* honest provenance + readiness */}
@@ -61,6 +67,31 @@ export function NutritionMemory() {
       </ScrollView>
     </Overlay>
   );
+}
+
+/**
+ * Returns the insights to render: the deterministic ones immediately, replaced by the AI-warmed
+ * wording once it resolves (when a model is configured). The deterministic list is always the
+ * fallback. Guards against races (a stale rephrase from a previous input never lands) and is a
+ * literal no-op when AI is unconfigured, so today it just returns the engine's insights.
+ */
+function useRephrasedMemory(insights: MemoryInsight[]): MemoryInsight[] {
+  const [warmed, setWarmed] = React.useState<MemoryInsight[] | null>(null);
+
+  React.useEffect(() => {
+    setWarmed(null); // new deterministic input -> drop any prior warmed text, show ground truth
+    if (!isAiConfigured || insights.length === 0) return;
+    let active = true;
+    void rephraseMemoryInsights(insights).then((next) => {
+      // Only apply if this is still the current input and the model actually changed wording.
+      if (active && next !== insights) setWarmed(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [insights]);
+
+  return warmed ?? insights;
 }
 
 function InsightCard({ insight }: { insight: MemoryInsight }) {

@@ -6,7 +6,7 @@
 // the app falls back to the deterministic analysis (mealResultFor) so it runs exactly
 // as today. Set EXPO_PUBLIC_AI_ENDPOINT (or EXPO_PUBLIC_SUPABASE_URL, from which the
 // function URL is derived) + EXPO_PUBLIC_SUPABASE_ANON_KEY to light it up.
-import type { LabelFacts, MealLabel, MealResult } from '@/core';
+import type { LabelFacts, MealLabel, MealResult, MemoryInsight, RephrasedInsight } from '@/core';
 
 const explicit = process.env.EXPO_PUBLIC_AI_ENDPOINT?.trim();
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -86,6 +86,40 @@ export async function analyzeLabelRemote(req: AnalyzeLabelRequest): Promise<Labe
     if (!res.ok) throw new Error(`analyze-label HTTP ${res.status}`);
     const data = (await res.json()) as LabelFacts;
     return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export interface RephraseMemoryRequest {
+  /** The deterministic insights to reword. The model sees them but may only touch the prose. */
+  insights: Pick<MemoryInsight, 'id' | 'kind' | 'tone' | 'headline' | 'detail' | 'metric'>[];
+}
+
+/**
+ * Ask the model to rephrase the memory insights in a warmer coach voice via the SAME backend
+ * Edge Function (mode: 'memory'). It returns prose only — {id, headline, detail} per insight —
+ * which the caller runs through the core voice guard (mergeRephrasedInsights) so the numbers and
+ * everything non-prose stay exactly the engine's. Throws on transport/HTTP error (callers fall
+ * back to the deterministic insights). 20s timeout, key stays server-side.
+ */
+export async function rephraseMemoryRemote(req: RephraseMemoryRequest): Promise<RephrasedInsight[]> {
+  if (!isAiConfigured) throw new Error('AI endpoint not configured');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ mode: 'memory', ...req }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`rephrase-memory HTTP ${res.status}`);
+    const data = (await res.json()) as { insights?: RephrasedInsight[] };
+    return Array.isArray(data?.insights) ? data.insights : [];
   } finally {
     clearTimeout(timer);
   }
