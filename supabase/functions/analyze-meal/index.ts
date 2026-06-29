@@ -126,9 +126,11 @@ function labelContent(req: AnalyzeReq): unknown[] {
   return blocks;
 }
 
-/** TODO (accuracy): ground the model's macro estimates against a food database keyed off
- *  `detected` so the protein/calorie numbers feeding the score are trustworthy, not guessed.
- *  Until wired, the model estimates pass through (fine for coaching prose, soft for scoring). */
+/** Macro grounding now lives CLIENT-SIDE in src/core/macroGrounding.ts (groundMealResult),
+ *  next to the scoring authority and the curated food DB, so it's unit-tested and can't drift
+ *  from the DB. The function returns the model's raw estimate + detected foods; the app bounds
+ *  the macros (food-DB plausibility + Atwater consistency) before they touch the score. This
+ *  passthrough is kept as the seam in case server-side grounding is ever added. */
 function groundMacros<T>(analysis: T): T {
   return analysis;
 }

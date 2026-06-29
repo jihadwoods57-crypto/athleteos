@@ -1,7 +1,7 @@
 // AthleteOS — AI meal analysis seam. One entry point the app calls; it uses the real
 // backend (Claude vision) when configured, else the deterministic prototype analysis.
 // The UI renders the identical MealResult shape either way.
-import { mealResultFor, sampleScannedLabel } from '@/core';
+import { groundMealResult, mealResultFor, sampleScannedLabel } from '@/core';
 import type { LabelFacts, MealResult } from '@/core';
 import { analyzeLabelRemote, analyzeMealRemote, isAiConfigured, type AnalyzeLabelRequest, type AnalyzeMealRequest } from './client';
 
@@ -28,7 +28,10 @@ export const aiPrefix = isAiConfigured ? 'AI ' : '';
 export async function analyzeMeal(req: AnalyzeMealRequest): Promise<MealResult> {
   if (!isAiConfigured) return mealResultFor(req.mealType);
   try {
-    return await analyzeMealRemote(req);
+    // Ground the model's macros (food-DB plausibility + Atwater) before the app shows or
+    // logs them, so a hallucinated number never reaches the score. The deterministic
+    // fallback is already curated/sane, so it needs no grounding.
+    return groundMealResult(await analyzeMealRemote(req));
   } catch {
     // Honest degradation: a network/AI hiccup must never block the athlete's log.
     return mealResultFor(req.mealType);

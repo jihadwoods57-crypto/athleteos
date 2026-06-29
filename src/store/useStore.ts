@@ -39,6 +39,7 @@ import {
   exportUserDataText,
   isValidGuardianEmail,
   labelToFood,
+  mealResultToFood,
   realDataConsent,
   reminderNotifySpecs,
   reminderSnapshotFromState,
@@ -648,7 +649,12 @@ export const useStore = create<Store>()(
         set((s) => {
           const key = (s.mealType || 'Dinner').toLowerCase() as keyof typeof s.meals;
           const meals = { ...s.meals, [key]: true };
-          const protein = computeProteinToday(meals, s.mealFoods, s.quickAdded);
+          // When a REAL AI analysis is present (mealAnalysis is non-null only on a live AI
+          // result; the deterministic path leaves it null), log its grounded macros as the
+          // slot's foods so the SCORE reflects the actual meal, not the generic slot constant
+          // — the same path the label scan and an edited plate use. No AI result -> unchanged.
+          const mealFoods = s.mealAnalysis ? { ...s.mealFoods, [key]: [mealResultToFood(s.mealAnalysis)] } : s.mealFoods;
+          const protein = computeProteinToday(meals, mealFoods, s.quickAdded);
           const tasks = s.tasks.map((x) => {
             if (x.id === 2) return { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) };
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
@@ -660,7 +666,7 @@ export const useStore = create<Store>()(
           // on-time and the score stays byte-for-byte untouched, per the ratified keystone
           // ("engines off -> score untouched"). Engines ON: stamp -> late logging lowers it.
           const mealLoggedAt = isEnginesEnabled ? { ...s.mealLoggedAt, [key]: nowMinutes() } : s.mealLoggedAt;
-          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, meals, mealLoggedAt, tasks };
+          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, meals, mealFoods, mealLoggedAt, tasks };
         });
         // Persist the meal (macros + photo) BEFORE clearing the captured photo —
         // recordMeal reads the photo off current state. No-op unless backend live.

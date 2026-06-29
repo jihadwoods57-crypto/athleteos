@@ -92,6 +92,26 @@ it('captureLabel DOES send the label for a consenting adult', async () => {
   expect(analyzeLabel).toHaveBeenCalledTimes(1);
 });
 
+it('addMeal logs a real AI analysis as the slot foods so its macros drive the score', async () => {
+  const useStore = loadStore();
+  useStore.setState({
+    mealType: 'Dinner',
+    mealAnalysis: { name: 'Chicken & Rice', quality: 92, protein: 48, kcal: 700, carbs: 70, fat: 16, detected: ['Chicken'], note: '' },
+  });
+  useStore.getState().addMeal();
+  expect(useStore.getState().meals.dinner).toBe(true);
+  expect(useStore.getState().mealFoods.dinner?.[0]?.per.protein).toBe(48);
+  expect(useStore.getState().mealAnalysis).toBeNull(); // cleared after logging
+});
+
+it('addMeal without an AI analysis does NOT touch mealFoods (demo path unchanged)', async () => {
+  const useStore = loadStore();
+  useStore.setState({ mealType: 'Lunch', mealAnalysis: null });
+  useStore.getState().addMeal();
+  expect(useStore.getState().meals.lunch).toBe(true);
+  expect(useStore.getState().mealFoods.lunch).toBeUndefined();
+});
+
 it('addScannedLabel logs the scaled label macros into the meal slot', async () => {
   const useStore = loadStore();
   // 20g protein per serving × 2 servings = 40g logged into the Snack slot.
