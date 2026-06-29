@@ -54,8 +54,17 @@ Do these together, in order. Nothing here should touch the live database until P
 
 - [ ] **Apply the database changes to the live project, one at a time.** In order:
       `0004` (team create/join code), `0005` (grants), `0007` (account deletion),
-      `0008` (guardian consent), `0009` (profiles.org_name). They're written and tested;
-      apply as-written.
+      `0008` (guardian consent), `0009` (profiles.org_name), `0010` (subscriptions seam).
+      They're written and tested; apply as-written.
+- [ ] **Apply the org-membership keystone — `0011` then `0012`** (the enterprise-architecture
+      foundation; validated on a throwaway Postgres). `0011` is purely additive (the
+      `org_memberships` table + `can_view_via_memberships`, changes no behavior). `0012`
+      **backfills** memberships from the team link tables and **swaps `can_view`'s body** to the
+      membership model. **Before trusting `0012` on live:** re-run the equivalence check on a
+      throwaway DB with a copy of real data — confirm `can_view()` returns the same as the
+      legacy `is_team_coach_of` disjunction for a sample of athletes (the check the crew ran on
+      seed data). `0012` is teams-only by design; trainers/families get their own backfill when
+      they go live. See `docs/architecture/PHASE-A-LOG.md` + `01-data-model-and-org-hierarchy.md`.
 - [ ] **In the Supabase dashboard, turn on email confirmation** (the config file is set to ON,
       but the live project needs the same toggle flipped once).
 - [ ] **Set the three environment variables and rebuild:** the Supabase URL, the Supabase anon
