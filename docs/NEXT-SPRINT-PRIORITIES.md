@@ -74,6 +74,20 @@ The 🔧 items in `docs/APP-STORE-READINESS.md`: full a11y sweep (VoiceOver labe
 Dynamic Type), perf (no leaked timers/animations), graceful error fallback on every network/AI
 path, copy/legal review, screenshot prep.
 
+### P7 — Subscription checkout + compliance UI (QUEUED — blocked on a pricing decision)
+The inert entitlement seam is built (`subscription.ts`, migration `0010`, the entitlement read
++ the Account billing row). The compliant **checkout** is queued because it needs a founder
+decision: **price, billing frequency, trial length**. When set, build against the seam per
+`docs/specs/2026-06-29-subscription-compliance.md`:
+- A reusable `SubscriptionTerms` disclosure (price / frequency / renewal date / trial /
+  cancellation) on the confirm screen — req. 1.
+- The purchase button carrying the auto-renewal terms in its label
+  ("Start subscription — $X/athlete per month, auto-renews") — req. 2.
+- A **"Manage plan"** Account row → Stripe Billing Portal for two-tap cancellation — req. 3.
+- Copy review against FTC / state auto-renewal (ARL) rules + no-dark-patterns — req. 4.
+Reqs. 5–8 (accurate claims, real reviews, privacy, COPPA) are already live or finish in
+Phase 0 (legal + VPC vendor). Stripe products + the webhook are the founder-gated half.
+
 ---
 
 ## ❌ NOT in scope (resist)
