@@ -28,6 +28,7 @@ export type IconName =
   | 'send'
   | 'copy'
   | 'gallery'
+  | 'barcode'
   | 'sparkle';
 
 export function Icon({
@@ -67,6 +68,8 @@ function render(name: IconName, color: string, p: object) {
           <Circle cx={12} cy={12.5} r={3.4} {...p} />
         </>
       );
+    case 'barcode':
+      return <Path d="M4 6v12M7 6v12M10 6v12M13.5 6v12M17 6v12M20 6v12" {...p} />;
     case 'home':
       return <Path d="M4 11l8-7 8 7M6 10v9a1 1 0 001 1h10a1 1 0 001-1v-9" {...p} />;
     case 'plan':

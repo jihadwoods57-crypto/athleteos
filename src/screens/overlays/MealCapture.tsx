@@ -1,8 +1,8 @@
 // AthleteOS — Meal capture overlay: capture → analyzing (~2.3s) → result.
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, ScrollView, View } from 'react-native';
-import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer } from '@/core';
-import type { MealLabel } from '@/core';
+import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer, flagIngredients, scaleLabel, labelQuality, labelProvenanceNote } from '@/core';
+import type { MealLabel, LabelFacts, IngredientFlag } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiCoachTag } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
@@ -15,14 +15,22 @@ const MEAL_TYPES: MealLabel[] = ['Breakfast', 'Lunch', 'Snack', 'Dinner'];
 
 export function MealCapture() {
   const s = useStore();
-  const header = s.mealStage === 'result' ? 'Analysis' : s.mealStage === 'analyzing' ? 'Analyzing' : 'Log a Meal';
+  const isLabel = s.mealCaptureMode === 'label';
+  const header =
+    s.mealStage === 'result'
+      ? isLabel ? 'Label' : 'Analysis'
+      : s.mealStage === 'analyzing'
+        ? isLabel ? 'Reading label' : 'Analyzing'
+        : isLabel ? 'Scan a Label' : 'Log a Meal';
 
   return (
     <Overlay title={header} onClose={s.closeMeal} closeIcon="close">
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {s.mealStage === 'capture' ? <ModeToggle mode={s.mealCaptureMode} onPick={s.setMealCaptureMode} /> : null}
+
         {/* image slot */}
         <View style={[{ width: '100%', aspectRatio: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: '#E2E8F0' }, shadow.elevated]}>
-          <ImageSlot analyzing={s.mealStage === 'analyzing'} />
+          <ImageSlot analyzing={s.mealStage === 'analyzing'} label={isLabel} />
           {[
             { top: 14, left: 14 },
             { top: 14, right: 14 },
@@ -34,14 +42,44 @@ export function MealCapture() {
         </View>
 
         {s.mealStage === 'capture' && <CaptureControls />}
-        {s.mealStage === 'analyzing' && <Analyzing />}
-        {s.mealStage === 'result' && <Result mealType={s.mealType} onAdd={s.addMeal} />}
+        {s.mealStage === 'analyzing' && <Analyzing label={isLabel} />}
+        {s.mealStage === 'result' && (isLabel
+          ? <LabelResult facts={s.labelFacts} servings={s.labelServings} onServings={s.setLabelServings} onAdd={s.addScannedLabel} />
+          : <Result mealType={s.mealType} onAdd={s.addMeal} />)}
       </ScrollView>
     </Overlay>
   );
 }
 
-function ImageSlot({ analyzing }: { analyzing: boolean }) {
+/** Segmented toggle: photograph a plate (estimate) vs scan a label (exact). */
+function ModeToggle({ mode, onPick }: { mode: 'meal' | 'label'; onPick: (m: 'meal' | 'label') => void }) {
+  const opts: { key: 'meal' | 'label'; label: string; icon: 'camera' | 'barcode' }[] = [
+    { key: 'meal', label: 'Log a meal', icon: 'camera' },
+    { key: 'label', label: 'Scan a label', icon: 'barcode' },
+  ];
+  return (
+    <Row style={[{ padding: 4, borderRadius: 14, backgroundColor: colors.bg2, marginBottom: 16, gap: 4 }]}>
+      {opts.map((o) => {
+        const active = mode === o.key;
+        return (
+          <Pressable
+            key={o.key}
+            accessibilityRole="button"
+            accessibilityLabel={o.label}
+            accessibilityState={{ selected: active }}
+            onPress={() => { haptics.select(); onPick(o.key); }}
+            style={[{ flex: 1, flexDirection: 'row', gap: 7, paddingVertical: 10, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? '#fff' : 'transparent' }, active ? shadow.card : undefined]}
+          >
+            <Icon name={o.icon} size={16} color={active ? colors.accent : colors.textTertiary} />
+            <Txt w="b" size={13} color={active ? colors.text : colors.textTertiary}>{o.label}</Txt>
+          </Pressable>
+        );
+      })}
+    </Row>
+  );
+}
+
+function ImageSlot({ analyzing, label }: { analyzing: boolean; label?: boolean }) {
   const scan = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!analyzing) return;
@@ -54,9 +92,9 @@ function ImageSlot({ analyzing }: { analyzing: boolean }) {
 
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Icon name="camera" size={40} color="#94A3B8" />
+      <Icon name={label ? 'barcode' : 'camera'} size={40} color="#94A3B8" />
       <Txt w="sb" size={13} color="#94A3B8" style={{ marginTop: 10 }}>
-        Tap to capture · or drop a meal photo
+        {label ? 'Point at the Nutrition Facts panel' : 'Tap to capture · or drop a meal photo'}
       </Txt>
       {analyzing ? (
         <>
@@ -79,6 +117,7 @@ function ImageSlot({ analyzing }: { analyzing: boolean }) {
 
 function CaptureControls() {
   const s = useStore();
+  const isLabel = s.mealCaptureMode === 'label';
   return (
     <View>
       <Row style={{ gap: 8, marginTop: 18 }}>
@@ -113,14 +152,17 @@ function CaptureControls() {
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Capture meal photo"
+          accessibilityLabel={isLabel ? 'Scan nutrition label' : 'Capture meal photo'}
           onPress={() => {
             haptics.tap();
-            s.capture();
+            if (isLabel) s.captureLabel();
+            else s.capture();
           }}
           style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: colors.accent, padding: 5 }}
         >
-          <View style={{ flex: 1, borderRadius: 30, backgroundColor: colors.accent }} />
+          <View style={{ flex: 1, borderRadius: 30, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+            {isLabel ? <Icon name="barcode" size={26} color="#fff" /> : null}
+          </View>
         </Pressable>
         <View style={[{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
           <Txt w="eb" size={13} color={colors.textSecondary}>
@@ -135,27 +177,34 @@ function CaptureControls() {
         </Txt>
       </View>
       <Txt w="m" size={13} color={colors.textTertiary} style={{ textAlign: 'center', marginTop: 14 }}>
-        One tap · batch up to 4 meals · works offline
+        {isLabel ? 'Numbers read straight off the label · exact, not estimated' : 'One tap · batch up to 4 meals · works offline'}
       </Txt>
     </View>
   );
 }
 
-function Analyzing() {
+function Analyzing({ label }: { label?: boolean }) {
+  const rows = label
+    ? [
+        { t: 'Reading the Nutrition Facts', c: colors.slate700 },
+        { t: 'Parsing ingredients', c: colors.textSecondary },
+        { t: 'Checking coach flags', c: colors.textTertiary },
+      ]
+    : [
+        { t: 'Detecting foods', c: colors.slate700 },
+        { t: 'Estimating protein & calories', c: colors.textSecondary },
+        { t: 'Scoring meal quality', c: colors.textTertiary },
+      ];
   return (
     <View style={{ marginTop: 26 }}>
       <Row style={{ gap: 11, justifyContent: 'center' }}>
         <Spinner />
         <Txt w="eb" size={17}>
-          Analyzing meal…
+          {label ? 'Reading label…' : 'Analyzing meal…'}
         </Txt>
       </Row>
       <View style={{ marginTop: 22, gap: 13, alignItems: 'center' }}>
-        {[
-          { t: 'Detecting foods', c: colors.slate700 },
-          { t: 'Estimating protein & calories', c: colors.textSecondary },
-          { t: 'Scoring meal quality', c: colors.textTertiary },
-        ].map((row) => (
+        {rows.map((row) => (
           <Row key={row.t} style={{ gap: 10 }}>
             <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent }} />
             <Txt w="sb" size={14} color={row.c}>
@@ -369,6 +418,140 @@ function MacroChip({ value, label, color }: { value: string; label: string; colo
       <Txt w="sb" size={11} color={colors.textTertiary} style={{ marginTop: 1 }}>
         {label}
       </Txt>
+    </View>
+  );
+}
+
+/**
+ * Label-scan result: the EXACT macros off the Nutrition Facts panel, scaled by servings,
+ * plus the coach-style quality read and ingredient flags. No "~" on the macros — they're
+ * read, not estimated (the honesty stance: facts exact, judgment humble).
+ */
+function LabelResult({
+  facts,
+  servings,
+  onServings,
+  onAdd,
+}: {
+  facts: LabelFacts | null;
+  servings: number;
+  onServings: (n: number) => void;
+  onAdd: () => void;
+}) {
+  if (!facts) return null;
+  const flags = flagIngredients(facts);
+  const scaled = scaleLabel(facts, servings);
+  const q = qualityLabel(labelQuality(facts, flags));
+  const tone = {
+    success: { bg: colors.successSurface, fg: colors.successDeep },
+    accent: { bg: colors.accentSurface, fg: colors.accent },
+    warning: { bg: '#FEF3C7', fg: colors.warningDeep },
+  }[q.tone];
+  const servingsText = scaled.servings === 1 ? '1 serving' : `${scaled.servings} servings`;
+
+  return (
+    <View>
+      {/* product + quality read */}
+      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 18 }}>
+        <View style={{ flex: 1, paddingRight: 10 }}>
+          <Txt w="eb" size={20} ls={-0.3}>{facts.productName?.trim() || 'Scanned food'}</Txt>
+          {facts.servingSize ? (
+            <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2 }}>
+              Label serving: {facts.servingSize}
+            </Txt>
+          ) : null}
+        </View>
+        <View style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: tone.bg }}>
+          <Txt w="eb" size={11} color={tone.fg}>{q.label}</Txt>
+        </View>
+      </Row>
+
+      {/* servings stepper */}
+      <Card style={{ marginTop: 16, borderRadius: 18 }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>
+            <Txt w="b" size={15}>How many did you eat?</Txt>
+            <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+              In servings of {facts.servingSize?.trim() || 'the label size'}
+            </Txt>
+          </View>
+          <Row style={{ gap: 14, alignItems: 'center' }}>
+            <StepBtn icon="minus" label="Fewer servings" onPress={() => onServings(servings - 0.5)} />
+            <Txt w="eb" size={20} style={{ minWidth: 42, textAlign: 'center' }}>{servingsText.split(' ')[0]}</Txt>
+            <StepBtn icon="plus" label="More servings" onPress={() => onServings(servings + 0.5)} />
+          </Row>
+        </Row>
+      </Card>
+
+      {/* the exact macros that get logged */}
+      <Card style={{ marginTop: 12, borderRadius: 18 }}>
+        <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
+          YOU ATE · {servingsText.toUpperCase()} · FROM THE LABEL
+        </Txt>
+        <Row style={{ gap: 14 }}>
+          <MacroChip value={`${Math.round(scaled.protein)}g`} label="Protein" color={colors.accent} />
+          <MacroChip value={`${scaled.calories}`} label="Cal" />
+          <MacroChip value={`${Math.round(scaled.carbs)}g`} label="Carbs" />
+          <MacroChip value={`${Math.round(scaled.fat)}g`} label="Fat" />
+        </Row>
+        <Row style={{ gap: 14, marginTop: 14 }}>
+          <MacroChip value={`${Math.round(scaled.sugar)}g`} label="Sugar" />
+          <MacroChip value={`${scaled.sodium}mg`} label="Sodium" />
+        </Row>
+      </Card>
+
+      {/* ingredient / nutrient flags */}
+      {flags.length ? (
+        <Card style={{ marginTop: 12, borderRadius: 18 }}>
+          <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
+            FLAGGED · YOUR COACH'S LIST
+          </Txt>
+          <Row style={{ flexWrap: 'wrap', gap: 7 }}>
+            {flags.map((f) => <FlagChip key={f.key} flag={f} />)}
+          </Row>
+        </Card>
+      ) : null}
+
+      {/* ingredients, verbatim */}
+      {facts.ingredients?.length ? (
+        <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 12, paddingHorizontal: 4, lineHeight: 18 }}>
+          Ingredients: {facts.ingredients.join(', ')}.
+        </Txt>
+      ) : null}
+
+      {/* honesty: facts exact, judgment humble */}
+      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 8, paddingHorizontal: 4, lineHeight: 17 }}>
+        {labelProvenanceNote()}
+      </Txt>
+
+      <Btn label="Add to Log" haptic="success" onPress={onAdd} style={{ marginTop: 18 }} />
+    </View>
+  );
+}
+
+function StepBtn({ icon, label, onPress }: { icon: 'plus' | 'minus'; label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={8}
+      onPress={() => { haptics.tap(); onPress(); }}
+      style={({ pressed }) => [{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 }]}
+    >
+      <Icon name={icon} size={18} color={colors.accent} />
+    </Pressable>
+  );
+}
+
+function FlagChip({ flag }: { flag: IngredientFlag }) {
+  const tone = {
+    warning: { bg: '#FEF3C7', fg: colors.warningDeep },
+    accent: { bg: colors.accentSurface, fg: colors.accent },
+    neutral: { bg: colors.bg2, fg: colors.textSecondary },
+  }[flag.tone];
+  return (
+    <View style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: tone.bg }}>
+      <Txt w="b" size={12} color={tone.fg}>{flag.label}</Txt>
     </View>
   );
 }

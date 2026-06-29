@@ -4,7 +4,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { analyzeMeal, isAiConfigured } from '@/lib/ai';
+import { analyzeLabel, analyzeMeal, isAiConfigured } from '@/lib/ai';
 import { capturePhotoBase64, isCameraAvailable } from '@/lib/capture';
 import { isEnginesEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
@@ -38,9 +38,11 @@ import {
   entitlementFromRow,
   exportUserDataText,
   isValidGuardianEmail,
+  labelToFood,
   realDataConsent,
   reminderNotifySpecs,
   reminderSnapshotFromState,
+  sampleScannedLabel,
 } from '@/core';
 import type {
   AppState,
@@ -54,6 +56,7 @@ import type {
   CiConfig,
   CoachTrackKey,
   CompMode,
+  MealCaptureMode,
   MealLabel,
   PersonDetail,
   Role,
@@ -170,6 +173,14 @@ export interface Actions {
   closeMeal: () => void;
   setMealType: (m: MealLabel) => void;
   capture: () => void;
+  /** Switch the meal overlay between photographing a plate and scanning a label. */
+  setMealCaptureMode: (mode: MealCaptureMode) => void;
+  /** Scan a Nutrition Facts label (transcribe). Honors the same photo-egress consent gate. */
+  captureLabel: () => void;
+  /** Set how many servings of the scanned label were eaten (¼-step). */
+  setLabelServings: (n: number) => void;
+  /** Log the scanned label (scaled by servings) into the selected meal slot. */
+  addScannedLabel: () => void;
   addMeal: () => void;
   addWater: () => void;
   openMealDetail: (meal: string) => void;
@@ -558,7 +569,7 @@ export const useStore = create<Store>()(
       exportMyData: () => exportUserDataText(get()),
 
       // ---- overlays ----
-      openMeal: () => set({ mealOpen: true, mealStage: 'capture', mealAnalysis: null, mealPhoto: null }),
+      openMeal: () => set({ mealOpen: true, mealStage: 'capture', mealCaptureMode: 'meal', mealAnalysis: null, labelFacts: null, labelServings: 1, mealPhoto: null }),
       closeMeal: () => set({ mealOpen: false }),
       setMealType: (m) => set({ mealType: m }),
       capture: () => {
@@ -596,6 +607,40 @@ export const useStore = create<Store>()(
         } else {
           mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);
         }
+      },
+      setMealCaptureMode: (mode) => set({ mealCaptureMode: mode, mealStage: 'capture', mealAnalysis: null, labelFacts: null }),
+      setLabelServings: (n) => set({ labelServings: Math.min(20, Math.max(0.25, Math.round(n * 4) / 4)) }),
+      captureLabel: () => {
+        set({ mealStage: 'analyzing', mealAnalysis: null });
+        if (mealTimer) clearTimeout(mealTimer);
+        // Same fail-closed photo-egress gate as capture()/pushDay: a label photo is real
+        // data leaving the device to Anthropic, so an un-consented athlete, unverified minor,
+        // or paused athlete NEVER egresses — they get the deterministic sample on-device.
+        // Keyed on isAiConfigured (the egress switch), not isBackendLive.
+        const photoConsent = realDataConsent(consentContextFromState(get(), isAiConfigured));
+        if (isAiConfigured && photoConsent.ok) {
+          (isCameraAvailable ? capturePhotoBase64() : Promise.resolve<string | undefined>(undefined))
+            .catch(() => undefined)
+            .then((photoBase64) => {
+              if (photoBase64) set({ mealPhoto: photoBase64 });
+              return analyzeLabel({ photoBase64 });
+            })
+            .then((facts) => set({ labelFacts: facts, labelServings: 1, mealStage: 'result' }))
+            // Any failure degrades to the deterministic sample; never strand the spinner.
+            .catch(() => set({ labelFacts: sampleScannedLabel(), labelServings: 1, mealStage: 'result' }));
+        } else {
+          // Gate blocked or no endpoint: deterministic sample, nothing leaves the device.
+          mealTimer = setTimeout(() => set({ labelFacts: sampleScannedLabel(), labelServings: 1, mealStage: 'result' }), 1400);
+        }
+      },
+      addScannedLabel: () => {
+        const { labelFacts, labelServings, mealType } = get();
+        if (!labelFacts) return;
+        const key = (mealType || 'Dinner').toLowerCase() as MealKey;
+        // Log via saveMeal as a single EditableFood so the EXACT label macros (not a slot
+        // constant) feed the day score; saveMeal handles meals/score/recordMeal/daySync.
+        get().saveMeal(key, [labelToFood(labelFacts, labelServings)]);
+        set({ mealOpen: false, mealStage: 'capture', mealCaptureMode: 'meal', labelFacts: null, labelServings: 1, mealAnalysis: null });
       },
       addMeal: () => {
         set((s) => {

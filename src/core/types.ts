@@ -3,6 +3,7 @@
 import type { Units } from './units';
 import type { MealResult } from './content';
 import type { EditableFood } from './mealEdit';
+import type { LabelFacts } from './nutritionLabel';
 import type { GuardianStatus } from './guardianConsent';
 import type { NudgeRecord } from './nudge';
 import type { PerfEntry } from './performance';
@@ -44,6 +45,8 @@ export interface StoredMeal {
 }
 export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutrition' | 'performance' | 'reminders';
 export type MealStage = 'capture' | 'analyzing' | 'result';
+/** Which camera flow the meal overlay is in: estimate a plate, or transcribe a label. */
+export type MealCaptureMode = 'meal' | 'label';
 export type CiStage = 'open' | 'done';
 export type SquadMode = 'team' | 'position';
 export type CompMode = 'position' | 'team' | 'off';
@@ -222,7 +225,14 @@ export interface AppState {
   squadMode: SquadMode;
   mealOpen: boolean;
   mealStage: MealStage;
+  /** 'meal' = photograph a plate (estimated); 'label' = scan a Nutrition Facts panel (exact). */
+  mealCaptureMode: MealCaptureMode;
   mealType: MealLabel;
+  /** The transcribed Nutrition Facts from the last label scan, or null. Ephemeral; never
+   *  persisted (it's re-scanned each time, and carries no value across sessions). */
+  labelFacts: LabelFacts | null;
+  /** How many servings of the scanned label the athlete ate (¼-step, default 1). */
+  labelServings: number;
   /** Real AI analysis of the captured meal (Claude vision), or null to use the
    *  deterministic prototype result. Ephemeral; never persisted. */
   mealAnalysis: MealResult | null;

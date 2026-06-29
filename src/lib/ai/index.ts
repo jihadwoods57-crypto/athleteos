@@ -1,12 +1,12 @@
 // AthleteOS — AI meal analysis seam. One entry point the app calls; it uses the real
 // backend (Claude vision) when configured, else the deterministic prototype analysis.
 // The UI renders the identical MealResult shape either way.
-import { mealResultFor } from '@/core';
-import type { MealResult } from '@/core';
-import { analyzeMealRemote, isAiConfigured, type AnalyzeMealRequest } from './client';
+import { mealResultFor, sampleScannedLabel } from '@/core';
+import type { LabelFacts, MealResult } from '@/core';
+import { analyzeLabelRemote, analyzeMealRemote, isAiConfigured, type AnalyzeLabelRequest, type AnalyzeMealRequest } from './client';
 
 export { isAiConfigured, AI_ENDPOINT } from './client';
-export type { AnalyzeMealRequest } from './client';
+export type { AnalyzeMealRequest, AnalyzeLabelRequest } from './client';
 
 // ---------------------------------------------------------------- honest labeling
 // Founder Rule #8: never call it AI until a model is actually doing the work. Until the
@@ -32,5 +32,19 @@ export async function analyzeMeal(req: AnalyzeMealRequest): Promise<MealResult> 
   } catch {
     // Honest degradation: a network/AI hiccup must never block the athlete's log.
     return mealResultFor(req.mealType);
+  }
+}
+
+/**
+ * Transcribe a Nutrition Facts label. Real (Claude vision) when configured; otherwise the
+ * deterministic sample so the scan flow is fully clickable in the free preview. Never
+ * throws: any remote failure falls back to the sample so logging a scan always succeeds.
+ */
+export async function analyzeLabel(req: AnalyzeLabelRequest): Promise<LabelFacts> {
+  if (!isAiConfigured) return sampleScannedLabel();
+  try {
+    return await analyzeLabelRemote(req);
+  } catch {
+    return sampleScannedLabel();
   }
 }
