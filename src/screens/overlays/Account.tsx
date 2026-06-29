@@ -15,7 +15,7 @@ export function Account() {
   // showcase). Account was the last identity surface still hardcoding "Coach
   // Davis" / "Eastside HS" for a real user.
   const acct = accountIdentity({ role: s.role, athleteName: s.athleteName, sport: s.sport, obMeta: s.obMeta, orgName: s.orgName });
-  const rows = accountRows(s.role);
+  const rows = accountRows(s.role, s.entitlement);
   // Accordion: at most one disclosure open at a time.
   const [openKey, setOpenKey] = useState<string | null>(null);
   // Coach/trainer/parent edit their own name + org here (athletes have the Profile

@@ -35,6 +35,7 @@ import {
   daysAgoStamp,
   appendMessage,
   loggedDayMacros,
+  entitlementFromRow,
   exportUserDataText,
   isValidGuardianEmail,
   reminderNotifySpecs,
@@ -180,6 +181,9 @@ export interface Actions {
   closeCoachGoals: () => void;
   /** Toggle one overseer per-event alert preference (OverseerProfile). */
   toggleOverseerAlert: (key: OverseerAlertKey) => void;
+  /** Refresh the subscription entitlement from the backend (gated). Inert when off
+   *  or signed out; falls back to free preview on no row / error. */
+  refreshEntitlement: () => Promise<void>;
   /** Coach sets a roster athlete's targets via the coach_set_goals RPC (gated). The
    *  coach owns the plan (Constitution Rule #13). Returns success; inert when off. */
   pushAthleteGoals: (athleteId: string, targets: { protein: number; calories: number; weight: number }) => Promise<boolean>;
@@ -621,6 +625,17 @@ export const useStore = create<Store>()(
       closeCoachGoals: () => set({ coachGoalsOpen: false }),
       toggleOverseerAlert: (key) =>
         set((s) => ({ overseerAlerts: { ...s.overseerAlerts, [key]: !s.overseerAlerts[key] } })),
+      refreshEntitlement: async () => {
+        if (!isBackendLive) return;
+        const uid = get().userId;
+        if (!uid) return;
+        try {
+          const row = await db.fetchEntitlement(uid);
+          set({ entitlement: entitlementFromRow(row) });
+        } catch {
+          /* keep the cached/preview entitlement on error */
+        }
+      },
       pushAthleteGoals: async (athleteId, targets) => {
         if (!isBackendLive || !athleteId) return false;
         try {
@@ -793,6 +808,8 @@ export const useStore = create<Store>()(
         } catch {
           /* keep the AsyncStorage-cached day */
         }
+        // Pull the coach/org subscription entitlement (gated; falls back to preview).
+        void get().refreshEntitlement();
         return true;
       },
       signInLive: async (email, password) => {
@@ -811,11 +828,13 @@ export const useStore = create<Store>()(
         } catch {
           /* keep the AsyncStorage-cached day */
         }
+        // Pull the coach/org subscription entitlement (gated; falls back to preview).
+        void get().refreshEntitlement();
         return true;
       },
       signOutLive: async () => {
         if (isBackendLive) await auth.signOut();
-        set({ userId: null, realDataConsent: false, authError: null });
+        set({ userId: null, realDataConsent: false, authError: null, entitlement: entitlementFromRow(null) });
       },
       createTeamLive: async (name, sport) => {
         if (!isBackendLive) return null;
@@ -917,6 +936,7 @@ export const useStore = create<Store>()(
         userId: s.userId,
         realDataConsent: s.realDataConsent,
         sharingPaused: s.sharingPaused,
+        entitlement: s.entitlement,
         // day / check-in slice
         dateStamp: s.dateStamp,
         scoreHistory: s.scoreHistory,

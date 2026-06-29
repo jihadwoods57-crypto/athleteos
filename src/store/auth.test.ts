@@ -13,6 +13,7 @@ const resetPassword = jest.fn<Promise<AuthResult>, [string]>();
 const signInWithAppleToken = jest.fn<Promise<AuthResult>, [string]>();
 const createTeam = jest.fn<Promise<string | null>, [string, string | undefined]>();
 const coachSetGoals = jest.fn<Promise<void>, [string, unknown, unknown]>();
+const fetchEntitlement = jest.fn<Promise<unknown>, [string]>();
 
 function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
   let store!: UseBoundStore<StoreApi<Store>>;
@@ -25,7 +26,7 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
       isSupabaseConfigured: backendLive,
       auth: { signIn, signUp, signOut, resetPassword, signInWithAppleToken },
       // signInLive hydrates the day after auth; no remote row in these unit tests.
-      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam, coachSetGoals },
+      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam, coachSetGoals, fetchEntitlement },
     }));
     store = require('./useStore').useStore;
   });
@@ -40,6 +41,7 @@ beforeEach(() => {
   signInWithAppleToken.mockReset();
   createTeam.mockReset();
   coachSetGoals.mockReset().mockResolvedValue(undefined);
+  fetchEntitlement.mockReset().mockResolvedValue(null);
 });
 
 describe('flag OFF: live auth is inert (mock path preserved)', () => {
@@ -63,6 +65,14 @@ describe('flag OFF: live auth is inert (mock path preserved)', () => {
     const useStore = loadStore(false);
     expect(await useStore.getState().pushAthleteGoals('ath-1', { protein: 180, calories: 3200, weight: 184 })).toBe(false);
     expect(coachSetGoals).not.toHaveBeenCalled();
+  });
+
+  it('refreshEntitlement no-ops when off (stays on free preview)', async () => {
+    const useStore = loadStore(false);
+    useStore.setState({ userId: 'coach-1' });
+    await useStore.getState().refreshEntitlement();
+    expect(fetchEntitlement).not.toHaveBeenCalled();
+    expect(useStore.getState().entitlement.tier).toBe('preview');
   });
 
   it('signInWithApple no-ops; requestPasswordReset shows a neutral local confirmation', async () => {
@@ -132,6 +142,15 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(ok).toBe(true);
     expect(signInWithAppleToken).toHaveBeenCalledWith('tok');
     expect(useStore.getState().userId).toBe('u-apple');
+  });
+
+  it('refreshEntitlement reads a team subscription into the entitlement', async () => {
+    fetchEntitlement.mockResolvedValue({ tier: 'team', status: 'active', seats: 24, seats_used: 18, current_period_end: '2026-08-01' });
+    const useStore = loadStore(true);
+    useStore.setState({ userId: 'coach-1' });
+    await useStore.getState().refreshEntitlement();
+    expect(fetchEntitlement).toHaveBeenCalledWith('coach-1');
+    expect(useStore.getState().entitlement).toEqual({ tier: 'team', status: 'active', seats: 24, seatsUsed: 18, renewsAt: '2026-08-01' });
   });
 
   it('pushAthleteGoals routes a roster athlete plan through coach_set_goals', async () => {

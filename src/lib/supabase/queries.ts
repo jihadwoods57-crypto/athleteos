@@ -8,6 +8,7 @@ import type {
   CheckinRow,
   DayRow,
   MealRow,
+  SubscriptionRow,
 } from './database.types';
 
 // ---------------------------------------------------------------- athlete: own day
@@ -95,6 +96,21 @@ export async function updateProfile(
   if (!isSupabaseConfigured) return;
   const { error } = await requireSupabase().from('profiles').update(fields).eq('id', userId);
   if (error) throw error;
+}
+
+/** Read the signed-in user's own subscription row (RLS scopes it to owner_id =
+ *  auth.uid()). Null when unconfigured or no row yet — the caller falls back to the
+ *  free-preview entitlement. The row is written by the Stripe webhook at go-live;
+ *  this read is the only client touch-point. */
+export async function fetchEntitlement(userId: string): Promise<SubscriptionRow | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase()
+    .from('subscriptions')
+    .select('*')
+    .eq('owner_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 export async function fetchAthleteProfile(athleteId: string): Promise<AthleteProfileRow | null> {

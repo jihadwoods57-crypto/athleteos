@@ -45,6 +45,20 @@ export type MealRow = {
   logged_at: string;
 }
 
+/** A coach/org subscription (B2B per-seat). Written by the Stripe webhook
+ *  (service_role) at go-live; the owner reads their own row. Added in migration 0010. */
+export type SubscriptionRow = {
+  owner_id: string;
+  tier: 'preview' | 'team';
+  status: 'preview' | 'active' | 'past_due' | 'canceled';
+  seats: number | null;
+  seats_used: number | null;
+  current_period_end: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  updated_at: string;
+}
+
 export type CheckinRow = {
   id: string;
   athlete_id: string;
@@ -127,6 +141,7 @@ export interface Database {
       checkins: Table<CheckinRow>;
       team_members: Table<TeamMemberRow>;
       practice_clients: Table<PracticeClientRow>;
+      subscriptions: Table<SubscriptionRow>;
     };
     Views: { [_ in never]: never };
     Functions: {

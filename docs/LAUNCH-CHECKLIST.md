@@ -102,6 +102,22 @@ Needs a real device; can't be done in the cloud.
 
 ---
 
+## Subscriptions (deferred to post-beta — the seam is built, not the billing)
+The entitlement plumbing is in and inert: every account reads "Free preview" until a
+real plan exists. The model is **coach/org pays per athlete** (B2B per-seat). When
+you're ready to charge (after the loop is validated):
+- [ ] **Apply migration `0010` (subscriptions table).** Written + tested; apply with the others.
+- [ ] **Set up Stripe** (per-seat product/prices), a Checkout/Billing-Portal link for coaches,
+      and a webhook (service_role Edge Function) that upserts the `subscriptions` row on
+      `customer.subscription.*` events. This is what flips an account from preview to a paid plan.
+- [ ] **Add a "Manage plan" CTA** in Account that opens the coach's Stripe Billing Portal (a
+      hosted URL — no in-app payment UI needed for B2B, so no Apple 30%).
+- [ ] **Resolve an athlete's seat** from their coach's plan (an RPC/view over team membership)
+      so seats are enforced. Gate any paid-only feature behind `isPro(entitlement)`.
+- [ ] *(Optional later)* a direct consumer plan would need Apple/Google IAP via RevenueCat,
+      with a webhook writing the same `subscriptions` shape. See
+      `docs/specs/2026-06-29-subscriptions.md`.
+
 ## Decisions you can make any time (not blockers)
 - [ ] **Flip the engines on when ready.** Once the core loop is validated, set
       `EXPO_PUBLIC_ENGINES_ENABLED=true` and rebuild to reveal the Restaurant Coach + the

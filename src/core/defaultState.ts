@@ -4,6 +4,7 @@ import { todayStamp } from './clock';
 import { CAL_TARGET, PROTEIN_TARGET, WEIGHT_START, WEIGHT_TARGET } from './constants';
 import { defaultReminderSettings } from './reminders';
 import { defaultOverseerAlerts } from './overseerAlerts';
+import { previewEntitlement } from './subscription';
 
 export function createInitialState(): AppState {
   return {
@@ -51,6 +52,7 @@ export function createInitialState(): AppState {
     authError: null,
     passwordResetSent: false,
     sharingPaused: false,
+    entitlement: previewEntitlement(),
 
     // day
     dateStamp: todayStamp(),

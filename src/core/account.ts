@@ -5,6 +5,7 @@
 // per role, so the numbers can never be invented or drift from the dashboards.
 import type { Role } from './types';
 import { APP_VERSION, PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL, flowForRole, ROSTER, TRAINER_CLIENTS } from './constants';
+import { billingRowCopy, previewEntitlement, type Entitlement } from './subscription';
 
 export interface AccountRow {
   key: 'team' | 'plan' | 'help' | 'legal';
@@ -15,16 +16,18 @@ export interface AccountRow {
   detail: string;
 }
 
-/** The three disclosure rows under the Account overlay's settings card,
- *  tailored to the signed-in role. `null` role is treated as the athlete. */
-export function accountRows(role: Role | null): AccountRow[] {
+/** The settings disclosure rows under the Account overlay, tailored to the signed-in
+ *  role. `null` role is treated as the athlete. The billing row reads the real
+ *  entitlement (defaults to the free-preview copy when none is passed). */
+export function accountRows(role: Role | null, entitlement: Entitlement = previewEntitlement()): AccountRow[] {
+  const billing = billingRowCopy(entitlement, flowForRole(role));
   return [
     teamRow(role),
     {
       key: 'plan',
       label: 'Billing & plan',
-      hint: 'Free preview',
-      detail: 'AthleteOS is in free preview. There is no billing on this account yet.',
+      hint: billing.hint,
+      detail: billing.detail,
     },
     {
       key: 'help',

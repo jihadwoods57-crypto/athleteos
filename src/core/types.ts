@@ -8,6 +8,7 @@ import type { NudgeRecord } from './nudge';
 import type { PerfEntry } from './performance';
 import type { ReminderSettings } from './reminders';
 import type { OverseerAlerts } from './overseerAlerts';
+import type { Entitlement } from './subscription';
 
 /** The 7 onboarding identities. Each maps onto one of the 4 dashboard flows
  *  (see ROLE_DEFS in constants) and personalizes copy/labels/goals. */
@@ -149,6 +150,10 @@ export interface AppState {
   /** Last live-auth error message for the sign-in / sign-up screen to surface, or
    *  null. Ephemeral (not persisted); only ever set when isBackendLive. */
   authError: string | null;
+  /** Subscription entitlement (coach/org pays per athlete). Defaults to free
+   *  preview; a Stripe webhook flips the backend row, refreshEntitlement reads it.
+   *  Persisted so the plan shows offline. INERT until monetization is wired. */
+  entitlement: Entitlement;
   /** True once a password-reset email has been requested, so the reset screen shows
    *  its neutral confirmation. Ephemeral (not persisted). */
   passwordResetSent: boolean;
