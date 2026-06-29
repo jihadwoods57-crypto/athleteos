@@ -8,7 +8,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import type { MemoryInsight, MemoryTone } from '@/core';
 import { useStore, useNutritionMemory } from '@/store';
-import { aiMemoryTag, isAiConfigured, rephraseMemoryInsights } from '@/lib/ai';
+import { isAiConfigured, rephraseMemoryInsights } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, SampleTag, Txt } from '@/ui/primitives';
 import { Icon } from '@/icons';
@@ -28,7 +28,12 @@ export function NutritionMemory() {
   // arrives. The core voice guard keeps every number exactly the engine's, so this only ever
   // changes wording. Inert without a backend (the effect early-returns), and any failure simply
   // leaves the deterministic text on screen — the surface never blanks or blocks on AI.
-  const display = useRephrasedMemory(insights);
+  const { display, byAI } = useRephrasedMemory(insights);
+  // Honest label: "Remembered by AI" only once a rephrase actually LANDED (not merely because an
+  // endpoint exists). If the AI call fails or every rewrite is rejected by the number guard, the
+  // engine text is what's shown, so it stays "Coach memory" — the work the athlete sees is the
+  // coach engine's. Founder Rule #8: don't call it AI until a model is actually doing the work.
+  const memoryLabel = byAI ? 'Remembered by AI' : 'Coach memory';
 
   return (
     <Overlay title="Nutrition Memory" onClose={s.closeNutritionMemory} right={sampled ? <SampleTag /> : undefined}>
@@ -39,7 +44,7 @@ export function NutritionMemory() {
             <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="sparkle" size={16} color={colors.accent} />
             </View>
-            <Txt w="eb" size={12} color={colors.accent} ls={0.6}>{aiMemoryTag.toUpperCase()}</Txt>
+            <Txt w="eb" size={12} color={colors.accent} ls={0.6}>{memoryLabel.toUpperCase()}</Txt>
           </Row>
           <Txt w="sb" size={16} color={colors.slate700} style={{ marginTop: 12, lineHeight: 23 }}>
             This is what AthleteOS remembers about how you eat — not just today's meal, but how
@@ -70,12 +75,14 @@ export function NutritionMemory() {
 }
 
 /**
- * Returns the insights to render: the deterministic ones immediately, replaced by the AI-warmed
- * wording once it resolves (when a model is configured). The deterministic list is always the
- * fallback. Guards against races (a stale rephrase from a previous input never lands) and is a
- * literal no-op when AI is unconfigured, so today it just returns the engine's insights.
+ * Returns the insights to render plus whether AI actually warmed them. The deterministic insights
+ * show immediately; AI-warmed wording replaces them once it resolves (when a model is configured).
+ * The deterministic list is always the fallback. `byAI` is true ONLY when at least one insight's
+ * text was genuinely rephrased — the number guard returns the ORIGINAL object for any rewrite it
+ * rejects, so a reference change per item is exact proof the model changed that line. Guards
+ * against races (a stale rephrase never lands) and is a no-op when AI is unconfigured.
  */
-function useRephrasedMemory(insights: MemoryInsight[]): MemoryInsight[] {
+function useRephrasedMemory(insights: MemoryInsight[]): { display: MemoryInsight[]; byAI: boolean } {
   const [warmed, setWarmed] = React.useState<MemoryInsight[] | null>(null);
 
   React.useEffect(() => {
@@ -83,15 +90,16 @@ function useRephrasedMemory(insights: MemoryInsight[]): MemoryInsight[] {
     if (!isAiConfigured || insights.length === 0) return;
     let active = true;
     void rephraseMemoryInsights(insights).then((next) => {
-      // Only apply if this is still the current input and the model actually changed wording.
-      if (active && next !== insights) setWarmed(next);
+      // Apply only if still current AND the model genuinely reworded at least one line (a changed
+      // object reference). All-rejected or failed calls leave the engine text and stay "Coach".
+      if (active && next.some((it, i) => it !== insights[i])) setWarmed(next);
     });
     return () => {
       active = false;
     };
   }, [insights]);
 
-  return warmed ?? insights;
+  return { display: warmed ?? insights, byAI: warmed !== null };
 }
 
 function InsightCard({ insight }: { insight: MemoryInsight }) {
