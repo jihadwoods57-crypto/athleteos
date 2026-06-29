@@ -9,7 +9,7 @@ import { capturePhotoBase64, isCameraAvailable } from '@/lib/capture';
 import { isEnginesEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
 import { refreshReminderSchedule } from '@/lib/notify';
-import { hydrateDay, pushDay } from './sync';
+import { consentContextFromState, hydrateDay, pushDay } from './sync';
 import { recordMeal } from './mealSync';
 import {
   addPerfEntry,
@@ -38,6 +38,7 @@ import {
   entitlementFromRow,
   exportUserDataText,
   isValidGuardianEmail,
+  realDataConsent,
   reminderNotifySpecs,
   reminderSnapshotFromState,
 } from '@/core';
@@ -532,12 +533,24 @@ export const useStore = create<Store>()(
       adjustCalTarget: (d) => set((s) => ({ calTarget: clamp(s.calTarget + d, 1200, 6000) })),
       adjustWeightTarget: (d) =>
         set((s) => ({ weightTarget: clamp((s.weightTarget ?? WEIGHT_TARGET) + d, 120, 350) })),
-      signOut: () => set({ flow: 'onboarding', obStep: 0, role: null, accountOpen: false }),
+      signOut: () => {
+        // Terminate the real Supabase session (clears the persisted refresh token) AND
+        // clear the sensitive session state (userId / consent / entitlement) via the
+        // signOutLive primitive, THEN reset navigation back to onboarding. The buttons
+        // wired here must do both: a nav-only reset would leave a live, signed-in session
+        // (and its token in AsyncStorage) behind once the backend is on. auth.signOut runs
+        // in the background; local state still resets even if the network call fails.
+        void get().signOutLive();
+        set({ flow: 'onboarding', obStep: 0, role: null, accountOpen: false });
+      },
       deleteAccount: async () => {
         // Delete server-side when connected; wipe local data either way so the in-app
         // deletion always completes (Apple requires it to actually work, not just sign out).
         if (isBackendLive) {
           try { await db.deleteAccount(); } catch { /* still wipe locally below */ }
+          // End the local Supabase session too, so the (now-deleted) account's refresh
+          // token doesn't linger in AsyncStorage after erasure.
+          try { await auth.signOut(); } catch { /* best effort */ }
         }
         try { await AsyncStorage.removeItem('aos_day'); } catch { /* best effort */ }
         set({ ...createInitialState() });
@@ -551,7 +564,16 @@ export const useStore = create<Store>()(
       capture: () => {
         set({ mealStage: 'analyzing', mealAnalysis: null });
         if (mealTimer) clearTimeout(mealTimer);
-        if (isAiConfigured) {
+        // Sending the meal photo to the AI endpoint is REAL athlete data leaving the
+        // device to a third party (Anthropic), so it must clear the SAME consent gate as
+        // pushDay/recordMeal and FAIL CLOSED: an un-consented athlete, an unverified
+        // minor, or an athlete who paused sharing never has a photo egress. The gate keys
+        // on isAiConfigured (the egress switch) rather than isBackendLive, because the AI
+        // endpoint can be live while the database backend is still staged ("shared-project
+        // flag trap"). When it fails, we degrade to the deterministic on-device analysis
+        // exactly like the no-AI branch, so nothing leaves the device.
+        const photoConsent = realDataConsent(consentContextFromState(get(), isAiConfigured));
+        if (isAiConfigured && photoConsent.ok) {
           // Real Claude-vision analysis via the backend; on any failure analyzeMeal
           // resolves the deterministic result, so logging never blocks on the AI.
           const st = get();

@@ -65,6 +65,19 @@ Do these together, in order. Nothing here should touch the live database until P
       legacy `is_team_coach_of` disjunction for a sample of athletes (the check the crew ran on
       seed data). `0012` is teams-only by design; trainers/families get their own backfill when
       they go live. See `docs/architecture/PHASE-A-LOG.md` + `01-data-model-and-org-hierarchy.md`.
+- [ ] **Apply the security-audit hardening — `0013`** (after `0012`; validated on a throwaway
+      Postgres, 18/18 checks). Locks down direct writes to the `subscriptions`/`org_memberships`
+      tables, makes the minor-messaging gate govern both thread parties, keeps trainer/guardian
+      view access after the `0012` cutover, and scopes the org-list read. Full write-up in
+      `docs/SECURITY-AUDIT-2026-06-29.md`.
+- [ ] **Wire "Remove viewer" to a real server revoke (security G1).** Today `removeViewer` only
+      edits a local list; once the backend is live a removed coach/guardian would keep `can_view`
+      access. Add a `revoke_viewer` RPC that sets the link row's `status <> 'active'` (which
+      `can_view` already excludes) and call it from `removeViewer` when live. **Do this before any
+      real minor's data syncs** — it's a safety affordance, not cosmetic.
+- [ ] **Hydrate the guardian `verified` state back (security G2).** The client only ever sets
+      `pending`; add a read-only `fetchGuardianConsent` hydrate so a server-verified guardian
+      actually unblocks the minor (it fails closed today, so a minor stays blocked until then).
 - [ ] **In the Supabase dashboard, turn on email confirmation** (the config file is set to ON,
       but the live project needs the same toggle flipped once).
 - [ ] **Set the three environment variables and rebuild:** the Supabase URL, the Supabase anon

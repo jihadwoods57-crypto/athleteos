@@ -37,9 +37,11 @@ You can do steps 2–5 in parallel, but if you only do one thing, do this one.
 ## 4. Turn the backend on (technical, ~an hour — only after step 1 is in motion)
 Do these in order; full detail in `docs/LAUNCH-CHECKLIST.md`:
 - [ ] Apply the database migrations to your live Supabase project, **one at a time, in order**:
-      `0004 → 0005 → 0007 → 0008 → 0009 → 0010 → 0011 → 0012`. (They're written and tested;
-      `0012` swaps how access is checked — re-run the quick equivalence check on a copy of real
-      data first, it's noted in the file.)
+      `0004 → 0005 → 0006 → 0007 → 0008 → 0009 → 0010 → 0011 → 0012 → 0013`. (They're written and
+      tested; `0012` swaps how access is checked — re-run the quick equivalence check on a copy of
+      real data first, it's noted in the file. `0013` is the security-audit hardening: it locks
+      down writes, fixes the minor-messaging gate, keeps trainer/guardian access after `0012`, and
+      stops the org list leaking — see `docs/SECURITY-AUDIT-2026-06-29.md`.)
 - [ ] In Supabase, flip **email confirmation ON**.
 - [ ] Set three settings and rebuild: your Supabase URL, your Supabase key, and
       `EXPO_PUBLIC_BACKEND_LIVE=true`. **That single switch is what turns the whole backend on**

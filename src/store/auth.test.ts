@@ -201,6 +201,35 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(useStore.getState().realDataConsent).toBe(false);
   });
 
+  it('signOut terminates the Supabase session AND resets navigation', async () => {
+    // The Sign-out buttons call signOut, which must do BOTH: end the real session
+    // (auth.signOut + clear userId/consent) so no live session/token lingers, and
+    // reset nav back to onboarding. A nav-only reset would leave a signed-in session.
+    signIn.mockResolvedValue({ ok: true, userId: 'u-9' });
+    const useStore = loadStore(true);
+    await useStore.getState().signInLive('a@b.io', 'pw');
+    useStore.getState().recordConsent(true);
+    useStore.setState({ flow: 'app', role: 'athlete', accountOpen: true });
+    useStore.getState().signOut();
+    await Promise.resolve(); // let the backgrounded signOutLive settle
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().userId).toBeNull();
+    expect(useStore.getState().realDataConsent).toBe(false);
+    expect(useStore.getState().flow).toBe('onboarding');
+    expect(useStore.getState().role).toBeNull();
+    expect(useStore.getState().accountOpen).toBe(false);
+  });
+
+  it('deleteAccount erases server-side then ends the local session', async () => {
+    signIn.mockResolvedValue({ ok: true, userId: 'u-7' });
+    const useStore = loadStore(true);
+    await useStore.getState().signInLive('a@b.io', 'pw');
+    await useStore.getState().deleteAccount();
+    // auth.signOut is called so the deleted account's refresh token doesn't linger.
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().userId).toBeNull();
+  });
+
   it('createTeamLive mints a team + stores the real server code', async () => {
     createTeam.mockResolvedValue('K7M2QX');
     const useStore = loadStore(true);
