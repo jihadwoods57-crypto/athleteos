@@ -171,11 +171,15 @@ function CaptureControls() {
         </View>
       </Row>
 
-      <View style={[{ marginTop: 18, height: 50, borderRadius: 13, backgroundColor: '#fff', justifyContent: 'center', paddingHorizontal: 15 }, shadow.card]}>
-        <Txt w="m" size={14} color={s.mealDesc ? colors.text : colors.textTertiary}>
-          {s.mealDesc || 'Describe your meal for better accuracy (optional)'}
-        </Txt>
-      </View>
+      {/* Free-text "describe your meal" only helps the plate estimate; a label is read
+          verbatim, so it has no place in label mode. */}
+      {isLabel ? null : (
+        <View style={[{ marginTop: 18, height: 50, borderRadius: 13, backgroundColor: '#fff', justifyContent: 'center', paddingHorizontal: 15 }, shadow.card]}>
+          <Txt w="m" size={14} color={s.mealDesc ? colors.text : colors.textTertiary}>
+            {s.mealDesc || 'Describe your meal for better accuracy (optional)'}
+          </Txt>
+        </View>
+      )}
       <Txt w="m" size={13} color={colors.textTertiary} style={{ textAlign: 'center', marginTop: 14 }}>
         {isLabel ? 'Numbers read straight off the label · exact, not estimated' : 'One tap · batch up to 4 meals · works offline'}
       </Txt>
