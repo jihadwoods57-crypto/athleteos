@@ -1,6 +1,6 @@
 # AthleteOS — Launch Checklist (the human to-do list)
 
-**For:** the founder. **Updated:** 2026-06-28.
+**For:** the founder. **Updated:** 2026-06-29.
 **The one-line truth:** the code side is in good shape. Everything that still stands between
 you and a real closed beta is a *human* step — legal, a couple of vendors, applying database
 changes, a real phone, and Apple. Work this list top to bottom; later phases depend on earlier
@@ -28,7 +28,24 @@ This is the single source of truth for go-live. The deeper "why" for any item li
 - The consent gate fails closed: a minor's data cannot sync until a real guardian is verified.
 - Email-confirmation default set to ON in the config file.
 - Reminders integration wired (waiting only on the phone library + a device).
-- 960+ automated tests passing; the app builds.
+- 1100+ automated tests passing; the app builds.
+
+### Shipped 2026-06-29 (this session)
+- **Guardian "verified" read-back (security G2) — DONE.** Sign-in now hydrates the real
+  server-set guardian status, so a verified guardian actually unblocks the minor. Server value
+  only; never client-writable to 'verified'. (The Phase 1 list below still names it; it's done.)
+- **Auth token encrypted at rest (security L1) — DONE.** The Supabase session moved out of plain
+  AsyncStorage into the OS keychain (expo-secure-store), web falls back to AsyncStorage.
+- **Under-13 signup barred (COPPA scope) — DONE.** The onboarding age picker floored at 8; now
+  floors at 13 (`MIN_SIGNUP_AGE`), so the app does not knowingly collect data from a child under
+  13 and COPPA (an under-13 law) is out of scope by construction. The under-18 guardian gate is
+  unchanged for 13-17. The code's inaccurate "COPPA" labels were corrected to "minor guardian
+  consent." **Open decision for counsel:** confirm the 13-17 parental-consent path (a light
+  email-confirmation flow may suffice now that under-13 is barred) and whether to set the floor at 14.
+- **AI surfaces (warmer voice, numbers guarded) — DONE & inert.** "Remembered by AI" nutrition
+  memory + "AI Restaurant Coach" both reword prose in a warmer voice only when a model is
+  configured, with a guard that makes the numbers impossible to change. Dormant until the AI
+  endpoint is deployed.
 
 ---
 
@@ -48,6 +65,17 @@ These gate everything. Do them first.
       minor to messaging only their own coach/trainer/parent. Before any under-18 user messages,
       a lawyer needs to bless it (mandatory-reporting posture, retention, blocking/reporting).
       Until then, leave messaging off (it already is).
+- [ ] **Anthropic data-processing agreement (subprocessor).** Real meal photos of athletes (incl.
+      13-17 minors) leave to Anthropic for analysis. Sign a DPA with Anthropic, confirm their
+      data-retention terms, and disclose Anthropic as a subprocessor + the retention window in the
+      privacy policy. (The §4 "photo sent to Anthropic" framing already matches the code.)
+- [ ] **Disordered-eating / health-guidance posture with counsel.** This is a teen nutrition tool.
+      The "education, not medical advice" disclaimers are in the UI and the scoring avoids
+      good/bad-food framing, but counsel should bless the liability posture for under-18 athletes
+      explicitly (it is a sensitive area). Consider tech E&O / general-liability insurance.
+- [ ] **Operational data-rights process.** Export + delete are built as in-app buttons, but decide
+      WHO answers when a parent emails "delete my child's data" and on what SLA. A monitored inbox +
+      a written runbook, not just the button. (`SUPPORT_EMAIL` must be a real, monitored address.)
 
 ## PHASE 1 — Turn the backend on (technical, but your hands on the keyboard)
 Do these together, in order. Nothing here should touch the live database until Phase 0 is done.
@@ -75,9 +103,9 @@ Do these together, in order. Nothing here should touch the live database until P
       access. Add a `revoke_viewer` RPC that sets the link row's `status <> 'active'` (which
       `can_view` already excludes) and call it from `removeViewer` when live. **Do this before any
       real minor's data syncs** — it's a safety affordance, not cosmetic.
-- [ ] **Hydrate the guardian `verified` state back (security G2).** The client only ever sets
-      `pending`; add a read-only `fetchGuardianConsent` hydrate so a server-verified guardian
-      actually unblocks the minor (it fails closed today, so a minor stays blocked until then).
+- [x] **Hydrate the guardian `verified` state back (security G2) — DONE 2026-06-29.** Sign-in now
+      reads the server-set guardian status back (`db.fetchGuardianRequests` -> `hydrateGuardianConsent`),
+      so a server-verified guardian unblocks the minor. Server value only; still fails closed.
 - [ ] **In the Supabase dashboard, turn on email confirmation** (the config file is set to ON,
       but the live project needs the same toggle flipped once).
 - [ ] **Set the three environment variables and rebuild:** the Supabase URL, the Supabase anon
@@ -96,6 +124,15 @@ Do these together, in order. Nothing here should touch the live database until P
       line, missed logging, check-in submitted, weekly digest) are stored + editable per overseer;
       connect them to whatever pushes those notifications so they actually fire. The master
       notifications toggle already gates them.
+- [ ] **Harden the AI endpoint (security G4).** The `analyze-meal` Edge Function ships open CORS
+      (`*`) and no rate limiting. Before it serves real users, restrict CORS to the app origin and
+      add per-user rate limiting, so the paid Anthropic endpoint can't be hammered or run up a bill.
+      (Also deploy the `memory` + `order` rephrase modes here if you want the warmer AI voice live.)
+- [ ] **Smoke-test on a STAGING project first.** Before pointing real coaches at it: apply the
+      migrations to a throwaway Supabase project, point a local `.env` at it, flip
+      `BACKEND_LIVE=true` locally, and run 2-3 real accounts end to end (sign up, log a meal, coach
+      sees it, minor stays gated). Catches "compiled fine but live RLS does something unexpected"
+      before a user does. Never test against the real project.
 
 ## PHASE 2 — The phone + the App Store
 Needs a real device; can't be done in the cloud.
@@ -114,9 +151,29 @@ Needs a real device; can't be done in the cloud.
       (`src/lib/auth/apple.ts`) + the Supabase token exchange are already wired and gated — the
       button stays hidden until the module resolves, then lights up automatically with no code
       change.
+- [ ] **A demo account for Apple review.** With the backend live + email confirmation on, Apple's
+      reviewer can't get past your login, and that is a near-automatic rejection (Guideline 2.1).
+      Provide working test credentials (and a verified test guardian/minor pair if a reviewer would
+      otherwise hit the consent gate) in App Review notes.
+- [ ] **App Privacy "nutrition label" in App Store Connect.** Declare exactly what data you collect
+      (health/fitness, photos, identifiers) and that it's used by a minor audience. It must match the
+      app's real behavior and the privacy policy; mismatches get flagged for a health/minors app.
 - [ ] **Apple submission:** confirm the bundle id (`com.athleteos.app`), set the age rating,
       prepare screenshots, and make sure the in-app account deletion is reachable (Apple
       requires it — the function is built). Submit for review.
+
+## PHASE 2.5 — Production readiness (don't fly blind)
+Cheap to set up, painful to be missing the first time something breaks for a real coach.
+
+- [ ] **Crash + error monitoring.** There is deliberately no analytics/tracking SDK (good for
+      privacy), which also means zero visibility into production errors. Add one privacy-respecting
+      error monitor (e.g. Sentry) configured to scrub PII, so you actually find out when the app
+      breaks in the field instead of hearing it from a coach.
+- [ ] **Backup / recovery confidence.** Confirm the live Supabase project's backup cadence +
+      retention is something you'd accept losing, and that you know the restore steps. Do this
+      before real data exists, not after you need it.
+- [ ] **Backend monitoring.** Watch Supabase usage + Edge Function error rates + the Anthropic
+      spend, with an alert if any spikes (ties to the G4 rate-limit item).
 
 ## PHASE 3 — Run the actual beta (the real unlock)
 - [ ] **Recruit 3–5 coaches** and their athletes. This is the point of all of the above.
