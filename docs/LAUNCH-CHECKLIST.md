@@ -54,7 +54,8 @@ Do these together, in order. Nothing here should touch the live database until P
 
 - [ ] **Apply the database changes to the live project, one at a time.** In order:
       `0004` (team create/join code), `0005` (grants), `0007` (account deletion),
-      `0008` (guardian consent). They're written and tested; apply as-written.
+      `0008` (guardian consent), `0009` (profiles.org_name). They're written and tested;
+      apply as-written.
 - [ ] **In the Supabase dashboard, turn on email confirmation** (the config file is set to ON,
       but the live project needs the same toggle flipped once).
 - [ ] **Set the three environment variables and rebuild:** the Supabase URL, the Supabase anon
@@ -64,11 +65,11 @@ Do these together, in order. Nothing here should touch the live database until P
 - [ ] **Wire the guardian-consent verify step.** The database records the request and a token;
       you still need the small endpoint that the parent's email link hits to mark them
       "verified." (Vendor + a short function — flagged in the D12 decision note.)
-- [ ] **Add the `profiles.org_name` column (one small migration) so the overseer's edited
-      team/practice name syncs.** Today a coach/trainer can edit their org name and it drives the
-      dashboard title locally, but it's saved only on the device — `db.updateProfile` already
-      pushes the display name; extend the `profiles` row + that call with `org_name`. Until then,
-      org name is local-display. (Spec: `docs/specs/2026-06-28-accounts-and-settings.md`.)
+- [x] **`profiles.org_name` column — written (migration `0009`).** The column, the
+      `ProfileRow` type, and `db.updateProfile` now carry `org_name`, and the OverseerProfile
+      edit debounce-pushes it. Just apply `0009` with the others above. (One small follow-up left:
+      reading it back on a *new* device on sign-in — the write is wired, a profile-fetch hydrate
+      is the remaining piece.)
 - [ ] **Wire the overseer alert pipeline.** The per-event alert preferences (athlete below the
       line, missed logging, check-in submitted, weekly digest) are stored + editable per overseer;
       connect them to whatever pushes those notifications so they actually fire. The master

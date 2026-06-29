@@ -296,17 +296,20 @@ function scheduleMealRecord(get: () => Store, key: MealKey): void {
   void recordMeal(s, s.userId, key).catch(() => undefined);
 }
 
-// Debounced write-through of the overseer's editable profile (display name) to the
-// profiles row. Gated on isBackendLive: flag OFF -> nothing armed, the edit stays
-// local exactly as today. orgName is a local display field until a profiles column
-// exists for it (see accounts-and-settings spec).
+// Debounced write-through of the overseer's editable profile (display name +
+// org/team name) to the profiles row. Gated on isBackendLive: flag OFF -> nothing
+// armed, the edit stays local exactly as today.
 let profileTimer: ReturnType<typeof setTimeout> | undefined;
 function pushProfile(get: () => Store): void {
   if (!isBackendLive) return;
   if (profileTimer) clearTimeout(profileTimer);
   profileTimer = setTimeout(() => {
     const s = get();
-    if (s.userId) void db.updateProfile(s.userId, { full_name: s.athleteName.trim() || null }).catch(() => undefined);
+    if (s.userId) {
+      void db
+        .updateProfile(s.userId, { full_name: s.athleteName.trim() || null, org_name: s.orgName.trim() || null })
+        .catch(() => undefined);
+    }
   }, SYNC_DEBOUNCE_MS);
 }
 

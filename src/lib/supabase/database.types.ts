@@ -65,6 +65,9 @@ export type ProfileRow = {
   id: string;
   full_name: string | null;
   email: string | null;
+  /** Overseer-editable org/team/practice name (OverseerProfile). Null until set;
+   *  added in migration 0009. */
+  org_name: string | null;
   primary_role: UserRole;
   created_at: string;
   updated_at: string;

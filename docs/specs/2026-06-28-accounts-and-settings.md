@@ -7,8 +7,9 @@
 - **Apple Sign-In:** add `expo-apple-authentication`, the Apple Sign-In capability,
   and a Services ID (app.json + Apple Developer portal). The seam + button are wired
   and gated; they light up once the native module resolves. (src/lib/auth/apple.ts)
-- **Org name persistence:** add an `org_name` column to `profiles` (or write a team
-  row) so the overseer's edited org/practice name syncs; it's local-display today.
+- **Org name persistence:** DONE — migration `0009` adds `profiles.org_name`;
+  `ProfileRow` + `db.updateProfile` + the OverseerProfile push carry it. Remaining:
+  hydrate it back from the profile on sign-in for cross-device read.
 - **Overseer alert delivery:** the per-event prefs are stored + edited; wire them to
   the backend alert pipeline that pushes the notifications at go-live.
 **Owner:** founder (jihadwoods57)
