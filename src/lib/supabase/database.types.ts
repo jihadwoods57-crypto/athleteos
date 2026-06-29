@@ -137,6 +137,19 @@ export type PracticeClientRow = {
   last_active_at: string | null;
 }
 
+// One guardian-consent request per (athlete, guardian email). `status` is server-owned:
+// only the service-role verification endpoint may set it to 'verified' (migration 0008). The
+// athlete can read their own rows (gcr_read RLS) but never write 'verified'.
+export type GuardianConsentRequestRow = {
+  id: string;
+  athlete_id: string;
+  guardian_email: string;
+  status: 'pending' | 'verified' | 'revoked';
+  token: string;
+  requested_at: string;
+  verified_at: string | null;
+}
+
 // Helper: a table definition matching the `supabase gen types` shape (incl. the
 // empty `Relationships` tuple the client's type inference requires).
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
@@ -162,6 +175,7 @@ export interface Database {
       practice_clients: Table<PracticeClientRow>;
       subscriptions: Table<SubscriptionRow>;
       org_memberships: Table<OrgMembershipRow>;
+      guardian_consent_requests: Table<GuardianConsentRequestRow>;
     };
     Views: { [_ in never]: never };
     Functions: {

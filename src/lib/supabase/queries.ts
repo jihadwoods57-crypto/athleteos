@@ -7,6 +7,7 @@ import type {
   AthleteProfileRow,
   CheckinRow,
   DayRow,
+  GuardianConsentRequestRow,
   MealRow,
   ProfileRow,
   SubscriptionRow,
@@ -85,6 +86,20 @@ export async function submitCheckin(row: Omit<CheckinRow, 'id' | 'submitted_at'>
     .from('checkins')
     .upsert(row, { onConflict: 'athlete_id,week' });
   if (error) throw error;
+}
+
+/** Read the signed-in athlete's own guardian-consent requests (status only). The 0008 RLS
+ *  policy gcr_read scopes this to their own rows; `status` is server-owned (only the
+ *  verification endpoint writes 'verified'). Empty when unconfigured — callers reduce these
+ *  to a single GuardianStatus via core's guardianStatusFromRequests. */
+export async function fetchGuardianRequests(athleteId: string): Promise<Pick<GuardianConsentRequestRow, 'status'>[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('guardian_consent_requests')
+    .select('status')
+    .eq('athlete_id', athleteId);
+  if (error) throw error;
+  return data ?? [];
 }
 
 /** Read the signed-in user's own profile row (display name + org name + email), so a

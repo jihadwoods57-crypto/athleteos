@@ -37,6 +37,7 @@ import {
   loggedDayMacros,
   entitlementFromRow,
   exportUserDataText,
+  guardianStatusFromRequests,
   isValidGuardianEmail,
   labelToFood,
   mealResultToFood,
@@ -205,6 +206,10 @@ export interface Actions {
    *  after sign-in, so a fresh device shows their real identity, not the seeded demo.
    *  Gated; soft-fails to the local cache. */
   hydrateProfile: () => Promise<void>;
+  /** Read the athlete's guardian-consent status back from the backend after sign-in, so a
+   *  server-VERIFIED guardian actually unblocks the minor (the client only ever wrote
+   *  'pending'). Server value only — never client-writable to 'verified'. Gated; soft-fails. */
+  hydrateGuardianConsent: () => Promise<void>;
   /** Coach sets a roster athlete's targets via the coach_set_goals RPC (gated). The
    *  coach owns the plan (Constitution Rule #13). Returns success; inert when off. */
   pushAthleteGoals: (athleteId: string, targets: { protein: number; calories: number; weight: number }) => Promise<boolean>;
@@ -751,6 +756,18 @@ export const useStore = create<Store>()(
           /* keep the local identity on error */
         }
       },
+      hydrateGuardianConsent: async () => {
+        if (!isBackendLive) return;
+        const uid = get().userId;
+        if (!uid) return;
+        try {
+          const rows = await db.fetchGuardianRequests(uid);
+          // Server value only: a minor stays gated unless the backend actually wrote 'verified'.
+          set({ guardianStatus: guardianStatusFromRequests(rows) });
+        } catch {
+          /* keep the local (fail-closed) status on error */
+        }
+      },
       pushAthleteGoals: async (athleteId, targets) => {
         if (!isBackendLive || !athleteId) return false;
         try {
@@ -927,6 +944,7 @@ export const useStore = create<Store>()(
         // so a fresh device isn't stuck on the seeded demo identity. Both gated + soft-fail.
         void get().hydrateProfile();
         void get().refreshEntitlement();
+        void get().hydrateGuardianConsent();
         return true;
       },
       signInLive: async (email, password) => {
@@ -949,6 +967,7 @@ export const useStore = create<Store>()(
         // so a fresh device isn't stuck on the seeded demo identity. Both gated + soft-fail.
         void get().hydrateProfile();
         void get().refreshEntitlement();
+        void get().hydrateGuardianConsent();
         return true;
       },
       signOutLive: async () => {

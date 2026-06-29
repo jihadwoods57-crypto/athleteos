@@ -1,6 +1,6 @@
 // AthleteOS — verifiable parental consent (VPC) model. Proves the gate keeps a minor's
 // real data on-device until a guardian is verified, and email validation is sane.
-import { isValidGuardianEmail, guardianConsentRequired, guardianConsentCopy } from './guardianConsent';
+import { isValidGuardianEmail, guardianConsentRequired, guardianConsentCopy, guardianStatusFromRequests } from './guardianConsent';
 
 describe('isValidGuardianEmail', () => {
   it('accepts a normal email and trims', () => {
@@ -25,6 +25,26 @@ describe('guardianConsentRequired', () => {
   });
   it('never requires guardian consent for an adult', () => {
     expect(guardianConsentRequired(20, 'none')).toBe(false);
+  });
+});
+
+describe('guardianStatusFromRequests', () => {
+  it('returns none for no rows', () => {
+    expect(guardianStatusFromRequests([])).toBe('none');
+  });
+  it('returns verified if ANY row is verified (most-approving-wins)', () => {
+    expect(guardianStatusFromRequests([{ status: 'pending' }, { status: 'verified' }])).toBe('verified');
+  });
+  it('returns pending if a request is open but none verified', () => {
+    expect(guardianStatusFromRequests([{ status: 'pending' }])).toBe('pending');
+  });
+  it('treats only-revoked (or unknown) as none', () => {
+    expect(guardianStatusFromRequests([{ status: 'revoked' }])).toBe('none');
+    expect(guardianStatusFromRequests([{ status: 'whatever' }])).toBe('none');
+  });
+  it('a real verified row clears the minor gate', () => {
+    const status = guardianStatusFromRequests([{ status: 'verified' }]);
+    expect(guardianConsentRequired(15, status)).toBe(false);
   });
 });
 

@@ -30,6 +30,20 @@ export function guardianConsentRequired(age: number | null | undefined, status: 
   return isMinorAge(age) && status !== 'verified';
 }
 
+/**
+ * Reduce the athlete's server-side guardian-consent rows to a single client status. An athlete
+ * may have asked more than one guardian, so the rule is most-approving-wins: ANY 'verified' row
+ * means the minor is cleared ('verified'); else any still-open request means 'pending'; anything
+ * else (no rows, only 'revoked') means 'none'. Server-owned: a client never derives 'verified'
+ * from anything but a real 'verified' row the backend wrote. Fail-safe by construction — an
+ * unknown/garbage status is ignored, so it can only ever keep a minor MORE gated, never less.
+ */
+export function guardianStatusFromRequests(rows: { status: string }[]): GuardianStatus {
+  if (rows.some((r) => r.status === 'verified')) return 'verified';
+  if (rows.some((r) => r.status === 'pending')) return 'pending';
+  return 'none';
+}
+
 /** Honest one-line status copy for the guardian-consent UI. */
 export function guardianConsentCopy(status: GuardianStatus): string {
   switch (status) {
