@@ -42,7 +42,8 @@ import {
   isValidGuardianEmail,
   labelToFood,
   mealResultToFood,
-  profileForGoal,
+  baseGoalForPrimary,
+  goalConfig,
   realDataConsent,
   reminderNotifySpecs,
   reminderSnapshotFromState,
@@ -406,10 +407,9 @@ export const useStore = create<Store>()(
         const s = get();
         const flow = flowForRole(s.role);
         if (flow === 'app') {
-          // A solo executor has no coach to pick a scoring profile, so derive it from their GOAL
-          // and disclose it in Profile. Never override a profile a coach already set.
-          const scoringProfile = s.scoringProfile ?? profileForGoal(s.baseGoal);
-          set({ flow, tab: 'home', scoringProfile });
+          // A solo executor has no coach, so derive their scoring profile + daily targets from their
+          // GOAL + bodyweight (and disclose the profile in Profile). Never override a coach's pick.
+          set({ flow, tab: 'home', ...goalConfig(s.baseGoal, s.baseWeight, s.scoringProfile) });
         } else {
           set({ flow });
         }
@@ -439,7 +439,9 @@ export const useStore = create<Store>()(
       signinDone: () => set({ signinMode: false, flow: 'app', tab: 'home' }),
 
       // ---- onboarding (redesign) ----
-      setPrimaryGoal: (k) => set({ primaryGoal: k }),
+      // Map the rich onboarding goal to the 4-bucket BaseGoal that drives scoring (lose_fat -> 'lose',
+      // gain_muscle -> 'gain', ...). Before this the goal was collected but never reached the engine.
+      setPrimaryGoal: (k) => set({ primaryGoal: k, baseGoal: baseGoalForPrimary(k) }),
       setTrainingFreq: (k) => set({ trainingFreq: k }),
       toggleSupport: (k) =>
         set((s) => {
@@ -507,6 +509,10 @@ export const useStore = create<Store>()(
           startWeight: s.baseWeight,
           currentWeight: s.baseWeight,
           ciWeight: s.baseWeight,
+          // Apply the SAME goal-derived scoring profile + targets finishOb applies, so an athlete
+          // who finishes via the challenge is scored on their goal (not the performance default) and
+          // their weight target points the right way (a Lose Fat user no longer defaults to a gain).
+          ...goalConfig(s.baseGoal, s.baseWeight, s.scoringProfile),
         })),
 
       // ---- nav ----

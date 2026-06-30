@@ -4,6 +4,7 @@ export * from './types';
 export * from './constants';
 export * from './scoring';
 export * from './scoringProfiles';
+export * from './goalMapping';
 export * from './projection';
 export * from './freshness';
 export * from './startingScore';

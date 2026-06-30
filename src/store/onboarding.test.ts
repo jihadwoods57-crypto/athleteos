@@ -155,4 +155,23 @@ describe('7-role -> 4-dashboard routing', () => {
     useStore.getState().finishOb();
     expect(useStore.getState().scoringProfile).toBe('athlete'); // coach's pick wins
   });
+
+  it('setPrimaryGoal maps the rich goal onto the scoring BaseGoal', () => {
+    useStore.getState().resetDemo();
+    useStore.getState().setPrimaryGoal('lose_fat');
+    expect(useStore.getState().baseGoal).toBe('lose');
+    useStore.getState().setPrimaryGoal('gain_muscle');
+    expect(useStore.getState().baseGoal).toBe('gain');
+  });
+
+  it('the athlete activation path applies the goal profile + targets (the audit bug)', () => {
+    useStore.getState().resetDemo();
+    useStore.setState({ role: 'athlete', scoringProfile: undefined, baseWeight: 178 });
+    useStore.getState().setPrimaryGoal('lose_fat'); // -> baseGoal 'lose'
+    useStore.getState().startFirstMealChallenge();
+    const s = useStore.getState();
+    expect(s.scoringProfile).toBe('general'); // scored on calorie target, not the athlete formula
+    expect(s.weightTarget).toBeLessThan(178); // a Lose Fat user no longer defaults to a weight GAIN
+    expect(s.calTarget).toBeLessThan(3200); // a deficit, not the 3200 bulk
+  });
 });
