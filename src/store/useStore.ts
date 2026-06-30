@@ -494,19 +494,18 @@ export const useStore = create<Store>()(
             s.scoreHistory.length === 0 ? appendDayScore([], s.dateStamp, score) : s.scoreHistory;
           return { startScore: score, ciSleep: sleepHoursToSlider(s.baseSleepH), scoreHistory };
         }),
-      // Activation: leave onboarding into the app and open the first-meal capture.
-      // Swap the SEEDED DEMO day for a genuinely empty day so a brand-new athlete's
-      // first Home is honest — nothing pre-logged, every task open, score building
-      // up from the Starting Point Score anchor and rising the moment they log their
-      // first meal (the activation reward). The seeded demo is untouched because only
-      // the athlete activation path calls this (other roles use finishOb).
+      // Activation: leave onboarding into the app, landing on Daily HQ (NOT the camera).
+      // A brand-new user has no meal in front of them at signup, so auto-opening the camera was a
+      // dead-end first impression; instead Home's "Log breakfast" mission is the prompt they tap WHEN
+      // they actually eat. Swap the SEEDED DEMO day for a genuinely empty day so the first Home is
+      // honest — nothing pre-logged, every task open, score building from the Starting Point anchor
+      // and rising the moment they log. The seeded demo is untouched (only this path runs here).
       startFirstMealChallenge: () =>
         set((s) => ({
           ...emptyDaySlice(),
           flow: 'app',
           tab: 'home',
-          mealOpen: true,
-          mealStage: 'capture',
+          mealOpen: false,
           // Surface the weight the athlete entered in onboarding: it anchors the
           // season-goal progress (start) and is their live current weight (no
           // progress yet, so "gained since start" honestly reads 0). Check-in

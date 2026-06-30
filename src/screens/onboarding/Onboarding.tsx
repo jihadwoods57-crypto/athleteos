@@ -161,10 +161,10 @@ function Welcome() {
         </Row>
         <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 28 }}>
           <Txt w="eb" size={38} ls={-1.4} style={{ lineHeight: 42 }}>
-            Let's build your{'\n'}nutrition routine.
+            Let's get you{'\n'}set up.
           </Txt>
           <Txt w="m" size={16} color={colors.textSecondary} style={{ marginTop: 14, lineHeight: 23 }}>
-            A few quick questions, your starting Execution Score, and your first {aiPrefix}coaching moment. About two minutes.
+            A few quick questions and we'll tailor AthleteOS to exactly how you'll use it. About two minutes.
           </Txt>
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.8} upper style={{ marginTop: 32, marginBottom: 9 }}>
             First, what should we call you?
@@ -490,8 +490,17 @@ function AthleteFlow() {
       // Position is merged in here (optional): it only appears once a sport is picked,
       // so the old standalone position step is gone but the data is still collected.
       const positions = (s.sport && POSITION_MAP[s.sport]) || POSITION_MAP.default;
+      // Sport is only required for a competitive (performance) goal. A Lose Fat / general user is not
+      // forced to declare a sport — they can skip straight through (context-assumption fix).
+      const sportOptional = s.baseGoal !== 'performance';
       return (
-        <StepShell progress={progress} onBack={s.obBack} title="What sport do you play?" footer={cont(!!s.sport)}>
+        <StepShell
+          progress={progress}
+          onBack={s.obBack}
+          title="What sport do you play?"
+          sub={sportOptional ? 'Optional — skip if your goal isn’t sport-specific.' : undefined}
+          footer={cont(sportOptional || !!s.sport)}
+        >
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
             {[...SPORTS, 'Other'].map((sp) => {
               const sel = s.sport === sp;
