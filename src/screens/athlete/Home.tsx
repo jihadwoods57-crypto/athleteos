@@ -102,16 +102,17 @@ export function Home() {
   // GOAL" is wrong sports-furniture for them. Performance (incl. the seeded demo) keeps the old text.
   const remainingAbs = Math.abs(remainingDisp);
   const goalEyebrow = s.baseGoal === 'performance' ? 'SEASON GOAL' : 'YOUR GOAL';
+  const isMaintainGoal = s.baseGoal === 'maintain';
   const goalRemainText =
     s.baseGoal === 'lose'
       ? remainingAbs < 0.1
         ? 'On target'
         : `${remainingAbs} to lose`
-      : s.baseGoal === 'maintain'
+      : s.baseGoal === 'gain'
         ? remainingAbs < 0.1
           ? 'On target'
-          : 'Maintaining'
-        : `${remainingDisp > 0 ? `+${remainingDisp}` : remainingDisp} to go`;
+          : `${remainingAbs} to gain`
+        : `${remainingDisp > 0 ? `+${remainingDisp}` : remainingDisp} to go`; // performance / demo
 
   // Reactive score-hero status line + standing badge (pure-core helper). Tone
   // maps to existing surface/text tokens at this call site — no new tokens.
@@ -278,74 +279,109 @@ export function Home() {
             </Row>
           ) : null}
         </Row>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
-          <View>
-            <Txt w="eb" size={29} ls={-0.9}>
-              {displayWeight(TARGET, units)} {wUnit}
-              <Txt w="b" size={15} color={colors.textTertiary}>
-                {' '}
-                target
+        {isMaintainGoal ? (
+          // Maintain is a STAY-AT-X goal, not a reach-X goal — so the reach-goal progress bar +
+          // "Goal reached / Season weight goal complete" (which fires on day 0 when target == current)
+          // is wrong. Show a calm "holding steady" status instead.
+          <>
+            <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
+              <View>
+                <Txt w="eb" size={29} ls={-0.9}>
+                  {displayWeight(TARGET, units)} {wUnit}
+                  <Txt w="b" size={15} color={colors.textTertiary}>
+                    {' '}
+                    maintaining
+                  </Txt>
+                </Txt>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Txt w="eb" size={20} color={colors.success}>
+                  {remainingAbs < 0.5 ? 'On target' : `${remainingAbs} ${wUnit} off`}
+                </Txt>
+                <Txt w="sb" size={12} color={colors.textTertiary}>
+                  now {displayWeight(s.currentWeight, units)} {wUnit}
+                </Txt>
+              </View>
+            </Row>
+            <View style={{ marginTop: 16, borderRadius: 14, padding: 13, backgroundColor: '#ECFDF5' }}>
+              <Txt w="m" size={13} color="#065F46" style={{ lineHeight: 19 }}>
+                <Txt w="b" size={13} color="#065F46">Holding steady · </Txt>
+                Your goal is to stay around {displayWeight(TARGET, units)} {wUnit}. Log your weekly weigh-ins to keep it honest.
               </Txt>
-            </Txt>
-            {!isReal ? (
-              <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
-                by Playoffs · Nov 14
+            </View>
+          </>
+        ) : (
+          <>
+            <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
+              <View>
+                <Txt w="eb" size={29} ls={-0.9}>
+                  {displayWeight(TARGET, units)} {wUnit}
+                  <Txt w="b" size={15} color={colors.textTertiary}>
+                    {' '}
+                    target
+                  </Txt>
+                </Txt>
+                {!isReal ? (
+                  <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+                    by Playoffs · Nov 14
+                  </Txt>
+                ) : null}
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Txt w="eb" size={20} color={colors.success}>
+                  {goalRemainText}
+                </Txt>
+                <Txt w="sb" size={12} color={colors.textTertiary}>
+                  now {displayWeight(s.currentWeight, units)} {wUnit}
+                </Txt>
+              </View>
+            </Row>
+            <View style={{ marginTop: 16 }}>
+              <ProgressBar pct={goal.pctThere} height={10} />
+            </View>
+            <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
+              <Txt w="b" size={11} color={colors.textTertiary}>
+                {displayWeight(START, units)} start
               </Txt>
-            ) : null}
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Txt w="eb" size={20} color={colors.success}>
-              {goalRemainText}
-            </Txt>
-            <Txt w="sb" size={12} color={colors.textTertiary}>
-              now {displayWeight(s.currentWeight, units)} {wUnit}
-            </Txt>
-          </View>
-        </Row>
-        <View style={{ marginTop: 16 }}>
-          <ProgressBar pct={goal.pctThere} height={10} />
-        </View>
-        <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
-          <Txt w="b" size={11} color={colors.textTertiary}>
-            {displayWeight(START, units)} start
-          </Txt>
-          <Txt w="b" size={11} color={colors.textTertiary}>
-            {goal.pctThere}% there
-          </Txt>
-          <Txt w="b" size={11} color={colors.textTertiary}>
-            {displayWeight(TARGET, units)} goal
-          </Txt>
-        </Row>
-        <View
-          style={{
-            marginTop: 14,
-            borderRadius: 14,
-            padding: 13,
-            backgroundColor: goalPhase === 'first-run' ? '#F1F5F9' : '#ECFDF5',
-          }}
-        >
-          <Txt
-            w="m"
-            size={13}
-            color={goalPhase === 'first-run' ? colors.textSecondary : '#065F46'}
-            style={{ lineHeight: 19 }}
-          >
-            <Txt
-              w="b"
-              size={13}
-              color={goalPhase === 'first-run' ? colors.textSecondary : '#065F46'}
+              <Txt w="b" size={11} color={colors.textTertiary}>
+                {goal.pctThere}% there
+              </Txt>
+              <Txt w="b" size={11} color={colors.textTertiary}>
+                {displayWeight(TARGET, units)} goal
+              </Txt>
+            </Row>
+            <View
+              style={{
+                marginTop: 14,
+                borderRadius: 14,
+                padding: 13,
+                backgroundColor: goalPhase === 'first-run' ? '#F1F5F9' : '#ECFDF5',
+              }}
             >
-              {goalPhase === 'reached' ? 'Goal reached ·' : goalPhase === 'first-run' ? 'Just getting started ·' : 'On track ·'}{' '}
-            </Txt>
-            {goalPhase === 'reached'
-              ? `You hit ${displayWeight(TARGET, units)} ${wUnit}. Season weight goal complete.`
-              : goalPhase === 'first-run'
-                ? 'Log your check-ins and weight to see your pace toward the season goal.'
-                : isReal
-                ? `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit}.`
-                : `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit} by Nov 7, a week ahead of playoffs.`}
-          </Txt>
-        </View>
+              <Txt
+                w="m"
+                size={13}
+                color={goalPhase === 'first-run' ? colors.textSecondary : '#065F46'}
+                style={{ lineHeight: 19 }}
+              >
+                <Txt
+                  w="b"
+                  size={13}
+                  color={goalPhase === 'first-run' ? colors.textSecondary : '#065F46'}
+                >
+                  {goalPhase === 'reached' ? 'Goal reached ·' : goalPhase === 'first-run' ? 'Just getting started ·' : 'On track ·'}{' '}
+                </Txt>
+                {goalPhase === 'reached'
+                  ? `You hit ${displayWeight(TARGET, units)} ${wUnit}. Season weight goal complete.`
+                  : goalPhase === 'first-run'
+                    ? 'Log your check-ins and weight to see your pace toward the season goal.'
+                    : isReal
+                    ? `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit}.`
+                    : `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit} by Nov 7, a week ahead of playoffs.`}
+              </Txt>
+            </View>
+          </>
+        )}
       </Card>
 
       {/* score trend */}

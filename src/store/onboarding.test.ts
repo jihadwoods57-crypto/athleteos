@@ -184,4 +184,14 @@ describe('7-role -> 4-dashboard routing', () => {
     expect(s.scoringProfile).toBe('gain');
     expect(s.weightTarget).toBeGreaterThan(178); // a gain target points up
   });
+
+  it('the activation path applies maintenance targets + general profile for a maintain goal', () => {
+    useStore.getState().resetDemo();
+    useStore.setState({ role: 'athlete', scoringProfile: undefined, baseWeight: 178 });
+    useStore.getState().setPrimaryGoal('maintain'); // -> baseGoal 'maintain'
+    useStore.getState().startFirstMealChallenge();
+    const s = useStore.getState();
+    expect(s.scoringProfile).toBe('general'); // two-sided calorie target is right for maintenance
+    expect(s.weightTarget).toBe(178); // target = current weight (a stay-at goal, not a reach goal)
+  });
 });
