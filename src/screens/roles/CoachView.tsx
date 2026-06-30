@@ -267,11 +267,32 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
               ? 'No athletes yet. Share your team code so athletes can join.'
               : notLoggedOnly ? 'Everyone in this view has logged today.' : `No athletes match${group ? ` in ${group}` : ''}${query.trim() ? ` for "${query.trim()}"` : ''}.`}
           </Txt>
-          {roster.length > 0 ? (
+          {roster.length === 0 ? (
+            (() => {
+              // Surface the join code as the obvious next action for a new coach (instead of sending
+              // them to dig through Account). Honest: when offline there is no real code yet, so it is
+              // labelled a demo code rather than a working one the coach might share and have fail.
+              const code = s.teamCode?.trim() || 'EAGLES24';
+              const isDemoCode = !s.teamCode?.trim();
+              return (
+                <View style={{ marginTop: 14, alignItems: 'center', gap: 9 }}>
+                  <View style={{ paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.accentSurface }}>
+                    <Txt w="eb" size={24} ls={2} color={colors.accent}>{code}</Txt>
+                  </View>
+                  {isDemoCode ? (
+                    <Row style={{ gap: 6 }}>
+                      <SampleTag />
+                      <Txt w="sb" size={12} color={colors.textTertiary}>Demo code — your real one is created when your team goes live</Txt>
+                    </Row>
+                  ) : null}
+                </View>
+              );
+            })()
+          ) : (
             <Pressable accessibilityRole="button" onPress={() => { haptics.tap(); setQuery(''); setGroup(null); setNotLoggedOnly(false); }} style={{ marginTop: 12, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9, backgroundColor: colors.bg2 }}>
               <Txt w="b" size={13} color={colors.slate700}>Clear filters</Txt>
             </Pressable>
-          ) : null}
+          )}
         </Card>
       )}
     </Section>
