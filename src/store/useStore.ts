@@ -607,7 +607,10 @@ export const useStore = create<Store>()(
         // (and its token in AsyncStorage) behind once the backend is on. auth.signOut runs
         // in the background; local state still resets even if the network call fails.
         void get().signOutLive();
-        set({ flow: 'onboarding', obStep: 0, role: null, accountOpen: false });
+        // Full reset to defaults (not just a nav reset) so the next person to onboard on this device
+        // does NOT inherit the prior user's goal / targets / sport / name. A nav-only reset left
+        // stale targets behind, which the goal-config clobber-guard then preserved as if user-edited.
+        set({ ...createInitialState(), flow: 'onboarding', obStep: 0, role: null, accountOpen: false });
       },
       deleteAccount: async () => {
         // Delete server-side when connected; wipe local data either way so the in-app

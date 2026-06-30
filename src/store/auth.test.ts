@@ -228,6 +228,16 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(useStore.getState().accountOpen).toBe(false);
   });
 
+  it('signOut resets onboarding profile state so the next user does not inherit goal/targets', async () => {
+    const useStore = loadStore(true);
+    useStore.setState({ baseGoal: 'lose', primaryGoal: 'lose_fat', weightTarget: 164, sport: 'Football' });
+    useStore.getState().signOut();
+    await Promise.resolve();
+    expect(useStore.getState().primaryGoal).toBeNull(); // back to a clean onboarding
+    expect(useStore.getState().weightTarget).not.toBe(164); // stale target cleared (no leak into next user)
+    expect(useStore.getState().sport).toBeNull();
+  });
+
   it('deleteAccount erases server-side then ends the local session', async () => {
     signIn.mockResolvedValue({ ok: true, userId: 'u-7' });
     const useStore = loadStore(true);
