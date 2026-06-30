@@ -1,4 +1,26 @@
-# G1 — revoke_viewer: draft + validation plan (NOT yet applied)
+# G1 — revoke_viewer: FINALIZED + VALIDATED
+
+**Status (2026-06-30): FINALIZED.** The RPC is written as
+[`supabase/migrations/0014_revoke_viewer.sql`](../../supabase/migrations/0014_revoke_viewer.sql) and
+**validated on a throwaway Postgres 16.4** by
+[`supabase/tests/revoke_viewer_test.sql`](../../supabase/tests/revoke_viewer_test.sql) — all assertions
+green: coach/trainer/guardian see the athlete before; `revoke_viewer('coach')` drops only the coach (no
+over-revocation of trainer/guardian); `revoke_viewer('parent')` drops only the guardian; the athlete still
+sees their own data; profile untouched; idempotent. The CLIENT half (`db.revokeViewer`, gated behind
+`isBackendLive`) is already wired, so G1 is **code-complete**.
+
+> **Two corrections vs the original draft below:** (1) the draft used `org_memberships.status = 'revoked'`,
+> but the `membership_status` enum has **no** `'revoked'` value — the correct deactivating value is
+> `'removed'` (which `can_view`'s predicates exclude). (2) Design decision settled: **option 1**
+> (membership/link deactivation, org-coarse for the one-team wedge), per the recommendation below.
+
+**Remaining (founder, on go-live):** apply `0014` on staging in the migration sequence, and re-run the
+test (or trust the local validation + the RUNBOOK A7 smoke-test step 5). The original draft + design
+discussion is kept below for history.
+
+---
+
+## (historical) draft + validation plan
 
 **Status:** DRAFT. The SQL below is **unvalidated** (no Postgres available to the crew) and carries
 one **design decision the founder must make**. Do NOT apply it until it is validated on a throwaway

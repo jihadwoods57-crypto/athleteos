@@ -30,8 +30,10 @@ Follow [`RUNBOOK-go-live.md`](RUNBOOK-go-live.md) Section A. Summary:
 - [ ] Run the **`0012` `can_view` equivalence check** on representative data — must return **0 differing rows**.
 - [ ] Run the **5 smoke tests:** sign up → log a meal → coach sees the athlete → a minor stays gated until
       verified → remove-viewer actually revokes access.
-- [ ] **One code item to finish on staging:** the `revoke_viewer` RPC (G1) — I'll write + validate it against
-      the staging DB once it exists; the client half is already wired.
+- [x] **`revoke_viewer` RPC (G1) — DONE + validated (2026-06-30).** Written as
+      `supabase/migrations/0014_revoke_viewer.sql`, validated on a throwaway Postgres
+      (`supabase/tests/revoke_viewer_test.sql`, all green), client half already wired. On staging it
+      applies as part of the `0004→0014` sequence; confirm via the A7 smoke-test (remove-viewer revokes).
 
 ## Track C — Wire the endpoints + dashboard toggles (live project)
 

@@ -14,7 +14,12 @@ item lives in `docs/LAUNCH-CHECKLIST.md` (Phase 1) and `docs/SECURITY-AUDIT-2026
 >    `true` only at the very end, and flip it back to roll the whole backend off in one move.
 
 **Migration apply order (memorize this):**
-`0004 → 0005 → 0006 → 0007 → 0008 → 0009 → 0010 → 0011 → 0012 → 0013`
+`0004 → 0005 → 0006 → 0007 → 0008 → 0009 → 0010 → 0011 → 0012 → 0013 → 0014`
+
+- `0014` (revoke_viewer, security G1) is **additive + safe** (a new SECURITY DEFINER RPC, no behavior
+  change to existing functions) and was **validated on a throwaway Postgres** (`supabase/tests/
+  revoke_viewer_test.sql`). It goes after `0013`. It must be applied before any real minor's data syncs
+  (it's what makes "remove viewer" actually revoke access — A7 smoke-test step 5).
 
 - `0011` is **purely additive** (creates `org_memberships` + `can_view_via_memberships`; changes
   no behavior).
