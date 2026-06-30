@@ -98,6 +98,20 @@ export function Home() {
   const units = s.units ?? 'imperial';
   const wUnit = weightUnit(units);
   const remainingDisp = displayWeightDelta(goal.remaining, units);
+  // Goal-aware weight-goal copy: a Lose Fat user's target is BELOW current, so "+6 to go" / "SEASON
+  // GOAL" is wrong sports-furniture for them. Performance (incl. the seeded demo) keeps the old text.
+  const remainingAbs = Math.abs(remainingDisp);
+  const goalEyebrow = s.baseGoal === 'performance' ? 'SEASON GOAL' : 'YOUR GOAL';
+  const goalRemainText =
+    s.baseGoal === 'lose'
+      ? remainingAbs < 0.1
+        ? 'On target'
+        : `${remainingAbs} to lose`
+      : s.baseGoal === 'maintain'
+        ? remainingAbs < 0.1
+          ? 'On target'
+          : 'Maintaining'
+        : `${remainingDisp > 0 ? `+${remainingDisp}` : remainingDisp} to go`;
 
   // Reactive score-hero status line + standing badge (pure-core helper). Tone
   // maps to existing surface/text tokens at this call site — no new tokens.
@@ -250,7 +264,7 @@ export function Home() {
       <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
-            SEASON GOAL
+            {goalEyebrow}
           </Txt>
           {/* "38 days left" / "Nov 14" are showcase deadlines with no real data
               source (no season deadline is collected yet). Demo keeps the showcase;
@@ -281,7 +295,7 @@ export function Home() {
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Txt w="eb" size={20} color={colors.success}>
-              {remainingDisp > 0 ? `+${remainingDisp}` : remainingDisp} to go
+              {goalRemainText}
             </Txt>
             <Txt w="sb" size={12} color={colors.textTertiary}>
               now {displayWeight(s.currentWeight, units)} {wUnit}
