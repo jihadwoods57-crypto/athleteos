@@ -408,8 +408,14 @@ export const useStore = create<Store>()(
         const flow = flowForRole(s.role);
         if (flow === 'app') {
           // A solo executor has no coach, so derive their scoring profile + daily targets from their
-          // GOAL + bodyweight (and disclose the profile in Profile). Never override a coach's pick.
-          set({ flow, tab: 'home', ...goalConfig(s.baseGoal, s.baseWeight, s.scoringProfile) });
+          // GOAL + bodyweight (and disclose the profile in Profile). Never override a coach's profile
+          // or a target the user already edited on the about-you step.
+          const cfg = goalConfig(s.baseGoal, s.baseWeight, s.scoringProfile, {
+            proteinTarget: s.proteinTarget,
+            calTarget: s.calTarget,
+            weightTarget: s.weightTarget,
+          });
+          set({ flow, tab: 'home', ...cfg });
         } else {
           set({ flow });
         }
@@ -512,7 +518,12 @@ export const useStore = create<Store>()(
           // Apply the SAME goal-derived scoring profile + targets finishOb applies, so an athlete
           // who finishes via the challenge is scored on their goal (not the performance default) and
           // their weight target points the right way (a Lose Fat user no longer defaults to a gain).
-          ...goalConfig(s.baseGoal, s.baseWeight, s.scoringProfile),
+          // Preserve a target the user already edited on the about-you step (don't clobber it).
+          ...goalConfig(s.baseGoal, s.baseWeight, s.scoringProfile, {
+            proteinTarget: s.proteinTarget,
+            calTarget: s.calTarget,
+            weightTarget: s.weightTarget,
+          }),
         })),
 
       // ---- nav ----

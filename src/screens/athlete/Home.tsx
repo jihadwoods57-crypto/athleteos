@@ -72,8 +72,11 @@ export function Home() {
   // seeded padding — say "Building history · N of 7 days" instead of claiming a
   // full "Past 7 days" the brand-new athlete hasn't lived yet.
   const realDays = realTrendDays(s.scoreHistory);
-  const trendCaption =
-    realDays >= TREND_WINDOW ? 'Past 7 days' : `Building history · ${realDays} of ${TREND_WINDOW} days`;
+  const trendCaption = d.isDay0
+    ? 'Your first day · this fills in as you log'
+    : realDays >= TREND_WINDOW
+      ? 'Past 7 days'
+      : `Building history · ${realDays} of ${TREND_WINDOW} days`;
   // Day streak: consecutive on-plan days ending today (live score + real
   // history; seeded baseline pads the unknown pre-history like the trend chart).
   // Real athlete: only days actually earned. Seeded demo: pad with the showcase lead.
@@ -161,12 +164,22 @@ export function Home() {
             Execution Score
           </Txt>
           <Row style={{ gap: 6, marginTop: 7 }}>
-            <Txt w="eb" size={15} color={d.deltaColor}>
-              {d.deltaStr}
-            </Txt>
-            <Txt w="sb" size={13} color={colors.textTertiary}>
-              this week
-            </Txt>
+            {d.isDay0 ? (
+              // Day 0: no week to compare against, so show a starting-line frame instead of a
+              // fabricated "↓58 this week / trending down".
+              <Txt w="b" size={13} color={colors.accent}>
+                Starting today
+              </Txt>
+            ) : (
+              <>
+                <Txt w="eb" size={15} color={d.deltaColor}>
+                  {d.deltaStr}
+                </Txt>
+                <Txt w="sb" size={13} color={colors.textTertiary}>
+                  this week
+                </Txt>
+              </>
+            )}
           </Row>
           <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 13, lineHeight: 20 }}>
             {status.line}
@@ -336,13 +349,19 @@ export function Home() {
             <Txt w="eb" size={26} ls={-0.5}>
               {d.athleteScore}
             </Txt>
-            <Txt
-              w="b"
-              size={12}
-              color={trend.dir === 'down' ? colors.alert : trend.dir === 'flat' ? colors.textTertiary : colors.success}
-            >
-              {trend.label}
-            </Txt>
+            {d.isDay0 ? (
+              <Txt w="b" size={12} color={colors.textTertiary}>
+                Building your first week
+              </Txt>
+            ) : (
+              <Txt
+                w="b"
+                size={12}
+                color={trend.dir === 'down' ? colors.alert : trend.dir === 'flat' ? colors.textTertiary : colors.success}
+              >
+                {trend.label}
+              </Txt>
+            )}
           </View>
         </Row>
         <TrendChart series={series} />
@@ -363,7 +382,13 @@ export function Home() {
         <ProgressRow label="Protein" meta={`${d.proteinToday} / ${d.proteinTarget}g`} pct={d.proteinPct} color={colors.accent} />
         <ProgressRow label="Hydration" meta={`${s.hydrationL} / ${HYDRATION_TARGET} L  +`} metaColor={colors.accent} onMeta={s.addWater} pct={d.hydrationPct} color={colors.hydration} />
         <ProgressRow label="Tasks" meta={`${d.tasksDone} / ${d.tasksTotal} done`} pct={d.tasksScore} color={colors.accent} />
-        <ProgressRow label="Recovery" meta={`${d.recoveryScore} / 100`} pct={d.recoveryScore} color={colors.success} last />
+        <ProgressRow
+          label="Recovery"
+          meta={d.recoveryScoreIsReal ? `${d.recoveryScore} / 100` : 'Check-in not submitted'}
+          pct={d.recoveryScoreIsReal ? d.recoveryScore : 0}
+          color={colors.success}
+          last
+        />
       </Card>
 
       {/* nutrition entry */}

@@ -44,15 +44,23 @@ const round50 = (n: number): number => Math.round(n / 50) * 50;
  *  - maintain: ~15 kcal/lb, ~0.8 g/lb protein, weight target = current.
  *  - performance: the shipped athlete constants UNCHANGED (so the seeded demo + tests are byte-for-byte).
  */
+// Safety floors so a low-bodyweight user (the weight stepper floors at 70 lb, and the app signs up
+// 13+) is NEVER handed a clinically dangerous target. An unsupervised solo client is never told to
+// eat below these, regardless of the per-lb formula. Tunable, but the floors are the safety contract.
+const MIN_CAL_TARGET = 1500;
+const MIN_PROTEIN_TARGET = 80;
+
 export function deriveTargetsFromGoal(goal: BaseGoal, bodyweightLb: number): GoalDerivedTargets {
   const bw = bodyweightLb > 0 ? bodyweightLb : WEIGHT_START;
+  const safeP = (n: number) => Math.max(MIN_PROTEIN_TARGET, round5(n));
+  const safeCal = (n: number) => Math.max(MIN_CAL_TARGET, round50(n));
   switch (goal) {
     case 'lose':
-      return { proteinTarget: round5(bw * 0.9), calTarget: round50(bw * 12), weightTarget: Math.round(bw * 0.92) };
+      return { proteinTarget: safeP(bw * 0.9), calTarget: safeCal(bw * 12), weightTarget: Math.round(bw * 0.92) };
     case 'gain':
-      return { proteinTarget: round5(bw * 1.0), calTarget: round50(bw * 17), weightTarget: Math.round(bw * 1.08) };
+      return { proteinTarget: safeP(bw * 1.0), calTarget: safeCal(bw * 17), weightTarget: Math.round(bw * 1.08) };
     case 'maintain':
-      return { proteinTarget: round5(bw * 0.8), calTarget: round50(bw * 15), weightTarget: Math.round(bw) };
+      return { proteinTarget: safeP(bw * 0.8), calTarget: safeCal(bw * 15), weightTarget: Math.round(bw) };
     case 'performance':
     default:
       return { proteinTarget: PROTEIN_TARGET, calTarget: CAL_TARGET, weightTarget: WEIGHT_TARGET };
@@ -66,12 +74,25 @@ export interface GoalConfig extends GoalDerivedTargets {
 /**
  * The full goal-derived account config applied at activation: scoring profile + targets, from the
  * user's goal + bodyweight. A coach-set profile (existingProfile) always wins — we never override it.
- * Both onboarding completion paths (finishOb + startFirstMealChallenge) call this so the experience is
- * identical no matter which one the user finishes through.
+ * Likewise, a target the user has already moved OFF the shipped default (proxy for "they edited it on
+ * the about-you step") is preserved, not clobbered by the derived default. Both onboarding completion
+ * paths (finishOb + startFirstMealChallenge) call this so the experience is identical either way.
  */
-export function goalConfig(goal: BaseGoal, bodyweightLb: number, existingProfile?: ScoringProfile): GoalConfig {
+export function goalConfig(
+  goal: BaseGoal,
+  bodyweightLb: number,
+  existingProfile?: ScoringProfile,
+  existing?: Partial<GoalDerivedTargets>,
+): GoalConfig {
+  const derived = deriveTargetsFromGoal(goal, bodyweightLb);
+  // Keep an existing value only when the user moved it off the shipped constant default; otherwise
+  // apply the goal-derived default.
+  const keep = (val: number | undefined, derivedVal: number, constDefault: number) =>
+    val != null && val !== constDefault ? val : derivedVal;
   return {
     scoringProfile: existingProfile ?? profileForGoal(goal),
-    ...deriveTargetsFromGoal(goal, bodyweightLb),
+    proteinTarget: keep(existing?.proteinTarget, derived.proteinTarget, PROTEIN_TARGET),
+    calTarget: keep(existing?.calTarget, derived.calTarget, CAL_TARGET),
+    weightTarget: keep(existing?.weightTarget, derived.weightTarget, WEIGHT_TARGET),
   };
 }

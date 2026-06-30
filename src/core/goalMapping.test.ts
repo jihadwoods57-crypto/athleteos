@@ -48,6 +48,14 @@ describe('deriveTargetsFromGoal', () => {
     expect(Number.isFinite(t.calTarget)).toBe(true);
     expect(t.calTarget).toBeGreaterThan(0);
   });
+
+  it('NEVER prescribes a dangerously low target to a low-bodyweight user (safety floor)', () => {
+    // The weight stepper floors at 70 lb and the app signs up 13+; bw*12 would be 840 without a floor.
+    const t = deriveTargetsFromGoal('lose', 90);
+    expect(t.calTarget).toBeGreaterThanOrEqual(1500);
+    expect(t.proteinTarget).toBeGreaterThanOrEqual(80);
+    expect(deriveTargetsFromGoal('maintain', 80).calTarget).toBeGreaterThanOrEqual(1500);
+  });
 });
 
 describe('goalConfig', () => {
@@ -60,5 +68,10 @@ describe('goalConfig', () => {
     const c = goalConfig('lose', 178, 'athlete');
     expect(c.scoringProfile).toBe('athlete'); // coach's pick wins
     expect(c.calTarget).toBeLessThan(CAL_TARGET); // targets still goal-derived
+  });
+  it('preserves a target the user already edited off the default, but fills the untouched ones', () => {
+    const c = goalConfig('lose', 178, undefined, { weightTarget: 170, calTarget: CAL_TARGET, proteinTarget: PROTEIN_TARGET });
+    expect(c.weightTarget).toBe(170); // user moved it off the default -> kept
+    expect(c.calTarget).toBeLessThan(CAL_TARGET); // still at default -> goal-derived
   });
 });

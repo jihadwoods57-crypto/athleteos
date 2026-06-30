@@ -239,6 +239,7 @@ export function computeDerived(s: AppState): Derived {
     motivation: 'ciMotivation',
   };
   let recoveryScore = 86; // fallback: unsubmitted OR no enabled questions
+  let recoveryScoreIsReal = false; // true only once a real check-in actually backs the number
   if (s.ciSubmitted) {
     let recoverySum = 0;
     let enabledCount = 0;
@@ -259,6 +260,7 @@ export function computeDerived(s: AppState): Derived {
     });
     if (enabledCount > 0) {
       recoveryScore = Math.min(100, Math.max(0, Math.round((recoverySum / (enabledCount * 10)) * 100)));
+      recoveryScoreIsReal = true;
     }
   }
   // Weight is a LONG-ARC goal, not a daily-accountability signal, so it is no
@@ -300,7 +302,16 @@ export function computeDerived(s: AppState): Derived {
   // draws so the number and the slope always agree. The seed pads the window
   // (and supplies the start baseline) only until real history fills it.
   const series = trendSeries(s.scoreHistory ?? [], athleteScore);
-  const scoreDelta = series[series.length - 1] - series[0];
+  // Day 0 = no real PRIOR day recorded (the only history entry, if any, is today's provisional
+  // anchor). On day 0 the visible series is seeded padding, so a "this week" delta would invent a
+  // week of slippage the user never lived ("↓58 trending down" on the day they signed up). Zero it
+  // and let the UI say "starting today" instead of fabricating a trend.
+  // A real new athlete carries exactly the provisional anchor commitStartingScore wrote for TODAY
+  // (and no prior day). The seeded demo has EMPTY history (it never ran activation) and keeps its
+  // showcase trend — so require a non-empty, all-today history, which excludes the demo.
+  const hist = s.scoreHistory ?? [];
+  const isDay0 = hist.length > 0 && hist.every((h) => h.date === s.dateStamp);
+  const scoreDelta = isDay0 ? 0 : series[series.length - 1] - series[0];
   const deltaStr = (scoreDelta >= 0 ? '↑ +' : '↓ ') + Math.abs(scoreDelta);
   const deltaColor = scoreDelta >= 0 ? '#22C55E' : '#EF4444';
 
@@ -311,8 +322,10 @@ export function computeDerived(s: AppState): Derived {
     scoreDelta,
     deltaStr,
     deltaColor,
+    isDay0,
     nutritionScore,
     recoveryScore,
+    recoveryScoreIsReal,
     weightScore,
     tasksScore,
     checkinScore,

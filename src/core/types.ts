@@ -374,8 +374,12 @@ export interface Derived {
   scoreDelta: number;
   deltaStr: string;
   deltaColor: string;
+  /** True on day 0 (no real prior day yet) — the UI says "starting today" instead of a fake trend. */
+  isDay0: boolean;
   nutritionScore: number;
   recoveryScore: number;
+  /** True only once a real check-in backs the recovery number (else it's the 86 fallback). */
+  recoveryScoreIsReal: boolean;
   weightScore: number;
   tasksScore: number;
   checkinScore: number;

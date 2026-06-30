@@ -174,4 +174,14 @@ describe('7-role -> 4-dashboard routing', () => {
     expect(s.weightTarget).toBeLessThan(178); // a Lose Fat user no longer defaults to a weight GAIN
     expect(s.calTarget).toBeLessThan(3200); // a deficit, not the 3200 bulk
   });
+
+  it('the activation path applies a surplus + gain profile for a muscle-gain goal', () => {
+    useStore.getState().resetDemo();
+    useStore.setState({ role: 'athlete', scoringProfile: undefined, baseWeight: 178 });
+    useStore.getState().setPrimaryGoal('gain_muscle'); // -> baseGoal 'gain'
+    useStore.getState().startFirstMealChallenge();
+    const s = useStore.getState();
+    expect(s.scoringProfile).toBe('gain');
+    expect(s.weightTarget).toBeGreaterThan(178); // a gain target points up
+  });
 });
