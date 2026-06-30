@@ -16,6 +16,7 @@ export * from './nutritionMemoryVoice';
 export * from './macroGrounding';
 export * from './coaching';
 export * from './units';
+export * from './weightProgress';
 export * from './contrast';
 export * from './history';
 export * from './performance';

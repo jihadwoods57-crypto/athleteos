@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, weightProgressTone, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
@@ -176,8 +176,10 @@ export function ParentView() {
                 </Txt>
                 {(() => {
                   const gain = displayWeightDelta(s.currentWeight - startWeight, units);
+                  const tone = weightProgressTone(s.currentWeight - startWeight, s.baseGoal);
+                  const toneColor = tone === 'good' ? colors.success : tone === 'bad' ? colors.alert : colors.textSecondary;
                   return (
-                    <Txt w="b" size={12} color={gain >= 0 ? colors.success : colors.alert}>
+                    <Txt w="b" size={12} color={toneColor}>
                       {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}
                     </Txt>
                   );

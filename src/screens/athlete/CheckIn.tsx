@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
-import { bodyImageNote, CHECKIN_QUESTIONS, checkinAttribution, checkinSummary, displayWeight, displayWeightDelta, supportAudience, trendGeometry, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
+import { bodyImageNote, CHECKIN_QUESTIONS, checkinAttribution, checkinSummary, displayWeight, displayWeightDelta, supportAudience, trendGeometry, weightProgressTone, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { aiPrefix } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
@@ -156,8 +156,11 @@ export function CheckIn() {
             </Txt>
             {(() => {
               const gain = displayWeightDelta(s.currentWeight - (s.startWeight ?? WEIGHT_START), units);
+              // Color by GOAL, not direction: a weight-loss client's loss is progress, not an alert.
+              const tone = weightProgressTone(s.currentWeight - (s.startWeight ?? WEIGHT_START), s.baseGoal);
+              const toneColor = tone === 'good' ? colors.success : tone === 'bad' ? colors.alert : colors.textSecondary;
               return (
-                <Txt w="b" size={12} color={gain >= 0 ? colors.success : colors.alert}>
+                <Txt w="b" size={12} color={toneColor}>
                   {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}
                 </Txt>
               );
