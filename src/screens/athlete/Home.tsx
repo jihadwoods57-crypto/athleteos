@@ -63,10 +63,6 @@ export function Home() {
     supportTeam: s.supportTeam,
     coachNote: s.coachNote,
   });
-  // Where a completed check-in is sent, gated so a real solo athlete (no coach)
-  // is not told it went to "Coach Davis"; the demo keeps the showcase recipient.
-  const checkinAudience = supportAudience({ isReal, supportTeam: s.supportTeam, demo: 'Coach Davis' });
-
   // Real trend geometry: persisted prior-day scores + today's live score as the
   // final point (seed pads the left only while real history is still filling up).
   const series = trendSeries(s.scoreHistory, d.athleteScore);
@@ -183,6 +179,9 @@ export function Home() {
         </View>
       </Card>
 
+      {/* DAILY HQ — lead with the single action that matters right now, not the data */}
+      <NextMoveCard />
+
       {/* finish today — projected score + the checklist to reach it */}
       {projection.actions.length > 0 ? (
         <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
@@ -222,6 +221,14 @@ export function Home() {
           </View>
         </Card>
       ) : null}
+
+      {/* check-in is an action, so it rides with the top act-now stack */}
+      <CheckinBanner />
+
+      {/* ---- YOUR PROGRESS — the look-back, below the act-now stack ---- */}
+      <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 24, marginBottom: -2 }}>
+        YOUR PROGRESS
+      </Txt>
 
       {/* what's in this score */}
       <ScoreBreakdownPanel />
@@ -407,80 +414,6 @@ export function Home() {
         <ConnectCoachCard />
       ) : null}
 
-      {/* your next move — the single highest-impact action right now, forward-looking
-          (a coach, not a scorekeeper). Derived from real logged data + the hour. */}
-      {(() => {
-        const na = nextBestAction(s, d);
-        const onPress =
-          na.cta === 'meal' ? s.openMeal
-          : na.cta === 'water' ? s.addWater
-          : na.cta === 'checkin' ? s.goCheckin
-          : na.cta === 'plan' ? s.goTasks
-          : undefined;
-        const accent = na.done ? colors.successDeep : colors.accent;
-        const tileBg = na.done ? colors.successSurface : colors.accentSurface;
-        const body = (
-          <>
-            <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: tileBg, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name={na.done ? 'check' : 'sparkle'} size={20} color={accent} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Txt w="eb" size={11} color={accent} ls={0.4}>
-                YOUR NEXT MOVE
-              </Txt>
-              <Txt w="b" size={15} style={{ marginTop: 3 }}>
-                {na.title}
-              </Txt>
-              <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>
-                {na.detail}
-              </Txt>
-              <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 15 }}>
-                {medicalDisclaimer()}
-              </Txt>
-            </View>
-            {onPress ? <Icon name="chevronRight" size={22} color="#CBD5E1" /> : null}
-          </>
-        );
-        const boxStyle = [{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14 }, shadow.card];
-        return onPress ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={na.title} onPress={onPress} style={boxStyle}>
-            {body}
-          </Pressable>
-        ) : (
-          <View style={boxStyle}>{body}</View>
-        );
-      })()}
-
-      {/* check-in banner */}
-      {!s.ciSubmitted ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Weekly check-in due: 6 questions, about 2 minutes" onPress={s.goCheckin} style={[{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, shadow.cta]}>
-          <View>
-            <Txt w="eb" size={11} color="rgba(255,255,255,0.85)" ls={0.7}>
-              WEEKLY CHECK-IN DUE
-            </Txt>
-            <Txt w="b" size={15} color="#fff" style={{ marginTop: 5 }}>
-              6 questions · 2 min
-            </Txt>
-          </View>
-          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="chevronRight" size={18} color="#fff" />
-          </View>
-        </Pressable>
-      ) : (
-        <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View>
-            <Txt w="eb" size={11} color="#059669" ls={0.7}>
-              WEEKLY CHECK-IN
-            </Txt>
-            <Txt w="b" size={15} color="#065F46" style={{ marginTop: 5 }}>
-              {checkinAudience ? `Completed · sent to ${checkinAudience}` : 'Completed'}
-            </Txt>
-          </View>
-          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="check" size={17} color="#fff" />
-          </View>
-        </View>
-      )}
     </ScrollView>
   );
 }
@@ -508,6 +441,95 @@ function ConnectCoachCard() {
       <Input value={code} onChangeText={setCode} placeholder="Team code (e.g. EAGLES24)" autoCapitalize="characters" autoCorrect={false} style={{ marginTop: 12 }} />
       <Btn label="Connect" disabled={!ready} onPress={() => { haptics.success(); connectCoach(code); }} style={{ marginTop: 12 }} />
     </Card>
+  );
+}
+
+/** YOUR NEXT MOVE — the single highest-impact action right now (a coach, not a scorekeeper),
+ *  derived from real logged data + the hour. Promoted to the top of Daily HQ so Home opens by
+ *  telling you what to do, not by showing you numbers. */
+function NextMoveCard() {
+  const s = useStore();
+  const d = useDerived();
+  const na = nextBestAction(s, d);
+  const onPress =
+    na.cta === 'meal' ? s.openMeal
+    : na.cta === 'water' ? s.addWater
+    : na.cta === 'checkin' ? s.goCheckin
+    : na.cta === 'plan' ? s.goTasks
+    : undefined;
+  const accent = na.done ? colors.successDeep : colors.accent;
+  const tileBg = na.done ? colors.successSurface : colors.accentSurface;
+  const body = (
+    <>
+      <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: tileBg, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={na.done ? 'check' : 'sparkle'} size={22} color={accent} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Txt w="eb" size={11} color={accent} ls={0.5}>
+          {na.done ? "TODAY'S MISSION · DONE" : "TODAY'S MISSION"}
+        </Txt>
+        <Txt w="eb" size={17} ls={-0.3} style={{ marginTop: 3 }}>
+          {na.title}
+        </Txt>
+        <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
+          {na.detail}
+        </Txt>
+        <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 15 }}>
+          {medicalDisclaimer()}
+        </Txt>
+      </View>
+      {onPress ? <Icon name="chevronRight" size={22} color="#CBD5E1" /> : null}
+    </>
+  );
+  // The mission leads the screen, so give it the elevated card weight (not the plain tile the
+  // old bottom-of-page version used) — it is the primary thing on Daily HQ.
+  const boxStyle = [{ marginTop: 14, backgroundColor: '#fff', borderRadius: 22, padding: 18, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14 }, shadow.card];
+  return onPress ? (
+    <Pressable accessibilityRole="button" accessibilityLabel={na.title} onPress={onPress} style={boxStyle}>
+      {body}
+    </Pressable>
+  ) : (
+    <View style={boxStyle}>{body}</View>
+  );
+}
+
+/** The weekly check-in is an action, so it rides with the top act-now stack rather than the
+ *  look-back cards. Due state is a CTA; completed state is a calm confirmation. */
+function CheckinBanner() {
+  const s = useStore();
+  const isReal = s.athleteName.trim().length > 0;
+  const checkinAudience = supportAudience({ isReal, supportTeam: s.supportTeam, demo: 'Coach Davis' });
+  if (!s.ciSubmitted) {
+    return (
+      <Pressable accessibilityRole="button" accessibilityLabel="Weekly check-in due: 6 questions, about 2 minutes" onPress={s.goCheckin} style={[{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, shadow.cta]}>
+        <View>
+          <Txt w="eb" size={11} color="rgba(255,255,255,0.85)" ls={0.7}>
+            WEEKLY CHECK-IN DUE
+          </Txt>
+          <Txt w="b" size={15} color="#fff" style={{ marginTop: 5 }}>
+            6 questions · 2 min
+          </Txt>
+        </View>
+        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="chevronRight" size={18} color="#fff" />
+        </View>
+      </Pressable>
+    );
+  }
+  return (
+    <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View>
+        <Txt w="eb" size={11} color="#059669" ls={0.7}>
+          WEEKLY CHECK-IN
+        </Txt>
+        <Txt w="b" size={15} color="#065F46" style={{ marginTop: 5 }}>
+          {checkinAudience ? `Completed · sent to ${checkinAudience}` : 'Completed'}
+        </Txt>
+      </View>
+      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="check" size={17} color="#fff" />
+      </View>
+    </View>
   );
 }
 
