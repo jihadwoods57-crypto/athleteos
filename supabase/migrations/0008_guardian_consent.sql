@@ -25,7 +25,7 @@ create table guardian_consent_requests (
   status          text not null default 'pending'
                     check (status in ('pending', 'verified', 'revoked')),
   -- opaque token the emailed verification link carries; rotated on every (re)send.
-  token           text not null default encode(gen_random_bytes(16), 'hex'),
+  token           text not null default encode(extensions.gen_random_bytes(16), 'hex'),
   requested_at    timestamptz not null default now(),
   verified_at     timestamptz,
   -- one live request per (athlete, guardian email); a resend updates it in place.
@@ -63,7 +63,7 @@ begin
   values (uid, email)
   on conflict on constraint gcr_athlete_guardian_uq do update
     set status       = 'pending',
-        token        = encode(gen_random_bytes(16), 'hex'),
+        token        = encode(extensions.gen_random_bytes(16), 'hex'),
         requested_at = now(),
         verified_at  = null;
 end; $$;
