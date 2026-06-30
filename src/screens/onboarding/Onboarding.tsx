@@ -2,8 +2,8 @@
 // (Starting Point Score -> first meal -> AI coaching), not account setup. One question
 // per screen, tap-first, in-system premium. 7 roles personalize onto the 4 dashboards.
 // See docs/specs/2026-06-23-onboarding-redesign.md.
-import React, { useEffect } from 'react';
-import { Platform, ScrollView, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, Platform, ScrollView, View } from 'react-native';
 import {
   formatHeight,
   flowForRole,
@@ -31,6 +31,7 @@ import { colors } from '@/ui/tokens';
 import { Btn, Card, Input, ProgressBar, Row, Stepper, Txt, Pressable } from '@/ui/primitives';
 import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
+import { useReduceMotion } from '@/ui/useReduceMotion';
 import { Icon, type IconName } from '@/icons';
 import { LogoMark } from '@/brand/Logo';
 import { ROLE_FLOWS, athleteFlowKeys, roleFlowFor, type GenStep } from './flows';
@@ -891,8 +892,29 @@ export function Onboarding() {
   const obStep = useStore((s: Store) => s.obStep);
   const role = useStore((s: Store) => s.role);
 
-  if (signinMode) return <SignIn />;
-  if (obStep === 0) return <Welcome />;
-  if (obStep === 1) return <RolePicker />;
-  return flowForRole(role) === 'app' && (role === 'athlete' || role == null) ? <AthleteFlow /> : <GenericFlow />;
+  let content: React.ReactNode;
+  if (signinMode) content = <SignIn />;
+  else if (obStep === 0) content = <Welcome />;
+  else if (obStep === 1) content = <RolePicker />;
+  else content = flowForRole(role) === 'app' && (role === 'athlete' || role == null) ? <AthleteFlow /> : <GenericFlow />;
+
+  // The key remounts StepEnter on every step so the new screen fades + rises in, making the flow
+  // feel fluid instead of hard-cutting between identical-looking forms.
+  return <StepEnter key={signinMode ? 'signin' : `step-${obStep}`}>{content}</StepEnter>;
+}
+
+/** Fade + slight rise on mount (one beat, ease-out). Each onboarding step animates in; honors
+ *  reduce-motion (renders settled, no animation). Mirrors the overlay slide-up motion (aos-up). */
+function StepEnter({ children }: { children: React.ReactNode }) {
+  const reduceMotion = useReduceMotion();
+  const anim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduceMotion) {
+      anim.setValue(1);
+      return;
+    }
+    Animated.timing(anim, { toValue: 1, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [anim, reduceMotion]);
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
+  return <Animated.View style={{ flex: 1, opacity: anim, transform: [{ translateY }] }}>{children}</Animated.View>;
 }
