@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
-import { bodyImageNote, CHECKIN_QUESTIONS, checkinAttribution, checkinSummary, displayWeight, displayWeightDelta, supportAudience, trendGeometry, weightProgressTone, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
+import { bodyImageNote, CHECKIN_QUESTIONS, checkinAttribution, checkinSummary, displayWeight, displayWeightDelta, readinessBand, readinessLabel, readinessScore, supportAudience, trendGeometry, weightProgressTone, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { aiPrefix } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
@@ -87,6 +87,37 @@ export function CheckIn() {
             })}
           </Txt>
         </Card>
+        {(() => {
+          // Training readiness from the just-submitted self-report — the strength/performance read
+          // the nutrition score can't give. Real data only (this is the athlete's own check-in).
+          const r = readinessScore({ energy: s.ciEnergy, recovery: s.ciRecovery, sleep: s.ciSleep, soreness: s.ciSoreness });
+          if (r == null) return null;
+          const band = readinessBand(r);
+          const lbl = readinessLabel(band);
+          const tone = band === 'ready' ? colors.success : band === 'caution' ? colors.warning : colors.alert;
+          return (
+            <Card elevated style={{ marginTop: 14, borderRadius: 20 }}>
+              <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Row style={{ gap: 9 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="bolt" size={17} color={tone} />
+                  </View>
+                  <Txt w="eb" size={15} ls={-0.2}>
+                    {lbl.title}
+                  </Txt>
+                </Row>
+                <View style={{ paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999, backgroundColor: tone }}>
+                  <Txt w="eb" size={13} color="#fff">
+                    {r}
+                  </Txt>
+                </View>
+              </Row>
+              <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
+                {lbl.how}
+              </Txt>
+            </Card>
+          );
+        })()}
         <Btn label="Back to Home" variant="secondary" onPress={s.goHome} style={{ marginTop: 16 }} />
       </ScrollView>
     );
