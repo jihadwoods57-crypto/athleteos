@@ -25,8 +25,10 @@ export type Role =
 export type Flow = 'onboarding' | 'app' | 'coach' | 'parent' | 'trainer';
 export type BaseGoal = 'gain' | 'lose' | 'maintain' | 'performance';
 /** Which platform-owned scoring formula measures an account's execution. The coach picks the
- *  profile + sets the targets; the platform owns the weights (Constitution Rule #13). */
-export type ScoringProfile = 'athlete' | 'general';
+ *  profile + sets the targets; the platform owns the weights (Constitution Rule #13).
+ *  Auto-assigned from the user's GOAL at signup (profileForGoal): performance -> athlete,
+ *  lose/maintain -> general (calorie-target led), gain -> gain (surplus + protein led). */
+export type ScoringProfile = 'athlete' | 'general' | 'gain';
 export type MealKey = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 export type MealLabel = 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
 

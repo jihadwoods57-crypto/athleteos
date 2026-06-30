@@ -136,4 +136,23 @@ describe('7-role -> 4-dashboard routing', () => {
     expect(useStore.getState().flow).toBe('app');
     expect(useStore.getState().tab).toBe('home');
   });
+
+  it('finishOb auto-assigns a solo executor a scoring profile from their goal (no coach to pick one)', () => {
+    useStore.getState().resetDemo();
+    useStore.setState({ role: 'athlete', scoringProfile: undefined, baseGoal: 'lose' });
+    useStore.getState().finishOb();
+    expect(useStore.getState().scoringProfile).toBe('general'); // lose/maintain -> general (calorie-led)
+
+    useStore.getState().resetDemo();
+    useStore.setState({ role: 'athlete', scoringProfile: undefined, baseGoal: 'gain' });
+    useStore.getState().finishOb();
+    expect(useStore.getState().scoringProfile).toBe('gain'); // build muscle -> surplus-led
+  });
+
+  it('finishOb never overrides a profile a coach already set', () => {
+    useStore.getState().resetDemo();
+    useStore.setState({ role: 'athlete', scoringProfile: 'athlete', baseGoal: 'lose' });
+    useStore.getState().finishOb();
+    expect(useStore.getState().scoringProfile).toBe('athlete'); // coach's pick wins
+  });
 });

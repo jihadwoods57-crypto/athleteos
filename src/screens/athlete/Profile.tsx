@@ -3,7 +3,7 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS, initials, supportVisibilityRows, trainingCadence, weeklyReportFromState, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
+import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS, initials, scoringProfileLabel, supportVisibilityRows, trainingCadence, weeklyReportFromState, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
@@ -189,6 +189,24 @@ export function Profile() {
             <TargetTile value={`${displayWeight(weightTarget, units)}${weightUnit(units)}`} label="WEIGHT" />
           </Row>
         )}
+        {isReal ? (() => {
+          // Disclose how this account is scored (auto-assigned from the goal at signup). A solo
+          // client should never wonder why a green-protein day didn't top out.
+          const sp = scoringProfileLabel(s.scoringProfile);
+          return (
+            <View style={{ marginTop: 14, padding: 13, borderRadius: 14, backgroundColor: colors.bg }}>
+              <Row style={{ gap: 7, marginBottom: 4 }}>
+                <Icon name="bolt" size={13} color={colors.accent} />
+                <Txt w="eb" size={13}>
+                  {sp.title}
+                </Txt>
+              </Row>
+              <Txt w="m" size={12} color={colors.textSecondary} style={{ lineHeight: 17 }}>
+                {sp.how}
+              </Txt>
+            </View>
+          );
+        })() : null}
         {workingToward.length > 0 ? (
           <>
             <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 14 }}>

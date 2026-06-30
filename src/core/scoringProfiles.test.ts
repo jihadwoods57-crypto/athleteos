@@ -2,13 +2,13 @@
 // the general profile re-weights to calorie adherence, the calorie band is two-sided
 // (penalizes under- AND over-eating), and computeDerived honors the profile while leaving
 // the athlete default untouched.
-import { calorieAdherence, profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
+import { calorieAdherence, calorieFloorAdherence, profileForGoal, profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
 import { computeDerived } from './scoring';
 import { createInitialState } from './defaultState';
 
 describe('PROFILE_WEIGHTS', () => {
   it('every profile mix sums to 1', () => {
-    for (const p of ['athlete', 'general'] as const) {
+    for (const p of ['athlete', 'general', 'gain'] as const) {
       const w = PROFILE_WEIGHTS[p];
       expect(w.nutrition + w.recovery + w.tasks + w.checkin).toBeCloseTo(1, 5);
     }
@@ -49,6 +49,47 @@ describe('profileNutritionScore', () => {
   it('general tanks when calories miss badly even if protein is hit', () => {
     const s = profileNutritionScore('general', { proteinToday: 120, proteinTarget: 120, kcalToday: 3500, calTarget: 2000, effectiveMeals: 4 });
     expect(s).toBeLessThan(60); // calorie adherence 0 -> only protein 25 + consistency 30
+  });
+});
+
+describe('calorieFloorAdherence — one-sided floor (gain)', () => {
+  it('gives full credit at or above the surplus target (overage is the point of a bulk)', () => {
+    expect(calorieFloorAdherence(3000, 3000)).toBe(1);
+    expect(calorieFloorAdherence(3600, 3000)).toBe(1); // ate over -> still full, never penalized
+  });
+  it('only undereating loses credit', () => {
+    expect(calorieFloorAdherence(1800, 3000)).toBe(0); // 60% floor -> 0
+    expect(calorieFloorAdherence(2400, 3000)).toBeCloseTo(0.5, 5); // 80% -> halfway
+  });
+  it('is 0 for a non-positive target', () => {
+    expect(calorieFloorAdherence(3000, 0)).toBe(0);
+  });
+});
+
+describe('profileNutritionScore — gain', () => {
+  it('gain = calorie floor 40 + protein 35 + consistency 25', () => {
+    // perfect bulk day: hit surplus, hit protein, 4 meals
+    expect(profileNutritionScore('gain', { proteinToday: 200, proteinTarget: 200, kcalToday: 3200, calTarget: 3200, effectiveMeals: 4 })).toBe(100);
+  });
+  it('a green-protein day that never ate enough cannot top out (the board bug)', () => {
+    // protein hit + 4 meals, but ate 75% of the surplus target -> calorie floor only partial
+    // floor = (0.75-0.6)/0.4 = 0.375 -> 0.375*40 = 15; +35 protein +25 meals = 75
+    const s = profileNutritionScore('gain', { proteinToday: 200, proteinTarget: 200, kcalToday: 2400, calTarget: 3200, effectiveMeals: 4 });
+    expect(s).toBe(75); // undereating costs real points even on a green-protein day
+  });
+  it('never penalizes a surplus the way general would', () => {
+    const inputs = { proteinToday: 200, proteinTarget: 200, kcalToday: 4200, calTarget: 3200, effectiveMeals: 4 } as const;
+    expect(profileNutritionScore('gain', inputs)).toBe(100); // gain: full credit, overage is fine
+    expect(profileNutritionScore('general', inputs)).toBeLessThan(75); // general: over-eating tanks it
+  });
+});
+
+describe('profileForGoal', () => {
+  it('maps each goal to its platform scoring profile', () => {
+    expect(profileForGoal('performance')).toBe('athlete');
+    expect(profileForGoal('lose')).toBe('general');
+    expect(profileForGoal('maintain')).toBe('general');
+    expect(profileForGoal('gain')).toBe('gain');
   });
 });
 

@@ -42,6 +42,7 @@ import {
   isValidGuardianEmail,
   labelToFood,
   mealResultToFood,
+  profileForGoal,
   realDataConsent,
   reminderNotifySpecs,
   reminderSnapshotFromState,
@@ -402,8 +403,16 @@ export const useStore = create<Store>()(
       obNext: () => set((s) => ({ obStep: s.obStep + 1 })),
       obBack: () => set((s) => ({ obStep: Math.max(0, s.obStep - 1) })),
       finishOb: () => {
-        const flow = flowForRole(get().role);
-        set(flow === 'app' ? { flow, tab: 'home' } : { flow });
+        const s = get();
+        const flow = flowForRole(s.role);
+        if (flow === 'app') {
+          // A solo executor has no coach to pick a scoring profile, so derive it from their GOAL
+          // and disclose it in Profile. Never override a profile a coach already set.
+          const scoringProfile = s.scoringProfile ?? profileForGoal(s.baseGoal);
+          set({ flow, tab: 'home', scoringProfile });
+        } else {
+          set({ flow });
+        }
       },
       setRole: (r) => set({ role: r }),
       toggleInvite: (k) =>
