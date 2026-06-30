@@ -166,6 +166,10 @@ export interface AppState {
   /** True once a password-reset email has been requested, so the reset screen shows
    *  its neutral confirmation. Ephemeral (not persisted). */
   passwordResetSent: boolean;
+  /** True when a just-created account actually needs email confirmation (the live project has
+   *  confirm-ON and Supabase returned no session yet). Drives the honest "check your email" copy:
+   *  with confirm-OFF this stays false and the panel doesn't claim a link was sent. Ephemeral. */
+  emailConfirmPending: boolean;
   /** Athlete pressed "Pause all sharing" (Profile data-sharing controls). While true
    *  the push gate fails closed — nothing leaves the device. Persisted. */
   sharingPaused: boolean;

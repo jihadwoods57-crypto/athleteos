@@ -937,8 +937,10 @@ export const useStore = create<Store>()(
           set({ authError: res.error });
           return false;
         }
-        // Keep the email for the account/verify panels (password is never stored).
-        set({ userId: res.userId, athleteEmail: email.trim(), authError: null });
+        // Keep the email for the account/verify panels (password is never stored). Record whether
+        // the project actually requires confirmation, so the "check your email" panel is honest
+        // (and silent when confirm is OFF — no false "we sent a link" claim).
+        set({ userId: res.userId, athleteEmail: email.trim(), emailConfirmPending: res.needsConfirmation ?? false, authError: null });
         return true;
       },
       requestPasswordReset: async (email) => {

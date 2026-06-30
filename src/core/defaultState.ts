@@ -51,6 +51,7 @@ export function createInitialState(): AppState {
     realDataConsent: false,
     authError: null,
     passwordResetSent: false,
+    emailConfirmPending: false,
     sharingPaused: false,
     entitlement: previewEntitlement(),
 

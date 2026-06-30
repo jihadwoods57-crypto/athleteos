@@ -5,7 +5,7 @@
 import { isSupabaseConfigured, requireSupabase } from './client';
 
 export type AuthResult =
-  | { ok: true; userId: string }
+  | { ok: true; userId: string; needsConfirmation?: boolean }
   | { ok: false; error: string };
 
 /** Email/password sign-in. `notConfigured` lets the caller fall back to mock auth. */
@@ -30,7 +30,10 @@ export async function signUp(
     options: { data: fullName ? { full_name: fullName } : undefined },
   });
   if (error || !data.user) return { ok: false, error: error?.message ?? 'Sign-up failed' };
-  return { ok: true, userId: data.user.id };
+  // With email-confirmation ON, Supabase returns the user but NO session until the link is
+  // clicked. `!data.session` is the honest "we actually need them to confirm" signal, so the UI
+  // only claims a link was sent when one truly was (and confirm-OFF skips that copy).
+  return { ok: true, userId: data.user.id, needsConfirmation: !data.session };
 }
 
 export async function signOut(): Promise<void> {

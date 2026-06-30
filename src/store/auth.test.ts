@@ -124,6 +124,14 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(signUp).toHaveBeenCalledWith('c@d.io', 'pw', 'Carla');
     expect(useStore.getState().userId).toBe('u-2');
     expect(useStore.getState().athleteEmail).toBe('c@d.io');
+    expect(useStore.getState().emailConfirmPending).toBe(false); // no needsConfirmation -> no false "check email"
+  });
+
+  it('signUpLive flags emailConfirmPending when the project requires confirmation (confirm-ON)', async () => {
+    signUp.mockResolvedValue({ ok: true, userId: 'u-3', needsConfirmation: true });
+    const useStore = loadStore(true);
+    await useStore.getState().signUpLive('e@f.io', 'pw', 'Eve');
+    expect(useStore.getState().emailConfirmPending).toBe(true); // panel will honestly say "check your email"
   });
 
   it('requestPasswordReset routes through the wrapper + sets the sent flag', async () => {

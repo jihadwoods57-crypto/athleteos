@@ -322,15 +322,28 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
   };
 
   if (created) {
+    // Honest under either email-confirmation setting: only claim a link was sent when the project
+    // actually requires confirmation (Supabase returned no session). With confirm OFF the account
+    // is immediately usable, so we say so instead of pointing them at an email that never came.
+    const pending = s.emailConfirmPending;
     return (
-      <StepShell progress={progress} onBack={s.obBack} eyebrow="Almost there" title="Confirm your email" sub="We sent a confirmation link to keep your account secure." footer={<Btn label="Continue" haptic="success" onPress={onDone} />}>
+      <StepShell
+        progress={progress}
+        onBack={s.obBack}
+        eyebrow="Almost there"
+        title={pending ? 'Confirm your email' : "You're all set"}
+        sub={pending ? 'We sent a confirmation link to keep your account secure.' : 'Your account is ready to go.'}
+        footer={<Btn label="Continue" haptic="success" onPress={onDone} />}
+      >
         <Card style={{ marginTop: 6 }} elevated>
           <Row style={{ gap: 10 }}>
             <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="bell" size={19} color={colors.accent} />
+              <Icon name={pending ? 'bell' : 'check'} size={19} color={colors.accent} />
             </View>
             <Txt w="sb" size={14} color={colors.slate700} style={{ flex: 1, lineHeight: 20 }}>
-              Check {email.trim()} for a link. You can keep going now — your data stays on this device until you confirm.
+              {pending
+                ? `Check ${email.trim()} for a link. You can keep going now — your data stays on this device until you confirm.`
+                : `You're signed in as ${email.trim()}. Let's keep going.`}
             </Txt>
           </Row>
         </Card>
