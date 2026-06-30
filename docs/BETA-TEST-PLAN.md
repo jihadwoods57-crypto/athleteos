@@ -17,10 +17,21 @@ get value. That's the only thing that moves Business and Market readiness off th
 - Recruit warm contacts; you want feedback, not scale.
 
 ## Go-live prerequisites (≈30 min, founder-gated)
-1. **Apply migrations** `0004_create_team` + `0005_grants` to the live project
-   (`supabase db push`). Both verified locally; see Decision D1.
-2. **Email confirmation OFF** for the beta (Decision D2) — fastest onboarding; the
-   current UI has no "check your email" screen, so ON would strand users.
+
+> **SUPERSEDED for the migration steps — follow [`docs/RUNBOOK-go-live.md`](RUNBOOK-go-live.md).**
+> This section predates the `0009→0013` migrations: step 1 below lists only `0004`+`0005`, but the
+> live sequence is `0004→0013` (incl. the `0012` `can_view` cutover + `0013` hardening), staging-first.
+>
+> **UNRESOLVED CONTRADICTION (founder must decide): email confirmation ON vs OFF.** This doc (step 2)
+> says **OFF** for the beta; the runbook (C1), `supabase/config.toml` (`enable_confirmations = true`),
+> and FOUNDER-DECISIONS D2 say **ON**. The real dependency is the one named in step 2: confirm-ON
+> strands users unless a "check your email" screen exists. So the decision is coupled to a small build:
+> **either keep OFF for beta (accept the security tradeoff) or turn ON and add the confirmation screen
+> first.** Pick one and reconcile both docs before go-live. (Buildable now: the confirmation screen, if ON.)
+
+1. **Apply migrations** `0004→0013` to the live project, staging-first, per the runbook (NOT just
+   `0004`+`0005`). Both early ones verified locally; see Decision D1.
+2. **Email confirmation** — see the contradiction banner above; decide ON vs OFF before this step.
 3. **Flip** `EXPO_PUBLIC_BACKEND_LIVE=true`. The consent gate stays fail-closed.
 4. **Smoke test before inviting anyone:** one coach creates a team → gets a real join
    code (the EAGLES24 placeholder is now wired to the real `create_team` code) → one
