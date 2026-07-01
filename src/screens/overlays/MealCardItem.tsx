@@ -40,12 +40,12 @@ export function MealCardItem({ card }: { card: MealCard }) {
         <Txt w="b" size={14}>
           {card.name}
         </Txt>
-        <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+        <Txt w="m" num size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
           {card.label} · {card.protein}g protein · {card.kcal} cal
         </Txt>
       </View>
       <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: strong ? colors.successSurface : colors.accentSurface }}>
-        <Txt w="eb" size={12} color={strong ? colors.successDeep : colors.accent}>
+        <Txt w="eb" num size={12} color={strong ? colors.successDeep : colors.accent}>
           {card.quality}
         </Txt>
       </View>

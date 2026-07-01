@@ -15,7 +15,7 @@ import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
 import { isBillingConfigured, openBillingPortal } from '@/lib/billing/portal';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
+import { Card, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
@@ -39,11 +39,13 @@ export function Plans() {
           </Row>
         ) : null}
 
+        <Reveal index={0}>
         <View style={{ gap: 14 }}>
           {plans.map((p) => (
             <PlanCard key={p.id} plan={p} />
           ))}
         </View>
+        </Reveal>
 
         <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 18, lineHeight: 16 }}>
           Prices in USD. Subscriptions auto-renew until canceled; cancel anytime with no phone call.
@@ -62,7 +64,7 @@ function ManageCurrent() {
     await openBillingPortal();
   };
   return (
-    <Card elevated style={{ borderRadius: 20, marginBottom: 16 }}>
+    <Card variant="hero" style={{ borderRadius: 20, marginBottom: 16 }}>
       <Txt w="eb" size={15} ls={-0.3}>You’re on a paid plan</Txt>
       <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
         Manage billing, change seats, or cancel anytime — no phone call, no runaround.
@@ -97,7 +99,7 @@ function PlanCard({ plan }: { plan: PricedPlan }) {
   };
 
   return (
-    <Card style={{ borderRadius: 20 }}>
+    <Card variant="low" style={{ borderRadius: 20 }}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View style={{ flex: 1, paddingRight: 10 }}>
           <Txt w="eb" size={17} ls={-0.3}>{plan.name}</Txt>
@@ -108,7 +110,7 @@ function PlanCard({ plan }: { plan: PricedPlan }) {
             <Txt w="eb" size={18}>Custom</Txt>
           ) : (
             <>
-              <Txt w="eb" size={22} ls={-0.5}>{t.price.split(' / ')[0]}</Txt>
+              <Txt w="eb" num size={22} ls={-0.5}>{t.price.split(' / ')[0]}</Txt>
               <Txt w="sb" size={12} color={colors.textTertiary}>/ month</Txt>
             </>
           )}

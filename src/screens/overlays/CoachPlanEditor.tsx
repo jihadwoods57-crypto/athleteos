@@ -6,7 +6,7 @@ import { ScrollView, TextInput, View } from 'react-native';
 import { activePlan, formatWindowTime } from '@/core';
 import { useStore } from '@/store';
 import { colors, font } from '@/ui/tokens';
-import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
@@ -30,16 +30,19 @@ export function CoachPlanEditor() {
         </Txt>
 
         {/* targets */}
-        <Card elevated style={{ marginTop: 16, borderRadius: 20 }}>
+        <Reveal index={0}>
+        <Card variant="low" style={{ marginTop: 16, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 12 }}>
             Daily targets
           </Txt>
           <TargetRow label="Protein" value={`${plan.proteinTarget} g`} onDown={() => s.adjustProteinTarget(-5)} onUp={() => s.adjustProteinTarget(5)} />
           <TargetRow label="Calories" value={`${plan.calorieTarget}`} onDown={() => s.adjustCalTarget(-50)} onUp={() => s.adjustCalTarget(50)} last />
         </Card>
+        </Reveal>
 
         {/* meal windows */}
-        <Card elevated style={{ marginTop: 14, borderRadius: 20 }}>
+        <Reveal index={1}>
+        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 12 }}>
             Meal windows
           </Txt>
@@ -68,9 +71,11 @@ export function CoachPlanEditor() {
             Custom window times arrive with the coach backend; these are the default schedule.
           </Txt>
         </Card>
+        </Reveal>
 
         {/* standing instructions */}
-        <Card elevated style={{ marginTop: 14, borderRadius: 20 }}>
+        <Reveal index={2}>
+        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 4 }}>
             Standing instructions
           </Txt>
@@ -125,6 +130,7 @@ export function CoachPlanEditor() {
             ))}
           </Row>
         </Card>
+        </Reveal>
 
         <Btn label="Done" haptic="success" onPress={s.closePlanEditor} style={{ marginTop: 18 }} />
       </ScrollView>
@@ -140,7 +146,7 @@ function TargetRow({ label, value, onDown, onUp, last }: { label: string; value:
       </Txt>
       <Row style={{ gap: 12, alignItems: 'center' }}>
         <Step glyph="−" label={`Lower ${label}`} onPress={onDown} />
-        <Txt w="eb" size={15} style={{ minWidth: 64, textAlign: 'center' }}>
+        <Txt w="eb" num size={15} style={{ minWidth: 64, textAlign: 'center' }}>
           {value}
         </Txt>
         <Step glyph="+" label={`Raise ${label}`} onPress={onUp} />

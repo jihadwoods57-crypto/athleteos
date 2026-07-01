@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { athleteSubtitle, buildLeaderboard, initials, medalColor, squadView, trendInfo, trendSeries, trendSummary } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
+import { Row, SampleTag, Txt, Pressable, Reveal } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Squad() {
@@ -52,6 +52,7 @@ export function Squad() {
         ) : null}
       </Row>
 
+      <Reveal index={0}>
       {view.kind === 'solo' && view.empty ? (
         <SoloSquad
           name={athleteName}
@@ -70,6 +71,7 @@ export function Squad() {
           youIdentity={youIdentity}
         />
       )}
+      </Reveal>
     </ScrollView>
   );
 }
@@ -123,7 +125,7 @@ function DemoBoard({
                 r.you ? undefined : shadow.card,
               ]}
             >
-              <Txt w="eb" size={16} color={medalColor(r.rank)} style={{ width: 24, textAlign: 'center' }}>
+              <Txt w="eb" num size={16} color={medalColor(r.rank)} style={{ width: 24, textAlign: 'center' }}>
                 {r.rank}
               </Txt>
               <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: r.you ? colors.accent : colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
@@ -151,7 +153,7 @@ function DemoBoard({
               <Txt w="eb" size={16} color={tr.c}>
                 {tr.t}
               </Txt>
-              <Txt w="eb" size={20} style={{ width: 34, textAlign: 'right' }}>
+              <Txt w="eb" num size={20} style={{ width: 34, textAlign: 'right' }}>
                 {r.score}
               </Txt>
             </Row>
@@ -225,7 +227,7 @@ function SoloSquad({
         <Txt w="eb" size={16} color={tr.c} accessibilityLabel={dir === 'up' ? 'Trending up' : dir === 'down' ? 'Trending down' : 'Trend flat'}>
           {tr.t}
         </Txt>
-        <Txt w="eb" size={20} style={{ width: 34, textAlign: 'right' }}>
+        <Txt w="eb" num size={20} style={{ width: 34, textAlign: 'right' }}>
           {score}
         </Txt>
       </Row>

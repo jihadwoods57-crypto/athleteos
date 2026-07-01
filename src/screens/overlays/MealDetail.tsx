@@ -7,7 +7,7 @@ import { aiCoachName, isAiConfigured } from '@/lib/ai';
 import type { EditableFood, LoggedMeal, FoodItem, MealKey } from '@/core';
 import { useStore } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
-import { Btn, Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, ProgressBar, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
@@ -73,7 +73,9 @@ export function MealDetail() {
   return (
     <Overlay title="Meal Detail" onClose={s.closeMealDetail}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <View style={[{ width: '100%', height: 150, borderRadius: 20, backgroundColor: meal.thumb[1] }, shadow.card]} />
+        <Reveal index={0}>
+          <View style={[{ width: '100%', height: 150, borderRadius: 20, backgroundColor: meal.thumb[1] }, shadow.card]} />
+        </Reveal>
 
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 16 }}>
           <View style={{ flex: 1 }}>
@@ -85,7 +87,7 @@ export function MealDetail() {
             </Txt>
           </View>
           <View style={{ alignItems: 'center', marginLeft: 14 }}>
-            <Txt w="eb" size={26} color={colors.successDeep} ls={-0.5}>
+            <Txt w="eb" num size={26} color={colors.successDeep} ls={-0.5}>
               {quality}
             </Txt>
             <Txt w="eb" size={10} color={colors.textTertiary}>
@@ -106,7 +108,8 @@ export function MealDetail() {
             : 'Estimated from your meal photo, not weighed. Adjust any portion below to correct it.'}
         </Txt>
 
-        <Card style={{ marginTop: 14, borderRadius: 20 }}>
+        <Reveal index={1}>
+        <Card variant="hero" style={{ marginTop: 14, borderRadius: 20 }}>
           <Row style={{ justifyContent: 'space-between', marginBottom: 14 }}>
             <Txt w="eb" size={15} ls={-0.3}>
               Foods
@@ -194,8 +197,10 @@ export function MealDetail() {
             ) : null}
           </View>
         </Card>
+        </Reveal>
 
-        <Card style={{ marginTop: 14, borderRadius: 20 }}>
+        <Reveal index={2}>
+        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 4 }}>
             Calorie composition
           </Txt>
@@ -211,14 +216,16 @@ export function MealDetail() {
                 <View style={{ flex: 1 }}>
                   <ProgressBar pct={x.pct} height={7} color={x.label === 'Protein' ? colors.accent : colors.success} />
                 </View>
-                <Txt w="eb" size={13} style={{ width: 38, textAlign: 'right' }}>
+                <Txt w="eb" num size={13} style={{ width: 38, textAlign: 'right' }}>
                   {x.pct}%
                 </Txt>
               </Row>
             ))}
           </View>
         </Card>
+        </Reveal>
 
+        <Reveal index={3}>
         <View style={{ marginTop: 14, borderRadius: 18, padding: 18, backgroundColor: colors.accentSurface, borderWidth: 1, borderColor: colors.accentBorder, flexDirection: 'row', gap: 13 }}>
           <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="sparkle" size={17} color={colors.accent} />
@@ -230,6 +237,7 @@ export function MealDetail() {
             {meal.note}
           </Txt>
         </View>
+        </Reveal>
 
         {/* Accountability Engine — how this meal measures against the athlete's plan.
             Gated by the engines master switch (OFF for the prove-the-loop beta). */}
@@ -267,7 +275,7 @@ function Chat() {
   const isMe = (who: string) => who === 'athlete';
 
   return (
-    <Card style={{ marginTop: 14, borderRadius: 20 }}>
+    <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
       <Row style={{ gap: 8, marginBottom: 14 }}>
         <Txt w="eb" size={15} ls={-0.3}>
           Discuss this meal
@@ -319,7 +327,7 @@ function Chat() {
 function Tile({ value, label, color }: { value: string; label: string; color?: string }) {
   return (
     <View style={[{ flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 13 }, shadow.card]}>
-      <Txt w="eb" size={20} color={color}>
+      <Txt w="eb" num size={20} color={color}>
         {value}
       </Txt>
       <Txt w="b" size={10} color={colors.textTertiary} style={{ marginTop: 3 }}>

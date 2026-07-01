@@ -6,7 +6,7 @@ import type { MealLabel, LabelFacts, IngredientFlag } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiCoachTag } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
-import { Avatar, Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { Avatar, Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
@@ -282,13 +282,14 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           {mr.name}
         </Txt>
         <View style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: tone.bg }}>
-          <Txt w="eb" size={11} color={tone.fg}>
+          <Txt w="eb" num size={11} color={tone.fg}>
             {mr.quality} · {q.label}
           </Txt>
         </View>
       </Row>
 
       {/* HERO — goal-aligned coaching insight */}
+      <Reveal index={0}>
       <View style={{ marginTop: 16, borderRadius: 20, padding: 18, backgroundColor: colors.accentSurface, borderWidth: 1, borderColor: colors.accentBorder }}>
         <Row style={{ gap: 9 }}>
           <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
@@ -302,16 +303,18 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           {heroInsight}
         </Txt>
       </View>
+      </Reveal>
 
       {/* score impact — the reward that proves the loop */}
+      <Reveal index={1}>
       <View style={{ marginTop: 12, borderRadius: 18, padding: 16, backgroundColor: impact > 0 ? colors.successSurface : colors.bg2, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
         <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-          <Txt w="eb" size={20} color={impact > 0 ? colors.successDeep : colors.textTertiary}>
+          <Txt w="eb" num size={20} color={impact > 0 ? colors.successDeep : colors.textTertiary}>
             {impact > 0 ? `+${impact}` : '✓'}
           </Txt>
         </View>
         <View style={{ flex: 1 }}>
-          <Txt w="eb" size={15} color={impact > 0 ? colors.successDeep : colors.slate700}>
+          <Txt w="eb" num size={15} color={impact > 0 ? colors.successDeep : colors.slate700}>
             {impact > 0 ? `+${impact} to today's score` : 'Already counted today'}
           </Txt>
           <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 1 }}>
@@ -319,10 +322,12 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           </Txt>
         </View>
       </View>
+      </Reveal>
 
       {/* loop #2 — the coach's voice, carried forward by the AI */}
       {coaching.coachEcho ? (
-        <Card style={{ marginTop: 12, borderRadius: 18 }}>
+        <Reveal index={2}>
+        <Card variant="low" style={{ marginTop: 12, borderRadius: 18 }}>
           <Row style={{ gap: 10 }}>
             <Avatar initials={guidance.monogram} size={34} bg={colors.text} color="#fff" />
             <View style={{ flex: 1 }}>
@@ -338,6 +343,7 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
             {coaching.coachEcho}
           </Txt>
         </Card>
+        </Reveal>
       ) : null}
 
       {/* next step + education */}
@@ -366,7 +372,8 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
       ) : null}
 
       {/* evidence (demoted): detected foods + macros */}
-      <Card style={{ marginTop: 14, borderRadius: 18 }}>
+      <Reveal index={3}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 18 }}>
         <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
           DETECTED · ESTIMATED
         </Txt>
@@ -389,6 +396,7 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           Estimated from your photo, not weighed. Portions may vary, so treat these as a guide.
         </Txt>
       </Card>
+      </Reveal>
 
       <Btn label="Add to Log" haptic="success" onPress={onAdd} style={{ marginTop: 18 }} />
     </View>
@@ -416,7 +424,7 @@ function CoachBlock({ tag, icon, text, muted }: { tag: string; icon: 'utensils' 
 function MacroChip({ value, label, color }: { value: string; label: string; color?: string }) {
   return (
     <View>
-      <Txt w="eb" size={17} color={color}>
+      <Txt w="eb" num size={17} color={color}>
         {value}
       </Txt>
       <Txt w="sb" size={11} color={colors.textTertiary} style={{ marginTop: 1 }}>
@@ -471,7 +479,8 @@ function LabelResult({
       </Row>
 
       {/* servings stepper */}
-      <Card style={{ marginTop: 16, borderRadius: 18 }}>
+      <Reveal index={0}>
+      <Card variant="low" style={{ marginTop: 16, borderRadius: 18 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <View style={{ flex: 1 }}>
             <Txt w="b" size={15}>How many did you eat?</Txt>
@@ -481,14 +490,16 @@ function LabelResult({
           </View>
           <Row style={{ gap: 14, alignItems: 'center' }}>
             <StepBtn icon="minus" label="Fewer servings" onPress={() => onServings(servings - 0.5)} />
-            <Txt w="eb" size={20} style={{ minWidth: 42, textAlign: 'center' }}>{servingsText.split(' ')[0]}</Txt>
+            <Txt w="eb" num size={20} style={{ minWidth: 42, textAlign: 'center' }}>{servingsText.split(' ')[0]}</Txt>
             <StepBtn icon="plus" label="More servings" onPress={() => onServings(servings + 0.5)} />
           </Row>
         </Row>
       </Card>
+      </Reveal>
 
       {/* the exact macros that get logged */}
-      <Card style={{ marginTop: 12, borderRadius: 18 }}>
+      <Reveal index={1}>
+      <Card variant="hero" style={{ marginTop: 12, borderRadius: 18 }}>
         <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
           YOU ATE · {servingsText.toUpperCase()} · FROM THE LABEL
         </Txt>
@@ -503,10 +514,12 @@ function LabelResult({
           <MacroChip value={`${scaled.sodium}mg`} label="Sodium" />
         </Row>
       </Card>
+      </Reveal>
 
       {/* ingredient / nutrient flags */}
       {flags.length ? (
-        <Card style={{ marginTop: 12, borderRadius: 18 }}>
+        <Reveal index={2}>
+        <Card variant="low" style={{ marginTop: 12, borderRadius: 18 }}>
           <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
             FLAGGED · YOUR COACH'S LIST
           </Txt>
@@ -514,6 +527,7 @@ function LabelResult({
             {flags.map((f) => <FlagChip key={f.key} flag={f} />)}
           </Row>
         </Card>
+        </Reveal>
       ) : null}
 
       {/* ingredients, verbatim */}

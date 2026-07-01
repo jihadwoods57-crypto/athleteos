@@ -8,7 +8,7 @@ import type { EditableFood, MealKey } from '@/core';
 import { aiRestaurantCoachTag, isAiConfigured, rephraseOrders } from '@/lib/ai';
 import { useStore, useDerived } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
-import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
@@ -121,14 +121,18 @@ export function FoodCoach() {
 
         {elsewhere ? (
           /* off-menu fallback — goal-aware "build your plate" guidance, then log it */
-          <GuidanceCard
-            guidance={guidance}
-            onLog={() => { s.closeFoodCoach(); s.openMeal(); }}
-          />
+          <Reveal index={0}>
+            <GuidanceCard
+              guidance={guidance}
+              onLog={() => { s.closeFoodCoach(); s.openMeal(); }}
+            />
+          </Reveal>
         ) : (
           <>
             {/* recommended order — owns the visual weight */}
-            <OrderCard order={result.primary} byAI={byAI} onUse={() => useOrder(result.primary)} />
+            <Reveal index={0}>
+              <OrderCard order={result.primary} byAI={byAI} onUse={() => useOrder(result.primary)} />
+            </Reveal>
 
             {/* alternatives — scannable one-line rows that expand on tap */}
             {result.alternatives.length > 0 ? (
@@ -161,7 +165,7 @@ export function FoodCoach() {
 
 function GuidanceCard({ guidance, onLog }: { guidance: GenericGuidance; onLog: () => void }) {
   return (
-    <Card elevated style={{ marginTop: 16, borderRadius: 20, borderWidth: 1.5, borderColor: colors.accent }}>
+    <Card variant="hero" style={{ marginTop: 16, borderRadius: 20, borderWidth: 1.5, borderColor: colors.accent }}>
       <Row style={{ gap: 9, marginBottom: 10 }}>
         <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="sparkle" size={16} color={colors.accent} />
@@ -207,7 +211,7 @@ function OrderCard({ order, byAI, onUse }: { order: RecommendedOrder; byAI: bool
   if (order.lines.length === 0) return null;
   const t = order.totals;
   return (
-    <Card elevated style={{ marginTop: 16, borderRadius: 20, borderWidth: 1.5, borderColor: colors.accent }}>
+    <Card variant="hero" style={{ marginTop: 16, borderRadius: 20, borderWidth: 1.5, borderColor: colors.accent }}>
       {/* Provenance chip: only when the AI actually reworded the explanation (byAI). Otherwise the
           card is the deterministic coach recommendation and shows no AI badge. */}
       {byAI ? (
@@ -220,7 +224,7 @@ function OrderCard({ order, byAI, onUse }: { order: RecommendedOrder; byAI: bool
         <Txt w="eb" size={16} ls={-0.3} color={colors.accent}>
           Recommended order
         </Txt>
-        <Txt w="b" size={13} color={colors.textTertiary}>
+        <Txt w="b" num size={13} color={colors.textTertiary}>
           ${t.price.toFixed(2)}
         </Txt>
       </Row>
@@ -260,10 +264,10 @@ function AltRow({ label, order, expanded, onToggle, onUse }: { label: string; or
           <Txt w="b" size={14} style={{ flex: 1 }}>
             {label}
           </Txt>
-          <Txt w="m" size={12} color={colors.textTertiary} style={{ marginRight: 8 }}>
+          <Txt w="m" num size={12} color={colors.textTertiary} style={{ marginRight: 8 }}>
             {t.protein}g · {t.calories}cal · ${t.price.toFixed(2)}
           </Txt>
-          <Icon name={expanded ? 'minus' : 'chevronRight'} size={18} color="#CBD5E1" />
+          <Icon name={expanded ? 'minus' : 'chevronRight'} size={18} color={colors.slate300} />
         </Row>
       </Pressable>
       {expanded ? (
@@ -314,7 +318,7 @@ function useRephrasedOrders(result: RecommendResult): { display: RecommendResult
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <View style={[{ flex: 1, backgroundColor: colors.bg, borderRadius: 12, padding: 10 }, shadow.card]}>
-      <Txt w="eb" size={16} color={colors.accent}>
+      <Txt w="eb" num size={16} color={colors.accent}>
         {value}
       </Txt>
       <Txt w="b" size={9} color={colors.textTertiary} style={{ marginTop: 2 }}>

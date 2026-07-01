@@ -6,7 +6,7 @@ import { useStore } from '@/store';
 import { db, isBackendLive } from '@/lib/supabase';
 import { aiPrefix } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Input, ProgressBar, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
+import { Card, Input, PressScale, ProgressBar, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
@@ -47,9 +47,10 @@ export function PersonDetail() {
   return (
     <Overlay title={`${noun} Profile`} onClose={s.closePerson}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Card elevated style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+        <Reveal index={0}>
+        <Card variant="hero" style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
           <Ring size={96} pct={pd.score} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">
-            <Txt w="eb" size={30} ls={-0.5}>
+            <Txt w="eb" num size={30} ls={-0.5}>
               {pd.score}
             </Txt>
             <Txt w="eb" size={9} color={grade.c}>
@@ -73,6 +74,7 @@ export function PersonDetail() {
             </Txt>
           </View>
         </Card>
+        </Reveal>
 
         {/* COMPLIANCE is real (derived from the roster). DAY STREAK + WEIGHT Δ are sample
             showcase values, the same for every athlete, so they are shown ONLY in the demo
@@ -96,7 +98,7 @@ export function PersonDetail() {
         )}
 
         {pd.perf ? (
-          <Card style={{ marginTop: 14, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="trophy" size={18} color={colors.accent} />
             </View>
@@ -111,7 +113,8 @@ export function PersonDetail() {
           </Card>
         ) : null}
 
-        <Card style={{ marginTop: 14, borderRadius: 20 }}>
+        <Reveal index={1}>
+        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 16 }}>
             Score Breakdown
           </Txt>
@@ -122,15 +125,15 @@ export function PersonDetail() {
             <BreakdownRow label="Check-in" pct={bd.checkin} />
           </View>
         </Card>
+        </Reveal>
 
         {/* Coach owns the plan (Constitution Rule #13): set this athlete's targets +
             scoring profile. Shown to the overseer flows that open this overlay. */}
         {s.flow === 'coach' || s.flow === 'trainer' ? (
-          <Pressable
-            accessibilityRole="button"
+          <PressScale
             accessibilityLabel={`Set ${pd.name}'s targets and scoring`}
             onPress={s.openCoachGoals}
-            style={({ pressed }) => [{ marginTop: 14, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', opacity: pressed ? 0.9 : 1 }, shadow.card]}
+            style={[{ marginTop: 14, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff' }, shadow.card]}
           >
             <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="shield" size={18} color={colors.accent} />
@@ -142,12 +145,13 @@ export function PersonDetail() {
               </Txt>
             </View>
             <Icon name="chevronRight" size={18} color={colors.textTertiary} />
-          </Pressable>
+          </PressScale>
         ) : null}
 
         <RecentMeals athleteId={pd.athleteId} name={pd.name} />
 
-        <Card style={{ marginTop: 14, borderRadius: 20 }}>
+        <Reveal index={2}>
+        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
           <Row style={{ gap: 9, marginBottom: 12 }}>
             <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="sparkle" size={17} color={colors.accent} />
@@ -165,6 +169,7 @@ export function PersonDetail() {
               : `${pd.name} needs attention. The score is below the line. A check-in could help reset the routine.`}
           </Txt>
         </Card>
+        </Reveal>
 
         {!nudged ? (
           <Input
@@ -256,7 +261,7 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
   const firstName = name.split(/\s+/)[0] || name;
 
   return (
-    <Card style={{ marginTop: 14, borderRadius: 20 }}>
+    <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
       <Row style={{ gap: 9, marginBottom: 12 }}>
         <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="utensils" size={16} color={colors.accent} />
@@ -296,7 +301,7 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
 function StatTile({ value, label, color }: { value: string; label: string; color?: string }) {
   return (
     <View style={[{ flex: 1, backgroundColor: '#fff', borderRadius: 18, padding: 16 }, shadow.card]}>
-      <Txt w="eb" size={24} color={color}>
+      <Txt w="eb" num size={24} color={color}>
         {value}
       </Txt>
       <Txt w="b" size={11} color={colors.textTertiary} style={{ marginTop: 3 }}>
@@ -315,7 +320,7 @@ function BreakdownRow({ label, pct, accent }: { label: string; pct: number; acce
       <View style={{ flex: 1 }}>
         <ProgressBar pct={pct} height={8} color={accent ? colors.accent : colors.success} />
       </View>
-      <Txt w="eb" size={13} style={{ width: 26, textAlign: 'right' }}>
+      <Txt w="eb" num size={13} style={{ width: 26, textAlign: 'right' }}>
         {pct}
       </Txt>
     </Row>
