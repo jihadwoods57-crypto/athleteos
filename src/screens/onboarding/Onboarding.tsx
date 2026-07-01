@@ -156,7 +156,7 @@ function Welcome() {
         <Row style={{ gap: 10 }}>
           <LogoMark size={30} />
           <Txt w="eb" size={20} ls={-0.4}>
-            Athlete<Txt w="eb" size={20} color={colors.accent}>OS</Txt>
+            On<Txt w="eb" size={20} color={colors.accent}>Standard</Txt>
           </Txt>
         </Row>
         <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 28 }}>
