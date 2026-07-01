@@ -61,4 +61,6 @@ export * from './aiAuthority';
 export * from './assist';
 export * from './personality';
 export * from './copilot';
+export * from './memory';
+export * from './performanceProfile';
 export { createInitialState } from './defaultState';
