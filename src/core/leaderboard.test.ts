@@ -1,4 +1,4 @@
-// AthleteOS — leaderboard selector tests. The athlete's own row reflects the live
+// OnStandard — leaderboard selector tests. The athlete's own row reflects the live
 // score, and the whole board is RE-RANKED by score so the medal + position are
 // truthful (no more pinning the "you" row at its static rank).
 import { buildLeaderboard, coachRosterKpis, medalColor, trainerBookKpis, trendInfo } from './leaderboard';

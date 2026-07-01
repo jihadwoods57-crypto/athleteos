@@ -1,4 +1,4 @@
-// AthleteOS — Supabase integration barrel. Screens/store import from here, never
+// OnStandard — Supabase integration barrel. Screens/store import from here, never
 // from the raw client, so the backend can be swapped or mocked behind one seam.
 export { isSupabaseConfigured, isBackendLive, supabase, requireSupabase } from './client';
 export * as auth from './auth';

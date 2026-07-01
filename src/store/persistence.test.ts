@@ -1,4 +1,4 @@
-// AthleteOS — persistence invariants. Locks the agreement between the day-rollover
+// OnStandard — persistence invariants. Locks the agreement between the day-rollover
 // reset set (DAY_DEFAULT_KEYS) and the store's persist whitelist (partialize), and
 // proves a serialize -> merge round-trip restores state. AsyncStorage is mocked so
 // the node env can drive the real Zustand store + its persist options.
@@ -51,7 +51,7 @@ describe('onboarding identity + baseline fields are all persisted', () => {
     'baseGoal', 'baseHeight', 'baseWeight', 'baseAge',
     'goals', 'inviteWho', 'parentFocus', 'coachTrack', 'compMode',
     // onboarding (redesign)
-    'primaryGoal', 'trainingFreq', 'supportTeam', 'inviteCode',
+    'primaryGoal', 'trainingFreq', 'supportTeam', 'inviteCode', 'teamCode',
     'baseNutritionConfidence', 'baseMealsPerDay', 'baseWaterL', 'baseSleepH',
     'baseProteinFreq', 'baseConsistency', 'startScore', 'obMeta',
   ];

@@ -1,4 +1,4 @@
-// AthleteOS — edge-state correctness net. Proves the scoring engine produces a
+// OnStandard — edge-state correctness net. Proves the scoring engine produces a
 // finite, in-range result and never throws across the boundary conditions the
 // product can actually reach: a fully empty day, a fully complete day, score
 // boundaries, undefined optional fields, out-of-range inputs, and zero targets.

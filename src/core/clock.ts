@@ -1,4 +1,4 @@
-// AthleteOS — clock/date helpers (pure TS leaf: imports nothing from core).
+// OnStandard — clock/date helpers (pure TS leaf: imports nothing from core).
 // Lives apart from dayRollover/defaultState so both can depend on it without
 // forming an import cycle (defaultState needs the stamp; dayRollover needs both).
 
@@ -9,6 +9,13 @@ export function todayStamp(now: Date = new Date()): string {
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/** Local-date stamp `n` days before `now` (YYYY-MM-DD), for bounded history windows
+ *  (e.g. "meals in the last 7 days"). Uses local parts like todayStamp; `now` injectable. */
+export function daysAgoStamp(n: number, now: Date = new Date()): string {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - n);
+  return todayStamp(d);
 }
 
 /**

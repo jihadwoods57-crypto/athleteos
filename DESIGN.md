@@ -1,7 +1,7 @@
-# AthleteOS — Design System
+# OnStandard — Design System
 
 The established, committed visual language. Documented so design work **refines within it**.
-Source of truth: `../athleteos-design-ref/design_handoff_athleteos/` (README + `.dc.html`).
+Source of truth: `../onstandard-design-ref/design_handoff_onstandard/` (README + `.dc.html`).
 Tokens live in code at `src/ui/tokens.ts` — use them; never hardcode stray hex/spacing.
 
 ## Color

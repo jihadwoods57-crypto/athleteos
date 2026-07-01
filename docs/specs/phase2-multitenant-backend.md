@@ -1,4 +1,4 @@
-# AthleteOS — Phase 2: Multi-Tenant Backend (data model + RLS)
+# OnStandard — Phase 2: Multi-Tenant Backend (data model + RLS)
 
 Status: spec / not yet built. Target stack: **Supabase** (Postgres + Auth + Storage +
 Realtime + Row-Level Security). This replaces the current local-only Zustand+AsyncStorage

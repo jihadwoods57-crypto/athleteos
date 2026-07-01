@@ -1,24 +1,24 @@
 {
   "expo": {
-    "name": "AthleteOS",
-    "slug": "athleteos",
+    "name": "OnStandard",
+    "slug": "onstandard",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "athleteos",
+    "scheme": "onstandard",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.athleteos.app",
+      "supportsTablet": false,
+      "bundleIdentifier": "com.onstandard.app",
       "buildNumber": "1",
       "config": {
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "AthleteOS uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
-        "NSPhotoLibraryUsageDescription": "AthleteOS needs photo library access so you can pick an existing meal photo to log and analyze.",
-        "NSPhotoLibraryAddUsageDescription": "AthleteOS can save a meal photo back to your library after you log it.",
+        "NSCameraUsageDescription": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
+        "NSPhotoLibraryUsageDescription": "OnStandard needs photo library access so you can pick an existing meal photo to log and analyze.",
+        "NSPhotoLibraryAddUsageDescription": "OnStandard can save a meal photo back to your library after you log it.",
         "ITSAppUsesNonExemptEncryption": false
       },
       "privacyManifests": {
@@ -28,19 +28,27 @@
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
-            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
-            "NSPrivacyAccessedAPITypeReasons": ["35F9.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "35F9.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
-            "NSPrivacyAccessedAPITypeReasons": ["E174.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "E174.1"
+            ]
           }
         ]
       }
@@ -60,7 +68,15 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "OnStandard lets you pick an existing meal photo to log and analyze.",
+          "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only."
+        }
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

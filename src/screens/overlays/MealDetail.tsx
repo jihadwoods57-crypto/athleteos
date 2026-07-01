@@ -1,8 +1,10 @@
-// AthleteOS — Meal Detail: hero, macros, foods, quality breakdown, 3-way chat.
+// OnStandard — Meal Detail: hero, macros, foods, quality breakdown, 3-way chat.
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods } from '@/core';
-import type { EditableFood, LoggedMeal } from '@/core';
+import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods, searchFoods, addFood, removeFood, resolvePortion, medicalDisclaimer, activePlan, planMealNote } from '@/core';
+import { isEnginesEnabled } from '@/lib/features';
+import { aiCoachName, isAiConfigured } from '@/lib/ai';
+import type { EditableFood, LoggedMeal, FoodItem, MealKey } from '@/core';
 import { useStore } from '@/store';
 import { colors, font, shadow } from '@/ui/tokens';
 import { Btn, Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
@@ -34,21 +36,39 @@ const DINNER: LoggedMeal = {
   note: 'Excellent protein hit for dinner. Add a piece of fruit and this is a perfect plate.',
 };
 
+// The detail overlay is opened with a slot's detailId (b/l/s/dinner); map it back
+// to the MealKey so edits save into — and seed from — that slot's day state.
+const DETAIL_TO_KEY: Record<string, MealKey> = { b: 'breakfast', l: 'lunch', s: 'snack', dinner: 'dinner' };
+
 export function MealDetail() {
   const s = useStore();
   const meal = MEALS_LOG.find((m) => m.id === s.selectedMeal) ?? DINNER;
+  const mealKey: MealKey = DETAIL_TO_KEY[s.selectedMeal ?? ''] ?? 'dinner';
 
   // Editable estimate: each food carries a numeric share of the meal, so adjusting
   // a portion recomputes macros + quality + composition live (the persona fix for
-  // the dead steppers). Re-seed when the opened meal changes.
-  const [foods, setFoods] = React.useState<EditableFood[]>(() => toEditableFoods(meal));
-  React.useEffect(() => { setFoods(toEditableFoods(meal)); }, [s.selectedMeal]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the dead steppers). Seed from the SAVED plate for this slot when one exists,
+  // else the photo estimate; re-seed when the opened meal changes.
+  const seedFoods = () => s.mealFoods[mealKey] ?? toEditableFoods(meal);
+  const [foods, setFoods] = React.useState<EditableFood[]>(seedFoods);
+  React.useEffect(() => { setFoods(seedFoods()); }, [s.selectedMeal]); // eslint-disable-line react-hooks/exhaustive-deps
   const macros = mealMacros(foods);
   const quality = mealQuality(macros);
   const comp = macroComposition(macros);
-  const edited = foods.some((f) => f.servings !== 1);
+  // Accountability Engine: plan-RELATIVE, goal-aware coaching for THIS meal vs the
+  // athlete's plan (not generic advice). The same plate reads differently per goal.
+  const planNote = planMealNote(activePlan(s), mealKey, { protein: macros.protein, calories: macros.kcal }, s.baseGoal);
+  const [query, setQuery] = React.useState('');
+  const results = React.useMemo(() => searchFoods(query, 6), [query]);
+  const added = foods.length !== toEditableFoods(meal).length;
+  const edited = foods.some((f) => f.servings !== 1) || added;
   const adjust = (i: number, delta: number) =>
     setFoods((prev) => prev.map((f, j) => (j === i ? { ...f, servings: stepServings(f.servings, delta) } : f)));
+  const onAdd = (item: FoodItem) => {
+    setFoods((prev) => addFood(prev, item));
+    setQuery('');
+  };
+  const onRemove = (i: number) => setFoods((prev) => removeFood(prev, i));
 
   return (
     <Overlay title="Meal Detail" onClose={s.closeMealDetail}>
@@ -103,16 +123,75 @@ export function MealDetail() {
                     {f.name}
                   </Txt>
                   <Txt w="m" size={12} color={colors.textTertiary}>
-                    {f.portion}
-                    {f.servings !== 1 ? `  ·  ×${f.servings}` : ''}
+                    {f.servings !== 1
+                      ? `${resolvePortion(f.portion, f.servings) ?? f.portion}  ·  ×${f.servings}`
+                      : f.portion}
                   </Txt>
                 </View>
                 <Row style={{ gap: 10, alignItems: 'center' }}>
                   <Step glyph="−" label={`Less ${f.name}`} onPress={() => adjust(i, -0.5)} />
                   <Step glyph="+" label={`More ${f.name}`} onPress={() => adjust(i, 0.5)} />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${f.name}`}
+                    hitSlop={6}
+                    onPress={() => onRemove(i)}
+                    style={({ pressed }) => ({ width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <Icon name="close" size={13} color={colors.textTertiary} />
+                  </Pressable>
                 </Row>
               </Row>
             ))}
+            {foods.length === 0 ? (
+              <Txt w="m" size={13} color={colors.textTertiary} style={{ lineHeight: 18 }}>
+                No foods yet. Search below to add one.
+              </Txt>
+            ) : null}
+          </View>
+
+          <View style={{ marginTop: 16, borderTopWidth: 1, borderTopColor: colors.bg2, paddingTop: 14 }}>
+            <Txt w="eb" size={13} ls={-0.2} style={{ marginBottom: 8 }}>
+              Add a food
+            </Txt>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search foods (chicken, rice, banana…)"
+              placeholderTextColor={colors.textTertiary}
+              accessibilityLabel="Search foods to add"
+              autoCorrect={false}
+              style={{ height: 44, borderRadius: 13, backgroundColor: colors.bg, paddingHorizontal: 14, fontFamily: font.m, fontSize: 14, color: colors.text }}
+            />
+            {results.length > 0 ? (
+              <View style={{ gap: 8, marginTop: 10 }}>
+                {results.map((r) => (
+                  <Pressable
+                    key={r.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${r.name}, ${r.serving}`}
+                    onPress={() => onAdd(r)}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.bg, opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Txt w="b" size={13}>
+                        {r.name}
+                      </Txt>
+                      <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                        {r.serving} · {r.per.protein}g protein · {r.per.kcal} kcal
+                      </Txt>
+                    </View>
+                    <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon name="plus" size={14} color={colors.accent} />
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : query.trim().length > 0 ? (
+              <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 10 }}>
+                No match in the food list. A fuller database lands with the backend.
+              </Txt>
+            ) : null}
           </View>
         </Card>
 
@@ -146,15 +225,33 @@ export function MealDetail() {
           </View>
           <Txt w="m" size={14} color={colors.slate700} style={{ flex: 1, lineHeight: 20 }}>
             <Txt w="b" size={14} color={colors.accent}>
-              Coach AI ·{' '}
+              {aiCoachName} ·{' '}
             </Txt>
             {meal.note}
           </Txt>
         </View>
 
+        {/* Accountability Engine — how this meal measures against the athlete's plan.
+            Gated by the engines master switch (OFF for the prove-the-loop beta). */}
+        {isEnginesEnabled ? (
+          <View style={{ marginTop: 12, borderRadius: 18, padding: 16, backgroundColor: colors.bg2, flexDirection: 'row', gap: 12 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="check" size={16} color={colors.successDeep} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} upper>
+                Plan check
+              </Txt>
+              <Txt w="m" size={14} color={colors.slate700} style={{ marginTop: 3, lineHeight: 20 }}>
+                {planNote}
+              </Txt>
+            </View>
+          </View>
+        ) : null}
+
         <Chat />
 
-        <Btn label="Save Changes" onPress={s.closeMealDetail} style={{ marginTop: 18 }} />
+        <Btn label="Save Changes" onPress={() => s.saveMeal(mealKey, foods)} style={{ marginTop: 18 }} />
       </ScrollView>
     </Overlay>
   );
@@ -166,7 +263,7 @@ function Chat() {
   const setChatDraft = useStore((s) => s.setChatDraft);
   const sendChat = useStore((s) => s.sendChat);
 
-  const nameFor = (who: string) => (who === 'ai' ? 'Coach AI' : who === 'coach' ? 'Coach Davis' : 'You');
+  const nameFor = (who: string) => (who === 'ai' ? aiCoachName : who === 'coach' ? 'Coach Davis' : 'You');
   const isMe = (who: string) => who === 'athlete';
 
   return (
@@ -177,7 +274,7 @@ function Chat() {
         </Txt>
         <View style={{ backgroundColor: colors.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
           <Txt w="b" size={10} color={colors.accent}>
-            YOU · AI · COACH
+            {isAiConfigured ? 'YOU · AI · COACH' : 'YOU · COACH'}
           </Txt>
         </View>
       </Row>
@@ -200,6 +297,9 @@ function Chat() {
           );
         })}
       </View>
+      <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 12, lineHeight: 15 }}>
+        {medicalDisclaimer()}
+      </Txt>
       <Row style={{ gap: 8, marginTop: 14 }}>
         <TextInput
           value={chatDraft}

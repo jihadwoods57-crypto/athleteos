@@ -1,4 +1,4 @@
-// AthleteOS — onboarding flow definitions for the non-athlete roles.
+// OnStandard — onboarding flow definitions for the non-athlete roles.
 // Each role's flow is data (an array of step descriptors) so one renderer drives
 // all of them. Answers are stored in `obMeta` keyed by `field` (personalization,
 // not scored). The athlete flow is bespoke (see Onboarding.tsx) because it feeds
@@ -15,9 +15,51 @@ export type GenStep =
   | { kind: 'select'; field: string; title: string; sub?: string; options: Opt[]; columns?: number }
   | { kind: 'multiselect'; field: string; title: string; sub?: string; options: Opt[] }
   | { kind: 'text'; field: string; title: string; sub?: string; placeholder: string }
+  | { kind: 'account'; title: string; sub: string }
   | { kind: 'invite'; title: string; sub: string; cta: string; codeLabel: string };
 
+/** The overseer account-creation step, inserted right before the invite step and
+ *  ONLY when the data backend is live (mirrors the athlete flow). With the flag off
+ *  the generic flows are byte-identical to today. */
+const ACCOUNT_STEP: GenStep = {
+  kind: 'account',
+  title: 'Create your account',
+  sub: 'Save your roster and settings so they sync across devices.',
+};
+
+/** A role's flow with the account step spliced in before the invite when live. */
+export function roleFlowFor(steps: GenStep[], backendLive: boolean): GenStep[] {
+  if (!backendLive) return steps;
+  const i = steps.findIndex((s) => s.kind === 'invite');
+  if (i < 0) return [...steps, ACCOUNT_STEP];
+  return [...steps.slice(0, i), ACCOUNT_STEP, ...steps.slice(i)];
+}
+
 const sportOpts: Opt[] = SPORTS.map((s) => ({ key: s, label: s }));
+
+// The athlete onboarding is bespoke (Onboarding.tsx) but its STEP ORDER lives here so
+// it can be unit-tested. The real-data consent gate is inserted right before activation
+// and ONLY when the data backend is live, so with the flag off the flow is byte-identical
+// to today (no extra step, same indices, same progress denominator).
+// Lean flow (2026-06-29): the path to the Starting Score reveal (the aha) is short.
+// Position is merged into the sport screen (optional), training frequency into the
+// profile screen, and the six baseline questions collapse onto one 'baseline' screen.
+// "Who's on your team?" is deferred off the critical path (connect a coach later in app).
+export type AthleteFlowKey =
+  | 'goal' | 'sport' | 'profile' | 'baseline'
+  | 'score' | 'account' | 'consent' | 'challenge';
+
+export function athleteFlowKeys(backendLive: boolean): AthleteFlowKey[] {
+  return [
+    'goal', 'sport', 'profile', 'baseline',
+    'score',
+    // Account creation + consent exist only when the data backend is live, so with
+    // the flag OFF the flow is byte-identical to today (no account step, same
+    // indices, same progress denominator). Create the account, then consent.
+    ...(backendLive ? (['account', 'consent'] as AthleteFlowKey[]) : []),
+    'challenge',
+  ];
+}
 
 const COUNT_BANDS: Opt[] = [
   { key: '1-10', label: '1 to 10' },

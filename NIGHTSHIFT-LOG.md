@@ -1,3 +1,322 @@
+# ⭐ SPRINT CLOSE — PR: 4-Day Founder-Away Sprint (Thu Jun 25 → Sun Jun 28, 2026)
+
+> **`crew/4day-sprint` → `master`** · **104 commits** · **tests 559 → 894** (+335, 62 suites) ·
+> `typecheck` + `test` + `bundle` (iOS export) **green on every commit** · tag `day4-end`.
+> **NOT merged — yours to review + merge.** Founder-return report:
+> `docs/FOUNDER-RETURN-2026-06-28.md`.
+
+**What this PR does.** The app was already app-complete. This sprint added the **backend
+wiring**, **five new features**, and **readiness/hardening** — *all behind two off-by-default
+master switches and inert device/data seams.* **Nothing went live:** `EXPO_PUBLIC_BACKEND_LIVE`
+never enabled, no real accounts or data, no `supabase db push`, no external sends. `src/core`
+stayed pure TypeScript; no `src/app`; one job = one commit; the branch was pushed after each.
+Everything left between here and a closed beta is a **human** step — see **NEEDS YOU** in the
+founder-return report.
+
+**Highlights by priority item** (full detail + per-feature VERIFIED vs
+BUILT-NOT-RUNTIME-VERIFIED status in `docs/FOUNDER-RETURN-2026-06-28.md`):
+- **P0 — Backend wiring (keystone).** Auth + day-sync + consent + roster behind `isBackendLive`;
+  flag-off identical. Full `auth → joinTeam → pushDay → fetchLinkedDays` round-trip **proven on
+  a throwaway LOCAL stack** (never the live project). Migrations `0004`/`0005` authored + locally
+  verified.
+- **P1 — Performance signal.** `core/performance.ts` PR/trend model + athlete Performance view +
+  coach PersonDetail line; kept out of the daily score (D3). Date-picker + sync = seams (D4).
+- **P2 — Better meal logging.** `core/foodDb.ts` 55-food starter table + search + quick-add
+  through `mealEdit`; barcode = inert seam (D5).
+- **P3 — Reminders.** `core/reminders.ts` schedule model + settings UI + local-notify seam
+  (`refreshReminderSchedule`, no-op today) (D6).
+- **P4 — Messaging + weekly report.** `core/weeklyReport.ts` (now on Profile + a Coach team
+  report) + `core/messaging.ts` (honest "not delivered", minor relationship-gate + RLS `0006`).
+  Delivery = seam (D7/D10).
+- **P5 — Wearable recovery.** `core/recovery.ts` mapping + `blendRecovery` (self-report unchanged
+  when no sample) + inert health seam; not in live scoring (D8).
+- **P6 — Persona voice.** Educational coach scope, trainer `clientType` lens, honest parent
+  digest, and a trust pass (stop calling deterministic logic "AI"; hide demo stats when live).
+- **P7 — Readiness.** In-app account deletion + export (Apple 5.1.1(v)); `0007`/`0008` (COPPA
+  VPC) locally verified; fail-closed minor consent; legal drafts; body-image safeguard; input
+  validation; iPhone-only scope; AI-honesty labeling.
+- **P8 — QA + regression.** Keystone locks (Coach Plan, body-image copy, meal loop, rollover)
+  and this run's flag-OFF fix; tests grew to 894.
+- **Beyond the queue.** Engines master switch (default OFF); Development Score + Daily Game Plan
+  projection; Coach Plan editor; Restaurant Coach (13 chains + off-menu); profile-aware scoring
+  (`athlete` byte-for-byte unchanged, `general` an inert D9 seam); Product Constitution, Launch
+  Checklist, GO-LIVE-NOW runbook.
+
+**Day-4 final run (this run) — adversarial self-review + close.** Re-ran all three gates on the
+branch (no drift: typecheck clean, 892 passing, iOS export green), then reviewed the full Day-4
+diff (UI + core/store) adversarially. **UI clean.** Found + **fixed one real flag-OFF behavior
+change**: Feature 8's late-meal punctuality penalty fed the Development Score but was gated only
+at the UI, so with engines OFF a late meal silently dropped the score (84 → 82) against the
+ratified keystone. Fix: the store records the punctuality timestamp only when `isEnginesEnabled`
+(engines off → score byte-for-byte unchanged); two regression tests lock it; `src/core` stayed
+pure. Tests **892 → 894**. Then wrote `docs/FOUNDER-RETURN-2026-06-28.md`, this summary, and
+tagged `day4-end`. Branch left green + fully pushed.
+
+**Guardrails honored every commit:** `EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB
+mutation; no external send; `src/core` pure; no `src/app`; one job = one commit; gates green;
+branch pushed. Judgment calls were queued to `docs/FOUNDER-DECISIONS.md`, never guessed.
+
+> **Tag note (carried from Day 1–3):** the bridge has 403'd annotated-tag ref pushes all
+> sprint, so each day also pushed a `checkpoint/dayN-end` **branch** as a durable substitute.
+> **Confirmed again at close:** the annotated `day4-end` tag was created locally but its push
+> disconnected/403'd on all four retries (same block), so **`checkpoint/day4-end` is the
+> durable marker** for this commit. The `day4-end` tag object exists locally for the founder
+> to push when merging.
+
+---
+
+# Day 4 AM progress (2026-06-28, 6am ET) — P8 QA + regression (NOT the day's report)
+
+In-progress handoff note for the **1pm run**, which continues the queue toward done and
+then CLOSES the sprint (adversarial self-review of the whole-sprint diff +
+`docs/FOUNDER-RETURN-2026-06-28.md` + the whole-sprint PR-style summary atop this log +
+the `day4-end` tag — see the Day-1/2/3 tag-push 403 note; use a `checkpoint/day4-end`
+branch substitute if the bridge still 403s the tag-ref). **Do NOT close the sprint here.**
+
+The build queue is effectively DRAINED (see `docs/board-review/2026-06-28-DAILY-DIGEST.md`):
+P0–P6 shipped earlier; P7/P8 substantially advanced via the account-deletion, consent,
+messaging-gate, and legal work. The remaining blockers to launch are HUMAN (legal sign-off,
+a consent vendor, flipping the backend, device wiring, Apple submission), not more code.
+So this AM run worked **P8 (QA + regression)** — hardening what shipped, not new breadth.
+
+The run first **re-ran all three gates on the branch and confirmed NO DRIFT** —
+`npm run typecheck` clean, `npm run test` **857 passing** (58 suites), `npm run bundle`
+(iOS export) green. Then it added targeted regression coverage to the newest keystones.
+Tests **857 → 868** (+11); `typecheck` + `test` + `bundle` green on EVERY commit;
+`EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB mutation; `src/core` stayed pure;
+no `src/app`; one job = one commit; branch pushed after each.
+
+Two commits (newest last), both **test-only — no behaviour/flag change**:
+
+1. **`test(plan)`: lock the Coach Plan keystone.** The Coach Plan (`src/core/coachPlan.ts`)
+   is the single source of truth BOTH engines read (Nutrition Intelligence + Accountability),
+   but two of its exported pure functions — `activePlan` and `formatWindowTime` — had zero
+   coverage and `mealTarget`'s no-required / degenerate-plan fallbacks were unguarded.
+   Locked: `formatWindowTime` midnight/noon meridiem + ≥24h wraparound (never "24:.."),
+   `activePlan` using real editable targets when present and falling back to `DEFAULT_PLAN`
+   on any zero/negative/undefined target (a corrupt or legacy persisted blob must not poison
+   the plan both engines read), and `mealTarget` required-full vs snack-half shares + the
+   mealsPerDay fallback + no NaN/0-division for a degenerate plan. New `coachPlan.test.ts`,
+   **+10 tests.** *(Pure logic — verified; my hand-computed expectations matched the
+   implementation exactly, confirming the keystone is correct.)*
+2. **`test(safety)`: lock the body-image safeguard on weight entry.** `bodyImageNote()`
+   renders live on the CheckIn weight-entry screen (`CheckIn.tsx:134`) for a MINOR
+   population but had no test. Locked its safety contract: normalize day-to-day weight
+   fluctuation, offer a safe off-ramp to a trusted adult/doctor, stay em-dash-free, and
+   never contain shaming weight/eating language. **+1 test.** *(Safety copy — verified.)*
+
+**Adversarial QA notes for the 1pm run (checked this AM, no fix needed):**
+- The Feature-8 score driver (`effectiveMealsLogged` + `mealLoggedAt`) is sound: `addMeal`
+  only ever sets a slot `true` (never toggles off), so no stale-timestamp path exists; all
+  three meal day-fields (`meals`/`mealFoods`/`mealLoggedAt`) are in the partialize whitelist
+  and reset on rollover (`DAY_DEFAULT_KEYS`), so the rollover invariant holds.
+- The board's keystone loop ("edit a plate → score moves") has real store-level coverage
+  (`src/store/mealLoop.test.ts`: saveMeal persists, logs the slot, routes saved macros into
+  `athleteScore`, and moves the number off the slot constant).
+- `teamWeeklyReport` (Coach dashboard) is well-covered incl. the empty-roster path.
+- **One honest rough edge logged, not actioned:** `itemsByTag` in `src/core/restaurants.ts`
+  is exported but has NO caller (dead code). Left in place — removing an exported helper is
+  a small API change that could be an intended seam; flagged here for the 1pm run / founder
+  to remove if unwanted. Not worth a behaviour-risking commit this run.
+
+HONESTY: both commits are pure/test-only and the figures above are this run's actual
+`npm run verify` results (typecheck + full jest + iOS export), green on every commit.
+
+---
+
+# Day 3 REPORT (2026-06-27) — loop validation: rescale, messaging governance, score rename, honesty pass
+
+The full Day-3 report (the AM handoff note below is kept for detail). Mid-morning the
+board convener landed two founder decisions and **redirected the crew off the old P6
+queue onto `docs/board-review/day3-4-work-queue.md`** (Tier 1 loop → Tier 2 reliability
+→ Tier 1.5 trust): **D-A** rename the headline score to "Development Score" (founder
+confirmed, board reservation on record), and **D-C** authorize a closed HS-coach beta
+cohort (the flag stays OFF until the founder flips it; minor-consent kept non-load-bearing).
+
+Across the day the crew worked the new queue top-down on `crew/4day-sprint`. Tests
+**741 → 782 across the day** (AM +15, midday +16, PM +10); `npm run verify` (typecheck +
+jest + iOS bundle) green on **every** commit; `EXPO_PUBLIC_BACKEND_LIVE` never enabled;
+no live-DB mutation; `src/core` stayed pure; no `src/app`; one job = one commit; branch
+pushed after each. Tag: `day3-end`.
+
+## AM run (6am ET) — P6 persona voice (4 commits) — superseded mid-day by the redirect
+The AM run shipped the P6 tail (AI-coaching scope disclaimer, trainer clientType lens,
+parent honest weekly digest + history-coverage, a smoke-net lock) before the board
+redirected to the loop queue. Full per-commit detail in the AM handoff note below. **+15
+tests (741 → 756).** The parent "honest weekly read" was explicitly kept (it closes a
+board finding); remaining P6 is deferred per D-C until the loop is validated.
+
+## Mid-day (loop keystone, 2 commits) — Tier 1
+1. **`fix(onboarding)`: wire the real create_team join code, retire static EAGLES24.** A
+   gated `createTeamLive` action calls the `create_team` RPC and stores the server-minted
+   code in a new persisted `teamCode`; the invite step renders `teamCode || EAGLES24`.
+   Flag-OFF behaviour byte-identical (still the EAGLES24 showcase). **+4 tests.**
+2. **`feat(meal)`: make the loop real — persist edits + score from real macros (Tier 1
+   #1+#2).** New persisted day-scoped `mealFoods`; a `saveMeal` action writes the edited
+   plate; the nutrition score now reads REAL saved macros (`mealSlotMacros`/
+   `loggedDayMacros`) instead of a slot constant keyed on a boolean, so an edited plate
+   moves the headline. The seeded demo carries no `mealFoods`, so its numbers were
+   unchanged at that point. **+12 tests.** *(Pure logic verified; UI built, not
+   runtime-verified. Tier 1 #3 — cross-context coach delivery — needs the live backend.)*
+
+## PM run (1pm ET) — Tier 2 + Tier 1.5 (5 commits, newest last)
+
+1. **`fix(scoring)`: remove the 57-pt nutrition floor + rescale (Tier 2 #4, D-B).** The
+   nutrition sub-score was `round(57 + protein·30 + meals·15)`, floored at 57, so a
+   zero-effort day still read 57. Per D-B the floor is gone:
+   `round(protein·65 + meals·35)` — protein dominant, a full honest day ~100 and an empty
+   day ~0. This **deliberately deflates the seeded day** (3 meals, protein short, no
+   check-in) from a propped-up **C (75) to an honest D (68)** — the drop is the point,
+   not a regression. Updated the band fixtures in scoring/content tests to land in their
+   target bands under the new scale (a submitted check-in reaches C; +a protein quick-add
+   reaches B) — real states, not hand-set scores. **(net tests 772, fixtures updated.)**
+   *(Pure logic — verified.)*
+2. **`fix(messaging)`: close the minor-messaging governance hole (Tier 2 #5).** Day-2
+   shipped athlete↔counterpart messaging with no age/relationship gate, a fake "Active
+   now" presence claim, and a thread that vanished on reload. Fixed to the safe line: a
+   pure `messagingAllowed`/`messagingGateNote` guard (adult athlete → anyone; a **minor**
+   → only an authorized coach/trainer/guardian; fail-closed on unknown age); the real
+   server-side enforcement in **`0006_messaging_minor_gate.sql`** (a
+   `messaging_authorized` gate on the threads/messages insert policies); removed the
+   "Active now" lie; persisted `msgThread`. **+5 tests.** Queued **D10** (the
+   governance-model + legal-review judgment call). *(Pure guard verified; RLS authored as
+   a documented seam — NOT applied, NOT runtime-verified; UI built, not runtime-verified.)*
+3. **`feat(score)`: rename the headline score to "Development Score" (Tier 2 #6, D-A).**
+   Complete user-facing rename — Home + Parent score cards, both notificationCopy lines,
+   the task-visibility note, the onboarding intro + reveal eyebrow ("Starting Development
+   Score"). Performance is relabeled "your performance track" to avoid colliding with the
+   new name, and names the Development Score in its cross-ref. Internal identifiers/
+   comments (the metric is an accountability/adherence measure) are unchanged — not
+   user-facing, and they keep the board's on-record reservation honest in code.
+   **(1 string-exact test updated.)** *(UI strings built, not runtime-verified.)*
+4. **`feat(coaching)`: persistent medical disclaimer + non-restrictive lean framing
+   (Tier 1.5 #8).** New pure `medicalDisclaimer()` ("Nutrition education, not medical
+   advice. Talk to a doctor or registered dietitian before making big changes to how you
+   eat.") now shown on **every** AI coaching surface (meal analysis, the meal AI chat, the
+   Home insight). Softened the lean-goal coaching: dropped "in a deficit" / "on a cut" /
+   "the weight you lose" for "stay lean by fueling well, not by under-eating" — non-
+   restrictive language for a minor population, still goal-aligned. **+2 tests.** *(Pure
+   logic verified; UI built, not runtime-verified.)*
+5. **`fix(honesty)`: kill demo strings on live screens for a real athlete (Tier 1.5 #7).**
+   Showcase data with no real source stopped masquerading as a real user's own data, each
+   gated to the seeded demo or derived from real input: Home Season-Goal "38 days left" /
+   "by Playoffs · Nov 14" / "by Nov 7" deadlines, the always-on red notification dot, the
+   check-in banner's "2 days left"; CheckIn "Week 14" → "This week", the static "AI weekly
+   summary" → a new pure `checkinSummary` reading the athlete's ACTUAL slider answers, and
+   the static rising weight-trend SVG → a chart from the athlete's own logged weights (via
+   `trendGeometry`) or an honest empty state; and `currentStreak` no longer seed-pads by
+   default (a fresh real athlete sees 1 earned day, not a fabricated 7; the demo opts into
+   the pad via a new `seedPad` arg). **+7 tests.** *(Pure logic verified; the gated UI +
+   the real weight SVG are built, not runtime-verified — no device render here.)*
+
+## Adversarial self-review of the full Day-3 diff
+- **Flag-OFF / `isBackendLive`:** untouched. The create_team code, the messaging delivery
+  seam, and the RLS gate are all behind the flag / unapplied; nothing fires at a real
+  person. The new pure guards (`messagingAllowed`, etc.) are the shared rule the **RLS
+  enforces server-side** — app-layer wiring lands when participant context is real
+  (post-backend); built + unit-tested, intentionally not yet wired into the offline
+  overlay (the documented seam pattern), so it is a seam, not dead UI.
+- **One deliberate, founder-authorized behaviour change (kept):** the nutrition rescale
+  (D-B) lowers the **seeded demo's own daily score 75→68**. This is intended honesty (a
+  zero-effort day must score low), disclosed in the commit + here; it is NOT flag-gated
+  and applies to everyone by design. No other existing behaviour changed.
+- **Seeded demo / showcase:** every demo-string change is gated on `isReal` (empty
+  athlete name = demo), so the showcase renders unchanged; only a real athlete loses the
+  fabricated data. Verified through the node-env screen-data smoke net (all roles + edge
+  states green).
+- **Dead/broken UI:** none found. The rename left no half-renamed user-facing strings
+  (only internal comments retain "Accountability", deliberately). The real weight chart
+  falls back to an honest empty state below two points; `checkinSummary` is resilient to
+  blank/NaN input.
+- **Dishonest "done":** labelled throughout — pure logic "verified"; UI "built, not
+  runtime-verified" (no device/expo render here); the messaging RLS "authored as a seam,
+  not applied, not runtime-verified".
+- **Gates:** `npm run verify` green at **782 tests**; no revert needed.
+
+## Founder decisions this run
+`docs/FOUNDER-DECISIONS.md` **D10** — the minor-messaging governance MODEL
+(relationship-gated vs adults-only) + the legal (COPPA/FERPA) review + that `0006` must be
+run against a local stack before any apply. (D-A/D-C were confirmed by the founder and
+recorded in the board handoff.)
+
+## ⚠ Day-3 tag — see the push result recorded by this run (same git-bridge 403 risk as D1/D2)
+Per Day 1 + Day 2, the git bridge returns HTTP 403 on every tag-ref push while branch
+pushes succeed. This run attempts `day3-end`; if the 403 recurs, the durable substitute is
+the branch **`checkpoint/day3-end`** at the same commit. To materialize the real annotated
+tag from a normal client: `git fetch origin && git tag -a day3-end origin/checkpoint/day3-end
+-m "Day 3 end" && git push origin day3-end`.
+
+**Confirmed this run:** `git tag -a day3-end` was created locally; `git push origin
+day3-end` returned the same **HTTP 403** on the tag-ref. The durable substitute branch
+**`checkpoint/day3-end`** was pushed at the day-end commit, and `crew/4day-sprint` is green
+and fully pushed at the same commit. Delete `checkpoint/day3-end` after you materialize the
+real tag.
+
+---
+
+# Day 3 AM progress (2026-06-27, 6am ET) — P6 persona voice fixes (NOT the day's report)
+
+In-progress handoff note for the 1pm run, which continues the queue (P6 tail → P7
+App Store readiness / hardening) and then CLOSES the day (adversarial self-review of
+the full Day-3 diff + per-commit report + `day3-end` tag). The AM run first **re-ran
+all three gates on the branch — typecheck clean, 741 tests, iOS bundle exports — no
+drift** — then, since Day 2 drained P0–P5, worked the queue forward into **P6
+(remaining persona voice fixes)**. Tests **741 → 756** (+15); `typecheck` + `test` +
+`bundle` green on EVERY commit; `EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB
+mutation; `src/core` stayed pure; no `src/app`; one job = one commit; branch pushed
+after each.
+
+Four commits (newest last):
+
+1. **`feat(coaching)`: scope AI meal advice as optional education, not a prescription
+   (P6).** Addresses the RD persona's clinical-overreach/liability finding. The
+   next-step copy now suggests foods as optional ("if that fits your plan") instead of
+   directing ("closes the gap"); every coaching payload carries a `scope` disclaimer
+   ("General guidance to learn from, not a prescription. If a nutritionist or doctor
+   set your plan, theirs comes first.") surfaced under the meal result. Pure logic +
+   label; no behaviour/flag change. **+6 tests.** *(Pure logic verified; UI label
+   built, not runtime-verified.)*
+2. **`feat(trainer)`: non-athlete client book reflected in the dashboard header (P6).**
+   Addresses the personal-trainer finding that the product is athlete-first. A real
+   trainer's onboarding `clientType` (weight-loss / muscle-gain / general) re-frames
+   the trainer header ("Your Weight-Loss Clients") + the all-clear empty state ("on
+   plan" vs the sport-coded "above the line"). The seeded demo + an athlete/hybrid book
+   keep the neutral "Your Clients" framing. `trainerLens` gains an optional, back-
+   compatible `clientType` arg. **+3 tests.** *(Pure logic verified.)*
+3. **`feat(parent)`: honest weekly read + history-coverage line (P6).** Addresses the
+   parent finding that the AI summary always read "No action needed this week" and
+   partial history showed as a full week. New pure `src/core/parent.ts`:
+   `parentHistoryCoverage` labels a partial week ("Building history: 3 of 7 days logged
+   this week"); `parentDigest` derives the summary from the athlete's REAL score band
+   (≥80 reassures, 70-79 qualifies, <70 flags a calm check-in). ParentView surfaces the
+   coverage on the score card + the derived summary in the AI block. Resilient to
+   NaN/blank inputs. **+8 tests.** *(Pure logic verified; UI built, not runtime-verified.)*
+4. **`test(smoke)`: lock this run's new gated selectors across edge states (P6).**
+   Drives the trainer `clientType` lens (every onboarding value: string, blank, array,
+   number, unknown key) + the parent digest (full score range + partial/overflow weeks)
+   through the screen-data smoke net, asserting non-empty, em-dash-free copy and that
+   the frozen reassurance never reappears below the top band. **Test-only.**
+
+**Founder decisions queued this run:** `docs/FOUNDER-DECISIONS.md` **D9** — the two
+deeper persona items that exceed the safe line: (a) real parent data-freshness needs a
+backend "last synced" timestamp + the parent↔athlete link (P0); the coverage line uses
+real recorded-day count as an honest proxy until then; (b) full non-athlete trainer
+support (per-population score/targets/voice) is a feature that needs a product call on
+what those targets are, beyond this run's header-framing slice.
+
+**Remaining P6 (assessed, largely already done):** `trainingFreq` is already surfaced
+(`trainingCadence`, prior run); Sample-tag consistency was audited this run and is
+already solid across all three dashboards + PersonDetail (streak/Δ, roster/AI, retention/AI
+all tagged) from prior runs — no gap found. The 1pm run continues into **P7** (App Store
+readiness code items + a11y/perf/resilience hardening).
+
+HONESTY: commits 1-3 are pure core logic, unit-tested + verified; their UI surfaces
+(MealCapture scope line, Trainer header, Parent summary/coverage) are **built, not
+runtime-verified** — no device/expo renders in this runner; the pure logic they call is
+unit-tested and the bundle compiles. Commit 4 is test-only.
+
+---
+
 # APP COMPLETE — ready for founder review
 
 All six phases of `docs/COMPLETION-PLAN.md` are engineering-complete, every
@@ -37,9 +356,291 @@ and leave this status intact.
 
 ---
 
-# AthleteOS — Nightshift Build Log
+# OnStandard — Nightshift Build Log
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
+
+---
+
+# Day 2 REPORT (2026-06-26) — P2 meal logging + P3 reminders + P4 report/messaging + P5 recovery
+
+The full Day-2 report (the AM handoff note below it is kept for detail). Two
+Max-intensity runs worked the ranked queue top-down on `crew/4day-sprint`:
+**AM drained P2** (better meal logging) and started P3; **PM drained P3**
+(reminders settings UI + the local-notification seam glue), **drained P4**
+(weekly auto-report + lightweight messaging) and **P5** (wearable recovery) to
+the safe line. Tests **639 → 741 across the day** (AM +50, PM +52); `npm run
+verify` (typecheck + jest + iOS bundle) green on EVERY commit;
+`EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB mutation; `src/core`
+stayed pure; no `src/app`; one job = one commit; branch pushed after each.
+Tag: `day2-end`.
+
+## PM run (1pm ET) — P3 finish + P4 + P5 (6 commits, newest last)
+
+1. **`feat(reminders)`: pure hour-format + active-reminder notify specs (P3).**
+   Two pure helpers the settings UI + the device seam share: `formatReminderHour`
+   (0-23 hour to a clamped 12-hour label) and `reminderNotifySpecs` (active
+   reminders to resolved `{kind,title,body,hour}` local-notification specs).
+   **+11 tests.** *(Pure logic — verified.)*
+2. **`feat(reminders)`: Reminders settings screen, per-reminder toggle + hour (P3).**
+   New athlete Reminders screen (reached from Profile > Notifications): a toggle
+   + a local-hour stepper per reminder, reading/writing the persisted
+   `reminderSettings`. Honest about the device seam — when the master `notif`
+   flag is off it says so and still saves choices; a footer explains conditional
+   reminders stay quiet on an on-track day. Additive only (new `reminders` tab +
+   `goReminders`); no existing behaviour/flag changed. *(UI **built, not
+   runtime-verified** — no device; its logic is unit-tested + the bundle compiles.)*
+3. **`feat(reminders)`: local-notification seam glue, inert + gated (P3).**
+   Extended `src/lib/notify`: `refreshReminderSchedule(specs, notif)` would
+   (re)schedule one daily LOCAL notification per active reminder at its hour,
+   inert behind `isNotifyAvailable` (false) and gated by the master `notif` flag
+   via a unit-testable `shouldSchedule`. No remote/push; nothing fired at a real
+   person. A guard test locks it inert. **+5 tests.** *(Seam — built, not
+   runtime-verified by design.)*
+4. **`feat(report)`: pure weekly auto-report generator + text export (P4).**
+   New `src/core/weeklyReport.ts`: a per-athlete weekly digest (avg score + band,
+   days logged, compliance, what moved week-over-week, and the SINGLE most
+   important flag, nutrition-first) plus `weeklyReportText` for the paste-into-a-
+   message export. Resilient to non-finite scores + out-of-range compliance; copy
+   is factual, no guilt, no em dash. Delivery to a real person stays the founder
+   step. **+15 tests.** *(Pure logic — verified.)*
+5. **`feat(messaging)`: pure thread model + honest delivery seam, gated (P4).**
+   New `src/core/messaging.ts`: `composeMessage` (trim/non-empty/1000-char cap),
+   `appendMessage` (non-mutating), and `messageDeliveryNote` so the composer never
+   implies a message reached a real person while the backend is off. The store's
+   `sendMsg` now routes through the shared guard (behaviour identical). The
+   Messages overlay shows the honest delivery note. New `src/lib/messaging` seam:
+   `deliverMessage` no-ops + reports not-delivered until `isBackendLive` flips;
+   guard test locks it inert. **+12 tests.** *(Pure logic verified; overlay note
+   built, not runtime-verified; delivery seam inert by design.)*
+6. **`feat(recovery)`: pure wearable recovery mapping + inert health seam (P5).**
+   New `src/core/recovery.ts` maps a real `RecoverySample` (sleep/HRV/resting HR)
+   to a 0..100 recovery score (averaging only present signals, sleep weighted
+   highest); `blendRecovery(selfReport, sample)` is the single fold point — a null
+   sample returns the self-report **byte-for-byte**, so flag-off behaviour is
+   identical. New `src/lib/health` seam (`isHealthAvailable=false`,
+   `readRecoverySample -> null`) models HealthKit/Health-Connect ingestion inert.
+   NOT wired into live scoring (no real sample source), so the daily score is
+   untouched. **+17 tests.** *(Pure logic verified; seam inert by design.)*
+
+## Adversarial self-review of the Day-2 (PM) diff
+
+- **Flag-OFF / existing behaviour:** the recovery mapping is NOT wired into
+  `computeDerived` (no real sample source), so the daily Accountability Score is
+  byte-for-byte unchanged. The notify, messaging, and health seams are all inert
+  (`isNotifyAvailable`/`isHealthAvailable` false, delivery gated on `isBackendLive`,
+  all off) and called by no runtime path that fires anything. `EXPO_PUBLIC_BACKEND_LIVE`
+  untouched. P3/P4/P5 are otherwise additive (a new `reminders` tab + screen, new
+  core modules called by tests + the new UI).
+- **One deliberate existing-behaviour change, reviewed + kept:** `sendMsg` now caps
+  a message at 1000 chars via `composeMessage` (previously uncapped). A sane input
+  guard, not a regression — the seeded showcase threads and any normal message are
+  far under the cap; only a runaway paste truncates. Logged here for honesty.
+- **Dead/broken UI:** the Reminders screen is fully wired (Profile → `goReminders`
+  → screen → toggle/hour → persisted → back to Profile). The notify/messaging/health
+  seams are inert by design (the documented seam pattern), labelled as such here +
+  in D6/D7/D8, not no-op affordances. The Messages delivery note is honest copy, not
+  a dead control.
+- **Honesty:** pure logic is labelled "verified"; UI is "built, not runtime-verified";
+  seams are "inert by design". No fabricated data; the delivery note tells the truth
+  that off-backend messages are local-only.
+- **Gates:** `npm run verify` green at **741 tests**; no revert needed.
+
+## Founder decisions queued this run
+`docs/FOUNDER-DECISIONS.md` **D6** (local-notification device wiring + reschedule
+triggers), **D7** (messaging real delivery + minors/safety policy), **D8** (whether
+an objective recovery reading should move the score + the 0.6/0.4 blend weight +
+HealthKit/Health-Connect device wiring).
+
+## ⚠ Day-2 tag — blocked by the git bridge (same as Day 1; founder action)
+The annotated tag `day2-end` was created locally but **could not be pushed**: the
+git bridge returns a hard **HTTP 403 on every tag-ref push** (`refs/tags/*`) while
+branch-ref pushes succeed — identical to the Day-1 blocker. As the durable
+substitute the day-end commit is pushed as the branch **`checkpoint/day2-end`**.
+To materialize the real annotated tag once you're back (from a normal git client):
+`git fetch origin && git tag -a day2-end origin/checkpoint/day2-end -m "Day 2 end" && git push origin day2-end`.
+`crew/4day-sprint` is green and fully pushed at the same commit; you can delete
+`checkpoint/day2-end` after tagging.
+
+---
+
+# Day 2 AM progress (2026-06-26, 6am ET) — P2 meal logging + P3 reminders core (NOT the day's report)
+
+In-progress handoff note for the 1pm run, which continues P3 (settings UI + the
+local-notification seam glue), then writes the full per-commit Day-2 report +
+adversarial self-review + the `day2-end` tag. The AM run first **re-ran all three
+gates on the branch (typecheck clean, 639 tests, iOS bundle exports) — no drift** —
+then worked the queue forward from where Day 1 left off (P0 + P1 drained): it
+**drained P2 (better meal logging)** and **started P3 (reminders)**. Tests
+**639 → 689** (+50); `typecheck` + `test` + `bundle` green on EVERY commit;
+`EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB mutation; `src/core` stayed
+pure; no `src/app`; one job = one commit; branch pushed after each.
+
+Seven commits (newest last):
+
+1. **`feat(food)`: curated local food database + pure search (P2).** New
+   `src/core/foodDb.ts` — a curated starter table (~55 common foods across
+   protein/grain/dairy/fruit/veg/fat/snack/drink) with honest per-serving macros,
+   a deterministic case-insensitive `searchFoods()` (ranked exact > prefix >
+   word-prefix > substring, matches aliases), and `foodById()`. +15 tests (incl.
+   an Atwater kcal-consistency check on every food). *(Pure logic — verified.)*
+2. **`feat(food)`: extend `mealEdit` to add real foods, not just even-split (P2).**
+   The photo estimate even-splits across foods; a food added from the DB now
+   carries its OWN real per-serving macros, so totals/quality/composition recompute
+   from a real number. New pure `foodToEditable` / `addFood` (bumps servings on a
+   duplicate name) / `removeFood`. +7 tests. *(Pure logic — verified.)*
+3. **`feat(food)`: food search + quick-add UI in MealDetail (P2).** A search box
+   surfaces matching foods (name + serving + protein/kcal); tapping adds via
+   `addFood` and the macros recompute live; each food row gains a remove control;
+   honest empty + no-match states. Additive only (no flag, no existing behaviour
+   changed). *(UI **built, not runtime-verified** — no device; the search/add/remove
+   logic it calls is unit-tested + the bundle compiles.)*
+4. **`feat(food)`: barcode food-scan SEAM, inert behind a flag (P2).** Barcode
+   needs a real camera + product DB, so `src/lib/foodscan` ships inert
+   (`isFoodScanAvailable=false`; `scanBarcode`/`lookupBarcode` no-op to the
+   `AddableFood` shape `addFood` already consumes). A guard test locks it inert.
+   +3 tests. *(Seam — built, not runtime-verified by design.)*
+5. **`docs`: queue P2 founder decisions (D5).** Food catalog scope (curated
+   starter vs. USDA/licensed DB) + barcode product-data source — both external/
+   licensing/device calls left for the founder. *(Docs.)*
+6. **`feat(reminders)`: pure schedule model + conditions + copy (P3).** New
+   `src/core/reminders.ts` — the reminder catalog (protein-behind, hydration,
+   log-dinner, check-in-due) with default time + on/off, per-reminder settings,
+   the day CONDITION each fires on (from a small `ReminderSnapshot`, safe on
+   zero/invalid targets), an hour clamp, `activeReminders()`, and athlete-first
+   copy (factual, no guilt, no em dash). +18 tests. *(Pure logic — verified.)*
+7. **`feat(reminders)`: persist per-reminder settings + toggle/hour actions (P3).**
+   `reminderSettings` (enabled + local hour per reminder) added to `AppState`,
+   seeded from `defaultReminderSettings()`, persisted (cross-day, alongside
+   `notif`); new `toggleReminder` / `setReminderHour` (hour clamped) actions.
+   +7 store tests. *(Pure store logic — verified.)*
+
+**Remaining P3 (for the 1pm run):** the Reminders **settings UI** (toggle/time per
+reminder, reading/writing the persisted `reminderSettings`), and the
+**local-notification seam glue** — extend `src/lib/notify` to (re)schedule the
+`activeReminders` LOCALLY via `expo-notifications`, gated by `isNotifyAvailable`
+(still false) and the `notif` flag; NO remote/push, NO external send. Then P4+.
+
+HONESTY: commits 1, 2, 6, 7 are pure logic/store, unit-tested + verified. The
+MealDetail quick-add UI (commit 3) and the barcode seam (commit 4) are **built,
+not runtime-verified** — the flag/seam is inert and there is no device/expo in
+this runner, so they never render in CI; their pure logic is unit-tested and the
+bundle compiles.
+
+---
+
+# Day 1 REPORT (2026-06-25) — P0 backend keystone + P1 performance signal
+
+The full Day-1 report (the AM handoff note below it is kept for detail). Two
+Max-intensity runs worked the ranked queue top-down on `crew/4day-sprint`:
+**AM drained P0** (backend wiring, flag-gated OFF), **PM drained P1** (the
+performance signal — the #1 persona gap). Tests **559 → 639** across the day
+(AM +31, PM +49); `npm run verify` (typecheck + jest + iOS bundle) green on
+EVERY commit; `EXPO_PUBLIC_BACKEND_LIVE` never enabled; no live-DB mutation;
+`src/core` stayed pure; no `src/app`; one job = one commit; branch pushed after
+each. Tag: `day1-end`.
+
+## PM run (1pm ET) — P1 performance signal (4 commits, newest last)
+
+1. **`feat(performance)`: pure PR/entry model + trend/personal-record engine.**
+   New `src/core/performance.ts`: a logged-result model (lifts, sprints, jumps,
+   body weight, custom metrics) with PR/best, an *oriented* trend (a faster
+   sprint AND a heavier bench both read as improvement), per-metric summaries, a
+   coach one-liner (`topPerformanceLine`), value/improvement formatting, and a
+   self-fitting trend sparkline. Kept OUT of the daily Accountability Score by
+   design — a separate "am I getting better?" track. **+39 tests.** *(Pure
+   logic, unit-tested — verified.)*
+2. **`feat(performance)`: persist PR entries in the store + log/delete actions.**
+   Cross-day `perfEntries` added to `AppState` (persisted; survives day rollover
+   — not a day-slice field), plus `logPr`/`deletePr`/`goPerformance` actions and
+   a new `'performance'` Tab. Ids are collision-free from the max existing suffix
+   (no clock/RNG in the store). Honest empty seed — no fabricated PRs. A store
+   test locks that logging PRs does NOT move the daily score. **+10 tests.**
+   *(Pure store logic, unit-tested — verified.)*
+3. **`feat(performance)`: athlete Performance view + coach PersonDetail summary.**
+   New athlete Performance screen (reached from a Home card): log a result
+   (metric chips incl. custom, value, date), then per-metric PR cards with a
+   trend sparkline, latest-vs-PR, oriented improvement, and per-entry delete;
+   honest empty state until the first log. PersonDetail gains an optional,
+   present-gated Performance line — it renders only when a caller supplies real
+   PR data, so the demo roster shows nothing (no fabrication). *(UI + the
+   inert PersonDetail seam are **built, not runtime-verified** — no device/expo
+   in this runner; they compile, bundle, and their pure logic is unit-tested.)*
+4. **`docs`: queue P1 founder decisions.** D3 (keep performance separate from the
+   score vs. an opt-in PR bonus — recommended: separate) and D4 (PR date is a
+   text field; native picker + a `performance_entries` table/`pushPerf` sync +
+   wiring the PersonDetail line from the live roster are go-live/device seams).
+   *(Docs.)*
+
+## AM run (6am ET) — P0 backend keystone
+
+Eight commits drained P0 end-to-end (auth Stage B, day-sync Stage C, athlete
+consent screen, roster reads Stage D — all behind `isBackendLive`, flag-OFF
+behaviour identical). The round-trip was **runtime-verified on a local Docker
+supabase stack** (not the live project); the flag-gated UI paths are built, not
+runtime-verified. Full per-commit detail in the AM handoff note immediately
+below. **+31 tests (559 → 590).**
+
+## Adversarial self-review of the Day-1 diff (PM)
+- **Flag-OFF / existing behaviour:** P1 is purely additive — a new tab only
+  reachable via a new Home card, new store fields/actions called by nothing
+  existing, and a present-gated PersonDetail line with no caller. No `switch`/
+  `Record<Tab>` exhaustiveness breaks (none exist). `EXPO_PUBLIC_BACKEND_LIVE` /
+  `isBackendLive` untouched by the P1 diff. Existing screens/score unchanged.
+- **Dead/broken UI:** the PersonDetail Performance line is an *inert seam* (no
+  caller sets `pd.perf`) — labelled as such here and in D4, the same documented-
+  seam pattern as the flag-gated Stage C/D UI, not a no-op affordance. The
+  athlete Performance screen is fully wired (Home → screen → log/delete → render).
+- **Honesty:** UI is labelled "built, not runtime-verified"; no PRs are seeded
+  (honest empty state) so nothing fabricated masquerades as real.
+- **Gates:** `npm run verify` green at **639 tests**; no revert needed.
+
+## ⚠ Day-1 tag — blocked by the git bridge (founder action)
+The annotated tag `day1-end` was created locally but **could not be pushed**: the
+local git bridge (`127.0.0.1`, NOT the egress proxy — `recentRelayFailures`
+empty) returns a hard **HTTP 403 on every tag-ref push** (`refs/tags/*`), while
+branch-ref pushes succeed. Per the proxy README, 403 policy denials are reported,
+not retried. As a durable substitute the day-end commit is pushed as the branch
+**`checkpoint/day1-end`**. To materialize the real annotated tag once you're back
+(from a normal git client):
+`git fetch origin && git tag -a day1-end origin/checkpoint/day1-end -m "Day 1 end" && git push origin day1-end`.
+`crew/4day-sprint` is green and fully pushed at the same commit; you can delete
+`checkpoint/day1-end` after tagging.
+
+---
+
+# Day 1 AM progress (2026-06-25, 6am ET) — P0 backend keystone (NOT the day's report)
+
+In-progress handoff note for the 1pm run, which writes the full per-commit Day-1 report
++ adversarial self-review + `day1-end` tag. The AM run drained **P0** (backend wiring,
+flag-gated OFF) end-to-end on `crew/4day-sprint`. Tests **559 → 590**; `typecheck` +
+`test` + `bundle` green on every commit; `EXPO_PUBLIC_BACKEND_LIVE` never enabled; no
+live-DB mutation; `src/core` stayed pure.
+
+Eight commits (newest last):
+1. consent-gate the day-sync write path behind `isBackendLive` (Stage C core). `pushDay`
+   fails closed: writes only when live AND `realDataConsent` passes. +10 tests.
+2. live auth store seam + `create_team` RPC (Stage B). signUp/In/Out + recordConsent;
+   migration 0004 (coach creates team + real join code). +7 tests.
+3. **runtime-verified the round-trip on a LOCAL Docker supabase stack** (path used:
+   Docker, not the mock harness): coach signUp → create_team → athlete join → pushDay →
+   coach roster read sees it → stranger sees nothing (RLS) → athlete reads own. All 6
+   pass. Surfaced + fixed a real Stage-A gap (no table GRANTs) via migration 0005.
+4. founder decisions queued (D1 migrations 0004/0005 must be applied at go-live; D2
+   email-confirmation policy).
+5. wire the day-sync hooks behind the flag (Stage C): hydrate after auth + debounced
+   `pushDay` in addMeal/addWater/toggleTask/toggleQuick/submitCi. +3 tests.
+6. athlete real-data consent screen, flag-gated onboarding step (hard gate before any
+   real push; guardian wording for minors). +3 tests.
+7. real roster reads behind the flag (Stage D): pure `mapLinkedDaysToRoster` + a
+   flag-gated `useLiveRoster` hook on CoachView; drops the Sample tag when real. +8 tests.
+8. wire the Sign in screen to live auth (Stage B).
+
+HONESTY: items 1-3 (and the read in 7) are runtime-verified against the local stack.
+The UI paths (consent screen, SignIn live branch, CoachView live roster) are **built,
+not runtime-verified** — the flag is off in every build/test, so they never render in
+CI; their pure logic is unit-tested and the bundle compiles. Remaining P0-adjacent
+follow-ups: TrainerView/ClientRow swap + profile-name enrichment on the live roster.
 
 ---
 
@@ -172,7 +773,7 @@ Per-commit, newest last:
 
 1. **chore(ios): App Store compliance config** (`4ae1a04`). Pure `app.json`,
    validated with `expo config` + a green iOS export. Adds the
-   `ios.bundleIdentifier` (`com.athleteos.app`, a PLACEHOLDER flagged for the
+   `ios.bundleIdentifier` (`com.onstandard.app`, a PLACEHOLDER flagged for the
    founder) + `buildNumber`; the export-compliance flags
    (`usesNonExemptEncryption` / `ITSAppUsesNonExemptEncryption` = false); the
    Info.plist usage strings Apple rejects apps for omitting
@@ -205,7 +806,7 @@ checklist (✅ already compliant / 🔧 fixed this run / 👤 NEEDS HUMAN).
   Connect listing + screenshots + age rating, a real privacy policy + support
   URL, the splash screen (`expo-splash-screen` needs installing), and the iPad
   support decision.
-- **The biggest review risk is in section D of that doc**: AthleteOS targets
+- **The biggest review risk is in section D of that doc**: OnStandard targets
   MINORS (13-22) with nutrition + body-weight data, which triggers age-rating,
   parental-consent (COPPA), data-from-kids, and no-medical-claims scrutiny.
   Shipped copy is clean of medical claims today; the live AI coach (once the
@@ -877,7 +1478,7 @@ move the derived score the intended way; `npm run verify` script.
 ## State against each Definition-of-Done item
 1. **QC findings cleared** — ✅ `collapsable` web warning fixed (web-only, native unchanged).
 2. **UX/UI fidelity on every screen + overlay + role view** — ✅ *substantively*, with a
-   caveat: the `impeccable` skill and the `../athleteos-design-ref/` sibling are **not
+   caveat: the `impeccable` skill and the `../onstandard-design-ref/` sibling are **not
    present in this runner environment**, so per-screen fidelity work was grounded in
    `DESIGN.md` + `src/ui/tokens.ts` (which mirror the handoff tokens) rather than literal
    `impeccable critique/audit` runs + pixel diffs. Every screen/overlay/role got
@@ -904,7 +1505,7 @@ move the derived score the intended way; `npm run verify` script.
 1. **Do a real visual QC pass** on a device + the web preview — this is the one thing the
    autonomous crew structurally could not do. Walk every screen (athlete Home/Plan/Squad/
    Check-In/Profile/Nutrition; Coach/Parent/Trainer; Meal Detail, Messages, Notifications,
-   Person Detail, Account, onboarding) against `AthleteOS.dc.html` + the dashboard handoffs.
+   Person Detail, Account, onboarding) against `OnStandard.dc.html` + the dashboard handoffs.
    The per-run "For the founder (QC this run)" notes below give a targeted checklist.
 2. **Phase 2 — Supabase (human-in-the-loop):** the scaffold (`src/lib/supabase`,
    `src/store/sync.ts`) is inert and waiting for keys. Wiring real auth/sync + adding keys
@@ -1174,7 +1775,7 @@ the stray inline `#CBD5E1` text that fails WCAG AA contrast.
   (#64748B) clears AA on white and documents that `#CBD5E1` fails — so the
   faint-text palette can't silently regress below AA. +9 tests.
 - **fix(a11y): retire stray `#CBD5E1` on the three readable-text spots.** The
-  Profile and Account-overlay version footers ("AthleteOS · v1.0") and the
+  Profile and Account-overlay version footers ("OnStandard · v1.0") and the
   Nutrition Macros "/ N cal" label drew text in inline `#CBD5E1`, which is only
   ~1.48:1 on the white card — far under WCAG AA (4.5:1 normal, 3:1 large).
   `textTertiary` (#94A3B8) also fails at 2.56:1; `textSecondary` (#64748B)
@@ -1194,7 +1795,7 @@ also hit the 403 on `git push`, the proxy push path is the thing to look at; the
 API path is a working fallback.
 
 ### For the founder (QC this run)
-- **Profile → footer** and **Account overlay → footer**: "AthleteOS · v1.0" is
+- **Profile → footer** and **Account overlay → footer**: "OnStandard · v1.0" is
   now a legible medium-slate instead of near-invisible pale gray.
 - **Nutrition → Macros card**: the "/ 3,200 cal" denominator next to today's
   calories is now readable (same slate), still clearly secondary to the bold
@@ -1545,7 +2146,7 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    (Run 5 made **PersonDetail** + **TrainerView** body data-driven
    per-athlete/per-roster.) Verify type scale / spacing / radii against the
    `.dc.html` handoff one screen per commit. (Note: the design-ref sibling
-   `../athleteos-design-ref/` and the `impeccable` skill are **not present** in
+   `../onstandard-design-ref/` and the `impeccable` skill are **not present** in
    the current runner environment — fidelity work this run was grounded in
    `DESIGN.md` + `tokens.ts`, which mirror the handoff tokens.)
 3. **Motion / micro-interactions** — ring draw, bar grow, overlay slide-up,

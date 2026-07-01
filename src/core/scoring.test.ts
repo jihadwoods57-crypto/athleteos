@@ -1,4 +1,4 @@
-// AthleteOS — scoring engine tests. Asserts the ported math against the
+// OnStandard — scoring engine tests. Asserts the ported math against the
 // prototype's default state and known transitions.
 import { computeDerived, gradeFor, seasonGoalProgress, seasonGoalPhase, SCORE_WEIGHTS } from './scoring';
 import { createInitialState } from './defaultState';
@@ -29,9 +29,10 @@ describe('computeDerived — default state', () => {
     expect(d.proteinGap).toBe(38);
   });
 
-  it('nutrition sub-score = round(57 + 142/180*30 + 3/4*15) = 92', () => {
-    // 57 + 23.6667 + 11.25 = 91.9167 -> 92
-    expect(d.nutritionScore).toBe(92);
+  it('nutrition sub-score = round(142/180*65 + 3/4*35) = 78 (no floor, D-B)', () => {
+    // 51.278 + 26.25 = 77.528 -> 78. The old `57 +` floor is gone (founder D-B):
+    // protein is the dominant lever (65) over slot count (35), full day ~100, empty ~0.
+    expect(d.nutritionScore).toBe(78);
   });
 
   it('recovery defaults to 86 before check-in', () => {
@@ -51,11 +52,12 @@ describe('computeDerived — default state', () => {
     expect(d.checkinScore).toBe(0);
   });
 
-  it('accountability score = clamp(round(.5*92 + .25*86 + .15*50 + .1*0)) = 75', () => {
-    // 46 + 21.5 + 7.5 + 0 = 75 -> grade C. Weight is no longer in the daily score
-    // (tracked separately); the protein task no longer fakes done.
-    expect(d.athleteScore).toBe(75);
-    expect(d.grade.g).toBe('C');
+  it('accountability score = clamp(round(.5*78 + .25*86 + .15*50 + .1*0)) = 68', () => {
+    // 39 + 21.5 + 7.5 + 0 = 68 -> grade D. With the nutrition floor removed (D-B),
+    // the seeded day (3 meals, protein short of target, no check-in submitted) reads
+    // an honest D instead of a propped-up C. Weight is not in the daily score.
+    expect(d.athleteScore).toBe(68);
+    expect(d.grade.g).toBe('D');
   });
 
   it('ring offset = round(540 * (1 - score/100))', () => {

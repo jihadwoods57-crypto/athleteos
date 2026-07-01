@@ -1,7 +1,9 @@
-// AthleteOS — Messages thread overlay (coach↔athlete / role↔athlete).
+// OnStandard — Messages thread overlay (coach↔athlete / role↔athlete).
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { useStore } from '@/store';
+import { messageDeliveryNote } from '@/core';
+import { isBackendLive } from '@/lib/supabase';
 import { colors, font, shadow } from '@/ui/tokens';
 import { Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
@@ -36,9 +38,10 @@ export function Messages() {
             <Txt w="eb" size={16} ls={-0.3}>
               {them}
             </Txt>
-            <Txt w="b" size={12} color={colors.success}>
-              Active now
-            </Txt>
+            {/* No "Active now" presence claim: the app has no real-time presence
+                signal and delivery is gated to the backend, so an always-green
+                "Active now" was a fabrication. The honest delivery state lives in
+                the composer footer (messageDeliveryNote). */}
           </View>
         </Row>
       </SafeAreaView>
@@ -62,6 +65,9 @@ export function Messages() {
       </ScrollView>
 
       <SafeAreaView edges={['bottom']} style={{ backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.divider2 }}>
+        <Txt w="m" size={11} color={colors.textTertiary} style={{ textAlign: 'center', paddingHorizontal: 20, paddingTop: 10 }}>
+          {messageDeliveryNote(isBackendLive)}
+        </Txt>
         <Row style={{ gap: 8, paddingHorizontal: 20, paddingVertical: 14 }}>
           <TextInput
             value={s.msgDraft}

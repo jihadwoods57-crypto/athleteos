@@ -1,4 +1,4 @@
-// AthleteOS — Starting Point Score reveal. Cinematic but in-system: the ring
+// OnStandard — Starting Point Score reveal. Cinematic but in-system: the ring
 // draws, the number counts up to the score, the grade fades in. Reduce-motion aware.
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, View } from 'react-native';
@@ -6,6 +6,7 @@ import { gradeWithSuffix } from '@/core';
 import { colors } from '@/ui/tokens';
 import { Ring } from '@/ui/Ring';
 import { Txt } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { useReduceMotion } from '@/ui/useReduceMotion';
 
 /** Ring + number color by score band (motivating, not alarming). */
@@ -27,6 +28,7 @@ export function ScoreReveal({ score, bumped }: { score: number; bumped?: boolean
     if (reduceMotion) {
       setShown(score);
       gradeAnim.setValue(1);
+      haptics.success(); // the reveal still lands with a punch, even without motion
       return;
     }
     // Count the number up roughly in step with the 1.5s ring draw.
@@ -38,7 +40,9 @@ export function ScoreReveal({ score, bumped }: { score: number; bumped?: boolean
       delay: 150,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
-    }).start();
+    }).start(({ finished }) => {
+      if (finished) haptics.success(); // physical punch the instant the number settles on the score
+    });
     Animated.timing(gradeAnim, {
       toValue: 1,
       duration: 400,

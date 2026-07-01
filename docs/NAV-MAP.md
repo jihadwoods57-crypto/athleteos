@@ -1,4 +1,4 @@
-# AthleteOS — Navigation & Endpoint Map
+# OnStandard — Navigation & Endpoint Map
 
 Every screen, its entry points, and every interactive element's destination.
 Built by tracing `src/Root.tsx` (the top-level `flow` switch) and each screen's

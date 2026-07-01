@@ -1,7 +1,7 @@
 import { createInitialState } from './defaultState';
 import { computeDerived } from './scoring';
 import { GOAL_LABELS } from './constants';
-import { themeForGoal, mealScoreImpact, mealCoaching, coachReinforcement } from './coaching';
+import { themeForGoal, mealScoreImpact, mealCoaching, coachReinforcement, coachingScopeNote, medicalDisclaimer, bodyImageNote } from './coaching';
 import type { MealLabel } from './types';
 
 describe('themeForGoal', () => {
@@ -69,8 +69,70 @@ describe('mealCoaching', () => {
 
   it('keeps coaching copy free of em dashes (design ban)', () => {
     const c = mealCoaching('Dinner', 'lose_fat', d, 5, 'note');
-    for (const v of [c.insight, c.education, c.nextStep, c.dailyContext, c.weeklyContext, c.coachEcho]) {
+    for (const v of [c.insight, c.education, c.nextStep, c.dailyContext, c.weeklyContext, c.coachEcho, c.scope]) {
       if (v) expect(v).not.toContain('—');
+    }
+  });
+
+  it('carries a scope disclaimer so the AI reads as education, not a prescription', () => {
+    const c = mealCoaching('Dinner', 'get_stronger', d, 0, null);
+    expect(c.scope).toBe(coachingScopeNote());
+    expect(c.scope.toLowerCase()).toContain('not a prescription');
+  });
+
+  it('frames the next step as optional, not prescriptive (no "you must / closes the gap")', () => {
+    const behind = computeDerived({ ...s, meals: { breakfast: false, lunch: false, snack: false, dinner: false } });
+    const c = mealCoaching('Snack', 'gain_muscle', behind, 0, null);
+    expect(c.nextStep.toLowerCase()).not.toContain('closes the gap');
+    expect(c.nextStep.toLowerCase()).toContain('if that fits your plan');
+  });
+});
+
+describe('coachingScopeNote', () => {
+  it('is non-empty, em-dash-free, and names a professional plan as primary', () => {
+    const note = coachingScopeNote();
+    expect(note.length).toBeGreaterThan(20);
+    expect(note).not.toContain('—');
+    expect(note.toLowerCase()).toMatch(/nutritionist|doctor/);
+  });
+});
+
+describe('medicalDisclaimer', () => {
+  it('explicitly states it is not medical advice and points to a doctor/RD, no em dash', () => {
+    const note = medicalDisclaimer();
+    expect(note.length).toBeGreaterThan(20);
+    expect(note).not.toContain('—');
+    expect(note.toLowerCase()).toContain('not medical advice');
+    expect(note.toLowerCase()).toMatch(/doctor|dietitian/);
+  });
+});
+
+describe('bodyImageNote (weight-entry safeguard for a minor population)', () => {
+  it('normalizes weight fluctuation, is non-shaming, and points to a trusted adult/doctor', () => {
+    const note = bodyImageNote();
+    expect(note.length).toBeGreaterThan(20);
+    expect(note).not.toContain('—'); // design em-dash ban
+    // Reframes the number: day-to-day movement is normal, focus off the scale.
+    expect(note.toLowerCase()).toMatch(/day to day|fluctuat|normal/);
+    // Always offers a safe off-ramp to a person if it feels stressful.
+    expect(note.toLowerCase()).toMatch(/talk to|trust|doctor/);
+    // Safeguard copy must never shame the athlete about weight/eating.
+    for (const banned of ['fat', 'overweight', 'lose weight', 'too much', 'bad']) {
+      expect(note.toLowerCase()).not.toContain(banned);
+    }
+  });
+});
+
+describe('lean coaching is non-restrictive for a minor population (Tier 1.5)', () => {
+  const s = createInitialState();
+  const d = computeDerived(s);
+  it('does not frame eating as a deficit / cut / weight to lose', () => {
+    for (const meal of ['Breakfast', 'Lunch', 'Snack', 'Dinner'] as MealLabel[]) {
+      const c = mealCoaching(meal, 'lose_fat', d, 5, null);
+      const blob = `${c.insight} ${c.education}`.toLowerCase();
+      expect(blob).not.toMatch(/deficit|on a cut|weight you lose/);
+      // still goal-aligned (reads as a lean/leanness message)
+      expect(blob).toContain('lean');
     }
   });
 });

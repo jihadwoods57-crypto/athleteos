@@ -1,8 +1,21 @@
-// AthleteOS — domain constants, ported verbatim from the prototype.
+// OnStandard — domain constants, ported verbatim from the prototype.
 import type { BaseGoal, Flow, LeaderRow, MealKey, Role } from './types';
 
 /** App version string, surfaced in Account / Profile footers + Help row. */
 export const APP_VERSION = 'v1.0';
+
+/** Support + legal endpoints. App Store requires a working support contact and a
+ *  reachable privacy policy. Replace these with the real hosted values before
+ *  submission (the URLs must resolve to the legal-reviewed documents in docs/legal). */
+export const SUPPORT_EMAIL = 'support@onstandard.app';
+export const PRIVACY_POLICY_URL = 'https://onstandard.app/privacy';
+export const TERMS_URL = 'https://onstandard.app/terms';
+
+/** Minimum age the app will sign up. Set to 13 so the product does not knowingly collect data
+ *  from a child under 13, which keeps it out of COPPA's scope entirely (COPPA governs under-13).
+ *  Users 13-17 are still minors and pass through the guardian-consent gate (see consent.ts); the
+ *  under-13 case is barred here by construction. The age stepper floors at this value. */
+export const MIN_SIGNUP_AGE = 13;
 
 export const PROTEIN_TARGET = 180;
 export const CAL_TARGET = 3200;
@@ -219,6 +232,9 @@ export interface RosterRow {
   score: number;
   dir: 'up' | 'down' | 'flat';
   you?: boolean;
+  /** The athlete's backend id, set only on the live roster (mapLinkedDaysToRoster).
+   *  Flows into PersonDetail to drive the RLS-scoped meal-history read. */
+  athleteId?: string;
   /** Specific at-risk signals for the Needs-Attention reason (see AtRiskInput). */
   proteinMissed?: number;
   hydrationLow?: boolean;

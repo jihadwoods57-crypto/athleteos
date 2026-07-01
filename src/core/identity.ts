@@ -1,4 +1,4 @@
-// AthleteOS — pure helpers for the athlete's displayed identity (pure TS, no RN
+// OnStandard — pure helpers for the athlete's displayed identity (pure TS, no RN
 // imports). The avatar monogram and the leaderboard "YOU" row used to render a
 // frozen "Jihad" / "J" seed, so an athlete who onboards under a different name
 // saw someone else's initials on their own profile. Deriving the monogram from
@@ -54,9 +54,11 @@ const asText = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
  * school, else the sport they train), so the header never hands them another
  * team's name. Falls back to a neutral "Your Team" when neither is set.
  */
-export function coachTeamTitle(opts: { isReal: boolean; sport?: unknown; school?: unknown }): string {
+export function coachTeamTitle(opts: { isReal: boolean; sport?: unknown; school?: unknown; orgName?: unknown }): string {
   if (!opts.isReal) return 'Defense · Varsity';
-  return asText(opts.school) || asText(opts.sport) || 'Your Team';
+  // An explicit, self-edited org name (OverseerProfile) wins over the onboarding
+  // school/sport — the coach owns their own team title.
+  return asText(opts.orgName) || asText(opts.school) || asText(opts.sport) || 'Your Team';
 }
 
 /**
@@ -84,21 +86,59 @@ export interface TrainerLens {
   allClearLine: string;
 }
 
-export function trainerLens(role: Role | null, isReal: boolean): TrainerLens {
+/** The non-athlete population a personal trainer coaches, from the onboarding
+ *  `clientType` field (weight_loss / muscle_gain / general / athletes / hybrid).
+ *  The personas flagged the trainer product as "athlete-first, non-athlete adults
+ *  an afterthought"; reflecting the trainer's own answer in the dashboard header
+ *  makes a fat-loss / general-fitness book first-class instead of sport-coded.
+ *  Anything else (athletes, hybrid, blank, unknown) keeps the neutral book framing. */
+function trainerClientFraming(clientType: unknown): { headerTitle: string; allClearLine: string } | null {
+  switch (asText(clientType)) {
+    case 'weight_loss':
+      return { headerTitle: 'Your Weight-Loss Clients', allClearLine: 'Every client is on plan. Nothing to chase today.' };
+    case 'muscle_gain':
+      return { headerTitle: 'Your Muscle-Gain Clients', allClearLine: 'Every client is on plan. Nothing to chase today.' };
+    case 'general':
+      return { headerTitle: 'Your Fitness Clients', allClearLine: 'Every client is on plan. Nothing to chase today.' };
+    default:
+      return null;
+  }
+}
+
+export function trainerLens(role: Role | null, isReal: boolean, clientType?: unknown, orgName?: unknown): TrainerLens {
+  // A self-edited practice name (OverseerProfile) wins over the role default.
+  const org = asText(orgName);
   if (role === 'nutritionist') {
     return {
-      orgTitle: isReal ? 'Your Nutrition Practice' : 'Apex Nutrition',
+      orgTitle: org || (isReal ? 'Your Nutrition Practice' : 'Apex Nutrition'),
       headerTitle: 'Your Nutrition Clients',
       complianceTitle: 'Nutrition Compliance',
       allClearLine: 'Every client is hitting their nutrition targets. Nothing to chase today.',
     };
   }
+  // A personal trainer with a non-athlete book sees their population reflected; the
+  // seeded demo (no clientType) and an athlete/hybrid book keep the neutral framing.
+  const framing = trainerClientFraming(clientType);
   return {
-    orgTitle: trainerOrgTitle(isReal),
-    headerTitle: 'Your Clients',
+    orgTitle: org || trainerOrgTitle(isReal),
+    headerTitle: framing?.headerTitle ?? 'Your Clients',
     complianceTitle: 'Book Compliance',
-    allClearLine: 'Every client is above the line. Nothing to chase today.',
+    allClearLine: framing?.allClearLine ?? 'Every client is above the line. Nothing to chase today.',
   };
+}
+
+/** Onboarding roles that map onto the coach / trainer dashboards (the parent +
+ *  athlete roles already match their bucket name). */
+const COACH_ROLE_KEYS = new Set(['sports_perf_coach', 'hs_coach', 'college_coach']);
+const TRAINER_ROLE_KEYS = new Set(['personal_trainer', 'nutritionist']);
+
+/** Collapse an onboarding role (or an already-bucketed flow word) into one of the
+ *  four identity buckets the showcase + role line switch on. */
+function identityBucket(role: string): 'coach' | 'trainer' | 'parent' | 'athlete' {
+  if (role === 'coach' || COACH_ROLE_KEYS.has(role)) return 'coach';
+  if (role === 'trainer' || TRAINER_ROLE_KEYS.has(role)) return 'trainer';
+  if (role === 'parent') return 'parent';
+  return 'athlete';
 }
 
 /**
@@ -120,10 +160,17 @@ export function accountIdentity(opts: {
   athleteName?: unknown;
   sport?: unknown;
   obMeta?: Record<string, unknown>;
+  orgName?: unknown;
 }): { name: string; role: string; initials: string } {
   const name = asText(opts.athleteName);
-  const role = asText(opts.role);
+  // Callers pass the stored onboarding role (e.g. 'hs_coach'), but the identity
+  // showcase + role line are keyed by the 4 dashboard buckets. Bucket here so a real
+  // coach/trainer reads their own identity instead of falling through to "Athlete".
+  // Already-bucketed inputs ('coach'/'trainer'/'parent'/'athlete') pass through, so
+  // the tested contract is preserved.
+  const role = identityBucket(asText(opts.role));
   const meta = opts.obMeta ?? {};
+  const org = asText(opts.orgName);
 
   if (name === '') {
     // Seeded demo showcase — unchanged.
@@ -142,7 +189,7 @@ export function accountIdentity(opts: {
   const mono = initials(name, '?');
   switch (role) {
     case 'coach': {
-      const where = asText(meta.school) || asText(meta.sport);
+      const where = org || asText(meta.school) || asText(meta.sport);
       return { name, role: where ? `Coach · ${where}` : 'Coach', initials: mono };
     }
     case 'parent': {
@@ -150,7 +197,7 @@ export function accountIdentity(opts: {
       return { name, role: `Parent · linked to ${child.first}`, initials: mono };
     }
     case 'trainer':
-      return { name, role: 'Trainer · Your Practice', initials: mono };
+      return { name, role: org ? `Trainer · ${org}` : 'Trainer · Your Practice', initials: mono };
     default: {
       const where = asText(opts.sport) || asText(meta.school);
       return { name, role: where ? `Athlete · ${where}` : 'Athlete', initials: mono };

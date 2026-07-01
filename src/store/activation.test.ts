@@ -1,4 +1,4 @@
-// AthleteOS — store-level tests for the new-athlete activation / Day-0 reconcile.
+// OnStandard — store-level tests for the new-athlete activation / Day-0 reconcile.
 // A brand-new athlete must continue HONESTLY from the onboarding reveal: the
 // Starting Point Score is written as the day-0 anchor in scoreHistory, and the
 // seeded demo day is swapped for a genuinely empty day at activation so Home
@@ -81,7 +81,7 @@ describe('startFirstMealChallenge — swaps the seeded demo day for an empty one
     const s = useStore.getState();
     expect(s.flow).toBe('app');
     expect(s.tab).toBe('home');
-    expect(s.mealOpen).toBe(true);
+    expect(s.mealOpen).toBe(false); // lands on Daily HQ, NOT the camera (a new user has no meal yet)
     expect(s.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
     expect(s.hydrationL).toBe(0);
     expect(s.tasks.every((t) => !t.done)).toBe(true);

@@ -1,4 +1,4 @@
-// AthleteOS — baseline recommendation tests. Asserts the ported macro math
+// OnStandard — baseline recommendation tests. Asserts the ported macro math
 // (protein/lb, calorie deltas per goal) and the display helpers.
 import { baselineRec, formatHeight } from './recommendation';
 import type { BaseGoal } from './types';

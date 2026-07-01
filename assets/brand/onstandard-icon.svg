@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100">
+  <!-- OnStandard app-icon tile — white dial on the blue gradient. Mark at ~61%, centered. -->
+  <defs>
+    <linearGradient id="osTile" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="24" fill="url(#osTile)"/>
+  <g transform="translate(19.5 19.5) scale(0.61)" fill="none">
+    <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.34)" stroke-width="12" stroke-linecap="round"/>
+    <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
+    <circle cx="50" cy="18" r="10.5" fill="#2563EB"/>
+    <circle cx="50" cy="18" r="6.5" fill="#FFFFFF"/>
+  </g>
+</svg>

@@ -1,5 +1,5 @@
 /**
- * AthleteOS Coach Survey — Google Sheet collector
+ * OnStandard Coach Survey — Google Sheet collector
  * ------------------------------------------------
  * 1. Create a new Google Sheet.
  * 2. Extensions ▸ Apps Script. Delete the stub, paste THIS file.
@@ -48,5 +48,5 @@ function doPost(e) {
 }
 
 function doGet() {
-  return ContentService.createTextOutput('AthleteOS survey collector is live.');
+  return ContentService.createTextOutput('OnStandard survey collector is live.');
 }

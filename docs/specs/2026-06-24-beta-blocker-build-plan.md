@@ -1,4 +1,4 @@
-# AthleteOS — Beta-Blocker Build Plan (2026-06-24)
+# OnStandard — Beta-Blocker Build Plan (2026-06-24)
 
 Derived from [the 7-persona review](../PERSONA-REVIEW-2026-06-24.md). This is the
 sequenced plan to turn "a polished demo wearing real clothes" into a product a real

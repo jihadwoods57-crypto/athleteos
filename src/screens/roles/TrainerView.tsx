@@ -1,4 +1,4 @@
-// AthleteOS — Trainer mobile view: multi-org client book, KPIs, book-compliance
+// OnStandard — Trainer mobile view: multi-org client book, KPIs, book-compliance
 // trend, needs-follow-up nudges, AI practice summary.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
@@ -6,13 +6,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, initials, needsAttention, rankByRisk, trainerBookKpis, trainerLens } from '@/core';
 import { useStore } from '@/store';
+import { isBackendLive } from '@/lib/supabase';
+import { aiPrefix } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
+import { Plans } from '@/screens/overlays/Plans';
+import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
+import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
 
 export function TrainerView() {
   const s = useStore();
@@ -28,7 +33,10 @@ export function TrainerView() {
   // A nutritionist rides this same dashboard but through a nutrition lens (header,
   // compliance card, and empty state), consistent with the Account "nutrition
   // clients" copy; a personal trainer keeps the generic book framing.
-  const lens = trainerLens(s.role, isReal);
+  // A real personal trainer's onboarding clientType (weight-loss / muscle-gain /
+  // general) re-frames the header so a non-athlete book reads first-class, not
+  // sport-coded; the seeded demo and an athlete/hybrid book keep the neutral framing.
+  const lens = trainerLens(s.role, isReal, s.obMeta.clientType, s.orgName);
   const orgTitle = lens.orgTitle;
   const monogram = initials(s.athleteName, 'MA');
   const clientByName: Record<string, (typeof TRAINER_CLIENTS)[number]> = Object.fromEntries(
@@ -66,10 +74,12 @@ export function TrainerView() {
             </View>
           </Row>
 
+          {/* RETENTION is a showcase sample with no real source yet, so it shows only in the
+              demo and is hidden once the backend is live (no fabricated metric for a real trainer). */}
           <Row style={{ gap: 10, marginTop: 20 }}>
             <Kpi value={String(kpis.clients)} label="CLIENTS" />
             <Kpi value={`${kpis.avgCompliance}%`} label="AVG COMPLY" />
-            <Kpi value="92%" label="RETENTION" color={colors.success} sample />
+            {isBackendLive ? null : <Kpi value="92%" label="RETENTION" color={colors.success} sample />}
           </Row>
 
           {/* book compliance trend */}
@@ -211,7 +221,7 @@ export function TrainerView() {
                 <Icon name="sparkle" size={17} color={colors.accent} />
               </View>
               <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
-                AI PRACTICE SUMMARY
+                {aiPrefix}PRACTICE SUMMARY
               </Txt>
               <SampleTag />
             </Row>
@@ -226,8 +236,11 @@ export function TrainerView() {
       </SafeAreaView>
 
       {s.personDetail && <PersonDetail />}
+      {s.personDetail && s.coachGoalsOpen && <CoachGoalsEditor />}
       {s.msgOpen && <Messages />}
       {s.accountOpen && <Account />}
+      {s.plansOpen && <Plans />}
+      {s.overseerProfileOpen && <OverseerProfile />}
     </View>
   );
 }

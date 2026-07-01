@@ -1,4 +1,4 @@
-// AthleteOS — athlete app shell: tab content + bottom tab bar + camera FAB +
+// OnStandard — athlete app shell: tab content + bottom tab bar + camera FAB +
 // full-screen overlays (meal capture/detail, account, messages, notifications).
 import React from 'react';
 import { View } from 'react-native';
@@ -14,17 +14,27 @@ import { Squad } from './Squad';
 import { CheckIn } from './CheckIn';
 import { Nutrition } from './Nutrition';
 import { Profile } from './Profile';
+import { Performance } from './Performance';
+import { Reminders } from './Reminders';
 import { MealCapture } from '@/screens/overlays/MealCapture';
 import { MealDetail } from '@/screens/overlays/MealDetail';
+import { MealHistory } from '@/screens/overlays/MealHistory';
+import { NutritionMemory } from '@/screens/overlays/NutritionMemory';
 import { Account } from '@/screens/overlays/Account';
+import { Plans } from '@/screens/overlays/Plans';
 import { Messages } from '@/screens/overlays/Messages';
 import { Notifications } from '@/screens/overlays/Notifications';
+import { FoodCoach } from '@/screens/overlays/FoodCoach';
+import { CoachPlanEditor } from '@/screens/overlays/CoachPlanEditor';
+import { isEnginesEnabled } from '@/lib/features';
 
+// Nutrition is the core daily surface, so it gets a tab (was buried behind a Home card).
+// Check-In is reached from its Home banner; Profile via the header avatar.
 const TABS: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: 'home', label: 'Home', icon: 'home' },
+  { tab: 'nutrition', label: 'Nutrition', icon: 'utensils' },
   { tab: 'tasks', label: 'Plan', icon: 'plan' },
   { tab: 'squad', label: 'Squad', icon: 'squad' },
-  { tab: 'checkin', label: 'Check-In', icon: 'checkin' },
 ];
 
 export function AthleteApp() {
@@ -32,8 +42,13 @@ export function AthleteApp() {
   const mealOpen = useStore((s) => s.mealOpen);
   const mealDetailOpen = useStore((s) => s.mealDetailOpen);
   const accountOpen = useStore((s) => s.accountOpen);
+  const plansOpen = useStore((s) => s.plansOpen);
   const msgOpen = useStore((s) => s.msgOpen);
   const notifOpen = useStore((s) => s.notifOpen);
+  const foodCoachOpen = useStore((s) => s.foodCoachOpen);
+  const planEditorOpen = useStore((s) => s.planEditorOpen);
+  const mealHistoryOpen = useStore((s) => s.mealHistoryOpen);
+  const nutritionMemoryOpen = useStore((s) => s.nutritionMemoryOpen);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -43,6 +58,8 @@ export function AthleteApp() {
         {tab === 'squad' && <Squad />}
         {tab === 'checkin' && <CheckIn />}
         {tab === 'nutrition' && <Nutrition />}
+        {tab === 'performance' && <Performance />}
+        {tab === 'reminders' && <Reminders />}
         {tab === 'profile' && <Profile />}
       </View>
 
@@ -51,9 +68,16 @@ export function AthleteApp() {
       {/* full-screen overlays */}
       {mealOpen && <MealCapture />}
       {mealDetailOpen && <MealDetail />}
+      {mealHistoryOpen && <MealHistory />}
+      {nutritionMemoryOpen && <NutritionMemory />}
       {accountOpen && <Account />}
+      {plansOpen && <Plans />}
       {msgOpen && <Messages />}
       {notifOpen && <Notifications />}
+      {/* Engine overlays only mount when the master switch is on (defense in depth —
+          their entry points are already hidden when off). */}
+      {isEnginesEnabled && foodCoachOpen && <FoodCoach />}
+      {isEnginesEnabled && planEditorOpen && <CoachPlanEditor />}
     </View>
   );
 }
@@ -85,7 +109,7 @@ function TabBar() {
       ]}
     >
       <TabItem item={TABS[0]} active={isAthleteTab('home')} onPress={() => setTab('home')} />
-      <TabItem item={TABS[1]} active={isAthleteTab('tasks')} onPress={() => setTab('tasks')} />
+      <TabItem item={TABS[1]} active={isAthleteTab('nutrition')} onPress={() => setTab('nutrition')} />
 
       {/* center camera FAB */}
       <View style={{ width: 72, alignItems: 'center' }}>
@@ -102,8 +126,8 @@ function TabBar() {
         </Pressable>
       </View>
 
-      <TabItem item={TABS[2]} active={isAthleteTab('squad')} onPress={() => setTab('squad')} />
-      <TabItem item={TABS[3]} active={isAthleteTab('checkin')} onPress={() => setTab('checkin')} />
+      <TabItem item={TABS[2]} active={isAthleteTab('tasks')} onPress={() => setTab('tasks')} />
+      <TabItem item={TABS[3]} active={isAthleteTab('squad')} onPress={() => setTab('squad')} />
     </View>
   );
 }

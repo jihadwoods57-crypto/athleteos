@@ -1,4 +1,4 @@
-// AthleteOS — pure helpers for the coach/trainer person-detail overlay.
+// OnStandard — pure helpers for the coach/trainer person-detail overlay.
 // The roster only carries a single headline score per athlete, so the detail
 // overlay's category breakdown has to be ANCHORED to that score rather than a
 // fixed template — otherwise tapping a struggling athlete shows the same ~90s

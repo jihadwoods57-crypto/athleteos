@@ -1,4 +1,4 @@
-// AthleteOS — onboarding baseline AI recommendation (pure, recomputes live).
+// OnStandard — onboarding baseline AI recommendation (pure, recomputes live).
 // Ported verbatim from the prototype's baseline block.
 import type { BaseGoal } from './types';
 

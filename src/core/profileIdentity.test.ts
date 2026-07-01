@@ -1,4 +1,4 @@
-// AthleteOS — pure tests for the Profile identity helpers that retire the
+// OnStandard — pure tests for the Profile identity helpers that retire the
 // hard-coded "Eastside HS" / "Coach Davis" leaks. A real athlete's subtitle and
 // visibility circle derive from their own onboarding answers; the seeded demo
 // (no sport / no support team) keeps its showcase identity.

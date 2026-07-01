@@ -1,4 +1,4 @@
-// AthleteOS — identity helpers. The avatar monogram + you-row name derive from
+// OnStandard — identity helpers. The avatar monogram + you-row name derive from
 // the live athleteName, so pin the name-parsing edge cases.
 import { accountIdentity, coachTeamTitle, firstName, initials, monitoredAthlete, trainerLens, trainerOrgTitle } from './identity';
 
@@ -115,6 +115,24 @@ describe('trainerLens — a nutritionist rides the trainer dash through a nutrit
     expect(trainerLens(null, false).headerTitle).toBe('Your Clients');
   });
 
+  it('reflects a non-athlete clientType in the header (non-athlete book is first-class)', () => {
+    expect(trainerLens('personal_trainer', true, 'weight_loss').headerTitle).toBe('Your Weight-Loss Clients');
+    expect(trainerLens('personal_trainer', true, 'muscle_gain').headerTitle).toBe('Your Muscle-Gain Clients');
+    expect(trainerLens('personal_trainer', true, 'general').headerTitle).toBe('Your Fitness Clients');
+    // a non-athlete book gets an "on plan" empty state, not the athlete-coded "above the line"
+    expect(trainerLens('personal_trainer', true, 'weight_loss').allClearLine).toContain('on plan');
+  });
+
+  it('an athlete/hybrid/blank/unknown clientType keeps the neutral book framing', () => {
+    for (const ct of ['athletes', 'hybrid', '', undefined, 'nonsense', 42]) {
+      expect(trainerLens('personal_trainer', true, ct).headerTitle).toBe('Your Clients');
+    }
+  });
+
+  it('clientType never overrides the nutritionist lens', () => {
+    expect(trainerLens('nutritionist', true, 'weight_loss').headerTitle).toBe('Your Nutrition Clients');
+  });
+
   it('a nutritionist gets a nutrition-lensed header, org, compliance card, and empty state', () => {
     const real = trainerLens('nutritionist', true);
     expect(real.orgTitle).toBe('Your Nutrition Practice');
@@ -182,5 +200,49 @@ describe('accountIdentity', () => {
   it('tolerates non-string meta without leaking the demo', () => {
     const a = accountIdentity({ role: 'coach', athleteName: 'Dana Cole', sport: ['x'], obMeta: { school: 0, sport: ['y'] } });
     expect(a).toEqual({ name: 'Dana Cole', role: 'Coach', initials: 'DC' });
+  });
+});
+
+describe('accountIdentity buckets the stored ONBOARDING role (regression)', () => {
+  // Bug: callers pass s.role ('hs_coach'/'personal_trainer'/…), but the switch only
+  // matched flow words ('coach'/'trainer'), so every real coach/trainer fell through
+  // to the athlete identity. Bucket the onboarding role first.
+  it('maps real coach roles to the coach identity (real + demo)', () => {
+    for (const r of ['hs_coach', 'sports_perf_coach', 'college_coach']) {
+      expect(accountIdentity({ role: r, athleteName: 'Sam Reyes', obMeta: { school: 'North HS' } }))
+        .toEqual({ name: 'Sam Reyes', role: 'Coach · North HS', initials: 'SR' });
+      // demo showcase (no name) now resolves to the coach, not Jihad the athlete
+      expect(accountIdentity({ role: r }).name).toBe('Coach Davis');
+    }
+  });
+  it('maps real trainer roles to the trainer identity', () => {
+    for (const r of ['personal_trainer', 'nutritionist']) {
+      expect(accountIdentity({ role: r, athleteName: 'Maya Lopez' }).role).toBe('Trainer · Your Practice');
+      expect(accountIdentity({ role: r }).name).toBe('Maya Anders');
+    }
+  });
+  it('still handles parent + athlete (and already-bucketed inputs)', () => {
+    expect(accountIdentity({ role: 'parent', athleteName: 'Sarah' }).role).toContain('Parent');
+    expect(accountIdentity({ role: 'athlete', athleteName: 'Jordan', sport: 'Track' }).role).toBe('Athlete · Track');
+    expect(accountIdentity({ role: 'coach', athleteName: 'Dana', obMeta: { school: 'X HS' } }).role).toBe('Coach · X HS');
+  });
+});
+
+describe('orgName (OverseerProfile self-edit) wins over onboarding context', () => {
+  it('coachTeamTitle prefers an edited org name over school/sport', () => {
+    expect(coachTeamTitle({ isReal: true, school: 'Eastside HS', sport: 'Football', orgName: 'Apex Academy' })).toBe('Apex Academy');
+    expect(coachTeamTitle({ isReal: true, school: 'Eastside HS' })).toBe('Eastside HS');
+    expect(coachTeamTitle({ isReal: false, orgName: 'Apex Academy' })).toBe('Defense · Varsity');
+  });
+
+  it('trainerLens orgTitle prefers an edited practice name', () => {
+    expect(trainerLens('personal_trainer', true, undefined, 'My Gym').orgTitle).toBe('My Gym');
+    expect(trainerLens('nutritionist', true, undefined, 'Fuel Co').orgTitle).toBe('Fuel Co');
+    expect(trainerLens('personal_trainer', true).orgTitle).toBe('Your Practice');
+  });
+
+  it('accountIdentity role line uses the edited org for coach + trainer', () => {
+    expect(accountIdentity({ role: 'coach', athleteName: 'Dana Cole', orgName: 'Apex Academy' }).role).toBe('Coach · Apex Academy');
+    expect(accountIdentity({ role: 'trainer', athleteName: 'Maya Lopez', orgName: 'My Gym' }).role).toBe('Trainer · My Gym');
   });
 });

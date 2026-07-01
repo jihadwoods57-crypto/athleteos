@@ -1,4 +1,4 @@
-// AthleteOS — top-level flow switch. Mirrors the prototype's `flow` state:
+// OnStandard — top-level flow switch. Mirrors the prototype's `flow` state:
 // onboarding | app (athlete) | coach | parent | trainer.
 import React from 'react';
 import { useStore } from '@/store';

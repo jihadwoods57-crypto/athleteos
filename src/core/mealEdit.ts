@@ -1,4 +1,4 @@
-// AthleteOS — editable meal estimate (pure TS, no RN imports).
+// OnStandard — editable meal estimate (pure TS, no RN imports).
 // The persona review's nutritionist flagged that the meal's macros/quality look
 // authoritative but can't be corrected (dead steppers). This makes the estimate
 // editable and self-consistent: each food carries a numeric per-serving share of
@@ -96,4 +96,63 @@ export function mealQuality(m: MacroSet): number {
 export function stepServings(current: number, delta: number): number {
   const next = Math.round((current + delta) * 2) / 2;
   return Math.max(0, Math.min(10, next));
+}
+
+/** Format a number for a portion label: drop a trailing ".0", keep up to 2 decimals. */
+function fmtAmount(n: number): string {
+  return Number(n.toFixed(2)).toString();
+}
+
+/**
+ * Resolve a portion label to the ACTUAL amount at the given serving multiplier, so an
+ * edited portion reads "10.5 oz" instead of an opaque "×1.5". Scales the leading number
+ * in the label and keeps its unit (e.g. "7 oz" ×1.5 -> "10.5 oz", "1.5 cups" ×2 -> "3 cups").
+ * Returns null when the label has no parseable leading number (e.g. "a handful") so the
+ * caller can fall back to the multiplier form. Pure.
+ */
+export function resolvePortion(portion: string, servings: number): string | null {
+  const m = /^\s*(\d+(?:\.\d+)?)\s*(.*)$/.exec(portion);
+  if (!m) return null;
+  const base = parseFloat(m[1]);
+  if (!Number.isFinite(base)) return null;
+  const unit = m[2].trim();
+  const amount = fmtAmount(base * servings);
+  return unit ? `${amount} ${unit}` : amount;
+}
+
+// ---- adding real foods (P2: food search + quick-add) ----
+// The photo estimate even-splits across its foods (above); a food added from the
+// curated DB carries its OWN real per-serving macros instead, so the meal totals,
+// quality, and composition recompute from a real number rather than a guess.
+
+/** The shape `addFood` consumes — a curated food's name, serving label, and per-serving macros. */
+export interface AddableFood {
+  name: string;
+  /** Serving label these macros describe (e.g. "1 cup"). */
+  serving: string;
+  per: MacroSet;
+}
+
+/** Convert a curated food into an editable line at one serving (real per-serving macros). */
+export function foodToEditable(item: AddableFood): EditableFood {
+  return { name: item.name, portion: item.serving, servings: 1, per: { ...item.per } };
+}
+
+/**
+ * Add a real food to the meal's editable foods. If a food with the same name is
+ * already present, bump its servings by one (keeps names unique so list keys stay
+ * stable and avoids a duplicate row); otherwise append it. Pure — returns a new array.
+ */
+export function addFood(foods: EditableFood[], item: AddableFood): EditableFood[] {
+  const i = foods.findIndex((f) => f.name === item.name);
+  if (i >= 0) {
+    return foods.map((f, j) => (j === i ? { ...f, servings: stepServings(f.servings, 1) } : f));
+  }
+  return [...foods, foodToEditable(item)];
+}
+
+/** Remove the food at `index` (no-op for an out-of-range index). Pure — returns a new array. */
+export function removeFood(foods: EditableFood[], index: number): EditableFood[] {
+  if (index < 0 || index >= foods.length) return foods.slice();
+  return foods.filter((_, j) => j !== index);
 }

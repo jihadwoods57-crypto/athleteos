@@ -12,6 +12,7 @@ import {
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { colors, DEVICE_MAX_WIDTH } from '@/ui/tokens';
+import { ThemeProvider } from '@/ui/theme';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -27,14 +28,19 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      {/* Center a phone-width frame on wide screens (web/tablet). */}
-      <View style={{ flex: 1, backgroundColor: colors.bg2, alignItems: 'center' }}>
-        <View style={{ flex: 1, width: '100%', maxWidth: DEVICE_MAX_WIDTH, backgroundColor: colors.bg }}>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
+    // Theming foundation: defaults to light, so the app is visually unchanged today.
+    // Flipping the scheme (OS setting or a toggle) is all dark mode will need once
+    // components migrate to useColors().
+    <ThemeProvider initial="light">
+      <SafeAreaProvider>
+        {/* Center a phone-width frame on wide screens (web/tablet). */}
+        <View style={{ flex: 1, backgroundColor: colors.bg2, alignItems: 'center' }}>
+          <View style={{ flex: 1, width: '100%', maxWidth: DEVICE_MAX_WIDTH, backgroundColor: colors.bg }}>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
+          </View>
         </View>
-      </View>
-      <StatusBar style="dark" />
-    </SafeAreaProvider>
+        <StatusBar style="dark" />
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }

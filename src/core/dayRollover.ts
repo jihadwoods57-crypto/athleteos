@@ -1,4 +1,4 @@
-// AthleteOS — calendar-day rollover (pure TS, no React/RN imports).
+// OnStandard — calendar-day rollover (pure TS, no React/RN imports).
 // The persisted `aos_day` slice carries day-level accountability (meals, hydration,
 // tasks, check-in). On a new calendar day that data is stale and must reset to the
 // fresh day defaults, while cross-day fields (weight, prefs) survive. This file owns
@@ -20,6 +20,8 @@ export { todayStamp } from './clock';
  *  handled specially (seeded from currentWeight); currentWeight is a cross-day field, not here. */
 export const DAY_DEFAULT_KEYS = [
   'meals',
+  'mealFoods',
+  'mealLoggedAt',
   'hydrationL',
   'quickAdded',
   'nudged',

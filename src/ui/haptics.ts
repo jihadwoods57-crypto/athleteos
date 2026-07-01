@@ -1,4 +1,4 @@
-// AthleteOS — thin, safe wrapper around expo-haptics.
+// OnStandard — thin, safe wrapper around expo-haptics.
 //
 // Native only: haptics are unsupported on web and a no-op there. Every call is
 // fire-and-forget and swallows errors so a missing/denied haptics engine can

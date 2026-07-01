@@ -1,4 +1,4 @@
-// AthleteOS — store-level tests for the overseer Nudge action (coach / trainer /
+// OnStandard — store-level tests for the overseer Nudge action (coach / trainer /
 // nutritionist). The nudge is the only overseer action this phase: deterministic,
 // offline, idempotent, and never moves an athlete's score. AsyncStorage is mocked
 // so the node env can drive the real Zustand store.

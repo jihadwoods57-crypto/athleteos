@@ -1,10 +1,11 @@
-// AthleteOS — Account overlay (role chrome ☰ → here). Sign out → onboarding.
+// OnStandard — Account overlay (role chrome ☰ → here). Sign out → onboarding.
 import React, { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Alert, ScrollView, Share, View } from 'react-native';
 import { useStore } from '@/store';
-import { accountIdentity, accountRows, APP_VERSION, type AccountRow } from '@/core';
+import { accountIdentity, accountRows, APP_VERSION, isPro, type AccountRow } from '@/core';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Icon } from '@/icons';
 import { haptics } from '@/ui/haptics';
 import { Overlay } from './Overlay';
 
@@ -13,29 +14,45 @@ export function Account() {
   // Identity card derives from real onboarding data per role (the demo keeps the
   // showcase). Account was the last identity surface still hardcoding "Coach
   // Davis" / "Eastside HS" for a real user.
-  const acct = accountIdentity({ role: s.role, athleteName: s.athleteName, sport: s.sport, obMeta: s.obMeta });
-  const rows = accountRows(s.role);
+  const acct = accountIdentity({ role: s.role, athleteName: s.athleteName, sport: s.sport, obMeta: s.obMeta, orgName: s.orgName });
+  const rows = accountRows(s.role, s.entitlement);
   // Accordion: at most one disclosure open at a time.
   const [openKey, setOpenKey] = useState<string | null>(null);
+  // Coach/trainer/parent edit their own name + org here (athletes have the Profile
+  // tab). The identity card becomes a tappable entry to the self-profile editor.
+  const overseer = s.flow === 'coach' || s.flow === 'trainer' || s.flow === 'parent';
+
+  const identityCard = (
+    <>
+      <View style={{ width: 60, height: 60, borderRadius: 18, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+        <Txt w="eb" size={21} color="#fff">
+          {acct.initials}
+        </Txt>
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Txt w="eb" size={19} ls={-0.3}>
+          {acct.name}
+        </Txt>
+        <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
+          {acct.role}
+        </Txt>
+      </View>
+      {overseer ? <Icon name="chevronRight" size={20} color={colors.textTertiary} /> : null}
+    </>
+  );
 
   return (
     <Overlay title="Account" onClose={s.closeAccount}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Card elevated style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-          <View style={{ width: 60, height: 60, borderRadius: 18, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt w="eb" size={21} color="#fff">
-              {acct.initials}
-            </Txt>
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Txt w="eb" size={19} ls={-0.3}>
-              {acct.name}
-            </Txt>
-            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
-              {acct.role}
-            </Txt>
-          </View>
-        </Card>
+        {overseer ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Edit your profile" onPress={s.openOverseerProfile} style={({ pressed }) => [{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: '#fff', padding: 18, opacity: pressed ? 0.9 : 1 }, shadow.elevated]}>
+            {identityCard}
+          </Pressable>
+        ) : (
+          <Card elevated style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            {identityCard}
+          </Card>
+        )}
 
         <Card elevated style={{ marginTop: 14, borderRadius: 24, paddingVertical: 8 }}>
           <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -60,13 +77,83 @@ export function Account() {
           ))}
         </Card>
 
+        {/* Plans / billing — opens the compliant checkout (price, auto-renewal, trial, cancel). */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isPro(s.entitlement) ? 'Manage your plan' : 'See plans'}
+          onPress={s.openPlans}
+          style={({ pressed }) => [{ marginTop: 14, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', opacity: pressed ? 0.9 : 1 }, shadow.card]}
+        >
+          <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="bolt" size={18} color={colors.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt w="b" size={15}>{isPro(s.entitlement) ? 'Manage your plan' : 'See plans'}</Txt>
+            <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 1 }}>
+              {isPro(s.entitlement) ? 'Billing, seats & cancellation' : 'Pricing, trials & what’s included'}
+            </Txt>
+          </View>
+          <Icon name="chevronRight" size={18} color={colors.textTertiary} />
+        </Pressable>
+
+        {/* Your data — GDPR/CCPA portability + Apple-required in-app deletion */}
+        <Card elevated style={{ marginTop: 14, borderRadius: 24, paddingVertical: 4 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Export my data"
+            onPress={async () => {
+              haptics.tap();
+              try { await Share.share({ message: s.exportMyData() }); } catch { /* user cancelled the share sheet */ }
+            }}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <Row style={{ justifyContent: 'space-between', paddingVertical: 15, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Txt w="b" size={15}>
+                  Export my data
+                </Txt>
+                <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                  Download a copy of everything in your account
+                </Txt>
+              </View>
+            </Row>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete account"
+            onPress={() => {
+              haptics.tap();
+              Alert.alert(
+                'Delete account',
+                'This permanently deletes your account and all of your data. This cannot be undone.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => { void s.deleteAccount(); } },
+                ],
+              );
+            }}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <Row style={{ justifyContent: 'space-between', paddingVertical: 15, paddingHorizontal: 2 }}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Txt w="b" size={15} color={colors.alert}>
+                  Delete account
+                </Txt>
+                <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                  Permanently erase your account and data
+                </Txt>
+              </View>
+            </Row>
+          </Pressable>
+        </Card>
+
         <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
           <Txt w="b" size={15} color={colors.alert}>
             Sign out
           </Txt>
         </Pressable>
         <Txt w="sb" size={12} color={colors.textSecondary} style={{ textAlign: 'center', marginTop: 16 }}>
-          AthleteOS · {APP_VERSION}
+          OnStandard · {APP_VERSION}
         </Txt>
       </ScrollView>
     </Overlay>

@@ -1,4 +1,4 @@
-import { toEditableFoods, mealMacros, macroComposition, mealQuality, stepServings, type EditableFood } from './mealEdit';
+import { toEditableFoods, mealMacros, macroComposition, mealQuality, stepServings, resolvePortion, foodToEditable, addFood, removeFood, type EditableFood } from './mealEdit';
 
 const dinner = {
   protein: 52,
@@ -75,5 +75,77 @@ describe('stepServings', () => {
   });
   it('caps at 10', () => {
     expect(stepServings(10, 0.5)).toBe(10);
+  });
+});
+
+const eggs = { name: 'Egg', serving: '1 large', per: { protein: 6, kcal: 72, carbs: 0, fat: 5 } };
+
+describe('foodToEditable', () => {
+  it('carries the real per-serving macros at one serving', () => {
+    const f = foodToEditable(eggs);
+    expect(f).toEqual({ name: 'Egg', portion: '1 large', servings: 1, per: { protein: 6, kcal: 72, carbs: 0, fat: 5 } });
+  });
+  it('clones per so editing the result does not mutate the source', () => {
+    const f = foodToEditable(eggs);
+    f.per.protein = 999;
+    expect(eggs.per.protein).toBe(6);
+  });
+});
+
+describe('addFood', () => {
+  it('appends a new food with its real macros and recomputes totals', () => {
+    const base = toEditableFoods(dinner); // 52p / 680k / 64c / 18f
+    const next = addFood(base, eggs);
+    expect(next).toHaveLength(5);
+    expect(mealMacros(next)).toEqual({ protein: 58, kcal: 752, carbs: 64, fat: 23 });
+  });
+  it('bumps servings instead of duplicating an existing name', () => {
+    const once = addFood([], eggs);
+    const twice = addFood(once, eggs);
+    expect(twice).toHaveLength(1);
+    expect(twice[0].servings).toBe(2);
+    expect(mealMacros(twice)).toEqual({ protein: 12, kcal: 144, carbs: 0, fat: 10 });
+  });
+  it('is pure — does not mutate the input array', () => {
+    const base = toEditableFoods(dinner);
+    addFood(base, eggs);
+    expect(base).toHaveLength(4);
+  });
+});
+
+describe('resolvePortion — the actual amount at a serving multiplier', () => {
+  it('scales the leading number and keeps the unit', () => {
+    expect(resolvePortion('7 oz', 1.5)).toBe('10.5 oz');
+    expect(resolvePortion('1 cup', 0.5)).toBe('0.5 cup');
+    expect(resolvePortion('1.5 cups', 2)).toBe('3 cups');
+  });
+  it('drops a trailing .0 (no "10.0 oz")', () => {
+    expect(resolvePortion('5 oz', 2)).toBe('10 oz');
+  });
+  it('returns the label unchanged at 1 serving', () => {
+    expect(resolvePortion('7 oz', 1)).toBe('7 oz');
+  });
+  it('handles a multi-word unit', () => {
+    expect(resolvePortion('2 slices bread', 2)).toBe('4 slices bread');
+  });
+  it('returns null when there is no parseable leading number', () => {
+    expect(resolvePortion('a handful', 2)).toBeNull();
+    expect(resolvePortion('', 2)).toBeNull();
+  });
+  it('resolves a bare number with no unit', () => {
+    expect(resolvePortion('2', 1.5)).toBe('3');
+  });
+});
+
+describe('removeFood', () => {
+  it('removes the food at the index and recomputes', () => {
+    const foods = addFood([], eggs);
+    expect(removeFood(foods, 0)).toEqual([]);
+  });
+  it('is a no-op for an out-of-range index, returning a copy', () => {
+    const foods = addFood([], eggs);
+    const out = removeFood(foods, 5);
+    expect(out).toEqual(foods);
+    expect(out).not.toBe(foods);
   });
 });

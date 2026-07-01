@@ -1,4 +1,4 @@
-// AthleteOS — Squad tab. Read-only leaderboard; the athlete's row score is live.
+// OnStandard — Squad tab. Read-only leaderboard; the athlete's row score is live.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

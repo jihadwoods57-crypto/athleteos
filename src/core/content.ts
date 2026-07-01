@@ -1,7 +1,7 @@
-// AthleteOS — content data + display-string helpers (pure).
+// OnStandard — content data + display-string helpers (pure).
 // Ported from the prototype: meal log, meal-analysis results, AI insight, pace.
-import type { AppState, Derived, MealKey, MealLabel } from './types';
-import { MEAL_MACROS } from './constants';
+import type { AppState, CiConfig, Derived, MealKey, MealLabel } from './types';
+import { mealSlotMacros } from './scoring';
 
 export interface LoggedMeal {
   id: string;
@@ -164,23 +164,24 @@ const SLOT_META: Record<MealKey, { label: MealLabel; detailId: string; thumb: st
 
 /**
  * Build the per-slot row model for all four meal slots from day state.
- * Name + quality come from mealResultFor(); protein + kcal come from MEAL_MACROS
- * (the same source computeDerived sums) so the rendered rows agree with the
- * "N of 4 logged" header and the macro totals.
+ * Name + quality come from mealResultFor(); protein + kcal come from mealSlotMacros
+ * (the same source computeDerived sums — a saved edited plate when present, the slot
+ * constant otherwise) so the rendered rows agree with the "N of 4 logged" header and
+ * the macro totals even after the athlete edits a meal.
  */
 export function mealRowsFor(state: AppState): MealRow[] {
   return SLOT_ORDER.map((key) => {
     const meta = SLOT_META[key];
     const result = mealResultFor(meta.label);
-    const macros = MEAL_MACROS[key];
+    const macros = mealSlotMacros(state, key);
     return {
       key,
       label: meta.label,
       detailId: meta.detailId,
       logged: state.meals[key],
       name: result.name,
-      protein: macros.p,
-      kcal: macros.k,
+      protein: macros.protein,
+      kcal: macros.kcal,
       quality: result.quality,
       thumb: meta.thumb,
       dueTime: meta.dueTime,
@@ -305,7 +306,15 @@ export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): 
   const daysLeft = 3;
   const daysElapsed = 4;
   const surplus = Math.round((goal * 3500) / 7);
-  const projected = +((progressLb / daysElapsed) * 7).toFixed(1);
+  // Clamp the linear extrapolation to a believable weekly band. A brand-new athlete
+  // with no weekly weight history yet has `progressLb` fall back to their season-total
+  // gain (e.g. +7 lb), which would otherwise project an absurd "+12.3 lb by Sunday"
+  // and, downstream, "ease back ~13,000 cal/day". No real weekly weight change exceeds
+  // a few pounds, so cap the projection — honest and never nonsensical.
+  const projected = +Math.max(-5, Math.min(5, (progressLb / daysElapsed) * 7)).toFixed(1);
+  // Calorie adjustment to hit the goal, bounded to a realistic ceiling (no one
+  // meaningfully eats 1,000+ cal/day off-plan; a larger raw number is an artifact).
+  const calAdjust = (lb: number) => Math.max(0, Math.min(1000, Math.round((lb * 3500) / daysLeft)));
   const onPace = projected >= goal - 0.001;
   // The UI clamps the weekly goal to >= 0.5, but a corrupt/legacy persisted blob (or a
   // future maintain goal) could carry 0/negative/NaN, making progressLb/goal divide as
@@ -322,11 +331,11 @@ export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): 
   const paceLabel = onPace ? '↑ On pace' : '↓ Behind pace';
   let paceAi: string;
   if (projected > goal) {
-    paceAi = `You're tracking to +${projected} lb by Sunday, a touch ahead. Ease back ~${Math.round(((projected - goal) * 3500) / 3)} cal/day to land exactly on target.`;
+    paceAi = `You're tracking to +${projected} lb by Sunday, a touch ahead. Ease back ~${calAdjust(projected - goal)} cal/day to land exactly on target.`;
   } else if (onPace) {
     paceAi = `You're tracking to +${projected} lb by Sunday, right on target. Keep the surplus steady.`;
   } else {
-    paceAi = `At today's intake you'll reach +${projected} lb. Add ~${Math.round(((goal - projected) * 3500) / 3)} cal/day over the next ${daysLeft} days to stay on track.`;
+    paceAi = `At today's intake you'll reach +${projected} lb. Add ~${calAdjust(goal - projected)} cal/day over the next ${daysLeft} days to stay on track.`;
   }
   return { daysLeft, surplus, goalPct, onPace, paceLabel, paceAi, projected, progressLb };
 }
@@ -397,7 +406,7 @@ export function coachGuidance(opts: {
  * Mirrors coachGuidance's gating convention.
  */
 export function taskVisibilityNote(opts: { isReal: boolean; supportTeam: string[] }): string {
-  const base = 'Completed tasks feed your Accountability Score';
+  const base = 'Completed tasks feed your Execution Score';
   if (!opts.isReal) return `${base} and stay visible to Coach Davis.`;
   if (opts.supportTeam.includes('coach')) return `${base} and stay visible to your coach.`;
   if (opts.supportTeam.includes('trainer')) return `${base} and stay visible to your trainer.`;
@@ -506,7 +515,7 @@ export function notificationCopy(opts: {
   if (!opts.isReal) {
     return {
       checkin: 'Takes 2 minutes. Your coach and parent will see your update.',
-      score: `Your Accountability Score is ${opts.athleteScore}. You're #2 in the linebacker room.`,
+      score: `Your Execution Score is ${opts.athleteScore}. You're #2 in the linebacker room.`,
       coachNote: { initials: 'CD', title: 'Coach Davis', text: '"Strong week. Your nutrition is the best in the room. Keep it up."' },
     };
   }
@@ -520,7 +529,7 @@ export function notificationCopy(opts: {
   else checkin = 'Takes 2 minutes. Your weekly check-in keeps your score honest.';
   return {
     checkin,
-    score: `Your Accountability Score is ${opts.athleteScore}. Tap to see your week.`,
+    score: `Your Execution Score is ${opts.athleteScore}. Tap to see your week.`,
     coachNote: null,
   };
 }
@@ -578,7 +587,58 @@ export function squadView(opts: { isReal: boolean }): SquadView {
     showLeague: false,
     empty: {
       title: 'No squad connected yet',
-      body: 'When your team or training group joins AthleteOS, your weekly leaderboard shows up here. Your own score keeps tracking in the meantime.',
+      body: 'When your team or training group joins OnStandard, your weekly leaderboard shows up here. Your own score keeps tracking in the meantime.',
     },
   };
+}
+
+/** The just-submitted weekly check-in answers, for an honest derived summary. */
+export interface CheckinAnswers {
+  name?: string;
+  energy?: number;
+  recovery?: number;
+  sleep?: number;
+  confidence?: number;
+  soreness?: number;
+  motivation?: number;
+  /** Which questions the coach enabled (mirrors AppState.ciConfig). */
+  config: CiConfig;
+}
+
+/**
+ * Honest weekly check-in summary derived from the athlete's ACTUAL slider answers
+ * (replaces a static "Energy and confidence are up..." blurb that ignored what was
+ * entered). Names only the enabled questions, classifies each strong (>=8) / watch
+ * (<5), with soreness read inversely (high soreness = something to watch). Resilient
+ * to missing/non-finite answers; factual, no guilt, no em dash.
+ */
+export function checkinSummary(a: CheckinAnswers): string {
+  const first = (a.name ?? '').trim().split(/\s+/)[0] || 'there';
+  const fin = (v: number | undefined): number | null =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null;
+  const strong: string[] = [];
+  const watch: string[] = [];
+  const consider = (on: boolean | undefined, label: string, v: number | null) => {
+    if (on !== true || v === null) return;
+    if (v >= 8) strong.push(label);
+    else if (v < 5) watch.push(label);
+  };
+  consider(a.config.energy, 'energy', fin(a.energy));
+  consider(a.config.recovery, 'recovery', fin(a.recovery));
+  consider(a.config.sleep, 'sleep', fin(a.sleep));
+  consider(a.config.confidence, 'confidence', fin(a.confidence));
+  consider(a.config.motivation, 'motivation', fin(a.motivation));
+  // Soreness is inverse: a HIGH score is worse, so it only ever goes on the watch list.
+  const sore = fin(a.soreness);
+  if (a.config.soreness === true && sore !== null && sore >= 6) watch.push('soreness');
+
+  const join = (xs: string[]): string =>
+    xs.length <= 1 ? (xs[0] ?? '') : xs.length === 2 ? `${xs[0]} and ${xs[1]}` : `${xs.slice(0, -1).join(', ')}, and ${xs[xs.length - 1]}`;
+  const cap = (str: string): string => (str ? str[0].toUpperCase() + str.slice(1) : str);
+
+  const sentences: string[] = [];
+  if (strong.length) sentences.push(`${cap(join(strong))} ${strong.length === 1 ? 'is' : 'are'} strong this week.`);
+  if (watch.length) sentences.push(`Keep an eye on ${join(watch)}.`);
+  if (sentences.length === 0) sentences.push('Your numbers are steady across the board.');
+  return `Check-in saved, ${first}. ${sentences.join(' ')}`;
 }

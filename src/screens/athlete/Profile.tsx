@@ -1,12 +1,13 @@
-// AthleteOS — Profile. Identity, targets, read-only "managed by your program"
+// OnStandard — Profile. Identity, targets, read-only "managed by your program"
 // visibility panel, connections, settings, sign out.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS, initials, supportVisibilityRows, trainingCadence, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
+import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS, initials, scoringProfileLabel, supportVisibilityRows, trainingCadence, weeklyReportFromState, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { Card, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 
 /** Avatar initial + color per support-team role for the visibility rows. */
@@ -84,6 +85,60 @@ export function Profile() {
         </View>
       </Card>
 
+      {/* this week — the weekly digest (generator existed but rendered nowhere) */}
+      {(() => {
+        const wr = weeklyReportFromState({ name: firstName(s.athleteName, 'Jihad'), scoreHistory: s.scoreHistory, liveScore: d.athleteScore });
+        // Warm empty state: a brand-new athlete (no history yet) gets a welcoming, directive
+        // start instead of a "nothing logged / accountability has stalled" report on day one.
+        if (wr.daysLogged === 0 && (s.scoreHistory?.length ?? 0) === 0) {
+          return (
+            <Card elevated style={{ marginTop: 14, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="flame" size={20} color={colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Txt w="eb" size={15} ls={-0.2}>
+                  Your week starts now
+                </Txt>
+                <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 2, lineHeight: 19 }}>
+                  Log your first meal to start building your weekly trend. Every day you log stacks up here.
+                </Txt>
+              </View>
+            </Card>
+          );
+        }
+        return (
+          <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+            <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Txt w="eb" size={16} ls={-0.3}>
+                This week
+              </Txt>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9, backgroundColor: colors.accentSurface }}>
+                <Txt w="b" size={12} color={colors.accent}>
+                  {wr.headline}
+                </Txt>
+              </View>
+            </Row>
+            <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>
+              {wr.scoreLine}
+            </Txt>
+            <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 20, marginTop: 2 }}>
+              {wr.complianceLine}
+            </Txt>
+            <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 20, marginTop: 2 }}>
+              {wr.movedLine}
+            </Txt>
+            {wr.flag ? (
+              <View style={{ marginTop: 12, padding: 12, borderRadius: 14, backgroundColor: colors.bg2 }}>
+                <Txt w="sb" size={13} color={colors.warning} style={{ lineHeight: 18 }}>
+                  Heads up: {wr.flag}
+                </Txt>
+              </View>
+            ) : null}
+          </Card>
+        );
+      })()}
+
       {/* targets */}
       <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
         <Row style={{ justifyContent: 'space-between', marginBottom: 16 }}>
@@ -134,6 +189,24 @@ export function Profile() {
             <TargetTile value={`${displayWeight(weightTarget, units)}${weightUnit(units)}`} label="WEIGHT" />
           </Row>
         )}
+        {isReal ? (() => {
+          // Disclose how this account is scored (auto-assigned from the goal at signup). A solo
+          // client should never wonder why a green-protein day didn't top out.
+          const sp = scoringProfileLabel(s.scoringProfile);
+          return (
+            <View style={{ marginTop: 14, padding: 13, borderRadius: 14, backgroundColor: colors.bg }}>
+              <Row style={{ gap: 7, marginBottom: 4 }}>
+                <Icon name="bolt" size={13} color={colors.accent} />
+                <Txt w="eb" size={13}>
+                  {sp.title}
+                </Txt>
+              </Row>
+              <Txt w="m" size={12} color={colors.textSecondary} style={{ lineHeight: 17 }}>
+                {sp.how}
+              </Txt>
+            </View>
+          );
+        })() : null}
         {workingToward.length > 0 ? (
           <>
             <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 14 }}>
@@ -170,11 +243,28 @@ export function Profile() {
                 <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
                   These people see your scores. Accountability works when the right people are watching, so you can't hide a tough week.
                 </Txt>
-                <View style={{ marginTop: 16, gap: 13 }}>
+                <View style={{ marginTop: 16, gap: 13, opacity: s.sharingPaused ? 0.45 : 1 }}>
                   {visRows.map((r) => (
-                    <VisRow key={r.key} initials={VIS_INITIALS[r.key] ?? r.title[0]} bg={VIS_COLORS[r.key] ?? colors.text} title={r.title} sub={r.sub} />
+                    <VisRow
+                      key={r.key}
+                      initials={VIS_INITIALS[r.key] ?? r.title[0]}
+                      bg={VIS_COLORS[r.key] ?? colors.text}
+                      title={r.title}
+                      sub={r.sub}
+                      onRemove={() => s.removeViewer(r.key)}
+                    />
                   ))}
                 </View>
+                {/* Pause-all + the honest status line: while paused nothing leaves the device. */}
+                <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Txt w="b" size={14}>Pause all sharing</Txt>
+                    <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2, lineHeight: 17 }}>
+                      {s.sharingPaused ? 'Paused — your data stays on this device.' : 'Stop sharing with everyone, anytime.'}
+                    </Txt>
+                  </View>
+                  <Toggle on={s.sharingPaused} onPress={s.togglePauseSharing} label="Pause all sharing" />
+                </Row>
               </>
             ) : (
               <>
@@ -213,14 +303,23 @@ export function Profile() {
       {/* settings */}
       <Card elevated style={{ marginTop: 14, borderRadius: 24, paddingVertical: 8 }}>
         <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-          <View>
-            <Txt w="b" size={15}>
-              Notifications
-            </Txt>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Reminders settings"
+            onPress={s.goReminders}
+            hitSlop={6}
+            style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.6 : 1 })}
+          >
+            <Row style={{ gap: 6, alignItems: 'center' }}>
+              <Txt w="b" size={15}>
+                Notifications
+              </Txt>
+              <Icon name="chevronRight" size={18} color="#CBD5E1" />
+            </Row>
             <Txt w="m" size={13} color={colors.textTertiary}>
-              Meal, hydration & check-in reminders
+              Protein, hydration, dinner & check-in reminders
             </Txt>
-          </View>
+          </Pressable>
           <Toggle on={s.notif} onPress={s.toggleNotif} label="Notifications" />
         </Row>
         <Pressable
@@ -259,7 +358,7 @@ export function Profile() {
         </Txt>
       </Pressable>
       <Txt w="sb" size={12} color={colors.textSecondary} style={{ textAlign: 'center', marginTop: 16 }}>
-        AthleteOS · v1.0
+        OnStandard · v1.0
       </Txt>
     </ScrollView>
   );
@@ -278,7 +377,7 @@ function TargetTile({ value, label }: { value: string; label: string }) {
   );
 }
 
-function VisRow({ initials, bg, icon, title, sub }: { initials?: string; bg?: string; icon?: any; title: string; sub: string }) {
+function VisRow({ initials, bg, icon, title, sub, onRemove }: { initials?: string; bg?: string; icon?: any; title: string; sub: string; onRemove?: () => void }) {
   return (
     <Row style={{ gap: 12 }}>
       <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: icon ? colors.accentSurface : bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -292,9 +391,15 @@ function VisRow({ initials, bg, icon, title, sub }: { initials?: string; bg?: st
           {sub}
         </Txt>
       </View>
-      <Txt w="b" size={12} color={colors.success}>
-        On
-      </Txt>
+      {onRemove ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={8} onPress={() => { haptics.tap(); onRemove(); }} style={({ pressed }) => ({ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: colors.bg2, opacity: pressed ? 0.6 : 1 })}>
+          <Txt w="b" size={12} color={colors.alert}>Remove</Txt>
+        </Pressable>
+      ) : (
+        <Txt w="b" size={12} color={colors.success}>
+          On
+        </Txt>
+      )}
     </Row>
   );
 }

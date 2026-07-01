@@ -1,4 +1,4 @@
-// AthleteOS — screen-data smoke net. The jest harness is node-env / pure-core
+// OnStandard — screen-data smoke net. The jest harness is node-env / pure-core
 // (no react-native render preset is installable here — jest 30 conflicts with
 // jest-expo's @react-native/jest-preset), so we can't mount the React screens
 // themselves. Instead we drive the SAME pure selectors every screen renders from,
@@ -48,6 +48,7 @@ import {
   squadView,
   notificationCopy,
   trainingCadence,
+  parentDigest,
   gradeFor,
   mealResultFor,
   qualityLabel,
@@ -258,6 +259,27 @@ describe('overseer dashboard-data smoke (every role surface)', () => {
     // The nutritionist surfaces its own nouns, never the generic trainer chrome.
     expect(trainerLens('nutritionist', true).headerTitle).toContain('Nutrition');
     expect(trainerLens('personal_trainer', true).headerTitle).not.toContain('Nutrition');
+    // A non-athlete clientType re-frames the trainer header without crashing on any
+    // onboarding value (string, blank, array, number, unknown key).
+    (['weight_loss', 'muscle_gain', 'general', 'athletes', 'hybrid', '', ['a'], 5, undefined] as unknown[]).forEach((ct) => {
+      const l = trainerLens('personal_trainer', true, ct);
+      expect(l.headerTitle.length).toBeGreaterThan(0);
+      expect(l.headerTitle).not.toContain('—');
+    });
+  });
+
+  it('the parent weekly digest reads honestly across the score range + partial weeks', () => {
+    [0, 45, 58, 70, 74, 80, 88, 100, NaN].forEach((score) => {
+      [0, 3, 6, 7, 99].forEach((days) => {
+        const dg = parentDigest({ score, completedDays: days, first: 'Jordan' });
+        expect(dg.summary.length).toBeGreaterThan(0);
+        expect(dg.coverage.length).toBeGreaterThan(0);
+        expect(dg.summary).not.toContain('—');
+        expect(dg.coverage).not.toContain('—');
+        // The frozen "no action needed" reassurance never reappears below the top band.
+        if (Number.isFinite(score) && score < 70) expect(dg.reassuring).toBe(false);
+      });
+    });
   });
 
   it('the shared person-detail title noun resolves for every flow', () => {

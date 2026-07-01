@@ -1,4 +1,4 @@
-# AthleteOS — Coach Validation Survey
+# OnStandard — Coach Validation Survey
 
 A standalone, mobile-first survey for validating demand and finding beta coaches.
 One `index.html` file. No build step, no framework. Branches by role + clientele,

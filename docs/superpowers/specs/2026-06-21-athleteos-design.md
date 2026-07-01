@@ -1,11 +1,11 @@
-# AthleteOS — v1 Design Spec
+# OnStandard — v1 Design Spec
 
 **Date:** 2026-06-21
 **Status:** Phase 1 implemented (Expo mobile app).
 
 ## What it is
 A mobile-first athlete accountability platform recreated from the Claude Design
-handoff (`design_handoff_athleteos`). Athletes log meals (simulated AI analysis),
+handoff (`design_handoff_onstandard`). Athletes log meals (simulated AI analysis),
 complete daily tasks + weekly check-ins, and earn a daily **Athlete Score**, while
 coaches, parents, and trainers get visibility. The product answers one question:
 *"Is this athlete actually doing what they're supposed to be doing?"*

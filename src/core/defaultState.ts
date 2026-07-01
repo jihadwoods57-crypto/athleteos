@@ -1,7 +1,10 @@
-// AthleteOS — initial session state, ported verbatim from the prototype.
+// OnStandard — initial session state, ported verbatim from the prototype.
 import type { AppState } from './types';
 import { todayStamp } from './clock';
 import { CAL_TARGET, PROTEIN_TARGET, WEIGHT_START, WEIGHT_TARGET } from './constants';
+import { defaultReminderSettings } from './reminders';
+import { defaultOverseerAlerts } from './overseerAlerts';
+import { previewEntitlement } from './subscription';
 
 export function createInitialState(): AppState {
   return {
@@ -12,6 +15,7 @@ export function createInitialState(): AppState {
     signinMode: false,
     athleteName: '',
     athleteEmail: '',
+    orgName: '',
     level: null,
     sport: null,
     position: null,
@@ -30,6 +34,9 @@ export function createInitialState(): AppState {
     trainingFreq: null,
     supportTeam: [],
     inviteCode: '',
+    teamCode: '',
+    guardianEmail: '',
+    guardianStatus: 'none',
     baseNutritionConfidence: 6,
     baseMealsPerDay: 3,
     baseWaterL: 2.0,
@@ -39,12 +46,26 @@ export function createInitialState(): AppState {
     startScore: null,
     obMeta: {},
 
+    // backend session (Phase 1 go-live, gated behind isBackendLive; inert by default)
+    userId: null,
+    realDataConsent: false,
+    authError: null,
+    passwordResetSent: false,
+    emailConfirmPending: false,
+    sharingPaused: false,
+    entitlement: previewEntitlement(),
+
     // day
     dateStamp: todayStamp(),
     scoreHistory: [],
     weightHistory: [],
     nutritionHistory: [],
+    // Honest empty start: no fabricated PRs. The Performance screen shows a
+    // "log your first result" empty state until the athlete logs one.
+    perfEntries: [],
     meals: { breakfast: true, lunch: true, snack: true, dinner: false },
+    mealFoods: {},
+    mealLoggedAt: {},
     hydrationL: 2.4,
     quickAdded: [false, false, false],
     nudged: [],
@@ -74,12 +95,27 @@ export function createInitialState(): AppState {
 
     // nav / overlays
     tab: 'home',
+    coachTab: 'dashboard',
     squadMode: 'team',
+    cachedRoster: null,
+    cachedRosterUserId: null,
     mealOpen: false,
     mealStage: 'capture',
+    mealCaptureMode: 'meal',
     mealType: 'Dinner',
     mealAnalysis: null,
+    labelFacts: null,
+    labelServings: 1,
+    mealPhoto: null,
     mealDetailOpen: false,
+    overseerProfileOpen: false,
+    plansOpen: false,
+    coachGoalsOpen: false,
+    mealHistoryOpen: false,
+    nutritionMemoryOpen: false,
+    mealHistory: null,
+    foodCoachOpen: false,
+    planEditorOpen: false,
     selectedMeal: null,
     notifOpen: false,
     personDetail: null,
@@ -90,9 +126,12 @@ export function createInitialState(): AppState {
     weeklyGoalLb: 1.0,
     proteinTarget: PROTEIN_TARGET,
     calTarget: CAL_TARGET,
+    planInstructions: [],
     weightTarget: WEIGHT_TARGET,
     visibility: 'parent',
     notif: true,
+    reminderSettings: defaultReminderSettings(),
+    overseerAlerts: defaultOverseerAlerts(),
     units: 'imperial',
     mealDesc: '',
     chatDraft: '',

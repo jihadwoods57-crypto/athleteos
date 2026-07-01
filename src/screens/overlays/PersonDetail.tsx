@@ -1,14 +1,19 @@
-// AthleteOS — Athlete/Client detail overlay (from coach/trainer roster rows).
+// OnStandard — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { displayWeightDelta, findNudge, gradeFor, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, weightUnit } from '@/core';
+import { displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal } from '@/core';
 import { useStore } from '@/store';
+import { db, isBackendLive } from '@/lib/supabase';
+import { aiPrefix } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Input, ProgressBar, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Overlay } from './Overlay';
+import { MealCardItem } from './MealCardItem';
+
+const RECENT_MEAL_DAYS = 14;
 
 export function PersonDetail() {
   const s = useStore();
@@ -56,7 +61,7 @@ export function PersonDetail() {
               {pd.name}
             </Txt>
             <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
-              {pd.pos} · {pd.org ?? 'Eastside HS'}
+              {[pd.pos, pd.org ?? (isBackendLive ? null : 'Eastside HS')].filter(Boolean).join(' · ')}
             </Txt>
             <View style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: statusBg }}>
               <Txt w="b" size={12} color={statusColor}>
@@ -69,17 +74,42 @@ export function PersonDetail() {
           </View>
         </Card>
 
+        {/* COMPLIANCE is real (derived from the roster). DAY STREAK + WEIGHT Δ are sample
+            showcase values, the same for every athlete, so they are shown ONLY in the demo
+            and hidden once the backend is live — a real coach never sees fabricated stats. */}
         <Row style={{ gap: 10, marginTop: 14 }}>
           <StatTile value={`${pd.comp ?? pd.score}%`} label="COMPLIANCE" color={colors.success} />
-          <StatTile value="12" label="DAY STREAK" />
-          <StatTile value={`+${displayWeightDelta(7, units)}${weightUnit(units)}`} label="WEIGHT Δ" />
+          {isBackendLive ? null : (
+            <>
+              <StatTile value="12" label="DAY STREAK" />
+              <StatTile value={`+${displayWeightDelta(7, units)}${weightUnit(units)}`} label="WEIGHT Δ" />
+            </>
+          )}
         </Row>
-        <Row style={{ gap: 7, marginTop: 10 }}>
-          <SampleTag />
-          <Txt w="sb" size={12} color={colors.textTertiary} style={{ flex: 1 }}>
-            Day streak and weight change are sample values, the same for every athlete
-          </Txt>
-        </Row>
+        {isBackendLive ? null : (
+          <Row style={{ gap: 7, marginTop: 10 }}>
+            <SampleTag />
+            <Txt w="sb" size={12} color={colors.textTertiary} style={{ flex: 1 }}>
+              Day streak and weight change are sample values, the same for every athlete
+            </Txt>
+          </Row>
+        )}
+
+        {pd.perf ? (
+          <Card style={{ marginTop: 14, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="trophy" size={18} color={colors.accent} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6}>
+                PERFORMANCE
+              </Txt>
+              <Txt w="b" size={14} color={colors.slate700} style={{ marginTop: 2 }}>
+                {pd.perf}
+              </Txt>
+            </View>
+          </Card>
+        ) : null}
 
         <Card style={{ marginTop: 14, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 16 }}>
@@ -93,13 +123,37 @@ export function PersonDetail() {
           </View>
         </Card>
 
+        {/* Coach owns the plan (Constitution Rule #13): set this athlete's targets +
+            scoring profile. Shown to the overseer flows that open this overlay. */}
+        {s.flow === 'coach' || s.flow === 'trainer' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Set ${pd.name}'s targets and scoring`}
+            onPress={s.openCoachGoals}
+            style={({ pressed }) => [{ marginTop: 14, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', opacity: pressed ? 0.9 : 1 }, shadow.card]}
+          >
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="shield" size={18} color={colors.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="b" size={15}>Targets &amp; scoring</Txt>
+              <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 1 }}>
+                Set {pd.name.split(/\s+/)[0]}'s protein, calories &amp; scoring profile
+              </Txt>
+            </View>
+            <Icon name="chevronRight" size={18} color={colors.textTertiary} />
+          </Pressable>
+        ) : null}
+
+        <RecentMeals athleteId={pd.athleteId} name={pd.name} />
+
         <Card style={{ marginTop: 14, borderRadius: 20 }}>
           <Row style={{ gap: 9, marginBottom: 12 }}>
             <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="sparkle" size={17} color={colors.accent} />
             </View>
             <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
-              AI SUMMARY
+              {aiPrefix}SUMMARY
             </Txt>
             <SampleTag />
           </Row>
@@ -172,6 +226,70 @@ export function PersonDetail() {
         ) : null}
       </ScrollView>
     </Overlay>
+  );
+}
+
+/**
+ * Coach/trainer meal history (Part C): the linked athlete's recent stored meals,
+ * read via fetchRecentMeals (RLS scopes it to athletes the opener is linked to).
+ * Only renders real data — on the demo roster (no athleteId) or with the backend
+ * off it shows the honest not-connected state, never fabricated food, matching the
+ * DAY-STREAK / WEIGHT-Δ sample handling elsewhere in this overlay.
+ */
+function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) {
+  const live = isBackendLive && !!athleteId;
+  const [meals, setMeals] = React.useState<StoredMeal[] | null>(null);
+  React.useEffect(() => {
+    if (!live || !athleteId) return;
+    let cancelled = false;
+    db.fetchRecentMeals(athleteId, daysAgoStamp(RECENT_MEAL_DAYS))
+      .then((rows) => {
+        if (!cancelled) setMeals(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [live, athleteId]);
+
+  const days: MealHistoryDay[] = meals ? groupMealsByDay(meals, todayStamp()) : [];
+  const firstName = name.split(/\s+/)[0] || name;
+
+  return (
+    <Card style={{ marginTop: 14, borderRadius: 20 }}>
+      <Row style={{ gap: 9, marginBottom: 12 }}>
+        <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="utensils" size={16} color={colors.accent} />
+        </View>
+        <Txt w="eb" size={15} ls={-0.3} style={{ flex: 1 }}>
+          Recent Meals
+        </Txt>
+        {live ? null : <SampleTag />}
+      </Row>
+
+      {!live ? (
+        <Txt w="sb" size={13} color={colors.textTertiary} style={{ lineHeight: 19 }}>
+          {firstName}’s logged meals — photo, macros, and quality — appear here once your team is connected to the backend.
+        </Txt>
+      ) : days.length === 0 ? (
+        <Txt w="sb" size={13} color={colors.textTertiary} style={{ lineHeight: 19 }}>
+          No meals logged in the last {RECENT_MEAL_DAYS} days.
+        </Txt>
+      ) : (
+        <View style={{ gap: 16 }}>
+          {days.map((day) => (
+            <View key={day.dateKey} style={{ gap: 12 }}>
+              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5}>
+                {day.dayLabel.toUpperCase()}
+              </Txt>
+              {day.cards.map((c) => (
+                <MealCardItem key={c.id} card={c} />
+              ))}
+            </View>
+          ))}
+        </View>
+      )}
+    </Card>
   );
 }
 

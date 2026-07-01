@@ -1,4 +1,4 @@
-// AthleteOS — design tokens, transcribed from the handoff README.
+// OnStandard — design tokens, transcribed from the handoff README.
 import { Platform } from 'react-native';
 
 export const colors = {
@@ -42,6 +42,64 @@ export const colors = {
   white: '#FFFFFF',
 } as const;
 
+// ----------------------------------------------------------------- theming foundation
+// `colors` above is the LIGHT palette and the app's default (every existing import keeps
+// working unchanged, so nothing looks different today). Dark mode is now a palette swap:
+// `darkColors` mirrors every key, and components migrate from the static `colors` import
+// to the `useColors()` hook (src/ui/theme.tsx) incrementally. Surfaces still hardcoding
+// '#fff' / '#0F172A' must move to a token before they theme — tracked as the migration.
+
+/** The light palette, named for clarity once a dark one exists. Same object as `colors`. */
+export const lightColors = colors;
+
+/** Structural palette type: every color key, valued as a string (so the dark palette can
+ *  hold different hexes than the light literals). */
+export type ColorTheme = { [K in keyof typeof colors]: string };
+
+/** Designed dark palette — same keys as light. Surfaces become elevated grays (not pure
+ *  black), accents/status brighten for contrast on dark, white stays white (text on
+ *  colored buttons). Tuned for WCAG-AA; run src/core/contrast.ts over pairs at QA time. */
+export const darkColors: ColorTheme = {
+  bg: '#0B1120',
+  bg2: '#111827',
+  card: '#1E293B',
+  text: '#F1F5F9',
+  textSecondary: '#94A3B8',
+  textTertiary: '#64748B',
+  slate500: '#94A3B8',
+  slate600: '#CBD5E1',
+  slate700: '#E2E8F0',
+
+  accent: '#3B82F6',
+  accentLight: '#60A5FA',
+  accentSurface: '#172554',
+  accentBorder: '#1E3A8A',
+  accentBorderStrong: '#2563EB',
+
+  success: '#22C55E',
+  successDeep: '#4ADE80',
+  successSurface: '#052E16',
+
+  warning: '#F59E0B',
+  warningDeep: '#FBBF24',
+
+  alert: '#F87171',
+  alertDeep: '#FCA5A5',
+  alertSurface: '#450A0A',
+  alertBorder: '#7F1D1D',
+
+  hydration: '#38BDF8',
+  trainer: '#A855F7',
+  trainerLight: '#C084FC',
+
+  divider: '#1E293B',
+  divider2: '#172033',
+  track: '#334155',
+  border: '#1E293B',
+
+  white: '#FFFFFF',
+};
+
 export const font = {
   // Plus Jakarta Sans weights loaded via @expo-google-fonts.
   r: 'PlusJakartaSans_400Regular',
@@ -50,6 +108,34 @@ export const font = {
   b: 'PlusJakartaSans_700Bold',
   eb: 'PlusJakartaSans_800ExtraBold',
 } as const;
+
+/**
+ * Named type scale — one source of truth for hierarchy so weight/size/spacing work
+ * together instead of everything defaulting to extra-bold. Use these presets for new
+ * text instead of ad-hoc size/weight pairs. (size, lineHeight in pt; ls = letterSpacing.)
+ */
+export const typeScale = {
+  display: { size: 48, weight: font.eb, ls: -2, lineHeight: 50 },
+  title: { size: 28, weight: font.eb, ls: -0.8, lineHeight: 32 },
+  heading: { size: 16, weight: font.eb, ls: -0.3, lineHeight: 22 },
+  body: { size: 14, weight: font.m, ls: 0, lineHeight: 20 },
+  bodyStrong: { size: 14, weight: font.b, ls: 0, lineHeight: 20 },
+  caption: { size: 12, weight: font.sb, ls: 0.2, lineHeight: 16 },
+  overline: { size: 11, weight: font.eb, ls: 0.6, lineHeight: 14 },
+} as const;
+
+/**
+ * The Development Score's color story, keyed on the letter grade so the ring, number, and
+ * grade chip all speak ONE status color that shifts A (green) -> F (red) — instead of a
+ * fixed-green ring fighting an orange chip. [light, deep] for the ring gradient.
+ */
+export const gradeRing: Record<string, [string, string]> = {
+  A: ['#34D399', '#16A34A'],
+  B: ['#60A5FA', '#2563EB'],
+  C: ['#FBBF24', '#D97706'],
+  D: ['#FB923C', '#EA580C'],
+  F: ['#F87171', '#DC2626'],
+};
 
 export const radius = {
   card: 22,

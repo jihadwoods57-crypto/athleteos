@@ -1,4 +1,4 @@
-// AthleteOS — Supabase client (inert until keys are provided).
+// OnStandard — Supabase client (inert until keys are provided).
 //
 // Phase 2 is "scaffolded, keys later": with no EXPO_PUBLIC_SUPABASE_URL /
 // EXPO_PUBLIC_SUPABASE_ANON_KEY set, `supabase` is null and `isSupabaseConfigured`
@@ -6,9 +6,10 @@
 // so the app runs exactly as it does today. Drop the two env vars in `.env` (see
 // `.env.example`) to light the backend up — no other code change required to connect.
 import 'react-native-url-polyfill/auto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
+import { secureStorage } from './secureStorage';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
@@ -33,7 +34,9 @@ export const isBackendLive =
 export const supabase: SupabaseClient<Database> | null = isSupabaseConfigured
   ? createClient<Database>(url as string, anonKey as string, {
       auth: {
-        storage: AsyncStorage,
+        // Encrypted at rest via the OS keychain (security audit L1); web falls back to
+        // AsyncStorage inside the adapter. See secureStorage.ts.
+        storage: secureStorage,
         persistSession: true,
         autoRefreshToken: true,
         // React Native has no URL bar; the OAuth/redirect detection web uses
@@ -42,6 +45,17 @@ export const supabase: SupabaseClient<Database> | null = isSupabaseConfigured
       },
     })
   : null;
+
+// Keep the session token fresh across app foreground/background. Without this, the auto-refresh
+// timer can stall while the app is backgrounded and the access token silently expires, forcing a
+// surprise re-auth. The documented Supabase/RN fix: run the refresher only while the app is active.
+// Inert when unconfigured (supabase is null) and a no-op in node tests (AppState is stubbed).
+if (supabase) {
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') supabase.auth.startAutoRefresh();
+    else supabase.auth.stopAutoRefresh();
+  });
+}
 
 /** Narrow `supabase` to non-null. Throws if called while unconfigured — only use
  *  after an `isSupabaseConfigured` check. */

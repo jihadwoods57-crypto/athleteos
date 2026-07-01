@@ -1,4 +1,4 @@
-// AthleteOS — trend-chart geometry tests. The chart math is load-bearing (the UI
+// OnStandard — trend-chart geometry tests. The chart math is load-bearing (the UI
 // draws exactly these paths), so pin the projection, clamping, and trend summary.
 import {
   appendDayScore,
@@ -391,24 +391,26 @@ describe('currentStreak', () => {
     expect(currentStreak(mk(95, 92, 88), 70)).toBe(0);
   });
 
-  it('on empty history pads with the seeded lead (all on-plan) → today + 6', () => {
-    // Fresh install: seeded 7-day trend reads all on-plan, so the streak should
-    // match it rather than show a lone 1.
-    expect(currentStreak([], 90)).toBe(7);
+  it('by default (real athlete) counts earned days only — empty history → a lone 1', () => {
+    // Honesty (Tier 1.5): no seed pad by default, so a fresh real athlete sees 1 day,
+    // not a fabricated 7.
+    expect(currentStreak([], 90)).toBe(1);
+    expect(currentStreak(mk(85, 88, 91), 90)).toBe(3 + 1); // 3 real on-plan + today
+    expect(currentStreak(mk(COMPLIANCE_THRESHOLD), COMPLIANCE_THRESHOLD)).toBe(2);
   });
 
-  it('counts consecutive on-plan history days plus today, then the seed', () => {
-    // 3 real on-plan days, unbroken back through history → +6 seed days +1 today.
-    expect(currentStreak(mk(85, 88, 91), 90)).toBe(3 + 6 + 1);
+  it('with seedPad (the demo showcase) pads the pre-history with the seeded lead', () => {
+    // Fresh install demo: seeded 7-day trend reads all on-plan → today + 6 seed.
+    expect(currentStreak([], 90, undefined, true)).toBe(7);
+    // 3 real on-plan days, unbroken back → +6 seed +1 today.
+    expect(currentStreak(mk(85, 88, 91), 90, undefined, true)).toBe(3 + 6 + 1);
+    expect(currentStreak(mk(COMPLIANCE_THRESHOLD), COMPLIANCE_THRESHOLD, undefined, true)).toBe(2 + 6);
   });
 
   it('stops at the first real recorded miss — the seed does not leak through', () => {
     // History (oldest→newest): 95, 50 (miss), 90, 92. Walking back from today:
-    // today(+1), 92(+1), 90(+1), then 50 is a miss → stop. Streak = 3.
+    // today(+1), 92(+1), 90(+1), then 50 is a miss → stop. Streak = 3 (even with seedPad).
     expect(currentStreak(mk(95, 50, 90, 92), 90)).toBe(3);
-  });
-
-  it('a day exactly at the threshold counts as on-plan', () => {
-    expect(currentStreak(mk(COMPLIANCE_THRESHOLD), COMPLIANCE_THRESHOLD)).toBe(2 + 6);
+    expect(currentStreak(mk(95, 50, 90, 92), 90, undefined, true)).toBe(3);
   });
 });

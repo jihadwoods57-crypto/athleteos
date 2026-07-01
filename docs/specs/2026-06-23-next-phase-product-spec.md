@@ -1,6 +1,6 @@
-# AthleteOS — Next-Phase Product Spec (post-onboarding)
+# OnStandard — Next-Phase Product Spec (post-onboarding)
 
-**Thesis:** "The best coaches don't stop coaching when the session ends." AthleteOS measures
+**Thesis:** "The best coaches don't stop coaching when the session ends." OnStandard measures
 what happens *between* sessions. First habit = nutrition. Athletes upload meals → AI coaches
 them → it rolls into an Athlete Score → overseers (coach/trainer/nutritionist/parent) see
 compliance and intervene. **This phase adds NO new features.** It sharpens the three surfaces
@@ -152,5 +152,5 @@ Each piece exists to answer "will they use it, will they pay?":
 Keep the surface tiny so the signal is clean: if this minimal loop retains and converts, the
 roadmap is earned. If it doesn't, no amount of features would have saved it.
 
-**The line we're chasing:** every overseer should open AthleteOS and think
+**The line we're chasing:** every overseer should open OnStandard and think
 *"I finally know what my athletes are doing when I'm not with them."*

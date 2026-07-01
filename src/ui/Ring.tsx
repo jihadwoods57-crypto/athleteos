@@ -1,4 +1,4 @@
-// AthleteOS — animated SVG progress ring (score hero + macro rings).
+// OnStandard — animated SVG progress ring (score hero + macro rings).
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';

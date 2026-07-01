@@ -1,4 +1,4 @@
-// AthleteOS — shared UI primitives.
+// OnStandard — shared UI primitives.
 import React, { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,

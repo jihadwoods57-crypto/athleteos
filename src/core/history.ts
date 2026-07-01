@@ -1,4 +1,4 @@
-// AthleteOS — score history + trend chart geometry (pure, no RN imports).
+// OnStandard — score history + trend chart geometry (pure, no RN imports).
 // Turns a series of daily scores into the SVG geometry the Home/Parent/Coach
 // trend charts draw, replacing the prototype's hard-coded path. The live score
 // is the last point, so the chart reacts to today's accountability.
@@ -290,6 +290,11 @@ export function currentStreak(
   history: DayScore[],
   liveScore: number,
   threshold: number = COMPLIANCE_THRESHOLD,
+  // Honesty (Tier 1.5): by default the streak counts REAL earned days only (recorded
+  // history + today). The seeded showcase opts into `seedPad` to pad the unknown
+  // pre-history with SEEDED_LEAD so the demo reads as a believable in-progress streak;
+  // a real athlete never sees days they did not earn.
+  seedPad: boolean = false,
 ): number {
   // Today is live: missing the bar today breaks the streak immediately.
   if (liveScore < threshold) return 0;
@@ -299,8 +304,9 @@ export function currentStreak(
     if (scores[i] < threshold) return streak; // a real recorded miss ends it
     streak++;
   }
-  // Unbroken through all real history — pad the unknown pre-history with the
-  // seeded lead, the same believable baseline the trend chart uses.
+  if (!seedPad) return streak; // real athlete: real earned days only
+  // Showcase only — unbroken through all real history, pad the unknown pre-history
+  // with the seeded lead, the same believable baseline the trend chart uses.
   for (let i = SEEDED_LEAD.length - 1; i >= 0; i--) {
     if (SEEDED_LEAD[i] < threshold) break;
     streak++;

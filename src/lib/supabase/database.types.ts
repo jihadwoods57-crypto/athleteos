@@ -1,4 +1,4 @@
-// AthleteOS — Supabase schema types (hand-authored, mirrors supabase/migrations).
+// OnStandard — Supabase schema types (hand-authored, mirrors supabase/migrations).
 // Kept in sync with 0001_schema.sql / 0002_rls.sql. When the schema stabilizes,
 // replace this file with `supabase gen types typescript` output — the shape is
 // drop-in compatible with createClient<Database>.
@@ -45,6 +45,39 @@ export type MealRow = {
   logged_at: string;
 }
 
+/** The unified access grant (Phase A keystone, migration 0011). One row generalizes
+ *  today's team_members/team_staff/practice_clients/guardianships. Mirrors
+ *  src/core/membership.ts Membership. Reads are RLS-scoped to own/admin; writes are
+ *  service_role/RPC only. INERT until the backend is live + the can_view cutover. */
+export type OrgMembershipRow = {
+  id: string;
+  organization_id: string;
+  member_id: string;
+  role: 'athlete' | 'client' | 'guardian' | 'admin' | 'head_coach' | 'assistant_coach' | 'trainer' | 'nutritionist';
+  scope_kind: 'organization' | 'program' | 'group' | 'individual';
+  scope_id: string | null;
+  permissions: Record<string, boolean>;
+  status: 'invited' | 'active' | 'suspended' | 'left' | 'transferred' | 'graduated' | 'removed';
+  invited_by: string | null;
+  joined_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+}
+
+/** A coach/org subscription (B2B per-seat). Written by the Stripe webhook
+ *  (service_role) at go-live; the owner reads their own row. Added in migration 0010. */
+export type SubscriptionRow = {
+  owner_id: string;
+  tier: 'preview' | 'team';
+  status: 'preview' | 'active' | 'past_due' | 'canceled';
+  seats: number | null;
+  seats_used: number | null;
+  current_period_end: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  updated_at: string;
+}
+
 export type CheckinRow = {
   id: string;
   athlete_id: string;
@@ -65,6 +98,9 @@ export type ProfileRow = {
   id: string;
   full_name: string | null;
   email: string | null;
+  /** Overseer-editable org/team/practice name (OverseerProfile). Null until set;
+   *  added in migration 0009. */
+  org_name: string | null;
   primary_role: UserRole;
   created_at: string;
   updated_at: string;
@@ -101,6 +137,19 @@ export type PracticeClientRow = {
   last_active_at: string | null;
 }
 
+// One guardian-consent request per (athlete, guardian email). `status` is server-owned:
+// only the service-role verification endpoint may set it to 'verified' (migration 0008). The
+// athlete can read their own rows (gcr_read RLS) but never write 'verified'.
+export type GuardianConsentRequestRow = {
+  id: string;
+  athlete_id: string;
+  guardian_email: string;
+  status: 'pending' | 'verified' | 'revoked';
+  token: string;
+  requested_at: string;
+  verified_at: string | null;
+}
+
 // Helper: a table definition matching the `supabase gen types` shape (incl. the
 // empty `Relationships` tuple the client's type inference requires).
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
@@ -124,9 +173,31 @@ export interface Database {
       checkins: Table<CheckinRow>;
       team_members: Table<TeamMemberRow>;
       practice_clients: Table<PracticeClientRow>;
+      subscriptions: Table<SubscriptionRow>;
+      org_memberships: Table<OrgMembershipRow>;
+      guardian_consent_requests: Table<GuardianConsentRequestRow>;
     };
     Views: { [_ in never]: never };
     Functions: {
+      create_team: {
+        Args: { team_name: string; team_sport?: string | null };
+        Returns: string;
+      };
+      delete_account: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
+      request_guardian_consent: {
+        Args: { guardian_email: string };
+        Returns: undefined;
+      };
+      // Go-live (security G1): revoke a viewer KIND's server access (sets the athlete's matching
+      // link rows status <> 'active', which can_view excludes). RPC authored at go-live; see
+      // docs/specs/2026-06-29-g1-revoke-viewer.md. The client seam below is wired + inert until then.
+      revoke_viewer: {
+        Args: { viewer_kind: string };
+        Returns: undefined;
+      };
       join_team: {
         Args: { code: string; athlete_position?: string | null };
         Returns: string;

@@ -1,4 +1,4 @@
-// AthleteOS — real AI meal-analysis client (inert until a backend endpoint exists).
+// OnStandard — real AI meal-analysis client (inert until a backend endpoint exists).
 //
 // The API key NEVER lives in the app bundle. The app calls a backend Edge Function
 // (supabase/functions/analyze-meal) that holds ANTHROPIC_API_KEY and calls Claude
@@ -6,7 +6,7 @@
 // the app falls back to the deterministic analysis (mealResultFor) so it runs exactly
 // as today. Set EXPO_PUBLIC_AI_ENDPOINT (or EXPO_PUBLIC_SUPABASE_URL, from which the
 // function URL is derived) + EXPO_PUBLIC_SUPABASE_ANON_KEY to light it up.
-import type { MealLabel, MealResult } from '@/core';
+import type { LabelFacts, MealLabel, MealResult, MemoryInsight, RephrasedInsight, RephrasedOrder } from '@/core';
 
 const explicit = process.env.EXPO_PUBLIC_AI_ENDPOINT?.trim();
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -52,6 +52,108 @@ export async function analyzeMealRemote(req: AnalyzeMealRequest): Promise<MealRe
     if (!res.ok) throw new Error(`analyze-meal HTTP ${res.status}`);
     const data = (await res.json()) as MealResult;
     return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export interface AnalyzeLabelRequest {
+  /** Base64-encoded JPEG of the Nutrition Facts label (no data: prefix). */
+  photoBase64?: string;
+}
+
+/**
+ * Transcribe a Nutrition Facts label with Claude vision via the SAME backend Edge Function
+ * (mode: 'label' tells it to read the panel rather than estimate a plate). Returns the
+ * printed facts verbatim — the label is ground truth, so this is transcription, not
+ * estimation. Throws on transport/HTTP error (callers fall back to the deterministic
+ * sample). 20s timeout, key stays server-side.
+ */
+export async function analyzeLabelRemote(req: AnalyzeLabelRequest): Promise<LabelFacts> {
+  if (!isAiConfigured) throw new Error('AI endpoint not configured');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ mode: 'label', ...req }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`analyze-label HTTP ${res.status}`);
+    const data = (await res.json()) as LabelFacts;
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export interface RephraseMemoryRequest {
+  /** The deterministic insights to reword. The model sees them but may only touch the prose. */
+  insights: Pick<MemoryInsight, 'id' | 'kind' | 'tone' | 'headline' | 'detail' | 'metric'>[];
+}
+
+/**
+ * Ask the model to rephrase the memory insights in a warmer coach voice via the SAME backend
+ * Edge Function (mode: 'memory'). It returns prose only — {id, headline, detail} per insight —
+ * which the caller runs through the core voice guard (mergeRephrasedInsights) so the numbers and
+ * everything non-prose stay exactly the engine's. Throws on transport/HTTP error (callers fall
+ * back to the deterministic insights). 20s timeout, key stays server-side.
+ */
+export async function rephraseMemoryRemote(req: RephraseMemoryRequest): Promise<RephrasedInsight[]> {
+  if (!isAiConfigured) throw new Error('AI endpoint not configured');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ mode: 'memory', ...req }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`rephrase-memory HTTP ${res.status}`);
+    const data = (await res.json()) as { insights?: RephrasedInsight[] };
+    return Array.isArray(data?.insights) ? data.insights : [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export interface RephraseOrdersRequest {
+  /** The recommended orders to reword, keyed ('primary' / alt label). Prose only is returned. */
+  orders: RephrasedOrder[];
+}
+
+/**
+ * Ask the model to reword the Restaurant Coach order explanations in a warmer voice via the SAME
+ * backend Edge Function (mode: 'order'). It returns prose only — {id, why} per order — which the
+ * caller runs through the core voice guard (mergeRephrasedOrders) so every macro/price number and
+ * the item lines stay exactly the engine's. Throws on transport/HTTP error (callers fall back to
+ * the deterministic orders). 20s timeout, key stays server-side.
+ */
+export async function rephraseOrdersRemote(req: RephraseOrdersRequest): Promise<RephrasedOrder[]> {
+  if (!isAiConfigured) throw new Error('AI endpoint not configured');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ mode: 'order', ...req }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`rephrase-order HTTP ${res.status}`);
+    const data = (await res.json()) as { orders?: RephrasedOrder[] };
+    return Array.isArray(data?.orders) ? data.orders : [];
   } finally {
     clearTimeout(timer);
   }

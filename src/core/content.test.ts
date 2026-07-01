@@ -1,9 +1,10 @@
-// AthleteOS — content/display-helper tests: meal-analysis lookup, reactive Home
+// OnStandard — content/display-helper tests: meal-analysis lookup, reactive Home
 // insight, weekly-goal pace projection, and the profile subtitle.
 import {
   aiInsight,
   athleteSubtitle,
   checkinAttribution,
+  checkinSummary,
   coachGuidance,
   heroStatus,
   mealResultFor,
@@ -70,9 +71,48 @@ describe('qualityLabel', () => {
   });
 });
 
+describe('checkinSummary — reflects the real slider inputs (no static blurb)', () => {
+  const allOn = { energy: true, recovery: true, sleep: true, confidence: true, soreness: true, motivation: true };
+  it('names strong (>=8) signals and a watch (<5) signal, soreness read inversely', () => {
+    const out = checkinSummary({
+      name: 'Maya Lopez', energy: 9, recovery: 4, sleep: 8, confidence: 9, soreness: 7, motivation: 6, config: allOn,
+    });
+    expect(out).toContain('Maya');
+    expect(out.toLowerCase()).toContain('energy');
+    expect(out.toLowerCase()).toContain('confidence');
+    expect(out.toLowerCase()).toContain('strong');
+    // recovery (4) is low and soreness (7) is high -> both on the watch list
+    expect(out.toLowerCase()).toMatch(/keep an eye on/);
+    expect(out.toLowerCase()).toContain('recovery');
+    expect(out.toLowerCase()).toContain('soreness');
+    expect(out).not.toContain('—');
+  });
+  it('only considers enabled questions', () => {
+    const out = checkinSummary({
+      name: 'Sam', energy: 9, recovery: 2, sleep: 9, confidence: 9, soreness: 9, motivation: 9,
+      config: { energy: true, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false },
+    });
+    // recovery is disabled, so a low recovery never surfaces
+    expect(out.toLowerCase()).not.toContain('recovery');
+    expect(out.toLowerCase()).toContain('energy');
+  });
+  it('is resilient to a blank name and non-finite answers', () => {
+    const out = checkinSummary({ name: '', energy: NaN, recovery: undefined, sleep: 8, confidence: undefined, soreness: undefined, motivation: undefined, config: allOn });
+    expect(out.length).toBeGreaterThan(10);
+    expect(out).toContain('there'); // blank-name fallback
+    expect(out.toLowerCase()).toContain('sleep'); // the one finite strong signal
+  });
+  it('falls back to a steady line when nothing is strong or low', () => {
+    const out = checkinSummary({ name: 'Jo', energy: 6, recovery: 6, sleep: 6, confidence: 6, soreness: 4, motivation: 6, config: allOn });
+    expect(out.toLowerCase()).toContain('steady');
+  });
+});
+
 describe('aiInsight', () => {
   it('nudges to log dinner with the live protein gap before dinner is logged', () => {
-    const s = createInitialState();
+    // A submitted check-in lifts the floor-less seed into the C band (70-79) where the
+    // "log dinner to push into the green" nudge lives; the bare seed now reads D.
+    const s = { ...createInitialState(), ciSubmitted: true } as AppState;
     const d = computeDerived(s);
     const msg = aiInsight(s, d);
     expect(msg).toContain(`${d.proteinGap}g`);
@@ -122,8 +162,9 @@ describe('aiInsight', () => {
   });
 
   it('a C-grade day (70-79) is "close", never "tracking well" or a promised A — matches heroStatus neutral band', () => {
-    // The default seeded day scores in the C band (70-79).
-    const s = createInitialState();
+    // Seed + a submitted check-in scores in the C band (70-79). Since the nutrition
+    // floor was removed (D-B), the bare seed reads D; the check-in lifts it to a C.
+    const s = { ...createInitialState(), ciSubmitted: true } as AppState;
     const d = computeDerived(s);
     expect(d.athleteScore).toBeGreaterThanOrEqual(70);
     expect(d.athleteScore).toBeLessThan(80);
@@ -138,9 +179,10 @@ describe('aiInsight', () => {
   });
 
   it('a B/A day not yet complete (>=80) keeps the positive "tracking well -> reachable A" copy', () => {
-    // Default day + a submitted strong check-in lifts the score into the B band
-    // while the day is still incomplete (dinner unlogged).
-    const s = { ...createInitialState(), ciSubmitted: true } as AppState;
+    // Seed + a submitted check-in + a protein shake (quick-add) lifts the score into
+    // the B band while the day is still incomplete (dinner unlogged). The floor removal
+    // (D-B) means a partial day needs near-target protein to reach B now.
+    const s = { ...createInitialState(), ciSubmitted: true, quickAdded: [false, true, false] } as AppState;
     const d = computeDerived(s);
     expect(d.athleteScore).toBeGreaterThanOrEqual(80);
     expect(d.mealsLoggedCount).toBeLessThan(4); // not a complete day
@@ -225,7 +267,9 @@ describe('heroStatus', () => {
   });
 
   it('on-pace partial day → not warn, references the real proteinGap, never the false on-pace claim', () => {
-    const s = { ...createInitialState(), ciSubmitted: true } as AppState;
+    // Seed + check-in + a protein shake reaches the on-pace (B) band with the day NOT
+    // complete (3 meals) and protein still short — a real "on pace, gap remaining" state.
+    const s = { ...createInitialState(), ciSubmitted: true, quickAdded: [false, true, false] } as AppState;
     const d = computeDerived(s);
     // Bump into the on-pace (B) band but day NOT complete (3 meals).
     expect(d.athleteScore).toBeGreaterThanOrEqual(80);
@@ -320,6 +364,16 @@ describe('paceProjection', () => {
 
   it('never returns a negative goal percentage on a cut', () => {
     expect(paceProjection(1.0, -2).goalPct).toBe(0);
+  });
+
+  it('caps the projection + calorie advice so a season-total fallback never reads absurdly', () => {
+    // A new athlete with no weekly history feeds their season-total gain (e.g. +8 lb).
+    // The old math projected "+14 lb by Sunday" -> "ease back ~13,000 cal/day".
+    const p = paceProjection(1.0, 8);
+    expect(p.projected).toBeLessThanOrEqual(5); // believable weekly band
+    const calNum = Number((p.paceAi.match(/~(\d+) cal\/day/) ?? [])[1]);
+    expect(Number.isFinite(calNum)).toBe(true);
+    expect(calNum).toBeLessThanOrEqual(1000); // sane ceiling, never 13,183
   });
 
   it('stays finite on a zero weekly goal (corrupt blob) — never NaN%/Infinity%', () => {
@@ -486,7 +540,7 @@ describe('taskVisibilityNote', () => {
     const note = taskVisibilityNote({ isReal: true, supportTeam: [] });
     expect(note).not.toContain('Coach Davis');
     expect(note).not.toContain('visible to');
-    expect(note).toBe('Completed tasks feed your Accountability Score.');
+    expect(note).toBe('Completed tasks feed your Execution Score.');
   });
 
   it('names the connected overseer for a real athlete (coach > trainer > nutritionist)', () => {

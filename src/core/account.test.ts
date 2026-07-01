@@ -2,10 +2,10 @@ import { accountRows } from './account';
 import { APP_VERSION, ROSTER, TRAINER_CLIENTS } from './constants';
 
 describe('accountRows', () => {
-  it('always returns the three settings rows in order', () => {
+  it('always returns the settings rows in order (team, plan, help, legal)', () => {
     for (const role of [null, 'athlete', 'parent', 'sports_perf_coach', 'personal_trainer', 'nutritionist'] as const) {
       const rows = accountRows(role);
-      expect(rows.map((r) => r.key)).toEqual(['team', 'plan', 'help']);
+      expect(rows.map((r) => r.key)).toEqual(['team', 'plan', 'help', 'legal']);
       expect(rows.every((r) => r.label && r.hint && r.detail)).toBe(true);
     }
   });
@@ -33,10 +33,19 @@ describe('accountRows', () => {
     expect(accountRows('parent')[0].hint).toBe('Linked');
   });
 
-  it('surfaces the app version in the help row', () => {
+  it('help row carries a real support contact, not a false "offline" claim', () => {
     const help = accountRows('sports_perf_coach')[2];
+    expect(help.key).toBe('help');
     expect(help.hint).toBe(APP_VERSION);
-    expect(help.detail).toContain(APP_VERSION);
+    expect(help.detail).toContain('support@onstandard.app');
+    expect(help.detail).not.toMatch(/no data leaves the app/i);
+  });
+
+  it('exposes a legal row with the privacy policy + terms', () => {
+    const legal = accountRows('athlete')[3];
+    expect(legal.key).toBe('legal');
+    expect(legal.detail).toContain('onstandard.app/privacy');
+    expect(legal.detail).toContain('onstandard.app/terms');
   });
 
   it('keeps copy free of em dashes (design ban)', () => {

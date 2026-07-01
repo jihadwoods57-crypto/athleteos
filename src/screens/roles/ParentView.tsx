@@ -1,16 +1,18 @@
-// AthleteOS — Parent mobile view: score + reassurance, weekly compliance,
+// OnStandard — Parent mobile view: score + reassurance, weekly compliance,
 // weight + nutrition trends, coach notes, AI parent summary.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, weightProgressTone, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
 import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Account } from '@/screens/overlays/Account';
+import { Plans } from '@/screens/overlays/Plans';
+import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 
 export function ParentView() {
   const s = useStore();
@@ -37,6 +39,11 @@ export function ParentView() {
   // only renders for the showcase (a real parent gets a pending empty state
   // instead of a fabricated coach quote).
   const athlete = monitoredAthlete(s.obMeta.athleteName);
+  // Honest weekly read for the parent: the summary derives from the athlete's REAL
+  // score band (not a frozen "no action needed"), and carries a coverage line so a
+  // partial week is labelled "Building history: N of 7" instead of implying a full
+  // week (parent persona finding). completedDays = real recorded days this week.
+  const digest = parentDigest({ score: d.athleteScore, completedDays: s.scoreHistory.length, first: athlete.first });
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -86,7 +93,7 @@ export function ParentView() {
             </Ring>
             <View style={{ flex: 1 }}>
               <Txt w="b" size={13} color={colors.textSecondary}>
-                Accountability Score
+                Execution Score
               </Txt>
               <Row style={{ gap: 6, marginTop: 6 }}>
                 <Txt w="eb" size={15} color={d.deltaColor}>
@@ -97,7 +104,7 @@ export function ParentView() {
                 </Txt>
               </Row>
               <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 11, lineHeight: 20 }}>
-                {athlete.first} is on track and building strong habits this week.
+                {digest.coverage}
               </Txt>
             </View>
           </Card>
@@ -169,8 +176,10 @@ export function ParentView() {
                 </Txt>
                 {(() => {
                   const gain = displayWeightDelta(s.currentWeight - startWeight, units);
+                  const tone = weightProgressTone(s.currentWeight - startWeight, s.baseGoal);
+                  const toneColor = tone === 'good' ? colors.success : tone === 'bad' ? colors.alert : colors.textSecondary;
                   return (
-                    <Txt w="b" size={12} color={gain >= 0 ? colors.success : colors.alert}>
+                    <Txt w="b" size={12} color={toneColor}>
                       {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}
                     </Txt>
                   );
@@ -280,13 +289,15 @@ export function ParentView() {
               <Txt w="b" size={14} color={colors.accent}>
                 For you ·{' '}
               </Txt>
-              No action needed this week. {athlete.first} is meeting protein and recovery targets and trending toward the weight goal. You'll get an alert if anything slips.
+              {digest.summary}
             </Txt>
           </View>
         </ScrollView>
       </SafeAreaView>
 
       {s.accountOpen && <Account />}
+      {s.plansOpen && <Plans />}
+      {s.overseerProfileOpen && <OverseerProfile />}
     </View>
   );
 }

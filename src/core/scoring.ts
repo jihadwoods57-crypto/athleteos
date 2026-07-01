@@ -1,5 +1,5 @@
-// AthleteOS — reactive scoring engine (pure functions).
-// Ported verbatim from AthleteOS.dc.html renderVals() / gradeFor().
+// OnStandard — reactive scoring engine (pure functions).
+// Ported verbatim from OnStandard.dc.html renderVals() / gradeFor().
 import {
   CAL_TARGET,
   CARB_TARGET,
@@ -12,7 +12,65 @@ import {
   WEIGHT_TARGET,
 } from './constants';
 import { trendSeries } from './history';
+import { mealMacros, type MacroSet } from './mealEdit';
+import { DEFAULT_PLAN } from './coachPlan';
+import { profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
+
+/** A meal logged after its window deadline counts half toward the score's "meals" share. */
+const LATE_MEAL_WEIGHT = 0.5;
+
+/**
+ * Logged meals weighted by punctuality — the Accountability Engine's execution signal in
+ * the Development Score (Feature 8). A meal logged AFTER its window deadline counts half; a
+ * slot with NO recorded time counts full (on-time), so the seeded demo + every legacy day
+ * (no timestamps) score exactly as before. Only real late logging lowers the number.
+ *
+ * Whether punctuality is even collected is the engines master switch's call: the store only
+ * stamps `mealLoggedAt` when `isEnginesEnabled` (see useStore `addMeal`/`saveMeal`). With the
+ * engines OFF (first-beta config) no timestamps exist, so every meal is on-time here and the
+ * score is untouched, honoring the ratified keystone. This function stays pure + flag-agnostic.
+ */
+export function effectiveMealsLogged(s: Pick<AppState, 'meals' | 'mealLoggedAt'>): number {
+  return (Object.keys(s.meals) as MealKey[]).reduce((sum, k) => {
+    if (!s.meals[k]) return sum;
+    const at = s.mealLoggedAt?.[k];
+    const deadline = DEFAULT_PLAN.windows.find((w) => w.key === k)?.deadlineMin ?? 1440;
+    const onTime = at == null || at <= deadline;
+    return sum + (onTime ? 1 : LATE_MEAL_WEIGHT);
+  }, 0);
+}
+
+/**
+ * The macros a single logged meal slot contributes. When the athlete has SAVED an
+ * edited plate for the slot (`mealFoods[k]`), the totals come from those real
+ * per-food macros; otherwise we fall back to the per-slot `MEAL_MACROS` constant.
+ * This is what makes the loop real — a logged-and-edited meal moves the score,
+ * while the seeded demo (no `mealFoods`) stays byte-for-byte unchanged.
+ */
+export function mealSlotMacros(s: Pick<AppState, 'mealFoods'>, k: MealKey): MacroSet {
+  const saved = s.mealFoods?.[k];
+  if (saved) return mealMacros(saved);
+  const m = MEAL_MACROS[k];
+  return { protein: m.p, kcal: m.k, carbs: m.c, fat: m.f };
+}
+
+/** Sum the macros across every LOGGED slot, using saved edited plates when present. */
+export function loggedDayMacros(s: Pick<AppState, 'meals' | 'mealFoods'>): MacroSet {
+  return (Object.keys(s.meals) as MealKey[]).reduce<MacroSet>(
+    (a, k) => {
+      if (!s.meals[k]) return a;
+      const mm = mealSlotMacros(s, k);
+      return {
+        protein: a.protein + mm.protein,
+        kcal: a.kcal + mm.kcal,
+        carbs: a.carbs + mm.carbs,
+        fat: a.fat + mm.fat,
+      };
+    },
+    { protein: 0, kcal: 0, carbs: 0, fat: 0 },
+  );
+}
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -109,18 +167,13 @@ export function computeDerived(s: AppState): Derived {
   const quickCarbs = QUICK_FOODS.reduce((a, f, i) => a + (s.quickAdded[i] ? f.c : 0), 0);
   const quickFat = QUICK_FOODS.reduce((a, f, i) => a + (s.quickAdded[i] ? f.f : 0), 0);
 
-  let proteinBase = 0;
-  let kcalBase = 0;
-  let carbsBase = 0;
-  let fatBase = 0;
-  mealKeys.forEach((k) => {
-    if (s.meals[k]) {
-      proteinBase += MEAL_MACROS[k].p;
-      kcalBase += MEAL_MACROS[k].k;
-      carbsBase += MEAL_MACROS[k].c;
-      fatBase += MEAL_MACROS[k].f;
-    }
-  });
+  // Real macros: saved edited plates per slot when present, the slot constant
+  // otherwise. The seeded demo carries no mealFoods, so its numbers are unchanged.
+  const mealBase = loggedDayMacros(s);
+  const proteinBase = mealBase.protein;
+  const kcalBase = mealBase.kcal;
+  const carbsBase = mealBase.carbs;
+  const fatBase = mealBase.fat;
 
   // Athlete-editable daily targets; fall back to the constants for legacy
   // persisted blobs written before the targets were editable. The UI clamps these
@@ -157,10 +210,22 @@ export function computeDerived(s: AppState): Derived {
   const tasksDone = effectiveTasks.filter((t) => t.done).length;
   const tasksTotal = effectiveTasks.length;
 
-  const nutritionScore = Math.min(
-    100,
-    Math.round(57 + (Math.min(proteinToday, proteinTarget) / proteinTarget) * 30 + (mealsLoggedCount / 4) * 15),
-  );
+  // No floor (founder D-B): a zero-effort day must score near 0, not a feel-good
+  // 57. Rescaled so a full honest day (protein target met + all four slots logged)
+  // lands at ~100 and an empty day at ~0, with protein the dominant lever
+  // (65 of 100) over slot count (35). Removing the old `57 +` baseline deliberately
+  // deflates the seeded roster — that drop is the honesty, not a regression.
+  // Profile-aware nutrition sub-score. 'athlete' (the default) reproduces the formula above
+  // byte-for-byte; 'general' re-weights to calorie-adherence for a trainer's general-fitness
+  // client. The platform owns these weights; the coach owns the targets (Constitution #13).
+  const profile = resolveProfile(s.scoringProfile);
+  const nutritionScore = profileNutritionScore(profile, {
+    proteinToday,
+    proteinTarget,
+    kcalToday,
+    calTarget,
+    effectiveMeals: effectiveMealsLogged(s),
+  });
   // Recovery sub-score averages ONLY the coach-enabled check-in questions
   // (s.ciConfig), each on a 0–10 scale — not a hard-coded energy/recovery/sleep
   // trio. Mirrors CheckIn.tsx's CI_KEYS so the score reflects exactly the
@@ -174,6 +239,7 @@ export function computeDerived(s: AppState): Derived {
     motivation: 'ciMotivation',
   };
   let recoveryScore = 86; // fallback: unsubmitted OR no enabled questions
+  let recoveryScoreIsReal = false; // true only once a real check-in actually backs the number
   if (s.ciSubmitted) {
     let recoverySum = 0;
     let enabledCount = 0;
@@ -194,6 +260,7 @@ export function computeDerived(s: AppState): Derived {
     });
     if (enabledCount > 0) {
       recoveryScore = Math.min(100, Math.max(0, Math.round((recoverySum / (enabledCount * 10)) * 100)));
+      recoveryScoreIsReal = true;
     }
   }
   // Weight is a LONG-ARC goal, not a daily-accountability signal, so it is no
@@ -219,9 +286,11 @@ export function computeDerived(s: AppState): Derived {
 
   // Daily accountability score: what you did TODAY. Nutrition leads (the heaviest
   // lever and the one the staff cares most about); recovery is self-reported; tasks
-  // and check-in round it out. The four weights mirror SCORE_WEIGHTS exactly.
+  // and check-in round it out. Weights come from the account's scoring profile
+  // ('athlete' default = the shipped .5/.25/.15/.1 mix, unchanged).
+  const w = PROFILE_WEIGHTS[profile];
   const athleteScore = clamp(
-    Math.round(0.5 * nutritionScore + 0.25 * recoveryScore + 0.15 * tasksScore + 0.1 * checkinScore),
+    Math.round(w.nutrition * nutritionScore + w.recovery * recoveryScore + w.tasks * tasksScore + w.checkin * checkinScore),
     0,
     100,
   );
@@ -233,7 +302,16 @@ export function computeDerived(s: AppState): Derived {
   // draws so the number and the slope always agree. The seed pads the window
   // (and supplies the start baseline) only until real history fills it.
   const series = trendSeries(s.scoreHistory ?? [], athleteScore);
-  const scoreDelta = series[series.length - 1] - series[0];
+  // Day 0 = no real PRIOR day recorded (the only history entry, if any, is today's provisional
+  // anchor). On day 0 the visible series is seeded padding, so a "this week" delta would invent a
+  // week of slippage the user never lived ("↓58 trending down" on the day they signed up). Zero it
+  // and let the UI say "starting today" instead of fabricating a trend.
+  // A real new athlete carries exactly the provisional anchor commitStartingScore wrote for TODAY
+  // (and no prior day). The seeded demo has EMPTY history (it never ran activation) and keeps its
+  // showcase trend — so require a non-empty, all-today history, which excludes the demo.
+  const hist = s.scoreHistory ?? [];
+  const isDay0 = hist.length > 0 && hist.every((h) => h.date === s.dateStamp);
+  const scoreDelta = isDay0 ? 0 : series[series.length - 1] - series[0];
   const deltaStr = (scoreDelta >= 0 ? '↑ +' : '↓ ') + Math.abs(scoreDelta);
   const deltaColor = scoreDelta >= 0 ? '#22C55E' : '#EF4444';
 
@@ -244,8 +322,10 @@ export function computeDerived(s: AppState): Derived {
     scoreDelta,
     deltaStr,
     deltaColor,
+    isDay0,
     nutritionScore,
     recoveryScore,
+    recoveryScoreIsReal,
     weightScore,
     tasksScore,
     checkinScore,

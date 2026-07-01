@@ -1,8 +1,8 @@
-import { rosterGroups, filterRoster, notLoggedCount } from './roster';
+import { rosterGroups, filterRoster, notLoggedCount, rosterGroupStats, cachedRosterFor } from './roster';
 import type { RosterRow } from './constants';
 
-const mk = (name: string, pos: string, loggedToday?: boolean): RosterRow => ({
-  name, initials: name.slice(0, 2).toUpperCase(), pos, comp: 80, score: 85, dir: 'flat', loggedToday,
+const mk = (name: string, pos: string, loggedToday?: boolean, score = 85, comp = 80): RosterRow => ({
+  name, initials: name.slice(0, 2).toUpperCase(), pos, comp, score, dir: 'flat', loggedToday,
 });
 
 const sample: RosterRow[] = [
@@ -19,6 +19,37 @@ describe('rosterGroups', () => {
   });
   it('is empty for an empty roster', () => {
     expect(rosterGroups([])).toEqual([]);
+  });
+});
+
+describe('rosterGroupStats', () => {
+  it('rolls up count + average score + average compliance per group, in order', () => {
+    const r: RosterRow[] = [
+      mk('A', 'LB', true, 90, 100),
+      mk('B', 'LB', true, 80, 80),
+      mk('C', 'DB', true, 70, 60),
+    ];
+    expect(rosterGroupStats(r)).toEqual([
+      { group: 'LB', count: 2, avgScore: 85, avgCompliance: 90 },
+      { group: 'DB', count: 1, avgScore: 70, avgCompliance: 60 },
+    ]);
+  });
+  it('is empty for an empty roster (no divide-by-zero)', () => {
+    expect(rosterGroupStats([])).toEqual([]);
+  });
+});
+
+describe('cachedRosterFor (snappy paint, no cross-user leak)', () => {
+  const cached: RosterRow[] = [mk('A', 'LB')];
+  it('returns the cache when it belongs to the signed-in user', () => {
+    expect(cachedRosterFor('u1', 'u1', cached)).toBe(cached);
+  });
+  it('refuses a cache that belongs to a DIFFERENT user (no cross-user paint)', () => {
+    expect(cachedRosterFor('u2', 'u1', cached)).toBeNull();
+  });
+  it('null when signed out or there is no cache', () => {
+    expect(cachedRosterFor(null, 'u1', cached)).toBeNull();
+    expect(cachedRosterFor('u1', 'u1', null)).toBeNull();
   });
 });
 

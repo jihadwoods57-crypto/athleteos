@@ -1,4 +1,4 @@
-// AthleteOS — unit system (pure TS, no React/RN imports).
+// OnStandard — unit system (pure TS, no React/RN imports).
 // All body weights are STORED internally in pounds (lb); these helpers convert
 // to the athlete's chosen display system at the edge. Weight does not feed the
 // score (weightScore is a fixed component), so this is a presentation concern

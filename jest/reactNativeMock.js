@@ -1,0 +1,9 @@
+// Node-test stub for react-native. The only react-native import in the node-tested
+// graph is the capture module's `Platform` (there are no React-tree mount tests). A
+// minimal Platform is all that is needed; default to 'ios' so isCameraAvailable is true.
+module.exports = {
+  Platform: { OS: 'ios', select: (o) => (o && (o.ios ?? o.default)) },
+  // The Supabase client registers an AppState listener to keep the token fresh; stub it so the
+  // module graph loads in node (the listener is never exercised — supabase is null in tests).
+  AppState: { currentState: 'active', addEventListener: () => ({ remove: () => {} }) },
+};

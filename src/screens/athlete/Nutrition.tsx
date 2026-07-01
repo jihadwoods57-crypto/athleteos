@@ -1,13 +1,14 @@
-// AthleteOS — Nutrition. Time-aware coach-set goal, macro rings, protein gap
+// OnStandard — Nutrition. Time-aware coach-set goal, macro rings, protein gap
 // quick-adds (add real grams), today's meal log.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { mealRowsFor, QUICK_FOODS, paceProjection, weekdayLong, weeklyWeightProgress, WEIGHT_START } from '@/core';
-import { useStore, useDerived } from '@/store';
+import { isEnginesEnabled } from '@/lib/features';
+import { useStore, useDerived, useNutritionMemory } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
-import { Card, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { Card, ProgressBar, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Nutrition() {
@@ -33,6 +34,32 @@ export function Nutrition() {
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
         Nutrition
       </Txt>
+
+      <MemoryEntry />
+
+      {/* Restaurant Coach entry — "what should I eat?" before you order.
+          Gated by the engines master switch (OFF for the prove-the-loop beta). */}
+      {isEnginesEnabled ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Restaurant Coach: what should I eat"
+          onPress={s.openFoodCoach}
+          style={[{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', gap: 13 }, shadow.cta]}
+        >
+          <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="sparkle" size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt w="eb" size={15} color="#fff">
+              What should I eat?
+            </Txt>
+            <Txt w="m" size={13} color="rgba(255,255,255,0.85)" style={{ marginTop: 1 }}>
+              Tell the coach where you are — get the best order for your goal
+            </Txt>
+          </View>
+          <Icon name="chevronRight" size={22} color="rgba(255,255,255,0.7)" />
+        </Pressable>
+      ) : null}
 
       {/* weekly goal (coach-set) */}
       <Card elevated style={{ marginTop: 18, borderRadius: 24 }}>
@@ -154,12 +181,26 @@ export function Nutrition() {
       {/* today's meals */}
       <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
         <Row style={{ justifyContent: 'space-between', marginBottom: 16 }}>
-          <Txt w="eb" size={16} ls={-0.3}>
-            Today's Meals
-          </Txt>
-          <Txt w="sb" size={13} color={colors.textSecondary}>
-            {d.mealsLoggedCount} of 4 logged
-          </Txt>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Txt w="eb" size={16} ls={-0.3}>
+              Today's Meals
+            </Txt>
+            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
+              {d.mealsLoggedCount} of 4 logged
+            </Txt>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View meal history"
+            onPress={s.openMealHistory}
+            hitSlop={8}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+          >
+            <Txt w="b" size={13} color={colors.accent}>
+              History
+            </Txt>
+            <Icon name="chevronRight" size={15} color={colors.accent} />
+          </Pressable>
         </Row>
         <View style={{ gap: 12 }}>
           {rows.map((row) =>
@@ -237,5 +278,44 @@ function MacroRing({ label, value, target, pct, color }: { label: string; value:
         {label}
       </Txt>
     </View>
+  );
+}
+
+/**
+ * Nutrition Memory entry — teases the top remembered insight and opens the full surface.
+ * The differentiator in one tap: "this app remembers how you eat." Uses the same engine
+ * the overlay does, so the teaser headline always matches what's inside.
+ */
+function MemoryEntry() {
+  const open = useStore((s) => s.openNutritionMemory);
+  const { insights, sampled } = useNutritionMemory();
+  const top = insights[0];
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open Nutrition Memory"
+      onPress={open}
+      style={({ pressed }) => [{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: colors.card, flexDirection: 'row', alignItems: 'center', gap: 13, opacity: pressed ? 0.85 : 1 }, shadow.card]}
+    >
+      <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="sparkle" size={20} color={colors.accent} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Row style={{ gap: 7, alignItems: 'center' }}>
+          <Txt w="eb" size={15} ls={-0.2}>Nutrition Memory</Txt>
+          {sampled ? <SampleTag /> : null}
+        </Row>
+        <Txt w="m" size={12} color={colors.textTertiary} numberOfLines={1} style={{ marginTop: 2 }}>
+          {top ? top.headline : 'What OnStandard remembers about how you eat'}
+        </Txt>
+      </View>
+      {top?.metric ? (
+        <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
+          <Txt w="eb" size={13} color={colors.accent}>{top.metric}</Txt>
+        </View>
+      ) : (
+        <Icon name="chevronRight" size={18} color="#CBD5E1" />
+      )}
+    </Pressable>
   );
 }
