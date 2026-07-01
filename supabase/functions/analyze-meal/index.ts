@@ -32,7 +32,12 @@ const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6';
 // generous for real use (~4-8 meals + the odd label scan) and slams abuse. Over the cap the
 // function returns 429 and the app shows the free deterministic result (analyzeMeal/
 // analyzeLabel already fall back on any error), so logging never blocks.
-const DAILY_CAP = Number(Deno.env.get('DAILY_ANALYSIS_CAP') ?? '40');
+// Guard a misconfigured DAILY_ANALYSIS_CAP: a non-number or <=0 would make `count < NaN`
+// always false and 429 every signed-in athlete. Fall back to the safe default of 40.
+const DAILY_CAP = (() => {
+  const n = Math.floor(Number(Deno.env.get('DAILY_ANALYSIS_CAP') ?? '40'));
+  return Number.isFinite(n) && n > 0 ? n : 40;
+})();
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
