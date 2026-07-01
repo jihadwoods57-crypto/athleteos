@@ -34,7 +34,7 @@ export function MealCapture() {
         {s.mealStage === 'capture' ? <ModeToggle mode={s.mealCaptureMode} onPick={s.setMealCaptureMode} /> : null}
 
         {/* image slot */}
-        <View style={[{ width: '100%', aspectRatio: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: '#E2E8F0' }, shadow.elevated]}>
+        <View style={[{ width: '100%', aspectRatio: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: c.track }, shadow.elevated]}>
           <ImageSlot analyzing={s.mealStage === 'analyzing'} label={isLabel} />
           {[
             { top: 14, left: 14 },
