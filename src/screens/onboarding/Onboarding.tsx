@@ -23,14 +23,15 @@ import {
   credentialsOk,
 } from '@/core';
 import type { Role } from '@/core';
-import { isBackendLive } from '@/lib/supabase';
+import { isBackendLive, db } from '@/lib/supabase';
+import type { OrgRow } from '@/lib/supabase';
 import { isAppleAuthAvailable, requestAppleIdentityToken } from '@/lib/auth/apple';
 import { openPrivacyPolicy, openTerms } from '@/lib/legal';
 import { aiPrefix, isAiConfigured } from '@/lib/ai';
 import { useStore } from '@/store';
 import type { Store } from '@/store';
 import { useColors, useTheme } from '@/ui/theme';
-import { Btn, Card, Input, ProgressBar, Row, Stepper, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Input, ProgressBar, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
 import { useReduceMotion } from '@/ui/useReduceMotion';
@@ -888,14 +889,15 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
   // On the invite step, when the backend is live, mint the overseer's real team
   // via the create_team RPC so the shared code is the genuine server-generated one.
   // Inert when the flag is off (createTeamLive no-ops) — the demo keeps EAGLES24.
-  const { teamCode, obMeta, createTeamLive } = s;
+  const { teamCode, obMeta, createTeamLive, teamDiscoverable } = s;
   useEffect(() => {
     if (step.kind !== 'invite' || !isBackendLive || teamCode) return;
     const sport = typeof obMeta.sport === 'string' ? obMeta.sport : undefined;
     const school = typeof obMeta.school === 'string' ? obMeta.school.trim() : '';
+    const orgId = typeof obMeta.orgId === 'string' && obMeta.orgId ? obMeta.orgId : null;
     const name = school || (sport ? `${sport} team` : 'My Team');
-    void createTeamLive(name, sport);
-  }, [step.kind, teamCode, obMeta, createTeamLive]);
+    void createTeamLive(name, sport, orgId, teamDiscoverable);
+  }, [step.kind, teamCode, obMeta, createTeamLive, teamDiscoverable]);
 
   if (step.kind === 'invite') {
     return (
@@ -933,6 +935,10 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
     return <CreateAccountForm progress={progress} title={step.title} sub={step.sub} onDone={s.obNext} />;
   }
 
+  if (step.kind === 'orgpicker') {
+    return <OrgPicker step={step} progress={progress} />;
+  }
+
   if (step.kind === 'text') {
     const cur = typeof val === 'string' ? val : '';
     return (
@@ -959,6 +965,101 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
       {step.options.map((o) => (
         <OptionRow key={o.key} label={o.label} selected={val === o.key} onPress={() => s.setObMeta(step.field, o.key)} />
       ))}
+    </StepShell>
+  );
+}
+
+/** School/club directory picker (orgpicker step). Backend-live: type-ahead over the
+ *  seeded `orgs` directory + "add your school/club", writing the org's display name to
+ *  obMeta[field] and its id to obMeta.orgId (so an athlete and this coach land on the
+ *  same school), plus the discoverable toggle. Offline/demo: degrades to the prior
+ *  freetext behavior (name only, no org id) so the coach flow works without a backend. */
+function OrgPicker({ step, progress }: { step: Extract<GenStep, { kind: 'orgpicker' }>; progress: number }) {
+  const c = useColors();
+  const s = useStore();
+  const selectedName = typeof s.obMeta[step.field] === 'string' ? (s.obMeta[step.field] as string) : '';
+  const selectedOrgId = typeof s.obMeta.orgId === 'string' ? (s.obMeta.orgId as string) : '';
+  const [query, setQuery] = React.useState(selectedName);
+  const [results, setResults] = React.useState<OrgRow[]>([]);
+  const [busy, setBusy] = React.useState(false);
+  const ready = selectedName.trim().length > 0;
+
+  // Live directory search (inert offline: db.searchOrgs returns []). Re-runs as the
+  // query changes; skips when the query already equals the current selection.
+  React.useEffect(() => {
+    if (!isBackendLive) return;
+    let cancelled = false;
+    const term = query.trim();
+    if (term.length < 2 || term === selectedName) { setResults([]); return; }
+    void db.searchOrgs(term).then((rows) => { if (!cancelled) setResults(rows); }).catch(() => { if (!cancelled) setResults([]); });
+    return () => { cancelled = true; };
+  }, [query, selectedName]);
+
+  const onChange = (v: string) => {
+    setQuery(v);
+    // Offline/demo has no directory, so the typed text IS the selection (mirrors the
+    // prior freetext step). Live: typing only drives search until an org is picked.
+    if (!isBackendLive) { s.setObMeta(step.field, v); s.setObMeta('orgId', ''); }
+  };
+
+  const pick = (name: string, orgId: string) => {
+    haptics.select();
+    s.setObMeta(step.field, name);
+    s.setObMeta('orgId', orgId);
+    setQuery(name);
+    setResults([]);
+  };
+
+  const addNew = async () => {
+    const name = query.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    const org = await db.createOrg(name, null, null, 'school', s.userId ?? undefined).catch(() => null);
+    setBusy(false);
+    pick(org?.name ?? name, org?.id ?? '');
+  };
+
+  const term = query.trim();
+  const showAdd = isBackendLive && term.length >= 2 && term !== selectedName
+    && !results.some((o) => o.name.toLowerCase() === term.toLowerCase());
+
+  return (
+    <StepShell
+      progress={progress}
+      onBack={s.obBack}
+      title={step.title}
+      sub={step.sub}
+      footer={<Btn label="Continue" disabled={!ready} onPress={s.obNext} />}
+    >
+      <Input value={query} onChangeText={onChange} placeholder="Search your school or club" autoCapitalize="words" />
+      {isBackendLive ? (
+        <View style={{ marginTop: 10 }}>
+          {results.map((o) => (
+            <OptionRow
+              key={o.id}
+              label={o.name}
+              sub={[o.city, o.state].filter(Boolean).join(', ') || undefined}
+              selected={selectedName === o.name && selectedOrgId === o.id}
+              onPress={() => pick(o.name, o.id)}
+            />
+          ))}
+          {showAdd ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${term}`}
+              onPress={addNew}
+              style={({ pressed }) => ({ borderWidth: 1.5, borderColor: c.border, borderStyle: 'dashed', borderRadius: 16, paddingVertical: 15, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
+            >
+              <Txt w="b" size={15} color={c.accent}>{busy ? 'Adding…' : `+ Add “${term}”`}</Txt>
+              <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 2 }}>Not in the list? Add your school or club.</Txt>
+            </Pressable>
+          ) : null}
+          <Row style={{ justifyContent: 'space-between', alignItems: 'center', gap: 14, marginTop: 20 }}>
+            <Txt w="m" size={14} color={c.text} style={{ flex: 1, lineHeight: 20 }}>{step.toggleLabel}</Txt>
+            <Toggle on={s.teamDiscoverable} onPress={() => s.setTeamDiscoverable(!s.teamDiscoverable)} label={step.toggleLabel} />
+          </Row>
+        </View>
+      ) : null}
     </StepShell>
   );
 }

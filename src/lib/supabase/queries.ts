@@ -9,6 +9,8 @@ import type {
   DayRow,
   GuardianConsentRequestRow,
   MealRow,
+  OrgRow,
+  OrgType,
   ProfileRow,
   SubscriptionRow,
 } from './database.types';
@@ -177,15 +179,71 @@ export async function fetchLinkedDays(date: string): Promise<DayRow[]> {
   return data ?? [];
 }
 
+// ---------------------------------------------------------------- schools directory
+/** Type-ahead over the schools/clubs directory (public `orgs_read` policy). Returns
+ *  matches by name (case-insensitive substring), newest schema fields included. Empty
+ *  when unconfigured or for a query shorter than 2 chars (avoids scanning on one letter). */
+export async function searchOrgs(query: string, limit = 20): Promise<OrgRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const term = query.trim();
+  if (term.length < 2) return [];
+  const { data, error } = await requireSupabase()
+    .from('orgs')
+    .select('*')
+    .ilike('name', `%${term}%`)
+    .order('name', { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** "Add your school/club": create an org if one with the same (name, state) doesn't
+ *  already exist (case-insensitive), else return the existing row — so two people
+ *  adding the same school converge on one entity rather than duplicating it. Insert is
+ *  allowed by `orgs_write` (created_by = auth.uid()). Null when unconfigured. */
+export async function createOrg(
+  name: string,
+  city: string | null,
+  state: string | null,
+  type: OrgType = 'school',
+  createdBy?: string,
+): Promise<OrgRow | null> {
+  if (!isSupabaseConfigured) return null;
+  const sb = requireSupabase();
+  const trimmed = name.trim();
+  // Dedup pre-check on (lower(name), lower(state)) — backed by orgs_name_state_lower.
+  let dedup = sb.from('orgs').select('*').ilike('name', trimmed);
+  dedup = state ? dedup.ilike('state', state) : dedup.is('state', null);
+  const { data: existing, error: dedupErr } = await dedup.limit(1);
+  if (dedupErr) throw dedupErr;
+  if (existing && existing.length > 0) return existing[0];
+
+  const { data, error } = await sb
+    .from('orgs')
+    .insert({ name: trimmed, city: city || null, state: state || null, type, created_by: createdBy ?? null })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 // ---------------------------------------------------------------- secure RPCs
 /** Coach creates a team and is added as its head_coach staff (atomic, via the
  *  SECURITY DEFINER create_team RPC). Returns the real, server-generated join code
- *  that replaces the static EAGLES24 — share it so athletes can joinTeam(code). */
-export async function createTeam(name: string, sport?: string): Promise<string | null> {
+ *  that replaces the static EAGLES24 — share it so athletes can joinTeam(code).
+ *  `orgId` attaches the team to a school; `discoverable` opts it into athlete search. */
+export async function createTeam(
+  name: string,
+  sport?: string,
+  orgId?: string | null,
+  discoverable = false,
+): Promise<string | null> {
   if (!isSupabaseConfigured) return null;
   const { data, error } = await requireSupabase().rpc('create_team', {
     team_name: name,
     team_sport: sport ?? null,
+    team_org: orgId ?? null,
+    team_discoverable: discoverable,
   });
   if (error) throw error;
   return data;

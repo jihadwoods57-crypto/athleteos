@@ -140,6 +140,10 @@ export interface AppState {
    *  createTeamLive when the backend is live; '' in demo/flag-off, where the UI
    *  falls back to the EAGLES24 showcase code). */
   teamCode: string;
+  /** Coach's opt-in: whether the team they create is discoverable by athletes at their
+   *  school (drives `teams.discoverable`). The selected school's id + name ride in
+   *  `obMeta.orgId` / `obMeta.school`. Default false (privacy-safe, code-only). */
+  teamDiscoverable: boolean;
   /** Verifiable parental consent (VPC): the guardian's email and approval status. A
    *  minor's real data stays on-device until guardianStatus is 'verified'. */
   guardianEmail: string;

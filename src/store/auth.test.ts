@@ -253,7 +253,7 @@ describe('flag ON: live auth routes through the wrappers', () => {
     const useStore = loadStore(true);
     const code = await useStore.getState().createTeamLive('  Eastside Eagles ', 'Football');
     expect(code).toBe('K7M2QX');
-    expect(createTeam).toHaveBeenCalledWith('Eastside Eagles', 'Football'); // trimmed
+    expect(createTeam).toHaveBeenCalledWith('Eastside Eagles', 'Football', null, false); // trimmed
     expect(useStore.getState().teamCode).toBe('K7M2QX');
   });
 
@@ -261,7 +261,14 @@ describe('flag ON: live auth routes through the wrappers', () => {
     createTeam.mockResolvedValue('AB12CD');
     const useStore = loadStore(true);
     await useStore.getState().createTeamLive('   ', undefined);
-    expect(createTeam).toHaveBeenCalledWith('My Team', undefined);
+    expect(createTeam).toHaveBeenCalledWith('My Team', undefined, null, false);
+  });
+
+  it('createTeamLive forwards the selected school (org id) + discoverability', async () => {
+    createTeam.mockResolvedValue('ZZ99YY');
+    const useStore = loadStore(true);
+    await useStore.getState().createTeamLive('Eastside HS', 'Football', 'org-123', true);
+    expect(createTeam).toHaveBeenCalledWith('Eastside HS', 'Football', 'org-123', true);
   });
 
   it('createTeamLive surfaces an RPC error and leaves teamCode empty', async () => {

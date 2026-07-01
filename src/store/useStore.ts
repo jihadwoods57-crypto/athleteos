@@ -169,6 +169,8 @@ export interface Actions {
   deletePr: (id: string) => void;
   setSquadMode: (m: SquadMode) => void;
   toggleNotif: () => void;
+  /** Request notification permission + schedule today's reminders. Call once on app launch. */
+  initReminders: () => void;
   /** Toggle a single reminder on/off (P3). */
   toggleReminder: (kind: ReminderKind) => void;
   /** Set a reminder's local fire hour (0-23, clamped) (P3). */
@@ -296,7 +298,8 @@ export interface Actions {
   /** Coach/overseer creates a real team via the create_team RPC and stores the
    *  server-generated join code in teamCode. Inert (returns null) when the flag
    *  is off, so the onboarding invite step keeps its EAGLES24 showcase code. */
-  createTeamLive: (name: string, sport?: string) => Promise<string | null>;
+  createTeamLive: (name: string, sport?: string, orgId?: string | null, discoverable?: boolean) => Promise<string | null>;
+  setTeamDiscoverable: (v: boolean) => void;
   setGuardianEmail: (v: string) => void;
   /** Minor guardian consent: email a minor's guardian an approval request. Gated, sends only
    *  when the backend is live; marks status 'pending' on a valid email. Returns success. */
@@ -575,6 +578,9 @@ export const useStore = create<Store>()(
 
       setSquadMode: (m) => set({ squadMode: m }),
       toggleNotif: () => { set((s) => ({ notif: !s.notif })); syncReminders(get()); },
+      // On launch, (re)schedule today's reminders — this also triggers the one-time permission
+      // request inside refreshReminderSchedule. No-op on web / when the master flag is off.
+      initReminders: () => { syncReminders(get()); },
       toggleReminder: (kind) => {
         set((s) => ({
           reminderSettings: {
@@ -1081,10 +1087,10 @@ export const useStore = create<Store>()(
         // user's roster (cross-user paint guard, cache do-NOT list).
         set({ userId: null, realDataConsent: false, authError: null, entitlement: entitlementFromRow(null), cachedRoster: null, cachedRosterUserId: null });
       },
-      createTeamLive: async (name, sport) => {
+      createTeamLive: async (name, sport, orgId, discoverable) => {
         if (!isBackendLive) return null;
         try {
-          const code = await db.createTeam(name.trim() || 'My Team', sport?.trim() || undefined);
+          const code = await db.createTeam(name.trim() || 'My Team', sport?.trim() || undefined, orgId ?? null, discoverable ?? false);
           if (code) set({ teamCode: code, authError: null });
           return code;
         } catch (e) {
@@ -1092,6 +1098,7 @@ export const useStore = create<Store>()(
           return null;
         }
       },
+      setTeamDiscoverable: (v) => set({ teamDiscoverable: v }),
       setGuardianEmail: (v) => set({ guardianEmail: v }),
       requestGuardianConsent: async () => {
         const email = get().guardianEmail.trim();
@@ -1172,6 +1179,7 @@ export const useStore = create<Store>()(
         supportTeam: s.supportTeam,
         inviteCode: s.inviteCode,
         teamCode: s.teamCode,
+        teamDiscoverable: s.teamDiscoverable,
         guardianEmail: s.guardianEmail,
         guardianStatus: s.guardianStatus,
         baseNutritionConfidence: s.baseNutritionConfidence,
