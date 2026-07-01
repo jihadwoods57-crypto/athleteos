@@ -30,6 +30,7 @@ export function Txt({
   color = colors.text,
   ls,
   upper,
+  num,
   style,
   children,
   ...rest
@@ -39,6 +40,8 @@ export function Txt({
   color?: string;
   ls?: number;
   upper?: boolean;
+  /** Tabular (fixed-width) figures. Use on any number that changes so it never jitters. */
+  num?: boolean;
 }) {
   return (
     <Text
@@ -50,6 +53,7 @@ export function Txt({
           color,
           letterSpacing: ls,
           textTransform: upper ? 'uppercase' : undefined,
+          fontVariant: num ? (['tabular-nums'] as TextStyle['fontVariant']) : undefined,
         } as TextStyle,
         style,
       ]}
@@ -59,28 +63,125 @@ export function Txt({
   );
 }
 
+/**
+ * Surface card. Pick an elevation deliberately — premium depth is the CONTRAST between
+ * levels, so a screen has at most ONE `hero`:
+ *   hero  — the one thing the screen is about (score, the reveal). Deep soft float.
+ *   card  — standard content card (default).
+ *   low   — secondary / look-back content. Sits closer to the canvas.
+ *   flush — grouped content that should NOT float: tinted surface, no shadow.
+ * `elevated` is kept for back-compat (maps to the `elevated` shadow).
+ */
 export function Card({
   style,
   children,
   elevated,
+  variant,
   ...rest
-}: ViewProps & { elevated?: boolean }) {
+}: ViewProps & { elevated?: boolean; variant?: 'hero' | 'card' | 'low' | 'flush' }) {
+  const sh =
+    variant === 'hero' ? shadow.hero
+    : variant === 'low' ? shadow.low
+    : variant === 'flush' ? null
+    : elevated ? shadow.elevated
+    : shadow.card;
   return (
     <View
       {...rest}
       style={[
         {
-          backgroundColor: colors.card,
+          backgroundColor: variant === 'flush' ? colors.bg2 : colors.card,
           borderRadius: radius.card,
           padding: space.card,
         },
-        elevated ? shadow.elevated : shadow.card,
+        sh,
         style,
       ]}
     >
       {children}
     </View>
   );
+}
+
+/**
+ * Tappable surface with a subtle press-scale (0.98) — the tactile "premium in the hand"
+ * feel. Wrap a pressable card/tile with this instead of a bare Pressable. Spring, no
+ * bounce; respects reduce-motion. Put the box + shadow styles in `style`.
+ */
+export function PressScale({
+  onPress,
+  children,
+  style,
+  disabled,
+  haptic = 'tap',
+  scaleTo = 0.98,
+  accessibilityLabel,
+  accessibilityRole = 'button',
+  hitSlop,
+}: {
+  onPress?: () => void;
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  disabled?: boolean;
+  haptic?: 'tap' | 'select' | 'success' | 'none';
+  scaleTo?: number;
+  accessibilityLabel?: string;
+  accessibilityRole?: 'button' | 'link';
+  hitSlop?: PressableProps['hitSlop'];
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const reduce = useReduceMotion();
+  const to = (v: number) => {
+    if (reduce) return;
+    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+  };
+  return (
+    <Pressable
+      accessibilityRole={accessibilityRole}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      hitSlop={hitSlop}
+      onPressIn={() => to(scaleTo)}
+      onPressOut={() => to(1)}
+      onPress={() => {
+        if (haptic !== 'none') haptics[haptic]?.();
+        onPress?.();
+      }}
+    >
+      <Animated.View style={[{ transform: [{ scale }] }, style]}>{children}</Animated.View>
+    </Pressable>
+  );
+}
+
+/**
+ * Mount entrance: fade + rise. Wrap each card in a screen's stack with an increasing
+ * `index` for a gentle stagger as the screen loads. Ease-out cubic, no bounce; respects
+ * reduce-motion (renders instantly).
+ */
+export function Reveal({
+  children,
+  index = 0,
+  style,
+}: {
+  children: React.ReactNode;
+  index?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const reduce = useReduceMotion();
+  const p = useRef(new Animated.Value(reduce ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduce) {
+      p.setValue(1);
+      return;
+    }
+    const id = setTimeout(() => {
+      Animated.timing(p, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    }, Math.min(index, 8) * 55);
+    return () => clearTimeout(id);
+  }, [p, index, reduce]);
+  const translateY = p.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
+  return <Animated.View style={[{ opacity: p, transform: [{ translateY }] }, style]}>{children}</Animated.View>;
 }
 
 export function Row({ style, children, ...rest }: ViewProps) {
