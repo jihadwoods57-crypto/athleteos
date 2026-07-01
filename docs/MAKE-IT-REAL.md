@@ -25,7 +25,7 @@ behavior until you activate it.
    supabase functions deploy analyze-meal
    ```
    (optional) `supabase secrets set ANTHROPIC_MODEL=claude-opus-4-8` to use the top tier
-   instead of the default `claude-sonnet-4-6`.
+   instead of the default `claude-sonnet-5`.
 4. In the app: copy `.env.example` to `.env`, fill `EXPO_PUBLIC_SUPABASE_URL` +
    `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Restart Metro. Now `isSupabaseConfigured` and
    `isAiConfigured` are true: meal capture calls Claude vision; the analyze flow is real.
@@ -50,7 +50,7 @@ result into `analyzeMeal({ photoBase64 })` from `capture()`. Web has no camera (
 Real overseer->athlete push also needs the backend to store device tokens and send.
 
 ## Cost note (real AI)
-Per-meal vision analysis on `claude-sonnet-4-6` (~$3/$15 per 1M tokens) is a few cents at most;
+Per-meal vision analysis on `claude-sonnet-5` (~$3/$15 per 1M tokens, intro $2/$10 through Aug 31 2026) is a few cents at most;
 `claude-opus-4-8` is the higher tier. Both stream/return a small structured result. Keep the
 deterministic fallback so a network/AI hiccup never blocks a log.
 

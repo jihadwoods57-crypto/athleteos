@@ -282,7 +282,7 @@ CORS (`*`) and **no rate limiting** — fine for staging, **not** for real users
 2. Set the secret and deploy against the **live** project:
    ```bash
    supabase secrets set ANTHROPIC_API_KEY=sk-ant-...        # live key
-   # optional: supabase secrets set ANTHROPIC_MODEL=claude-sonnet-4-6
+   # optional: supabase secrets set ANTHROPIC_MODEL=claude-sonnet-5   # (this is the default)
    supabase functions deploy analyze-meal
    ```
 3. The app derives the endpoint from `EXPO_PUBLIC_SUPABASE_URL` (`.../functions/v1/analyze-meal`),
