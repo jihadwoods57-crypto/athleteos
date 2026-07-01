@@ -18,19 +18,32 @@ export const meta = {
 };
 
 // --- Run config (tune via args) ---
-const MAX_ATTEMPTS_PER_SLICE = 3;
+const MAX_ATTEMPTS_PER_SLICE = 5;
 const DEFAULT_CEILING = 1_200_000;   // construction slices are heavier than proto polish
 const PER_SLICE_RESERVE = 200_000;   // refuse to start a slice that can't fit
 const SPEC = 'docs/architecture/05-ai-systems.md';
 const CORES = 'src/core/{attention,weeklyReport,adherence,nutritionMemory,coaching,messaging,membership,consent}.ts';
 
-const runDate = (args && args.runDate) || 'undated';
-const tokenCeiling = (args && args.tokenCeiling) || DEFAULT_CEILING;
-const builderModel = (args && args.builderModel) || undefined; // set 'fable' once available; else inherit
-const criticModel = (args && args.criticModel) || undefined;   // inherit (opus) by default
-const dryRun = !!(args && args.dryRun);                         // gate passes but skip the commit
-const REPO = (args && args.repo) || 'c:/Users/Administrator/Downloads/athleteos';
-const onlySlices = (args && args.onlySlices) || null;           // e.g. ['S1'] to run a single slice
+// args can arrive as a JSON STRING (observed harness behavior) or an object — normalize to an
+// object so a stringified payload can't silently make every arg undefined (the 2026-07-01 bug).
+const A = (() => { let a = args; if (typeof a === 'string') { try { a = JSON.parse(a); } catch { a = {}; } } return (a && typeof a === 'object') ? a : {}; })();
+
+const runDate = A.runDate || 'undated';
+const tokenCeiling = A.tokenCeiling || DEFAULT_CEILING;
+const builderModel = A.builderModel || undefined; // set 'fable' once available; else inherit
+const criticModel = A.criticModel || undefined;   // inherit (opus) by default
+const REPO = A.repo || 'c:/Users/Administrator/Downloads/athleteos';
+
+// FAIL-SAFE defaults. If args are missing or unparseable, the crew does NOTHING and commits
+// NOTHING — never a real full-queue run (the 2026-07-01 lesson).
+//  - commits happen ONLY with live:true; otherwise DRY-RUN (build -> gate -> revert).
+//  - slices run ONLY when explicitly selected: onlySlices:['S1',...] OR all:true.
+//    With neither (or no args at all), `selected` is empty and the run is a clean no-op.
+const live = A.live === true;
+const dryRun = !live;
+const runAll = A.all === true;
+const onlySlices = (Array.isArray(A.onlySlices) && A.onlySlices.length) ? A.onlySlices : null;
+const enforceDeps = runAll; // a targeted onlySlices run trusts that prior deps are already built
 const IN_REPO = `Work exclusively in the OnStandard repo at ${REPO}: cd there first and run every shell command from that directory; read and write only files under it (NOT the session's default directory).`;
 
 // --- Slice queue (mirror of AI-BUILD-QUEUE.md — KEEP IN SYNC) ---
@@ -113,17 +126,26 @@ function commitPrompt(slice, touched) {
   return `${IN_REPO} Commit this passing slice. Stage ONLY these paths (never \`git add -A\`): ${touched.join(', ')}. Then \`git commit\` with message "feat(ai): ${slice.id} ${slice.title} — via onstandard-ai-forge" and \`git tag -f ai-forge/${runDate}-${slice.id}\`. Do NOT push, do NOT touch master, do NOT apply any migration. Return {committed:true, tag:"ai-forge/${runDate}-${slice.id}"}.`;
 }
 
-log(`OnStandard AI Forge starting — runDate=${runDate}, ceiling=${tokenCeiling}, slices=${SLICES.length}, dryRun=${dryRun}`);
+// Resolve the slice selection under the fail-safe rules above.
+const selected = onlySlices ? SLICES.filter((s) => onlySlices.includes(s.id))
+  : runAll ? SLICES.slice()
+  : [];
+
+log(`OnStandard AI Forge — mode=${dryRun ? 'DRY-RUN (no commits)' : 'LIVE (commits)'}, selected=${selected.length ? selected.map((s) => s.id).join(',') : 'NONE'}, runDate=${runDate}`);
+
+if (!selected.length) {
+  log('No slices selected — pass args.onlySlices:[...] or args.all:true. Nothing to do. (This is the fail-safe no-op for missing/undelivered args.)');
+  return { runDate, stopReason: 'no-selection', dryRun, passed: 0, total: SLICES.length, blocked: [], skipped: [], results: [] };
+}
 
 const done = new Set();
 const results = [];
 let stopReason = 'queue-complete';
 
-for (const slice of SLICES) {
-  if (onlySlices && !onlySlices.includes(slice.id)) continue;
-  // dependency gate
+for (const slice of selected) {
+  // dependency gate (enforced only on a full `all` run; targeted runs trust the operator)
   const missing = slice.needs.filter((d) => !done.has(d));
-  if (missing.length) {
+  if (enforceDeps && missing.length) {
     log(`${slice.id}: SKIPPED — unmet deps ${missing.join(',')}`);
     results.push({ id: slice.id, status: 'skipped', reason: `deps ${missing.join(',')}` });
     continue;
