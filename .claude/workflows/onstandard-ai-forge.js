@@ -29,6 +29,9 @@ const tokenCeiling = (args && args.tokenCeiling) || DEFAULT_CEILING;
 const builderModel = (args && args.builderModel) || undefined; // set 'fable' once available; else inherit
 const criticModel = (args && args.criticModel) || undefined;   // inherit (opus) by default
 const dryRun = !!(args && args.dryRun);                         // gate passes but skip the commit
+const REPO = (args && args.repo) || 'c:/Users/Administrator/Downloads/athleteos';
+const onlySlices = (args && args.onlySlices) || null;           // e.g. ['S1'] to run a single slice
+const IN_REPO = `Work exclusively in the OnStandard repo at ${REPO}: cd there first and run every shell command from that directory; read and write only files under it (NOT the session's default directory).`;
 
 // --- Slice queue (mirror of AI-BUILD-QUEUE.md — KEEP IN SYNC) ---
 // builders roles run sequentially within a slice: 'core' | 'migration' | 'edge' | 'ui'
@@ -81,33 +84,33 @@ function builderPrompt(slice, role, findings) {
     edge: `Author the Deno edge function for "${slice.title}" under supabase/functions/. It is the gatekeeper: build the RLS-scoped ContextPack (no PHI/photos/raw names), call the model, validate output through the authority arbiter, fall back to the deterministic result on any failure, and log to the audit table. Split models (Fable 5 for deep analysis, Opus 4.8 for routine) with a server-side fallback on health-adjacent refusals. Keep the ANTHROPIC key server-side.`,
     ui: `Wire the React Native screen(s) for "${slice.title}". Follow the existing seam pattern (inert + honest labels until isAiConfigured; deterministic fallback always renders). Coach-facing surfaces only unless the slice is explicitly the bounded athlete meal-coaching voice.`,
   }[role];
-  return `You are the ${role} builder on the OnStandard AI Forge crew. Slice ${slice.id}: ${slice.title} (spec: ${slice.spec}). ${roleBrief}\n\n${RULES}${carryBlock(findings)}`;
+  return `${IN_REPO}\n\nYou are the ${role} builder on the OnStandard AI Forge crew. Slice ${slice.id}: ${slice.title} (spec: ${slice.spec}). ${roleBrief}\n\n${RULES}${carryBlock(findings)}`;
 }
 
 // --- Critic prompts (the four floors) ---
 function authorityCritic(touched) {
-  return `You are the AUTHORITY-BOUNDARY critic (read-only; do not edit). Inspect the uncommitted diff for these files: ${touched.join(', ')}. Verify against ${SPEC} §8: does ANY path let the model write a score/target/plan, or send a message, or bypass arbitrate()? A draft must be status 'draft' with no send capability in the edge fn. Return pass=false with blocker findings (file:line + rule) if the authority boundary can be crossed; pass=true only if every model output is validated and demoted on conflict.`;
+  return `${IN_REPO} You are the AUTHORITY-BOUNDARY critic (read-only; do not edit). Inspect the uncommitted diff for these files: ${touched.join(', ')}. Verify against ${SPEC} §8: does ANY path let the model write a score/target/plan, or send a message, or bypass arbitrate()? A draft must be status 'draft' with no send capability in the edge fn. Return pass=false with blocker findings (file:line + rule) if the authority boundary can be crossed; pass=true only if every model output is validated and demoted on conflict.`;
 }
 function numbersCritic(touched) {
-  return `You are the NUMBERS-NEVER-CHANGE critic (read-only). Inspect the diff for ${touched.join(', ')}. Any AI language surface here MUST preserve every number exactly and MUST have a test proving a numeric drift is rejected (pattern: src/core/nutritionMemoryVoice.mergeRephrasedInsights). Disclaimers must always append regardless of personality. Return pass=false with blocker findings if a number could drift or the guard/test is missing.`;
+  return `${IN_REPO} You are the NUMBERS-NEVER-CHANGE critic (read-only). Inspect the diff for ${touched.join(', ')}. Any AI language surface here MUST preserve every number exactly and MUST have a test proving a numeric drift is rejected (pattern: src/core/nutritionMemoryVoice.mergeRephrasedInsights). Disclaimers must always append regardless of personality. Return pass=false with blocker findings if a number could drift or the guard/test is missing.`;
 }
 function rlsCritic(touched) {
-  return `You are the RLS/CONSENT critic (read-only). Inspect the diff for ${touched.join(', ')}. Verify against ${SPEC} §6.3 + src/core/consent.ts: no athlete outside membership.canView() can reach a prompt; the ContextPack carries no photos/PHI/raw names; the realDataConsent gate is intact for any photo egress; RLS policies scope every new table to the owner + authorized coach only. Return pass=false with blocker findings on any leak.`;
+  return `${IN_REPO} You are the RLS/CONSENT critic (read-only). Inspect the diff for ${touched.join(', ')}. Verify against ${SPEC} §6.3 + src/core/consent.ts: no athlete outside membership.canView() can reach a prompt; the ContextPack carries no photos/PHI/raw names; the realDataConsent gate is intact for any photo egress; RLS policies scope every new table to the owner + authorized coach only. Return pass=false with blocker findings on any leak.`;
 }
 function specCritic(slice, touched) {
-  return `You are the SPEC-FIDELITY critic (read-only). Inspect the diff for ${touched.join(', ')} against ${SPEC} (${slice.spec}). Do the table shapes, tool catalog, CopilotResult frame, and task contract match the founder spec? Is the deterministic fallback present? Return pass=false with findings on any drift from the spec.`;
+  return `${IN_REPO} You are the SPEC-FIDELITY critic (read-only). Inspect the diff for ${touched.join(', ')} against ${SPEC} (${slice.spec}). Do the table shapes, tool catalog, CopilotResult frame, and task contract match the founder spec? Is the deterministic fallback present? Return pass=false with findings on any drift from the spec.`;
 }
 function refutePrompt(floor, touched) {
-  return `You are a skeptical security reviewer (read-only; do NOT edit). A prior critic claims the ${floor} floor holds for the diff in ${touched.join(', ')}. Try HARD to break it — construct a concrete input or code path where the model writes a number/target/plan, sends a message, leaks an athlete the coach can't see, or drifts a figure. Default refuted=true if you cannot clearly confirm the floor is airtight. refuted=true means you found a hole (the floor FAILS). Explain the exact path.`;
+  return `${IN_REPO} You are a skeptical security reviewer (read-only; do NOT edit). A prior critic claims the ${floor} floor holds for the diff in ${touched.join(', ')}. Try HARD to break it — construct a concrete input or code path where the model writes a number/target/plan, sends a message, leaks an athlete the coach can't see, or drifts a figure. Default refuted=true if you cannot clearly confirm the floor is airtight. refuted=true means you found a hole (the floor FAILS). Explain the exact path.`;
 }
 function smokePrompt() {
-  return `Run the smoke gate from the repo root: \`npm run typecheck\` then \`npm run test\` (jest). Return {ok:true, errors:[]} only if BOTH pass clean. If either fails, return ok:false with the concrete error lines (file:line + message) in errors. Do NOT edit files, do NOT run git.`;
+  return `${IN_REPO} Run the smoke gate: \`npm run typecheck\` then \`npm run test\` (jest). Return {ok:true, errors:[]} only if BOTH pass clean. If either fails, return ok:false with the concrete error lines (file:line + message) in errors. Do NOT edit files, do NOT run git.`;
 }
 function revertPrompt(touched) {
-  return `Restore the working tree for this failed slice attempt. Revert ONLY these paths — never touch any other file, never use \`git checkout -- .\` or \`git add -A\`: ${touched.join(', ')}. For tracked files run \`git checkout -- <path>\`; for files this attempt newly created (untracked) delete them with \`rm\`. Confirm \`git status --short\` shows none of these paths remaining.`;
+  return `${IN_REPO} Restore the working tree for this failed slice attempt. Revert ONLY these paths — never touch any other file, never use \`git checkout -- .\` or \`git add -A\`: ${touched.join(', ')}. For tracked files run \`git checkout -- <path>\`; for files this attempt newly created (untracked) delete them with \`rm\`. Confirm \`git status --short\` shows none of these paths remaining.`;
 }
 function commitPrompt(slice, touched) {
-  return `Commit this passing slice from the repo root. Stage ONLY these paths (never \`git add -A\`): ${touched.join(', ')}. Then \`git commit\` with message "feat(ai): ${slice.id} ${slice.title} — via onstandard-ai-forge" and \`git tag -f ai-forge/${runDate}-${slice.id}\`. Do NOT push, do NOT touch master, do NOT apply any migration. Return {committed:true, tag:"ai-forge/${runDate}-${slice.id}"}.`;
+  return `${IN_REPO} Commit this passing slice. Stage ONLY these paths (never \`git add -A\`): ${touched.join(', ')}. Then \`git commit\` with message "feat(ai): ${slice.id} ${slice.title} — via onstandard-ai-forge" and \`git tag -f ai-forge/${runDate}-${slice.id}\`. Do NOT push, do NOT touch master, do NOT apply any migration. Return {committed:true, tag:"ai-forge/${runDate}-${slice.id}"}.`;
 }
 
 log(`OnStandard AI Forge starting — runDate=${runDate}, ceiling=${tokenCeiling}, slices=${SLICES.length}, dryRun=${dryRun}`);
@@ -117,6 +120,7 @@ const results = [];
 let stopReason = 'queue-complete';
 
 for (const slice of SLICES) {
+  if (onlySlices && !onlySlices.includes(slice.id)) continue;
   // dependency gate
   const missing = slice.needs.filter((d) => !done.has(d));
   if (missing.length) {
