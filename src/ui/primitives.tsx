@@ -79,10 +79,13 @@ export function Card({
   variant,
   ...rest
 }: ViewProps & { elevated?: boolean; variant?: 'hero' | 'card' | 'low' | 'flush' }) {
+  // "Push it harder" hierarchy that survives web's muted shadows: the hero floats
+  // (deep shadow, borderless) while secondary cards sit FLAT inside a hairline frame.
+  // Borderless-floating vs framed-flat reads on web AND device.
+  const framed = variant === 'low' || variant === 'flush';
   const sh =
     variant === 'hero' ? shadow.hero
-    : variant === 'low' ? shadow.low
-    : variant === 'flush' ? null
+    : framed ? null
     : elevated ? shadow.elevated
     : shadow.card;
   return (
@@ -94,6 +97,7 @@ export function Card({
           borderRadius: radius.card,
           padding: space.card,
         },
+        framed ? { borderWidth: 1, borderColor: colors.hairline } : null,
         sh,
         style,
       ]}

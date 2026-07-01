@@ -193,7 +193,7 @@ export const shadow = {
   low: makeShadow(7, 0.05, 3, 2),
   card: makeShadow(14, 0.06, 6, 3),
   elevated: makeShadow(20, 0.08, 10, 6),
-  hero: makeShadow(30, 0.1, 18, 12),
+  hero: makeShadow(34, 0.13, 22, 14),
   pressed: makeShadow(6, 0.04, 2, 1),
   cta: {
     shadowColor: '#2563EB',
