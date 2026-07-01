@@ -7,6 +7,7 @@
 // as today. Set EXPO_PUBLIC_AI_ENDPOINT (or EXPO_PUBLIC_SUPABASE_URL, from which the
 // function URL is derived) + EXPO_PUBLIC_SUPABASE_ANON_KEY to light it up.
 import type { LabelFacts, MealLabel, MealResult, MemoryInsight, RephrasedInsight, RephrasedOrder } from '@/core';
+import { supabase } from '@/lib/supabase/client';
 
 const explicit = process.env.EXPO_PUBLIC_AI_ENDPOINT?.trim();
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -17,6 +18,29 @@ export const AI_ENDPOINT = explicit || (supaUrl ? `${supaUrl}/functions/v1/analy
 
 /** True only when a real backend endpoint + auth key exist — gates every remote call. */
 export const isAiConfigured = Boolean(AI_ENDPOINT && anonKey);
+
+/**
+ * Headers for a call to the Edge Function. Sends the signed-in athlete's session token as the
+ * bearer when a session exists, so the function can identify the athlete and apply the
+ * per-athlete daily cap; falls back to the shared anon key otherwise (preview / not signed in),
+ * which the function treats as anonymous and leaves uncapped. `apikey` is always the anon key
+ * (the Supabase gateway identifies the project from it). The key never leaves the backend — this
+ * only forwards the user's own token.
+ */
+async function authHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    apikey: anonKey ?? '',
+    Authorization: `Bearer ${anonKey ?? ''}`,
+  };
+  try {
+    const token = (await supabase?.auth.getSession())?.data.session?.access_token;
+    if (token) headers.Authorization = `Bearer ${token}`;
+  } catch {
+    // no session available — keep the anon-key bearer (call runs uncapped, as today)
+  }
+  return headers;
+}
 
 export interface AnalyzeMealRequest {
   /** Meal slot the athlete tagged (Breakfast/Lunch/Snack/Dinner). */
@@ -42,10 +66,7 @@ export async function analyzeMealRemote(req: AnalyzeMealRequest): Promise<MealRe
   try {
     const res = await fetch(AI_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${anonKey}`,
-      },
+      headers: await authHeaders(),
       body: JSON.stringify(req),
       signal: controller.signal,
     });
@@ -76,10 +97,7 @@ export async function analyzeLabelRemote(req: AnalyzeLabelRequest): Promise<Labe
   try {
     const res = await fetch(AI_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${anonKey}`,
-      },
+      headers: await authHeaders(),
       body: JSON.stringify({ mode: 'label', ...req }),
       signal: controller.signal,
     });
@@ -110,10 +128,7 @@ export async function rephraseMemoryRemote(req: RephraseMemoryRequest): Promise<
   try {
     const res = await fetch(AI_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${anonKey}`,
-      },
+      headers: await authHeaders(),
       body: JSON.stringify({ mode: 'memory', ...req }),
       signal: controller.signal,
     });
@@ -144,10 +159,7 @@ export async function rephraseOrdersRemote(req: RephraseOrdersRequest): Promise<
   try {
     const res = await fetch(AI_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${anonKey}`,
-      },
+      headers: await authHeaders(),
       body: JSON.stringify({ mode: 'order', ...req }),
       signal: controller.signal,
     });
