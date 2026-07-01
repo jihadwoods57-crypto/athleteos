@@ -6,7 +6,7 @@
 export type UserRole = 'athlete' | 'parent' | 'coach' | 'trainer';
 export type OrgType = 'school' | 'club' | 'independent';
 export type CompMode = 'position' | 'team' | 'off';
-export type LinkStatus = 'active' | 'invited' | 'removed';
+export type LinkStatus = 'active' | 'invited' | 'removed' | 'pending';
 export type StaffRole = 'head_coach' | 'assistant';
 
 // A meal row mirrors src/core meal macros; `meals` jsonb on `days` is the
@@ -239,6 +239,22 @@ export interface Database {
       join_team: {
         Args: { code: string; athlete_position?: string | null };
         Returns: string;
+      };
+      discover_teams: {
+        Args: { org: string };
+        Returns: { id: string; name: string; sport: string | null; coach_name: string | null }[];
+      };
+      resolve_team_code: {
+        Args: { code: string };
+        Returns: { id: string; name: string; sport: string | null; coach_name: string | null; school: string | null }[];
+      };
+      request_join_team: {
+        Args: { team: string; athlete_position?: string | null };
+        Returns: string;
+      };
+      pending_team_requests: {
+        Args: { team: string };
+        Returns: { athlete_id: string; athlete_name: string | null; position: string | null; requested_at: string }[];
       };
       join_practice: {
         Args: { code: string };

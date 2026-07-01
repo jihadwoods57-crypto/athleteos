@@ -13,6 +13,7 @@ import type {
   OrgType,
   ProfileRow,
   SubscriptionRow,
+  TeamRow,
 } from './database.types';
 
 // ---------------------------------------------------------------- athlete: own day
@@ -257,6 +258,79 @@ export async function joinTeam(code: string, position?: string): Promise<string 
   });
   if (error) throw error;
   return data;
+}
+
+// ---------------------------------------------------------------- athlete-first linking
+/** Safe (display-only) shapes returned by the discovery/resolve RPCs — never the join code. */
+export type DiscoveredTeam = { id: string; name: string; sport: string | null; coach_name: string | null };
+export type ResolvedTeam = DiscoveredTeam & { school: string | null };
+export type PendingRequest = { athlete_id: string; athlete_name: string | null; position: string | null; requested_at: string };
+
+/** Discoverable teams at a school (athlete-first "find my coach"). Empty when unconfigured. */
+export async function discoverTeams(orgId: string): Promise<DiscoveredTeam[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase().rpc('discover_teams', { org: orgId });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Resolve a join code to a confirm-screen preview (coach + school) without joining. */
+export async function resolveTeamCode(code: string): Promise<ResolvedTeam | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('resolve_team_code', { code });
+  if (error) throw error;
+  return data && data.length > 0 ? data[0] : null;
+}
+
+/** Athlete requests to join a discoverable team → a 'pending' row (coach approves later). */
+export async function requestJoinTeam(teamId: string, position?: string): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('request_join_team', {
+    team: teamId,
+    athlete_position: position ?? null,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** Pending join requests for a team (staff-only, via SECURITY DEFINER RPC so the coach can
+ *  see the requester's name even though the link isn't active yet). Empty when unconfigured. */
+export async function pendingTeamRequests(teamId: string): Promise<PendingRequest[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase().rpc('pending_team_requests', { team: teamId });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Coach approves a pending request → flips the member row to 'active' (tm_manage policy). */
+export async function approveMember(teamId: string, athleteId: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase()
+    .from('team_members')
+    .update({ status: 'active' })
+    .eq('team_id', teamId)
+    .eq('athlete_id', athleteId);
+  if (error) throw error;
+}
+
+/** Coach declines a pending request → deletes the member row (tm_manage policy). */
+export async function declineMember(teamId: string, athleteId: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase()
+    .from('team_members')
+    .delete()
+    .eq('team_id', teamId)
+    .eq('athlete_id', athleteId);
+  if (error) throw error;
+}
+
+/** Teams the signed-in user is staff on (teams_read RLS returns the coach's own teams).
+ *  Used to gather the coach's pending-request inbox across their team(s). */
+export async function fetchMyTeams(): Promise<Pick<TeamRow, 'id' | 'name'>[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase().from('teams').select('id, name');
+  if (error) throw error;
+  return data ?? [];
 }
 
 /** Apple 5.1.1(v): permanently delete the signed-in user's account + all their data
