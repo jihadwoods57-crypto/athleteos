@@ -4,7 +4,8 @@ import React from 'react';
 import { View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store';
-import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
+import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Txt, Pressable } from '@/ui/primitives';
 import { Icon, IconName } from '@/icons';
 import type { Tab } from '@/core';
@@ -49,9 +50,10 @@ export function AthleteApp() {
   const planEditorOpen = useStore((s) => s.planEditorOpen);
   const mealHistoryOpen = useStore((s) => s.mealHistoryOpen);
   const nutritionMemoryOpen = useStore((s) => s.nutritionMemoryOpen);
+  const c = useColors();
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={{ flex: 1 }}>
         {tab === 'home' && <Home />}
         {tab === 'tasks' && <Plan />}
@@ -87,6 +89,7 @@ function TabBar() {
   const tab = useStore((s) => s.tab);
   const setTab = useStore((s) => s.setTab);
   const openMeal = useStore((s) => s.openMeal);
+  const c = useColors();
 
   const isAthleteTab = (t: Tab) => tab === t;
 
@@ -100,11 +103,11 @@ function TabBar() {
           bottom: 0,
           paddingBottom: Math.max(insets.bottom, 10),
           paddingTop: 10,
-          backgroundColor: '#fff',
+          backgroundColor: c.card,
           flexDirection: 'row',
           alignItems: 'center',
           borderTopWidth: 1,
-          borderTopColor: colors.border,
+          borderTopColor: c.border,
         },
       ]}
     >
@@ -118,11 +121,11 @@ function TabBar() {
           accessibilityLabel="Log a meal"
           onPress={openMeal}
           style={[
-            { width: 58, height: 58, borderRadius: 18, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginTop: -28 },
+            { width: 58, height: 58, borderRadius: 18, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: -28 },
             shadow.cta,
           ]}
         >
-          <Icon name="camera" size={26} color="#fff" />
+          <Icon name="camera" size={26} color={c.white} />
         </Pressable>
       </View>
 
@@ -133,7 +136,8 @@ function TabBar() {
 }
 
 function TabItem({ item, active, onPress }: { item: { label: string; icon: IconName }; active: boolean; onPress: () => void }) {
-  const color = active ? colors.accent : colors.textTertiary;
+  const c = useColors();
+  const color = active ? c.accent : c.textTertiary;
   return (
     <Pressable
       accessibilityRole="tab"

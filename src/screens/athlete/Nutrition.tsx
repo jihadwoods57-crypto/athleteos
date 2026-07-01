@@ -7,11 +7,13 @@ import Svg, { Circle } from 'react-native-svg';
 import { mealRowsFor, QUICK_FOODS, paceProjection, weekdayLong, weeklyWeightProgress, WEIGHT_START } from '@/core';
 import { isEnginesEnabled } from '@/lib/features';
 import { useStore, useDerived, useNutritionMemory } from '@/store';
-import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
+import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Card, ProgressBar, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Nutrition() {
+  const c = useColors();
   const insets = useSafeAreaInsets();
   const s = useStore();
   const d = useDerived();
@@ -28,7 +30,7 @@ export function Nutrition() {
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
-      <Txt w="sb" size={14} color={colors.textSecondary}>
+      <Txt w="sb" size={14} color={c.textSecondary}>
         {weekdayLong()} · in-season
       </Txt>
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
@@ -47,13 +49,13 @@ export function Nutrition() {
           accessibilityRole="button"
           accessibilityLabel="Restaurant Coach: what should I eat"
           onPress={s.openFoodCoach}
-          style={[{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', gap: 13 }, shadow.cta]}
+          style={[{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', gap: 13 }, shadow.cta]}
         >
           <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="sparkle" size={20} color="#fff" />
+            <Icon name="sparkle" size={20} color={c.white} />
           </View>
           <View style={{ flex: 1 }}>
-            <Txt w="eb" size={15} color="#fff">
+            <Txt w="eb" size={15} color={c.white}>
               What should I eat?
             </Txt>
             <Txt w="m" size={13} color="rgba(255,255,255,0.85)" style={{ marginTop: 1 }}>
@@ -69,12 +71,12 @@ export function Nutrition() {
       <Reveal index={2}>
       <Card variant="hero" style={{ marginTop: 18, borderRadius: 24 }}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
+          <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>
             THIS WEEK'S GOAL
           </Txt>
-          <Row style={{ gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: '#FEF3C7' }}>
-            <Icon name="checkin" size={12} color={colors.warningDeep} />
-            <Txt w="eb" num size={12} color={colors.warningDeep}>
+          <Row style={{ gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: c.warnTint }}>
+            <Icon name="checkin" size={12} color={c.warningDeep} />
+            <Txt w="eb" num size={12} color={c.warningDeep}>
               {pace.daysLeft} days left
             </Txt>
           </Row>
@@ -84,13 +86,13 @@ export function Nutrition() {
             <Txt w="eb" num size={29} ls={-0.9}>
               Gain {s.weeklyGoalLb.toFixed(1)} lb
             </Txt>
-            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+            <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
               by Sunday · ≈{pace.surplus} cal/day surplus
             </Txt>
           </View>
-          <Row style={{ gap: 7, paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.bg2 }}>
-            <Icon name="shield" size={13} color={colors.textSecondary} />
-            <Txt w="b" size={12} color={colors.textSecondary}>
+          <Row style={{ gap: 7, paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, backgroundColor: c.bg2 }}>
+            <Icon name="shield" size={13} color={c.textSecondary} />
+            <Txt w="b" size={12} color={c.textSecondary}>
               Coach-set
             </Txt>
           </Row>
@@ -99,16 +101,16 @@ export function Nutrition() {
           <ProgressBar pct={pace.goalPct} height={10} />
         </View>
         <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
-          <Txt w="b" num size={13} color={colors.slate700}>
+          <Txt w="b" num size={13} color={c.slate700}>
             {pace.progressLb >= 0 ? '+' : ''}{pace.progressLb.toFixed(1)} lb so far
           </Txt>
-          <Txt w="eb" size={13} color={pace.onPace ? colors.successDeep : colors.warningDeep}>
+          <Txt w="eb" size={13} color={pace.onPace ? c.successDeep : c.warningDeep}>
             {pace.paceLabel}
           </Txt>
         </Row>
-        <View style={{ marginTop: 14, borderRadius: 14, padding: 13, backgroundColor: colors.accentSurface }}>
-          <Txt w="m" size={13} color={colors.slate700} style={{ lineHeight: 19 }}>
-            <Txt w="b" size={13} color={colors.accent}>
+        <View style={{ marginTop: 14, borderRadius: 14, padding: 13, backgroundColor: c.accentSurface }}>
+          <Txt w="m" size={13} color={c.slate700} style={{ lineHeight: 19 }}>
+            <Txt w="b" size={13} color={c.accent}>
               Pace ·{' '}
             </Txt>
             {pace.paceAi}
@@ -125,15 +127,15 @@ export function Nutrition() {
             Macros
           </Txt>
           <Txt w="b" num size={14}>
-            {d.kcalToday.toLocaleString()} <Txt w="b" num size={14} color={colors.textSecondary}>/ {d.calTarget.toLocaleString()} cal</Txt>
+            {d.kcalToday.toLocaleString()} <Txt w="b" num size={14} color={c.textSecondary}>/ {d.calTarget.toLocaleString()} cal</Txt>
           </Txt>
         </Row>
         <View style={{ marginBottom: 22 }}>
           <ProgressBar pct={calPct} height={8} />
         </View>
         <Row style={{ justifyContent: 'space-around' }}>
-          <MacroRing label="Protein" value={d.proteinToday} target={`/${d.proteinTarget}g`} pct={d.proteinPct} color={colors.accent} />
-          <MacroRing label="Carbs" value={d.carbsToday} target={`/${d.carbTarget}g`} pct={d.carbPct} color={colors.hydration} />
+          <MacroRing label="Protein" value={d.proteinToday} target={`/${d.proteinTarget}g`} pct={d.proteinPct} color={c.accent} />
+          <MacroRing label="Carbs" value={d.carbsToday} target={`/${d.carbTarget}g`} pct={d.carbPct} color={c.hydration} />
           <MacroRing label="Fat" value={d.fatToday} target={`/${d.fatTarget}g`} pct={d.fatPct} color="#8B5CF6" />
         </Row>
       </Card>
@@ -146,11 +148,11 @@ export function Nutrition() {
           <Txt w="eb" size={16} ls={-0.3}>
             Protein gap
           </Txt>
-          <Txt w="eb" num size={15} color={colors.accent}>
+          <Txt w="eb" num size={15} color={c.accent}>
             {d.proteinGap}g to go
           </Txt>
         </Row>
-        <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 6 }}>
+        <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6 }}>
           Quick wins to max today's nutrition score before dinner.
         </Txt>
         <View style={{ gap: 9, marginTop: 14 }}>
@@ -167,18 +169,18 @@ export function Nutrition() {
                   paddingHorizontal: 15,
                   paddingVertical: 13,
                   borderRadius: 14,
-                  backgroundColor: added ? colors.successTint : colors.bg,
+                  backgroundColor: added ? c.successTint : c.bg,
                   borderWidth: 1.5,
-                  borderColor: added ? colors.successBorderSoft : 'transparent',
+                  borderColor: added ? c.successBorderSoft : 'transparent',
                 }}
               >
-                <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: added ? colors.success : colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-                  {added ? <Icon name="check" size={13} color="#fff" /> : <Icon name="plus" size={16} color={colors.accent} />}
+                <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: added ? c.success : c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                  {added ? <Icon name="check" size={13} color={c.white} /> : <Icon name="plus" size={16} color={c.accent} />}
                 </View>
                 <Txt w="b" size={14} style={{ flex: 1 }}>
                   {f.n}
                 </Txt>
-                <Txt w="eb" num size={14} color={added ? colors.successDeep : colors.accent}>
+                <Txt w="eb" num size={14} color={added ? c.successDeep : c.accent}>
                   +{f.g}g
                 </Txt>
               </Pressable>
@@ -196,7 +198,7 @@ export function Nutrition() {
             <Txt w="eb" size={16} ls={-0.3}>
               Today's Meals
             </Txt>
-            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
+            <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 2 }}>
               {d.mealsLoggedCount} of 4 logged
             </Txt>
           </View>
@@ -207,10 +209,10 @@ export function Nutrition() {
             hitSlop={8}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
           >
-            <Txt w="b" size={13} color={colors.accent}>
+            <Txt w="b" size={13} color={c.accent}>
               History
             </Txt>
-            <Icon name="chevronRight" size={15} color={colors.accent} />
+            <Icon name="chevronRight" size={15} color={c.accent} />
           </Pressable>
         </Row>
         <View style={{ gap: 12 }}>
@@ -222,16 +224,16 @@ export function Nutrition() {
                   <Txt w="b" size={14}>
                     {row.name}
                   </Txt>
-                  <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                  <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2 }}>
                     {row.protein}g protein · {row.kcal} cal
                   </Txt>
                 </View>
-                <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: row.quality >= 90 ? colors.successSurface : colors.accentSurface }}>
-                  <Txt w="eb" num size={12} color={row.quality >= 90 ? colors.successDeep : colors.accent}>
+                <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: row.quality >= 90 ? c.successSurface : c.accentSurface }}>
+                  <Txt w="eb" num size={12} color={row.quality >= 90 ? c.successDeep : c.accent}>
                     {row.quality}
                   </Txt>
                 </View>
-                <Icon name="chevronRight" size={18} color={colors.slate300} />
+                <Icon name="chevronRight" size={18} color={c.slate300} />
               </Pressable>
             ) : (
               <Pressable
@@ -242,19 +244,19 @@ export function Nutrition() {
                 }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}
               >
-                <View style={{ width: 48, height: 48, borderRadius: 13, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.slate300, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="camera" size={20} color={colors.textTertiary} />
+                <View style={{ width: 48, height: 48, borderRadius: 13, borderWidth: 2, borderStyle: 'dashed', borderColor: c.slate300, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="camera" size={20} color={c.textTertiary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Txt w="b" size={14} color={colors.slate700}>
+                  <Txt w="b" size={14} color={c.slate700}>
                     {row.label}
                   </Txt>
-                  <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                  <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2 }}>
                     {row.dueTime}
                   </Txt>
                 </View>
-                <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 11, backgroundColor: colors.accent }}>
-                  <Txt w="b" size={13} color="#fff">
+                <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 11, backgroundColor: c.accent }}>
+                  <Txt w="b" size={13} color={c.white}>
                     Log now
                   </Txt>
                 </View>
@@ -269,6 +271,7 @@ export function Nutrition() {
 }
 
 function MacroRing({ label, value, target, pct, color }: { label: string; value: number; target: string; pct: number; color: string }) {
+  const c = useColors();
   const r = 40;
   const circ = 2 * Math.PI * r;
   const offset = circ * (1 - Math.max(0, Math.min(100, pct)) / 100);
@@ -276,17 +279,17 @@ function MacroRing({ label, value, target, pct, color }: { label: string; value:
     <View style={{ alignItems: 'center', gap: 9 }}>
       <View style={{ width: 84, height: 84, alignItems: 'center', justifyContent: 'center' }}>
         <Svg width={84} height={84} viewBox="0 0 100 100" style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
-          <Circle cx={50} cy={50} r={r} fill="none" stroke="#EFF2F6" strokeWidth={9} />
+          <Circle cx={50} cy={50} r={r} fill="none" stroke={c.track} strokeWidth={9} />
           <Circle cx={50} cy={50} r={r} fill="none" stroke={color} strokeWidth={9} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
         </Svg>
         <Txt w="eb" num size={17} maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {value}
         </Txt>
-        <Txt w="b" size={9} color={colors.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+        <Txt w="b" size={9} color={c.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {target}
         </Txt>
       </View>
-      <Txt w="b" size={12} color={colors.slate700}>
+      <Txt w="b" size={12} color={c.slate700}>
         {label}
       </Txt>
     </View>
@@ -299,6 +302,7 @@ function MacroRing({ label, value, target, pct, color }: { label: string; value:
  * the overlay does, so the teaser headline always matches what's inside.
  */
 function MemoryEntry() {
+  const c = useColors();
   const open = useStore((s) => s.openNutritionMemory);
   const { insights, sampled } = useNutritionMemory();
   const top = insights[0];
@@ -307,26 +311,26 @@ function MemoryEntry() {
       accessibilityRole="button"
       accessibilityLabel="Open Nutrition Memory"
       onPress={open}
-      style={({ pressed }) => [{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: colors.card, flexDirection: 'row', alignItems: 'center', gap: 13, opacity: pressed ? 0.85 : 1 }, shadow.card]}
+      style={({ pressed }) => [{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: c.card, flexDirection: 'row', alignItems: 'center', gap: 13, opacity: pressed ? 0.85 : 1 }, shadow.card]}
     >
-      <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="sparkle" size={20} color={colors.accent} />
+      <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="sparkle" size={20} color={c.accent} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Row style={{ gap: 7, alignItems: 'center' }}>
           <Txt w="eb" size={15} ls={-0.2}>Nutrition Memory</Txt>
           {sampled ? <SampleTag /> : null}
         </Row>
-        <Txt w="m" size={12} color={colors.textTertiary} numberOfLines={1} style={{ marginTop: 2 }}>
+        <Txt w="m" size={12} color={c.textTertiary} numberOfLines={1} style={{ marginTop: 2 }}>
           {top ? top.headline : 'What OnStandard remembers about how you eat'}
         </Txt>
       </View>
       {top?.metric ? (
-        <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
-          <Txt w="eb" size={13} color={colors.accent}>{top.metric}</Txt>
+        <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: c.accentSurface }}>
+          <Txt w="eb" size={13} color={c.accent}>{top.metric}</Txt>
         </View>
       ) : (
-        <Icon name="chevronRight" size={18} color={colors.slate300} />
+        <Icon name="chevronRight" size={18} color={c.slate300} />
       )}
     </Pressable>
   );

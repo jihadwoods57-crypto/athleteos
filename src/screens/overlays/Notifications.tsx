@@ -3,12 +3,14 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { notificationCopy } from '@/core';
 import { useStore, useDerived } from '@/store';
-import { colors, shadow } from '@/ui/tokens';
+import { shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { PressScale, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon, IconName } from '@/icons';
 import { Overlay } from './Overlay';
 
 export function Notifications() {
+  const c = useColors();
   const s = useStore();
   const d = useDerived();
 
@@ -27,14 +29,14 @@ export function Notifications() {
   });
 
   return (
-    <Overlay title="Notifications" onClose={s.closeNotif} right={<Pressable accessibilityRole="button" accessibilityLabel="Clear notifications" hitSlop={8} onPress={s.closeNotif}><Txt w="b" size={13} color={colors.accent}>Clear</Txt></Pressable>}>
+    <Overlay title="Notifications" onClose={s.closeNotif} right={<Pressable accessibilityRole="button" accessibilityLabel="Clear notifications" hitSlop={8} onPress={s.closeNotif}><Txt w="b" size={13} color={c.accent}>Clear</Txt></Pressable>}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <SectionLabel>NEW</SectionLabel>
         <Reveal index={0}>
         <View style={{ gap: 10 }}>
-          <NotifCard icon="checkin" accent={colors.accent} title="Weekly check-in due" time="2m" text={copy.checkin} onPress={go(s.goCheckin)} />
-          <NotifCard icon="camera" accent={colors.accent} title="Time to log dinner" time="18m" text={`You're ${d.proteinGap}g of protein from your target. One more meal does it.`} onPress={go(s.openMeal)} />
-          <NotifCard icon="trophy" accent={colors.success} iconBg={colors.successSurface} iconColor={colors.successDeep} title="Score update" time="1h" text={copy.score} onPress={go(s.goSquad)} />
+          <NotifCard icon="checkin" accent={c.accent} title="Weekly check-in due" time="2m" text={copy.checkin} onPress={go(s.goCheckin)} />
+          <NotifCard icon="camera" accent={c.accent} title="Time to log dinner" time="18m" text={`You're ${d.proteinGap}g of protein from your target. One more meal does it.`} onPress={go(s.openMeal)} />
+          <NotifCard icon="trophy" accent={c.success} iconBg={c.successSurface} iconColor={c.successDeep} title="Score update" time="1h" text={copy.score} onPress={go(s.goSquad)} />
         </View>
         </Reveal>
 
@@ -44,7 +46,7 @@ export function Notifications() {
           {copy.coachNote ? (
             <NotifCard initials={copy.coachNote.initials} title={copy.coachNote.title} time="4h" text={copy.coachNote.text} />
           ) : null}
-          <NotifCard icon="drop" accent={colors.hydration} iconColor={colors.hydration} title="Hydration reminder" time="6h" text="You're behind on water. Knock out 500ml before practice." />
+          <NotifCard icon="drop" accent={c.hydration} iconColor={c.hydration} title="Hydration reminder" time="6h" text="You're behind on water. Knock out 500ml before practice." />
         </View>
         </Reveal>
       </ScrollView>
@@ -53,30 +55,32 @@ export function Notifications() {
 }
 
 function SectionLabel({ children, style }: { children: React.ReactNode; style?: any }) {
+  const c = useColors();
   return (
-    <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={[{ marginVertical: 10, marginLeft: 4 }, style]}>
+    <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={[{ marginVertical: 10, marginLeft: 4 }, style]}>
       {children}
     </Txt>
   );
 }
 
 function NotifCard({ icon, initials, accent, iconBg, iconColor, title, time, text, onPress }: { icon?: IconName; initials?: string; accent?: string; iconBg?: string; iconColor?: string; title: string; time: string; text: string; onPress?: () => void }) {
-  const boxStyle = { flexDirection: 'row' as const, gap: 13, backgroundColor: '#fff', borderRadius: 16, padding: 15, borderLeftWidth: accent && onPress ? 3 : 0, borderLeftColor: accent };
+  const c = useColors();
+  const boxStyle = { flexDirection: 'row' as const, gap: 13, backgroundColor: c.card, borderRadius: 16, padding: 15, borderLeftWidth: accent && onPress ? 3 : 0, borderLeftColor: accent };
   const body = (
     <>
-      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: initials ? colors.text : iconBg ?? colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-        {initials ? <Txt w="b" size={13} color="#fff">{initials}</Txt> : <Icon name={icon!} size={19} color={iconColor ?? colors.accent} />}
+      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: initials ? c.text : iconBg ?? c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+        {initials ? <Txt w="b" size={13} color={c.white}>{initials}</Txt> : <Icon name={icon!} size={19} color={iconColor ?? c.accent} />}
       </View>
       <View style={{ flex: 1 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt w="b" size={14}>
             {title}
           </Txt>
-          <Txt w="sb" num size={11} color={colors.textTertiary}>
+          <Txt w="sb" num size={11} color={c.textTertiary}>
             {time}
           </Txt>
         </Row>
-        <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 2, lineHeight: 18 }}>
+        <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 18 }}>
           {text}
         </Txt>
       </View>

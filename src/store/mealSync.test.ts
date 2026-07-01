@@ -131,6 +131,25 @@ describe('mapMealToRow projection', () => {
     const row = mapMealToRow(s, 'a-1', 'dinner', null, '2026-06-28');
     expect(row.protein).toBe(mealMacros(plate(99)).protein);
   });
+
+  it('persists the AI confidence + description signal when a real analysis is present', () => {
+    const { mapMealToRow } = loadMealSync(true);
+    const s: AppState = {
+      ...adultConsenting(),
+      mealAnalysis: { name: 'X', quality: 80, protein: 40, kcal: 500, carbs: 40, fat: 15, detected: ['Chicken'], note: 'n', confidence: 'medium', descriptionSignal: 'photo_heavier' },
+    };
+    const row = mapMealToRow(s, 'a-1', 'dinner', null, '2026-06-28');
+    expect(row.macro_confidence).toBe('medium');
+    expect(row.description_signal).toBe('photo_heavier');
+  });
+
+  it('writes null signals on the deterministic fallback (no analysis)', () => {
+    const { mapMealToRow } = loadMealSync(true);
+    const row = mapMealToRow(adultConsenting(), 'a-1', 'dinner', null, '2026-06-28');
+    expect(row.macro_confidence).toBeNull();
+    expect(row.description_signal).toBeNull();
+    expect(row.favorited).toBe(false);
+  });
 });
 
 describe('base64ToBytes', () => {

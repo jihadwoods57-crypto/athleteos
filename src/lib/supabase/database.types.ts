@@ -42,6 +42,12 @@ export type MealRow = {
   quality: number | null;
   detected: string[];
   note: string | null;
+  /** Grounder confidence in the macro estimate ('high'|'medium'|'low'); null on legacy/deterministic. */
+  macro_confidence: string | null;
+  /** How the athlete note related to the photo ('match'|'photo_heavier'|'photo_lighter'|'no_photo'). */
+  description_signal: string | null;
+  /** Athlete flagged this meal as a reusable "usual". */
+  favorited: boolean;
   logged_at: string;
 }
 

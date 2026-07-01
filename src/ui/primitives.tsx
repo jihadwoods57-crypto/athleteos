@@ -1,4 +1,6 @@
-// OnStandard — shared UI primitives.
+// OnStandard — shared UI primitives. Every component reads the active palette via
+// useColors() so light/dark swaps at render time. Default color props are OPTIONAL and
+// resolved inside (a default param would capture the static light palette and never theme).
 import React, { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
@@ -18,7 +20,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, font, MAX_FONT_SCALE, radius, shadow, space } from './tokens';
+import { font, MAX_FONT_SCALE, radius, shadow, space } from './tokens';
+import { useColors } from './theme';
 import { haptics } from './haptics';
 import { useReduceMotion } from './useReduceMotion';
 
@@ -27,7 +30,7 @@ type Weight = keyof typeof font;
 export function Txt({
   w = 'sb',
   size = 14,
-  color = colors.text,
+  color,
   ls,
   upper,
   num,
@@ -43,6 +46,7 @@ export function Txt({
   /** Tabular (fixed-width) figures. Use on any number that changes so it never jitters. */
   num?: boolean;
 }) {
+  const c = useColors();
   return (
     <Text
       {...rest}
@@ -50,7 +54,7 @@ export function Txt({
         {
           fontFamily: font[w],
           fontSize: size,
-          color,
+          color: color ?? c.text,
           letterSpacing: ls,
           textTransform: upper ? 'uppercase' : undefined,
           fontVariant: num ? (['tabular-nums'] as TextStyle['fontVariant']) : undefined,
@@ -79,9 +83,9 @@ export function Card({
   variant,
   ...rest
 }: ViewProps & { elevated?: boolean; variant?: 'hero' | 'card' | 'low' | 'flush' }) {
+  const c = useColors();
   // "Push it harder" hierarchy that survives web's muted shadows: the hero floats
   // (deep shadow, borderless) while secondary cards sit FLAT inside a hairline frame.
-  // Borderless-floating vs framed-flat reads on web AND device.
   const framed = variant === 'low' || variant === 'flush';
   const sh =
     variant === 'hero' ? shadow.hero
@@ -93,11 +97,11 @@ export function Card({
       {...rest}
       style={[
         {
-          backgroundColor: variant === 'flush' ? colors.bg2 : colors.card,
+          backgroundColor: variant === 'flush' ? c.bg2 : c.card,
           borderRadius: radius.card,
           padding: space.card,
         },
-        framed ? { borderWidth: 1, borderColor: colors.hairline } : null,
+        framed ? { borderWidth: 1, borderColor: c.hairline } : null,
         sh,
         style,
       ]}
@@ -214,6 +218,7 @@ export function Btn({
   haptic?: 'tap' | 'success' | 'none';
   style?: StyleProp<ViewStyle>;
 }) {
+  const c = useColors();
   const primary = variant === 'primary';
   return (
     <Pressable
@@ -231,7 +236,7 @@ export function Btn({
           borderRadius: 18,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: primary ? colors.accent : colors.card,
+          backgroundColor: primary ? c.accent : c.card,
           opacity: disabled ? 0.5 : pressed ? 0.92 : 1,
         },
         primary ? shadow.cta : shadow.card,
@@ -239,9 +244,9 @@ export function Btn({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={primary ? '#fff' : colors.accent} />
+        <ActivityIndicator color={primary ? c.white : c.accent} />
       ) : (
-        <Txt w="b" size={16} color={primary ? '#fff' : colors.slate700} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+        <Txt w="b" size={16} color={primary ? c.white : c.slate700} maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {label}
         </Txt>
       )}
@@ -251,8 +256,8 @@ export function Btn({
 
 export function Pill({
   children,
-  bg = colors.bg2,
-  color = colors.text,
+  bg,
+  color,
   style,
 }: {
   children: React.ReactNode;
@@ -260,15 +265,16 @@ export function Pill({
   color?: string;
   style?: StyleProp<ViewStyle>;
 }) {
+  const c = useColors();
   return (
     <View
       style={[
-        { backgroundColor: bg, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, alignSelf: 'flex-start' },
+        { backgroundColor: bg ?? c.bg2, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, alignSelf: 'flex-start' },
         style,
       ]}
     >
       {typeof children === 'string' ? (
-        <Txt w="b" size={12} color={color} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+        <Txt w="b" size={12} color={color ?? c.text} maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {children}
         </Txt>
       ) : (
@@ -279,22 +285,21 @@ export function Pill({
 }
 
 /**
- * Unmistakable "Sample" marker for seeded/demo values that are not yet sourced
- * from a real athlete, roster, or measurement. Keeps the showcase visible (per
- * design) while making clear the number is illustrative, not live data. Amber
- * surface + deep-amber text reuse the existing grade-C tokens (no new tokens).
+ * Unmistakable "Sample" marker for seeded/demo values that are not yet sourced from a real
+ * athlete, roster, or measurement. Amber surface + deep-amber text via the warn tokens.
  */
 export function SampleTag({ label = 'Sample', style }: { label?: string; style?: StyleProp<ViewStyle> }) {
+  const c = useColors();
   return (
     <View
       accessible
       accessibilityLabel="Sample data, not live"
       style={[
-        { backgroundColor: '#FEF3C7', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, alignSelf: 'flex-start' },
+        { backgroundColor: c.warnTint, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, alignSelf: 'flex-start' },
         style,
       ]}
     >
-      <Txt w="eb" size={10} color="#B45309" ls={0.4} upper maxFontSizeMultiplier={MAX_FONT_SCALE}>
+      <Txt w="eb" size={10} color={c.warnText} ls={0.4} upper maxFontSizeMultiplier={MAX_FONT_SCALE}>
         {label}
       </Txt>
     </View>
@@ -313,6 +318,7 @@ export function Chip({
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 }) {
+  const c = useColors();
   return (
     <Pressable
       accessibilityRole="button"
@@ -327,14 +333,14 @@ export function Chip({
           paddingHorizontal: 17,
           paddingVertical: 11,
           borderRadius: 12,
-          backgroundColor: active ? colors.accent : colors.card,
+          backgroundColor: active ? c.accent : c.card,
           opacity: pressed ? 0.9 : 1,
         },
         active ? undefined : shadow.card,
         style,
       ]}
     >
-      <Txt w="b" size={14} color={active ? '#fff' : colors.slate700}>
+      <Txt w="b" size={14} color={active ? c.white : c.slate700}>
         {label}
       </Txt>
     </Pressable>
@@ -355,21 +361,22 @@ export function Stepper({
   label?: string;
   unit?: string;
 }) {
+  const c = useColors();
   return (
     <View style={{ flex: 1 }}>
       {label ? (
-        <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} upper style={{ marginBottom: 8 }}>
+        <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} upper style={{ marginBottom: 8 }}>
           {label}
         </Txt>
       ) : null}
-      <Row style={{ justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: radius.tile, padding: 10, ...shadow.card }}>
+      <Row style={{ justifyContent: 'space-between', backgroundColor: c.card, borderRadius: radius.tile, padding: 10, ...shadow.card }}>
         <StepBtn glyph="−" onPress={onDec} />
         <View style={{ alignItems: 'center' }}>
           <Txt w="eb" size={22} maxFontSizeMultiplier={MAX_FONT_SCALE}>
             {value}
           </Txt>
           {unit ? (
-            <Txt w="sb" size={10} color={colors.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+            <Txt w="sb" size={10} color={c.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {unit}
             </Txt>
           ) : null}
@@ -381,6 +388,7 @@ export function Stepper({
 }
 
 function StepBtn({ glyph, onPress }: { glyph: string; onPress: () => void }) {
+  const c = useColors();
   return (
     <Pressable
       accessibilityRole="button"
@@ -394,13 +402,13 @@ function StepBtn({ glyph, onPress }: { glyph: string; onPress: () => void }) {
         width: 38,
         height: 38,
         borderRadius: 12,
-        backgroundColor: colors.bg2,
+        backgroundColor: c.bg2,
         alignItems: 'center',
         justifyContent: 'center',
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Txt w="b" size={22} color={colors.accent} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+      <Txt w="b" size={22} color={c.accent} maxFontSizeMultiplier={MAX_FONT_SCALE}>
         {glyph}
       </Txt>
     </Pressable>
@@ -409,6 +417,7 @@ function StepBtn({ glyph, onPress }: { glyph: string; onPress: () => void }) {
 
 /** Pill toggle switch. */
 export function Toggle({ on, onPress, label }: { on: boolean; onPress: () => void; label?: string }) {
+  const c = useColors();
   return (
     <Pressable
       accessibilityRole="switch"
@@ -423,13 +432,13 @@ export function Toggle({ on, onPress, label }: { on: boolean; onPress: () => voi
         width: 46,
         height: 28,
         borderRadius: 14,
-        backgroundColor: on ? colors.accent : '#CBD5E1',
+        backgroundColor: on ? c.accent : c.slate300,
         padding: 3,
         alignItems: on ? 'flex-end' : 'flex-start',
         justifyContent: 'center',
       }}
     >
-      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', ...shadow.card }} />
+      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: c.white, ...shadow.card }} />
     </Pressable>
   );
 }
@@ -437,15 +446,16 @@ export function Toggle({ on, onPress, label }: { on: boolean; onPress: () => voi
 /** Horizontal progress bar (track + fill). */
 export function ProgressBar({
   pct,
-  color = colors.accent,
+  color,
   height = 8,
-  track = colors.track,
+  track,
 }: {
   pct: number;
   color?: string;
   height?: number;
   track?: string;
 }) {
+  const c = useColors();
   const w = Math.max(0, Math.min(100, pct));
   const anim = useRef(new Animated.Value(0)).current;
   const reduceMotion = useReduceMotion();
@@ -469,8 +479,8 @@ export function ProgressBar({
   });
 
   return (
-    <View style={{ height, borderRadius: height, backgroundColor: track, overflow: 'hidden' }}>
-      <Animated.View style={{ width: fillWidth, height, borderRadius: height, backgroundColor: color }} />
+    <View style={{ height, borderRadius: height, backgroundColor: track ?? c.track, overflow: 'hidden' }}>
+      <Animated.View style={{ width: fillWidth, height, borderRadius: height, backgroundColor: color ?? c.accent }} />
     </View>
   );
 }
@@ -478,17 +488,18 @@ export function ProgressBar({
 export function Avatar({
   initials,
   size = 44,
-  bg = colors.bg2,
-  color = colors.slate600,
+  bg,
+  color,
 }: {
   initials: string;
   size?: number;
   bg?: string;
   color?: string;
 }) {
+  const c = useColors();
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
-      <Txt w="eb" size={size * 0.36} color={color} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg ?? c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+      <Txt w="eb" size={size * 0.36} color={color ?? c.slate600} maxFontSizeMultiplier={MAX_FONT_SCALE}>
         {initials}
       </Txt>
     </View>
@@ -496,20 +507,21 @@ export function Avatar({
 }
 
 export function Input(props: TextInputProps) {
+  const c = useColors();
   return (
     <TextInput
-      placeholderTextColor={colors.textTertiary}
+      placeholderTextColor={c.textTertiary}
       maxFontSizeMultiplier={MAX_FONT_SCALE}
       {...props}
       style={[
         {
           height: 54,
           borderRadius: 16,
-          backgroundColor: colors.card,
+          backgroundColor: c.card,
           paddingHorizontal: 16,
           fontFamily: font.sb,
           fontSize: 15,
-          color: colors.text,
+          color: c.text,
           ...shadow.card,
         },
         props.style,
@@ -519,9 +531,10 @@ export function Input(props: TextInputProps) {
 }
 
 /** Safe-area screen wrapper with the app canvas background. */
-export function Screen({ children, style, bg = colors.bg }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; bg?: string }) {
+export function Screen({ children, style, bg }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; bg?: string }) {
+  const c = useColors();
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: bg }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: bg ?? c.bg }} edges={['top']}>
       <View style={[{ flex: 1 }, style]}>{children}</View>
     </SafeAreaView>
   );

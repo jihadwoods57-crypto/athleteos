@@ -1,7 +1,11 @@
 // OnStandard — analyze-meal Edge Function (Supabase / Deno).
 // Holds ANTHROPIC_API_KEY server-side and runs Claude vision. The app never sees the key.
 // THREE modes, dispatched on the request `mode` field:
-//   * 'meal'  (default) — read a plate photo, ESTIMATE macros, score for the goal (MealResult).
+//   * 'meal'  (default) — read a plate photo, ESTIMATE macros, score for the goal. Two phases:
+//                        phase 'analyze' may ask 1-3 clarifying questions ({kind:'questions'}) OR
+//                        finalize ({kind:'result', ...MealResult}); phase 'finalize' folds in the
+//                        athlete's answers and always returns {kind:'result'}. Only 'analyze' claims
+//                        a daily slot, so a two-call meal stays 1 against the per-athlete cap.
 //   * 'label'          — transcribe a Nutrition Facts panel EXACTLY (LabelFacts). The numbers
 //                        are read, not estimated, so this path does no grounding/guessing.
 //   * 'memory'         — reword the app's COMPUTED memory insights in a warmer coach voice. The
@@ -15,15 +19,16 @@
 //   supabase functions deploy analyze-meal
 // Then set EXPO_PUBLIC_SUPABASE_URL + ANON_KEY in the app (.env) and isAiConfigured flips on.
 //
-// Model is configurable via the ANTHROPIC_MODEL secret; defaults to claude-sonnet-4-6
-// (the right cost/latency tier for high-volume per-meal vision; claude-opus-4-8 is the
-// higher tier). MEAL macros from the model are ESTIMATES — ground them against a food
+// Model is configurable via the ANTHROPIC_MODEL secret; defaults to claude-sonnet-5
+// (best speed/intelligence tier for high-volume per-meal vision + the clarify/reconcile
+// reasoning; claude-opus-4-8 is the higher tier). MEAL macros from the model are ESTIMATES
+// — ground them against a food
 // database (see groundMacros) before you trust them for scoring. LABEL numbers are read off
 // the panel verbatim, so they need no grounding.
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 
-const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6';
+const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 
 // Per-athlete daily ceiling on the PAID vision calls (meal + label). This bounds a day's
 // spend and stops a single athlete spamming photos, where the per-minute IP limit can't
@@ -134,6 +139,10 @@ interface AnalyzeReq {
   goal: string | null;
   description?: string;
   photoBase64?: string;
+  /** Meal analysis phase: 'analyze' (default) may ask clarifying questions; 'finalize' must report. */
+  phase?: 'analyze' | 'finalize';
+  /** For meal 'finalize': the clarifying questions already asked and the athlete's answers. */
+  clarifications?: { question: string; answer: string }[];
   /** For mode 'memory': the deterministic insights to reword (prose only is returned). */
   insights?: MemoryInsightIn[];
   /** For mode 'order': the recommended-order explanations to reword (prose only is returned). */
@@ -156,18 +165,63 @@ const MEAL_TOOL = {
       fat: { type: 'integer', description: 'Estimated grams of fat.' },
       detected: { type: 'array', items: { type: 'string' }, description: 'Foods identified in the photo.' },
       note: { type: 'string', description: 'One coach-voiced sentence tying this meal to the athlete goal. No hype, no em dashes.' },
+      reconcile: { type: 'string', description: 'Only when the athlete note CONTRADICTS what is plainly visible (e.g. says grilled but it is clearly fried, or "no sauce" when it is drowning): one short, non-accusatory coach sentence saying what you are counting and why, leaving them an out. Omit entirely when the note agrees with or merely adds hidden food. No em dashes.' },
+      descriptionSignal: { type: 'string', enum: ['match', 'photo_heavier', 'photo_lighter', 'no_photo'], description: 'Relationship of the athlete note to the photo. "match": the note agrees with the photo or only adds plausible hidden/off-frame food (trust it). "photo_heavier": the plate visibly holds MORE than the note claims (the note underrated it). "photo_lighter": the plate visibly holds LESS than the note claims. "no_photo": no photo was provided.' },
     },
-    required: ['name', 'quality', 'protein', 'kcal', 'carbs', 'fat', 'detected', 'note'],
+    required: ['name', 'quality', 'protein', 'kcal', 'carbs', 'fat', 'detected', 'note', 'descriptionSignal'],
+  },
+} as const;
+
+// When the model is genuinely unsure and a specific answer would change the macros, it asks instead
+// of guessing. Offered only on meal phase 'analyze'; the questions come back to the app, which
+// collects answers and re-calls with phase 'finalize' (which cannot ask again).
+const ASK_TOOL = {
+  name: 'ask_clarifying',
+  description: 'Ask the athlete 1 to 3 short questions whose answers would materially change the macro estimate. Use only when genuinely unsure. Prefer questions about food the photo cannot show (hidden or off-frame, protein especially), then portion, then prep.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      questions: {
+        type: 'array',
+        items: { type: 'string' },
+        minItems: 1,
+        maxItems: 3,
+        description: 'One to three short, direct questions in the coach voice, e.g. "Anything under the pancakes - sausage, eggs?" or "How much chicken - one palm or two?".',
+      },
+    },
+    required: ['questions'],
   },
 } as const;
 
 const SYSTEM = `You are the OnStandard nutrition coach: a sharp, encouraging sports nutritionist for
 serious high-school and college athletes (ages 13-22). Read the meal photo, identify the foods,
-estimate macros, score the meal for THIS athlete's goal, and give one honest coach-voiced sentence.
+estimate macros, and score the meal for THIS athlete's goal.
+
+The photo is ground truth for what is VISIBLE, but a camera cannot show everything: food hidden
+under or behind other food, or off the plate entirely. The athlete's note is your source for what
+the camera cannot see.
+
+You have two ways to respond:
+1. If a specific answer would MATERIALLY change the macro estimate and you are genuinely unsure,
+   call ask_clarifying with 1 to 3 short questions. Priority order: (a) food the photo cannot show
+   (hidden under or behind, or off-frame), PROTEIN sources especially ("anything under there,
+   sausage or eggs?"); (b) portion size (one palm or two); (c) prep (grilled vs fried, oil, butter,
+   sauce). Never ask about things that will not move the numbers, and never ask more than three.
+   When you are already confident, do NOT ask; just report.
+2. Otherwise call report_meal_analysis with the finished estimate.
+
+Honesty: when the athlete's note ADDS plausible food the camera cannot see (sausage under the
+pancakes, a fruit cup off-frame), TRUST it and count it. Set descriptionSignal to "match" and do not
+write a reconcile line. ONLY when the note CONTRADICTS what is plainly visible (says grilled on an
+obviously fried cutlet, "no sauce" when it is drowning) do you trust the photo: score from what you
+see, write one short non-accusatory reconcile line saying what you are counting and why while
+leaving them an out, and set descriptionSignal to "photo_heavier" (plate holds more than the note
+claims) or "photo_lighter" (plate holds less). If no photo was provided, set descriptionSignal to
+"no_photo" and never run this check.
+
 Voice: direct, motivating, precise, never hype, never cutesy. Safety: never give extreme or
 restrictive advice, never frame food as good/bad in a way that could fuel disordered eating; coach
-toward fueling performance. Numbers are estimates; be reasonable. No em dashes in any text.
-Always answer by calling report_meal_analysis.`;
+toward fueling performance. Numbers are estimates; be reasonable. No em dashes in any text.`;
 
 // The exact shape src/core LabelFacts expects. The model transcribes the printed panel PER
 // SERVING; it does not estimate. Required fields are the four macros + ingredients; the rest
@@ -294,9 +348,19 @@ function userContent(req: AnalyzeReq): unknown[] {
   }
   const goal = req.goal ? `Athlete goal: ${req.goal}.` : 'Athlete goal: general athletic development.';
   const desc = req.description ? ` Athlete note: ${req.description}.` : '';
+  // On 'finalize', fold in the questions the model already asked and the athlete's answers so it
+  // reports instead of asking again (the finalize call only offers report_meal_analysis anyway).
+  let qa = '';
+  if (Array.isArray(req.clarifications) && req.clarifications.length > 0) {
+    const lines = req.clarifications
+      .filter((c) => c && typeof c.question === 'string' && typeof c.answer === 'string')
+      .map((c) => `Q: ${c.question}\nA: ${c.answer}`)
+      .join('\n');
+    if (lines) qa = ` You already asked and the athlete answered:\n${lines}\nUse these answers as truth for what the photo cannot show; report the meal now.`;
+  }
   blocks.push({
     type: 'text',
-    text: `${goal} Meal slot: ${req.mealType}.${desc} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.`,
+    text: `${goal} Meal slot: ${req.mealType}.${desc} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}`,
   });
   return blocks;
 }
@@ -344,6 +408,8 @@ Deno.serve(async (request) => {
   const isLabel = req?.mode === 'label';
   const isMemory = req?.mode === 'memory';
   const isOrder = req?.mode === 'order';
+  const isMeal = !isLabel && !isMemory && !isOrder;
+  const isFinalize = isMeal && req?.phase === 'finalize';
 
   // Input guards: reject an oversized/missing photo before spending an Anthropic call.
   // A base64 JPEG over ~8MB raw (~6MB image) is almost certainly abuse and would risk a
@@ -381,7 +447,9 @@ Deno.serve(async (request) => {
   // rewrites and don't count. Enforced only for signed-in athletes; anonymous/preview traffic
   // stays covered by the per-minute IP limit above. Checked after the input guards so a
   // malformed request never burns a slot.
-  const countsAgainstDailyCap = !isMemory && !isOrder;
+  // Meal 'finalize' is the second call of ONE two-call analysis; the slot was already claimed on
+  // 'analyze', so it must not claim again (a meal stays 1 of the daily cap even with a follow-up).
+  const countsAgainstDailyCap = !isMemory && !isOrder && !isFinalize;
   if (countsAgainstDailyCap) {
     const userId = await resolveUserId(request);
     if (userId && !(await withinDailyCap(userId))) {
@@ -390,8 +458,15 @@ Deno.serve(async (request) => {
   }
 
   const system = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
-  const tool = isMemory ? MEMORY_TOOL : isOrder ? ORDER_TOOL : isLabel ? LABEL_TOOL : MEAL_TOOL;
   const content = isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req) : userContent(req);
+
+  // Tool set + choice. Meal phase 'analyze' may EITHER finalize or ask a clarifying question, so it
+  // offers both tools and lets the model choose. Every other path (label/memory/order, and meal
+  // 'finalize') forces exactly one tool so the response shape is guaranteed.
+  const singleTool = isMemory ? MEMORY_TOOL : isOrder ? ORDER_TOOL : isLabel ? LABEL_TOOL : MEAL_TOOL;
+  const askable = isMeal && !isFinalize;
+  const tools = askable ? [MEAL_TOOL, ASK_TOOL] : [singleTool];
+  const toolChoice = askable ? { type: 'any' as const } : { type: 'tool' as const, name: singleTool.name };
 
   try {
     const client = new Anthropic({ apiKey: key });
@@ -399,16 +474,29 @@ Deno.serve(async (request) => {
       model: MODEL,
       max_tokens: 1024,
       system,
-      tools: [tool],
-      tool_choice: { type: 'tool', name: tool.name },
+      tools,
+      tool_choice: toolChoice,
       messages: [{ role: 'user', content }],
     });
     const used = msg.content.find((b) => b.type === 'tool_use');
     if (!used || used.type !== 'tool_use') throw new Error('no structured output');
-    // Label facts + memory/order prose are returned as-is (the CLIENT bounds the numbers); meal
-    // macros pass through groundMacros.
-    const result = isLabel || isMemory || isOrder ? used.input : groundMacros(used.input);
-    return new Response(JSON.stringify(result), { headers: { ...cors, 'Content-Type': 'application/json' } });
+
+    // Meal path returns a discriminated union so the app can branch result-vs-questions. A
+    // clarifying ask carries the questions back; a report is grounded then wrapped as a result.
+    if (isMeal) {
+      if (used.name === ASK_TOOL.name) {
+        const raw = (used.input as { questions?: unknown }).questions;
+        const questions = Array.isArray(raw) ? raw.filter((q): q is string => typeof q === 'string').slice(0, 3) : [];
+        // No usable question should not happen; error so the client's fallback keeps logging unblocked.
+        if (questions.length === 0) throw new Error('empty clarifying questions');
+        return new Response(JSON.stringify({ kind: 'questions', questions }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+      const grounded = groundMacros(used.input) as Record<string, unknown>;
+      return new Response(JSON.stringify({ kind: 'result', ...grounded }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+
+    // Label facts + memory/order prose are returned as-is (the CLIENT bounds the numbers).
+    return new Response(JSON.stringify(used.input), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } });
   }

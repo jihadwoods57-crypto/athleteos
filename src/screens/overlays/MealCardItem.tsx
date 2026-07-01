@@ -7,8 +7,8 @@ import React from 'react';
 import { Image, View } from 'react-native';
 import type { MealCard } from '@/core';
 import { db, isBackendLive } from '@/lib/supabase';
-import { colors } from '@/ui/tokens';
 import { Row, Txt } from '@/ui/primitives';
+import { useColors } from '@/ui/theme';
 
 function MealThumb({ card }: { card: MealCard }) {
   const [url, setUrl] = React.useState<string | null>(null);
@@ -32,6 +32,7 @@ function MealThumb({ card }: { card: MealCard }) {
 }
 
 export function MealCardItem({ card }: { card: MealCard }) {
+  const c = useColors();
   const strong = card.quality >= 90;
   return (
     <Row style={{ gap: 13 }}>
@@ -40,12 +41,12 @@ export function MealCardItem({ card }: { card: MealCard }) {
         <Txt w="b" size={14}>
           {card.name}
         </Txt>
-        <Txt w="m" num size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+        <Txt w="m" num size={12} color={c.textTertiary} style={{ marginTop: 2 }}>
           {card.label} · {card.protein}g protein · {card.kcal} cal
         </Txt>
       </View>
-      <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: strong ? colors.successSurface : colors.accentSurface }}>
-        <Txt w="eb" num size={12} color={strong ? colors.successDeep : colors.accent}>
+      <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: strong ? c.successSurface : c.accentSurface }}>
+        <Txt w="eb" num size={12} color={strong ? c.successDeep : c.accent}>
           {card.quality}
         </Txt>
       </View>

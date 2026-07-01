@@ -8,11 +8,12 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { REMINDER_DEFS, formatReminderHour, type ReminderKind } from '@/core';
 import { useStore } from '@/store';
-import { colors } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Card, Row, Txt, Pressable, Toggle, Reveal } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Reminders() {
+  const c = useColors();
   const insets = useSafeAreaInsets();
   const notif = useStore((s) => s.notif);
   const reminderSettings = useStore((s) => s.reminderSettings);
@@ -29,22 +30,22 @@ export function Reminders() {
       {/* header */}
       <Row style={{ gap: 6, alignItems: 'center' }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to Profile" hitSlop={8} onPress={goProfile} style={{ marginLeft: -6, padding: 6 }}>
-          <Icon name="chevronLeft" size={24} color={colors.text} />
+          <Icon name="chevronLeft" size={24} color={c.text} />
         </Pressable>
         <Txt w="eb" size={28} ls={-0.8}>
           Reminders
         </Txt>
       </Row>
-      <Txt w="sb" size={14} color={colors.textSecondary} style={{ marginTop: 2, marginLeft: 30 }}>
+      <Txt w="sb" size={14} color={c.textSecondary} style={{ marginTop: 2, marginLeft: 30 }}>
         Timely nudges to keep your day on track
       </Txt>
 
       {/* master-state note — honest about when these actually fire */}
       {!notif ? (
         <Reveal index={0}>
-        <Card variant="low" style={{ marginTop: 18, borderRadius: 18, flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: colors.accentSurface }}>
-          <Icon name="bell" size={18} color={colors.accent} />
-          <Txt w="m" size={13} color={colors.textSecondary} style={{ flex: 1, lineHeight: 19 }}>
+        <Card variant="low" style={{ marginTop: 18, borderRadius: 18, flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: c.accentSurface }}>
+          <Icon name="bell" size={18} color={c.accent} />
+          <Txt w="m" size={13} color={c.textSecondary} style={{ flex: 1, lineHeight: 19 }}>
             Notifications are off. Turn them on in Profile to start receiving these reminders. Your choices below are saved either way.
           </Txt>
         </Card>
@@ -71,7 +72,7 @@ export function Reminders() {
       </View>
       </Reveal>
 
-      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 18, marginHorizontal: 4, lineHeight: 18 }}>
+      <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 18, marginHorizontal: 4, lineHeight: 18 }}>
         Reminders fire on this device at the times you set. Conditional reminders
         (protein, hydration, dinner, check-in) only fire if you're still behind when
         the time comes, so an on-track day stays quiet.
@@ -97,6 +98,7 @@ function ReminderRow({
   onToggle: () => void;
   onHour: (delta: number) => void;
 }) {
+  const c = useColors();
   return (
     <Card variant="low" style={{ borderRadius: 20 }}>
       <Row style={{ justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
@@ -104,15 +106,15 @@ function ReminderRow({
           <Txt w="b" size={15}>
             {label}
           </Txt>
-          <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2, lineHeight: 18 }}>
+          <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 2, lineHeight: 18 }}>
             {description}
           </Txt>
         </View>
         <Toggle on={enabled} onPress={onToggle} label={label} />
       </Row>
       {enabled ? (
-        <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border }}>
-          <Txt w="sb" size={13} color={colors.textSecondary}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: c.border }}>
+          <Txt w="sb" size={13} color={c.textSecondary}>
             Reminds at
           </Txt>
           <Row style={{ gap: 12, alignItems: 'center' }}>
@@ -129,6 +131,7 @@ function ReminderRow({
 }
 
 function HourBtn({ glyph, accessibilityLabel, onPress }: { glyph: string; accessibilityLabel: string; onPress: () => void }) {
+  const c = useColors();
   return (
     <Pressable
       accessibilityRole="button"
@@ -139,13 +142,13 @@ function HourBtn({ glyph, accessibilityLabel, onPress }: { glyph: string; access
         width: 36,
         height: 36,
         borderRadius: 11,
-        backgroundColor: colors.bg2,
+        backgroundColor: c.bg2,
         alignItems: 'center',
         justifyContent: 'center',
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Txt w="b" size={20} color={colors.accent}>
+      <Txt w="b" size={20} color={c.accent}>
         {glyph}
       </Txt>
     </Pressable>

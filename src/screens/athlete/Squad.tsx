@@ -4,11 +4,13 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { athleteSubtitle, buildLeaderboard, initials, medalColor, squadView, trendInfo, trendSeries, trendSummary } from '@/core';
 import { useStore, useDerived } from '@/store';
-import { colors, shadow } from '@/ui/tokens';
+import { shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Row, SampleTag, Txt, Pressable, Reveal } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Squad() {
+  const c = useColors();
   const insets = useSafeAreaInsets();
   const squadMode = useStore((s) => s.squadMode);
   const setSquadMode = useStore((s) => s.setSquadMode);
@@ -35,7 +37,7 @@ export function Squad() {
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View>
-          <Txt w="sb" size={14} color={colors.textSecondary}>
+          <Txt w="sb" size={14} color={c.textSecondary}>
             This week
           </Txt>
           <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
@@ -43,9 +45,9 @@ export function Squad() {
           </Txt>
         </View>
         {view.showLeague ? (
-          <Row style={[{ gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11, backgroundColor: '#fff' }, shadow.card]}>
-            <Icon name="trophy" size={14} color={colors.accent} />
-            <Txt w="b" size={13} color={colors.accent}>
+          <Row style={[{ gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11, backgroundColor: c.card }, shadow.card]}>
+            <Icon name="trophy" size={14} color={c.accent} />
+            <Txt w="b" size={13} color={c.accent}>
               Linebackers
             </Txt>
           </Row>
@@ -89,19 +91,20 @@ function DemoBoard({
   youDir: ReturnType<typeof trendSummary>['dir'];
   youIdentity: { name: string; initials: string } | undefined;
 }) {
+  const c = useColors();
   const board = buildLeaderboard(squadMode, athleteScore, youDir, youIdentity);
   const caption = `${squadMode === 'team' ? 'Full roster' : 'Linebacker room'} · ${board.length} athlete${board.length === 1 ? '' : 's'}`;
 
   return (
     <>
       {/* segmented control */}
-      <Row style={[{ marginTop: 18, gap: 6, backgroundColor: '#fff', borderRadius: 14, padding: 5 }, shadow.card]}>
+      <Row style={[{ marginTop: 18, gap: 6, backgroundColor: c.card, borderRadius: 14, padding: 5 }, shadow.card]}>
         <Seg label="Team" active={squadMode === 'team'} onPress={() => setSquadMode('team')} />
         <Seg label="Linebackers" active={squadMode === 'position'} onPress={() => setSquadMode('position')} />
       </Row>
       <Row style={{ gap: 7, marginTop: 10 }}>
         <SampleTag />
-        <Txt w="m" size={13} color={colors.textTertiary}>
+        <Txt w="m" size={13} color={c.textTertiary}>
           {caption}
         </Txt>
       </Row>
@@ -118,9 +121,9 @@ function DemoBoard({
                   borderRadius: 16,
                   paddingVertical: 13,
                   paddingHorizontal: 15,
-                  backgroundColor: r.you ? colors.accentSurface : '#fff',
+                  backgroundColor: r.you ? c.accentSurface : c.card,
                   borderWidth: 1.5,
-                  borderColor: r.you ? colors.accentBorderStrong : 'transparent',
+                  borderColor: r.you ? c.accentBorderStrong : 'transparent',
                 },
                 r.you ? undefined : shadow.card,
               ]}
@@ -128,8 +131,8 @@ function DemoBoard({
               <Txt w="eb" num size={16} color={medalColor(r.rank)} style={{ width: 24, textAlign: 'center' }}>
                 {r.rank}
               </Txt>
-              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: r.you ? colors.accent : colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
-                <Txt w="b" size={14} color={r.you ? '#fff' : colors.slate600}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: r.you ? c.accent : c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+                <Txt w="b" size={14} color={r.you ? c.white : c.slate600}>
                   {r.initials}
                 </Txt>
               </View>
@@ -139,14 +142,14 @@ function DemoBoard({
                     {r.name}
                   </Txt>
                   {r.you ? (
-                    <View style={{ backgroundColor: colors.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                      <Txt w="eb" size={10} color={colors.accent}>
+                    <View style={{ backgroundColor: c.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                      <Txt w="eb" size={10} color={c.accent}>
                         YOU
                       </Txt>
                     </View>
                   ) : null}
                 </Row>
-                <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2 }}>
                   {r.pos}
                 </Txt>
               </View>
@@ -161,7 +164,7 @@ function DemoBoard({
         })}
       </View>
 
-      <Txt w="sb" size={12} color={colors.textTertiary} style={{ marginTop: 16, textAlign: 'center' }}>
+      <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 16, textAlign: 'center' }}>
         Sample leaderboard · resets Sunday
       </Txt>
     </>
@@ -183,10 +186,11 @@ function SoloSquad({
   dir: ReturnType<typeof trendSummary>['dir'];
   empty: { title: string; body: string };
 }) {
+  const c = useColors();
   const tr = trendInfo(dir);
   return (
     <>
-      <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 18 }}>
+      <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 18 }}>
         Your week
       </Txt>
       {/* The athlete's own live row — honest while no real peers are connected. */}
@@ -198,14 +202,14 @@ function SoloSquad({
             borderRadius: 16,
             paddingVertical: 13,
             paddingHorizontal: 15,
-            backgroundColor: colors.accentSurface,
+            backgroundColor: c.accentSurface,
             borderWidth: 1.5,
-            borderColor: colors.accentBorderStrong,
+            borderColor: c.accentBorderStrong,
           },
         ]}
       >
-        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <Txt w="b" size={14} color="#fff">
+        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt w="b" size={14} color={c.white}>
             {monogram}
           </Txt>
         </View>
@@ -214,13 +218,13 @@ function SoloSquad({
             <Txt w="b" size={15}>
               {name}
             </Txt>
-            <View style={{ backgroundColor: colors.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-              <Txt w="eb" size={10} color={colors.accent}>
+            <View style={{ backgroundColor: c.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+              <Txt w="eb" size={10} color={c.accent}>
                 YOU
               </Txt>
             </View>
           </Row>
-          <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+          <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2 }}>
             {subtitle}
           </Txt>
         </View>
@@ -233,14 +237,14 @@ function SoloSquad({
       </Row>
 
       {/* Honest empty-peer state: no fabricated teammates for a real athlete. */}
-      <View style={[{ marginTop: 14, borderRadius: 16, backgroundColor: '#fff', padding: 20, alignItems: 'center' }, shadow.card]}>
-        <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="squad" size={22} color={colors.textTertiary} />
+      <View style={[{ marginTop: 14, borderRadius: 16, backgroundColor: c.card, padding: 20, alignItems: 'center' }, shadow.card]}>
+        <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="squad" size={22} color={c.textTertiary} />
         </View>
         <Txt w="eb" size={16} style={{ marginTop: 12, textAlign: 'center' }}>
           {empty.title}
         </Txt>
-        <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
+        <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
           {empty.body}
         </Txt>
       </View>
@@ -249,6 +253,7 @@ function SoloSquad({
 }
 
 function Seg({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const c = useColors();
   return (
     <Pressable
       accessibilityRole="tab"
@@ -256,9 +261,9 @@ function Seg({ label, active, onPress }: { label: string; active: boolean; onPre
       accessibilityState={{ selected: active }}
       hitSlop={{ top: 8, bottom: 8 }}
       onPress={onPress}
-      style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: active ? colors.accent : 'transparent' }}
+      style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: active ? c.accent : 'transparent' }}
     >
-      <Txt w="b" size={13} color={active ? '#fff' : colors.textSecondary}>
+      <Txt w="b" size={13} color={active ? c.white : c.textSecondary}>
         {label}
       </Txt>
     </Pressable>

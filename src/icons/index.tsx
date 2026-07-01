@@ -1,7 +1,7 @@
 // OnStandard — inline SVG icon set (2px stroke, round caps, currentColor-driven).
 import React from 'react';
 import Svg, { Circle, Path, Polyline, Rect } from 'react-native-svg';
-import { colors } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 
 export type IconName =
   | 'bell'
@@ -29,12 +29,13 @@ export type IconName =
   | 'copy'
   | 'gallery'
   | 'barcode'
-  | 'sparkle';
+  | 'sparkle'
+  | 'mic';
 
 export function Icon({
   name,
   size = 22,
-  color = colors.text,
+  color,
   strokeWidth = 2,
 }: {
   name: IconName;
@@ -42,10 +43,12 @@ export function Icon({
   color?: string;
   strokeWidth?: number;
 }) {
-  const p = { stroke: color, strokeWidth, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
+  const c = useColors();
+  const resolved = color ?? c.text;
+  const p = { stroke: resolved, strokeWidth, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
-      {render(name, color, p)}
+      {render(name, resolved, p)}
     </Svg>
   );
 }
@@ -70,6 +73,13 @@ function render(name: IconName, color: string, p: object) {
       );
     case 'barcode':
       return <Path d="M4 6v12M7 6v12M10 6v12M13.5 6v12M17 6v12M20 6v12" {...p} />;
+    case 'mic':
+      return (
+        <>
+          <Rect x={9} y={3} width={6} height={11} rx={3} {...p} />
+          <Path d="M6 11a6 6 0 0012 0M12 17v4M9 21h6" {...p} />
+        </>
+      );
     case 'home':
       return <Path d="M4 11l8-7 8 7M6 10v9a1 1 0 001 1h10a1 1 0 001-1v-9" {...p} />;
     case 'plan':

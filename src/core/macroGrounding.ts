@@ -105,7 +105,8 @@ export function groundMealMacros(
  */
 export function groundMealResult(mr: MealResult): MealResult {
   const g = groundMealMacros(mr, mr.detected ?? []);
-  return { ...mr, protein: g.protein, kcal: g.kcal, carbs: g.carbs, fat: g.fat };
+  // Surface the grounder's confidence; keep any model reconcile/descriptionSignal (spread from mr).
+  return { ...mr, protein: g.protein, kcal: g.kcal, carbs: g.carbs, fat: g.fat, confidence: g.confidence };
 }
 
 /**

@@ -34,13 +34,15 @@ import {
 } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiMemoryTag } from '@/lib/ai';
-import { colors, gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
+import { gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Btn, Card, Input, PressScale, ProgressBar, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 
 export function Home() {
+  const c = useColors();
   const insets = useSafeAreaInsets();
   const s = useStore();
   const d = useDerived();
@@ -118,16 +120,16 @@ export function Home() {
   // maps to existing surface/text tokens at this call site — no new tokens.
   const status = heroStatus(s, d);
   const toneSurface =
-    status.tone === 'warn' ? colors.alertSurface : status.tone === 'positive' ? colors.successSurface : colors.accentSurface;
+    status.tone === 'warn' ? c.alertSurface : status.tone === 'positive' ? c.successSurface : c.accentSurface;
   const toneText =
-    status.tone === 'warn' ? colors.alertDeep : status.tone === 'positive' ? colors.successDeep : colors.accent;
+    status.tone === 'warn' ? c.alertDeep : status.tone === 'positive' ? c.successDeep : c.accent;
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
       {/* header */}
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View>
-          <Txt w="sb" size={14} color={colors.textSecondary}>
+          <Txt w="sb" size={14} color={c.textSecondary}>
             {greeting()},
           </Txt>
           <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
@@ -135,27 +137,27 @@ export function Home() {
           </Txt>
         </View>
         <Row style={{ gap: 10 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Notifications" hitSlop={6} onPress={s.openNotif} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
-            <Icon name="bell" size={19} color={colors.slate600} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Notifications" hitSlop={6} onPress={s.openNotif} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+            <Icon name="bell" size={19} color={c.slate600} />
             {/* The unread-notification dot is showcase only: there is no real
                 seen/unseen model, so an always-on dot would fake unread urgency for
                 a real athlete. Shown for the seeded demo, hidden for a real user. */}
             {!isReal ? (
-              <View style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.alert, borderWidth: 1.5, borderColor: '#fff' }} />
+              <View style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: c.alert, borderWidth: 1.5, borderColor: c.card }} />
             ) : null}
           </Pressable>
           <Row
             accessibilityRole="text"
             accessibilityLabel={`${streak} day streak`}
-            style={[{ gap: 6, backgroundColor: '#fff', paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 }, shadow.card]}
+            style={[{ gap: 6, backgroundColor: c.card, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 }, shadow.card]}
           >
-            <Icon name="flame" size={15} color={colors.warning} />
+            <Icon name="flame" size={15} color={c.warning} />
             <Txt w="eb" size={14} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {streak}
             </Txt>
           </Row>
-          <Pressable accessibilityRole="button" accessibilityLabel="Profile" hitSlop={6} onPress={s.goProfile} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt w="b" size={14} color="#fff" maxFontSizeMultiplier={MAX_FONT_SCALE}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Profile" hitSlop={6} onPress={s.goProfile} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt w="b" size={14} color={c.white} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {monogram}
             </Txt>
           </Pressable>
@@ -166,7 +168,7 @@ export function Home() {
           while everything below sits `low`. That elevation contrast IS the hierarchy. */}
       <Reveal index={0}>
       <Card variant="hero" style={{ marginTop: 20, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 20, padding: 24 }}>
-        <Ring size={138} pct={shownScore} stroke={17} gradient={gradeRing[d.grade.g] ?? gradeRing.C} track="#EFF2F6">
+        <Ring size={138} pct={shownScore} stroke={17} gradient={gradeRing[d.grade.g] ?? gradeRing.C} track={c.track}>
           <Txt w="eb" num size={typeScale.display.size} ls={typeScale.display.ls} style={{ lineHeight: typeScale.display.lineHeight }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
             {shownScore}
           </Txt>
@@ -177,14 +179,14 @@ export function Home() {
           </View>
         </Ring>
         <View style={{ flex: 1 }}>
-          <Txt w="b" size={13} color={colors.textSecondary}>
+          <Txt w="b" size={13} color={c.textSecondary}>
             Execution Score
           </Txt>
           <Row style={{ gap: 6, marginTop: 7 }}>
             {d.isDay0 ? (
               // Day 0: no week to compare against, so show a starting-line frame instead of a
               // fabricated "↓58 this week / trending down".
-              <Txt w="b" size={13} color={colors.accent}>
+              <Txt w="b" size={13} color={c.accent}>
                 Starting today
               </Txt>
             ) : (
@@ -192,13 +194,13 @@ export function Home() {
                 <Txt w="eb" size={15} color={d.deltaColor}>
                   {d.deltaStr}
                 </Txt>
-                <Txt w="sb" size={13} color={colors.textTertiary}>
+                <Txt w="sb" size={13} color={c.textTertiary}>
                   this week
                 </Txt>
               </>
             )}
           </Row>
-          <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 13, lineHeight: 20 }}>
+          <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 13, lineHeight: 20 }}>
             {status.line}
           </Txt>
           <View style={{ marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: toneSurface }}>
@@ -220,33 +222,33 @@ export function Home() {
         <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
           <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
-              <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
+              <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>
                 FINISH TODAY
               </Txt>
               <Row style={{ gap: 8, alignItems: 'center', marginTop: 6 }}>
-                <Txt w="sb" size={15} color={colors.textTertiary}>
+                <Txt w="sb" size={15} color={c.textTertiary}>
                   {projection.current}
                 </Txt>
-                <Icon name="chevronRight" size={16} color={colors.textTertiary} />
-                <Txt w="eb" size={30} ls={-0.5} color={colors.accent}>
+                <Icon name="chevronRight" size={16} color={c.textTertiary} />
+                <Txt w="eb" size={30} ls={-0.5} color={c.accent}>
                   {projection.projected}
                 </Txt>
               </Row>
             </View>
-            <View style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, backgroundColor: colors.successSurface }}>
-              <Txt w="eb" size={15} color={colors.successDeep}>
+            <View style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, backgroundColor: c.successSurface }}>
+              <Txt w="eb" size={15} color={c.successDeep}>
                 +{projection.gain}
               </Txt>
             </View>
           </Row>
-          <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 12, lineHeight: 19 }}>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 12, lineHeight: 19 }}>
             Finish today&apos;s plan and your Execution Score reaches {projection.projected}.
           </Txt>
           <View style={{ marginTop: 12, gap: 10 }}>
             {projection.actions.map((a) => (
               <Row key={a.key} style={{ gap: 11, alignItems: 'center' }}>
-                <View style={{ width: 20, height: 20, borderRadius: 7, borderWidth: 2, borderColor: colors.accentBorder }} />
-                <Txt w="b" size={14} color={colors.slate700} style={{ flex: 1 }}>
+                <View style={{ width: 20, height: 20, borderRadius: 7, borderWidth: 2, borderColor: c.accentBorder }} />
+                <Txt w="b" size={14} color={c.slate700} style={{ flex: 1 }}>
                   {a.label}
                 </Txt>
               </Row>
@@ -259,7 +261,7 @@ export function Home() {
       <CheckinBanner />
 
       {/* ---- YOUR PROGRESS — the look-back, below the act-now stack ---- */}
-      <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 32, marginBottom: 2 }}>
+      <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginTop: 32, marginBottom: 2 }}>
         YOUR PROGRESS
       </Txt>
 
@@ -269,16 +271,16 @@ export function Home() {
       {/* season goal */}
       <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
+          <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>
             {goalEyebrow}
           </Txt>
           {/* "38 days left" / "Nov 14" are showcase deadlines with no real data
               source (no season deadline is collected yet). Demo keeps the showcase;
               a real athlete sees no fabricated countdown. */}
           {!isReal ? (
-            <Row style={{ gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
-              <Icon name="checkin" size={12} color={colors.accent} />
-              <Txt w="eb" size={12} color={colors.accent}>
+            <Row style={{ gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: c.accentSurface }}>
+              <Icon name="checkin" size={12} color={c.accent} />
+              <Txt w="eb" size={12} color={c.accent}>
                 38 days left
               </Txt>
             </Row>
@@ -293,24 +295,24 @@ export function Home() {
               <View>
                 <Txt w="eb" size={29} ls={-0.9}>
                   {displayWeight(TARGET, units)} {wUnit}
-                  <Txt w="b" size={15} color={colors.textTertiary}>
+                  <Txt w="b" size={15} color={c.textTertiary}>
                     {' '}
                     maintaining
                   </Txt>
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Txt w="eb" size={20} color={colors.success}>
+                <Txt w="eb" size={20} color={c.success}>
                   {remainingAbs < 0.5 ? 'On target' : `${remainingAbs} ${wUnit} off`}
                 </Txt>
-                <Txt w="sb" size={12} color={colors.textTertiary}>
+                <Txt w="sb" size={12} color={c.textTertiary}>
                   now {displayWeight(s.currentWeight, units)} {wUnit}
                 </Txt>
               </View>
             </Row>
-            <View style={{ marginTop: 16, borderRadius: 14, padding: 13, backgroundColor: colors.successTint }}>
-              <Txt w="m" size={13} color={colors.successText} style={{ lineHeight: 19 }}>
-                <Txt w="b" size={13} color={colors.successText}>Holding steady · </Txt>
+            <View style={{ marginTop: 16, borderRadius: 14, padding: 13, backgroundColor: c.successTint }}>
+              <Txt w="m" size={13} color={c.successText} style={{ lineHeight: 19 }}>
+                <Txt w="b" size={13} color={c.successText}>Holding steady · </Txt>
                 Your goal is to stay around {displayWeight(TARGET, units)} {wUnit}. Log your weekly weigh-ins to keep it honest.
               </Txt>
             </View>
@@ -321,22 +323,22 @@ export function Home() {
               <View>
                 <Txt w="eb" size={29} ls={-0.9}>
                   {displayWeight(TARGET, units)} {wUnit}
-                  <Txt w="b" size={15} color={colors.textTertiary}>
+                  <Txt w="b" size={15} color={c.textTertiary}>
                     {' '}
                     target
                   </Txt>
                 </Txt>
                 {!isReal ? (
-                  <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+                  <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
                     by Playoffs · Nov 14
                   </Txt>
                 ) : null}
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Txt w="eb" size={20} color={colors.success}>
+                <Txt w="eb" size={20} color={c.success}>
                   {goalRemainText}
                 </Txt>
-                <Txt w="sb" size={12} color={colors.textTertiary}>
+                <Txt w="sb" size={12} color={c.textTertiary}>
                   now {displayWeight(s.currentWeight, units)} {wUnit}
                 </Txt>
               </View>
@@ -345,13 +347,13 @@ export function Home() {
               <ProgressBar pct={goal.pctThere} height={10} />
             </View>
             <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
-              <Txt w="b" size={11} color={colors.textTertiary}>
+              <Txt w="b" size={11} color={c.textTertiary}>
                 {displayWeight(START, units)} start
               </Txt>
-              <Txt w="b" size={11} color={colors.textTertiary}>
+              <Txt w="b" size={11} color={c.textTertiary}>
                 {goal.pctThere}% there
               </Txt>
-              <Txt w="b" size={11} color={colors.textTertiary}>
+              <Txt w="b" size={11} color={c.textTertiary}>
                 {displayWeight(TARGET, units)} goal
               </Txt>
             </Row>
@@ -360,19 +362,19 @@ export function Home() {
                 marginTop: 14,
                 borderRadius: 14,
                 padding: 13,
-                backgroundColor: goalPhase === 'first-run' ? colors.bg2 : colors.successTint,
+                backgroundColor: goalPhase === 'first-run' ? c.bg2 : c.successTint,
               }}
             >
               <Txt
                 w="m"
                 size={13}
-                color={goalPhase === 'first-run' ? colors.textSecondary : colors.successText}
+                color={goalPhase === 'first-run' ? c.textSecondary : c.successText}
                 style={{ lineHeight: 19 }}
               >
                 <Txt
                   w="b"
                   size={13}
-                  color={goalPhase === 'first-run' ? colors.textSecondary : colors.successText}
+                  color={goalPhase === 'first-run' ? c.textSecondary : c.successText}
                 >
                   {goalPhase === 'reached' ? 'Goal reached ·' : goalPhase === 'first-run' ? 'Just getting started ·' : 'On track ·'}{' '}
                 </Txt>
@@ -396,7 +398,7 @@ export function Home() {
             <Txt w="eb" size={16} ls={-0.3}>
               Score Trend
             </Txt>
-            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+            <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
               {trendCaption}
             </Txt>
           </View>
@@ -405,14 +407,14 @@ export function Home() {
               {d.athleteScore}
             </Txt>
             {d.isDay0 ? (
-              <Txt w="b" size={12} color={colors.textTertiary}>
+              <Txt w="b" size={12} color={c.textTertiary}>
                 Building your first week
               </Txt>
             ) : (
               <Txt
                 w="b"
                 size={12}
-                color={trend.dir === 'down' ? colors.alert : trend.dir === 'flat' ? colors.textTertiary : colors.success}
+                color={trend.dir === 'down' ? c.alert : trend.dir === 'flat' ? c.textTertiary : c.success}
               >
                 {trend.label}
               </Txt>
@@ -422,7 +424,7 @@ export function Home() {
         <TrendChart series={series} />
         <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
           {dayLabels.map((dn, i) => (
-            <Txt key={`${dn}-${i}`} w="sb" size={11} color={colors.textTertiary}>
+            <Txt key={`${dn}-${i}`} w="sb" size={11} color={c.textTertiary}>
               {dn}
             </Txt>
           ))}
@@ -434,41 +436,41 @@ export function Home() {
         <Txt w="eb" size={16} ls={-0.3} style={{ marginBottom: 18 }}>
           Today's Progress
         </Txt>
-        <ProgressRow label="Protein" meta={`${d.proteinToday} / ${d.proteinTarget}g`} pct={d.proteinPct} color={colors.accent} />
-        <ProgressRow label="Hydration" meta={`${s.hydrationL} / ${HYDRATION_TARGET} L  +`} metaColor={colors.accent} onMeta={s.addWater} pct={d.hydrationPct} color={colors.hydration} />
-        <ProgressRow label="Tasks" meta={`${d.tasksDone} / ${d.tasksTotal} done`} pct={d.tasksScore} color={colors.accent} />
+        <ProgressRow label="Protein" meta={`${d.proteinToday} / ${d.proteinTarget}g`} pct={d.proteinPct} color={c.accent} />
+        <ProgressRow label="Hydration" meta={`${s.hydrationL} / ${HYDRATION_TARGET} L  +`} metaColor={c.accent} onMeta={s.addWater} pct={d.hydrationPct} color={c.hydration} />
+        <ProgressRow label="Tasks" meta={`${d.tasksDone} / ${d.tasksTotal} done`} pct={d.tasksScore} color={c.accent} />
         <ProgressRow
           label="Recovery"
           meta={d.recoveryScoreIsReal ? `${d.recoveryScore} / 100` : 'Check-in not submitted'}
           pct={d.recoveryScoreIsReal ? d.recoveryScore : 0}
-          color={colors.success}
+          color={c.success}
           last
         />
       </Card>
 
       {/* nutrition entry */}
       {/* performance entry (Nutrition + Check-In now live in the tab bar / their banners) */}
-      <Pressable accessibilityRole="button" accessibilityLabel="Performance: log a PR and see your trends" onPress={s.goPerformance} style={[{ marginTop: 12, backgroundColor: '#fff', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
-        <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="trophy" size={22} color={colors.accent} />
+      <Pressable accessibilityRole="button" accessibilityLabel="Performance: log a PR and see your trends" onPress={s.goPerformance} style={[{ marginTop: 12, backgroundColor: c.card, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
+        <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="trophy" size={22} color={c.accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Txt w="b" size={15}>
             Performance
           </Txt>
-          <Txt w="m" size={13} color={colors.textSecondary}>
+          <Txt w="m" size={13} color={c.textSecondary}>
             Log a PR and see your trends
           </Txt>
         </View>
-        <Icon name="chevronRight" size={22} color={colors.slate300} />
+        <Icon name="chevronRight" size={22} color={c.slate300} />
       </Pressable>
 
 
       {/* coach guidance — hidden for a solo real athlete (no coach to quote) */}
       {guidance.show ? (
         <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
-          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt w="b" size={13} color="#fff">
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.text, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt w="b" size={13} color={c.white}>
               {guidance.monogram}
             </Txt>
           </View>
@@ -478,14 +480,14 @@ export function Home() {
                 COACH GUIDANCE
               </Txt>
               {guidance.pending ? null : (
-                <View style={{ backgroundColor: colors.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                  <Txt w="b" size={10} color={colors.accent}>
+                <View style={{ backgroundColor: c.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                  <Txt w="b" size={10} color={c.accent}>
                     {aiMemoryTag}
                   </Txt>
                 </View>
               )}
             </Row>
-            <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 6, lineHeight: 20 }}>
+            <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 6, lineHeight: 20 }}>
               {guidance.note ?? 'Your coach can leave a standing note here, and it stays in front of you every day until it sticks.'}
             </Txt>
           </View>
@@ -502,18 +504,19 @@ export function Home() {
  *  so the accountability has someone watching. Restores the connect step the lean onboarding
  *  moved off the critical path; sits where the coach-guidance card goes once a coach exists. */
 function ConnectCoachCard() {
+  const c = useColors();
   const connectCoach = useStore((st) => st.connectCoach);
   const [code, setCode] = React.useState('');
   const ready = code.trim().length > 0;
   return (
     <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 20 }}>
       <Row style={{ gap: 11 }}>
-        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="squad" size={20} color={colors.accent} />
+        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="squad" size={20} color={c.accent} />
         </View>
         <View style={{ flex: 1 }}>
-          <Txt w="eb" size={12} color={colors.accent} ls={0.4}>CONNECT YOUR COACH</Txt>
-          <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 4, lineHeight: 20 }}>
+          <Txt w="eb" size={12} color={c.accent} ls={0.4}>CONNECT YOUR COACH</Txt>
+          <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 4, lineHeight: 20 }}>
             Got a team or trainer code? Enter it so your coach can see your work and leave you a game plan.
           </Txt>
         </View>
@@ -528,6 +531,7 @@ function ConnectCoachCard() {
  *  derived from real logged data + the hour. Promoted to the top of Daily HQ so Home opens by
  *  telling you what to do, not by showing you numbers. */
 function NextMoveCard() {
+  const c = useColors();
   const s = useStore();
   const d = useDerived();
   const na = nextBestAction(s, d);
@@ -537,8 +541,8 @@ function NextMoveCard() {
     : na.cta === 'checkin' ? s.goCheckin
     : na.cta === 'plan' ? s.goTasks
     : undefined;
-  const accent = na.done ? colors.successDeep : colors.accent;
-  const tileBg = na.done ? colors.successSurface : colors.accentSurface;
+  const accent = na.done ? c.successDeep : c.accent;
+  const tileBg = na.done ? c.successSurface : c.accentSurface;
   const body = (
     <>
       <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: tileBg, alignItems: 'center', justifyContent: 'center' }}>
@@ -551,19 +555,19 @@ function NextMoveCard() {
         <Txt w="eb" size={17} ls={-0.3} style={{ marginTop: 3 }}>
           {na.title}
         </Txt>
-        <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
+        <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
           {na.detail}
         </Txt>
-        <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 15 }}>
+        <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 8, lineHeight: 15 }}>
           {medicalDisclaimer()}
         </Txt>
       </View>
-      {onPress ? <Icon name="chevronRight" size={22} color={colors.slate300} /> : null}
+      {onPress ? <Icon name="chevronRight" size={22} color={c.slate300} /> : null}
     </>
   );
   // The mission leads the screen, so give it the elevated card weight (not the plain tile the
   // old bottom-of-page version used) — it is the primary thing on Daily HQ.
-  const boxStyle = [{ marginTop: 14, backgroundColor: '#fff', borderRadius: 22, padding: 18, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14 }, shadow.card];
+  const boxStyle = [{ marginTop: 14, backgroundColor: c.card, borderRadius: 22, padding: 18, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14 }, shadow.card];
   return onPress ? (
     <PressScale accessibilityLabel={na.title} onPress={onPress} style={boxStyle}>
       {body}
@@ -576,44 +580,46 @@ function NextMoveCard() {
 /** The weekly check-in is an action, so it rides with the top act-now stack rather than the
  *  look-back cards. Due state is a CTA; completed state is a calm confirmation. */
 function CheckinBanner() {
+  const c = useColors();
   const s = useStore();
   const isReal = s.athleteName.trim().length > 0;
   const checkinAudience = supportAudience({ isReal, supportTeam: s.supportTeam, demo: 'Coach Davis' });
   if (!s.ciSubmitted) {
     return (
-      <Pressable accessibilityRole="button" accessibilityLabel="Weekly check-in due: 6 questions, about 2 minutes" onPress={s.goCheckin} style={[{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, shadow.cta]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Weekly check-in due: 6 questions, about 2 minutes" onPress={s.goCheckin} style={[{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, shadow.cta]}>
         <View>
           <Txt w="eb" size={11} color="rgba(255,255,255,0.85)" ls={0.7}>
             WEEKLY CHECK-IN DUE
           </Txt>
-          <Txt w="b" size={15} color="#fff" style={{ marginTop: 5 }}>
+          <Txt w="b" size={15} color={c.white} style={{ marginTop: 5 }}>
             6 questions · 2 min
           </Txt>
         </View>
         <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="chevronRight" size={18} color="#fff" />
+          <Icon name="chevronRight" size={18} color={c.white} />
         </View>
       </Pressable>
     );
   }
   return (
-    <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.successTint, borderWidth: 1, borderColor: colors.successBorderSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+    <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: c.successTint, borderWidth: 1, borderColor: c.successBorderSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
       <View>
-        <Txt w="eb" size={11} color={colors.successDeep} ls={0.7}>
+        <Txt w="eb" size={11} color={c.successDeep} ls={0.7}>
           WEEKLY CHECK-IN
         </Txt>
-        <Txt w="b" size={15} color={colors.successText} style={{ marginTop: 5 }}>
+        <Txt w="b" size={15} color={c.successText} style={{ marginTop: 5 }}>
           {checkinAudience ? `Completed · sent to ${checkinAudience}` : 'Completed'}
         </Txt>
       </View>
-      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="check" size={17} color="#fff" />
+      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="check" size={17} color={c.white} />
       </View>
     </View>
   );
 }
 
 function ScoreBreakdownPanel() {
+  const c = useColors();
   const [open, setOpen] = React.useState(false);
   return (
     <Card variant="low" style={{ marginTop: 12, borderRadius: 20, padding: 18 }}>
@@ -625,15 +631,15 @@ function ScoreBreakdownPanel() {
         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
       >
         <Row style={{ gap: 9, flex: 1 }}>
-          <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="sparkle" size={16} color={colors.accent} />
+          <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="sparkle" size={16} color={c.accent} />
           </View>
           <Txt w="eb" size={15} ls={-0.3}>
             What's in this score?
           </Txt>
         </Row>
         <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
-          <Icon name="chevronRight" size={20} color={colors.slate300} />
+          <Icon name="chevronRight" size={20} color={c.slate300} />
         </View>
       </Pressable>
       {open ? (
@@ -644,16 +650,16 @@ function ScoreBreakdownPanel() {
                 <Txt w="b" size={14}>
                   {w.label}
                 </Txt>
-                <Txt w="eb" size={14} color={colors.accent}>
+                <Txt w="eb" size={14} color={c.accent}>
                   {w.pct}%
                 </Txt>
               </Row>
-              <Txt w="m" size={12} color={colors.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>
+              <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>
                 {w.desc}
               </Txt>
             </View>
           ))}
-          <Txt w="m" size={12} color={colors.textTertiary} style={{ lineHeight: 17 }}>
+          <Txt w="m" size={12} color={c.textTertiary} style={{ lineHeight: 17 }}>
             Nutrition counts the most. Recovery and check-in are answers you give yourself. Your weight progress is tracked separately, not folded into this daily score.
           </Txt>
         </View>
@@ -663,6 +669,7 @@ function ScoreBreakdownPanel() {
 }
 
 function ProgressRow({ label, meta, pct, color, metaColor, onMeta, last }: { label: string; meta: string; pct: number; color: string; metaColor?: string; onMeta?: () => void; last?: boolean }) {
+  const c = useColors();
   // Semantic color: a met target (>=100%) turns the bar + a check green, so "done" reads
   // at a glance instead of only from the numbers.
   const met = pct >= 100;
@@ -673,15 +680,15 @@ function ProgressRow({ label, meta, pct, color, metaColor, onMeta, last }: { lab
           <Txt w="b" size={14}>
             {label}
           </Txt>
-          {met ? <Icon name="check" size={13} color={colors.successDeep} /> : null}
+          {met ? <Icon name="check" size={13} color={c.successDeep} /> : null}
         </Row>
         <Pressable onPress={onMeta} disabled={!onMeta}>
-          <Txt w={onMeta ? 'b' : 'sb'} size={13} color={metaColor ?? colors.textSecondary}>
+          <Txt w={onMeta ? 'b' : 'sb'} size={13} color={metaColor ?? c.textSecondary}>
             {meta}
           </Txt>
         </Pressable>
       </Row>
-      <ProgressBar pct={pct} height={9} color={met ? colors.successDeep : color} />
+      <ProgressBar pct={pct} height={9} color={met ? c.successDeep : color} />
     </View>
   );
 }
@@ -708,6 +715,7 @@ function useCountUp(target: number, steps = 18, intervalMs = 28): number {
 }
 
 function TrendChart({ series }: { series: number[] }) {
+  const c = useColors();
   const box = DEFAULT_CHART_BOX;
   const { linePath, areaPath, last } = trendGeometry(series, box);
   return (
@@ -720,7 +728,7 @@ function TrendChart({ series }: { series: number[] }) {
       </Defs>
       <Path d={areaPath} fill="url(#trend)" />
       <Path d={linePath} fill="none" stroke="#22C55E" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <Circle cx={last.x} cy={last.y} r={5.5} fill="#22C55E" stroke="#fff" strokeWidth={2.5} />
+      <Circle cx={last.x} cy={last.y} r={5.5} fill="#22C55E" stroke={c.card} strokeWidth={2.5} />
     </Svg>
   );
 }

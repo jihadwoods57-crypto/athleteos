@@ -11,12 +11,14 @@ import { ScrollView, View } from 'react-native';
 import { accountIdentity, enabledAlertCount, OVERSEER_ALERT_DEFS, rosterNoun, ROSTER, TRAINER_CLIENTS } from '@/core';
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
-import { colors, shadow } from '@/ui/tokens';
+import { shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Card, Input, Reveal, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
 export function OverseerProfile() {
+  const c = useColors();
   const s = useStore();
   const acct = accountIdentity({ role: s.role, athleteName: s.athleteName, sport: s.sport, obMeta: s.obMeta, orgName: s.orgName });
   const isCoach = s.flow === 'coach';
@@ -35,12 +37,12 @@ export function OverseerProfile() {
         {/* identity preview */}
         <Reveal index={0}>
         <Card variant="hero" style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-          <View style={{ width: 56, height: 56, borderRadius: 17, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt w="eb" size={20} color="#fff">{acct.initials}</Txt>
+          <View style={{ width: 56, height: 56, borderRadius: 17, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt w="eb" size={20} color={c.white}>{acct.initials}</Txt>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Txt w="eb" size={18} ls={-0.3}>{acct.name}</Txt>
-            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>{acct.role}</Txt>
+            <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 2 }}>{acct.role}</Txt>
           </View>
         </Card>
         </Reveal>
@@ -49,18 +51,18 @@ export function OverseerProfile() {
         <Reveal index={1}>
         <Card variant="low" style={{ marginTop: 14, borderRadius: 20, gap: 14 }}>
           <View>
-            <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5} upper style={{ marginBottom: 8 }}>
+            <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} upper style={{ marginBottom: 8 }}>
               Your name
             </Txt>
             <Input value={s.athleteName} onChangeText={s.setDisplayName} placeholder="Full name" autoCapitalize="words" accessibilityLabel="Your name" />
           </View>
           {!isParent ? (
             <View>
-              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5} upper style={{ marginBottom: 8 }}>
+              <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} upper style={{ marginBottom: 8 }}>
                 {orgLabel}
               </Txt>
               <Input value={s.orgName} onChangeText={s.setOrgName} placeholder={orgPlaceholder} autoCapitalize="words" accessibilityLabel={orgLabel} />
-              <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 6 }}>
+              <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 6 }}>
                 Shown as your dashboard title.
               </Txt>
             </View>
@@ -72,17 +74,17 @@ export function OverseerProfile() {
         {!isParent ? (
           <Reveal index={2}>
           <Card variant="low" style={{ marginTop: 14, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="squad" size={19} color={colors.accent} />
+            <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="squad" size={19} color={c.accent} />
             </View>
             <View style={{ flex: 1 }}>
               <Txt w="b" size={14}>{count} {count === 1 ? noun.toLowerCase() : `${noun.toLowerCase()}s`}</Txt>
               <Row style={{ gap: 6, marginTop: 2 }}>
-                <Txt w="m" size={12} color={colors.textTertiary}>Join code · {s.teamCode || 'EAGLES24'}</Txt>
+                <Txt w="m" size={12} color={c.textTertiary}>Join code · {s.teamCode || 'EAGLES24'}</Txt>
                 {isBackendLive ? null : <SampleTag />}
               </Row>
             </View>
-            <Icon name="copy" size={18} color={colors.textTertiary} />
+            <Icon name="copy" size={18} color={c.textTertiary} />
           </Card>
           </Reveal>
         ) : null}
@@ -90,10 +92,10 @@ export function OverseerProfile() {
         {/* shared preferences */}
         <Reveal index={3}>
         <Card variant="low" style={{ marginTop: 14, borderRadius: 20, paddingVertical: 6 }}>
-          <Row style={{ justifyContent: 'space-between', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <Row style={{ justifyContent: 'space-between', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: c.border }}>
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Txt w="b" size={15}>Notifications</Txt>
-              <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2 }}>
+              <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 2 }}>
                 {s.notif ? 'Alerts & reminders on' : 'All alerts paused'}
               </Txt>
             </View>
@@ -102,8 +104,8 @@ export function OverseerProfile() {
           <Pressable accessibilityRole="button" accessibilityLabel="Toggle units" onPress={s.toggleUnits} style={({ pressed }) => ({ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, opacity: pressed ? 0.7 : 1 })}>
             <Txt w="b" size={15}>Units</Txt>
             <Row style={{ gap: 6 }}>
-              <Txt w="sb" size={14} color={colors.textSecondary}>{s.units === 'metric' ? 'Metric (kg)' : 'Imperial (lb)'}</Txt>
-              <Icon name="chevronRight" size={17} color={colors.textTertiary} />
+              <Txt w="sb" size={14} color={c.textSecondary}>{s.units === 'metric' ? 'Metric (kg)' : 'Imperial (lb)'}</Txt>
+              <Icon name="chevronRight" size={17} color={c.textTertiary} />
             </Row>
           </Pressable>
         </Card>
@@ -111,25 +113,25 @@ export function OverseerProfile() {
 
         {/* per-event alert preferences */}
         <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 22, marginBottom: 10, marginLeft: 2 }}>
-          <Txt w="eb" size={12} color={colors.textTertiary} ls={0.5} upper>
+          <Txt w="eb" size={12} color={c.textTertiary} ls={0.5} upper>
             Alerts you receive
           </Txt>
-          <Txt w="b" size={12} color={colors.textTertiary}>
+          <Txt w="b" size={12} color={c.textTertiary}>
             {enabledAlertCount(s.overseerAlerts)} of {OVERSEER_ALERT_DEFS.length} on
           </Txt>
         </Row>
         {!s.notif ? (
-          <Txt w="m" size={12} color={colors.textTertiary} style={{ marginBottom: 10, marginLeft: 2, lineHeight: 17 }}>
+          <Txt w="m" size={12} color={c.textTertiary} style={{ marginBottom: 10, marginLeft: 2, lineHeight: 17 }}>
             Notifications are off, so none of these fire. Turn them on above. Your choices below are saved either way.
           </Txt>
         ) : null}
         <Reveal index={4}>
         <Card variant="low" style={{ borderRadius: 20, paddingVertical: 4 }}>
           {OVERSEER_ALERT_DEFS.map((d, i) => (
-            <Row key={d.key} style={{ justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, borderBottomWidth: i < OVERSEER_ALERT_DEFS.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+            <Row key={d.key} style={{ justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, borderBottomWidth: i < OVERSEER_ALERT_DEFS.length - 1 ? 1 : 0, borderBottomColor: c.border }}>
               <View style={{ flex: 1, paddingRight: 12 }}>
                 <Txt w="b" size={14}>{d.label}</Txt>
-                <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2, lineHeight: 17 }}>{d.desc}</Txt>
+                <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2, lineHeight: 17 }}>{d.desc}</Txt>
               </View>
               <Toggle on={s.overseerAlerts[d.key]} onPress={() => s.toggleOverseerAlert(d.key)} label={d.label} />
             </Row>
@@ -138,14 +140,14 @@ export function OverseerProfile() {
         </Reveal>
 
         {/* sync status — honest about what leaves the device */}
-        <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 16, paddingHorizontal: 4, lineHeight: 17 }}>
+        <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 16, paddingHorizontal: 4, lineHeight: 17 }}>
           {isBackendLive
             ? 'Your name syncs to your account. Changes apply across your devices.'
             : 'Saved on this device. Your profile syncs to your account once your team is connected.'}
         </Txt>
 
-        <Pressable accessibilityRole="button" accessibilityLabel="Done" onPress={s.closeOverseerProfile} style={[{ height: 54, borderRadius: 16, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginTop: 18 }, shadow.cta]}>
-          <Txt w="b" size={15} color="#fff">Done</Txt>
+        <Pressable accessibilityRole="button" accessibilityLabel="Done" onPress={s.closeOverseerProfile} style={[{ height: 54, borderRadius: 16, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 18 }, shadow.cta]}>
+          <Txt w="b" size={15} color={c.white}>Done</Txt>
         </Pressable>
       </ScrollView>
     </Overlay>

@@ -27,7 +27,7 @@ import { isAppleAuthAvailable, requestAppleIdentityToken } from '@/lib/auth/appl
 import { aiPrefix, isAiConfigured } from '@/lib/ai';
 import { useStore } from '@/store';
 import type { Store } from '@/store';
-import { colors } from '@/ui/tokens';
+import { useColors, useTheme } from '@/ui/theme';
 import { Btn, Card, Input, ProgressBar, Row, Stepper, Txt, Pressable } from '@/ui/primitives';
 import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
@@ -55,8 +55,9 @@ function StepShell({
   children: React.ReactNode;
   footer: React.ReactNode;
 }) {
+  const c = useColors();
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={{ paddingTop: 60, paddingHorizontal: 24 }}>
         <Row style={{ gap: 14, height: 40 }}>
           {onBack ? (
@@ -68,9 +69,9 @@ function StepShell({
                 haptics.tap();
                 onBack();
               }}
-              style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+              style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 13, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
             >
-              <Icon name="chevronLeft" size={22} color={colors.slate600} />
+              <Icon name="chevronLeft" size={22} color={c.slate600} />
             </Pressable>
           ) : (
             <View style={{ width: 40, height: 40 }} />
@@ -86,7 +87,7 @@ function StepShell({
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 22, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
         {eyebrow ? (
-          <Txt w="eb" size={12} color={colors.accent} ls={1} upper style={{ marginBottom: 10 }}>
+          <Txt w="eb" size={12} color={c.accent} ls={1} upper style={{ marginBottom: 10 }}>
             {eyebrow}
           </Txt>
         ) : null}
@@ -94,7 +95,7 @@ function StepShell({
           {title}
         </Txt>
         {sub ? (
-          <Txt w="m" size={15} color={colors.textSecondary} style={{ marginTop: 8, lineHeight: 21 }}>
+          <Txt w="m" size={15} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 21 }}>
             {sub}
           </Txt>
         ) : null}
@@ -107,6 +108,7 @@ function StepShell({
 
 /** Big tappable option row — the primary answer affordance. */
 function OptionRow({ label, selected, onPress, sub }: { label: string; selected: boolean; onPress: () => void; sub?: string }) {
+  const c = useColors();
   return (
     <Pressable
       accessibilityRole="button"
@@ -117,9 +119,9 @@ function OptionRow({ label, selected, onPress, sub }: { label: string; selected:
         onPress();
       }}
       style={({ pressed }) => ({
-        backgroundColor: selected ? colors.accentSurface : colors.card,
+        backgroundColor: selected ? c.accentSurface : c.card,
         borderWidth: 1.5,
-        borderColor: selected ? colors.accent : colors.border,
+        borderColor: selected ? c.accent : c.border,
         borderRadius: 16,
         paddingVertical: 17,
         paddingHorizontal: 18,
@@ -130,17 +132,17 @@ function OptionRow({ label, selected, onPress, sub }: { label: string; selected:
       })}
     >
       <View style={{ flex: 1 }}>
-        <Txt w="b" size={16} color={selected ? colors.accent : colors.text}>
+        <Txt w="b" size={16} color={selected ? c.accent : c.text}>
           {label}
         </Txt>
         {sub ? (
-          <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 2 }}>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 2 }}>
             {sub}
           </Txt>
         ) : null}
       </View>
-      <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: selected ? colors.accent : '#CBD5E1', backgroundColor: selected ? colors.accent : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-        {selected ? <Icon name="check" size={13} color="#fff" /> : null}
+      <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: selected ? c.accent : c.border, backgroundColor: selected ? c.accent : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+        {selected ? <Icon name="check" size={13} color={c.white} /> : null}
       </View>
     </Pressable>
   );
@@ -148,25 +150,27 @@ function OptionRow({ label, selected, onPress, sub }: { label: string; selected:
 
 /* ------------------------------------------------------------------ welcome */
 function Welcome() {
+  const c = useColors();
+  const { scheme } = useTheme();
   const { athleteName, setName, obNext, startSignin } = useStore();
   const ready = athleteName.trim().length > 1;
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingTop: 76, paddingHorizontal: 26, paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
         <Row style={{ gap: 10 }}>
-          <LogoMark size={30} />
+          <LogoMark size={30} onDark={scheme === 'dark'} />
           <Txt w="eb" size={20} ls={-0.4}>
-            On<Txt w="eb" size={20} color={colors.accent}>Standard</Txt>
+            On<Txt w="eb" size={20} color={c.accent}>Standard</Txt>
           </Txt>
         </Row>
         <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 28 }}>
           <Txt w="eb" size={38} ls={-1.4} style={{ lineHeight: 42 }}>
             Let's get you{'\n'}set up.
           </Txt>
-          <Txt w="m" size={16} color={colors.textSecondary} style={{ marginTop: 14, lineHeight: 23 }}>
+          <Txt w="m" size={16} color={c.textSecondary} style={{ marginTop: 14, lineHeight: 23 }}>
             A few quick questions and we'll tailor OnStandard to exactly how you'll use it. About two minutes.
           </Txt>
-          <Txt w="eb" size={12} color={colors.textTertiary} ls={0.8} upper style={{ marginTop: 32, marginBottom: 9 }}>
+          <Txt w="eb" size={12} color={c.textTertiary} ls={0.8} upper style={{ marginTop: 32, marginBottom: 9 }}>
             First, what should we call you?
           </Txt>
           <Input value={athleteName} onChangeText={setName} placeholder="First name" autoCapitalize="words" returnKeyType="done" />
@@ -175,8 +179,8 @@ function Welcome() {
       <View style={{ paddingHorizontal: 26, paddingBottom: 34, gap: 14 }}>
         <Btn label="Get started" disabled={!ready} onPress={obNext} />
         <Pressable accessibilityRole="button" accessibilityLabel="Sign in" hitSlop={8} onPress={() => { haptics.tap(); startSignin(); }} style={({ pressed }) => ({ alignSelf: 'center', opacity: pressed ? 0.6 : 1 })}>
-          <Txt w="b" size={14} color={colors.textSecondary}>
-            Already have an account? <Txt w="b" size={14} color={colors.accent}>Sign in</Txt>
+          <Txt w="b" size={14} color={c.textSecondary}>
+            Already have an account? <Txt w="b" size={14} color={c.accent}>Sign in</Txt>
           </Txt>
         </Pressable>
       </View>
@@ -185,6 +189,7 @@ function Welcome() {
 }
 
 function SignIn() {
+  const c = useColors();
   const { exitSignin, signinDone, signInLive, signInWithApple, requestPasswordReset, setAuthError } = useStore();
   const authError = useStore((st: Store) => st.authError);
   const resetSent = useStore((st: Store) => st.passwordResetSent);
@@ -232,14 +237,14 @@ function SignIn() {
       >
         {resetSent ? (
           <Card style={{ marginTop: 6 }} elevated>
-            <Txt w="sb" size={15} color={colors.slate700} style={{ lineHeight: 22 }}>
+            <Txt w="sb" size={15} color={c.slate700} style={{ lineHeight: 22 }}>
               If an account exists for that email, a reset link is on its way. Check your inbox (and spam).
             </Txt>
           </Card>
         ) : (
           <View style={{ gap: 12 }}>
             <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
-            {authError ? <Txt w="sb" size={13} color={colors.alert}>{authError}</Txt> : null}
+            {authError ? <Txt w="sb" size={13} color={c.alert}>{authError}</Txt> : null}
           </View>
         )}
       </StepShell>
@@ -258,12 +263,12 @@ function SignIn() {
         <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
         <Input value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
         {authError ? (
-          <Txt w="sb" size={13} color={colors.alert} style={{ marginTop: 2 }}>
+          <Txt w="sb" size={13} color={c.alert} style={{ marginTop: 2 }}>
             {authError}
           </Txt>
         ) : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Forgot password" hitSlop={8} onPress={() => { setAuthError(null); setMode('forgot'); }} style={({ pressed }) => ({ alignSelf: 'flex-start', opacity: pressed ? 0.6 : 1 })}>
-          <Txt w="b" size={13} color={colors.accent}>Forgot password?</Txt>
+          <Txt w="b" size={13} color={c.accent}>Forgot password?</Txt>
         </Pressable>
         <AppleButton busy={busy} onPress={onApple} />
       </View>
@@ -275,6 +280,7 @@ function SignIn() {
  *  the backend is live (App Store 4.8). Hidden today; lights up at go-live once
  *  expo-apple-authentication is added. See src/lib/auth/apple.ts. */
 function AppleButton({ busy, onPress }: { busy: boolean; onPress: () => void }) {
+  const c = useColors();
   if (!isAppleAuthAvailable || !isBackendLive || Platform.OS !== 'ios') return null;
   return (
     <Pressable
@@ -284,7 +290,7 @@ function AppleButton({ busy, onPress }: { busy: boolean; onPress: () => void }) 
       onPress={onPress}
       style={({ pressed }) => ({ height: 52, borderRadius: 14, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 4, opacity: pressed ? 0.85 : 1 })}
     >
-      <Txt w="b" size={15} color="#fff"> Sign in with Apple</Txt>
+      <Txt w="b" size={15} color={c.white}> Sign in with Apple</Txt>
     </Pressable>
   );
 }
@@ -297,6 +303,7 @@ function AppleButton({ busy, onPress }: { busy: boolean; onPress: () => void }) 
  * account works locally immediately; sync waits on confirmation + consent.
  */
 function CreateAccountForm({ progress, title, sub, onDone }: { progress: number; title: string; sub: string; onDone: () => void }) {
+  const c = useColors();
   const s = useStore();
   const authError = useStore((st: Store) => st.authError);
   const [email, setEmail] = React.useState(s.athleteEmail ?? '');
@@ -337,10 +344,10 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
       >
         <Card style={{ marginTop: 6 }} elevated>
           <Row style={{ gap: 10 }}>
-            <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name={pending ? 'bell' : 'check'} size={19} color={colors.accent} />
+            <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={pending ? 'bell' : 'check'} size={19} color={c.accent} />
             </View>
-            <Txt w="sb" size={14} color={colors.slate700} style={{ flex: 1, lineHeight: 20 }}>
+            <Txt w="sb" size={14} color={c.slate700} style={{ flex: 1, lineHeight: 20 }}>
               {pending
                 ? `Check ${email.trim()} for a link. You can keep going now — your data stays on this device until you confirm.`
                 : `You're signed in as ${email.trim()}. Let's keep going.`}
@@ -367,7 +374,7 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
         {password.length > 0 && errors.password ? <FieldError text={errors.password} /> : null}
         <Input value={confirm} onChangeText={setConfirm} placeholder="Confirm password" secureTextEntry />
         {confirm.length > 0 && errors.confirm ? <FieldError text={errors.confirm} /> : null}
-        {authError ? <Txt w="sb" size={13} color={colors.alert} style={{ marginTop: 2 }}>{authError}</Txt> : null}
+        {authError ? <Txt w="sb" size={13} color={c.alert} style={{ marginTop: 2 }}>{authError}</Txt> : null}
         <AppleButton busy={busy} onPress={onApple} />
       </View>
     </StepShell>
@@ -375,11 +382,13 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
 }
 
 function FieldError({ text }: { text: string }) {
-  return <Txt w="m" size={12} color={colors.alert} style={{ marginTop: -4, marginLeft: 2, lineHeight: 16 }}>{text}</Txt>;
+  const c = useColors();
+  return <Txt w="m" size={12} color={c.alert} style={{ marginTop: -4, marginLeft: 2, lineHeight: 16 }}>{text}</Txt>;
 }
 
 /* ------------------------------------------------------------------ role picker */
 function RolePicker() {
+  const c = useColors();
   const { role, setRole, obNext, obBack } = useStore();
   return (
     <StepShell
@@ -403,9 +412,9 @@ function RolePicker() {
               setRole(r.key);
             }}
             style={({ pressed }) => ({
-              backgroundColor: selected ? colors.accentSurface : colors.card,
+              backgroundColor: selected ? c.accentSurface : c.card,
               borderWidth: 1.5,
-              borderColor: selected ? colors.accent : colors.border,
+              borderColor: selected ? c.accent : c.border,
               borderRadius: 16,
               padding: 15,
               marginBottom: 10,
@@ -415,14 +424,14 @@ function RolePicker() {
               opacity: pressed ? 0.92 : 1,
             })}
           >
-            <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: selected ? colors.accent : colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name={r.icon as IconName} size={21} color={selected ? '#fff' : colors.slate600} />
+            <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: selected ? c.accent : c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={r.icon as IconName} size={21} color={selected ? c.white : c.slate600} />
             </View>
             <View style={{ flex: 1 }}>
-              <Txt w="b" size={16} color={selected ? colors.accent : colors.text}>
+              <Txt w="b" size={16} color={selected ? c.accent : c.text}>
                 {r.title}
               </Txt>
-              <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 1 }}>
+              <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 1 }}>
                 {r.sub}
               </Txt>
             </View>
@@ -439,6 +448,7 @@ function RolePicker() {
 const ATHLETE_KEYS = athleteFlowKeys(isBackendLive);
 
 function AthleteFlow() {
+  const c = useColors();
   const s = useStore();
   const idx = s.obStep - 2;
   const key = ATHLETE_KEYS[idx] ?? 'challenge';
@@ -459,7 +469,7 @@ function AthleteFlow() {
         <StepShell progress={progress} onBack={s.obBack} eyebrow="Your plan" title="What's your #1 goal right now?" sub={`This shapes every piece of ${aiPrefix}coaching you'll get.`} footer={cont(!!s.primaryGoal)}>
           {GOAL_GROUPS.map((g) => (
             <View key={g.group} style={{ marginBottom: 18 }}>
-              <Txt w="eb" size={12} color={colors.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
+              <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
                 {g.group}
               </Txt>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
@@ -472,9 +482,9 @@ function AthleteFlow() {
                       accessibilityLabel={o.label}
                       accessibilityState={{ selected: sel }}
                       onPress={() => { haptics.select(); s.setPrimaryGoal(o.key); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 13, paddingVertical: 12, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
+                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, borderRadius: 13, paddingVertical: 12, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
                     >
-                      <Txt w="b" size={14} color={sel ? '#fff' : colors.slate700}>
+                      <Txt w="b" size={14} color={sel ? c.white : c.slate700}>
                         {o.label}
                       </Txt>
                     </Pressable>
@@ -511,9 +521,9 @@ function AthleteFlow() {
                   accessibilityLabel={sp}
                   accessibilityState={{ selected: sel }}
                   onPress={() => { haptics.select(); s.setSport(sp); }}
-                  style={({ pressed }) => ({ width: '31.5%', backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 14, paddingVertical: 18, alignItems: 'center', opacity: pressed ? 0.9 : 1 })}
+                  style={({ pressed }) => ({ width: '31.5%', backgroundColor: sel ? c.accent : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, borderRadius: 14, paddingVertical: 18, alignItems: 'center', opacity: pressed ? 0.9 : 1 })}
                 >
-                  <Txt w="b" size={14} color={sel ? '#fff' : colors.slate700}>
+                  <Txt w="b" size={14} color={sel ? c.white : c.slate700}>
                     {sp}
                   </Txt>
                 </Pressable>
@@ -522,7 +532,7 @@ function AthleteFlow() {
           </View>
           {s.sport ? (
             <View style={{ marginTop: 22 }}>
-              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
+              <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
                 Your position (optional)
               </Txt>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
@@ -535,9 +545,9 @@ function AthleteFlow() {
                       accessibilityLabel={p}
                       accessibilityState={{ selected: sel }}
                       onPress={() => { haptics.select(); s.setPosition(p); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 13, paddingVertical: 13, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
+                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, borderRadius: 13, paddingVertical: 13, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
                     >
-                      <Txt w="b" size={15} color={sel ? '#fff' : colors.slate700}>
+                      <Txt w="b" size={15} color={sel ? c.white : c.slate700}>
                         {p}
                       </Txt>
                     </Pressable>
@@ -564,7 +574,7 @@ function AthleteFlow() {
               <Stepper label="Target weight" value={String(s.weightTarget)} unit="lb" onDec={() => s.adjustWeightTarget(-1)} onInc={() => s.adjustWeightTarget(1)} />
             </Row>
             <View>
-              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} upper style={{ marginTop: 4, marginBottom: 10 }}>
+              <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} upper style={{ marginTop: 4, marginBottom: 10 }}>
                 How often do you train?
               </Txt>
               <Row style={{ flexWrap: 'wrap', gap: 8 }}>
@@ -577,9 +587,9 @@ function AthleteFlow() {
                       accessibilityLabel={o.label}
                       accessibilityState={{ selected: sel }}
                       onPress={() => { haptics.select(); s.setTrainingFreq(o.key); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
+                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
                     >
-                      <Txt w="b" size={14} color={sel ? '#fff' : colors.slate700}>{o.label}</Txt>
+                      <Txt w="b" size={14} color={sel ? c.white : c.slate700}>{o.label}</Txt>
                     </Pressable>
                   );
                 })}
@@ -598,7 +608,7 @@ function AthleteFlow() {
             <MiniScale label="Confidence in your nutrition" value={s.baseNutritionConfidence} low="Not at all" high="Dialed in" onChange={(v) => s.setBaseAnswer('baseNutritionConfidence', v)} />
             <MiniScale label="Week-to-week consistency" value={s.baseConsistency} low="All over" high="Locked in" onChange={(v) => s.setBaseAnswer('baseConsistency', v)} />
             <View>
-              <Txt w="b" size={14} color={colors.slate700} style={{ marginBottom: 9 }}>How often do you hit your protein target?</Txt>
+              <Txt w="b" size={14} color={c.slate700} style={{ marginBottom: 9 }}>How often do you hit your protein target?</Txt>
               <Row style={{ flexWrap: 'wrap', gap: 8 }}>
                 {PROTEIN_FREQ.map((o) => {
                   const sel = s.baseProteinFreq === Number(o.key);
@@ -609,9 +619,9 @@ function AthleteFlow() {
                       accessibilityLabel={o.label}
                       accessibilityState={{ selected: sel }}
                       onPress={() => { haptics.select(); s.setBaseAnswer('baseProteinFreq', Number(o.key)); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? colors.accent : colors.card, borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
+                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
                     >
-                      <Txt w="b" size={14} color={sel ? '#fff' : colors.slate700}>{o.label}</Txt>
+                      <Txt w="b" size={14} color={sel ? c.white : c.slate700}>{o.label}</Txt>
                     </Pressable>
                   );
                 })}
@@ -682,7 +692,7 @@ function AthleteFlow() {
           }
         >
           <Card style={{ marginTop: 6 }} elevated>
-            <Txt w="m" size={15} color={colors.slate700} style={{ lineHeight: 22 }}>
+            <Txt w="m" size={15} color={c.slate700} style={{ lineHeight: 22 }}>
               {consentSummary(minor)}
             </Txt>
           </Card>
@@ -697,7 +707,7 @@ function AthleteFlow() {
           </View>
           {minor ? (
             <View style={{ marginTop: 14 }}>
-              <Txt w="eb" size={12} color={colors.textTertiary} ls={0.6} upper style={{ marginBottom: 8 }}>
+              <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper style={{ marginBottom: 8 }}>
                 Parent or guardian approval
               </Txt>
               <Input
@@ -709,7 +719,7 @@ function AthleteFlow() {
                 editable={!verified}
               />
               {emailEntered && !emailValid ? (
-                <Txt w="m" size={12} color={colors.alert} style={{ marginTop: 6, lineHeight: 17 }}>
+                <Txt w="m" size={12} color={c.alert} style={{ marginTop: 6, lineHeight: 17 }}>
                   That doesn&apos;t look like a valid email. Check for typos (e.g. &quot;gmial.com&quot;).
                 </Txt>
               ) : null}
@@ -719,11 +729,11 @@ function AthleteFlow() {
                 onPress={() => { void s.requestGuardianConsent(); }}
                 style={{ marginTop: 10 }}
               />
-              <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 17 }}>
+              <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 8, lineHeight: 17 }}>
                 {guardianConsentCopy(s.guardianStatus)}
               </Txt>
               {!verified ? (
-                <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 6, lineHeight: 17 }}>
+                <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 6, lineHeight: 17 }}>
                   You can start now — your meals and score stay private on this device.
                   Nothing is shared with a coach until a guardian approves.
                 </Txt>
@@ -748,13 +758,13 @@ function AthleteFlow() {
           footer={<Btn label="Start now" haptic="success" onPress={s.startFirstMealChallenge} />}
         >
           <Card style={{ alignItems: 'center', paddingVertical: 34, marginTop: 6 }} elevated>
-            <View style={{ width: 86, height: 86, borderRadius: 28, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="camera" size={38} color={colors.accent} />
+            <View style={{ width: 86, height: 86, borderRadius: 28, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="camera" size={38} color={c.accent} />
             </View>
             <Txt w="eb" size={17} style={{ marginTop: 16 }}>
               +3 to your score
             </Txt>
-            <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 4, textAlign: 'center', paddingHorizontal: 20 }}>
+            <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, textAlign: 'center', paddingHorizontal: 20 }}>
               Logging your first meal proves the loop. Your score moves the moment you do the work.
             </Txt>
           </Card>
@@ -766,16 +776,17 @@ function AthleteFlow() {
 /** 1-10 slider step (baseline confidence / consistency). */
 /** Compact 1-10 slider row for the combined baseline screen. */
 function MiniScale({ label, value, low, high, onChange }: { label: string; value: number; low: string; high: string; onChange: (v: number) => void }) {
+  const c = useColors();
   return (
     <View>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
-        <Txt w="b" size={14} color={colors.slate700} style={{ flex: 1 }}>{label}</Txt>
-        <Txt w="eb" size={16} color={colors.accent}>{value}<Txt w="sb" size={11} color={colors.textTertiary}> / 10</Txt></Txt>
+        <Txt w="b" size={14} color={c.slate700} style={{ flex: 1 }}>{label}</Txt>
+        <Txt w="eb" size={16} color={c.accent}>{value}<Txt w="sb" size={11} color={c.textTertiary}> / 10</Txt></Txt>
       </Row>
       <Slider value={value} min={1} max={10} onChange={onChange} />
       <Row style={{ justifyContent: 'space-between', marginTop: 6 }}>
-        <Txt w="sb" size={11} color={colors.textTertiary}>{low}</Txt>
-        <Txt w="sb" size={11} color={colors.textTertiary}>{high}</Txt>
+        <Txt w="sb" size={11} color={c.textTertiary}>{low}</Txt>
+        <Txt w="sb" size={11} color={c.textTertiary}>{high}</Txt>
       </Row>
     </View>
   );
@@ -783,9 +794,10 @@ function MiniScale({ label, value, low, high, onChange }: { label: string; value
 
 /** Compact ± counter row for the combined baseline screen (meals / water / sleep). */
 function MiniCounter({ label, display, onDec, onInc }: { label: string; display: string; onDec: () => void; onInc: () => void }) {
+  const c = useColors();
   return (
     <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-      <Txt w="b" size={14} color={colors.slate700} style={{ flex: 1 }}>{label}</Txt>
+      <Txt w="b" size={14} color={c.slate700} style={{ flex: 1 }}>{label}</Txt>
       <Row style={{ gap: 14, alignItems: 'center' }}>
         <MiniRound glyph="−" onPress={onDec} />
         <Txt w="eb" size={18} style={{ minWidth: 48, textAlign: 'center' }}>{display}</Txt>
@@ -796,15 +808,16 @@ function MiniCounter({ label, display, onDec, onInc }: { label: string; display:
 }
 
 function MiniRound({ glyph, onPress }: { glyph: string; onPress: () => void }) {
+  const c = useColors();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={glyph === '+' ? 'Increase' : 'Decrease'}
       hitSlop={8}
       onPress={() => { haptics.select(); onPress(); }}
-      style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 14, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}
+      style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 14, backgroundColor: c.card, borderWidth: 1.5, borderColor: c.border, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}
     >
-      <Txt w="b" size={24} color={colors.accent}>{glyph}</Txt>
+      <Txt w="b" size={24} color={c.accent}>{glyph}</Txt>
     </Pressable>
   );
 }
@@ -827,6 +840,7 @@ function GenericFlow() {
 }
 
 function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
+  const c = useColors();
   const s = useStore();
   const val = step.kind === 'select' || step.kind === 'multiselect' || step.kind === 'text' ? s.obMeta[step.field] : undefined;
 
@@ -853,20 +867,20 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
         footer={<Btn label={step.cta} haptic="success" onPress={s.finishOb} />}
       >
         <Card style={{ marginTop: 6 }} elevated>
-          <Txt w="eb" size={11} color={colors.textTertiary} ls={0.6} upper>
+          <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} upper>
             {step.codeLabel}
           </Txt>
           <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
             <Txt w="eb" size={26} ls={1}>
               {s.teamCode || 'EAGLES24'}
             </Txt>
-            <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="copy" size={19} color={colors.accent} />
+            <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="copy" size={19} color={c.accent} />
             </View>
           </Row>
         </Card>
         <Pressable accessibilityRole="button" accessibilityLabel="Skip for now" hitSlop={8} onPress={() => { haptics.tap(); s.finishOb(); }} style={({ pressed }) => ({ alignSelf: 'center', marginTop: 18, opacity: pressed ? 0.6 : 1 })}>
-          <Txt w="b" size={14} color={colors.textSecondary}>
+          <Txt w="b" size={14} color={c.textSecondary}>
             Skip for now
           </Txt>
         </Pressable>

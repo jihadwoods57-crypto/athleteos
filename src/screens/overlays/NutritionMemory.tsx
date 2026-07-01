@@ -9,18 +9,14 @@ import { ScrollView, View } from 'react-native';
 import type { MemoryInsight, MemoryTone } from '@/core';
 import { useStore, useNutritionMemory } from '@/store';
 import { isAiConfigured, rephraseMemoryInsights } from '@/lib/ai';
-import { colors, shadow } from '@/ui/tokens';
+import { shadow } from '@/ui/tokens';
 import { Card, Reveal, Row, SampleTag, Txt } from '@/ui/primitives';
+import { useColors } from '@/ui/theme';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
-const TONE: Record<MemoryTone, { bg: string; fg: string; bar: string }> = {
-  win: { bg: colors.successSurface, fg: colors.successDeep, bar: colors.successDeep },
-  watch: { bg: '#FEF3C7', fg: colors.warningDeep, bar: colors.warningDeep },
-  neutral: { bg: colors.accentSurface, fg: colors.accent, bar: colors.accent },
-};
-
 export function NutritionMemory() {
+  const c = useColors();
   const s = useStore();
   const { insights, sampled, readiness } = useNutritionMemory();
   // "Remembered by AI": the deterministic insights render instantly (ground truth). When a model
@@ -42,17 +38,17 @@ export function NutritionMemory() {
         <Reveal index={0}>
         <Card variant="hero" style={{ borderRadius: 22, marginTop: 4 }}>
           <Row style={{ gap: 9 }}>
-            <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="sparkle" size={16} color={colors.accent} />
+            <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="sparkle" size={16} color={c.accent} />
             </View>
-            <Txt w="eb" size={12} color={colors.accent} ls={0.6}>{memoryLabel.toUpperCase()}</Txt>
+            <Txt w="eb" size={12} color={c.accent} ls={0.6}>{memoryLabel.toUpperCase()}</Txt>
           </Row>
-          <Txt w="sb" size={16} color={colors.slate700} style={{ marginTop: 12, lineHeight: 23 }}>
+          <Txt w="sb" size={16} color={c.slate700} style={{ marginTop: 12, lineHeight: 23 }}>
             This is what OnStandard remembers about how you eat — not just today's meal, but how
             your habits are moving over time.
           </Txt>
           {sampled ? (
-            <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 10, lineHeight: 17 }}>
+            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 10, lineHeight: 17 }}>
               This is a sample so you can see how it works. Your real memory builds as you log —
               every meal makes it sharper.
             </Txt>
@@ -68,7 +64,7 @@ export function NutritionMemory() {
         </Reveal>
 
         {/* honest provenance + readiness */}
-        <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 18, paddingHorizontal: 4, lineHeight: 17 }}>
+        <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 18, paddingHorizontal: 4, lineHeight: 17 }}>
           {sampled
             ? 'Sample shown. Once you have logged a few days, this fills in with your own trends, streaks, and go-to meals.'
             : `Built from your logged history${readiness.daysLogged ? ` — ${readiness.daysLogged} day${readiness.daysLogged === 1 ? '' : 's'} so far` : ''}. The more you log, the more it remembers.`}
@@ -107,6 +103,12 @@ function useRephrasedMemory(insights: MemoryInsight[]): { display: MemoryInsight
 }
 
 function InsightCard({ insight }: { insight: MemoryInsight }) {
+  const c = useColors();
+  const TONE: Record<MemoryTone, { bg: string; fg: string; bar: string }> = {
+    win: { bg: c.successSurface, fg: c.successDeep, bar: c.successDeep },
+    watch: { bg: c.warnTint, fg: c.warnText, bar: c.warnText },
+    neutral: { bg: c.accentSurface, fg: c.accent, bar: c.accent },
+  };
   const tone = TONE[insight.tone];
   return (
     <Card variant="low" style={{ borderRadius: 18, flexDirection: 'row', gap: 0, padding: 0, overflow: 'hidden' }}>
@@ -120,7 +122,7 @@ function InsightCard({ insight }: { insight: MemoryInsight }) {
             </View>
           ) : null}
         </Row>
-        <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 7, lineHeight: 19 }}>
+        <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 7, lineHeight: 19 }}>
           {insight.detail}
         </Txt>
       </View>

@@ -14,13 +14,15 @@ import { isPro, planTerms, plansForFlow, purchaseCtaLabel, type PricedPlan } fro
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
 import { isBillingConfigured, openBillingPortal } from '@/lib/billing/portal';
-import { colors, shadow } from '@/ui/tokens';
+import { shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Card, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
 export function Plans() {
+  const c = useColors();
   const s = useStore();
   const plans = plansForFlow(s.flow);
   const onPaidPlan = isPro(s.entitlement);
@@ -33,7 +35,7 @@ export function Plans() {
         {!isBillingConfigured ? (
           <Row style={{ gap: 7, marginBottom: 14 }}>
             <SampleTag />
-            <Txt w="sb" size={12} color={colors.textTertiary} style={{ flex: 1 }}>
+            <Txt w="sb" size={12} color={c.textTertiary} style={{ flex: 1 }}>
               OnStandard is in free preview. These are launch prices — billing isn’t switched on yet.
             </Txt>
           </Row>
@@ -47,7 +49,7 @@ export function Plans() {
         </View>
         </Reveal>
 
-        <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 18, lineHeight: 16 }}>
+        <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 18, lineHeight: 16 }}>
           Prices in USD. Subscriptions auto-renew until canceled; cancel anytime with no phone call.
           Active organization participants are billed by the organization — athletes never pay while
           attached to an active team.
@@ -59,6 +61,7 @@ export function Plans() {
 
 /** The current-plan management block for an athlete/org already on a paid plan. */
 function ManageCurrent() {
+  const c = useColors();
   const onManage = async () => {
     haptics.tap();
     await openBillingPortal();
@@ -66,17 +69,17 @@ function ManageCurrent() {
   return (
     <Card variant="hero" style={{ borderRadius: 20, marginBottom: 16 }}>
       <Txt w="eb" size={15} ls={-0.3}>You’re on a paid plan</Txt>
-      <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
+      <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
         Manage billing, change seats, or cancel anytime — no phone call, no runaround.
       </Txt>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Manage or cancel your plan"
         onPress={onManage}
-        style={({ pressed }) => [{ height: 50, borderRadius: 14, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', marginTop: 14, flexDirection: 'row', gap: 8, opacity: pressed ? 0.8 : 1 }]}
+        style={({ pressed }) => [{ height: 50, borderRadius: 14, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center', marginTop: 14, flexDirection: 'row', gap: 8, opacity: pressed ? 0.8 : 1 }]}
       >
-        <Icon name="settings" size={17} color={colors.slate700} />
-        <Txt w="b" size={14} color={colors.slate700}>
+        <Icon name="settings" size={17} color={c.slate700} />
+        <Txt w="b" size={14} color={c.slate700}>
           {isBillingConfigured ? 'Manage / cancel plan' : 'Manage plan (available at launch)'}
         </Txt>
       </Pressable>
@@ -85,6 +88,7 @@ function ManageCurrent() {
 }
 
 function PlanCard({ plan }: { plan: PricedPlan }) {
+  const c = useColors();
   const t = planTerms(plan);
   const [tapped, setTapped] = React.useState(false);
   // The seam: a live Stripe portal (business plans) opens it; otherwise honest "available
@@ -103,7 +107,7 @@ function PlanCard({ plan }: { plan: PricedPlan }) {
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View style={{ flex: 1, paddingRight: 10 }}>
           <Txt w="eb" size={17} ls={-0.3}>{plan.name}</Txt>
-          <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>{plan.blurb}</Txt>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>{plan.blurb}</Txt>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           {plan.custom ? (
@@ -111,14 +115,14 @@ function PlanCard({ plan }: { plan: PricedPlan }) {
           ) : (
             <>
               <Txt w="eb" num size={22} ls={-0.5}>{t.price.split(' / ')[0]}</Txt>
-              <Txt w="sb" size={12} color={colors.textTertiary}>/ month</Txt>
+              <Txt w="sb" size={12} color={c.textTertiary}>/ month</Txt>
             </>
           )}
         </View>
       </Row>
 
       {/* The compliant disclosure — shown BEFORE any purchase action. */}
-      <View style={{ marginTop: 14, gap: 7, padding: 13, borderRadius: 13, backgroundColor: colors.bg2 }}>
+      <View style={{ marginTop: 14, gap: 7, padding: 13, borderRadius: 13, backgroundColor: c.bg2 }}>
         <TermLine icon="bolt" text={t.renewal} />
         {t.trial ? <TermLine icon="check" text={t.trial} /> : null}
         {t.annual ? <TermLine icon="trophy" text={t.annual} /> : null}
@@ -130,12 +134,12 @@ function PlanCard({ plan }: { plan: PricedPlan }) {
         accessibilityRole="button"
         accessibilityLabel={purchaseCtaLabel(plan)}
         onPress={onStart}
-        style={({ pressed }) => [{ height: 52, borderRadius: 14, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginTop: 14, opacity: pressed ? 0.85 : 1 }, shadow.cta]}
+        style={({ pressed }) => [{ height: 52, borderRadius: 14, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 14, opacity: pressed ? 0.85 : 1 }, shadow.cta]}
       >
-        <Txt w="b" size={15} color="#fff">{purchaseCtaLabel(plan)}</Txt>
+        <Txt w="b" size={15} color={c.white}>{purchaseCtaLabel(plan)}</Txt>
       </Pressable>
       {tapped ? (
-        <Txt w="sb" size={12} color={colors.textTertiary} style={{ marginTop: 10, textAlign: 'center', lineHeight: 17 }}>
+        <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 10, textAlign: 'center', lineHeight: 17 }}>
           {plan.custom
             ? 'Enterprise sales open at launch — we’ll add a contact form here.'
             : 'Billing isn’t switched on yet — this plan goes live with the public launch. Your terms above are exactly what you’ll see at checkout.'}
@@ -146,10 +150,11 @@ function PlanCard({ plan }: { plan: PricedPlan }) {
 }
 
 function TermLine({ icon, text }: { icon: 'bolt' | 'check' | 'shield' | 'trophy' | 'squad'; text: string }) {
+  const c = useColors();
   return (
     <Row style={{ gap: 8, alignItems: 'flex-start' }}>
-      <Icon name={icon} size={14} color={colors.textSecondary} />
-      <Txt w="sb" size={12} color={colors.slate700} style={{ flex: 1, lineHeight: 17 }}>{text}</Txt>
+      <Icon name={icon} size={14} color={c.textSecondary} />
+      <Txt w="sb" size={12} color={c.slate700} style={{ flex: 1, lineHeight: 17 }}>{text}</Txt>
     </Row>
   );
 }

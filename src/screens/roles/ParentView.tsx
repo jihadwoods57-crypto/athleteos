@@ -6,7 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, weightProgressTone, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
-import { colors, shadow } from '@/ui/tokens';
+import { shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Card, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
@@ -15,6 +16,7 @@ import { Plans } from '@/screens/overlays/Plans';
 import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 
 export function ParentView() {
+  const c = useColors();
   const s = useStore();
   const d = useDerived();
   // Weekly compliance derived from the SAME real score history the Home trend
@@ -46,16 +48,16 @@ export function ParentView() {
   const digest = parentDigest({ score: d.athleteScore, completedDays: s.scoreHistory.length, first: athlete.first });
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       <SafeAreaView edges={['top']} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           <Row style={{ justifyContent: 'space-between' }}>
             <Row style={{ gap: 12 }}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" hitSlop={6} onPress={s.openAccount} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
-                <Icon name="menu" size={20} color={colors.slate600} />
+              <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" hitSlop={6} onPress={s.openAccount} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+                <Icon name="menu" size={20} color={c.slate600} />
               </Pressable>
               <View>
-                <Txt w="sb" size={13} color={colors.textSecondary}>
+                <Txt w="sb" size={13} color={c.textSecondary}>
                   Parent View
                 </Txt>
                 <Txt w="eb" size={21} ls={-0.3}>
@@ -63,15 +65,15 @@ export function ParentView() {
                 </Txt>
                 <Row style={{ gap: 7, marginTop: 5 }}>
                   <SampleTag />
-                  <Txt w="sb" size={12} color={colors.textTertiary}>
+                  <Txt w="sb" size={12} color={c.textTertiary}>
                     Sample data, not yet linked to your athlete
                   </Txt>
                 </Row>
               </View>
             </Row>
-            <Row style={[{ gap: 7, backgroundColor: '#fff', padding: 7, borderRadius: 13 }, shadow.card]}>
-              <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-                <Txt w="b" size={13} color="#fff">
+            <Row style={[{ gap: 7, backgroundColor: c.card, padding: 7, borderRadius: 13 }, shadow.card]}>
+              <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+                <Txt w="b" size={13} color={c.white}>
                   {athlete.monogram}
                 </Txt>
               </View>
@@ -84,7 +86,7 @@ export function ParentView() {
           {/* score */}
           <Reveal index={0}>
           <Card variant="hero" style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-            <Ring size={104} pct={d.athleteScore} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">
+            <Ring size={104} pct={d.athleteScore} stroke={17} gradient={['#22C55E', '#16A34A']} track={c.track}>
               <Txt w="eb" num size={34} ls={-0.5}>
                 {d.athleteScore}
               </Txt>
@@ -93,18 +95,18 @@ export function ParentView() {
               </Txt>
             </Ring>
             <View style={{ flex: 1 }}>
-              <Txt w="b" size={13} color={colors.textSecondary}>
+              <Txt w="b" size={13} color={c.textSecondary}>
                 Execution Score
               </Txt>
               <Row style={{ gap: 6, marginTop: 6 }}>
                 <Txt w="eb" size={15} color={d.deltaColor}>
                   {d.deltaStr}
                 </Txt>
-                <Txt w="sb" size={13} color={colors.textTertiary}>
+                <Txt w="sb" size={13} color={c.textTertiary}>
                   vs last week
                 </Txt>
               </Row>
-              <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 11, lineHeight: 20 }}>
+              <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 11, lineHeight: 20 }}>
                 {digest.coverage}
               </Txt>
             </View>
@@ -119,11 +121,11 @@ export function ParentView() {
                 <Txt w="eb" size={16} ls={-0.3}>
                   Weekly Compliance
                 </Txt>
-                <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+                <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
                   {week.onPlan} of {week.total} days on plan
                 </Txt>
               </View>
-              <Txt w="eb" num size={30} color={colors.success} ls={-0.5}>
+              <Txt w="eb" num size={30} color={c.success} ls={-0.5}>
                 {week.pct}%
               </Txt>
             </Row>
@@ -135,22 +137,22 @@ export function ParentView() {
                       width: 34,
                       height: 34,
                       borderRadius: 11,
-                      backgroundColor: w.today ? colors.accentSurface : w.ok ? colors.successSurface : '#FEE2E2',
+                      backgroundColor: w.today ? c.accentSurface : w.ok ? c.successSurface : '#FEE2E2',
                       borderWidth: w.today ? 2 : 0,
-                      borderColor: colors.accent,
+                      borderColor: c.accent,
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
                     {w.today ? (
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.accent }} />
                     ) : w.ok ? (
-                      <Icon name="check" size={15} color={colors.successDeep} />
+                      <Icon name="check" size={15} color={c.successDeep} />
                     ) : (
-                      <Icon name="close" size={13} color={colors.alertDeep} />
+                      <Icon name="close" size={13} color={c.alertDeep} />
                     )}
                   </View>
-                  <Txt w="b" size={11} color={w.today ? colors.accent : colors.textTertiary}>
+                  <Txt w="b" size={11} color={w.today ? c.accent : c.textTertiary}>
                     {w.label}
                   </Txt>
                 </View>
@@ -167,14 +169,14 @@ export function ParentView() {
                 <Txt w="eb" size={16} ls={-0.3}>
                   Weight Trend
                 </Txt>
-                <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+                <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
                   8-week build · goal {displayWeight(weightTarget, units)} {wUnit}
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Txt w="eb" num size={26} ls={-0.5}>
                   {displayWeight(s.currentWeight, units)}
-                  <Txt w="sb" size={13} color={colors.textTertiary}>
+                  <Txt w="sb" size={13} color={c.textTertiary}>
                     {' '}
                     {wUnit}
                   </Txt>
@@ -182,7 +184,7 @@ export function ParentView() {
                 {(() => {
                   const gain = displayWeightDelta(s.currentWeight - startWeight, units);
                   const tone = weightProgressTone(s.currentWeight - startWeight, s.baseGoal);
-                  const toneColor = tone === 'good' ? colors.success : tone === 'bad' ? colors.alert : colors.textSecondary;
+                  const toneColor = tone === 'good' ? c.success : tone === 'bad' ? c.alert : c.textSecondary;
                   return (
                     <Txt w="b" size={12} color={toneColor}>
                       {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}
@@ -201,7 +203,7 @@ export function ParentView() {
               <Line x1="0" y1={wt.goalY} x2="322" y2={wt.goalY} stroke="#22C55E" strokeWidth="1.5" strokeDasharray="5 5" strokeOpacity="0.5" />
               <Path d={wt.areaPath} fill="url(#pwt)" />
               <Path d={wt.linePath} fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-              <Circle cx={wt.last.x} cy={wt.last.y} r={5.5} fill="#2563EB" stroke="#fff" strokeWidth={2.5} />
+              <Circle cx={wt.last.x} cy={wt.last.y} r={5.5} fill="#2563EB" stroke={c.card} strokeWidth={2.5} />
             </Svg>
           </Card>
           </Reveal>
@@ -214,7 +216,7 @@ export function ParentView() {
                 <Txt w="eb" size={16} ls={-0.3}>
                   Nutrition Trend
                 </Txt>
-                <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+                <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
                   Daily protein target hit
                 </Txt>
               </View>
@@ -222,7 +224,7 @@ export function ParentView() {
                 <Txt w="eb" num size={26} ls={-0.5}>
                   {nutri.avg}%
                 </Txt>
-                <Txt w="sb" size={12} color={colors.textSecondary}>
+                <Txt w="sb" size={12} color={c.textSecondary}>
                   weekly avg
                 </Txt>
               </View>
@@ -232,10 +234,10 @@ export function ParentView() {
                 const today = i === nutri.bars.length - 1;
                 return (
                   <View key={i} style={{ alignItems: 'center', gap: 7, flex: 1 }}>
-                    <View style={{ width: 22, height: 86, borderRadius: 6, backgroundColor: colors.track, justifyContent: 'flex-end', overflow: 'hidden' }}>
-                      <View style={{ width: '100%', height: `${Math.max(0, Math.min(100, h))}%`, borderRadius: 6, backgroundColor: today ? '#93C5FD' : colors.accent }} />
+                    <View style={{ width: 22, height: 86, borderRadius: 6, backgroundColor: c.track, justifyContent: 'flex-end', overflow: 'hidden' }}>
+                      <View style={{ width: '100%', height: `${Math.max(0, Math.min(100, h))}%`, borderRadius: 6, backgroundColor: today ? '#93C5FD' : c.accent }} />
                     </View>
-                    <Txt w="b" size={11} color={today ? colors.accent : colors.textTertiary}>
+                    <Txt w="b" size={11} color={today ? c.accent : c.textTertiary}>
                       {week.days[i]?.label ?? ''}
                     </Txt>
                   </View>
@@ -253,8 +255,8 @@ export function ParentView() {
             </Txt>
             {athlete.isDemo ? (
               <Row style={{ gap: 13, alignItems: 'flex-start' }}>
-                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' }}>
-                  <Txt w="b" size={14} color="#fff">
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.text, alignItems: 'center', justifyContent: 'center' }}>
+                  <Txt w="b" size={14} color={c.white}>
                     CD
                   </Txt>
                 </View>
@@ -263,25 +265,25 @@ export function ParentView() {
                     <Txt w="b" size={14}>
                       Coach Davis
                     </Txt>
-                    <Txt w="sb" size={12} color={colors.textTertiary}>
+                    <Txt w="sb" size={12} color={c.textTertiary}>
                       2 days ago
                     </Txt>
                   </Row>
-                  <Txt w="m" size={14} color={colors.slate700} style={{ marginTop: 7, lineHeight: 21 }}>
+                  <Txt w="m" size={14} color={c.slate700} style={{ marginTop: 7, lineHeight: 21 }}>
                     Jihad's nutrition has been excellent. He's one of the most consistent in the linebacker room. We're focused on adding sleep to convert this into on-field strength. Great support at home.
                   </Txt>
                 </View>
               </Row>
             ) : (
               <Row style={{ gap: 13, alignItems: 'flex-start' }}>
-                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="user" size={18} color={colors.slate600} />
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="user" size={18} color={c.slate600} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Txt w="b" size={14}>
                     No notes yet
                   </Txt>
-                  <Txt w="m" size={14} color={colors.slate700} style={{ marginTop: 7, lineHeight: 21 }}>
+                  <Txt w="m" size={14} color={c.slate700} style={{ marginTop: 7, lineHeight: 21 }}>
                     When {athlete.first}'s coach leaves a note, it shows up here so you stay in the loop.
                   </Txt>
                 </View>
@@ -292,12 +294,12 @@ export function ParentView() {
 
           {/* AI parent summary */}
           <Reveal index={5}>
-          <View style={{ marginTop: 14, borderRadius: 20, padding: 20, backgroundColor: colors.accentSurface, borderWidth: 1, borderColor: colors.accentBorder, flexDirection: 'row', gap: 13 }}>
-            <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="sparkle" size={17} color={colors.accent} />
+          <View style={{ marginTop: 14, borderRadius: 20, padding: 20, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, flexDirection: 'row', gap: 13 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="sparkle" size={17} color={c.accent} />
             </View>
-            <Txt w="m" size={14} color={colors.slate700} style={{ flex: 1, lineHeight: 21 }}>
-              <Txt w="b" size={14} color={colors.accent}>
+            <Txt w="m" size={14} color={c.slate700} style={{ flex: 1, lineHeight: 21 }}>
+              <Txt w="b" size={14} color={c.accent}>
                 For you ·{' '}
               </Txt>
               {digest.summary}

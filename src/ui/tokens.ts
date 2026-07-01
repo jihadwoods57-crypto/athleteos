@@ -45,6 +45,8 @@ export const colors = {
   successTint: '#ECFDF5',
   successText: '#065F46',
   successBorderSoft: '#A7F3D0',
+  warnTint: '#FEF3C7',
+  warnText: '#B45309',
   slate300: '#CBD5E1',
 
   white: '#FFFFFF',
@@ -109,6 +111,8 @@ export const darkColors: ColorTheme = {
   successTint: '#0C2A20',
   successText: '#4ADE80',
   successBorderSoft: '#14532D',
+  warnTint: '#3A2A08',
+  warnText: '#FCD34D',
   slate300: '#475569',
 
   white: '#FFFFFF',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, useColorScheme } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,8 +11,9 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
-import { colors, DEVICE_MAX_WIDTH } from '@/ui/tokens';
+import { darkColors, lightColors, DEVICE_MAX_WIDTH } from '@/ui/tokens';
 import { ThemeProvider } from '@/ui/theme';
+import { useStore } from '@/store';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -23,23 +24,27 @@ export default function RootLayout() {
     PlusJakartaSans_800ExtraBold,
   });
 
+  // Active appearance: the user's preference, or the OS setting when on 'auto'. Drives the
+  // palette (via ThemeProvider) and the native chrome (status bar + the frame background).
+  const themeMode = useStore((s) => s.themeMode);
+  const os = useColorScheme();
+  const scheme: 'light' | 'dark' = themeMode === 'auto' ? (os === 'dark' ? 'dark' : 'light') : themeMode;
+  const palette = scheme === 'dark' ? darkColors : lightColors;
+
   if (!loaded) {
-    return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
+    return <View style={{ flex: 1, backgroundColor: palette.bg }} />;
   }
 
   return (
-    // Theming foundation: defaults to light, so the app is visually unchanged today.
-    // Flipping the scheme (OS setting or a toggle) is all dark mode will need once
-    // components migrate to useColors().
-    <ThemeProvider initial="light">
+    <ThemeProvider scheme={scheme}>
       <SafeAreaProvider>
         {/* Center a phone-width frame on wide screens (web/tablet). */}
-        <View style={{ flex: 1, backgroundColor: colors.bg2, alignItems: 'center' }}>
-          <View style={{ flex: 1, width: '100%', maxWidth: DEVICE_MAX_WIDTH, backgroundColor: colors.bg }}>
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
+        <View style={{ flex: 1, backgroundColor: palette.bg2, alignItems: 'center' }}>
+          <View style={{ flex: 1, width: '100%', maxWidth: DEVICE_MAX_WIDTH, backgroundColor: palette.bg }}>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.bg } }} />
           </View>
         </View>
-        <StatusBar style="dark" />
+        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       </SafeAreaProvider>
     </ThemeProvider>
   );
