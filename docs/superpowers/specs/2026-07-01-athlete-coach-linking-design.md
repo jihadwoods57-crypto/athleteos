@@ -107,10 +107,20 @@ is the coach's consent. Add a **confirmation screen** first: resolve the code to
 
 ### E. Onboarding flow changes (`src/screens/onboarding/`)
 
-- **Athlete flow (`flows.ts athleteFlowKeys`):** add an optional `connect` step (after
-  `consent`, before `challenge`). Screen offers *I have a code* (→ confirm → active) or
-  *Find my coach* (→ school search → team pick → request pending). Skippable; also reachable
-  in-app via the existing `supportTeam` / `connectCoach` surface.
+- **Athlete flow (`flows.ts athleteFlowKeys`) — connect rides *behind* activation, never in
+  front of it.** The score→first-meal spine is untouched (it is the activation hook). Placement:
+  - **After the first-meal `challenge`**, add an optional, skippable `connect` beat framed as
+    "You just proved it works — connect your coach so this counts and they've got your back."
+    Offers *I have a code* (→ confirm → active) or *Find my coach* (→ school search → team pick
+    → request pending).
+  - **Persistent in-app entry** so a skip or a later-obtained code is never a dead end: a
+    first-run "Connect your coach" card on Home + the existing `supportTeam` / `connectCoach`
+    surface in Profile.
+  - **Invite-link fast path:** if the athlete arrived via a coach's invite deep link (link
+    carries the join code), we already know they have a coach — surface the
+    "Join Coach Davis · Eastside HS?" confirm **early** in onboarding (right after the score
+    reveal), instant and zero-friction. Everyone else defers to the post-meal beat above.
+    Requires a deep-link handler that stashes the pending code through onboarding.
 - **Coach flow (`ROLE_FLOWS`):** the `school` freetext step becomes a **directory picker**
   (`search_orgs` + add). `createTeamLive` (called in `GenericStep` before the invite step)
   now also sets `teams.org_id` and the `discoverable` toggle. Invite/code step unchanged.
@@ -147,9 +157,12 @@ is the coach's consent. Add a **confirmation screen** first: resolve the code to
   yield exactly one active row.
 - **Store (jest):** `requestJoinTeam`, `approveMember`, `declineMember`, `searchOrgs`,
   `createOrg`, and their trainer mirrors — action + state transitions, inert when flag off.
-- **Onboarding (web/Playwright):** athlete "Find my coach" path (search → request → pending
-  state shown); coach approves; athlete sees "active". Coach directory picker seeds `org_id`.
-  Code path still shows the confirm screen. Minor: linked but data-gated until guardian verify.
+- **Onboarding (web/Playwright):** score→first-meal spine is unchanged and uninterrupted; the
+  `connect` beat appears **after** the meal and is skippable. Athlete "Find my coach" path
+  (search → request → pending state shown); coach approves; athlete sees "active". Invite-link
+  arrival surfaces the "Join Coach Davis?" confirm early (post score reveal). Home first-run
+  "Connect your coach" card opens the same flow and disappears once linked. Coach directory
+  picker seeds `org_id`. Minor: linked but data-gated until guardian verify.
 - Full `npx tsc --noEmit` + `npx jest` green; existing suites unaffected.
 
 ## New vs. changed files (implementation surface)
@@ -161,6 +174,11 @@ is the coach's consent. Add a **confirmation screen** first: resolve the code to
 - **`src/lib/supabase/queries.ts`:** searchOrgs, createOrg, requestJoinTeam, fetchPendingMembers,
   approveMember, declineMember + trainer mirrors.
 - **`src/store/useStore.ts`:** matching actions; extend `createTeamLive` to set org_id + discoverable.
-- **`src/screens/onboarding/`:** athlete `connect` step; coach school-picker step; trainer handle step.
+- **`src/screens/onboarding/`:** athlete post-meal `connect` beat + early invite-link confirm;
+  coach school-picker step; trainer handle step.
+- **Deep link:** an invite-link handler (`onstandard://join?code=…` / universal link) that
+  stashes the code through onboarding so the early confirm can fire.
+- **`src/screens/athlete/Home.tsx`:** first-run "Connect your coach" card (dismissible) opening
+  the same two-door connect screen; hidden once linked.
 - **`src/screens/roles/CoachView.tsx` / `TrainerView.tsx`:** pending-requests inbox + approve/decline.
 - **Core:** school-search view model; any pure helpers (dedup match) with tests.
