@@ -302,6 +302,8 @@ export interface Actions {
    *  when the backend is live; marks status 'pending' on a valid email. Returns success. */
   requestGuardianConsent: () => Promise<boolean>;
   recordConsent: (given: boolean) => void;
+  /** Record Terms + Privacy acceptance. Pass an ISO timestamp to accept, or null to clear. */
+  acceptTerms: (at: string | null) => void;
   setAuthError: (msg: string | null) => void;
   /** Athlete data-sharing controls (Profile). Pause stops every push immediately;
    *  removeViewer revokes a linked role from the accountability circle. */
@@ -1111,6 +1113,7 @@ export const useStore = create<Store>()(
         return true;
       },
       recordConsent: (given) => set({ realDataConsent: given }),
+      acceptTerms: (at) => set({ termsAcceptedAt: at }),
       setAuthError: (msg) => set({ authError: msg }),
       togglePauseSharing: () => {
         // Flipping OFF pause resumes syncing, so push the current day right away
@@ -1183,6 +1186,7 @@ export const useStore = create<Store>()(
         // ephemeral and deliberately NOT persisted.
         userId: s.userId,
         realDataConsent: s.realDataConsent,
+        termsAcceptedAt: s.termsAcceptedAt,
         sharingPaused: s.sharingPaused,
         entitlement: s.entitlement,
         // overseer read-cache (snappy paint); namespaced by cachedRosterUserId, purged on sign-out

@@ -166,6 +166,11 @@ export interface AppState {
    *  consent. The hard gate the live data path checks before any real pushDay
    *  (see core/consent.ts realDataConsent). Defaults false: fail-closed. */
   realDataConsent: boolean;
+  /** ISO timestamp of when the user accepted the Terms of Service + Privacy Policy at
+   *  account creation, or null if not yet accepted. A required, explicit affirmative
+   *  agreement (App Store 5.1.1 + legal cover for health data from minors). Persisted,
+   *  so the record survives across sessions. */
+  termsAcceptedAt: string | null;
   /** Last live-auth error message for the sign-in / sign-up screen to surface, or
    *  null. Ephemeral (not persisted); only ever set when isBackendLive. */
   authError: string | null;

@@ -49,6 +49,7 @@ export function createInitialState(): AppState {
     // backend session (Phase 1 go-live, gated behind isBackendLive; inert by default)
     userId: null,
     realDataConsent: false,
+    termsAcceptedAt: null,
     authError: null,
     passwordResetSent: false,
     emailConfirmPending: false,
