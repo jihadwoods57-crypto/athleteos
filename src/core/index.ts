@@ -60,4 +60,5 @@ export * from './adherence';
 export * from './aiAuthority';
 export * from './assist';
 export * from './personality';
+export * from './copilot';
 export { createInitialState } from './defaultState';
