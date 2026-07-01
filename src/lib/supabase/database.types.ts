@@ -152,6 +152,18 @@ export type TeamRow = {
   updated_at: string;
 }
 
+export type PracticeRow = {
+  id: string;
+  owner_id: string;
+  name: string;
+  join_code: string;
+  plan: string | null;
+  /** Trainer's unique @handle (client-first discovery key) + opt-in discovery (0020). */
+  handle: string | null;
+  discoverable: boolean;
+  created_at: string;
+}
+
 export type TeamMemberRow = {
   team_id: string;
   athlete_id: string;
@@ -201,6 +213,7 @@ export interface Database {
       athlete_profiles: Table<AthleteProfileRow>;
       orgs: Table<OrgRow>;
       teams: Table<TeamRow>;
+      practices: Table<PracticeRow>;
       days: Table<DayRow>;
       meals: Table<MealRow>;
       checkins: Table<CheckinRow>;
@@ -259,6 +272,26 @@ export interface Database {
       join_practice: {
         Args: { code: string };
         Returns: string;
+      };
+      create_practice: {
+        Args: { practice_name: string; practice_handle?: string | null; is_discoverable?: boolean | null };
+        Returns: string;
+      };
+      find_practice_by_handle: {
+        Args: { h: string };
+        Returns: { id: string; name: string; trainer_name: string | null }[];
+      };
+      resolve_practice_code: {
+        Args: { code: string };
+        Returns: { id: string; name: string; trainer_name: string | null }[];
+      };
+      request_join_practice: {
+        Args: { practice: string };
+        Returns: string;
+      };
+      pending_practice_requests: {
+        Args: { practice: string };
+        Returns: { client_id: string; client_name: string | null; requested_at: string | null }[];
       };
       coach_set_goals: {
         Args: {

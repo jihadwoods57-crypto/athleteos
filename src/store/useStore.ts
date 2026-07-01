@@ -138,6 +138,9 @@ export interface Actions {
    *  local model (so coach guidance + visibility activate), and when the backend is live actually
    *  joins their roster via the join_team RPC. Inert/best-effort when off. */
   connectCoach: (code: string) => void;
+  /** Client joins a trainer's practice by code (mirror of connectCoach): marks the
+   *  trainer in the local support network and joins via join_practice when live. */
+  connectTrainer: (code: string) => void;
   /** Open/close the athlete "Connect your coach" overlay; openConnect may carry an
    *  invite-link code to prefill the code door. */
   openConnect: (prefillCode?: string | null) => void;
@@ -308,6 +311,9 @@ export interface Actions {
    *  server-generated join code in teamCode. Inert (returns null) when the flag
    *  is off, so the onboarding invite step keeps its EAGLES24 showcase code. */
   createTeamLive: (name: string, sport?: string, orgId?: string | null, discoverable?: boolean) => Promise<string | null>;
+  /** Trainer/overseer creates a real practice via the create_practice RPC (mirror of
+   *  createTeamLive) with an optional @handle; stores the join code in teamCode. */
+  createPracticeLive: (name: string, handle?: string | null, discoverable?: boolean) => Promise<string | null>;
   setTeamDiscoverable: (v: boolean) => void;
   setGuardianEmail: (v: string) => void;
   /** Minor guardian consent: email a minor's guardian an approval request. Gated, sends only
@@ -484,6 +490,23 @@ export const useStore = create<Store>()(
         set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('coach') ? s.supportTeam : [...s.supportTeam, 'coach'] }));
         // When live + signed in, join the coach's roster by code; inert + best-effort when off.
         if (isBackendLive) void db.joinTeam(c).catch(() => undefined);
+      },
+      connectTrainer: (code) => {
+        const c = code.trim().toUpperCase();
+        if (!c) return;
+        set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('trainer') ? s.supportTeam : [...s.supportTeam, 'trainer'] }));
+        if (isBackendLive) void db.joinPractice(c).catch(() => undefined);
+      },
+      createPracticeLive: async (name, handle, discoverable) => {
+        if (!isBackendLive) return null;
+        try {
+          const code = await db.createPractice(name.trim() || 'My Practice', handle?.trim() || null, discoverable ?? false);
+          if (code) set({ teamCode: code, authError: null });
+          return code;
+        } catch (e) {
+          set({ authError: e instanceof Error ? e.message : 'Could not create practice' });
+          return null;
+        }
       },
       openConnect: (prefillCode) => set({ connectOpen: true, connectPrefillCode: prefillCode ?? null }),
       closeConnect: () => set({ connectOpen: false, connectPrefillCode: null }),

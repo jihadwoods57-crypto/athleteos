@@ -889,15 +889,22 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
   // On the invite step, when the backend is live, mint the overseer's real team
   // via the create_team RPC so the shared code is the genuine server-generated one.
   // Inert when the flag is off (createTeamLive no-ops) — the demo keeps EAGLES24.
-  const { teamCode, obMeta, createTeamLive, teamDiscoverable } = s;
+  const { teamCode, obMeta, createTeamLive, createPracticeLive, teamDiscoverable, role } = s;
   useEffect(() => {
     if (step.kind !== 'invite' || !isBackendLive || teamCode) return;
+    // Trainers/nutritionists get a PRACTICE (handle-discoverable); everyone else a TEAM.
+    if (role === 'personal_trainer' || role === 'nutritionist') {
+      const handle = typeof obMeta.handle === 'string' ? obMeta.handle.trim() : '';
+      const practiceName = typeof obMeta.school === 'string' && obMeta.school.trim() ? obMeta.school.trim() : 'My Practice';
+      void createPracticeLive(practiceName, handle || null, !!handle);
+      return;
+    }
     const sport = typeof obMeta.sport === 'string' ? obMeta.sport : undefined;
     const school = typeof obMeta.school === 'string' ? obMeta.school.trim() : '';
     const orgId = typeof obMeta.orgId === 'string' && obMeta.orgId ? obMeta.orgId : null;
     const name = school || (sport ? `${sport} team` : 'My Team');
     void createTeamLive(name, sport, orgId, teamDiscoverable);
-  }, [step.kind, teamCode, obMeta, createTeamLive, teamDiscoverable]);
+  }, [step.kind, teamCode, obMeta, createTeamLive, createPracticeLive, teamDiscoverable, role]);
 
   if (step.kind === 'invite') {
     return (

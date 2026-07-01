@@ -116,6 +116,7 @@ export const ROLE_FLOWS: Partial<Record<Role, GenStep[]>> = {
         { key: 'scaling', label: 'Scaling coaching' },
       ],
     },
+    { kind: 'text', field: 'handle', title: 'Pick your @handle', sub: 'Clients can find you by this handle and request to join — or you can just share your code.', placeholder: 'e.g. coachmaya' },
     { kind: 'invite', title: 'Invite your first client', sub: 'Activation starts the moment they join. Share your code or send an invite.', cta: 'Send invite', codeLabel: 'YOUR INVITE CODE' },
   ],
   sports_perf_coach: [
@@ -183,6 +184,7 @@ export const ROLE_FLOWS: Partial<Record<Role, GenStep[]>> = {
         { key: 'accountability', label: 'Client accountability' },
       ],
     },
+    { kind: 'text', field: 'handle', title: 'Pick your @handle', sub: 'Clients can find you by this handle and request to join — or you can just share your code.', placeholder: 'e.g. coachmaya' },
     { kind: 'invite', title: 'Invite your first client', sub: 'Their first logged meal is where your coaching begins.', cta: 'Send invite', codeLabel: 'YOUR INVITE CODE' },
   ],
   hs_coach: [

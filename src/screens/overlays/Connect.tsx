@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { db, isBackendLive } from '@/lib/supabase';
-import type { OrgRow, DiscoveredTeam, ResolvedTeam } from '@/lib/supabase';
+import type { OrgRow, DiscoveredTeam, ResolvedTeam, FoundPractice } from '@/lib/supabase';
 import { useStore } from '@/store';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
@@ -23,9 +23,11 @@ export function Connect() {
   const c = useColors();
   const s = useStore();
   const [mode, setMode] = useState<Mode>('code');
-  // code door
+  // code door — a code may resolve to a team (coach) OR a practice (trainer)
   const [code, setCode] = useState((s.connectPrefillCode ?? '').toUpperCase());
-  const [resolved, setResolved] = useState<ResolvedTeam | null>(null);
+  const [resolved, setResolved] = useState<
+    { kind: 'team'; data: ResolvedTeam } | { kind: 'practice'; data: FoundPractice } | null
+  >(null);
   const [checking, setChecking] = useState(false);
   const [codeErr, setCodeErr] = useState<string | null>(null);
   // find door
@@ -58,17 +60,26 @@ export function Connect() {
       return;
     }
     setChecking(true);
-    const r = await db.resolveTeamCode(v).catch(() => null);
+    // A code the user has could be a team (coach) OR a practice (trainer) — try both.
+    const team = await db.resolveTeamCode(v).catch(() => null);
+    if (team) { setResolved({ kind: 'team', data: team }); setChecking(false); return; }
+    const practice = await db.resolvePracticeCode(v).catch(() => null);
     setChecking(false);
-    if (r) setResolved(r);
+    if (practice) setResolved({ kind: 'practice', data: practice });
     else setCodeErr('We couldn’t find that code. Double-check it with your coach.');
   };
 
   const joinResolved = () => {
     if (!resolved) return;
     haptics.success();
-    s.connectCoach(code.trim().toUpperCase());
-    setDone(`You’re on ${resolved.coach_name ? `${resolved.coach_name}’s` : 'the'} roster.`);
+    const v = code.trim().toUpperCase();
+    if (resolved.kind === 'team') {
+      s.connectCoach(v);
+      setDone(`You’re on ${resolved.data.coach_name ? `${resolved.data.coach_name}’s` : 'the'} roster.`);
+    } else {
+      s.connectTrainer(v);
+      setDone(`You’re connected to ${resolved.data.trainer_name ?? 'your trainer'}.`);
+    }
   };
 
   const pickOrg = async (o: OrgRow) => {
@@ -127,9 +138,13 @@ export function Connect() {
             {codeErr ? <Txt w="sb" size={13} color={c.alert}>{codeErr}</Txt> : null}
             {resolved ? (
               <Card elevated style={{ marginTop: 4 }}>
-                <Txt w="eb" size={16}>{resolved.coach_name || 'Your coach'}</Txt>
-                <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 2 }}>{[resolved.school, resolved.name, resolved.sport].filter(Boolean).join(' · ')}</Txt>
-                <Btn label="Join this team" haptic="success" onPress={joinResolved} style={{ marginTop: 14 }} />
+                <Txt w="eb" size={16}>{resolved.kind === 'team' ? (resolved.data.coach_name || 'Your coach') : (resolved.data.trainer_name || 'Your trainer')}</Txt>
+                <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 2 }}>
+                  {resolved.kind === 'team'
+                    ? [resolved.data.school, resolved.data.name, resolved.data.sport].filter(Boolean).join(' · ')
+                    : resolved.data.name}
+                </Txt>
+                <Btn label={resolved.kind === 'team' ? 'Join this team' : 'Join this practice'} haptic="success" onPress={joinResolved} style={{ marginTop: 14 }} />
               </Card>
             ) : (
               <Btn label={checking ? 'Checking…' : 'Continue'} disabled={checking || code.trim().length < 3} onPress={checkCode} />

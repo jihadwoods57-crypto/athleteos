@@ -359,6 +359,86 @@ export async function joinPractice(code: string): Promise<string | null> {
   return data;
 }
 
+// ---------------------------------------------------------------- client ↔ trainer mirror
+/** Safe (display-only) shapes returned by the practice discovery/resolve RPCs. */
+export type FoundPractice = { id: string; name: string; trainer_name: string | null };
+export type PendingClient = { client_id: string; client_name: string | null; requested_at: string | null };
+
+/** Trainer creates their practice → real, server-generated join code + optional @handle. */
+export async function createPractice(name: string, handle?: string | null, discoverable = false): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('create_practice', {
+    practice_name: name,
+    practice_handle: handle ?? null,
+    is_discoverable: discoverable,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** Client-first discovery: find a discoverable practice by the trainer's @handle. */
+export async function findPracticeByHandle(handle: string): Promise<FoundPractice | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('find_practice_by_handle', { h: handle });
+  if (error) throw error;
+  return data && data.length > 0 ? data[0] : null;
+}
+
+/** Resolve a practice join code to a confirm-screen preview (trainer name) without joining. */
+export async function resolvePracticeCode(code: string): Promise<FoundPractice | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('resolve_practice_code', { code });
+  if (error) throw error;
+  return data && data.length > 0 ? data[0] : null;
+}
+
+/** Client requests to join a discoverable practice → a 'pending' row (trainer approves). */
+export async function requestJoinPractice(practiceId: string): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('request_join_practice', { practice: practiceId });
+  if (error) throw error;
+  return data;
+}
+
+/** Pending client requests for a practice (owner-gated RPC returning requester names). */
+export async function pendingPracticeRequests(practiceId: string): Promise<PendingClient[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase().rpc('pending_practice_requests', { practice: practiceId });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Trainer approves a pending client → flips the row to 'active' (pc_manage policy). */
+export async function approveClient(practiceId: string, clientId: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase()
+    .from('practice_clients')
+    .update({ status: 'active' })
+    .eq('practice_id', practiceId)
+    .eq('client_id', clientId);
+  if (error) throw error;
+}
+
+/** Trainer declines a pending client → deletes the row (pc_manage policy). */
+export async function declineClient(practiceId: string, clientId: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase()
+    .from('practice_clients')
+    .delete()
+    .eq('practice_id', practiceId)
+    .eq('client_id', clientId);
+  if (error) throw error;
+}
+
+/** Practices the signed-in user owns (practices_read RLS returns the owner's own; a
+ *  trainer typically has one). Powers the trainer's pending-request inbox. */
+export async function fetchMyPractices(): Promise<{ id: string; name: string }[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase().from('practices').select('id, name');
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function coachSetGoals(
   athleteId: string,
   targets: AthleteProfileRow['targets'] | null,

@@ -3,5 +3,5 @@
 export { isSupabaseConfigured, isBackendLive, supabase, requireSupabase } from './client';
 export * as auth from './auth';
 export * as db from './queries';
-export type { DiscoveredTeam, ResolvedTeam, PendingRequest } from './queries';
+export type { DiscoveredTeam, ResolvedTeam, PendingRequest, FoundPractice, PendingClient } from './queries';
 export type * from './database.types';
