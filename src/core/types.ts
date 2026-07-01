@@ -302,6 +302,14 @@ export interface AppState {
   personDetail: PersonDetail | null;
   accountOpen: boolean;
   msgOpen: boolean;
+  /** The athlete's "Connect your coach" overlay (two doors: code / find-my-coach). */
+  connectOpen: boolean;
+  /** A join code carried in from an invite deep link, prefilled into the Connect
+   *  overlay's code door. Null when opened normally. */
+  connectPrefillCode: string | null;
+  /** Athlete dismissed the first-run "Connect your coach" Home card ("not now"). The
+   *  card also hides automatically once they're linked (supportTeam includes 'coach'). */
+  connectCardDismissed: boolean;
 
   // ---- misc ----
   weeklyGoalLb: number;

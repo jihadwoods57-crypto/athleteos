@@ -124,6 +124,9 @@ export function createInitialState(): AppState {
     personDetail: null,
     accountOpen: false,
     msgOpen: false,
+    connectOpen: false,
+    connectPrefillCode: null,
+    connectCardDismissed: false,
 
     // misc
     weeklyGoalLb: 1.0,

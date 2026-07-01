@@ -138,6 +138,15 @@ export interface Actions {
    *  local model (so coach guidance + visibility activate), and when the backend is live actually
    *  joins their roster via the join_team RPC. Inert/best-effort when off. */
   connectCoach: (code: string) => void;
+  /** Open/close the athlete "Connect your coach" overlay; openConnect may carry an
+   *  invite-link code to prefill the code door. */
+  openConnect: (prefillCode?: string | null) => void;
+  closeConnect: () => void;
+  /** Athlete dismissed the first-run Home connect card ("not now"). */
+  dismissConnectCard: () => void;
+  /** Athlete-first request to join a discoverable team → a pending row the coach
+   *  approves. Returns true on success; inert (false) when the backend is off. */
+  requestJoinTeamLive: (teamId: string, position?: string) => Promise<boolean>;
   setInviteCode: (v: string) => void;
   setBaseAnswer: (key: BaselineKey, value: number) => void;
   setObMeta: (key: string, value: string | string[] | number) => void;
@@ -475,6 +484,18 @@ export const useStore = create<Store>()(
         set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('coach') ? s.supportTeam : [...s.supportTeam, 'coach'] }));
         // When live + signed in, join the coach's roster by code; inert + best-effort when off.
         if (isBackendLive) void db.joinTeam(c).catch(() => undefined);
+      },
+      openConnect: (prefillCode) => set({ connectOpen: true, connectPrefillCode: prefillCode ?? null }),
+      closeConnect: () => set({ connectOpen: false, connectPrefillCode: null }),
+      dismissConnectCard: () => set({ connectCardDismissed: true }),
+      requestJoinTeamLive: async (teamId, position) => {
+        if (!isBackendLive) return false;
+        try {
+          await db.requestJoinTeam(teamId, position);
+          return true;
+        } catch {
+          return false;
+        }
       },
       setBaseAnswer: (key, value) => set({ [key]: value } as Partial<AppState>),
       setObMeta: (key, value) => set((s) => ({ obMeta: { ...s.obMeta, [key]: value } })),
@@ -1180,6 +1201,7 @@ export const useStore = create<Store>()(
         inviteCode: s.inviteCode,
         teamCode: s.teamCode,
         teamDiscoverable: s.teamDiscoverable,
+        connectCardDismissed: s.connectCardDismissed,
         guardianEmail: s.guardianEmail,
         guardianStatus: s.guardianStatus,
         baseNutritionConfidence: s.baseNutritionConfidence,
