@@ -52,7 +52,7 @@ describe('openMealHistory', () => {
 
   it('flag ON + user: fetches the window and stores the rows', async () => {
     const rows = [
-      { id: 'm1', athlete_id: 'u-1', day_date: '2026-06-28', type: 'dinner', photo_path: null, name: 'Chicken', protein: 52, kcal: 680, carbs: 64, fat: 18, quality: 94, detected: [], note: null, logged_at: '2026-06-28T19:00:00Z' },
+      { id: 'm1', athlete_id: 'u-1', day_date: '2026-06-28', type: 'dinner', photo_path: null, name: 'Chicken', protein: 52, kcal: 680, carbs: 64, fat: 18, quality: 94, detected: [], note: null, macro_confidence: null, description_signal: null, favorited: false, logged_at: '2026-06-28T19:00:00Z' },
     ] as MealRow[];
     fetchRecentMeals.mockResolvedValue(rows);
     const useStore = loadStore(true);
