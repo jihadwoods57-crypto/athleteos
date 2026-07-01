@@ -6,7 +6,7 @@ import { taskVisibilityNote, weekdayLong, activePlan, mealWindowStatuses, escala
 import { isEnginesEnabled } from '@/lib/features';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { ProgressBar, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 
@@ -50,12 +50,13 @@ export function Plan() {
         Today's Plan
       </Txt>
 
+      <Reveal index={0}>
       <Row style={[{ marginTop: 18, gap: 16, backgroundColor: '#fff', borderRadius: 20, padding: 18 }, shadow.card]}>
-        <Txt w="eb" size={30}>
-          <Txt w="eb" size={30} color={colors.accent}>
+        <Txt w="eb" num size={30}>
+          <Txt w="eb" num size={30} color={colors.accent}>
             {d.tasksDone}
           </Txt>
-          <Txt w="eb" size={30} color="#CBD5E1">
+          <Txt w="eb" num size={30} color={colors.slate300}>
             /{d.tasksTotal}
           </Txt>
         </Txt>
@@ -66,11 +67,13 @@ export function Plan() {
           <ProgressBar pct={d.tasksScore} height={9} />
         </View>
       </Row>
+      </Reveal>
 
       {/* Accountability Engine — plan execution today (meal windows + escalation).
           Gated by the engines master switch (OFF for the prove-the-loop beta); the core
           task list + count below stay visible either way. */}
       {isEnginesEnabled ? (
+        <Reveal index={1}>
         <View style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 18 }, shadow.card]}>
           <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <Pressable accessibilityRole="button" accessibilityLabel="Edit coach plan" onPress={openPlanEditor} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 })}>
@@ -79,7 +82,7 @@ export function Plan() {
               </Txt>
               <Icon name="settings" size={14} color={colors.textTertiary} />
             </Pressable>
-            <Txt w="eb" size={15} color={adherence.adherencePct >= 80 ? colors.successDeep : adherence.adherencePct >= 50 ? colors.warningDeep : colors.alert}>
+            <Txt w="eb" num size={15} color={adherence.adherencePct >= 80 ? colors.successDeep : adherence.adherencePct >= 50 ? colors.warningDeep : colors.alert}>
               {adherence.adherencePct}%
             </Txt>
           </Row>
@@ -120,8 +123,10 @@ export function Plan() {
             </View>
           ) : null}
         </View>
+        </Reveal>
       ) : null}
 
+      <Reveal index={2}>
       <View style={{ marginTop: 18, gap: 10 }}>
         {tasks.map((t) => (
           <View key={t.id}>
@@ -149,7 +154,7 @@ export function Plan() {
                   justifyContent: 'center',
                   backgroundColor: t.done ? colors.accent : '#fff',
                   borderWidth: 2,
-                  borderColor: t.done ? colors.accent : '#CBD5E1',
+                  borderColor: t.done ? colors.accent : colors.slate300,
                 }}
               >
                 {t.done ? <Icon name="check" size={14} color="#fff" /> : null}
@@ -166,6 +171,7 @@ export function Plan() {
           </View>
         ))}
       </View>
+      </Reveal>
 
       <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 18, textAlign: 'center', lineHeight: 19, paddingHorizontal: 16 }}>
         {visibilityNote}

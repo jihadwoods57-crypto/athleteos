@@ -9,7 +9,7 @@ import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
 import { aiPrefix } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
+import { Card, PressScale, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
@@ -76,14 +76,17 @@ export function TrainerView() {
 
           {/* RETENTION is a showcase sample with no real source yet, so it shows only in the
               demo and is hidden once the backend is live (no fabricated metric for a real trainer). */}
+          <Reveal index={0}>
           <Row style={{ gap: 10, marginTop: 20 }}>
             <Kpi value={String(kpis.clients)} label="CLIENTS" />
             <Kpi value={`${kpis.avgCompliance}%`} label="AVG COMPLY" />
             {isBackendLive ? null : <Kpi value="92%" label="RETENTION" color={colors.success} sample />}
           </Row>
+          </Reveal>
 
           {/* book compliance trend */}
-          <Card elevated style={{ marginTop: 14, borderRadius: 20 }}>
+          <Reveal index={1}>
+          <Card variant="hero" style={{ marginTop: 14, borderRadius: 20 }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View>
                 <Row style={{ gap: 8 }}>
@@ -97,7 +100,7 @@ export function TrainerView() {
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Txt w="eb" size={22}>
+                <Txt w="eb" num size={22}>
                   {kpis.avgCompliance}%
                 </Txt>
                 <Txt w="b" size={12} color={colors.success}>
@@ -117,8 +120,10 @@ export function TrainerView() {
               <Circle cx={310} cy={40} r={5.5} fill="#2563EB" stroke="#fff" strokeWidth={2.5} />
             </Svg>
           </Card>
+          </Reveal>
 
           {/* needs follow-up */}
+          <Reveal index={2}>
           {followUps.length > 0 ? (
             <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.alertSurface, borderWidth: 1, borderColor: colors.alertBorder }}>
               <Row style={{ gap: 8, marginBottom: 13 }}>
@@ -162,8 +167,10 @@ export function TrainerView() {
               </Txt>
             </View>
           )}
+          </Reveal>
 
           {/* all clients */}
+          <Reveal index={3}>
           <Row style={{ justifyContent: 'space-between', marginTop: 22, marginBottom: 12, marginHorizontal: 4 }}>
             <Txt w="eb" size={16} ls={-0.3}>
               All Clients
@@ -177,8 +184,9 @@ export function TrainerView() {
               const g = gradeFor(c.score);
               const org = ORG_COLORS[c.org] ?? ORG_COLORS.Independent;
               return (
-                <Pressable
+                <PressScale
                   key={c.name}
+                  accessibilityLabel={`${c.name}, score ${c.score}. View client.`}
                   onPress={() => s.openPerson({ name: c.name, initials: c.initials, pos: c.sport, score: c.score, org: c.org, comp: c.comp, last: c.last })}
                   style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 13, paddingHorizontal: 14 }, shadow.card]}
                 >
@@ -202,7 +210,7 @@ export function TrainerView() {
                       </Txt>
                     </Row>
                   </View>
-                  <Txt w="eb" size={18} style={{ width: 30, textAlign: 'right' }}>
+                  <Txt w="eb" num size={18} style={{ width: 30, textAlign: 'right' }}>
                     {c.score}
                   </Txt>
                   <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg }}>
@@ -210,12 +218,14 @@ export function TrainerView() {
                       {g.g}
                     </Txt>
                   </View>
-                </Pressable>
+                </PressScale>
               );
             })}
           </View>
+          </Reveal>
 
-          <Card elevated style={{ marginTop: 16, borderRadius: 20 }}>
+          <Reveal index={4}>
+          <Card variant="low" style={{ marginTop: 16, borderRadius: 20 }}>
             <Row style={{ gap: 9, marginBottom: 12 }}>
               <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="sparkle" size={17} color={colors.accent} />
@@ -232,6 +242,7 @@ export function TrainerView() {
                 : `${followUps.length === 1 ? '1 client is a retention risk' : `${followUps.length} clients are retention risks`}: ${followUps.map((a) => a.name).join(', ')}. Reaching out today is the move before they drift.`}
             </Txt>
           </Card>
+          </Reveal>
         </ScrollView>
       </SafeAreaView>
 
@@ -248,7 +259,7 @@ export function TrainerView() {
 function Kpi({ value, label, color, sample }: { value: string; label: string; color?: string; sample?: boolean }) {
   return (
     <Card style={{ flex: 1, borderRadius: 18, padding: 16 }}>
-      <Txt w="eb" size={28} color={color}>
+      <Txt w="eb" num size={28} color={color}>
         {value}
       </Txt>
       <Txt w="b" size={11} color={colors.textTertiary} style={{ marginTop: 3 }}>
@@ -278,7 +289,7 @@ function FollowUp({ initials, iconBg, iconColor, name, meta, score, color, nudge
             </Txt>
           </View>
         </Row>
-        <Txt w="eb" size={18} color={color}>
+        <Txt w="eb" num size={18} color={color}>
           {score}
         </Txt>
       </Row>

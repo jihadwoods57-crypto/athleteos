@@ -5,7 +5,7 @@ import { Animated, Easing, View } from 'react-native';
 import { gradeWithSuffix } from '@/core';
 import { colors } from '@/ui/tokens';
 import { Ring } from '@/ui/Ring';
-import { Txt } from '@/ui/primitives';
+import { Reveal, Txt } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { useReduceMotion } from '@/ui/useReduceMotion';
 
@@ -58,8 +58,11 @@ export function ScoreReveal({ score, bumped }: { score: number; bumped?: boolean
 
   return (
     <View style={{ alignItems: 'center' }}>
+      {/* The ring stands alone on open canvas — for a reveal, isolation + the count-up +
+          the haptic are the drama; a card behind a circular ring only gilds it. */}
+      <Reveal index={0}>
       <Ring size={232} pct={score} stroke={20} color={color} track="#E8EEF6">
-        <Txt w="eb" size={68} ls={-2} color={colors.text}>
+        <Txt w="eb" num size={68} ls={-2} color={colors.text}>
           {shown}
         </Txt>
         <Animated.View
@@ -76,6 +79,7 @@ export function ScoreReveal({ score, bumped }: { score: number; bumped?: boolean
           </View>
         </Animated.View>
       </Ring>
+      </Reveal>
       {bumped ? (
         <View style={{ marginTop: 18, backgroundColor: colors.successSurface, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 }}>
           <Txt w="eb" size={13} color={colors.successDeep}>
