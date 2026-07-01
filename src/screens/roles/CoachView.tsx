@@ -10,7 +10,7 @@ import {
   CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, coachTeamTitle, filterRoster, gradeFor, needsAttention,
   notLoggedCount, rankByRisk, rosterGroups, rosterGroupStats, teamWeeklyReport, teamWeeklyReportText, trendInfo,
 } from '@/core';
-import type { RosterRow, RosterGroupStat } from '@/core';
+import type { RosterRow, RosterGroupStat, AtRiskInput } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiTeamSummaryTag } from '@/lib/ai';
 import { shadow, MAX_FONT_SCALE } from '@/ui/tokens';
@@ -25,6 +25,7 @@ import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
 import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
 import { useLiveRoster } from './useLiveRoster';
+import { CoachCopilot } from './CoachCopilot';
 
 const COACH_TABS: { tab: 'dashboard' | 'roster' | 'attention' | 'reports' | 'profile'; label: string; icon: IconName }[] = [
   { tab: 'dashboard', label: 'Dashboard', icon: 'home' },
@@ -70,7 +71,7 @@ export function CoachView() {
         )}
         {tab === 'roster' && <CoachRoster roster={roster} groups={groups} notLogged={notLogged} />}
         {tab === 'attention' && <CoachAttention attention={attention} rosterMeta={rosterMeta} />}
-        {tab === 'reports' && <CoachReports teamTitle={teamTitle} teamReport={teamReport} groupStats={groupStats} compliance={kpis.compliance} onShare={shareTeamReport} />}
+        {tab === 'reports' && <CoachReports teamTitle={teamTitle} teamReport={teamReport} groupStats={groupStats} compliance={kpis.compliance} onShare={shareTeamReport} roster={roster} />}
         {tab === 'profile' && <CoachProfile teamTitle={teamTitle} />}
       </View>
 
@@ -350,8 +351,8 @@ function CoachAttention({ attention, rosterMeta }: { attention: ReturnType<typeo
 }
 
 /* ---------------------------------------------------------------- Reports */
-function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare }: {
-  teamTitle: string; teamReport: ReturnType<typeof teamWeeklyReport>; groupStats: RosterGroupStat[]; compliance: number; onShare: () => void;
+function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, roster }: {
+  teamTitle: string; teamReport: ReturnType<typeof teamWeeklyReport>; groupStats: RosterGroupStat[]; compliance: number; onShare: () => void; roster: AtRiskInput[];
 }) {
   const c = useColors();
   return (
@@ -402,6 +403,12 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare }
         </Row>
         <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>{teamReport.movedLine}</Txt>
       </Card>
+      </Reveal>
+
+      <Reveal index={3}>
+      <View style={{ marginTop: 14 }}>
+        <CoachCopilot roster={roster} />
+      </View>
       </Reveal>
     </Section>
   );
