@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useReduceMotion } from './useReduceMotion';
+import { useColors } from './theme';
 
 // react-native-web's Animated forces `collapsable: false` onto every animated
 // component's props (a native view-flattening hint). react-native-svg forwards
@@ -23,7 +24,7 @@ export function Ring({
   pct,
   stroke = 17,
   color = '#22C55E',
-  track = '#E5EDFB',
+  track,
   children,
   gradient,
 }: {
@@ -35,6 +36,8 @@ export function Ring({
   children?: React.ReactNode;
   gradient?: [string, string];
 }) {
+  const c = useColors();
+  const trackColor = track ?? c.track;
   const r = (200 - stroke - 11) / 2; // matches viewBox 200, r≈86 for stroke 17
   const radius = 86;
   const circ = 2 * Math.PI * radius; // ≈540
@@ -74,7 +77,7 @@ export function Ring({
             </LinearGradient>
           </Defs>
         ) : null}
-        <Circle cx={100} cy={100} r={radius} fill="none" stroke={track} strokeWidth={stroke} />
+        <Circle cx={100} cy={100} r={radius} fill="none" stroke={trackColor} strokeWidth={stroke} />
         <AnimatedCircle
           cx={100}
           cy={100}

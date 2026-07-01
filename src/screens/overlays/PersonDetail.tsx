@@ -1,7 +1,7 @@
 // OnStandard — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal } from '@/core';
+import { coachMealPatterns, displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal } from '@/core';
 import { useStore } from '@/store';
 import { db, isBackendLive } from '@/lib/supabase';
 import { aiPrefix } from '@/lib/ai';
@@ -51,7 +51,7 @@ export function PersonDetail() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <Reveal index={0}>
         <Card variant="hero" style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-          <Ring size={96} pct={pd.score} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">
+          <Ring size={96} pct={pd.score} stroke={17} gradient={['#22C55E', '#16A34A']} track={c.track}>
             <Txt w="eb" num size={30} ls={-0.5}>
               {pd.score}
             </Txt>
@@ -261,6 +261,9 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
   }, [live, athleteId]);
 
   const days: MealHistoryDay[] = meals ? groupMealsByDay(meals, todayStamp()) : [];
+  // Soft, deterministic coaching patterns over this athlete's recent meals (description-vs-photo
+  // bias, logging completeness). Only surfaces once a real pattern has formed — never per-incident.
+  const patterns = live && meals ? coachMealPatterns(meals) : [];
   const firstName = name.split(/\s+/)[0] || name;
 
   return (
@@ -274,6 +277,21 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
         </Txt>
         {live ? null : <SampleTag />}
       </Row>
+
+      {patterns.length > 0 ? (
+        <View style={{ gap: 8, marginBottom: 14 }}>
+          {patterns.map((p) => (
+            <View key={p.id} style={{ flexDirection: 'row', gap: 10, padding: 12, borderRadius: 14, backgroundColor: c.warnTint }}>
+              <Icon name="bell" size={15} color={c.warnText} />
+              <View style={{ flex: 1 }}>
+                <Txt w="eb" size={13} color={c.warnText}>{p.headline}</Txt>
+                <Txt w="m" size={12} color={c.slate700} style={{ marginTop: 2, lineHeight: 17 }}>{p.detail}</Txt>
+              </View>
+              {p.metric ? <Txt w="eb" size={12} color={c.warnText}>{p.metric}</Txt> : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {!live ? (
         <Txt w="sb" size={13} color={c.textTertiary} style={{ lineHeight: 19 }}>

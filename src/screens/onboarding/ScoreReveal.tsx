@@ -63,7 +63,7 @@ export function ScoreReveal({ score, bumped }: { score: number; bumped?: boolean
       {/* The ring stands alone on open canvas — for a reveal, isolation + the count-up +
           the haptic are the drama; a card behind a circular ring only gilds it. */}
       <Reveal index={0}>
-      <Ring size={232} pct={score} stroke={20} color={color} track="#E8EEF6">
+      <Ring size={232} pct={score} stroke={20} color={color} track={c.track}>
         <Txt w="eb" num size={68} ls={-2} color={c.text}>
           {shown}
         </Txt>

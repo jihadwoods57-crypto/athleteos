@@ -86,7 +86,7 @@ export function ParentView() {
           {/* score */}
           <Reveal index={0}>
           <Card variant="hero" style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-            <Ring size={104} pct={d.athleteScore} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">
+            <Ring size={104} pct={d.athleteScore} stroke={17} gradient={['#22C55E', '#16A34A']} track={c.track}>
               <Txt w="eb" num size={34} ls={-0.5}>
                 {d.athleteScore}
               </Txt>
