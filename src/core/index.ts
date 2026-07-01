@@ -57,4 +57,7 @@ export * from './restaurantCoach';
 export * from './restaurantCoachVoice';
 export * from './coachPlan';
 export * from './adherence';
+export * from './aiAuthority';
+export * from './assist';
+export * from './personality';
 export { createInitialState } from './defaultState';
