@@ -63,4 +63,5 @@ export * from './personality';
 export * from './copilot';
 export * from './memory';
 export * from './performanceProfile';
+export * from './mealCoachingVoice';
 export { createInitialState } from './defaultState';

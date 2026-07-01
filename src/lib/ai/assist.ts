@@ -5,6 +5,7 @@
 // analyzeMeal always logs. The model never fetches data or changes a number.
 import {
   clampForAudience,
+  mergeCoachingVoice,
   personalityDirective,
   resolvePersonality,
   runCopilotTool,
@@ -23,7 +24,9 @@ export const ASSIST_ENDPOINT = supaUrl ? `${supaUrl}/functions/v1/assist` : '';
 /** True only when a real backend endpoint + key exist — gates the narration call. */
 export const isAssistConfigured = Boolean(ASSIST_ENDPOINT && anonKey);
 
-async function narrate(data: unknown, directive: string, deep: boolean): Promise<string | null> {
+type AssistTaskWire = 'copilot_query' | 'copilot_artifact' | 'meal_coaching';
+
+async function narrate(task: AssistTaskWire, data: unknown, directive: string, deep: boolean): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   try {
@@ -35,7 +38,7 @@ async function narrate(data: unknown, directive: string, deep: boolean): Promise
         apikey: anonKey ?? '',
         Authorization: `Bearer ${token ?? anonKey ?? ''}`,
       },
-      body: JSON.stringify({ task: 'copilot_query', data, directive, deep }),
+      body: JSON.stringify({ task, data, directive, deep }),
       signal: controller.signal,
     });
     if (!res.ok) return null;
@@ -63,8 +66,23 @@ export async function runCopilot(
   const result = runCopilotTool(query, ctx);
   if (!isAssistConfigured) return result; // narration null — the UI shows `data` directly
   const directive = personalityDirective(clampForAudience(personality, false));
-  const narration = await narrate(result.data, directive, DEEP_TOOLS.has(query.tool));
+  const narration = await narrate('copilot_query', result.data, directive, DEEP_TOOLS.has(query.tool));
   return { ...result, narration };
+}
+
+/**
+ * The bounded athlete-facing voice (doc-05 §9, Phase 4): warm the deterministic coaching sentence in
+ * the org personality — clamped for a minor, and with EVERY number locked by mergeCoachingVoice. No
+ * chat, no free generation. Unconfigured/failed/number-drift all fall back to the engine's sentence.
+ */
+export async function voiceMealCoaching(
+  source: string,
+  opts: { personality?: PersonalityStyle; isMinor?: boolean } = {},
+): Promise<string> {
+  if (!isAssistConfigured || !source.trim()) return source;
+  const personality = clampForAudience(opts.personality ?? resolvePersonality(), opts.isMinor ?? false);
+  const narration = await narrate('meal_coaching', source, personalityDirective(personality), false);
+  return mergeCoachingVoice(source, narration);
 }
 
 /**
