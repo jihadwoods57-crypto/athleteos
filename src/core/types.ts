@@ -1,6 +1,9 @@
 // OnStandard — core domain types (pure TS, no React/RN imports).
 // Ported faithfully from the design prototype's state model.
 import type { Units } from './units';
+
+/** App appearance preference: an explicit light/dark, or 'auto' to follow the OS. */
+export type ThemeMode = 'light' | 'dark' | 'auto';
 import type { MealResult } from './content';
 import type { EditableFood } from './mealEdit';
 import type { LabelFacts } from './nutritionLabel';
@@ -41,6 +44,10 @@ export interface StoredMeal {
   name: string | null;
   protein: number | null;
   kcal: number | null;
+  /** Present on backend rows (select *); optional so local/test constructors can omit them.
+   *  Used by the "usuals" matcher to reuse a repeat meal's confirmed macros. */
+  carbs?: number | null;
+  fat?: number | null;
   quality: number | null;
   photo_path: string | null;
   day_date: string;
@@ -50,7 +57,7 @@ export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutritio
 /** Coach dashboard destinations (the 5-tab bar): one Home, one Work area, one Action,
  *  one Insights, one Admin. Mirrors the athlete tab model. */
 export type CoachTab = 'dashboard' | 'roster' | 'attention' | 'reports' | 'profile';
-export type MealStage = 'capture' | 'analyzing' | 'result';
+export type MealStage = 'capture' | 'analyzing' | 'questions' | 'result';
 /** Which camera flow the meal overlay is in: estimate a plate, or transcribe a label. */
 export type MealCaptureMode = 'meal' | 'label';
 export type CiStage = 'open' | 'done';
@@ -252,6 +259,9 @@ export interface AppState {
   /** Real AI analysis of the captured meal (Claude vision), or null to use the
    *  deterministic prototype result. Ephemeral; never persisted. */
   mealAnalysis: MealResult | null;
+  /** Clarifying questions the AI asked about the current meal (1-3), or empty. Non-empty means
+   *  the capture flow is on the 'questions' stage awaiting answers. Ephemeral; never persisted. */
+  mealQuestions: string[];
   /** The last captured meal photo (base64 JPEG, no data: prefix), held only long
    *  enough to upload it to the meal-photos bucket on log. Ephemeral; never
    *  persisted (kept out of partialize so a multi-MB blob never hits AsyncStorage). */
@@ -311,6 +321,8 @@ export interface AppState {
   /** Athlete-chosen display unit system. Body weights are stored in lb and
    *  converted at the edge; defaults to imperial. */
   units: Units;
+  /** Appearance: light, dark, or follow the OS. Defaults to 'auto'. */
+  themeMode: ThemeMode;
   mealDesc: string;
   chatDraft: string;
   msgDraft: string;

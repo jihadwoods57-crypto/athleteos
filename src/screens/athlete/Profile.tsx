@@ -5,16 +5,20 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS, initials, scoringProfileLabel, supportVisibilityRows, trainingCadence, weeklyReportFromState, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
-import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
+import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Card, Row, Stepper, Toggle, Txt, Pressable, Reveal } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 
-/** Avatar initial + color per support-team role for the visibility rows. */
+/** Avatar initial per support-team role for the visibility rows. */
 const VIS_INITIALS: Record<string, string> = { coach: 'C', trainer: 'T', nutritionist: 'N', parent: 'P' };
-const VIS_COLORS: Record<string, string> = { coach: colors.text, trainer: colors.trainer, nutritionist: colors.success, parent: colors.warning };
 
 export function Profile() {
+  const c = useColors();
+  // Avatar color per support-team role — built from the active palette (a hook can't
+  // run at module scope, so this moved inside the component).
+  const VIS_COLORS: Record<string, string> = { coach: c.text, trainer: c.trainer, nutritionist: c.success, parent: c.warning };
   const insets = useSafeAreaInsets();
   const s = useStore();
   const d = computeDerived(s);
@@ -48,7 +52,7 @@ export function Profile() {
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
-      <Txt w="sb" size={14} color={colors.textSecondary}>
+      <Txt w="sb" size={14} color={c.textSecondary}>
         Account
       </Txt>
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
@@ -58,8 +62,8 @@ export function Profile() {
       {/* identity */}
       <Reveal index={0}>
       <Card variant="hero" style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-        <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <Txt w="eb" size={24} color="#fff" maxFontSizeMultiplier={MAX_FONT_SCALE}>
+        <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt w="eb" size={24} color={c.white} maxFontSizeMultiplier={MAX_FONT_SCALE}>
             {initials(s.athleteName, 'J')}
           </Txt>
         </View>
@@ -67,19 +71,19 @@ export function Profile() {
           <Txt w="eb" size={20} ls={-0.3}>
             {firstName(s.athleteName, 'Jihad')}
           </Txt>
-          <Txt w="sb" size={14} color={colors.textSecondary} style={{ marginTop: 2 }}>
+          <Txt w="sb" size={14} color={c.textSecondary} style={{ marginTop: 2 }}>
             {athleteSubtitle(s.position, s.sport)}
           </Txt>
           {cadence ? (
             <Row style={{ gap: 5, marginTop: 4 }}>
-              <Icon name="bolt" size={13} color={colors.textTertiary} />
-              <Txt w="m" size={13} color={colors.textTertiary}>
+              <Icon name="bolt" size={13} color={c.textTertiary} />
+              <Txt w="m" size={13} color={c.textTertiary}>
                 {cadence}
               </Txt>
             </Row>
           ) : null}
-          <View style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
-            <Txt w="b" size={12} color={colors.accent}>
+          <View style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: c.accentSurface }}>
+            <Txt w="b" size={12} color={c.accent}>
               {idChip}
             </Txt>
           </View>
@@ -96,14 +100,14 @@ export function Profile() {
         if (wr.daysLogged === 0 && (s.scoreHistory?.length ?? 0) === 0) {
           return (
             <Card variant="low" style={{ marginTop: 14, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="flame" size={20} color={colors.accent} />
+              <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="flame" size={20} color={c.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <Txt w="eb" size={15} ls={-0.2}>
                   Your week starts now
                 </Txt>
-                <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 2, lineHeight: 19 }}>
+                <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 19 }}>
                   Log your first meal to start building your weekly trend. Every day you log stacks up here.
                 </Txt>
               </View>
@@ -116,24 +120,24 @@ export function Profile() {
               <Txt w="eb" size={16} ls={-0.3}>
                 This week
               </Txt>
-              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9, backgroundColor: colors.accentSurface }}>
-                <Txt w="b" size={12} color={colors.accent}>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9, backgroundColor: c.accentSurface }}>
+                <Txt w="b" size={12} color={c.accent}>
                   {wr.headline}
                 </Txt>
               </View>
             </Row>
-            <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>
+            <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 20 }}>
               {wr.scoreLine}
             </Txt>
-            <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 20, marginTop: 2 }}>
+            <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 20, marginTop: 2 }}>
               {wr.complianceLine}
             </Txt>
-            <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 20, marginTop: 2 }}>
+            <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 20, marginTop: 2 }}>
               {wr.movedLine}
             </Txt>
             {wr.flag ? (
-              <View style={{ marginTop: 12, padding: 12, borderRadius: 14, backgroundColor: colors.bg2 }}>
-                <Txt w="sb" size={13} color={colors.warning} style={{ lineHeight: 18 }}>
+              <View style={{ marginTop: 12, padding: 12, borderRadius: 14, backgroundColor: c.bg2 }}>
+                <Txt w="sb" size={13} color={c.warning} style={{ lineHeight: 18 }}>
                   Heads up: {wr.flag}
                 </Txt>
               </View>
@@ -156,7 +160,7 @@ export function Profile() {
             hitSlop={10}
             onPress={() => setEditingTargets((e) => !e)}
           >
-            <Txt w="b" size={13} color={colors.accent}>
+            <Txt w="b" size={13} color={c.accent}>
               {editingTargets ? 'Done' : 'Edit'}
             </Txt>
           </Pressable>
@@ -199,14 +203,14 @@ export function Profile() {
           // client should never wonder why a green-protein day didn't top out.
           const sp = scoringProfileLabel(s.scoringProfile);
           return (
-            <View style={{ marginTop: 14, padding: 13, borderRadius: 14, backgroundColor: colors.bg }}>
+            <View style={{ marginTop: 14, padding: 13, borderRadius: 14, backgroundColor: c.bg }}>
               <Row style={{ gap: 7, marginBottom: 4 }}>
-                <Icon name="bolt" size={13} color={colors.accent} />
+                <Icon name="bolt" size={13} color={c.accent} />
                 <Txt w="eb" size={13}>
                   {sp.title}
                 </Txt>
               </Row>
-              <Txt w="m" size={12} color={colors.textSecondary} style={{ lineHeight: 17 }}>
+              <Txt w="m" size={12} color={c.textSecondary} style={{ lineHeight: 17 }}>
                 {sp.how}
               </Txt>
             </View>
@@ -214,13 +218,13 @@ export function Profile() {
         })() : null}
         {workingToward.length > 0 ? (
           <>
-            <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 14 }}>
+            <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginTop: 14 }}>
               WORKING TOWARD
             </Txt>
             <Row style={{ flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
               {workingToward.map((g) => (
-                <View key={g} style={{ paddingHorizontal: 13, paddingVertical: 7, borderRadius: 10, backgroundColor: colors.accentSurface }}>
-                  <Txt w="b" size={13} color={colors.accent}>
+                <View key={g} style={{ paddingHorizontal: 13, paddingVertical: 7, borderRadius: 10, backgroundColor: c.accentSurface }}>
+                  <Txt w="b" size={13} color={c.accent}>
                     {g}
                   </Txt>
                 </View>
@@ -242,12 +246,12 @@ export function Profile() {
             visRows.length > 0 ? (
               <>
                 <Row style={{ gap: 9, marginBottom: 8 }}>
-                  <Icon name="shield" size={16} color={colors.accent} />
+                  <Icon name="shield" size={16} color={c.accent} />
                   <Txt w="eb" size={14}>
                     Your accountability circle
                   </Txt>
                 </Row>
-                <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
+                <Txt w="m" size={13} color={c.textSecondary} style={{ lineHeight: 19 }}>
                   These people see your scores. Accountability works when the right people are watching, so you can't hide a tough week.
                 </Txt>
                 <View style={{ marginTop: 16, gap: 13, opacity: s.sharingPaused ? 0.45 : 1 }}>
@@ -255,7 +259,7 @@ export function Profile() {
                     <VisRow
                       key={r.key}
                       initials={VIS_INITIALS[r.key] ?? r.title[0]}
-                      bg={VIS_COLORS[r.key] ?? colors.text}
+                      bg={VIS_COLORS[r.key] ?? c.text}
                       title={r.title}
                       sub={r.sub}
                       onRemove={() => s.removeViewer(r.key)}
@@ -263,10 +267,10 @@ export function Profile() {
                   ))}
                 </View>
                 {/* Pause-all + the honest status line: while paused nothing leaves the device. */}
-                <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: c.border }}>
                   <View style={{ flex: 1, paddingRight: 12 }}>
                     <Txt w="b" size={14}>Pause all sharing</Txt>
-                    <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2, lineHeight: 17 }}>
+                    <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2, lineHeight: 17 }}>
                       {s.sharingPaused ? 'Paused — your data stays on this device.' : 'Stop sharing with everyone, anytime.'}
                     </Txt>
                   </View>
@@ -276,12 +280,12 @@ export function Profile() {
             ) : (
               <>
                 <Row style={{ gap: 9, marginBottom: 8 }}>
-                  <Icon name="shield" size={16} color={colors.accent} />
+                  <Icon name="shield" size={16} color={c.accent} />
                   <Txt w="eb" size={14}>
                     Just you, for now
                   </Txt>
                 </Row>
-                <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
+                <Txt w="m" size={13} color={c.textSecondary} style={{ lineHeight: 19 }}>
                   No one else is connected yet. Add a coach, trainer, or parent from your support team and they'll see your weekly progress, so the accountability has someone to answer to.
                 </Txt>
               </>
@@ -289,17 +293,17 @@ export function Profile() {
           ) : (
             <>
               <Row style={{ gap: 9, marginBottom: 8 }}>
-                <Icon name="shield" size={16} color={colors.accent} />
+                <Icon name="shield" size={16} color={c.accent} />
                 <Txt w="eb" size={14}>
                   Managed by your program
                 </Txt>
               </Row>
-              <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
+              <Txt w="m" size={13} color={c.textSecondary} style={{ lineHeight: 19 }}>
                 Coach Davis controls who sees your scores, and that's the point of accountability. You can't hide a tough week.
               </Txt>
               <View style={{ marginTop: 16, gap: 13 }}>
-                <VisRow initials="CD" bg={colors.text} title="Coach Davis" sub="Full profile & history" />
-                <VisRow initials="S" bg={colors.warning} title="Sarah (Parent)" sub="Weekly reports & alerts" />
+                <VisRow initials="CD" bg={c.text} title="Coach Davis" sub="Full profile & history" />
+                <VisRow initials="S" bg={c.warning} title="Sarah (Parent)" sub="Weekly reports & alerts" />
                 <VisRow icon="trophy" title="Linebacker room" sub="Position leaderboard" />
               </View>
             </>
@@ -311,7 +315,7 @@ export function Profile() {
       {/* settings */}
       <Reveal index={4}>
       <Card variant="low" style={{ marginTop: 14, borderRadius: 24, paddingVertical: 8 }}>
-        <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: c.border }}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Reminders settings"
@@ -323,9 +327,9 @@ export function Profile() {
               <Txt w="b" size={15}>
                 Notifications
               </Txt>
-              <Icon name="chevronRight" size={18} color={colors.slate300} />
+              <Icon name="chevronRight" size={18} color={c.slate300} />
             </Row>
-            <Txt w="m" size={13} color={colors.textTertiary}>
+            <Txt w="m" size={13} color={c.textTertiary}>
               Protein, hydration, dinner & check-in reminders
             </Txt>
           </Pressable>
@@ -337,15 +341,43 @@ export function Profile() {
           onPress={s.toggleUnits}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
         >
-          <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: c.border }}>
             <Txt w="b" size={15}>
               Units
             </Txt>
-            <Txt w="sb" size={14} color={colors.accent}>
+            <Txt w="sb" size={14} color={c.accent}>
               {units === 'metric' ? 'Metric (kg)' : 'Imperial (lb)'}
             </Txt>
           </Row>
         </Pressable>
+        <View style={{ paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: c.border }}>
+          <Txt w="b" size={15}>
+            Appearance
+          </Txt>
+          <Row style={{ marginTop: 11, backgroundColor: c.bg2, borderRadius: 12, padding: 3 }}>
+            {(['light', 'dark', 'auto'] as const).map((key) => {
+              const label = key === 'auto' ? 'System' : key === 'dark' ? 'Dark' : 'Light';
+              const active = s.themeMode === key;
+              return (
+                <Pressable
+                  key={key}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Appearance: ${label}`}
+                  accessibilityState={{ selected: active }}
+                  onPress={() => {
+                    haptics.select();
+                    s.setThemeMode(key);
+                  }}
+                  style={[{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: active ? c.card : 'transparent' }, active ? shadow.low : null]}
+                >
+                  <Txt w="b" size={13} color={active ? c.accent : c.textSecondary}>
+                    {label}
+                  </Txt>
+                </Pressable>
+              );
+            })}
+          </Row>
+        </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Help and support"
@@ -356,18 +388,18 @@ export function Profile() {
             <Txt w="b" size={15}>
               Help & support
             </Txt>
-            <Icon name="chevronRight" size={20} color={colors.slate300} />
+            <Icon name="chevronRight" size={20} color={c.slate300} />
           </Row>
         </Pressable>
       </Card>
       </Reveal>
 
-      <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
-        <Txt w="b" size={15} color={colors.alert}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+        <Txt w="b" size={15} color={c.alert}>
           Sign out
         </Txt>
       </Pressable>
-      <Txt w="sb" size={12} color={colors.textSecondary} style={{ textAlign: 'center', marginTop: 16 }}>
+      <Txt w="sb" size={12} color={c.textSecondary} style={{ textAlign: 'center', marginTop: 16 }}>
         OnStandard · v1.0
       </Txt>
     </ScrollView>
@@ -375,12 +407,13 @@ export function Profile() {
 }
 
 function TargetTile({ value, label }: { value: string; label: string }) {
+  const c = useColors();
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg, borderRadius: 16, padding: 14 }}>
+    <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 16, padding: 14 }}>
       <Txt w="eb" num size={22}>
         {value}
       </Txt>
-      <Txt w="b" size={11} color={colors.textTertiary} style={{ marginTop: 3 }}>
+      <Txt w="b" size={11} color={c.textTertiary} style={{ marginTop: 3 }}>
         {label}
       </Txt>
     </View>
@@ -388,25 +421,26 @@ function TargetTile({ value, label }: { value: string; label: string }) {
 }
 
 function VisRow({ initials, bg, icon, title, sub, onRemove }: { initials?: string; bg?: string; icon?: any; title: string; sub: string; onRemove?: () => void }) {
+  const c = useColors();
   return (
     <Row style={{ gap: 12 }}>
-      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: icon ? colors.accentSurface : bg, alignItems: 'center', justifyContent: 'center' }}>
-        {icon ? <Icon name={icon} size={18} color={colors.accent} /> : <Txt w="b" size={12} color="#fff">{initials}</Txt>}
+      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: icon ? c.accentSurface : bg, alignItems: 'center', justifyContent: 'center' }}>
+        {icon ? <Icon name={icon} size={18} color={c.accent} /> : <Txt w="b" size={12} color={c.white}>{initials}</Txt>}
       </View>
       <View style={{ flex: 1 }}>
         <Txt w="b" size={14}>
           {title}
         </Txt>
-        <Txt w="m" size={12} color={colors.textTertiary}>
+        <Txt w="m" size={12} color={c.textTertiary}>
           {sub}
         </Txt>
       </View>
       {onRemove ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={8} onPress={() => { haptics.tap(); onRemove(); }} style={({ pressed }) => ({ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: colors.bg2, opacity: pressed ? 0.6 : 1 })}>
-          <Txt w="b" size={12} color={colors.alert}>Remove</Txt>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={8} onPress={() => { haptics.tap(); onRemove(); }} style={({ pressed }) => ({ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: c.bg2, opacity: pressed ? 0.6 : 1 })}>
+          <Txt w="b" size={12} color={c.alert}>Remove</Txt>
         </Pressable>
       ) : (
-        <Txt w="b" size={12} color={colors.success}>
+        <Txt w="b" size={12} color={c.success}>
           On
         </Txt>
       )}

@@ -30,8 +30,22 @@ const ThemeContext = React.createContext<ThemeValue>(defaultValue);
 
 /** Provides the active palette. Defaults to light, so the app looks identical until a
  *  caller flips the scheme (OS setting or a toggle). */
-export function ThemeProvider({ children, initial = 'light' }: { children: React.ReactNode; initial?: ColorScheme }) {
-  const [scheme, setScheme] = React.useState<ColorScheme>(initial);
+export function ThemeProvider({
+  children,
+  scheme: controlled,
+  initial = 'light',
+}: {
+  children: React.ReactNode;
+  /** When provided, the root controls the scheme (from the store + OS). */
+  scheme?: ColorScheme;
+  initial?: ColorScheme;
+}) {
+  const [internal, setScheme] = React.useState<ColorScheme>(controlled ?? initial);
+  // Keep internal state in sync when a caller controls the scheme.
+  React.useEffect(() => {
+    if (controlled) setScheme(controlled);
+  }, [controlled]);
+  const scheme = controlled ?? internal;
   const value = React.useMemo<ThemeValue>(
     () => ({
       scheme,

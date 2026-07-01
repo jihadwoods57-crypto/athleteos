@@ -7,7 +7,8 @@ import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } 
 import { bodyImageNote, CHECKIN_QUESTIONS, checkinAttribution, checkinSummary, displayWeight, displayWeightDelta, readinessBand, readinessLabel, readinessScore, supportAudience, trendGeometry, weightProgressTone, weightStepLb, weightUnit, WEIGHT_START, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { aiPrefix } from '@/lib/ai';
-import { colors, shadow } from '@/ui/tokens';
+import { shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
@@ -23,6 +24,7 @@ const CI_KEYS: Record<string, 'ciEnergy' | 'ciRecovery' | 'ciSleep' | 'ciConfide
 };
 
 export function CheckIn() {
+  const c = useColors();
   const insets = useSafeAreaInsets();
   const s = useStore();
   const pad = { paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 };
@@ -55,26 +57,26 @@ export function CheckIn() {
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={pad} showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: 'center', paddingTop: 24 }}>
-          <View style={{ width: 82, height: 82, borderRadius: 41, backgroundColor: colors.successSurface, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="check" size={38} color={colors.successDeep} strokeWidth={2.4} />
+          <View style={{ width: 82, height: 82, borderRadius: 41, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="check" size={38} color={c.successDeep} strokeWidth={2.4} />
           </View>
           <Txt w="eb" size={26} ls={-0.5} style={{ marginTop: 20 }}>
             Check-In Complete
           </Txt>
-          <Txt w="sb" size={14} color={colors.textSecondary} style={{ marginTop: 8 }}>
+          <Txt w="sb" size={14} color={c.textSecondary} style={{ marginTop: 8 }}>
             {audience ? `Sent to ${audience}` : 'Saved to your record'}
           </Txt>
         </View>
         <Card variant="hero" style={{ marginTop: 22, borderRadius: 20 }}>
           <Row style={{ gap: 9, marginBottom: 12 }}>
-            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="sparkle" size={17} color={colors.accent} />
+            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="sparkle" size={17} color={c.accent} />
             </View>
-            <Txt w="eb" size={12} color={colors.accent} ls={0.4}>
+            <Txt w="eb" size={12} color={c.accent} ls={0.4}>
               {aiPrefix}WEEKLY SUMMARY
             </Txt>
           </Row>
-          <Txt w="m" size={14} color={colors.slate700} style={{ lineHeight: 22 }}>
+          <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 22 }}>
             {checkinSummary({
               name: s.athleteName,
               energy: s.ciEnergy,
@@ -94,12 +96,12 @@ export function CheckIn() {
           if (r == null) return null;
           const band = readinessBand(r);
           const lbl = readinessLabel(band);
-          const tone = band === 'ready' ? colors.success : band === 'caution' ? colors.warning : colors.alert;
+          const tone = band === 'ready' ? c.success : band === 'caution' ? c.warning : c.alert;
           return (
             <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
               <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <Row style={{ gap: 9 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center' }}>
                     <Icon name="bolt" size={17} color={tone} />
                   </View>
                   <Txt w="eb" size={15} ls={-0.2}>
@@ -107,12 +109,12 @@ export function CheckIn() {
                   </Txt>
                 </Row>
                 <View style={{ paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999, backgroundColor: tone }}>
-                  <Txt w="eb" num size={13} color="#fff">
+                  <Txt w="eb" num size={13} color={c.white}>
                     {r}
                   </Txt>
                 </View>
               </Row>
-              <Txt w="m" size={13} color={colors.textSecondary} style={{ lineHeight: 19 }}>
+              <Txt w="m" size={13} color={c.textSecondary} style={{ lineHeight: 19 }}>
                 {lbl.how}
               </Txt>
             </Card>
@@ -128,16 +130,16 @@ export function CheckIn() {
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={pad} showsVerticalScrollIndicator={false}>
       <Reveal index={0}>
-      <Txt w="sb" size={14} color={colors.textSecondary}>
+      <Txt w="sb" size={14} color={c.textSecondary}>
         {isReal ? 'This week' : 'Week 14 · in-season'}
       </Txt>
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
         Weekly Check-In
       </Txt>
       {attribution ? (
-        <Row style={{ marginTop: 8, alignSelf: 'flex-start', gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: colors.accentSurface }}>
-          <Icon name="sparkle" size={12} color={colors.accent} />
-          <Txt w="b" size={12} color={colors.accent}>
+        <Row style={{ marginTop: 8, alignSelf: 'flex-start', gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: c.accentSurface }}>
+          <Icon name="sparkle" size={12} color={c.accent} />
+          <Txt w="b" size={12} color={c.accent}>
             {attribution}
           </Txt>
         </Row>
@@ -146,14 +148,14 @@ export function CheckIn() {
 
       <Reveal index={1}>
       {/* weight stepper */}
-      <Row style={[{ marginTop: 18, backgroundColor: '#fff', borderRadius: 20, padding: 18, justifyContent: 'space-between' }, shadow.card]}>
+      <Row style={[{ marginTop: 18, backgroundColor: c.card, borderRadius: 20, padding: 18, justifyContent: 'space-between' }, shadow.card]}>
         <View>
-          <Txt w="b" size={12} color={colors.textTertiary}>
+          <Txt w="b" size={12} color={c.textTertiary}>
             Current weight
           </Txt>
           <Txt w="eb" num size={28} style={{ marginTop: 4 }}>
             {displayWeight(s.ciWeight, units)}
-            <Txt w="sb" size={14} color={colors.textTertiary}>
+            <Txt w="sb" size={14} color={c.textTertiary}>
               {' '}
               {wUnit}
             </Txt>
@@ -165,7 +167,7 @@ export function CheckIn() {
         </Row>
       </Row>
       {/* body-image safeguard for a minor-facing weight tracker */}
-      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 17, paddingHorizontal: 2 }}>
+      <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 8, lineHeight: 17, paddingHorizontal: 2 }}>
         {bodyImageNote()}
       </Txt>
       </Reveal>
@@ -178,14 +180,14 @@ export function CheckIn() {
             <Txt w="eb" size={15} ls={-0.3}>
               Weight Trend
             </Txt>
-            <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
+            <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
               {isReal ? '' : '8-week build · '}goal {displayWeight(weightTarget, units)} {wUnit}
             </Txt>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Txt w="eb" num size={22}>
               {displayWeight(s.currentWeight, units)}
-              <Txt w="sb" size={12} color={colors.textTertiary}>
+              <Txt w="sb" size={12} color={c.textTertiary}>
                 {' '}
                 {wUnit}
               </Txt>
@@ -194,7 +196,7 @@ export function CheckIn() {
               const gain = displayWeightDelta(s.currentWeight - (s.startWeight ?? WEIGHT_START), units);
               // Color by GOAL, not direction: a weight-loss client's loss is progress, not an alert.
               const tone = weightProgressTone(s.currentWeight - (s.startWeight ?? WEIGHT_START), s.baseGoal);
-              const toneColor = tone === 'good' ? colors.success : tone === 'bad' ? colors.alert : colors.textSecondary;
+              const toneColor = tone === 'good' ? c.success : tone === 'bad' ? c.alert : c.textSecondary;
               return (
                 <Txt w="b" num size={12} color={toneColor}>
                   {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}
@@ -214,12 +216,12 @@ export function CheckIn() {
             </Defs>
             <Path d={wGeo.areaPath} fill="url(#ciw)" />
             <Path d={wGeo.linePath} fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-            <Circle cx={wGeo.last.x} cy={wGeo.last.y} r={5.5} fill="#2563EB" stroke="#fff" strokeWidth={2.5} />
+            <Circle cx={wGeo.last.x} cy={wGeo.last.y} r={5.5} fill="#2563EB" stroke={c.card} strokeWidth={2.5} />
           </Svg>
         ) : isReal ? (
           // Real athlete without enough history yet: honest empty state, no fake line.
           <View style={{ marginTop: 10, paddingVertical: 18, alignItems: 'center' }}>
-            <Txt w="sb" size={13} color={colors.textTertiary} style={{ textAlign: 'center', lineHeight: 19 }}>
+            <Txt w="sb" size={13} color={c.textTertiary} style={{ textAlign: 'center', lineHeight: 19 }}>
               Your weight trend builds as you log your weekly check-ins.
             </Txt>
           </View>
@@ -238,7 +240,7 @@ export function CheckIn() {
             </SvgText>
             <Path d="M12,68 L62,65 L111,61 L161,58 L211,51 L260,48 L310,45 L310,96 L12,96 Z" fill="url(#ciw)" />
             <Path d="M12,68 L62,65 L111,61 L161,58 L211,51 L260,48 L310,45" fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-            <Circle cx={310} cy={45} r={5.5} fill="#2563EB" stroke="#fff" strokeWidth={2.5} />
+            <Circle cx={310} cy={45} r={5.5} fill="#2563EB" stroke={c.card} strokeWidth={2.5} />
           </Svg>
         )}
       </Card>
@@ -256,7 +258,7 @@ export function CheckIn() {
                 <Txt w="b" size={14}>
                   {q.label}
                 </Txt>
-                <Txt w="eb" num size={14} color={colors.accent}>
+                <Txt w="eb" num size={14} color={c.accent}>
                   {val}/10
                 </Txt>
               </Row>
@@ -269,8 +271,8 @@ export function CheckIn() {
 
       <Reveal index={4}>
       <Card variant="low" style={{ marginTop: 14, borderRadius: 18, paddingVertical: 17 }}>
-        <Txt w="m" size={14} color={colors.textTertiary}>
-          Notes for your coach <Txt w="m" size={14} color={colors.textTertiary} style={{ opacity: 0.7 }}>· optional</Txt>
+        <Txt w="m" size={14} color={c.textTertiary}>
+          Notes for your coach <Txt w="m" size={14} color={c.textTertiary} style={{ opacity: 0.7 }}>· optional</Txt>
         </Txt>
       </Card>
       </Reveal>
@@ -283,6 +285,7 @@ export function CheckIn() {
 }
 
 function BigStep({ glyph, onPress }: { glyph: string; onPress: () => void }) {
+  const c = useColors();
   return (
     <Pressable
       accessibilityRole="button"
@@ -291,9 +294,9 @@ function BigStep({ glyph, onPress }: { glyph: string; onPress: () => void }) {
         haptics.select();
         onPress();
       }}
-      style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}
+      style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}
     >
-      <Txt w="b" size={24} color={colors.slate700}>
+      <Txt w="b" size={24} color={c.slate700}>
         {glyph}
       </Txt>
     </Pressable>

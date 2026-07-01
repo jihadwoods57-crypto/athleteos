@@ -1,7 +1,8 @@
 // OnStandard — minimal 1–10 slider (drag or tap), accent-colored.
 import React, { useRef, useState } from 'react';
 import { LayoutChangeEvent, PanResponder, View } from 'react-native';
-import { colors, shadow } from './tokens';
+import { shadow } from './tokens';
+import { useColors } from './theme';
 
 export function Slider({
   value,
@@ -14,6 +15,7 @@ export function Slider({
   max?: number;
   onChange: (v: number) => void;
 }) {
+  const c = useColors();
   const [width, setWidth] = useState(0);
   const widthRef = useRef(0);
 
@@ -44,8 +46,8 @@ export function Slider({
 
   return (
     <View onLayout={onLayout} {...pan.panHandlers} style={{ height: 28, justifyContent: 'center' }} hitSlop={{ top: 10, bottom: 10 }}>
-      <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.track }}>
-        <View style={{ width: `${pct * 100}%`, height: 6, borderRadius: 3, backgroundColor: colors.accent }} />
+      <View style={{ height: 6, borderRadius: 3, backgroundColor: c.track }}>
+        <View style={{ width: `${pct * 100}%`, height: 6, borderRadius: 3, backgroundColor: c.accent }} />
       </View>
       <View
         style={[
@@ -55,7 +57,7 @@ export function Slider({
             width: 22,
             height: 22,
             borderRadius: 11,
-            backgroundColor: '#fff',
+            backgroundColor: c.white,
           },
           shadow.card,
         ]}

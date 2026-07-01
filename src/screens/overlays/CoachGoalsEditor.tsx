@@ -20,13 +20,15 @@ import {
 } from '@/core';
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
-import { colors, shadow } from '@/ui/tokens';
+import { shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Card, Reveal, Row, SampleTag, Stepper, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
 export function CoachGoalsEditor() {
+  const c = useColors();
   const s = useStore();
   const pd = s.personDetail;
   const [profile, setProfile] = React.useState<ScoringProfile>('athlete');
@@ -60,13 +62,13 @@ export function CoachGoalsEditor() {
   return (
     <Overlay title={`${name}'s Plan`} onClose={s.closeCoachGoals}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Txt w="m" size={13} color={colors.textSecondary} style={{ marginBottom: 16, lineHeight: 19 }}>
+        <Txt w="m" size={13} color={c.textSecondary} style={{ marginBottom: 16, lineHeight: 19 }}>
           You set the plan; the platform scores against it. The suggestion below is the science-based
           starting point — accept it or dial it in.
         </Txt>
 
         {/* scoring profile */}
-        <Txt w="eb" size={12} color={colors.textTertiary} ls={0.5} upper style={{ marginBottom: 10, marginLeft: 2 }}>
+        <Txt w="eb" size={12} color={c.textTertiary} ls={0.5} upper style={{ marginBottom: 10, marginLeft: 2 }}>
           Scoring profile
         </Txt>
         <View style={{ gap: 10 }}>
@@ -79,20 +81,20 @@ export function CoachGoalsEditor() {
                 accessibilityLabel={`${o.label} scoring`}
                 accessibilityState={{ selected: sel }}
                 onPress={() => pickProfile(o.key)}
-                style={({ pressed }) => [{ borderRadius: 16, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: sel ? colors.accentSurface : '#fff', borderWidth: 1.5, borderColor: sel ? colors.accent : colors.border, opacity: pressed ? 0.92 : 1 }, sel ? undefined : shadow.card]}
+                style={({ pressed }) => [{ borderRadius: 16, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: sel ? c.accentSurface : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, opacity: pressed ? 0.92 : 1 }, sel ? undefined : shadow.card]}
               >
                 <View style={{ flex: 1 }}>
-                  <Txt w="b" size={15} color={sel ? colors.accent : colors.text}>{o.label}</Txt>
-                  <Txt w="m" size={12} color={colors.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>{o.desc}</Txt>
+                  <Txt w="b" size={15} color={sel ? c.accent : c.text}>{o.label}</Txt>
+                  <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>{o.desc}</Txt>
                 </View>
-                {sel ? <Icon name="check" size={18} color={colors.accent} /> : null}
+                {sel ? <Icon name="check" size={18} color={c.accent} /> : null}
               </Pressable>
             );
           })}
         </View>
 
         {/* targets */}
-        <Txt w="eb" size={12} color={colors.textTertiary} ls={0.5} upper style={{ marginTop: 22, marginBottom: 10, marginLeft: 2 }}>
+        <Txt w="eb" size={12} color={c.textTertiary} ls={0.5} upper style={{ marginTop: 22, marginBottom: 10, marginLeft: 2 }}>
           Daily targets
         </Txt>
         <Reveal index={0}>
@@ -104,9 +106,9 @@ export function CoachGoalsEditor() {
         </Reveal>
 
         {/* plan summary */}
-        <View style={{ marginTop: 16, borderRadius: 16, padding: 15, backgroundColor: colors.bg2, flexDirection: 'row', gap: 10 }}>
-          <Icon name="shield" size={16} color={colors.accent} />
-          <Txt w="sb" size={13} color={colors.slate700} style={{ flex: 1, lineHeight: 19 }}>
+        <View style={{ marginTop: 16, borderRadius: 16, padding: 15, backgroundColor: c.bg2, flexDirection: 'row', gap: 10 }}>
+          <Icon name="shield" size={16} color={c.accent} />
+          <Txt w="sb" size={13} color={c.slate700} style={{ flex: 1, lineHeight: 19 }}>
             {goalPlanSummary(name, targets, profile)}
           </Txt>
         </View>
@@ -114,7 +116,7 @@ export function CoachGoalsEditor() {
         {!canPush ? (
           <Row style={{ gap: 7, marginTop: 14 }}>
             <SampleTag />
-            <Txt w="sb" size={12} color={colors.textTertiary} style={{ flex: 1, lineHeight: 17 }}>
+            <Txt w="sb" size={12} color={c.textTertiary} style={{ flex: 1, lineHeight: 17 }}>
               Connect your team to push this plan to {name}. Until then it's a draft on this device.
             </Txt>
           </Row>
@@ -125,10 +127,10 @@ export function CoachGoalsEditor() {
           accessibilityLabel={canPush ? `Save ${name}'s plan` : 'Save draft'}
           disabled={busy}
           onPress={onSave}
-          style={[{ height: 54, borderRadius: 16, backgroundColor: saved ? colors.successSurface : colors.accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 18 }, shadow.cta]}
+          style={[{ height: 54, borderRadius: 16, backgroundColor: saved ? c.successSurface : c.accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 18 }, shadow.cta]}
         >
-          {saved ? <Icon name="check" size={18} color={colors.successDeep} /> : null}
-          <Txt w="b" size={15} color={saved ? colors.successDeep : '#fff'}>
+          {saved ? <Icon name="check" size={18} color={c.successDeep} /> : null}
+          <Txt w="b" size={15} color={saved ? c.successDeep : c.white}>
             {busy ? 'Saving…' : saved ? (canPush ? 'Plan sent' : 'Draft saved') : canPush ? 'Save & send to athlete' : 'Save draft'}
           </Txt>
         </Pressable>
@@ -138,12 +140,13 @@ export function CoachGoalsEditor() {
 }
 
 function TargetRow({ label, unit, value, rec, onDec, onInc }: { label: string; unit: string; value: number; rec: number; onDec: () => void; onInc: () => void }) {
+  const c = useColors();
   const offRec = value !== rec;
   return (
     <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
       <View style={{ flex: 1 }}>
         <Txt w="b" size={15}>{label}</Txt>
-        <Txt w="m" num size={12} color={offRec ? colors.textTertiary : colors.success} style={{ marginTop: 2 }}>
+        <Txt w="m" num size={12} color={offRec ? c.textTertiary : c.success} style={{ marginTop: 2 }}>
           {offRec ? `Recommended ${rec}${unit}` : `Matches recommendation`}
         </Txt>
       </View>

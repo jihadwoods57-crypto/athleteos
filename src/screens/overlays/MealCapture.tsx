@@ -1,19 +1,22 @@
 // OnStandard — Meal capture overlay: capture → analyzing (~2.3s) → result.
-import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, ScrollView, View } from 'react-native';
-import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer, flagIngredients, scaleLabel, labelQuality, labelProvenanceNote } from '@/core';
-import type { MealLabel, LabelFacts, IngredientFlag } from '@/core';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, ScrollView, TextInput, View } from 'react-native';
+import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer, flagIngredients, scaleLabel, labelQuality, labelProvenanceNote, matchUsuals } from '@/core';
+import type { MealLabel, LabelFacts, IngredientFlag, MealResult } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiCoachTag } from '@/lib/ai';
-import { colors, shadow } from '@/ui/tokens';
+import { shadow } from '@/ui/tokens';
 import { Avatar, Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
+import { useColors } from '@/ui/theme';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
+import { isDictationAvailable, startDictation, type DictationHandle } from '@/lib/voice/dictation';
 import { Overlay } from './Overlay';
 
 const MEAL_TYPES: MealLabel[] = ['Breakfast', 'Lunch', 'Snack', 'Dinner'];
 
 export function MealCapture() {
+  const c = useColors();
   const s = useStore();
   const isLabel = s.mealCaptureMode === 'label';
   const header =
@@ -21,7 +24,9 @@ export function MealCapture() {
       ? isLabel ? 'Label' : 'Analysis'
       : s.mealStage === 'analyzing'
         ? isLabel ? 'Reading label' : 'Analyzing'
-        : isLabel ? 'Scan a Label' : 'Log a Meal';
+        : s.mealStage === 'questions'
+          ? 'Almost there'
+          : isLabel ? 'Scan a Label' : 'Log a Meal';
 
   return (
     <Overlay title={header} onClose={s.closeMeal} closeIcon="close">
@@ -37,12 +42,13 @@ export function MealCapture() {
             { bottom: 14, left: 14 },
             { bottom: 14, right: 14 },
           ].map((pos, i) => (
-            <View key={i} style={{ position: 'absolute', width: 26, height: 26, borderColor: '#fff', opacity: 0.9, borderTopWidth: i < 2 ? 3 : 0, borderBottomWidth: i >= 2 ? 3 : 0, borderLeftWidth: i % 2 === 0 ? 3 : 0, borderRightWidth: i % 2 === 1 ? 3 : 0, ...pos }} />
+            <View key={i} style={{ position: 'absolute', width: 26, height: 26, borderColor: c.white, opacity: 0.9, borderTopWidth: i < 2 ? 3 : 0, borderBottomWidth: i >= 2 ? 3 : 0, borderLeftWidth: i % 2 === 0 ? 3 : 0, borderRightWidth: i % 2 === 1 ? 3 : 0, ...pos }} />
           ))}
         </View>
 
         {s.mealStage === 'capture' && <CaptureControls />}
         {s.mealStage === 'analyzing' && <Analyzing label={isLabel} />}
+        {s.mealStage === 'questions' && <Questions />}
         {s.mealStage === 'result' && (isLabel
           ? <LabelResult facts={s.labelFacts} servings={s.labelServings} onServings={s.setLabelServings} onAdd={s.addScannedLabel} />
           : <Result mealType={s.mealType} onAdd={s.addMeal} />)}
@@ -53,12 +59,13 @@ export function MealCapture() {
 
 /** Segmented toggle: photograph a plate (estimate) vs scan a label (exact). */
 function ModeToggle({ mode, onPick }: { mode: 'meal' | 'label'; onPick: (m: 'meal' | 'label') => void }) {
+  const c = useColors();
   const opts: { key: 'meal' | 'label'; label: string; icon: 'camera' | 'barcode' }[] = [
     { key: 'meal', label: 'Log a meal', icon: 'camera' },
     { key: 'label', label: 'Scan a label', icon: 'barcode' },
   ];
   return (
-    <Row style={[{ padding: 4, borderRadius: 14, backgroundColor: colors.bg2, marginBottom: 16, gap: 4 }]}>
+    <Row style={[{ padding: 4, borderRadius: 14, backgroundColor: c.bg2, marginBottom: 16, gap: 4 }]}>
       {opts.map((o) => {
         const active = mode === o.key;
         return (
@@ -68,10 +75,10 @@ function ModeToggle({ mode, onPick }: { mode: 'meal' | 'label'; onPick: (m: 'mea
             accessibilityLabel={o.label}
             accessibilityState={{ selected: active }}
             onPress={() => { haptics.select(); onPick(o.key); }}
-            style={[{ flex: 1, flexDirection: 'row', gap: 7, paddingVertical: 10, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? '#fff' : 'transparent' }, active ? shadow.card : undefined]}
+            style={[{ flex: 1, flexDirection: 'row', gap: 7, paddingVertical: 10, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? c.card : 'transparent' }, active ? shadow.card : undefined]}
           >
-            <Icon name={o.icon} size={16} color={active ? colors.accent : colors.textTertiary} />
-            <Txt w="b" size={13} color={active ? colors.text : colors.textTertiary}>{o.label}</Txt>
+            <Icon name={o.icon} size={16} color={active ? c.accent : c.textTertiary} />
+            <Txt w="b" size={13} color={active ? c.text : c.textTertiary}>{o.label}</Txt>
           </Pressable>
         );
       })}
@@ -80,6 +87,7 @@ function ModeToggle({ mode, onPick }: { mode: 'meal' | 'label'; onPick: (m: 'mea
 }
 
 function ImageSlot({ analyzing, label }: { analyzing: boolean; label?: boolean }) {
+  const c = useColors();
   const scan = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!analyzing) return;
@@ -105,7 +113,7 @@ function ImageSlot({ analyzing, label }: { analyzing: boolean; label?: boolean }
               left: 0,
               right: 0,
               height: 3,
-              backgroundColor: colors.accent,
+              backgroundColor: c.accent,
               transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [0, 320] }) }],
             }}
           />
@@ -116,6 +124,7 @@ function ImageSlot({ analyzing, label }: { analyzing: boolean; label?: boolean }
 }
 
 function CaptureControls() {
+  const c = useColors();
   const s = useStore();
   const isLabel = s.mealCaptureMode === 'label';
   return (
@@ -134,11 +143,11 @@ function CaptureControls() {
                 s.setMealType(m);
               }}
               style={[
-                { flex: 1, paddingVertical: 11, borderRadius: 12, alignItems: 'center', backgroundColor: active ? colors.accent : '#fff' },
+                { flex: 1, paddingVertical: 11, borderRadius: 12, alignItems: 'center', backgroundColor: active ? c.accent : c.card },
                 active ? undefined : shadow.card,
               ]}
             >
-              <Txt w="b" size={13} color={active ? '#fff' : colors.textSecondary}>
+              <Txt w="b" size={13} color={active ? c.white : c.textSecondary}>
                 {m}
               </Txt>
             </Pressable>
@@ -146,9 +155,11 @@ function CaptureControls() {
         })}
       </Row>
 
+      {isLabel ? null : <Usuals />}
+
       <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingHorizontal: 20 }}>
-        <View style={[{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
-          <Icon name="gallery" size={20} color={colors.textSecondary} />
+        <View style={[{ width: 48, height: 48, borderRadius: 14, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+          <Icon name="gallery" size={20} color={c.textSecondary} />
         </View>
         <Pressable
           accessibilityRole="button"
@@ -158,29 +169,23 @@ function CaptureControls() {
             if (isLabel) s.captureLabel();
             else s.capture();
           }}
-          style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: colors.accent, padding: 5 }}
+          style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: c.accent, padding: 5 }}
         >
-          <View style={{ flex: 1, borderRadius: 30, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-            {isLabel ? <Icon name="barcode" size={26} color="#fff" /> : null}
+          <View style={{ flex: 1, borderRadius: 30, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+            {isLabel ? <Icon name="barcode" size={26} color={c.white} /> : null}
           </View>
         </Pressable>
-        <View style={[{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
-          <Txt w="eb" size={13} color={colors.textSecondary}>
+        <View style={[{ width: 48, height: 48, borderRadius: 14, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+          <Txt w="eb" size={13} color={c.textSecondary}>
             ×4
           </Txt>
         </View>
       </Row>
 
-      {/* Free-text "describe your meal" only helps the plate estimate; a label is read
-          verbatim, so it has no place in label mode. */}
-      {isLabel ? null : (
-        <View style={[{ marginTop: 18, height: 50, borderRadius: 13, backgroundColor: '#fff', justifyContent: 'center', paddingHorizontal: 15 }, shadow.card]}>
-          <Txt w="m" size={14} color={s.mealDesc ? colors.text : colors.textTertiary}>
-            {s.mealDesc || 'Describe your meal for better accuracy (optional)'}
-          </Txt>
-        </View>
-      )}
-      <Txt w="m" size={13} color={colors.textTertiary} style={{ textAlign: 'center', marginTop: 14 }}>
+      {/* Free-text "describe your meal" only helps the plate estimate (hidden foods, portion, a
+          drink off-frame); a label is read verbatim, so it has no place in label mode. */}
+      {isLabel ? null : <MealDescInput />}
+      <Txt w="m" size={13} color={c.textTertiary} style={{ textAlign: 'center', marginTop: 14 }}>
         {isLabel ? 'Numbers read straight off the label · exact, not estimated' : 'One tap · batch up to 4 meals · works offline'}
       </Txt>
     </View>
@@ -188,16 +193,17 @@ function CaptureControls() {
 }
 
 function Analyzing({ label }: { label?: boolean }) {
+  const c = useColors();
   const rows = label
     ? [
-        { t: 'Reading the Nutrition Facts', c: colors.slate700 },
-        { t: 'Parsing ingredients', c: colors.textSecondary },
-        { t: 'Checking coach flags', c: colors.textTertiary },
+        { t: 'Reading the Nutrition Facts', c: c.slate700 },
+        { t: 'Parsing ingredients', c: c.textSecondary },
+        { t: 'Checking coach flags', c: c.textTertiary },
       ]
     : [
-        { t: 'Detecting foods', c: colors.slate700 },
-        { t: 'Estimating protein & calories', c: colors.textSecondary },
-        { t: 'Scoring meal quality', c: colors.textTertiary },
+        { t: 'Detecting foods', c: c.slate700 },
+        { t: 'Estimating protein & calories', c: c.textSecondary },
+        { t: 'Scoring meal quality', c: c.textTertiary },
       ];
   return (
     <View style={{ marginTop: 26 }}>
@@ -210,7 +216,7 @@ function Analyzing({ label }: { label?: boolean }) {
       <View style={{ marginTop: 22, gap: 13, alignItems: 'center' }}>
         {rows.map((row) => (
           <Row key={row.t} style={{ gap: 10 }}>
-            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent }} />
+            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.accent }} />
             <Txt w="sb" size={14} color={row.c}>
               {row.t}
             </Txt>
@@ -222,6 +228,7 @@ function Analyzing({ label }: { label?: boolean }) {
 }
 
 function Spinner() {
+  const c = useColors();
   const spin = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(Animated.timing(spin, { toValue: 1, duration: 800, easing: Easing.linear, useNativeDriver: true }));
@@ -235,8 +242,8 @@ function Spinner() {
         height: 18,
         borderRadius: 9,
         borderWidth: 2.5,
-        borderColor: colors.accentBorder,
-        borderTopColor: colors.accent,
+        borderColor: c.accentBorder,
+        borderTopColor: c.accent,
         transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }],
       }}
     />
@@ -250,15 +257,17 @@ function Spinner() {
  * Should feel like "a nutritionist in your pocket," never a food log.
  */
 function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void }) {
+  const c = useColors();
   const s = useStore();
   const derived = useDerived();
   // Prefer the real AI analysis (Claude vision) when present; else the deterministic result.
   const mr = s.mealAnalysis ?? mealResultFor(mealType);
   const q = qualityLabel(mr.quality);
+  const conf = confidenceMeta(mr.confidence, c);
   const tone = {
-    success: { bg: colors.successSurface, fg: colors.successDeep },
-    accent: { bg: colors.accentSurface, fg: colors.accent },
-    warning: { bg: '#FEF3C7', fg: colors.warningDeep },
+    success: { bg: c.successSurface, fg: c.successDeep },
+    accent: { bg: c.accentSurface, fg: c.accent },
+    warning: { bg: c.warnTint, fg: c.warnText },
   }[q.tone];
   // Gate the carried-forward coach note: only a real standing directive (the
   // seeded demo, or a future real note) drives the "your coach, carried forward"
@@ -290,34 +299,53 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
 
       {/* HERO — goal-aligned coaching insight */}
       <Reveal index={0}>
-      <View style={{ marginTop: 16, borderRadius: 20, padding: 18, backgroundColor: colors.accentSurface, borderWidth: 1, borderColor: colors.accentBorder }}>
+      <View style={{ marginTop: 16, borderRadius: 20, padding: 18, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder }}>
         <Row style={{ gap: 9 }}>
-          <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="sparkle" size={16} color={colors.accent} />
+          <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="sparkle" size={16} color={c.accent} />
           </View>
-          <Txt w="eb" size={12} color={colors.accent} ls={0.6}>
+          <Txt w="eb" size={12} color={c.accent} ls={0.6}>
             {aiCoachTag}
           </Txt>
         </Row>
-        <Txt w="sb" size={16} color={colors.slate700} style={{ marginTop: 12, lineHeight: 23 }}>
+        <Txt w="sb" size={16} color={c.slate700} style={{ marginTop: 12, lineHeight: 23 }}>
           {heroInsight}
         </Txt>
       </View>
       </Reveal>
 
+      {/* "show its work": only when the note contradicted the photo. Non-accusatory, gives an out. */}
+      {mr.reconcile ? (
+        <Reveal index={1}>
+        <View style={{ marginTop: 12, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, backgroundColor: c.bg2 }}>
+          <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="camera" size={16} color={c.textSecondary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} style={{ marginBottom: 4 }}>
+              WHAT I COUNTED
+            </Txt>
+            <Txt w="sb" size={14} color={c.slate700} style={{ lineHeight: 20 }}>
+              {mr.reconcile}
+            </Txt>
+          </View>
+        </View>
+        </Reveal>
+      ) : null}
+
       {/* score impact — the reward that proves the loop */}
       <Reveal index={1}>
-      <View style={{ marginTop: 12, borderRadius: 18, padding: 16, backgroundColor: impact > 0 ? colors.successSurface : colors.bg2, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
-        <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-          <Txt w="eb" num size={20} color={impact > 0 ? colors.successDeep : colors.textTertiary}>
+      <View style={{ marginTop: 12, borderRadius: 18, padding: 16, backgroundColor: impact > 0 ? c.successSurface : c.bg2, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+        <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt w="eb" num size={20} color={impact > 0 ? c.successDeep : c.textTertiary}>
             {impact > 0 ? `+${impact}` : '✓'}
           </Txt>
         </View>
         <View style={{ flex: 1 }}>
-          <Txt w="eb" num size={15} color={impact > 0 ? colors.successDeep : colors.slate700}>
+          <Txt w="eb" num size={15} color={impact > 0 ? c.successDeep : c.slate700}>
             {impact > 0 ? `+${impact} to today's score` : 'Already counted today'}
           </Txt>
-          <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 1 }}>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 1 }}>
             {coaching.dailyContext}
           </Txt>
         </View>
@@ -329,17 +357,17 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
         <Reveal index={2}>
         <Card variant="low" style={{ marginTop: 12, borderRadius: 18 }}>
           <Row style={{ gap: 10 }}>
-            <Avatar initials={guidance.monogram} size={34} bg={colors.text} color="#fff" />
+            <Avatar initials={guidance.monogram} size={34} bg={c.text} color={c.white} />
             <View style={{ flex: 1 }}>
-              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5}>
+              <Txt w="eb" size={11} color={c.textTertiary} ls={0.5}>
                 YOUR COACH · CARRIED FORWARD
               </Txt>
-              <Txt w="sb" size={14} color={colors.slate700} style={{ marginTop: 4, lineHeight: 20 }}>
+              <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 4, lineHeight: 20 }}>
                 {`"${guidance.note}"`}
               </Txt>
             </View>
           </Row>
-          <Txt w="sb" size={13} color={colors.accent} style={{ marginTop: 10, lineHeight: 19 }}>
+          <Txt w="sb" size={13} color={c.accent} style={{ marginTop: 10, lineHeight: 19 }}>
             {coaching.coachEcho}
           </Txt>
         </Card>
@@ -352,20 +380,20 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
 
       {/* scope: this is optional education, not a prescription (keeps the AI honest
           about what it is and protects against reading as clinical advice) */}
-      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 10, paddingHorizontal: 4, lineHeight: 17 }}>
+      <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 10, paddingHorizontal: 4, lineHeight: 17 }}>
         {coaching.scope}
       </Txt>
       {/* persistent medical-safety disclaimer (Tier 1.5): nutrition education, not
           medical advice — present on every AI coaching surface */}
-      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 6, paddingHorizontal: 4, lineHeight: 17 }}>
+      <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 6, paddingHorizontal: 4, lineHeight: 17 }}>
         {medicalDisclaimer()}
       </Txt>
 
       {/* weekly context, when earned */}
       {coaching.weeklyContext ? (
         <Row style={{ gap: 9, marginTop: 12, paddingHorizontal: 4 }}>
-          <Icon name="trophy" size={16} color={colors.warningDeep} />
-          <Txt w="sb" size={13} color={colors.slate600} style={{ flex: 1, lineHeight: 19 }}>
+          <Icon name="trophy" size={16} color={c.warningDeep} />
+          <Txt w="sb" size={13} color={c.slate600} style={{ flex: 1, lineHeight: 19 }}>
             {coaching.weeklyContext}
           </Txt>
         </Row>
@@ -374,25 +402,33 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
       {/* evidence (demoted): detected foods + macros */}
       <Reveal index={3}>
       <Card variant="low" style={{ marginTop: 14, borderRadius: 18 }}>
-        <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
-          DETECTED · ESTIMATED
-        </Txt>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 11 }}>
+          <Txt w="eb" size={11} color={c.textTertiary} ls={0.4}>
+            DETECTED · ESTIMATED
+          </Txt>
+          {conf ? (
+            <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: conf.bg }}>
+              <Txt w="eb" size={10} color={conf.fg} ls={0.3}>{conf.label}</Txt>
+            </View>
+          ) : null}
+        </Row>
         <Row style={{ flexWrap: 'wrap', gap: 7 }}>
           {mr.detected.map((dt) => (
-            <View key={dt} style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: colors.bg2 }}>
-              <Txt w="b" size={12} color={colors.slate700}>
+            <View key={dt} style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: c.bg2 }}>
+              <Txt w="b" size={12} color={c.slate700}>
                 {dt}
               </Txt>
             </View>
           ))}
         </Row>
         <Row style={{ gap: 14, marginTop: 14 }}>
-          <MacroChip value={`~${mr.protein}g`} label="Protein" color={colors.accent} />
+          <MacroChip value={`~${mr.protein}g`} label="Protein" color={c.accent} />
           <MacroChip value={`~${mr.kcal}`} label="Cal" />
           <MacroChip value={`~${mr.carbs}g`} label="Carbs" />
           <MacroChip value={`~${mr.fat}g`} label="Fat" />
         </Row>
-        <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 12, lineHeight: 17 }}>
+        <WhyScore mr={mr} />
+        <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 12, lineHeight: 17 }}>
           Estimated from your photo, not weighed. Portions may vary, so treat these as a guide.
         </Txt>
       </Card>
@@ -404,16 +440,17 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
 }
 
 function CoachBlock({ tag, icon, text, muted }: { tag: string; icon: 'utensils' | 'bolt'; text: string; muted?: boolean }) {
+  const c = useColors();
   return (
-    <View style={[{ marginTop: 12, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, backgroundColor: colors.card }, shadow.card]}>
-      <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name={icon} size={16} color={muted ? colors.textSecondary : colors.accent} />
+    <View style={[{ marginTop: 12, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, backgroundColor: c.card }, shadow.card]}>
+      <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} size={16} color={muted ? c.textSecondary : c.accent} />
       </View>
       <View style={{ flex: 1 }}>
-        <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5} style={{ marginBottom: 4 }}>
+        <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} style={{ marginBottom: 4 }}>
           {tag}
         </Txt>
-        <Txt w="sb" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>
+        <Txt w="sb" size={14} color={c.slate700} style={{ lineHeight: 20 }}>
           {text}
         </Txt>
       </View>
@@ -422,12 +459,13 @@ function CoachBlock({ tag, icon, text, muted }: { tag: string; icon: 'utensils' 
 }
 
 function MacroChip({ value, label, color }: { value: string; label: string; color?: string }) {
+  const c = useColors();
   return (
     <View>
       <Txt w="eb" num size={17} color={color}>
         {value}
       </Txt>
-      <Txt w="sb" size={11} color={colors.textTertiary} style={{ marginTop: 1 }}>
+      <Txt w="sb" size={11} color={c.textTertiary} style={{ marginTop: 1 }}>
         {label}
       </Txt>
     </View>
@@ -450,14 +488,15 @@ function LabelResult({
   onServings: (n: number) => void;
   onAdd: () => void;
 }) {
+  const c = useColors();
   if (!facts) return null;
   const flags = flagIngredients(facts);
   const scaled = scaleLabel(facts, servings);
   const q = qualityLabel(labelQuality(facts, flags));
   const tone = {
-    success: { bg: colors.successSurface, fg: colors.successDeep },
-    accent: { bg: colors.accentSurface, fg: colors.accent },
-    warning: { bg: '#FEF3C7', fg: colors.warningDeep },
+    success: { bg: c.successSurface, fg: c.successDeep },
+    accent: { bg: c.accentSurface, fg: c.accent },
+    warning: { bg: c.warnTint, fg: c.warnText },
   }[q.tone];
   const servingsText = scaled.servings === 1 ? '1 serving' : `${scaled.servings} servings`;
 
@@ -468,7 +507,7 @@ function LabelResult({
         <View style={{ flex: 1, paddingRight: 10 }}>
           <Txt w="eb" size={20} ls={-0.3}>{facts.productName?.trim() || 'Scanned food'}</Txt>
           {facts.servingSize ? (
-            <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2 }}>
+            <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 2 }}>
               Label serving: {facts.servingSize}
             </Txt>
           ) : null}
@@ -484,7 +523,7 @@ function LabelResult({
         <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <View style={{ flex: 1 }}>
             <Txt w="b" size={15}>How many did you eat?</Txt>
-            <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>
+            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2 }}>
               In servings of {facts.servingSize?.trim() || 'the label size'}
             </Txt>
           </View>
@@ -500,11 +539,11 @@ function LabelResult({
       {/* the exact macros that get logged */}
       <Reveal index={1}>
       <Card variant="hero" style={{ marginTop: 12, borderRadius: 18 }}>
-        <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
+        <Txt w="eb" size={11} color={c.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
           YOU ATE · {servingsText.toUpperCase()} · FROM THE LABEL
         </Txt>
         <Row style={{ gap: 14 }}>
-          <MacroChip value={`${Math.round(scaled.protein)}g`} label="Protein" color={colors.accent} />
+          <MacroChip value={`${Math.round(scaled.protein)}g`} label="Protein" color={c.accent} />
           <MacroChip value={`${scaled.calories}`} label="Cal" />
           <MacroChip value={`${Math.round(scaled.carbs)}g`} label="Carbs" />
           <MacroChip value={`${Math.round(scaled.fat)}g`} label="Fat" />
@@ -520,7 +559,7 @@ function LabelResult({
       {flags.length ? (
         <Reveal index={2}>
         <Card variant="low" style={{ marginTop: 12, borderRadius: 18 }}>
-          <Txt w="eb" size={11} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
+          <Txt w="eb" size={11} color={c.textTertiary} ls={0.4} style={{ marginBottom: 11 }}>
             FLAGGED · YOUR COACH'S LIST
           </Txt>
           <Row style={{ flexWrap: 'wrap', gap: 7 }}>
@@ -532,13 +571,13 @@ function LabelResult({
 
       {/* ingredients, verbatim */}
       {facts.ingredients?.length ? (
-        <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 12, paddingHorizontal: 4, lineHeight: 18 }}>
+        <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 12, paddingHorizontal: 4, lineHeight: 18 }}>
           Ingredients: {facts.ingredients.join(', ')}.
         </Txt>
       ) : null}
 
       {/* honesty: facts exact, judgment humble */}
-      <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 8, paddingHorizontal: 4, lineHeight: 17 }}>
+      <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 8, paddingHorizontal: 4, lineHeight: 17 }}>
         {labelProvenanceNote()}
       </Txt>
 
@@ -548,28 +587,212 @@ function LabelResult({
 }
 
 function StepBtn({ icon, label, onPress }: { icon: 'plus' | 'minus'; label: string; onPress: () => void }) {
+  const c = useColors();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={8}
       onPress={() => { haptics.tap(); onPress(); }}
-      style={({ pressed }) => [{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 }]}
+      style={({ pressed }) => [{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 }]}
     >
-      <Icon name={icon} size={18} color={colors.accent} />
+      <Icon name={icon} size={18} color={c.accent} />
     </Pressable>
   );
 }
 
 function FlagChip({ flag }: { flag: IngredientFlag }) {
+  const c = useColors();
   const tone = {
-    warning: { bg: '#FEF3C7', fg: colors.warningDeep },
-    accent: { bg: colors.accentSurface, fg: colors.accent },
-    neutral: { bg: colors.bg2, fg: colors.textSecondary },
+    warning: { bg: c.warnTint, fg: c.warnText },
+    accent: { bg: c.accentSurface, fg: c.accent },
+    neutral: { bg: c.bg2, fg: c.textSecondary },
   }[flag.tone];
   return (
     <View style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: tone.bg }}>
       <Txt w="b" size={12} color={tone.fg}>{flag.label}</Txt>
+    </View>
+  );
+}
+
+/** Editable meal description + a mic to dictate it. The words feed the estimate (hidden foods,
+ *  portion, an off-frame drink); the mic hides on platforms where dictation isn't available. */
+function MealDescInput() {
+  const c = useColors();
+  const s = useStore();
+  const [listening, setListening] = useState(false);
+  const handleRef = useRef<DictationHandle | null>(null);
+  const stop = () => {
+    handleRef.current?.stop();
+    handleRef.current = null;
+    setListening(false);
+  };
+  useEffect(() => stop, []); // release the recognizer if the overlay unmounts mid-listen
+  const toggle = () => {
+    if (listening) { stop(); return; }
+    haptics.tap();
+    setListening(true);
+    handleRef.current = startDictation({
+      onText: (t) => s.setMealDesc(t),
+      onEnd: () => setListening(false),
+      onError: () => setListening(false),
+    });
+  };
+  return (
+    <View style={[{ marginTop: 18, borderRadius: 13, backgroundColor: c.card, paddingLeft: 15, paddingRight: 6, flexDirection: 'row', alignItems: 'center', gap: 8 }, shadow.card]}>
+      <TextInput
+        value={s.mealDesc}
+        onChangeText={s.setMealDesc}
+        placeholder="Describe it: hidden foods, portion, a drink (optional)"
+        placeholderTextColor={c.textTertiary}
+        multiline
+        style={{ flex: 1, minHeight: 44, paddingVertical: 11, fontSize: 14, color: c.text }}
+        accessibilityLabel="Describe your meal"
+      />
+      {isDictationAvailable ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={listening ? 'Stop dictation' : 'Dictate your description'}
+          accessibilityState={{ selected: listening }}
+          onPress={toggle}
+          hitSlop={8}
+          style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: listening ? c.accent : c.bg2 }}
+        >
+          <Icon name="mic" size={18} color={listening ? c.white : c.accent} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Clarifying-questions sub-stage: the AI asked 1-3 short questions (hidden/off-frame food first,
+ * then portion, then prep) whose answers materially change the macros. The athlete answers or
+ * skips; either way finalizeMeal makes the second call (which never claims another daily slot).
+ */
+function Questions() {
+  const c = useColors();
+  const s = useStore();
+  const questions = s.mealQuestions;
+  const [answers, setAnswers] = useState<string[]>(() => questions.map(() => ''));
+  useEffect(() => { setAnswers(questions.map(() => '')); }, [questions]);
+  const finalize = (a: string[]) => { haptics.tap(); s.finalizeMeal(a); };
+  return (
+    <View style={{ marginTop: 22 }}>
+      <Row style={{ gap: 9, alignItems: 'center' }}>
+        <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="sparkle" size={16} color={c.accent} />
+        </View>
+        <Txt w="eb" size={16} style={{ flex: 1 }}>Quick questions to nail it</Txt>
+      </Row>
+      <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>
+        A photo can miss what's under or off the plate. Answer what you can, or skip.
+      </Txt>
+      {questions.map((q, i) => (
+        <View key={i} style={{ marginTop: 16 }}>
+          <Txt w="sb" size={14} color={c.slate700} style={{ marginBottom: 7, lineHeight: 20 }}>{q}</Txt>
+          <View style={[{ borderRadius: 13, backgroundColor: c.card, paddingHorizontal: 14 }, shadow.card]}>
+            <TextInput
+              value={answers[i] ?? ''}
+              onChangeText={(t) => setAnswers((prev) => prev.map((v, j) => (j === i ? t : v)))}
+              placeholder="Your answer"
+              placeholderTextColor={c.textTertiary}
+              multiline
+              style={{ minHeight: 44, paddingVertical: 12, fontSize: 14, color: c.text }}
+              accessibilityLabel={`Answer for: ${q}`}
+            />
+          </View>
+        </View>
+      ))}
+      <Btn label="Get my analysis" haptic="success" onPress={() => finalize(answers)} style={{ marginTop: 20 }} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Skip questions and estimate anyway"
+        onPress={() => finalize(questions.map(() => ''))}
+        style={{ paddingVertical: 12, alignItems: 'center' }}
+      >
+        <Txt w="sb" size={13} color={c.textTertiary}>Skip and estimate anyway</Txt>
+      </Pressable>
+    </View>
+  );
+}
+
+/** Tap-to-open explanation of what drives the quality score (protein density). Deterministic,
+ *  computed from the shown macros; no extra model call. */
+function WhyScore({ mr }: { mr: MealResult }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const proteinCal = mr.protein * 4;
+  const totalCal = mr.protein * 4 + mr.carbs * 4 + mr.fat * 9;
+  const pct = totalCal > 0 ? Math.round((proteinCal / totalCal) * 100) : 0;
+  return (
+    <View style={{ marginTop: 12 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Why this score"
+        accessibilityState={{ expanded: open }}
+        onPress={() => { haptics.select(); setOpen((o) => !o); }}
+        hitSlop={6}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+      >
+        <Icon name={open ? 'minus' : 'plus'} size={14} color={c.accent} />
+        <Txt w="b" size={12} color={c.accent}>Why this score</Txt>
+      </Pressable>
+      {open ? (
+        <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 18 }}>
+          {`Quality tracks protein density: how much of the meal's energy comes from protein. This plate is about ${pct}% protein calories (${proteinCal} of ${totalCal}). More protein per calorie scores higher for an athlete building or holding muscle.`}
+        </Txt>
+      ) : null}
+    </View>
+  );
+}
+
+/** Map the grounder's confidence to a small badge (label + tone). Null when unknown (fallback). */
+function confidenceMeta(
+  confidence: MealResult['confidence'],
+  c: ReturnType<typeof useColors>,
+): { label: string; bg: string; fg: string } | null {
+  if (confidence === 'high') return { label: 'HIGH CONFIDENCE', bg: c.successSurface, fg: c.successDeep };
+  if (confidence === 'medium') return { label: 'ESTIMATED', bg: c.accentSurface, fg: c.accent };
+  if (confidence === 'low') return { label: 'ROUGH ESTIMATE', bg: c.warnTint, fg: c.warnText };
+  return null;
+}
+
+/** "Your usuals": one-tap reuse of the athlete's own repeat meals for this slot. Reusing a usual
+ *  logs its CONFIRMED macros with no photo, no model call, and no daily-cap slot. Shows nothing
+ *  when there's no repeat history (offline, or a brand-new athlete). */
+function Usuals() {
+  const c = useColors();
+  const s = useStore();
+  const usuals = matchUsuals(s.mealHistory ?? [], s.mealType, 3);
+  if (usuals.length === 0) return null;
+  return (
+    <View style={{ marginTop: 16 }}>
+      <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} style={{ marginBottom: 8 }}>
+        YOUR USUALS · ONE TAP
+      </Txt>
+      <View style={{ gap: 8 }}>
+        {usuals.map((u) => (
+          <Pressable
+            key={`${u.name}-${u.lastLogged}`}
+            accessibilityRole="button"
+            accessibilityLabel={`Reuse ${u.name}, about ${u.protein} grams protein`}
+            onPress={() => { haptics.select(); s.pickUsual(u); }}
+            style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, backgroundColor: c.card, opacity: pressed ? 0.7 : 1 }, shadow.card]}
+          >
+            <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="sparkle" size={15} color={c.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="b" size={14} color={c.text}>{u.name}</Txt>
+              <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
+                {`~${u.protein}g protein · ~${u.kcal} cal · logged ${u.count}x`}
+              </Txt>
+            </View>
+            <Icon name="chevronRight" size={16} color={c.textTertiary} />
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }

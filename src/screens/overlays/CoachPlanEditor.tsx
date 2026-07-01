@@ -5,7 +5,8 @@ import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { activePlan, formatWindowTime } from '@/core';
 import { useStore } from '@/store';
-import { colors, font } from '@/ui/tokens';
+import { font } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
@@ -13,6 +14,7 @@ import { Overlay } from './Overlay';
 const SUGGESTIONS = ['Pre-bed protein shake', 'No sugary drinks', 'Protein with every meal', 'Log each meal within 30 min'];
 
 export function CoachPlanEditor() {
+  const c = useColors();
   const s = useStore();
   const plan = activePlan(s);
   const [draft, setDraft] = React.useState('');
@@ -25,7 +27,7 @@ export function CoachPlanEditor() {
   return (
     <Overlay title="Coach Plan" onClose={s.closePlanEditor}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Txt w="m" size={14} color={colors.textSecondary} style={{ marginTop: 4, lineHeight: 20 }}>
+        <Txt w="m" size={14} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 20 }}>
           The plan the athlete is held to. Every meal and the Execution Score are measured against this.
         </Txt>
 
@@ -54,20 +56,20 @@ export function CoachPlanEditor() {
                     {w.label}
                   </Txt>
                   {w.required ? null : (
-                    <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: colors.bg2 }}>
-                      <Txt w="b" size={10} color={colors.textTertiary}>
+                    <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: c.bg2 }}>
+                      <Txt w="b" size={10} color={c.textTertiary}>
                         OPTIONAL
                       </Txt>
                     </View>
                   )}
                 </Row>
-                <Txt w="m" size={13} color={colors.textSecondary}>
+                <Txt w="m" size={13} color={c.textSecondary}>
                   {formatWindowTime(w.openMin)} – {formatWindowTime(w.deadlineMin)}
                 </Txt>
               </Row>
             ))}
           </View>
-          <Txt w="m" size={11} color={colors.textTertiary} style={{ marginTop: 12, lineHeight: 16 }}>
+          <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 12, lineHeight: 16 }}>
             Custom window times arrive with the coach backend; these are the default schedule.
           </Txt>
         </Card>
@@ -79,26 +81,26 @@ export function CoachPlanEditor() {
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 4 }}>
             Standing instructions
           </Txt>
-          <Txt w="m" size={13} color={colors.textTertiary} style={{ marginBottom: 12, lineHeight: 18 }}>
+          <Txt w="m" size={13} color={c.textTertiary} style={{ marginBottom: 12, lineHeight: 18 }}>
             Coaching rules the athlete sees every day.
           </Txt>
 
           <View style={{ gap: 8 }}>
             {s.planInstructions.map((ins, i) => (
-              <Row key={ins} style={{ justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.bg, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 13 }}>
+              <Row key={ins} style={{ justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.bg, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 13 }}>
                 <Row style={{ gap: 9, alignItems: 'center', flex: 1 }}>
-                  <Icon name="check" size={14} color={colors.accent} />
-                  <Txt w="b" size={14} color={colors.slate700} style={{ flex: 1 }}>
+                  <Icon name="check" size={14} color={c.accent} />
+                  <Txt w="b" size={14} color={c.slate700} style={{ flex: 1 }}>
                     {ins}
                   </Txt>
                 </Row>
                 <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${ins}`} hitSlop={8} onPress={() => s.removePlanInstruction(i)}>
-                  <Icon name="close" size={14} color={colors.textTertiary} />
+                  <Icon name="close" size={14} color={c.textTertiary} />
                 </Pressable>
               </Row>
             ))}
             {s.planInstructions.length === 0 ? (
-              <Txt w="m" size={13} color={colors.textTertiary} style={{ lineHeight: 18 }}>
+              <Txt w="m" size={13} color={c.textTertiary} style={{ lineHeight: 18 }}>
                 No standing instructions yet. Add one below or tap a suggestion.
               </Txt>
             ) : null}
@@ -109,21 +111,21 @@ export function CoachPlanEditor() {
               value={draft}
               onChangeText={setDraft}
               placeholder="Add an instruction…"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={c.textTertiary}
               accessibilityLabel="New instruction"
               onSubmitEditing={() => add(draft)}
-              style={{ flex: 1, height: 46, borderRadius: 13, backgroundColor: colors.bg, paddingHorizontal: 14, fontFamily: font.m, fontSize: 14, color: colors.text }}
+              style={{ flex: 1, height: 46, borderRadius: 13, backgroundColor: c.bg, paddingHorizontal: 14, fontFamily: font.m, fontSize: 14, color: c.text }}
             />
-            <Pressable accessibilityRole="button" accessibilityLabel="Add instruction" onPress={() => add(draft)} disabled={draft.trim().length === 0} style={{ width: 46, height: 46, borderRadius: 13, backgroundColor: draft.trim() ? colors.accent : colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="plus" size={18} color={draft.trim() ? '#fff' : colors.textTertiary} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Add instruction" onPress={() => add(draft)} disabled={draft.trim().length === 0} style={{ width: 46, height: 46, borderRadius: 13, backgroundColor: draft.trim() ? c.accent : c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="plus" size={18} color={draft.trim() ? c.white : c.textTertiary} />
             </Pressable>
           </Row>
 
           <Row style={{ flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
             {SUGGESTIONS.filter((sug) => !s.planInstructions.includes(sug)).map((sug) => (
-              <Pressable key={sug} accessibilityRole="button" accessibilityLabel={`Add ${sug}`} onPress={() => add(sug)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 11, borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSurface }}>
-                <Icon name="plus" size={12} color={colors.accent} />
-                <Txt w="b" size={12} color={colors.accent}>
+              <Pressable key={sug} accessibilityRole="button" accessibilityLabel={`Add ${sug}`} onPress={() => add(sug)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 11, borderWidth: 1, borderColor: c.accentBorder, backgroundColor: c.accentSurface }}>
+                <Icon name="plus" size={12} color={c.accent} />
+                <Txt w="b" size={12} color={c.accent}>
                   {sug}
                 </Txt>
               </Pressable>
@@ -156,9 +158,10 @@ function TargetRow({ label, value, onDown, onUp, last }: { label: string; value:
 }
 
 function Step({ glyph, label, onPress }: { glyph: string; label: string; onPress: () => void }) {
+  const c = useColors();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={6} onPress={onPress} style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 11, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
-      <Txt w="b" size={18} color={colors.slate600}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={6} onPress={onPress} style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 11, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
+      <Txt w="b" size={18} color={c.slate600}>
         {glyph}
       </Txt>
     </Pressable>

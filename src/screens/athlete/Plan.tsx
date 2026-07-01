@@ -5,12 +5,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { taskVisibilityNote, weekdayLong, activePlan, mealWindowStatuses, escalation, planAdherence } from '@/core';
 import { isEnginesEnabled } from '@/lib/features';
 import { useStore, useDerived } from '@/store';
-import { colors, shadow } from '@/ui/tokens';
+import { shadow } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { ProgressBar, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 
 export function Plan() {
+  const c = useColors();
   const insets = useSafeAreaInsets();
   const tasks = useStore((s) => s.tasks);
   const toggleTask = useStore((s) => s.toggleTask);
@@ -35,15 +37,15 @@ export function Plan() {
   const approaching = windowStatuses.find((w) => w.state === 'open' && w.minutesToDeadline >= 0 && w.minutesToDeadline <= 45);
   const esc = escalation({ missedToday, approachingMeal: approaching ? approaching.window.label.toLowerCase() : null, consecutiveDaysMissed: 0 });
   const stateColor: Record<string, string> = {
-    logged: colors.successDeep,
-    missed: colors.alert,
-    open: colors.warningDeep,
-    upcoming: colors.textTertiary,
+    logged: c.successDeep,
+    missed: c.alert,
+    open: c.warningDeep,
+    upcoming: c.textTertiary,
   };
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
-      <Txt w="sb" size={14} color={colors.textSecondary}>
+      <Txt w="sb" size={14} color={c.textSecondary}>
         {weekdayLong()} · in-season
       </Txt>
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
@@ -51,12 +53,12 @@ export function Plan() {
       </Txt>
 
       <Reveal index={0}>
-      <Row style={[{ marginTop: 18, gap: 16, backgroundColor: '#fff', borderRadius: 20, padding: 18 }, shadow.card]}>
+      <Row style={[{ marginTop: 18, gap: 16, backgroundColor: c.card, borderRadius: 20, padding: 18 }, shadow.card]}>
         <Txt w="eb" num size={30}>
-          <Txt w="eb" num size={30} color={colors.accent}>
+          <Txt w="eb" num size={30} color={c.accent}>
             {d.tasksDone}
           </Txt>
-          <Txt w="eb" num size={30} color={colors.slate300}>
+          <Txt w="eb" num size={30} color={c.slate300}>
             /{d.tasksTotal}
           </Txt>
         </Txt>
@@ -74,48 +76,48 @@ export function Plan() {
           task list + count below stay visible either way. */}
       {isEnginesEnabled ? (
         <Reveal index={1}>
-        <View style={[{ marginTop: 14, backgroundColor: '#fff', borderRadius: 20, padding: 18 }, shadow.card]}>
+        <View style={[{ marginTop: 14, backgroundColor: c.card, borderRadius: 20, padding: 18 }, shadow.card]}>
           <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <Pressable accessibilityRole="button" accessibilityLabel="Edit coach plan" onPress={openPlanEditor} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 })}>
               <Txt w="eb" size={15} ls={-0.3}>
                 Plan execution
               </Txt>
-              <Icon name="settings" size={14} color={colors.textTertiary} />
+              <Icon name="settings" size={14} color={c.textTertiary} />
             </Pressable>
-            <Txt w="eb" num size={15} color={adherence.adherencePct >= 80 ? colors.successDeep : adherence.adherencePct >= 50 ? colors.warningDeep : colors.alert}>
+            <Txt w="eb" num size={15} color={adherence.adherencePct >= 80 ? c.successDeep : adherence.adherencePct >= 50 ? c.warningDeep : c.alert}>
               {adherence.adherencePct}%
             </Txt>
           </Row>
           <Row style={{ gap: 8, marginTop: 12 }}>
             {windowStatuses.map((w) => (
-              <View key={w.window.key} style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 12, backgroundColor: colors.bg }}>
+              <View key={w.window.key} style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 12, backgroundColor: c.bg }}>
                 <Txt w="eb" size={14} color={stateColor[w.state]}>
                   {w.window.label[0]}
                 </Txt>
-                <Txt w="b" size={9} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                <Txt w="b" size={9} color={c.textTertiary} style={{ marginTop: 2 }}>
                   {w.state === 'logged' ? 'IN' : w.state === 'missed' ? 'MISSED' : w.state === 'open' ? 'OPEN' : 'SOON'}
                 </Txt>
               </View>
             ))}
           </Row>
           {esc.level > 0 ? (
-            <Txt w="m" size={13} color={esc.tone === 'reminder' ? colors.slate700 : colors.warningDeep} style={{ marginTop: 12, lineHeight: 19 }}>
+            <Txt w="m" size={13} color={esc.tone === 'reminder' ? c.slate700 : c.warningDeep} style={{ marginTop: 12, lineHeight: 19 }}>
               {esc.message}
             </Txt>
           ) : (
-            <Txt w="m" size={13} color={colors.successDeep} style={{ marginTop: 12, lineHeight: 19 }}>
+            <Txt w="m" size={13} color={c.successDeep} style={{ marginTop: 12, lineHeight: 19 }}>
               {esc.message}
             </Txt>
           )}
           {planInstructions.length > 0 ? (
-            <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border, gap: 7 }}>
-              <Txt w="eb" size={11} color={colors.textTertiary} ls={0.5} upper>
+            <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: c.border, gap: 7 }}>
+              <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} upper>
                 Coach instructions
               </Txt>
               {planInstructions.map((ins) => (
                 <Row key={ins} style={{ gap: 8, alignItems: 'center' }}>
-                  <Icon name="check" size={13} color={colors.accent} />
-                  <Txt w="b" size={13} color={colors.slate700} style={{ flex: 1 }}>
+                  <Icon name="check" size={13} color={c.accent} />
+                  <Txt w="b" size={13} color={c.slate700} style={{ flex: 1 }}>
                     {ins}
                   </Txt>
                 </Row>
@@ -131,7 +133,7 @@ export function Plan() {
         {tasks.map((t) => (
           <View key={t.id}>
             {t.group ? (
-              <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 12, marginBottom: 8 }}>
+              <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginTop: 12, marginBottom: 8 }}>
                 {t.group}
               </Txt>
             ) : null}
@@ -143,7 +145,7 @@ export function Plan() {
                 haptics[t.done ? 'tap' : 'success']();
                 toggleTask(t.id);
               }}
-              style={[{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#fff', borderRadius: 16, padding: 16 }, shadow.card]}
+              style={[{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.card, borderRadius: 16, padding: 16 }, shadow.card]}
             >
               <View
                 style={{
@@ -152,18 +154,18 @@ export function Plan() {
                   borderRadius: 9,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: t.done ? colors.accent : '#fff',
+                  backgroundColor: t.done ? c.accent : c.card,
                   borderWidth: 2,
-                  borderColor: t.done ? colors.accent : colors.slate300,
+                  borderColor: t.done ? c.accent : c.slate300,
                 }}
               >
-                {t.done ? <Icon name="check" size={14} color="#fff" /> : null}
+                {t.done ? <Icon name="check" size={14} color={c.white} /> : null}
               </View>
               <View style={{ flex: 1 }}>
-                <Txt w="b" size={15} color={t.done ? colors.textTertiary : colors.text} style={{ textDecorationLine: t.done ? 'line-through' : 'none' }}>
+                <Txt w="b" size={15} color={t.done ? c.textTertiary : c.text} style={{ textDecorationLine: t.done ? 'line-through' : 'none' }}>
                   {t.title}
                 </Txt>
-                <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 2 }}>
+                <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 2 }}>
                   {t.meta}
                 </Txt>
               </View>
@@ -173,7 +175,7 @@ export function Plan() {
       </View>
       </Reveal>
 
-      <Txt w="m" size={13} color={colors.textTertiary} style={{ marginTop: 18, textAlign: 'center', lineHeight: 19, paddingHorizontal: 16 }}>
+      <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 18, textAlign: 'center', lineHeight: 19, paddingHorizontal: 16 }}>
         {visibilityNote}
       </Txt>
     </ScrollView>

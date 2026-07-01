@@ -42,6 +42,7 @@ import {
   isValidGuardianEmail,
   labelToFood,
   mealResultToFood,
+  usualToResult,
   baseGoalForPrimary,
   goalConfig,
   realDataConsent,
@@ -63,6 +64,7 @@ import type {
   CompMode,
   MealCaptureMode,
   MealLabel,
+  UsualMeal,
   PersonDetail,
   Role,
   RosterRow,
@@ -172,6 +174,8 @@ export interface Actions {
   /** Set a reminder's local fire hour (0-23, clamped) (P3). */
   setReminderHour: (kind: ReminderKind, hour: number) => void;
   toggleUnits: () => void;
+  /** Set the appearance preference (light/dark/auto). Persisted. */
+  setThemeMode: (mode: 'light' | 'dark' | 'auto') => void;
   goalStep: (d: number) => void;
   adjustProteinTarget: (d: number) => void;
   adjustCalTarget: (d: number) => void;
@@ -188,6 +192,10 @@ export interface Actions {
   closeMeal: () => void;
   setMealType: (m: MealLabel) => void;
   capture: () => void;
+  /** Answer the AI's clarifying questions and get the finalized analysis (the 2nd call). */
+  finalizeMeal: (answers: string[]) => void;
+  /** Reuse a past "usual" meal's confirmed macros — skips the model call and the daily-cap slot. */
+  pickUsual: (u: UsualMeal) => void;
   /** Switch the meal overlay between photographing a plate and scanning a label. */
   setMealCaptureMode: (mode: MealCaptureMode) => void;
   /** Scan a Nutrition Facts label (transcribe). Honors the same photo-egress consent gate. */
@@ -584,6 +592,7 @@ export const useStore = create<Store>()(
         syncReminders(get());
       },
       toggleUnits: () => set((s) => ({ units: s.units === 'metric' ? 'imperial' : 'metric' })),
+      setThemeMode: (mode) => set({ themeMode: mode }),
       goalStep: (d) => set((s) => ({ weeklyGoalLb: +clamp(s.weeklyGoalLb + d, 0.5, 2).toFixed(1) })),
       // Editable daily nutrition targets. Protein feeds scoring + the id-2 task row,
       // so re-derive that visible flag here (mirrors addMeal/toggleQuick) to keep the
@@ -627,11 +636,22 @@ export const useStore = create<Store>()(
       exportMyData: () => exportUserDataText(get()),
 
       // ---- overlays ----
-      openMeal: () => set({ mealOpen: true, mealStage: 'capture', mealCaptureMode: 'meal', mealAnalysis: null, labelFacts: null, labelServings: 1, mealPhoto: null }),
+      openMeal: () => {
+        set({ mealOpen: true, mealStage: 'capture', mealCaptureMode: 'meal', mealAnalysis: null, mealQuestions: [], labelFacts: null, labelServings: 1, mealPhoto: null });
+        // Pull the athlete's recent meals so the capture screen can offer their "usuals" (one-tap
+        // reuse of confirmed macros). Own-data read, backend-gated; offline it simply shows none.
+        if (!isBackendLive) return;
+        const s = get();
+        if (!s.userId) return;
+        void db
+          .fetchRecentMeals(s.userId, daysAgoStamp(MEAL_HISTORY_DAYS))
+          .then((rows) => set({ mealHistory: rows }))
+          .catch(() => undefined);
+      },
       closeMeal: () => set({ mealOpen: false }),
       setMealType: (m) => set({ mealType: m }),
       capture: () => {
-        set({ mealStage: 'analyzing', mealAnalysis: null });
+        set({ mealStage: 'analyzing', mealAnalysis: null, mealQuestions: [] });
         if (mealTimer) clearTimeout(mealTimer);
         // Sending the meal photo to the AI endpoint is REAL athlete data leaving the
         // device to a third party (Anthropic), so it must clear the SAME consent gate as
@@ -656,7 +676,11 @@ export const useStore = create<Store>()(
               if (photoBase64) set({ mealPhoto: photoBase64 });
               return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64 });
             })
-            .then((res) => set({ mealAnalysis: res, mealStage: 'result' }))
+            .then((res) => {
+              // The analyze call returns EITHER a finished result OR 1-3 clarifying questions.
+              if (res.kind === 'questions') set({ mealQuestions: res.questions, mealStage: 'questions' });
+              else set({ mealAnalysis: res.result, mealStage: 'result' });
+            })
             // analyzeMeal already degrades to a deterministic result internally, but a
             // failure anywhere in the chain must NEVER strand the user on the "analyzing"
             // spinner. Fall through to the result stage (the UI fills the deterministic
@@ -666,7 +690,34 @@ export const useStore = create<Store>()(
           mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);
         }
       },
-      setMealCaptureMode: (mode) => set({ mealCaptureMode: mode, mealStage: 'capture', mealAnalysis: null, labelFacts: null }),
+      finalizeMeal: (answers) => {
+        const st = get();
+        const clarifications = st.mealQuestions.map((q, i) => ({ question: q, answer: (answers[i] ?? '').trim() }));
+        set({ mealStage: 'analyzing' });
+        if (mealTimer) clearTimeout(mealTimer);
+        // Second call: same photo + note, now WITH the athlete's answers, forced to report (the
+        // finalize phase can't ask again). Consent + photo egress already cleared on the analyze
+        // call, and finalize does not claim another daily slot. Never strands the spinner.
+        analyzeMeal({
+          mealType: st.mealType,
+          goal: st.primaryGoal,
+          description: st.mealDesc || undefined,
+          photoBase64: st.mealPhoto ?? undefined,
+          phase: 'finalize',
+          clarifications,
+        })
+          .then((res) => {
+            if (res.kind === 'result') set({ mealAnalysis: res.result, mealQuestions: [], mealStage: 'result' });
+            // A finalize that somehow still asks is ignored; fall to the deterministic result UI.
+            else set({ mealQuestions: [], mealStage: 'result' });
+          })
+          .catch(() => set({ mealQuestions: [], mealStage: 'result' }));
+      },
+      pickUsual: (u) => {
+        // Reuse the athlete's own confirmed macros — no photo, no model call, no daily slot.
+        set({ mealAnalysis: usualToResult(u), mealQuestions: [], mealPhoto: null, mealStage: 'result' });
+      },
+      setMealCaptureMode: (mode) => set({ mealCaptureMode: mode, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], labelFacts: null }),
       setLabelServings: (n) => set({ labelServings: Math.min(20, Math.max(0.25, Math.round(n * 4) / 4)) }),
       captureLabel: () => {
         set({ mealStage: 'analyzing', mealAnalysis: null });
@@ -698,7 +749,7 @@ export const useStore = create<Store>()(
         // Log via saveMeal as a single EditableFood so the EXACT label macros (not a slot
         // constant) feed the day score; saveMeal handles meals/score/recordMeal/daySync.
         get().saveMeal(key, [labelToFood(labelFacts, labelServings)]);
-        set({ mealOpen: false, mealStage: 'capture', mealCaptureMode: 'meal', labelFacts: null, labelServings: 1, mealAnalysis: null });
+        set({ mealOpen: false, mealStage: 'capture', mealCaptureMode: 'meal', labelFacts: null, labelServings: 1, mealAnalysis: null, mealQuestions: [] });
       },
       addMeal: () => {
         set((s) => {
@@ -721,7 +772,7 @@ export const useStore = create<Store>()(
           // on-time and the score stays byte-for-byte untouched, per the ratified keystone
           // ("engines off -> score untouched"). Engines ON: stamp -> late logging lowers it.
           const mealLoggedAt = isEnginesEnabled ? { ...s.mealLoggedAt, [key]: nowMinutes() } : s.mealLoggedAt;
-          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, meals, mealFoods, mealLoggedAt, tasks };
+          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], meals, mealFoods, mealLoggedAt, tasks };
         });
         // Persist the meal (macros + photo) BEFORE clearing the captured photo —
         // recordMeal reads the photo off current state. No-op unless backend live.
@@ -1168,6 +1219,7 @@ export const useStore = create<Store>()(
         reminderSettings: s.reminderSettings,
         overseerAlerts: s.overseerAlerts,
         units: s.units,
+        themeMode: s.themeMode,
         // Cross-day (not a DAY_DEFAULT_KEY): a coach<->athlete message must leave a
         // record that survives reload, not vanish with the in-memory session.
         msgThread: s.msgThread,

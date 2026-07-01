@@ -4,7 +4,8 @@
 import React from 'react';
 import { View } from 'react-native';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
-import { colors, font } from '@/ui/tokens';
+import { font } from '@/ui/tokens';
+import { useColors } from '@/ui/theme';
 import { Txt } from '@/ui/primitives';
 
 // Shared dial geometry (viewBox 0 0 100 100, fill="none"). Track = the unfilled
@@ -65,12 +66,13 @@ export function AppIcon({ size = 58, radius }: { size?: number; radius?: number 
 
 /** Full horizontal lockup: mark + On·Standard wordmark (Plus Jakarta Sans 800). */
 export function Logo({ size = 40, onDark = false }: { size?: number; onDark?: boolean }) {
+  const c = useColors();
   const textSize = size * 0.6;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: Math.round(size * 0.32) }}>
       <LogoMark size={size} onDark={onDark} />
-      <Txt style={{ fontFamily: font.eb, letterSpacing: -0.04 * textSize }} size={textSize} color={onDark ? '#fff' : colors.text}>
-        On<Txt style={{ fontFamily: font.eb }} size={textSize} color={colors.accent}>Standard</Txt>
+      <Txt style={{ fontFamily: font.eb, letterSpacing: -0.04 * textSize }} size={textSize} color={onDark ? '#fff' : c.text}>
+        On<Txt style={{ fontFamily: font.eb }} size={textSize} color={c.accent}>Standard</Txt>
       </Txt>
     </View>
   );
