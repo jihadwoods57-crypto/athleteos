@@ -1,6 +1,7 @@
 // OnStandard — content data + display-string helpers (pure).
 // Ported from the prototype: meal log, meal-analysis results, AI insight, pace.
 import type { AppState, CiConfig, Derived, MealKey, MealLabel } from './types';
+import type { MacroConfidence } from './macroGrounding';
 import { mealSlotMacros } from './scoring';
 
 export interface LoggedMeal {
@@ -93,6 +94,9 @@ export const MEALS_LOG: LoggedMeal[] = [
   },
 ];
 
+/** How the athlete's note related to the photo (drives the coach pattern signal in Slice 4). */
+export type DescriptionSignal = 'match' | 'photo_heavier' | 'photo_lighter' | 'no_photo';
+
 export interface MealResult {
   name: string;
   quality: number;
@@ -102,6 +106,12 @@ export interface MealResult {
   fat: number;
   detected: string[];
   note: string;
+  /** How much of the macro estimate the grounder could corroborate. Absent on legacy/fallback results. */
+  confidence?: MacroConfidence;
+  /** Non-accusatory "show its work" line, present only when the note contradicts what the photo shows. */
+  reconcile?: string;
+  /** Relationship of the athlete note to the photo. Feeds the coach pattern signal. */
+  descriptionSignal?: DescriptionSignal;
 }
 
 export const MEAL_RESULTS: Record<MealLabel, MealResult> = {

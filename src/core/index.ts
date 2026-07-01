@@ -15,6 +15,7 @@ export * from './nutritionLabel';
 export * from './nutritionMemory';
 export * from './nutritionMemoryVoice';
 export * from './macroGrounding';
+export * from './mealMatch';
 export * from './coaching';
 export * from './units';
 export * from './weightProgress';

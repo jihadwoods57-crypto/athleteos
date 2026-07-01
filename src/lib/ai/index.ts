@@ -2,11 +2,11 @@
 // backend (Claude vision) when configured, else the deterministic prototype analysis.
 // The UI renders the identical MealResult shape either way.
 import { groundMealResult, mealResultFor, mergeRephrasedInsights, mergeRephrasedOrders, ordersToRephrase, sampleScannedLabel } from '@/core';
-import type { LabelFacts, MealResult, MemoryInsight, RecommendResult } from '@/core';
-import { analyzeLabelRemote, analyzeMealRemote, isAiConfigured, rephraseMemoryRemote, rephraseOrdersRemote, type AnalyzeLabelRequest, type AnalyzeMealRequest } from './client';
+import type { LabelFacts, MemoryInsight, RecommendResult } from '@/core';
+import { analyzeLabelRemote, analyzeMealRemote, isAiConfigured, rephraseMemoryRemote, rephraseOrdersRemote, type AnalyzeLabelRequest, type AnalyzeMealRequest, type MealRemoteResponse } from './client';
 
 export { isAiConfigured, AI_ENDPOINT } from './client';
-export type { AnalyzeMealRequest, AnalyzeLabelRequest } from './client';
+export type { AnalyzeMealRequest, AnalyzeLabelRequest, MealRemoteResponse, Clarification } from './client';
 
 // ---------------------------------------------------------------- honest labeling
 // Founder Rule #8: never call it AI until a model is actually doing the work. Until the
@@ -23,19 +23,23 @@ export const aiPrefix = isAiConfigured ? 'AI ' : '';
 
 /**
  * Analyze a meal. Real (Claude vision via the backend) when configured; otherwise the
- * deterministic prototype result. Never throws: on any remote failure it falls back to
- * the deterministic analysis so logging a meal always succeeds.
+ * deterministic prototype result. Returns EITHER a finished result OR up to three clarifying
+ * questions the athlete should answer first (pass their answers back via `phase: 'finalize'` +
+ * `clarifications` to force a result). Never throws: on any remote failure it falls back to the
+ * deterministic analysis so logging a meal always succeeds.
  */
-export async function analyzeMeal(req: AnalyzeMealRequest): Promise<MealResult> {
-  if (!isAiConfigured) return mealResultFor(req.mealType);
+export async function analyzeMeal(req: AnalyzeMealRequest): Promise<MealRemoteResponse> {
+  if (!isAiConfigured) return { kind: 'result', result: mealResultFor(req.mealType) };
   try {
+    const res = await analyzeMealRemote(req);
+    if (res.kind === 'questions') return res;
     // Ground the model's macros (food-DB plausibility + Atwater) before the app shows or
     // logs them, so a hallucinated number never reaches the score. The deterministic
     // fallback is already curated/sane, so it needs no grounding.
-    return groundMealResult(await analyzeMealRemote(req));
+    return { kind: 'result', result: groundMealResult(res.result) };
   } catch {
     // Honest degradation: a network/AI hiccup must never block the athlete's log.
-    return mealResultFor(req.mealType);
+    return { kind: 'result', result: mealResultFor(req.mealType) };
   }
 }
 

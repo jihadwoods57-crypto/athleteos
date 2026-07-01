@@ -76,3 +76,21 @@ describe('groundMealResult / mealResultToFood', () => {
     expect(food.name).toBe(mr.name);
   });
 });
+
+describe('groundMealResult — Slice 1 signal pass-through', () => {
+  it('surfaces the grounder confidence onto the result', () => {
+    const mr: MealResult = { name: 'Chicken, Rice & Broccoli', quality: 94, protein: 52, kcal: 680, carbs: 64, fat: 18, detected: ['Grilled chicken', 'White rice', 'Broccoli'], note: 'x' };
+    expect(groundMealResult(mr).confidence).toBe('high');
+  });
+
+  it('keeps the model reconcile line and descriptionSignal through grounding', () => {
+    const mr: MealResult = {
+      name: 'Fried chicken & rice', quality: 70, protein: 45, kcal: 900, carbs: 80, fat: 40,
+      detected: ['Fried chicken', 'White rice'], note: 'x',
+      reconcile: 'Counting this as fried with sauce.', descriptionSignal: 'photo_heavier',
+    };
+    const out = groundMealResult(mr);
+    expect(out.reconcile).toBe('Counting this as fried with sauce.');
+    expect(out.descriptionSignal).toBe('photo_heavier');
+  });
+});

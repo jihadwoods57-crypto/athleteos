@@ -48,6 +48,9 @@ export interface StoredMeal {
    *  Used by the "usuals" matcher to reuse a repeat meal's confirmed macros. */
   carbs?: number | null;
   fat?: number | null;
+  /** How the athlete's note related to the photo ('match'|'photo_heavier'|'photo_lighter'|'no_photo').
+   *  Backend rows only (select *); feeds the coach's description-bias pattern signal. */
+  description_signal?: string | null;
   quality: number | null;
   photo_path: string | null;
   day_date: string;

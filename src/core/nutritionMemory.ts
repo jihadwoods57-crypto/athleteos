@@ -40,7 +40,9 @@ export type MemoryKind =
   | 'protein_streak'
   | 'slot_gap'
   | 'weight_progress'
-  | 'signature_meal';
+  | 'signature_meal'
+  | 'description_bias'
+  | 'logging_completeness';
 
 /** One remembered insight — a headline, a plain-English detail, and a compact metric. */
 export interface MemoryInsight {
@@ -259,6 +261,60 @@ function signatureMeal(meals: StoredMeal[]): MemoryInsight | null {
 }
 
 /**
+ * Description-vs-photo bias (Slice 4). When an athlete's typed notes consistently under-rate what
+ * the photo shows (the AI set descriptionSignal='photo_heavier'), surface a SOFT pattern for the
+ * coach — never per-incident. One fried plate is nothing; a habit of lowballing is a portion
+ * conversation. Needs ≥5 described meals and ≥60% running lighter than the photo.
+ */
+function descriptionBiasInsight(meals: StoredMeal[]): MemoryInsight | null {
+  const described = meals.filter(
+    (m) => m.description_signal === 'match' || m.description_signal === 'photo_heavier' || m.description_signal === 'photo_lighter',
+  );
+  if (described.length < 5) return null;
+  const heavier = described.filter((m) => m.description_signal === 'photo_heavier').length;
+  if (heavier / described.length < 0.6) return null;
+  return {
+    id: 'description_bias',
+    kind: 'description_bias',
+    tone: 'watch',
+    headline: 'Notes tend to run lighter than the plate',
+    detail: `On ${heavier} of the last ${described.length} described meals, the photo showed more than the note said. Might be portion awareness worth a quick chat, not a red flag.`,
+    metric: `${heavier}/${described.length}`,
+    rank: 62 + heavier,
+  };
+}
+
+/**
+ * Logging completeness (Slice 4). The real coach counts logs: "only 3 pics yesterday, no
+ * snacks/shakes." Track meals logged per active day and whether snacks/shakes show up. Flags a
+ * SOFT pattern when logging is consistently thin — the between-meal calories that go untracked.
+ */
+function loggingCompletenessInsight(meals: StoredMeal[]): MemoryInsight | null {
+  if (meals.length < 6) return null;
+  const days = Array.from(new Set(meals.map((m) => m.day_date))).sort((a, b) => b.localeCompare(a)).slice(0, 7);
+  if (days.length < 3) return null;
+  const daySet = new Set(days);
+  const inWindow = meals.filter((m) => daySet.has(m.day_date));
+  const perDay = inWindow.length / days.length;
+  const snackDays = new Set(inWindow.filter((m) => slotOf(m) === 'snack').map((m) => m.day_date)).size;
+  const halfDays = Math.ceil(days.length / 2);
+  // A full day is roughly three meals plus a snack/shake; only flag when it's genuinely thin.
+  if (perDay >= 3 && snackDays >= halfDays) return null;
+  const mainsOkSnacksThin = perDay >= 3 && snackDays < halfDays;
+  return {
+    id: 'logging_completeness',
+    kind: 'logging_completeness',
+    tone: 'watch',
+    headline: mainsOkSnacksThin ? 'Snacks and shakes are going unlogged' : 'Some meals are going unlogged',
+    detail: mainsOkSnacksThin
+      ? `Main meals are logged, but a snack or shake showed up on only ${snackDays} of the last ${days.length} days. Those between-meal calories count.`
+      : `About ${perDay.toFixed(1)} meals a day logged over the last ${days.length}. Getting all three plus a snack in gives the full picture.`,
+    metric: `${perDay.toFixed(1)}/day`,
+    rank: 56 + Math.round((3 - Math.min(3, perDay)) * 5),
+  };
+}
+
+/**
  * Build the ranked list of remembered insights from the logged history. Pure: every line is
  * computed from real data, so an insight only appears when the evidence is there. Returns at
  * most `limit` insights, highest-signal first.
@@ -271,8 +327,22 @@ export function nutritionMemory(input: NutritionMemoryInput, limit = 6): MemoryI
     slotGap(input.meals),
     weightProgress(input.weightHistory, input.weightTarget, input.weightDirection),
     signatureMeal(input.meals),
+    descriptionBiasInsight(input.meals),
+    loggingCompletenessInsight(input.meals),
   ].filter((x): x is MemoryInsight => x !== null);
   return insights.sort((a, b) => b.rank - a.rank).slice(0, limit);
+}
+
+/**
+ * Coach-facing deterministic patterns over ONE linked athlete's recent meals (no app-state
+ * needed): the description-vs-photo bias and logging-completeness signals, highest-signal first.
+ * The same engine the athlete's memory uses, scoped for the coach's PersonDetail view. Pure;
+ * inherits RLS scope from whoever fetched the rows. Empty when no pattern has formed.
+ */
+export function coachMealPatterns(meals: StoredMeal[]): MemoryInsight[] {
+  return [descriptionBiasInsight(meals), loggingCompletenessInsight(meals)]
+    .filter((x): x is MemoryInsight => x !== null)
+    .sort((a, b) => b.rank - a.rank);
 }
 
 /** The memory surface's full view-model: ranked insights + whether they're real or sampled. */

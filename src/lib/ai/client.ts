@@ -42,6 +42,12 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+/** One clarifying question the model asked and the athlete's answer, sent back on 'finalize'. */
+export interface Clarification {
+  question: string;
+  answer: string;
+}
+
 export interface AnalyzeMealRequest {
   /** Meal slot the athlete tagged (Breakfast/Lunch/Snack/Dinner). */
   mealType: MealLabel;
@@ -51,15 +57,28 @@ export interface AnalyzeMealRequest {
   description?: string;
   /** Base64-encoded JPEG of the meal photo (no data: prefix), when available. */
   photoBase64?: string;
+  /** 'analyze' (default) may return clarifying questions; 'finalize' folds in answers and reports. */
+  phase?: 'analyze' | 'finalize';
+  /** For 'finalize': the questions already asked and the athlete's answers. */
+  clarifications?: Clarification[];
 }
 
 /**
- * Call the backend to analyze a meal photo with Claude vision. Returns the same
- * MealResult shape the UI already renders, so the screen is identical whether the
- * analysis is real or the deterministic fallback. Throws on transport/HTTP error
- * (callers fall back to the deterministic result). 20s timeout.
+ * The backend's meal response: either the finished analysis, or 1-3 clarifying questions the
+ * athlete should answer before the estimate is finalized. The app branches on `kind`.
  */
-export async function analyzeMealRemote(req: AnalyzeMealRequest): Promise<MealResult> {
+export type MealRemoteResponse =
+  | { kind: 'result'; result: MealResult }
+  | { kind: 'questions'; questions: string[] };
+
+/**
+ * Call the backend to analyze a meal photo with Claude vision. Returns EITHER the finished
+ * MealResult (the UI's normal shape) OR up to three clarifying questions when the model needs
+ * more to nail the macros. Throws on transport/HTTP error (callers fall back to the deterministic
+ * result). 20s timeout. Pass `phase: 'finalize'` + `clarifications` to force a result after the
+ * athlete has answered.
+ */
+export async function analyzeMealRemote(req: AnalyzeMealRequest): Promise<MealRemoteResponse> {
   if (!isAiConfigured) throw new Error('AI endpoint not configured');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
@@ -67,12 +86,21 @@ export async function analyzeMealRemote(req: AnalyzeMealRequest): Promise<MealRe
     const res = await fetch(AI_ENDPOINT, {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify(req),
+      body: JSON.stringify({ mode: 'meal', ...req }),
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`analyze-meal HTTP ${res.status}`);
-    const data = (await res.json()) as MealResult;
-    return data;
+    const data = (await res.json()) as { kind?: string; questions?: unknown } & Record<string, unknown>;
+    if (data?.kind === 'questions') {
+      const questions = Array.isArray(data.questions)
+        ? data.questions.filter((q): q is string => typeof q === 'string').slice(0, 3)
+        : [];
+      if (questions.length === 0) throw new Error('analyze-meal returned no questions');
+      return { kind: 'questions', questions };
+    }
+    // 'result' (or a legacy bare object): the meal fields sit at the top level next to `kind`.
+    const { kind: _kind, questions: _questions, ...result } = data;
+    return { kind: 'result', result: result as unknown as MealResult };
   } finally {
     clearTimeout(timer);
   }

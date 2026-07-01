@@ -111,6 +111,11 @@ export function mapMealToRow(
     quality: est.quality,
     detected: est.detected,
     note: est.note,
+    // Slice 2/4 signals: persisted when a real AI analysis is present, else null (deterministic
+    // fallback carries none). Feed the athlete's confidence read and the coach pattern signal.
+    macro_confidence: est.confidence ?? null,
+    description_signal: est.descriptionSignal ?? null,
+    favorited: false,
   };
 }
 
