@@ -10,7 +10,7 @@ import type { MemoryInsight, MemoryTone } from '@/core';
 import { useStore, useNutritionMemory } from '@/store';
 import { isAiConfigured, rephraseMemoryInsights } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, SampleTag, Txt } from '@/ui/primitives';
+import { Card, Reveal, Row, SampleTag, Txt } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
@@ -39,7 +39,8 @@ export function NutritionMemory() {
     <Overlay title="Nutrition Memory" onClose={s.closeNutritionMemory} right={sampled ? <SampleTag /> : undefined}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* what this is */}
-        <Card elevated style={{ borderRadius: 22, marginTop: 4 }}>
+        <Reveal index={0}>
+        <Card variant="hero" style={{ borderRadius: 22, marginTop: 4 }}>
           <Row style={{ gap: 9 }}>
             <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="sparkle" size={16} color={colors.accent} />
@@ -57,11 +58,14 @@ export function NutritionMemory() {
             </Txt>
           ) : null}
         </Card>
+        </Reveal>
 
         {/* the remembered insights */}
+        <Reveal index={1}>
         <View style={{ marginTop: 14, gap: 12 }}>
           {display.map((it) => <InsightCard key={it.id} insight={it} />)}
         </View>
+        </Reveal>
 
         {/* honest provenance + readiness */}
         <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 18, paddingHorizontal: 4, lineHeight: 17 }}>
@@ -105,14 +109,14 @@ function useRephrasedMemory(insights: MemoryInsight[]): { display: MemoryInsight
 function InsightCard({ insight }: { insight: MemoryInsight }) {
   const tone = TONE[insight.tone];
   return (
-    <Card style={{ borderRadius: 18, flexDirection: 'row', gap: 0, padding: 0, overflow: 'hidden' }}>
+    <Card variant="low" style={{ borderRadius: 18, flexDirection: 'row', gap: 0, padding: 0, overflow: 'hidden' }}>
       <View style={{ width: 4, backgroundColor: tone.bar }} />
       <View style={{ flex: 1, padding: 16 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
           <Txt w="eb" size={15} ls={-0.2} style={{ flex: 1 }}>{insight.headline}</Txt>
           {insight.metric ? (
             <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: tone.bg }}>
-              <Txt w="eb" size={13} color={tone.fg}>{insight.metric}</Txt>
+              <Txt w="eb" num size={13} color={tone.fg}>{insight.metric}</Txt>
             </View>
           ) : null}
         </Row>

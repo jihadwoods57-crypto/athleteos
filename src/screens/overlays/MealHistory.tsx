@@ -8,7 +8,7 @@ import { groupMealsByDay, localTodayCards, todayStamp, type MealCard, type MealH
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
 import { colors } from '@/ui/tokens';
-import { Card, Row, SampleTag, Txt } from '@/ui/primitives';
+import { Card, Reveal, Row, SampleTag, Txt } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 import { MealCardItem } from './MealCardItem';
@@ -35,25 +35,27 @@ export function MealHistory() {
           </Row>
         ) : null}
 
-        {isEmpty ? <EmptyState /> : days.map((day) => <DaySection key={day.dateKey} day={day} />)}
+        {isEmpty ? <EmptyState /> : days.map((day, i) => <DaySection key={day.dateKey} day={day} index={i} />)}
       </ScrollView>
     </Overlay>
   );
 }
 
-function DaySection({ day }: { day: MealHistoryDay }) {
+function DaySection({ day, index = 0 }: { day: MealHistoryDay; index?: number }) {
   if (day.cards.length === 0) return null;
   return (
-    <View style={{ marginBottom: 18 }}>
-      <Txt w="eb" size={13} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 10, marginLeft: 2 }}>
-        {day.dayLabel.toUpperCase()}
-      </Txt>
-      <Card style={{ borderRadius: 20, gap: 14 }}>
-        {day.cards.map((c) => (
-          <MealCardItem key={c.id} card={c} />
-        ))}
-      </Card>
-    </View>
+    <Reveal index={index}>
+      <View style={{ marginBottom: 18 }}>
+        <Txt w="eb" size={13} color={colors.textTertiary} ls={0.4} style={{ marginBottom: 10, marginLeft: 2 }}>
+          {day.dayLabel.toUpperCase()}
+        </Txt>
+        <Card variant="low" style={{ borderRadius: 20, gap: 14 }}>
+          {day.cards.map((c) => (
+            <MealCardItem key={c.id} card={c} />
+          ))}
+        </Card>
+      </View>
+    </Reveal>
   );
 }
 

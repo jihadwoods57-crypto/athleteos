@@ -8,7 +8,7 @@ import { mealRowsFor, QUICK_FOODS, paceProjection, weekdayLong, weeklyWeightProg
 import { isEnginesEnabled } from '@/lib/features';
 import { useStore, useDerived, useNutritionMemory } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
-import { Card, ProgressBar, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
+import { Card, ProgressBar, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Nutrition() {
@@ -35,11 +35,14 @@ export function Nutrition() {
         Nutrition
       </Txt>
 
-      <MemoryEntry />
+      <Reveal index={0}>
+        <MemoryEntry />
+      </Reveal>
 
       {/* Restaurant Coach entry — "what should I eat?" before you order.
           Gated by the engines master switch (OFF for the prove-the-loop beta). */}
       {isEnginesEnabled ? (
+        <Reveal index={1}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Restaurant Coach: what should I eat"
@@ -59,24 +62,26 @@ export function Nutrition() {
           </View>
           <Icon name="chevronRight" size={22} color="rgba(255,255,255,0.7)" />
         </Pressable>
+        </Reveal>
       ) : null}
 
       {/* weekly goal (coach-set) */}
-      <Card elevated style={{ marginTop: 18, borderRadius: 24 }}>
+      <Reveal index={2}>
+      <Card variant="hero" style={{ marginTop: 18, borderRadius: 24 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
             THIS WEEK'S GOAL
           </Txt>
           <Row style={{ gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: '#FEF3C7' }}>
             <Icon name="checkin" size={12} color={colors.warningDeep} />
-            <Txt w="eb" size={12} color={colors.warningDeep}>
+            <Txt w="eb" num size={12} color={colors.warningDeep}>
               {pace.daysLeft} days left
             </Txt>
           </Row>
         </Row>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
           <View>
-            <Txt w="eb" size={29} ls={-0.9}>
+            <Txt w="eb" num size={29} ls={-0.9}>
               Gain {s.weeklyGoalLb.toFixed(1)} lb
             </Txt>
             <Txt w="sb" size={13} color={colors.textSecondary} style={{ marginTop: 3 }}>
@@ -94,7 +99,7 @@ export function Nutrition() {
           <ProgressBar pct={pace.goalPct} height={10} />
         </View>
         <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
-          <Txt w="b" size={13} color={colors.slate700}>
+          <Txt w="b" num size={13} color={colors.slate700}>
             {pace.progressLb >= 0 ? '+' : ''}{pace.progressLb.toFixed(1)} lb so far
           </Txt>
           <Txt w="eb" size={13} color={pace.onPace ? colors.successDeep : colors.warningDeep}>
@@ -110,15 +115,17 @@ export function Nutrition() {
           </Txt>
         </View>
       </Card>
+      </Reveal>
 
       {/* macros */}
-      <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+      <Reveal index={3}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
           <Txt w="eb" size={16} ls={-0.3}>
             Macros
           </Txt>
-          <Txt w="b" size={14}>
-            {d.kcalToday.toLocaleString()} <Txt w="b" size={14} color={colors.textSecondary}>/ {d.calTarget.toLocaleString()} cal</Txt>
+          <Txt w="b" num size={14}>
+            {d.kcalToday.toLocaleString()} <Txt w="b" num size={14} color={colors.textSecondary}>/ {d.calTarget.toLocaleString()} cal</Txt>
           </Txt>
         </Row>
         <View style={{ marginBottom: 22 }}>
@@ -130,14 +137,16 @@ export function Nutrition() {
           <MacroRing label="Fat" value={d.fatToday} target={`/${d.fatTarget}g`} pct={d.fatPct} color="#8B5CF6" />
         </Row>
       </Card>
+      </Reveal>
 
       {/* protein gap quick-adds */}
-      <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+      <Reveal index={4}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt w="eb" size={16} ls={-0.3}>
             Protein gap
           </Txt>
-          <Txt w="eb" size={15} color={colors.accent}>
+          <Txt w="eb" num size={15} color={colors.accent}>
             {d.proteinGap}g to go
           </Txt>
         </Row>
@@ -158,9 +167,9 @@ export function Nutrition() {
                   paddingHorizontal: 15,
                   paddingVertical: 13,
                   borderRadius: 14,
-                  backgroundColor: added ? '#ECFDF5' : colors.bg,
+                  backgroundColor: added ? colors.successTint : colors.bg,
                   borderWidth: 1.5,
-                  borderColor: added ? '#A7F3D0' : 'transparent',
+                  borderColor: added ? colors.successBorderSoft : 'transparent',
                 }}
               >
                 <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: added ? colors.success : colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
@@ -169,7 +178,7 @@ export function Nutrition() {
                 <Txt w="b" size={14} style={{ flex: 1 }}>
                   {f.n}
                 </Txt>
-                <Txt w="eb" size={14} color={added ? colors.successDeep : colors.accent}>
+                <Txt w="eb" num size={14} color={added ? colors.successDeep : colors.accent}>
                   +{f.g}g
                 </Txt>
               </Pressable>
@@ -177,9 +186,11 @@ export function Nutrition() {
           })}
         </View>
       </Card>
+      </Reveal>
 
       {/* today's meals */}
-      <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+      <Reveal index={5}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
         <Row style={{ justifyContent: 'space-between', marginBottom: 16 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Txt w="eb" size={16} ls={-0.3}>
@@ -216,11 +227,11 @@ export function Nutrition() {
                   </Txt>
                 </View>
                 <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: row.quality >= 90 ? colors.successSurface : colors.accentSurface }}>
-                  <Txt w="eb" size={12} color={row.quality >= 90 ? colors.successDeep : colors.accent}>
+                  <Txt w="eb" num size={12} color={row.quality >= 90 ? colors.successDeep : colors.accent}>
                     {row.quality}
                   </Txt>
                 </View>
-                <Icon name="chevronRight" size={18} color="#CBD5E1" />
+                <Icon name="chevronRight" size={18} color={colors.slate300} />
               </Pressable>
             ) : (
               <Pressable
@@ -231,7 +242,7 @@ export function Nutrition() {
                 }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}
               >
-                <View style={{ width: 48, height: 48, borderRadius: 13, borderWidth: 2, borderStyle: 'dashed', borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 48, height: 48, borderRadius: 13, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.slate300, alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="camera" size={20} color={colors.textTertiary} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -252,6 +263,7 @@ export function Nutrition() {
           )}
         </View>
       </Card>
+      </Reveal>
     </ScrollView>
   );
 }
@@ -267,7 +279,7 @@ function MacroRing({ label, value, target, pct, color }: { label: string; value:
           <Circle cx={50} cy={50} r={r} fill="none" stroke="#EFF2F6" strokeWidth={9} />
           <Circle cx={50} cy={50} r={r} fill="none" stroke={color} strokeWidth={9} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
         </Svg>
-        <Txt w="eb" size={17} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+        <Txt w="eb" num size={17} maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {value}
         </Txt>
         <Txt w="b" size={9} color={colors.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
@@ -314,7 +326,7 @@ function MemoryEntry() {
           <Txt w="eb" size={13} color={colors.accent}>{top.metric}</Txt>
         </View>
       ) : (
-        <Icon name="chevronRight" size={18} color="#CBD5E1" />
+        <Icon name="chevronRight" size={18} color={colors.slate300} />
       )}
     </Pressable>
   );

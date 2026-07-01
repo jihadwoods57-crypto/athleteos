@@ -21,7 +21,7 @@ import {
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, SampleTag, Stepper, Txt, Pressable } from '@/ui/primitives';
+import { Card, Reveal, Row, SampleTag, Stepper, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
@@ -95,11 +95,13 @@ export function CoachGoalsEditor() {
         <Txt w="eb" size={12} color={colors.textTertiary} ls={0.5} upper style={{ marginTop: 22, marginBottom: 10, marginLeft: 2 }}>
           Daily targets
         </Txt>
-        <Card style={{ borderRadius: 20, gap: 16 }}>
+        <Reveal index={0}>
+        <Card variant="low" style={{ borderRadius: 20, gap: 16 }}>
           <TargetRow label="Protein" unit="g" value={targets.protein} rec={rec.protein} onDec={() => step('protein', -1)} onInc={() => step('protein', 1)} />
           <TargetRow label="Calories" unit="kcal" value={targets.calories} rec={rec.calories} onDec={() => step('calories', -1)} onInc={() => step('calories', 1)} />
           <TargetRow label="Weight goal" unit="lb" value={targets.weight} rec={rec.weight} onDec={() => step('weight', -1)} onInc={() => step('weight', 1)} />
         </Card>
+        </Reveal>
 
         {/* plan summary */}
         <View style={{ marginTop: 16, borderRadius: 16, padding: 15, backgroundColor: colors.bg2, flexDirection: 'row', gap: 10 }}>
@@ -141,7 +143,7 @@ function TargetRow({ label, unit, value, rec, onDec, onInc }: { label: string; u
     <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
       <View style={{ flex: 1 }}>
         <Txt w="b" size={15}>{label}</Txt>
-        <Txt w="m" size={12} color={offRec ? colors.textTertiary : colors.success} style={{ marginTop: 2 }}>
+        <Txt w="m" num size={12} color={offRec ? colors.textTertiary : colors.success} style={{ marginTop: 2 }}>
           {offRec ? `Recommended ${rec}${unit}` : `Matches recommendation`}
         </Txt>
       </View>

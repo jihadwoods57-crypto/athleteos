@@ -21,8 +21,60 @@
 // database (see groundMacros) before you trust them for scoring. LABEL numbers are read off
 // the panel verbatim, so they need no grounding.
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
+import { createClient } from 'npm:@supabase/supabase-js@^2';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6';
+
+// Per-athlete daily ceiling on the PAID vision calls (meal + label). This bounds a day's
+// spend and stops a single athlete spamming photos, where the per-minute IP limit can't
+// (it mis-buckets a whole team behind one school-wifi IP and resets on cold start). Backed
+// by the ai_usage_daily counter (migration 0015). Tunable via DAILY_ANALYSIS_CAP; 40/day is
+// generous for real use (~4-8 meals + the odd label scan) and slams abuse. Over the cap the
+// function returns 429 and the app shows the free deterministic result (analyzeMeal/
+// analyzeLabel already fall back on any error), so logging never blocks.
+// Guard a misconfigured DAILY_ANALYSIS_CAP: a non-number or <=0 would make `count < NaN`
+// always false and 429 every signed-in athlete. Fall back to the safe default of 40.
+const DAILY_CAP = (() => {
+  const n = Math.floor(Number(Deno.env.get('DAILY_ANALYSIS_CAP') ?? '40'));
+  return Number.isFinite(n) && n > 0 ? n : 40;
+})();
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+// Resolve the signed-in athlete from the caller's bearer token, or null. Null means an
+// anonymous/preview call (the shared anon key, or backend not wired) — those skip the
+// per-athlete cap and stay governed by the per-minute IP limit alone. Verifying via
+// auth.getUser() (not a raw JWT decode) means a forged `sub` can't buy extra calls.
+async function resolveUserId(req: Request): Promise<string | null> {
+  const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+  if (!token || token === SUPABASE_ANON_KEY) return null;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await sb.auth.getUser(token);
+    if (error || !data.user) return null;
+    return data.user.id;
+  } catch {
+    return null; // never let an auth hiccup block a legit log
+  }
+}
+
+// Atomically claim one slot for today. Returns true if allowed, false if the athlete is at
+// their daily cap. Fail-OPEN: if the counter is unreachable (infra gap / RPC error), allow
+// the call — logging must never break, and the per-minute IP limit still blunts abuse.
+async function withinDailyCap(userId: string): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data, error } = await sb.rpc('claim_ai_usage', { p_user: userId, p_limit: DAILY_CAP });
+    if (error) return true;
+    const row = Array.isArray(data) ? data[0] : data;
+    return row?.allowed !== false;
+  } catch {
+    return true;
+  }
+}
 
 // Security hardening (audit G4). CORS: reflect the request Origin ONLY if it's on the allowlist.
 // A native app sends no Origin header (and there's no browser to enforce CORS for it), so it's
@@ -323,6 +375,18 @@ Deno.serve(async (request) => {
   } else if (typeof req?.mealType !== 'string' || !req.mealType.trim()) {
     // The meal prompt needs the slot (and can infer a typical meal when no photo is sent).
     return new Response(JSON.stringify({ error: 'mealType required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
+
+  // Per-athlete daily cap on the paid photo calls (meal + label). Memory/order are cheap text
+  // rewrites and don't count. Enforced only for signed-in athletes; anonymous/preview traffic
+  // stays covered by the per-minute IP limit above. Checked after the input guards so a
+  // malformed request never burns a slot.
+  const countsAgainstDailyCap = !isMemory && !isOrder;
+  if (countsAgainstDailyCap) {
+    const userId = await resolveUserId(request);
+    if (userId && !(await withinDailyCap(userId))) {
+      return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
   }
 
   const system = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;

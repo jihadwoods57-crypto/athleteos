@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS, initials, scoringProfileLabel, supportVisibilityRows, trainingCadence, weeklyReportFromState, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
 import { useStore } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
-import { Card, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Card, Row, Stepper, Toggle, Txt, Pressable, Reveal } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 
@@ -56,7 +56,8 @@ export function Profile() {
       </Txt>
 
       {/* identity */}
-      <Card elevated style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+      <Reveal index={0}>
+      <Card variant="hero" style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
         <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
           <Txt w="eb" size={24} color="#fff" maxFontSizeMultiplier={MAX_FONT_SCALE}>
             {initials(s.athleteName, 'J')}
@@ -84,15 +85,17 @@ export function Profile() {
           </View>
         </View>
       </Card>
+      </Reveal>
 
       {/* this week — the weekly digest (generator existed but rendered nowhere) */}
+      <Reveal index={1}>
       {(() => {
         const wr = weeklyReportFromState({ name: firstName(s.athleteName, 'Jihad'), scoreHistory: s.scoreHistory, liveScore: d.athleteScore });
         // Warm empty state: a brand-new athlete (no history yet) gets a welcoming, directive
         // start instead of a "nothing logged / accountability has stalled" report on day one.
         if (wr.daysLogged === 0 && (s.scoreHistory?.length ?? 0) === 0) {
           return (
-            <Card elevated style={{ marginTop: 14, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Card variant="low" style={{ marginTop: 14, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="flame" size={20} color={colors.accent} />
               </View>
@@ -108,7 +111,7 @@ export function Profile() {
           );
         }
         return (
-          <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <Txt w="eb" size={16} ls={-0.3}>
                 This week
@@ -138,9 +141,11 @@ export function Profile() {
           </Card>
         );
       })()}
+      </Reveal>
 
       {/* targets */}
-      <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+      <Reveal index={2}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
         <Row style={{ justifyContent: 'space-between', marginBottom: 16 }}>
           <Txt w="eb" size={16} ls={-0.3}>
             Your Targets
@@ -224,13 +229,15 @@ export function Profile() {
           </>
         ) : null}
       </Card>
+      </Reveal>
 
       {/* visibility — derived from the athlete's chosen support team (read-only) */}
+      <Reveal index={3}>
       <View style={{ marginTop: 14 }}>
         <Txt w="eb" size={16} ls={-0.3} style={{ marginLeft: 4, marginBottom: 12 }}>
           Who can see your data
         </Txt>
-        <Card style={{ borderRadius: 18 }}>
+        <Card variant="low" style={{ borderRadius: 18 }}>
           {isReal ? (
             visRows.length > 0 ? (
               <>
@@ -299,9 +306,11 @@ export function Profile() {
           )}
         </Card>
       </View>
+      </Reveal>
 
       {/* settings */}
-      <Card elevated style={{ marginTop: 14, borderRadius: 24, paddingVertical: 8 }}>
+      <Reveal index={4}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24, paddingVertical: 8 }}>
         <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <Pressable
             accessibilityRole="button"
@@ -314,7 +323,7 @@ export function Profile() {
               <Txt w="b" size={15}>
                 Notifications
               </Txt>
-              <Icon name="chevronRight" size={18} color="#CBD5E1" />
+              <Icon name="chevronRight" size={18} color={colors.slate300} />
             </Row>
             <Txt w="m" size={13} color={colors.textTertiary}>
               Protein, hydration, dinner & check-in reminders
@@ -347,10 +356,11 @@ export function Profile() {
             <Txt w="b" size={15}>
               Help & support
             </Txt>
-            <Icon name="chevronRight" size={20} color="#CBD5E1" />
+            <Icon name="chevronRight" size={20} color={colors.slate300} />
           </Row>
         </Pressable>
       </Card>
+      </Reveal>
 
       <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
         <Txt w="b" size={15} color={colors.alert}>
@@ -367,7 +377,7 @@ export function Profile() {
 function TargetTile({ value, label }: { value: string; label: string }) {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, borderRadius: 16, padding: 14 }}>
-      <Txt w="eb" size={22}>
+      <Txt w="eb" num size={22}>
         {value}
       </Txt>
       <Txt w="b" size={11} color={colors.textTertiary} style={{ marginTop: 3 }}>

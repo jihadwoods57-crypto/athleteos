@@ -8,7 +8,7 @@ import { bodyImageNote, CHECKIN_QUESTIONS, checkinAttribution, checkinSummary, d
 import { useStore } from '@/store';
 import { aiPrefix } from '@/lib/ai';
 import { colors, shadow } from '@/ui/tokens';
-import { Btn, Card, Row, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Slider } from '@/ui/Slider';
@@ -65,7 +65,7 @@ export function CheckIn() {
             {audience ? `Sent to ${audience}` : 'Saved to your record'}
           </Txt>
         </View>
-        <Card elevated style={{ marginTop: 22, borderRadius: 20 }}>
+        <Card variant="hero" style={{ marginTop: 22, borderRadius: 20 }}>
           <Row style={{ gap: 9, marginBottom: 12 }}>
             <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="sparkle" size={17} color={colors.accent} />
@@ -96,7 +96,7 @@ export function CheckIn() {
           const lbl = readinessLabel(band);
           const tone = band === 'ready' ? colors.success : band === 'caution' ? colors.warning : colors.alert;
           return (
-            <Card elevated style={{ marginTop: 14, borderRadius: 20 }}>
+            <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
               <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <Row style={{ gap: 9 }}>
                   <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -107,7 +107,7 @@ export function CheckIn() {
                   </Txt>
                 </Row>
                 <View style={{ paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999, backgroundColor: tone }}>
-                  <Txt w="eb" size={13} color="#fff">
+                  <Txt w="eb" num size={13} color="#fff">
                     {r}
                   </Txt>
                 </View>
@@ -127,6 +127,7 @@ export function CheckIn() {
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={pad} showsVerticalScrollIndicator={false}>
+      <Reveal index={0}>
       <Txt w="sb" size={14} color={colors.textSecondary}>
         {isReal ? 'This week' : 'Week 14 · in-season'}
       </Txt>
@@ -141,14 +142,16 @@ export function CheckIn() {
           </Txt>
         </Row>
       ) : null}
+      </Reveal>
 
+      <Reveal index={1}>
       {/* weight stepper */}
       <Row style={[{ marginTop: 18, backgroundColor: '#fff', borderRadius: 20, padding: 18, justifyContent: 'space-between' }, shadow.card]}>
         <View>
           <Txt w="b" size={12} color={colors.textTertiary}>
             Current weight
           </Txt>
-          <Txt w="eb" size={28} style={{ marginTop: 4 }}>
+          <Txt w="eb" num size={28} style={{ marginTop: 4 }}>
             {displayWeight(s.ciWeight, units)}
             <Txt w="sb" size={14} color={colors.textTertiary}>
               {' '}
@@ -165,9 +168,11 @@ export function CheckIn() {
       <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 8, lineHeight: 17, paddingHorizontal: 2 }}>
         {bodyImageNote()}
       </Txt>
+      </Reveal>
 
+      <Reveal index={2}>
       {/* weight trend */}
-      <Card style={{ marginTop: 14, borderRadius: 20 }}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <View>
             <Txt w="eb" size={15} ls={-0.3}>
@@ -178,7 +183,7 @@ export function CheckIn() {
             </Txt>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Txt w="eb" size={22}>
+            <Txt w="eb" num size={22}>
               {displayWeight(s.currentWeight, units)}
               <Txt w="sb" size={12} color={colors.textTertiary}>
                 {' '}
@@ -191,7 +196,7 @@ export function CheckIn() {
               const tone = weightProgressTone(s.currentWeight - (s.startWeight ?? WEIGHT_START), s.baseGoal);
               const toneColor = tone === 'good' ? colors.success : tone === 'bad' ? colors.alert : colors.textSecondary;
               return (
-                <Txt w="b" size={12} color={toneColor}>
+                <Txt w="b" num size={12} color={toneColor}>
                   {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}
                 </Txt>
               );
@@ -237,9 +242,11 @@ export function CheckIn() {
           </Svg>
         )}
       </Card>
+      </Reveal>
 
+      <Reveal index={3}>
       {/* sliders — only enabled questions */}
-      <Card style={{ marginTop: 14, borderRadius: 20, gap: 20 }}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 20, gap: 20 }}>
         {questions.map((q) => {
           const key = CI_KEYS[q.key];
           const val = s[key];
@@ -249,7 +256,7 @@ export function CheckIn() {
                 <Txt w="b" size={14}>
                   {q.label}
                 </Txt>
-                <Txt w="eb" size={14} color={colors.accent}>
+                <Txt w="eb" num size={14} color={colors.accent}>
                   {val}/10
                 </Txt>
               </Row>
@@ -258,14 +265,19 @@ export function CheckIn() {
           );
         })}
       </Card>
+      </Reveal>
 
-      <Card style={{ marginTop: 14, borderRadius: 18, paddingVertical: 17 }}>
+      <Reveal index={4}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 18, paddingVertical: 17 }}>
         <Txt w="m" size={14} color={colors.textTertiary}>
           Notes for your coach <Txt w="m" size={14} color={colors.textTertiary} style={{ opacity: 0.7 }}>· optional</Txt>
         </Txt>
       </Card>
+      </Reveal>
 
+      <Reveal index={5}>
       <Btn label="Submit Check-In" haptic="success" onPress={s.submitCi} style={{ marginTop: 18 }} />
+      </Reveal>
     </ScrollView>
   );
 }

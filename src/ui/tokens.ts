@@ -38,6 +38,14 @@ export const colors = {
   divider2: '#EEF2F6',
   track: '#EFF2F6',
   border: '#F1F5F9',
+  hairline: '#E9EEF4',
+
+  // Extended semantic surfaces — so screens stop hardcoding stray hexes. Premium
+  // is zero color drift: every value comes from here.
+  successTint: '#ECFDF5',
+  successText: '#065F46',
+  successBorderSoft: '#A7F3D0',
+  slate300: '#CBD5E1',
 
   white: '#FFFFFF',
 } as const;
@@ -96,6 +104,12 @@ export const darkColors: ColorTheme = {
   divider2: '#172033',
   track: '#334155',
   border: '#1E293B',
+  hairline: '#243044',
+
+  successTint: '#0C2A20',
+  successText: '#4ADE80',
+  successBorderSoft: '#14532D',
+  slate300: '#475569',
 
   white: '#FFFFFF',
 };
@@ -171,9 +185,16 @@ function makeShadow(radius: number, opacity: number, dy: number, elevation: numb
   };
 }
 
+// Elevation ladder — a considered hierarchy, not one shadow on everything. Secondary
+// content sits `low`; standard cards `card`; the single hero of a screen gets `hero`
+// (a softer, deeper float). Premium depth is the CONTRAST between levels, so use them
+// deliberately: at most one `hero` per screen.
 export const shadow = {
-  card: makeShadow(12, 0.06, 6, 3),
+  low: makeShadow(7, 0.05, 3, 2),
+  card: makeShadow(14, 0.06, 6, 3),
   elevated: makeShadow(20, 0.08, 10, 6),
+  hero: makeShadow(34, 0.13, 22, 14),
+  pressed: makeShadow(6, 0.04, 2, 1),
   cta: {
     shadowColor: '#2563EB',
     shadowOpacity: 0.28,

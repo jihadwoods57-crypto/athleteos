@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { REMINDER_DEFS, formatReminderHour, type ReminderKind } from '@/core';
 import { useStore } from '@/store';
 import { colors } from '@/ui/tokens';
-import { Card, Row, Txt, Pressable, Toggle } from '@/ui/primitives';
+import { Card, Row, Txt, Pressable, Toggle, Reveal } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Reminders() {
@@ -41,14 +41,17 @@ export function Reminders() {
 
       {/* master-state note — honest about when these actually fire */}
       {!notif ? (
-        <Card style={{ marginTop: 18, borderRadius: 18, flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: colors.accentSurface }}>
+        <Reveal index={0}>
+        <Card variant="low" style={{ marginTop: 18, borderRadius: 18, flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: colors.accentSurface }}>
           <Icon name="bell" size={18} color={colors.accent} />
           <Txt w="m" size={13} color={colors.textSecondary} style={{ flex: 1, lineHeight: 19 }}>
             Notifications are off. Turn them on in Profile to start receiving these reminders. Your choices below are saved either way.
           </Txt>
         </Card>
+        </Reveal>
       ) : null}
 
+      <Reveal index={1}>
       <View style={{ marginTop: 18, gap: 12 }}>
         {REMINDER_DEFS.map((def) => {
           const set = reminderSettings[def.kind];
@@ -66,6 +69,7 @@ export function Reminders() {
           );
         })}
       </View>
+      </Reveal>
 
       <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 18, marginHorizontal: 4, lineHeight: 18 }}>
         Reminders fire on this device at the times you set. Conditional reminders
@@ -94,7 +98,7 @@ function ReminderRow({
   onHour: (delta: number) => void;
 }) {
   return (
-    <Card elevated style={{ borderRadius: 20 }}>
+    <Card variant="low" style={{ borderRadius: 20 }}>
       <Row style={{ justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
           <Txt w="b" size={15}>
@@ -113,7 +117,7 @@ function ReminderRow({
           </Txt>
           <Row style={{ gap: 12, alignItems: 'center' }}>
             <HourBtn glyph="−" accessibilityLabel={`Earlier, ${label}`} onPress={() => onHour(-1)} />
-            <Txt w="eb" size={18} style={{ minWidth: 64, textAlign: 'center' }}>
+            <Txt w="eb" num size={18} style={{ minWidth: 64, textAlign: 'center' }}>
               {formatReminderHour(hour)}
             </Txt>
             <HourBtn glyph="+" accessibilityLabel={`Later, ${label}`} onPress={() => onHour(1)} />

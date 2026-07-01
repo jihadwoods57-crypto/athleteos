@@ -4,7 +4,7 @@ import { Alert, ScrollView, Share, View } from 'react-native';
 import { useStore } from '@/store';
 import { accountIdentity, accountRows, APP_VERSION, isPro, type AccountRow } from '@/core';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Card, Row, Toggle, Txt, Pressable, PressScale, Reveal } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { haptics } from '@/ui/haptics';
 import { Overlay } from './Overlay';
@@ -44,17 +44,20 @@ export function Account() {
   return (
     <Overlay title="Account" onClose={s.closeAccount}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <Reveal index={0}>
         {overseer ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Edit your profile" onPress={s.openOverseerProfile} style={({ pressed }) => [{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: '#fff', padding: 18, opacity: pressed ? 0.9 : 1 }, shadow.elevated]}>
+          <PressScale accessibilityLabel="Edit your profile" onPress={s.openOverseerProfile} style={[{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: '#fff', padding: 18 }, shadow.elevated]}>
             {identityCard}
-          </Pressable>
+          </PressScale>
         ) : (
-          <Card elevated style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          <Card variant="hero" style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
             {identityCard}
           </Card>
         )}
+        </Reveal>
 
-        <Card elevated style={{ marginTop: 14, borderRadius: 24, paddingVertical: 8 }}>
+        <Reveal index={1}>
+        <Card variant="low" style={{ marginTop: 14, borderRadius: 24, paddingVertical: 8 }}>
           <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Txt w="b" size={15}>
@@ -76,13 +79,14 @@ export function Account() {
             />
           ))}
         </Card>
+        </Reveal>
 
         {/* Plans / billing — opens the compliant checkout (price, auto-renewal, trial, cancel). */}
-        <Pressable
-          accessibilityRole="button"
+        <Reveal index={2}>
+        <PressScale
           accessibilityLabel={isPro(s.entitlement) ? 'Manage your plan' : 'See plans'}
           onPress={s.openPlans}
-          style={({ pressed }) => [{ marginTop: 14, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', opacity: pressed ? 0.9 : 1 }, shadow.card]}
+          style={[{ marginTop: 14, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff' }, shadow.card]}
         >
           <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="bolt" size={18} color={colors.accent} />
@@ -94,10 +98,12 @@ export function Account() {
             </Txt>
           </View>
           <Icon name="chevronRight" size={18} color={colors.textTertiary} />
-        </Pressable>
+        </PressScale>
+        </Reveal>
 
         {/* Your data — GDPR/CCPA portability + Apple-required in-app deletion */}
-        <Card elevated style={{ marginTop: 14, borderRadius: 24, paddingVertical: 4 }}>
+        <Reveal index={3}>
+        <Card variant="low" style={{ marginTop: 14, borderRadius: 24, paddingVertical: 4 }}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Export my data"
@@ -146,6 +152,7 @@ export function Account() {
             </Row>
           </Pressable>
         </Card>
+        </Reveal>
 
         <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
           <Txt w="b" size={15} color={colors.alert}>

@@ -23,7 +23,7 @@ import {
 } from '@/core';
 import { useStore } from '@/store';
 import { colors, MAX_FONT_SCALE, shadow } from '@/ui/tokens';
-import { Card, Row, Txt, Pressable, Input, Btn } from '@/ui/primitives';
+import { Card, Reveal, Row, Txt, Pressable, Input, Btn } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon, IconName } from '@/icons';
 
@@ -65,11 +65,16 @@ export function Performance() {
         Your performance track · separate from your daily Execution Score
       </Txt>
 
-      <LogForm onSave={logPr} />
+      <Reveal index={0}>
+        <LogForm onSave={logPr} />
+      </Reveal>
 
       {summaries.length === 0 ? (
-        <EmptyState />
+        <Reveal index={1}>
+          <EmptyState />
+        </Reveal>
       ) : (
+        <Reveal index={1}>
         <View style={{ marginTop: 22 }}>
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} upper>
             Your records
@@ -78,6 +83,7 @@ export function Performance() {
             <SummaryCard key={s.id} summary={s} onDelete={deletePr} />
           ))}
         </View>
+        </Reveal>
       )}
     </ScrollView>
   );
@@ -85,7 +91,7 @@ export function Performance() {
 
 function EmptyState() {
   return (
-    <Card elevated style={{ marginTop: 22, borderRadius: 24, alignItems: 'center', paddingVertical: 36 }}>
+    <Card variant="low" style={{ marginTop: 22, borderRadius: 24, alignItems: 'center', paddingVertical: 36 }}>
       <View style={{ width: 60, height: 60, borderRadius: 18, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name="trophy" size={28} color={colors.accent} />
       </View>
@@ -130,7 +136,7 @@ function LogForm({ onSave }: { onSave: (spec: { metricKey: string; value: number
   };
 
   return (
-    <Card elevated style={{ marginTop: 18, borderRadius: 24, padding: 18 }}>
+    <Card variant="low" style={{ marginTop: 18, borderRadius: 24, padding: 18 }}>
       <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} upper>
         Log a result
       </Txt>
@@ -247,7 +253,7 @@ function SummaryCard({ summary, onDelete }: { summary: PerfMetricSummary; onDele
   const spark = perfSparkGeometry(values, def.dir);
 
   return (
-    <Card elevated style={{ marginTop: 12, borderRadius: 22, padding: 18 }}>
+    <Card variant="low" style={{ marginTop: 12, borderRadius: 22, padding: 18 }}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <Row style={{ gap: 10, alignItems: 'center', flex: 1 }}>
           <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
@@ -263,7 +269,7 @@ function SummaryCard({ summary, onDelete }: { summary: PerfMetricSummary; onDele
           </View>
         </Row>
         <View style={{ alignItems: 'flex-end' }}>
-          <Txt w="eb" size={20} ls={-0.5}>
+          <Txt w="eb" num size={20} ls={-0.5}>
             {formatPerfValue(def, summary.best)}
           </Txt>
           <Txt w="eb" size={10} color={colors.accent} ls={0.6}>
@@ -287,7 +293,7 @@ function SummaryCard({ summary, onDelete }: { summary: PerfMetricSummary; onDele
           <Txt w="sb" size={11} color={colors.textTertiary} ls={0.5} upper>
             Latest
           </Txt>
-          <Txt w="b" size={14} color={colors.slate700} style={{ marginTop: 2 }}>
+          <Txt w="b" num size={14} color={colors.slate700} style={{ marginTop: 2 }}>
             {formatPerfValue(def, summary.latest)} · {summary.latestDate}
           </Txt>
         </View>
@@ -309,7 +315,7 @@ function SummaryCard({ summary, onDelete }: { summary: PerfMetricSummary; onDele
               {e.date}
             </Txt>
             <Row style={{ gap: 12, alignItems: 'center' }}>
-              <Txt w="b" size={13} color={colors.slate700}>
+              <Txt w="b" num size={13} color={colors.slate700}>
                 {formatPerfValue(resolveMetric(e), e.value)}
               </Txt>
               <Pressable

@@ -14,7 +14,7 @@ import type { RosterRow, RosterGroupStat } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiTeamSummaryTag } from '@/lib/ai';
 import { colors, shadow, MAX_FONT_SCALE } from '@/ui/tokens';
-import { Card, Input, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Card, Input, PressScale, Reveal, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon, type IconName } from '@/icons';
 import { Account } from '@/screens/overlays/Account';
@@ -134,14 +134,17 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
         </View>
       </Row>
 
+      <Reveal index={0}>
       <Row style={{ gap: 10, marginTop: 20 }}>
         <Kpi value={`${kpis.avgScore}`} label="TEAM AVG" />
         <Kpi value={`${kpis.compliance}%`} label="COMPLIANCE" color={colors.success} />
         <Kpi value={`${kpis.alerts}`} label="ALERTS" color={colors.alert} />
       </Row>
+      </Reveal>
 
-      <Pressable accessibilityRole="button" accessibilityLabel="Open the full weekly report" onPress={() => { haptics.tap(); s.setCoachTab('reports'); }}>
-        <Card elevated style={{ marginTop: 14, borderRadius: 20 }}>
+      <Reveal index={1}>
+      <PressScale accessibilityLabel="Open the full weekly report" haptic="none" onPress={() => { haptics.tap(); s.setCoachTab('reports'); }} style={{ marginTop: 14 }}>
+        <Card variant="hero" style={{ borderRadius: 20 }}>
           <Txt w="eb" size={11} color={colors.textTertiary} ls={0.7}>THIS WEEK</Txt>
           <Txt w="eb" size={18} ls={-0.3} style={{ marginTop: 3 }}>{teamReport.headline}</Txt>
           <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>
@@ -152,8 +155,10 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
             <Icon name="chevronRight" size={15} color={colors.accent} />
           </Row>
         </Card>
-      </Pressable>
+      </PressScale>
+      </Reveal>
 
+      <Reveal index={2}>
       {preview.length > 0 ? (
         <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.alertSurface, borderWidth: 1, borderColor: colors.alertBorder }}>
           <Row style={{ justifyContent: 'space-between', marginBottom: 13 }}>
@@ -183,8 +188,10 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
           <Txt w="sb" size={14} color={colors.slate700} style={{ lineHeight: 20 }}>Everyone is above the line today. No one needs a nudge right now.</Txt>
         </View>
       )}
+      </Reveal>
 
-      <Card elevated style={{ marginTop: 18, borderRadius: 20 }}>
+      <Reveal index={3}>
+      <Card variant="low" style={{ marginTop: 18, borderRadius: 20 }}>
         <Row style={{ gap: 9, marginBottom: 12 }}>
           <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="sparkle" size={17} color={colors.accent} />
@@ -199,6 +206,7 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
             : `${kpis.alerts} ${kpis.alerts === 1 ? 'athlete is' : 'athletes are'} pulling the average down. A quick check-in could help before it slips further.`}
         </Txt>
       </Card>
+      </Reveal>
     </Section>
   );
 }
@@ -235,7 +243,7 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
             const g = gradeFor(a.score);
             const tr = trendInfo(a.dir);
             return (
-              <Pressable key={a.name} onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: a.pos, score: a.score, comp: a.comp, athleteId: a.athleteId })}
+              <PressScale key={a.name} accessibilityLabel={`${a.name}, score ${a.score}. View athlete.`} onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: a.pos, score: a.score, comp: a.comp, athleteId: a.athleteId })}
                 style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, padding: 14 }, shadow.card]}>
                 <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.bg2, alignItems: 'center', justifyContent: 'center' }}>
                   <Txt w="b" size={13} color={colors.slate600}>{a.initials}</Txt>
@@ -252,11 +260,11 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
                   <Txt w="m" size={12} color={colors.textTertiary} style={{ marginTop: 2 }}>{a.pos} · {a.comp}% compliant</Txt>
                 </View>
                 <Txt w="eb" size={16} color={tr.c}>{tr.t}</Txt>
-                <Txt w="eb" size={20} style={{ width: 32, textAlign: 'right' }}>{a.score}</Txt>
+                <Txt w="eb" num size={20} style={{ width: 32, textAlign: 'right' }}>{a.score}</Txt>
                 <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg }}>
                   <Txt w="eb" size={12} color={g.c}>{g.g}</Txt>
                 </View>
-              </Pressable>
+              </PressScale>
             );
           })}
         </View>
@@ -305,6 +313,7 @@ function CoachAttention({ attention, rosterMeta }: { attention: ReturnType<typeo
   return (
     <Section>
       <SectionTitle eyebrow={attention.length > 0 ? `${attention.length} need a look` : 'All clear'} title="Needs Attention" />
+      <Reveal index={0}>
       {attention.length > 0 ? (
         <View style={{ borderRadius: 20, padding: 18, backgroundColor: colors.alertSurface, borderWidth: 1, borderColor: colors.alertBorder }}>
           {attention.map((a, i) => {
@@ -329,6 +338,7 @@ function CoachAttention({ attention, rosterMeta }: { attention: ReturnType<typeo
           <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>No one needs a nudge right now. Check back after today's logging.</Txt>
         </View>
       )}
+      </Reveal>
     </Section>
   );
 }
@@ -341,7 +351,8 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare }
     <Section>
       <SectionTitle eyebrow={teamTitle} title="Reports" />
 
-      <Card elevated style={{ borderRadius: 20 }}>
+      <Reveal index={0}>
+      <Card variant="hero" style={{ borderRadius: 20 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
             <Txt w="eb" size={11} color={colors.textTertiary} ls={0.7}>WEEKLY REPORT</Txt>
@@ -361,25 +372,30 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare }
           <ReportStat label="MOST AT RISK" name={teamReport.mostAtRisk?.name ?? 'None'} score={teamReport.mostAtRisk?.score} color={colors.alert} />
         </Row>
       </Card>
+      </Reveal>
 
       {groupStats.length > 0 ? (
-        <Card elevated style={{ marginTop: 14, borderRadius: 20 }}>
+        <Reveal index={1}>
+        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 4 }}>Position groups</Txt>
           <Txt w="m" size={12} color={colors.textSecondary} style={{ marginBottom: 14 }}>Average Execution Score and compliance by group.</Txt>
           <View style={{ gap: 12 }}>
             {groupStats.map((g) => <GroupStatRow key={g.group} stat={g} />)}
           </View>
         </Card>
+        </Reveal>
       ) : null}
 
-      <Card elevated style={{ marginTop: 14, borderRadius: 20 }}>
+      <Reveal index={2}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
         <Txt w="eb" size={15} ls={-0.3}>Compliance</Txt>
         <Row style={{ alignItems: 'baseline', gap: 8, marginTop: 10 }}>
-          <Txt w="eb" size={34} ls={-1} color={colors.successDeep}>{compliance}%</Txt>
+          <Txt w="eb" num size={34} ls={-1} color={colors.successDeep}>{compliance}%</Txt>
           <Txt w="b" size={12} color={colors.textTertiary}>of the plan, team-wide this week</Txt>
         </Row>
         <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>{teamReport.movedLine}</Txt>
       </Card>
+      </Reveal>
     </Section>
   );
 }
@@ -392,7 +408,7 @@ function GroupStatRow({ stat }: { stat: RosterGroupStat }) {
         <Txt w="b" size={14} color={colors.slate700}>{stat.group}</Txt>
         <Txt w="m" size={12} color={colors.textTertiary}>{stat.count} {stat.count === 1 ? 'athlete' : 'athletes'} · {stat.avgCompliance}% compliant</Txt>
       </View>
-      <Txt w="eb" size={20} style={{ width: 34, textAlign: 'right' }}>{stat.avgScore}</Txt>
+      <Txt w="eb" num size={20} style={{ width: 34, textAlign: 'right' }}>{stat.avgScore}</Txt>
       <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg, marginLeft: 10 }}>
         <Txt w="eb" size={12} color={g.c}>{g.g}</Txt>
       </View>
@@ -406,13 +422,16 @@ function CoachProfile({ teamTitle }: { teamTitle: string }) {
   return (
     <Section>
       <SectionTitle eyebrow={teamTitle} title="Profile" />
+      <Reveal index={0}>
       <View style={{ gap: 10 }}>
         <SettingRow icon="menu" label="Account & settings" sub="Name, sign out, data export" onPress={s.openAccount} />
         <SettingRow icon="user" label="Team & org name" sub="What athletes and parents see" onPress={s.openOverseerProfile} />
         <SettingRow icon="send" label="Messages" sub="Your athlete threads" onPress={s.openMsg} />
       </View>
+      </Reveal>
 
-      <Card elevated style={{ marginTop: 18, borderRadius: 20 }}>
+      <Reveal index={1}>
+      <Card variant="low" style={{ marginTop: 18, borderRadius: 20 }}>
         <Txt w="eb" size={15} ls={-0.3}>Weekly check-in questions</Txt>
         <Txt w="m" size={13} color={colors.textSecondary} style={{ marginTop: 4, marginBottom: 14, lineHeight: 19 }}>
           Athletes only answer what you turn on. Changes apply to next week's check-in.
@@ -426,6 +445,7 @@ function CoachProfile({ teamTitle }: { teamTitle: string }) {
           ))}
         </View>
       </Card>
+      </Reveal>
     </Section>
   );
 }
@@ -474,7 +494,7 @@ function CoachTabItem({ item, active, onPress }: { item: { label: string; icon: 
 function Kpi({ value, label, color }: { value: string; label: string; color?: string }) {
   return (
     <Card style={{ flex: 1, borderRadius: 18, padding: 16 }}>
-      <Txt w="eb" size={28} color={color}>{value}</Txt>
+      <Txt w="eb" num size={28} color={color}>{value}</Txt>
       <Txt w="b" size={11} color={colors.textTertiary} style={{ marginTop: 3 }}>{label}</Txt>
     </Card>
   );
@@ -486,7 +506,7 @@ function ReportStat({ label, name, score, color }: { label: string; name: string
       <Txt w="eb" size={10} color={colors.textTertiary} ls={0.5}>{label}</Txt>
       <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginTop: 5 }}>
         <Txt w="b" size={14} color={colors.slate700} style={{ flex: 1 }} numberOfLines={1}>{name}</Txt>
-        {typeof score === 'number' ? <Txt w="eb" size={16} color={color} style={{ marginLeft: 8 }}>{score}</Txt> : null}
+        {typeof score === 'number' ? <Txt w="eb" num size={16} color={color} style={{ marginLeft: 8 }}>{score}</Txt> : null}
       </Row>
     </View>
   );
@@ -513,7 +533,7 @@ function AttentionRow({ initials, name, meta, score, color, nudged, onNudge, onP
           <Txt w="b" size={14}>{name}</Txt>
           <Txt w="m" size={12} color={colors.textTertiary}>{meta}</Txt>
         </View>
-        <Txt w="eb" size={19} color={color} style={{ marginRight: 12 }}>{score}</Txt>
+        <Txt w="eb" num size={19} color={color} style={{ marginRight: 12 }}>{score}</Txt>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={nudged ? `Nudge sent to ${name}` : `Send a nudge to ${name}`} accessibilityState={{ disabled: nudged }} disabled={nudged} hitSlop={8} onPress={onNudge}
         style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9, backgroundColor: nudged ? colors.successSurface : colors.accent, opacity: pressed ? 0.85 : 1 })}>

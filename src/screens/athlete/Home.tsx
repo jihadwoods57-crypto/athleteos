@@ -35,7 +35,7 @@ import {
 import { useStore, useDerived } from '@/store';
 import { aiMemoryTag } from '@/lib/ai';
 import { colors, gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
-import { Btn, Card, Input, ProgressBar, Row, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Input, PressScale, ProgressBar, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
@@ -162,10 +162,12 @@ export function Home() {
         </Row>
       </Row>
 
-      {/* score hero */}
-      <Card elevated style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 20, padding: 24 }}>
+      {/* score hero — the one thing this screen is about, so it gets the deep `hero` float
+          while everything below sits `low`. That elevation contrast IS the hierarchy. */}
+      <Reveal index={0}>
+      <Card variant="hero" style={{ marginTop: 20, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 20, padding: 24 }}>
         <Ring size={138} pct={shownScore} stroke={17} gradient={gradeRing[d.grade.g] ?? gradeRing.C} track="#EFF2F6">
-          <Txt w="eb" size={typeScale.display.size} ls={typeScale.display.ls} style={{ lineHeight: typeScale.display.lineHeight }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+          <Txt w="eb" num size={typeScale.display.size} ls={typeScale.display.ls} style={{ lineHeight: typeScale.display.lineHeight }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
             {shownScore}
           </Txt>
           <View style={{ marginTop: 5, paddingHorizontal: 9, paddingVertical: 2, borderRadius: 7, backgroundColor: d.grade.bg }}>
@@ -206,13 +208,16 @@ export function Home() {
           </View>
         </View>
       </Card>
+      </Reveal>
 
       {/* DAILY HQ — lead with the single action that matters right now, not the data */}
-      <NextMoveCard />
+      <Reveal index={1}>
+        <NextMoveCard />
+      </Reveal>
 
       {/* finish today — projected score + the checklist to reach it */}
       {projection.actions.length > 0 ? (
-        <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
+        <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
           <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
               <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
@@ -254,7 +259,7 @@ export function Home() {
       <CheckinBanner />
 
       {/* ---- YOUR PROGRESS — the look-back, below the act-now stack ---- */}
-      <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 24, marginBottom: -2 }}>
+      <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7} style={{ marginTop: 32, marginBottom: 2 }}>
         YOUR PROGRESS
       </Txt>
 
@@ -262,7 +267,7 @@ export function Home() {
       <ScoreBreakdownPanel />
 
       {/* season goal */}
-      <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
+      <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.7}>
             {goalEyebrow}
@@ -303,9 +308,9 @@ export function Home() {
                 </Txt>
               </View>
             </Row>
-            <View style={{ marginTop: 16, borderRadius: 14, padding: 13, backgroundColor: '#ECFDF5' }}>
-              <Txt w="m" size={13} color="#065F46" style={{ lineHeight: 19 }}>
-                <Txt w="b" size={13} color="#065F46">Holding steady · </Txt>
+            <View style={{ marginTop: 16, borderRadius: 14, padding: 13, backgroundColor: colors.successTint }}>
+              <Txt w="m" size={13} color={colors.successText} style={{ lineHeight: 19 }}>
+                <Txt w="b" size={13} color={colors.successText}>Holding steady · </Txt>
                 Your goal is to stay around {displayWeight(TARGET, units)} {wUnit}. Log your weekly weigh-ins to keep it honest.
               </Txt>
             </View>
@@ -355,19 +360,19 @@ export function Home() {
                 marginTop: 14,
                 borderRadius: 14,
                 padding: 13,
-                backgroundColor: goalPhase === 'first-run' ? '#F1F5F9' : '#ECFDF5',
+                backgroundColor: goalPhase === 'first-run' ? colors.bg2 : colors.successTint,
               }}
             >
               <Txt
                 w="m"
                 size={13}
-                color={goalPhase === 'first-run' ? colors.textSecondary : '#065F46'}
+                color={goalPhase === 'first-run' ? colors.textSecondary : colors.successText}
                 style={{ lineHeight: 19 }}
               >
                 <Txt
                   w="b"
                   size={13}
-                  color={goalPhase === 'first-run' ? colors.textSecondary : '#065F46'}
+                  color={goalPhase === 'first-run' ? colors.textSecondary : colors.successText}
                 >
                   {goalPhase === 'reached' ? 'Goal reached ·' : goalPhase === 'first-run' ? 'Just getting started ·' : 'On track ·'}{' '}
                 </Txt>
@@ -385,7 +390,7 @@ export function Home() {
       </Card>
 
       {/* score trend */}
-      <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
+      <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
           <View>
             <Txt w="eb" size={16} ls={-0.3}>
@@ -425,7 +430,7 @@ export function Home() {
       </Card>
 
       {/* today's progress */}
-      <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
+      <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
         <Txt w="eb" size={16} ls={-0.3} style={{ marginBottom: 18 }}>
           Today's Progress
         </Txt>
@@ -455,13 +460,13 @@ export function Home() {
             Log a PR and see your trends
           </Txt>
         </View>
-        <Icon name="chevronRight" size={22} color="#CBD5E1" />
+        <Icon name="chevronRight" size={22} color={colors.slate300} />
       </Pressable>
 
 
       {/* coach guidance — hidden for a solo real athlete (no coach to quote) */}
       {guidance.show ? (
-        <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
+        <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
           <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' }}>
             <Txt w="b" size={13} color="#fff">
               {guidance.monogram}
@@ -501,7 +506,7 @@ function ConnectCoachCard() {
   const [code, setCode] = React.useState('');
   const ready = code.trim().length > 0;
   return (
-    <Card elevated style={{ marginTop: 14, borderRadius: 24, padding: 20 }}>
+    <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 20 }}>
       <Row style={{ gap: 11 }}>
         <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="squad" size={20} color={colors.accent} />
@@ -553,16 +558,16 @@ function NextMoveCard() {
           {medicalDisclaimer()}
         </Txt>
       </View>
-      {onPress ? <Icon name="chevronRight" size={22} color="#CBD5E1" /> : null}
+      {onPress ? <Icon name="chevronRight" size={22} color={colors.slate300} /> : null}
     </>
   );
   // The mission leads the screen, so give it the elevated card weight (not the plain tile the
   // old bottom-of-page version used) — it is the primary thing on Daily HQ.
   const boxStyle = [{ marginTop: 14, backgroundColor: '#fff', borderRadius: 22, padding: 18, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14 }, shadow.card];
   return onPress ? (
-    <Pressable accessibilityRole="button" accessibilityLabel={na.title} onPress={onPress} style={boxStyle}>
+    <PressScale accessibilityLabel={na.title} onPress={onPress} style={boxStyle}>
       {body}
-    </Pressable>
+    </PressScale>
   ) : (
     <View style={boxStyle}>{body}</View>
   );
@@ -592,12 +597,12 @@ function CheckinBanner() {
     );
   }
   return (
-    <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+    <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: colors.successTint, borderWidth: 1, borderColor: colors.successBorderSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
       <View>
-        <Txt w="eb" size={11} color="#059669" ls={0.7}>
+        <Txt w="eb" size={11} color={colors.successDeep} ls={0.7}>
           WEEKLY CHECK-IN
         </Txt>
-        <Txt w="b" size={15} color="#065F46" style={{ marginTop: 5 }}>
+        <Txt w="b" size={15} color={colors.successText} style={{ marginTop: 5 }}>
           {checkinAudience ? `Completed · sent to ${checkinAudience}` : 'Completed'}
         </Txt>
       </View>
@@ -611,7 +616,7 @@ function CheckinBanner() {
 function ScoreBreakdownPanel() {
   const [open, setOpen] = React.useState(false);
   return (
-    <Card elevated style={{ marginTop: 14, borderRadius: 20, padding: 18 }}>
+    <Card variant="low" style={{ marginTop: 12, borderRadius: 20, padding: 18 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="What's in this score?"
@@ -628,7 +633,7 @@ function ScoreBreakdownPanel() {
           </Txt>
         </Row>
         <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
-          <Icon name="chevronRight" size={20} color="#CBD5E1" />
+          <Icon name="chevronRight" size={20} color={colors.slate300} />
         </View>
       </Pressable>
       {open ? (

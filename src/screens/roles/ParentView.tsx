@@ -7,7 +7,7 @@ import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-nativ
 import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, weightProgressTone, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { colors, shadow } from '@/ui/tokens';
-import { Card, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
+import { Card, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Account } from '@/screens/overlays/Account';
@@ -82,9 +82,10 @@ export function ParentView() {
           </Row>
 
           {/* score */}
-          <Card elevated style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+          <Reveal index={0}>
+          <Card variant="hero" style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
             <Ring size={104} pct={d.athleteScore} stroke={17} gradient={['#22C55E', '#16A34A']} track="#EFF2F6">
-              <Txt w="eb" size={34} ls={-0.5}>
+              <Txt w="eb" num size={34} ls={-0.5}>
                 {d.athleteScore}
               </Txt>
               <Txt w="eb" size={10} color={d.grade.c}>
@@ -108,9 +109,11 @@ export function ParentView() {
               </Txt>
             </View>
           </Card>
+          </Reveal>
 
           {/* weekly compliance */}
-          <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+          <Reveal index={1}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18 }}>
               <View>
                 <Txt w="eb" size={16} ls={-0.3}>
@@ -120,7 +123,7 @@ export function ParentView() {
                   {week.onPlan} of {week.total} days on plan
                 </Txt>
               </View>
-              <Txt w="eb" size={30} color={colors.success} ls={-0.5}>
+              <Txt w="eb" num size={30} color={colors.success} ls={-0.5}>
                 {week.pct}%
               </Txt>
             </Row>
@@ -154,9 +157,11 @@ export function ParentView() {
               ))}
             </Row>
           </Card>
+          </Reveal>
 
           {/* weight trend */}
-          <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+          <Reveal index={2}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View>
                 <Txt w="eb" size={16} ls={-0.3}>
@@ -167,7 +172,7 @@ export function ParentView() {
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Txt w="eb" size={26} ls={-0.5}>
+                <Txt w="eb" num size={26} ls={-0.5}>
                   {displayWeight(s.currentWeight, units)}
                   <Txt w="sb" size={13} color={colors.textTertiary}>
                     {' '}
@@ -199,9 +204,11 @@ export function ParentView() {
               <Circle cx={wt.last.x} cy={wt.last.y} r={5.5} fill="#2563EB" stroke="#fff" strokeWidth={2.5} />
             </Svg>
           </Card>
+          </Reveal>
 
           {/* nutrition consistency */}
-          <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+          <Reveal index={3}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
               <View>
                 <Txt w="eb" size={16} ls={-0.3}>
@@ -212,7 +219,7 @@ export function ParentView() {
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Txt w="eb" size={26} ls={-0.5}>
+                <Txt w="eb" num size={26} ls={-0.5}>
                   {nutri.avg}%
                 </Txt>
                 <Txt w="sb" size={12} color={colors.textSecondary}>
@@ -236,9 +243,11 @@ export function ParentView() {
               })}
             </Row>
           </Card>
+          </Reveal>
 
           {/* coach notes */}
-          <Card elevated style={{ marginTop: 14, borderRadius: 24 }}>
+          <Reveal index={4}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
             <Txt w="eb" size={16} ls={-0.3} style={{ marginBottom: 16 }}>
               Coach Notes
             </Txt>
@@ -279,8 +288,10 @@ export function ParentView() {
               </Row>
             )}
           </Card>
+          </Reveal>
 
           {/* AI parent summary */}
+          <Reveal index={5}>
           <View style={{ marginTop: 14, borderRadius: 20, padding: 20, backgroundColor: colors.accentSurface, borderWidth: 1, borderColor: colors.accentBorder, flexDirection: 'row', gap: 13 }}>
             <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="sparkle" size={17} color={colors.accent} />
@@ -292,6 +303,7 @@ export function ParentView() {
               {digest.summary}
             </Txt>
           </View>
+          </Reveal>
         </ScrollView>
       </SafeAreaView>
 
