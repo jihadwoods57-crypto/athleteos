@@ -1,6 +1,6 @@
 # 04 — Accountability Engine, Escalation, Communication, Notes, Achievements, Recovery Mode
 
-> Target 10-year architecture for the **execution spine** of AthleteOS — the layer that turns a
+> Target 10-year architecture for the **execution spine** of OnStandard — the layer that turns a
 > coach's plan into daily execution, escalates honestly when it slips, lets the coach respond in
 > structured one-tap moves, rewards real habits, and adjusts the plan when an athlete is hurt.
 > Plus a non-destructive migration path from today's pure-`src/core` engines (which already

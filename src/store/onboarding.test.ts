@@ -1,4 +1,4 @@
-// AthleteOS — store-level tests for the redesigned onboarding actions: the
+// OnStandard — store-level tests for the redesigned onboarding actions: the
 // athlete baseline setters + primary goal, and the 7-role -> 4-dashboard routing
 // (flowForRole / finishOb). AsyncStorage is mocked so the node env drives the
 // real Zustand store.

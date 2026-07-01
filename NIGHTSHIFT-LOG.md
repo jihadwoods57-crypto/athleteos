@@ -356,7 +356,7 @@ and leave this status intact.
 
 ---
 
-# AthleteOS — Nightshift Build Log
+# OnStandard — Nightshift Build Log
 
 Newest entries at the top. Each entry = what shipped + anything the founder needs.
 
@@ -773,7 +773,7 @@ Per-commit, newest last:
 
 1. **chore(ios): App Store compliance config** (`4ae1a04`). Pure `app.json`,
    validated with `expo config` + a green iOS export. Adds the
-   `ios.bundleIdentifier` (`com.athleteos.app`, a PLACEHOLDER flagged for the
+   `ios.bundleIdentifier` (`com.onstandard.app`, a PLACEHOLDER flagged for the
    founder) + `buildNumber`; the export-compliance flags
    (`usesNonExemptEncryption` / `ITSAppUsesNonExemptEncryption` = false); the
    Info.plist usage strings Apple rejects apps for omitting
@@ -806,7 +806,7 @@ checklist (✅ already compliant / 🔧 fixed this run / 👤 NEEDS HUMAN).
   Connect listing + screenshots + age rating, a real privacy policy + support
   URL, the splash screen (`expo-splash-screen` needs installing), and the iPad
   support decision.
-- **The biggest review risk is in section D of that doc**: AthleteOS targets
+- **The biggest review risk is in section D of that doc**: OnStandard targets
   MINORS (13-22) with nutrition + body-weight data, which triggers age-rating,
   parental-consent (COPPA), data-from-kids, and no-medical-claims scrutiny.
   Shipped copy is clean of medical claims today; the live AI coach (once the
@@ -1478,7 +1478,7 @@ move the derived score the intended way; `npm run verify` script.
 ## State against each Definition-of-Done item
 1. **QC findings cleared** — ✅ `collapsable` web warning fixed (web-only, native unchanged).
 2. **UX/UI fidelity on every screen + overlay + role view** — ✅ *substantively*, with a
-   caveat: the `impeccable` skill and the `../athleteos-design-ref/` sibling are **not
+   caveat: the `impeccable` skill and the `../onstandard-design-ref/` sibling are **not
    present in this runner environment**, so per-screen fidelity work was grounded in
    `DESIGN.md` + `src/ui/tokens.ts` (which mirror the handoff tokens) rather than literal
    `impeccable critique/audit` runs + pixel diffs. Every screen/overlay/role got
@@ -1505,7 +1505,7 @@ move the derived score the intended way; `npm run verify` script.
 1. **Do a real visual QC pass** on a device + the web preview — this is the one thing the
    autonomous crew structurally could not do. Walk every screen (athlete Home/Plan/Squad/
    Check-In/Profile/Nutrition; Coach/Parent/Trainer; Meal Detail, Messages, Notifications,
-   Person Detail, Account, onboarding) against `AthleteOS.dc.html` + the dashboard handoffs.
+   Person Detail, Account, onboarding) against `OnStandard.dc.html` + the dashboard handoffs.
    The per-run "For the founder (QC this run)" notes below give a targeted checklist.
 2. **Phase 2 — Supabase (human-in-the-loop):** the scaffold (`src/lib/supabase`,
    `src/store/sync.ts`) is inert and waiting for keys. Wiring real auth/sync + adding keys
@@ -1775,7 +1775,7 @@ the stray inline `#CBD5E1` text that fails WCAG AA contrast.
   (#64748B) clears AA on white and documents that `#CBD5E1` fails — so the
   faint-text palette can't silently regress below AA. +9 tests.
 - **fix(a11y): retire stray `#CBD5E1` on the three readable-text spots.** The
-  Profile and Account-overlay version footers ("AthleteOS · v1.0") and the
+  Profile and Account-overlay version footers ("OnStandard · v1.0") and the
   Nutrition Macros "/ N cal" label drew text in inline `#CBD5E1`, which is only
   ~1.48:1 on the white card — far under WCAG AA (4.5:1 normal, 3:1 large).
   `textTertiary` (#94A3B8) also fails at 2.56:1; `textSecondary` (#64748B)
@@ -1795,7 +1795,7 @@ also hit the 403 on `git push`, the proxy push path is the thing to look at; the
 API path is a working fallback.
 
 ### For the founder (QC this run)
-- **Profile → footer** and **Account overlay → footer**: "AthleteOS · v1.0" is
+- **Profile → footer** and **Account overlay → footer**: "OnStandard · v1.0" is
   now a legible medium-slate instead of near-invisible pale gray.
 - **Nutrition → Macros card**: the "/ 3,200 cal" denominator next to today's
   calories is now readable (same slate), still clearly secondary to the bold
@@ -2146,7 +2146,7 @@ export -p ios`). Router untouched (app/_layout + app/index, no src/app).
    (Run 5 made **PersonDetail** + **TrainerView** body data-driven
    per-athlete/per-roster.) Verify type scale / spacing / radii against the
    `.dc.html` handoff one screen per commit. (Note: the design-ref sibling
-   `../athleteos-design-ref/` and the `impeccable` skill are **not present** in
+   `../onstandard-design-ref/` and the `impeccable` skill are **not present** in
    the current runner environment — fidelity work this run was grounded in
    `DESIGN.md` + `tokens.ts`, which mirror the handoff tokens.)
 3. **Motion / micro-interactions** — ring draw, bar grow, overlay slide-up,

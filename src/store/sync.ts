@@ -1,4 +1,4 @@
-// AthleteOS — store <-> Supabase sync bridge (inert unless EXPO_PUBLIC_BACKEND_LIVE).
+// OnStandard — store <-> Supabase sync bridge (inert unless EXPO_PUBLIC_BACKEND_LIVE).
 //
 // This is the seam between the local Zustand day-slice and the `days` table. Every
 // function gates on `isBackendLive` (NOT `isSupabaseConfigured`, which is already true

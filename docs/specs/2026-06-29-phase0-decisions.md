@@ -1,4 +1,4 @@
-# AthleteOS — Phase-0 Go-Live Decision Brief
+# OnStandard — Phase-0 Go-Live Decision Brief
 
 **For:** the founder + counsel. **Date:** 2026-06-29. **Status:** DECISION SUPPORT.
 
@@ -91,7 +91,7 @@ counsel confirm fit:
 
 - **Connecticut (CTDPA amendments, eff. July 1, 2026):** bans sale of minors' data,
   prohibits targeted advertising to under-18s, requires data-protection impact assessments
-  for profiling minors. AthleteOS already runs no ads and no analytics/tracking SDK (per
+  for profiling minors. OnStandard already runs no ads and no analytics/tracking SDK (per
   the security audit), which lines up well — counsel to confirm.
 - **California:** SB 976 (addictive-feed parental-consent) and the Age-Appropriate Design
   Code Act — the latter remains **enjoined** as of early 2026, so its design-code mandates
@@ -99,7 +99,7 @@ counsel confirm fit:
 - **Maryland (MODPA / age-appropriate design):** stricter minors' data-use and
   data-minimization duties; counsel to confirm applicability to a health-data app.
 - General point: several of these turn on whether the product is a "social media
-  platform" and on data-minimization/no-sale duties — AthleteOS is neither ad-driven nor a
+  platform" and on data-minimization/no-sale duties — OnStandard is neither ad-driven nor a
   social platform, which helps, but **counsel makes that call.**
 
 ### Exact questions counsel must bless

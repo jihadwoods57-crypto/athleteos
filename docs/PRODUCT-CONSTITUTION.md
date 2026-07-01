@@ -1,6 +1,6 @@
-# AthleteOS — Product Constitution
+# OnStandard — Product Constitution
 
-**This is the canonical reference for what AthleteOS is and how we decide what to build.**
+**This is the canonical reference for what OnStandard is and how we decide what to build.**
 It is a 10-year north star, not a build schedule. Authored 2026-06-28.
 
 > A constitution's real job is to be the thing you say **no** with. The pillars do not
@@ -14,7 +14,7 @@ It is a 10-year north star, not a build schedule. Authored 2026-06-28.
 ## 1. Product Philosophy
 **The plan is not the product. Executing the plan is.** Everyone an athlete trusts — coach,
 parent, nutritionist, trainer — creates plans. Almost nobody ensures they get *done*.
-AthleteOS is the layer between intention and execution: it makes the right next action
+OnStandard is the layer between intention and execution: it makes the right next action
 obvious, makes doing it rewarding, and makes execution visible to the people invested in
 that athlete. It is an **AI-powered execution platform**. Nutrition is domain one because it
 is daily, measurable, and emotional — the perfect proving ground for a system that will
@@ -40,7 +40,7 @@ Per-pillar mission:
 - **Proof:** become the evidence engine behind athlete development.
 
 ## 3. Signature Experience
-**AthleteOS owns the Development Score** — made categorically new in two ways nobody else has:
+**OnStandard owns the Development Score** — made categorically new in two ways nobody else has:
 - **Forward-looking:** not "how you recovered" but "how to win today" (the Finish-Today
   projection turns a grade into a target you can still hit).
 - **Watched:** your number is seen by the person invested in you. That visibility is the
@@ -159,7 +159,7 @@ Proof pillar (you can't prove a rising score predicts improvement if the score i
 Targets + profile + on/off already give a coach all the real personalization they need.
 
 ## 11b. Goal-Aware Intelligence (shared interface, personalized intelligence)
-AthleteOS is NOT an athlete-only app. It is one premium app whose INTERFACE stays consistent
+OnStandard is NOT an athlete-only app. It is one premium app whose INTERFACE stays consistent
 for everyone (Home / Nutrition / Camera / Plan / Team) while its INTELLIGENCE — coaching
 language, recommendations, accountability emphasis, education, and which cards show — adapts to
 WHO the user is and WHAT they're trying to do. Athlete, weight-loss client, busy professional,
@@ -219,9 +219,9 @@ fake AI). The coach is amplified, never replaced. Make the right action the easy
 
 ---
 
-**The one line that governs the decade:** AthleteOS is the system that turns a coach's plan
+**The one line that governs the decade:** OnStandard is the system that turns a coach's plan
 into an athlete's daily execution — and proves it worked.
 
 ### Product Decision Filter (apply to every feature request)
-Does it make AthleteOS smarter, improve accountability, reduce decision fatigue, strengthen
+Does it make OnStandard smarter, improve accountability, reduce decision fatigue, strengthen
 relationships, or produce measurable results? If the answer is "no" to all five, do not build it.

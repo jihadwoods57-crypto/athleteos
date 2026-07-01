@@ -1,4 +1,4 @@
-# AthleteOS — Launch Checklist (the human to-do list)
+# OnStandard — Launch Checklist (the human to-do list)
 
 **For:** the founder. **Updated:** 2026-06-29.
 **The one-line truth:** the code side is in good shape. Everything that still stands between
@@ -158,7 +158,7 @@ Needs a real device; can't be done in the cloud.
 - [ ] **App Privacy "nutrition label" in App Store Connect.** Declare exactly what data you collect
       (health/fitness, photos, identifiers) and that it's used by a minor audience. It must match the
       app's real behavior and the privacy policy; mismatches get flagged for a health/minors app.
-- [ ] **Apple submission:** confirm the bundle id (`com.athleteos.app`), set the age rating,
+- [ ] **Apple submission:** confirm the bundle id (`com.onstandard.app`), set the age rating,
       prepare screenshots, and make sure the in-app account deletion is reachable (Apple
       requires it — the function is built). Submit for review.
 

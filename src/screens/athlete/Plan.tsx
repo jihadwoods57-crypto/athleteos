@@ -1,4 +1,4 @@
-// AthleteOS — Plan (Tasks) tab. Toggling a task updates the Athlete Score.
+// OnStandard — Plan (Tasks) tab. Toggling a task updates the Athlete Score.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

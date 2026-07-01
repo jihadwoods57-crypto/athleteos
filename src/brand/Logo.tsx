@@ -1,4 +1,4 @@
-// AthleteOS — logo system. The Athlete Score ring resolving into a rising check.
+// OnStandard — logo system. The Athlete Score ring resolving into a rising check.
 // Construction transcribed from Logo.dc.html / README (100×100 viewBox).
 import React from 'react';
 import { View } from 'react-native';
@@ -68,13 +68,13 @@ export function AppIcon({ size = 58, radius }: { size?: number; radius?: number 
   );
 }
 
-/** Full lockup: mark + AthleteOS wordmark. */
+/** Full lockup: mark + OnStandard wordmark. */
 export function Logo({ size = 40, onDark = false }: { size?: number; onDark?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
       <LogoMark size={size} onDark={onDark} />
       <Txt style={{ fontFamily: font.eb, letterSpacing: -0.04 * (size * 0.55) }} size={size * 0.55} color={onDark ? '#fff' : colors.text}>
-        Athlete<Txt style={{ fontFamily: font.eb }} size={size * 0.55} color={colors.accent}>OS</Txt>
+        On<Txt style={{ fontFamily: font.eb }} size={size * 0.55} color={colors.accent}>Standard</Txt>
       </Txt>
     </View>
   );

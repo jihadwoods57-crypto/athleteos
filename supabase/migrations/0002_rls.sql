@@ -1,4 +1,4 @@
--- AthleteOS — Phase 2 Row-Level Security + secure RPCs
+-- OnStandard — Phase 2 Row-Level Security + secure RPCs
 -- Helpers are SECURITY DEFINER so policies can read the link tables without
 -- recursing into their own RLS. search_path is locked to public.
 

@@ -1,4 +1,4 @@
-// AthleteOS — macro-ring derivation tests. Locks the Nutrition Carbs + Fat rings
+// OnStandard — macro-ring derivation tests. Locks the Nutrition Carbs + Fat rings
 // to live day-state (carbsToday/fatToday + pcts) so they can never regress back to
 // the old static 210g / 58g literals.
 import { computeDerived } from './scoring';

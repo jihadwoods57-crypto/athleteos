@@ -1,4 +1,4 @@
-// AthleteOS — verifiable guardian-consent model for MINORS (pure TS, no RN imports).
+// OnStandard — verifiable guardian-consent model for MINORS (pure TS, no RN imports).
 //
 // A minor's (under-18) personal data may not be collected for backend use until a guardian has
 // VERIFIABLY consented. A self-tapped checkbox is not verifiable. This protects minors' health

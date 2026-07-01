@@ -1,4 +1,4 @@
-// AthleteOS — goal -> base-goal -> scoring config mapping (pure TS, no RN imports).
+// OnStandard — goal -> base-goal -> scoring config mapping (pure TS, no RN imports).
 //
 // The onboarding goal screen collects a rich `primaryGoal` (12 options grouped Performance /
 // Body Composition / Athletic Development). The scoring engine reasons in 4 `BaseGoal` buckets, and

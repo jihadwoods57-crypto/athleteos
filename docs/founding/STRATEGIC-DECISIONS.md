@@ -1,4 +1,4 @@
-# AthleteOS — Strategic Decisions (plain-English sign-off)
+# OnStandard — Strategic Decisions (plain-English sign-off)
 
 **Date:** 2026-06-29 · **For:** the founder · **From:** the leadership crew
 **Source:** `docs/founding/05_SYNTHESIS_AND_CHALLENGES.md` §E–F (the strategy calls), in plain words.

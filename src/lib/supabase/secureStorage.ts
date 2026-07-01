@@ -1,4 +1,4 @@
-// AthleteOS — encrypted auth-token storage adapter (security audit L1).
+// OnStandard — encrypted auth-token storage adapter (security audit L1).
 //
 // The Supabase session (access + refresh token) used to persist in plain AsyncStorage, which is
 // unencrypted on disk. This adapter keeps it in the OS-backed secure store instead (iOS Keychain /

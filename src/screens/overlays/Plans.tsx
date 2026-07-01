@@ -1,4 +1,4 @@
-// AthleteOS — Plans / checkout overlay (the compliant subscription flow).
+// OnStandard — Plans / checkout overlay (the compliant subscription flow).
 // Built to the consumer-protection contract (docs/specs/2026-06-29-subscription-compliance.md):
 // BEFORE any purchase it shows price, billing frequency, AUTO-RENEWAL, trial length, and how
 // to cancel; the CTA carries the auto-renewal terms in its label; cancellation is one tap (the
@@ -34,7 +34,7 @@ export function Plans() {
           <Row style={{ gap: 7, marginBottom: 14 }}>
             <SampleTag />
             <Txt w="sb" size={12} color={colors.textTertiary} style={{ flex: 1 }}>
-              AthleteOS is in free preview. These are launch prices — billing isn’t switched on yet.
+              OnStandard is in free preview. These are launch prices — billing isn’t switched on yet.
             </Txt>
           </Row>
         ) : null}

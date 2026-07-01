@@ -1,6 +1,6 @@
-// AthleteOS — subscription / entitlement model (pure TS, no RN imports).
+// OnStandard — subscription / entitlement model (pure TS, no RN imports).
 //
-// INERT SEAM. AthleteOS is in free preview; there is no payment SDK wired. This is
+// INERT SEAM. OnStandard is in free preview; there is no payment SDK wired. This is
 // the deterministic entitlement model the app reads so that, when monetization turns
 // on, only the data source changes — not every call site. Designed around the chosen
 // model: the COACH / ORG pays per athlete (B2B per-seat, most likely Stripe so it
@@ -142,8 +142,8 @@ export function billingRowCopy(e: Entitlement, flow: Flow): BillingRowCopy {
     return {
       hint: 'Free preview',
       detail: overseer
-        ? 'AthleteOS is in free preview, so your whole roster is free while we run the beta. Paid team plans (billed per athlete) arrive at launch.'
-        : 'AthleteOS is in free preview. There is no billing on this account yet.',
+        ? 'OnStandard is in free preview, so your whole roster is free while we run the beta. Paid team plans (billed per athlete) arrive at launch.'
+        : 'OnStandard is in free preview. There is no billing on this account yet.',
     };
   }
   if (!overseer) {
@@ -160,6 +160,6 @@ export function billingRowCopy(e: Entitlement, flow: Flow): BillingRowCopy {
     case 'canceled':
       return { hint: 'Canceled', detail: `${seatLine}Your team plan is canceled. Reactivate any time to restore paid features.` };
     default:
-      return { hint: 'Free preview', detail: 'AthleteOS is in free preview.' };
+      return { hint: 'Free preview', detail: 'OnStandard is in free preview.' };
   }
 }

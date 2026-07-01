@@ -1,4 +1,4 @@
-// AthleteOS — minimal 1–10 slider (drag or tap), accent-colored.
+// OnStandard — minimal 1–10 slider (drag or tap), accent-colored.
 import React, { useRef, useState } from 'react';
 import { LayoutChangeEvent, PanResponder, View } from 'react-native';
 import { colors, shadow } from './tokens';

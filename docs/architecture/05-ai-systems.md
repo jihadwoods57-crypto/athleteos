@@ -8,7 +8,7 @@
 
 ## 1. Summary
 
-Today AthleteOS has **no AI doing work**: meal "analysis," coaching language, and team summaries are all
+Today OnStandard has **no AI doing work**: meal "analysis," coaching language, and team summaries are all
 deterministic functions in `src/core` (`coaching.ts`, `content.ts`, `mealEdit.ts`, `attention.ts`), and the
 only real AI seam — `src/lib/ai/` — is inert (`isAiConfigured === false`), so every label honestly reads
 "Coach"/"Coach memory" via `aiPrefix` (Founder Rule #8). The 10-year target keeps that exact boundary and

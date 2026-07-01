@@ -10,7 +10,7 @@
 
 ## 1. The one-page thesis
 
-**AthleteOS is the org-centric AI execution platform: it turns a coach's plan into an athlete's
+**OnStandard is the org-centric AI execution platform: it turns a coach's plan into an athlete's
 daily execution — and proves it worked.** Everything in the architecture is a consequence of one
 spine and one hard split.
 
@@ -306,4 +306,4 @@ so they live in one place (each cites the owning doc).
 
 **The one rule that survives all of it:** every scenario, every conflict, every phase changes only
 the **access half** — memberships, scopes, plan-as-projection, entitlement, consent. The
-**profile half** is permanent, org-free, athlete-owned, and never moves. That is AthleteOS.
+**profile half** is permanent, org-free, athlete-owned, and never moves. That is OnStandard.

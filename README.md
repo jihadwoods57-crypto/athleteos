@@ -1,11 +1,11 @@
-# AthleteOS
+# OnStandard
 
 The accountability platform for serious athletes. Athletes log meals, complete daily
 tasks and weekly check-ins, and earn a daily **Athlete Score**; coaches, parents, and
 trainers get real-time visibility.
 
 A real Expo + React Native + TypeScript app, recreated faithfully from the Claude Design
-handoff. See [`docs/superpowers/specs/2026-06-21-athleteos-design.md`](docs/superpowers/specs/2026-06-21-athleteos-design.md).
+handoff. See [`docs/superpowers/specs/2026-06-21-onstandard-design.md`](docs/superpowers/specs/2026-06-21-onstandard-design.md).
 
 ## Run it
 

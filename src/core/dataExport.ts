@@ -1,4 +1,4 @@
-// AthleteOS — user data export (pure TS, no RN imports).
+// OnStandard — user data export (pure TS, no RN imports).
 // Apple 5.1.1(v) + GDPR/CCPA: a user (or a minor's guardian) can take a copy of
 // their own data. This builds a structured, human-readable snapshot of everything
 // the app holds about THIS user locally — identity, targets, today's log, history,
@@ -36,8 +36,8 @@ export interface UserDataExport {
 export function exportUserData(s: AppState): UserDataExport {
   const meals = s.meals ?? {};
   return {
-    exportedBy: s.athleteName?.trim() || 'AthleteOS user',
-    app: 'AthleteOS',
+    exportedBy: s.athleteName?.trim() || 'OnStandard user',
+    app: 'OnStandard',
     identity: {
       name: s.athleteName ?? '',
       email: s.athleteEmail ?? '',

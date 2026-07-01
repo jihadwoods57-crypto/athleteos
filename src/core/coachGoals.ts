@@ -1,4 +1,4 @@
-// AthleteOS — coach goal-setting model (pure TS, no RN imports).
+// OnStandard — coach goal-setting model (pure TS, no RN imports).
 // The Scoring Contract (Constitution 11a / Rule #13): the COACH owns the plan —
 // targets + which scoring profile measures the athlete — and the platform owns the
 // formula. The AI RECOMMENDS, it never dictates. This module is the deterministic

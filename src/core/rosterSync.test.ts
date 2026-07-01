@@ -1,4 +1,4 @@
-// AthleteOS — Stage D projection: real `days` rows -> coach RosterRow[]. Proves the
+// OnStandard — Stage D projection: real `days` rows -> coach RosterRow[]. Proves the
 // mapping is honest and total (score clamped, compliance from tasks, loggedToday true
 // for every fetched row, name/initials/trend from the provided profile meta) and that
 // the Phase-5 filters + risk ranking run unchanged on the projected rows.

@@ -1,4 +1,4 @@
-// AthleteOS — real AI meal-analysis client (inert until a backend endpoint exists).
+// OnStandard — real AI meal-analysis client (inert until a backend endpoint exists).
 //
 // The API key NEVER lives in the app bundle. The app calls a backend Edge Function
 // (supabase/functions/analyze-meal) that holds ANTHROPIC_API_KEY and calls Claude

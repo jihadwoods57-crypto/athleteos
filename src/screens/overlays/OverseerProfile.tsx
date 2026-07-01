@@ -1,4 +1,4 @@
-// AthleteOS — Coach / Trainer / Parent self-profile (Phase 2). The audit found these
+// OnStandard — Coach / Trainer / Parent self-profile (Phase 2). The audit found these
 // roles had no way to edit their own identity after onboarding — only the athlete
 // had a Profile. This overlay (entry: the Account identity card) lets an overseer
 // edit their display name + org/team name, with the shared notifications + units

@@ -1,4 +1,4 @@
-// AthleteOS — pure helpers for the Parent dashboard (pure TS, no RN imports).
+// OnStandard — pure helpers for the Parent dashboard (pure TS, no RN imports).
 // The parent persona (Sharon) flagged that the AI summary always reads
 // "No action needed this week" regardless of the data, and that partial history
 // is shown as if it were a full week. A parent's whole job is honest visibility,

@@ -1,4 +1,4 @@
-// AthleteOS — pure tests for the overseer nudge acknowledgement read. The model
+// OnStandard — pure tests for the overseer nudge acknowledgement read. The model
 // is deterministic + offline: it records the athlete's compliance at send-time
 // and derives "did anything move since" honestly from live data, never inventing
 // an athlete response. See core/nudge.ts.

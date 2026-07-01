@@ -1,4 +1,4 @@
-// AthleteOS — credential validation (pure TS, no RN imports).
+// OnStandard — credential validation (pure TS, no RN imports).
 // Drives inline field errors on the sign-up / sign-in / reset screens so the rules
 // live in one tested place, not scattered across the UI. Mirrors the minimum
 // Supabase auth enforces server-side (email shape; password length) plus a friendly

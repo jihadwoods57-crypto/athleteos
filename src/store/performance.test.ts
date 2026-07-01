@@ -1,4 +1,4 @@
-// AthleteOS — store-level tests for the performance (PR) track. Drives the real
+// OnStandard — store-level tests for the performance (PR) track. Drives the real
 // logPr/deletePr actions and asserts persistence + that the daily score is
 // untouched (performance is a separate development track).
 jest.mock('@react-native-async-storage/async-storage', () =>

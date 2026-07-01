@@ -1,4 +1,4 @@
-// AthleteOS — domain constants, ported verbatim from the prototype.
+// OnStandard — domain constants, ported verbatim from the prototype.
 import type { BaseGoal, Flow, LeaderRow, MealKey, Role } from './types';
 
 /** App version string, surfaced in Account / Profile footers + Help row. */
@@ -7,9 +7,9 @@ export const APP_VERSION = 'v1.0';
 /** Support + legal endpoints. App Store requires a working support contact and a
  *  reachable privacy policy. Replace these with the real hosted values before
  *  submission (the URLs must resolve to the legal-reviewed documents in docs/legal). */
-export const SUPPORT_EMAIL = 'support@athleteos.app';
-export const PRIVACY_POLICY_URL = 'https://athleteos.app/privacy';
-export const TERMS_URL = 'https://athleteos.app/terms';
+export const SUPPORT_EMAIL = 'support@onstandard.app';
+export const PRIVACY_POLICY_URL = 'https://onstandard.app/privacy';
+export const TERMS_URL = 'https://onstandard.app/terms';
 
 /** Minimum age the app will sign up. Set to 13 so the product does not knowingly collect data
  *  from a child under 13, which keeps it out of COPPA's scope entirely (COPPA governs under-13).

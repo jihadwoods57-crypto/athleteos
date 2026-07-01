@@ -177,7 +177,7 @@ empty roster (the persona review's #1 onboarding failure, fixed by the portable 
 
 ### 4.1 The category line
 
-**Trackers measure the athlete and walk away. AthleteOS measures whether the plan a trusted human set
+**Trackers measure the athlete and walk away. OnStandard measures whether the plan a trusted human set
 got *done*, puts it in front of that human, and carries the proof across every org the athlete ever
 joins.** We are not on the tracker shelf. (§00.2 bright line #1: if we are ever compared
 feature-for-feature to MyFitnessPal, we have already lost.)
@@ -284,7 +284,7 @@ revenue surface, not an assumption that the org model covers it.**
 ### 6.1 Why a gym buys — and what they are NOT buying
 
 A gym does **not** buy meal tracking. A gym's existential threat is **churn** (the average gym loses
-~30–50% of members annually; member lifetime is the whole business). A gym buys AthleteOS for five
+~30–50% of members annually; member lifetime is the whole business). A gym buys OnStandard for five
 reasons, **none of which is nutrition logging**:
 
 1. **Retention** — the #1 reason. Members who feel *seen and accountable between visits* stay. A gym
@@ -329,7 +329,7 @@ one demo call (§3.2, low-touch assisted).
 This is why the gym is the most important segment in the company beyond its own revenue: **a gym is a
 warm pipeline of pre-activated individual users and future buyers.**
 
-- **Members become individual users.** Every gym member is an activated AthleteOS user with a real
+- **Members become individual users.** Every gym member is an activated OnStandard user with a real
   record. When their gym membership ends — they move, the gym closes, they go solo — they are a
   **graduated-athlete conversion** (§5.4) at near-zero CAC. The gym **acquired the consumer for us**,
   on their dime, which is precisely how we enter the consumer market §00.7 forbids us to acquire

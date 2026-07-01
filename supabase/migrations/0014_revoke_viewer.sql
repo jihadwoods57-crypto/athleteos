@@ -1,4 +1,4 @@
--- AthleteOS — revoke_viewer (security G1): a signed-in athlete severs a specific viewer's access.
+-- OnStandard — revoke_viewer (security G1): a signed-in athlete severs a specific viewer's access.
 --
 -- The in-app "Remove viewer" control must ACTUALLY revoke access once the backend is live, not just
 -- edit a local label. The client half (db.revokeViewer, gated behind isBackendLive) is already wired;

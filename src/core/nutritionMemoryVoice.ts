@@ -1,4 +1,4 @@
-// AthleteOS — Nutrition Memory voice guard (pure TS, no RN / Supabase imports).
+// OnStandard — Nutrition Memory voice guard (pure TS, no RN / Supabase imports).
 //
 // The memory insights in nutritionMemory.ts are COMPUTED from real logged data — they are the
 // ground truth, and every number in them is earned. When a real model is configured it may

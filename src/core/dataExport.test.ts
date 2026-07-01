@@ -1,4 +1,4 @@
-// AthleteOS — user data export (GDPR/CCPA portability). Proves the snapshot covers
+// OnStandard — user data export (GDPR/CCPA portability). Proves the snapshot covers
 // the user's own identity, targets, today, history, and PRs, and serializes to JSON.
 import { exportUserData, exportUserDataText } from './dataExport';
 import { createInitialState } from './defaultState';
@@ -33,6 +33,6 @@ describe('exportUserData', () => {
   it('serializes to valid, round-trippable JSON', () => {
     const text = exportUserDataText(createInitialState());
     expect(() => JSON.parse(text)).not.toThrow();
-    expect(JSON.parse(text).app).toBe('AthleteOS');
+    expect(JSON.parse(text).app).toBe('OnStandard');
   });
 });

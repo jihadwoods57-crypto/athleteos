@@ -1,4 +1,4 @@
-// AthleteOS — analyze-meal Edge Function (Supabase / Deno).
+// OnStandard — analyze-meal Edge Function (Supabase / Deno).
 // Holds ANTHROPIC_API_KEY server-side and runs Claude vision. The app never sees the key.
 // THREE modes, dispatched on the request `mode` field:
 //   * 'meal'  (default) — read a plate photo, ESTIMATE macros, score for the goal (MealResult).
@@ -28,7 +28,7 @@ const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6';
 // A native app sends no Origin header (and there's no browser to enforce CORS for it), so it's
 // allowed; a browser Origin that isn't on the list gets no Access-Control-Allow-Origin, so the
 // browser blocks the response. Set ALLOWED_ORIGINS to a comma-separated list of your web origins
-// (e.g. "https://app.athleteos.app"); leave unset for native-only.
+// (e.g. "https://app.onstandard.app"); leave unset for native-only.
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
 const BASE_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Headers': 'authorization, content-type',
@@ -109,7 +109,7 @@ const MEAL_TOOL = {
   },
 } as const;
 
-const SYSTEM = `You are the AthleteOS nutrition coach: a sharp, encouraging sports nutritionist for
+const SYSTEM = `You are the OnStandard nutrition coach: a sharp, encouraging sports nutritionist for
 serious high-school and college athletes (ages 13-22). Read the meal photo, identify the foods,
 estimate macros, score the meal for THIS athlete's goal, and give one honest coach-voiced sentence.
 Voice: direct, motivating, precise, never hype, never cutesy. Safety: never give extreme or
@@ -142,7 +142,7 @@ const LABEL_TOOL = {
   },
 } as const;
 
-const LABEL_SYSTEM = `You read Nutrition Facts labels for AthleteOS. Transcribe the panel EXACTLY as
+const LABEL_SYSTEM = `You read Nutrition Facts labels for OnStandard. Transcribe the panel EXACTLY as
 printed, PER SERVING. This is transcription, not estimation: report only what you can read. If a
 value is not visible, omit that field rather than guessing (use 0 only if the label literally prints
 0). Read the ingredient list verbatim, in order, splitting on commas into separate entries; drop
@@ -175,7 +175,7 @@ const MEMORY_TOOL = {
   },
 } as const;
 
-const MEMORY_SYSTEM = `You are the AthleteOS nutrition coach giving an athlete a warm, human read on their
+const MEMORY_SYSTEM = `You are the OnStandard nutrition coach giving an athlete a warm, human read on their
 own logged-eating trends. You are handed insights the app already COMPUTED from real data. Your only
 job is to reword each one in a warmer, more personal coach voice. Hard rules: keep EVERY number
 exactly as given (never change, add, or drop a figure or unit); never invent a fact, food, day count,
@@ -216,7 +216,7 @@ const ORDER_TOOL = {
   },
 } as const;
 
-const ORDER_SYSTEM = `You are the AthleteOS nutrition coach telling an athlete why a restaurant order fits
+const ORDER_SYSTEM = `You are the OnStandard nutrition coach telling an athlete why a restaurant order fits
 their goal. You are handed explanations the app already COMPUTED from a menu database. Your only job is
 to reword each one in a warmer, more personal coach voice. Hard rules: keep EVERY number exactly as given
 (never change, add, or drop a gram, calorie, or dollar figure); never invent a food, claim, or number not

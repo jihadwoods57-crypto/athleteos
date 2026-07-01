@@ -1,4 +1,4 @@
-// AthleteOS — scoring profiles. Proves the athlete profile reproduces the shipped formula,
+// OnStandard — scoring profiles. Proves the athlete profile reproduces the shipped formula,
 // the general profile re-weights to calorie adherence, the calorie band is two-sided
 // (penalizes under- AND over-eating), and computeDerived honors the profile while leaving
 // the athlete default untouched.

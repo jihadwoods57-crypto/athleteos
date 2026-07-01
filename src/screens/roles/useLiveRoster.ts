@@ -1,4 +1,4 @@
-// AthleteOS — Stage D data source for the coach roster. Returns the seeded showcase ROSTER when
+// OnStandard — Stage D data source for the coach roster. Returns the seeded showcase ROSTER when
 // the backend is off (byte-identical to today) and, when live, the coach's real athletes projected
 // from fetchLinkedDays(today). For a snappy experience it paints the LAST CACHED real roster for
 // the signed-in user immediately (no Supabase round-trip, no sample flash), then revalidates and

@@ -1,4 +1,4 @@
-// AthleteOS — theming foundation invariants. Dark mode is only a clean palette swap if
+// OnStandard — theming foundation invariants. Dark mode is only a clean palette swap if
 // the dark palette mirrors EVERY light key; this locks that so a future color added to
 // one palette must be added to both.
 import { lightColors, darkColors } from './tokens';

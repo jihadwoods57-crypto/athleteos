@@ -1,4 +1,4 @@
-// AthleteOS — reminder schedule model + copy (pure TS, no RN imports).
+// OnStandard — reminder schedule model + copy (pure TS, no RN imports).
 //
 // P3 (reminders / notifications) is "the engine's fuel": timely, athlete-first
 // prompts that keep the day on track without nagging. This module is the PURE half:

@@ -1,4 +1,4 @@
-// AthleteOS — content/display-helper tests: meal-analysis lookup, reactive Home
+// OnStandard — content/display-helper tests: meal-analysis lookup, reactive Home
 // insight, weekly-goal pace projection, and the profile subtitle.
 import {
   aiInsight,

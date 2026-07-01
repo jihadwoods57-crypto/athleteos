@@ -1,4 +1,4 @@
--- AthleteOS — Phase A keystone: org_memberships (the one access-grant object)
+-- OnStandard — Phase A keystone: org_memberships (the one access-grant object)
 --
 -- The enterprise-architecture keystone (docs/architecture/01 + the ratified
 -- DECISION-MEMO D1/D2). This generalizes today's four link tables — team_members,

@@ -1,4 +1,4 @@
-// AthleteOS — Athlete Performance: the development track the app was missing.
+// OnStandard — Athlete Performance: the development track the app was missing.
 // Log a result (PR) for a lift / sprint / jump / body weight / custom metric and
 // see your personal records + trends. Deliberately SEPARATE from the daily
 // Accountability Score — this answers "am I getting better?", not "did I stay on

@@ -1,4 +1,4 @@
-// AthleteOS — day-0 honesty. Proves a brand-new athlete (no prior day) never shows a fabricated
+// OnStandard — day-0 honesty. Proves a brand-new athlete (no prior day) never shows a fabricated
 // "this week" trend, and that the recovery number is flagged unreal until a check-in actually backs it.
 import { computeDerived } from './scoring';
 import { createInitialState } from './defaultState';

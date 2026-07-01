@@ -1,4 +1,4 @@
-// AthleteOS — roster filtering for the coach/trainer dashboard at scale.
+// OnStandard — roster filtering for the coach/trainer dashboard at scale.
 // Pure helpers so a 40+ athlete roster can be sliced by position group, searched
 // by name, and narrowed to "who hasn't logged today" without any UI-side logic.
 import type { RosterRow } from './constants';

@@ -1,4 +1,4 @@
-# AthleteOS — Skeptical Persona Review (2026-06-24)
+# OnStandard — Skeptical Persona Review (2026-06-24)
 
 Seven simulated target users reviewed the real app (onboarding, dashboards, meal/AI
 flow, score, visibility) from their own lens. They were instructed to be brutally

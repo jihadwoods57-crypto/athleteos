@@ -1,4 +1,4 @@
-// AthleteOS — sync bridge consent gate (Stage C safety core).
+// OnStandard — sync bridge consent gate (Stage C safety core).
 // Proves the single real-data write path (`pushDay`) FAILS CLOSED: it writes only
 // when the backend is live AND realDataConsent passes, and the projection helpers
 // round-trip a day slice. The supabase lib is mocked so the node env drives the gate

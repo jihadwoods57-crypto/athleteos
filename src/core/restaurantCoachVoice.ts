@@ -1,4 +1,4 @@
-// AthleteOS — Restaurant Coach voice guard (pure TS, no RN / Supabase imports).
+// OnStandard — Restaurant Coach voice guard (pure TS, no RN / Supabase imports).
 //
 // The Restaurant Coach builds a goal-aware order from a curated menu DB; the only PROSE in its
 // output is the `why` line on each RecommendedOrder ("Built for size: 42g protein and 850 calories

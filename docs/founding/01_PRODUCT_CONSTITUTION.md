@@ -1,6 +1,6 @@
 # 01 — The Product Constitution (the founding charter)
 
-> **Status:** FOUNDING CHARTER — the board-level document that states what AthleteOS *is*, why it
+> **Status:** FOUNDING CHARTER — the board-level document that states what OnStandard *is*, why it
 > exists, and the principles and non-negotiables every other document and every feature is tested
 > against. Authored 2026-06-29 in the voice of the executive leadership team, ratified on the record.
 >
@@ -23,7 +23,7 @@
 
 A constitution's real job is to be **the thing you say *no* with.** A company with no charter ships
 whatever the loudest customer, the newest competitor, or the most exciting demo demands — and becomes
-a pile of features with no center of gravity. This document gives AthleteOS a center of gravity that
+a pile of features with no center of gravity. This document gives OnStandard a center of gravity that
 survives founders changing their minds, investors pushing for breadth, and engineers who can build
 anything. Everything below is a *filter*, not a *menu*. If a proposed feature, deal, or pivot cannot
 pass these filters, the correct answer is no — even when it is convenient, even when it is profitable
@@ -33,11 +33,11 @@ this quarter, even when "the architecture supports it."
 
 ## 1. Vision
 
-**AthleteOS becomes the operating system for human execution — the system of record for *"did the
+**OnStandard becomes the operating system for human execution — the system of record for *"did the
 plan get done, and did it work,"* starting in nutrition.**
 
 The endgame, stated as a test rather than a slogan: **a college recruiter one day asks for an
-athlete's AthleteOS execution history the way they ask for a transcript or a 40 time.** We have won
+athlete's OnStandard execution history the way they ask for a transcript or a 40 time.** We have won
 when the *number we own* is cited by people who never installed our product — when a portable,
 athlete-owned execution credential follows a person from an 8th-grade strength coach to a Power-5
 program to a pro front office, the way a credit score follows a consumer or a Whoop Recovery score
@@ -47,11 +47,11 @@ We are not building an app that people open. We are building **infrastructure th
 
 ## 2. Mission
 
-**AthleteOS exists to ensure people consistently EXECUTE the plans created by the people invested in
+**OnStandard exists to ensure people consistently EXECUTE the plans created by the people invested in
 their success.** This is the founder's canon and it is the whole company in one sentence.
 
 Everyone an athlete trusts — coach, parent, dietitian, trainer — creates plans. Almost nobody ensures
-they get *done.* AthleteOS is the layer between **intention and execution**: it makes the right next
+they get *done.* OnStandard is the layer between **intention and execution**: it makes the right next
 action obvious, makes doing it rewarding, and makes execution **visible to the people invested in that
 athlete.** Trackers own *measurement*; we own *did-the-plan-get-done — and can you prove it.*
 
@@ -62,7 +62,7 @@ the right to it.
 
 ## 3. Product Philosophy — *familiar interface, changing intelligence*
 
-Three beliefs define how AthleteOS is built. They are the soul of the product.
+Three beliefs define how OnStandard is built. They are the soul of the product.
 
 ### 3.1 The plan is not the product. Executing the plan is.
 We do not compete on plan *creation* (coaches, RDs, and trainers already do that brilliantly) or on
@@ -157,7 +157,7 @@ metric that looks like proof?* A number that goes up but predicts nothing fails.
 before you widen it — Rule #11.)
 
 ### The Product Decision Filter (apply to every request)
-> Does it make AthleteOS **smarter** (Intelligence), **improve accountability**, **reduce decision
+> Does it make OnStandard **smarter** (Intelligence), **improve accountability**, **reduce decision
 > fatigue** (Decision Making), **strengthen the coaching relationship** (Human Coaching), or **produce
 > measurable results** (Proof)? **If the answer is "no" to all five — do not build it.** (Rule #1.)
 
@@ -232,17 +232,17 @@ is locked to a ratified decision so it is architecture, not aspiration.
 
 The founder explicitly demands we challenge, not agree. The full five push-backs live in
 `00_STRATEGIC_QUESTIONS.md` §18 and are inherited here. The two that bear directly on this *charter's*
-framing — because they concern what AthleteOS *says it is* — are restated and sharpened below.
+framing — because they concern what OnStandard *says it is* — are restated and sharpened below.
 
 ### Push-back ① — "operating system for human performance" is scope creep, not focus.
-**The founder's framing under challenge:** that AthleteOS is the "operating system for human
+**The founder's framing under challenge:** that OnStandard is the "operating system for human
 performance" (or "human execution" stretched to mean everything a person does). **Our position: as a
 *filter*, that phrase is too broad to be a real constitution** — a phrase you can justify *any* feature
 against is a phrase that says no to nothing, and a constitution that says no to nothing is not a
 constitution. "Human performance" would green-light wearables-as-score, sleep tracking, academics, and
 mental-health surfaces tomorrow, each defensible, none focused.
 
-**Our recommended alternative — the focusing distinction:** AthleteOS is the operating system for
+**Our recommended alternative — the focusing distinction:** OnStandard is the operating system for
 **execution and accountability** — *"did the plan get done, and did it work"* — and the **first
 execution domain is nutrition.** "Human execution / many execution domains" is the **vision** (§1) —
 the *destination* we expand into one domain at a time, *pulled by proof.* It is **not** a present-tense
@@ -251,7 +251,7 @@ license to build across performance. The bright line: a feature must strengthen 
 admissible justification. We name the destination broadly to set ambition; we scope the *filter*
 narrowly so it can do its only job — say no.
 
-### Push-back ② — "AthleteOS is NOT an athlete-only app" must stay an *architecture* statement, not a GTM one.
+### Push-back ② — "OnStandard is NOT an athlete-only app" must stay an *architecture* statement, not a GTM one.
 **The founder's framing under challenge:** the (correct) Goal-Aware insight that the product flexes to
 many user types risks being read as a mandate to *go wide* — to chase weight-loss and general-wellness
 consumers because "the architecture supports it." **Our position: capability is not strategy.** Going
@@ -287,7 +287,7 @@ The decade arc, stated so the roadmap can protect it from both creep and timidit
   development credential. **This is the moat that gets stronger every day for every athlete even when we
   ship nothing** (`00` §3), and it is the thing a recruiter eventually asks for by name (§1).
 
-**The one line that governs the decade:** *AthleteOS is the system that turns a trusted human's plan into
+**The one line that governs the decade:** *OnStandard is the system that turns a trusted human's plan into
 a person's daily execution — and proves it worked.*
 
 ---

@@ -1,6 +1,6 @@
-# AthleteOS Advisory Board — Charter (nightly pre-beta review)
+# OnStandard Advisory Board — Charter (nightly pre-beta review)
 
-A standing **board of advisors** that independently reviews every major AthleteOS flow
+A standing **board of advisors** that independently reviews every major OnStandard flow
 each night and synthesizes one executive report prioritizing the highest-impact
 improvements before beta. This is not "a few fake users clicking around" — it is a
 skeptical board that challenges the assumptions behind the product. Read this charter,

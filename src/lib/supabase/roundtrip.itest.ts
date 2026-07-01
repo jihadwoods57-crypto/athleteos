@@ -1,4 +1,4 @@
-// AthleteOS — backend round-trip INTEGRATION test (Stage A-D, runtime verification).
+// OnStandard — backend round-trip INTEGRATION test (Stage A-D, runtime verification).
 //
 // This is NOT part of the unit gate (`npm test` matches *.test.ts only). It runs
 // against a THROWAWAY LOCAL supabase stack — never the live project — to prove the

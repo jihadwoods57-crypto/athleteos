@@ -1,4 +1,4 @@
-// AthleteOS — onboarding flow definitions for the non-athlete roles.
+// OnStandard — onboarding flow definitions for the non-athlete roles.
 // Each role's flow is data (an array of step descriptors) so one renderer drives
 // all of them. Answers are stored in `obMeta` keyed by `field` (personalization,
 // not scored). The athlete flow is bespoke (see Onboarding.tsx) because it feeds

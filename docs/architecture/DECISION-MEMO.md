@@ -1,4 +1,4 @@
-# AthleteOS — Architectural Decision Memo (founder sign-off)
+# OnStandard — Architectural Decision Memo (founder sign-off)
 
 **Date:** 2026-06-29 · **For:** the founder · **From:** the architecture crew
 **Source:** `docs/architecture/11-strategy-risks-decisions.md` §7, reconciled across docs `01`–`10`.

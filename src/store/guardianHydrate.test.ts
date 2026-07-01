@@ -1,4 +1,4 @@
-// AthleteOS — guardian-consent read-back store seam (go-live G2). Proves hydrateGuardianConsent
+// OnStandard — guardian-consent read-back store seam (go-live G2). Proves hydrateGuardianConsent
 // is inert when the backend flag is off (a minor stays gated, status untouched) and, when on,
 // reflects ONLY the server's value — a real 'verified' row unblocks the minor; pending/revoked/
 // absent leave them gated. The supabase lib is mocked; isBackendLive is toggled per case.

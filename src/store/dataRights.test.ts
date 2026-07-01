@@ -1,4 +1,4 @@
-// AthleteOS — account data rights (Apple 5.1.1(v) + GDPR/CCPA). Proves in-app
+// OnStandard — account data rights (Apple 5.1.1(v) + GDPR/CCPA). Proves in-app
 // deletion wipes local data back to a fresh install and export returns the user's data.
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -30,7 +30,7 @@ describe('exportMyData', () => {
     const json = JSON.parse(state().exportMyData());
     expect(json.identity.name).toBe('Jordan');
     expect(json.identity.sport).toBe('Soccer');
-    expect(json.app).toBe('AthleteOS');
+    expect(json.app).toBe('OnStandard');
   });
 });
 

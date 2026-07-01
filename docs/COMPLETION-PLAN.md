@@ -1,4 +1,4 @@
-# AthleteOS — Plan to Completion
+# OnStandard — Plan to Completion
 
 The ordered roadmap the autonomous crew works against to reach **APP COMPLETE**. Work the
 phases **in order** (later phases depend on earlier ones). Within a phase, finish every task

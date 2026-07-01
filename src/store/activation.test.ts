@@ -1,4 +1,4 @@
-// AthleteOS — store-level tests for the new-athlete activation / Day-0 reconcile.
+// OnStandard — store-level tests for the new-athlete activation / Day-0 reconcile.
 // A brand-new athlete must continue HONESTLY from the onboarding reveal: the
 // Starting Point Score is written as the day-0 anchor in scoreHistory, and the
 // seeded demo day is swapped for a genuinely empty day at activation so Home

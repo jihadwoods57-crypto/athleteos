@@ -1,4 +1,4 @@
-// AthleteOS — Coach view: a 5-destination tab shell (Dashboard / Roster / Needs Attention /
+// OnStandard — Coach view: a 5-destination tab shell (Dashboard / Roster / Needs Attention /
 // Reports / Profile) mirroring the athlete app. Each destination answers "what should I do
 // next"; the Dashboard is the morning briefing (who needs me today). All sections read the one
 // platform-owned Execution Score; no per-coach number. The roster is computed once here and

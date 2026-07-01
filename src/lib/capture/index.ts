@@ -1,4 +1,4 @@
-// AthleteOS — meal photo capture (expo-image-picker).
+// OnStandard — meal photo capture (expo-image-picker).
 //
 // Captures a real meal photo (camera, or library fallback) and returns it as base64
 // JPEG for the analyze-meal AI. Permissions + the picker UI are handled by the OS via

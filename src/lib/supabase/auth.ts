@@ -1,4 +1,4 @@
-// AthleteOS — auth wrappers (inert until configured).
+// OnStandard — auth wrappers (inert until configured).
 // Thin, typed wrappers over supabase.auth so screens never import the raw client.
 // Each returns a discriminated result instead of throwing, so the mock sign-in
 // flow can adopt them incrementally without try/catch noise.

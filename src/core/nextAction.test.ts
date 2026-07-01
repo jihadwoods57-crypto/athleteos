@@ -1,4 +1,4 @@
-// AthleteOS — "next best action" coaching prompt. Proves the single highest-impact
+// OnStandard — "next best action" coaching prompt. Proves the single highest-impact
 // step is chosen from real derived state + the hour, in score-lever priority order,
 // and that the all-clear only shows when the day is genuinely complete.
 import { nextBestAction } from './nextAction';

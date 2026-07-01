@@ -1,4 +1,4 @@
-// AthleteOS — barcode food-scan seam (inert until a scanner + lookup are wired).
+// OnStandard — barcode food-scan seam (inert until a scanner + lookup are wired).
 //
 // P2 (better meal logging) ships food search + manual quick-add against the curated
 // local DB (src/core/foodDb). Barcode scanning needs a real camera AND a product

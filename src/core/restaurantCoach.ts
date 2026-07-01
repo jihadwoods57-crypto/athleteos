@@ -1,4 +1,4 @@
-// AthleteOS — Restaurant Coach (Layers 2 + 3 of the Nutrition Intelligence Engine).
+// OnStandard — Restaurant Coach (Layers 2 + 3 of the Nutrition Intelligence Engine).
 // Pure TS, no RN imports.
 //
 // The flagship "answer before you eat" engine: given WHERE the athlete is (restaurant),

@@ -1,4 +1,4 @@
-// AthleteOS — Restaurant Coach engine. Proves goal-awareness (the SAME restaurant yields
+// OnStandard — Restaurant Coach engine. Proves goal-awareness (the SAME restaurant yields
 // different orders for a gainer vs a fat-loss athlete), budget respect, protein targeting,
 // and that alternatives are real non-empty orders.
 import { recommendOrder, genericMealGuidance, type RecommendContext } from './restaurantCoach';

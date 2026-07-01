@@ -6,7 +6,7 @@
 under their coach. A direct-to-consumer plan is an optional later rail.
 
 ## Why a seam now, billing later
-AthleteOS is in free preview, and the Constitution + launch checklist say "prove the
+OnStandard is in free preview, and the Constitution + launch checklist say "prove the
 loop first." Wiring real payments pre-beta adds App Store review surface and
 complexity before there's product-market signal. So this change builds the
 **entitlement plumbing** — the model, the gate, the backend read, the billing row —

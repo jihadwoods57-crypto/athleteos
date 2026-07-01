@@ -1,4 +1,4 @@
-# AthleteOS — Onboarding Redesign (activation-first)
+# OnStandard — Onboarding Redesign (activation-first)
 
 **Goal of onboarding is NOT account creation — it is reaching the first moment of value
 (Starting Point Score → first meal → AI coaching) in under 5 minutes.** It should feel like
@@ -29,12 +29,12 @@ One question per screen, slim top progress bar + back, tap-first, docked Continu
 4. **Physical profile** — age, height, weight, target weight (tap steppers, no keyboard).
 5. **Training frequency** — once / twice / three+ per day.
 6. **Support team** — Coach / Trainer / Nutritionist / Parent / None; if any, optional invite code
-   (builds the AthleteOS network).
+   (builds the OnStandard network).
 7. **Baseline assessment** (conversational, 6 questions):
    nutrition confidence 1–10 · meals/day · water/day · sleep hours · protein-target frequency ·
    **consistency** (week-to-week, new). Feels like a conversation, one at a time.
 8. **Starting Point Score** (renamed from "Baseline Score") — animated reveal, e.g. **72 · C+**,
-   copy: *"This is your starting point. It rises as AthleteOS learns your real habits."*
+   copy: *"This is your starting point. It rises as OnStandard learns your real habits."*
 9. **First Challenge** — "Today's goal: Upload your first meal" → large **Start Now** CTA.
 
 Identity (name, optional email) is captured lightly and woven in for personalization

@@ -1,4 +1,4 @@
-// AthleteOS — data-freshness labels for overseer views (pure TS, no RN imports).
+// OnStandard — data-freshness labels for overseer views (pure TS, no RN imports).
 //
 // When the backend is live, a trainer/coach/parent looking at a client needs an HONEST
 // "how current is this?" signal — never a fabricated timestamp. This is the pure half: turn

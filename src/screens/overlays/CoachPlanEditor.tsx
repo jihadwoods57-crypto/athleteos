@@ -1,4 +1,4 @@
-// AthleteOS — Coach Plan editor. Sets the plan BOTH engines read (Accountability +
+// OnStandard — Coach Plan editor. Sets the plan BOTH engines read (Accountability +
 // Nutrition): macro targets, the expected meal-window schedule, and standing coach
 // instructions. Local today; syncs to the linked athlete when the backend lands.
 import React from 'react';

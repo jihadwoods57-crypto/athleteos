@@ -1,4 +1,4 @@
-// AthleteOS — Trainer mobile view: multi-org client book, KPIs, book-compliance
+// OnStandard — Trainer mobile view: multi-org client book, KPIs, book-compliance
 // trend, needs-follow-up nudges, AI practice summary.
 import React from 'react';
 import { ScrollView, View } from 'react-native';

@@ -1,4 +1,4 @@
-# AthleteOS — Daily Report, 2026-06-26 (UTC) · Day 1/4
+# OnStandard — Daily Report, 2026-06-26 (UTC) · Day 1/4
 
 *Founder-away daily digest. Covers the crew's Day-1 sprint work (committed 2026-06-25
 on `crew/4day-sprint`). Sprint window: Thu Jun 25 → Sun Jun 28.*

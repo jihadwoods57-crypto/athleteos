@@ -1,4 +1,4 @@
-AthleteOS — FINAL Sprint Report + Go-Live Checklist (Day 4 of 4)
+OnStandard — FINAL Sprint Report + Go-Live Checklist (Day 4 of 4)
 2026-06-29 (UTC) · Founder returns today · Branch: crew/4day-sprint (NOT merged)
 
 Welcome back. This is the whole-sprint wrap-up. Plain English, scannable, written so

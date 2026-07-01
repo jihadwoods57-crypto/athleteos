@@ -1,4 +1,4 @@
-// AthleteOS — curated local food database (pure TS, no RN imports).
+// OnStandard — curated local food database (pure TS, no RN imports).
 //
 // The persona review's dietitian (Dana, RD) flagged that the meal estimate is a
 // 4-item photo guess with no way to add a real food with real macros. This is the

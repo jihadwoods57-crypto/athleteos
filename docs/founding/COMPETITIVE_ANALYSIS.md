@@ -1,4 +1,4 @@
-# COMPETITIVE_ANALYSIS — where AthleteOS wins, and where it does not (yet)
+# COMPETITIVE_ANALYSIS — where OnStandard wins, and where it does not (yet)
 
 > **Status:** FOUNDING DEEP-DIVE. Honest competitive read, grounded in the ratified positioning
 > (`05_SYNTHESIS_AND_CHALLENGES` §A, `01_PRODUCT_CONSTITUTION` §1, `00_STRATEGIC_QUESTIONS` §3 moats).
@@ -15,7 +15,7 @@ We do not compete on the same axis as any single incumbent. Each owns a category
 | MyFitnessPal / Cronometer | **Measurement** (the food database, the log) | A tracker fights on database size and accuracy. We refuse that fight. |
 | Trainerize / Everfit / TrueCoach | **Workout delivery + the coach-client record** | Training programming is a real, owned category. We are the nutrition-accountability layer, not a training platform. |
 | WHOOP | **Recovery** (physiology, the trusted biometric score) | Physiology is device-gated and not coach-plan execution. |
-| **AthleteOS** | **Nutrition Execution** ("did the plan a trusted human set get done, and did it work") | The gap nobody owns and nobody can copy without rebuilding their data model. |
+| **OnStandard** | **Nutrition Execution** ("did the plan a trusted human set get done, and did it work") | The gap nobody owns and nobody can copy without rebuilding their data model. |
 
 The discipline (`01` non-negotiable): **never be priced, benchmarked, or pitched as a tracker.** The
 moment we are compared to MyFitnessPal on food-database size, we have already lost the framing.
@@ -69,7 +69,7 @@ moment we are compared to MyFitnessPal on food-database size, we have already lo
 - **Where they are stronger:** they already own the attention of our wedge buyer. This is the most direct
   **channel** competitor for the gym/strength market.
 - **Strategic note (important):** TrueCoach may be a **complement, not a replacement**. The coach keeps
-  TrueCoach for programming and adds AthleteOS as the nutrition-accountability layer the workout tool lacks.
+  TrueCoach for programming and adds OnStandard as the nutrition-accountability layer the workout tool lacks.
   "Sits alongside your coaching app" is a faster wedge-in than "rip out your coaching app." Consider an
   integration posture before a head-on replacement posture.
 

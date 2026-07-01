@@ -1,4 +1,4 @@
-// AthleteOS — training-readiness engine (pure TS, no RN imports).
+// OnStandard — training-readiness engine (pure TS, no RN imports).
 //
 // The Execution Score grades NUTRITION adherence. A strength/performance coach asks a different
 // question: "is this athlete recovered enough to train hard today?" Readiness answers it from the

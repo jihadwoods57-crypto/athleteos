@@ -1,4 +1,4 @@
-// AthleteOS — build/config-time feature flags (same pattern as isBackendLive).
+// OnStandard — build/config-time feature flags (same pattern as isBackendLive).
 //
 // isEnginesEnabled is the SINGLE master switch for the two new engines:
 //   - the Nutrition Intelligence Engine (Restaurant Coach), and

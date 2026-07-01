@@ -9,7 +9,7 @@ today. DESIGN ONLY — no app code, no SQL migrations shipped here.
 
 ## 1. Summary
 
-AthleteOS today is **link-centric**: an athlete is connected to a `team` (via `team_members`)
+OnStandard today is **link-centric**: an athlete is connected to a `team` (via `team_members`)
 or a `practice` (via `practice_clients`) or a `guardian` (via `guardianships`), and RLS is the
 disjunction `can_view() = is_self OR is_team_coach_of OR is_trainer_of OR is_guardian_of`. That
 model already encodes the correct invariant — **the athlete owns the data (`days`/`meals`/
@@ -33,7 +33,7 @@ scope predicate (`can_view(athlete)`), and every grant lives in `org_memberships
 
 | Tag | Element | Detail |
 |---|---|---|
-| **[ALREADY BUILT]** | `profiles` (1:1 `auth.users`, `primary_role`) | `0001_schema.sql`. The permanent identity. KEEP as-is; it is the "one permanent AthleteOS profile." |
+| **[ALREADY BUILT]** | `profiles` (1:1 `auth.users`, `primary_role`) | `0001_schema.sql`. The permanent identity. KEEP as-is; it is the "one permanent OnStandard profile." |
 | **[ALREADY BUILT]** | Athlete-owned data keyed on `athlete_id`, self-write only | `days`/`meals`/`checkins`/`athlete_profiles` + RLS `*_write = is_self`, `*_read = can_view` (`0002_rls.sql`). This **is** "athlete owns data; org owns access only." DO NOT change the ownership shape. |
 | **[ALREADY BUILT]** | `orgs` table + `org_type` enum (`school|club|independent`) | `0001`. Exists but underused — teams reference `org_id` (nullable) and `created_by`. The seed of the org hierarchy. |
 | **[ALREADY BUILT]** | The link spine: `team_members`, `team_staff`, `practice_clients`, `guardianships` | `0001`. These ARE org membership in disguise — each is "(subject, container, role-ish, status)." |

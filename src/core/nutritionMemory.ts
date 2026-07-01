@@ -1,6 +1,6 @@
-// AthleteOS — Nutrition Memory (pure TS, no RN / Supabase imports).
+// OnStandard — Nutrition Memory (pure TS, no RN / Supabase imports).
 //
-// The differentiator: AthleteOS doesn't just grade today's meal, it REMEMBERS. This engine
+// The differentiator: OnStandard doesn't just grade today's meal, it REMEMBERS. This engine
 // reads the athlete's logged history and surfaces longitudinal insights a tracker never
 // could — "3 weeks ago you averaged 18g protein at breakfast; now 37g", "you've skipped
 // dinner 3 of the last 5 days", "down 4 lb, on track to your goal". That's coaching, not
@@ -252,7 +252,7 @@ function signatureMeal(meals: StoredMeal[]): MemoryInsight | null {
     kind: 'signature_meal',
     tone: 'neutral',
     headline: 'Your go-to meal',
-    detail: `You've logged ${best.name} ${best.count} times${q != null ? `, averaging ${q} quality` : ''}. The AthleteOS knows your kitchen.`,
+    detail: `You've logged ${best.name} ${best.count} times${q != null ? `, averaging ${q} quality` : ''}. The OnStandard knows your kitchen.`,
     metric: `×${best.count}`,
     rank: 40 + best.count,
   };

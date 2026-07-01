@@ -18,7 +18,7 @@
 
 ## 0. The one paragraph a VC needs
 
-AthleteOS is **one access primitive, one immutable formula, and one hard ownership split**, and
+OnStandard is **one access primitive, one immutable formula, and one hard ownership split**, and
 almost everything else is data on top of those three. The access primitive is a single
 `org_memberships` grant (subject ⇄ org, carrying role + scope + permissions + status) that subsumes
 every relationship type — coach, trainer, parent, family, gym, college — so a new relationship is a
@@ -281,7 +281,7 @@ can prove it keeps members accountable between visits retains better and can cha
 
 ### 10.1 The gym mapped onto the spine
 
-| Gym concept | AthleteOS primitive | Notes |
+| Gym concept | OnStandard primitive | Notes |
 |---|---|---|
 | The gym | `organization(kind='gym')` | Facility-scoped org. One billing relationship. |
 | Trainer's book of clients | a **program** (or group) scoped to that trainer | Trainer sees only their book; owner sees the roll-up. |
@@ -311,7 +311,7 @@ can prove it keeps members accountable between visits retains better and can cha
    active-participant utilization vs the seat tier, trainer performance. This is the asset that turns
    the subscription from a cost into a P&L line and clears the renewal. *Architecture: read-side
    aggregation over the immutable ledger + the billing license — no new athlete data.*
-6. **Gym monetization of AthleteOS.** The gym can market accountability as a differentiator and a paid
+6. **Gym monetization of OnStandard.** The gym can market accountability as a differentiator and a paid
    tier of *its own* membership. The architecture supports this because the gym owns the *access
    relationship and branding* (accent token only at first) while the member owns their data — the gym
    resells the layer, never the record. *Architecture: org branding (`architecture/07`) + the
@@ -445,4 +445,4 @@ is where RLS bugs hide, and RLS bugs in a minor-facing product are the catastrop
   commitment** (§8) is a Phase-B score input, not a wait.
 - **All docs:** the seven keystone decisions (D1–D7) and the seven invariants (I1–I7) are canon. The
   one rule that survives everything: *every operation changes only the access half; the profile half is
-  permanent, org-free, athlete-owned, and never moves.* **That is AthleteOS.**
+  permanent, org-free, athlete-owned, and never moves.* **That is OnStandard.**

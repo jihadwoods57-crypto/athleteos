@@ -1,6 +1,6 @@
 # 02 — Roles, Permissions, Groups, Security & Audit
 
-> Target 10-year architecture for the access-control spine of AthleteOS, plus a pragmatic
+> Target 10-year architecture for the access-control spine of OnStandard, plus a pragmatic
 > migration path from today's role/flow-centric, link-table RLS (migration 0002) to a
 > configurable org-scoped RBAC + group-scoped visibility + append-only audit model.
 > **Design only** — no app/TS code, no SQL migrations are created here.
@@ -9,7 +9,7 @@
 
 ## 1. Summary
 
-AthleteOS's access model must evolve from "four hardcoded role flows + a `can_view()` OR of
+OnStandard's access model must evolve from "four hardcoded role flows + a `can_view()` OR of
 link tables" into a **configurable RBAC engine** where (a) every user holds one or more
 **org-scoped role grants**, (b) every action maps to a **permission key** that an org can
 **override** without a code change, (c) athlete visibility is **group-scoped** (a position

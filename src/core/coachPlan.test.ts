@@ -1,4 +1,4 @@
-// AthleteOS — the Coach Plan keystone. Locks the plan derivation both engines read:
+// OnStandard — the Coach Plan keystone. Locks the plan derivation both engines read:
 // activePlan's target fallbacks (a corrupt/legacy blob must never poison the plan),
 // the 12-hour window-time formatting (midnight/noon/wraparound), and mealTarget's
 // required-vs-snack share split (incl. the no-required / degenerate-plan fallbacks).

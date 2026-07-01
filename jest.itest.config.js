@@ -1,4 +1,4 @@
-// AthleteOS — integration-test config. Separate from jest.config.js so the backend
+// OnStandard — integration-test config. Separate from jest.config.js so the backend
 // round-trip (src/**/*.itest.ts) NEVER runs in the unit gate (`npm test`) — it needs a
 // live LOCAL supabase stack and is skipped when AOS_SUPABASE_ANON_KEY is unset.
 // Run: AOS_SUPABASE_URL=... AOS_SUPABASE_ANON_KEY=... npx jest --config jest.itest.config.js

@@ -77,7 +77,7 @@ describe('billingRowCopy', () => {
   it('preview athlete copy is byte-identical to the old static row', () => {
     expect(billingRowCopy(previewEntitlement(), 'app')).toEqual({
       hint: 'Free preview',
-      detail: 'AthleteOS is in free preview. There is no billing on this account yet.',
+      detail: 'OnStandard is in free preview. There is no billing on this account yet.',
     });
   });
   it('a coach on an active plan sees seat usage', () => {

@@ -1,4 +1,4 @@
-// AthleteOS — clock helpers. todayStamp is covered via dayRollover; here we pin
+// OnStandard — clock helpers. todayStamp is covered via dayRollover; here we pin
 // the time-of-day greeting boundaries used by the Home header.
 import { greeting, todayStamp } from './clock';
 

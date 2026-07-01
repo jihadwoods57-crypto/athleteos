@@ -1,4 +1,4 @@
-// AthleteOS — Nutrition Label Scanner model (pure TS, no RN imports).
+// OnStandard — Nutrition Label Scanner model (pure TS, no RN imports).
 //
 // "Scan a label" is the high-trust sibling of the meal-photo path. A photo of a plate is
 // ESTIMATED (portions vary); a Nutrition Facts panel is a FACT — the AI transcribes printed

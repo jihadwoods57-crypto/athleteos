@@ -1,4 +1,4 @@
-// AthleteOS — iOS App Store compliance guard for app.json.
+// OnStandard — iOS App Store compliance guard for app.json.
 //
 // These keys are not cosmetic: Apple REJECTS a submission that accesses the
 // camera or photo library without a usage string, that ships no privacy

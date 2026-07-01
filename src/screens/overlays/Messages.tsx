@@ -1,4 +1,4 @@
-// AthleteOS — Messages thread overlay (coach↔athlete / role↔athlete).
+// OnStandard — Messages thread overlay (coach↔athlete / role↔athlete).
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { useStore } from '@/store';

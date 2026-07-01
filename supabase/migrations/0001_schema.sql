@@ -1,4 +1,4 @@
--- AthleteOS — Phase 2 multi-tenant schema
+-- OnStandard — Phase 2 multi-tenant schema
 -- See docs/specs/phase2-multitenant-backend.md. Run order: 0001 -> 0002 -> 0003.
 -- Principle: one athlete = one source of truth; coaches/parents/trainers are linked
 -- viewers. The athlete is the ONLY writer of their own day/meals/checkins.

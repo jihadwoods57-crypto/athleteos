@@ -1,24 +1,24 @@
 {
   "expo": {
-    "name": "AthleteOS",
-    "slug": "athleteos",
+    "name": "OnStandard",
+    "slug": "onstandard",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "athleteos",
+    "scheme": "onstandard",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.athleteos.app",
+      "bundleIdentifier": "com.onstandard.app",
       "buildNumber": "1",
       "config": {
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "AthleteOS uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
-        "NSPhotoLibraryUsageDescription": "AthleteOS needs photo library access so you can pick an existing meal photo to log and analyze.",
-        "NSPhotoLibraryAddUsageDescription": "AthleteOS can save a meal photo back to your library after you log it.",
+        "NSCameraUsageDescription": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
+        "NSPhotoLibraryUsageDescription": "OnStandard needs photo library access so you can pick an existing meal photo to log and analyze.",
+        "NSPhotoLibraryAddUsageDescription": "OnStandard can save a meal photo back to your library after you log it.",
         "ITSAppUsesNonExemptEncryption": false
       },
       "privacyManifests": {
@@ -72,8 +72,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "AthleteOS lets you pick an existing meal photo to log and analyze.",
-          "cameraPermission": "AthleteOS uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only."
+          "photosPermission": "OnStandard lets you pick an existing meal photo to log and analyze.",
+          "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only."
         }
       ],
       "expo-secure-store"

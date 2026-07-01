@@ -1,4 +1,4 @@
-// AthleteOS — openMealHistory store action. Proves the client-history fetch is gated:
+// OnStandard — openMealHistory store action. Proves the client-history fetch is gated:
 // flag OFF -> never fetches, mealHistory stays null (overlay falls back to local
 // meals); flag ON with a signed-in user -> fetches the bounded window and stores the
 // rows. The supabase lib is mocked; isBackendLive is toggled via isolateModules.

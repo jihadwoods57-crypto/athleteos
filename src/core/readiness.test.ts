@@ -1,4 +1,4 @@
-// AthleteOS — training-readiness engine. Proves the composite reads off real signals, returns null
+// OnStandard — training-readiness engine. Proves the composite reads off real signals, returns null
 // when there's nothing to read (no fabrication), bands correctly, and the overtraining flag needs a
 // real downward trend (not a single bad night).
 import { readinessScore, readinessBand, overtrainingFlag, readinessSummary, readinessLabel } from './readiness';

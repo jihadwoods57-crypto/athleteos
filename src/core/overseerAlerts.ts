@@ -1,4 +1,4 @@
-// AthleteOS — overseer notification preferences (pure TS, no RN imports).
+// OnStandard — overseer notification preferences (pure TS, no RN imports).
 // The audit flagged that coaches/trainers/parents get a single on/off, no per-event
 // control. These are the events an overseer can be alerted about for their athletes;
 // the master `notif` flag still gates whether ANY fire (mirrors the athlete reminder

@@ -1,4 +1,4 @@
--- AthleteOS — Phase 2 Storage: meal photos
+-- OnStandard — Phase 2 Storage: meal photos
 -- Path convention: meal-photos/{athlete_id}/{date}/{meal_id}.jpg
 -- First path segment == athlete_id, which the policies key off.
 

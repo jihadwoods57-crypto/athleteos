@@ -1,4 +1,4 @@
-// AthleteOS — typed data access (inert until configured).
+// OnStandard — typed data access (inert until configured).
 // All functions return null / [] when Supabase is unconfigured so callers can fall
 // back to local mock data with a single `?? mock` rather than branching everywhere.
 // RLS does the authorization; these never widen access beyond the signed-in user.

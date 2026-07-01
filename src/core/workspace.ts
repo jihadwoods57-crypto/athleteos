@@ -1,4 +1,4 @@
-// AthleteOS — active-workspace selector (pure TS, no RN/Supabase).
+// OnStandard — active-workspace selector (pure TS, no RN/Supabase).
 //
 // PHASE A seam (docs/architecture/07 + DECISION-MEMO D5). A multi-org member (a
 // nutritionist serving several schools, or an athlete in a school + a club + a private

@@ -1,4 +1,4 @@
-AthleteOS — Daily Report, 2026-06-28 (UTC) · Day 3 of 4
+OnStandard — Daily Report, 2026-06-28 (UTC) · Day 3 of 4
 
 Founder-away daily digest. Covers the crew's work since the Day-2 digest — a daytime
 "make the loop real" run plus a large evening/overnight build run — and where the

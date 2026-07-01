@@ -1,4 +1,4 @@
-# AthleteOS — Full Security Audit (2026-06-29)
+# OnStandard — Full Security Audit (2026-06-29)
 
 Whole-codebase + Supabase-backend audit run by five parallel read-only auditors
 (auth/session, database RLS/authz, consent/COPPA/privacy, secrets/config/supply-chain,

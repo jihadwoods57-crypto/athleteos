@@ -1,4 +1,4 @@
-// AthleteOS — recovery-source seam (P5, inert behind isHealthAvailable).
+// OnStandard — recovery-source seam (P5, inert behind isHealthAvailable).
 //
 // Models ingesting a real recovery reading (sleep / HRV / resting HR) from Apple
 // Health (HealthKit) or Android Health Connect, to fold into the recovery sub-score

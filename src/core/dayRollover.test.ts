@@ -1,4 +1,4 @@
-// AthleteOS — calendar-day rollover tests. Pure, injected dates, no real clock.
+// OnStandard — calendar-day rollover tests. Pure, injected dates, no real clock.
 // Each case maps 1:1 to an acceptance criterion for the day-rollover fix.
 import { recordDayNutrition, recordDayScore, recordDayWeight, rollDayIfStale, todayStamp } from './dayRollover';
 import { createInitialState } from './defaultState';

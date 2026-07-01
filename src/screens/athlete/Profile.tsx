@@ -1,4 +1,4 @@
-// AthleteOS — Profile. Identity, targets, read-only "managed by your program"
+// OnStandard — Profile. Identity, targets, read-only "managed by your program"
 // visibility panel, connections, settings, sign out.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
@@ -358,7 +358,7 @@ export function Profile() {
         </Txt>
       </Pressable>
       <Txt w="sb" size={12} color={colors.textSecondary} style={{ textAlign: 'center', marginTop: 16 }}>
-        AthleteOS · v1.0
+        OnStandard · v1.0
       </Txt>
     </ScrollView>
   );

@@ -1,4 +1,4 @@
--- AthleteOS — Tier 2 Trust & safety: minor-messaging governance gate
+-- OnStandard — Tier 2 Trust & safety: minor-messaging governance gate
 --
 -- Day-2 shipped athlete<->counterpart messaging whose RLS (0002) allowed ANY thread
 -- participant to read/write, with no age or relationship governance — a minor athlete

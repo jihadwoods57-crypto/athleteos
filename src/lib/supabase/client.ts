@@ -1,4 +1,4 @@
-// AthleteOS — Supabase client (inert until keys are provided).
+// OnStandard — Supabase client (inert until keys are provided).
 //
 // Phase 2 is "scaffolded, keys later": with no EXPO_PUBLIC_SUPABASE_URL /
 // EXPO_PUBLIC_SUPABASE_ANON_KEY set, `supabase` is null and `isSupabaseConfigured`

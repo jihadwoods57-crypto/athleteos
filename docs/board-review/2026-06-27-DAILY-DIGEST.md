@@ -1,4 +1,4 @@
-AthleteOS — Daily Report, 2026-06-27 (UTC) · Day 2 of 4
+OnStandard — Daily Report, 2026-06-27 (UTC) · Day 2 of 4
 
 Founder-away daily digest. Covers the crew's Day-2 sprint work and tonight's first
 real advisory-board verdict. Branch: crew/4day-sprint @ bb03cba (tag day2-end).

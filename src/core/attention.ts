@@ -1,4 +1,4 @@
-// AthleteOS — at-risk detection for the overseer dashboards (pure TS, no RN imports).
+// OnStandard — at-risk detection for the overseer dashboards (pure TS, no RN imports).
 // The coach/trainer dashboard answers one question on open: "who needs my attention
 // today?" This derives that list from the live roster/book instead of hand-picked
 // rows, so the Needs-Attention surface, its count badge, and the alerts/follow-ups

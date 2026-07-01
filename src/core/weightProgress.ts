@@ -1,4 +1,4 @@
-// AthleteOS — weight-progress tone (pure TS, no RN imports).
+// OnStandard — weight-progress tone (pure TS, no RN imports).
 //
 // A weight change is only "good" or "bad" relative to the user's GOAL. The old UI hardcoded
 // "gain = green, loss = red", which paints a weight-loss client's progress as an alert (a real

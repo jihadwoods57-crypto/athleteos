@@ -1,4 +1,4 @@
-// AthleteOS — Athlete/Client detail overlay (from coach/trainer roster rows).
+// OnStandard — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal } from '@/core';

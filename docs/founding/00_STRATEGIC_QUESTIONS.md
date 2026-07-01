@@ -17,7 +17,7 @@
 
 ## The thesis in one paragraph (so every answer below ladders to it)
 
-AthleteOS is not a nutrition app and must never be benchmarked against one. It is the **execution
+OnStandard is not a nutrition app and must never be benchmarked against one. It is the **execution
 and accountability operating system** that sits between a plan and a human doing it, and it wins by
 owning two things no incumbent can copy without rebuilding their data model: (1) a **portable,
 athlete-owned profile and Development Score history that compounds across every organization an
@@ -27,7 +27,7 @@ Everything that follows is downstream of that.
 
 ---
 
-## 1. "What should AthleteOS become?"
+## 1. "What should OnStandard become?"
 
 **The category-defining operating system for human execution — the system of record for "did the
 plan get done, and did it work" — starting in nutrition and expanding into the full athlete-
@@ -37,7 +37,7 @@ the **Development Score becomes the credential** that follows an athlete from an
 coach to a Power-5 program to a pro front office — the way a credit score follows a consumer or a
 Whoop Recovery score follows a body.
 
-The test for "became what we should": **a college recruiter asks for an athlete's AthleteOS
+The test for "became what we should": **a college recruiter asks for an athlete's OnStandard
 Development Score history the way they ask for a transcript or a 40 time.** That is the endgame —
 not MAU, not meals logged. We become infrastructure, not an app, when the *number we own* is cited
 by people who never installed our product.
@@ -154,7 +154,7 @@ will lose individual coach deals rather than fragment the score.**
 
 **The wedge segment is the single competitive-sport coach or sports-performance trainer running a
 roster of ~15–40 athletes (high-school varsity and private performance/strength facilities), who
-will adopt AthleteOS as a nutrition-accountability tool — explicitly NOT as a full performance
+will adopt OnStandard as a nutrition-accountability tool — explicitly NOT as a full performance
 system.** This is the persona review's own verdict (strongest target user: the HS / sports-
 performance coach; recommended beta: a hand-held cohort of HS or sports-performance coaches, roster
 ~15–40, athletes whose parents are *not yet* load-bearing so the minor-consent layer isn't the
@@ -351,7 +351,7 @@ a weighting. Indispensable when her clients' between-session adherence is visibl
 her authority — she can't get that liability-safe visibility anywhere else. **Requires:** real, editable,
 confidence-labeled macros (the headline gap + Dana's hard requirement) and per-client plan/target authoring.
 
-## 16. "What makes a customer say 'I can't imagine running my business without AthleteOS'?"
+## 16. "What makes a customer say 'I can't imagine running my business without OnStandard'?"
 
 **When the Development Score becomes the shared language their operation runs on, and the between-session
 visibility becomes a number on their P&L.** Concretely, the irreversible moment is when a coach/trainer/gym
@@ -411,7 +411,7 @@ Otherwise we have built a Ferrari engine that needs a fuel the wedge won't pour.
 
 **B. RISKY: that the consumer / "everyone" market is a near-term opportunity (the §11b "design for many"
 instinct over-applied).** The Goal-Aware architecture is *correctly* built to flex to N user types — but the
-founder's enthusiasm for breadth ("AthleteOS is NOT an athlete-only app") risks being read as a GTM mandate.
+founder's enthusiasm for breadth ("OnStandard is NOT an athlete-only app") risks being read as a GTM mandate.
 It is not. **Recommended alternative:** hold "design for many, ship two" (Rule #14) as *architecture only*.
 Going wide before the coach-led wedge retains burns CAC against free incumbents with no network effect. Win
 one segment so completely it becomes the reference case; let breadth be *pulled* by the wedge buyer (a trainer
@@ -473,7 +473,7 @@ Deliberately **not** on the list (so the Roadmap can cite the exclusions): real-
 SSO/API, wearables-as-score, bulk SIS import, custom per-org roles — all valuable, all `[DON'T BUILD YET]`,
 all reserved seams (§11).
 
-## 20. "What should become the SIGNATURE experience everyone associates with AthleteOS?"
+## 20. "What should become the SIGNATURE experience everyone associates with OnStandard?"
 
 **The morning Daily Game Plan built around your Development Score — and specifically the Finish-Today
 projection: every morning the app tells you the one number, the one focus, and exactly how to still win
@@ -493,7 +493,7 @@ The Daily Game Plan wins because it is the only experience that is simultaneousl
 visibility to the invested human *is* the accountability that changes behavior — the moat and the emotion in
 one), and **(d) the home of the loop** (Plan → Execute → Reflect → Connect → Prove starts here every day). We
 plant one word in the market — **the Development Score** — the way Whoop planted "Recovery," and the one
-unforgettable moment is: *"Every morning AthleteOS tells me exactly how to win the day, and my coach is
+unforgettable moment is: *"Every morning OnStandard tells me exactly how to win the day, and my coach is
 watching me do it."* (Honest-naming caveat from §18-C applies: in-product, the number is precisely named to its
 current substance; "Development Score" is the destination brand we grow into, not a claim we make before the
 signals back it.)

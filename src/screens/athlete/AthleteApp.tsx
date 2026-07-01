@@ -1,4 +1,4 @@
-// AthleteOS — athlete app shell: tab content + bottom tab bar + camera FAB +
+// OnStandard — athlete app shell: tab content + bottom tab bar + camera FAB +
 // full-screen overlays (meal capture/detail, account, messages, notifications).
 import React from 'react';
 import { View } from 'react-native';

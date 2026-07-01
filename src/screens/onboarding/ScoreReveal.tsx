@@ -1,4 +1,4 @@
-// AthleteOS — Starting Point Score reveal. Cinematic but in-system: the ring
+// OnStandard — Starting Point Score reveal. Cinematic but in-system: the ring
 // draws, the number counts up to the score, the grade fades in. Reduce-motion aware.
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, View } from 'react-native';

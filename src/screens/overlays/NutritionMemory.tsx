@@ -1,5 +1,5 @@
-// AthleteOS — Nutrition Memory overlay. The differentiator surface: longitudinal insights
-// the AthleteOS remembers from logged history ("breakfast protein 18g → 37g", "dinner keeps
+// OnStandard — Nutrition Memory overlay. The differentiator surface: longitudinal insights
+// the OnStandard remembers from logged history ("breakfast protein 18g → 37g", "dinner keeps
 // slipping", "your go-to meal"). Every line is COMPUTED from real data by core/nutritionMemory;
 // this only paints what the engine returns. Until there's enough real history it shows the
 // tagged sample seed (honest: a Sample chip), and the label flips from "Coach memory" to
@@ -47,7 +47,7 @@ export function NutritionMemory() {
             <Txt w="eb" size={12} color={colors.accent} ls={0.6}>{memoryLabel.toUpperCase()}</Txt>
           </Row>
           <Txt w="sb" size={16} color={colors.slate700} style={{ marginTop: 12, lineHeight: 23 }}>
-            This is what AthleteOS remembers about how you eat — not just today's meal, but how
+            This is what OnStandard remembers about how you eat — not just today's meal, but how
             your habits are moving over time.
           </Txt>
           {sampled ? (

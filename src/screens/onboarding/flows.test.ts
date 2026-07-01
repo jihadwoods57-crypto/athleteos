@@ -1,4 +1,4 @@
-// AthleteOS — athlete onboarding step order. Proves the account-creation + consent
+// OnStandard — athlete onboarding step order. Proves the account-creation + consent
 // gates are present ONLY when the backend is live, so with the flag off the flow is
 // byte-identical to today (no extra steps, same order, neither reachable before any
 // real-data path exists).

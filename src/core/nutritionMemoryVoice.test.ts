@@ -56,7 +56,7 @@ describe('rephraseIsSafe (strict number preservation)', () => {
   });
 
   it('handles a numberless insight (any wording with no numbers is fine)', () => {
-    const noNum: MemoryInsight = { ...base, headline: 'Your go-to meal', detail: 'You keep coming back to the same dinner. The AthleteOS knows your kitchen.', metric: undefined };
+    const noNum: MemoryInsight = { ...base, headline: 'Your go-to meal', detail: 'You keep coming back to the same dinner. The OnStandard knows your kitchen.', metric: undefined };
     const r = warm({ headline: 'This is your signature meal', detail: 'You lean on the same dinner again and again, and we know it well.' });
     expect(rephraseIsSafe(noNum, r)).toBe(true);
   });

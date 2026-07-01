@@ -1,4 +1,4 @@
-// AthleteOS — Parent mobile view: score + reassurance, weekly compliance,
+// OnStandard — Parent mobile view: score + reassurance, weekly compliance,
 // weight + nutrition trends, coach notes, AI parent summary.
 import React from 'react';
 import { ScrollView, View } from 'react-native';

@@ -1,4 +1,4 @@
-// AthleteOS — encrypted auth-token storage adapter (L1). Proves the chunking round-trips any size
+// OnStandard — encrypted auth-token storage adapter (L1). Proves the chunking round-trips any size
 // (incl. tokens past SecureStore's 2KB cap), survives a stale->new overwrite, treats a missing
 // chunk as absent (safe re-auth), and that the web path delegates to AsyncStorage.
 //

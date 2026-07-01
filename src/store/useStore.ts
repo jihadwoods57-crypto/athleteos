@@ -1,4 +1,4 @@
-// AthleteOS — single session store (Zustand) + AsyncStorage persistence.
+// OnStandard — single session store (Zustand) + AsyncStorage persistence.
 // Mirrors the prototype's component state + methods; the day slice persists
 // under key `aos_day`, exactly like the prototype's localStorage usage.
 import AsyncStorage from '@react-native-async-storage/async-storage';

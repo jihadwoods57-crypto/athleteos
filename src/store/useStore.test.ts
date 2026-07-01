@@ -1,4 +1,4 @@
-// AthleteOS — store-level integration tests. Drives the real Zustand actions and
+// OnStandard — store-level integration tests. Drives the real Zustand actions and
 // asserts that the derived score (computeDerived over the live state) moves the
 // way the prototype intends. AsyncStorage is mocked so the node env can run it.
 jest.mock('@react-native-async-storage/async-storage', () =>

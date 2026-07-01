@@ -1,4 +1,4 @@
-// AthleteOS — meal-record sync consent gate + projection (Part A safety core).
+// OnStandard — meal-record sync consent gate + projection (Part A safety core).
 // Proves recordMeal FAILS CLOSED exactly like pushDay: it inserts a meal only when
 // the backend is live AND realDataConsent passes, uploads the photo to the right
 // path, and projects edited macros over the estimate. The supabase lib is mocked so

@@ -1,4 +1,4 @@
-// AthleteOS — inline SVG icon set (2px stroke, round caps, currentColor-driven).
+// OnStandard — inline SVG icon set (2px stroke, round caps, currentColor-driven).
 import React from 'react';
 import Svg, { Circle, Path, Polyline, Rect } from 'react-native-svg';
 import { colors } from '@/ui/tokens';

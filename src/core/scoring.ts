@@ -1,5 +1,5 @@
-// AthleteOS — reactive scoring engine (pure functions).
-// Ported verbatim from AthleteOS.dc.html renderVals() / gradeFor().
+// OnStandard — reactive scoring engine (pure functions).
+// Ported verbatim from OnStandard.dc.html renderVals() / gradeFor().
 import {
   CAL_TARGET,
   CARB_TARGET,

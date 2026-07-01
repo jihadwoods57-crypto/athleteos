@@ -1,4 +1,4 @@
-// AthleteOS — the real meal loop (Tier 1). Proves the daily score reads a saved
+// OnStandard — the real meal loop (Tier 1). Proves the daily score reads a saved
 // edited plate's REAL macros for a slot, falls back to the slot constant when no
 // plate is saved (so the seeded demo is unchanged), and that an edit MOVES the
 // nutrition sub-score + headline. Pure: drives computeDerived against crafted state.

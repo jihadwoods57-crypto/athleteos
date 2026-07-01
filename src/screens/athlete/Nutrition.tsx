@@ -1,4 +1,4 @@
-// AthleteOS — Nutrition. Time-aware coach-set goal, macro rings, protein gap
+// OnStandard — Nutrition. Time-aware coach-set goal, macro rings, protein gap
 // quick-adds (add real grams), today's meal log.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
@@ -306,7 +306,7 @@ function MemoryEntry() {
           {sampled ? <SampleTag /> : null}
         </Row>
         <Txt w="m" size={12} color={colors.textTertiary} numberOfLines={1} style={{ marginTop: 2 }}>
-          {top ? top.headline : 'What AthleteOS remembers about how you eat'}
+          {top ? top.headline : 'What OnStandard remembers about how you eat'}
         </Txt>
       </View>
       {top?.metric ? (

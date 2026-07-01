@@ -1,4 +1,4 @@
-// AthleteOS — Check-In tab. Only coach-enabled questions render; submitting
+// OnStandard — Check-In tab. Only coach-enabled questions render; submitting
 // writes weight back and feeds the Recovery score.
 import React from 'react';
 import { ScrollView, View } from 'react-native';

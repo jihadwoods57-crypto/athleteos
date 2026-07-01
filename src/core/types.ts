@@ -1,4 +1,4 @@
-// AthleteOS — core domain types (pure TS, no React/RN imports).
+// OnStandard — core domain types (pure TS, no React/RN imports).
 // Ported faithfully from the design prototype's state model.
 import type { Units } from './units';
 import type { MealResult } from './content';
@@ -265,7 +265,7 @@ export interface AppState {
   coachGoalsOpen: boolean;
   /** Client meal-history overlay (past uploads). */
   mealHistoryOpen: boolean;
-  /** Nutrition Memory overlay (longitudinal "what the AthleteOS remembers" insights). */
+  /** Nutrition Memory overlay (longitudinal "what the OnStandard remembers" insights). */
   nutritionMemoryOpen: boolean;
   /** Meals fetched from the backend for the history overlay (null = not fetched /
    *  backend off, so the overlay falls back to today's locally-logged meals).

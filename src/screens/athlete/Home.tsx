@@ -1,4 +1,4 @@
-// AthleteOS — Athlete Home: score hero, season goal, trend, progress, insight,
+// OnStandard — Athlete Home: score hero, season goal, trend, progress, insight,
 // coach guidance, next action, check-in banner.
 import React from 'react';
 import { ScrollView, View } from 'react-native';

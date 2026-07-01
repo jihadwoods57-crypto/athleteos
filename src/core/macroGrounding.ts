@@ -1,4 +1,4 @@
-// AthleteOS — macro grounding (pure TS, no RN imports).
+// OnStandard — macro grounding (pure TS, no RN imports).
 //
 // A meal photo's macros are the weakest number in the app: vision models guess grams from
 // pixels, and a wrong "52g protein" silently corrupts the score. This is the honest guard.

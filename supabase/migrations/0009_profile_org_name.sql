@@ -1,4 +1,4 @@
--- AthleteOS — Phase 2 accounts/settings: profiles.org_name
+-- OnStandard — Phase 2 accounts/settings: profiles.org_name
 -- Additive migration. The OverseerProfile editor (coach/trainer/parent) lets a user
 -- edit their org/team/practice name, which drives the dashboard title. The app already
 -- stores it locally and db.updateProfile pushes the display name; this adds the column

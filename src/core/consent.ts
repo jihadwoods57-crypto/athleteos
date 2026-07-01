@@ -1,4 +1,4 @@
-// AthleteOS — real-data consent gate (pure TS, no RN imports).
+// OnStandard — real-data consent gate (pure TS, no RN imports).
 // Before the live backend collects an athlete's real body-weight / meal data,
 // consent must be in place — and for a minor (under 18) that consent is required,
 // not optional. This is the deterministic guard the go-live data path checks so it

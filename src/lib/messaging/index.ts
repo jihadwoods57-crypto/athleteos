@@ -1,4 +1,4 @@
-// AthleteOS — messaging delivery seam (P4, inert unless the backend is live).
+// OnStandard — messaging delivery seam (P4, inert unless the backend is live).
 //
 // The pure thread/message model lives in core/messaging.ts; this is the DEVICE/
 // network half: actually delivering an outgoing message to a real person. That is

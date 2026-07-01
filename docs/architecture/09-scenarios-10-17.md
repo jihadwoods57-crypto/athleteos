@@ -72,7 +72,7 @@ pure `src/core` today (11 goal scaffolding, 14 editable estimate).
 
 ### Scenario 10 — Athletic department expanding from one team to every sport
 
-A school runs Football on AthleteOS, then wants Track, Soccer, Basketball, and a department-wide
+A school runs Football on OnStandard, then wants Track, Soccer, Basketball, and a department-wide
 AD view — one contract, one roster, comparable numbers across sports.
 
 **Ideal UX.** The AD signs in, sees a **department dashboard** (every program's compliance at a
@@ -433,7 +433,7 @@ below the safety minimum.
 ### Scenario 17 — Bulk onboarding 150 athletes
 
 An athletic director provisions 150 athletes from a SIS export in one sitting — and a transferring
-athlete who already used AthleteOS must be **matched, never duplicated**.
+athlete who already used OnStandard must be **matched, never duplicated**.
 
 **Ideal UX.** The AD uploads a CSV, maps columns once, sees a preview ("142 new, 6 matched to
 existing athletes, 2 need your confirmation"), confirms, and sends invites in bulk. Athletes (or

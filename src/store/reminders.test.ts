@@ -1,4 +1,4 @@
-// AthleteOS — store-level tests for the P3 reminder settings: the toggle/hour
+// OnStandard — store-level tests for the P3 reminder settings: the toggle/hour
 // actions, defaults, persistence, and the hour clamp. Pure store logic.
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),

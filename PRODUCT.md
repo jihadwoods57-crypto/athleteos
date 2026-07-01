@@ -1,4 +1,4 @@
-# AthleteOS — Product Context
+# OnStandard — Product Context
 
 register: product
 
@@ -34,7 +34,7 @@ short and earns its place. Never cutesy, never corporate-SaaS, never fake-hype.
 - **Glanceable truth.** A coach or athlete should read their state in under 3 seconds.
 - **Calm, premium, trustworthy.** This is a serious tool people are judged by — it should
   feel considered and clean, not loud. Athlete Blue is the spine; color is earned, not sprayed.
-- **The established design system is law.** AthleteOS already has a committed visual language
+- **The established design system is law.** OnStandard already has a committed visual language
   (see DESIGN.md): Plus Jakarta Sans, Athlete Blue `#2563EB`, soft slate neutrals, layered
   soft shadows, generous radii. **Refine WITHIN it.** Do not migrate color spaces, restyle
   wholesale, or invent a new language — sharpen fidelity, rhythm, motion, and polish.

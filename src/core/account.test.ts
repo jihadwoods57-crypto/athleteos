@@ -37,15 +37,15 @@ describe('accountRows', () => {
     const help = accountRows('sports_perf_coach')[2];
     expect(help.key).toBe('help');
     expect(help.hint).toBe(APP_VERSION);
-    expect(help.detail).toContain('support@athleteos.app');
+    expect(help.detail).toContain('support@onstandard.app');
     expect(help.detail).not.toMatch(/no data leaves the app/i);
   });
 
   it('exposes a legal row with the privacy policy + terms', () => {
     const legal = accountRows('athlete')[3];
     expect(legal.key).toBe('legal');
-    expect(legal.detail).toContain('athleteos.app/privacy');
-    expect(legal.detail).toContain('athleteos.app/terms');
+    expect(legal.detail).toContain('onstandard.app/privacy');
+    expect(legal.detail).toContain('onstandard.app/terms');
   });
 
   it('keeps copy free of em dashes (design ban)', () => {

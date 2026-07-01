@@ -1,4 +1,4 @@
-// AthleteOS — pure-core unit test for the Nutrition row-builder helper.
+// OnStandard — pure-core unit test for the Nutrition row-builder helper.
 import { mealRowsFor, mealResultFor } from './content';
 import { computeDerived } from './scoring';
 import { createInitialState } from './defaultState';

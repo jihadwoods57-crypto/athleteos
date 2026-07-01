@@ -1,4 +1,4 @@
-// AthleteOS — notifications seam (inert until expo-notifications is added).
+// OnStandard — notifications seam (inert until expo-notifications is added).
 //
 // Accountability needs timely prompts: protein/hydration/dinner/check-in reminders
 // for the athlete (P3). This file is the DEVICE half: the glue that would (re)schedule

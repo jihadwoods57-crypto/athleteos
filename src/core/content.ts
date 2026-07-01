@@ -1,4 +1,4 @@
-// AthleteOS — content data + display-string helpers (pure).
+// OnStandard — content data + display-string helpers (pure).
 // Ported from the prototype: meal log, meal-analysis results, AI insight, pace.
 import type { AppState, CiConfig, Derived, MealKey, MealLabel } from './types';
 import { mealSlotMacros } from './scoring';
@@ -587,7 +587,7 @@ export function squadView(opts: { isReal: boolean }): SquadView {
     showLeague: false,
     empty: {
       title: 'No squad connected yet',
-      body: 'When your team or training group joins AthleteOS, your weekly leaderboard shows up here. Your own score keeps tracking in the meantime.',
+      body: 'When your team or training group joins OnStandard, your weekly leaderboard shows up here. Your own score keeps tracking in the meantime.',
     },
   };
 }

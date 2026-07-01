@@ -1,4 +1,4 @@
-// AthleteOS — F1 regression: the meal-photo AI path must honor the consent gate.
+// OnStandard — F1 regression: the meal-photo AI path must honor the consent gate.
 // Sending a meal photo (or its description) to the AI endpoint is real athlete data
 // leaving the device to a third party (Anthropic), so capture() must clear the SAME
 // fail-closed gate as pushDay/recordMeal: an un-consented athlete, an unverified minor,

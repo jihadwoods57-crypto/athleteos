@@ -1,4 +1,4 @@
-// AthleteOS — the Coach Plan (pure TS, no RN imports).
+// OnStandard — the Coach Plan (pure TS, no RN imports).
 //
 // THE KEYSTONE that ties the two engines together: the coach/trainer/nutritionist defines
 // the plan ONCE here, and both engines read it —

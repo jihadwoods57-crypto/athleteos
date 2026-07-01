@@ -1,4 +1,4 @@
-// AthleteOS — editable meal estimate (pure TS, no RN imports).
+// OnStandard — editable meal estimate (pure TS, no RN imports).
 // The persona review's nutritionist flagged that the meal's macros/quality look
 // authoritative but can't be corrected (dead steppers). This makes the estimate
 // editable and self-consistent: each food carries a numeric per-serving share of

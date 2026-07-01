@@ -1,4 +1,4 @@
-// AthleteOS — Accountability Engine. Proves the meal-window state machine, the 5-level
+// OnStandard — Accountability Engine. Proves the meal-window state machine, the 5-level
 // escalation, plan adherence with no floors, and plan-RELATIVE goal-aware meal coaching
 // (same plate, different feedback for a gainer vs a cutter).
 import { mealWindowStatuses, escalation, planAdherence, planMealNote } from './adherence';

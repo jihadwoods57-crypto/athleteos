@@ -1,4 +1,4 @@
-// AthleteOS — identity helpers. The avatar monogram + you-row name derive from
+// OnStandard — identity helpers. The avatar monogram + you-row name derive from
 // the live athleteName, so pin the name-parsing edge cases.
 import { accountIdentity, coachTeamTitle, firstName, initials, monitoredAthlete, trainerLens, trainerOrgTitle } from './identity';
 

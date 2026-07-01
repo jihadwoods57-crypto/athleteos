@@ -1,4 +1,4 @@
-// AthleteOS — screen-data smoke net. The jest harness is node-env / pure-core
+// OnStandard — screen-data smoke net. The jest harness is node-env / pure-core
 // (no react-native render preset is installable here — jest 30 conflicts with
 // jest-expo's @react-native/jest-preset), so we can't mount the React screens
 // themselves. Instead we drive the SAME pure selectors every screen renders from,

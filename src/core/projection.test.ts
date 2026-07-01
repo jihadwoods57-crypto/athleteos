@@ -1,4 +1,4 @@
-// AthleteOS — Projected Development Score. Proves the projection reuses computeDerived
+// OnStandard — Projected Development Score. Proves the projection reuses computeDerived
 // (single authority), never reads below current, lists the right remaining actions, and
 // collapses to "nothing left" on a fully-completed day.
 import { projectedScore } from './projection';

@@ -1,4 +1,4 @@
--- AthleteOS — Phase B code-side: backfill org_memberships + cut can_view over to it
+-- OnStandard — Phase B code-side: backfill org_memberships + cut can_view over to it
 --
 -- The behavioral cutover deferred by 0011. It (1) backfills org_memberships from the
 -- TEAM link tables (the Phase B wedge is "one coach + one team"), then (2) swaps

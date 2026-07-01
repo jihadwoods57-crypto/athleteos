@@ -1,4 +1,4 @@
-// AthleteOS — store-level meal loop (Tier 1). Drives the real saveMeal action and
+// OnStandard — store-level meal loop (Tier 1). Drives the real saveMeal action and
 // asserts: a saved plate persists into day state, logs the slot, closes the detail
 // overlay, and that the authoritative computeDerived score reflects the real macros.
 jest.mock('@react-native-async-storage/async-storage', () =>

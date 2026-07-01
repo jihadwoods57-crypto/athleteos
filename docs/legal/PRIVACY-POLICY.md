@@ -1,13 +1,13 @@
-# AthleteOS — Privacy Policy
+# OnStandard — Privacy Policy
 
 > **DRAFT — accurate to the app as of 2026-06-29; requires legal review before publishing. Not legal advice.**
 >
-> This document was authored by engineering to describe, truthfully, what the AthleteOS
+> This document was authored by engineering to describe, truthfully, what the OnStandard
 > application actually collects and does as of the date above. It is a review-ready draft
 > for a qualified attorney. It is **not** legal advice and is **not** a substitute for
 > counsel. It must be reviewed and finalized by an attorney (COPPA, FERPA, GDPR, CCPA/CPRA,
 > and state minor-privacy law) before it is hosted at the URL the app links to
-> (`PRIVACY_POLICY_URL` = `https://athleteos.app/privacy`) and before the backend is enabled
+> (`PRIVACY_POLICY_URL` = `https://onstandard.app/privacy`) and before the backend is enabled
 > for real users.
 
 ---
@@ -18,7 +18,7 @@ Each must be supplied and lawyer-reviewed before this policy goes live:
 
 1. **Legal entity name and registered address** of the operator (used throughout; placeholder `[LEGAL ENTITY NAME]`, `[ADDRESS]`).
 2. **Effective date** of this policy.
-3. **Privacy contact / DPO**: a real, monitored privacy contact (and an EU/UK representative if GDPR applies). Today the only contact in code is `support@athleteos.app`.
+3. **Privacy contact / DPO**: a real, monitored privacy contact (and an EU/UK representative if GDPR applies). Today the only contact in code is `support@onstandard.app`.
 4. **Governing law / jurisdiction** for privacy claims (mirror the Terms).
 5. **Data-retention windows** — how long active-account data is kept, and the deletion-completion window after an account is deleted (placeholder `[N] days`). This is a policy decision, not a code fact.
 6. **Anthropic (Claude) data-processing terms** — the signed DPA, whether submitted images/data are retained by Anthropic and for how long, and whether they are used for model training. Marked `[FOUNDER/DPA TO CONFIRM]` in §4. Do not publish the §4 claims until verified against the current Anthropic commercial terms / DPA in force.
@@ -31,19 +31,19 @@ Each must be supplied and lawyer-reviewed before this policy goes live:
 
 **Effective date:** [DATE]
 **Operator:** [LEGAL ENTITY NAME], [ADDRESS]
-**Contact:** support@athleteos.app
+**Contact:** support@onstandard.app
 
 ---
 
 ## 1. Who this policy is for
-AthleteOS is an athlete nutrition-accountability platform for athletes and the people who
+OnStandard is an athlete nutrition-accountability platform for athletes and the people who
 support them (parents/guardians, personal trainers, sports-performance coaches,
 nutritionists, and high-school and college coaches). The app's primary users are athletes
 roughly ages 13–22. **Some athletes are minors.** We treat athlete nutrition, weight, and
 check-in data as sensitive and apply heightened protections to minors' data (see §7).
 
 ## 2. Two modes: on-device vs. connected
-AthleteOS can run in two states, and what we collect depends on which is active:
+OnStandard can run in two states, and what we collect depends on which is active:
 
 - **On-device only (default in the current build).** When the app's backend is not enabled,
   the app runs entirely on your device using local storage. In this state, **no personal data
@@ -104,7 +104,7 @@ Anthropic commercial terms / Data Processing Addendum in force and disclosed her
 publishing. Do not publish a specific claim about Anthropic retention or training until verified.
 
 ## 5. The AI and the app are not medical advice
-AthleteOS provides nutrition education and accountability, **not medical advice.** AI meal
+OnStandard provides nutrition education and accountability, **not medical advice.** AI meal
 estimates, scores, and coaching copy are estimates and may be inaccurate. The app is not a
 substitute for a physician or registered dietitian and must not be used to diagnose or treat
 any condition. **[FOUNDER + COUNSEL TO COMPLETE: add an eating-disorder / mental-health
@@ -154,13 +154,13 @@ behavioral advertising.**
   messaging is limited to the minor's authorized coach, trainer, or guardian.
 - **Guardian rights.** A parent or guardian can review their minor's data, request its
   deletion, and withdraw consent at any time using the in-app controls or by contacting
-  support@athleteos.app.
+  support@onstandard.app.
 
 ## 9. Education records (FERPA)
-Where a school, team, or coach provides rosters, or where AthleteOS handles data that may
+Where a school, team, or coach provides rosters, or where OnStandard handles data that may
 constitute education records, we handle that data to provide the service to the school/team and
 do not sell it or use it for unrelated purposes. **[FOUNDER + COUNSEL TO COMPLETE: attach a
-school data-processing addendum if AthleteOS is sold to or used by schools.]**
+school data-processing addendum if OnStandard is sold to or used by schools.]**
 
 ## 10. Your rights: access, export, and deletion
 - **Export.** You can export a structured (JSON) copy of your own data from the app's Account
@@ -175,7 +175,7 @@ school data-processing addendum if AthleteOS is sold to or used by schools.]**
   additional rights, including access, correction, deletion, portability, and the right to opt
   out of the sale or sharing of personal information. **We do not sell or share personal
   information** as those terms are used by CCPA/CPRA. To exercise any right, use the in-app
-  controls or email support@athleteos.app.
+  controls or email support@onstandard.app.
 
 ## 11. Data retention
 We keep your data while your account is active. When you delete your account, we delete your
@@ -207,4 +207,4 @@ We will post changes here and update the effective date. We will provide notice 
 changes; material changes affecting minors will be communicated to guardians.
 
 ## 15. Contact
-Questions or requests: support@athleteos.app — [LEGAL ENTITY NAME], [ADDRESS].
+Questions or requests: support@onstandard.app — [LEGAL ENTITY NAME], [ADDRESS].

@@ -1,4 +1,4 @@
-// AthleteOS — shared reduce-motion hook.
+// OnStandard — shared reduce-motion hook.
 // Mirrors the OS "Reduce Motion" accessibility preference and stays live: it
 // reads the current value on mount and updates if the user toggles the setting
 // while the app is open. Animated surfaces (Ring, ProgressBar, Overlay) gate

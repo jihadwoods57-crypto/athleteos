@@ -1,4 +1,4 @@
-// AthleteOS — verifiable parental consent (VPC) model. Proves the gate keeps a minor's
+// OnStandard — verifiable parental consent (VPC) model. Proves the gate keeps a minor's
 // real data on-device until a guardian is verified, and email validation is sane.
 import { isValidGuardianEmail, guardianConsentRequired, guardianConsentCopy, guardianStatusFromRequests } from './guardianConsent';
 

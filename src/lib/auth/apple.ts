@@ -1,4 +1,4 @@
-// AthleteOS — Sign in with Apple seam (gated, native-deferred).
+// OnStandard — Sign in with Apple seam (gated, native-deferred).
 //
 // App Store Guideline 4.8 requires Sign in with Apple when an app offers email
 // login. The real flow needs `expo-apple-authentication` (a native module) plus the

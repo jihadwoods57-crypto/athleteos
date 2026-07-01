@@ -1,4 +1,4 @@
-// AthleteOS — scoring profiles (pure TS, no RN imports).
+// OnStandard — scoring profiles (pure TS, no RN imports).
 //
 // The Execution Score is ONE engine measured by a platform-owned formula; a profile only
 // re-weights that engine for a different kind of client. The coach/trainer owns the TARGETS

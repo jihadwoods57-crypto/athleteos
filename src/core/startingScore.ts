@@ -1,4 +1,4 @@
-// AthleteOS — Starting Point Score (pure TS, no RN imports).
+// OnStandard — Starting Point Score (pure TS, no RN imports).
 // The onboarding baseline assessment turns six self-reported habit answers into an
 // honest *starting* score (0-100). It is explicitly an estimate from self-report —
 // it seeds day-0 and is replaced by measured behavior as the athlete logs real days.

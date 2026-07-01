@@ -1,4 +1,4 @@
-// AthleteOS — Meal capture overlay: capture → analyzing (~2.3s) → result.
+// OnStandard — Meal capture overlay: capture → analyzing (~2.3s) → result.
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, ScrollView, View } from 'react-native';
 import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer, flagIngredients, scaleLabel, labelQuality, labelProvenanceNote } from '@/core';

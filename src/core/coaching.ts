@@ -1,4 +1,4 @@
-// AthleteOS — AI Nutrition Coach engine (pure TS, no RN imports).
+// OnStandard — AI Nutrition Coach engine (pure TS, no RN imports).
 // Turns a logged meal into coaching, not macros: goal-aligned insight, education,
 // a concrete next step, daily/weekly context, and the honest score impact. This is
 // the deterministic contract a real LLM swaps behind later. See

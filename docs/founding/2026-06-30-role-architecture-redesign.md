@@ -1,4 +1,4 @@
-# Role Architecture Redesign — AthleteOS
+# Role Architecture Redesign — OnStandard
 
 **Date:** 2026-06-30 · **Status:** RATIFIED (founder-directed) · **Supersedes** the 7-role label model
 for onboarding/identity. Builds on `docs/founding/ROLE_EXPERIENCE_ARCHITECTURE.md` and the 2026-06-29

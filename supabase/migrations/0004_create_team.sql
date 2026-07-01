@@ -1,4 +1,4 @@
--- AthleteOS — Phase 1 go-live: create_team RPC (Stage B)
+-- OnStandard — Phase 1 go-live: create_team RPC (Stage B)
 -- Additive migration. A coach creates a team and is added as its head_coach staff
 -- ATOMICALLY. This must be a SECURITY DEFINER RPC because team_staff's RLS
 -- (`is_team_staff`) blocks self-inserting the FIRST staff row (chicken-and-egg:

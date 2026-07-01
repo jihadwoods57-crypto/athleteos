@@ -1,4 +1,4 @@
-# AthleteOS — Day 3–4 Work Queue (crew handoff)
+# OnStandard — Day 3–4 Work Queue (crew handoff)
 
 **Source:** Night-2 advisory-board review (`docs/board-review/2026-06-27-executive-report.md`) +
 founder decisions (2026-06-27). **Authored by the board convener (review-only); the *crew* executes.**

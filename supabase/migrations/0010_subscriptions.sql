@@ -1,4 +1,4 @@
--- AthleteOS — subscriptions (B2B per-seat: the coach/org pays per athlete)
+-- OnStandard — subscriptions (B2B per-seat: the coach/org pays per athlete)
 -- Additive migration for the INERT entitlement seam. The app reads the signed-in
 -- owner's row (queries.ts:fetchEntitlement) and falls back to the free-preview
 -- entitlement when there's no row — so until a real plan exists, every account reads

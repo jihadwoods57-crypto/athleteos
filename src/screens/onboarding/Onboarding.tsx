@@ -1,4 +1,4 @@
-// AthleteOS — activation-first onboarding. The goal is the first moment of value
+// OnStandard — activation-first onboarding. The goal is the first moment of value
 // (Starting Point Score -> first meal -> AI coaching), not account setup. One question
 // per screen, tap-first, in-system premium. 7 roles personalize onto the 4 dashboards.
 // See docs/specs/2026-06-23-onboarding-redesign.md.
@@ -164,7 +164,7 @@ function Welcome() {
             Let's get you{'\n'}set up.
           </Txt>
           <Txt w="m" size={16} color={colors.textSecondary} style={{ marginTop: 14, lineHeight: 23 }}>
-            A few quick questions and we'll tailor AthleteOS to exactly how you'll use it. About two minutes.
+            A few quick questions and we'll tailor OnStandard to exactly how you'll use it. About two minutes.
           </Txt>
           <Txt w="eb" size={12} color={colors.textTertiary} ls={0.8} upper style={{ marginTop: 32, marginBottom: 9 }}>
             First, what should we call you?
@@ -386,7 +386,7 @@ function RolePicker() {
       progress={null}
       onBack={obBack}
       eyebrow="Who are you?"
-      title="How will you use AthleteOS?"
+      title="How will you use OnStandard?"
       sub="We tailor everything to this: your plan, your dashboard, your language."
       footer={<Btn label="Continue" disabled={!role} onPress={obNext} />}
     >
@@ -633,7 +633,7 @@ function AthleteFlow() {
           onBack={s.obBack}
           eyebrow="Your Starting Execution Score"
           title={name ? `${name}, here's where you stand.` : "Here's where you stand."}
-          sub="This is your starting point, estimated from your habits. It rises as AthleteOS learns from what you actually do."
+          sub="This is your starting point, estimated from your habits. It rises as OnStandard learns from what you actually do."
           footer={<Btn label="See today's challenge" onPress={s.obNext} />}
         >
           <View style={{ alignItems: 'center', marginTop: 12 }}>
@@ -672,7 +672,7 @@ function AthleteFlow() {
           onBack={s.obBack}
           eyebrow="Before you start"
           title={minor ? 'Your data, with a guardian' : 'Your data, your control'}
-          sub="AthleteOS only ever shares what you allow, and you can stop any time."
+          sub="OnStandard only ever shares what you allow, and you can stop any time."
           footer={
             <Btn
               label={minor && !verified ? 'Start — my data stays on this device' : 'I agree, continue'}

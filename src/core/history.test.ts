@@ -1,4 +1,4 @@
-// AthleteOS — trend-chart geometry tests. The chart math is load-bearing (the UI
+// OnStandard — trend-chart geometry tests. The chart math is load-bearing (the UI
 // draws exactly these paths), so pin the projection, clamping, and trend summary.
 import {
   appendDayScore,

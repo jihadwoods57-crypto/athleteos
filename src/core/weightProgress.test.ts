@@ -1,4 +1,4 @@
-// AthleteOS — weight-progress tone. Proves a weight change is judged by GOAL, not direction, so a
+// OnStandard — weight-progress tone. Proves a weight change is judged by GOAL, not direction, so a
 // weight-loss client's loss never reads as an alert (the Role Review Board's shame-landmine fix).
 import { weightProgressTone } from './weightProgress';
 

@@ -75,7 +75,7 @@ don't add fake ones later; disclose any paid influencer posts.
 (Anthropic) meal analysis**, who can see data, minors/parental consent, FERPA,
 retention, and **rights (access/deletion/export)** — and the app actually implements
 **Export my data** + **Delete account**. The consent summary discloses the AI analysis
-before it happens. **Gaps:** it's a draft, the URL (`athleteos.app/privacy`) isn't
+before it happens. **Gaps:** it's a draft, the URL (`onstandard.app/privacy`) isn't
 hosted, and it needs counsel review — all already on the launch checklist (Phase 0).
 
 ### 8. Kids / teens (COPPA)

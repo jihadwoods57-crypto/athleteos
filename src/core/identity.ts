@@ -1,4 +1,4 @@
-// AthleteOS — pure helpers for the athlete's displayed identity (pure TS, no RN
+// OnStandard — pure helpers for the athlete's displayed identity (pure TS, no RN
 // imports). The avatar monogram and the leaderboard "YOU" row used to render a
 // frozen "Jihad" / "J" seed, so an athlete who onboards under a different name
 // saw someone else's initials on their own profile. Deriving the monogram from

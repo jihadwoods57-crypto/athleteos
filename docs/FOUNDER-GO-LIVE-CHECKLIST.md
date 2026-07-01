@@ -1,4 +1,4 @@
-# Founder Go-Live Checklist — AthleteOS
+# Founder Go-Live Checklist — OnStandard
 
 **For:** Bo, in order. **Updated:** 2026-06-30. This is the human action list. The *technical* detail for the
 backend steps lives in [`docs/RUNBOOK-go-live.md`](RUNBOOK-go-live.md); the full item list in
@@ -13,7 +13,7 @@ Already decided, off your list: **pricing** (blessed + seeded) and **email confi
 ## Track A — Start now (these have lead time; run them in parallel)
 
 - [ ] **Lawyer:** review + host the Privacy Policy and Terms. Fill the blanks (legal entity name + address,
-      data-retention windows, effective date, governing law). Host at `athleteos.app/privacy` and `/terms`.
+      data-retention windows, effective date, governing law). Host at `onstandard.app/privacy` and `/terms`.
 - [ ] **Sign the Anthropic DPA** and disclose Anthropic as a subprocessor (needed before any AI on real data).
 - [ ] **Pick a parent-verification (VPC) vendor.** Until this exists, every minor (13–17) stays local-only.
 - [ ] **Pick an email sender / SMTP** (Resend is the doc's recommendation) for sign-up confirmation + the
@@ -25,7 +25,7 @@ Already decided, off your list: **pricing** (blessed + seeded) and **email confi
 
 Follow [`RUNBOOK-go-live.md`](RUNBOOK-go-live.md) Section A. Summary:
 
-- [ ] Install the Supabase CLI; create a throwaway **`athleteos-staging`** project.
+- [ ] Install the Supabase CLI; create a throwaway **`onstandard-staging`** project.
 - [ ] Apply migrations **`0004 → 0013`** in order (`supabase db push`).
 - [ ] Run the **`0012` `can_view` equivalence check** on representative data — must return **0 differing rows**.
 - [ ] Run the **5 smoke tests:** sign up → log a meal → coach sees the athlete → a minor stays gated until
@@ -51,7 +51,7 @@ Follow [`RUNBOOK-go-live.md`](RUNBOOK-go-live.md) Section A. Summary:
 
 ## Track E — App Store (parallel, longest lead)
 
-- [ ] Apple Developer enrollment; replace the placeholder bundle id (`com.athleteos.app`).
+- [ ] Apple Developer enrollment; replace the placeholder bundle id (`com.onstandard.app`).
 - [ ] Add **Sign in with Apple** (required because you offer email login).
 - [ ] App Privacy "nutrition" label, age rating, screenshots, a demo account for review, submit.
 

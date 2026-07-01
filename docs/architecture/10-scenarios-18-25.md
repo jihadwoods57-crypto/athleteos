@@ -76,7 +76,7 @@ ownership · AI behavior · Edge cases · Scalability.**
 
 ### Scenario 18 — Subscription cancellation
 
-A coach/org admin (or a solo consumer) cancels their AthleteOS subscription. **The single hardest
+A coach/org admin (or a solo consumer) cancels their OnStandard subscription. **The single hardest
 question, which doc 06 left implicit: what happens to the org's *read access* and the athletes' data
 the instant the contract lapses?**
 
@@ -197,7 +197,7 @@ Stripe checkout.session.completed / customer.subscription.created
 `resolveEntitlement` now resolves the org → active plan → `features` bundle → members **inherit**
 premium (doc 06 §3.6 step 2: athletes attached to an active org never pay separately). **Proration is
 Stripe's job** (the partial-period credit/charge is computed by the provider on the price's billing
-anchor) — AthleteOS stores only the resulting `current_period_end` and `price_id`. **[DON'T BUILD
+anchor) — OnStandard stores only the resulting `current_period_end` and `price_id`. **[DON'T BUILD
 YET]** a local proration engine; the rail owns it (doc 06 §2).
 
 **Retroactive history visibility (the gap closed here):** because **athlete data is never gated by
@@ -685,7 +685,7 @@ palette token + an image URL).
 
 ### Scenario 25 — AI memory and long-term performance profiles
 
-Over months and years, AthleteOS builds a rich, personal understanding of an athlete — goals,
+Over months and years, OnStandard builds a rich, personal understanding of an athlete — goals,
 allergies, favorite foods, habits, behavior patterns, coach feedback, Development Score history — that
 makes recommendations smarter every month and **follows the athlete across orgs**. This is the
 behavioral-data flywheel and the Proof moat (Constitution §11.1/§11.3).
@@ -695,7 +695,7 @@ pre-adjusts to "you always bump the rice portion"; the Game Plan knows "you skip
 days"; the Decision Engine remembers your Chipotle order and your budget band; a stated allergy is
 **never** violated. A coach (with permission) sees a **Performance Profile** — strengths, weaknesses,
 consistency, habits, score history — that's *already populated* when an athlete transfers in. The
-athlete owns a **transparent, editable** memory ("here's what AthleteOS remembers about you — fix
+athlete owns a **transparent, editable** memory ("here's what OnStandard remembers about you — fix
 anything"). Nothing feels surveilled; everything feels *understood* (Constitution §11b "this app
 understands me").
 
@@ -747,7 +747,7 @@ the Authority Boundary** (doc 05 §3/§8):
 
 **Edge cases.**
 - **Stale/wrong fact:** correction = **supersede, never edit** (doc 05 §5.1) — full provenance survives
-  ("AthleteOS thought you liked X; you corrected it on <date>").
+  ("OnStandard thought you liked X; you corrected it on <date>").
 - **Conflicting facts across time** (was vegetarian, now isn't): the `supersedes_id` chain keeps the
   active fact current; history is auditable.
 - **Inferred fact wrong** (one-off cheat meal → "loves donuts"): low `evidence_n` keeps it below the

@@ -1,4 +1,4 @@
-// AthleteOS — Account overlay (role chrome ☰ → here). Sign out → onboarding.
+// OnStandard — Account overlay (role chrome ☰ → here). Sign out → onboarding.
 import React, { useState } from 'react';
 import { Alert, ScrollView, Share, View } from 'react-native';
 import { useStore } from '@/store';
@@ -153,7 +153,7 @@ export function Account() {
           </Txt>
         </Pressable>
         <Txt w="sb" size={12} color={colors.textSecondary} style={{ textAlign: 'center', marginTop: 16 }}>
-          AthleteOS · {APP_VERSION}
+          OnStandard · {APP_VERSION}
         </Txt>
       </ScrollView>
     </Overlay>

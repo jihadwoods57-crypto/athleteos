@@ -1,4 +1,4 @@
-// AthleteOS — restaurant nutrition database (Layer 1 of the Nutrition Intelligence
+// OnStandard — restaurant nutrition database (Layer 1 of the Nutrition Intelligence
 // Engine). Pure TS, no RN imports.
 //
 // Structured menu data for the chains athletes actually eat at, so the Restaurant Coach

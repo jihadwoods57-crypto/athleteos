@@ -1,4 +1,4 @@
-// AthleteOS — full-screen overlay shell with a standard header.
+// OnStandard — full-screen overlay shell with a standard header.
 import React, { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Animated, Easing, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';

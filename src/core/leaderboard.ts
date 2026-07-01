@@ -1,4 +1,4 @@
-// AthleteOS — leaderboard selector (pure). The athlete's own row score is live.
+// OnStandard — leaderboard selector (pure). The athlete's own row score is live.
 import { POS_BOARD, POS_BOARD_SCORES, TEAM_BOARD, TEAM_BOARD_SCORES } from './constants';
 import type { ClientRow, RosterRow } from './constants';
 import type { LeaderRow, SquadMode, TrendDir } from './types';

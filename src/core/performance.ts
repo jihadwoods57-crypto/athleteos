@@ -1,4 +1,4 @@
-// AthleteOS — performance / PR tracking (pure TS, no RN imports).
+// OnStandard — performance / PR tracking (pure TS, no RN imports).
 //
 // The app sells performance + scholarships but, until now, only measured food
 // and mood. This module is the missing development track: a model for logged

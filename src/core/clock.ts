@@ -1,4 +1,4 @@
-// AthleteOS — clock/date helpers (pure TS leaf: imports nothing from core).
+// OnStandard — clock/date helpers (pure TS leaf: imports nothing from core).
 // Lives apart from dayRollover/defaultState so both can depend on it without
 // forming an import cycle (defaultState needs the stamp; dayRollover needs both).
 

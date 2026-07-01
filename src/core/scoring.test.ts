@@ -1,4 +1,4 @@
-// AthleteOS — scoring engine tests. Asserts the ported math against the
+// OnStandard — scoring engine tests. Asserts the ported math against the
 // prototype's default state and known transitions.
 import { computeDerived, gradeFor, seasonGoalProgress, seasonGoalPhase, SCORE_WEIGHTS } from './scoring';
 import { createInitialState } from './defaultState';

@@ -1,4 +1,4 @@
-// AthleteOS — wearable recovery mapping (P5, pure TS, no RN imports).
+// OnStandard — wearable recovery mapping (P5, pure TS, no RN imports).
 //
 // Score credibility: when a real recovery signal exists (sleep / HRV / resting HR
 // from Apple Health or Health Connect), fold it into the recovery sub-score instead

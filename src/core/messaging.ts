@@ -1,4 +1,4 @@
-// AthleteOS — messaging model (P4, pure TS, no RN imports).
+// OnStandard — messaging model (P4, pure TS, no RN imports).
 //
 // Lightweight two-way messaging between an overseer (coach/parent/trainer) and an
 // athlete. This is the PURE model + compose/validation/thread helpers; the actual

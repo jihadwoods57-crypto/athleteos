@@ -1,4 +1,4 @@
-// AthleteOS — pure input validation (no React/RN imports).
+// OnStandard — pure input validation (no React/RN imports).
 // Used to gate onboarding "Continue" until required fields are sane. Deliberately
 // permissive: we block obviously-incomplete input, not deliverability.
 

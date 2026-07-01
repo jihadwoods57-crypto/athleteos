@@ -1,4 +1,4 @@
-// AthleteOS — Coach per-athlete targets & scoring editor (Phase 4). The Constitution
+// OnStandard — Coach per-athlete targets & scoring editor (Phase 4). The Constitution
 // says the coach owns each athlete's plan (targets + scoring profile) and the AI only
 // recommends (Rule #13), but there was no mobile UI for it. Opened from PersonDetail.
 //

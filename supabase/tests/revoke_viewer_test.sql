@@ -1,4 +1,4 @@
--- AthleteOS — throwaway-Postgres validation for revoke_viewer (security G1) + a re-check of the
+-- OnStandard — throwaway-Postgres validation for revoke_viewer (security G1) + a re-check of the
 -- 0012 can_view cutover's behaviour. Self-contained: it stubs the Supabase auth env, recreates the
 -- exact access functions from migrations 0002/0011/0012/0013 (copied verbatim) + the 0014
 -- revoke_viewer, seeds a representative org/team/trainer/guardian, and asserts the before/after.

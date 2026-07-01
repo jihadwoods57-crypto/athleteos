@@ -1,4 +1,4 @@
-// AthleteOS — meal history view model (pure TS, no RN / no Supabase import).
+// OnStandard — meal history view model (pure TS, no RN / no Supabase import).
 // Turns either the locally-logged day (demo / offline) or stored `meals` rows
 // (backend live) into a single MealCard[] the client-history and coach-history
 // surfaces both render, so the two screens stay byte-identical in look. Core stays

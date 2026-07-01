@@ -1,4 +1,4 @@
--- AthleteOS — security hardening (forward migration from the full security audit)
+-- OnStandard — security hardening (forward migration from the full security audit)
 --
 -- Four authorization fixes surfaced by the audit. All are written as forward,
 -- idempotent statements (create-or-replace / drop-then-create / revoke), so this applies

@@ -1,4 +1,4 @@
-// AthleteOS — design tokens, transcribed from the handoff README.
+// OnStandard — design tokens, transcribed from the handoff README.
 import { Platform } from 'react-native';
 
 export const colors = {

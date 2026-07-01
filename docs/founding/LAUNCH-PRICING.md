@@ -1,4 +1,4 @@
-# AthleteOS — Recommended Launch Pricing (the catalog seed)
+# OnStandard — Recommended Launch Pricing (the catalog seed)
 
 **Date:** 2026-06-29 · **From:** the crew (the founder asked us to pick) · **Status:** RECOMMENDED
 **This is data, not code** — every number here is a row in the pricing catalog and can change any
@@ -28,7 +28,7 @@ economics in `03_PRICING_AND_GTM.md`. Built to be the seed the checkout screen r
 | **Performance** | **$799** | **$7,990/yr** | **14 days** | up to **150** |
 | **Enterprise** | **Custom** | Custom | white-glove | 150+, multi-location, full athletic departments, SSO/API |
 
-Gyms use these org tiers (a gym is an organization), priced by **active AthleteOS participants**,
+Gyms use these org tiers (a gym is an organization), priced by **active OnStandard participants**,
 not total gym membership.
 
 ## The rules of thumb behind the numbers

@@ -6,7 +6,7 @@
 
 ## 1. Summary
 
-AthleteOS today computes a single, deterministic Development Score in `src/core/scoring.ts` from one
+OnStandard today computes a single, deterministic Development Score in `src/core/scoring.ts` from one
 implicit plan (athlete-editable targets + `DEFAULT_PLAN` windows) and one of two hard-coded
 `ScoringProfile` weight sets in `src/core/scoringProfiles.ts`. The 10-year target keeps that pure
 formula **exactly where it is** and turns everything the formula reads — the plan, the weight set, the

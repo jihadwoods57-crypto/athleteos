@@ -1,4 +1,4 @@
-// AthleteOS — Restaurant Coach overlay ("what should I eat?"). The Nutrition Intelligence
+// OnStandard — Restaurant Coach overlay ("what should I eat?"). The Nutrition Intelligence
 // Engine, made tangible: pick where you are, the engine recommends a concrete order off
 // the real menu, personalized to your goal + what's LEFT in today's plan, under budget.
 import React from 'react';

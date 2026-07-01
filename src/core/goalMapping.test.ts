@@ -1,4 +1,4 @@
-// AthleteOS — goal mapping. Proves the rich onboarding goal maps to the scoring BaseGoal, that daily
+// OnStandard — goal mapping. Proves the rich onboarding goal maps to the scoring BaseGoal, that daily
 // targets derive from goal + bodyweight (a Lose Fat user gets a deficit + a weight target BELOW current,
 // not the athlete bulk), that performance keeps the shipped constants byte-for-byte, and that a coach's
 // profile is never overridden.

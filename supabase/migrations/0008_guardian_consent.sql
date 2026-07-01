@@ -1,4 +1,4 @@
--- AthleteOS — Phase 1 go-live: request_guardian_consent RPC (COPPA VPC)
+-- OnStandard — Phase 1 go-live: request_guardian_consent RPC (COPPA VPC)
 -- Additive migration. The app (queries.ts:requestGuardianConsent) already calls
 -- rpc('request_guardian_consent', { guardian_email }) and database.types.ts declares it,
 -- but no migration created it. This records a PENDING guardian-consent request for the

@@ -1,4 +1,4 @@
-// AthleteOS — the overseer nudge acknowledgement read (pure TS, no RN imports).
+// OnStandard — the overseer nudge acknowledgement read (pure TS, no RN imports).
 //
 // The lightweight day-scoped "Nudged" flag (AppState.nudged) answers "did I nudge
 // this athlete today". This module adds the honest other half the product spec

@@ -1,4 +1,4 @@
-// AthleteOS — score history + trend chart geometry (pure, no RN imports).
+// OnStandard — score history + trend chart geometry (pure, no RN imports).
 // Turns a series of daily scores into the SVG geometry the Home/Parent/Coach
 // trend charts draw, replacing the prototype's hard-coded path. The live score
 // is the last point, so the chart reacts to today's accountability.

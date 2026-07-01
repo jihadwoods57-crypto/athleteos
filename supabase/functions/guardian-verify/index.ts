@@ -1,4 +1,4 @@
-// AthleteOS — guardian-consent verify endpoint (Supabase / Deno). The parent/guardian receives an
+// OnStandard — guardian-consent verify endpoint (Supabase / Deno). The parent/guardian receives an
 // email (sent by the chosen email sender from an Edge Function at request time) with a link to:
 //     https://<project>.functions.supabase.co/guardian-verify?token=<token>
 // Clicking it shows a confirm page; pressing "Approve" marks the matching guardian_consent_requests
@@ -32,10 +32,10 @@ function page(status: number, title: string, body: string, button?: { token: str
        </form>`
     : '';
   const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <title>AthleteOS</title></head>
+    <title>OnStandard</title></head>
     <body style="font-family:system-ui,-apple-system,sans-serif;background:#F8FAFC;color:#0F172A;margin:0;padding:48px 24px;text-align:center">
       <div style="max-width:420px;margin:0 auto;background:#fff;border-radius:24px;padding:32px;box-shadow:0 10px 30px rgba(15,23,42,.06)">
-        <div style="font-weight:800;font-size:20px;color:#2563EB;margin-bottom:8px">AthleteOS</div>
+        <div style="font-weight:800;font-size:20px;color:#2563EB;margin-bottom:8px">OnStandard</div>
         <h1 style="font-size:22px;margin:12px 0">${title}</h1>
         <p style="font-size:15px;color:#64748B;line-height:1.5">${body}</p>
         ${action}

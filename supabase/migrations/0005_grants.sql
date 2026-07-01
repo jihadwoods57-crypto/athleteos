@@ -1,4 +1,4 @@
--- AthleteOS — Phase 1 go-live: explicit privilege grants (Stage A hardening)
+-- OnStandard — Phase 1 go-live: explicit privilege grants (Stage A hardening)
 -- Additive migration. RLS (0002) decides WHICH ROWS a role may touch, but a role must
 -- ALSO hold table-level privileges or every query fails with "permission denied for
 -- table" (SQLSTATE 42501) before RLS is even consulted. A hosted Supabase project gets

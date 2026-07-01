@@ -1,4 +1,4 @@
-// AthleteOS — in-app notification inbox (NEW / EARLIER).
+// OnStandard — in-app notification inbox (NEW / EARLIER).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { notificationCopy } from '@/core';

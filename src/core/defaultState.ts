@@ -1,4 +1,4 @@
-// AthleteOS — initial session state, ported verbatim from the prototype.
+// OnStandard — initial session state, ported verbatim from the prototype.
 import type { AppState } from './types';
 import { todayStamp } from './clock';
 import { CAL_TARGET, PROTEIN_TARGET, WEIGHT_START, WEIGHT_TARGET } from './constants';

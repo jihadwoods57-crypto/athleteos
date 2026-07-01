@@ -1,6 +1,6 @@
-# AthleteOS — Supabase (phase 2)
+# OnStandard — Supabase (phase 2)
 
-Multi-tenant backend for AthleteOS. Design: [`docs/specs/phase2-multitenant-backend.md`](../docs/specs/phase2-multitenant-backend.md).
+Multi-tenant backend for OnStandard. Design: [`docs/specs/phase2-multitenant-backend.md`](../docs/specs/phase2-multitenant-backend.md).
 
 ## Migrations (run in order)
 - `migrations/0001_schema.sql` — enums, tables, indexes, profile auto-create trigger.

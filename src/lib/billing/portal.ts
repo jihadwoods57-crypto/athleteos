@@ -1,4 +1,4 @@
-// AthleteOS — billing portal seam (gated, inert until go-live).
+// OnStandard — billing portal seam (gated, inert until go-live).
 //
 // The model: business plans (trainers/orgs/gyms) are billed off-platform via Stripe, so
 // "manage / cancel" opens the Stripe Billing Portal in the browser — a hosted page, no

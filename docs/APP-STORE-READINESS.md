@@ -1,4 +1,4 @@
-# AthleteOS — iOS App Store Readiness
+# OnStandard — iOS App Store Readiness
 
 > Status as of the 2026-06-24 PRE-LAUNCH AUDIT run. The app is **APP COMPLETE**
 > (see `NIGHTSHIFT-LOG.md`); this document is the launch-readiness checklist for
@@ -7,7 +7,7 @@
 > enrollment, the App Store Connect listing, signing, device testing, and the
 > product/legal decisions a no-eyes / offline crew cannot make).
 >
-> The single biggest review-risk for this app is at the bottom: **AthleteOS
+> The single biggest review-risk for this app is at the bottom: **OnStandard
 > targets minors (13-22) with nutrition + body-weight data.** Read that section.
 
 ---
@@ -62,7 +62,7 @@
 - **iOS App Store compliance config** — `chore(ios): App Store compliance
   config` (commit `4ae1a04`). All in `app.json`, verified with
   `expo config --type public` + a green `expo export -p ios`:
-  - `ios.bundleIdentifier` = `com.athleteos.app` (**PLACEHOLDER** — see NEEDS
+  - `ios.bundleIdentifier` = `com.onstandard.app` (**PLACEHOLDER** — see NEEDS
     HUMAN) and `ios.buildNumber` = `1`.
   - `ios.config.usesNonExemptEncryption = false` **and**
     `ITSAppUsesNonExemptEncryption = false` in `infoPlist`, so the
@@ -98,7 +98,7 @@
 ### A. Apple account + build pipeline (cannot be done in this repo)
 1. **Apple Developer Program enrollment** ($99/yr) — required to sign, upload to
    TestFlight, and submit.
-2. **Own the real bundle identifier.** `com.athleteos.app` is a placeholder.
+2. **Own the real bundle identifier.** `com.onstandard.app` is a placeholder.
    Register the real reverse-DNS id in App Store Connect (and update
    `ios.bundleIdentifier` to match) before the first upload — it is permanent
    for the app record.
@@ -144,7 +144,7 @@
     iPad screenshots, QC the layout) or set `supportsTablet: false` to scope the
     review to iPhone. This is a product/visual call.
 
-### D. The big one — AthleteOS targets MINORS with health + body-weight data
+### D. The big one — OnStandard targets MINORS with health + body-weight data
 This drives the heaviest App Review scrutiny. None of it is a code bug; it is
 product / legal / process work only a human can own.
 12. **Age rating + "made for kids" posture.** Onboarding collects ages
@@ -191,7 +191,7 @@ product / legal / process work only a human can own.
 
 | Key | Value | Why |
 | --- | --- | --- |
-| `ios.bundleIdentifier` | `com.athleteos.app` (placeholder) | required app id |
+| `ios.bundleIdentifier` | `com.onstandard.app` (placeholder) | required app id |
 | `ios.buildNumber` | `1` | per-upload build number |
 | `version` | `1.0.0` | marketing version |
 | `ios.config.usesNonExemptEncryption` | `false` | skip export prompt |

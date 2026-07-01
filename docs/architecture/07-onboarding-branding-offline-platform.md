@@ -1,6 +1,6 @@
 # 07 — Onboarding, Bulk Provisioning, Branding, Offline, Multi-Org & Enterprise Platform
 
-> Target 10-year architecture for how people and organizations *get into* AthleteOS (solo
+> Target 10-year architecture for how people and organizations *get into* OnStandard (solo
 > athlete → 150-athlete department), how a premium org *brands* the experience, how the app
 > works *offline*, how a multi-org member *switches workspaces*, and the *seam* for the
 > enterprise platform surface (SSO/API). Plus a non-destructive migration path from today's
@@ -16,7 +16,7 @@
 
 ## 1. Summary
 
-AthleteOS must onboard a continuum — a 14-year-old logging her first meal solo, a private
+OnStandard must onboard a continuum — a 14-year-old logging her first meal solo, a private
 nutritionist with a cross-school book, and an athletic director provisioning **150 athletes from
 a SIS export in one sitting** — through *one* identity model where **every athlete claims exactly
 one permanent profile** (doc 01's "athlete owns the data"), and an import **dedupes a transferring
@@ -439,7 +439,7 @@ schema and auth flow don't need a disruptive migration when an enterprise custom
 ### 7.1 SSO (SAML / OIDC) — seam only
 
 Schools/departments will demand "sign in with our Google Workspace / district SSO." Supabase Auth
-supports SSO (SAML/OIDC) providers; the AthleteOS-specific work is **mapping an IdP + email domain to
+supports SSO (SAML/OIDC) providers; the OnStandard-specific work is **mapping an IdP + email domain to
 an organization** so an SSO sign-in *auto-resolves the right workspace*.
 
 ```sql

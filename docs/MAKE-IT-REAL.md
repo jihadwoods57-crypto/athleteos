@@ -1,4 +1,4 @@
-# AthleteOS — Make It Real (activation runbook)
+# OnStandard — Make It Real (activation runbook)
 
 Everything below is **built and flag-gated**: with no keys, the app runs on the deterministic
 prototype exactly as today. Add the keys to flip each piece on. Nothing here changes the app's

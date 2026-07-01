@@ -1,4 +1,4 @@
-// AthleteOS — Supabase schema types (hand-authored, mirrors supabase/migrations).
+// OnStandard — Supabase schema types (hand-authored, mirrors supabase/migrations).
 // Kept in sync with 0001_schema.sql / 0002_rls.sql. When the schema stabilizes,
 // replace this file with `supabase gen types typescript` output — the shape is
 // drop-in compatible with createClient<Database>.

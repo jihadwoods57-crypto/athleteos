@@ -1,4 +1,4 @@
-// AthleteOS — AI meal analysis seam. One entry point the app calls; it uses the real
+// OnStandard — AI meal analysis seam. One entry point the app calls; it uses the real
 // backend (Claude vision) when configured, else the deterministic prototype analysis.
 // The UI renders the identical MealResult shape either way.
 import { groundMealResult, mealResultFor, mergeRephrasedInsights, mergeRephrasedOrders, ordersToRephrase, sampleScannedLabel } from '@/core';

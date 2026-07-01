@@ -1,4 +1,4 @@
-// AthleteOS — WCAG colour-contrast math (pure TS, no React/RN imports).
+// OnStandard — WCAG colour-contrast math (pure TS, no React/RN imports).
 // Used to guard that text colours drawn on a surface clear the WCAG 2.1
 // minimums. Keeping this in core (not the UI layer) keeps the formula
 // framework-agnostic and unit-testable, and lets a token guard assert that the

@@ -1,4 +1,4 @@
-# AI_STRATEGY — how AthleteOS uses AI (board altitude)
+# AI_STRATEGY — how OnStandard uses AI (board altitude)
 
 > **Status:** FOUNDING DEEP-DIVE. This **elevates and integrates** the AI canon already specified in
 > `docs/architecture/05-ai-systems.md` (fully designed) plus the AI moats/philosophy in
@@ -9,7 +9,7 @@
 ## A. The one principle
 
 **AI rewords and assists; the deterministic core decides; the numbers never change.** Every AI surface
-in AthleteOS sits on top of a pure, testable engine in `src/core` that computes the truth. The model may
+in OnStandard sits on top of a pure, testable engine in `src/core` that computes the truth. The model may
 phrase, explain, draft, and warm the language. It may not change a number, invent a fact, or re-decide
 structure. This is not a guideline; it is enforced in code and on the server.
 

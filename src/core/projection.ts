@@ -1,4 +1,4 @@
-// AthleteOS — Projected Development Score (pure TS, no RN imports).
+// OnStandard — Projected Development Score (pure TS, no RN imports).
 //
 // Forward-looking framing of the daily score, the nugget extracted from the "Daily Game
 // Plan" vision: "you're at X today; finish the actions you still control and you'll reach Y,

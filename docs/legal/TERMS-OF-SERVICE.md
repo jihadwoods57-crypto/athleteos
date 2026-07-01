@@ -1,10 +1,10 @@
-# AthleteOS — Terms of Service
+# OnStandard — Terms of Service
 
 > **DRAFT — accurate to the app as of 2026-06-29; requires legal review before publishing. Not legal advice.**
 >
 > Engineering-authored, review-ready draft describing the app as it actually behaves as of the
 > date above. It is **not** legal advice and is **not** a substitute for counsel. It must be
-> finalized by an attorney before being hosted at `TERMS_URL` (`https://athleteos.app/terms`)
+> finalized by an attorney before being hosted at `TERMS_URL` (`https://onstandard.app/terms`)
 > and before the backend is enabled for real users.
 
 ---
@@ -20,22 +20,22 @@
 
 ---
 
-**Effective date:** [DATE] · **Operator:** [LEGAL ENTITY NAME], [ADDRESS] · **Contact:** support@athleteos.app
+**Effective date:** [DATE] · **Operator:** [LEGAL ENTITY NAME], [ADDRESS] · **Contact:** support@onstandard.app
 
 ---
 
 ## 1. Acceptance
-By creating an account or using AthleteOS, you agree to these Terms and to the Privacy Policy.
+By creating an account or using OnStandard, you agree to these Terms and to the Privacy Policy.
 **If you are under 18, a parent or guardian must consent on your behalf** and agrees to these
 Terms with you. The app does not permit signup by anyone under 13.
 
-## 2. What AthleteOS is (and is not)
-AthleteOS is an athlete nutrition-accountability and coaching-support tool. Athletes log meals,
+## 2. What OnStandard is (and is not)
+OnStandard is an athlete nutrition-accountability and coaching-support tool. Athletes log meals,
 hydration, weight, weekly check-ins, and performance entries; the app computes a daily
 accountability score; and linked coaches, trainers, nutritionists, and guardians can see what
 the athlete has agreed to share.
 
-**AthleteOS provides educational guidance, not medical, dietary-prescription, or healthcare
+**OnStandard provides educational guidance, not medical, dietary-prescription, or healthcare
 services, and is not a substitute for a physician or registered dietitian.** AI-generated meal
 analysis, scores, and coaching copy are **estimates and may be inaccurate.** Do not rely on them
 for medical decisions. Consult a qualified professional before making significant dietary
@@ -98,4 +98,4 @@ We may update these Terms. We will provide notice of material changes; continued
 change takes effect means you accept the updated Terms.
 
 ## 12. Contact
-support@athleteos.app — [LEGAL ENTITY NAME], [ADDRESS].
+support@onstandard.app — [LEGAL ENTITY NAME], [ADDRESS].

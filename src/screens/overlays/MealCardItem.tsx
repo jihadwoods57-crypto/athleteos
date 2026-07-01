@@ -1,4 +1,4 @@
-// AthleteOS — shared meal-history card. One presentational row rendered identically
+// OnStandard — shared meal-history card. One presentational row rendered identically
 // by the client history overlay (MealHistory) and the coach/trainer history section
 // (PersonDetail), so the two surfaces never drift. A stored photo loads as a thumbnail
 // via a short-lived signed URL; with no photo (or the backend off) it falls back to the

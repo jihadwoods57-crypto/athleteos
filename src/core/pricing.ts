@@ -1,4 +1,4 @@
-// AthleteOS — pricing catalog (pure TS, no RN imports). The "pricing is DATA, not code"
+// OnStandard — pricing catalog (pure TS, no RN imports). The "pricing is DATA, not code"
 // seed (DECISION-MEMO D4 + docs/founding/LAUNCH-PRICING.md). These are the recommended
 // OPENING numbers; at go-live they move to a backend pricing-catalog table so prices,
 // trials, seat limits, promos, and regional pricing change with no app release. The

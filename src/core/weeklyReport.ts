@@ -1,4 +1,4 @@
-// AthleteOS — weekly auto-report (P4, pure TS, no RN imports).
+// OnStandard — weekly auto-report (P4, pure TS, no RN imports).
 //
 // The coach/parent leverage feature: a per-athlete weekly digest the app can show
 // in-app or export (to paste into a message), so an overseer gets the week at a

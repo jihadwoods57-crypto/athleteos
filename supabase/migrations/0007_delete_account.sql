@@ -1,4 +1,4 @@
--- AthleteOS — Phase 1 go-live: delete_account RPC (Apple 5.1.1(v))
+-- OnStandard — Phase 1 go-live: delete_account RPC (Apple 5.1.1(v))
 -- Additive migration. The app (src/lib/supabase/queries.ts:deleteAccount) already calls
 -- rpc('delete_account'), and database.types.ts already declares it — but no migration
 -- created the function. This is that function. Apple requires an in-app account deletion

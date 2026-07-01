@@ -1,4 +1,4 @@
-// AthleteOS — organization membership + scope + permission model (pure TS, no RN/Supabase).
+// OnStandard — organization membership + scope + permission model (pure TS, no RN/Supabase).
 //
 // PHASE A keystone (docs/architecture/01 + the ratified DECISION-MEMO). This is the
 // single access-grant model the whole platform keys off: one `org_memberships` row

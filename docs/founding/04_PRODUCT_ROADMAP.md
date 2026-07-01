@@ -210,7 +210,7 @@ admission to claiming "the loop is proven," and we resist any pressure to defer 
 **The signature is the morning Daily Game Plan built around your score, anchored by the Finish-Today
 projection** (`00` §20): every morning the app tells you the one number, the one focus, and exactly
 how to still win *today* — and you know the person invested in you is watching you do it. The one
-unforgettable line we are engineering for: *"Every morning AthleteOS tells me exactly how to win the
+unforgettable line we are engineering for: *"Every morning OnStandard tells me exactly how to win the
 day, and my coach is watching me do it."*
 
 **When it ships: at the MVP — it is not deferrable.** The signature is the *home of the loop*; you

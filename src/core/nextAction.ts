@@ -1,4 +1,4 @@
-// AthleteOS — "Next best action" (pure TS, no RN imports).
+// OnStandard — "Next best action" (pure TS, no RN imports).
 // The app should coach forward, not just grade backward: surface the SINGLE
 // highest-impact thing the athlete can do right now to move today's plan, derived
 // from their real logged data + the time of day. Priority follows the score levers

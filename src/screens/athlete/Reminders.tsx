@@ -1,4 +1,4 @@
-// AthleteOS — Reminders settings (P3). Toggle each reminder on/off and set the
+// OnStandard — Reminders settings (P3). Toggle each reminder on/off and set the
 // local hour it fires. Reads/writes the persisted `reminderSettings`; the actual
 // local-notification scheduling is a device seam (src/lib/notify), gated by
 // isNotifyAvailable + the master `notif` flag, so this screen configures the

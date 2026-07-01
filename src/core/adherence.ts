@@ -1,6 +1,6 @@
-// AthleteOS — Accountability Engine (pure TS, no RN imports).
+// OnStandard — Accountability Engine (pure TS, no RN imports).
 //
-// "AthleteOS doesn't reward eating. It rewards executing the plan." This evaluates the
+// "OnStandard doesn't reward eating. It rewards executing the plan." This evaluates the
 // athlete's real execution against the CoachPlan: which meal windows are open/missed
 // (Feature 2), the escalating accountability level (Feature 3), overall plan adherence
 // (Feature 4/8), and a plan-RELATIVE, goal-aware coaching line (Feature 4/5). Supportive,

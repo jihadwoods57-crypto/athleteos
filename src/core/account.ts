@@ -1,4 +1,4 @@
-// AthleteOS — Account-overlay settings rows. Pure copy + data, no RN imports.
+// OnStandard — Account-overlay settings rows. Pure copy + data, no RN imports.
 // Turns the formerly-static "Team & roster / Billing / Help" rows (which showed
 // a "›" chevron but had no destination) into intentional, deterministic
 // disclosures. The team-row detail derives from the real roster / client book

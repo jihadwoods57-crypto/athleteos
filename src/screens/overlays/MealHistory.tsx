@@ -1,4 +1,4 @@
-// AthleteOS — Client meal history overlay (Part B). "See past meal uploads."
+// OnStandard — Client meal history overlay (Part B). "See past meal uploads."
 // Lists the athlete's own stored meals grouped by day when the backend is live;
 // offline/demo it falls back to today's locally-logged meals (real logs, never
 // fabricated). An empty day reads an honest empty state.

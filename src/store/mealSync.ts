@@ -1,4 +1,4 @@
-// AthleteOS — meal-record sync: persist each logged meal (macros + photo) to the
+// OnStandard — meal-record sync: persist each logged meal (macros + photo) to the
 // `meals` table when the backend is live. The sibling of sync.ts: where sync.ts
 // owns the day *slice* (`days`, one row per athlete-day), this owns the meal
 // *collection* (N `meals` rows per day, plus the photo in the meal-photos bucket).

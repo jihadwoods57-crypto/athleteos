@@ -1,4 +1,4 @@
-// AthleteOS — project real `days` rows into the coach roster view model (Stage D).
+// OnStandard — project real `days` rows into the coach roster view model (Stage D).
 // Pure TS, no RN and no Supabase import: it takes a STRUCTURAL day shape so core stays
 // independent of the lib layer (a DayRow satisfies LinkedDay). When the backend is live
 // the coach dashboard maps fetchLinkedDays(today) through this instead of the seeded

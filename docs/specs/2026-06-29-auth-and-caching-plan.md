@@ -131,7 +131,7 @@ config and secure storage are real, present code.
 | Email-enumeration-safe reset | **BUILT** | `requestPasswordReset` (see A1). |
 | Rate limiting on AI endpoint | **MISSING / FOUNDER-GATED** | audit G4: `analyze-meal` Edge Function has open CORS `*` and no per-user rate limit. Fine for staging; restrict before go-live. |
 | Biometric / app-lock | **MISSING** | No `expo-local-authentication` usage anywhere. |
-| Deep-link / OAuth-redirect handling | **PARTIAL** | `scheme:"athleteos"` exists in `app.json`; `detectSessionInUrl:false`. No `expo-linking` redirect handler — needed only if web/Google OAuth (redirect flow) is added. Apple native flow needs no redirect. Audit confirms "no untrusted deep-link handling" today (a safe default, but also means no OAuth-redirect plumbing). |
+| Deep-link / OAuth-redirect handling | **PARTIAL** | `scheme:"onstandard"` exists in `app.json`; `detectSessionInUrl:false`. No `expo-linking` redirect handler — needed only if web/Google OAuth (redirect flow) is added. Apple native flow needs no redirect. Audit confirms "no untrusted deep-link handling" today (a safe default, but also means no OAuth-redirect plumbing). |
 | Secrets hygiene | **BUILT** | audit "CORRECT": no service-role key / DB password / Stripe secret in repo; only `.env.example` placeholders tracked; Anthropic key server-side only. |
 
 ---

@@ -1,4 +1,4 @@
-# AthleteOS Advisory Board — Executive Report
+# OnStandard Advisory Board — Executive Report
 
 **Night 2 of 4 · 2026-06-27 (UTC)** · Branch reviewed: `crew/4day-sprint` @ `bb03cba` (tag `day2-end`)
 Convened by the board convener; founder away. 15 independent members reviewed real flows in clean
@@ -226,6 +226,6 @@ floor: **3.07 / 10, NOT YET.**
 
 ---
 
-*Prepared by the AthleteOS Advisory Board convener · 15 independent reviews on `crew/4day-sprint` @ `day2-end`.
+*Prepared by the OnStandard Advisory Board convener · 15 independent reviews on `crew/4day-sprint` @ `day2-end`.
 Brutally honest by charter. The goal is to expose every weakness before real coaches, parents, and
 investors do.*

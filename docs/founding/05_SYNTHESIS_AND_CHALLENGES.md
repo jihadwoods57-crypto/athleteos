@@ -18,7 +18,7 @@
 
 ## A. The company in one page (the executive thesis)
 
-**Category.** AthleteOS is not a nutrition app and must never be priced, benchmarked, or pitched as
+**Category.** OnStandard is not a nutrition app and must never be priced, benchmarked, or pitched as
 one. It is the **execution-and-accountability operating system** — the system of record for *"did the
 plan a trusted human set actually get done, and did it work."* Trackers (MyFitnessPal, Cronometer,
 MacroFactor) own *measurement*; team software (TeamSnap, Hudl, Teamworks, Trainerize) owns the *org's
@@ -46,11 +46,11 @@ head-on.
 
 **The 5-year bet.** That we can grow **one narrow, honest number** ("Execution Score" / "Nutrition
 Development Score" today) into a **portable development credential** that people who never installed the
-product cite — the day a college recruiter asks for an athlete's AthleteOS score history the way they
+product cite — the day a college recruiter asks for an athlete's OnStandard score history the way they
 ask for a transcript or a 40 time, we are infrastructure, not an app. We earn that by winning the
 coach/gym wedge so completely it becomes the reference case, protecting the score's integrity over
 every single sales deal, and letting breadth be **pulled** by customers, never **pushed** by a roadmap.
-**The one line that governs the decade:** *AthleteOS turns a trusted human's plan into a person's daily
+**The one line that governs the decade:** *OnStandard turns a trusted human's plan into a person's daily
 execution — and proves it worked.*
 
 ---
@@ -68,7 +68,7 @@ architecture** (`docs/architecture/00`–`11` + `DECISION-MEMO.md` + `PHASE-A-LO
 | Order | Doc | What it answers | Read it when you need… |
 |---|---|---|---|
 | **0** | **`05` — this doc** | Does it all add up? What's still un-decided? | The 15-minute "what is this company and what's the fight." |
-| **1** | `01_PRODUCT_CONSTITUTION` | What *is* AthleteOS; what will it never be? | The vision, mission, pillars, and the bright-line non-negotiables. |
+| **1** | `01_PRODUCT_CONSTITUTION` | What *is* OnStandard; what will it never be? | The vision, mission, pillars, and the bright-line non-negotiables. |
 | **2** | `00_STRATEGIC_QUESTIONS` | The 20 load-bearing strategic *calls* | Why the wedge, the moat ranking, the ignore-list, the 12 flagships, the signature. |
 | **3** | `02_ENTERPRISE_ARCHITECTURE` | How is it built to last 10 years? | The one access primitive, the one formula, the one ownership split; gyms-as-orgs; the scale cliffs. |
 | **4** | `03_PRICING_AND_GTM` | Who do we sell to, in what order, at what price? | The tiers-as-data, the buyer/user/payer split, the gym channel, the graduation conversion. |
@@ -141,7 +141,7 @@ this consolidates and sharpens it; where the docs were silent, this adds it.
   in year one, and a credential brand cannot recover from "the number lied."
 
 ### RT-4 — "Breadth is a near-term opportunity because the architecture supports it." *(from `00` §18-B, `01` Push-back ②)*
-- **Assumption:** that "AthleteOS is NOT an athlete-only app" + Goal-Aware architecture = a mandate to
+- **Assumption:** that "OnStandard is NOT an athlete-only app" + Goal-Aware architecture = a mandate to
   go after weight-loss / general-wellness consumers soon.
 - **Why it may be wrong:** **capability is not strategy.** Going wide before the coach-led wedge retains
   burns CAC against free incumbents (MFP, Noom, Whoop) with no network effect and no coach to anchor
@@ -369,4 +369,4 @@ become the team-trapping, vanity-metric, tracker-shelf incumbent we exist to dis
 - **All docs:** the seven keystone decisions (D1–D7) and seven invariants (I1–I7) remain canon; this
   capstone challenges the **strategy around them**, never the keystones themselves. *Every operation
   changes only the access half; the profile half is permanent, org-free, athlete-owned, and never moves.
-  That is AthleteOS.*
+  That is OnStandard.*

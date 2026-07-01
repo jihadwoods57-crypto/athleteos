@@ -1,4 +1,4 @@
-// AthleteOS — live-auth store seam (Stage B). Proves the auth actions are inert
+// OnStandard — live-auth store seam (Stage B). Proves the auth actions are inert
 // when the flag is off (mock path untouched) and route through the auth wrappers,
 // storing userId / authError, when on. The supabase lib is mocked; isBackendLive is
 // toggled per case via isolateModules so both flag states are exercised in node.

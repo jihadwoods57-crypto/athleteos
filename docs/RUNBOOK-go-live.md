@@ -1,4 +1,4 @@
-# AthleteOS — GO-LIVE EXECUTION RUNBOOK
+# OnStandard — GO-LIVE EXECUTION RUNBOOK
 
 **For:** the founder, hands on the keyboard. **Updated:** 2026-06-29.
 
@@ -54,7 +54,7 @@ supabase login                 # opens a browser; authorize the CLI
 
 ### A2. Create a throwaway staging project (dashboard)
 1. Go to <https://supabase.com/dashboard> → **New project**.
-2. Name it `athleteos-staging`. Pick the same region you'll use in prod. Generate a strong DB
+2. Name it `onstandard-staging`. Pick the same region you'll use in prod. Generate a strong DB
    password and save it in your password manager (you may need it for `db push`).
 3. Wait for it to finish provisioning (~2 min).
 4. **Settings → General → Reference ID** — copy the project ref (looks like `abcd...wxyz`).
@@ -64,7 +64,7 @@ supabase login                 # opens a browser; authorize the CLI
 
 ### A3. Link the CLI to staging
 ```bash
-cd /path/to/athleteos          # repo root (folder with package.json + supabase/)
+cd /path/to/onstandard          # repo root (folder with package.json + supabase/)
 supabase link --project-ref <STAGING_REF>
 # enter the DB password from A2 if prompted
 supabase migration list        # baseline: shows local migrations not yet applied remotely
@@ -162,7 +162,7 @@ is in motion. Apply **one migration at a time** and inspect between each.
 
 ### B1. Link the CLI to the LIVE project
 ```bash
-cd /path/to/athleteos
+cd /path/to/onstandard
 supabase link --project-ref ftwrvylzoyznhbzhgism      # the live project (or your prod ref)
 supabase migration list                                # see what's ALREADY applied live
 ```

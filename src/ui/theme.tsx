@@ -1,4 +1,4 @@
-// AthleteOS — theming foundation (light/dark palette swap).
+// OnStandard — theming foundation (light/dark palette swap).
 //
 // The mechanism dark mode rides on. It defaults to LIGHT, so wrapping the app in
 // <ThemeProvider> changes nothing today. To actually ship dark mode, two more steps
