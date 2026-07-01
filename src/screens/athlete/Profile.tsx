@@ -10,6 +10,7 @@ import { useColors } from '@/ui/theme';
 import { Card, Row, Stepper, Toggle, Txt, Pressable, Reveal } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
+import { MemoryConfirm } from './MemoryConfirm';
 
 /** Avatar initial per support-team role for the visibility rows. */
 const VIS_INITIALS: Record<string, string> = { coach: 'C', trainer: 'T', nutritionist: 'N', parent: 'P' };
@@ -146,6 +147,8 @@ export function Profile() {
         );
       })()}
       </Reveal>
+
+      <MemoryConfirm />
 
       {/* targets */}
       <Reveal index={2}>

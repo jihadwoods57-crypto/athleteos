@@ -13,6 +13,7 @@ import { Icon } from '@/icons';
 import { Ring } from '@/ui/Ring';
 import { Overlay } from './Overlay';
 import { MealCardItem } from './MealCardItem';
+import { AthleteProfileView } from '@/screens/roles/AthleteProfileView';
 
 const RECENT_MEAL_DAYS = 14;
 
@@ -151,6 +152,8 @@ export function PersonDetail() {
         ) : null}
 
         <RecentMeals athleteId={pd.athleteId} name={pd.name} />
+
+        {pd.athleteId ? <AthleteProfileView athleteId={pd.athleteId} recentScores={[pd.score]} /> : null}
 
         <Reveal index={2}>
         <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
