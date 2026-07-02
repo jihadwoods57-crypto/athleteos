@@ -4,24 +4,47 @@
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { activePlan, formatWindowTime } from '@/core';
+import type { EngineGoal, MealKey, PlanSlot } from '@/core';
 import { useStore } from '@/store';
+import { generatePlan } from '@/lib/ai/planGenerate';
+import { isMealPlansEnabled } from '@/lib/features';
 import { font } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
-import { Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Reveal, Row, Txt, Pressable, Toggle } from '@/ui/primitives';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
 
 const SUGGESTIONS = ['Pre-bed protein shake', 'No sugary drinks', 'Protein with every meal', 'Log each meal within 30 min'];
+
+const SLOT_LABEL: Record<MealKey, string> = { breakfast: 'Breakfast', lunch: 'Lunch', snack: 'Snack', dinner: 'Dinner' };
+
+/** BaseGoal -> EngineGoal for the plan split: 'performance' rides 'maintain' (no dedicated split). */
+function planGoalFor(baseGoal: 'gain' | 'lose' | 'maintain' | 'performance'): EngineGoal {
+  return baseGoal === 'performance' ? 'maintain' : baseGoal;
+}
 
 export function CoachPlanEditor() {
   const c = useColors();
   const s = useStore();
   const plan = activePlan(s);
   const [draft, setDraft] = React.useState('');
+  const [generating, setGenerating] = React.useState(false);
 
   const add = (text: string) => {
     s.addPlanInstruction(text);
     setDraft('');
+  };
+
+  const generate = async () => {
+    if (generating) return;
+    setGenerating(true);
+    try {
+      const goal = planGoalFor(s.baseGoal);
+      const result = await generatePlan({ plan: activePlan(s), goal });
+      s.setPlanSlots(result);
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (
@@ -134,6 +157,42 @@ export function CoachPlanEditor() {
         </Card>
         </Reveal>
 
+        {/* prescribed meals */}
+        {isMealPlansEnabled ? (
+        <Reveal index={3}>
+        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
+          <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Txt w="eb" size={15} ls={-0.3}>
+              Prescribed meals
+            </Txt>
+            <Icon name="sparkle" size={16} color={c.accent} />
+          </Row>
+          <Txt w="m" size={13} color={c.textTertiary} style={{ marginBottom: 12, lineHeight: 18 }}>
+            Generate a starting plan, then pin exact meals or leave a window open to the macros.
+          </Txt>
+
+          <Btn
+            label={generating ? 'Generating…' : 'Generate plan'}
+            loading={generating}
+            onPress={generate}
+            variant="secondary"
+          />
+
+          {s.planSlots.length > 0 ? (
+            <View style={{ gap: 10, marginTop: 14 }}>
+              {s.planSlots.map((slot) => (
+                <SlotRow key={slot.key} slot={slot} onToggleMode={() => s.togglePlanSlotMode(slot.key)} onTogglePhoto={() => s.updatePlanSlot(slot.key, { photoRequired: !slot.photoRequired })} onNoteChange={(note) => s.updatePlanSlot(slot.key, { note })} />
+              ))}
+            </View>
+          ) : (
+            <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 4, lineHeight: 18 }}>
+              No prescribed meals yet. Tap Generate plan to seed one for each window.
+            </Txt>
+          )}
+        </Card>
+        </Reveal>
+        ) : null}
+
         <Btn label="Done" haptic="success" onPress={s.closePlanEditor} style={{ marginTop: 18 }} />
       </ScrollView>
     </Overlay>
@@ -165,5 +224,86 @@ function Step({ glyph, label, onPress }: { glyph: string; label: string; onPress
         {glyph}
       </Txt>
     </Pressable>
+  );
+}
+
+function SlotRow({
+  slot,
+  onToggleMode,
+  onTogglePhoto,
+  onNoteChange,
+}: {
+  slot: PlanSlot;
+  onToggleMode: () => void;
+  onTogglePhoto: () => void;
+  onNoteChange: (note: string) => void;
+}) {
+  const c = useColors();
+  const label = SLOT_LABEL[slot.key];
+  const names = slot.mode === 'pinned' ? (slot.pinnedMeal ? [slot.pinnedMeal.name] : []) : slot.options.map((o) => o.name);
+
+  return (
+    <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 13 }}>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <Txt w="eb" size={14}>
+          {label}
+        </Txt>
+        <Txt w="m" size={12} color={c.textSecondary}>
+          {slot.macros.protein}g · {slot.macros.kcal} cal
+        </Txt>
+      </Row>
+
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+        <Txt w="b" size={12} color={c.textTertiary}>
+          {slot.mode === 'pinned' ? 'Pinned meal' : 'Open — pick from options'}
+        </Txt>
+        <Toggle on={slot.mode === 'pinned'} onPress={onToggleMode} label={`${label} pinned`} />
+      </Row>
+
+      {names.length > 0 ? (
+        <View style={{ marginTop: 8, gap: 3 }}>
+          {names.map((n) => (
+            <Txt key={n} w="m" size={13} color={c.slate700}>
+              {n}
+            </Txt>
+          ))}
+        </View>
+      ) : (
+        <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 8 }}>
+          {slot.mode === 'pinned' ? 'No meal pinned yet.' : 'No options yet.'}
+        </Txt>
+      )}
+
+      {slot.restaurantAlts.length > 0 ? (
+        <View style={{ marginTop: 10 }}>
+          <Txt w="eb" size={10} color={c.textTertiary} ls={0.4} upper>
+            Traveling?
+          </Txt>
+          <View style={{ marginTop: 3, gap: 3 }}>
+            {slot.restaurantAlts.map((alt) => (
+              <Txt key={alt.name} w="m" size={13} color={c.slate700}>
+                {alt.name}
+              </Txt>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+        <Txt w="b" size={12} color={c.textTertiary}>
+          Photo required
+        </Txt>
+        <Toggle on={slot.photoRequired} onPress={onTogglePhoto} label={`${label} photo required`} />
+      </Row>
+
+      <TextInput
+        value={slot.note ?? ''}
+        onChangeText={onNoteChange}
+        placeholder="Note for this meal…"
+        placeholderTextColor={c.textTertiary}
+        accessibilityLabel={`${label} note`}
+        style={{ marginTop: 10, height: 42, borderRadius: 11, backgroundColor: c.card, paddingHorizontal: 12, fontFamily: font.m, fontSize: 13, color: c.text }}
+      />
+    </View>
   );
 }
