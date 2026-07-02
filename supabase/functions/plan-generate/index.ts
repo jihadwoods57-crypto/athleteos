@@ -184,7 +184,8 @@ function buildPrompt(req: PlanReq): string {
   if (protocolBits.length > 0) lines.push(`Protocol: ${protocolBits.join(', ')}.`);
   const windowList = req.windows.map((w) => `${w.key} (${w.label})${w.required ? ', required' : ''}`).join('; ');
   lines.push(`Meal windows to fill, exactly one slot each: ${windowList}.`);
-  if (typeof req.prompt === 'string' && req.prompt.trim()) lines.push(`Coach's request: ${req.prompt.trim()}`);
+  // Truncate the free-text prompt so an oversized string cannot inflate the paid call.
+  if (typeof req.prompt === 'string' && req.prompt.trim()) lines.push(`Coach's request: ${req.prompt.trim().slice(0, 2000)}`);
   lines.push('Draft the full day now and report it.');
   return lines.join('\n');
 }
@@ -205,8 +206,10 @@ Deno.serve(async (request) => {
     return new Response(JSON.stringify({ error: 'bad request' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 
-  if (!Array.isArray(req.windows) || req.windows.length === 0) {
-    return new Response(JSON.stringify({ error: 'windows required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+  // A real day has a handful of meal windows; cap the array so a pathological caller past the
+  // auth/rate gates cannot inflate a paid Anthropic call with thousands of entries.
+  if (!Array.isArray(req.windows) || req.windows.length === 0 || req.windows.length > 8) {
+    return new Response(JSON.stringify({ error: 'windows required (1 to 8)' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 
   // Per-user daily cap on this paid call. Enforced only for signed-in users; anonymous/preview

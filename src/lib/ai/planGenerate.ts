@@ -1,4 +1,4 @@
-import { activePlan, buildPlanDraft, parsePlanSlots, type CoachPlan, type EngineGoal, type PlanSlot } from '@/core';
+import { buildPlanDraft, parsePlanSlots, type CoachPlan, type EngineGoal, type PlanSlot } from '@/core';
 import { supabase } from '@/lib/supabase/client';
 
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
