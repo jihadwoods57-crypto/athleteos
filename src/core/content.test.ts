@@ -242,14 +242,17 @@ describe('heroStatus', () => {
     expect(h.standingLabel).toBe('Top of your team'); // grade A
   });
 
-  it('day-complete but sub-90 (B band, unsubmitted check-in) → complete copy with no ask/nag', () => {
-    // All four meals logged + protein cleared, but the check-in is unsubmitted so the
-    // score lands in [80,89]. This used to fall through the lone `dayComplete && >=90`
-    // guard into the score-band branch and nag "finish the day strong" via `ask`.
+  it('day-complete but sub-90 (B band, moderate check-in) → complete copy with no ask/nag', () => {
+    // All four meals logged + protein cleared + a REAL but moderate check-in, so the score
+    // lands in [80,89]. (Recovery only counts once a real check-in backs it; an unsubmitted
+    // check-in now caps a completed day well below 80.) This used to fall through the lone
+    // `dayComplete && >=90` guard into the score-band branch and nag "finish the day strong".
     const s = {
       ...createInitialState(),
       meals: { breakfast: true, lunch: true, snack: true, dinner: true },
-      ciSubmitted: false,
+      ciSubmitted: true,
+      ciConfig: { energy: true, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false },
+      ciEnergy: 5,
     } as AppState;
     const d = computeDerived(s);
     // Band is REAL (driven through computeDerived), not hand-set.

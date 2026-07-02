@@ -39,6 +39,15 @@ describe('computeDerived — default state', () => {
     expect(d.recoveryScore).toBe(86);
   });
 
+  it('recovery fallback (86) is excluded from athleteScore until a real check-in backs it', () => {
+    // The DISPLAY keeps 86 as a neutral placeholder, but an unearned recovery must
+    // never inflate the accountability score (the UI already shows Recovery 0% /
+    // "check-in not submitted"). So the score is the blend with recovery contributing 0.
+    expect(d.recoveryScoreIsReal).toBe(false);
+    const expected = Math.round(0.5 * d.nutritionScore + 0.15 * d.tasksScore + 0.1 * d.checkinScore);
+    expect(d.athleteScore).toBe(expected);
+  });
+
   it('tasks = 3 of 6 done -> 50 (protein task id 2 not done: 142 < 180)', () => {
     // id 1 (done), id 2 (protein 142 < 180 -> NOT done), id 3 (false),
     // id 4 (false), id 5 (done), id 6 (done) = 3 done. round(3/6*100) = 50.
@@ -52,12 +61,13 @@ describe('computeDerived — default state', () => {
     expect(d.checkinScore).toBe(0);
   });
 
-  it('accountability score = clamp(round(.5*78 + .25*86 + .15*50 + .1*0)) = 68', () => {
-    // 39 + 21.5 + 7.5 + 0 = 68 -> grade D. With the nutrition floor removed (D-B),
-    // the seeded day (3 meals, protein short of target, no check-in submitted) reads
-    // an honest D instead of a propped-up C. Weight is not in the daily score.
-    expect(d.athleteScore).toBe(68);
-    expect(d.grade.g).toBe('D');
+  it('accountability score = clamp(round(.5*78 + .25*0 + .15*50 + .1*0)) = 47 (recovery not real)', () => {
+    // 39 + 0 + 7.5 + 0 = 46.5 -> 47 -> grade F. Recovery contributes 0 (not the 86
+    // display fallback) until a real check-in backs it — the score now matches the UI,
+    // which already shows Recovery 0% / "check-in not submitted". (Was 68/D when the
+    // unearned 86 leaked into the blend.) Weight is not in the daily score.
+    expect(d.athleteScore).toBe(47);
+    expect(d.grade.g).toBe('F');
   });
 
   it('ring offset = round(540 * (1 - score/100))', () => {

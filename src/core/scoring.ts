@@ -289,8 +289,14 @@ export function computeDerived(s: AppState): Derived {
   // and check-in round it out. Weights come from the account's scoring profile
   // ('athlete' default = the shipped .5/.25/.15/.1 mix, unchanged).
   const w = PROFILE_WEIGHTS[profile];
+  // Recovery only contributes to the accountability score once a real check-in backs it.
+  // The 86 `recoveryScore` fallback is a neutral DISPLAY placeholder (and the UI already
+  // shows "check-in not submitted" / 0%); crediting it into the blend was inflating every
+  // no-check-in day by w.recovery*86 unearned points — the exact "fake number" the honesty
+  // keystone forbids (D-B). When recovery is not real it contributes 0, matching the UI.
+  const recoveryContribution = recoveryScoreIsReal ? recoveryScore : 0;
   const athleteScore = clamp(
-    Math.round(w.nutrition * nutritionScore + w.recovery * recoveryScore + w.tasks * tasksScore + w.checkin * checkinScore),
+    Math.round(w.nutrition * nutritionScore + w.recovery * recoveryContribution + w.tasks * tasksScore + w.checkin * checkinScore),
     0,
     100,
   );
