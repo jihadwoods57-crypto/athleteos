@@ -59,6 +59,7 @@ export * from './restaurants';
 export * from './restaurantCoach';
 export * from './restaurantCoachVoice';
 export * from './coachPlan';
+export * from './planValidate';
 export * from './adherence';
 export * from './aiAuthority';
 export * from './assist';
