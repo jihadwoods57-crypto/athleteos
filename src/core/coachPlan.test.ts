@@ -2,7 +2,7 @@
 // activePlan's target fallbacks (a corrupt/legacy blob must never poison the plan),
 // the 12-hour window-time formatting (midnight/noon/wraparound), and mealTarget's
 // required-vs-snack share split (incl. the no-required / degenerate-plan fallbacks).
-import { activePlan, formatWindowTime, mealTarget, DEFAULT_PLAN } from './coachPlan';
+import { activePlan, formatWindowTime, mealTarget, DEFAULT_PLAN, emptySlot } from './coachPlan';
 import type { MealKey } from './types';
 
 describe('formatWindowTime', () => {
@@ -103,5 +103,23 @@ describe('DEFAULT_PLAN invariants', () => {
     for (const w of DEFAULT_PLAN.windows) {
       expect(w.deadlineMin).toBeGreaterThan(w.openMin); // deadline after open
     }
+  });
+});
+
+describe('CoachPlan slots', () => {
+  it('DEFAULT_PLAN carries an empty slots array', () => {
+    expect(DEFAULT_PLAN.slots).toEqual([]);
+  });
+
+  it('emptySlot builds an open slot with no meals and photo not required', () => {
+    const s = emptySlot('lunch');
+    expect(s.key).toBe('lunch');
+    expect(s.mode).toBe('open');
+    expect(s.pinnedMeal).toBeNull();
+    expect(s.options).toEqual([]);
+    expect(s.restaurantAlts).toEqual([]);
+    expect(s.note).toBeNull();
+    expect(s.photoRequired).toBe(false);
+    expect(s.macros).toEqual({ kcal: 0, protein: 0 });
   });
 });
