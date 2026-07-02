@@ -7,12 +7,16 @@ describe('buildPlanDraft', () => {
     expect(slots.map((s) => s.key)).toEqual(DEFAULT_PLAN.windows.map((w) => w.key));
   });
 
-  it('slot macros roughly sum to the plan protein target (required-weighted)', () => {
+  it('required slots sum to about the daily protein target; snack adds a bonus on top', () => {
     const slots = buildPlanDraft(DEFAULT_PLAN, 'gain');
+    const requiredKeys = new Set(DEFAULT_PLAN.windows.filter((w) => w.required).map((w) => w.key));
+    const requiredProtein = slots.filter((s) => requiredKeys.has(s.key)).reduce((n, s) => n + s.macros.protein, 0);
     const totalProtein = slots.reduce((n, s) => n + s.macros.protein, 0);
-    // required meals carry a full share, snack a half — total lands near the plan target, not above it.
-    expect(totalProtein).toBeGreaterThan(DEFAULT_PLAN.proteinTarget * 0.6);
-    expect(totalProtein).toBeLessThanOrEqual(DEFAULT_PLAN.proteinTarget + 5);
+    // required meals each carry a full 1/required share, so together they ~= the daily target
+    expect(requiredProtein).toBeGreaterThanOrEqual(DEFAULT_PLAN.proteinTarget - 3);
+    expect(requiredProtein).toBeLessThanOrEqual(DEFAULT_PLAN.proteinTarget + 3);
+    // the optional snack is a bonus half-share on top
+    expect(totalProtein).toBeGreaterThan(requiredProtein);
   });
 
   it('every slot has one seeded option in open mode', () => {

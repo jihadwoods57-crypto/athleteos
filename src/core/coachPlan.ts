@@ -88,15 +88,13 @@ export const DEFAULT_PLAN: CoachPlan = {
  *  single meal can be judged against what THIS plan expects of it (Feature 4). */
 export function mealTarget(plan: CoachPlan, key: MealKey): { calories: number; protein: number } {
   const required = plan.windows.filter((w) => w.required);
-  const nonRequired = plan.windows.filter((w) => !w.required);
+  const slots = Math.max(1, required.length || plan.mealsPerDay);
   const isRequired = required.some((w) => w.key === key);
   // Snacks (non-required) carry a lighter ~half share; required meals split the rest evenly.
   const weight = isRequired ? 1 : 0.5;
-  const totalWeight = required.length + nonRequired.length * 0.5;
-  const divisor = Math.max(1, totalWeight || plan.mealsPerDay);
   return {
-    calories: Math.round((plan.calorieTarget / divisor) * weight),
-    protein: Math.round((plan.proteinTarget / divisor) * weight),
+    calories: Math.round((plan.calorieTarget / slots) * weight),
+    protein: Math.round((plan.proteinTarget / slots) * weight),
   };
 }
 
