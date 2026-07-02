@@ -69,3 +69,31 @@ Fixed on-standard value **and** reweight (both manufacture/hide a number a coach
 
 ## Next step
 **Ship the global recovery-leak fix first, as its own small PR, before anything else.** Gate `recoveryScore` on `recoveryScoreIsReal` in the base blend at `scoring.ts:293` (unsubmitted → recovery contributes 0) and stop bare-submit check-in floating a day. It's a **live fake-green bug today** (every no-check-in day leaks 21.5 unearned points), a hard prerequisite for every honest pass-day number, one gated line + a unit test, and it works engines-OFF. Then the one-tap floor + checklist retirement + median helper complete the pre-beta floor; the full coach-configurable pass is the deliberate fast-follow once real baselines have accrued. **No pass ships until the leak-fix + trailing-median + eligibility gate are in — a pass without them is the banned participation floor wearing a varsity chip.**
+
+---
+
+## Implementation status (2026-07-02)
+
+**Built (client-side, behind `isTrustPassEnabled`, default OFF), all TDD + green:**
+- Recovery-leak fix (the hard prerequisite) — shipped as its own PR (`c0cbf21`).
+- Pre-beta floor: one-tap plan-commitment replaced the fake task checklist (`fe2a065`).
+- Pure Trust Pass math + logic in `src/core/trustPass.ts`: `trailingEarnedNutritionMedian`
+  (median-not-mean baseline), `passDayNutritionScore` (f(answer)·base, honesty invariant),
+  `passEligibility` (≥7 on-standard days), `passStatus` (active/expired, spot-check, forward-only
+  decay), `passDayCredit`.
+- State + actions: `trustPass` field (cross-day, persisted) + `grantTrustPass`/`endTrustPass`.
+- Engine: `computeDerived` credits a camera-free "yes" at the proven median — **data-gated**
+  (no pass ⇒ no-op; the non-pass firewall `nutrition=0 without a photo` is untouched), applied as
+  a floor so logging still earns higher and an honest "no" is never masked. New `Derived.nutritionIsTrustCredited` drives the honest render.
+- UI: athlete Profile pilot grant/end + eligibility readout (self-grant still gated on real
+  on-standard days); Home commitment banner distinguishing "On standard · Trust Pass" from
+  photo-verified, and surfacing spot-check days.
+
+**Deliberately deferred to go-live (founder-gated; NOT built here):**
+- **Server-authoritative pass state** (Supabase pass row + RLS, coach-write/athlete-read) so a
+  pass can't be self-granted by a spoofed client. The pilot uses client state.
+- **Seeded-random spot-checks** owned by the server (the pilot uses a deterministic every-5th-day
+  check so it's testable and un-patternable-by-code, but not yet random).
+- **Coach-grant-to-athlete** across accounts (inherently needs the backend), plus the coach
+  telemetry view and revocation UX.
+- Requires a live Supabase migration, which is a founder-gated action here.

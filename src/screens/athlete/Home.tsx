@@ -9,6 +9,7 @@ import {
   coachGuidance,
   medicalDisclaimer,
   nextBestAction,
+  passStatus,
   projectedScore,
   DEFAULT_CHART_BOX,
   displayWeight,
@@ -34,6 +35,7 @@ import {
 } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiMemoryTag } from '@/lib/ai';
+import { isTrustPassEnabled } from '@/lib/features';
 import { gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Btn, Card, Input, PressScale, ProgressBar, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
@@ -49,6 +51,8 @@ export function Home() {
   // Forward-looking framing: where the score reaches if the day's controllable actions
   // get done, and the checklist to get there. Shown only while actions remain.
   const projection = projectedScore(s);
+  // Trust Pass status (pilot, flag-gated) — drives the honest camera-free banner on the commitment.
+  const tpStatus = isTrustPassEnabled ? passStatus(s.trustPass, s.dateStamp) : null;
   // Reward moment: when the score changes (e.g. after logging a meal), the hero number +
   // ring count up to the new value instead of snapping — the satisfying "it moved" beat.
   const shownScore = useCountUp(d.athleteScore);
@@ -257,6 +261,18 @@ export function Home() {
           <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 12, lineHeight: 17 }}>
             One honest tap keeps your day going. Logging your meals is still how you earn a top score.
           </Txt>
+          {tpStatus?.phase === 'active' ? (
+            <Row style={{ gap: 8, alignItems: 'center', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.border }}>
+              <Icon name="sparkle" size={15} color={c.accent} />
+              <Txt w="b" size={12} color={c.accent} style={{ flex: 1 }}>
+                {tpStatus.isCheckDay
+                  ? 'Trust Pass · spot-check today — log your meals'
+                  : d.nutritionIsTrustCredited
+                    ? 'On standard · Trust Pass (camera-free, credited at your proven level)'
+                    : 'Trust Pass active · your tap counts camera-free'}
+              </Txt>
+            </Row>
+          ) : null}
         </Card>
       </Reveal>
 
