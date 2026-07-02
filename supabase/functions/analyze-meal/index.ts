@@ -43,6 +43,19 @@ const DAILY_CAP = (() => {
   const n = Math.floor(Number(Deno.env.get('DAILY_ANALYSIS_CAP') ?? '40'));
   return Number.isFinite(n) && n > 0 ? n : 40;
 })();
+// Positive-int env with a safe fallback (a non-number / <=0 would break the `count < cap` compare).
+function posIntCap(name: string, fallback: number): number {
+  const n = Math.floor(Number(Deno.env.get(name) ?? String(fallback)));
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+// Audit Finding #2. Two day-scoped ceilings, on top of the per-athlete DAILY_CAP, so the public
+// anon key can't be used to drive unbounded paid spend:
+//   * GLOBAL_CAP — total paid photo calls/day across EVERY caller: the hard backstop on the bill.
+//   * ANON_IP_CAP — paid calls/day per IP for ANONYMOUS (anon-key-only) callers, who skip the
+//     per-athlete cap. Both are backed by claim_ai_usage_key (migration 0030) and fail OPEN.
+// Tune both up as real traffic grows; defaults are generous for an early-stage roster.
+const GLOBAL_CAP = posIntCap('GLOBAL_ANALYSIS_CAP', 5000);
+const ANON_IP_CAP = posIntCap('ANON_IP_ANALYSIS_CAP', 60);
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -81,6 +94,27 @@ async function withinDailyCap(userId: string): Promise<boolean> {
   }
 }
 
+// Claim one slot against a TEXT-keyed day counter (global ceiling / per-IP anon cap; migration
+// 0030). Fail-OPEN on any error, exactly like withinDailyCap, so an un-applied migration or infra
+// hiccup never blocks a legit log.
+async function withinKeyCap(key: string, limit: number): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data, error } = await sb.rpc('claim_ai_usage_key', { p_key: key, p_limit: limit });
+    if (error) return true;
+    const row = Array.isArray(data) ? data[0] : data;
+    return row?.allowed !== false;
+  } catch {
+    return true;
+  }
+}
+
+// The caller's client IP (first hop of x-forwarded-for), for the per-IP limits.
+function clientIp(req: Request): string {
+  return (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+}
+
 // Security hardening (audit G4). CORS: reflect the request Origin ONLY if it's on the allowlist.
 // A native app sends no Origin header (and there's no browser to enforce CORS for it), so it's
 // allowed; a browser Origin that isn't on the list gets no Access-Control-Allow-Origin, so the
@@ -107,7 +141,7 @@ const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '20');
 const RL_WINDOW_MS = 60_000;
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIp(req);
   const now = Date.now();
   const e = rlHits.get(ip);
   if (!e || now > e.resetAt) {
@@ -451,8 +485,18 @@ Deno.serve(async (request) => {
   // 'analyze', so it must not claim again (a meal stays 1 of the daily cap even with a follow-up).
   const countsAgainstDailyCap = !isMemory && !isOrder && !isFinalize;
   if (countsAgainstDailyCap) {
+    // (1) Global daily ceiling across every caller — the hard backstop on a day's Anthropic bill.
+    if (!(await withinKeyCap('global', GLOBAL_CAP))) {
+      return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+    // (2) Per-caller cap: a signed-in athlete gets the per-athlete daily cap; an anonymous
+    // (anon-key-only) caller gets a per-IP daily cap so the public anon key can't be abused
+    // without signing in (audit Finding #2). Both fail open.
     const userId = await resolveUserId(request);
-    if (userId && !(await withinDailyCap(userId))) {
+    const ok = userId
+      ? await withinDailyCap(userId)
+      : await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP);
+    if (!ok) {
       return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
   }
@@ -498,6 +542,9 @@ Deno.serve(async (request) => {
     // Label facts + memory/order prose are returned as-is (the CLIENT bounds the numbers).
     return new Response(JSON.stringify(used.input), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } });
+    // Log the detail server-side; return a generic message so no internal detail (upstream error
+    // text, stack) leaks to the client. The app falls back to the deterministic result on any 5xx.
+    console.error('analyze-meal upstream error:', e);
+    return new Response(JSON.stringify({ error: 'analysis unavailable' }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 });

@@ -268,6 +268,16 @@ export interface Database {
         Args: { org: string };
         Returns: { id: string; name: string; sport: string | null; coach_name: string | null }[];
       };
+      // School-directory search via SECURITY DEFINER RPCs (migration 0031). Return SAFE display
+      // columns only (never created_by), so orgs_read can stay locked (audit: 0013<->0022).
+      search_orgs: {
+        Args: { q: string; lim?: number | null };
+        Returns: { id: string; name: string; type: OrgType; city: string | null; state: string | null }[];
+      };
+      find_org: {
+        Args: { p_name: string; p_state?: string | null };
+        Returns: { id: string; name: string; type: OrgType; city: string | null; state: string | null }[];
+      };
       resolve_team_code: {
         Args: { code: string };
         Returns: { id: string; name: string; sport: string | null; coach_name: string | null; school: string | null }[];

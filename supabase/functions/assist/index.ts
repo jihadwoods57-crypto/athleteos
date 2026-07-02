@@ -10,10 +10,33 @@
 //
 // Deploy:  supabase functions deploy assist   (shares the ANTHROPIC_API_KEY secret)
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
+import { createClient } from 'npm:@supabase/supabase-js@^2';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6';
 // A deeper model for heavy roster analysis; defaults to the standard tier. Fable 5 when available.
 const DEEP_MODEL = Deno.env.get('ANTHROPIC_DEEP_MODEL') ?? 'claude-opus-4-8';
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+// Audit Finding #2: a global daily ceiling on paid assist calls (the deep path runs Opus), as a
+// hard backstop on the bill since the anon key is public. Backed by claim_ai_usage_key (0030);
+// fails OPEN so an un-applied migration never blocks. Tune up as traffic grows.
+const GLOBAL_CAP = (() => {
+  const n = Math.floor(Number(Deno.env.get('ASSIST_GLOBAL_CAP') ?? '5000'));
+  return Number.isFinite(n) && n > 0 ? n : 5000;
+})();
+async function withinGlobalCap(): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data, error } = await sb.rpc('claim_ai_usage_key', { p_key: 'assist_global', p_limit: GLOBAL_CAP });
+    if (error) return true;
+    const row = Array.isArray(data) ? data[0] : data;
+    return row?.allowed !== false;
+  } catch {
+    return true;
+  }
+}
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
 const BASE_HEADERS: Record<string, string> = {
@@ -88,6 +111,11 @@ Deno.serve(async (request) => {
   }
   if (!body || body.data === undefined) {
     return new Response(JSON.stringify({ narration: null, error: 'data required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
+
+  // Global daily ceiling — hard backstop on the bill. Over the cap -> graceful null narration.
+  if (!(await withinGlobalCap())) {
+    return new Response(JSON.stringify({ narration: null, error: 'service at capacity' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 
   const directive = typeof body.directive === 'string' ? body.directive : '';

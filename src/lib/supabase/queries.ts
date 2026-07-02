@@ -182,21 +182,24 @@ export async function fetchLinkedDays(date: string): Promise<DayRow[]> {
 }
 
 // ---------------------------------------------------------------- schools directory
-/** Type-ahead over the schools/clubs directory (public `orgs_read` policy). Returns
- *  matches by name (case-insensitive substring), newest schema fields included. Empty
- *  when unconfigured or for a query shorter than 2 chars (avoids scanning on one letter). */
+/** A directory match: safe display columns only (the `search_orgs`/`find_org` RPCs never return
+ *  created_by, so the org creator's identity stays private). Shaped as OrgRow for callers; the
+ *  private fields are filled inert (never shown in the picker). */
+function toOrgRow(o: { id: string; name: string; type: OrgType; city: string | null; state: string | null }): OrgRow {
+  return { id: o.id, name: o.name, type: o.type, city: o.city, state: o.state, created_by: null, created_at: '' };
+}
+
+/** Type-ahead over the schools/clubs directory. Reads through the `search_orgs` SECURITY DEFINER
+ *  RPC (migration 0031) rather than a direct `orgs` select, so the directory works while the
+ *  `orgs_read` policy stays locked to connected orgs (0013) — no org-enumeration leak. Empty when
+ *  unconfigured or for a query shorter than 2 chars (the RPC enforces the same floor). */
 export async function searchOrgs(query: string, limit = 20): Promise<OrgRow[]> {
   if (!isSupabaseConfigured) return [];
   const term = query.trim();
   if (term.length < 2) return [];
-  const { data, error } = await requireSupabase()
-    .from('orgs')
-    .select('*')
-    .ilike('name', `%${term}%`)
-    .order('name', { ascending: true })
-    .limit(limit);
+  const { data, error } = await requireSupabase().rpc('search_orgs', { q: term, lim: limit });
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map(toOrgRow);
 }
 
 /** "Add your school/club": create an org if one with the same (name, state) doesn't
@@ -213,12 +216,12 @@ export async function createOrg(
   if (!isSupabaseConfigured) return null;
   const sb = requireSupabase();
   const trimmed = name.trim();
-  // Dedup pre-check on (lower(name), lower(state)) — backed by orgs_name_state_lower.
-  let dedup = sb.from('orgs').select('*').ilike('name', trimmed);
-  dedup = state ? dedup.ilike('state', state) : dedup.is('state', null);
-  const { data: existing, error: dedupErr } = await dedup.limit(1);
+  // Dedup pre-check via the `find_org` SECURITY DEFINER RPC (migration 0031), so the "add your
+  // school" path can see an existing school it isn't linked to yet and converge on it — impossible
+  // through a direct `orgs` select under the locked orgs_read policy (0013), which would spawn dups.
+  const { data: existing, error: dedupErr } = await sb.rpc('find_org', { p_name: trimmed, p_state: state ?? null });
   if (dedupErr) throw dedupErr;
-  if (existing && existing.length > 0) return existing[0];
+  if (existing && existing.length > 0) return toOrgRow(existing[0]);
 
   const { data, error } = await sb
     .from('orgs')

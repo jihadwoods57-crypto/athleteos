@@ -13,8 +13,23 @@ const ANON = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
 
+// Best-effort per-IP rate limit (mirrors analyze-meal/assist) so a compromised overseer account
+// can't spam pushes. In-memory/per-instance — blunts a single abusive caller. Tunable.
+const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '20');
+const RL_WINDOW_MS = 60_000;
+const rlHits = new Map<string, { count: number; resetAt: number }>();
+function rateLimited(req: Request): boolean {
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const now = Date.now();
+  const e = rlHits.get(ip);
+  if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS }); return false; }
+  e.count++;
+  return e.count > RL_MAX;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+  if (rateLimited(req)) return json({ error: 'rate limited, slow down' }, 429);
   const authHeader = req.headers.get('Authorization') ?? '';
   if (!authHeader) return json({ error: 'unauthorized' }, 401);
 
