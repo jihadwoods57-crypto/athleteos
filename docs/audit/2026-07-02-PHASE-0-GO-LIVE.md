@@ -1,0 +1,113 @@
+# Phase 0 — Apply-to-Live Runbook (audit fixes, 2026-07-02)
+
+This is the **single source of truth** for landing the Phase 0 audit fixes on the live Supabase
+project (`ftwrvylzoyznhbzhgism`). It supersedes the migration/apply instructions in
+`START-HERE.md` and `docs/FOUNDER-GO-LIVE-CHECKLIST.md`, both of which predate the live cutover and
+are now wrong about what's applied.
+
+Everything below was authored + statically reviewed + typechecked, and the full test suite is green
+(1326 tests). **Nothing here has been applied to live** — these are the steps that need your
+credentials and a throwaway-DB validation pass first. Do them in order.
+
+---
+
+## What changed in this branch (`fix/audit-phase0-live-fixes`)
+
+**Three new migrations** (additive, forward-only — no existing migration was edited):
+
+| File | Closes | What it does |
+|------|--------|--------------|
+| `0034_team_membership_sync.sql` | Item 1 — coach can't see new athletes | Triggers on `team_members`/`team_staff` mirror active links into `org_memberships` (the table `can_view` reads since the 0012 cutover), + re-runs the idempotent backfill to catch every link made since. |
+| `0035_privilege_hardening.sql` | Items 2 & 3 — minor self-consent, notify() forgery | Removes the minor's read of their own consent `token` (column-level) + strips its latent direct-write grant; revokes `EXECUTE` on `notify()` + `backfill_org_memberships_teams()` from app users; flips the default so future functions don't auto-grant `EXECUTE`. |
+| `0036_fix_table_grants.sql` | Item 4a — mark-as-read broken on live | Grants the `UPDATE/DELETE` (notifications) and `INSERT/UPDATE/DELETE` (meal_plans tables) that the RLS policies promise but 0027/0032 never granted after 0013's default revoke. |
+
+**Code changes (no DB):**
+- `supabase/functions/plan-generate/index.ts` (Item 4b) — added the global + anon-per-IP spend caps it was missing (sharing analyze-meal's counters for one unified daily bill), bumped `max_tokens` 2048→4096 with an explicit truncation check, and stopped leaking `String(e)` (now logs server-side, returns a generic message). **Redeploy required** (see step 4).
+- `src/lib/ai/*`, `src/store/useStore.ts`, `src/screens/overlays/MealCapture.tsx`, `src/core/types.ts` (Item 5) — a configured AI failure (incl. the daily cap) now shows an honest "couldn't analyze" state that never fabricates a plate/label. Ships with the next app build; no live action.
+
+---
+
+## Step 0 — Reconcile the migration ledger FIRST (Item 6)
+
+The repo's migration numbers drifted from live: local files jump 0016→0018 (no 0017), and three
+renumber collisions happened (git: `638ff3c`, `f06a30e`, `722535c`). Before pushing anything, find
+out exactly what live has:
+
+```bash
+supabase link --project-ref ftwrvylzoyznhbzhgism      # if not already linked
+supabase migration list                                # local vs remote, side by side
+```
+
+- If a remote version has **no local file** (e.g. a live `0017`), or a local file is marked applied
+  that you don't recognize, resolve it with `supabase migration repair --status <applied|reverted> <version>`
+  until `migration list` shows local and remote agreeing on everything through `0033`.
+- **Do not** `db push` until that list is clean, or the push ordering is unpredictable.
+- Record the reconciled applied-set at the bottom of this file so the next person has one truth.
+
+> Forward policy: adopt timestamp-prefixed migration names (`supabase migration new <name>`) from
+> here on to end the renumber collisions. 0034–0036 keep the sequential scheme to stay adjacent to
+> 0033; number the next new one by timestamp.
+
+## Step 1 — Validate 0034–0036 on a throwaway Postgres
+
+I could not run these locally (no Docker/psql in the authoring environment). Validate before live:
+
+```bash
+# with Docker available:
+supabase start                     # local stack
+supabase db reset                  # applies ALL migrations 0001..0036 from scratch
+```
+`db reset` applying cleanly is the primary check (it exercises the whole chain, incl. the 0034
+triggers firing on the seed and the 0035/0036 grant/revoke statements). Then sanity-check the
+invariants in Step 3 against the local DB before touching live.
+
+## Step 2 — Apply to live (after Step 0 is clean and Step 1 passed)
+
+```bash
+supabase db push        # applies 0034 → 0035 → 0036 in order
+```
+
+## Step 3 — Verify the fixes on live (SQL / behavior)
+
+- **Item 1:** create a team, join it as a second account, and confirm the coach's roster now shows
+  that athlete's day (before this fix it showed nothing). Or in SQL: after a `join_team`, a matching
+  `org_memberships` row (role `athlete`, `scope_kind='group'`, `status='active'`) exists.
+- **Item 2:** as a signed-in athlete, `select token from guardian_consent_requests` returns
+  **permission denied** (or no `token` column), while `select status ...` still works.
+- **Item 3:** `select notify('<any-uuid>','x','y','z')` as a normal user returns **permission
+  denied**. A real join request still creates the coach's notification (the trigger runs as definer).
+- **Item 4a:** mark a notification read in the app — it persists (no 42501).
+- **Item 4b:** covered by Step 4.
+
+## Step 4 — Redeploy the AI edge functions
+
+`plan-generate` code changed, and the spend caps only bite once the functions run migration 0030's
+`claim_ai_usage_key` (make sure 0030 is applied — it's in the 0029–0033 batch):
+
+```bash
+supabase functions deploy plan-generate
+supabase functions deploy analyze-meal      # if 0030 was just applied, redeploy so its caps engage
+supabase functions deploy assist            # same
+```
+Confirm the caps: an anon-key call to `plan-generate` past the per-IP daily cap returns 429.
+
+---
+
+## Deferred (needs a live/throwaway DB to do safely — do NOT guess these)
+
+1. **Deeper function-EXECUTE lockdown.** 0035 only revokes the two provably-safe helpers. Many
+   functions (`is_minor`, `team_head_coach_name`, `is_org_admin`, the `is_*` predicates) are lower-
+   value to lock but should be reviewed. **Risk:** several `is_*` functions are evaluated inside RLS
+   policies, where the querying role MUST keep `EXECUTE` or every governed query breaks — so each
+   revoke must be verified against a real DB (spin up `supabase start`, revoke, run the app's read
+   paths). This is why it wasn't done blind here.
+2. **Score server-authority (audit item 15).** `days.score` is still client-written and now feeds
+   trust-pass eligibility. Near-term slice: compute eligibility from photo-bearing `meals` rows.
+3. **Self-attested minor age.** `athlete_profiles.base_age` is athlete-writable and is the entire
+   minor-safety keystone — make an explicit risk-acceptance decision (COPPA).
+4. **meal_plans write path.** 0036 grants the DML the policies imply; when the coach editor's direct
+   writes are actually wired, confirm the columns/flow match before flipping `isMealPlansEnabled`.
+
+## Reconciled applied-set (fill in after Step 0)
+
+> _Record here what `supabase migration list` shows as applied on live, once reconciled._

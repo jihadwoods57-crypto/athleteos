@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, ScrollView, TextInput, View } from 'react-native';
 import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer, flagIngredients, scaleLabel, labelQuality, labelProvenanceNote, matchUsuals, foodLookupToEditable } from '@/core';
-import type { MealLabel, LabelFacts, IngredientFlag, MealResult, MealCaptureMode, FoodLookupResult } from '@/core';
+import type { MealLabel, LabelFacts, IngredientFlag, MealResult, MealCaptureMode, MealErrorReason, FoodLookupResult } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiCoachTag } from '@/lib/ai';
 import { searchFoods, isFoodLookupConfigured } from '@/lib/food';
@@ -28,7 +28,9 @@ export function MealCapture() {
         ? isLabel ? 'Reading label' : 'Analyzing'
         : s.mealStage === 'questions'
           ? 'Almost there'
-          : isSearch ? 'Search a Food' : isLabel ? 'Scan a Label' : 'Log a Meal';
+          : s.mealStage === 'unavailable'
+            ? "Couldn't analyze"
+            : isSearch ? 'Search a Food' : isLabel ? 'Scan a Label' : 'Log a Meal';
 
   return (
     <Overlay title={header} onClose={s.closeMeal} closeIcon="close">
@@ -69,6 +71,14 @@ export function MealCapture() {
             {s.mealStage === 'result' && (isLabel
               ? <LabelResult facts={s.labelFacts} servings={s.labelServings} onServings={s.setLabelServings} onAdd={s.addScannedLabel} />
               : <Result mealType={s.mealType} onAdd={s.addMeal} />)}
+            {s.mealStage === 'unavailable' && (
+              <Unavailable
+                reason={s.mealError}
+                label={isLabel}
+                onRetry={() => { haptics.tap(); if (isLabel) s.captureLabel(); else s.capture(); }}
+                onManual={() => { haptics.select(); s.setMealCaptureMode('search'); }}
+              />
+            )}
           </>
         )}
       </ScrollView>
@@ -764,6 +774,48 @@ function Questions() {
         style={{ paddingVertical: 12, alignItems: 'center' }}
       >
         <Txt w="sb" size={13} color={c.textTertiary}>Skip and estimate anyway</Txt>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * Honest "couldn't analyze" state (audit 2026-07-02, item 5). Shown when a CONFIGURED model was
+ * asked and could not answer — instead of the old behavior of silently logging a canned plate /
+ * sample label as if it read the athlete's real photo. We never guess macros here: the athlete
+ * retries, or switches to Search to log the food with exact numbers. Their log still counts.
+ */
+function Unavailable({ reason, label, onRetry, onManual }: { reason: MealErrorReason | null; label: boolean; onRetry: () => void; onManual: () => void }) {
+  const c = useColors();
+  const rateLimited = reason === 'rate_limited';
+  const title = rateLimited
+    ? "You've hit today's limit"
+    : label ? "Couldn't read that label" : "Couldn't analyze that photo";
+  const body = rateLimited
+    ? "You've used all of today's AI analyses. Your log still counts — search the food to add it exactly, or try the photo again tomorrow."
+    : label
+      ? "We couldn't read the Nutrition Facts this time. Try the scan again, or search the food to log it exactly. We won't guess the numbers."
+      : "We couldn't analyze this one. Try the photo again, or search the food to log it exactly. We won't guess your macros.";
+  return (
+    <View style={{ marginTop: 26, alignItems: 'center' }}>
+      <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: c.warnTint, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={label ? 'barcode' : 'camera'} size={24} color={c.warnText} />
+      </View>
+      <Txt w="eb" size={17} style={{ marginTop: 14, textAlign: 'center' }}>{title}</Txt>
+      <Txt w="m" size={13.5} color={c.textSecondary} style={{ marginTop: 8, textAlign: 'center', lineHeight: 20, paddingHorizontal: 8 }}>
+        {body}
+      </Txt>
+      {/* No retry CTA when rate-limited — retrying just hits the cap again; Search is the way to log now. */}
+      {rateLimited ? null : (
+        <Btn label={label ? 'Scan again' : 'Retake photo'} onPress={onRetry} style={{ marginTop: 20, alignSelf: 'stretch' }} />
+      )}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Search a food to log it exactly"
+        onPress={onManual}
+        style={{ paddingVertical: 14, alignItems: 'center' }}
+      >
+        <Txt w="sb" size={13.5} color={c.accent}>Search a food instead</Txt>
       </Pressable>
     </View>
   );

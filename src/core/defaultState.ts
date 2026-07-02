@@ -112,6 +112,7 @@ export function createInitialState(): AppState {
     mealType: 'Dinner',
     mealAnalysis: null,
     mealQuestions: [],
+    mealError: null,
     labelFacts: null,
     labelServings: 1,
     mealPhoto: null,

@@ -77,7 +77,11 @@ export type CoachTab = 'dashboard' | 'roster' | 'attention' | 'reports' | 'profi
 /** Trainer / Parent bottom-tab destinations (so every role has a tab bar + Profile). */
 export type TrainerTab = 'dashboard' | 'profile';
 export type ParentTab = 'overview' | 'profile';
-export type MealStage = 'capture' | 'analyzing' | 'questions' | 'result';
+export type MealStage = 'capture' | 'analyzing' | 'questions' | 'result' | 'unavailable';
+/** Why a configured AI analysis failed. 'rate_limited' = the athlete hit the daily cap (429);
+ *  'error' = any other failure (network, timeout, 5xx). Drives the honest 'unavailable' stage —
+ *  we never fabricate a plate/label when a real model was asked and could not answer. */
+export type MealErrorReason = 'rate_limited' | 'error';
 /** Which flow the meal overlay is in: estimate a plate (photo), transcribe a label, or search a
  *  food by name (USDA) and pick exact macros from the ranked results. */
 export type MealCaptureMode = 'meal' | 'label' | 'search';
@@ -303,6 +307,9 @@ export interface AppState {
   /** Clarifying questions the AI asked about the current meal (1-3), or empty. Non-empty means
    *  the capture flow is on the 'questions' stage awaiting answers. Ephemeral; never persisted. */
   mealQuestions: string[];
+  /** Why the last CONFIGURED analysis failed, when mealStage is 'unavailable'. Drives the honest
+   *  "couldn't analyze" panel (retry / enter manually); null otherwise. Ephemeral; never persisted. */
+  mealError: MealErrorReason | null;
   /** The last captured meal photo (base64 JPEG, no data: prefix), held only long
    *  enough to upload it to the meal-photos bucket on log. Ephemeral; never
    *  persisted (kept out of partialize so a multi-MB blob never hits AsyncStorage). */

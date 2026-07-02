@@ -4,7 +4,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { analyzeLabel, analyzeMeal, isAiConfigured } from '@/lib/ai';
+import { AiUnavailableError, analyzeLabel, analyzeMeal, isAiConfigured } from '@/lib/ai';
 import { capturePhotoBase64, pickMealPhotoBase64, isCameraAvailable } from '@/lib/capture';
 import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
@@ -775,7 +775,7 @@ export const useStore = create<Store>()(
       closeMeal: () => set({ mealOpen: false }),
       setMealType: (m) => set({ mealType: m }),
       capture: (fromLibrary = false) => {
-        set({ mealStage: 'analyzing', mealAnalysis: null, mealQuestions: [] });
+        set({ mealStage: 'analyzing', mealAnalysis: null, mealQuestions: [], mealError: null });
         if (mealTimer) clearTimeout(mealTimer);
         // The shutter opens the camera; the gallery button (fromLibrary) opens the photo library.
         const pickPhoto = fromLibrary ? pickMealPhotoBase64 : capturePhotoBase64;
@@ -803,15 +803,15 @@ export const useStore = create<Store>()(
               return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64, slotTarget: slotTargetFor(st) });
             })
             .then((res) => {
-              // The analyze call returns EITHER a finished result OR 1-3 clarifying questions.
+              // The analyze call returns a finished result, 1-3 clarifying questions, or — when a
+              // configured model couldn't answer — an honest 'unavailable' signal (never a fake plate).
               if (res.kind === 'questions') set({ mealQuestions: res.questions, mealStage: 'questions' });
+              else if (res.kind === 'unavailable') set({ mealError: res.reason, mealStage: 'unavailable' });
               else set({ mealAnalysis: res.result, mealStage: 'result' });
             })
-            // analyzeMeal already degrades to a deterministic result internally, but a
-            // failure anywhere in the chain must NEVER strand the user on the "analyzing"
-            // spinner. Fall through to the result stage (the UI fills the deterministic
-            // estimate when mealAnalysis is null).
-            .catch(() => set({ mealAnalysis: null, mealStage: 'result' }));
+            // A failure anywhere in the chain must NEVER strand the user on the "analyzing" spinner.
+            // Route to the honest 'unavailable' stage (retry / enter manually) — we do not fabricate.
+            .catch(() => set({ mealError: 'error', mealStage: 'unavailable' }));
         } else {
           mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);
         }
@@ -819,7 +819,7 @@ export const useStore = create<Store>()(
       finalizeMeal: (answers) => {
         const st = get();
         const clarifications = st.mealQuestions.map((q, i) => ({ question: q, answer: (answers[i] ?? '').trim() }));
-        set({ mealStage: 'analyzing' });
+        set({ mealStage: 'analyzing', mealError: null });
         if (mealTimer) clearTimeout(mealTimer);
         // Second call: same photo + note, now WITH the athlete's answers, forced to report (the
         // finalize phase can't ask again). Consent + photo egress already cleared on the analyze
@@ -835,19 +835,21 @@ export const useStore = create<Store>()(
         })
           .then((res) => {
             if (res.kind === 'result') set({ mealAnalysis: res.result, mealQuestions: [], mealStage: 'result' });
-            // A finalize that somehow still asks is ignored; fall to the deterministic result UI.
-            else set({ mealQuestions: [], mealStage: 'result' });
+            else if (res.kind === 'unavailable') set({ mealError: res.reason, mealQuestions: [], mealStage: 'unavailable' });
+            // A finalize that somehow still asks can't be answered again; treat as unavailable
+            // rather than fabricate a deterministic plate for the athlete's real photo.
+            else set({ mealError: 'error', mealQuestions: [], mealStage: 'unavailable' });
           })
-          .catch(() => set({ mealQuestions: [], mealStage: 'result' }));
+          .catch(() => set({ mealError: 'error', mealQuestions: [], mealStage: 'unavailable' }));
       },
       pickUsual: (u) => {
         // Reuse the athlete's own confirmed macros — no photo, no model call, no daily slot.
         set({ mealAnalysis: usualToResult(u), mealQuestions: [], mealPhoto: null, mealStage: 'result' });
       },
-      setMealCaptureMode: (mode) => set({ mealCaptureMode: mode, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], labelFacts: null }),
+      setMealCaptureMode: (mode) => set({ mealCaptureMode: mode, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], mealError: null, labelFacts: null }),
       setLabelServings: (n) => set({ labelServings: Math.min(20, Math.max(0.25, Math.round(n * 4) / 4)) }),
       captureLabel: () => {
-        set({ mealStage: 'analyzing', mealAnalysis: null });
+        set({ mealStage: 'analyzing', mealAnalysis: null, mealError: null });
         if (mealTimer) clearTimeout(mealTimer);
         // Same fail-closed photo-egress gate as capture()/pushDay: a label photo is real
         // data leaving the device to Anthropic, so an un-consented athlete, unverified minor,
@@ -862,8 +864,10 @@ export const useStore = create<Store>()(
               return analyzeLabel({ photoBase64 });
             })
             .then((facts) => set({ labelFacts: facts, labelServings: 1, mealStage: 'result' }))
-            // Any failure degrades to the deterministic sample; never strand the spinner.
-            .catch(() => set({ labelFacts: sampleScannedLabel(), labelServings: 1, mealStage: 'result' }));
+            // A configured scan that fails must NOT present the deterministic sample as a real
+            // reading ("exact, off the label") — that fabricates the athlete's actual photo. Show
+            // the honest 'unavailable' stage (retry) instead; never strand the spinner.
+            .catch((e) => set({ mealError: e instanceof AiUnavailableError ? e.reason : 'error', mealStage: 'unavailable' }));
         } else {
           // Gate blocked or no endpoint: deterministic sample, nothing leaves the device.
           mealTimer = setTimeout(() => set({ labelFacts: sampleScannedLabel(), labelServings: 1, mealStage: 'result' }), 1400);
