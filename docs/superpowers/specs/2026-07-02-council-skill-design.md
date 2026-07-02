@@ -124,12 +124,18 @@ added when the call touches pricing/checkout.
 
 ## Engine
 
-The skill authors and runs a **Workflow script** built from
-`references/workflow-template.md`, parameterized by: the framed question, the chosen
-evidence sources, and the chosen persona roster. Structure mirrors
-`upgraded-visio-council`:
+Evidence gathering happens **before** the Workflow, in the Frame/Gather moves, done by the
+orchestrating agent with its real tools (Read/Bash/Playwright/MCP) and passed into the
+Workflow as a static briefing string. This deviates deliberately from the
+`upgraded-visio-council` shape (which gathered inside the workflow): OnStandard's live-app
+walkthrough relies on the Playwright/browser MCP, which the Workflow runtime warns "may be
+absent in headless/cron runs" — so gathering must stay with the parent agent, and keeping
+the Workflow gather-free also makes it deterministic and cheaper.
 
-- `phase('Gather')` → `parallel(...)` evidence agents (schema per source).
+The skill then authors and runs a **Workflow script** built from
+`references/workflow-template.md`, parameterized by the framed question, the gathered
+briefing, and the chosen persona roster. The Workflow is pure deliberation:
+
 - `phase('Debate R1')` → `parallel(...)` personas, `POSITION_SCHEMA`.
 - `phase('Debate R2')` → `parallel(...)` personas, `REBUTTAL_SCHEMA`.
 - `phase('Synthesize')` → single judge agent, `PLAN_SCHEMA`.

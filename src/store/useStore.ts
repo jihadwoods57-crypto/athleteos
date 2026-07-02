@@ -8,7 +8,8 @@ import { analyzeLabel, analyzeMeal, isAiConfigured } from '@/lib/ai';
 import { capturePhotoBase64, pickMealPhotoBase64, isCameraAvailable } from '@/lib/capture';
 import { isEnginesEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
-import { refreshReminderSchedule } from '@/lib/notify';
+import { refreshReminderSchedule, getPushToken } from '@/lib/notify';
+import { Platform } from 'react-native';
 import { consentContextFromState, hydrateDay, pushDay } from './sync';
 import { recordMeal } from './mealSync';
 import {
@@ -298,7 +299,9 @@ export interface Actions {
   // overseer action (coach/trainer/nutritionist): the lightweight nudge. The
   // optional baseline captures the athlete's compliance/score at send-time so
   // the dashboard can later read whether anything moved (see core/nudge.ts).
-  sendNudge: (name: string, baseline?: { score: number; comp: number }, note?: string) => void;
+  sendNudge: (name: string, baseline?: { score: number; comp: number }, note?: string, athleteId?: string) => void;
+  /** Capture + register this device's push token (native, backend-live only). No-op elsewhere. */
+  initPush: () => Promise<void>;
 
   // tasks
   toggleTask: (id: number) => void;
@@ -648,6 +651,11 @@ export const useStore = create<Store>()(
       // On launch, (re)schedule today's reminders — this also triggers the one-time permission
       // request inside refreshReminderSchedule. No-op on web / when the master flag is off.
       initReminders: () => { syncReminders(get()); },
+      initPush: async () => {
+        if (!isBackendLive) return;
+        const token = await getPushToken();
+        if (token) await db.registerDeviceToken(token, Platform.OS).catch(() => undefined);
+      },
       toggleReminder: (kind) => {
         set((s) => ({
           reminderSettings: {
@@ -1066,7 +1074,7 @@ export const useStore = create<Store>()(
       // and logs the athlete's compliance/score at send-time (the baseline the
       // "did anything move since the nudge" read compares against, core/nudge.ts).
       // Day-scoped via rollover so the coach can nudge again tomorrow.
-      sendNudge: (name, baseline, note) =>
+      sendNudge: (name, baseline, note, athleteId) => {
         set((s) =>
           s.nudged.includes(name)
             ? {}
@@ -1077,7 +1085,14 @@ export const useStore = create<Store>()(
                   { name, day: s.dateStamp, comp: baseline?.comp ?? 0, score: baseline?.score ?? 0, note: note?.trim() || undefined },
                 ],
               },
-        ),
+        );
+        // When live + we know the athlete's id, deliver the nudge for real: the send-push
+        // edge function records an in-app notification and pushes to their device(s).
+        if (isBackendLive && athleteId) {
+          const body = note?.trim() || 'Your coach nudged you — jump back in and log your next win.';
+          void db.nudgePush(athleteId, 'Your coach sent a nudge', body).catch(() => undefined);
+        }
+      },
 
       // ---- tasks ----
       toggleTask: (id) => {

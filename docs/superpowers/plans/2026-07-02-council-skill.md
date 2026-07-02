@@ -234,7 +234,7 @@ echo "personas.md written"
 
 - [ ] **Step 1: Define the acceptance check**
 
-The template's embedded JS must pass `node --check` (valid syntax) and contain the four schemas (`POSITION_SCHEMA`, `REBUTTAL_SCHEMA`, `PLAN_SCHEMA`, plus a per-source evidence schema), the `PERSONAS` array, and the four phases (`Gather`/`Debate R1`/`Debate R2`/`Synthesize`). Acceptance = `node --check` prints nothing and exits 0.
+The template's embedded JS must be valid as a Workflow body (top-level `await`/`return` are legal there — validate by wrapping the body in an async function before `node --check`, since the runtime does the same) and contain the three deliberation schemas (`POSITION_SCHEMA`, `REBUTTAL_SCHEMA`, `PLAN_SCHEMA`), the `PERSONAS` array, and the three phases (`Debate R1`/`Debate R2`/`Synthesize`). Evidence gathering is intentionally NOT a workflow phase — it is done by the orchestrating agent in move 2 and passed in as the `BRIEFING` string (the live-app walkthrough needs the Playwright/browser MCP, which the Workflow runtime warns may be absent in headless runs). Acceptance = the wrapped `node --check` exits 0.
 
 - [ ] **Step 2: Write workflow-template.md**
 
@@ -499,7 +499,7 @@ Expected: a commit containing the ruling doc.
 - Four decision types + adaptive roster → personas.md (Task 2). ✓
 - Evidence menu (codebase / live walkthrough / competitor) + no silent truncation → SKILL.md move 2 + personas evidence notes. ✓
 - Two standing seats + specialists + 3–5 cap + judge = head of product → Task 2, Global Constraints. ✓
-- Workflow engine mirroring upgraded-visio-council → Task 3. ✓
+- Workflow engine (deliberation phases R1/R2/Synthesize; evidence gathered by the parent agent in move 2, not in-workflow — a deliberate deviation from upgraded-visio-council for MCP/Playwright reliability) → Task 3. ✓
 - Output: ruling doc in `docs/council/` + locked memory + MEMORY.md pointer → Task 1 Output, Task 4, Task 5. ✓
 - Edge cases (vague question, unavailable evidence, deadlock, multiple decisions, wrong project) → SKILL.md move 1–2 + judge prompt. ✓
 - Verification (frontmatter, node --check, dry run) → Tasks 1, 3, 5. ✓

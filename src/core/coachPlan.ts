@@ -19,6 +19,32 @@ export interface MealWindow {
   required: boolean;
 }
 
+/** One planned meal — a pinned prescription, an approved option, or a restaurant equivalent. */
+export interface PlanMeal {
+  name: string;
+  items: string[];
+  macros: { kcal: number; protein: number; carbs: number; fat: number };
+  source: 'ai' | 'template' | 'restaurant';
+}
+
+/** One meal window's prescription. `pinned` = eat this exact meal; `open` = hit the macros,
+ *  pick from `options`. `restaurantAlts` keep a traveling athlete compliant. */
+export interface PlanSlot {
+  key: MealKey;
+  mode: 'pinned' | 'open';
+  macros: { kcal: number; protein: number; carbs?: number; fat?: number };
+  pinnedMeal: PlanMeal | null;
+  options: PlanMeal[];
+  restaurantAlts: PlanMeal[];
+  note: string | null;
+  photoRequired: boolean;
+}
+
+/** A blank open slot for a key, used as the editor's starting point. */
+export function emptySlot(key: MealKey): PlanSlot {
+  return { key, mode: 'open', macros: { kcal: 0, protein: 0 }, pinnedMeal: null, options: [], restaurantAlts: [], note: null, photoRequired: false };
+}
+
 /** Everything a coach/trainer/nutritionist sets as the athlete's plan (Feature 1). */
 export interface CoachPlan {
   calorieTarget: number;
@@ -33,6 +59,8 @@ export interface CoachPlan {
   logWithinMin: number | null;
   /** Coach-set weight goal (lb), null if not set. */
   weightGoalLb: number | null;
+  /** Meal slots with prescriptions and options. */
+  slots: PlanSlot[];
 }
 
 const hm = (h: number, m = 0): number => h * 60 + m;
@@ -53,6 +81,7 @@ export const DEFAULT_PLAN: CoachPlan = {
   instructions: [],
   logWithinMin: null,
   weightGoalLb: null,
+  slots: [],
 };
 
 /** Per-meal calorie + protein share of the plan, split across the required meals so a

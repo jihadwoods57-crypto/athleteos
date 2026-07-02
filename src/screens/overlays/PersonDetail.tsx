@@ -199,7 +199,7 @@ export function PersonDetail() {
             accessibilityLabel={nudged ? `Nudge sent to ${pd.name}` : note.trim() ? `Send a nudge with your note to ${pd.name}` : `Send a nudge to ${pd.name}`}
             accessibilityState={{ disabled: nudged }}
             disabled={nudged}
-            onPress={() => { haptics.success(); s.sendNudge(pd.name, { score: pd.score, comp: pd.comp ?? pd.score }, note); }}
+            onPress={() => { haptics.success(); s.sendNudge(pd.name, { score: pd.score, comp: pd.comp ?? pd.score }, note, pd.athleteId); }}
             style={({ pressed }) => [{ flex: 1, height: 54, borderRadius: 16, backgroundColor: nudged ? c.successSurface : c.card, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, opacity: pressed ? 0.8 : 1 }, shadow.card]}
           >
             {nudged ? <Icon name="check" size={17} color={c.successDeep} /> : null}
