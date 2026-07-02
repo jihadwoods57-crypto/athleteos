@@ -51,6 +51,11 @@ import {
   reminderNotifySpecs,
   reminderSnapshotFromState,
   sampleScannedLabel,
+  activePlan,
+  parsePlanSlots,
+  buildPlanDraft,
+  applySlotPatch,
+  toggleMode,
 } from '@/core';
 import type {
   AppState,
@@ -76,6 +81,8 @@ import type {
   CoachTab,
   TrainerTab,
   ParentTab,
+  PlanSlot,
+  EngineGoal,
 } from '@/core';
 
 type CiSliderKey = 'ciEnergy' | 'ciRecovery' | 'ciSleep' | 'ciConfidence' | 'ciSoreness' | 'ciMotivation';
@@ -271,6 +278,17 @@ export interface Actions {
   /** Add a standing coach instruction (trimmed, deduped, capped). */
   addPlanInstruction: (text: string) => void;
   removePlanInstruction: (index: number) => void;
+  /** Replace the plan's slot list wholesale (sanitized through parsePlanSlots), e.g. after
+   *  a model-generated plan comes back. */
+  setPlanSlots: (slots: PlanSlot[]) => void;
+  /** Patch one meal slot (note/photoRequired/macros/etc.) without touching the others. */
+  updatePlanSlot: (key: MealKey, patch: Partial<PlanSlot>) => void;
+  /** Flip one slot between 'pinned' (locked to the prescribed meal) and 'open' (athlete's choice). */
+  togglePlanSlotMode: (key: MealKey) => void;
+  /** Fill planSlots from the deterministic offline draft builder for the given goal. */
+  generatePlanDraftLocal: (goal: EngineGoal) => void;
+  /** Clear the plan back to empty (e.g. coach resets it). */
+  clearPlan: () => void;
   toggleQuick: (i: number) => void;
   openPerson: (p: PersonDetail) => void;
   closePerson: () => void;
@@ -984,6 +1002,11 @@ export const useStore = create<Store>()(
         }),
       removePlanInstruction: (index) =>
         set((s) => ({ planInstructions: s.planInstructions.filter((_, i) => i !== index) })),
+      setPlanSlots: (slots) => set({ planSlots: parsePlanSlots(slots) }),
+      updatePlanSlot: (key, patch) => set((s) => ({ planSlots: applySlotPatch(s.planSlots, key, patch) })),
+      togglePlanSlotMode: (key) => set((s) => ({ planSlots: toggleMode(s.planSlots, key) })),
+      generatePlanDraftLocal: (goal) => set((s) => ({ planSlots: buildPlanDraft(activePlan(s), goal) })),
+      clearPlan: () => set({ planSlots: [] }),
       saveMeal: (key, foods) => {
         set((s) => {
           // Saving a meal's edited plate logs the slot AND records its real foods.
@@ -1289,6 +1312,7 @@ export const useStore = create<Store>()(
         weeklyGoalLb: s.weeklyGoalLb,
         proteinTarget: s.proteinTarget,
         planInstructions: s.planInstructions,
+        planSlots: s.planSlots,
         calTarget: s.calTarget,
         weightTarget: s.weightTarget,
         scoringProfile: s.scoringProfile,

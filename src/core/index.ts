@@ -70,4 +70,5 @@ export * from './copilot';
 export * from './memory';
 export * from './performanceProfile';
 export * from './mealCoachingVoice';
+export * from './planStore';
 export { createInitialState } from './defaultState';
