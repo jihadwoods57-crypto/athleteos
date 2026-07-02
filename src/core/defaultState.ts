@@ -72,6 +72,7 @@ export function createInitialState(): AppState {
     quickAdded: [false, false, false],
     nudged: [],
     nudgeLog: [],
+    dailyCommitment: null,
     tasks: [
       { id: 1, group: 'NUTRITION', title: 'Log breakfast', meta: '42g protein', done: true },
       { id: 2, group: null, title: 'Hit 180g protein', meta: 'protein goal', done: false },

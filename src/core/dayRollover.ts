@@ -27,6 +27,7 @@ export const DAY_DEFAULT_KEYS = [
   'nudged',
   'nudgeLog',
   'tasks',
+  'dailyCommitment',
   'ciStage',
   'ciSubmitted',
   'ciEnergy',

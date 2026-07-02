@@ -10,6 +10,7 @@ import type { LabelFacts } from './nutritionLabel';
 import type { RosterRow } from './constants';
 import type { GuardianStatus } from './guardianConsent';
 import type { NudgeRecord } from './nudge';
+import type { CommitmentAnswer } from './commitment';
 import type { PerfEntry } from './performance';
 import type { ReminderSettings } from './reminders';
 import type { OverseerAlerts } from './overseerAlerts';
@@ -236,6 +237,9 @@ export interface AppState {
   mealLoggedAt: Partial<Record<MealKey, number>>;
   hydrationL: number;
   tasks: Task[];
+  /** The daily plan-commitment one-tap ("did you hit your plan today?"). Day-scoped
+   *  (resets on rollover); null = not answered yet. Carries the 0.15 behavioral score slot. */
+  dailyCommitment: CommitmentAnswer | null;
   quickAdded: boolean[];
   /** Names of at-risk athletes the overseer has nudged today. Day-scoped (clears
    *  on rollover) so a coach/trainer can act again tomorrow. Backs the dashboard
@@ -434,6 +438,8 @@ export interface Derived {
   recoveryScoreIsReal: boolean;
   weightScore: number;
   tasksScore: number;
+  /** 0..100 daily plan-commitment sub-score (yes=100/partial=60/no=0/unanswered=0). */
+  commitmentScore: number;
   checkinScore: number;
   // nutrition
   proteinToday: number;

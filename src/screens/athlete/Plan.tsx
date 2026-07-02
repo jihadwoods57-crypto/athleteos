@@ -1,28 +1,26 @@
-// OnStandard — Plan (Tasks) tab. Toggling a task updates the Athlete Score.
+// OnStandard — Today's Plan tab. Your daily plan-commitment (the one-tap that carries the
+// 0.15 score slot), your coach targets, and — engines-on — plan execution. Replaced the old
+// static, un-authored task checklist (retired per docs/council/2026-07-02-trust-pass.md).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { taskVisibilityNote, weekdayLong, activePlan, mealWindowStatuses, escalation, planAdherence } from '@/core';
+import { weekdayLong, activePlan, mealWindowStatuses, escalation, planAdherence } from '@/core';
 import { isEnginesEnabled } from '@/lib/features';
 import { useStore, useDerived } from '@/store';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
-import { ProgressBar, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
+import { Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 
 export function Plan() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const tasks = useStore((s) => s.tasks);
-  const toggleTask = useStore((s) => s.toggleTask);
-  const athleteName = useStore((s) => s.athleteName);
-  const supportTeam = useStore((s) => s.supportTeam);
   const d = useDerived();
-  const left = d.tasksTotal - d.tasksDone;
-  const visibilityNote = taskVisibilityNote({ isReal: athleteName.trim().length > 0, supportTeam });
+  const dailyCommitment = useStore((s) => s.dailyCommitment);
+  const setDailyCommitment = useStore((s) => s.setDailyCommitment);
 
-  // Accountability Engine: today's execution against the coach plan.
+  // Coach plan / Accountability Engine (the execution card is engine-gated below).
   const meals = useStore((s) => s.meals);
   const hydrationL = useStore((s) => s.hydrationL);
   const planInstructions = useStore((s) => s.planInstructions);
@@ -43,141 +41,143 @@ export function Plan() {
     upcoming: c.textTertiary,
   };
 
+  const targets: [string, string][] = [
+    ['Protein', `${proteinTarget}g`],
+    ['Calories', `${calTarget}`],
+    ['Goal weight', `${weightTarget}`],
+  ];
+
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
       <Txt w="sb" size={14} color={c.textSecondary}>
         {weekdayLong()} · in-season
       </Txt>
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
-        Today's Plan
+        Today&apos;s Plan
       </Txt>
 
+      {/* daily plan-commitment — the one daily action (mirrored from Home) */}
       <Reveal index={0}>
-      <Row style={[{ marginTop: 18, gap: 16, backgroundColor: c.card, borderRadius: 20, padding: 18 }, shadow.card]}>
-        <Txt w="eb" num size={30}>
-          <Txt w="eb" num size={30} color={c.accent}>
-            {d.tasksDone}
+        <View style={[{ marginTop: 18, backgroundColor: c.card, borderRadius: 20, padding: 18 }, shadow.card]}>
+          <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>
+            TODAY&apos;S COMMITMENT
           </Txt>
-          <Txt w="eb" num size={30} color={c.slate300}>
-            /{d.tasksTotal}
+          <Txt w="eb" size={18} ls={-0.4} style={{ marginTop: 6 }}>
+            Did you hit your plan today?
           </Txt>
-        </Txt>
-        <View style={{ flex: 1 }}>
-          <Txt w="b" size={14} style={{ marginBottom: 8 }}>
-            {left === 0 ? 'All done, nice work' : `${left} task${left === 1 ? '' : 's'} left today`}
+          <Row style={{ gap: 10, marginTop: 14 }}>
+            {(['yes', 'partial', 'no'] as const).map((val) => {
+              const active = dailyCommitment === val;
+              const label = val === 'yes' ? 'Yes' : val === 'partial' ? 'Partial' : 'No';
+              return (
+                <Pressable
+                  key={val}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`Hit your plan today: ${label}`}
+                  onPress={() => {
+                    haptics[val === 'no' ? 'tap' : 'success']();
+                    setDailyCommitment(val);
+                  }}
+                  style={{
+                    flex: 1,
+                    alignItems: 'center',
+                    paddingVertical: 13,
+                    borderRadius: 13,
+                    backgroundColor: active ? c.accent : c.bg,
+                    borderWidth: 2,
+                    borderColor: active ? c.accent : c.border,
+                  }}
+                >
+                  <Txt w="eb" size={15} color={active ? c.white : c.text}>
+                    {label}
+                  </Txt>
+                </Pressable>
+              );
+            })}
+          </Row>
+          <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 12, lineHeight: 17 }}>
+            One honest tap. Logging your meals is still how you earn a top score.
           </Txt>
-          <ProgressBar pct={d.tasksScore} height={9} />
         </View>
-      </Row>
       </Reveal>
 
-      {/* Accountability Engine — plan execution today (meal windows + escalation).
-          Gated by the engines master switch (OFF for the prove-the-loop beta); the core
-          task list + count below stay visible either way. */}
-      {isEnginesEnabled ? (
-        <Reveal index={1}>
+      {/* coach targets — always visible, engines on or off */}
+      <Reveal index={1}>
         <View style={[{ marginTop: 14, backgroundColor: c.card, borderRadius: 20, padding: 18 }, shadow.card]}>
-          <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Edit coach plan" onPress={openPlanEditor} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 })}>
-              <Txt w="eb" size={15} ls={-0.3}>
-                Plan execution
-              </Txt>
-              <Icon name="settings" size={14} color={c.textTertiary} />
-            </Pressable>
-            <Txt w="eb" num size={15} color={adherence.adherencePct >= 80 ? c.successDeep : adherence.adherencePct >= 50 ? c.warningDeep : c.alert}>
-              {adherence.adherencePct}%
-            </Txt>
-          </Row>
-          <Row style={{ gap: 8, marginTop: 12 }}>
-            {windowStatuses.map((w) => (
-              <View key={w.window.key} style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 12, backgroundColor: c.bg }}>
-                <Txt w="eb" size={14} color={stateColor[w.state]}>
-                  {w.window.label[0]}
+          <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>
+            YOUR TARGETS
+          </Txt>
+          <Row style={{ gap: 10, marginTop: 12 }}>
+            {targets.map(([label, value]) => (
+              <View key={label} style={{ flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: c.bg }}>
+                <Txt w="eb" num size={18} color={c.accent}>
+                  {value}
                 </Txt>
-                <Txt w="b" size={9} color={c.textTertiary} style={{ marginTop: 2 }}>
-                  {w.state === 'logged' ? 'IN' : w.state === 'missed' ? 'MISSED' : w.state === 'open' ? 'OPEN' : 'SOON'}
+                <Txt w="b" size={11} color={c.textTertiary} style={{ marginTop: 3 }}>
+                  {label}
                 </Txt>
               </View>
             ))}
           </Row>
-          {esc.level > 0 ? (
-            <Txt w="m" size={13} color={esc.tone === 'reminder' ? c.slate700 : c.warningDeep} style={{ marginTop: 12, lineHeight: 19 }}>
-              {esc.message}
-            </Txt>
-          ) : (
-            <Txt w="m" size={13} color={c.successDeep} style={{ marginTop: 12, lineHeight: 19 }}>
-              {esc.message}
-            </Txt>
-          )}
-          {planInstructions.length > 0 ? (
-            <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: c.border, gap: 7 }}>
-              <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} upper>
-                Coach instructions
-              </Txt>
-              {planInstructions.map((ins) => (
-                <Row key={ins} style={{ gap: 8, alignItems: 'center' }}>
-                  <Icon name="check" size={13} color={c.accent} />
-                  <Txt w="b" size={13} color={c.slate700} style={{ flex: 1 }}>
-                    {ins}
-                  </Txt>
-                </Row>
-              ))}
-            </View>
-          ) : null}
         </View>
-        </Reveal>
-      ) : null}
-
-      <Reveal index={2}>
-      <View style={{ marginTop: 18, gap: 10 }}>
-        {tasks.map((t) => (
-          <View key={t.id}>
-            {t.group ? (
-              <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginTop: 12, marginBottom: 8 }}>
-                {t.group}
-              </Txt>
-            ) : null}
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: t.done }}
-              accessibilityLabel={`${t.title}${t.done ? ', completed' : ''}`}
-              onPress={() => {
-                haptics[t.done ? 'tap' : 'success']();
-                toggleTask(t.id);
-              }}
-              style={[{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.card, borderRadius: 16, padding: 16 }, shadow.card]}
-            >
-              <View
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 9,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: t.done ? c.accent : c.card,
-                  borderWidth: 2,
-                  borderColor: t.done ? c.accent : c.slate300,
-                }}
-              >
-                {t.done ? <Icon name="check" size={14} color={c.white} /> : null}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Txt w="b" size={15} color={t.done ? c.textTertiary : c.text} style={{ textDecorationLine: t.done ? 'line-through' : 'none' }}>
-                  {t.title}
-                </Txt>
-                <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 2 }}>
-                  {t.meta}
-                </Txt>
-              </View>
-            </Pressable>
-          </View>
-        ))}
-      </View>
       </Reveal>
 
-      <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 18, textAlign: 'center', lineHeight: 19, paddingHorizontal: 16 }}>
-        {visibilityNote}
-      </Txt>
+      {/* Accountability Engine — plan execution today (meal windows + escalation).
+          Gated by the engines master switch (OFF for the prove-the-loop beta). */}
+      {isEnginesEnabled ? (
+        <Reveal index={2}>
+          <View style={[{ marginTop: 14, backgroundColor: c.card, borderRadius: 20, padding: 18 }, shadow.card]}>
+            <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Edit coach plan" onPress={openPlanEditor} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 })}>
+                <Txt w="eb" size={15} ls={-0.3}>
+                  Plan execution
+                </Txt>
+                <Icon name="settings" size={14} color={c.textTertiary} />
+              </Pressable>
+              <Txt w="eb" num size={15} color={adherence.adherencePct >= 80 ? c.successDeep : adherence.adherencePct >= 50 ? c.warningDeep : c.alert}>
+                {adherence.adherencePct}%
+              </Txt>
+            </Row>
+            <Row style={{ gap: 8, marginTop: 12 }}>
+              {windowStatuses.map((w) => (
+                <View key={w.window.key} style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 12, backgroundColor: c.bg }}>
+                  <Txt w="eb" size={14} color={stateColor[w.state]}>
+                    {w.window.label[0]}
+                  </Txt>
+                  <Txt w="b" size={9} color={c.textTertiary} style={{ marginTop: 2 }}>
+                    {w.state === 'logged' ? 'IN' : w.state === 'missed' ? 'MISSED' : w.state === 'open' ? 'OPEN' : 'SOON'}
+                  </Txt>
+                </View>
+              ))}
+            </Row>
+            {esc.level > 0 ? (
+              <Txt w="m" size={13} color={esc.tone === 'reminder' ? c.slate700 : c.warningDeep} style={{ marginTop: 12, lineHeight: 19 }}>
+                {esc.message}
+              </Txt>
+            ) : (
+              <Txt w="m" size={13} color={c.successDeep} style={{ marginTop: 12, lineHeight: 19 }}>
+                {esc.message}
+              </Txt>
+            )}
+            {planInstructions.length > 0 ? (
+              <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: c.border, gap: 7 }}>
+                <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} upper>
+                  Coach instructions
+                </Txt>
+                {planInstructions.map((ins) => (
+                  <Row key={ins} style={{ gap: 8, alignItems: 'center' }}>
+                    <Icon name="check" size={13} color={c.accent} />
+                    <Txt w="b" size={13} color={c.slate700} style={{ flex: 1 }}>
+                      {ins}
+                    </Txt>
+                  </Row>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </Reveal>
+      ) : null}
     </ScrollView>
   );
 }

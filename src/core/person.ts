@@ -18,7 +18,7 @@ export function rosterNoun(flow: Flow): 'Athlete' | 'Client' {
 export interface PersonBreakdown {
   nutrition: number;
   recovery: number;
-  tasks: number;
+  commitment: number;
   checkin: number;
 }
 
@@ -30,7 +30,7 @@ export interface PersonBreakdown {
  * recovery") and the original prototype's shape (check-in highest, recovery
  * lowest).
  */
-const OFFSETS: PersonBreakdown = { checkin: 10, nutrition: 4, tasks: -2, recovery: -12 };
+const OFFSETS: PersonBreakdown = { checkin: 10, nutrition: 4, commitment: -2, recovery: -12 };
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
@@ -44,7 +44,7 @@ export function personBreakdown(score: number): PersonBreakdown {
   return {
     nutrition: clamp(score + OFFSETS.nutrition),
     recovery: clamp(score + OFFSETS.recovery),
-    tasks: clamp(score + OFFSETS.tasks),
+    commitment: clamp(score + OFFSETS.commitment),
     checkin: clamp(score + OFFSETS.checkin),
   };
 }

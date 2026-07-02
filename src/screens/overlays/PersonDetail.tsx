@@ -124,7 +124,7 @@ export function PersonDetail() {
           <View style={{ gap: 12 }}>
             <BreakdownRow label="Nutrition" pct={bd.nutrition} />
             <BreakdownRow label="Recovery" pct={bd.recovery} accent />
-            <BreakdownRow label="Tasks" pct={bd.tasks} />
+            <BreakdownRow label="Commitment" pct={bd.commitment} />
             <BreakdownRow label="Check-in" pct={bd.checkin} />
           </View>
         </Card>

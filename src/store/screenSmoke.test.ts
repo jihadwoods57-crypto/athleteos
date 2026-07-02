@@ -209,6 +209,7 @@ describe('athlete screen-data smoke (edge states do not crash a screen)', () => 
       tasks: createInitialState().tasks.map((t) => ({ ...t, done: true })),
       ciEnergy: 10, ciRecovery: 10, ciSleep: 10, ciConfidence: 10, ciSoreness: 10, ciMotivation: 10,
       ciSubmitted: true,
+      dailyCommitment: 'yes',
     } as AppState;
     const d = computeDerived(s);
     expect(d.athleteScore).toBeGreaterThanOrEqual(90);

@@ -15,6 +15,7 @@ import { trendSeries } from './history';
 import { mealMacros, type MacroSet } from './mealEdit';
 import { DEFAULT_PLAN } from './coachPlan';
 import { profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
+import { commitmentScore } from './commitment';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
 
 /** A meal logged after its window deadline counts half toward the score's "meals" share. */
@@ -121,7 +122,7 @@ export function seasonGoalPhase(opts: {
 }
 
 export interface ScoreWeight {
-  key: 'nutrition' | 'recovery' | 'tasks' | 'checkin';
+  key: 'nutrition' | 'recovery' | 'commitment' | 'checkin';
   label: string;
   /** Whole-number percent weight in the Accountability Score (the four sum to 100). */
   pct: number;
@@ -141,7 +142,7 @@ export interface ScoreWeight {
 export const SCORE_WEIGHTS: ScoreWeight[] = [
   { key: 'nutrition', label: 'Nutrition', pct: 50, desc: 'Protein and the meals you log each day' },
   { key: 'recovery', label: 'Recovery', pct: 25, desc: 'Your own weekly check-in answers, so this part is self-reported' },
-  { key: 'tasks', label: 'Tasks', pct: 15, desc: 'The daily tasks you complete' },
+  { key: 'commitment', label: 'Commitment', pct: 15, desc: 'Your daily one-tap: did you hit your plan today?' },
   { key: 'checkin', label: 'Check-in', pct: 10, desc: 'Completing your weekly check-in at all' },
 ];
 
@@ -295,8 +296,13 @@ export function computeDerived(s: AppState): Derived {
   // no-check-in day by w.recovery*86 unearned points — the exact "fake number" the honesty
   // keystone forbids (D-B). When recovery is not real it contributes 0, matching the UI.
   const recoveryContribution = recoveryScoreIsReal ? recoveryScore : 0;
+  // The daily plan-commitment (yes/partial/no one-tap) now carries the 0.15 behavioral slot
+  // that the retired, un-authored task checklist used to hold. On its own it can NEVER reach
+  // on-standard (>=80) — nutrition (0.5) is 0 without a logged meal, so photo logging stays
+  // the only road to 80. See docs/council/2026-07-02-trust-pass.md.
+  const commitmentSubScore = commitmentScore(s.dailyCommitment);
   const athleteScore = clamp(
-    Math.round(w.nutrition * nutritionScore + w.recovery * recoveryContribution + w.tasks * tasksScore + w.checkin * checkinScore),
+    Math.round(w.nutrition * nutritionScore + w.recovery * recoveryContribution + w.commitment * commitmentSubScore + w.checkin * checkinScore),
     0,
     100,
   );
@@ -334,6 +340,7 @@ export function computeDerived(s: AppState): Derived {
     recoveryScoreIsReal,
     weightScore,
     tasksScore,
+    commitmentScore: commitmentSubScore,
     checkinScore,
     proteinToday,
     proteinTarget,

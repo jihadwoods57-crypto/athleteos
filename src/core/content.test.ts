@@ -112,7 +112,7 @@ describe('aiInsight', () => {
   it('nudges to log dinner with the live protein gap before dinner is logged', () => {
     // A submitted check-in lifts the floor-less seed into the C band (70-79) where the
     // "log dinner to push into the green" nudge lives; the bare seed now reads D.
-    const s = { ...createInitialState(), ciSubmitted: true } as AppState;
+    const s = { ...createInitialState(), ciSubmitted: true, dailyCommitment: 'partial' } as AppState;
     const d = computeDerived(s);
     const msg = aiInsight(s, d);
     expect(msg).toContain(`${d.proteinGap}g`);
@@ -164,7 +164,7 @@ describe('aiInsight', () => {
   it('a C-grade day (70-79) is "close", never "tracking well" or a promised A — matches heroStatus neutral band', () => {
     // Seed + a submitted check-in scores in the C band (70-79). Since the nutrition
     // floor was removed (D-B), the bare seed reads D; the check-in lifts it to a C.
-    const s = { ...createInitialState(), ciSubmitted: true } as AppState;
+    const s = { ...createInitialState(), ciSubmitted: true, dailyCommitment: 'partial' } as AppState;
     const d = computeDerived(s);
     expect(d.athleteScore).toBeGreaterThanOrEqual(70);
     expect(d.athleteScore).toBeLessThan(80);
@@ -182,7 +182,7 @@ describe('aiInsight', () => {
     // Seed + a submitted check-in + a protein shake (quick-add) lifts the score into
     // the B band while the day is still incomplete (dinner unlogged). The floor removal
     // (D-B) means a partial day needs near-target protein to reach B now.
-    const s = { ...createInitialState(), ciSubmitted: true, quickAdded: [false, true, false] } as AppState;
+    const s = { ...createInitialState(), ciSubmitted: true, quickAdded: [false, true, false], dailyCommitment: 'yes' } as AppState;
     const d = computeDerived(s);
     expect(d.athleteScore).toBeGreaterThanOrEqual(80);
     expect(d.mealsLoggedCount).toBeLessThan(4); // not a complete day
@@ -227,6 +227,7 @@ describe('heroStatus', () => {
       ...createInitialState(),
       meals: { breakfast: true, lunch: true, snack: true, dinner: true },
       ciSubmitted: true,
+      dailyCommitment: 'yes',
     } as AppState;
     const d = computeDerived(s);
     // Verify the fixture actually lands in the day-complete A band before asserting.
@@ -253,6 +254,7 @@ describe('heroStatus', () => {
       ciSubmitted: true,
       ciConfig: { energy: true, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false },
       ciEnergy: 5,
+      dailyCommitment: 'yes',
     } as AppState;
     const d = computeDerived(s);
     // Band is REAL (driven through computeDerived), not hand-set.
@@ -272,7 +274,7 @@ describe('heroStatus', () => {
   it('on-pace partial day → not warn, references the real proteinGap, never the false on-pace claim', () => {
     // Seed + check-in + a protein shake reaches the on-pace (B) band with the day NOT
     // complete (3 meals) and protein still short — a real "on pace, gap remaining" state.
-    const s = { ...createInitialState(), ciSubmitted: true, quickAdded: [false, true, false] } as AppState;
+    const s = { ...createInitialState(), ciSubmitted: true, quickAdded: [false, true, false], dailyCommitment: 'yes' } as AppState;
     const d = computeDerived(s);
     // Bump into the on-pace (B) band but day NOT complete (3 meals).
     expect(d.athleteScore).toBeGreaterThanOrEqual(80);

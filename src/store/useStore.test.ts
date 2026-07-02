@@ -417,6 +417,7 @@ describe('end-to-end perfect day', () => {
     useStore.getState().setCi('ciRecovery', 10);
     useStore.getState().setCi('ciSleep', 10);
     useStore.getState().submitCi();
+    useStore.getState().setDailyCommitment('yes');
 
     const end = derived();
     expect(end.athleteScore).toBeGreaterThanOrEqual(start);

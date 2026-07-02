@@ -306,6 +306,9 @@ export interface Actions {
   // tasks
   toggleTask: (id: number) => void;
 
+  // daily plan-commitment (yes/partial/no one-tap)
+  setDailyCommitment: (answer: AppState['dailyCommitment']) => void;
+
   // check-in
   wStep: (d: number) => void;
   setCi: (key: CiSliderKey, value: number) => void;
@@ -1100,6 +1103,11 @@ export const useStore = create<Store>()(
         scheduleDaySync(get);
       },
 
+      setDailyCommitment: (answer) => {
+        set({ dailyCommitment: answer });
+        scheduleDaySync(get);
+      },
+
       // ---- check-in ----
       wStep: (d) => set((s) => ({ ciWeight: clamp(s.ciWeight + d, 70, 350) })),
       setCi: (key, value) => set({ [key]: value } as Partial<AppState>),
@@ -1351,6 +1359,7 @@ export const useStore = create<Store>()(
         mealLoggedAt: s.mealLoggedAt,
         hydrationL: s.hydrationL,
         tasks: s.tasks,
+        dailyCommitment: s.dailyCommitment,
         quickAdded: s.quickAdded,
         nudged: s.nudged,
         nudgeLog: s.nudgeLog,

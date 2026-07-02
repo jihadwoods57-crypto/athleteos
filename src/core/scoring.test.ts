@@ -44,7 +44,7 @@ describe('computeDerived — default state', () => {
     // never inflate the accountability score (the UI already shows Recovery 0% /
     // "check-in not submitted"). So the score is the blend with recovery contributing 0.
     expect(d.recoveryScoreIsReal).toBe(false);
-    const expected = Math.round(0.5 * d.nutritionScore + 0.15 * d.tasksScore + 0.1 * d.checkinScore);
+    const expected = Math.round(0.5 * d.nutritionScore + 0.15 * d.commitmentScore + 0.1 * d.checkinScore);
     expect(d.athleteScore).toBe(expected);
   });
 
@@ -61,12 +61,12 @@ describe('computeDerived — default state', () => {
     expect(d.checkinScore).toBe(0);
   });
 
-  it('accountability score = clamp(round(.5*78 + .25*0 + .15*50 + .1*0)) = 47 (recovery not real)', () => {
-    // 39 + 0 + 7.5 + 0 = 46.5 -> 47 -> grade F. Recovery contributes 0 (not the 86
-    // display fallback) until a real check-in backs it — the score now matches the UI,
-    // which already shows Recovery 0% / "check-in not submitted". (Was 68/D when the
-    // unearned 86 leaked into the blend.) Weight is not in the daily score.
-    expect(d.athleteScore).toBe(47);
+  it('accountability score = clamp(round(.5*78 + .25*0 + .15*0 + .1*0)) = 39 (recovery + commitment not given)', () => {
+    // 39 + 0 + 0 + 0 = 39 -> grade F. The seeded day has no real check-in (recovery 0)
+    // and no daily commitment answered (commitment 0), so only its logged nutrition
+    // scores. The 0.15 slot is the plan-commitment now (was the fake task checklist).
+    // Photo-logged nutrition is the only lever moving this day. Weight is not in the score.
+    expect(d.athleteScore).toBe(39);
     expect(d.grade.g).toBe('F');
   });
 
@@ -615,7 +615,7 @@ describe('SCORE_WEIGHTS', () => {
     expect(SCORE_WEIGHTS.map((w) => w.key)).toEqual([
       'nutrition',
       'recovery',
-      'tasks',
+      'commitment',
       'checkin',
     ]);
   });
@@ -625,11 +625,11 @@ describe('SCORE_WEIGHTS', () => {
   });
 
   it('matches the coefficients computeDerived actually applies (no invented weights)', () => {
-    // Mirror of athleteScore: 0.5 nutrition + 0.25 recovery + 0.15 tasks + 0.1 checkin.
+    // Mirror of athleteScore: 0.5 nutrition + 0.25 recovery + 0.15 commitment + 0.1 checkin.
     const expected: Record<string, number> = {
       nutrition: 50,
       recovery: 25,
-      tasks: 15,
+      commitment: 15,
       checkin: 10,
     };
     for (const w of SCORE_WEIGHTS) {

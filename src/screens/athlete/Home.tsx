@@ -212,8 +212,56 @@ export function Home() {
       </Card>
       </Reveal>
 
-      {/* DAILY HQ — lead with the single action that matters right now, not the data */}
+      {/* daily plan-commitment — the first daily action; carries the 0.15 score slot.
+          On its own a one-tap can never reach on-standard (>=80); logging your meals is
+          still the only road to a top score. See docs/council/2026-07-02-trust-pass.md. */}
       <Reveal index={1}>
+        <Card variant="low" style={{ marginTop: 20, borderRadius: 24, padding: 22 }}>
+          <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>
+            TODAY&apos;S COMMITMENT
+          </Txt>
+          <Txt w="eb" size={19} ls={-0.4} style={{ marginTop: 6 }}>
+            Did you hit your plan today?
+          </Txt>
+          <Row style={{ gap: 10, marginTop: 16 }}>
+            {(['yes', 'partial', 'no'] as const).map((val) => {
+              const active = s.dailyCommitment === val;
+              const label = val === 'yes' ? 'Yes' : val === 'partial' ? 'Partial' : 'No';
+              return (
+                <Pressable
+                  key={val}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`Hit your plan today: ${label}`}
+                  onPress={() => {
+                    haptics[val === 'no' ? 'tap' : 'success']();
+                    s.setDailyCommitment(val);
+                  }}
+                  style={{
+                    flex: 1,
+                    alignItems: 'center',
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    backgroundColor: active ? c.accent : c.bg,
+                    borderWidth: 2,
+                    borderColor: active ? c.accent : c.border,
+                  }}
+                >
+                  <Txt w="eb" size={15} color={active ? c.white : c.text}>
+                    {label}
+                  </Txt>
+                </Pressable>
+              );
+            })}
+          </Row>
+          <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 12, lineHeight: 17 }}>
+            One honest tap keeps your day going. Logging your meals is still how you earn a top score.
+          </Txt>
+        </Card>
+      </Reveal>
+
+      {/* DAILY HQ — lead with the single action that matters right now, not the data */}
+      <Reveal index={2}>
         <NextMoveCard />
       </Reveal>
 
@@ -438,7 +486,12 @@ export function Home() {
         </Txt>
         <ProgressRow label="Protein" meta={`${d.proteinToday} / ${d.proteinTarget}g`} pct={d.proteinPct} color={c.accent} />
         <ProgressRow label="Hydration" meta={`${s.hydrationL} / ${HYDRATION_TARGET} L  +`} metaColor={c.accent} onMeta={s.addWater} pct={d.hydrationPct} color={c.hydration} />
-        <ProgressRow label="Tasks" meta={`${d.tasksDone} / ${d.tasksTotal} done`} pct={d.tasksScore} color={c.accent} />
+        <ProgressRow
+          label="Commitment"
+          meta={s.dailyCommitment === 'yes' ? 'Hit your plan' : s.dailyCommitment === 'partial' ? 'Partial day' : s.dailyCommitment === 'no' ? 'Missed' : 'Not answered yet'}
+          pct={d.commitmentScore}
+          color={c.accent}
+        />
         <ProgressRow
           label="Recovery"
           meta={d.recoveryScoreIsReal ? `${d.recoveryScore} / 100` : 'Check-in not submitted'}

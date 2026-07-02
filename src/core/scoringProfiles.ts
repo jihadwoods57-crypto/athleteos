@@ -21,15 +21,16 @@ import type { BaseGoal, ScoringProfile } from './types';
 export interface ProfileWeights {
   nutrition: number;
   recovery: number;
-  tasks: number;
+  /** The 0.15 daily-behavioral slot — the plan-commitment one-tap (formerly the task checklist). */
+  commitment: number;
   checkin: number;
 }
 
 /** Headline mix per profile. Athlete is the shipped .50/.25/.15/.10 (do not change). */
 export const PROFILE_WEIGHTS: Record<ScoringProfile, ProfileWeights> = {
-  athlete: { nutrition: 0.5, recovery: 0.25, tasks: 0.15, checkin: 0.1 },
-  general: { nutrition: 0.55, recovery: 0.2, tasks: 0.15, checkin: 0.1 }, // v1 default, pending sign-off
-  gain: { nutrition: 0.55, recovery: 0.25, tasks: 0.1, checkin: 0.1 }, // recovery matters more for hypertrophy
+  athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
+  general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 }, // v1 default, pending sign-off
+  gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 }, // recovery matters more for hypertrophy
 };
 
 /** Map a user's GOAL to the platform-owned scoring profile. A solo client never gets a coach to

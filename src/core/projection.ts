@@ -58,6 +58,7 @@ function idealizeDay(s: AppState): AppState {
     mealFoods: { ...s.mealFoods, breakfast: projectedPlate },
     tasks: s.tasks.map((t) => ({ ...t, done: true })),
     ciSubmitted: true,
+    dailyCommitment: 'yes',
   };
 }
 
@@ -81,12 +82,9 @@ export function projectedScore(s: AppState): ScoreProjection {
   (Object.keys(s.meals) as MealKey[]).forEach((k) => {
     if (!s.meals[k]) actions.push({ key: `meal:${k}`, label: `Log ${MEAL_LABEL[k]}` });
   });
-  // Other daily tasks not already represented by the protein (id 2) and dinner (id 3) rows,
-  // so the checklist never double-counts them.
-  const coveredByAbove = (d.proteinGap > 0 ? 1 : 0) + (!s.meals.dinner ? 1 : 0);
-  const otherTasksLeft = Math.max(0, d.tasksTotal - d.tasksDone - coveredByAbove);
-  if (otherTasksLeft > 0) {
-    actions.push({ key: 'tasks', label: `Finish ${otherTasksLeft} more daily ${otherTasksLeft === 1 ? 'task' : 'tasks'}` });
+  // The daily plan-commitment — the 0.15 lever that replaced the retired task checklist.
+  if (!s.dailyCommitment) {
+    actions.push({ key: 'commitment', label: 'Confirm you hit your plan today' });
   }
   // Submit the weekly check-in if it is still open.
   if (!s.ciSubmitted) {

@@ -23,6 +23,7 @@ function completeDay(): AppState {
     mealFoods: { breakfast: plate(target) },
     tasks: base.tasks.map((t) => ({ ...t, done: true })),
     ciSubmitted: true,
+    dailyCommitment: 'yes',
   };
 }
 
