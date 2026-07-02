@@ -1,5 +1,12 @@
 # Council Ruling: Primary daily logging signal — disciplined hybrid (C)
 
+> **⚠️ FRAMING SUPERSEDED (2026-07-02) by [`2026-07-02-trust-pass.md`](2026-07-02-trust-pass.md).**
+> The founder reframed the one-tap: instead of a *universal* power to count as a real day,
+> that power becomes an **earned, coach-set Trust Pass**. Still in force from this ruling:
+> retire the fake static checklist, move its 0.15 weight to the commitment, the two-streak
+> model, and "an un-passed one-tap can never reach ≥80." See the Trust Pass ruling for the
+> pass-day scoring mechanic and guardrails.
+
 **Date:** 2026-07-02
 **Decision type(s):** Product & features (primary) + Accountability science
 **Council seats:** Athlete end-user, Product strategist / moat-keeper, Behavior / habit-science expert, Coach / trainer end-user — judged by head of product
