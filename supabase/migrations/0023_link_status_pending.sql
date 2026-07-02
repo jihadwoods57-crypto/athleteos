@@ -5,7 +5,7 @@
 -- data — it only becomes visible once a coach/trainer approves (flips it to 'active').
 --
 -- Must be its OWN migration: Postgres forbids using a newly-added enum value in the
--- same transaction that adds it, so the RPCs that write 'pending' live in 0019.
+-- same transaction that adds it, so the RPCs that write 'pending' live in 0024.
 --
 -- GUARDRAIL: authored only; the founder applies it at go-live (like 0004+).
 

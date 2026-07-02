@@ -62,7 +62,8 @@ Store actions (`src/store/useStore.ts`): `createTeamLive`, `joinTeam`, `connectC
 ### A. Schools directory (populate `orgs`)
 
 - **Seed** `orgs` with a public dataset of US high schools + colleges (`name, city, state,
-  org_type`). New migration (e.g. `0017_schools_seed.sql` or a seeded import step).
+  org_type`). New migration (shipped as `0022_schools.sql`; renumbered from 0017 to avoid
+  colliding with the AI crew's 0018–0021 — see docs/GO-LIVE-linking.md).
 - **Search:** a read RPC / query `search_orgs(q)` returning name + city + state for a
   type-ahead. Publicly readable (org names are not sensitive); RLS allows select on `orgs`.
 - **Add your school/club:** `create_org(name, city, state, type)` inserts a new org for

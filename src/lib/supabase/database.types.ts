@@ -127,7 +127,7 @@ export type AthleteProfileRow = {
   updated_at: string;
 }
 
-// School / club / gym directory entity. `city`/`state` (added in 0017) disambiguate
+// School / club / gym directory entity. `city`/`state` (added in 0022) disambiguate
 // same-named schools in the picker and are null for location-less clubs/gyms.
 export type OrgRow = {
   id: string;
@@ -145,7 +145,7 @@ export type TeamRow = {
   name: string;
   sport: string | null;
   join_code: string;
-  /** Opt-in athlete discovery at the team's school (added in 0017). Default false. */
+  /** Opt-in athlete discovery at the team's school (added in 0022). Default false. */
   discoverable: boolean;
   created_by: string | null;
   created_at: string;
@@ -158,7 +158,7 @@ export type PracticeRow = {
   name: string;
   join_code: string;
   plan: string | null;
-  /** Trainer's unique @handle (client-first discovery key) + opt-in discovery (0020). */
+  /** Trainer's unique @handle (client-first discovery key) + opt-in discovery (0025). */
   handle: string | null;
   discoverable: boolean;
   created_at: string;
