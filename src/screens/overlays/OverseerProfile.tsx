@@ -7,15 +7,32 @@
 // full_name + org_name; org_name added in migration 0009) and are read back on sign-in
 // (hydrateProfile). Demo-safe: edits update the live dashboard title immediately.
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, Share, View } from 'react-native';
 import { accountIdentity, enabledAlertCount, OVERSEER_ALERT_DEFS, rosterNoun, ROSTER, TRAINER_CLIENTS } from '@/core';
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Input, Reveal, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
+
+/** Share the join code (native share sheet — the coach's real goal is sending it to
+ *  athletes); on web where Share is unavailable, fall back to copying to the clipboard. */
+async function shareJoinCode(code: string): Promise<void> {
+  haptics.tap();
+  try {
+    await Share.share({ message: `Join my team on OnStandard — code: ${code}` });
+  } catch {
+    try {
+      await (globalThis as unknown as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } })
+        .navigator?.clipboard?.writeText?.(code);
+    } catch {
+      /* no share + no clipboard — nothing else to do */
+    }
+  }
+}
 
 export function OverseerProfile() {
   const c = useColors();
@@ -84,7 +101,15 @@ export function OverseerProfile() {
                 {isBackendLive ? null : <SampleTag />}
               </Row>
             </View>
-            <Icon name="copy" size={18} color={c.textTertiary} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Share join code"
+              hitSlop={8}
+              onPress={() => void shareJoinCode(s.teamCode || 'EAGLES24')}
+              style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Icon name="copy" size={18} color={c.textTertiary} />
+            </Pressable>
           </Card>
           </Reveal>
         ) : null}

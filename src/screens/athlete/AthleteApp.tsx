@@ -1,6 +1,6 @@
 // OnStandard — athlete app shell: tab content + bottom tab bar + camera FAB +
 // full-screen overlays (meal capture/detail, account, messages, notifications).
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store';
@@ -52,7 +52,15 @@ export function AthleteApp() {
   const mealHistoryOpen = useStore((s) => s.mealHistoryOpen);
   const nutritionMemoryOpen = useStore((s) => s.nutritionMemoryOpen);
   const connectOpen = useStore((s) => s.connectOpen);
+  const initReminders = useStore((s) => s.initReminders);
   const c = useColors();
+
+  // Fire the athlete's daily reminders on launch: requests notification permission (native)
+  // and schedules today's active reminders. Without this, reminders only scheduled when the
+  // user manually toggled one — so a fresh install never got them. No-op on web.
+  useEffect(() => {
+    initReminders();
+  }, [initReminders]);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
