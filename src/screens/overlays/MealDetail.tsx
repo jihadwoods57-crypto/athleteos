@@ -261,7 +261,9 @@ export function MealDetail() {
 
         <Chat />
 
-        <Btn label="Save Changes" onPress={() => s.saveMeal(mealKey, foods)} style={{ marginTop: 18 }} />
+        {/* learn=true: this is the genuine plate-correction site, so a removed food can teach a
+            (confirmed) dislike — the write half of the AI memory flywheel. */}
+        <Btn label="Save Changes" onPress={() => s.saveMeal(mealKey, foods, true)} style={{ marginTop: 18 }} />
       </ScrollView>
     </Overlay>
   );

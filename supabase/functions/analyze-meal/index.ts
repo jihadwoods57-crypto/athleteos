@@ -183,6 +183,10 @@ interface AnalyzeReq {
   orders?: OrderIn[];
   /** The active plan slot's macro target for this meal (Meal Plans feature), when the athlete has one. */
   slotTarget?: { kcal: number; protein: number };
+  /** Foods the athlete has CONFIRMED they avoid (allergy/dislike memory facts). The model is told not
+   *  to identify a plate item as one of these unless unmistakable, nor suggest one as a substitution
+   *  (audit item 13: the memory flywheel's read half). Sanitized before it reaches the prompt. */
+  avoid?: string[];
 }
 
 // The exact shape the app renders (src/core MealResult). The model fills this via a
@@ -412,9 +416,22 @@ function userContent(req: AnalyzeReq): unknown[] {
   if (req.slotTarget) {
     slot = ` This meal's plan target is ${req.slotTarget.protein}g protein and ${req.slotTarget.kcal} calories. If the plate misses that target, also fill substitution with the closest compliant swap; if it is on target, omit substitution.`;
   }
+  // Confirmed allergies/dislikes (the memory flywheel's read half). Sanitized: these are athlete-
+  // derived strings, so strip newlines, cap length + count so they can't inflate or hijack the prompt.
+  let avoid = '';
+  if (Array.isArray(req.avoid) && req.avoid.length > 0) {
+    const list = req.avoid
+      .filter((a): a is string => typeof a === 'string')
+      .map((a) => a.replace(/[\r\n]+/g, ' ').trim().slice(0, 40))
+      .filter(Boolean)
+      .slice(0, 20);
+    if (list.length) {
+      avoid = ` The athlete has CONFIRMED they avoid these foods (allergy or strong dislike): ${list.join(', ')}. Do not identify a plate item as one of these unless it is unmistakably present, and never propose one as a substitution.`;
+    }
+  }
   blocks.push({
     type: 'text',
-    text: `${goal} Meal slot: ${req.mealType}.${desc} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}`,
+    text: `${goal} Meal slot: ${req.mealType}.${desc} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}${avoid}`,
   });
   return blocks;
 }

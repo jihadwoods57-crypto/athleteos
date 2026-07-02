@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { AiUnavailableError, analyzeLabel, analyzeMeal, isAiConfigured } from '@/lib/ai';
+import { fetchMemoryFacts, insertMemoryFacts } from '@/lib/ai/memory';
 import { capturePhotoBase64, pickMealPhotoBase64, isCameraAvailable } from '@/lib/capture';
 import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
@@ -15,6 +16,9 @@ import { recordMeal } from './mealSync';
 import {
   addPerfEntry,
   removePerfEntry,
+  admitCandidate,
+  avoidFoodsFromFacts,
+  candidateFactsFromFoodChange,
   clampHour,
   CUSTOM_METRIC_KEY,
   appendDayScore,
@@ -273,7 +277,7 @@ export interface Actions {
   setOrgName: (v: string) => void;
   /** Persist an edited meal's foods into the day slice and mark the slot logged, so
    *  reopening shows the saved plate and the daily score reflects its real macros. */
-  saveMeal: (key: MealKey, foods: EditableFood[]) => void;
+  saveMeal: (key: MealKey, foods: EditableFood[], learn?: boolean) => void;
   openFoodCoach: () => void;
   closeFoodCoach: () => void;
   openPlanEditor: () => void;
@@ -428,6 +432,28 @@ function scheduleMealRecord(get: () => Store, key: MealKey): void {
   const s = get();
   if (!s.userId) return;
   void recordMeal(s, s.userId, key).catch(() => undefined);
+}
+
+// The WRITE half of the AI memory flywheel (audit item 13): when the athlete CORRECTS an AI-detected
+// plate (removes a food), infer a candidate 'dislike' and store it — a SAFETY kind, so admitCandidate
+// routes it to 'pending_confirmation' and MemoryConfirm asks the athlete before it ever binds. Only
+// fires on a genuine correction of an existing plate; fails closed for a non-consenting/minor athlete
+// (no inferred facts leave the device) and is fully fire-and-forget (a meal always logs regardless).
+// v1 learns dislikes only (favorites are noisier and deferred); deduped against existing facts so the
+// same food is never re-asked.
+async function learnFromCorrection(get: () => Store, beforeNames: string[], after: EditableFood[]): Promise<void> {
+  if (!isBackendLive) return;
+  const s = get();
+  if (!s.userId) return;
+  if (!realDataConsent(consentContextFromState(s, isBackendLive)).ok) return; // fail closed
+  const candidates = candidateFactsFromFoodChange(beforeNames, after)
+    .map(admitCandidate)
+    .filter((f) => f.status === 'pending_confirmation'); // safety dislikes the athlete will confirm
+  if (candidates.length === 0) return;
+  const existing = await fetchMemoryFacts().catch(() => []);
+  const have = new Set(existing.map((f) => `${f.kind}:${String(f.value).toLowerCase()}`));
+  const fresh = candidates.filter((f) => !have.has(`${f.kind}:${String(f.value).toLowerCase()}`));
+  if (fresh.length) await insertMemoryFacts(fresh).catch(() => undefined);
 }
 
 // Debounced write-through of the overseer's editable profile (display name +
@@ -806,11 +832,15 @@ export const useStore = create<Store>()(
           // cancel / denial this resolves undefined and the model infers from context.
           (isCameraAvailable ? pickPhoto() : Promise.resolve<string | undefined>(undefined))
             .catch(() => undefined)
-            .then((photoBase64) => {
+            .then(async (photoBase64) => {
               // Hold the captured photo so addMeal/saveMeal can upload it to the
               // meal-photos bucket on log (recordMeal). Ephemeral, never persisted.
               if (photoBase64) set({ mealPhoto: photoBase64 });
-              return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64, slotTarget: slotTargetFor(st) });
+              // Memory flywheel READ half (audit item 13): tell the model the athlete's CONFIRMED
+              // allergies/dislikes so it won't identify a plate item as one of them. Fail-safe: an
+              // empty avoid list on any error, so analysis is never blocked by the memory read.
+              const avoid = avoidFoodsFromFacts(await fetchMemoryFacts('active').catch(() => []));
+              return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64, slotTarget: slotTargetFor(st), avoid });
             })
             .then((res) => {
               // The analyze call returns a finished result, 1-3 clarifying questions, or — when a
@@ -1062,7 +1092,9 @@ export const useStore = create<Store>()(
       togglePlanSlotMode: (key) => set((s) => ({ planSlots: toggleMode(s.planSlots, key) })),
       generatePlanDraftLocal: (goal) => set((s) => ({ planSlots: buildPlanDraft(activePlan(s), goal) })),
       clearPlan: () => set({ planSlots: [] }),
-      saveMeal: (key, foods) => {
+      saveMeal: (key, foods, learn = false) => {
+        // Capture the plate BEFORE this save so a genuine correction (a removed food) can be learned.
+        const beforeNames = (get().mealFoods[key] ?? []).map((f) => f.name);
         set((s) => {
           // Saving a meal's edited plate logs the slot AND records its real foods.
           const meals = { ...s.meals, [key]: true };
@@ -1082,6 +1114,9 @@ export const useStore = create<Store>()(
         scheduleMealRecord(get, key);
         set({ mealPhoto: null });
         scheduleDaySync(get);
+        // Learn from a genuine plate correction (the MealDetail edit passes learn=true). Fire-and-
+        // forget: a meal always logs even if learning is off, unconfigured, or fails.
+        if (learn) void learnFromCorrection(get, beforeNames, foods);
       },
       toggleQuick: (i) => {
         set((s) => {

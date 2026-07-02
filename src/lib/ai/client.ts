@@ -80,6 +80,10 @@ export interface AnalyzeMealRequest {
   clarifications?: Clarification[];
   /** The active plan slot's macro target for this meal (Meal Plans feature), when the athlete has one. */
   slotTarget?: { kcal: number; protein: number };
+  /** Foods the athlete must avoid — the values of their CONFIRMED allergy/dislike memory facts. The
+   *  model is told not to identify a plate item as one of these unless unmistakable (audit item 13:
+   *  the memory flywheel's read half — this is how a stored fact finally reaches the prompt). */
+  avoid?: string[];
 }
 
 /**

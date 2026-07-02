@@ -1,6 +1,8 @@
 import {
   admitCandidate,
+  avoidFoodsFromFacts,
   candidateFactsFromCorrection,
+  candidateFactsFromFoodChange,
   promoteFact,
   retrieveForTask,
   safetyConstraints,
@@ -53,6 +55,48 @@ describe('memory — corrections propose, never commit safety facts', () => {
   it('an added food becomes a favorite candidate (non-safety, can accrue)', () => {
     const fav = candidateFactsFromCorrection(before, after).find((f) => f.kind === 'favorite_food');
     expect(fav?.value).toBe('chicken');
+  });
+});
+
+describe('memory flywheel — write path over raw food names (audit item 13)', () => {
+  it('candidateFactsFromFoodChange mirrors the MealResult version, keyed on names', () => {
+    const cands = candidateFactsFromFoodChange(['broccoli', 'rice'], [{ name: 'chicken' }, { name: 'rice' }] as EditableFood[]);
+    expect(cands.find((f) => f.kind === 'dislike')?.value).toBe('broccoli');
+    expect(cands.find((f) => f.kind === 'favorite_food')?.value).toBe('chicken');
+  });
+
+  it('no change (same foods, only reordered/re-cased) proposes nothing', () => {
+    expect(candidateFactsFromFoodChange(['Rice', 'Chicken'], [{ name: 'chicken' }, { name: 'rice' }] as EditableFood[])).toEqual([]);
+  });
+
+  it('an empty before never infers a dislike (no first-log noise)', () => {
+    const cands = candidateFactsFromFoodChange([], [{ name: 'eggs' }] as EditableFood[]);
+    expect(cands.some((f) => f.kind === 'dislike')).toBe(false);
+  });
+
+  it('the store learns dislikes only: admit + filter leaves a pending safety fact', () => {
+    // Mirrors learnFromCorrection: candidates -> admitCandidate -> keep pending_confirmation.
+    const learned = candidateFactsFromFoodChange(['broccoli', 'rice'], [{ name: 'chicken' }, { name: 'rice' }] as EditableFood[])
+      .map(admitCandidate)
+      .filter((f) => f.status === 'pending_confirmation');
+    expect(learned).toHaveLength(1);
+    expect(learned[0]).toMatchObject({ kind: 'dislike', value: 'broccoli', status: 'pending_confirmation' });
+  });
+});
+
+describe('memory flywheel — read path (avoidFoodsFromFacts)', () => {
+  it('lists only confirmed (active) safety facts, lowercased and de-duped', () => {
+    const facts = [
+      fact({ kind: 'allergy', value: 'Peanut', status: 'active', source: 'athlete_stated' }),
+      fact({ kind: 'dislike', value: 'peanut', status: 'active', source: 'athlete_stated' }), // dup after lowercasing
+      fact({ kind: 'allergy', value: 'Shellfish', status: 'pending_confirmation' }),           // unconfirmed -> excluded
+      fact({ kind: 'favorite_food', value: 'chicken', status: 'active' }),                     // non-safety -> excluded
+    ];
+    expect(avoidFoodsFromFacts(facts).sort()).toEqual(['peanut']);
+  });
+
+  it('returns an empty list when there are no confirmed safety facts', () => {
+    expect(avoidFoodsFromFacts([fact({ kind: 'favorite_food', value: 'rice' })])).toEqual([]);
   });
 });
 
