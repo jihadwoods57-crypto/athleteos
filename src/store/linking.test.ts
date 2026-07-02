@@ -12,6 +12,10 @@ const joinPractice = jest.fn<Promise<string | null>, [string]>();
 const requestJoinTeam = jest.fn<Promise<string | null>, [string, string?]>();
 const createPractice = jest.fn<Promise<string | null>, [string, string?, boolean?]>();
 const createTeam = jest.fn<Promise<string | null>, [string, string?, string?, boolean?]>();
+const setMyTeamCode = jest.fn<Promise<string | null>, [string]>();
+const regenerateMyTeamCode = jest.fn<Promise<string | null>, []>();
+const setMyPracticeCode = jest.fn<Promise<string | null>, [string]>();
+const regenerateMyPracticeCode = jest.fn<Promise<string | null>, []>();
 
 function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
   let store!: UseBoundStore<StoreApi<Store>>;
@@ -32,6 +36,10 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
         requestJoinTeam,
         createPractice,
         createTeam,
+        setMyTeamCode,
+        regenerateMyTeamCode,
+        setMyPracticeCode,
+        regenerateMyPracticeCode,
       },
     }));
     store = require('./useStore').useStore;
@@ -45,6 +53,10 @@ beforeEach(() => {
   requestJoinTeam.mockReset().mockResolvedValue('t1');
   createPractice.mockReset().mockResolvedValue(null);
   createTeam.mockReset().mockResolvedValue(null);
+  setMyTeamCode.mockReset();
+  regenerateMyTeamCode.mockReset();
+  setMyPracticeCode.mockReset();
+  regenerateMyPracticeCode.mockReset();
 });
 
 describe('connectCoach / connectTrainer (code door)', () => {
@@ -120,5 +132,53 @@ describe('Connect overlay + Home card state', () => {
     expect(useStore.getState().connectCardDismissed).toBe(false);
     useStore.getState().dismissConnectCard();
     expect(useStore.getState().connectCardDismissed).toBe(true);
+  });
+});
+
+describe('custom / regenerate invite code', () => {
+  it('coach: setInviteCodeCustom routes to the team RPC + stores the saved code', async () => {
+    setMyTeamCode.mockResolvedValue('GATORS');
+    const useStore = loadStore(true);
+    useStore.getState().enterCoach();
+    const res = await useStore.getState().setInviteCodeCustom('gators');
+    expect(res.ok).toBe(true);
+    expect(setMyTeamCode).toHaveBeenCalledWith('gators');
+    expect(useStore.getState().teamCode).toBe('GATORS');
+  });
+
+  it('trainer: setInviteCodeCustom routes to the practice RPC', async () => {
+    setMyPracticeCode.mockResolvedValue('APEX');
+    const useStore = loadStore(true);
+    useStore.getState().enterTrainer();
+    const res = await useStore.getState().setInviteCodeCustom('apex');
+    expect(res.ok).toBe(true);
+    expect(setMyPracticeCode).toHaveBeenCalledWith('apex');
+    expect(setMyTeamCode).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a friendly error when the code is taken', async () => {
+    setMyTeamCode.mockRejectedValue(new Error('That code is already taken — try another'));
+    const useStore = loadStore(true);
+    useStore.getState().enterCoach();
+    const res = await useStore.getState().setInviteCodeCustom('TAKEN');
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/already taken/);
+  });
+
+  it('regenerateInviteCode (coach) stores the new random code', async () => {
+    regenerateMyTeamCode.mockResolvedValue('AB12CD');
+    const useStore = loadStore(true);
+    useStore.getState().enterCoach();
+    const code = await useStore.getState().regenerateInviteCode();
+    expect(code).toBe('AB12CD');
+    expect(useStore.getState().teamCode).toBe('AB12CD');
+  });
+
+  it('is inert (no RPC) when the backend is off', async () => {
+    const useStore = loadStore(false);
+    useStore.getState().enterCoach();
+    const res = await useStore.getState().setInviteCodeCustom('X');
+    expect(res.ok).toBe(false);
+    expect(setMyTeamCode).not.toHaveBeenCalled();
   });
 });

@@ -293,6 +293,10 @@ export interface Database {
         Args: { practice: string };
         Returns: { client_id: string; client_name: string | null; requested_at: string | null }[];
       };
+      set_my_team_code: { Args: { new_code: string }; Returns: string };
+      regenerate_my_team_code: { Args: Record<string, never>; Returns: string };
+      set_my_practice_code: { Args: { new_code: string }; Returns: string };
+      regenerate_my_practice_code: { Args: Record<string, never>; Returns: string };
       coach_set_goals: {
         Args: {
           athlete: string;

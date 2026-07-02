@@ -321,6 +321,11 @@ export interface Actions {
   /** Trainer/overseer creates a real practice via the create_practice RPC (mirror of
    *  createTeamLive) with an optional @handle; stores the join code in teamCode. */
   createPracticeLive: (name: string, handle?: string | null, discoverable?: boolean) => Promise<string | null>;
+  /** Coach/trainer sets a custom vanity join code (validated + uniqueness-checked server-side).
+   *  Returns {ok} or {ok:false, error} with a friendly message (e.g. "code already taken"). */
+  setInviteCodeCustom: (code: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Coach/trainer regenerates a random join code. Returns the new code or null. */
+  regenerateInviteCode: () => Promise<string | null>;
   setTeamDiscoverable: (v: boolean) => void;
   setGuardianEmail: (v: string) => void;
   /** Minor guardian consent: email a minor's guardian an approval request. Gated, sends only
@@ -1163,6 +1168,32 @@ export const useStore = create<Store>()(
           return code;
         } catch (e) {
           set({ authError: e instanceof Error ? e.message : 'Could not create team' });
+          return null;
+        }
+      },
+      setInviteCodeCustom: async (code) => {
+        if (!isBackendLive) return { ok: false, error: 'Available once your backend is live' };
+        const isTrainer = get().flow === 'trainer';
+        try {
+          const saved = isTrainer ? await db.setMyPracticeCode(code) : await db.setMyTeamCode(code);
+          if (saved) {
+            set({ teamCode: saved, authError: null });
+            return { ok: true };
+          }
+          return { ok: false, error: 'Could not update code' };
+        } catch (e) {
+          return { ok: false, error: e instanceof Error ? e.message : 'Could not update code' };
+        }
+      },
+      regenerateInviteCode: async () => {
+        if (!isBackendLive) return null;
+        const isTrainer = get().flow === 'trainer';
+        try {
+          const code = isTrainer ? await db.regenerateMyPracticeCode() : await db.regenerateMyTeamCode();
+          if (code) set({ teamCode: code, authError: null });
+          return code;
+        } catch (e) {
+          set({ authError: e instanceof Error ? e.message : 'Could not regenerate code' });
           return null;
         }
       },

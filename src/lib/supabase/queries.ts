@@ -430,6 +430,34 @@ export async function declineClient(practiceId: string, clientId: string): Promi
   if (error) throw error;
 }
 
+// ---------------------------------------------------------------- custom / regenerate join code
+/** Set a vanity join code on the caller's team; throws with a friendly message if taken
+ *  or malformed. Returns the saved (uppercased) code. */
+export async function setMyTeamCode(newCode: string): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('set_my_team_code', { new_code: newCode });
+  if (error) throw error;
+  return data;
+}
+export async function regenerateMyTeamCode(): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('regenerate_my_team_code', {});
+  if (error) throw error;
+  return data;
+}
+export async function setMyPracticeCode(newCode: string): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('set_my_practice_code', { new_code: newCode });
+  if (error) throw error;
+  return data;
+}
+export async function regenerateMyPracticeCode(): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('regenerate_my_practice_code', {});
+  if (error) throw error;
+  return data;
+}
+
 /** Practices the signed-in user owns (practices_read RLS returns the owner's own; a
  *  trainer typically has one). Powers the trainer's pending-request inbox. */
 export async function fetchMyPractices(): Promise<{ id: string; name: string }[]> {

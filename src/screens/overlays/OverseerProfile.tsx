@@ -13,7 +13,7 @@ import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
-import { Card, Input, Reveal, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Input, Reveal, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { Overlay } from './Overlay';
@@ -32,6 +32,52 @@ async function shareJoinCode(code: string): Promise<void> {
       /* no share + no clipboard — nothing else to do */
     }
   }
+}
+
+/** Editable join code (coach/trainer): set a vanity code or generate a random one. Only
+ *  rendered when the backend is live (the code lives server-side). Validation + uniqueness
+ *  are enforced by the RPC; friendly errors surface inline. */
+function JoinCodeEditor() {
+  const c = useColors();
+  const s = useStore();
+  const [code, setCode] = React.useState(s.teamCode || '');
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState<string | null>(null);
+  const [ok, setOk] = React.useState(false);
+
+  const save = async () => {
+    setBusy(true); setMsg(null); setOk(false);
+    const res = await s.setInviteCodeCustom(code);
+    setBusy(false);
+    if (res.ok) { setOk(true); setMsg('Saved — share it with your athletes'); }
+    else setMsg(res.error ?? 'Could not save that code');
+  };
+  const regen = async () => {
+    setBusy(true); setMsg(null); setOk(false);
+    const nu = await s.regenerateInviteCode();
+    setBusy(false);
+    if (nu) { setCode(nu); setOk(true); setMsg('New code generated'); }
+    else setMsg('Could not generate a new code');
+  };
+
+  return (
+    <Reveal index={3}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
+        <Txt w="eb" size={11} color={c.textTertiary} ls={0.4} upper>Your join code</Txt>
+        <Row style={{ gap: 8, marginTop: 10, alignItems: 'center' }}>
+          <Input value={code} onChangeText={(v) => { setCode(v.toUpperCase()); setMsg(null); }} placeholder="e.g. GATORS" autoCapitalize="characters" autoCorrect={false} style={{ flex: 1 }} />
+          <Btn label={busy ? '…' : 'Save'} disabled={busy || code.trim().length < 4} onPress={save} />
+        </Row>
+        <Pressable accessibilityRole="button" accessibilityLabel="Generate a random code" hitSlop={6} onPress={regen} style={({ pressed }) => ({ alignSelf: 'flex-start', marginTop: 12, opacity: pressed ? 0.6 : 1 })}>
+          <Txt w="b" size={13} color={c.accent}>↺ Generate a random code</Txt>
+        </Pressable>
+        {msg ? <Txt w="sb" size={12} color={ok ? c.successDeep : c.alert} style={{ marginTop: 8 }}>{msg}</Txt> : null}
+        <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 8, lineHeight: 17 }}>
+          Athletes join with this code. 4–12 letters or numbers, and it has to be unique.
+        </Txt>
+      </Card>
+    </Reveal>
+  );
 }
 
 export function OverseerProfile() {
@@ -113,6 +159,9 @@ export function OverseerProfile() {
           </Card>
           </Reveal>
         ) : null}
+
+        {/* editable join code (coach/trainer, live backend only) */}
+        {!isParent && isBackendLive ? <JoinCodeEditor /> : null}
 
         {/* shared preferences */}
         <Reveal index={3}>
