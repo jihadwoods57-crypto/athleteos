@@ -12,3 +12,7 @@
 // The engines themselves stay fully built + unit-tested either way; this gates only their
 // UI entry points, so flipping it on reveals finished features rather than half-built ones.
 export const isEnginesEnabled = process.env.EXPO_PUBLIC_ENGINES_ENABLED?.trim() === 'true';
+
+// Master switch for the Meal Plans feature (structured prescribed meals + plan compliance).
+// OFF by default so the prove-the-loop beta is untouched; flip with EXPO_PUBLIC_MEAL_PLANS_ENABLED=true.
+export const isMealPlansEnabled = process.env.EXPO_PUBLIC_MEAL_PLANS_ENABLED?.trim() === 'true';

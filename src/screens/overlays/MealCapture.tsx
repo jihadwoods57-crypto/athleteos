@@ -350,6 +350,31 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
         </Reveal>
       ) : null}
 
+      {/* closest compliant swap vs the plan slot target — supportive, never "bad meal" */}
+      {mr.substitution ? (
+        <Reveal index={1}>
+        <View style={{ marginTop: 12, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, backgroundColor: c.bg2 }}>
+          <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="sparkle" size={16} color={c.textSecondary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} style={{ marginBottom: 4 }}>
+              CLOSEST COMPLIANT SWAP
+            </Txt>
+            <Txt w="sb" size={14} color={c.slate700} style={{ lineHeight: 20 }}>
+              {mr.substitution.suggestion}
+            </Txt>
+            <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4 }}>
+              {mr.substitution.items.join(', ')}
+            </Txt>
+            <Txt w="eb" num size={13} color={c.textSecondary} style={{ marginTop: 4 }}>
+              {`+${mr.substitution.deltaProtein}g · +${mr.substitution.deltaKcal} cal`}
+            </Txt>
+          </View>
+        </View>
+        </Reveal>
+      ) : null}
+
       {/* score impact — the reward that proves the loop */}
       <Reveal index={1}>
       <View style={{ marginTop: 12, borderRadius: 18, padding: 16, backgroundColor: impact > 0 ? c.successSurface : c.bg2, flexDirection: 'row', alignItems: 'center', gap: 13 }}>

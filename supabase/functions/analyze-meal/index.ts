@@ -147,6 +147,8 @@ interface AnalyzeReq {
   insights?: MemoryInsightIn[];
   /** For mode 'order': the recommended-order explanations to reword (prose only is returned). */
   orders?: OrderIn[];
+  /** The active plan slot's macro target for this meal (Meal Plans feature), when the athlete has one. */
+  slotTarget?: { kcal: number; protein: number };
 }
 
 // The exact shape the app renders (src/core MealResult). The model fills this via a
@@ -167,6 +169,16 @@ const MEAL_TOOL = {
       note: { type: 'string', description: 'One coach-voiced sentence tying this meal to the athlete goal. No hype, no em dashes.' },
       reconcile: { type: 'string', description: 'Only when the athlete note CONTRADICTS what is plainly visible (e.g. says grilled but it is clearly fried, or "no sauce" when it is drowning): one short, non-accusatory coach sentence saying what you are counting and why, leaving them an out. Omit entirely when the note agrees with or merely adds hidden food. No em dashes.' },
       descriptionSignal: { type: 'string', enum: ['match', 'photo_heavier', 'photo_lighter', 'no_photo'], description: 'Relationship of the athlete note to the photo. "match": the note agrees with the photo or only adds plausible hidden/off-frame food (trust it). "photo_heavier": the plate visibly holds MORE than the note claims (the note underrated it). "photo_lighter": the plate visibly holds LESS than the note claims. "no_photo": no photo was provided.' },
+      substitution: {
+        type: 'object',
+        description: 'ONLY when a slotTarget was given and this plate misses it: the closest compliant swap that hits the target. Supportive, never says the meal is bad. Omit entirely when on target or no slotTarget.',
+        properties: {
+          suggestion: { type: 'string', description: 'One coach sentence: what to eat instead/added. No em dashes.' },
+          items: { type: 'array', items: { type: 'string' }, description: 'The swap foods, e.g. ["grilled chicken","fruit","chocolate milk"].' },
+          deltaProtein: { type: 'integer', description: 'Grams of protein the swap adds vs the logged plate.' },
+          deltaKcal: { type: 'integer', description: 'Calories the swap adds vs the logged plate.' },
+        },
+      },
     },
     required: ['name', 'quality', 'protein', 'kcal', 'carbs', 'fat', 'detected', 'note', 'descriptionSignal'],
   },
@@ -218,6 +230,10 @@ see, write one short non-accusatory reconcile line saying what you are counting 
 leaving them an out, and set descriptionSignal to "photo_heavier" (plate holds more than the note
 claims) or "photo_lighter" (plate holds less). If no photo was provided, set descriptionSignal to
 "no_photo" and never run this check.
+
+When a slotTarget is given and the plate misses it, fill substitution with the closest compliant
+swap that would hit the target, framed as a supportive addition or swap, never as the meal being
+bad; omit substitution entirely when the plate is on target or no slotTarget was given.
 
 Voice: direct, motivating, precise, never hype, never cutesy. Safety: never give extreme or
 restrictive advice, never frame food as good/bad in a way that could fuel disordered eating; coach
@@ -358,9 +374,13 @@ function userContent(req: AnalyzeReq): unknown[] {
       .join('\n');
     if (lines) qa = ` You already asked and the athlete answered:\n${lines}\nUse these answers as truth for what the photo cannot show; report the meal now.`;
   }
+  let slot = '';
+  if (req.slotTarget) {
+    slot = ` This meal's plan target is ${req.slotTarget.protein}g protein and ${req.slotTarget.kcal} calories. If the plate misses that target, also fill substitution with the closest compliant swap; if it is on target, omit substitution.`;
+  }
   blocks.push({
     type: 'text',
-    text: `${goal} Meal slot: ${req.mealType}.${desc} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}`,
+    text: `${goal} Meal slot: ${req.mealType}.${desc} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}`,
   });
   return blocks;
 }
