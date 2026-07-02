@@ -13,7 +13,7 @@ describe('parsePlanSlots', () => {
     expect(s.restaurantAlts).toEqual([]);
     expect(s.photoRequired).toBe(false);
     expect(s.note).toBeNull();
-    expect((s as Record<string, unknown>).hacker).toBeUndefined();
+    expect((s as unknown as Record<string, unknown>).hacker).toBeUndefined();
   });
 
   it('clamps negative macros to 0 and coerces meal items to strings', () => {
