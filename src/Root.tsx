@@ -11,7 +11,14 @@ import { TrainerView } from '@/screens/roles/TrainerView';
 
 export function Root() {
   const flow = useStore((s) => s.flow);
+  const initPush = useStore((s) => s.initPush);
   useInviteLink(); // invite deep links open the Connect overlay with the code prefilled
+
+  // Register this device for push once, for every signed-in role (coaches get join alerts,
+  // athletes get nudges). No-op offline / on web / until an EAS build exists.
+  React.useEffect(() => {
+    void initPush();
+  }, [initPush]);
 
   switch (flow) {
     case 'app':

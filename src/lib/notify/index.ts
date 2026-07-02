@@ -6,9 +6,10 @@
 // hour, and their copy — lives in core/reminders.ts (reminderNotifySpecs); this seam only
 // schedules what it is handed.
 //
-// LOCAL only: nothing here sends a remote/push notification or contacts another person.
-// Remote coach->athlete push is a separate, later seam (device_tokens + a send edge function).
-// Web has no scheduler, so isNotifyAvailable is false there and every call no-ops.
+// This file schedules LOCAL reminders. It also captures the device's Expo PUSH token
+// (getPushToken) for remote coach->athlete push — the send side is the send-push edge
+// function + device_tokens table; the store registers the token via registerDeviceToken.
+// Web has no scheduler / push, so isNotifyAvailable is false there and every call no-ops.
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import type { ReminderNotifySpec } from '@/core';
@@ -82,6 +83,30 @@ export async function refreshReminderSchedule(
     }
   } catch {
     // A scheduler hiccup must never crash the app; reminders are best-effort.
+  }
+}
+
+/**
+ * Capture this device's Expo push token for remote coach→athlete push. Native only, after
+ * permission is granted, and only when an EAS projectId exists (set once there's an EAS
+ * build). Returns null when unavailable — never throws. The store registers the returned
+ * token server-side (registerDeviceToken); this seam only mints it.
+ */
+export async function getPushToken(): Promise<string | null> {
+  if (!isNotifyAvailable) return null;
+  try {
+    const granted = await ensureNotifyPermission();
+    if (!granted) return null;
+    // Lazy require so tests (which never call this) don't load expo-constants (ESM, native).
+    const Constants = (require('expo-constants') as { default?: unknown }).default as
+      | { expoConfig?: { extra?: { eas?: { projectId?: string } } }; easConfig?: { projectId?: string } }
+      | undefined;
+    const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+    if (!projectId) return null; // no EAS project yet → can't mint a push token
+    const res = await Notifications.getExpoPushTokenAsync({ projectId });
+    return res.data ?? null;
+  } catch {
+    return null;
   }
 }
 

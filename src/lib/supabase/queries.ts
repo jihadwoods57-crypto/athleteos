@@ -431,6 +431,24 @@ export async function declineClient(practiceId: string, clientId: string): Promi
   if (error) throw error;
 }
 
+// ---------------------------------------------------------------- push (device tokens)
+/** Register the caller's Expo push token (upsert). Inert when unconfigured. */
+export async function registerDeviceToken(token: string, platform?: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase().rpc('register_device_token', { tok: token, plat: platform ?? null });
+  if (error) throw error;
+}
+
+/** Coach/trainer nudge → the send-push edge function records an in-app notification and
+ *  pushes to the athlete's devices (authorized server-side via can_view). Inert offline. */
+export async function nudgePush(athleteId: string, title: string, message: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase().functions.invoke('send-push', {
+    body: { athlete_id: athleteId, title, body: message },
+  });
+  if (error) throw error;
+}
+
 // ---------------------------------------------------------------- in-app notifications
 /** The signed-in user's notifications, newest first (RLS scopes to their own rows). */
 export async function fetchNotifications(limit = 50): Promise<NotificationRow[]> {

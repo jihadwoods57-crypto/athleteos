@@ -304,6 +304,7 @@ export interface Database {
         Args: { practice: string };
         Returns: { client_id: string; client_name: string | null; requested_at: string | null }[];
       };
+      register_device_token: { Args: { tok: string; plat?: string | null }; Returns: undefined };
       set_my_team_code: { Args: { new_code: string }; Returns: string };
       regenerate_my_team_code: { Args: Record<string, never>; Returns: string };
       set_my_practice_code: { Args: { new_code: string }; Returns: string };

@@ -18,6 +18,9 @@ export type RiskTone = 'warning' | 'alert';
  *  them still gets an honest reason from compliance + trend + recency. */
 export interface AtRiskInput {
   name: string;
+  /** The linked athlete's backend id (present when the roster came from real days rows);
+   *  lets the coach's nudge target the right athlete for push. Absent on the seeded demo. */
+  athleteId?: string;
   score: number;
   comp: number;
   dir: 'up' | 'down' | 'flat';

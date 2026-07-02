@@ -228,7 +228,7 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
               <AttentionRow
                 key={a.name} initials={m.initials} name={a.name} meta={a.reason} score={a.score}
                 color={a.tone === 'alert' ? c.alert : c.warning} nudged={s.nudged.includes(a.name)}
-                onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }); }}
+                onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }, undefined, a.athleteId); }}
                 onPress={() => s.openPerson({ name: a.name, initials: m.initials, pos: m.pos, score: a.score, comp: m.comp, athleteId: m.athleteId })}
                 last={i === preview.length - 1}
               />
@@ -377,7 +377,7 @@ function CoachAttention({ attention, rosterMeta }: { attention: ReturnType<typeo
               <AttentionRow
                 key={a.name} initials={m.initials} name={a.name} meta={a.reason} score={a.score}
                 color={a.tone === 'alert' ? c.alert : c.warning} nudged={s.nudged.includes(a.name)}
-                onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }); }}
+                onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }, undefined, a.athleteId); }}
                 onPress={() => s.openPerson({ name: a.name, initials: m.initials, pos: m.pos, score: a.score, comp: m.comp, athleteId: m.athleteId })}
                 last={i === attention.length - 1}
               />
