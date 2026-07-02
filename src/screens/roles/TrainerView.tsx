@@ -19,6 +19,9 @@ import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
 import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
+import { CoachPlanEditor } from '@/screens/overlays/CoachPlanEditor';
+import { BulkAssign } from '@/screens/overlays/BulkAssign';
+import { isMealPlansEnabled } from '@/lib/features';
 import { usePendingClients } from './usePendingClients';
 import { RoleTabBar, SettingRow, type RoleTab } from './roleChrome';
 import type { TrainerTab } from '@/core';
@@ -97,6 +100,28 @@ export function TrainerView() {
             {isBackendLive ? null : <Kpi value="92%" label="RETENTION" color={cx.success} sample />}
           </Row>
           </Reveal>
+
+          {isMealPlansEnabled ? (
+            <Reveal index={0}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Assign a meal plan to clients"
+              onPress={s.openBulkAssign}
+              style={({ pressed }) => [{ marginTop: 14, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: cx.card, opacity: pressed ? 0.85 : 1 }, shadow.card]}
+            >
+              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: cx.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="sparkle" size={18} color={cx.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Txt w="b" size={15}>Assign a plan</Txt>
+                <Txt w="m" size={12} color={cx.textTertiary} style={{ marginTop: 1 }}>
+                  Generate one plan, assign it to many clients at once
+                </Txt>
+              </View>
+              <Icon name="chevronRight" size={18} color={cx.textTertiary} />
+            </Pressable>
+            </Reveal>
+          ) : null}
 
           <PendingClientsCard />
 
@@ -267,6 +292,8 @@ export function TrainerView() {
 
       {s.personDetail && <PersonDetail />}
       {s.personDetail && s.coachGoalsOpen && <CoachGoalsEditor />}
+      {isMealPlansEnabled && s.planEditorOpen && <CoachPlanEditor />}
+      {isMealPlansEnabled && s.bulkAssignOpen && <BulkAssign clients={TRAINER_CLIENTS} />}
       {s.msgOpen && <Messages />}
       {s.accountOpen && <Account />}
       {s.plansOpen && <Plans />}

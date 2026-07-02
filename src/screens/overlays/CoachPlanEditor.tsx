@@ -3,7 +3,7 @@
 // instructions. Local today; syncs to the linked athlete when the backend lands.
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { activePlan, formatWindowTime } from '@/core';
+import { activePlan, formatWindowTime, getAthletePlan, applySlotPatch, toggleMode } from '@/core';
 import type { EngineGoal, MealKey, PlanSlot } from '@/core';
 import { useStore } from '@/store';
 import { generatePlan } from '@/lib/ai/planGenerate';
@@ -30,6 +30,17 @@ export function CoachPlanEditor() {
   const [draft, setDraft] = React.useState('');
   const [generating, setGenerating] = React.useState(false);
 
+  // Edit target: the signed-in user's own plan ('self') or a specific client's (Wave 2).
+  // In athlete mode we read/write that client's slice of athletePlans and hide the
+  // self-scoped targets/windows/instructions cards (those edit the coach's own data).
+  const target = s.planEditTarget;
+  const isAthlete = target.kind === 'athlete';
+  const slots = isAthlete ? getAthletePlan(s.athletePlans, target.key) : s.planSlots;
+  const writeSlots = (next: PlanSlot[]) => {
+    if (isAthlete) s.setAthletePlanSlots(target.key, next);
+    else s.setPlanSlots(next);
+  };
+
   const add = (text: string) => {
     s.addPlanInstruction(text);
     setDraft('');
@@ -41,20 +52,24 @@ export function CoachPlanEditor() {
     try {
       const goal = planGoalFor(s.baseGoal);
       const result = await generatePlan({ plan: activePlan(s), goal });
-      s.setPlanSlots(result);
+      writeSlots(result);
     } finally {
       setGenerating(false);
     }
   };
 
   return (
-    <Overlay title="Coach Plan" onClose={s.closePlanEditor}>
+    <Overlay title={isAthlete ? `Coach Plan · ${target.name}` : 'Coach Plan'} onClose={s.closePlanEditor}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <Txt w="m" size={14} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 20 }}>
-          The plan the athlete is held to. Every meal and the Execution Score are measured against this.
+          {isAthlete
+            ? `Prescribe ${target.name}'s meals. Generate a starting plan, then pin exact meals or leave a window open to the macros.`
+            : 'The plan the athlete is held to. Every meal and the Execution Score are measured against this.'}
         </Txt>
 
-        {/* targets */}
+        {/* targets / windows / standing instructions — only for the coach's OWN plan */}
+        {!isAthlete ? (
+        <>
         <Reveal index={0}>
         <Card variant="low" style={{ marginTop: 16, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 12 }}>
@@ -156,8 +171,10 @@ export function CoachPlanEditor() {
           </Row>
         </Card>
         </Reveal>
+        </>
+        ) : null}
 
-        {/* prescribed meals */}
+        {/* prescribed meals — per-athlete when scoped to a client, else the coach's own */}
         {isMealPlansEnabled ? (
         <Reveal index={3}>
         <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
@@ -178,10 +195,10 @@ export function CoachPlanEditor() {
             variant="secondary"
           />
 
-          {s.planSlots.length > 0 ? (
+          {slots.length > 0 ? (
             <View style={{ gap: 10, marginTop: 14 }}>
-              {s.planSlots.map((slot) => (
-                <SlotRow key={slot.key} slot={slot} onToggleMode={() => s.togglePlanSlotMode(slot.key)} onTogglePhoto={() => s.updatePlanSlot(slot.key, { photoRequired: !slot.photoRequired })} onNoteChange={(note) => s.updatePlanSlot(slot.key, { note })} />
+              {slots.map((slot) => (
+                <SlotRow key={slot.key} slot={slot} onToggleMode={() => writeSlots(toggleMode(slots, slot.key))} onTogglePhoto={() => writeSlots(applySlotPatch(slots, slot.key, { photoRequired: !slot.photoRequired }))} onNoteChange={(note) => writeSlots(applySlotPatch(slots, slot.key, { note }))} />
               ))}
             </View>
           ) : (

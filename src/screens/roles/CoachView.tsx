@@ -24,6 +24,9 @@ import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
 import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
+import { CoachPlanEditor } from '@/screens/overlays/CoachPlanEditor';
+import { BulkAssign } from '@/screens/overlays/BulkAssign';
+import { isMealPlansEnabled } from '@/lib/features';
 import { useLiveRoster } from './useLiveRoster';
 import { usePendingRequests } from './usePendingRequests';
 import { CoachCopilot } from './CoachCopilot';
@@ -80,6 +83,8 @@ export function CoachView() {
 
       {s.personDetail && <PersonDetail />}
       {s.personDetail && s.coachGoalsOpen && <CoachGoalsEditor />}
+      {isMealPlansEnabled && s.planEditorOpen && <CoachPlanEditor />}
+      {isMealPlansEnabled && s.bulkAssignOpen && <BulkAssign clients={roster} />}
       {s.msgOpen && <Messages />}
       {s.accountOpen && <Account />}
       {s.plansOpen && <Plans />}
@@ -192,6 +197,21 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
         <Kpi value={`${kpis.alerts}`} label="ALERTS" color={c.alert} />
       </Row>
       </Reveal>
+
+      {isMealPlansEnabled ? (
+        <PressScale accessibilityLabel="Assign a meal plan to athletes" haptic="none" onPress={s.openBulkAssign} style={{ marginTop: 14 }}>
+          <Card variant="low" style={{ borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="sparkle" size={18} color={c.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="b" size={15}>Assign a plan</Txt>
+              <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>Generate one plan, assign it to many athletes at once</Txt>
+            </View>
+            <Icon name="chevronRight" size={18} color={c.textTertiary} />
+          </Card>
+        </PressScale>
+      ) : null}
 
       <PendingRequestsCard />
 

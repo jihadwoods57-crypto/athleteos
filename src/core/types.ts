@@ -16,6 +16,7 @@ import type { ReminderSettings } from './reminders';
 import type { OverseerAlerts } from './overseerAlerts';
 import type { Entitlement } from './subscription';
 import type { PlanSlot } from './coachPlan';
+import type { AthletePlans, PlanEditTarget } from './athletePlans';
 
 /** The 7 onboarding identities. Each maps onto one of the 4 dashboard flows
  *  (see ROLE_DEFS in constants) and personalizes copy/labels/goals. */
@@ -353,6 +354,13 @@ export interface AppState {
    *  isMealPlansEnabled). Empty until generated/set; persisted so an in-progress
    *  plan survives an app restart. */
   planSlots: PlanSlot[];
+  /** The coach's per-athlete meal plans, keyed by athlete key (Wave 2). Persisted so a
+   *  nutritionist's client plans survive a restart. */
+  athletePlans: AthletePlans;
+  /** Which plan the CoachPlanEditor edits: the user's own ('self') or a selected client's. */
+  planEditTarget: PlanEditTarget;
+  /** Bulk-assign overlay (assign one plan to many clients at once). */
+  bulkAssignOpen: boolean;
   /** Athlete-editable season weight goal (lb). Single source of truth for the
    *  Home season-goal card, Check-In + Parent weight trends, and Profile.
    *  Defaults to the WEIGHT_TARGET constant. */

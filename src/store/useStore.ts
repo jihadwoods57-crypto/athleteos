@@ -57,6 +57,8 @@ import {
   buildPlanDraft,
   applySlotPatch,
   toggleMode,
+  setAthletePlan,
+  assignPlanToMany,
 } from '@/core';
 import type {
   AppState,
@@ -276,6 +278,14 @@ export interface Actions {
   closeFoodCoach: () => void;
   openPlanEditor: () => void;
   closePlanEditor: () => void;
+  /** Open the plan editor scoped to a specific client (Wave 2 coach authoring). */
+  openAthletePlanEditor: (key: string, name: string) => void;
+  /** Set one client's prescribed-meal plan (sanitized). */
+  setAthletePlanSlots: (key: string, slots: PlanSlot[]) => void;
+  /** Assign one plan to many clients at once (bulk assign). */
+  assignPlanToManyAthletes: (keys: string[], slots: PlanSlot[]) => void;
+  openBulkAssign: () => void;
+  closeBulkAssign: () => void;
   /** Add a standing coach instruction (trimmed, deduped, capped). */
   addPlanInstruction: (text: string) => void;
   removePlanInstruction: (index: number) => void;
@@ -1015,8 +1025,9 @@ export const useStore = create<Store>()(
       },
       openFoodCoach: () => set({ foodCoachOpen: true }),
       closeFoodCoach: () => set({ foodCoachOpen: false }),
-      openPlanEditor: () => set({ planEditorOpen: true }),
+      openPlanEditor: () => set({ planEditorOpen: true, planEditTarget: { kind: 'self' } }),
       closePlanEditor: () => set({ planEditorOpen: false }),
+      openAthletePlanEditor: (key, name) => set({ planEditTarget: { kind: 'athlete', key, name }, planEditorOpen: true }),
       addPlanInstruction: (text) =>
         set((s) => {
           const t = text.trim();
@@ -1030,6 +1041,12 @@ export const useStore = create<Store>()(
       togglePlanSlotMode: (key) => set((s) => ({ planSlots: toggleMode(s.planSlots, key) })),
       generatePlanDraftLocal: (goal) => set((s) => ({ planSlots: buildPlanDraft(activePlan(s), goal) })),
       clearPlan: () => set({ planSlots: [] }),
+      // Wave 2 — per-athlete plans + bulk assign (coach authoring). Slots are always
+      // sanitized through parsePlanSlots before they touch state.
+      setAthletePlanSlots: (key, slots) => set((s) => ({ athletePlans: setAthletePlan(s.athletePlans, key, parsePlanSlots(slots)) })),
+      assignPlanToManyAthletes: (keys, slots) => set((s) => ({ athletePlans: assignPlanToMany(s.athletePlans, keys, parsePlanSlots(slots)) })),
+      openBulkAssign: () => set({ bulkAssignOpen: true }),
+      closeBulkAssign: () => set({ bulkAssignOpen: false }),
       saveMeal: (key, foods) => {
         set((s) => {
           // Saving a meal's edited plate logs the slot AND records its real foods.
@@ -1348,6 +1365,7 @@ export const useStore = create<Store>()(
         proteinTarget: s.proteinTarget,
         planInstructions: s.planInstructions,
         planSlots: s.planSlots,
+        athletePlans: s.athletePlans,
         calTarget: s.calTarget,
         weightTarget: s.weightTarget,
         scoringProfile: s.scoringProfile,

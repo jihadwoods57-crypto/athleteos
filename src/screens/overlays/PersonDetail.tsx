@@ -1,7 +1,8 @@
 // OnStandard — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { coachMealPatterns, displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal } from '@/core';
+import { athleteKey, coachMealPatterns, displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal } from '@/core';
+import { isMealPlansEnabled } from '@/lib/features';
 import { useStore } from '@/store';
 import { db, isBackendLive } from '@/lib/supabase';
 import { aiPrefix } from '@/lib/ai';
@@ -145,6 +146,27 @@ export function PersonDetail() {
               <Txt w="b" size={15}>Targets &amp; scoring</Txt>
               <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
                 Set {pd.name.split(/\s+/)[0]}'s protein, calories &amp; scoring profile
+              </Txt>
+            </View>
+            <Icon name="chevronRight" size={18} color={c.textTertiary} />
+          </PressScale>
+        ) : null}
+
+        {/* Meal Plans (Wave 2) — author this client's prescribed meals. Opens the plan
+            editor scoped to this athlete. Gated by isMealPlansEnabled. */}
+        {isMealPlansEnabled && (s.flow === 'coach' || s.flow === 'trainer') ? (
+          <PressScale
+            accessibilityLabel={`Prescribe meals for ${pd.name}`}
+            onPress={() => s.openAthletePlanEditor(athleteKey(pd), pd.name)}
+            style={[{ marginTop: 14, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card }, shadow.card]}
+          >
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="sparkle" size={18} color={c.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="b" size={15}>Meal plan</Txt>
+              <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
+                Prescribe {pd.name.split(/\s+/)[0]}'s meals for each window
               </Txt>
             </View>
             <Icon name="chevronRight" size={18} color={c.textTertiary} />

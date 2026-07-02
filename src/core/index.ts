@@ -63,6 +63,7 @@ export * from './planValidate';
 export * from './planDraft';
 export * from './planCompliance';
 export * from './planView';
+export * from './athletePlans';
 export * from './adherence';
 export * from './aiAuthority';
 export * from './assist';
