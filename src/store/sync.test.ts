@@ -9,6 +9,7 @@ import type { DayRow } from '@/lib/supabase';
 
 const upsertDay = jest.fn<Promise<void>, [unknown]>();
 const fetchDay = jest.fn<Promise<DayRow | null>, [string, string]>();
+const fetchActiveTrustPass = jest.fn(async () => null);
 
 /** Load a fresh copy of sync.ts with `isBackendLive` forced to a given value. */
 function loadSync(backendLive: boolean) {
@@ -16,7 +17,7 @@ function loadSync(backendLive: boolean) {
   jest.isolateModules(() => {
     jest.doMock('@/lib/supabase', () => ({
       isBackendLive: backendLive,
-      db: { upsertDay, fetchDay },
+      db: { upsertDay, fetchDay, fetchActiveTrustPass },
     }));
     mod = require('./sync');
   });

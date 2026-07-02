@@ -28,6 +28,16 @@ export type DayRow = {
   updated_at: string;
 }
 
+export type TrustPassRow = {
+  id: string;
+  athlete_id: string;
+  granted_by: string;
+  granted_date: string; // YYYY-MM-DD
+  length_days: number;
+  ended_at: string | null;
+  created_at: string;
+}
+
 export type MealRow = {
   id: string;
   athlete_id: string;
@@ -233,6 +243,7 @@ export interface Database {
       subscriptions: Table<SubscriptionRow>;
       org_memberships: Table<OrgMembershipRow>;
       guardian_consent_requests: Table<GuardianConsentRequestRow>;
+      trust_passes: Table<TrustPassRow>;
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -325,6 +336,14 @@ export interface Database {
           new_targets: AthleteProfileRow['targets'] | null;
           new_season_goal: AthleteProfileRow['season_goal'] | null;
         };
+        Returns: undefined;
+      };
+      grant_trust_pass: {
+        Args: { p_athlete: string; p_length?: number | null; p_min_on_standard?: number | null };
+        Returns: string;
+      };
+      end_trust_pass: {
+        Args: { p_athlete: string };
         Returns: undefined;
       };
     };

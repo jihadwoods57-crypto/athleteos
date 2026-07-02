@@ -111,6 +111,10 @@ export async function pushDay(s: AppState, athleteId: string, date = todayStamp(
  *  their data, not the athlete resuming it); the flag gate alone applies. */
 export async function hydrateDay(athleteId: string, date = todayStamp()): Promise<Partial<AppState> | null> {
   if (!isBackendLive) return null;
-  const row = await db.fetchDay(athleteId, date);
-  return row ? dayRowToState(row) : null;
+  const [row, trustPass] = await Promise.all([db.fetchDay(athleteId, date), db.fetchActiveTrustPass(athleteId)]);
+  const dayState = row ? dayRowToState(row) : null;
+  if (!dayState && trustPass == null) return null;
+  // trustPass is server-authoritative when live: sync it every hydrate (even to null), so a
+  // coach-granted pass appears and a coach-ended one clears on the athlete's device.
+  return { ...(dayState ?? {}), trustPass };
 }

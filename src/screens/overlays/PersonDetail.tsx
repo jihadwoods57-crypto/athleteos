@@ -4,6 +4,7 @@ import { ScrollView, View } from 'react-native';
 import { coachMealPatterns, displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal } from '@/core';
 import { useStore } from '@/store';
 import { db, isBackendLive } from '@/lib/supabase';
+import { isTrustPassEnabled } from '@/lib/features';
 import { aiPrefix } from '@/lib/ai';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
@@ -20,6 +21,7 @@ const RECENT_MEAL_DAYS = 14;
 export function PersonDetail() {
   const c = useColors();
   const s = useStore();
+  const [tpMsg, setTpMsg] = React.useState<string | null>(null);
   const pd = s.personDetail;
   if (!pd) return null;
   const grade = gradeFor(pd.score);
@@ -149,6 +151,66 @@ export function PersonDetail() {
             </View>
             <Icon name="chevronRight" size={18} color={c.textTertiary} />
           </PressScale>
+        ) : null}
+
+        {/* Trust Pass — coach grants a proven athlete camera-free days (server RPC enforces the
+            coach-link + 7+ on-standard-day eligibility). Backend-live + flag-gated. */}
+        {isTrustPassEnabled && isBackendLive && pd.athleteId && (s.flow === 'coach' || s.flow === 'trainer') ? (
+          <View style={[{ marginTop: 14, borderRadius: 20, padding: 16, backgroundColor: c.card }, shadow.card]}>
+            <Row style={{ gap: 10, alignItems: 'center' }}>
+              <Icon name="sparkle" size={18} color={c.accent} />
+              <Txt w="eb" size={15} style={{ flex: 1 }}>
+                Trust Pass
+              </Txt>
+            </Row>
+            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 6, lineHeight: 17 }}>
+              Reward a proven athlete with camera-free days. Needs 7+ on-standard days on record.
+            </Txt>
+            <Row style={{ gap: 10, marginTop: 12 }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Grant ${pd.name} a 10-day trust pass`}
+                onPress={async () => {
+                  try {
+                    await s.coachGrantTrustPass(pd.athleteId!, 10);
+                    haptics.success();
+                    setTpMsg('Granted — 10 camera-free days.');
+                  } catch (e) {
+                    haptics.tap();
+                    setTpMsg(e instanceof Error && /eligible/i.test(e.message) ? 'Not yet — needs 7+ on-standard days.' : 'Could not grant the pass.');
+                  }
+                }}
+                style={({ pressed }) => ({ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, backgroundColor: c.accent, opacity: pressed ? 0.7 : 1 })}
+              >
+                <Txt w="eb" size={14} color={c.white}>
+                  Grant 10-day pass
+                </Txt>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`End ${pd.name}'s trust pass`}
+                onPress={async () => {
+                  try {
+                    await s.coachEndTrustPass(pd.athleteId!);
+                    haptics.tap();
+                    setTpMsg('Pass ended.');
+                  } catch {
+                    setTpMsg('Could not end the pass.');
+                  }
+                }}
+                style={({ pressed }) => ({ paddingHorizontal: 16, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: c.border, opacity: pressed ? 0.6 : 1 })}
+              >
+                <Txt w="eb" size={14} color={c.textSecondary}>
+                  End
+                </Txt>
+              </Pressable>
+            </Row>
+            {tpMsg ? (
+              <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 10 }}>
+                {tpMsg}
+              </Txt>
+            ) : null}
+          </View>
         ) : null}
 
         <RecentMeals athleteId={pd.athleteId} name={pd.name} />

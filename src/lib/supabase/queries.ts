@@ -16,6 +16,7 @@ import type {
   SubscriptionRow,
   TeamRow,
 } from './database.types';
+import type { TrustPass } from '@/core';
 
 // ---------------------------------------------------------------- athlete: own day
 export async function fetchDay(athleteId: string, date: string): Promise<DayRow | null> {
@@ -530,5 +531,34 @@ export async function coachSetGoals(
     new_targets: targets,
     new_season_goal: seasonGoal,
   });
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------- trust pass (earned camera-free reward)
+/** The athlete's active (un-ended) Trust Pass, or null. RLS: self or a linked coach may read. */
+export async function fetchActiveTrustPass(athleteId: string): Promise<TrustPass | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase()
+    .from('trust_passes')
+    .select('granted_date, length_days')
+    .eq('athlete_id', athleteId)
+    .is('ended_at', null)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? { grantedDate: data.granted_date as string, lengthDays: data.length_days as number } : null;
+}
+
+/** Coach grants a pass to a LINKED athlete. The SECURITY DEFINER RPC enforces the coach-link +
+ *  server-side eligibility (>=7 on-standard days); it throws if unauthorized or ineligible. */
+export async function grantTrustPass(athleteId: string, lengthDays: number): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase().rpc('grant_trust_pass', { p_athlete: athleteId, p_length: lengthDays });
+  if (error) throw error;
+}
+
+/** Coach ends (revokes) the athlete's active pass. Coach-only; idempotent. */
+export async function endTrustPass(athleteId: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase().rpc('end_trust_pass', { p_athlete: athleteId });
   if (error) throw error;
 }

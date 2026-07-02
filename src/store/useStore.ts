@@ -318,6 +318,9 @@ export interface Actions {
   // optional baseline captures the athlete's compliance/score at send-time so
   // the dashboard can later read whether anything moved (see core/nudge.ts).
   sendNudge: (name: string, baseline?: { score: number; comp: number }, note?: string, athleteId?: string) => void;
+  /** Coach grants / ends a linked athlete's Trust Pass via the server RPC (backend-live). */
+  coachGrantTrustPass: (athleteId: string, lengthDays: number) => Promise<void>;
+  coachEndTrustPass: (athleteId: string) => Promise<void>;
   /** Capture + register this device's push token (native, backend-live only). No-op elsewhere. */
   initPush: () => Promise<void>;
 
@@ -1134,6 +1137,15 @@ export const useStore = create<Store>()(
           const body = note?.trim() || 'Your coach nudged you — jump back in and log your next win.';
           void db.nudgePush(athleteId, 'Your coach sent a nudge', body).catch(() => undefined);
         }
+      },
+
+      // Coach grants / ends a linked athlete's Trust Pass via the server RPC (RLS + server-side
+      // eligibility enforce it). Throws on unauthorized/ineligible so the UI can surface it.
+      coachGrantTrustPass: async (athleteId, lengthDays) => {
+        if (isBackendLive) await db.grantTrustPass(athleteId, lengthDays);
+      },
+      coachEndTrustPass: async (athleteId) => {
+        if (isBackendLive) await db.endTrustPass(athleteId);
       },
 
       // ---- tasks ----
