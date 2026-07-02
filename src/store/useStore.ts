@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { analyzeLabel, analyzeMeal, isAiConfigured } from '@/lib/ai';
 import { capturePhotoBase64, pickMealPhotoBase64, isCameraAvailable } from '@/lib/capture';
-import { isEnginesEnabled } from '@/lib/features';
+import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
 import { refreshReminderSchedule } from '@/lib/notify';
 import { consentContextFromState, hydrateDay, pushDay } from './sync';
@@ -456,6 +456,17 @@ const syncReminders = (s: AppState): void => {
   void refreshReminderSchedule(reminderNotifySpecs(s.reminderSettings, snapshot), s.notif);
 };
 
+/** The active plan slot's macro target for the athlete's CURRENT meal type (Meal Plans feature),
+ *  when the flag is on and a matching slot exists. Feeds analyze-meal's slotTarget so the model
+ *  can offer a supportive "closest compliant swap" when the plate misses it. Flag-off or no
+ *  matching slot: undefined, so analyze-meal behaves exactly as it does today. */
+const slotTargetFor = (s: AppState): { kcal: number; protein: number } | undefined => {
+  if (!isMealPlansEnabled) return undefined;
+  const key = s.mealType.toLowerCase() as MealKey;
+  const slot = s.planSlots.find((p) => p.key === key);
+  return slot ? { kcal: slot.macros.kcal, protein: slot.macros.protein } : undefined;
+};
+
 /** Local minutes-from-midnight, stamped when a meal is logged for on-time accountability. */
 const nowMinutes = (): number => {
   const n = new Date();
@@ -769,7 +780,7 @@ export const useStore = create<Store>()(
               // Hold the captured photo so addMeal/saveMeal can upload it to the
               // meal-photos bucket on log (recordMeal). Ephemeral, never persisted.
               if (photoBase64) set({ mealPhoto: photoBase64 });
-              return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64 });
+              return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64, slotTarget: slotTargetFor(st) });
             })
             .then((res) => {
               // The analyze call returns EITHER a finished result OR 1-3 clarifying questions.
@@ -800,6 +811,7 @@ export const useStore = create<Store>()(
           photoBase64: st.mealPhoto ?? undefined,
           phase: 'finalize',
           clarifications,
+          slotTarget: slotTargetFor(st),
         })
           .then((res) => {
             if (res.kind === 'result') set({ mealAnalysis: res.result, mealQuestions: [], mealStage: 'result' });
