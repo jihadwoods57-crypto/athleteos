@@ -7,6 +7,10 @@ import type { PlanSlot } from './coachPlan';
 /** The coach's working plans, keyed by athlete key. */
 export type AthletePlans = Record<string, PlanSlot[]>;
 
+/** Which plan the CoachPlanEditor is editing: the signed-in user's own plan, or a specific
+ *  client's plan (opened from the coach's PersonDetail). */
+export type PlanEditTarget = { kind: 'self' } | { kind: 'athlete'; key: string; name: string };
+
 /** A stable key for an athlete: the real backend id when present, else the display name. */
 export function athleteKey(a: { athleteId?: string | null; name: string }): string {
   return a.athleteId && a.athleteId.trim() ? a.athleteId : a.name;
