@@ -1420,6 +1420,14 @@ export const useStore = create<Store>()(
     {
       name: 'aos_day',
       storage: createJSONStorage(() => AsyncStorage),
+      // Versioned persistence (audit item 17): establishes the migrate hook so a future change to a
+      // PERSISTED field's shape has ONE clean upgrade path instead of scattered read-site guards.
+      // zustand shallow-merges the persisted slice over createInitialState(), so any newly-persisted
+      // key missing from an older blob already falls back to its default — the passthrough is safe.
+      // v0 = the pre-versioning blob (same persisted shape as v1). When a persisted field's shape
+      // changes incompatibly, bump this and branch on `from` here.
+      version: 1,
+      migrate: (persisted, _from) => persisted as Partial<Store>,
       // Persist the day/check-in slice PLUS the session-identity fields (flow, role,
       // onboarding identity) so a reload lands the user back where they were instead of
       // dumping them at onboarding. Identity/flow fields are cross-day: they are NOT in
