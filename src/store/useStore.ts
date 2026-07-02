@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { analyzeLabel, analyzeMeal, isAiConfigured } from '@/lib/ai';
-import { capturePhotoBase64, isCameraAvailable } from '@/lib/capture';
+import { capturePhotoBase64, pickMealPhotoBase64, isCameraAvailable } from '@/lib/capture';
 import { isEnginesEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
 import { refreshReminderSchedule } from '@/lib/notify';
@@ -208,7 +208,7 @@ export interface Actions {
   openMeal: () => void;
   closeMeal: () => void;
   setMealType: (m: MealLabel) => void;
-  capture: () => void;
+  capture: (fromLibrary?: boolean) => void;
   /** Answer the AI's clarifying questions and get the finalized analysis (the 2nd call). */
   finalizeMeal: (answers: string[]) => void;
   /** Reuse a past "usual" meal's confirmed macros — skips the model call and the daily-cap slot. */
@@ -710,9 +710,11 @@ export const useStore = create<Store>()(
       },
       closeMeal: () => set({ mealOpen: false }),
       setMealType: (m) => set({ mealType: m }),
-      capture: () => {
+      capture: (fromLibrary = false) => {
         set({ mealStage: 'analyzing', mealAnalysis: null, mealQuestions: [] });
         if (mealTimer) clearTimeout(mealTimer);
+        // The shutter opens the camera; the gallery button (fromLibrary) opens the photo library.
+        const pickPhoto = fromLibrary ? pickMealPhotoBase64 : capturePhotoBase64;
         // Sending the meal photo to the AI endpoint is REAL athlete data leaving the
         // device to a third party (Anthropic), so it must clear the SAME consent gate as
         // pushDay/recordMeal and FAIL CLOSED: an un-consented athlete, an unverified
@@ -728,7 +730,7 @@ export const useStore = create<Store>()(
           const st = get();
           // Capture a real meal photo when a camera is wired (device only); on web /
           // cancel / denial this resolves undefined and the model infers from context.
-          (isCameraAvailable ? capturePhotoBase64() : Promise.resolve<string | undefined>(undefined))
+          (isCameraAvailable ? pickPhoto() : Promise.resolve<string | undefined>(undefined))
             .catch(() => undefined)
             .then((photoBase64) => {
               // Hold the captured photo so addMeal/saveMeal can upload it to the

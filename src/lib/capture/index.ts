@@ -53,6 +53,33 @@ export async function capturePhotoBase64(): Promise<string | undefined> {
   }
 }
 
+/**
+ * Pick an existing photo from the device library (the gallery button, distinct from the
+ * shutter's camera). Same downscale + base64 pipeline. undefined on web / cancel / denial /
+ * no permission. Never throws — selecting a photo must never block logging.
+ */
+export async function pickMealPhotoBase64(): Promise<string | undefined> {
+  if (!isCameraAvailable) return undefined;
+  try {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return undefined;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.6,
+      base64: true,
+      allowsEditing: false,
+      exif: false,
+    });
+    if (result.canceled) return undefined;
+    const asset = result.assets?.[0];
+    if (!asset) return undefined;
+    const shrunk = asset.uri ? await downscaleToBase64(asset.uri, asset.width, asset.height) : undefined;
+    return shrunk ?? asset.base64 ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Pure: the resize target that caps the image's LONG edge at `max`, preserving aspect ratio
  *  (ImageManipulator keeps the other dimension when only one is given). Never upscales.
  *  Exported for tests. */
