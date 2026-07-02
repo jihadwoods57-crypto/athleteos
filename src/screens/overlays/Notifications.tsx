@@ -2,22 +2,96 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { notificationCopy } from '@/core';
+import type { AppNotification } from '@/core';
 import { useStore, useDerived } from '@/store';
+import { isBackendLive } from '@/lib/supabase';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { PressScale, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon, IconName } from '@/icons';
 import { Overlay } from './Overlay';
 
+/** Short relative time for a notification's created_at ("now" / "12m" / "3h" / "2d"). */
+function relTime(iso: string): string {
+  const diff = Math.max(0, Date.now() - new Date(iso).getTime());
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'now';
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+const KIND_ICON: Record<string, IconName> = { join_request: 'squad', join_approved: 'trophy', nudge: 'bell' };
+
+/** A real (backend) notification rendered through the shared NotifCard. Unread rows are
+ *  tappable (tap = mark read); read rows are flat. */
+function RealNotifCard({ n, onPress }: { n: AppNotification; onPress?: () => void }) {
+  const c = useColors();
+  return (
+    <NotifCard
+      icon={KIND_ICON[n.kind] ?? 'bell'}
+      accent={n.readAt ? undefined : c.accent}
+      title={n.title}
+      time={relTime(n.createdAt)}
+      text={n.body ?? ''}
+      onPress={onPress}
+    />
+  );
+}
+
 export function Notifications() {
   const c = useColors();
   const s = useStore();
   const d = useDerived();
+  React.useEffect(() => { void s.fetchNotifications(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = (fn: () => void) => () => {
     s.closeNotif();
     fn();
   };
+
+  // Live backend with real notifications → show the actual feed; otherwise the seeded demo.
+  if (isBackendLive && s.notifications.length > 0) {
+    const unread = s.notifications.filter((n) => !n.readAt);
+    const earlier = s.notifications.filter((n) => n.readAt);
+    return (
+      <Overlay
+        title="Notifications"
+        onClose={s.closeNotif}
+        right={
+          unread.length > 0 ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Mark all read" hitSlop={8} onPress={() => void s.markAllNotificationsRead()}>
+              <Txt w="b" size={13} color={c.accent}>Mark all read</Txt>
+            </Pressable>
+          ) : undefined
+        }
+      >
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {unread.length > 0 ? (
+            <>
+              <SectionLabel>NEW</SectionLabel>
+              <View style={{ gap: 10 }}>
+                {unread.map((n) => (
+                  <RealNotifCard key={n.id} n={n} onPress={() => void s.markNotificationRead(n.id)} />
+                ))}
+              </View>
+            </>
+          ) : null}
+          {earlier.length > 0 ? (
+            <>
+              <SectionLabel style={{ marginTop: unread.length > 0 ? 20 : 0 }}>EARLIER</SectionLabel>
+              <View style={{ gap: 10 }}>
+                {earlier.map((n) => (
+                  <RealNotifCard key={n.id} n={n} />
+                ))}
+              </View>
+            </>
+          ) : null}
+        </ScrollView>
+      </Overlay>
+    );
+  }
 
   // Gate the inbox copy so a real athlete is never told a coach, parent, or
   // position room they don't have is waiting on / ranking / praising them. The

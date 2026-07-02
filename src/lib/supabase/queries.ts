@@ -9,6 +9,7 @@ import type {
   DayRow,
   GuardianConsentRequestRow,
   MealRow,
+  NotificationRow,
   OrgRow,
   OrgType,
   ProfileRow,
@@ -427,6 +428,36 @@ export async function declineClient(practiceId: string, clientId: string): Promi
     .delete()
     .eq('practice_id', practiceId)
     .eq('client_id', clientId);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------- in-app notifications
+/** The signed-in user's notifications, newest first (RLS scopes to their own rows). */
+export async function fetchNotifications(limit = 50): Promise<NotificationRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('notifications')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+export async function markNotificationRead(id: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase()
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('read_at', null);
+  if (error) throw error;
+}
+export async function markAllNotificationsRead(): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase()
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .is('read_at', null);
   if (error) throw error;
 }
 

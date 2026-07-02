@@ -282,6 +282,10 @@ export interface Actions {
   sendMsg: () => void;
   openNotif: () => void;
   closeNotif: () => void;
+  /** Load the user's in-app notification feed (inert offline). */
+  fetchNotifications: () => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
   setMealDesc: (v: string) => void;
   setChatDraft: (v: string) => void;
   sendChat: () => void;
@@ -1024,7 +1028,22 @@ export const useStore = create<Store>()(
           if (next === s.msgThread) return {}; // empty draft, nothing sent
           return { msgThread: next, msgDraft: '' };
         }),
-      openNotif: () => set({ notifOpen: true }),
+      openNotif: () => { set({ notifOpen: true }); void get().fetchNotifications(); },
+      fetchNotifications: async () => {
+        if (!isBackendLive) return;
+        const rows = await db.fetchNotifications().catch(() => []);
+        set({ notifications: rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, createdAt: r.created_at, readAt: r.read_at })) });
+      },
+      markNotificationRead: async (id) => {
+        const now = new Date().toISOString();
+        set((s) => ({ notifications: s.notifications.map((n) => (n.id === id ? { ...n, readAt: n.readAt ?? now } : n)) }));
+        if (isBackendLive) await db.markNotificationRead(id).catch(() => undefined);
+      },
+      markAllNotificationsRead: async () => {
+        const now = new Date().toISOString();
+        set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, readAt: n.readAt ?? now })) }));
+        if (isBackendLive) await db.markAllNotificationsRead().catch(() => undefined);
+      },
       closeNotif: () => set({ notifOpen: false }),
       setMealDesc: (v) => set({ mealDesc: v }),
       setChatDraft: (v) => set({ chatDraft: v }),

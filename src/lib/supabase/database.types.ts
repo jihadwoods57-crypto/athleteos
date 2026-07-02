@@ -164,6 +164,16 @@ export type PracticeRow = {
   created_at: string;
 }
 
+export type NotificationRow = {
+  id: string;
+  user_id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
 export type TeamMemberRow = {
   team_id: string;
   athlete_id: string;
@@ -214,6 +224,7 @@ export interface Database {
       orgs: Table<OrgRow>;
       teams: Table<TeamRow>;
       practices: Table<PracticeRow>;
+      notifications: Table<NotificationRow>;
       days: Table<DayRow>;
       meals: Table<MealRow>;
       checkins: Table<CheckinRow>;

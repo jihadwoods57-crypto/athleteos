@@ -130,6 +130,7 @@ export function createInitialState(): AppState {
     connectOpen: false,
     connectPrefillCode: null,
     connectCardDismissed: false,
+    notifications: [],
 
     // misc
     weeklyGoalLb: 1.0,
