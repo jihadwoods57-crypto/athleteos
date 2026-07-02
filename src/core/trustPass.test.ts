@@ -2,7 +2,7 @@
 // Locks the council's key call: the pass-day baseline is the MEDIAN (not mean) of the
 // athlete's last N real photo-earned nutrition sub-scores, so one hero-plate can't inflate
 // a coaster's credit. See docs/council/2026-07-02-trust-pass.md.
-import { trailingEarnedNutritionMedian } from './trustPass';
+import { trailingEarnedNutritionMedian, passDayNutritionScore } from './trustPass';
 import type { DayScore } from './types';
 
 const days = (...scores: number[]): DayScore[] => scores.map((score, i) => ({ date: `2026-06-${String(i + 1).padStart(2, '0')}`, score }));
@@ -36,5 +36,28 @@ describe('trailingEarnedNutritionMedian', () => {
   it('ignores non-finite scores from a corrupt/legacy row', () => {
     const hist = [{ date: '2026-06-01', score: NaN }, ...days(60, 62, 64)];
     expect(trailingEarnedNutritionMedian(hist)).toBe(62);
+  });
+});
+
+describe('passDayNutritionScore', () => {
+  it('credits the full baseline for "yes", 60% for "partial", 0 for "no"', () => {
+    expect(passDayNutritionScore(80, 'yes')).toBe(80);
+    expect(passDayNutritionScore(80, 'partial')).toBe(48); // 0.6 * 80
+    expect(passDayNutritionScore(80, 'no')).toBe(0);
+  });
+
+  it('an unanswered pass day credits 0 (no free green from silence)', () => {
+    expect(passDayNutritionScore(80, null)).toBe(0);
+  });
+
+  it('honesty invariant: no <= partial <= yes at the same baseline (honesty never scored below a lie)', () => {
+    const base = 88;
+    expect(passDayNutritionScore(base, 'no')).toBeLessThanOrEqual(passDayNutritionScore(base, 'partial'));
+    expect(passDayNutritionScore(base, 'partial')).toBeLessThanOrEqual(passDayNutritionScore(base, 'yes'));
+  });
+
+  it('is worth exactly the proven baseline for "yes" — never manufactures a number above it', () => {
+    // A coaster whose real median is 60 gets a 60 "yes" day, not a fabricated 80.
+    expect(passDayNutritionScore(60, 'yes')).toBe(60);
   });
 });
