@@ -4,12 +4,12 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { mealRowsFor, QUICK_FOODS, SNACK_PRESETS, paceProjection, weekdayLong, weeklyWeightProgress, WEIGHT_START } from '@/core';
+import { mealRowsFor, QUICK_FOODS, SNACK_PRESETS, fuelTarget, winTheDay, paceProjection, weekdayLong, weeklyWeightProgress, WEIGHT_START } from '@/core';
 import { isEnginesEnabled } from '@/lib/features';
 import { useStore, useDerived, useNutritionMemory } from '@/store';
 import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
-import { Card, ProgressBar, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, ProgressBar, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Nutrition() {
@@ -140,6 +140,9 @@ export function Nutrition() {
         </Row>
       </Card>
       </Reveal>
+
+      {/* win the day — daily fuel goal from the weight goal + quick weigh-in */}
+      <WinTheDayCard />
 
       {/* protein gap quick-adds */}
       <Reveal index={4}>
@@ -369,5 +372,66 @@ function MemoryEntry() {
         <Icon name="chevronRight" size={18} color={c.slate300} />
       )}
     </Pressable>
+  );
+}
+
+/** "Win the day": today's fuel goal derived from the weight goal (fuelTarget), a read of whether
+ *  today's logged macros hit it (winTheDay), and a one-tap weigh-in (logWeight). Speaks the
+ *  coach's scale-number language ("win the weekend", "223 on Monday"). */
+function WinTheDayCard() {
+  const c = useColors();
+  const s = useStore();
+  const d = useDerived();
+  const dir = s.baseGoal === 'gain' ? 'gain' : s.baseGoal === 'lose' ? 'lose' : 'maintain';
+  const target = fuelTarget(s.currentWeight, s.weeklyGoalLb, dir);
+  const win = winTheDay({ protein: d.proteinToday, kcal: d.kcalToday, carbs: 0, fat: 0 }, target);
+  const [wt, setWt] = React.useState(() => Math.round(s.currentWeight));
+  const pPct = Math.min(100, Math.round((d.proteinToday / Math.max(1, target.protein)) * 100));
+  const cPct = Math.min(100, Math.round((d.kcalToday / Math.max(1, target.kcal)) * 100));
+  return (
+    <Reveal index={4}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Txt w="eb" size={16} ls={-0.3}>Win the day</Txt>
+          <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: win.won ? c.successSurface : c.bg2 }}>
+            <Txt w="eb" size={11} color={win.won ? c.successDeep : c.textSecondary}>{win.won ? 'ON TRACK' : 'KEEP GOING'}</Txt>
+          </View>
+        </Row>
+        <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6, lineHeight: 19 }}>
+          {`Fuel goal for your ${s.weightTarget} lb target: ${target.kcal.toLocaleString()} cal, ${target.protein}g protein.`}
+        </Txt>
+        <View style={{ gap: 12, marginTop: 14 }}>
+          <FuelRow label="Protein" today={`${d.proteinToday}g`} target={`${target.protein}g`} pct={pPct} hit={win.proteinHit} c={c} />
+          <FuelRow label="Calories" today={d.kcalToday.toLocaleString()} target={target.kcal.toLocaleString()} pct={cPct} hit={win.fuelHit} c={c} />
+        </View>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+          <Txt w="eb" size={11} color={c.textTertiary} ls={0.5}>TODAY'S WEIGH-IN</Txt>
+          <Row style={{ gap: 12, alignItems: 'center' }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Lower weight" hitSlop={8} onPress={() => setWt((v) => Math.max(60, v - 1))} style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="minus" size={16} color={c.accent} />
+            </Pressable>
+            <Txt w="eb" num size={20} style={{ minWidth: 52, textAlign: 'center' }}>{wt}</Txt>
+            <Pressable accessibilityRole="button" accessibilityLabel="Raise weight" hitSlop={8} onPress={() => setWt((v) => Math.min(500, v + 1))} style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="plus" size={16} color={c.accent} />
+            </Pressable>
+          </Row>
+        </Row>
+        <Btn label={`Log ${wt} lb`} onPress={() => s.logWeight(wt)} style={{ marginTop: 12 }} />
+      </Card>
+    </Reveal>
+  );
+}
+
+function FuelRow({ label, today, target, pct, hit, c }: { label: string; today: string; target: string; pct: number; hit: boolean; c: ReturnType<typeof useColors> }) {
+  return (
+    <View>
+      <Row style={{ justifyContent: 'space-between', marginBottom: 5 }}>
+        <Txt w="b" size={13} color={c.slate700}>{label}</Txt>
+        <Txt w="sb" size={12} color={hit ? c.successDeep : c.textSecondary}>{`${today} / ${target}`}</Txt>
+      </Row>
+      <View style={{ height: 8, borderRadius: 4, backgroundColor: c.bg2, overflow: 'hidden' }}>
+        <View style={{ height: 8, width: `${pct}%`, backgroundColor: hit ? c.success : c.accent, borderRadius: 4 }} />
+      </View>
+    </View>
   );
 }

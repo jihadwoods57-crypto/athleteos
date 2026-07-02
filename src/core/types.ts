@@ -236,6 +236,8 @@ export interface AppState {
   ciStage: CiStage;
   ciWeight: number;
   currentWeight: number;
+  /** ISO date (YYYY-MM-DD) the athlete last logged a weight, or null. Drives the weigh-in nudge. */
+  weighInStamp: string | null;
   /** The athlete's starting weight, the anchor the season-goal progress measures
    *  from. Defaults to WEIGHT_START for the seeded demo; a real athlete's is seeded
    *  from their onboarding baseWeight at activation so "gained since start" is honest. */

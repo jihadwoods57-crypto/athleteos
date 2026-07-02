@@ -300,6 +300,8 @@ export interface Actions {
   setCi: (key: CiSliderKey, value: number) => void;
   toggleCiQ: (k: keyof CiConfig) => void;
   submitCi: () => void;
+  /** Log today's body weight (quick weigh-in). Clears the weigh-in nudge; feeds the goal read. */
+  logWeight: (lb: number) => void;
 
   // backend auth (go-live, gated behind isBackendLive; no-ops when off so the
   // mock onboarding flow is untouched)
@@ -418,6 +420,7 @@ const syncReminders = (s: AppState): void => {
     hydrationL: s.hydrationL,
     meals: s.meals,
     ciSubmitted: s.ciSubmitted,
+    weighedToday: s.weighInStamp === todayStamp(),
   });
   void refreshReminderSchedule(reminderNotifySpecs(s.reminderSettings, snapshot), s.notif);
 };
@@ -1055,7 +1058,14 @@ export const useStore = create<Store>()(
       setCi: (key, value) => set({ [key]: value } as Partial<AppState>),
       toggleCiQ: (k) => set((s) => ({ ciConfig: { ...s.ciConfig, [k]: !s.ciConfig[k] } })),
       submitCi: () => {
-        set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight }));
+        set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight, weighInStamp: todayStamp() }));
+        syncReminders(get());
+        scheduleDaySync(get);
+      },
+      logWeight: (lb) => {
+        const w = Math.max(60, Math.min(500, Math.round(lb)));
+        set({ currentWeight: w, ciWeight: w, weighInStamp: todayStamp() });
+        syncReminders(get()); // clears the weigh-in nudge once logged
         scheduleDaySync(get);
       },
 
@@ -1275,6 +1285,7 @@ export const useStore = create<Store>()(
         ciSubmitted: s.ciSubmitted,
         ciWeight: s.ciWeight,
         currentWeight: s.currentWeight,
+        weighInStamp: s.weighInStamp,
         startWeight: s.startWeight,
         ciEnergy: s.ciEnergy,
         ciRecovery: s.ciRecovery,

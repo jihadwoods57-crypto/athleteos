@@ -85,6 +85,7 @@ export function createInitialState(): AppState {
     ciStage: 'open',
     ciWeight: 178,
     currentWeight: 178,
+    weighInStamp: null,
     startWeight: WEIGHT_START,
     ciEnergy: 8,
     ciRecovery: 7,

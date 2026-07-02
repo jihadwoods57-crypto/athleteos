@@ -12,7 +12,7 @@
 // shipped guardrails: factual, no guilt, no em dash.
 import { HYDRATION_TARGET } from './constants';
 
-export type ReminderKind = 'protein' | 'hydration' | 'log_dinner' | 'checkin';
+export type ReminderKind = 'protein' | 'hydration' | 'log_dinner' | 'checkin' | 'weigh_in';
 
 export interface ReminderDef {
   kind: ReminderKind;
@@ -63,6 +63,14 @@ export const REMINDER_DEFS: readonly ReminderDef[] = [
     defaultOn: true,
     conditional: true,
   },
+  {
+    kind: 'weigh_in',
+    label: 'Weigh-in',
+    description: 'A morning nudge to log your weight if you have not today.',
+    defaultHour: 9,
+    defaultOn: true,
+    conditional: true,
+  },
 ] as const;
 
 /** Fraction of a daily target below which protein / hydration counts as "behind". */
@@ -92,6 +100,9 @@ export interface ReminderSnapshot {
   dinnerLogged: boolean;
   /** Check-in is enabled today AND not yet submitted. */
   checkinDue: boolean;
+  /** No weight logged yet today (drives the weigh-in nudge). Optional so existing snapshot
+   *  literals stay valid; treated as "not due" when absent. */
+  weighInDue?: boolean;
 }
 
 /**
@@ -108,6 +119,8 @@ export function conditionMet(kind: ReminderKind, s: ReminderSnapshot): boolean {
       return !s.dinnerLogged;
     case 'checkin':
       return s.checkinDue;
+    case 'weigh_in':
+      return !!s.weighInDue;
   }
 }
 
@@ -157,6 +170,11 @@ export function reminderCopy(kind: ReminderKind, s: ReminderSnapshot): { title: 
         title: 'Weekly check-in',
         body: 'Your check-in is ready. Your coach will see your update.',
       };
+    case 'weigh_in':
+      return {
+        title: 'Weigh-in',
+        body: 'Log your weight to keep your goal on track. Takes ten seconds.',
+      };
   }
 }
 
@@ -204,6 +222,8 @@ export function reminderSnapshotFromState(s: {
   hydrationL: number;
   meals: { dinner: boolean };
   ciSubmitted: boolean;
+  /** Whether the athlete has logged a weight today (drives the weigh-in nudge). */
+  weighedToday: boolean;
 }): ReminderSnapshot {
   return {
     proteinToday: s.proteinToday,
@@ -212,5 +232,6 @@ export function reminderSnapshotFromState(s: {
     hydrationTargetL: HYDRATION_TARGET,
     dinnerLogged: s.meals.dinner,
     checkinDue: !s.ciSubmitted,
+    weighInDue: !s.weighedToday,
   };
 }

@@ -18,6 +18,7 @@ export * from './macroGrounding';
 export * from './mealMatch';
 export * from './snacks';
 export * from './foodSource';
+export * from './fuelTarget';
 export * from './coaching';
 export * from './units';
 export * from './weightProgress';
