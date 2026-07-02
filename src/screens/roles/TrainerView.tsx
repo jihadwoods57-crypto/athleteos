@@ -19,6 +19,8 @@ import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
 import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
+import { CoachPlanEditor } from '@/screens/overlays/CoachPlanEditor';
+import { isMealPlansEnabled } from '@/lib/features';
 import { usePendingClients } from './usePendingClients';
 import { RoleTabBar, SettingRow, type RoleTab } from './roleChrome';
 import type { TrainerTab } from '@/core';
@@ -267,6 +269,7 @@ export function TrainerView() {
 
       {s.personDetail && <PersonDetail />}
       {s.personDetail && s.coachGoalsOpen && <CoachGoalsEditor />}
+      {isMealPlansEnabled && s.planEditorOpen && <CoachPlanEditor />}
       {s.msgOpen && <Messages />}
       {s.accountOpen && <Account />}
       {s.plansOpen && <Plans />}
