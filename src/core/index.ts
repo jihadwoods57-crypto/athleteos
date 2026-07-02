@@ -62,6 +62,7 @@ export * from './coachPlan';
 export * from './planValidate';
 export * from './planDraft';
 export * from './planCompliance';
+export * from './planView';
 export * from './adherence';
 export * from './aiAuthority';
 export * from './assist';

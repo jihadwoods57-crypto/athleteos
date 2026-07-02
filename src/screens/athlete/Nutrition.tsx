@@ -4,8 +4,21 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { mealRowsFor, QUICK_FOODS, SNACK_PRESETS, fuelTarget, winTheDay, paceProjection, weekdayLong, weeklyWeightProgress, WEIGHT_START } from '@/core';
-import { isEnginesEnabled } from '@/lib/features';
+import {
+  mealRowsFor,
+  QUICK_FOODS,
+  SNACK_PRESETS,
+  fuelTarget,
+  winTheDay,
+  paceProjection,
+  weekdayLong,
+  weeklyWeightProgress,
+  WEIGHT_START,
+  activePlan,
+  planView,
+} from '@/core';
+import type { MealKey, PlanViewEntry, SlotComplianceState } from '@/core';
+import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 import { useStore, useDerived, useNutritionMemory } from '@/store';
 import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
@@ -27,6 +40,20 @@ export function Nutrition() {
   const pace = paceProjection(s.weeklyGoalLb, weeklyProgress);
   const calPct = Math.round((d.kcalToday / d.calTarget) * 100);
   const rows = mealRowsFor(s);
+  // Today's Prescribed Meals (Meal Plans feature): pair each plan slot with its
+  // compliance state + note-visibility via the pure planView view-model. loggedMap
+  // reuses the same per-slot protein/kcal already computed for today's meal rows
+  // (mealRowsFor -> mealSlotMacros), so this never invents a second derivation path.
+  const showPlan = isMealPlansEnabled && s.planSlots.length > 0;
+  const planEntries: PlanViewEntry[] = showPlan
+    ? planView(
+        { ...activePlan(s), slots: s.planSlots },
+        Object.fromEntries(rows.filter((r) => r.logged).map((r) => [r.key, { protein: r.protein, kcal: r.kcal }])) as Partial<
+          Record<MealKey, { protein: number; kcal: number }>
+        >,
+        new Date(),
+      )
+    : [];
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
@@ -36,6 +63,29 @@ export function Nutrition() {
       <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
         Nutrition
       </Txt>
+
+      {/* today's prescribed meals (Meal Plans feature) — only when the coach has a
+          real plan and the flag is on; otherwise this whole block renders nothing,
+          so the screen below is byte-for-byte what it was before this feature. Sits
+          at the very top of the scroll, above everything else including the
+          weekly-goal card: the coach's plan for TODAY is the first thing to see. */}
+      {showPlan ? (
+        <Reveal index={0}>
+        <Card variant="low" style={{ marginTop: 16, borderRadius: 24 }}>
+          <Txt w="eb" size={16} ls={-0.3}>
+            Today's Prescribed Meals
+          </Txt>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6 }}>
+            What the coach set for today, and where you stand against it.
+          </Txt>
+          <View style={{ gap: 10, marginTop: 14 }}>
+            {planEntries.map((entry) => (
+              <PlanSlotRow key={entry.slot.key} entry={entry} />
+            ))}
+          </View>
+        </Card>
+        </Reveal>
+      ) : null}
 
       <Reveal index={0}>
         <MemoryEntry />
@@ -432,6 +482,99 @@ function FuelRow({ label, today, target, pct, hit, c }: { label: string; today: 
       <View style={{ height: 8, borderRadius: 4, backgroundColor: c.bg2, overflow: 'hidden' }}>
         <View style={{ height: 8, width: `${pct}%`, backgroundColor: hit ? c.success : c.accent, borderRadius: 4 }} />
       </View>
+    </View>
+  );
+}
+
+const PLAN_SLOT_LABEL: Record<MealKey, string> = { breakfast: 'Breakfast', lunch: 'Lunch', snack: 'Snack', dinner: 'Dinner' };
+
+/** State-chip copy + tokens for a plan slot's compliance state — reuses the same
+ *  success/warn/alert token families the rest of this screen already draws from. */
+function planStateMeta(state: SlotComplianceState, c: ReturnType<typeof useColors>): { label: string; bg: string; fg: string } {
+  switch (state) {
+    case 'completed':
+      return { label: 'DONE', bg: c.successSurface, fg: c.successDeep };
+    case 'partial':
+      return { label: 'PARTIAL', bg: c.warnTint, fg: c.warningDeep };
+    case 'missed':
+      return { label: 'MISSED', bg: c.alertSurface, fg: c.alertDeep };
+    case 'upcoming':
+    default:
+      return { label: 'UPCOMING', bg: c.bg2, fg: c.textSecondary };
+  }
+}
+
+/** One row of the Today's Prescribed Meals card: slot label + state chip, the pinned
+ *  meal or option names, an expandable "Traveling?" restaurant-alts row (mirrors
+ *  FoodCoach's AltRow expand pattern), the coach note once its window has opened, and
+ *  a small camera badge when a photo is required. */
+function PlanSlotRow({ entry }: { entry: PlanViewEntry }) {
+  const c = useColors();
+  const { slot, state, showNote } = entry;
+  const [travelOpen, setTravelOpen] = React.useState(false);
+  const label = PLAN_SLOT_LABEL[slot.key];
+  const meta = planStateMeta(state, c);
+  const names = slot.mode === 'pinned' ? (slot.pinnedMeal ? [slot.pinnedMeal.name] : []) : slot.options.map((o) => o.name);
+
+  return (
+    <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 13 }}>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <Row style={{ gap: 7, alignItems: 'center' }}>
+          <Txt w="eb" size={14}>
+            {label}
+          </Txt>
+          {slot.photoRequired ? <Icon name="camera" size={14} color={c.textTertiary} /> : null}
+        </Row>
+        <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: meta.bg }}>
+          <Txt w="eb" size={11} color={meta.fg}>
+            {meta.label}
+          </Txt>
+        </View>
+      </Row>
+
+      {names.length > 0 ? (
+        <View style={{ marginTop: 8, gap: 3 }}>
+          {names.map((n) => (
+            <Txt key={n} w="m" size={13} color={c.slate700}>
+              {n}
+            </Txt>
+          ))}
+        </View>
+      ) : null}
+
+      {slot.restaurantAlts.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Traveling? See restaurant alternatives"
+          accessibilityState={{ expanded: travelOpen }}
+          onPress={() => setTravelOpen((v) => !v)}
+          style={({ pressed }) => ({ marginTop: 10, opacity: pressed ? 0.6 : 1 })}
+        >
+          <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Txt w="eb" size={10} color={c.textTertiary} ls={0.4} upper>
+              Traveling?
+            </Txt>
+            <Icon name={travelOpen ? 'minus' : 'chevronRight'} size={14} color={c.slate300} />
+          </Row>
+          {travelOpen ? (
+            <View style={{ marginTop: 6, gap: 3 }}>
+              {slot.restaurantAlts.map((alt) => (
+                <Txt key={alt.name} w="m" size={13} color={c.slate700}>
+                  {alt.name}
+                </Txt>
+              ))}
+            </View>
+          ) : null}
+        </Pressable>
+      ) : null}
+
+      {showNote && slot.note ? (
+        <View style={{ marginTop: 10, borderRadius: 11, padding: 10, backgroundColor: c.accentSurface }}>
+          <Txt w="m" size={12} color={c.slate700} style={{ lineHeight: 17 }}>
+            {slot.note}
+          </Txt>
+        </View>
+      ) : null}
     </View>
   );
 }
