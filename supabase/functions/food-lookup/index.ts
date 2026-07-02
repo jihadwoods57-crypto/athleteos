@@ -77,10 +77,39 @@ function fromUSDA(food: Record<string, unknown> | undefined): FoodOut | null {
   }
   // 203 protein, 204 fat, 205 carbs, 208 energy (kcal) — USDA values are per 100 g.
   const per100: MacroSet = { protein: byNum['203'] ?? 0, kcal: byNum['208'] ?? 0, carbs: byNum['205'] ?? 0, fat: byNum['204'] ?? 0 };
-  if (per100.kcal <= 0 && per100.protein <= 0) return null;
+  if (per100.kcal <= 0) return null; // a real food has calories; drop incomplete USDA entries
   const name = String(food?.description ?? '').trim();
   const serving = food?.servingSize ? `${food.servingSize} ${String(food?.servingSizeUnit ?? 'g')}` : null;
   return { found: true, name: name || 'Food', serving, per100, source: 'usda', attribution: 'USDA FoodData Central (CC0)' };
+}
+
+/** Score a USDA generic result for a query: reward a description that leads with the query and is a
+ *  raw/plain whole food; penalize derivative forms (oil, flour, powder, chips, leaves, ...) USDA
+ *  surfaces for plain terms ("Oil, almond" for "almonds"). Higher is better. */
+const USDA_PENALTIES = [
+  'oil', 'flour', 'leaves', 'powder', 'dehydrated', 'dried', 'chips', 'juice', 'roll', 'bread',
+  'snacks', 'snack', 'babyfood', 'baby', 'candies', 'candy', 'cookies', 'cookie', 'nuggets',
+  'nugget', 'breaded', 'tenders', 'tender', 'butter', 'canned', 'coated', 'fried', 'cake', 'pie',
+  'sandwich', 'sauce', 'soup', 'pudding', 'cream', 'frozen', 'prepared',
+  'deli', 'luncheon', 'seasoned', 'rotisserie', 'blueberry', 'strawberry', 'vanilla', 'chocolate',
+  'flavored', 'honey',
+];
+
+function scoreUSDA(desc: string, query: string): number {
+  const d = desc.toLowerCase();
+  const q = query.toLowerCase().trim();
+  const q0 = (q.split(/\s+/)[0] ?? q).replace(/s$/, ''); // tolerate plural ("almonds" -> "almond")
+  const first = (d.split(/[\s,]+/)[0] ?? '').replace(/s$/, '');
+  let s = 0;
+  if (d.startsWith(q)) s += 100;
+  else if (first === q0 || first.startsWith(q0)) s += 40;
+  if (/\braw\b/.test(d)) s += 25;
+  // Penalize processed / derivative forms — but only when the word isn't part of the query itself
+  // (so "peanut butter" or "banana bread" aren't self-penalized).
+  for (const w of USDA_PENALTIES) {
+    if (!q.includes(w) && new RegExp(`\\b${w}\\b`).test(d)) s -= 40;
+  }
+  return s;
 }
 
 async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
@@ -100,7 +129,7 @@ Deno.serve(async (request) => {
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
-  let req: { barcode?: unknown; query?: unknown };
+  let req: { barcode?: unknown; query?: unknown; refresh?: unknown };
   try {
     req = await request.json();
   } catch {
@@ -109,13 +138,14 @@ Deno.serve(async (request) => {
 
   const barcode = typeof req.barcode === 'string' ? req.barcode.replace(/\D/g, '') : '';
   const query = typeof req.query === 'string' ? req.query.trim() : '';
+  const refresh = req.refresh === true; // skip the cache read + overwrite the row with a fresh lookup
   const source: 'off' | 'usda' = barcode ? 'off' : 'usda';
   const key = barcode || query.toLowerCase();
   if (!key) return json({ found: false, error: 'barcode or query required' }, 400);
 
   // Cache read (service role; the client never touches food_cache directly).
   const sb = SUPABASE_URL && SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY) : null;
-  if (sb) {
+  if (sb && !refresh) {
     try {
       const { data } = await sb.from('food_cache').select('name,serving,per100,source,attribution').eq('source', source).eq('key', key).maybeSingle();
       if (data) return json({ found: true, ...data, cached: true });
@@ -130,12 +160,27 @@ Deno.serve(async (request) => {
     const data = await fetchJson(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,nutriments,serving_size`);
     if (data && data.status !== 0) out = fromOFF(data.product as Record<string, unknown> | undefined);
   } else {
-    const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${encodeURIComponent(query)}&pageSize=3&dataType=${encodeURIComponent('Branded,Foundation,SR Legacy')}`;
-    const data = await fetchJson(url);
-    const foods = (data?.foods ?? []) as Array<Record<string, unknown>>;
-    for (const f of foods) {
-      out = fromUSDA(f);
-      if (out) break;
+    // Prefer USDA's clean GENERIC whole-food datasets (SR Legacy + Foundation). USDA ranks noisy
+    // Branded products first, and even within generic results the plainest entry is usually the
+    // SHORTEST description ("Bananas, raw" over "Bananas, dehydrated, or banana powder"). Pick
+    // that; only fall back to Branded packaged foods when there is no generic match at all.
+    const q = encodeURIComponent(query);
+    const base = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${q}`;
+    const generic = (await fetchJson(`${base}&pageSize=25&dataType=${encodeURIComponent('SR Legacy,Foundation')}`))?.foods as Array<Record<string, unknown>> | undefined;
+    const gcands = (generic ?? [])
+      .map((f) => ({ out: fromUSDA(f), desc: String(f?.description ?? '') }))
+      .filter((x): x is { out: FoodOut; desc: string } => x.out !== null);
+    if (gcands.length) {
+      // Best match: leads with the query, raw/plain, not a derivative form; USDA relevance breaks ties.
+      out = gcands
+        .map((x, i) => ({ x, sc: scoreUSDA(x.desc, query) - i * 0.1 }))
+        .reduce((best, c) => (c.sc > best.sc ? c : best)).x.out;
+    } else {
+      const branded = (await fetchJson(`${base}&pageSize=5&dataType=Branded`))?.foods as Array<Record<string, unknown>> | undefined;
+      for (const f of branded ?? []) {
+        out = fromUSDA(f);
+        if (out) break;
+      }
     }
   }
 
