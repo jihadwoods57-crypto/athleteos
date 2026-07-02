@@ -188,14 +188,23 @@ export async function fetchAthleteProfile(athleteId: string): Promise<AthletePro
 // ---------------------------------------------------------------- overseer: rosters
 // RLS (`can_view`) filters these to athletes the caller is linked to, so a plain
 // select returns exactly the roster the coach/trainer/parent is allowed to see.
-export async function fetchLinkedDays(date: string): Promise<DayRow[]> {
+
+/** The columns the coach roster projection (mapLinkedDaysToRoster) actually reads. */
+export type RosterDayRow = Pick<DayRow, 'athlete_id' | 'date' | 'score' | 'grade' | 'tasks'>;
+
+/** Today's day rows for the caller's roster. Scalability (audit item 19): select ONLY the columns
+ *  the roster list needs — never the multi-KB `meals` / `checkin` / `quick_added` JSONB blobs, which
+ *  the list view never reads (PersonDetail fetches full data when an athlete is opened). Naturally
+ *  bounded by "who logged today" ≤ roster size; the .limit is a backstop against a pathological read. */
+export async function fetchLinkedDays(date: string): Promise<RosterDayRow[]> {
   if (!isSupabaseConfigured) return [];
   const { data, error } = await requireSupabase()
     .from('days')
-    .select('*')
-    .eq('date', date);
+    .select('athlete_id, date, score, grade, tasks')
+    .eq('date', date)
+    .limit(1000);
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as RosterDayRow[];
 }
 
 // ---------------------------------------------------------------- schools directory
