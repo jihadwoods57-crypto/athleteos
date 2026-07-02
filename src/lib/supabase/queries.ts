@@ -31,6 +31,22 @@ export async function fetchDay(athleteId: string, date: string): Promise<DayRow 
   return data;
 }
 
+/** The athlete's day rows on or after `sinceDate`, oldest first — the paginated history read that
+ *  lets a new device / returning athlete rebuild their full record from the server instead of the
+ *  local 14-day cache (audit item 14). RLS scopes it to the athlete + linked overseers. Empty when
+ *  unconfigured. */
+export async function fetchDaysSince(athleteId: string, sinceDate: string): Promise<DayRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('days')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .gte('date', sinceDate)
+    .order('date', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
 /** Upsert the athlete's day slice (athlete is the only writer per RLS). */
 export async function upsertDay(row: Partial<DayRow> & Pick<DayRow, 'athlete_id' | 'date'>): Promise<void> {
   if (!isSupabaseConfigured) return;

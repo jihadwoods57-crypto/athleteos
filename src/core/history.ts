@@ -208,9 +208,13 @@ export function recentDayLabels(n: number, today: Date = new Date()): string[] {
 /** Most recent N days the trend chart shows (today + the prior days). */
 export const TREND_WINDOW = 7;
 
-/** How many days of real history we persist. The chart shows the last
- *  TREND_WINDOW; we keep a little more so a longer view can reuse it later. */
-export const HISTORY_CAP = 14;
+/** How many days of real history we RETAIN (audit item 14). Deliberately decoupled from
+ *  TREND_WINDOW: the chart still shows the last 7 days, but we keep a full season+ so the
+ *  athlete's record isn't truncated at two weeks — the foundation the "full portable record"
+ *  premium tier and a season/longest-streak view need. ~400 days of {date, score} is a few tens
+ *  of KB in AsyncStorage; the server `days` table is the durable source a new device backfills
+ *  from (hydrateHistory). Raising this changes retention only — no chart or scoring math moves. */
+export const HISTORY_CAP = 400;
 
 /** Seeded lead-in used to pad the chart while real history is still filling up,
  *  so a fresh install / early days still render a believable trend instead of a
@@ -359,6 +363,32 @@ export function currentStreak(
   seedPad: boolean = false,
 ): number {
   return streakInfo(history, liveScore, { threshold, seedPad }).days;
+}
+
+/**
+ * The athlete's personal-best streak: the longest run of consecutive on-standard days anywhere in
+ * their retained history (audit item 14 — the "was 9, longest 30" record the season/premium surface
+ * shows). Pure read over completed days; today's live score is not included (it belongs to the
+ * current streak, not yet a completed record). Returns 0 for an empty/never-on-standard history.
+ */
+export function longestStreak(history: DayScore[], threshold: number = COMPLIANCE_THRESHOLD): number {
+  let best = 0;
+  let run = 0;
+  for (const d of history) {
+    if (d.score >= threshold) {
+      run++;
+      if (run > best) best = run;
+    } else {
+      run = 0;
+    }
+  }
+  return best;
+}
+
+/** How many retained days cleared the bar (the "N days on standard this season" record). Completed
+ *  days only; pure. */
+export function daysOnStandard(history: DayScore[], threshold: number = COMPLIANCE_THRESHOLD): number {
+  return history.reduce((n, d) => (d.score >= threshold ? n + 1 : n), 0);
 }
 
 /**

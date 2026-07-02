@@ -9,6 +9,7 @@ import type { DayRow } from '@/lib/supabase';
 
 const upsertDay = jest.fn<Promise<void>, [unknown]>();
 const fetchDay = jest.fn<Promise<DayRow | null>, [string, string]>();
+const fetchDaysSince = jest.fn<Promise<DayRow[]>, [string, string]>();
 const fetchActiveTrustPass = jest.fn(async () => null);
 
 /** Load a fresh copy of sync.ts with `isBackendLive` forced to a given value. */
@@ -17,7 +18,7 @@ function loadSync(backendLive: boolean) {
   jest.isolateModules(() => {
     jest.doMock('@/lib/supabase', () => ({
       isBackendLive: backendLive,
-      db: { upsertDay, fetchDay, fetchActiveTrustPass },
+      db: { upsertDay, fetchDay, fetchDaysSince, fetchActiveTrustPass },
     }));
     mod = require('./sync');
   });
@@ -34,6 +35,13 @@ const adultConsenting = (): AppState => ({
 beforeEach(() => {
   upsertDay.mockReset().mockResolvedValue(undefined);
   fetchDay.mockReset().mockResolvedValue(null);
+  fetchDaysSince.mockReset().mockResolvedValue([]);
+});
+
+const dayRow = (date: string, score: number | null, weight: number | null): DayRow => ({
+  id: date, athlete_id: 'a-1', date,
+  meals: {}, hydration_l: 0, tasks: [], quick_added: [], current_weight: weight,
+  checkin: {}, score, grade: null, computed_at: null, updated_at: '',
 });
 
 describe('pushDay consent gate', () => {
@@ -121,5 +129,46 @@ describe('hydrateDay', () => {
     const { hydrateDay } = loadSync(true);
     fetchDay.mockResolvedValue(null);
     expect(await hydrateDay('a-1')).toBeNull();
+  });
+});
+
+describe('history backfill (audit item 14)', () => {
+  it('historyFromDayRows maps score + weight and skips today (live) and null cells', () => {
+    const { historyFromDayRows } = loadSync(true);
+    const rows = [
+      dayRow('2026-06-20', 85, 180),
+      dayRow('2026-06-21', 92, null), // no weight -> only a score point
+      dayRow('2026-06-22', null, 179), // no score -> only a weight point
+      dayRow('2026-06-23', 88, 178), // this is "today" in the call below -> skipped
+    ];
+    const { scoreHistory, weightHistory } = historyFromDayRows(rows, '2026-06-23');
+    expect(scoreHistory).toEqual([
+      { date: '2026-06-20', score: 85 },
+      { date: '2026-06-21', score: 92 },
+    ]);
+    expect(weightHistory).toEqual([
+      { date: '2026-06-20', weight: 180 },
+      { date: '2026-06-22', weight: 179 },
+    ]);
+  });
+
+  it('hydrateHistory is null when the flag is off (never reads remote)', async () => {
+    const { hydrateHistory } = loadSync(false);
+    expect(await hydrateHistory('a-1')).toBeNull();
+    expect(fetchDaysSince).not.toHaveBeenCalled();
+  });
+
+  it('hydrateHistory returns the rebuilt record when live rows exist', async () => {
+    const { hydrateHistory } = loadSync(true);
+    fetchDaysSince.mockResolvedValue([dayRow('2026-06-20', 85, 180), dayRow('2026-06-21', 92, 181)]);
+    const slice = await hydrateHistory('a-1');
+    expect(slice?.scoreHistory).toHaveLength(2);
+    expect(slice?.weightHistory).toHaveLength(2);
+  });
+
+  it('hydrateHistory returns null on an empty read (never wipes the local cache)', async () => {
+    const { hydrateHistory } = loadSync(true);
+    fetchDaysSince.mockResolvedValue([]);
+    expect(await hydrateHistory('a-1')).toBeNull();
   });
 });

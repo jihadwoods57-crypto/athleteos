@@ -5,6 +5,8 @@ import {
   appendDayWeight,
   COMPLIANCE_THRESHOLD,
   currentStreak,
+  daysOnStandard,
+  longestStreak,
   streakInfo,
   DEFAULT_CHART_BOX,
   DEFAULT_WEIGHT_BOX,
@@ -456,5 +458,25 @@ describe('streakInfo (grace day — council ruling 2026-07-02)', () => {
 
   it('graceUsed stays false when there is no miss to forgive', () => {
     expect(streakInfo(mk(90, 91, 92), 90, { grace: true })).toEqual({ days: 4, graceUsed: false, atRisk: false });
+  });
+});
+
+describe('longestStreak + daysOnStandard (season record — audit item 14)', () => {
+  const mk = (...scores: number[]): DayScore[] =>
+    scores.map((score, i) => ({ date: `2026-06-${String(i + 1).padStart(2, '0')}`, score }));
+
+  it('finds the longest run of on-standard days anywhere in history', () => {
+    // runs: [95,88] = 2, then break (50), then [90,91,92,84] = 4 -> best 4.
+    expect(longestStreak(mk(95, 88, 50, 90, 91, 92, 84))).toBe(4);
+  });
+
+  it('is 0 for empty or never-on-standard history', () => {
+    expect(longestStreak([])).toBe(0);
+    expect(longestStreak(mk(40, 55, 70))).toBe(0);
+  });
+
+  it('counts total days that cleared the bar', () => {
+    expect(daysOnStandard(mk(95, 50, 90, 79, 88))).toBe(3);
+    expect(daysOnStandard([])).toBe(0);
   });
 });

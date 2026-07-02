@@ -13,12 +13,16 @@
 // `pushDay` writes the score `computeDerived` produced, never a second formula.
 import {
   computeDerived,
+  daysAgoStamp,
   gradeFor,
+  HISTORY_CAP,
   realDataConsent,
   todayStamp,
   type AppState,
   type ConsentContext,
   type ConsentReason,
+  type DayScore,
+  type WeightPoint,
 } from '@/core';
 import { db, isBackendLive } from '@/lib/supabase';
 import type { DayRow } from '@/lib/supabase';
@@ -104,6 +108,45 @@ export async function pushDay(s: AppState, athleteId: string, date = todayStamp(
   if (!gate.ok) return { pushed: false, reason: gate.reason };
   await db.upsertDay(mapStateToDayRow(s, athleteId, date));
   return { pushed: true, reason: 'ok' };
+}
+
+/**
+ * Project a run of `days` rows into the retained score + weight history (audit item 14). Today is
+ * skipped — it is the live, in-progress day that `trendSeries` appends separately, so including it
+ * would double-count. A row with no score (or no weight) contributes nothing to that array. Pure.
+ */
+export function historyFromDayRows(
+  rows: DayRow[],
+  todayDate = todayStamp(),
+): { scoreHistory: DayScore[]; weightHistory: WeightPoint[] } {
+  const scoreHistory: DayScore[] = [];
+  const weightHistory: WeightPoint[] = [];
+  for (const r of rows) {
+    if (r.date === todayDate) continue; // today is live; trendSeries adds it
+    if (typeof r.score === 'number') scoreHistory.push({ date: r.date, score: r.score });
+    if (typeof r.current_weight === 'number') weightHistory.push({ date: r.date, weight: r.current_weight });
+  }
+  return { scoreHistory, weightHistory };
+}
+
+/**
+ * Rebuild the athlete's retained record from the server (audit item 14): pull the last HISTORY_CAP
+ * days of `days` rows and project them into scoreHistory + weightHistory, so a NEW DEVICE or a
+ * returning athlete sees their full season instead of only what the local cache still holds. The
+ * server is the source of truth for completed days, so it replaces those arrays — but only when it
+ * actually returns data, so an offline/empty read never wipes the local cache. Backend-gated;
+ * returns null (no change) when off or empty. Reading one's OWN history needs no consent gate (that
+ * gates COLLECTING data, not resuming it) — the flag gate alone applies, like hydrateDay.
+ */
+export async function hydrateHistory(athleteId: string, sinceDays = HISTORY_CAP): Promise<Partial<AppState> | null> {
+  if (!isBackendLive) return null;
+  const rows = await db.fetchDaysSince(athleteId, daysAgoStamp(sinceDays));
+  if (rows.length === 0) return null;
+  const { scoreHistory, weightHistory } = historyFromDayRows(rows);
+  const slice: Partial<AppState> = {};
+  if (scoreHistory.length) slice.scoreHistory = scoreHistory;
+  if (weightHistory.length) slice.weightHistory = weightHistory;
+  return Object.keys(slice).length ? slice : null;
 }
 
 /** Pull today's day from Postgres, or null when the backend is off / no remote row

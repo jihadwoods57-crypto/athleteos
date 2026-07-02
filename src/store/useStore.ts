@@ -11,7 +11,7 @@ import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
 import { refreshReminderSchedule, getPushToken } from '@/lib/notify';
 import { Platform } from 'react-native';
-import { consentContextFromState, hydrateDay, pushDay } from './sync';
+import { consentContextFromState, hydrateDay, hydrateHistory, pushDay } from './sync';
 import { recordMeal } from './mealSync';
 import {
   addPerfEntry,
@@ -264,6 +264,7 @@ export interface Actions {
    *  after sign-in, so a fresh device shows their real identity, not the seeded demo.
    *  Gated; soft-fails to the local cache. */
   hydrateProfile: () => Promise<void>;
+  hydrateRecord: () => Promise<void>;
   /** Read the athlete's guardian-consent status back from the backend after sign-in, so a
    *  server-VERIFIED guardian actually unblocks the minor (the client only ever wrote
    *  'pending'). Server value only — never client-writable to 'verified'. Gated; soft-fails. */
@@ -400,7 +401,7 @@ let mealTimer: ReturnType<typeof setTimeout> | undefined;
 // writes a non-consenting (or minor) athlete's data. AsyncStorage stays the cache.
 const SYNC_DEBOUNCE_MS = 1200;
 // How far back the client meal-history overlay pulls (one stored meal per slot/day).
-const MEAL_HISTORY_DAYS = 14;
+const MEAL_HISTORY_DAYS = 30;
 let syncTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleDaySync(get: () => Store): void {
   if (!isBackendLive) return;
@@ -1044,6 +1045,20 @@ export const useStore = create<Store>()(
           /* keep the local identity on error */
         }
       },
+      hydrateRecord: async () => {
+        // Rebuild the athlete's full score + weight record from the server (audit item 14) so a new
+        // device / returning athlete sees their season, not just the local 14-day cache. Gated +
+        // soft-fail: never blocks sign-in, and an offline/empty read leaves the local cache intact.
+        if (!isBackendLive) return;
+        const uid = get().userId;
+        if (!uid) return;
+        try {
+          const slice = await hydrateHistory(uid);
+          if (slice) set(slice);
+        } catch {
+          /* keep the AsyncStorage-cached history on error */
+        }
+      },
       hydrateGuardianConsent: async () => {
         if (!isBackendLive) return;
         const uid = get().userId;
@@ -1289,6 +1304,7 @@ export const useStore = create<Store>()(
         // Read the real identity (name/org/email) + entitlement back from the backend
         // so a fresh device isn't stuck on the seeded demo identity. Both gated + soft-fail.
         void get().hydrateProfile();
+        void get().hydrateRecord();
         void get().refreshEntitlement();
         void get().hydrateGuardianConsent();
         return true;
@@ -1312,6 +1328,7 @@ export const useStore = create<Store>()(
         // Read the real identity (name/org/email) + entitlement back from the backend
         // so a fresh device isn't stuck on the seeded demo identity. Both gated + soft-fail.
         void get().hydrateProfile();
+        void get().hydrateRecord();
         void get().refreshEntitlement();
         void get().hydrateGuardianConsent();
         return true;
