@@ -93,6 +93,65 @@ Confirm the caps: an anon-key call to `plan-generate` past the per-IP daily cap 
 
 ---
 
+---
+
+# Phase 1 — Measure & monetize (code-shaped items #8, #9)
+
+Both are **backend-only** (no app change): analytics aggregates data already collected, and the
+Stripe seam only writes the `subscriptions` row the client already reads.
+
+## #8 — Founder analytics (migration `0037_analytics.sql`)
+
+Answers "how many athletes logged today?" with an admin-gated, PII-free set of RPCs over existing
+`days`/`meals` data. After applying (with the Phase 0 batch):
+
+```sql
+-- one-time: make yourself a platform admin (find your id in Auth → Users)
+insert into platform_admins (user_id) values ('<your-profile-uuid>');
+-- then, any time:
+select * from admin_overview();            -- totals + active today/7d + new-7d
+select * from admin_daily_activity(30);    -- per-day active/scored/meal-loggers + avg score
+```
+Run these from the Supabase SQL editor or a service-role script. An in-app admin dashboard can be
+built on these RPCs later; the data question is answerable now.
+
+**Crash/error reporting (Sentry) — deferred to the EAS build, on purpose.** Sentry needs the native
+SDK + a config plugin + a real device build to report anything, none of which exist or can be tested
+until the EAS build (Phase 1 #7). Add `@sentry/react-native` + `sentry-expo` when you cut that
+build; wiring it before then reports nothing. The daily-actives view above is the half that delivers
+value today.
+
+## #9 — Stripe first dollar (`supabase/functions/stripe-webhook`)
+
+The webhook that turns a payment into an entitlement. Steps:
+
+1. **Deploy it** (JWT off — Stripe authenticates via signature, not a Supabase JWT):
+   ```bash
+   supabase secrets set STRIPE_SECRET_KEY=sk_live_... STRIPE_WEBHOOK_SECRET=whsec_...
+   supabase functions deploy stripe-webhook --no-verify-jwt
+   ```
+2. **Create the webhook in Stripe** → endpoint `<project>/functions/v1/stripe-webhook`, events:
+   `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`.
+   Copy its signing secret into `STRIPE_WEBHOOK_SECRET` (step 1).
+3. **Create a Payment Link** for the Starter tier (a recurring per-seat price). **Critical:** the
+   coach's OnStandard profile id must ride along as `client_reference_id` — that's how a payment maps
+   to an owner. For a shared Payment Link, append `?client_reference_id=<ownerId>` when you send it;
+   for a per-coach Checkout Session, set it in the session. A payment with no valid owner id is
+   acknowledged and logged, never guessed.
+4. **Set the portal URL** so "Manage / cancel" works: `EXPO_PUBLIC_BILLING_PORTAL_URL=<stripe billing
+   portal link>` (the client seam `src/lib/billing/portal.ts` is already wired to it).
+5. **Verify:** run a test-mode checkout → the owner's `subscriptions` row flips to
+   `tier='team', status='active'` with the seat count and period end; cancel → `status='canceled'`.
+
+Because the wedge is B2B off-platform, this is the whole path to first dollar — Apple IAP/RevenueCat
+is not needed until the consumer Individual tier ships.
+
+> Note: `deno check` flags a pre-existing readonly-vs-mutable type nit on `PLAN_TOOL`/`MEAL_TOOL`
+> (`as const` tool schemas) in the AI functions — harmless at runtime, present before this work, and
+> outside the project's `tsc` scope. Clean up opportunistically, not as a blocker.
+
+---
+
 ## Deferred (needs a live/throwaway DB to do safely — do NOT guess these)
 
 1. **Deeper function-EXECUTE lockdown.** 0035 only revokes the two provably-safe helpers. Many
