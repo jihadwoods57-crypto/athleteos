@@ -5,7 +5,7 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import {
-  currentStreak,
+  streakInfo,
   coachGuidance,
   medicalDisclaimer,
   nextBestAction,
@@ -35,7 +35,7 @@ import {
 } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiMemoryTag } from '@/lib/ai';
-import { isTrustPassEnabled } from '@/lib/features';
+import { isStreakGraceEnabled, isTrustPassEnabled } from '@/lib/features';
 import { gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Btn, Card, Input, PressScale, ProgressBar, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
@@ -83,10 +83,18 @@ export function Home() {
     : realDays >= TREND_WINDOW
       ? 'Past 7 days'
       : `Building history · ${realDays} of ${TREND_WINDOW} days`;
-  // Day streak: consecutive on-plan days ending today (live score + real
-  // history; seeded baseline pads the unknown pre-history like the trend chart).
-  // Real athlete: only days actually earned. Seeded demo: pad with the showcase lead.
-  const streak = currentStreak(s.scoreHistory, d.athleteScore, undefined, !isReal);
+  // Day streak: consecutive on-standard days ending today (live score + real history; seeded
+  // baseline pads the unknown pre-history like the trend chart). Real athlete: only days actually
+  // earned. Seeded demo: pad with the showcase lead. Grace (council 2026-07-02, flag-gated) forgives
+  // one recent miss so a single off day doesn't zero a long streak; graceUsed drives a small pip,
+  // atRisk lets today's sub-threshold state read honestly instead of a bare 0.
+  const streakData = streakInfo(s.scoreHistory, d.athleteScore, { seedPad: !isReal, grace: isStreakGraceEnabled });
+  const streak = streakData.days;
+  // Plain-English, honest streak label (council Phase 0): reads as accountability, and today's
+  // at-risk / day-1 states never present a false chain.
+  const streakLabel = streakData.atRisk
+    ? 'Streak breaks today — log to keep your standard'
+    : `${streak} ${streak === 1 ? 'day' : 'days'} on standard${streakData.graceUsed ? ' (1 grace day used)' : ''}`;
 
   // Season weight goal — per-athlete start anchor (their onboarding weight, or the
   // demo's WEIGHT_START), athlete-editable target, live weight.
@@ -152,11 +160,18 @@ export function Home() {
           </Pressable>
           <Row
             accessibilityRole="text"
-            accessibilityLabel={`${streak} day streak`}
+            accessibilityLabel={streakLabel}
             style={[{ gap: 6, backgroundColor: c.card, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 }, shadow.card]}
           >
-            <Icon name="flame" size={15} color={c.warning} />
-            <Txt w="eb" size={14} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+            {/* Flame dims when the streak is at risk today (sub-threshold live score) so a bare "0"
+                never reads as a false green; a small dot marks a spent grace day. */}
+            <View>
+              <Icon name="flame" size={15} color={streakData.atRisk ? c.textTertiary : c.warning} />
+              {streakData.graceUsed ? (
+                <View style={{ position: 'absolute', top: -2, right: -3, width: 6, height: 6, borderRadius: 3, backgroundColor: c.accent, borderWidth: 1, borderColor: c.card }} />
+              ) : null}
+            </View>
+            <Txt w="eb" size={14} color={streakData.atRisk ? c.textTertiary : c.text} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {streak}
             </Txt>
           </Row>
@@ -167,6 +182,21 @@ export function Home() {
           </Pressable>
         </Row>
       </Row>
+
+      {/* Honest sync state (audit item 12): when the last push to the server failed, say so — an
+          athlete logging on a dead connection must not believe their coach can already see today. */}
+      {s.syncState === 'error' ? (
+        <Row
+          accessibilityRole="text"
+          accessibilityLabel="Your day hasn't synced. We'll retry when you're back online."
+          style={{ gap: 9, alignItems: 'center', backgroundColor: c.alertSurface, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: 14 }}
+        >
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.alert }} />
+          <Txt w="sb" size={12.5} color={c.alertDeep} style={{ flex: 1 }}>
+            Not synced — your coach may not see today yet. We’ll retry when you’re back online.
+          </Txt>
+        </Row>
+      ) : null}
 
       {/* score hero — the one thing this screen is about, so it gets the deep `hero` float
           while everything below sits `low`. That elevation contrast IS the hierarchy. */}

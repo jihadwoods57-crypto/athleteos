@@ -276,42 +276,89 @@ export function realTrendDays(
   return Math.min(history.length, window - 1) + 1; // +1 for today (always real)
 }
 
+/** One earned grace day per this many trailing days (council ruling 2026-07-02): a single recent
+ *  sub-threshold day can be forgiven so one bad day never nukes a long streak, while a SECOND miss
+ *  still ends it honestly. Cadence is a founder-tunable launch value (open question #1). */
+export const GRACE_WINDOW = 7;
+
+export interface StreakInfo {
+  /** Consecutive on-standard days ending today (a forgiven grace day bridges but is not counted). */
+  days: number;
+  /** True when a single sub-threshold day within the trailing window was forgiven to keep the chain. */
+  graceUsed: boolean;
+  /** True when today's live score is below the bar right now — the streak reads 0 and breaks unless
+   *  today recovers. Lets a surface say "at risk / breaks today" honestly instead of a bare 0. */
+  atRisk: boolean;
+}
+
+export interface StreakOptions {
+  threshold?: number;
+  /** Showcase-only: pad the unknown pre-history with SEEDED_LEAD (never for a real athlete). */
+  seedPad?: boolean;
+  /** Enable the one-per-trailing-window grace day (council 2026-07-02). Off preserves the strict
+   *  "first miss ends it" behavior exactly. Gated by isStreakGraceEnabled at the call site. */
+  grace?: boolean;
+}
+
 /**
- * The athlete's current accountability streak: consecutive days, ending today,
- * that cleared the on-plan threshold. Today is honest — a sub-threshold live
- * score ends the streak at 0 right now. Prior days read real persisted history
- * (most recent backward); the first recorded miss ends the count. When the real
- * history is unbroken all the way back, the unknown pre-history is padded with
- * the SAME seeded lead the trend chart draws (`SEEDED_LEAD`), so a fresh install
- * shows a believable streak consistent with the seeded 7-day trend instead of a
- * lone "1" — and that seed drops out the moment a real miss is recorded.
+ * The athlete's current accountability streak, with grace + honesty metadata. Today is live — a
+ * sub-threshold score today reads 0 and `atRisk` (never a false chain). Prior days read real
+ * persisted history most-recent-backward.
+ *
+ * GRACE (opt-in, council ruling 2026-07-02): with `grace`, exactly ONE sub-threshold day within the
+ * trailing GRACE_WINDOW days is forgiven — it bridges the chain (but is not itself counted as an
+ * on-standard day) so a single sick/off day doesn't zero a long streak. A SECOND miss, or a miss
+ * older than the window, still ends the count honestly. Grace is a pure read over `DayScore`
+ * history; it NEVER touches `athleteScore`, so the daily-score honesty firewall is untouched.
+ */
+export function streakInfo(
+  history: DayScore[],
+  liveScore: number,
+  opts: StreakOptions = {},
+): StreakInfo {
+  const threshold = opts.threshold ?? COMPLIANCE_THRESHOLD;
+  const seedPad = opts.seedPad ?? false;
+  const grace = opts.grace ?? false;
+  // Today is live: missing the bar today breaks the streak immediately (no grace for today itself).
+  if (liveScore < threshold) return { days: 0, graceUsed: false, atRisk: true };
+  let days = 1;
+  let graceUsed = false;
+  const scores = history.map((h) => h.score);
+  for (let i = scores.length - 1; i >= 0; i--) {
+    if (scores[i] < threshold) {
+      // Forgive a single recent miss (within the trailing window) to bridge the chain; the forgiven
+      // day is not itself counted. A second miss (or one outside the window) ends the streak.
+      const distance = scores.length - i; // 1 = yesterday, 2 = two days ago, ...
+      if (grace && !graceUsed && distance <= GRACE_WINDOW) {
+        graceUsed = true;
+        continue;
+      }
+      return { days, graceUsed, atRisk: false };
+    }
+    days++;
+  }
+  if (!seedPad) return { days, graceUsed, atRisk: false }; // real athlete: real earned days only
+  // Showcase only — unbroken through all real history, pad the unknown pre-history with the seeded
+  // lead, the same believable baseline the trend chart uses.
+  for (let i = SEEDED_LEAD.length - 1; i >= 0; i--) {
+    if (SEEDED_LEAD[i] < threshold) break;
+    days++;
+  }
+  return { days, graceUsed, atRisk: false };
+}
+
+/**
+ * Backward-compatible streak count (just the number). Delegates to `streakInfo` with grace OFF, so
+ * its behavior is byte-for-byte what it always was; new callers wanting grace + the grace/at-risk
+ * metadata use `streakInfo` directly. Signature preserved for existing positional callers/tests.
  */
 export function currentStreak(
   history: DayScore[],
   liveScore: number,
   threshold: number = COMPLIANCE_THRESHOLD,
-  // Honesty (Tier 1.5): by default the streak counts REAL earned days only (recorded
-  // history + today). The seeded showcase opts into `seedPad` to pad the unknown
-  // pre-history with SEEDED_LEAD so the demo reads as a believable in-progress streak;
-  // a real athlete never sees days they did not earn.
   seedPad: boolean = false,
 ): number {
-  // Today is live: missing the bar today breaks the streak immediately.
-  if (liveScore < threshold) return 0;
-  let streak = 1;
-  const scores = history.map((h) => h.score);
-  for (let i = scores.length - 1; i >= 0; i--) {
-    if (scores[i] < threshold) return streak; // a real recorded miss ends it
-    streak++;
-  }
-  if (!seedPad) return streak; // real athlete: real earned days only
-  // Showcase only — unbroken through all real history, pad the unknown pre-history
-  // with the seeded lead, the same believable baseline the trend chart uses.
-  for (let i = SEEDED_LEAD.length - 1; i >= 0; i--) {
-    if (SEEDED_LEAD[i] < threshold) break;
-    streak++;
-  }
-  return streak;
+  return streakInfo(history, liveScore, { threshold, seedPad }).days;
 }
 
 /**

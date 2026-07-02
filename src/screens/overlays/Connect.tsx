@@ -37,6 +37,10 @@ export function Connect() {
   const [teams, setTeams] = useState<DiscoveredTeam[]>([]);
   // success
   const [done, setDone] = useState<string | null>(null);
+  // join-request in flight / failure (a request that silently no-ops strands the athlete waiting
+  // for an approval that never comes — so it must show progress and surface a failure).
+  const [requestingId, setRequestingId] = useState<string | null>(null);
+  const [reqErr, setReqErr] = useState<string | null>(null);
 
   // School search for the find door (inert offline).
   useEffect(() => {
@@ -91,8 +95,17 @@ export function Connect() {
   };
 
   const request = async (t: DiscoveredTeam) => {
-    const ok = await s.requestJoinTeamLive(t.id);
-    if (ok) { haptics.success(); setDone(`Request sent — ${t.coach_name ?? 'your coach'} will approve it.`); }
+    setReqErr(null);
+    setRequestingId(t.id);
+    try {
+      const ok = await s.requestJoinTeamLive(t.id);
+      if (ok) { haptics.success(); setDone(`Request sent — ${t.coach_name ?? 'your coach'} will approve it.`); }
+      else setReqErr('We couldn’t send that request. Check your connection and try again.');
+    } catch {
+      setReqErr('We couldn’t send that request. Check your connection and try again.');
+    } finally {
+      setRequestingId(null);
+    }
   };
 
   if (done) {
@@ -182,10 +195,16 @@ export function Connect() {
                         <Txt w="eb" size={15}>{t.coach_name || t.name}</Txt>
                         <Txt w="m" size={12} color={c.textSecondary}>{[t.name, t.sport].filter(Boolean).join(' · ')}</Txt>
                       </View>
-                      <Btn label="Request" haptic="success" onPress={() => request(t)} />
+                      <Btn
+                        label={requestingId === t.id ? 'Sending…' : 'Request'}
+                        disabled={requestingId !== null}
+                        haptic="success"
+                        onPress={() => request(t)}
+                      />
                     </Row>
                   </Card>
                 ))}
+                {reqErr ? <Txt w="sb" size={13} color={c.alert}>{reqErr}</Txt> : null}
               </>
             )}
           </View>

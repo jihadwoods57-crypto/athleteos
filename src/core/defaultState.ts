@@ -113,6 +113,8 @@ export function createInitialState(): AppState {
     mealAnalysis: null,
     mealQuestions: [],
     mealError: null,
+    syncState: 'idle',
+    lastSyncedAt: null,
     labelFacts: null,
     labelServings: 1,
     mealPhoto: null,

@@ -78,6 +78,9 @@ export type CoachTab = 'dashboard' | 'roster' | 'attention' | 'reports' | 'profi
 export type TrainerTab = 'dashboard' | 'profile';
 export type ParentTab = 'overview' | 'profile';
 export type MealStage = 'capture' | 'analyzing' | 'questions' | 'result' | 'unavailable';
+/** Live day-sync status to the server. 'error' means the last push failed, so the athlete's logged
+ *  day may not have reached their coach — surfaced honestly instead of failing silently. */
+export type SyncState = 'idle' | 'syncing' | 'synced' | 'error';
 /** Why a configured AI analysis failed. 'rate_limited' = the athlete hit the daily cap (429);
  *  'error' = any other failure (network, timeout, 5xx). Drives the honest 'unavailable' stage —
  *  we never fabricate a plate/label when a real model was asked and could not answer. */
@@ -286,6 +289,13 @@ export interface AppState {
   trainerTab: TrainerTab;
   parentTab: ParentTab;
   squadMode: SquadMode;
+  // ---- day-sync status (audit item 12: a failed push must not be silent) ----
+  /** Status of the debounced day push to the server. 'error' surfaces an honest "not synced" pill
+   *  so an athlete logging on a dead connection isn't invisibly out of sync with their coach.
+   *  Ephemeral; never persisted (recomputed on the next push). */
+  syncState: SyncState;
+  /** ISO timestamp of the last SUCCESSFUL day push, or null. Ephemeral; never persisted. */
+  lastSyncedAt: string | null;
   // ---- overseer read-cache (snappy paint, revalidated on mount) ----
   /** Last real roster fetched for the signed-in overseer, so their dashboard paints instantly
    *  instead of flashing the seeded sample. Namespaced by cachedRosterUserId; purged on sign-out. */

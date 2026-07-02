@@ -5,6 +5,7 @@ import {
   appendDayWeight,
   COMPLIANCE_THRESHOLD,
   currentStreak,
+  streakInfo,
   DEFAULT_CHART_BOX,
   DEFAULT_WEIGHT_BOX,
   HISTORY_CAP,
@@ -412,5 +413,48 @@ describe('currentStreak', () => {
     // today(+1), 92(+1), 90(+1), then 50 is a miss → stop. Streak = 3 (even with seedPad).
     expect(currentStreak(mk(95, 50, 90, 92), 90)).toBe(3);
     expect(currentStreak(mk(95, 50, 90, 92), 90, undefined, true)).toBe(3);
+  });
+});
+
+describe('streakInfo (grace day — council ruling 2026-07-02)', () => {
+  const mk = (...scores: number[]): DayScore[] =>
+    scores.map((score, i) => ({ date: `2026-06-${String(i + 1).padStart(2, '0')}`, score }));
+
+  it('with grace OFF is byte-for-byte the strict count (first miss ends it)', () => {
+    expect(streakInfo(mk(95, 50, 90, 92), 90, { grace: false }).days).toBe(3);
+    expect(streakInfo(mk(95, 50, 90, 92), 90).days).toBe(3); // grace defaults off
+    expect(streakInfo(mk(85, 88, 91), 90).days).toBe(4);
+  });
+
+  it('forgives a single recent miss to bridge the chain, and flags graceUsed', () => {
+    // [95, 50(miss), 90, 92] + today90: back through 92,90 (days=3), forgive 50 (distance 3 ≤ 7),
+    // then count 95 → days=4. The forgiven day bridges but is not itself counted.
+    const info = streakInfo(mk(95, 50, 90, 92), 90, { grace: true });
+    expect(info).toEqual({ days: 4, graceUsed: true, atRisk: false });
+  });
+
+  it('ends the streak on a SECOND miss (grace forgives only one)', () => {
+    // [40(miss), 50(miss), 90, 92] + today90: forgive 50, then 40 is a second miss → stop at days=3.
+    const info = streakInfo(mk(40, 50, 90, 92), 90, { grace: true });
+    expect(info).toEqual({ days: 3, graceUsed: true, atRisk: false });
+  });
+
+  it('does NOT forgive a miss older than the trailing window', () => {
+    // [90, 90, 50(miss), 90,90,90,90,90] length 8 + today90. The 50 sits at distance 6 (≤7) so it
+    // IS forgiven → grace reaches the two 90s behind it (days=8). Contrast the strict count (=6).
+    expect(streakInfo(mk(90, 90, 50, 90, 90, 90, 90, 90), 90, { grace: true }).days).toBe(8);
+    expect(streakInfo(mk(90, 90, 50, 90, 90, 90, 90, 90), 90, { grace: false }).days).toBe(6);
+    // Push the miss out to distance 8 (> window): NOT forgiven even with grace on.
+    // [90, 50(miss), 90×7] length 9 + today90: strict stops at the 50 → days=8; grace can't rescue it.
+    const farMiss = mk(90, 50, 90, 90, 90, 90, 90, 90, 90);
+    expect(streakInfo(farMiss, 90, { grace: true })).toEqual({ days: 8, graceUsed: false, atRisk: false });
+  });
+
+  it('today below the bar reads 0 and atRisk, regardless of grace', () => {
+    expect(streakInfo(mk(95, 92, 88), 70, { grace: true })).toEqual({ days: 0, graceUsed: false, atRisk: true });
+  });
+
+  it('graceUsed stays false when there is no miss to forgive', () => {
+    expect(streakInfo(mk(90, 91, 92), 90, { grace: true })).toEqual({ days: 4, graceUsed: false, atRisk: false });
   });
 });

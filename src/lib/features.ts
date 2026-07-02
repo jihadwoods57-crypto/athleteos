@@ -24,3 +24,11 @@ export const isMealPlansEnabled = process.env.EXPO_PUBLIC_MEAL_PLANS_ENABLED?.tr
 // Server-authoritative pass state (Supabase RLS) + seeded-random spot-checks are the go-live
 // upgrade (docs/council/2026-07-02-trust-pass.md); this pilot build keeps the pass client-side.
 export const isTrustPassEnabled = process.env.EXPO_PUBLIC_TRUST_PASS_ENABLED?.trim() === 'true';
+
+// Master switch for the streak GRACE day (council ruling 2026-07-02): one forgiven sub-threshold
+// day per trailing 7 so a single bad day doesn't zero a long streak, while a second miss still ends
+// it honestly. OFF by default — the founder validates the cadence and picks flag-dark vs live at
+// launch (ruling open questions #1/#3). Grace is a pure read over score history; it NEVER touches
+// athleteScore, so flipping this leaves the daily score untouched. When off, the streak keeps its
+// strict "first miss ends it" behavior exactly.
+export const isStreakGraceEnabled = process.env.EXPO_PUBLIC_STREAK_GRACE_ENABLED?.trim() === 'true';

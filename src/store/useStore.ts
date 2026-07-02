@@ -403,7 +403,17 @@ function scheduleDaySync(get: () => Store): void {
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     const s = get();
-    if (s.userId) void pushDay(s, s.userId).catch(() => undefined);
+    if (!s.userId) return;
+    // Track the push so a failure is surfaced (audit item 12) instead of silently swallowed — an
+    // athlete logging on a dead connection must not believe their coach can see the day. Only a real
+    // write flips to 'synced'; a consent/backend gate (pushed:false) is intentional, not an error.
+    useStore.setState({ syncState: 'syncing' });
+    pushDay(s, s.userId)
+      .then((r) => {
+        if (r.pushed) useStore.setState({ syncState: 'synced', lastSyncedAt: new Date().toISOString() });
+        else useStore.setState({ syncState: 'idle' });
+      })
+      .catch(() => useStore.setState({ syncState: 'error' }));
   }, SYNC_DEBOUNCE_MS);
 }
 
