@@ -56,6 +56,7 @@ export function createInitialState(): AppState {
     emailConfirmPending: false,
     sharingPaused: false,
     entitlement: previewEntitlement(),
+    trustPass: null,
 
     // day
     dateStamp: todayStamp(),

@@ -638,3 +638,46 @@ describe('SCORE_WEIGHTS', () => {
     }
   });
 });
+
+describe('computeDerived — Trust Pass credit (data-gated)', () => {
+  const cameraFree = { breakfast: false, lunch: false, snack: false, dinner: false };
+  const earned = [80, 82, 84, 86, 88, 80, 82, 84, 86, 88].map((score, i) => ({
+    date: `2026-05-${String(i + 1).padStart(2, '0')}`,
+    score,
+  })); // median 84
+
+  it('an active pass credits the trailing nutrition median on a camera-free "yes" day', () => {
+    const s = {
+      ...createInitialState(),
+      meals: cameraFree,
+      dailyCommitment: 'yes',
+      nutritionHistory: earned,
+      trustPass: { grantedDate: '2026-06-01', lengthDays: 10 },
+      dateStamp: '2026-06-02', // day 1: active, not a spot-check day
+    } as AppState;
+    const d = computeDerived(s);
+    expect(d.nutritionIsTrustCredited).toBe(true);
+    expect(d.nutritionScore).toBe(84); // his own proven median, not a fabricated number
+  });
+
+  it('WITHOUT a pass, a camera-free day still scores nutrition 0 (firewall intact)', () => {
+    const s = { ...createInitialState(), meals: cameraFree, dailyCommitment: 'yes', nutritionHistory: earned } as AppState;
+    const d = computeDerived(s);
+    expect(d.nutritionIsTrustCredited).toBe(false);
+    expect(d.nutritionScore).toBe(0);
+  });
+
+  it('an honest "no" on a pass day is never masked by the baseline credit', () => {
+    const s = {
+      ...createInitialState(),
+      meals: cameraFree,
+      dailyCommitment: 'no',
+      nutritionHistory: earned,
+      trustPass: { grantedDate: '2026-06-01', lengthDays: 10 },
+      dateStamp: '2026-06-02',
+    } as AppState;
+    const d = computeDerived(s);
+    expect(d.nutritionIsTrustCredited).toBe(false);
+    expect(d.nutritionScore).toBe(0); // f(no)=0 -> credit 0 -> real (0) stands
+  });
+});

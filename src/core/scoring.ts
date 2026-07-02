@@ -16,6 +16,7 @@ import { mealMacros, type MacroSet } from './mealEdit';
 import { DEFAULT_PLAN } from './coachPlan';
 import { profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
 import { commitmentScore } from './commitment';
+import { passDayCredit } from './trustPass';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
 
 /** A meal logged after its window deadline counts half toward the score's "meals" share. */
@@ -220,13 +221,26 @@ export function computeDerived(s: AppState): Derived {
   // byte-for-byte; 'general' re-weights to calorie-adherence for a trainer's general-fitness
   // client. The platform owns these weights; the coach owns the targets (Constitution #13).
   const profile = resolveProfile(s.scoringProfile);
-  const nutritionScore = profileNutritionScore(profile, {
+  let nutritionScore = profileNutritionScore(profile, {
     proteinToday,
     proteinTarget,
     kcalToday,
     calTarget,
     effectiveMeals: effectiveMealsLogged(s),
   });
+  // Trust Pass: on an active, coach-granted, camera-free day (not a spot-check day), a proven
+  // athlete's one-tap "yes" credits his trailing earned-nutrition MEDIAN instead of a photo —
+  // worth exactly what his own camera measured, never more. DATA-gated: with no active pass in
+  // state (every non-pilot account) this is a no-op, so the honesty firewall (nutrition = 0
+  // without a photo) is untouched for everyone else. Applied as a FLOOR (only when it exceeds
+  // the real logged score), so logging can still earn higher and an honest "no" (credit 0) is
+  // never masked. See docs/council/2026-07-02-trust-pass.md.
+  let nutritionIsTrustCredited = false;
+  const passCredit = passDayCredit(s.trustPass, s.nutritionHistory ?? [], s.dateStamp, s.dailyCommitment);
+  if (passCredit && !passCredit.requiresPhoto && passCredit.nutrition > nutritionScore) {
+    nutritionScore = passCredit.nutrition;
+    nutritionIsTrustCredited = true;
+  }
   // Recovery sub-score averages ONLY the coach-enabled check-in questions
   // (s.ciConfig), each on a 0–10 scale — not a hard-coded energy/recovery/sleep
   // trio. Mirrors CheckIn.tsx's CI_KEYS so the score reflects exactly the
@@ -338,6 +352,7 @@ export function computeDerived(s: AppState): Derived {
     nutritionScore,
     recoveryScore,
     recoveryScoreIsReal,
+    nutritionIsTrustCredited,
     weightScore,
     tasksScore,
     commitmentScore: commitmentSubScore,

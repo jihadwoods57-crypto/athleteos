@@ -11,6 +11,7 @@ import type { RosterRow } from './constants';
 import type { GuardianStatus } from './guardianConsent';
 import type { NudgeRecord } from './nudge';
 import type { CommitmentAnswer } from './commitment';
+import type { TrustPass } from './trustPass';
 import type { PerfEntry } from './performance';
 import type { ReminderSettings } from './reminders';
 import type { OverseerAlerts } from './overseerAlerts';
@@ -198,6 +199,10 @@ export interface AppState {
    *  preview; a Stripe webhook flips the backend row, refreshEntitlement reads it.
    *  Persisted so the plan shows offline. INERT until monetization is wired. */
   entitlement: Entitlement;
+  /** An active earned Trust Pass (coach-granted camera-free reward), or null. Cross-day: a
+   *  multi-day grant survives calendar rollover. Client state for the pilot; server-authoritative
+   *  at go-live. See docs/council/2026-07-02-trust-pass.md. */
+  trustPass: TrustPass | null;
   /** True once a password-reset email has been requested, so the reset screen shows
    *  its neutral confirmation. Ephemeral (not persisted). */
   passwordResetSent: boolean;
@@ -441,6 +446,9 @@ export interface Derived {
   recoveryScore: number;
   /** True only once a real check-in backs the recovery number (else it's the 86 fallback). */
   recoveryScoreIsReal: boolean;
+  /** True when today's nutrition was credited from an active Trust Pass (camera-free) rather
+   *  than a logged photo — drives the honest "Trust Pass" vs "photo verified" render. */
+  nutritionIsTrustCredited: boolean;
   weightScore: number;
   tasksScore: number;
   /** 0..100 daily plan-commitment sub-score (yes=100/partial=60/no=0/unanswered=0). */

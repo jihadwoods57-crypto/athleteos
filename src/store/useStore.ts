@@ -327,6 +327,10 @@ export interface Actions {
   // daily plan-commitment (yes/partial/no one-tap)
   setDailyCommitment: (answer: AppState['dailyCommitment']) => void;
 
+  // Trust Pass (earned camera-free reward) — coach-granted at go-live; pilot grant is client-side
+  grantTrustPass: (lengthDays: number) => void;
+  endTrustPass: () => void;
+
   // check-in
   wStep: (d: number) => void;
   setCi: (key: CiSliderKey, value: number) => void;
@@ -1143,6 +1147,9 @@ export const useStore = create<Store>()(
         scheduleDaySync(get);
       },
 
+      grantTrustPass: (lengthDays) => set({ trustPass: { grantedDate: todayStamp(), lengthDays } }),
+      endTrustPass: () => set({ trustPass: null }),
+
       // ---- check-in ----
       wStep: (d) => set((s) => ({ ciWeight: clamp(s.ciWeight + d, 70, 350) })),
       setCi: (key, value) => set({ [key]: value } as Partial<AppState>),
@@ -1381,6 +1388,7 @@ export const useStore = create<Store>()(
         termsAcceptedAt: s.termsAcceptedAt,
         sharingPaused: s.sharingPaused,
         entitlement: s.entitlement,
+        trustPass: s.trustPass,
         // overseer read-cache (snappy paint); namespaced by cachedRosterUserId, purged on sign-out
         cachedRoster: s.cachedRoster,
         cachedRosterUserId: s.cachedRosterUserId,

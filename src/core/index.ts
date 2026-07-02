@@ -24,6 +24,7 @@ export * from './units';
 export * from './weightProgress';
 export * from './contrast';
 export * from './history';
+export * from './trustPass';
 export * from './performance';
 export * from './person';
 export * from './attention';
