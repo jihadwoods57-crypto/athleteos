@@ -14,11 +14,19 @@ import { Ring } from '@/ui/Ring';
 import { Account } from '@/screens/overlays/Account';
 import { Plans } from '@/screens/overlays/Plans';
 import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
+import { RoleTabBar, SettingRow, type RoleTab } from './roleChrome';
+import type { ParentTab } from '@/core';
+
+const PARENT_TABS: RoleTab<ParentTab>[] = [
+  { key: 'overview', label: 'Home', icon: 'home' },
+  { key: 'profile', label: 'Profile', icon: 'user' },
+];
 
 export function ParentView() {
   const c = useColors();
   const s = useStore();
   const d = useDerived();
+  const tab = s.parentTab;
   // Weekly compliance derived from the SAME real score history the Home trend
   // chart draws, so the parent's view tracks the athlete's actual week instead
   // of a static 6/7 mock. Today is shown in progress; the % is the completed-day mean.
@@ -50,7 +58,10 @@ export function ParentView() {
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <SafeAreaView edges={['top']} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {tab === 'profile' ? (
+          <ParentProfile childFirst={athlete.first} />
+        ) : (
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
           <Row style={{ justifyContent: 'space-between' }}>
             <Row style={{ gap: 12 }}>
               <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" hitSlop={6} onPress={s.openAccount} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
@@ -307,11 +318,30 @@ export function ParentView() {
           </View>
           </Reveal>
         </ScrollView>
+        )}
       </SafeAreaView>
+
+      <RoleTabBar tabs={PARENT_TABS} active={tab} onChange={s.setParentTab} />
 
       {s.accountOpen && <Account />}
       {s.plansOpen && <Plans />}
       {s.overseerProfileOpen && <OverseerProfile />}
     </View>
+  );
+}
+
+/** Parent Profile tab — identity + settings entry points (parent is a read-only observer). */
+function ParentProfile({ childFirst }: { childFirst: string }) {
+  const c = useColors();
+  const s = useStore();
+  return (
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <Txt w="eb" size={12} color={c.accent} ls={1} upper style={{ marginBottom: 6 }}>Parent</Txt>
+      <Txt w="eb" size={28} ls={-0.8} style={{ marginBottom: 20 }}>Profile</Txt>
+      <View style={{ gap: 10 }}>
+        <SettingRow icon="menu" label="Account & settings" sub="Name, sign out, data export" onPress={s.openAccount} />
+        <SettingRow icon="user" label="Profile & alerts" sub={`How you follow ${childFirst} · notifications`} onPress={s.openOverseerProfile} />
+      </View>
+    </ScrollView>
   );
 }
