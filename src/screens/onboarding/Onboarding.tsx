@@ -733,7 +733,19 @@ function AthleteFlow() {
             />
           }
         >
+          {/* Age is confirmed HERE, at the moment it decides the guardian requirement, not silently
+              defaulted from the earlier "About you" step (COPPA gate — audit/founder fix). isMinor
+              recomputes reactively as this changes, so the screen switches between adult/minor. */}
           <Card style={{ marginTop: 6 }} elevated>
+            <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
+              Confirm your age
+            </Txt>
+            <Stepper label="Age" value={String(s.baseAge)} unit="years" onDec={() => s.ageStep(-1)} onInc={() => s.ageStep(1)} />
+            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 10, lineHeight: 17 }}>
+              Under 18 needs a parent or guardian&apos;s approval before anything is shared with a coach.
+            </Txt>
+          </Card>
+          <Card style={{ marginTop: 14 }} elevated>
             <Txt w="m" size={15} color={c.slate700} style={{ lineHeight: 22 }}>
               {consentSummary(minor)}
             </Txt>
