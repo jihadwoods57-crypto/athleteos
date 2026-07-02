@@ -43,6 +43,8 @@ import {
   labelToFood,
   mealResultToFood,
   usualToResult,
+  snackToFood,
+  appendSnack,
   baseGoalForPrimary,
   goalConfig,
   realDataConsent,
@@ -65,6 +67,7 @@ import type {
   MealCaptureMode,
   MealLabel,
   UsualMeal,
+  SnackPreset,
   PersonDetail,
   Role,
   RosterRow,
@@ -220,6 +223,8 @@ export interface Actions {
   addScannedLabel: () => void;
   addMeal: () => void;
   addWater: () => void;
+  /** Log a snack/shake preset into the day's snack slot (persists + scores, like a meal). */
+  addSnack: (preset: SnackPreset) => void;
   openMealDetail: (meal: string) => void;
   closeMealDetail: () => void;
   openMealHistory: () => void;
@@ -840,6 +845,13 @@ export const useStore = create<Store>()(
           return { hydrationL: h, tasks };
         });
         scheduleDaySync(get);
+      },
+      addSnack: (preset) => {
+        // Log the snack/shake as a real EditableFood in the day's snack slot (append, don't
+        // replace), so it persists to the meals table, scores, and counts toward the coach's
+        // logging-completeness read — unlike the ephemeral quick-add toggles.
+        const s = get();
+        s.saveMeal('snack', appendSnack(s.mealFoods.snack, snackToFood(preset)));
       },
       openMealDetail: (meal) => set({ mealDetailOpen: true, selectedMeal: meal }),
       closeMealDetail: () => set({ mealDetailOpen: false }),

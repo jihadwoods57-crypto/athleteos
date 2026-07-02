@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { mealRowsFor, QUICK_FOODS, paceProjection, weekdayLong, weeklyWeightProgress, WEIGHT_START } from '@/core';
+import { mealRowsFor, QUICK_FOODS, SNACK_PRESETS, paceProjection, weekdayLong, weeklyWeightProgress, WEIGHT_START } from '@/core';
 import { isEnginesEnabled } from '@/lib/features';
 import { useStore, useDerived, useNutritionMemory } from '@/store';
 import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
@@ -187,6 +187,42 @@ export function Nutrition() {
             );
           })}
         </View>
+      </Card>
+      </Reveal>
+
+      {/* snacks & shakes — one-tap between-meal logging (persists + scores like a meal) */}
+      <Reveal index={5}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
+        <Txt w="eb" size={16} ls={-0.3}>Snacks & shakes</Txt>
+        <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6 }}>
+          Tap to log between-meal fuel. It counts toward your day, just like a meal.
+        </Txt>
+        <Row style={{ flexWrap: 'wrap', gap: 9, marginTop: 14 }}>
+          {SNACK_PRESETS.map((p) => (
+            <Pressable
+              key={p.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Log ${p.name}, ${p.per.protein} grams protein`}
+              onPress={() => s.addSnack(p)}
+              style={({ pressed }) => [{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                paddingHorizontal: 13,
+                paddingVertical: 10,
+                borderRadius: 13,
+                backgroundColor: c.bg,
+                borderWidth: 1.5,
+                borderColor: c.accentBorder,
+                opacity: pressed ? 0.6 : 1,
+              }]}
+            >
+              <Icon name={p.kind === 'shake' ? 'drop' : 'plus'} size={14} color={c.accent} />
+              <Txt w="b" size={13}>{p.name}</Txt>
+              <Txt w="eb" num size={12} color={c.accent}>+{p.per.protein}g</Txt>
+            </Pressable>
+          ))}
+        </Row>
       </Card>
       </Reveal>
 
