@@ -6,8 +6,17 @@ project (`ftwrvylzoyznhbzhgism`). It supersedes the migration/apply instructions
 are now wrong about what's applied.
 
 Everything below was authored + statically reviewed + typechecked, and the full test suite is green
-(1326 tests). **Nothing here has been applied to live** — these are the steps that need your
+(1345 tests). **Nothing here has been applied to live** — these are the steps that need your
 credentials and a throwaway-DB validation pass first. Do them in order.
+
+> **CONFIRMED LIVE STATE (2026-07-02, via `supabase migration list --linked`):** the ledger is
+> **clean — Step 0 needs no repair.** Local and remote match 1:1 through **0033** (both correctly
+> skip 0017; there is NO phantom 0017 — the audit's "ledger drift" concern was mistaken). So
+> **0001–0033 are applied to live** (including the 0029–0033 security batch the audit thought was
+> pending), and **only 0034–0037 are pending** — exactly the Phase 0 + Phase 1 migrations in this
+> branch. `supabase db push --dry-run` confirms it would apply 0034 → 0035 → 0036 → 0037 in order.
+> **Step 1 (throwaway-DB validation) still MUST run before the push** and needs Docker (not present
+> in the authoring env), so it's done on your machine per the commands below.
 
 ---
 
@@ -67,17 +76,36 @@ invariants in Step 3 against the local DB before touching live.
 supabase db push        # applies 0034 → 0035 → 0036 in order
 ```
 
-## Step 3 — Verify the fixes on live (SQL / behavior)
+## Step 3 — Verify the fixes on live
 
-- **Item 1:** create a team, join it as a second account, and confirm the coach's roster now shows
-  that athlete's day (before this fix it showed nothing). Or in SQL: after a `join_team`, a matching
-  `org_memberships` row (role `athlete`, `scope_kind='group'`, `status='active'`) exists.
-- **Item 2:** as a signed-in athlete, `select token from guardian_consent_requests` returns
-  **permission denied** (or no `token` column), while `select status ...` still works.
-- **Item 3:** `select notify('<any-uuid>','x','y','z')` as a normal user returns **permission
-  denied**. A real join request still creates the coach's notification (the trigger runs as definer).
-- **Item 4a:** mark a notification read in the app — it persists (no 42501).
-- **Item 4b:** covered by Step 4.
+Run this block in the Supabase **SQL editor** (as `postgres`) right after the push — it checks the
+`authenticated` role's exact grants + the new objects, so you don't need a second test account:
+
+```sql
+-- Item 1 — coach visibility: the sync triggers exist, and the re-backfill populated memberships.
+select tgname from pg_trigger
+ where tgrelid = 'public.team_members'::regclass and not tgisinternal;   -- expect trg_team_member_membership
+select count(*) as active_team_memberships from org_memberships
+ where role = 'athlete' and scope_kind = 'group' and status = 'active';  -- expect > 0 if any active team links exist
+
+-- Item 2 — a minor can no longer read their own consent token; status stays readable.
+select has_column_privilege('authenticated','public.guardian_consent_requests','token','SELECT')  as token_readable,  -- expect FALSE
+       has_column_privilege('authenticated','public.guardian_consent_requests','status','SELECT') as status_readable; -- expect TRUE
+
+-- Item 3 — notify() is no longer callable by app users (triggers still run; they're definer).
+select has_function_privilege('authenticated','public.notify(uuid,text,text,text)','EXECUTE') as notify_callable; -- expect FALSE
+
+-- Item 4a — the grants the RLS policies promised now exist.
+select has_table_privilege('authenticated','public.notifications','UPDATE') as notif_update,  -- expect TRUE
+       has_table_privilege('authenticated','public.meal_plans','INSERT')    as plans_insert;  -- expect TRUE
+
+-- Item 8 — analytics is live (seed yourself first: insert into platform_admins(user_id) values ('<your-uuid>');)
+-- select * from admin_overview();
+```
+
+Then confirm behavior end-to-end: join a team from a second account and check the coach's roster shows
+that athlete's day (Item 1), and mark a notification read in the app — it persists, no 42501 (Item 4a).
+Item 4b is covered by the Step 4 redeploy.
 
 ## Step 4 — Redeploy the AI edge functions
 
