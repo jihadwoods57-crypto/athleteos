@@ -19,6 +19,7 @@ import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
 import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
+import { usePendingClients } from './usePendingClients';
 
 export function TrainerView() {
   const cx = useColors();
@@ -85,6 +86,8 @@ export function TrainerView() {
             {isBackendLive ? null : <Kpi value="92%" label="RETENTION" color={cx.success} sample />}
           </Row>
           </Reveal>
+
+          <PendingClientsCard />
 
           {/* book compliance trend */}
           <Reveal index={1}>
@@ -255,6 +258,51 @@ export function TrainerView() {
       {s.plansOpen && <Plans />}
       {s.overseerProfileOpen && <OverseerProfile />}
     </View>
+  );
+}
+
+/** Client-initiated join requests waiting on the trainer (client-first, mirror of the
+ *  coach inbox). Renders nothing when empty (incl. the whole demo build). Approve flips
+ *  the request to active; the client then appears in the book. */
+function PendingClientsCard() {
+  const c = useColors();
+  const { items, approve, decline } = usePendingClients();
+  if (items.length === 0) return null;
+  return (
+    <Reveal index={0}>
+    <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.border }}>
+      <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+        <Txt w="eb" size={11} color={c.accent} ls={0.7}>CLIENT REQUESTS</Txt>
+        <Txt w="sb" size={12} color={c.textTertiary}>{items.length} waiting</Txt>
+      </Row>
+      {items.map((it) => (
+        <Row key={`${it.practiceId}:${it.clientId}`} style={{ alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Txt w="b" size={15}>{it.clientName || 'New client'}</Txt>
+            <Txt w="m" size={12} color={c.textSecondary}>wants to join {it.practiceName}</Txt>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Approve ${it.clientName || 'client'}`}
+            hitSlop={6}
+            onPress={() => { haptics.success(); void approve(it.practiceId, it.clientId); }}
+            style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 11, backgroundColor: c.accent }}
+          >
+            <Txt w="b" size={13} color={c.white}>Approve</Txt>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Decline ${it.clientName || 'client'}`}
+            hitSlop={6}
+            onPress={() => { haptics.tap(); void decline(it.practiceId, it.clientId); }}
+            style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 11, backgroundColor: c.card, borderWidth: 1, borderColor: c.border }}
+          >
+            <Txt w="b" size={13} color={c.textSecondary}>Decline</Txt>
+          </Pressable>
+        </Row>
+      ))}
+    </View>
+    </Reveal>
   );
 }
 

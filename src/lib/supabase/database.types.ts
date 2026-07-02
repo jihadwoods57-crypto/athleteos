@@ -6,7 +6,7 @@
 export type UserRole = 'athlete' | 'parent' | 'coach' | 'trainer';
 export type OrgType = 'school' | 'club' | 'independent';
 export type CompMode = 'position' | 'team' | 'off';
-export type LinkStatus = 'active' | 'invited' | 'removed';
+export type LinkStatus = 'active' | 'invited' | 'removed' | 'pending';
 export type StaffRole = 'head_coach' | 'assistant';
 
 // A meal row mirrors src/core meal macros; `meals` jsonb on `days` is the
@@ -127,6 +127,43 @@ export type AthleteProfileRow = {
   updated_at: string;
 }
 
+// School / club / gym directory entity. `city`/`state` (added in 0022) disambiguate
+// same-named schools in the picker and are null for location-less clubs/gyms.
+export type OrgRow = {
+  id: string;
+  name: string;
+  type: OrgType;
+  city: string | null;
+  state: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export type TeamRow = {
+  id: string;
+  org_id: string | null;
+  name: string;
+  sport: string | null;
+  join_code: string;
+  /** Opt-in athlete discovery at the team's school (added in 0022). Default false. */
+  discoverable: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PracticeRow = {
+  id: string;
+  owner_id: string;
+  name: string;
+  join_code: string;
+  plan: string | null;
+  /** Trainer's unique @handle (client-first discovery key) + opt-in discovery (0025). */
+  handle: string | null;
+  discoverable: boolean;
+  created_at: string;
+}
+
 export type TeamMemberRow = {
   team_id: string;
   athlete_id: string;
@@ -174,6 +211,9 @@ export interface Database {
     Tables: {
       profiles: Table<ProfileRow>;
       athlete_profiles: Table<AthleteProfileRow>;
+      orgs: Table<OrgRow>;
+      teams: Table<TeamRow>;
+      practices: Table<PracticeRow>;
       days: Table<DayRow>;
       meals: Table<MealRow>;
       checkins: Table<CheckinRow>;
@@ -186,7 +226,12 @@ export interface Database {
     Views: { [_ in never]: never };
     Functions: {
       create_team: {
-        Args: { team_name: string; team_sport?: string | null };
+        Args: {
+          team_name: string;
+          team_sport?: string | null;
+          team_org?: string | null;
+          team_discoverable?: boolean | null;
+        };
         Returns: string;
       };
       delete_account: {
@@ -208,9 +253,45 @@ export interface Database {
         Args: { code: string; athlete_position?: string | null };
         Returns: string;
       };
+      discover_teams: {
+        Args: { org: string };
+        Returns: { id: string; name: string; sport: string | null; coach_name: string | null }[];
+      };
+      resolve_team_code: {
+        Args: { code: string };
+        Returns: { id: string; name: string; sport: string | null; coach_name: string | null; school: string | null }[];
+      };
+      request_join_team: {
+        Args: { team: string; athlete_position?: string | null };
+        Returns: string;
+      };
+      pending_team_requests: {
+        Args: { team: string };
+        Returns: { athlete_id: string; athlete_name: string | null; position: string | null; requested_at: string }[];
+      };
       join_practice: {
         Args: { code: string };
         Returns: string;
+      };
+      create_practice: {
+        Args: { practice_name: string; practice_handle?: string | null; is_discoverable?: boolean | null };
+        Returns: string;
+      };
+      find_practice_by_handle: {
+        Args: { h: string };
+        Returns: { id: string; name: string; trainer_name: string | null }[];
+      };
+      resolve_practice_code: {
+        Args: { code: string };
+        Returns: { id: string; name: string; trainer_name: string | null }[];
+      };
+      request_join_practice: {
+        Args: { practice: string };
+        Returns: string;
+      };
+      pending_practice_requests: {
+        Args: { practice: string };
+        Returns: { client_id: string; client_name: string | null; requested_at: string | null }[];
       };
       coach_set_goals: {
         Args: {

@@ -18,6 +18,7 @@ import { Profile } from './Profile';
 import { Performance } from './Performance';
 import { Reminders } from './Reminders';
 import { MealCapture } from '@/screens/overlays/MealCapture';
+import { Connect } from '@/screens/overlays/Connect';
 import { MealDetail } from '@/screens/overlays/MealDetail';
 import { MealHistory } from '@/screens/overlays/MealHistory';
 import { NutritionMemory } from '@/screens/overlays/NutritionMemory';
@@ -50,6 +51,7 @@ export function AthleteApp() {
   const planEditorOpen = useStore((s) => s.planEditorOpen);
   const mealHistoryOpen = useStore((s) => s.mealHistoryOpen);
   const nutritionMemoryOpen = useStore((s) => s.nutritionMemoryOpen);
+  const connectOpen = useStore((s) => s.connectOpen);
   const c = useColors();
 
   return (
@@ -73,6 +75,7 @@ export function AthleteApp() {
       {mealHistoryOpen && <MealHistory />}
       {nutritionMemoryOpen && <NutritionMemory />}
       {accountOpen && <Account />}
+      {connectOpen && <Connect />}
       {plansOpen && <Plans />}
       {msgOpen && <Messages />}
       {notifOpen && <Notifications />}

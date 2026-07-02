@@ -8,6 +8,7 @@ import {
   formatHeight,
   flowForRole,
   consentSummary,
+  firstName,
   guardianConsentCopy,
   GOAL_GROUPS,
   isMinor,
@@ -22,13 +23,15 @@ import {
   credentialsOk,
 } from '@/core';
 import type { Role } from '@/core';
-import { isBackendLive } from '@/lib/supabase';
+import { isBackendLive, db } from '@/lib/supabase';
+import type { OrgRow } from '@/lib/supabase';
 import { isAppleAuthAvailable, requestAppleIdentityToken } from '@/lib/auth/apple';
+import { openPrivacyPolicy, openTerms } from '@/lib/legal';
 import { aiPrefix, isAiConfigured } from '@/lib/ai';
 import { useStore } from '@/store';
 import type { Store } from '@/store';
 import { useColors, useTheme } from '@/ui/theme';
-import { Btn, Card, Input, ProgressBar, Row, Stepper, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Input, ProgressBar, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
 import { useReduceMotion } from '@/ui/useReduceMotion';
@@ -153,7 +156,18 @@ function Welcome() {
   const c = useColors();
   const { scheme } = useTheme();
   const { athleteName, setName, obNext, startSignin } = useStore();
-  const ready = athleteName.trim().length > 1;
+  // First + last are both required. We keep the store's single `athleteName` as the
+  // source of truth (it holds the full "First Last" and every downstream helper —
+  // firstName()/initials() — already parses it), and split it back into two local
+  // fields so returning to this step repopulates both inputs. First token is the
+  // first name; the remainder is the last name.
+  const seed = React.useMemo(() => athleteName.trim().split(/\s+/).filter(Boolean), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [first, setFirst] = React.useState(seed[0] ?? '');
+  const [last, setLast] = React.useState(seed.slice(1).join(' '));
+  const commit = (f: string, l: string) => setName(`${f.trim()} ${l.trim()}`.trim());
+  const onFirst = (v: string) => { setFirst(v); commit(v, last); };
+  const onLast = (v: string) => { setLast(v); commit(first, v); };
+  const ready = first.trim().length > 0 && last.trim().length > 0;
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingTop: 76, paddingHorizontal: 26, paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
@@ -173,7 +187,10 @@ function Welcome() {
           <Txt w="eb" size={12} color={c.textTertiary} ls={0.8} upper style={{ marginTop: 32, marginBottom: 9 }}>
             First, what should we call you?
           </Txt>
-          <Input value={athleteName} onChangeText={setName} placeholder="First name" autoCapitalize="words" returnKeyType="done" />
+          <View style={{ gap: 12 }}>
+            <Input value={first} onChangeText={onFirst} placeholder="First name" autoCapitalize="words" returnKeyType="next" />
+            <Input value={last} onChangeText={onLast} placeholder="Last name" autoCapitalize="words" returnKeyType="done" />
+          </View>
         </View>
       </ScrollView>
       <View style={{ paddingHorizontal: 26, paddingBottom: 34, gap: 14 }}>
@@ -365,7 +382,7 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
       eyebrow="Create your account"
       title={title}
       sub={sub}
-      footer={<Btn label={busy ? 'Creating...' : 'Create account'} disabled={busy || !ready} onPress={onCreate} />}
+      footer={<Btn label={busy ? 'Creating...' : 'Create account'} disabled={busy || !ready || !s.termsAcceptedAt} onPress={onCreate} />}
     >
       <View style={{ gap: 12 }}>
         <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
@@ -376,6 +393,7 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
         {confirm.length > 0 && errors.confirm ? <FieldError text={errors.confirm} /> : null}
         {authError ? <Txt w="sb" size={13} color={c.alert} style={{ marginTop: 2 }}>{authError}</Txt> : null}
         <AppleButton busy={busy} onPress={onApple} />
+        <TermsAgreement accepted={!!s.termsAcceptedAt} onToggle={() => s.acceptTerms(s.termsAcceptedAt ? null : new Date().toISOString())} />
       </View>
     </StepShell>
   );
@@ -384,6 +402,30 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
 function FieldError({ text }: { text: string }) {
   const c = useColors();
   return <Txt w="m" size={12} color={c.alert} style={{ marginTop: -4, marginLeft: 2, lineHeight: 16 }}>{text}</Txt>;
+}
+
+/** Required Terms + Privacy agreement on the account-creation screen: an explicit
+ *  checkbox (gates the Create-account button) plus a line with tappable links to the
+ *  hosted documents. Reuses OptionRow for the checkbox affordance and the safe
+ *  Linking helpers in lib/legal.ts. */
+function TermsAgreement({ accepted, onToggle }: { accepted: boolean; onToggle: () => void }) {
+  const c = useColors();
+  return (
+    <View style={{ gap: 8, marginTop: 2 }}>
+      <OptionRow label="I agree to the Terms of Service and Privacy Policy" selected={accepted} onPress={onToggle} />
+      <Row style={{ gap: 4, flexWrap: 'wrap', alignItems: 'center', paddingHorizontal: 2 }}>
+        <Txt w="m" size={12} color={c.textTertiary}>Read the</Txt>
+        <Pressable accessibilityRole="link" accessibilityLabel="Terms of Service" hitSlop={6} onPress={openTerms}>
+          <Txt w="b" size={12} color={c.accent}>Terms of Service</Txt>
+        </Pressable>
+        <Txt w="m" size={12} color={c.textTertiary}>and</Txt>
+        <Pressable accessibilityRole="link" accessibilityLabel="Privacy Policy" hitSlop={6} onPress={openPrivacyPolicy}>
+          <Txt w="b" size={12} color={c.accent}>Privacy Policy</Txt>
+        </Pressable>
+        <Txt w="m" size={12} color={c.textTertiary}>.</Txt>
+      </Row>
+    </View>
+  );
 }
 
 /* ------------------------------------------------------------------ role picker */
@@ -636,7 +678,7 @@ function AthleteFlow() {
 
     case 'score': {
       const score = s.startScore ?? 0;
-      const name = s.athleteName.trim();
+      const name = firstName(s.athleteName, '');
       return (
         <StepShell
           progress={progress}
@@ -659,7 +701,7 @@ function AthleteFlow() {
       return (
         <CreateAccountForm
           progress={progress}
-          title={s.athleteName.trim() ? `Save your progress, ${s.athleteName.trim()}.` : 'Save your progress.'}
+          title={firstName(s.athleteName, '') ? `Save your progress, ${firstName(s.athleteName, '')}.` : 'Save your progress.'}
           sub="Create an account so your score and meals sync across devices."
           onDone={s.obNext}
         />
@@ -847,14 +889,22 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
   // On the invite step, when the backend is live, mint the overseer's real team
   // via the create_team RPC so the shared code is the genuine server-generated one.
   // Inert when the flag is off (createTeamLive no-ops) — the demo keeps EAGLES24.
-  const { teamCode, obMeta, createTeamLive } = s;
+  const { teamCode, obMeta, createTeamLive, createPracticeLive, teamDiscoverable, role } = s;
   useEffect(() => {
     if (step.kind !== 'invite' || !isBackendLive || teamCode) return;
+    // Trainers/nutritionists get a PRACTICE (handle-discoverable); everyone else a TEAM.
+    if (role === 'personal_trainer' || role === 'nutritionist') {
+      const handle = typeof obMeta.handle === 'string' ? obMeta.handle.trim() : '';
+      const practiceName = typeof obMeta.school === 'string' && obMeta.school.trim() ? obMeta.school.trim() : 'My Practice';
+      void createPracticeLive(practiceName, handle || null, !!handle);
+      return;
+    }
     const sport = typeof obMeta.sport === 'string' ? obMeta.sport : undefined;
     const school = typeof obMeta.school === 'string' ? obMeta.school.trim() : '';
+    const orgId = typeof obMeta.orgId === 'string' && obMeta.orgId ? obMeta.orgId : null;
     const name = school || (sport ? `${sport} team` : 'My Team');
-    void createTeamLive(name, sport);
-  }, [step.kind, teamCode, obMeta, createTeamLive]);
+    void createTeamLive(name, sport, orgId, teamDiscoverable);
+  }, [step.kind, teamCode, obMeta, createTeamLive, createPracticeLive, teamDiscoverable, role]);
 
   if (step.kind === 'invite') {
     return (
@@ -892,6 +942,10 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
     return <CreateAccountForm progress={progress} title={step.title} sub={step.sub} onDone={s.obNext} />;
   }
 
+  if (step.kind === 'orgpicker') {
+    return <OrgPicker step={step} progress={progress} />;
+  }
+
   if (step.kind === 'text') {
     const cur = typeof val === 'string' ? val : '';
     return (
@@ -918,6 +972,101 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
       {step.options.map((o) => (
         <OptionRow key={o.key} label={o.label} selected={val === o.key} onPress={() => s.setObMeta(step.field, o.key)} />
       ))}
+    </StepShell>
+  );
+}
+
+/** School/club directory picker (orgpicker step). Backend-live: type-ahead over the
+ *  seeded `orgs` directory + "add your school/club", writing the org's display name to
+ *  obMeta[field] and its id to obMeta.orgId (so an athlete and this coach land on the
+ *  same school), plus the discoverable toggle. Offline/demo: degrades to the prior
+ *  freetext behavior (name only, no org id) so the coach flow works without a backend. */
+function OrgPicker({ step, progress }: { step: Extract<GenStep, { kind: 'orgpicker' }>; progress: number }) {
+  const c = useColors();
+  const s = useStore();
+  const selectedName = typeof s.obMeta[step.field] === 'string' ? (s.obMeta[step.field] as string) : '';
+  const selectedOrgId = typeof s.obMeta.orgId === 'string' ? (s.obMeta.orgId as string) : '';
+  const [query, setQuery] = React.useState(selectedName);
+  const [results, setResults] = React.useState<OrgRow[]>([]);
+  const [busy, setBusy] = React.useState(false);
+  const ready = selectedName.trim().length > 0;
+
+  // Live directory search (inert offline: db.searchOrgs returns []). Re-runs as the
+  // query changes; skips when the query already equals the current selection.
+  React.useEffect(() => {
+    if (!isBackendLive) return;
+    let cancelled = false;
+    const term = query.trim();
+    if (term.length < 2 || term === selectedName) { setResults([]); return; }
+    void db.searchOrgs(term).then((rows) => { if (!cancelled) setResults(rows); }).catch(() => { if (!cancelled) setResults([]); });
+    return () => { cancelled = true; };
+  }, [query, selectedName]);
+
+  const onChange = (v: string) => {
+    setQuery(v);
+    // Offline/demo has no directory, so the typed text IS the selection (mirrors the
+    // prior freetext step). Live: typing only drives search until an org is picked.
+    if (!isBackendLive) { s.setObMeta(step.field, v); s.setObMeta('orgId', ''); }
+  };
+
+  const pick = (name: string, orgId: string) => {
+    haptics.select();
+    s.setObMeta(step.field, name);
+    s.setObMeta('orgId', orgId);
+    setQuery(name);
+    setResults([]);
+  };
+
+  const addNew = async () => {
+    const name = query.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    const org = await db.createOrg(name, null, null, 'school', s.userId ?? undefined).catch(() => null);
+    setBusy(false);
+    pick(org?.name ?? name, org?.id ?? '');
+  };
+
+  const term = query.trim();
+  const showAdd = isBackendLive && term.length >= 2 && term !== selectedName
+    && !results.some((o) => o.name.toLowerCase() === term.toLowerCase());
+
+  return (
+    <StepShell
+      progress={progress}
+      onBack={s.obBack}
+      title={step.title}
+      sub={step.sub}
+      footer={<Btn label="Continue" disabled={!ready} onPress={s.obNext} />}
+    >
+      <Input value={query} onChangeText={onChange} placeholder="Search your school or club" autoCapitalize="words" />
+      {isBackendLive ? (
+        <View style={{ marginTop: 10 }}>
+          {results.map((o) => (
+            <OptionRow
+              key={o.id}
+              label={o.name}
+              sub={[o.city, o.state].filter(Boolean).join(', ') || undefined}
+              selected={selectedName === o.name && selectedOrgId === o.id}
+              onPress={() => pick(o.name, o.id)}
+            />
+          ))}
+          {showAdd ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${term}`}
+              onPress={addNew}
+              style={({ pressed }) => ({ borderWidth: 1.5, borderColor: c.border, borderStyle: 'dashed', borderRadius: 16, paddingVertical: 15, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
+            >
+              <Txt w="b" size={15} color={c.accent}>{busy ? 'Adding…' : `+ Add “${term}”`}</Txt>
+              <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 2 }}>Not in the list? Add your school or club.</Txt>
+            </Pressable>
+          ) : null}
+          <Row style={{ justifyContent: 'space-between', alignItems: 'center', gap: 14, marginTop: 20 }}>
+            <Txt w="m" size={14} color={c.text} style={{ flex: 1, lineHeight: 20 }}>{step.toggleLabel}</Txt>
+            <Toggle on={s.teamDiscoverable} onPress={() => s.setTeamDiscoverable(!s.teamDiscoverable)} label={step.toggleLabel} />
+          </Row>
+        </View>
+      ) : null}
     </StepShell>
   );
 }

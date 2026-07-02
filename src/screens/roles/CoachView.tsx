@@ -10,7 +10,7 @@ import {
   CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, coachTeamTitle, filterRoster, gradeFor, needsAttention,
   notLoggedCount, rankByRisk, rosterGroups, rosterGroupStats, teamWeeklyReport, teamWeeklyReportText, trendInfo,
 } from '@/core';
-import type { RosterRow, RosterGroupStat } from '@/core';
+import type { RosterRow, RosterGroupStat, AtRiskInput } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiTeamSummaryTag } from '@/lib/ai';
 import { shadow, MAX_FONT_SCALE } from '@/ui/tokens';
@@ -25,6 +25,8 @@ import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
 import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
 import { useLiveRoster } from './useLiveRoster';
+import { usePendingRequests } from './usePendingRequests';
+import { CoachCopilot } from './CoachCopilot';
 
 const COACH_TABS: { tab: 'dashboard' | 'roster' | 'attention' | 'reports' | 'profile'; label: string; icon: IconName }[] = [
   { tab: 'dashboard', label: 'Dashboard', icon: 'home' },
@@ -70,7 +72,7 @@ export function CoachView() {
         )}
         {tab === 'roster' && <CoachRoster roster={roster} groups={groups} notLogged={notLogged} />}
         {tab === 'attention' && <CoachAttention attention={attention} rosterMeta={rosterMeta} />}
-        {tab === 'reports' && <CoachReports teamTitle={teamTitle} teamReport={teamReport} groupStats={groupStats} compliance={kpis.compliance} onShare={shareTeamReport} />}
+        {tab === 'reports' && <CoachReports teamTitle={teamTitle} teamReport={teamReport} groupStats={groupStats} compliance={kpis.compliance} onShare={shareTeamReport} roster={roster} />}
         {tab === 'profile' && <CoachProfile teamTitle={teamTitle} />}
       </View>
 
@@ -111,6 +113,51 @@ function SectionTitle({ eyebrow, title, right }: { eyebrow?: string; title: stri
 }
 
 /* ---------------------------------------------------------------- Dashboard (briefing) */
+/** Athlete-initiated join requests waiting on the coach (athlete-first "find my coach").
+ *  Renders nothing when the inbox is empty (incl. the whole demo build, where the hook
+ *  returns []). Approve flips the request to active; the athlete then joins the roster. */
+function PendingRequestsCard() {
+  const c = useColors();
+  const { items, approve, decline } = usePendingRequests();
+  if (items.length === 0) return null;
+  return (
+    <Reveal index={0}>
+    <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.border }}>
+      <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+        <Txt w="eb" size={11} color={c.accent} ls={0.7}>JOIN REQUESTS</Txt>
+        <Txt w="sb" size={12} color={c.textTertiary}>{items.length} waiting</Txt>
+      </Row>
+      {items.map((it) => (
+        <Row key={`${it.teamId}:${it.athleteId}`} style={{ alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Txt w="b" size={15}>{it.athleteName || 'New athlete'}</Txt>
+            <Txt w="m" size={12} color={c.textSecondary}>{[it.position, `wants to join ${it.teamName}`].filter(Boolean).join(' · ')}</Txt>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Approve ${it.athleteName || 'athlete'}`}
+            hitSlop={6}
+            onPress={() => { haptics.success(); void approve(it.teamId, it.athleteId); }}
+            style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 11, backgroundColor: c.accent }}
+          >
+            <Txt w="b" size={13} color={c.white}>Approve</Txt>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Decline ${it.athleteName || 'athlete'}`}
+            hitSlop={6}
+            onPress={() => { haptics.tap(); void decline(it.teamId, it.athleteId); }}
+            style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 11, backgroundColor: c.card, borderWidth: 1, borderColor: c.border }}
+          >
+            <Txt w="b" size={13} color={c.textSecondary}>Decline</Txt>
+          </Pressable>
+        </Row>
+      ))}
+    </View>
+    </Reveal>
+  );
+}
+
 function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, rosterMeta, onTrack, rosterCount }: {
   teamTitle: string; rosterLive: boolean; kpis: { avgScore: number; compliance: number; alerts: number };
   teamReport: ReturnType<typeof teamWeeklyReport>; attention: ReturnType<typeof needsAttention>;
@@ -145,6 +192,8 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
         <Kpi value={`${kpis.alerts}`} label="ALERTS" color={c.alert} />
       </Row>
       </Reveal>
+
+      <PendingRequestsCard />
 
       <Reveal index={1}>
       <PressScale accessibilityLabel="Open the full weekly report" haptic="none" onPress={() => { haptics.tap(); s.setCoachTab('reports'); }} style={{ marginTop: 14 }}>
@@ -350,8 +399,8 @@ function CoachAttention({ attention, rosterMeta }: { attention: ReturnType<typeo
 }
 
 /* ---------------------------------------------------------------- Reports */
-function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare }: {
-  teamTitle: string; teamReport: ReturnType<typeof teamWeeklyReport>; groupStats: RosterGroupStat[]; compliance: number; onShare: () => void;
+function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, roster }: {
+  teamTitle: string; teamReport: ReturnType<typeof teamWeeklyReport>; groupStats: RosterGroupStat[]; compliance: number; onShare: () => void; roster: AtRiskInput[];
 }) {
   const c = useColors();
   return (
@@ -402,6 +451,12 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare }
         </Row>
         <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>{teamReport.movedLine}</Txt>
       </Card>
+      </Reveal>
+
+      <Reveal index={3}>
+      <View style={{ marginTop: 14 }}>
+        <CoachCopilot roster={roster} />
+      </View>
       </Reveal>
     </Section>
   );

@@ -15,6 +15,9 @@ export type GenStep =
   | { kind: 'select'; field: string; title: string; sub?: string; options: Opt[]; columns?: number }
   | { kind: 'multiselect'; field: string; title: string; sub?: string; options: Opt[] }
   | { kind: 'text'; field: string; title: string; sub?: string; placeholder: string }
+  // School/club directory picker: writes the org display name to obMeta[field] and the
+  // org id to obMeta.orgId, plus a discoverable toggle bound to the store's teamDiscoverable.
+  | { kind: 'orgpicker'; field: string; title: string; sub?: string; toggleLabel: string }
   | { kind: 'account'; title: string; sub: string }
   | { kind: 'invite'; title: string; sub: string; cta: string; codeLabel: string };
 
@@ -113,6 +116,7 @@ export const ROLE_FLOWS: Partial<Record<Role, GenStep[]>> = {
         { key: 'scaling', label: 'Scaling coaching' },
       ],
     },
+    { kind: 'text', field: 'handle', title: 'Pick your @handle', sub: 'Clients can find you by this handle and request to join — or you can just share your code.', placeholder: 'e.g. coachmaya' },
     { kind: 'invite', title: 'Invite your first client', sub: 'Activation starts the moment they join. Share your code or send an invite.', cta: 'Send invite', codeLabel: 'YOUR INVITE CODE' },
   ],
   sports_perf_coach: [
@@ -180,10 +184,11 @@ export const ROLE_FLOWS: Partial<Record<Role, GenStep[]>> = {
         { key: 'accountability', label: 'Client accountability' },
       ],
     },
+    { kind: 'text', field: 'handle', title: 'Pick your @handle', sub: 'Clients can find you by this handle and request to join — or you can just share your code.', placeholder: 'e.g. coachmaya' },
     { kind: 'invite', title: 'Invite your first client', sub: 'Their first logged meal is where your coaching begins.', cta: 'Send invite', codeLabel: 'YOUR INVITE CODE' },
   ],
   hs_coach: [
-    { kind: 'text', field: 'school', title: "What's your school?", placeholder: 'e.g. Eastside High School' },
+    { kind: 'orgpicker', field: 'school', title: "What's your school?", sub: 'Pick it from the list so your athletes land on the same one — or add it if it’s not there.', toggleLabel: 'Let athletes at your school find and request to join' },
     { kind: 'select', field: 'sport', title: 'Which sport?', options: sportOpts, columns: 2 },
     { kind: 'select', field: 'athleteCount', title: 'How many athletes?', options: COUNT_BANDS },
     {
@@ -200,7 +205,7 @@ export const ROLE_FLOWS: Partial<Record<Role, GenStep[]>> = {
     { kind: 'invite', title: 'Invite your roster', sub: 'Drop your team code in the group chat and they join in seconds.', cta: 'Share team code', codeLabel: 'YOUR TEAM CODE' },
   ],
   college_coach: [
-    { kind: 'text', field: 'school', title: "What's your program?", placeholder: 'e.g. State University' },
+    { kind: 'orgpicker', field: 'school', title: "What's your program?", sub: 'Pick your school so your athletes land on the same one — or add it if it’s not there.', toggleLabel: 'Let athletes in your program find and request to join' },
     { kind: 'select', field: 'sport', title: 'Which sport?', options: sportOpts, columns: 2 },
     {
       kind: 'multiselect',

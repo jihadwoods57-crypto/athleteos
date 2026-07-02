@@ -43,6 +43,8 @@ import {
   labelToFood,
   mealResultToFood,
   usualToResult,
+  snackToFood,
+  appendSnack,
   baseGoalForPrimary,
   goalConfig,
   realDataConsent,
@@ -65,6 +67,7 @@ import type {
   MealCaptureMode,
   MealLabel,
   UsualMeal,
+  SnackPreset,
   PersonDetail,
   Role,
   RosterRow,
@@ -138,6 +141,18 @@ export interface Actions {
    *  local model (so coach guidance + visibility activate), and when the backend is live actually
    *  joins their roster via the join_team RPC. Inert/best-effort when off. */
   connectCoach: (code: string) => void;
+  /** Client joins a trainer's practice by code (mirror of connectCoach): marks the
+   *  trainer in the local support network and joins via join_practice when live. */
+  connectTrainer: (code: string) => void;
+  /** Open/close the athlete "Connect your coach" overlay; openConnect may carry an
+   *  invite-link code to prefill the code door. */
+  openConnect: (prefillCode?: string | null) => void;
+  closeConnect: () => void;
+  /** Athlete dismissed the first-run Home connect card ("not now"). */
+  dismissConnectCard: () => void;
+  /** Athlete-first request to join a discoverable team → a pending row the coach
+   *  approves. Returns true on success; inert (false) when the backend is off. */
+  requestJoinTeamLive: (teamId: string, position?: string) => Promise<boolean>;
   setInviteCode: (v: string) => void;
   setBaseAnswer: (key: BaselineKey, value: number) => void;
   setObMeta: (key: string, value: string | string[] | number) => void;
@@ -169,6 +184,8 @@ export interface Actions {
   deletePr: (id: string) => void;
   setSquadMode: (m: SquadMode) => void;
   toggleNotif: () => void;
+  /** Request notification permission + schedule today's reminders. Call once on app launch. */
+  initReminders: () => void;
   /** Toggle a single reminder on/off (P3). */
   toggleReminder: (kind: ReminderKind) => void;
   /** Set a reminder's local fire hour (0-23, clamped) (P3). */
@@ -206,6 +223,8 @@ export interface Actions {
   addScannedLabel: () => void;
   addMeal: () => void;
   addWater: () => void;
+  /** Log a snack/shake preset into the day's snack slot (persists + scores, like a meal). */
+  addSnack: (preset: SnackPreset) => void;
   openMealDetail: (meal: string) => void;
   closeMealDetail: () => void;
   openMealHistory: () => void;
@@ -281,6 +300,8 @@ export interface Actions {
   setCi: (key: CiSliderKey, value: number) => void;
   toggleCiQ: (k: keyof CiConfig) => void;
   submitCi: () => void;
+  /** Log today's body weight (quick weigh-in). Clears the weigh-in nudge; feeds the goal read. */
+  logWeight: (lb: number) => void;
 
   // backend auth (go-live, gated behind isBackendLive; no-ops when off so the
   // mock onboarding flow is untouched)
@@ -296,12 +317,18 @@ export interface Actions {
   /** Coach/overseer creates a real team via the create_team RPC and stores the
    *  server-generated join code in teamCode. Inert (returns null) when the flag
    *  is off, so the onboarding invite step keeps its EAGLES24 showcase code. */
-  createTeamLive: (name: string, sport?: string) => Promise<string | null>;
+  createTeamLive: (name: string, sport?: string, orgId?: string | null, discoverable?: boolean) => Promise<string | null>;
+  /** Trainer/overseer creates a real practice via the create_practice RPC (mirror of
+   *  createTeamLive) with an optional @handle; stores the join code in teamCode. */
+  createPracticeLive: (name: string, handle?: string | null, discoverable?: boolean) => Promise<string | null>;
+  setTeamDiscoverable: (v: boolean) => void;
   setGuardianEmail: (v: string) => void;
   /** Minor guardian consent: email a minor's guardian an approval request. Gated, sends only
    *  when the backend is live; marks status 'pending' on a valid email. Returns success. */
   requestGuardianConsent: () => Promise<boolean>;
   recordConsent: (given: boolean) => void;
+  /** Record Terms + Privacy acceptance. Pass an ISO timestamp to accept, or null to clear. */
+  acceptTerms: (at: string | null) => void;
   setAuthError: (msg: string | null) => void;
   /** Athlete data-sharing controls (Profile). Pause stops every push immediately;
    *  removeViewer revokes a linked role from the accountability circle. */
@@ -393,6 +420,7 @@ const syncReminders = (s: AppState): void => {
     hydrationL: s.hydrationL,
     meals: s.meals,
     ciSubmitted: s.ciSubmitted,
+    weighedToday: s.weighInStamp === todayStamp(),
   });
   void refreshReminderSchedule(reminderNotifySpecs(s.reminderSettings, snapshot), s.notif);
 };
@@ -470,6 +498,35 @@ export const useStore = create<Store>()(
         set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('coach') ? s.supportTeam : [...s.supportTeam, 'coach'] }));
         // When live + signed in, join the coach's roster by code; inert + best-effort when off.
         if (isBackendLive) void db.joinTeam(c).catch(() => undefined);
+      },
+      connectTrainer: (code) => {
+        const c = code.trim().toUpperCase();
+        if (!c) return;
+        set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('trainer') ? s.supportTeam : [...s.supportTeam, 'trainer'] }));
+        if (isBackendLive) void db.joinPractice(c).catch(() => undefined);
+      },
+      createPracticeLive: async (name, handle, discoverable) => {
+        if (!isBackendLive) return null;
+        try {
+          const code = await db.createPractice(name.trim() || 'My Practice', handle?.trim() || null, discoverable ?? false);
+          if (code) set({ teamCode: code, authError: null });
+          return code;
+        } catch (e) {
+          set({ authError: e instanceof Error ? e.message : 'Could not create practice' });
+          return null;
+        }
+      },
+      openConnect: (prefillCode) => set({ connectOpen: true, connectPrefillCode: prefillCode ?? null }),
+      closeConnect: () => set({ connectOpen: false, connectPrefillCode: null }),
+      dismissConnectCard: () => set({ connectCardDismissed: true }),
+      requestJoinTeamLive: async (teamId, position) => {
+        if (!isBackendLive) return false;
+        try {
+          await db.requestJoinTeam(teamId, position);
+          return true;
+        } catch {
+          return false;
+        }
       },
       setBaseAnswer: (key, value) => set({ [key]: value } as Partial<AppState>),
       setObMeta: (key, value) => set((s) => ({ obMeta: { ...s.obMeta, [key]: value } })),
@@ -573,6 +630,9 @@ export const useStore = create<Store>()(
 
       setSquadMode: (m) => set({ squadMode: m }),
       toggleNotif: () => { set((s) => ({ notif: !s.notif })); syncReminders(get()); },
+      // On launch, (re)schedule today's reminders — this also triggers the one-time permission
+      // request inside refreshReminderSchedule. No-op on web / when the master flag is off.
+      initReminders: () => { syncReminders(get()); },
       toggleReminder: (kind) => {
         set((s) => ({
           reminderSettings: {
@@ -789,6 +849,13 @@ export const useStore = create<Store>()(
         });
         scheduleDaySync(get);
       },
+      addSnack: (preset) => {
+        // Log the snack/shake as a real EditableFood in the day's snack slot (append, don't
+        // replace), so it persists to the meals table, scores, and counts toward the coach's
+        // logging-completeness read — unlike the ephemeral quick-add toggles.
+        const s = get();
+        s.saveMeal('snack', appendSnack(s.mealFoods.snack, snackToFood(preset)));
+      },
       openMealDetail: (meal) => set({ mealDetailOpen: true, selectedMeal: meal }),
       closeMealDetail: () => set({ mealDetailOpen: false }),
       openMealHistory: () => {
@@ -991,7 +1058,14 @@ export const useStore = create<Store>()(
       setCi: (key, value) => set({ [key]: value } as Partial<AppState>),
       toggleCiQ: (k) => set((s) => ({ ciConfig: { ...s.ciConfig, [k]: !s.ciConfig[k] } })),
       submitCi: () => {
-        set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight }));
+        set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight, weighInStamp: todayStamp() }));
+        syncReminders(get());
+        scheduleDaySync(get);
+      },
+      logWeight: (lb) => {
+        const w = Math.max(60, Math.min(500, Math.round(lb)));
+        set({ currentWeight: w, ciWeight: w, weighInStamp: todayStamp() });
+        syncReminders(get()); // clears the weigh-in nudge once logged
         scheduleDaySync(get);
       },
 
@@ -1079,10 +1153,10 @@ export const useStore = create<Store>()(
         // user's roster (cross-user paint guard, cache do-NOT list).
         set({ userId: null, realDataConsent: false, authError: null, entitlement: entitlementFromRow(null), cachedRoster: null, cachedRosterUserId: null });
       },
-      createTeamLive: async (name, sport) => {
+      createTeamLive: async (name, sport, orgId, discoverable) => {
         if (!isBackendLive) return null;
         try {
-          const code = await db.createTeam(name.trim() || 'My Team', sport?.trim() || undefined);
+          const code = await db.createTeam(name.trim() || 'My Team', sport?.trim() || undefined, orgId ?? null, discoverable ?? false);
           if (code) set({ teamCode: code, authError: null });
           return code;
         } catch (e) {
@@ -1090,6 +1164,7 @@ export const useStore = create<Store>()(
           return null;
         }
       },
+      setTeamDiscoverable: (v) => set({ teamDiscoverable: v }),
       setGuardianEmail: (v) => set({ guardianEmail: v }),
       requestGuardianConsent: async () => {
         const email = get().guardianEmail.trim();
@@ -1111,6 +1186,7 @@ export const useStore = create<Store>()(
         return true;
       },
       recordConsent: (given) => set({ realDataConsent: given }),
+      acceptTerms: (at) => set({ termsAcceptedAt: at }),
       setAuthError: (msg) => set({ authError: msg }),
       togglePauseSharing: () => {
         // Flipping OFF pause resumes syncing, so push the current day right away
@@ -1169,6 +1245,8 @@ export const useStore = create<Store>()(
         supportTeam: s.supportTeam,
         inviteCode: s.inviteCode,
         teamCode: s.teamCode,
+        teamDiscoverable: s.teamDiscoverable,
+        connectCardDismissed: s.connectCardDismissed,
         guardianEmail: s.guardianEmail,
         guardianStatus: s.guardianStatus,
         baseNutritionConfidence: s.baseNutritionConfidence,
@@ -1183,6 +1261,7 @@ export const useStore = create<Store>()(
         // ephemeral and deliberately NOT persisted.
         userId: s.userId,
         realDataConsent: s.realDataConsent,
+        termsAcceptedAt: s.termsAcceptedAt,
         sharingPaused: s.sharingPaused,
         entitlement: s.entitlement,
         // overseer read-cache (snappy paint); namespaced by cachedRosterUserId, purged on sign-out
@@ -1206,6 +1285,7 @@ export const useStore = create<Store>()(
         ciSubmitted: s.ciSubmitted,
         ciWeight: s.ciWeight,
         currentWeight: s.currentWeight,
+        weighInStamp: s.weighInStamp,
         startWeight: s.startWeight,
         ciEnergy: s.ciEnergy,
         ciRecovery: s.ciRecovery,

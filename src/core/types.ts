@@ -140,6 +140,10 @@ export interface AppState {
    *  createTeamLive when the backend is live; '' in demo/flag-off, where the UI
    *  falls back to the EAGLES24 showcase code). */
   teamCode: string;
+  /** Coach's opt-in: whether the team they create is discoverable by athletes at their
+   *  school (drives `teams.discoverable`). The selected school's id + name ride in
+   *  `obMeta.orgId` / `obMeta.school`. Default false (privacy-safe, code-only). */
+  teamDiscoverable: boolean;
   /** Verifiable parental consent (VPC): the guardian's email and approval status. A
    *  minor's real data stays on-device until guardianStatus is 'verified'. */
   guardianEmail: string;
@@ -166,6 +170,11 @@ export interface AppState {
    *  consent. The hard gate the live data path checks before any real pushDay
    *  (see core/consent.ts realDataConsent). Defaults false: fail-closed. */
   realDataConsent: boolean;
+  /** ISO timestamp of when the user accepted the Terms of Service + Privacy Policy at
+   *  account creation, or null if not yet accepted. A required, explicit affirmative
+   *  agreement (App Store 5.1.1 + legal cover for health data from minors). Persisted,
+   *  so the record survives across sessions. */
+  termsAcceptedAt: string | null;
   /** Last live-auth error message for the sign-in / sign-up screen to surface, or
    *  null. Ephemeral (not persisted); only ever set when isBackendLive. */
   authError: string | null;
@@ -227,6 +236,8 @@ export interface AppState {
   ciStage: CiStage;
   ciWeight: number;
   currentWeight: number;
+  /** ISO date (YYYY-MM-DD) the athlete last logged a weight, or null. Drives the weigh-in nudge. */
+  weighInStamp: string | null;
   /** The athlete's starting weight, the anchor the season-goal progress measures
    *  from. Defaults to WEIGHT_START for the seeded demo; a real athlete's is seeded
    *  from their onboarding baseWeight at activation so "gained since start" is honest. */
@@ -293,6 +304,14 @@ export interface AppState {
   personDetail: PersonDetail | null;
   accountOpen: boolean;
   msgOpen: boolean;
+  /** The athlete's "Connect your coach" overlay (two doors: code / find-my-coach). */
+  connectOpen: boolean;
+  /** A join code carried in from an invite deep link, prefilled into the Connect
+   *  overlay's code door. Null when opened normally. */
+  connectPrefillCode: string | null;
+  /** Athlete dismissed the first-run "Connect your coach" Home card ("not now"). The
+   *  card also hides automatically once they're linked (supportTeam includes 'coach'). */
+  connectCardDismissed: boolean;
 
   // ---- misc ----
   weeklyGoalLb: number;

@@ -35,6 +35,7 @@ export function createInitialState(): AppState {
     supportTeam: [],
     inviteCode: '',
     teamCode: '',
+    teamDiscoverable: false,
     guardianEmail: '',
     guardianStatus: 'none',
     baseNutritionConfidence: 6,
@@ -49,6 +50,7 @@ export function createInitialState(): AppState {
     // backend session (Phase 1 go-live, gated behind isBackendLive; inert by default)
     userId: null,
     realDataConsent: false,
+    termsAcceptedAt: null,
     authError: null,
     passwordResetSent: false,
     emailConfirmPending: false,
@@ -83,6 +85,7 @@ export function createInitialState(): AppState {
     ciStage: 'open',
     ciWeight: 178,
     currentWeight: 178,
+    weighInStamp: null,
     startWeight: WEIGHT_START,
     ciEnergy: 8,
     ciRecovery: 7,
@@ -122,6 +125,9 @@ export function createInitialState(): AppState {
     personDetail: null,
     accountOpen: false,
     msgOpen: false,
+    connectOpen: false,
+    connectPrefillCode: null,
+    connectCardDismissed: false,
 
     // misc
     weeklyGoalLb: 1.0,

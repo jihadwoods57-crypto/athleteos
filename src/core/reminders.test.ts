@@ -190,7 +190,7 @@ describe('reminderNotifySpecs', () => {
 });
 
 describe('reminderSnapshotFromState', () => {
-  const base = { proteinToday: 90, proteinTarget: 180, hydrationL: 1.5, meals: { dinner: false }, ciSubmitted: false };
+  const base = { proteinToday: 90, proteinTarget: 180, hydrationL: 1.5, meals: { dinner: false }, ciSubmitted: false, weighedToday: false };
 
   it('maps day state to a snapshot the spec builder consumes', () => {
     expect(reminderSnapshotFromState(base)).toEqual({
@@ -200,6 +200,7 @@ describe('reminderSnapshotFromState', () => {
       hydrationTargetL: HYDRATION_TARGET,
       dinnerLogged: false,
       checkinDue: true,
+      weighInDue: true,
     });
   });
 
@@ -210,7 +211,7 @@ describe('reminderSnapshotFromState', () => {
   });
 
   it('feeds straight into reminderNotifySpecs (an at-target athlete with all done -> no specs)', () => {
-    const snap = reminderSnapshotFromState({ proteinToday: 180, proteinTarget: 180, hydrationL: HYDRATION_TARGET, meals: { dinner: true }, ciSubmitted: true });
+    const snap = reminderSnapshotFromState({ proteinToday: 180, proteinTarget: 180, hydrationL: HYDRATION_TARGET, meals: { dinner: true }, ciSubmitted: true, weighedToday: true });
     expect(reminderNotifySpecs(defaultReminderSettings(), snap)).toEqual([]);
   });
 });

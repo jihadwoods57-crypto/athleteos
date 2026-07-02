@@ -31,6 +31,11 @@ export default function RootLayout() {
   const scheme: 'light' | 'dark' = themeMode === 'auto' ? (os === 'dark' ? 'dark' : 'light') : themeMode;
   const palette = scheme === 'dark' ? darkColors : lightColors;
 
+  // Schedule the athlete's local reminders + request permission once, on launch (no-op on web).
+  React.useEffect(() => {
+    useStore.getState().initReminders();
+  }, []);
+
   if (!loaded) {
     return <View style={{ flex: 1, backgroundColor: palette.bg }} />;
   }

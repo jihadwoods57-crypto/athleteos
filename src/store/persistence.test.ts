@@ -117,3 +117,18 @@ describe('serialize -> merge round-trip', () => {
     expect(merged.obStep).toBe(0);
   });
 });
+
+describe('Terms + Privacy acceptance', () => {
+  it('acceptTerms stamps, then clears, termsAcceptedAt', () => {
+    expect(useStore.getState().termsAcceptedAt).toBeNull(); // default: not yet accepted
+    const at = '2026-07-01T12:00:00.000Z';
+    useStore.getState().acceptTerms(at);
+    expect(useStore.getState().termsAcceptedAt).toBe(at);
+    useStore.getState().acceptTerms(null);
+    expect(useStore.getState().termsAcceptedAt).toBeNull();
+  });
+
+  it('persists termsAcceptedAt so the recorded agreement survives a reload', () => {
+    expect(persistedKeys().has('termsAcceptedAt')).toBe(true);
+  });
+});

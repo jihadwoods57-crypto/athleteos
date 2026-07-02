@@ -503,11 +503,15 @@ export function Home() {
 /** Shown on Home when a real athlete has no one connected yet: enter a coach/trainer team code
  *  so the accountability has someone watching. Restores the connect step the lean onboarding
  *  moved off the critical path; sits where the coach-guidance card goes once a coach exists. */
+/** First-run nudge to link a coach. Opens the two-door Connect overlay (enter a code, or
+ *  find your coach by school and request to join). Its caller already gates it to athletes
+ *  with no support connection; this also self-hides once dismissed ("Not now"). */
 function ConnectCoachCard() {
   const c = useColors();
-  const connectCoach = useStore((st) => st.connectCoach);
-  const [code, setCode] = React.useState('');
-  const ready = code.trim().length > 0;
+  const openConnect = useStore((st) => st.openConnect);
+  const dismiss = useStore((st) => st.dismissConnectCard);
+  const dismissed = useStore((st) => st.connectCardDismissed);
+  if (dismissed) return null;
   return (
     <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 20 }}>
       <Row style={{ gap: 11 }}>
@@ -517,12 +521,16 @@ function ConnectCoachCard() {
         <View style={{ flex: 1 }}>
           <Txt w="eb" size={12} color={c.accent} ls={0.4}>CONNECT YOUR COACH</Txt>
           <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 4, lineHeight: 20 }}>
-            Got a team or trainer code? Enter it so your coach can see your work and leave you a game plan.
+            Link up so your work counts and they’ve got your back. Enter their code, or find them by school.
           </Txt>
         </View>
       </Row>
-      <Input value={code} onChangeText={setCode} placeholder="Team code (e.g. EAGLES24)" autoCapitalize="characters" autoCorrect={false} style={{ marginTop: 12 }} />
-      <Btn label="Connect" disabled={!ready} onPress={() => { haptics.success(); connectCoach(code); }} style={{ marginTop: 12 }} />
+      <Row style={{ gap: 10, marginTop: 14 }}>
+        <Btn label="Connect" onPress={() => { haptics.tap(); openConnect(); }} style={{ flex: 1 }} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Not now" hitSlop={6} onPress={() => { haptics.tap(); dismiss(); }} style={{ paddingHorizontal: 16, justifyContent: 'center' }}>
+          <Txt w="b" size={14} color={c.textSecondary}>Not now</Txt>
+        </Pressable>
+      </Row>
     </Card>
   );
 }
