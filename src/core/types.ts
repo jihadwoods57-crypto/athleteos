@@ -56,6 +56,17 @@ export interface StoredMeal {
   day_date: string;
   logged_at: string;
 }
+/** One in-app notification (core-level shape; the store maps a backend NotificationRow to
+ *  this so core stays free of lib/supabase types). */
+export interface AppNotification {
+  id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+  createdAt: string;
+  readAt: string | null;
+}
+
 export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutrition' | 'performance' | 'reminders';
 /** Coach dashboard destinations (the 5-tab bar): one Home, one Work area, one Action,
  *  one Insights, one Admin. Mirrors the athlete tab model. */
@@ -317,6 +328,8 @@ export interface AppState {
   /** Athlete dismissed the first-run "Connect your coach" Home card ("not now"). The
    *  card also hides automatically once they're linked (supportTeam includes 'coach'). */
   connectCardDismissed: boolean;
+  /** The user's in-app notification feed (fetched from the backend; empty offline). */
+  notifications: AppNotification[];
 
   // ---- misc ----
   weeklyGoalLb: number;
