@@ -20,21 +20,33 @@ supabase db push        # applies 0022 → 0025 in filename order
 > the AI crew's `0018`–`0021` migrations on this branch. No duplicate numbers remain.
 
 ## 2. Seed the full school directory
-`0022` seeds a small real starter set so the picker works. For production, import the full
-list (NCES public high schools + IPEDS colleges) into `orgs (name, type, city, state)`.
-Confirm dataset licensing before bundling. Until then, "Add your school/club" covers gaps.
+`0022` seeds a small real starter set so the picker works. Licensing is **not** a blocker —
+NCES (public K-12) and IPEDS (colleges) are U.S. Dept. of Education **public-domain** data.
+To load the full national list, an importer is ready:
+```
+# download a roster CSV (NCES CCD directory or IPEDS HD), then:
+node scripts/import-schools.mjs <roster.csv> --type=school
+supabase db push        # applies the generated 0026_schools_bulk.sql
+```
+It auto-detects NCES/IPEDS columns, dedupes, and skips anything already seeded (safe to
+re-run). Until you run it, "Add your school/club" covers gaps.
 
-## 3. Turn the backend on
+## 3. Legal pages (Terms + Privacy)
+Review-ready drafts already exist: `docs/legal/TERMS-OF-SERVICE.md` and
+`docs/legal/PRIVACY-POLICY.md`. Remaining blanks are founder/counsel decisions the code
+can't assert — legal entity name + address, effective date, governing law, data-retention
+windows, and the Anthropic DPA terms (all marked `[FOUNDER + COUNSEL TO COMPLETE]`). Fill
+those, have counsel review, then host at `https://onstandard.app/terms` and `/privacy`
+(the URLs the app already links to).
+
+## 4. Turn the backend on
 Set `EXPO_PUBLIC_BACKEND_LIVE=true`. All linking is inert until this flips (the demo build
 degrades gracefully — coach picker → freetext, connect code door works locally).
 
-## 4. Deep links (optional, needs a device build)
+## 5. Deep links (optional, needs a device build)
 The `onstandard://join?code=…` scheme is registered in `app.json`. Test on a device build
 that tapping a coach's invite link opens the Connect overlay with the code prefilled. The
 in-app "Connect your coach" card works without this.
-
-## 5. Still-open founder items (unchanged)
-- Host the real Terms of Service + Privacy Policy pages (`onstandard.app/terms`, `/privacy`).
 
 ## How to verify after go-live (SQL)
 The node tests cover the store actions + invite parsing. The security invariants below need
