@@ -40,8 +40,31 @@ those, have counsel review, then host at `https://onstandard.app/terms` and `/pr
 (the URLs the app already links to).
 
 ## 4. Turn the backend on
-Set `EXPO_PUBLIC_BACKEND_LIVE=true`. All linking is inert until this flips (the demo build
-degrades gracefully — coach picker → freetext, connect code door works locally).
+- **Local runtime:** a `.env` with `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`,
+  and `EXPO_PUBLIC_BACKEND_LIVE=true` is already set (gitignored). Applied + verified 2026-07-02.
+- **Shipped app (EAS):** `eas.json` bakes `EXPO_PUBLIC_BACKEND_LIVE=true` into the `preview`
+  and `production` profiles. The URL + anon key are **not** committed — set them as EAS env
+  vars once (keys never live in git):
+  ```
+  eas login
+  eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_URL \
+    --value https://ftwrvylzoyznhbzhgism.supabase.co
+  eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_ANON_KEY \
+    --value <anon key: Supabase dashboard → Settings → API>
+  eas build --platform ios --profile production
+  eas submit --platform ios --profile production
+  ```
+  (`eas login` + an Apple Developer account are required — these are the account-gated steps.)
+  `EXPO_PUBLIC_BACKEND_LIVE=true` is also the **kill switch**: set it false (or unset) and
+  rebuild to turn everything back off.
+
+## 4b. Guardian consent for minors (COPPA) — one half done
+The **verification endpoint** (`supabase/functions/guardian-verify`) is **deployed** (uses the
+already-set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`). The remaining half is **sending the
+guardian the email** with a link to it: wire an email provider (e.g. Resend) —
+`supabase secrets set RESEND_API_KEY=…`, verify a sending domain, and have the
+`request_guardian_consent` step send the link. Until then a minor's data stays on-device
+(fail-closed, safe) but can't be verified.
 
 ## 5. Deep links (optional, needs a device build)
 The `onstandard://join?code=…` scheme is registered in `app.json`. Test on a device build
