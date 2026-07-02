@@ -5,7 +5,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { weekdayLong, activePlan, mealWindowStatuses, escalation, planAdherence } from '@/core';
-import { isEnginesEnabled } from '@/lib/features';
+import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 import { useStore, useDerived } from '@/store';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
@@ -123,10 +123,34 @@ export function Plan() {
         </View>
       </Reveal>
 
+      {/* Meal Plans entry — shown when the Meal Plans feature is on but the accountability
+          engine is OFF, so there's a way to open the Coach Plan editor (prescribed meals)
+          without the full engine "Plan execution" card. When engines is on, that card below
+          already links to the same editor, so this stays hidden to avoid a duplicate entry. */}
+      {isMealPlansEnabled && !isEnginesEnabled ? (
+        <Reveal index={2}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit coach plan"
+            onPress={openPlanEditor}
+            style={({ pressed }) => [{ marginTop: 14, backgroundColor: c.card, borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.85 : 1 }, shadow.card]}
+          >
+            <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="sparkle" size={20} color={c.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="eb" size={15} ls={-0.3}>Coach plan</Txt>
+              <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 1 }}>Set prescribed meals and targets</Txt>
+            </View>
+            <Icon name="chevronRight" size={18} color={c.slate300} />
+          </Pressable>
+        </Reveal>
+      ) : null}
+
       {/* Accountability Engine — plan execution today (meal windows + escalation).
           Gated by the engines master switch (OFF for the prove-the-loop beta). */}
       {isEnginesEnabled ? (
-        <Reveal index={2}>
+        <Reveal index={3}>
           <View style={[{ marginTop: 14, backgroundColor: c.card, borderRadius: 20, padding: 18 }, shadow.card]}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
               <Pressable accessibilityRole="button" accessibilityLabel="Edit coach plan" onPress={openPlanEditor} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 })}>

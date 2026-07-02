@@ -138,6 +138,7 @@ export function createInitialState(): AppState {
     proteinTarget: PROTEIN_TARGET,
     calTarget: CAL_TARGET,
     planInstructions: [],
+    planSlots: [],
     weightTarget: WEIGHT_TARGET,
     visibility: 'parent',
     notif: true,

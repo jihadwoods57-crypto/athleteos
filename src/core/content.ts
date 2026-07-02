@@ -112,6 +112,8 @@ export interface MealResult {
   reconcile?: string;
   /** Relationship of the athlete note to the photo. Feeds the coach pattern signal. */
   descriptionSignal?: DescriptionSignal;
+  /** Closest compliant swap vs the plan slot's macro target, present only when a target was given and missed. */
+  substitution?: { suggestion: string; items: string[]; deltaProtein: number; deltaKcal: number };
 }
 
 export const MEAL_RESULTS: Record<MealLabel, MealResult> = {

@@ -61,6 +61,8 @@ export interface AnalyzeMealRequest {
   phase?: 'analyze' | 'finalize';
   /** For 'finalize': the questions already asked and the athlete's answers. */
   clarifications?: Clarification[];
+  /** The active plan slot's macro target for this meal (Meal Plans feature), when the athlete has one. */
+  slotTarget?: { kcal: number; protein: number };
 }
 
 /**

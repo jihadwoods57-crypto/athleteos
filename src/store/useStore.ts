@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { analyzeLabel, analyzeMeal, isAiConfigured } from '@/lib/ai';
 import { capturePhotoBase64, pickMealPhotoBase64, isCameraAvailable } from '@/lib/capture';
-import { isEnginesEnabled } from '@/lib/features';
+import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
 import { refreshReminderSchedule, getPushToken } from '@/lib/notify';
 import { Platform } from 'react-native';
@@ -52,6 +52,11 @@ import {
   reminderNotifySpecs,
   reminderSnapshotFromState,
   sampleScannedLabel,
+  activePlan,
+  parsePlanSlots,
+  buildPlanDraft,
+  applySlotPatch,
+  toggleMode,
 } from '@/core';
 import type {
   AppState,
@@ -77,6 +82,8 @@ import type {
   CoachTab,
   TrainerTab,
   ParentTab,
+  PlanSlot,
+  EngineGoal,
 } from '@/core';
 
 type CiSliderKey = 'ciEnergy' | 'ciRecovery' | 'ciSleep' | 'ciConfidence' | 'ciSoreness' | 'ciMotivation';
@@ -272,6 +279,17 @@ export interface Actions {
   /** Add a standing coach instruction (trimmed, deduped, capped). */
   addPlanInstruction: (text: string) => void;
   removePlanInstruction: (index: number) => void;
+  /** Replace the plan's slot list wholesale (sanitized through parsePlanSlots), e.g. after
+   *  a model-generated plan comes back. */
+  setPlanSlots: (slots: PlanSlot[]) => void;
+  /** Patch one meal slot (note/photoRequired/macros/etc.) without touching the others. */
+  updatePlanSlot: (key: MealKey, patch: Partial<PlanSlot>) => void;
+  /** Flip one slot between 'pinned' (locked to the prescribed meal) and 'open' (athlete's choice). */
+  togglePlanSlotMode: (key: MealKey) => void;
+  /** Fill planSlots from the deterministic offline draft builder for the given goal. */
+  generatePlanDraftLocal: (goal: EngineGoal) => void;
+  /** Clear the plan back to empty (e.g. coach resets it). */
+  clearPlan: () => void;
   toggleQuick: (i: number) => void;
   openPerson: (p: PersonDetail) => void;
   closePerson: () => void;
@@ -442,6 +460,17 @@ const syncReminders = (s: AppState): void => {
     weighedToday: s.weighInStamp === todayStamp(),
   });
   void refreshReminderSchedule(reminderNotifySpecs(s.reminderSettings, snapshot), s.notif);
+};
+
+/** The active plan slot's macro target for the athlete's CURRENT meal type (Meal Plans feature),
+ *  when the flag is on and a matching slot exists. Feeds analyze-meal's slotTarget so the model
+ *  can offer a supportive "closest compliant swap" when the plate misses it. Flag-off or no
+ *  matching slot: undefined, so analyze-meal behaves exactly as it does today. */
+const slotTargetFor = (s: AppState): { kcal: number; protein: number } | undefined => {
+  if (!isMealPlansEnabled) return undefined;
+  const key = s.mealType.toLowerCase() as MealKey;
+  const slot = s.planSlots.find((p) => p.key === key);
+  return slot ? { kcal: slot.macros.kcal, protein: slot.macros.protein } : undefined;
 };
 
 /** Local minutes-from-midnight, stamped when a meal is logged for on-time accountability. */
@@ -762,7 +791,7 @@ export const useStore = create<Store>()(
               // Hold the captured photo so addMeal/saveMeal can upload it to the
               // meal-photos bucket on log (recordMeal). Ephemeral, never persisted.
               if (photoBase64) set({ mealPhoto: photoBase64 });
-              return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64 });
+              return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64, slotTarget: slotTargetFor(st) });
             })
             .then((res) => {
               // The analyze call returns EITHER a finished result OR 1-3 clarifying questions.
@@ -793,6 +822,7 @@ export const useStore = create<Store>()(
           photoBase64: st.mealPhoto ?? undefined,
           phase: 'finalize',
           clarifications,
+          slotTarget: slotTargetFor(st),
         })
           .then((res) => {
             if (res.kind === 'result') set({ mealAnalysis: res.result, mealQuestions: [], mealStage: 'result' });
@@ -995,6 +1025,11 @@ export const useStore = create<Store>()(
         }),
       removePlanInstruction: (index) =>
         set((s) => ({ planInstructions: s.planInstructions.filter((_, i) => i !== index) })),
+      setPlanSlots: (slots) => set({ planSlots: parsePlanSlots(slots) }),
+      updatePlanSlot: (key, patch) => set((s) => ({ planSlots: applySlotPatch(s.planSlots, key, patch) })),
+      togglePlanSlotMode: (key) => set((s) => ({ planSlots: toggleMode(s.planSlots, key) })),
+      generatePlanDraftLocal: (goal) => set((s) => ({ planSlots: buildPlanDraft(activePlan(s), goal) })),
+      clearPlan: () => set({ planSlots: [] }),
       saveMeal: (key, foods) => {
         set((s) => {
           // Saving a meal's edited plate logs the slot AND records its real foods.
@@ -1312,6 +1347,7 @@ export const useStore = create<Store>()(
         weeklyGoalLb: s.weeklyGoalLb,
         proteinTarget: s.proteinTarget,
         planInstructions: s.planInstructions,
+        planSlots: s.planSlots,
         calTarget: s.calTarget,
         weightTarget: s.weightTarget,
         scoringProfile: s.scoringProfile,

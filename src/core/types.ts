@@ -15,6 +15,7 @@ import type { PerfEntry } from './performance';
 import type { ReminderSettings } from './reminders';
 import type { OverseerAlerts } from './overseerAlerts';
 import type { Entitlement } from './subscription';
+import type { PlanSlot } from './coachPlan';
 
 /** The 7 onboarding identities. Each maps onto one of the 4 dashboard flows
  *  (see ROLE_DEFS in constants) and personalizes copy/labels/goals. */
@@ -348,6 +349,10 @@ export interface AppState {
   /** Coach/overseer standing instructions for the plan ("Pre-bed protein shake",
    *  "No sugary drinks"). Read by activePlan() so both engines reflect them. */
   planInstructions: string[];
+  /** Structured prescribed-meal slots for the Meal Plans feature (gated by
+   *  isMealPlansEnabled). Empty until generated/set; persisted so an in-progress
+   *  plan survives an app restart. */
+  planSlots: PlanSlot[];
   /** Athlete-editable season weight goal (lb). Single source of truth for the
    *  Home season-goal card, Check-In + Parent weight trends, and Profile.
    *  Defaults to the WEIGHT_TARGET constant. */
