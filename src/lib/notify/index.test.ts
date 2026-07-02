@@ -1,3 +1,4 @@
+import * as Notifications from 'expo-notifications';
 import { isNotifyAvailable, shouldSchedule, refreshReminderSchedule, cancelReminders } from './index';
 import { reminderNotifySpecs, defaultReminderSettings, type ReminderSnapshot } from '@/core';
 
@@ -10,30 +11,43 @@ const behind: ReminderSnapshot = {
   checkinDue: true,
 };
 
-// Locks the local-notification seam INERT: a regression that ships live scheduling
-// (or fires when the master notif flag is off) without the founder's device wiring
-// fails CI here.
-describe('notify seam (inert)', () => {
-  it('is not available by default', () => {
-    expect(isNotifyAvailable).toBe(false);
+// The jest stub records scheduled notifications so the device seam is testable without a device.
+const scheduled = (Notifications as unknown as { __scheduled: Array<{ content: { title: string }; trigger: { hour: number } }> }).__scheduled;
+
+beforeEach(() => {
+  scheduled.length = 0;
+});
+
+describe('notify seam (local reminders)', () => {
+  it('is available on native (Platform mocked as ios)', () => {
+    expect(isNotifyAvailable).toBe(true);
   });
 
-  it('shouldSchedule is false while the seam is unwired, regardless of the notif flag', () => {
-    expect(shouldSchedule(true)).toBe(false);
+  it('shouldSchedule tracks the master notif flag', () => {
+    expect(shouldSchedule(true)).toBe(true);
     expect(shouldSchedule(false)).toBe(false);
   });
 
-  it('refreshReminderSchedule resolves without firing anything (flag on)', async () => {
+  it('schedules one daily local notification per active spec, at its hour', async () => {
     const specs = reminderNotifySpecs(defaultReminderSettings(), behind);
-    expect(specs.length).toBeGreaterThan(0); // real specs are produced...
-    await expect(refreshReminderSchedule(specs, true)).resolves.toBeUndefined(); // ...and the seam still no-ops
+    expect(specs.length).toBeGreaterThan(0);
+    await refreshReminderSchedule(specs, true);
+    expect(scheduled).toHaveLength(specs.length);
+    for (let i = 0; i < specs.length; i++) {
+      expect(scheduled[i].content.title).toBe(specs[i].title);
+      expect(scheduled[i].trigger.hour).toBe(specs[i].hour);
+    }
   });
 
-  it('refreshReminderSchedule resolves with the flag off', async () => {
-    await expect(refreshReminderSchedule([], false)).resolves.toBeUndefined();
+  it('schedules nothing when the master flag is off', async () => {
+    const specs = reminderNotifySpecs(defaultReminderSettings(), behind);
+    await refreshReminderSchedule(specs, false);
+    expect(scheduled).toHaveLength(0);
   });
 
-  it('cancelReminders resolves (no scheduler touched)', async () => {
-    await expect(cancelReminders()).resolves.toBeUndefined();
+  it('cancelReminders clears the schedule', async () => {
+    await refreshReminderSchedule(reminderNotifySpecs(defaultReminderSettings(), behind), true);
+    await cancelReminders();
+    expect(scheduled).toHaveLength(0);
   });
 });

@@ -18,6 +18,8 @@ module.exports = {
     // camera is device-only and degrades to undefined here.
     '^react-native$': '<rootDir>/jest/reactNativeMock.js',
     '^expo-image-picker$': '<rootDir>/jest/expoImagePickerMock.js',
+    '^expo-image-manipulator$': '<rootDir>/jest/expoImageManipulatorMock.js',
+    '^expo-notifications$': '<rootDir>/jest/expoNotificationsMock.js',
     // The Supabase client's auth storage adapter imports expo-secure-store (native-only);
     // stub it with a stateful in-memory store so the graph loads and the adapter round-trips.
     '^expo-secure-store$': '<rootDir>/jest/expoSecureStoreMock.js',
