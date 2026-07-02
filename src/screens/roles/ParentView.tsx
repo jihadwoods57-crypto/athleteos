@@ -4,9 +4,9 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, weightProgressTone, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, gradeFor, monitoredAthlete, parentDigest, weightProgressTone, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
-import { shadow } from '@/ui/tokens';
+import { gradeRing, shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
@@ -97,7 +97,7 @@ export function ParentView() {
           {/* score */}
           <Reveal index={0}>
           <Card variant="hero" style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-            <Ring size={104} pct={d.athleteScore} stroke={17} gradient={['#22C55E', '#16A34A']} track={c.track}>
+            <Ring size={104} pct={d.athleteScore} stroke={17} gradient={gradeRing[gradeFor(d.athleteScore).g] ?? gradeRing.C} track={c.track}>
               <Txt w="eb" num size={34} ls={-0.5}>
                 {d.athleteScore}
               </Txt>

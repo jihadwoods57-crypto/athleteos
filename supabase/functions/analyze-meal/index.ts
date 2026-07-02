@@ -29,6 +29,11 @@ import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
+// Cost sweep (audit item 20): memory/order are pure PROSE rephrases whose every number is re-verified
+// client-side (mergeRephrasedInsights/Orders drop any rewrite that changes a figure), so a cheaper
+// model cannot affect a single macro — run them on Haiku (~1/3 the cost). Meal (vision estimate) and
+// label (exact-number transcription) stay on MODEL where capability/accuracy matter.
+const TEXT_MODEL = Deno.env.get('ANTHROPIC_TEXT_MODEL') ?? 'claude-haiku-4-5-20251001';
 
 // Per-athlete daily ceiling on the PAID vision calls (meal + label). This bounds a day's
 // spend and stops a single athlete spamming photos, where the per-minute IP limit can't
@@ -552,7 +557,7 @@ Deno.serve(async (request) => {
   try {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
-      model: MODEL,
+      model: isMemory || isOrder ? TEXT_MODEL : MODEL,
       max_tokens: 1024,
       system,
       tools,

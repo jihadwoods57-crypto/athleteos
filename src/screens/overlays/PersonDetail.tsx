@@ -6,7 +6,7 @@ import { useStore } from '@/store';
 import { db, isBackendLive } from '@/lib/supabase';
 import { isTrustPassEnabled } from '@/lib/features';
 import { aiPrefix } from '@/lib/ai';
-import { shadow } from '@/ui/tokens';
+import { gradeRing, shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Input, PressScale, ProgressBar, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -44,7 +44,7 @@ export function PersonDetail() {
   // number (spec: "on standard" / "on the bubble" / "needs intervention").
   const status = scoreLanguage(pd.score);
   const statusColor = pd.score >= 85 ? c.successDeep : pd.score >= 70 ? c.warningDeep : c.alert;
-  const statusBg = pd.score >= 85 ? c.successSurface : pd.score >= 70 ? '#FEF3C7' : c.alertSurface;
+  const statusBg = pd.score >= 85 ? c.successSurface : pd.score >= 70 ? c.warnTint : c.alertSurface;
   // Honest "last active": the trainer book carries real recency; otherwise the
   // roster is current-day, so it reads Today.
   const lastActive = pd.last ?? 'Today';
@@ -54,7 +54,7 @@ export function PersonDetail() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <Reveal index={0}>
         <Card variant="hero" style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-          <Ring size={96} pct={pd.score} stroke={17} gradient={['#22C55E', '#16A34A']} track={c.track}>
+          <Ring size={96} pct={pd.score} stroke={17} gradient={gradeRing[grade.g] ?? gradeRing.C} track={c.track}>
             <Txt w="eb" num size={30} ls={-0.5}>
               {pd.score}
             </Txt>

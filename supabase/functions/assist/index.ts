@@ -12,9 +12,11 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 
-const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6';
-// A deeper model for heavy roster analysis; defaults to the standard tier. Fable 5 when available.
-const DEEP_MODEL = Deno.env.get('ANTHROPIC_DEEP_MODEL') ?? 'claude-opus-4-8';
+// Cost sweep (audit item 20): default to Sonnet 5 (strictly better AND cheaper than the stale
+// sonnet-4-6). The old client-selectable Opus "deep" path was removed — narration is a <=512-token
+// prose rewrite under a forced tool, so Opus bought nothing, and letting the CLIENT elect it (body.deep)
+// meant any caller could drive Opus spend. The server now always uses one tier.
+const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -124,7 +126,7 @@ Deno.serve(async (request) => {
   try {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
-      model: body.deep ? DEEP_MODEL : MODEL,
+      model: MODEL, // one server tier; the client can no longer elect a pricier model (see MODEL note)
       max_tokens: 512,
       system: SYSTEM,
       tools: [NARRATION_TOOL],
