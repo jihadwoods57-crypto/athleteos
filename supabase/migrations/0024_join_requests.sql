@@ -60,7 +60,7 @@ end; $$;
 -- read directly — RLS profiles_read requires an ACTIVE link, and a request is pending).
 -- Gated to the team's active staff. Powers the coach's "Pending requests" inbox.
 create or replace function pending_team_requests(team uuid)
-returns table (athlete_id uuid, athlete_name text, position text, requested_at timestamptz)
+returns table (athlete_id uuid, athlete_name text, "position" text, requested_at timestamptz)
 language plpgsql stable security definer set search_path = public as $$
 begin
   if not is_team_staff(team) then
