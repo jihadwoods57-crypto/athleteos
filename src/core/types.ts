@@ -60,6 +60,9 @@ export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutritio
 /** Coach dashboard destinations (the 5-tab bar): one Home, one Work area, one Action,
  *  one Insights, one Admin. Mirrors the athlete tab model. */
 export type CoachTab = 'dashboard' | 'roster' | 'attention' | 'reports' | 'profile';
+/** Trainer / Parent bottom-tab destinations (so every role has a tab bar + Profile). */
+export type TrainerTab = 'dashboard' | 'profile';
+export type ParentTab = 'overview' | 'profile';
 export type MealStage = 'capture' | 'analyzing' | 'questions' | 'result';
 /** Which camera flow the meal overlay is in: estimate a plate, or transcribe a label. */
 export type MealCaptureMode = 'meal' | 'label';
@@ -254,6 +257,8 @@ export interface AppState {
   // ---- nav / overlays ----
   tab: Tab;
   coachTab: CoachTab;
+  trainerTab: TrainerTab;
+  parentTab: ParentTab;
   squadMode: SquadMode;
   // ---- overseer read-cache (snappy paint, revalidated on mount) ----
   /** Last real roster fetched for the signed-in overseer, so their dashboard paints instantly

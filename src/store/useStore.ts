@@ -74,6 +74,8 @@ import type {
   SquadMode,
   Tab,
   CoachTab,
+  TrainerTab,
+  ParentTab,
 } from '@/core';
 
 type CiSliderKey = 'ciEnergy' | 'ciRecovery' | 'ciSleep' | 'ciConfidence' | 'ciSoreness' | 'ciMotivation';
@@ -165,6 +167,8 @@ export interface Actions {
   // nav
   setTab: (t: Tab) => void;
   setCoachTab: (t: CoachTab) => void;
+  setTrainerTab: (t: TrainerTab) => void;
+  setParentTab: (t: ParentTab) => void;
   /** Cache the overseer's freshly-fetched roster (namespaced by userId) so their dashboard
    *  paints instantly next time before revalidating. Inert path; purged on sign-out. */
   setCachedRoster: (roster: RosterRow[], userId: string) => void;
@@ -598,6 +602,8 @@ export const useStore = create<Store>()(
       // ---- nav ----
       setTab: (t) => set({ tab: t }),
       setCoachTab: (t) => set({ coachTab: t }),
+      setTrainerTab: (t) => set({ trainerTab: t }),
+      setParentTab: (t) => set({ parentTab: t }),
       setCachedRoster: (roster, userId) => set({ cachedRoster: roster, cachedRosterUserId: userId }),
       goHome: () => set({ flow: 'app', tab: 'home' }),
       goTasks: () => set({ tab: 'tasks' }),

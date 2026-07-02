@@ -20,10 +20,18 @@ import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
 import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
 import { usePendingClients } from './usePendingClients';
+import { RoleTabBar, SettingRow, type RoleTab } from './roleChrome';
+import type { TrainerTab } from '@/core';
+
+const TRAINER_TABS: RoleTab<TrainerTab>[] = [
+  { key: 'dashboard', label: 'Clients', icon: 'squad' },
+  { key: 'profile', label: 'Profile', icon: 'user' },
+];
 
 export function TrainerView() {
   const cx = useColors();
   const s = useStore();
+  const tab = s.trainerTab;
   const kpis = trainerBookKpis(TRAINER_CLIENTS);
   // Needs-Follow-Up derives from the same book the FOLLOW-UPS KPI counts, so the
   // badge count always equals the rows shown and only REAL clients can appear
@@ -49,7 +57,10 @@ export function TrainerView() {
   return (
     <View style={{ flex: 1, backgroundColor: cx.bg }}>
       <SafeAreaView edges={['top']} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {tab === 'profile' ? (
+          <TrainerProfile orgTitle={orgTitle} />
+        ) : (
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
           <Row style={{ justifyContent: 'space-between' }}>
             <Row style={{ gap: 12 }}>
               <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" hitSlop={6} onPress={s.openAccount} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: cx.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
@@ -249,7 +260,10 @@ export function TrainerView() {
           </Card>
           </Reveal>
         </ScrollView>
+        )}
       </SafeAreaView>
+
+      <RoleTabBar tabs={TRAINER_TABS} active={tab} onChange={s.setTrainerTab} />
 
       {s.personDetail && <PersonDetail />}
       {s.personDetail && s.coachGoalsOpen && <CoachGoalsEditor />}
@@ -258,6 +272,23 @@ export function TrainerView() {
       {s.plansOpen && <Plans />}
       {s.overseerProfileOpen && <OverseerProfile />}
     </View>
+  );
+}
+
+/** Trainer Profile tab — mirrors the coach profile: identity + settings entry points. */
+function TrainerProfile({ orgTitle }: { orgTitle: string }) {
+  const cx = useColors();
+  const s = useStore();
+  return (
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <Txt w="eb" size={12} color={cx.accent} ls={1} upper style={{ marginBottom: 6 }}>{orgTitle}</Txt>
+      <Txt w="eb" size={28} ls={-0.8} style={{ marginBottom: 20 }}>Profile</Txt>
+      <View style={{ gap: 10 }}>
+        <SettingRow icon="menu" label="Account & settings" sub="Name, sign out, data export" onPress={s.openAccount} />
+        <SettingRow icon="user" label="Practice & join code" sub="What clients see · edit your code" onPress={s.openOverseerProfile} />
+        <SettingRow icon="send" label="Messages" sub="Your client threads" onPress={s.openMsg} />
+      </View>
+    </ScrollView>
   );
 }
 

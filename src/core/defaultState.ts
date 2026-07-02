@@ -99,6 +99,8 @@ export function createInitialState(): AppState {
     // nav / overlays
     tab: 'home',
     coachTab: 'dashboard',
+    trainerTab: 'dashboard',
+    parentTab: 'overview',
     squadMode: 'team',
     cachedRoster: null,
     cachedRosterUserId: null,
