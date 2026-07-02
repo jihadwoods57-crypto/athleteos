@@ -1,41 +1,41 @@
-# Meal Plans — Go-Live Checklist
+# Meal Plans — Go-Live Status
 
-Wave 1 is merged (PR #15 → `claude/crew-update-wvkvhh`). Everything below the line is
-**already done**; the two boxes at the top are the only steps that need a human with
-Supabase DB access + an app build pipeline.
+## ✅ Done (live)
 
-## ⛔ Remaining (needs your creds)
+- **Wave 1 + Wave 2 code** merged/open (PR #15 merged, PR #16 open) — behind `isMealPlansEnabled`.
+- **Migration applied to live AthleteOS** (`ftwrvylzoyznhbzhgism`): the meal-plans migration
+  landed as `0032_meal_plans.sql` (the crew renumbered it from 0029; content is identical) and
+  `supabase migration list --linked` now shows `0032 | 0032 | 0032`. The `meal_plans`,
+  `plan_assignments`, and `meal_templates` tables + RLS are live. Confirmed by regenerating types
+  from the live schema (the new tables are present).
+- **Edge functions deployed** to live: `plan-generate` (new, smoke-tested) and `analyze-meal`
+  (updated with `slotTarget`/`substitution`, backward compatible).
+- **Client flag flipped in the build config**: `eas.json` now sets
+  `EXPO_PUBLIC_MEAL_PLANS_ENABLED: "true"` in the `preview` and `production` profiles (alongside
+  the existing `EXPO_PUBLIC_BACKEND_LIVE: "true"`). The next EAS build ships the feature on.
+  (ENGINES left OFF — the meal-plans feature works standalone; flip `EXPO_PUBLIC_ENGINES_ENABLED`
+  too only if you also want the Restaurant Coach / adherence surfaces.)
 
-- [ ] **Apply migration `0029_meal_plans.sql` to live AthleteOS** (`ftwrvylzoyznhbzhgism`).
-      Additive only (3 new tables + RLS; no alters), so it is safe and dormant until the
-      client flag flips. From a repo checkout linked to the project:
-      ```bash
-      supabase link --project-ref ftwrvylzoyznhbzhgism   # prompts for the DB password
-      supabase db push                                    # applies 0029 (0001–0028 already live)
-      ```
-- [ ] **Flip the client flags + rebuild the app.** The flags are `EXPO_PUBLIC_*` baked in
-      at build time, so users only get the feature after an EAS/web rebuild with:
-      ```
-      EXPO_PUBLIC_MEAL_PLANS_ENABLED=true
-      EXPO_PUBLIC_ENGINES_ENABLED=true   # only if you also want Restaurant Coach + adherence surfaces
-      ```
-      The Meal Plans core now works behind `MEAL_PLANS` alone (fixed in c4e8d2a); `ENGINES`
-      is only needed for the other engine surfaces.
+## ⛔ Remaining (needs your Expo credentials — can't run headless here)
 
-## ✅ Done
+- **Trigger the build.** No Expo session is available in this environment (`eas login` is
+  interactive), so the actual build must be run by you / CI:
+  ```bash
+  npm i -g eas-cli
+  eas login                       # or set EXPO_TOKEN in CI
+  eas build --profile preview --platform android   # internal build for testers, no store submit
+  # or: eas build --profile production --platform all   (then eas submit for the stores)
+  ```
+  The flag + backend are already in place, so the build just needs to run.
 
-- Wave 1 code merged (PR #15).
-- `plan-generate` edge function **deployed** to live and smoke-tested (returns a real
-  multi-slot plan with options + restaurant alternatives).
-- `analyze-meal` **redeployed** with the optional `slotTarget`/`substitution` fields
-  (backward compatible — existing clients send no `slotTarget`, behaviour unchanged).
-- Feature verified end-to-end in the running app (coach Generate + athlete Prescribed
-  Meals), including the deterministic offline fallback and the flag gating.
+## Optional follow-up
+
+- Regenerate `src/lib/supabase/database.types.ts` from the live schema and drop the `(supabase as any)`
+  casts in `src/lib/mealPlans.ts` (the tables now exist; the casts are only there because the
+  generated types predated the migration). Left as a follow-up to avoid churning the crew's types file.
 
 ## Rollback
 
-- Client: set the flags back to `false` and rebuild — every surface goes inert.
-- Functions: redeploy the prior version from git if ever needed (they are inert while the
-  client flag is off, since nothing calls them).
-- Migration: additive tables; drop them only if you truly need to (no data depends on them
-  until the feature is used).
+- Client: remove `EXPO_PUBLIC_MEAL_PLANS_ENABLED` from `eas.json` and rebuild — every surface goes inert.
+- Functions: redeploy the prior version (they're inert while the client flag is off).
+- Migration: additive tables; nothing depends on them until the feature is used.
