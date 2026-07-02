@@ -29,6 +29,7 @@ export type IconName =
   | 'copy'
   | 'gallery'
   | 'barcode'
+  | 'search'
   | 'sparkle'
   | 'mic';
 
@@ -73,6 +74,13 @@ function render(name: IconName, color: string, p: object) {
       );
     case 'barcode':
       return <Path d="M4 6v12M7 6v12M10 6v12M13.5 6v12M17 6v12M20 6v12" {...p} />;
+    case 'search':
+      return (
+        <>
+          <Circle cx={11} cy={11} r={7} {...p} />
+          <Path d="M16 16l4.5 4.5" {...p} />
+        </>
+      );
     case 'mic':
       return (
         <>

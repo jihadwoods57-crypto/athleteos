@@ -78,8 +78,9 @@ export type CoachTab = 'dashboard' | 'roster' | 'attention' | 'reports' | 'profi
 export type TrainerTab = 'dashboard' | 'profile';
 export type ParentTab = 'overview' | 'profile';
 export type MealStage = 'capture' | 'analyzing' | 'questions' | 'result';
-/** Which camera flow the meal overlay is in: estimate a plate, or transcribe a label. */
-export type MealCaptureMode = 'meal' | 'label';
+/** Which flow the meal overlay is in: estimate a plate (photo), transcribe a label, or search a
+ *  food by name (USDA) and pick exact macros from the ranked results. */
+export type MealCaptureMode = 'meal' | 'label' | 'search';
 export type CiStage = 'open' | 'done';
 export type SquadMode = 'team' | 'position';
 export type CompMode = 'position' | 'team' | 'off';

@@ -31,7 +31,12 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-async function lookup(body: { barcode?: string; query?: string }): Promise<EditableFood | null> {
+/** The edge response: a best-match (top-level fields) plus, for name search, a ranked results list. */
+type LookupResponse = { found?: boolean; results?: unknown } & Partial<FoodLookupResult>;
+
+/** POST to the food-lookup edge function; returns the parsed body, or null when unconfigured /
+ *  offline / non-OK. Fail-soft by design so every caller degrades to a photo estimate. */
+async function postLookup(body: { barcode?: string; query?: string }): Promise<LookupResponse | null> {
   if (!isFoodLookupConfigured) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
@@ -43,14 +48,7 @@ async function lookup(body: { barcode?: string; query?: string }): Promise<Edita
       signal: controller.signal,
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { found?: boolean } & Partial<FoodLookupResult>;
-    if (!data?.found || !data.name || !data.per100) return null;
-    return foodLookupToEditable({
-      name: data.name,
-      serving: data.serving ?? null,
-      per100: data.per100,
-      source: data.source ?? 'usda',
-    });
+    return (await res.json()) as LookupResponse;
   } catch {
     return null;
   } finally {
@@ -58,14 +56,40 @@ async function lookup(body: { barcode?: string; query?: string }): Promise<Edita
   }
 }
 
+/** A lookup row is usable only with a name and per-100g macros. */
+function toResult(row: Partial<FoodLookupResult> | null | undefined): FoodLookupResult | null {
+  if (!row || !row.name || !row.per100) return null;
+  return { name: row.name, serving: row.serving ?? null, per100: row.per100, source: row.source ?? 'usda' };
+}
+
+async function lookupBest(body: { barcode?: string; query?: string }): Promise<EditableFood | null> {
+  const data = await postLookup(body);
+  if (!data?.found) return null;
+  const best = toResult(data);
+  return best ? foodLookupToEditable(best) : null;
+}
+
 /** Look up a scanned barcode (Open Food Facts) -> EditableFood, or null. */
 export function lookupBarcode(barcode: string): Promise<EditableFood | null> {
   const clean = barcode.replace(/\D/g, '');
-  return clean ? lookup({ barcode: clean }) : Promise.resolve(null);
+  return clean ? lookupBest({ barcode: clean }) : Promise.resolve(null);
 }
 
-/** Search a food by name (USDA) -> best-match EditableFood, or null. */
+/** Search a food by name (USDA) -> best-match EditableFood, or null (the one-tap auto-pick path). */
 export function searchFood(query: string): Promise<EditableFood | null> {
   const q = query.trim();
-  return q ? lookup({ query: q }) : Promise.resolve(null);
+  return q ? lookupBest({ query: q }) : Promise.resolve(null);
+}
+
+/** Search a food by name (USDA) -> the ranked list of candidates for the athlete to pick from.
+ *  Returns [] when unconfigured / offline / nothing found. Falls back to the single best-match when
+ *  an older edge deploy returns no results[] array. */
+export async function searchFoods(query: string): Promise<FoodLookupResult[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const data = await postLookup({ query: q });
+  if (!data?.found) return [];
+  const rows = Array.isArray(data.results) ? (data.results as Array<Partial<FoodLookupResult>>) : [];
+  const list = rows.length ? rows : [data];
+  return list.map(toResult).filter((r): r is FoodLookupResult => r !== null);
 }

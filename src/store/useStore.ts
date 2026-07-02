@@ -233,6 +233,8 @@ export interface Actions {
   setLabelServings: (n: number) => void;
   /** Log the scanned label (scaled by servings) into the selected meal slot. */
   addScannedLabel: () => void;
+  /** Log a food picked from name search (USDA, exact macros) into the selected meal slot. */
+  addSearchedFood: (food: EditableFood) => void;
   addMeal: () => void;
   addWater: () => void;
   /** Log a snack/shake preset into the day's snack slot (persists + scores, like a meal). */
@@ -875,6 +877,15 @@ export const useStore = create<Store>()(
         // constant) feed the day score; saveMeal handles meals/score/recordMeal/daySync.
         get().saveMeal(key, [labelToFood(labelFacts, labelServings)]);
         set({ mealOpen: false, mealStage: 'capture', mealCaptureMode: 'meal', labelFacts: null, labelServings: 1, mealAnalysis: null, mealQuestions: [] });
+      },
+      addSearchedFood: (food) => {
+        // Append the picked food (EXACT USDA macros) to the selected slot, alongside anything
+        // already logged there — same saveMeal path as a label scan or a snack, so it persists,
+        // scores, and counts toward the coach's logging-completeness read.
+        const { mealType, mealFoods } = get();
+        const key = (mealType || 'Dinner').toLowerCase() as MealKey;
+        get().saveMeal(key, [...(mealFoods[key] ?? []), food]);
+        set({ mealOpen: false, mealStage: 'capture', mealCaptureMode: 'meal', mealAnalysis: null, mealQuestions: [] });
       },
       addMeal: () => {
         set((s) => {

@@ -1,10 +1,11 @@
 // OnStandard — Meal capture overlay: capture → analyzing (~2.3s) → result.
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, ScrollView, TextInput, View } from 'react-native';
-import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer, flagIngredients, scaleLabel, labelQuality, labelProvenanceNote, matchUsuals } from '@/core';
-import type { MealLabel, LabelFacts, IngredientFlag, MealResult } from '@/core';
+import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer, flagIngredients, scaleLabel, labelQuality, labelProvenanceNote, matchUsuals, foodLookupToEditable } from '@/core';
+import type { MealLabel, LabelFacts, IngredientFlag, MealResult, MealCaptureMode, FoodLookupResult } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiCoachTag } from '@/lib/ai';
+import { searchFoods, isFoodLookupConfigured } from '@/lib/food';
 import { shadow } from '@/ui/tokens';
 import { Avatar, Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { useColors } from '@/ui/theme';
@@ -19,6 +20,7 @@ export function MealCapture() {
   const c = useColors();
   const s = useStore();
   const isLabel = s.mealCaptureMode === 'label';
+  const isSearch = s.mealCaptureMode === 'search';
   const header =
     s.mealStage === 'result'
       ? isLabel ? 'Label' : 'Analysis'
@@ -26,54 +28,62 @@ export function MealCapture() {
         ? isLabel ? 'Reading label' : 'Analyzing'
         : s.mealStage === 'questions'
           ? 'Almost there'
-          : isLabel ? 'Scan a Label' : 'Log a Meal';
+          : isSearch ? 'Search a Food' : isLabel ? 'Scan a Label' : 'Log a Meal';
 
   return (
     <Overlay title={header} onClose={s.closeMeal} closeIcon="close">
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {s.mealStage === 'capture' ? <ModeToggle mode={s.mealCaptureMode} onPick={s.setMealCaptureMode} /> : null}
 
-        {/* image slot — tappable during capture to open the camera (or scan a label) */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={isLabel ? 'Scan nutrition label' : 'Capture meal photo'}
-          disabled={s.mealStage !== 'capture'}
-          onPress={() => {
-            if (s.mealStage !== 'capture') return;
-            haptics.tap();
-            if (isLabel) s.captureLabel();
-            else s.capture();
-          }}
-          style={[{ width: '100%', aspectRatio: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: c.track }, shadow.elevated]}
-        >
-          <ImageSlot analyzing={s.mealStage === 'analyzing'} label={isLabel} />
-          {[
-            { top: 14, left: 14 },
-            { top: 14, right: 14 },
-            { bottom: 14, left: 14 },
-            { bottom: 14, right: 14 },
-          ].map((pos, i) => (
-            <View key={i} style={{ position: 'absolute', width: 26, height: 26, borderColor: c.white, opacity: 0.9, borderTopWidth: i < 2 ? 3 : 0, borderBottomWidth: i >= 2 ? 3 : 0, borderLeftWidth: i % 2 === 0 ? 3 : 0, borderRightWidth: i % 2 === 1 ? 3 : 0, ...pos }} />
-          ))}
-        </Pressable>
+        {isSearch ? (
+          <FoodSearch />
+        ) : (
+          <>
+            {/* image slot — tappable during capture to open the camera (or scan a label) */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={isLabel ? 'Scan nutrition label' : 'Capture meal photo'}
+              disabled={s.mealStage !== 'capture'}
+              onPress={() => {
+                if (s.mealStage !== 'capture') return;
+                haptics.tap();
+                if (isLabel) s.captureLabel();
+                else s.capture();
+              }}
+              style={[{ width: '100%', aspectRatio: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: c.track }, shadow.elevated]}
+            >
+              <ImageSlot analyzing={s.mealStage === 'analyzing'} label={isLabel} />
+              {[
+                { top: 14, left: 14 },
+                { top: 14, right: 14 },
+                { bottom: 14, left: 14 },
+                { bottom: 14, right: 14 },
+              ].map((pos, i) => (
+                <View key={i} style={{ position: 'absolute', width: 26, height: 26, borderColor: c.white, opacity: 0.9, borderTopWidth: i < 2 ? 3 : 0, borderBottomWidth: i >= 2 ? 3 : 0, borderLeftWidth: i % 2 === 0 ? 3 : 0, borderRightWidth: i % 2 === 1 ? 3 : 0, ...pos }} />
+              ))}
+            </Pressable>
 
-        {s.mealStage === 'capture' && <CaptureControls />}
-        {s.mealStage === 'analyzing' && <Analyzing label={isLabel} />}
-        {s.mealStage === 'questions' && <Questions />}
-        {s.mealStage === 'result' && (isLabel
-          ? <LabelResult facts={s.labelFacts} servings={s.labelServings} onServings={s.setLabelServings} onAdd={s.addScannedLabel} />
-          : <Result mealType={s.mealType} onAdd={s.addMeal} />)}
+            {s.mealStage === 'capture' && <CaptureControls />}
+            {s.mealStage === 'analyzing' && <Analyzing label={isLabel} />}
+            {s.mealStage === 'questions' && <Questions />}
+            {s.mealStage === 'result' && (isLabel
+              ? <LabelResult facts={s.labelFacts} servings={s.labelServings} onServings={s.setLabelServings} onAdd={s.addScannedLabel} />
+              : <Result mealType={s.mealType} onAdd={s.addMeal} />)}
+          </>
+        )}
       </ScrollView>
     </Overlay>
   );
 }
 
-/** Segmented toggle: photograph a plate (estimate) vs scan a label (exact). */
-function ModeToggle({ mode, onPick }: { mode: 'meal' | 'label'; onPick: (m: 'meal' | 'label') => void }) {
+/** Segmented toggle: photograph a plate (estimate), search a food by name (exact), or scan a
+ *  label (exact). Three tabs, so labels stay short. */
+function ModeToggle({ mode, onPick }: { mode: MealCaptureMode; onPick: (m: MealCaptureMode) => void }) {
   const c = useColors();
-  const opts: { key: 'meal' | 'label'; label: string; icon: 'camera' | 'barcode' }[] = [
-    { key: 'meal', label: 'Log a meal', icon: 'camera' },
-    { key: 'label', label: 'Scan a label', icon: 'barcode' },
+  const opts: { key: MealCaptureMode; label: string; icon: 'camera' | 'search' | 'barcode' }[] = [
+    { key: 'meal', label: 'Photo', icon: 'camera' },
+    { key: 'search', label: 'Search', icon: 'search' },
+    { key: 'label', label: 'Label', icon: 'barcode' },
   ];
   return (
     <Row style={[{ padding: 4, borderRadius: 14, backgroundColor: c.bg2, marginBottom: 16, gap: 4 }]}>
@@ -86,9 +96,9 @@ function ModeToggle({ mode, onPick }: { mode: 'meal' | 'label'; onPick: (m: 'mea
             accessibilityLabel={o.label}
             accessibilityState={{ selected: active }}
             onPress={() => { haptics.select(); onPick(o.key); }}
-            style={[{ flex: 1, flexDirection: 'row', gap: 7, paddingVertical: 10, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? c.card : 'transparent' }, active ? shadow.card : undefined]}
+            style={[{ flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 10, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? c.card : 'transparent' }, active ? shadow.card : undefined]}
           >
-            <Icon name={o.icon} size={16} color={active ? c.accent : c.textTertiary} />
+            <Icon name={o.icon} size={15} color={active ? c.accent : c.textTertiary} />
             <Txt w="b" size={13} color={active ? c.text : c.textTertiary}>{o.label}</Txt>
           </Pressable>
         );
@@ -798,6 +808,138 @@ function confidenceMeta(
   if (confidence === 'medium') return { label: 'ESTIMATED', bg: c.accentSurface, fg: c.accent };
   if (confidence === 'low') return { label: 'ROUGH ESTIMATE', bg: c.warnTint, fg: c.warnText };
   return null;
+}
+
+/**
+ * Search a food by name (USDA FoodData Central) and pick EXACT macros from a ranked list — no
+ * photo, no model call, no daily slot. "chicken breast" alone can't tell deli from raw, so we
+ * surface the top matches and let the athlete pick theirs; picking logs the exact macros to the
+ * selected slot via the normal saveMeal path. Fail-soft: no connection / no match -> a helpful note.
+ */
+function FoodSearch() {
+  const c = useColors();
+  const s = useStore();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<FoodLookupResult[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const run = async () => {
+    const q = query.trim();
+    if (!q || loading) return;
+    haptics.tap();
+    setLoading(true);
+    try {
+      setResults(await searchFoods(q));
+    } catch {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const pick = (r: FoodLookupResult) => {
+    haptics.success();
+    s.addSearchedFood(foodLookupToEditable(r));
+  };
+
+  return (
+    <View>
+      {/* which slot the picked food logs into */}
+      <Row style={{ gap: 8, marginBottom: 16 }}>
+        {MEAL_TYPES.map((m) => {
+          const active = s.mealType === m;
+          return (
+            <Pressable
+              key={m}
+              accessibilityRole="button"
+              accessibilityLabel={`Meal type: ${m}`}
+              accessibilityState={{ selected: active }}
+              onPress={() => { haptics.select(); s.setMealType(m); }}
+              style={[{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: active ? c.accent : c.card }, active ? undefined : shadow.card]}
+            >
+              <Txt w="b" size={12} color={active ? c.white : c.textSecondary}>{m}</Txt>
+            </Pressable>
+          );
+        })}
+      </Row>
+
+      {/* search box */}
+      <Row style={[{ borderRadius: 13, backgroundColor: c.card, paddingLeft: 14, paddingRight: 6, alignItems: 'center', gap: 8 }, shadow.card]}>
+        <Icon name="search" size={18} color={c.textTertiary} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={run}
+          returnKeyType="search"
+          placeholder="Search a food, e.g. chicken breast"
+          placeholderTextColor={c.textTertiary}
+          autoCapitalize="none"
+          style={{ flex: 1, minHeight: 46, paddingVertical: 11, fontSize: 15, color: c.text }}
+          accessibilityLabel="Search a food by name"
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Search"
+          onPress={run}
+          hitSlop={8}
+          style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accent }}
+        >
+          {loading ? <Spinner /> : <Icon name="chevronRight" size={18} color={c.white} />}
+        </Pressable>
+      </Row>
+
+      {!isFoodLookupConfigured ? (
+        <SearchNote text="Food search needs a connection. Snap a photo or scan a label instead." />
+      ) : loading ? (
+        <SearchNote text="Searching the USDA database…" />
+      ) : results === null ? (
+        <SearchNote text="Type a food and search. Numbers come straight from the USDA database — exact, not a photo estimate." />
+      ) : results.length === 0 ? (
+        <SearchNote text={`No matches for "${query.trim()}". Try a simpler name, or scan the label.`} />
+      ) : (
+        <View style={{ marginTop: 18, gap: 8 }}>
+          <Txt w="eb" size={11} color={c.textTertiary} ls={0.5}>TAP YOUR FOOD · EXACT MACROS</Txt>
+          {results.map((r, i) => <ResultRow key={`${r.name}-${i}`} result={r} onPick={() => pick(r)} />)}
+          <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 6, lineHeight: 16 }}>
+            {results[0]?.source === 'off' ? 'Data: Open Food Facts (ODbL)' : 'Data: USDA FoodData Central (CC0)'}
+          </Txt>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** One search hit: name + per-serving macros (scaled from per-100g), tap to log. */
+function ResultRow({ result, onPick }: { result: FoodLookupResult; onPick: () => void }) {
+  const c = useColors();
+  const f = foodLookupToEditable(result);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Log ${f.name}, about ${f.per.protein} grams protein`}
+      onPress={onPick}
+      style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, backgroundColor: c.card, opacity: pressed ? 0.7 : 1 }, shadow.card]}
+    >
+      <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="utensils" size={15} color={c.accent} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Txt w="b" size={14} color={c.text} numberOfLines={2}>{f.name}</Txt>
+        <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
+          {`${f.portion} · ${f.per.protein}g protein · ${f.per.kcal} cal`}
+        </Txt>
+      </View>
+      <Icon name="plus" size={16} color={c.accent} />
+    </Pressable>
+  );
+}
+
+function SearchNote({ text }: { text: string }) {
+  const c = useColors();
+  return (
+    <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 18, paddingHorizontal: 4, lineHeight: 19, textAlign: 'center' }}>
+      {text}
+    </Txt>
+  );
 }
 
 /** "Your usuals": one-tap reuse of the athlete's own repeat meals for this slot. Reusing a usual
