@@ -11,13 +11,15 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_BACKEND_LIVE": "true"
+        "EXPO_PUBLIC_BACKEND_LIVE": "true",
+        "EXPO_PUBLIC_MEAL_PLANS_ENABLED": "true"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_BACKEND_LIVE": "true"
+        "EXPO_PUBLIC_BACKEND_LIVE": "true",
+        "EXPO_PUBLIC_MEAL_PLANS_ENABLED": "true"
       }
     }
   },
