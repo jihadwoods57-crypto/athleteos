@@ -78,7 +78,7 @@ export function Profile() {
             {firstName(s.athleteName, 'Jihad')}
           </Txt>
           <Txt w="sb" size={14} color={c.textSecondary} style={{ marginTop: 2 }}>
-            {athleteSubtitle(s.position, s.sport)}
+            {athleteSubtitle(s.position, s.sport, isReal)}
           </Txt>
           {cadence ? (
             <Row style={{ gap: 5, marginTop: 4 }}>

@@ -10,6 +10,7 @@ import {
   mealResultFor,
   MEAL_RESULTS,
   notificationCopy,
+  notificationFeed,
   paceProjection,
   qualityLabel,
   squadView,
@@ -467,17 +468,39 @@ describe('paceProjection', () => {
 });
 
 describe('athleteSubtitle', () => {
-  it('expands a known position abbreviation', () => {
+  it('expands a known position abbreviation (seeded demo)', () => {
     expect(athleteSubtitle('QB')).toBe('Quarterback · Eastside HS');
     expect(athleteSubtitle('LB')).toBe('Linebacker · Eastside HS');
   });
 
-  it('passes through an unknown abbreviation verbatim', () => {
+  it('passes through an unknown abbreviation verbatim (seeded demo)', () => {
     expect(athleteSubtitle('XYZ')).toBe('XYZ · Eastside HS');
   });
 
-  it('defaults to Linebacker when no position is set', () => {
+  it('defaults to Linebacker when no position is set (seeded demo only)', () => {
     expect(athleteSubtitle(null)).toBe('Linebacker · Eastside HS');
+  });
+
+  describe('real athlete (isReal) — never leaks the demo Linebacker/Eastside HS', () => {
+    it('a solo athlete with no position and no sport reads a neutral "Athlete"', () => {
+      expect(athleteSubtitle(null, null, true)).toBe('Athlete');
+      expect(athleteSubtitle(null, '', true)).toBe('Athlete');
+    });
+
+    it('a sport but no position reads "{sport} athlete", never a fake school', () => {
+      expect(athleteSubtitle(null, 'Soccer', true)).toBe('Soccer athlete');
+      expect(athleteSubtitle(null, 'Soccer', true)).not.toContain('Eastside');
+    });
+
+    it('a position + sport reads "{label} · {sport}", never Eastside HS', () => {
+      expect(athleteSubtitle('QB', 'Football', true)).toBe('Quarterback · Football');
+      expect(athleteSubtitle('MID', 'Soccer', true)).toBe('Midfielder · Soccer');
+    });
+
+    it('a position with no sport reads just the position, never a fake school', () => {
+      expect(athleteSubtitle('QB', null, true)).toBe('Quarterback');
+      expect(athleteSubtitle('QB', null, true)).not.toContain('Eastside');
+    });
   });
 });
 
@@ -551,6 +574,39 @@ describe('notificationCopy', () => {
     const c = notificationCopy({ isReal: true, supportTeam: [], athleteScore: 80 });
     expect(c.checkin).not.toMatch(/coach|parent/i);
     expect(c.coachNote).toBeNull();
+  });
+});
+
+describe('notificationFeed (honest inbox for the non-backend path)', () => {
+  it('keeps the full seeded showcase (4 cards, relative stamps) for the demo', () => {
+    const feed = notificationFeed({ isReal: false, supportTeam: [], athleteScore: 78, checkinSubmitted: false, proteinGap: 38 });
+    expect(feed.map((n) => n.key)).toEqual(['checkin', 'meal', 'score', 'coachNote', 'hydration']);
+    expect(feed.find((n) => n.key === 'hydration')?.time).toBe('6h');
+    expect(feed.find((n) => n.key === 'coachNote')?.initials).toBe('CD');
+  });
+
+  it('a real athlete never gets fabricated-past timestamps — only "Now"/"Today"', () => {
+    const feed = notificationFeed({ isReal: true, supportTeam: ['coach'], athleteScore: 35, checkinSubmitted: false, proteinGap: 120 });
+    expect(feed.every((n) => n.time === 'Now' || n.time === 'Today')).toBe(true);
+    expect(feed.some((n) => /\dh$|\dm$/.test(n.time))).toBe(false);
+  });
+
+  it('a real athlete only sees reminders that are TRUE right now', () => {
+    // check-in unsubmitted + protein short → both nudges
+    let feed = notificationFeed({ isReal: true, supportTeam: [], athleteScore: 35, checkinSubmitted: false, proteinGap: 120 });
+    expect(feed.map((n) => n.key)).toEqual(['checkin', 'meal']);
+    // checked in + protein met → nothing due (screen shows "all caught up")
+    feed = notificationFeed({ isReal: true, supportTeam: [], athleteScore: 88, checkinSubmitted: true, proteinGap: 0 });
+    expect(feed).toEqual([]);
+    // checked in but still short → only the meal nudge
+    feed = notificationFeed({ isReal: true, supportTeam: [], athleteScore: 60, checkinSubmitted: true, proteinGap: 40 });
+    expect(feed.map((n) => n.key)).toEqual(['meal']);
+  });
+
+  it('a real athlete never gets the fabricated coach-praise note or hydration-history card', () => {
+    const feed = notificationFeed({ isReal: true, supportTeam: ['coach'], athleteScore: 35, checkinSubmitted: false, proteinGap: 120 });
+    expect(feed.some((n) => n.kind === 'coachNote')).toBe(false);
+    expect(feed.some((n) => n.kind === 'hydration')).toBe(false);
   });
 });
 

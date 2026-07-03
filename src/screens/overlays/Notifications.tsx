@@ -1,8 +1,8 @@
 // OnStandard — in-app notification inbox (NEW / EARLIER).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { notificationCopy } from '@/core';
-import type { AppNotification } from '@/core';
+import { notificationFeed } from '@/core';
+import type { AppNotification, FeedNotif } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
 import { shadow } from '@/ui/tokens';
@@ -93,36 +93,99 @@ export function Notifications() {
     );
   }
 
-  // Gate the inbox copy so a real athlete is never told a coach, parent, or
-  // position room they don't have is waiting on / ranking / praising them. The
-  // seeded demo keeps the exact showcase strings.
-  const copy = notificationCopy({
+  // The inbox feed is built honestly: the seeded demo keeps its showcase, but a real
+  // athlete sees only reminders that are true right now, stamped "Now"/"Today" — never
+  // a fabricated "6h ago" on a fresh account. Actions map back to the store here.
+  const feed = notificationFeed({
     isReal: s.athleteName.trim().length > 0,
     supportTeam: s.supportTeam,
     athleteScore: d.athleteScore,
+    checkinSubmitted: s.ciSubmitted,
+    proteinGap: d.proteinGap,
   });
+  const actionFor = (a: FeedNotif['action']) =>
+    a === 'checkin' ? go(s.goCheckin) : a === 'meal' ? go(s.openMeal) : a === 'squad' ? go(s.goSquad) : undefined;
+  const styleFor = (kind: FeedNotif['kind']): { icon?: IconName; initials?: boolean; accent: string; iconBg?: string; iconColor?: string } => {
+    switch (kind) {
+      case 'checkin': return { icon: 'checkin', accent: c.accent };
+      case 'meal': return { icon: 'camera', accent: c.accent };
+      case 'score': return { icon: 'trophy', accent: c.success, iconBg: c.successSurface, iconColor: c.successDeep };
+      case 'hydration': return { icon: 'drop', accent: c.hydration, iconColor: c.hydration };
+      case 'coachNote': return { initials: true, accent: c.accent };
+    }
+  };
+  const newItems = feed.filter((n) => n.section === 'new');
+  const earlier = feed.filter((n) => n.section === 'earlier');
 
   return (
     <Overlay title="Notifications" onClose={s.closeNotif} right={<Pressable accessibilityRole="button" accessibilityLabel="Clear notifications" hitSlop={8} onPress={s.closeNotif}><Txt w="b" size={13} color={c.accent}>Clear</Txt></Pressable>}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <SectionLabel>NEW</SectionLabel>
-        <Reveal index={0}>
-        <View style={{ gap: 10 }}>
-          <NotifCard icon="checkin" accent={c.accent} title="Weekly check-in due" time="2m" text={copy.checkin} onPress={go(s.goCheckin)} />
-          <NotifCard icon="camera" accent={c.accent} title="Time to log dinner" time="18m" text={`You're ${d.proteinGap}g of protein from your target. One more meal does it.`} onPress={go(s.openMeal)} />
-          <NotifCard icon="trophy" accent={c.success} iconBg={c.successSurface} iconColor={c.successDeep} title="Score update" time="1h" text={copy.score} onPress={go(s.goSquad)} />
-        </View>
-        </Reveal>
-
-        <SectionLabel style={{ marginTop: 20 }}>EARLIER</SectionLabel>
-        <Reveal index={1}>
-        <View style={{ gap: 10 }}>
-          {copy.coachNote ? (
-            <NotifCard initials={copy.coachNote.initials} title={copy.coachNote.title} time="4h" text={copy.coachNote.text} />
-          ) : null}
-          <NotifCard icon="drop" accent={c.hydration} iconColor={c.hydration} title="Hydration reminder" time="6h" text="You're behind on water. Knock out 500ml before practice." />
-        </View>
-        </Reveal>
+        {feed.length === 0 ? (
+          <View style={{ marginTop: 40, alignItems: 'center', paddingHorizontal: 24 }}>
+            <View style={{ width: 52, height: 52, borderRadius: 15, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="check" size={24} color={c.successDeep} />
+            </View>
+            <Txt w="eb" size={16} style={{ marginTop: 14, textAlign: 'center' }}>You&apos;re all caught up</Txt>
+            <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
+              No reminders right now. We&apos;ll nudge you when your check-in or next meal is due.
+            </Txt>
+          </View>
+        ) : (
+          <>
+            {newItems.length > 0 ? (
+              <>
+                <SectionLabel>NEW</SectionLabel>
+                <Reveal index={0}>
+                <View style={{ gap: 10 }}>
+                  {newItems.map((n) => {
+                    const st = styleFor(n.kind);
+                    return (
+                      <NotifCard
+                        key={n.key}
+                        icon={st.icon}
+                        initials={st.initials ? n.initials : undefined}
+                        accent={st.accent}
+                        iconBg={st.iconBg}
+                        iconColor={st.iconColor}
+                        title={n.title}
+                        time={n.time}
+                        text={n.text}
+                        onPress={actionFor(n.action)}
+                      />
+                    );
+                  })}
+                </View>
+                </Reveal>
+              </>
+            ) : null}
+            {earlier.length > 0 ? (
+              <>
+                <SectionLabel style={{ marginTop: newItems.length > 0 ? 20 : 0 }}>EARLIER</SectionLabel>
+                <Reveal index={1}>
+                <View style={{ gap: 10 }}>
+                  {earlier.map((n) => {
+                    const st = styleFor(n.kind);
+                    return (
+                      <NotifCard
+                        key={n.key}
+                        icon={st.icon}
+                        initials={st.initials ? n.initials : undefined}
+                        accent={st.accent}
+                        iconBg={st.iconBg}
+                        iconColor={st.iconColor}
+                        title={n.title}
+                        time={n.time}
+                        text={n.text}
+                        onPress={actionFor(n.action)}
+                      />
+                    );
+                  })}
+                </View>
+                </Reveal>
+              </>
+            ) : null}
+          </>
+        )}
       </ScrollView>
     </Overlay>
   );

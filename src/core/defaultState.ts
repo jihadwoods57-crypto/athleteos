@@ -144,6 +144,9 @@ export function createInitialState(): AppState {
     planInstructions: [],
     planSlots: [],
     weightTarget: WEIGHT_TARGET,
+    // False until the athlete adjusts the target on About You; while false the step shows
+    // (and seeds from) the goal-derived default so a Lose Fat user never sees a gain target.
+    weightTargetTouched: false,
     visibility: 'parent',
     notif: true,
     reminderSettings: defaultReminderSettings(),

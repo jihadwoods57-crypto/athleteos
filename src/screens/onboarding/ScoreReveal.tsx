@@ -2,7 +2,6 @@
 // draws, the number counts up to the score, the grade fades in. Reduce-motion aware.
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, View } from 'react-native';
-import { gradeWithSuffix } from '@/core';
 import { type ColorTheme } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Ring } from '@/ui/Ring';
@@ -10,12 +9,13 @@ import { Reveal, Txt } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { useReduceMotion } from '@/ui/useReduceMotion';
 
-/** Ring + number color by score band (motivating, not alarming). */
+/** Ring + number color by band for the STARTING baseline (a start to climb from, not a
+ *  verdict) — so the lowest band reads amber "room to grow", never alarm-red "fail". The
+ *  daily Home score keeps the full A–F grade; this reveal is a baseline, not a report card. */
 function bandColor(score: number, c: ColorTheme): string {
   if (score >= 80) return c.success;
   if (score >= 70) return c.accent;
-  if (score >= 60) return c.warning;
-  return c.alert;
+  return c.warning;
 }
 
 export function ScoreReveal({ score, bumped }: { score: number; bumped?: boolean }) {
@@ -24,7 +24,6 @@ export function ScoreReveal({ score, bumped }: { score: number; bumped?: boolean
   const [shown, setShown] = useState(reduceMotion ? score : 0);
   const gradeAnim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
   const color = bandColor(score, c);
-  const grade = gradeWithSuffix(score);
 
   useEffect(() => {
     if (reduceMotion) {
@@ -75,8 +74,8 @@ export function ScoreReveal({ score, bumped }: { score: number; bumped?: boolean
           }}
         >
           <View style={{ backgroundColor: color, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 5 }}>
-            <Txt w="eb" size={15} color={c.white} ls={0.3}>
-              GRADE {grade}
+            <Txt w="eb" size={13} color={c.white} ls={0.5}>
+              STARTING POINT
             </Txt>
           </View>
         </Animated.View>

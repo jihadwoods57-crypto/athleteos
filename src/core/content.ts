@@ -519,15 +519,29 @@ export const POSITION_LABELS: Record<string, Record<string, string>> = {
 };
 
 /**
- * Profile subtitle from the athlete's REAL onboarding selections. A real athlete
- * who chose a sport gets "{position} · {sport}" (or "{sport} athlete" if they
- * skipped position), so it never hard-codes the seed school. With no sport set
- * (the seeded demo, athleteName ''), it falls back to the demo identity
- * "Linebacker · Eastside HS" so the showcase is unchanged. The position label is
- * resolved against the athlete's sport (or Football, the demo sport, when none).
+ * Profile / Squad subtitle from the athlete's REAL onboarding selections.
+ *
+ * `isReal` (a name is set → onboarding finished) is the gate that stops the seeded
+ * demo identity from leaking to a real athlete (the audit's "Linebacker · Eastside
+ * HS on a user who entered neither" bug). Athletes have no position step, so a real
+ * athlete's position is usually null; they must read as themselves, never as the
+ * demo linebacker at a demo school:
+ *   - real, position + sport → "{label} · {sport}"
+ *   - real, position only    → "{label}"          (never a fabricated school)
+ *   - real, sport only       → "{sport} athlete"
+ *   - real, neither          → "Athlete"          (honest neutral)
+ * The seeded demo (isReal false, athleteName '') keeps the exact showcase
+ * "Linebacker · Eastside HS" so nothing about the demo changes.
  */
-export function athleteSubtitle(position: string | null, sport?: string | null): string {
+export function athleteSubtitle(position: string | null, sport?: string | null, isReal = false): string {
   const hasSport = !!(sport && sport.trim());
+  if (isReal) {
+    if (position) {
+      const label = (POSITION_LABELS[hasSport ? (sport as string) : 'Football'] ?? {})[position] ?? position;
+      return hasSport ? `${label} · ${sport}` : label;
+    }
+    return hasSport ? `${sport} athlete` : 'Athlete';
+  }
   if (!position) return hasSport ? `${sport} athlete` : 'Linebacker · Eastside HS';
   const label = (POSITION_LABELS[hasSport ? (sport as string) : 'Football'] ?? {})[position] ?? position;
   return `${label} · ${hasSport ? sport : 'Eastside HS'}`;
@@ -576,6 +590,64 @@ export function notificationCopy(opts: {
     score: `Your Execution Score is ${opts.athleteScore}. Tap to see your week.`,
     coachNote: null,
   };
+}
+
+export type FeedNotifKind = 'checkin' | 'meal' | 'score' | 'hydration' | 'coachNote';
+export type FeedNotifAction = 'checkin' | 'meal' | 'squad' | 'none';
+
+export interface FeedNotif {
+  key: string;
+  kind: FeedNotifKind;
+  title: string;
+  /** Honest timing label. Real-athlete items say "Now"/"Today"; the seeded demo keeps
+   *  its showcase relative stamps ("2m"/"6h"). Never a fabricated past for a real user. */
+  time: string;
+  text: string;
+  action: FeedNotifAction;
+  section: 'new' | 'earlier';
+  initials?: string;
+}
+
+/**
+ * The inbox feed for the non-backend (demo/offline) path, built so a brand-new real
+ * athlete never sees fabricated history — the audit's "notifications timestamped 6h
+ * ago on a 10-minute-old account" bug. The seeded demo (isReal false) keeps the exact
+ * showcase (four cards with relative stamps). A real athlete gets only the reminders
+ * that are TRUE RIGHT NOW, stamped with honest timing ("Now"/"Today"): a check-in
+ * nudge while it's unsubmitted, and a log-your-next-meal nudge while protein is short.
+ * When nothing is due the list is empty and the screen shows an "all caught up" state.
+ * Pure.
+ */
+export function notificationFeed(opts: {
+  isReal: boolean;
+  supportTeam: string[];
+  athleteScore: number;
+  checkinSubmitted: boolean;
+  proteinGap: number;
+}): FeedNotif[] {
+  const copy = notificationCopy(opts);
+  if (!opts.isReal) {
+    // Seeded showcase — unchanged from the original hardcoded cards.
+    const list: FeedNotif[] = [
+      { key: 'checkin', kind: 'checkin', title: 'Weekly check-in due', time: '2m', text: copy.checkin, action: 'checkin', section: 'new' },
+      { key: 'meal', kind: 'meal', title: 'Time to log dinner', time: '18m', text: `You're ${opts.proteinGap}g of protein from your target. One more meal does it.`, action: 'meal', section: 'new' },
+      { key: 'score', kind: 'score', title: 'Score update', time: '1h', text: copy.score, action: 'squad', section: 'new' },
+    ];
+    if (copy.coachNote) {
+      list.push({ key: 'coachNote', kind: 'coachNote', title: copy.coachNote.title, time: '4h', text: copy.coachNote.text, action: 'none', section: 'earlier', initials: copy.coachNote.initials });
+    }
+    list.push({ key: 'hydration', kind: 'hydration', title: 'Hydration reminder', time: '6h', text: "You're behind on water. Knock out 500ml before practice.", action: 'none', section: 'earlier' });
+    return list;
+  }
+  // Real athlete — only currently-true reminders, honest timing, no fabricated past.
+  const list: FeedNotif[] = [];
+  if (!opts.checkinSubmitted) {
+    list.push({ key: 'checkin', kind: 'checkin', title: 'Weekly check-in due', time: 'Today', text: copy.checkin, action: 'checkin', section: 'new' });
+  }
+  if (opts.proteinGap > 0) {
+    list.push({ key: 'meal', kind: 'meal', title: 'Log your next meal', time: 'Now', text: `You're ${opts.proteinGap}g of protein from your target. One more meal does it.`, action: 'meal', section: 'new' });
+  }
+  return list;
 }
 
 /** Onboarding training-frequency key → a short Profile cadence phrase. */

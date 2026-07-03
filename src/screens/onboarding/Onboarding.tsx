@@ -8,6 +8,7 @@ import {
   formatHeight,
   flowForRole,
   consentSummary,
+  deriveTargetsFromGoal,
   firstName,
   guardianConsentCopy,
   GOAL_GROUPS,
@@ -602,8 +603,18 @@ function AthleteFlow() {
       );
     }
 
-    case 'profile':
+    case 'profile': {
       // Training frequency is merged in here (compact chips) so it isn't its own step.
+      // Target weight DISPLAYS the goal-derived default (points the right way for the goal)
+      // until the athlete adjusts it — so a Lose Fat user never sees a target ABOVE their
+      // weight that then silently flips to the derived value later (the audit bug).
+      const derivedTarget = deriveTargetsFromGoal(s.baseGoal, s.baseWeight).weightTarget;
+      const shownTarget = s.weightTargetTouched ? s.weightTarget : derivedTarget;
+      const targetHint =
+        s.baseGoal === 'lose' ? `Aiming ${Math.max(0, s.baseWeight - shownTarget)} lb below your current weight.`
+        : s.baseGoal === 'gain' ? `Aiming ${Math.max(0, shownTarget - s.baseWeight)} lb above your current weight.`
+        : s.baseGoal === 'maintain' ? 'Holding around your current weight.'
+        : '';
       return (
         <StepShell progress={progress} onBack={s.obBack} title="About you" sub="Tap to adjust. This calibrates your targets." footer={cont(true)}>
           <View style={{ gap: 14 }}>
@@ -613,8 +624,13 @@ function AthleteFlow() {
             </Row>
             <Row style={{ gap: 12 }}>
               <Stepper label="Weight" value={String(s.baseWeight)} unit="lb" onDec={() => s.bwStep(-1)} onInc={() => s.bwStep(1)} />
-              <Stepper label="Target weight" value={String(s.weightTarget)} unit="lb" onDec={() => s.adjustWeightTarget(-1)} onInc={() => s.adjustWeightTarget(1)} />
+              <Stepper label="Target weight" value={String(shownTarget)} unit="lb" onDec={() => s.adjustWeightTarget(-1)} onInc={() => s.adjustWeightTarget(1)} />
             </Row>
+            {targetHint ? (
+              <Txt w="sb" size={12} color={c.textSecondary} style={{ marginTop: -6 }}>
+                {targetHint}
+              </Txt>
+            ) : null}
             <View>
               <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} upper style={{ marginTop: 4, marginBottom: 10 }}>
                 How often do you train?
@@ -640,6 +656,7 @@ function AthleteFlow() {
           </View>
         </StepShell>
       );
+    }
 
     case 'baseline':
       // All six habit questions on ONE screen (was six separate steps). Same setters,
@@ -726,11 +743,30 @@ function AthleteFlow() {
           title={minor ? 'Your data, with a guardian' : 'Your data, your control'}
           sub="OnStandard only ever shares what you allow, and you can stop any time."
           footer={
-            <Btn
-              label={minor && !verified ? 'Start — my data stays on this device' : 'I agree, continue'}
-              disabled={!s.realDataConsent}
-              onPress={s.obNext}
-            />
+            // Two genuine, non-contradictory actions (audit fix): the SHARE path is gated
+            // on the agree checkbox; the KEEP-LOCAL path is always available and never
+            // requires agreeing to share. Before, one button said "stays on this device"
+            // yet was disabled until you consented to share — a direct contradiction.
+            <View style={{ gap: 8 }}>
+              <Btn
+                label={minor && !verified ? "Share with a guardian's OK" : 'Agree and continue'}
+                disabled={!s.realDataConsent}
+                onPress={s.obNext}
+              />
+              {!verified ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Keep my data on this device for now"
+                  hitSlop={8}
+                  onPress={() => { haptics.tap(); s.recordConsent(false); s.obNext(); }}
+                  style={({ pressed }) => ({ alignSelf: 'center', paddingVertical: 10, opacity: pressed ? 0.6 : 1 })}
+                >
+                  <Txt w="b" size={14} color={c.textSecondary}>
+                    Keep it on this device for now
+                  </Txt>
+                </Pressable>
+              ) : null}
+            </View>
           }
         >
           {/* Age is confirmed HERE, at the moment it decides the guardian requirement, not silently

@@ -52,6 +52,7 @@ import {
   appendSnack,
   baseGoalForPrimary,
   goalConfig,
+  deriveTargetsFromGoal,
   realDataConsent,
   reminderNotifySpecs,
   reminderSnapshotFromState,
@@ -664,7 +665,17 @@ export const useStore = create<Store>()(
           ...emptyDaySlice(),
           flow: 'app',
           tab: 'home',
-          mealOpen: false,
+          // The activation CTA is "Upload your first meal" — so it must land ON the camera,
+          // not drop the athlete on Home to hunt for it (the audit's broken-promise deep-link).
+          // Mirror openMeal's capture-overlay reset so "Start now" opens straight into capture.
+          mealOpen: true,
+          mealStage: 'capture',
+          mealCaptureMode: 'meal',
+          mealAnalysis: null,
+          mealQuestions: [],
+          labelFacts: null,
+          labelServings: 1,
+          mealPhoto: null,
           // Surface the weight the athlete entered in onboarding: it anchors the
           // season-goal progress (start) and is their live current weight (no
           // progress yet, so "gained since start" honestly reads 0). Check-in
@@ -768,7 +779,17 @@ export const useStore = create<Store>()(
         }),
       adjustCalTarget: (d) => set((s) => ({ calTarget: clamp(s.calTarget + d, 1200, 6000) })),
       adjustWeightTarget: (d) =>
-        set((s) => ({ weightTarget: clamp((s.weightTarget ?? WEIGHT_TARGET) + d, 120, 350) })),
+        // On the FIRST adjust of an untouched target, seed from the goal-derived value (which
+        // points the right way for the chosen goal) so a Lose Fat athlete steps from ~164, not
+        // from the gain-shaped 184 constant. Once touched it steps purely from the athlete's
+        // own value. `weightTargetTouched` also drives the About You display, so the shown
+        // default and the first step agree, and nothing silently flips later.
+        set((s) => {
+          const base = s.weightTargetTouched
+            ? (s.weightTarget ?? WEIGHT_TARGET)
+            : deriveTargetsFromGoal(s.baseGoal, s.baseWeight).weightTarget;
+          return { weightTarget: clamp(base + d, 120, 350), weightTargetTouched: true };
+        }),
       signOut: () => {
         // Terminate the real Supabase session (clears the persisted refresh token) AND
         // clear the sensitive session state (userId / consent / entitlement) via the
@@ -1454,6 +1475,7 @@ export const useStore = create<Store>()(
         planSlots: s.planSlots,
         calTarget: s.calTarget,
         weightTarget: s.weightTarget,
+        weightTargetTouched: s.weightTargetTouched,
         scoringProfile: s.scoringProfile,
         compMode: s.compMode,
         goals: s.goals,

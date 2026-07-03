@@ -81,7 +81,10 @@ describe('startFirstMealChallenge — swaps the seeded demo day for an empty one
     const s = useStore.getState();
     expect(s.flow).toBe('app');
     expect(s.tab).toBe('home');
-    expect(s.mealOpen).toBe(false); // lands on Daily HQ, NOT the camera (a new user has no meal yet)
+    // The activation CTA is "Upload your first meal", so it opens straight into capture
+    // (the audit's broken deep-link fix), while Home sits behind it fully reset.
+    expect(s.mealOpen).toBe(true);
+    expect(s.mealStage).toBe('capture');
     expect(s.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
     expect(s.hydrationL).toBe(0);
     expect(s.tasks.every((t) => !t.done)).toBe(true);

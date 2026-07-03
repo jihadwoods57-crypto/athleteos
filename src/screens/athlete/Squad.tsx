@@ -59,7 +59,7 @@ export function Squad() {
         <SoloSquad
           name={athleteName}
           monogram={initials(athleteName, 'J')}
-          subtitle={athleteSubtitle(position, sport)}
+          subtitle={athleteSubtitle(position, sport, isReal)}
           score={d.athleteScore}
           dir={youDir}
           empty={view.empty}

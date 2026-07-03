@@ -517,7 +517,7 @@ export function Home() {
             )}
           </View>
         </Row>
-        <TrendChart series={series} />
+        <TrendChart series={series} flat={d.isDay0} />
         <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
           {dayLabels.map((dn, i) => (
             <Txt key={`${dn}-${i}`} w="sb" size={11} color={c.textTertiary}>
@@ -823,9 +823,22 @@ function useCountUp(target: number, steps = 18, intervalMs = 28): number {
   return val;
 }
 
-function TrendChart({ series }: { series: number[] }) {
+function TrendChart({ series, flat }: { series: number[]; flat: boolean }) {
   const c = useColors();
   const box = DEFAULT_CHART_BOX;
+  // Day zero has only today's provisional anchor — the rest of `series` is the seeded
+  // pad. Drawing a rising green line off seeded data is the fabricated-trend bug the
+  // audit flagged, so with no real history yet (isDay0) we draw a flat, muted baseline
+  // with only today's dot: honestly "no trend, this fills in as you log".
+  if (flat) {
+    const midY = box.height / 2;
+    return (
+      <Svg viewBox={`0 0 ${box.width} ${box.height}`} width="100%" height={100} preserveAspectRatio="none" style={{ marginTop: 6 }}>
+        <Path d={`M0 ${midY} L${box.width} ${midY}`} fill="none" stroke={c.track} strokeWidth={3} strokeLinecap="round" strokeDasharray="2 7" />
+        <Circle cx={box.width - 4} cy={midY} r={5.5} fill={c.accent} stroke={c.card} strokeWidth={2.5} />
+      </Svg>
+    );
+  }
   const { linePath, areaPath, last } = trendGeometry(series, box);
   return (
     <Svg viewBox={`0 0 ${box.width} ${box.height}`} width="100%" height={100} preserveAspectRatio="none" style={{ marginTop: 6 }}>

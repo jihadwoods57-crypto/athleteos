@@ -380,6 +380,10 @@ export interface AppState {
    *  Home season-goal card, Check-In + Parent weight trends, and Profile.
    *  Defaults to the WEIGHT_TARGET constant. */
   weightTarget: number;
+  /** True once the athlete has adjusted the target weight themselves. While false, the
+   *  About You step displays and seeds from the goal-derived default (so a Lose Fat athlete
+   *  never sees a target above their weight), and activation applies the derived value. */
+  weightTargetTouched: boolean;
   visibility: string;
   notif: boolean;
   /** Per-reminder settings (enabled + local hour) for the P3 reminder schedule.

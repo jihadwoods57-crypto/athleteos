@@ -212,6 +212,8 @@ describe('editable season weight target', () => {
 
   it('lowering the weight target raises season-goal progress and shrinks "to go"', () => {
     const w = useStore.getState().currentWeight;
+    // An already-set (touched) target edits purely from its own value.
+    useStore.setState({ weightTarget: 184, weightTargetTouched: true });
     const before = seasonGoalProgress(w, WEIGHT_START, useStore.getState().weightTarget);
 
     useStore.getState().adjustWeightTarget(-4); // 184 -> 180, closer to current weight
@@ -223,6 +225,7 @@ describe('editable season weight target', () => {
   });
 
   it('clamps the weight target to [120, 350]', () => {
+    useStore.setState({ weightTarget: 184, weightTargetTouched: true });
     for (let i = 0; i < 400; i++) useStore.getState().adjustWeightTarget(-1);
     expect(useStore.getState().weightTarget).toBe(120);
     for (let i = 0; i < 400; i++) useStore.getState().adjustWeightTarget(1);
@@ -231,7 +234,7 @@ describe('editable season weight target', () => {
 
   it('falls back to the constant for a legacy blob with no weightTarget', () => {
     // Action must not produce NaN when the persisted state predates the field.
-    useStore.setState({ weightTarget: undefined as unknown as number });
+    useStore.setState({ weightTarget: undefined as unknown as number, weightTargetTouched: true });
     useStore.getState().adjustWeightTarget(2);
     expect(useStore.getState().weightTarget).toBe(WEIGHT_TARGET + 2);
   });
