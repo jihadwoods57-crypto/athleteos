@@ -10,14 +10,14 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 const analyzeMeal = jest.fn();
 const analyzeLabel = jest.fn();
 
-function loadStore(): UseBoundStore<StoreApi<Store>> {
+function loadStore(aiConfigured = true): UseBoundStore<StoreApi<Store>> {
   let store!: UseBoundStore<StoreApi<Store>>;
   jest.isolateModules(() => {
     jest.doMock('@react-native-async-storage/async-storage', () =>
       require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
     );
     jest.doMock('@/lib/ai', () => ({
-      isAiConfigured: true, // egress endpoint configured — the condition F1 is about
+      isAiConfigured: aiConfigured, // egress endpoint configured — the condition F1 is about
       analyzeMeal,
       analyzeLabel,
       AI_ENDPOINT: 'https://example.test/functions/v1/analyze-meal',
@@ -92,6 +92,49 @@ it('captureLabel DOES send the label for a consenting adult', async () => {
   expect(analyzeLabel).toHaveBeenCalledTimes(1);
 });
 
+it('a consent-blocked REAL athlete gets the honest blocked state, never a fabricated scan', async () => {
+  const useStore = loadStore();
+  useStore.setState({ athleteName: 'Marcus Cole', role: 'athlete', baseAge: 15, realDataConsent: false, guardianStatus: 'none', sharingPaused: false, mealType: 'Lunch', primaryGoal: null });
+  useStore.getState().capture();
+  await flush();
+  expect(analyzeMeal).not.toHaveBeenCalled();
+  expect(useStore.getState().mealStage).toBe('unavailable');
+  expect(useStore.getState().mealError).toBe('consent');
+  // No fake "Detecting foods" timer may still be pending behind the honest state.
+  jest.advanceTimersByTime(3000);
+  expect(useStore.getState().mealStage).toBe('unavailable');
+});
+
+it('a REAL athlete on a build with no AI endpoint gets the honest not-configured state', async () => {
+  const useStore = loadStore(false);
+  useStore.setState({ athleteName: 'Marcus Cole', role: 'athlete', baseAge: 25, realDataConsent: true, sharingPaused: false, mealType: 'Lunch', primaryGoal: null });
+  useStore.getState().capture();
+  await flush();
+  expect(useStore.getState().mealStage).toBe('unavailable');
+  expect(useStore.getState().mealError).toBe('not_configured');
+});
+
+it('the unowned showcase (blank name) keeps the deterministic demo scan', async () => {
+  const useStore = loadStore();
+  useStore.setState({ athleteName: '', role: 'athlete', baseAge: 15, realDataConsent: false, guardianStatus: 'none', sharingPaused: false, mealType: 'Lunch', primaryGoal: null });
+  useStore.getState().capture();
+  await flush();
+  jest.advanceTimersByTime(2400);
+  expect(useStore.getState().mealStage).toBe('result');
+});
+
+it('captureLabel: a consent-blocked REAL athlete never sees the sample label as a scan', async () => {
+  const useStore = loadStore();
+  useStore.setState({ athleteName: 'Marcus Cole', role: 'athlete', baseAge: 15, realDataConsent: false, guardianStatus: 'none', sharingPaused: false });
+  useStore.getState().captureLabel();
+  await flush();
+  expect(analyzeLabel).not.toHaveBeenCalled();
+  expect(useStore.getState().mealStage).toBe('unavailable');
+  expect(useStore.getState().mealError).toBe('consent');
+  jest.advanceTimersByTime(2000);
+  expect(useStore.getState().labelFacts).toBeNull();
+});
+
 it('addMeal logs a real AI analysis as the slot foods so its macros drive the score', async () => {
   const useStore = loadStore();
   useStore.setState({
@@ -102,6 +145,16 @@ it('addMeal logs a real AI analysis as the slot foods so its macros drive the sc
   expect(useStore.getState().meals.dinner).toBe(true);
   expect(useStore.getState().mealFoods.dinner?.[0]?.per.protein).toBe(48);
   expect(useStore.getState().mealAnalysis).toBeNull(); // cleared after logging
+});
+
+it('addMeal persists the real analysis coach note for the slot (MealDetail reads it back)', async () => {
+  const useStore = loadStore();
+  useStore.setState({
+    mealType: 'Dinner',
+    mealAnalysis: { name: 'Chicken & Rice', quality: 92, protein: 48, kcal: 700, carbs: 70, fat: 16, detected: ['Chicken'], note: 'Strong plate. A cup of greens would round it out.' },
+  });
+  useStore.getState().addMeal();
+  expect(useStore.getState().mealNotes.dinner).toBe('Strong plate. A cup of greens would round it out.');
 });
 
 it('addMeal without an AI analysis does NOT touch mealFoods (demo path unchanged)', async () => {

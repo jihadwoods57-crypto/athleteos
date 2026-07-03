@@ -788,14 +788,25 @@ function Questions() {
 function Unavailable({ reason, label, onRetry, onManual }: { reason: MealErrorReason | null; label: boolean; onRetry: () => void; onManual: () => void }) {
   const c = useColors();
   const rateLimited = reason === 'rate_limited';
+  // Blocked (consent gate / no endpoint) is a state retrying can't change, so those
+  // variants drop the retry CTA and make Search the way to log.
+  const blocked = reason === 'consent' || reason === 'not_configured';
   const title = rateLimited
     ? "You've hit today's limit"
-    : label ? "Couldn't read that label" : "Couldn't analyze that photo";
+    : reason === 'consent'
+      ? 'Photo analysis is locked for now'
+      : reason === 'not_configured'
+        ? "Photo analysis isn't on yet"
+        : label ? "Couldn't read that label" : "Couldn't analyze that photo";
   const body = rateLimited
     ? "You've used all of today's AI analyses. Your log still counts — search the food to add it exactly, or try the photo again tomorrow."
-    : label
-      ? "We couldn't read the Nutrition Facts this time. Try the scan again, or search the food to log it exactly. We won't guess the numbers."
-      : "We couldn't analyze this one. Try the photo again, or search the food to log it exactly. We won't guess your macros.";
+    : reason === 'consent'
+      ? 'Photos only leave your device once data sharing is approved on your account. Until then, search the food to log it exactly — it counts the same.'
+      : reason === 'not_configured'
+        ? "This build doesn't have photo analysis connected. Search the food to log it exactly — we won't guess your macros."
+        : label
+          ? "We couldn't read the Nutrition Facts this time. Try the scan again, or search the food to log it exactly. We won't guess the numbers."
+          : "We couldn't analyze this one. Try the photo again, or search the food to log it exactly. We won't guess your macros.";
   return (
     <View style={{ marginTop: 26, alignItems: 'center' }}>
       <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: c.warnTint, alignItems: 'center', justifyContent: 'center' }}>
@@ -805,8 +816,8 @@ function Unavailable({ reason, label, onRetry, onManual }: { reason: MealErrorRe
       <Txt w="m" size={13.5} color={c.textSecondary} style={{ marginTop: 8, textAlign: 'center', lineHeight: 20, paddingHorizontal: 8 }}>
         {body}
       </Txt>
-      {/* No retry CTA when rate-limited — retrying just hits the cap again; Search is the way to log now. */}
-      {rateLimited ? null : (
+      {/* No retry CTA when rate-limited or blocked — retrying can't change the outcome; Search is the way to log now. */}
+      {rateLimited || blocked ? null : (
         <Btn label={label ? 'Scan again' : 'Retake photo'} onPress={onRetry} style={{ marginTop: 20, alignSelf: 'stretch' }} />
       )}
       <Pressable

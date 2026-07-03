@@ -69,6 +69,7 @@ export function createInitialState(): AppState {
     meals: { breakfast: true, lunch: true, snack: true, dinner: false },
     mealFoods: {},
     mealLoggedAt: {},
+    mealNotes: {},
     hydrationL: 2.4,
     quickAdded: [false, false, false],
     nudged: [],

@@ -75,9 +75,9 @@ export function ParentView() {
                   This week
                 </Txt>
                 <Row style={{ gap: 7, marginTop: 5 }}>
-                  <SampleTag />
+                  {athlete.isDemo ? <SampleTag /> : null}
                   <Txt w="sb" size={12} color={c.textTertiary}>
-                    Sample data, not yet linked to your athlete
+                    {athlete.isDemo ? 'Sample data, not yet linked to your athlete' : `Waiting on ${athlete.first}'s account`}
                   </Txt>
                 </Row>
               </View>
@@ -94,6 +94,16 @@ export function ParentView() {
             </Row>
           </Row>
 
+          {/* The four data cards + the "For you" digest below derive from THIS DEVICE's
+              local demo state — there is no parent→child data path yet. Rendering them
+              about a REAL child by name is fabricated reassurance ("nothing needs you
+              this week"), the exact trust break the Human Connection pillar forbids.
+              A real parent gets one honest pending card instead; the showcase (no child
+              name entered) keeps the full sample dashboard, labeled. */}
+          {!athlete.isDemo ? <PendingLinkCard first={athlete.first} monogram={athlete.monogram} /> : null}
+
+          {athlete.isDemo ? (
+          <>
           {/* score */}
           <Reveal index={0}>
           <Card variant="hero" style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
@@ -257,6 +267,8 @@ export function ParentView() {
             </Row>
           </Card>
           </Reveal>
+          </>
+          ) : null}
 
           {/* coach notes */}
           <Reveal index={4}>
@@ -303,7 +315,9 @@ export function ParentView() {
           </Card>
           </Reveal>
 
-          {/* AI parent summary */}
+          {/* AI parent summary — demo-only: the digest narrates the local sample score,
+              which must never speak about a real child. */}
+          {athlete.isDemo ? (
           <Reveal index={5}>
           <View style={{ marginTop: 14, borderRadius: 20, padding: 20, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, flexDirection: 'row', gap: 13 }}>
             <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
@@ -317,6 +331,7 @@ export function ParentView() {
             </Txt>
           </View>
           </Reveal>
+          ) : null}
         </ScrollView>
         )}
       </SafeAreaView>
@@ -327,6 +342,37 @@ export function ParentView() {
       {s.plansOpen && <Plans />}
       {s.overseerProfileOpen && <OverseerProfile />}
     </View>
+  );
+}
+
+/** The honest state for a REAL parent: no fabricated dashboard, one card that says
+ *  exactly where things stand and what will appear here. Absence beats theater for
+ *  the one persona whose entire pillar is trust. */
+function PendingLinkCard({ first, monogram }: { first: string; monogram: string }) {
+  const c = useColors();
+  return (
+    <Card variant="hero" style={{ marginTop: 18, borderRadius: 24 }}>
+      <Row style={{ gap: 14, alignItems: 'center' }}>
+        <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt w="b" size={18} color={c.white}>
+            {monogram}
+          </Txt>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="eb" size={17} ls={-0.3}>
+            {first}'s day isn't linked yet
+          </Txt>
+          <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
+            Nothing on this screen is live data yet
+          </Txt>
+        </View>
+      </Row>
+      <Txt w="m" size={14} color={c.slate700} style={{ marginTop: 14, lineHeight: 21 }}>
+        Once {first} is on OnStandard and account linking opens up, you'll see their real score,
+        logged meals, and weekly trend here — never estimates, never samples. We'll say so the
+        moment it's live.
+      </Txt>
+    </Card>
   );
 }
 

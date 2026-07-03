@@ -14,6 +14,7 @@ function staleSlice(): Partial<AppState> {
     dateStamp: '2026-06-20',
     meals: { breakfast: true, lunch: true, snack: true, dinner: true },
     mealFoods: { dinner: [{ name: 'Chicken', portion: '8 oz', servings: 2, per: { protein: 50, kcal: 330, carbs: 0, fat: 7 } }] },
+    mealNotes: { dinner: 'Great plate yesterday.' },
     hydrationL: 3.8,
     quickAdded: [true, true, true],
     nudged: ['Andre Silva'],
@@ -277,6 +278,47 @@ describe('ciConfig persistence — archived score uses the answered questions, n
     expect(rolled.ciSubmitted).toBe(false);
     expect(rolled.meals).toEqual(init.meals);
     expect(rolled.dateStamp).toBe(TODAY);
+  });
+});
+
+describe('rollDayIfStale — a REAL athlete rolls to an EMPTY day, never the seeded demo day', () => {
+  // Same stale slice, but the user has onboarded as themselves (the codebase-wide
+  // `isReal` convention: athleteName is non-blank). Founder Rule 10: demo data
+  // never touches a real user — so their fresh morning must start with nothing
+  // logged, not the showcase's 3 pre-logged meals / 2.4L water / 3 done tasks.
+  const rolled = rollDayIfStale({ ...staleSlice(), athleteName: 'Marcus Cole' }, TODAY);
+
+  it('starts the day with no meals logged', () => {
+    expect(rolled.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
+  });
+
+  it('starts the day with zero hydration', () => {
+    expect(rolled.hydrationL).toBe(0);
+  });
+
+  it('starts the day with every task still open', () => {
+    expect(rolled.tasks?.some((t) => t.done)).toBe(false);
+  });
+
+  it('still stamps today and preserves cross-day fields', () => {
+    expect(rolled.dateStamp).toBe(TODAY);
+    expect(rolled.currentWeight).toBe(190);
+    expect(rolled.ciWeight).toBe(190);
+  });
+
+  it('still clears plates, punctuality, notes, commitment, and check-in with the day', () => {
+    expect(rolled.mealFoods).toEqual({});
+    expect(rolled.mealLoggedAt).toEqual({});
+    expect(rolled.mealNotes).toEqual({});
+    expect(rolled.dailyCommitment).toBeNull();
+    expect(rolled.ciSubmitted).toBe(false);
+    expect(rolled.ciStage).toBe('open');
+  });
+
+  it('a whitespace-only name still counts as the seeded demo', () => {
+    const demo = rollDayIfStale({ ...staleSlice(), athleteName: '   ' }, TODAY);
+    expect(demo.meals).toEqual(createInitialState().meals);
+    expect(demo.hydrationL).toBe(createInitialState().hydrationL);
   });
 });
 

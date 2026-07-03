@@ -81,10 +81,12 @@ export type MealStage = 'capture' | 'analyzing' | 'questions' | 'result' | 'unav
 /** Live day-sync status to the server. 'error' means the last push failed, so the athlete's logged
  *  day may not have reached their coach — surfaced honestly instead of failing silently. */
 export type SyncState = 'idle' | 'syncing' | 'synced' | 'error';
-/** Why a configured AI analysis failed. 'rate_limited' = the athlete hit the daily cap (429);
- *  'error' = any other failure (network, timeout, 5xx). Drives the honest 'unavailable' stage —
- *  we never fabricate a plate/label when a real model was asked and could not answer. */
-export type MealErrorReason = 'rate_limited' | 'error';
+/** Why a photo analysis couldn't run. 'rate_limited' = the athlete hit the daily cap (429);
+ *  'error' = any other failure (network, timeout, 5xx); 'consent' = the fail-closed egress
+ *  gate blocked the photo (unverified minor / no consent / sharing paused); 'not_configured'
+ *  = this build has no AI endpoint. Drives the honest 'unavailable' stage — we never
+ *  fabricate a plate/label for a real user, whatever the reason the model couldn't answer. */
+export type MealErrorReason = 'rate_limited' | 'error' | 'consent' | 'not_configured';
 /** Which flow the meal overlay is in: estimate a plate (photo), transcribe a label, or search a
  *  food by name (USDA) and pick exact macros from the ranked results. */
 export type MealCaptureMode = 'meal' | 'label' | 'search';
@@ -249,6 +251,11 @@ export interface AppState {
    *  Day-scoped. Absent = treated as on-time, so the seeded demo + legacy days are
    *  unchanged; only a meal logged AFTER its window deadline is scored as late. */
   mealLoggedAt: Partial<Record<MealKey, number>>;
+  /** The REAL AI coach note from each slot's analysis, kept so MealDetail can show the
+   *  model's actual coaching instead of a canned showcase note. Day-scoped (resets on
+   *  rollover). Absent for slots logged without an AI result — surfaces render nothing
+   *  rather than fabricate. */
+  mealNotes: Partial<Record<MealKey, string>>;
   hydrationL: number;
   tasks: Task[];
   /** The daily plan-commitment one-tap ("did you hit your plan today?"). Day-scoped

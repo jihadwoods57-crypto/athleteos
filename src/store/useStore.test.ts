@@ -331,12 +331,12 @@ describe('session persistence / rehydrate', () => {
     });
     await useStore.persist.rehydrate();
     const s = useStore.getState();
-    const fresh = createInitialState();
 
-    // day slice reset to fresh defaults
-    expect(s.meals).toEqual(fresh.meals);
-    expect(s.hydrationL).toBe(fresh.hydrationL);
-    expect(s.tasks).toEqual(fresh.tasks);
+    // Day slice reset — and because this user has ONBOARDED (athleteName set), the
+    // fresh day is the honest EMPTY day, never the seeded showcase's pre-logged one.
+    expect(s.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
+    expect(s.hydrationL).toBe(0);
+    expect(s.tasks.some((t) => t.done)).toBe(false);
     expect(s.dateStamp).toBe(todayStamp());
 
     // prior day's score appended exactly once, for the stale date

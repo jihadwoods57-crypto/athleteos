@@ -7,6 +7,7 @@ import type { Store } from './useStore';
 import type { StoreApi, UseBoundStore } from 'zustand';
 
 const signIn = jest.fn<Promise<AuthResult>, [string, string]>();
+const fetchDay = jest.fn<Promise<unknown>, [string, string]>();
 const signUp = jest.fn<Promise<AuthResult>, [string, string, string | undefined]>();
 const signOut = jest.fn<Promise<void>, []>();
 const resetPassword = jest.fn<Promise<AuthResult>, [string]>();
@@ -16,8 +17,12 @@ const coachSetGoals = jest.fn<Promise<void>, [string, unknown, unknown]>();
 const fetchEntitlement = jest.fn<Promise<unknown>, [string]>();
 const fetchProfile = jest.fn<Promise<unknown>, [string]>();
 
-function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
-  let store!: UseBoundStore<StoreApi<Store>>;
+// The real store type (including the persist API, which the hydration-settling
+// tests below use) rather than a bare UseBoundStore.
+type LiveStore = typeof import('./useStore').useStore;
+
+function loadStore(backendLive: boolean): LiveStore {
+  let store!: LiveStore;
   jest.isolateModules(() => {
     jest.doMock('@react-native-async-storage/async-storage', () =>
       require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -27,7 +32,7 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
       isSupabaseConfigured: backendLive,
       auth: { signIn, signUp, signOut, resetPassword, signInWithAppleToken },
       // signInLive hydrates the day after auth; no remote row in these unit tests.
-      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam, coachSetGoals, fetchEntitlement, fetchProfile, fetchGuardianRequests: jest.fn().mockResolvedValue([]), revokeViewer: jest.fn().mockResolvedValue(undefined) },
+      db: { fetchDay, upsertDay: jest.fn().mockResolvedValue(undefined), fetchActiveTrustPass: jest.fn().mockResolvedValue(null), createTeam, coachSetGoals, fetchEntitlement, fetchProfile, fetchGuardianRequests: jest.fn().mockResolvedValue([]), revokeViewer: jest.fn().mockResolvedValue(undefined) },
     }));
     store = require('./useStore').useStore;
   });
@@ -36,6 +41,7 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
 
 beforeEach(() => {
   signIn.mockReset();
+  fetchDay.mockReset().mockResolvedValue(null);
   signUp.mockReset();
   signOut.mockReset().mockResolvedValue(undefined);
   resetPassword.mockReset();
@@ -105,6 +111,60 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(signIn).toHaveBeenCalledWith('a@b.io', 'pw'); // trimmed email
     expect(useStore.getState().userId).toBe('u-1');
     expect(useStore.getState().authError).toBeNull();
+  });
+
+  it('signInLive with no remote day resets the unowned showcase day to an honest empty day', async () => {
+    signIn.mockResolvedValue({ ok: true, userId: 'u-1' });
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate(); // settle async hydration before acting
+    // The pre-sign-in local state is the seeded showcase (blank athleteName,
+    // 3 demo meals pre-logged). An account must never adopt it as its real day.
+    expect(useStore.getState().athleteName).toBe('');
+    expect(useStore.getState().meals.breakfast).toBe(true);
+    await useStore.getState().signInLive('a@b.io', 'pw');
+    const s = useStore.getState();
+    expect(s.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
+    expect(s.hydrationL).toBe(0);
+    expect(s.tasks.some((t) => t.done)).toBe(false);
+  });
+
+  it('signInLive keeps a REAL local day when the server has none (same-device re-sign-in)', async () => {
+    signIn.mockResolvedValue({ ok: true, userId: 'u-1' });
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate(); // settle async hydration before acting
+    useStore.setState({
+      athleteName: 'Marcus Cole',
+      meals: { breakfast: true, lunch: false, snack: false, dinner: false },
+      hydrationL: 1.2,
+    });
+    await useStore.getState().signInLive('a@b.io', 'pw');
+    const s = useStore.getState();
+    expect(s.meals).toEqual({ breakfast: true, lunch: false, snack: false, dinner: false });
+    expect(s.hydrationL).toBe(1.2);
+  });
+
+  it('signInLive adopts the server day when one exists', async () => {
+    signIn.mockResolvedValue({ ok: true, userId: 'u-1' });
+    fetchDay.mockResolvedValue({
+      athlete_id: 'u-1',
+      date: '2026-07-03',
+      meals: { breakfast: false, lunch: true, snack: false, dinner: false },
+      hydration_l: 0.8,
+      tasks: [],
+      quick_added: [false, false, false],
+      current_weight: 172,
+      checkin: null,
+      score: 61,
+      grade: 'D',
+    });
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate(); // settle async hydration before acting
+    await useStore.getState().signInLive('a@b.io', 'pw');
+    const s = useStore.getState();
+    expect(s.meals.lunch).toBe(true);
+    expect(s.meals.breakfast).toBe(false);
+    expect(s.hydrationL).toBe(0.8);
+    expect(s.currentWeight).toBe(172);
   });
 
   it('signInLive surfaces a FRIENDLY error + leaves userId null on failure', async () => {

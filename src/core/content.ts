@@ -4,6 +4,7 @@ import type { AppState, CiConfig, Derived, MealKey, MealLabel } from './types';
 import type { MacroConfidence } from './macroGrounding';
 import type { ReadinessBand } from './readiness';
 import { mealSlotMacros } from './scoring';
+import { mealMacros, mealQuality } from './mealEdit';
 
 export interface LoggedMeal {
   id: string;
@@ -177,25 +178,34 @@ const SLOT_META: Record<MealKey, { label: MealLabel; detailId: string; thumb: st
 
 /**
  * Build the per-slot row model for all four meal slots from day state.
- * Name + quality come from mealResultFor(); protein + kcal come from mealSlotMacros
- * (the same source computeDerived sums — a saved edited plate when present, the slot
- * constant otherwise) so the rendered rows agree with the "N of 4 logged" header and
- * the macro totals even after the athlete edits a meal.
+ * Protein + kcal come from mealSlotMacros (the same source computeDerived sums) so the
+ * rendered rows agree with the "N of 4 logged" header and the macro totals.
+ *
+ * Name + quality are honest per plate: a slot with a SAVED plate (AI analysis, label
+ * scan, search, or an edit) is named after its real foods and re-scored from its real
+ * macros. Without a plate, the seeded showcase keeps its canned dishes, but a REAL
+ * user (athleteName set) reads the plain slot label — the app never tells an athlete
+ * they ate "Overnight Oats & Berries" when it has no idea what they ate.
  */
 export function mealRowsFor(state: AppState): MealRow[] {
+  const isReal = (state.athleteName ?? '').trim() !== '';
   return SLOT_ORDER.map((key) => {
     const meta = SLOT_META[key];
     const result = mealResultFor(meta.label);
     const macros = mealSlotMacros(state, key);
+    const plate = state.mealFoods?.[key];
+    const plateName = plate?.length
+      ? plate.length === 1 ? plate[0].name : `${plate[0].name} + ${plate.length - 1} more`
+      : null;
     return {
       key,
       label: meta.label,
       detailId: meta.detailId,
       logged: state.meals[key],
-      name: result.name,
+      name: plateName ?? (isReal ? meta.label : result.name),
       protein: macros.protein,
       kcal: macros.kcal,
-      quality: result.quality,
+      quality: plate?.length ? mealQuality(mealMacros(plate)) : isReal ? mealQuality(macros) : result.quality,
       thumb: meta.thumb,
       dueTime: meta.dueTime,
     };

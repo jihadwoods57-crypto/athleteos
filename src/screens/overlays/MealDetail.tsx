@@ -1,7 +1,7 @@
 // OnStandard — Meal Detail: hero, macros, foods, quality breakdown, 3-way chat.
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods, searchFoods, addFood, removeFood, resolvePortion, medicalDisclaimer, activePlan, planMealNote } from '@/core';
+import { MEALS_LOG, macroComposition, mealMacros, mealQuality, stepServings, toEditableFoods, searchFoods, addFood, removeFood, resolvePortion, medicalDisclaimer, activePlan, planMealNote, formatWindowTime } from '@/core';
 import { isEnginesEnabled } from '@/lib/features';
 import { aiCoachName, isAiConfigured } from '@/lib/ai';
 import type { EditableFood, LoggedMeal, FoodItem, MealKey } from '@/core';
@@ -46,6 +46,19 @@ export function MealDetail() {
   const s = useStore();
   const meal = MEALS_LOG.find((m) => m.id === s.selectedMeal) ?? DINNER;
   const mealKey: MealKey = DETAIL_TO_KEY[s.selectedMeal ?? ''] ?? 'dinner';
+  // The codebase-wide honesty gate: a real user (onboarded name) never sees the
+  // showcase's canned name/time/note/chat — only what they actually logged.
+  const isReal = s.athleteName.trim() !== '';
+  const savedPlate = s.mealFoods[mealKey];
+  const slotLabel = mealKey.charAt(0).toUpperCase() + mealKey.slice(1);
+  const realTitle = savedPlate?.length
+    ? savedPlate.length === 1 ? savedPlate[0].name : `${savedPlate[0].name} + ${savedPlate.length - 1} more`
+    : slotLabel;
+  const title = isReal ? realTitle : meal.name;
+  const loggedMin = s.mealLoggedAt[mealKey];
+  const timeLabel = isReal ? (typeof loggedMin === 'number' ? `Logged ${formatWindowTime(loggedMin)}` : 'Logged today') : meal.time;
+  // The model's actual coaching for this slot — or nothing. Never the canned note.
+  const coachNote = isReal ? s.mealNotes[mealKey] ?? null : meal.note;
 
   // Editable estimate: each food carries a numeric share of the meal, so adjusting
   // a portion recomputes macros + quality + composition live (the persona fix for
@@ -82,10 +95,10 @@ export function MealDetail() {
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 16 }}>
           <View style={{ flex: 1 }}>
             <Txt w="eb" size={20} ls={-0.3}>
-              {meal.name}
+              {title}
             </Txt>
             <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
-              {meal.time}
+              {timeLabel}
             </Txt>
           </View>
           <View style={{ alignItems: 'center', marginLeft: 14 }}>
@@ -227,19 +240,24 @@ export function MealDetail() {
         </Card>
         </Reveal>
 
-        <Reveal index={3}>
-        <View style={{ marginTop: 14, borderRadius: 18, padding: 18, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, flexDirection: 'row', gap: 13 }}>
-          <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="sparkle" size={17} color={c.accent} />
-          </View>
-          <Txt w="m" size={14} color={c.slate700} style={{ flex: 1, lineHeight: 20 }}>
-            <Txt w="b" size={14} color={c.accent}>
-              {aiCoachName} ·{' '}
+        {/* The coach-voice note: the model's REAL analysis note when one exists; the
+            showcase keeps its canned note; a real user with no AI note gets nothing —
+            we never fabricate coaching over a plate the model didn't see. */}
+        {coachNote ? (
+          <Reveal index={3}>
+          <View style={{ marginTop: 14, borderRadius: 18, padding: 18, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, flexDirection: 'row', gap: 13 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="sparkle" size={17} color={c.accent} />
+            </View>
+            <Txt w="m" size={14} color={c.slate700} style={{ flex: 1, lineHeight: 20 }}>
+              <Txt w="b" size={14} color={c.accent}>
+                {aiCoachName} ·{' '}
+              </Txt>
+              {coachNote}
             </Txt>
-            {meal.note}
-          </Txt>
-        </View>
-        </Reveal>
+          </View>
+          </Reveal>
+        ) : null}
 
         {/* Accountability Engine — how this meal measures against the athlete's plan.
             Gated by the engines master switch (OFF for the prove-the-loop beta). */}
@@ -259,7 +277,10 @@ export function MealDetail() {
           </View>
         ) : null}
 
-        <Chat />
+        {/* The 3-way chat is showcase-only: it renders a seeded "Coach Davis" thread and a
+            composer whose messages are never delivered. A real user never sees a fabricated
+            coach conversation — the card is hidden until real messaging ships. */}
+        {isReal ? null : <Chat />}
 
         {/* learn=true: this is the genuine plate-correction site, so a removed food can teach a
             (confirmed) dislike — the write half of the AI memory flywheel. */}

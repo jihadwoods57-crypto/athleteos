@@ -52,6 +52,41 @@ describe('mealRowsFor', () => {
     expect(byKey.dinner.detailId).toBe('dinner');
   });
 
+  it('a saved plate names the row after the real foods and scores quality from its macros', () => {
+    const s = {
+      ...createInitialState(),
+      meals: { breakfast: true, lunch: false, snack: false, dinner: false },
+      mealFoods: { breakfast: [{ name: 'Protein shake', portion: '1 scoop', servings: 1, per: { protein: 30, kcal: 180, carbs: 6, fat: 3 } }] },
+    };
+    const byKey = Object.fromEntries(mealRowsFor(s).map((r) => [r.key, r]));
+    expect(byKey.breakfast.name).toBe('Protein shake');
+    expect(byKey.breakfast.name).not.toBe(mealResultFor('Breakfast').name);
+    expect(byKey.breakfast.protein).toBe(30); // real plate macros, not the slot constant
+  });
+
+  it('a multi-food plate leads with the first food and counts the rest', () => {
+    const plate = [
+      { name: 'Grilled chicken', portion: '7 oz', servings: 1, per: { protein: 52, kcal: 330, carbs: 0, fat: 7 } },
+      { name: 'Brown rice', portion: '1 cup', servings: 1, per: { protein: 5, kcal: 220, carbs: 45, fat: 2 } },
+      { name: 'Broccoli', portion: '1 cup', servings: 1, per: { protein: 3, kcal: 55, carbs: 11, fat: 0 } },
+    ];
+    const s = { ...createInitialState(), meals: { breakfast: false, lunch: true, snack: false, dinner: false }, mealFoods: { lunch: plate } };
+    const byKey = Object.fromEntries(mealRowsFor(s).map((r) => [r.key, r]));
+    expect(byKey.lunch.name).toBe('Grilled chicken + 2 more');
+  });
+
+  it("a REAL user's plate-less logged slot keeps the slot label, never the showcase dish", () => {
+    const s = {
+      ...createInitialState(),
+      athleteName: 'Marcus Cole',
+      meals: { breakfast: true, lunch: false, snack: false, dinner: false },
+      mealFoods: {},
+    };
+    const byKey = Object.fromEntries(mealRowsFor(s).map((r) => [r.key, r]));
+    expect(byKey.breakfast.name).toBe('Breakfast');
+    expect(byKey.breakfast.name).not.toBe(mealResultFor('Breakfast').name);
+  });
+
   it('default state: 3 logged, dinner unlogged, agrees with computeDerived', () => {
     const s = createInitialState();
     const rows = mealRowsFor(s);

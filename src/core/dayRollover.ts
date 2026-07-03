@@ -22,6 +22,7 @@ export const DAY_DEFAULT_KEYS = [
   'meals',
   'mealFoods',
   'mealLoggedAt',
+  'mealNotes',
   'hydrationL',
   'quickAdded',
   'nudged',
@@ -103,17 +104,35 @@ function pick<T extends object, K extends keyof T>(src: T, keys: readonly K[]): 
   return out;
 }
 
+/** Every day field at its honest EMPTY value — the day a REAL user starts on
+ *  (nothing logged, every task open, no check-in). This is the full-day-slice
+ *  counterpart of `emptyDaySlice`, covering all DAY_DEFAULT_KEYS so callers
+ *  (rollover, post-sign-in reset) can never half-reset a day. */
+export function freshRealDay(): Pick<AppState, (typeof DAY_DEFAULT_KEYS)[number]> {
+  return { ...pick(createInitialState(), DAY_DEFAULT_KEYS), ...emptyDaySlice() };
+}
+
 /** Given the persisted partial slice and today's stamp, reset the day fields to fresh
  *  defaults when the stamp is stale (or missing, for legacy pre-fix blobs) while
- *  preserving cross-day fields. Same-day returns the input unchanged (idempotent). */
+ *  preserving cross-day fields. Same-day returns the input unchanged (idempotent).
+ *
+ *  Which "fresh day" a user rolls into follows the codebase-wide `isReal` convention
+ *  (athleteName non-blank = a person onboarded): a real user's morning starts from the
+ *  honest EMPTY day (nothing logged, every task open — Founder Rule 10), while the
+ *  no-name seeded showcase keeps `createInitialState`'s pre-logged demo day. Before
+ *  this split, every real athlete woke from day 2 onward to 3 fabricated "logged"
+ *  meals and ~2.4L phantom water that then synced to their coach as real. */
 export function rollDayIfStale<T extends Partial<AppState>>(persisted: T, todayIso: string): T {
   if (!persisted) return persisted;
   if (persisted.dateStamp === todayIso) return persisted; // same day — untouched
 
   const init = createInitialState();
+  const isReal = (persisted.athleteName ?? '').trim() !== '';
   return {
     ...persisted, // preserve cross-day fields (currentWeight, visibility, notif, ...)
-    ...pick(init, DAY_DEFAULT_KEYS), // reset exactly the day fields to fresh defaults
+    // reset exactly the day fields: a real user's fresh day is honestly empty,
+    // the no-name showcase keeps the seeded demo day
+    ...(isReal ? freshRealDay() : pick(init, DAY_DEFAULT_KEYS)),
     ciWeight: persisted.currentWeight ?? init.ciWeight, // next check-in starts from real weight
     dateStamp: todayIso,
   };

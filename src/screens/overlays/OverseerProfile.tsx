@@ -66,14 +66,16 @@ function JoinCodeEditor() {
         <Txt w="eb" size={11} color={c.textTertiary} ls={0.4} upper>Your join code</Txt>
         <Row style={{ gap: 8, marginTop: 10, alignItems: 'center' }}>
           <Input value={code} onChangeText={(v) => { setCode(v.toUpperCase()); setMsg(null); }} placeholder="e.g. GATORS" autoCapitalize="characters" autoCorrect={false} style={{ flex: 1 }} />
-          <Btn label={busy ? '…' : 'Save'} disabled={busy || code.trim().length < 4} onPress={save} />
+          {/* 6-char minimum matches the server rule (0038 linking-consent hardening) so the
+              button never invites a save the RPC will reject. */}
+          <Btn label={busy ? '…' : 'Save'} disabled={busy || code.trim().length < 6} onPress={save} />
         </Row>
         <Pressable accessibilityRole="button" accessibilityLabel="Generate a random code" hitSlop={6} onPress={regen} style={({ pressed }) => ({ alignSelf: 'flex-start', marginTop: 12, opacity: pressed ? 0.6 : 1 })}>
           <Txt w="b" size={13} color={c.accent}>↺ Generate a random code</Txt>
         </Pressable>
         {msg ? <Txt w="sb" size={12} color={ok ? c.successDeep : c.alert} style={{ marginTop: 8 }}>{msg}</Txt> : null}
         <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 8, lineHeight: 17 }}>
-          Athletes join with this code. 4–12 letters or numbers, and it has to be unique.
+          Athletes join with this code. 6–12 letters or numbers, and it has to be unique.
         </Txt>
       </Card>
     </Reveal>
@@ -90,8 +92,12 @@ export function OverseerProfile() {
   // The org field's label + placeholder speak the role's own language.
   const orgLabel = isCoach ? 'Team or school' : isTrainer ? 'Practice or gym' : 'Organization';
   const orgPlaceholder = isCoach ? 'e.g. Eastside High School' : isTrainer ? 'e.g. Apex Performance' : 'Optional';
-  // Real roster/book count when live; the seeded showcase counts otherwise.
-  const count = isCoach ? ROSTER.length : isTrainer ? TRAINER_CLIENTS.length : 1;
+  // Live: count only what we actually know (the cached roster read); never the demo
+  // constants — a real trainer must not read "5 clients" of fake people. Demo keeps
+  // the showcase counts, labeled below.
+  const count = isBackendLive
+    ? (s.cachedRoster?.length ?? null)
+    : isCoach ? ROSTER.length : isTrainer ? TRAINER_CLIENTS.length : 1;
   const noun = rosterNoun(s.flow);
 
   return (
@@ -141,21 +147,30 @@ export function OverseerProfile() {
               <Icon name="squad" size={19} color={c.accent} />
             </View>
             <View style={{ flex: 1 }}>
-              <Txt w="b" size={14}>{count} {count === 1 ? noun.toLowerCase() : `${noun.toLowerCase()}s`}</Txt>
+              <Txt w="b" size={14}>
+                {count == null ? `Your ${noun.toLowerCase()}s` : `${count} ${count === 1 ? noun.toLowerCase() : `${noun.toLowerCase()}s`}`}
+              </Txt>
               <Row style={{ gap: 6, marginTop: 2 }}>
-                <Txt w="m" size={12} color={c.textTertiary}>Join code · {s.teamCode || 'EAGLES24'}</Txt>
+                <Txt w="m" size={12} color={c.textTertiary}>
+                  {/* Live with no code yet: say so — never the showcase EAGLES24. */}
+                  Join code · {s.teamCode || (isBackendLive ? 'not set yet' : 'EAGLES24')}
+                </Txt>
                 {isBackendLive ? null : <SampleTag />}
               </Row>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Share join code"
-              hitSlop={8}
-              onPress={() => void shareJoinCode(s.teamCode || 'EAGLES24')}
-              style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Icon name="copy" size={18} color={c.textTertiary} />
-            </Pressable>
+            {/* Share only a code that exists: a live overseer with no code yet must never
+                put the showcase EAGLES24 into a real share sheet. */}
+            {isBackendLive && !s.teamCode ? null : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Share join code"
+                hitSlop={8}
+                onPress={() => void shareJoinCode(s.teamCode || 'EAGLES24')}
+                style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Icon name="copy" size={18} color={c.textTertiary} />
+              </Pressable>
+            )}
           </Card>
           </Reveal>
         ) : null}
@@ -194,11 +209,13 @@ export function OverseerProfile() {
             {enabledAlertCount(s.overseerAlerts)} of {OVERSEER_ALERT_DEFS.length} on
           </Txt>
         </Row>
-        {!s.notif ? (
-          <Txt w="m" size={12} color={c.textTertiary} style={{ marginBottom: 10, marginLeft: 2, lineHeight: 17 }}>
-            Notifications are off, so none of these fire. Turn them on above. Your choices below are saved either way.
-          </Txt>
-        ) : null}
+        {/* Honest status for the toggles: no delivery pipeline consumes these yet, so a
+            parent must never read silence as "my kid is fine." Say exactly where it stands. */}
+        <Txt w="m" size={12} color={c.textTertiary} style={{ marginBottom: 10, marginLeft: 2, lineHeight: 17 }}>
+          {!s.notif
+            ? 'Notifications are off, so none of these fire. Turn them on above. Your choices below are saved either way.'
+            : 'Delivery for these alerts is still being built — your choices are saved now and take effect the moment it ships.'}
+        </Txt>
         <Reveal index={4}>
         <Card variant="low" style={{ borderRadius: 20, paddingVertical: 4 }}>
           {OVERSEER_ALERT_DEFS.map((d, i) => (

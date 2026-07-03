@@ -118,19 +118,28 @@ export function PersonDetail() {
           </Card>
         ) : null}
 
-        <Reveal index={1}>
-        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
-          <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 16 }}>
-            Score Breakdown
-          </Txt>
-          <View style={{ gap: 12 }}>
-            <BreakdownRow label="Nutrition" pct={bd.nutrition} />
-            <BreakdownRow label="Recovery" pct={bd.recovery} accent />
-            <BreakdownRow label="Commitment" pct={bd.commitment} />
-            <BreakdownRow label="Check-in" pct={bd.checkin} />
-          </View>
-        </Card>
-        </Reveal>
+        {/* The per-pillar breakdown is derived from fixed OFFSETS off the headline score —
+            showcase math, not component data (it makes recovery every athlete's weakest area
+            by construction). Same rule as DAY STREAK above: a real coach never sees
+            fabricated stats, so it is demo-only until real component data ships. */}
+        {isBackendLive ? null : (
+          <Reveal index={1}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
+            <Row style={{ gap: 8, marginBottom: 16 }}>
+              <Txt w="eb" size={15} ls={-0.3}>
+                Score Breakdown
+              </Txt>
+              <SampleTag />
+            </Row>
+            <View style={{ gap: 12 }}>
+              <BreakdownRow label="Nutrition" pct={bd.nutrition} />
+              <BreakdownRow label="Recovery" pct={bd.recovery} accent />
+              <BreakdownRow label="Commitment" pct={bd.commitment} />
+              <BreakdownRow label="Check-in" pct={bd.checkin} />
+            </View>
+          </Card>
+          </Reveal>
+        )}
 
         {/* Coach owns the plan (Constitution Rule #13): set this athlete's targets +
             scoring profile. Shown to the overseer flows that open this overlay. */}
@@ -217,26 +226,31 @@ export function PersonDetail() {
 
         {pd.athleteId ? <AthleteProfileView athleteId={pd.athleteId} recentScores={[pd.score]} /> : null}
 
-        <Reveal index={2}>
-        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
-          <Row style={{ gap: 9, marginBottom: 12 }}>
-            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="sparkle" size={17} color={c.accent} />
-            </View>
-            <Txt w="eb" size={12} color={c.accent} ls={0.4}>
-              {aiPrefix}SUMMARY
+        {/* The "summary" is a fixed score-band narrative asserting invented facts ("the
+            streak is alive", "Recovery is the gap") about whoever is open. Fine as showcase
+            flavor; a real coach would coach off it, so it is demo-only like the breakdown. */}
+        {isBackendLive ? null : (
+          <Reveal index={2}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
+            <Row style={{ gap: 9, marginBottom: 12 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="sparkle" size={17} color={c.accent} />
+              </View>
+              <Txt w="eb" size={12} color={c.accent} ls={0.4}>
+                {aiPrefix}SUMMARY
+              </Txt>
+              <SampleTag />
+            </Row>
+            <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 22 }}>
+              {pd.score >= 85
+                ? `${pd.name} is one of your most consistent. Nutrition is locked in and the streak is alive. Watch recovery; a small sleep gain would push this to an A+.`
+                : pd.score >= 75
+                ? `${pd.name} is holding steady. Nutrition and tasks are solid. Recovery is the gap; a sleep nudge would move the grade.`
+                : `${pd.name} needs attention. The score is below the line. A check-in could help reset the routine.`}
             </Txt>
-            <SampleTag />
-          </Row>
-          <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 22 }}>
-            {pd.score >= 85
-              ? `${pd.name} is one of your most consistent. Nutrition is locked in and the streak is alive. Watch recovery; a small sleep gain would push this to an A+.`
-              : pd.score >= 75
-              ? `${pd.name} is holding steady. Nutrition and tasks are solid. Recovery is the gap; a sleep nudge would move the grade.`
-              : `${pd.name} needs attention. The score is below the line. A check-in could help reset the routine.`}
-          </Txt>
-        </Card>
-        </Reveal>
+          </Card>
+          </Reveal>
+        )}
 
         {!nudged ? (
           <Input

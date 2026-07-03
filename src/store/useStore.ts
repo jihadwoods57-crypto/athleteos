@@ -36,6 +36,7 @@ import {
   sleepHoursToSlider,
   startingScore,
   WEIGHT_TARGET,
+  freshRealDay,
   rollDayIfStale,
   todayStamp,
   daysAgoStamp,
@@ -883,6 +884,11 @@ export const useStore = create<Store>()(
             // A failure anywhere in the chain must NEVER strand the user on the "analyzing" spinner.
             // Route to the honest 'unavailable' stage (retry / enter manually) — we do not fabricate.
             .catch(() => set({ mealError: 'error', mealStage: 'unavailable' }));
+        } else if (get().athleteName.trim()) {
+          // A REAL user whose photo can't be analyzed (consent gate blocked it, or this
+          // build has no AI endpoint) gets the honest blocked state — never the showcase's
+          // fabricated "Detecting foods" scan of a photo that was never taken.
+          set({ mealError: isAiConfigured ? 'consent' : 'not_configured', mealStage: 'unavailable' });
         } else {
           mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);
         }
@@ -939,8 +945,12 @@ export const useStore = create<Store>()(
             // reading ("exact, off the label") — that fabricates the athlete's actual photo. Show
             // the honest 'unavailable' stage (retry) instead; never strand the spinner.
             .catch((e) => set({ mealError: e instanceof AiUnavailableError ? e.reason : 'error', mealStage: 'unavailable' }));
+        } else if (get().athleteName.trim()) {
+          // A REAL user never sees the deterministic SAMPLE label presented as a scan of
+          // their product ("read straight off the label"). Honest blocked state instead.
+          set({ mealError: isAiConfigured ? 'consent' : 'not_configured', mealStage: 'unavailable' });
         } else {
-          // Gate blocked or no endpoint: deterministic sample, nothing leaves the device.
+          // Seeded showcase only: deterministic sample, nothing leaves the device.
           mealTimer = setTimeout(() => set({ labelFacts: sampleScannedLabel(), labelServings: 1, mealStage: 'result' }), 1400);
         }
       },
@@ -983,7 +993,10 @@ export const useStore = create<Store>()(
           // on-time and the score stays byte-for-byte untouched, per the ratified keystone
           // ("engines off -> score untouched"). Engines ON: stamp -> late logging lowers it.
           const mealLoggedAt = isEnginesEnabled ? { ...s.mealLoggedAt, [key]: nowMinutes() } : s.mealLoggedAt;
-          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], meals, mealFoods, mealLoggedAt, tasks };
+          // Keep the model's REAL coaching note for this slot so MealDetail can show it
+          // back later (the reward beat) instead of a canned showcase note.
+          const mealNotes = s.mealAnalysis?.note?.trim() ? { ...s.mealNotes, [key]: s.mealAnalysis.note.trim() } : s.mealNotes;
+          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], meals, mealFoods, mealLoggedAt, mealNotes, tasks };
         });
         // Persist the meal (macros + photo) BEFORE clearing the captured photo —
         // recordMeal reads the photo off current state. No-op unless backend live.
@@ -1328,6 +1341,7 @@ export const useStore = create<Store>()(
         try {
           const slice = await hydrateDay(res.userId);
           if (slice) set(slice);
+          if (slice?.dateStamp == null && !get().athleteName.trim()) set({ ...freshRealDay(), dateStamp: todayStamp() });
         } catch {
           /* keep the AsyncStorage-cached day */
         }
@@ -1352,6 +1366,11 @@ export const useStore = create<Store>()(
         try {
           const slice = await hydrateDay(res.userId);
           if (slice) set(slice);
+          // No server day to resume (dateStamp only arrives with a real day row) and
+          // nobody has onboarded locally: the pre-sign-in state is the unowned seeded
+          // showcase, which must never become an account's real day — it would sync
+          // 3 fabricated meals to the coach. Start this account honestly empty.
+          if (slice?.dateStamp == null && !get().athleteName.trim()) set({ ...freshRealDay(), dateStamp: todayStamp() });
         } catch {
           /* keep the AsyncStorage-cached day */
         }
@@ -1529,6 +1548,7 @@ export const useStore = create<Store>()(
         meals: s.meals,
         mealFoods: s.mealFoods,
         mealLoggedAt: s.mealLoggedAt,
+        mealNotes: s.mealNotes,
         hydrationL: s.hydrationL,
         tasks: s.tasks,
         dailyCommitment: s.dailyCommitment,
