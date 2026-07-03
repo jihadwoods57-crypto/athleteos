@@ -100,10 +100,12 @@ export function Profile() {
       {/* this week — the weekly digest (generator existed but rendered nowhere) */}
       <Reveal index={1}>
       {(() => {
-        const wr = weeklyReportFromState({ name: firstName(s.athleteName, 'Jihad'), scoreHistory: s.scoreHistory, liveScore: d.athleteScore });
-        // Warm empty state: a brand-new athlete (no history yet) gets a welcoming, directive
-        // start instead of a "nothing logged / accountability has stalled" report on day one.
-        if (wr.daysLogged === 0 && (s.scoreHistory?.length ?? 0) === 0) {
+        const wr = weeklyReportFromState({ name: firstName(s.athleteName, 'Jihad'), scoreHistory: s.scoreHistory, liveScore: d.athleteScore, todayStamp: s.dateStamp });
+        // Warm empty state: a brand-new athlete gets a welcoming, directive start instead
+        // of a report on day one. daysLogged is 0 both with no history at all and with only
+        // today's provisional day-0 anchor (the Starting Point Score is a baseline estimate,
+        // not a tracked day) — either way, no "Averaged 49 across 1 day" on day one.
+        if (wr.daysLogged === 0) {
           return (
             <Card variant="low" style={{ marginTop: 14, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>

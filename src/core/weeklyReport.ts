@@ -130,20 +130,33 @@ export function weeklyReport(input: WeeklyReportInput): WeeklyReport {
  * 7 are this week, the 7 before set `priorAvg`. Compliance reuses `weeklyCompliance`
  * (share of completed days on plan). A brand-new athlete with no history yields the
  * honest "No data yet" report. Pure.
+ *
+ * `todayStamp` (when given) drops today's provisional day-0 anchor from the digest:
+ * the Starting Point Score written at activation is a baseline estimate, not a
+ * tracked day, so day one must never read "Averaged 49 across 1 day (Needs
+ * intervention)" (the audit's score-contradiction P0). Once a real completed day
+ * exists the anchor is that day's real score and counts normally.
  */
 export function weeklyReportFromState(opts: {
   name: string;
   scoreHistory: DayScore[];
   liveScore: number;
   now?: Date;
+  todayStamp?: string;
 }): WeeklyReport {
-  const history = opts.scoreHistory ?? [];
+  const all = opts.scoreHistory ?? [];
+  const anchorOnly = opts.todayStamp != null && all.length > 0 && all.every((d) => d.date === opts.todayStamp);
+  const history = anchorOnly ? [] : all;
   const recent = history.slice(-7);
   const prior = history.slice(-14, -7);
   const priorAvg = prior.length
     ? Math.round(prior.reduce((a, d) => a + d.score, 0) / prior.length)
     : null;
-  const comp = weeklyCompliance(history, opts.liveScore, undefined, undefined, opts.now);
+  // Day one also skips weeklyCompliance entirely: its trend padding would count
+  // seeded showcase days as "on plan" and fabricate a percentage from nothing.
+  const comp = anchorOnly
+    ? { onPlan: 0, total: 0 }
+    : weeklyCompliance(history, opts.liveScore, undefined, undefined, opts.now);
   const compliance = comp.total ? Math.round((comp.onPlan / comp.total) * 100) : 0;
   return weeklyReport({ name: opts.name, scores: recent.map((d) => d.score), priorAvg, compliance });
 }

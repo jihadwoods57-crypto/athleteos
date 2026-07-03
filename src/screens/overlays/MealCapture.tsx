@@ -874,16 +874,20 @@ function FoodSearch() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<FoodLookupResult[] | null>(null);
   const [loading, setLoading] = useState(false);
+  // A dead network is not "no matches" — the two states get different, honest copy.
+  const [failed, setFailed] = useState(false);
 
   const run = async () => {
     const q = query.trim();
     if (!q || loading) return;
     haptics.tap();
     setLoading(true);
+    setFailed(false);
     try {
       setResults(await searchFoods(q));
     } catch {
-      setResults([]);
+      setResults(null);
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -943,6 +947,8 @@ function FoodSearch() {
         <SearchNote text="Food search needs a connection. Snap a photo or scan a label instead." />
       ) : loading ? (
         <SearchNote text="Searching the USDA database…" />
+      ) : failed ? (
+        <SearchNote text="Couldn't reach the food database — that's on the connection, not your search. Try again, or scan the label." />
       ) : results === null ? (
         <SearchNote text="Type a food and search. Numbers come straight from the USDA database — exact, not a photo estimate." />
       ) : results.length === 0 ? (

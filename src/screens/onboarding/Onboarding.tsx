@@ -3,7 +3,7 @@
 // per screen, tap-first, in-system premium. 7 roles personalize onto the 4 dashboards.
 // See docs/specs/2026-06-23-onboarding-redesign.md.
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Platform, ScrollView, View } from 'react-native';
+import { Animated, Easing, Platform, ScrollView, Share, View } from 'react-native';
 import {
   formatHeight,
   flowForRole,
@@ -31,7 +31,7 @@ import { aiPrefix, isAiConfigured } from '@/lib/ai';
 import { useStore } from '@/store';
 import type { Store } from '@/store';
 import { useColors, useTheme } from '@/ui/theme';
-import { Btn, Card, Input, ProgressBar, Row, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Input, ProgressBar, Row, SampleTag, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
 import { useReduceMotion } from '@/ui/useReduceMotion';
@@ -919,18 +919,32 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
   }, [step.kind, teamCode, obMeta, createTeamLive, createPracticeLive, teamDiscoverable, role]);
 
   if (step.kind === 'invite') {
+    // Only a REAL server-minted code earns the "share it with your team" moment.
+    // Handing a coach the demo fallback with a Share CTA meant they could text a
+    // dead code to their whole roster (the audit's team-code P0) — the sample
+    // state now says exactly what it is and routes forward without a share.
+    const realCode = !!s.teamCode?.trim();
+    const shareCode = async () => {
+      try {
+        await Share.share({ message: `Join our team on OnStandard — enter team code ${s.teamCode} after you sign up.` });
+      } catch { /* user cancelled the share sheet */ }
+    };
     return (
       <StepShell
         progress={progress}
         onBack={s.obBack}
         eyebrow="Activate"
         title={step.title}
-        sub={step.sub}
-        footer={<Btn label={step.cta} haptic="success" onPress={s.finishOb} />}
+        sub={realCode ? step.sub : 'Your real team code will be ready on your dashboard. Here is what it will look like.'}
+        footer={
+          realCode
+            ? <Btn label={step.cta} haptic="success" onPress={() => { void shareCode(); s.finishOb(); }} />
+            : <Btn label="Go to your dashboard" haptic="success" onPress={s.finishOb} />
+        }
       >
         <Card style={{ marginTop: 6 }} elevated>
           <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} upper>
-            {step.codeLabel}
+            {realCode ? step.codeLabel : 'Example team code'}
           </Txt>
           <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
             <Txt w="eb" size={26} ls={1}>
@@ -940,6 +954,14 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
               <Icon name="copy" size={19} color={c.accent} />
             </View>
           </Row>
+          {!realCode ? (
+            <Row style={{ gap: 6, marginTop: 10 }}>
+              <SampleTag />
+              <Txt w="sb" size={12} color={c.textTertiary} style={{ flex: 1 }}>
+                Sample — don't share this one. Your code appears on the Roster tab once your team is set up.
+              </Txt>
+            </Row>
+          ) : null}
         </Card>
         <Pressable accessibilityRole="button" accessibilityLabel="Skip for now" hitSlop={8} onPress={() => { haptics.tap(); s.finishOb(); }} style={({ pressed }) => ({ alignSelf: 'center', marginTop: 18, opacity: pressed ? 0.6 : 1 })}>
           <Txt w="b" size={14} color={c.textSecondary}>

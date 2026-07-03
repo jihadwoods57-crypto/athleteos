@@ -8,7 +8,6 @@ import {
   mealRowsFor,
   QUICK_FOODS,
   SNACK_PRESETS,
-  fuelTarget,
   winTheDay,
   paceProjection,
   weekdayLong,
@@ -37,7 +36,19 @@ export function Nutrition() {
   const weeklyProgress = isReal
     ? weeklyWeightProgress(s.weightHistory, s.currentWeight, s.startWeight ?? WEIGHT_START)
     : undefined;
-  const pace = paceProjection(s.weeklyGoalLb, weeklyProgress);
+  // The weekly goal points the same way as the athlete's own goal — a Lose Fat
+  // athlete is NEVER shown a gain target (the audit P0). Performance athletes
+  // hold weight, so they read as maintain here.
+  const goalDir = s.baseGoal === 'gain' ? 'gain' : s.baseGoal === 'lose' ? 'lose' : 'maintain';
+  const pace = paceProjection(s.weeklyGoalLb, weeklyProgress, goalDir);
+  const goalHeadline =
+    goalDir === 'gain' ? `Gain ${s.weeklyGoalLb.toFixed(1)} lb`
+    : goalDir === 'lose' ? `Lose ${s.weeklyGoalLb.toFixed(1)} lb`
+    : 'Hold your weight';
+  const goalSub =
+    goalDir === 'gain' ? `by Sunday · ≈${pace.surplus} cal/day surplus`
+    : goalDir === 'lose' ? `by Sunday · ≈${pace.surplus} cal/day deficit`
+    : 'this week · keep intake steady';
   const calPct = Math.round((d.kcalToday / d.calTarget) * 100);
   const rows = mealRowsFor(s);
   // Today's Prescribed Meals (Meal Plans feature): pair each plan slot with its
@@ -134,16 +145,19 @@ export function Nutrition() {
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
           <View>
             <Txt w="eb" num size={29} ls={-0.9}>
-              Gain {s.weeklyGoalLb.toFixed(1)} lb
+              {goalHeadline}
             </Txt>
             <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
-              by Sunday · ≈{pace.surplus} cal/day surplus
+              {goalSub}
             </Txt>
           </View>
+          {/* "Coach-set" only in the seeded demo showcase (Coach Davis). A real
+              athlete's weekly goal comes from their own onboarding goal until a
+              real coach writes one — mirroring coachGuidance's gating. */}
           <Row style={{ gap: 7, paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, backgroundColor: c.bg2 }}>
             <Icon name="shield" size={13} color={c.textSecondary} />
             <Txt w="b" size={12} color={c.textSecondary}>
-              Coach-set
+              {isReal ? 'Your plan' : 'Coach-set'}
             </Txt>
           </Row>
         </Row>
@@ -432,8 +446,10 @@ function WinTheDayCard() {
   const c = useColors();
   const s = useStore();
   const d = useDerived();
-  const dir = s.baseGoal === 'gain' ? 'gain' : s.baseGoal === 'lose' ? 'lose' : 'maintain';
-  const target = fuelTarget(s.currentWeight, s.weeklyGoalLb, dir);
+  // One truth: the same calorie/protein targets the Macros card shows (goal-derived,
+  // coach-overridable). Recomputing via fuelTarget here put two different "targets"
+  // on one screen (2,348 vs 2,150 in the audit) — same number, everywhere, always.
+  const target = { kcal: d.calTarget, protein: d.proteinTarget };
   const win = winTheDay({ protein: d.proteinToday, kcal: d.kcalToday, carbs: 0, fat: 0 }, target);
   const [wt, setWt] = React.useState(() => Math.round(s.currentWeight));
   const pPct = Math.min(100, Math.round((d.proteinToday / Math.max(1, target.protein)) * 100));

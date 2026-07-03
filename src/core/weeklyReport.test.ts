@@ -173,4 +173,56 @@ describe('weeklyReportFromState', () => {
     expect(r.headline).toBe('No data yet');
     expect(r.daysLogged).toBe(0);
   });
+
+  describe('day-0 anchor (the audit score-contradiction P0)', () => {
+    it('today-only history with todayStamp reads as no tracked days — never "Averaged 49 across 1 day"', () => {
+      const r = weeklyReportFromState({
+        name: 'Jordan',
+        scoreHistory: [{ date: '2026-07-02', score: 49 }],
+        liveScore: 35,
+        todayStamp: '2026-07-02',
+        now: new Date(2026, 6, 2),
+      });
+      expect(r.daysLogged).toBe(0);
+      expect(r.headline).toBe('No data yet');
+      expect(r.scoreLine).not.toContain('Averaged');
+      expect(r.status).not.toBe(undefined);
+    });
+
+    it('day-0 compliance is 0, never a percentage fabricated from seeded showcase days', () => {
+      const r = weeklyReportFromState({
+        name: 'Jordan',
+        scoreHistory: [{ date: '2026-07-02', score: 49 }],
+        liveScore: 35,
+        todayStamp: '2026-07-02',
+        now: new Date(2026, 6, 2),
+      });
+      expect(r.complianceLine).toBe('No meals on plan logged yet.');
+    });
+
+    it('once a REAL completed day exists, the report counts it normally', () => {
+      const r = weeklyReportFromState({
+        name: 'Jordan',
+        scoreHistory: [
+          { date: '2026-07-02', score: 62 },
+          { date: '2026-07-03', score: 71 },
+        ],
+        liveScore: 71,
+        todayStamp: '2026-07-03',
+        now: new Date(2026, 6, 3),
+      });
+      expect(r.daysLogged).toBe(2);
+      expect(r.avgScore).toBe(67);
+    });
+
+    it('without todayStamp the behavior is unchanged (back-compat for existing callers)', () => {
+      const r = weeklyReportFromState({
+        name: 'Jordan',
+        scoreHistory: [{ date: '2026-07-02', score: 49 }],
+        liveScore: 35,
+        now: new Date(2026, 6, 2),
+      });
+      expect(r.daysLogged).toBe(1);
+    });
+  });
 });

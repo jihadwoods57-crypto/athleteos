@@ -12,6 +12,7 @@ import {
 } from '@/core';
 import type { RosterRow, RosterGroupStat, AtRiskInput } from '@/core';
 import { useStore, useDerived } from '@/store';
+import { isBackendLive } from '@/lib/supabase';
 import { aiTeamSummaryTag } from '@/lib/ai';
 import { shadow, MAX_FONT_SCALE } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
@@ -332,20 +333,39 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
           {roster.length === 0 ? (
             (() => {
               // Surface the join code as the obvious next action for a new coach (instead of sending
-              // them to dig through Account). Honest: when offline there is no real code yet, so it is
-              // labelled a demo code rather than a working one the coach might share and have fail.
+              // them to dig through Account). Honest: when there is no real code yet it is labelled a
+              // sample, in plain language, with a working retry — onboarding's create_team call can
+              // fail (e.g. email not confirmed yet) and this was the coach's only recovery path.
               const code = s.teamCode?.trim() || 'EAGLES24';
               const isDemoCode = !s.teamCode?.trim();
+              const retryCreate = () => {
+                haptics.tap();
+                const meta = s.obMeta ?? {};
+                const sport = typeof meta.sport === 'string' ? meta.sport : undefined;
+                const school = typeof meta.school === 'string' ? meta.school.trim() : '';
+                const orgId = typeof meta.orgId === 'string' && meta.orgId ? meta.orgId : null;
+                void s.createTeamLive(school || (sport ? `${sport} team` : 'My Team'), sport, orgId, s.teamDiscoverable);
+              };
               return (
                 <View style={{ marginTop: 14, alignItems: 'center', gap: 9 }}>
                   <View style={{ paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12, backgroundColor: c.accentSurface }}>
                     <Txt w="eb" size={24} ls={2} color={c.accent}>{code}</Txt>
                   </View>
                   {isDemoCode ? (
-                    <Row style={{ gap: 6 }}>
-                      <SampleTag />
-                      <Txt w="sb" size={12} color={c.textTertiary}>Demo code — your real one is created when your team goes live</Txt>
-                    </Row>
+                    <>
+                      <Row style={{ gap: 6 }}>
+                        <SampleTag />
+                        <Txt w="sb" size={12} color={c.textTertiary} style={{ flexShrink: 1 }}>Sample code, don't share it. Your real one isn't ready yet.</Txt>
+                      </Row>
+                      {isBackendLive ? (
+                        <Pressable accessibilityRole="button" accessibilityLabel="Create my team code" onPress={retryCreate} style={{ marginTop: 2, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9, backgroundColor: c.accent }}>
+                          <Txt w="b" size={13} color={c.white}>Create my team code</Txt>
+                        </Pressable>
+                      ) : null}
+                      {s.authError ? (
+                        <Txt w="sb" size={12} color={c.alertDeep} style={{ textAlign: 'center' }}>{s.authError}</Txt>
+                      ) : null}
+                    </>
                   ) : null}
                 </View>
               );

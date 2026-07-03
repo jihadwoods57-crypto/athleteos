@@ -34,9 +34,23 @@ async function authHeaders(): Promise<Record<string, string>> {
 /** The edge response: a best-match (top-level fields) plus, for name search, a ranked results list. */
 type LookupResponse = { found?: boolean; results?: unknown } & Partial<FoodLookupResult>;
 
+/** The request never reached a working endpoint (offline, CORS, timeout, 5xx). Distinct from
+ *  "the database had no match" so the search UI can tell the athlete the truth about which
+ *  one happened instead of blaming their search terms (the audit's error-honesty P0). */
+export class FoodLookupTransportError extends Error {
+  constructor() {
+    super('food-lookup request failed');
+    this.name = 'FoodLookupTransportError';
+  }
+}
+
 /** POST to the food-lookup edge function; returns the parsed body, or null when unconfigured /
- *  offline / non-OK. Fail-soft by design so every caller degrades to a photo estimate. */
-async function postLookup(body: { barcode?: string; query?: string }): Promise<LookupResponse | null> {
+ *  offline / non-OK. Fail-soft by default so one-tap callers degrade to a photo estimate;
+ *  `throwOnTransport` opts the ranked-search path into an honest failure instead. */
+async function postLookup(
+  body: { barcode?: string; query?: string },
+  opts: { throwOnTransport?: boolean } = {},
+): Promise<LookupResponse | null> {
   if (!isFoodLookupConfigured) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
@@ -47,9 +61,13 @@ async function postLookup(body: { barcode?: string; query?: string }): Promise<L
       body: JSON.stringify(body),
       signal: controller.signal,
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (opts.throwOnTransport) throw new FoodLookupTransportError();
+      return null;
+    }
     return (await res.json()) as LookupResponse;
-  } catch {
+  } catch (e) {
+    if (opts.throwOnTransport) throw e instanceof FoodLookupTransportError ? e : new FoodLookupTransportError();
     return null;
   } finally {
     clearTimeout(timer);
@@ -87,7 +105,9 @@ export function searchFood(query: string): Promise<EditableFood | null> {
 export async function searchFoods(query: string): Promise<FoodLookupResult[]> {
   const q = query.trim();
   if (!q) return [];
-  const data = await postLookup({ query: q });
+  // Throws FoodLookupTransportError when the request itself fails, so the UI can
+  // say "connection problem" instead of the lie "no matches, try a simpler name".
+  const data = await postLookup({ query: q }, { throwOnTransport: true });
   if (!data?.found) return [];
   const rows = Array.isArray(data.results) ? (data.results as Array<Partial<FoodLookupResult>>) : [];
   const list = rows.length ? rows : [data];

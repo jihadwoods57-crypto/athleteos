@@ -309,15 +309,23 @@ export interface PaceProjection {
   progressLb: number;
 }
 
-/** Nutrition weekly-goal pace projection from the coach-set weekly lb goal.
+export type PaceDirection = 'gain' | 'lose' | 'maintain';
+
+/** Nutrition weekly-goal pace projection from the weekly lb goal.
  *  `progressLb` defaults to the seeded-demo showcase (0.6) so a one-arg call is
  *  unchanged; a real athlete passes their actual weekly progress so the card
- *  never contradicts Home's "gained since start". */
-export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): PaceProjection {
+ *  never contradicts Home's "gained since start".
+ *  `direction` orients the whole projection: on a cut, weight LOST is progress
+ *  and a behind-pace athlete is told to trim intake — never to add calories. */
+export function paceProjection(
+  weeklyGoalLb: number,
+  progressLb: number = 0.6,
+  direction: PaceDirection = 'gain',
+): PaceProjection {
   const goal = weeklyGoalLb;
   const daysLeft = 3;
   const daysElapsed = 4;
-  const surplus = Math.round((goal * 3500) / 7);
+  const surplus = direction === 'maintain' ? 0 : Math.round((goal * 3500) / 7);
   // Clamp the linear extrapolation to a believable weekly band. A brand-new athlete
   // with no weekly weight history yet has `progressLb` fall back to their season-total
   // gain (e.g. +7 lb), which would otherwise project an absurd "+12.3 lb by Sunday"
@@ -327,7 +335,11 @@ export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): 
   // Calorie adjustment to hit the goal, bounded to a realistic ceiling (no one
   // meaningfully eats 1,000+ cal/day off-plan; a larger raw number is an artifact).
   const calAdjust = (lb: number) => Math.max(0, Math.min(1000, Math.round((lb * 3500) / daysLeft)));
-  const onPace = projected >= goal - 0.001;
+  // Signed progress/projection TOWARD the goal: on a cut, weight lost counts, weight
+  // gained reads as zero progress (never credit). Maintain measures drift from zero.
+  const towardGoal = direction === 'lose' ? -projected : projected;
+  const progressToward = direction === 'lose' ? -progressLb : progressLb;
+  const onPace = direction === 'maintain' ? Math.abs(projected) <= 1 : towardGoal >= goal - 0.001;
   // The UI clamps the weekly goal to >= 0.5, but a corrupt/legacy persisted blob (or a
   // future maintain goal) could carry 0/negative/NaN, making progressLb/goal divide as
   // Infinity (any progress) or 0/0 = NaN (a fresh athlete at 0 progress) and rendering
@@ -335,14 +347,34 @@ export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): 
   // measure against, so mirror seasonGoalProgress's degenerate handling: at/above the
   // line (progress >= 0) reads 100%, below reads 0% — always a finite 0..100.
   const goalPct =
-    goal > 0
-      ? Math.max(0, Math.min(100, Math.round((progressLb / goal) * 100)))
-      : progressLb >= 0
-        ? 100
-        : 0;
+    direction === 'maintain'
+      ? Math.max(0, Math.min(100, Math.round(100 - Math.abs(progressLb) * 50)))
+      : goal > 0
+        ? Math.max(0, Math.min(100, Math.round((progressToward / goal) * 100)))
+        : progressToward >= 0
+          ? 100
+          : 0;
   const paceLabel = onPace ? '↑ On pace' : '↓ Behind pace';
+  // Signed weight-change string: a cut talks in minus pounds, a build in plus pounds.
+  const signed = (lb: number) => (lb > 0 ? `+${lb}` : lb < 0 ? `−${Math.abs(lb)}` : '0');
+  // Never advise a young athlete to slash more than ~500 cal/day off their intake,
+  // no matter how far behind the week is — catch-up math is not a crash-diet license.
+  const trimAdjust = (lb: number) => Math.min(500, calAdjust(lb));
   let paceAi: string;
-  if (projected > goal) {
+  if (direction === 'maintain') {
+    paceAi = onPace
+      ? `You're holding steady — right where the plan wants you. Keep intake where it is.`
+      : `You're drifting ${signed(projected)} lb this week. Level your intake to hold your weight.`;
+  } else if (direction === 'lose') {
+    if (towardGoal > goal + 0.001) {
+      // Losing faster than planned is a health flag for a young athlete, not a win.
+      paceAi = `You're tracking to ${signed(projected)} lb by Sunday — faster than the plan. Add back ~${calAdjust(towardGoal - goal)} cal/day so the cut stays fueled.`;
+    } else if (onPace) {
+      paceAi = `You're tracking to ${signed(projected)} lb by Sunday, right on target. Keep the deficit steady.`;
+    } else {
+      paceAi = `At today's intake you'll reach ${signed(projected)} lb. Trim ~${trimAdjust(goal - towardGoal)} cal/day over the next ${daysLeft} days to stay on track.`;
+    }
+  } else if (projected > goal) {
     paceAi = `You're tracking to +${projected} lb by Sunday, a touch ahead. Ease back ~${calAdjust(projected - goal)} cal/day to land exactly on target.`;
   } else if (onPace) {
     paceAi = `You're tracking to +${projected} lb by Sunday, right on target. Keep the surplus steady.`;

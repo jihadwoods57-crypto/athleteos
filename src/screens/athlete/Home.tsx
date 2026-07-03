@@ -219,9 +219,11 @@ export function Home() {
           <Row style={{ gap: 6, marginTop: 7 }}>
             {d.isDay0 ? (
               // Day 0: no week to compare against, so show a starting-line frame instead of a
-              // fabricated "↓58 this week / trending down".
+              // fabricated "↓58 this week / trending down". Naming the reveal's baseline here
+              // keeps the onboarding promise ("your starting point is 49") and today's measured
+              // score reading as ONE story: baseline set, now go earn today.
               <Txt w="b" size={13} color={c.accent}>
-                Starting today
+                {s.startScore != null ? `Starting today · baseline ${s.startScore}` : 'Starting today'}
               </Txt>
             ) : (
               <>

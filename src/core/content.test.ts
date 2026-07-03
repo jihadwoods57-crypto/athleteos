@@ -408,6 +408,62 @@ describe('paceProjection', () => {
       }
     }
   });
+
+  describe('lose direction (the audit P0: a Lose Fat athlete must never be told to add calories)', () => {
+    it('counts weight LOST as progress toward the goal', () => {
+      const p = paceProjection(1.0, -0.6, 'lose'); // lost 0.6 lb over 4 days -> -1.1 projected
+      expect(p.projected).toBe(-1.1);
+      expect(p.onPace).toBe(true); // losing 1.1 vs a 1.0 goal
+      expect(p.paceLabel).toBe('↑ On pace');
+      expect(p.goalPct).toBe(60); // 0.6 of 1.0 lb lost
+    });
+
+    it('a brand-new lose athlete at 0 progress is behind pace and told to TRIM, never add', () => {
+      const p = paceProjection(1.0, 0, 'lose');
+      expect(p.onPace).toBe(false);
+      expect(p.paceAi).toContain('Trim');
+      expect(p.paceAi).not.toContain('Add ~');
+    });
+
+    it('trim advice is capped at 500 cal/day — catch-up math is not a crash-diet license', () => {
+      const p = paceProjection(2.0, 0, 'lose'); // raw catch-up math would say ~2,333 cal/day
+      const calNum = Number((p.paceAi.match(/~(\d+) cal\/day/) ?? [])[1]);
+      expect(calNum).toBeLessThanOrEqual(500);
+    });
+
+    it('losing faster than the goal advises adding fuel back (teen-safe), not celebrating', () => {
+      const p = paceProjection(0.5, -1.2, 'lose'); // tracking to -2.1 vs a 0.5 goal
+      expect(p.onPace).toBe(true);
+      expect(p.paceAi).toContain('faster than the plan');
+      expect(p.paceAi).toContain('Add back');
+    });
+
+    it('weight GAINED on a cut is zero progress, never credit', () => {
+      const p = paceProjection(1.0, 0.8, 'lose');
+      expect(p.goalPct).toBe(0);
+      expect(p.onPace).toBe(false);
+    });
+
+    it('gain-direction behavior is unchanged (default param back-compat)', () => {
+      expect(paceProjection(1.0)).toEqual(paceProjection(1.0, 0.6, 'gain'));
+    });
+  });
+
+  describe('maintain direction', () => {
+    it('holding steady reads on pace with a full bar', () => {
+      const p = paceProjection(1.0, 0, 'maintain');
+      expect(p.onPace).toBe(true);
+      expect(p.goalPct).toBe(100);
+      expect(p.surplus).toBe(0);
+      expect(p.paceAi).toContain('steady');
+    });
+
+    it('a real drift reads off pace', () => {
+      const p = paceProjection(1.0, 2.4, 'maintain'); // projects past the ±1 lb band
+      expect(p.onPace).toBe(false);
+      expect(Number.isFinite(p.goalPct)).toBe(true);
+    });
+  });
 });
 
 describe('athleteSubtitle', () => {
