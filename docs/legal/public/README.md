@@ -1,9 +1,13 @@
-# Legal pages — how to finish + host them
+# Your site — how to finish + host it
 
-Two ready-to-host web pages are in this folder: **`privacy.html`** and **`terms.html`**. They're
-written to match exactly how the app behaves. You need to do two small things: fill a few blanks,
-then host them so they answer at `https://onstandard.app/privacy` and `https://onstandard.app/terms`
-(the URLs the app already links to, and the ones Apple requires for App Store submission).
+This folder is your whole public site, ready to host:
+- **`index.html`** — the OnStandard landing page (homepage at `onstandard.app`)
+- **`privacy.html`** — Privacy Policy (`onstandard.app/privacy`)
+- **`terms.html`** — Terms of Service (`onstandard.app/terms`)
+
+Host the **whole folder** and you get the homepage plus both legal pages at the URLs the app links to
+(and the ones Apple requires for App Store submission). The landing page is finished and needs no
+edits. The two legal pages need a few blanks filled first — see Step 1.
 
 ## Step 1 — Fill the highlighted blanks (10 minutes)
 
