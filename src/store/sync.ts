@@ -12,8 +12,10 @@
 // without recorded consent never pushes. `src/core` stays the single scoring authority:
 // `pushDay` writes the score `computeDerived` produced, never a second formula.
 import {
+  clampScoreToEvidence,
   computeDerived,
   daysAgoStamp,
+  evidenceFromDerived,
   gradeFor,
   HISTORY_CAP,
   mealMacros,
@@ -60,6 +62,11 @@ export function mapStateToDayRow(
   date = todayStamp(),
 ): Partial<DayRow> & Pick<DayRow, 'athlete_id' | 'date'> {
   const d = computeDerived(s);
+  // Defense in depth: never write a score above what this row's evidence can justify. A
+  // no-op for an honest client (computeDerived's score is always <= its evidence ceiling),
+  // so it can only ever cut a regression/tamper. The authoritative control is the 0041
+  // server trigger — a tampered client bypasses everything in this process.
+  const score = clampScoreToEvidence(d.athleteScore, evidenceFromDerived(d));
   return {
     athlete_id: athleteId,
     date,
@@ -89,8 +96,8 @@ export function mapStateToDayRow(
           .map((k) => [k, mealMacros(s.mealFoods[k]!)]),
       ),
     },
-    score: d.athleteScore,
-    grade: gradeFor(d.athleteScore).g,
+    score,
+    grade: gradeFor(score).g,
   };
 }
 
