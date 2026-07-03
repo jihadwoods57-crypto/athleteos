@@ -4,7 +4,8 @@
 // deterministic answer), lights up narration when live. Honest label: "Copilot" until AI is wired.
 import React from 'react';
 import { View } from 'react-native';
-import { runCopilot, isAssistConfigured } from '@/lib/ai/assist';
+import { narrateCopilotResult, isAssistConfigured } from '@/lib/ai/assist';
+import { runCopilotTool } from '@/core';
 import type { AtRiskInput, CopilotQuery, CopilotResult, NutritionSummary } from '@/core';
 import { useColors } from '@/ui/theme';
 import { Card, Pressable, Row, Txt } from '@/ui/primitives';
@@ -29,19 +30,25 @@ function athletes(data: unknown): Athlete[] {
 export function CoachCopilot({ roster }: { roster: AtRiskInput[] }) {
   const c = useColors();
   const [result, setResult] = React.useState<CopilotResult | null>(null);
-  const [loading, setLoading] = React.useState(false);
   const [active, setActive] = React.useState<string | null>(null);
+  // Monotonic ask counter: a slower narration for an OLDER question must never
+  // overwrite the answer to the one the coach asked last.
+  const askSeq = React.useRef(0);
 
   const ask = React.useCallback(
-    async (q: { label: string; query: CopilotQuery }) => {
+    (q: { label: string; query: CopilotQuery }) => {
       haptics.tap();
       setActive(q.label);
-      setLoading(true);
-      try {
-        setResult(await runCopilot(q.query, { roster }));
-      } finally {
-        setLoading(false);
-      }
+      const seq = ++askSeq.current;
+      // The deterministic answer renders INSTANTLY (it's computed locally in
+      // microseconds); the model's narration patches in when it lands. The coach
+      // never waits 20s on "Thinking…" for data that was already on the device.
+      const deterministic = runCopilotTool(q.query, { roster });
+      setResult(deterministic);
+      if (!isAssistConfigured) return;
+      void narrateCopilotResult(deterministic).then((narrated) => {
+        if (seq === askSeq.current) setResult(narrated);
+      });
     },
     [roster],
   );
@@ -73,8 +80,7 @@ export function CoachCopilot({ roster }: { roster: AtRiskInput[] }) {
         ))}
       </Row>
 
-      {loading ? <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 14 }}>Thinking…</Txt> : null}
-      {result && !loading ? <CopilotAnswer result={result} /> : null}
+      {result ? <CopilotAnswer result={result} /> : null}
     </Card>
   );
 }

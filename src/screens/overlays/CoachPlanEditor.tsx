@@ -3,10 +3,11 @@
 // instructions. Local today; syncs to the linked athlete when the backend lands.
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { activePlan, formatWindowTime } from '@/core';
+import { activePlan, avoidFoodsFromFacts, formatWindowTime, isMinor } from '@/core';
 import type { EngineGoal, MealKey, PlanSlot } from '@/core';
 import { useStore } from '@/store';
 import { generatePlan } from '@/lib/ai/planGenerate';
+import { fetchMemoryFacts } from '@/lib/ai/memory';
 import { isMealPlansEnabled } from '@/lib/features';
 import { font } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
@@ -40,7 +41,10 @@ export function CoachPlanEditor() {
     setGenerating(true);
     try {
       const goal = planGoalFor(s.baseGoal);
-      const result = await generatePlan({ plan: activePlan(s), goal });
+      // The draft passes the deterministic safety gate: age drives the calorie
+      // floor; confirmed allergies/dislikes are excluded (model told + enforced).
+      const avoid = avoidFoodsFromFacts(await fetchMemoryFacts('active').catch(() => []));
+      const result = await generatePlan({ plan: activePlan(s), goal, isMinor: isMinor(s.baseAge), avoid });
       s.setPlanSlots(result);
     } finally {
       setGenerating(false);

@@ -943,7 +943,12 @@ export const useStore = create<Store>()(
         // Second call: same photo + note, now WITH the athlete's answers, forced to report (the
         // finalize phase can't ask again). Consent + photo egress already cleared on the analyze
         // call, and finalize does not claim another daily slot. Never strands the spinner.
-        analyzeMeal({
+        // The avoid list rides along again — finalize is the pass most likely to ADD foods
+        // (the answers describe hidden items), so it must carry the same allergy constraint
+        // the analyze pass had. Fail-safe empty, same as capture().
+        fetchMemoryFacts('active')
+          .catch(() => [])
+          .then((facts) => analyzeMeal({
           mealType: st.mealType,
           goal: st.primaryGoal,
           description: st.mealDesc || undefined,
@@ -951,7 +956,8 @@ export const useStore = create<Store>()(
           phase: 'finalize',
           clarifications,
           slotTarget: slotTargetFor(st),
-        })
+          avoid: avoidFoodsFromFacts(facts),
+        }))
           .then((res) => {
             if (res.kind === 'result') set({ mealAnalysis: res.result, mealQuestions: [], mealStage: 'result' });
             else if (res.kind === 'unavailable') set({ mealError: res.reason, mealQuestions: [], mealStage: 'unavailable' });

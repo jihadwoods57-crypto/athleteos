@@ -26,7 +26,8 @@ export const isAssistConfigured = Boolean(ASSIST_ENDPOINT && anonKey);
 
 type AssistTaskWire = 'copilot_query' | 'copilot_artifact' | 'meal_coaching';
 
-async function narrate(task: AssistTaskWire, data: unknown, directive: string, deep: boolean): Promise<string | null> {
+// (The old `deep` wire flag is gone: the server runs one model tier and ignored it.)
+async function narrate(task: AssistTaskWire, data: unknown, directive: string): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   try {
@@ -38,7 +39,7 @@ async function narrate(task: AssistTaskWire, data: unknown, directive: string, d
         apikey: anonKey ?? '',
         Authorization: `Bearer ${token ?? anonKey ?? ''}`,
       },
-      body: JSON.stringify({ task, data, directive, deep }),
+      body: JSON.stringify({ task, data, directive }),
       signal: controller.signal,
     });
     if (!res.ok) return null;
@@ -51,23 +52,33 @@ async function narrate(task: AssistTaskWire, data: unknown, directive: string, d
   }
 }
 
-/** Heavy roster-wide reasoning gets the deeper model; single-athlete/quick tools use the standard tier. */
-const DEEP_TOOLS = new Set<CopilotQuery['tool']>(['predict_falling_behind', 'summarize_nutrition', 'draft_report']);
+/**
+ * Layer the model's coach-voiced narration onto an already-computed deterministic result.
+ * The render-first pattern: the UI shows the deterministic answer INSTANTLY and patches
+ * this in when it lands — a coach never stares at "Thinking…" for an answer that was
+ * computed locally in microseconds. Never throws; failure returns the result unchanged.
+ */
+export async function narrateCopilotResult(
+  result: CopilotResult,
+  personality: PersonalityStyle = resolvePersonality(),
+): Promise<CopilotResult> {
+  if (!isAssistConfigured) return result;
+  const directive = personalityDirective(clampForAudience(personality, false));
+  const narration = await narrate('copilot_query', result.data, directive);
+  return { ...result, narration };
+}
 
 /**
- * Run a Copilot tool. Returns the deterministic CopilotResult immediately (data = source of truth);
- * when configured, layers on the model's narration in the org personality voice. Never throws.
+ * Run a Copilot tool: the deterministic CopilotResult (data = source of truth) with the
+ * narration awaited. Kept for non-interactive callers; interactive UIs should render
+ * runCopilotTool() immediately and patch in narrateCopilotResult(). Never throws.
  */
 export async function runCopilot(
   query: CopilotQuery,
   ctx: CopilotContext,
   personality: PersonalityStyle = resolvePersonality(),
 ): Promise<CopilotResult> {
-  const result = runCopilotTool(query, ctx);
-  if (!isAssistConfigured) return result; // narration null — the UI shows `data` directly
-  const directive = personalityDirective(clampForAudience(personality, false));
-  const narration = await narrate('copilot_query', result.data, directive, DEEP_TOOLS.has(query.tool));
-  return { ...result, narration };
+  return narrateCopilotResult(runCopilotTool(query, ctx), personality);
 }
 
 /**
@@ -81,7 +92,7 @@ export async function voiceMealCoaching(
 ): Promise<string> {
   if (!isAssistConfigured || !source.trim()) return source;
   const personality = clampForAudience(opts.personality ?? resolvePersonality(), opts.isMinor ?? false);
-  const narration = await narrate('meal_coaching', source, personalityDirective(personality), false);
+  const narration = await narrate('meal_coaching', source, personalityDirective(personality));
   return mergeCoachingVoice(source, narration);
 }
 

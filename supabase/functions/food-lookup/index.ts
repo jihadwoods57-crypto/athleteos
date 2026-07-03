@@ -145,12 +145,32 @@ async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
   }
 }
 
+// Best-effort per-IP rate limit (same in-memory pattern as the paid functions). This endpoint
+// was the ONLY one with no limiter at all: unbounded anon traffic could exhaust the shared USDA
+// key (killing Search for everyone) and grow food_cache without bound. Per-instance; enough to
+// blunt a single abusive client. Tunable via RATE_LIMIT_PER_MIN.
+const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '30');
+const RL_WINDOW_MS = 60_000;
+const rlHits = new Map<string, { count: number; resetAt: number }>();
+function rateLimited(req: Request): boolean {
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const now = Date.now();
+  const e = rlHits.get(ip);
+  if (!e || now > e.resetAt) {
+    rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS });
+    return false;
+  }
+  e.count++;
+  return e.count > RL_MAX;
+}
+
 Deno.serve(async (request) => {
   const cors = corsFor(request);
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: cors });
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+  if (rateLimited(request)) return json({ found: false, error: 'rate limited, slow down' }, 429);
 
   let req: { barcode?: unknown; query?: unknown; refresh?: unknown };
   try {
@@ -159,8 +179,9 @@ Deno.serve(async (request) => {
     return json({ found: false, error: 'bad request' }, 400);
   }
 
-  const barcode = typeof req.barcode === 'string' ? req.barcode.replace(/\D/g, '') : '';
-  const query = typeof req.query === 'string' ? req.query.trim() : '';
+  // Bound the inputs: no food name needs 100 chars, and a barcode is at most EAN-14.
+  const barcode = typeof req.barcode === 'string' ? req.barcode.replace(/\D/g, '').slice(0, 14) : '';
+  const query = typeof req.query === 'string' ? req.query.trim().slice(0, 100) : '';
   const refresh = req.refresh === true; // skip the cache read + overwrite the row with a fresh lookup
   const source: 'off' | 'usda' = barcode ? 'off' : 'usda';
   const key = barcode || query.toLowerCase();
@@ -205,6 +226,8 @@ Deno.serve(async (request) => {
   }
   const results = dedupeByName(ranked).slice(0, 6);
   if (!results.length) return json({ found: false });
-  await cacheWrite(results[0]); // keep the auto-pick warm for the meal-log path that takes one result
+  // Keep the auto-pick warm — but only for short, reusable queries: every novel query text is a
+  // service-role row in food_cache, so long one-off strings would just grow the table forever.
+  if (query.length <= 60) await cacheWrite(results[0]);
   return json({ found: true, ...results[0], results });
 });

@@ -3,9 +3,10 @@
 // the real menu, personalized to your goal + what's LEFT in today's plan, under budget.
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { RESTAURANTS, recommendOrder, genericMealGuidance, type RecommendedOrder, type RecommendResult, type GenericGuidance } from '@/core';
+import { RESTAURANTS, recommendOrder, genericMealGuidance, avoidFoodsFromFacts, type RecommendedOrder, type RecommendResult, type GenericGuidance } from '@/core';
 import type { EditableFood, MealKey } from '@/core';
 import { aiRestaurantCoachTag, isAiConfigured, rephraseOrders } from '@/lib/ai';
+import { fetchMemoryFacts } from '@/lib/ai/memory';
 import { useStore, useDerived } from '@/store';
 import { font, shadow } from '@/ui/tokens';
 import { Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
@@ -46,9 +47,19 @@ export function FoodCoach() {
   const budget = budgetText.trim() ? Number(budgetText.trim()) : undefined;
 
   const elsewhere = restaurantId === ELSEWHERE;
+  // The athlete's CONFIRMED avoid foods (allergies/dislikes) — the hard filter the
+  // recommender honors. Fail-safe empty on any error; recompute when the overlay opens.
+  const [avoid, setAvoid] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchMemoryFacts('active')
+      .then((facts) => { if (!cancelled) setAvoid(avoidFoodsFromFacts(facts)); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
   const deterministic = React.useMemo(
-    () => recommendOrder({ restaurantId, goal, proteinRemaining, caloriesRemaining, budget: budget && budget > 0 ? budget : undefined }),
-    [restaurantId, goal, proteinRemaining, caloriesRemaining, budget],
+    () => recommendOrder({ restaurantId, goal, proteinRemaining, caloriesRemaining, budget: budget && budget > 0 ? budget : undefined, avoid }),
+    [restaurantId, goal, proteinRemaining, caloriesRemaining, budget, avoid],
   );
   // The deterministic recommendation renders instantly (ground truth). When a model is configured,
   // the explanations are reworded in a warmer voice and swapped in when they land; the core guard

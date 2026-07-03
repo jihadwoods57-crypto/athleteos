@@ -27,6 +27,10 @@ export interface RecommendContext {
   budget?: number;
   /** Situational context (Layer 5) that shifts the objective + the explanation. */
   context?: EatingContext;
+  /** Confirmed avoid foods (allergies/dislikes) from the athlete's memory —
+   *  avoidFoodsFromFacts(). The HARD filter this recommender must honor: a matching
+   *  item can never be recommended, in the primary OR any alternative. */
+  avoid?: string[];
 }
 
 export interface OrderLine {
@@ -95,7 +99,13 @@ function dedupeTags(items: RestaurantItem[]): NutritionTag[] {
 /** Greedy, deterministic order builder for one goal+context under budget/calorie limits. */
 function buildOrder(ctx: RecommendContext, goal: EngineGoal): RecommendedOrder {
   const context = ctx.context ?? 'general';
-  const all = itemsForRestaurant(ctx.restaurantId);
+  // The avoid list is absolute: a confirmed allergen/dislike never enters the item
+  // pool, so it can't be an anchor, a side, or an alternative. Name-based match —
+  // deterministic, no model in the loop.
+  const avoid = (ctx.avoid ?? []).map((a) => a.trim().toLowerCase()).filter(Boolean);
+  const all = itemsForRestaurant(ctx.restaurantId).filter(
+    (i) => !avoid.some((a) => i.name.toLowerCase().includes(a)),
+  );
   const budget = typeof ctx.budget === 'number' && ctx.budget > 0 ? ctx.budget : Infinity;
   // Fat-loss respects the day's remaining calories (capped to a sane single-meal ceiling);
   // gain/performance don't hard-cap (the point is to fuel).
