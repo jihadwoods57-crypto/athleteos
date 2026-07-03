@@ -16,6 +16,7 @@
 // mirror and the honest client self-limit both share.
 import type { Derived } from './types';
 import { PROFILE_WEIGHTS } from './scoringProfiles';
+import { withinTrailingWeek } from './clock';
 
 /**
  * The MAXIMUM weight each subscore carries across ALL scoring profiles (athlete/general/gain).
@@ -71,5 +72,35 @@ export function evidenceFromDerived(d: Derived): ScoreEvidence {
     nutritionPossible: d.nutritionScore > 0,
     checkinPossible: d.recoveryScoreIsReal || d.checkinScore > 0,
     commitmentPresent: d.commitmentScore > 0,
+  };
+}
+
+/**
+ * Derive the evidence gates the SERVER trigger (0041) uses, from the row's OWN jsonb — not
+ * from a Derived object. This mirrors the SQL exactly, so the property test can prove the
+ * *server-side* ceiling (the authoritative control) never clamps an honest score — including
+ * the weekly recovery CARRY, which the row self-describes via `checkin.ciLast` so the server
+ * never has to reconstruct cross-day history it can't reliably see. Facts that genuinely live
+ * outside the row (an active trust pass; a prior submitted row still visible server-side) are
+ * passed via `ctx`; both only ever GRANT more ceiling, so omitting them stays a safe (never
+ * false-positive) lower bound on what the SQL would allow.
+ */
+export function evidenceFromDayRow(
+  row: { date: string; meals?: Record<string, boolean> | null; checkin?: Record<string, unknown> | null },
+  ctx: { activeTrustPass?: boolean; priorSubmittedInWeek?: boolean } = {},
+): ScoreEvidence {
+  const meals = row.meals ?? {};
+  const ci = row.checkin ?? {};
+  const anyMealLogged = Object.values(meals).some((v) => v === true);
+  const sm = ci.slotMacros;
+  const hasSlotMacros = !!sm && typeof sm === 'object' && Object.keys(sm as Record<string, unknown>).length > 0;
+  const submitted = ci.submitted === true;
+  const ciLast = typeof ci.ciLast === 'string' ? ci.ciLast : null;
+  const carryInWindow = ciLast != null && withinTrailingWeek(ciLast, row.date);
+  const commitment = ci.commitment;
+  return {
+    nutritionPossible: anyMealLogged || hasSlotMacros || !!ctx.activeTrustPass,
+    checkinPossible: submitted || carryInWindow || !!ctx.priorSubmittedInWeek,
+    commitmentPresent: commitment === 'yes' || commitment === 'partial' || commitment === 'no',
   };
 }

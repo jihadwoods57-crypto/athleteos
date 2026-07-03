@@ -83,6 +83,12 @@ export function mapStateToDayRow(
       soreness: s.ciSoreness,
       motivation: s.ciMotivation,
       submitted: s.ciSubmitted,
+      // The date of the last real weekly check-in. The 0041 server-side score-integrity
+      // trigger honors a legitimate weekly recovery CARRY from this marker, so an honest
+      // carry day is NEVER clamped even when the original check-in day's row never reached
+      // Postgres (offline / pre-consent). The row self-describes its carry instead of the
+      // server trying to reconstruct cross-day history it can't reliably see.
+      ciLast: s.ciLast?.date ?? null,
       // The one-tap plan commitment rides in the same jsonb (no schema change) so a
       // second device can rebuild the full score instead of dropping the 0.15 slot.
       commitment: s.dailyCommitment,

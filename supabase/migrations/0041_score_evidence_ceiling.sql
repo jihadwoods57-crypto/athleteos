@@ -49,10 +49,20 @@ begin
         and new.date < tp.granted_date + tp.length_days
     );
 
-  -- recovery + check-in slots: a real check-in backs the week — submitted today, OR carried
-  -- from a submission in the trailing 6 days (the "Weekly Check-In" carry the engine honors).
+  -- recovery + check-in slots: a real check-in backs the week. Any ONE of:
+  --   (a) submitted today;
+  --   (b) the row's own last-check-in marker (checkin.ciLast) falls in the trailing 6 days —
+  --       an honest weekly carry the row SELF-DESCRIBES (mirrors the engine's ciCarryValid).
+  --       This is what stops an honest carry day being clamped when the original check-in
+  --       day's row never reached Postgres (offline / pre-consent) — the false positive a
+  --       cross-row-only check would cause. Cast is CASE-guarded so a malformed/tampered
+  --       value can never raise and fail the write.
+  --   (c) a prior submitted row is still visible in the trailing 6 days (bonus path).
   v_checkin :=
     (new.checkin ->> 'submitted') = 'true'
+    or (case when new.checkin ->> 'ciLast' ~ '^\d{4}-\d{2}-\d{2}$'
+             then (new.checkin ->> 'ciLast')::date between new.date - 6 and new.date
+             else false end)
     or exists (
       select 1 from days d2
       where d2.athlete_id = new.athlete_id
@@ -116,6 +126,7 @@ create trigger days_score_evidence_ceiling
 --                            and tp.granted_date<=d.date and d.date<tp.granted_date+tp.length_days)
 --               then 55 else 0 end)
 --       + (case when (checkin->>'submitted')='true'
+--                 or (checkin->>'ciLast' ~ '^\d{4}-\d{2}-\d{2}$' and (checkin->>'ciLast')::date between d.date-6 and d.date)
 --                 or exists (select 1 from days d2 where d2.athlete_id=d.athlete_id and d2.date<d.date
 --                            and d2.date>=d.date-6 and (d2.checkin->>'submitted')='true')
 --               then 35 else 0 end)

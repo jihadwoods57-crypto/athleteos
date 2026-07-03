@@ -10,6 +10,7 @@ import {
   evidenceScoreCeiling,
   clampScoreToEvidence,
   evidenceFromDerived,
+  evidenceFromDayRow,
 } from './scoreIntegrity';
 import type { AppState, MealKey } from './types';
 
@@ -123,5 +124,104 @@ describe('property: computeDerived score never exceeds its evidence ceiling', ()
     });
     const d = computeDerived(s);
     expect(clampScoreToEvidence(d.athleteScore, evidenceFromDerived(d))).toBe(d.athleteScore);
+  });
+});
+
+// ---- the SERVER-side gate: evidence reconstructed from the row's OWN jsonb (what the 0041
+// trigger actually sees). The property test above proves the tautological CLIENT ceiling;
+// THIS one proves the AUTHORITATIVE server ceiling never clamps an honest score — the half
+// that was untested and where the weekly-carry false positive lived.
+describe('evidenceFromDayRow (mirrors the 0041 trigger gates)', () => {
+  const D = '2026-07-03';
+  it('grants nothing for an empty row', () => {
+    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: {} })).toEqual({ nutritionPossible: false, checkinPossible: false, commitmentPresent: false });
+  });
+  it('unlocks nutrition when any meal is logged', () => {
+    expect(evidenceFromDayRow({ date: D, meals: { breakfast: true }, checkin: {} }).nutritionPossible).toBe(true);
+  });
+  it('unlocks nutrition from slotMacros even with no meal boolean', () => {
+    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: { slotMacros: { lunch: { protein: 40, kcal: 600 } } } }).nutritionPossible).toBe(true);
+  });
+  it('unlocks nutrition from an active trust pass (ctx)', () => {
+    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: {} }, { activeTrustPass: true }).nutritionPossible).toBe(true);
+  });
+  it('unlocks check-in when submitted today', () => {
+    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: { submitted: true } }).checkinPossible).toBe(true);
+  });
+  it('unlocks check-in from a weekly carry the row self-describes (ciLast in window)', () => {
+    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: { submitted: false, ciLast: '2026-06-30' } }).checkinPossible).toBe(true);
+  });
+  it('does NOT unlock check-in from a stale ciLast outside the trailing week', () => {
+    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: { submitted: false, ciLast: '2026-06-20' } }).checkinPossible).toBe(false);
+  });
+  it('ignores a malformed ciLast without throwing', () => {
+    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: { ciLast: 'garbage' } }).checkinPossible).toBe(false);
+  });
+  it('unlocks commitment when an answer is present', () => {
+    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: { commitment: 'yes' } }).commitmentPresent).toBe(true);
+  });
+});
+
+// Build the row the way sync.mapStateToDayRow does (evidence-relevant fields incl. the ciLast
+// carry marker), so the ceiling is fed the SAME jsonb the trigger reads.
+function rowFromState(s: AppState) {
+  return {
+    date: s.dateStamp!,
+    meals: s.meals as unknown as Record<string, boolean>,
+    checkin: { submitted: s.ciSubmitted, ciLast: s.ciLast?.date ?? null, commitment: s.dailyCommitment },
+  };
+}
+
+describe('property (SERVER gates): a real score never exceeds the ceiling from its own row', () => {
+  it('holds across meals, submit, WEEKLY CARRY, commitment and profiles — with NO server-visible prior row', () => {
+    const commitments = [null, 'no', 'partial', 'yes'] as const;
+    const profiles = [undefined, 'athlete', 'general', 'gain'] as const;
+    const carries = [null, { date: '2026-06-30', recovery: 92 }, { date: '2026-06-20', recovery: 92 }] as const;
+    let checked = 0;
+    for (let meals = 0; meals <= 4; meals++) {
+      for (const submitted of [false, true]) {
+        for (const ciLast of carries) {
+          for (const commitment of commitments) {
+            for (const profile of profiles) {
+              const s = stateWith({
+                dateStamp: '2026-07-03',
+                meals: mealsLogged(meals) as unknown as AppState['meals'],
+                mealFoods: Object.fromEntries(MEAL_KEYS.slice(0, meals).map((k) => [k, [{ name: 'Logged meal', portion: '', servings: 1, per: { protein: 60, kcal: 700, carbs: 60, fat: 20 } }]])) as AppState['mealFoods'],
+                ciSubmitted: submitted,
+                ciEnergy: 9, ciRecovery: 9, ciSleep: 9, ciConfidence: 9, ciSoreness: 1, ciMotivation: 9,
+                ciLast: ciLast as AppState['ciLast'],
+                dailyCommitment: commitment as AppState['dailyCommitment'],
+                scoringProfile: profile as AppState['scoringProfile'],
+              });
+              const d = computeDerived(s);
+              // Worst case for the guard: the server sees NO prior submitted row (the carry
+              // day never synced) and no trust pass — the exact divergence the bug exploited.
+              const ceil = evidenceScoreCeiling(evidenceFromDayRow(rowFromState(s), { priorSubmittedInWeek: false }));
+              expect(d.athleteScore).toBeLessThanOrEqual(ceil);
+              checked++;
+            }
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(300);
+  });
+
+  it('REGRESSION: an honest weekly-carry day is NOT clamped even when its check-in day never reached the server', () => {
+    // A real check-in earlier this week (recovery 92) that never synced to Postgres; today logs
+    // no meal but the carry legitimately backs recovery + check-in. The old cross-row-only gate
+    // clamped this honest day; the self-described ciLast marker fixes it.
+    const s = stateWith({
+      dateStamp: '2026-07-03',
+      meals: mealsLogged(0) as unknown as AppState['meals'],
+      ciSubmitted: false,
+      ciRecovery: 9, ciEnergy: 9, ciSleep: 9, ciConfidence: 9, ciSoreness: 1, ciMotivation: 9,
+      ciLast: { date: '2026-06-29', recovery: 92 } as AppState['ciLast'],
+      dailyCommitment: 'yes',
+    });
+    const d = computeDerived(s);
+    expect(d.recoveryScoreIsReal).toBe(true); // the carry genuinely credits recovery
+    const ceil = evidenceScoreCeiling(evidenceFromDayRow(rowFromState(s), { priorSubmittedInWeek: false }));
+    expect(d.athleteScore).toBeLessThanOrEqual(ceil); // and the server ceiling honors it — no clamp
   });
 });
