@@ -19,7 +19,6 @@ import {
   PROTEIN_FREQ,
   ROLE_DEFS,
   SPORTS,
-  TRAIN_FREQ,
   validateCredentials,
   credentialsOk,
 } from '@/core';
@@ -631,28 +630,6 @@ function AthleteFlow() {
                 {targetHint}
               </Txt>
             ) : null}
-            <View>
-              <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} upper style={{ marginTop: 4, marginBottom: 10 }}>
-                How often do you train?
-              </Txt>
-              <Row style={{ flexWrap: 'wrap', gap: 8 }}>
-                {TRAIN_FREQ.map((o) => {
-                  const sel = s.trainingFreq === o.key;
-                  return (
-                    <Pressable
-                      key={o.key}
-                      accessibilityRole="button"
-                      accessibilityLabel={o.label}
-                      accessibilityState={{ selected: sel }}
-                      onPress={() => { haptics.select(); s.setTrainingFreq(o.key); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
-                    >
-                      <Txt w="b" size={14} color={sel ? c.white : c.slate700}>{o.label}</Txt>
-                    </Pressable>
-                  );
-                })}
-              </Row>
-            </View>
           </View>
         </StepShell>
       );

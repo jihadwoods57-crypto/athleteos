@@ -47,3 +47,6 @@ yarn-error.*
 
 # local dev artifacts
 aos-qr.png
+
+# dev QR / scratch images
+aos-dev-qr*.png

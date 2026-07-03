@@ -31,7 +31,6 @@ export function createInitialState(): AppState {
 
     // onboarding (redesign)
     primaryGoal: null,
-    trainingFreq: null,
     supportTeam: [],
     inviteCode: '',
     teamCode: '',

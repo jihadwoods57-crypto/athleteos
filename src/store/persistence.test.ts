@@ -51,7 +51,7 @@ describe('onboarding identity + baseline fields are all persisted', () => {
     'baseGoal', 'baseHeight', 'baseWeight', 'baseAge',
     'goals', 'inviteWho', 'parentFocus', 'coachTrack', 'compMode',
     // onboarding (redesign)
-    'primaryGoal', 'trainingFreq', 'supportTeam', 'inviteCode', 'teamCode',
+    'primaryGoal', 'supportTeam', 'inviteCode', 'teamCode',
     'baseNutritionConfidence', 'baseMealsPerDay', 'baseWaterL', 'baseSleepH',
     'baseProteinFreq', 'baseConsistency', 'startScore', 'obMeta',
   ];

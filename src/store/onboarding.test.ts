@@ -20,11 +20,6 @@ describe('athlete onboarding setters', () => {
     expect(useStore.getState().primaryGoal).toBe('gain_muscle');
   });
 
-  it('setTrainingFreq stores the frequency', () => {
-    useStore.getState().setTrainingFreq('twice');
-    expect(useStore.getState().trainingFreq).toBe('twice');
-  });
-
   it('the age stepper floors at the 13+ signup minimum (no under-13 -> out of COPPA scope)', () => {
     expect(MIN_SIGNUP_AGE).toBe(13);
     useStore.setState({ baseAge: MIN_SIGNUP_AGE });

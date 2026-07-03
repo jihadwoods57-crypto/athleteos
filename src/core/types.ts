@@ -157,8 +157,6 @@ export interface AppState {
   // ---- onboarding (redesign) ----
   /** Athlete primary goal key (e.g. 'get_faster'); drives AI coaching copy. */
   primaryGoal: string | null;
-  /** Training frequency key: 'once' | 'twice' | 'three_plus'. */
-  trainingFreq: string | null;
   /** Selected support roles (coach/trainer/nutritionist/parent) building the network. */
   supportTeam: string[];
   /** Optional invite/join code entered during onboarding (athlete joining a team). */

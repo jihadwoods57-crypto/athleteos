@@ -129,12 +129,6 @@ export const GOAL_LABELS: Record<string, string> = Object.fromEntries(
   GOAL_GROUPS.flatMap((g) => g.options.map((o) => [o.key, o.label])),
 );
 
-export const TRAIN_FREQ: GoalOption[] = [
-  { key: 'once', label: 'Once per day' },
-  { key: 'twice', label: 'Twice per day' },
-  { key: 'three_plus', label: 'Three or more per day' },
-];
-
 export const SUPPORT_OPTIONS: GoalOption[] = [
   { key: 'coach', label: 'Coach' },
   { key: 'trainer', label: 'Trainer' },

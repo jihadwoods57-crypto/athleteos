@@ -157,7 +157,6 @@ export interface Actions {
 
   // onboarding (redesign)
   setPrimaryGoal: (k: string) => void;
-  setTrainingFreq: (k: string) => void;
   toggleSupport: (k: string) => void;
   /** Athlete joins a coach/trainer by team code: stores the code, marks a coach connected in the
    *  local model (so coach guidance + visibility activate), and when the backend is live actually
@@ -608,7 +607,6 @@ export const useStore = create<Store>()(
       // Map the rich onboarding goal to the 4-bucket BaseGoal that drives scoring (lose_fat -> 'lose',
       // gain_muscle -> 'gain', ...). Before this the goal was collected but never reached the engine.
       setPrimaryGoal: (k) => set({ primaryGoal: k, baseGoal: baseGoalForPrimary(k) }),
-      setTrainingFreq: (k) => set({ trainingFreq: k }),
       toggleSupport: (k) =>
         set((s) => {
           if (k === 'none') return { supportTeam: [] };
@@ -1602,7 +1600,6 @@ export const useStore = create<Store>()(
         coachTrack: s.coachTrack,
         // onboarding (redesign) â€” cross-day identity + baseline
         primaryGoal: s.primaryGoal,
-        trainingFreq: s.trainingFreq,
         supportTeam: s.supportTeam,
         inviteCode: s.inviteCode,
         teamCode: s.teamCode,

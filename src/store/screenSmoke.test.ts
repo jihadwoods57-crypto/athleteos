@@ -47,7 +47,6 @@ import {
   rosterNoun,
   squadView,
   notificationCopy,
-  trainingCadence,
   parentDigest,
   gradeFor,
   mealResultFor,
@@ -128,10 +127,6 @@ function exerciseAthleteSurfaces(s: AppState) {
   expect(notif.checkin.length).toBeGreaterThan(0);
   expect(notif.score).toContain(String(d.athleteScore));
   if (isReal) expect(notif.coachNote).toBeNull();
-
-  // Profile training-cadence line — string when answered, null otherwise
-  const cadence = trainingCadence(s.trainingFreq);
-  expect(cadence === null || cadence.length > 0).toBe(true);
 
   // Parent charts
   expect(weeklyCompliance(s.scoreHistory, d.athleteScore)).toHaveProperty('pct');
