@@ -19,7 +19,7 @@ import {
   type ScoringProfile,
 } from '@/core';
 import { useStore } from '@/store';
-import { isBackendLive } from '@/lib/supabase';
+import { db, isBackendLive } from '@/lib/supabase';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Reveal, Row, SampleTag, Stepper, Txt, Pressable } from '@/ui/primitives';
@@ -36,8 +36,34 @@ export function CoachGoalsEditor() {
   const [targets, setTargets] = React.useState<GoalTargets>(rec);
   const [saved, setSaved] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
   const noun = rosterNoun(s.flow);
   const name = pd?.name ?? 'this athlete';
+  const athleteId = pd?.athleteId;
+  const canPush = isBackendLive && !!athleteId;
+
+  // Load the athlete's CURRENT plan on open so the editor never silently re-seeds
+  // recommendation defaults over targets the coach already set (reopening used to
+  // show 155g to a coach who saved 180g last week — one honest-looking "Save & send"
+  // then overwrote their own plan). Soft-fail: the recommendation seed stands.
+  React.useEffect(() => {
+    if (!isBackendLive || !athleteId) return;
+    let cancelled = false;
+    db.fetchAthleteProfile(athleteId)
+      .then((row) => {
+        if (cancelled) return;
+        const t = row?.targets as (Partial<GoalTargets> & { profile?: string }) | null;
+        if (t && typeof t.protein === 'number' && typeof t.calories === 'number' && typeof t.weight === 'number') {
+          const knownProfile = SCORING_PROFILE_OPTIONS.find((o) => o.key === t.profile)?.key;
+          if (knownProfile) setProfile(knownProfile);
+          setTargets({ protein: t.protein, calories: t.calories, weight: t.weight });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [athleteId]);
 
   if (!pd) return null;
 
@@ -48,16 +74,22 @@ export function CoachGoalsEditor() {
   const pickProfile = (p: ScoringProfile) => { haptics.select(); setProfile(p); setTargets(recommendTargets(p)); setSaved(false); };
 
   const onSave = async () => {
-    if (isBackendLive && pd.athleteId) {
+    setError(null);
+    if (canPush) {
       setBusy(true);
-      await s.pushAthleteGoals(pd.athleteId, targets);
+      const ok = await s.pushAthleteGoals(athleteId!, targets, profile);
       setBusy(false);
+      if (!ok) {
+        // The plan is the one thing the coach owns; a silent write failure means the
+        // athlete keeps stale targets while the coach believes they changed them.
+        haptics.tap();
+        setError("Couldn't send the plan. Check your connection and try again — nothing was changed yet.");
+        return;
+      }
     }
     setSaved(true);
     haptics.success();
   };
-
-  const canPush = isBackendLive && !!pd.athleteId;
 
   return (
     <Overlay title={`${name}'s Plan`} onClose={s.closeCoachGoals}>
@@ -120,6 +152,12 @@ export function CoachGoalsEditor() {
               Connect your team to push this plan to {name}. Until then it's a draft on this device.
             </Txt>
           </Row>
+        ) : null}
+
+        {error ? (
+          <Txt w="sb" size={13} color={c.alert} style={{ marginTop: 14, lineHeight: 18 }}>
+            {error}
+          </Txt>
         ) : null}
 
         <Pressable

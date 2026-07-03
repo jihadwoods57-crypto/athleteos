@@ -195,14 +195,21 @@ export interface TeamWeeklyReport {
   mostAtRisk: { name: string; score: number } | null;
 }
 
+/** What span of data the aggregate actually covers. Live coach data is TODAY's day
+ *  rows (trend = vs yesterday), so its language must say "today" — dressing one day
+ *  as a week is a false artifact the coach could share to parents/AD. */
+export type ReportScope = 'week' | 'today';
+
 /**
- * Aggregate a roster into a team weekly digest a coach can glance at or share: average
+ * Aggregate a roster into a team digest a coach can glance at or share: average
  * score + compliance, the band distribution, how many are trending which way, the best
  * mover, and the athlete most at risk. Honest by construction: it reports only what the
- * roster carries (no invented week-over-week when prior data is absent). Pure.
+ * roster carries (no invented week-over-week when prior data is absent), and its
+ * language matches the scope of the data it was given. Pure.
  */
-export function teamWeeklyReport(roster: TeamMember[]): TeamWeeklyReport {
+export function teamWeeklyReport(roster: TeamMember[], scope: ReportScope = 'week'): TeamWeeklyReport {
   const n = roster.length;
+  const span = scope === 'today' ? 'today' : 'this week';
   if (n === 0) {
     return {
       athletes: 0, avgScore: 0, compliance: 0, status: scoreLanguage(0),
@@ -225,11 +232,11 @@ export function teamWeeklyReport(roster: TeamMember[]): TeamWeeklyReport {
   const trendingUp = roster.filter((r) => r.dir === 'up').length;
   const trendingDown = roster.filter((r) => r.dir === 'down').length;
 
-  const headline = avgScore >= 85 ? 'Strong week' : avgScore >= 70 ? 'Mixed week' : 'Tough week';
+  const headline = avgScore >= 85 ? (scope === 'today' ? 'Strong day' : 'Strong week') : avgScore >= 70 ? (scope === 'today' ? 'Mixed day' : 'Mixed week') : scope === 'today' ? 'Tough day' : 'Tough week';
   const movedLine =
     trendingUp === 0 && trendingDown === 0
-      ? 'The room is holding steady this week.'
-      : `${trendingUp} trending up, ${trendingDown} trending down.`;
+      ? `The room is holding steady ${span}.`
+      : `${trendingUp} trending up, ${trendingDown} trending down${scope === 'today' ? ' vs yesterday' : ''}.`;
 
   // Best mover: an athlete trending up, highest score among them.
   const risers = roster.filter((r) => r.dir === 'up').sort((a, b) => b.score - a.score);
@@ -246,14 +253,16 @@ export function teamWeeklyReport(roster: TeamMember[]): TeamWeeklyReport {
   };
 }
 
-/** Plain-text team digest for the share/paste path. ASCII only, no em dash. */
-export function teamWeeklyReportText(report: TeamWeeklyReport, teamName: string): string {
+/** Plain-text team digest for the share/paste path. ASCII only, no em dash. The scope
+ *  must match the one the report was built with, so a shared artifact never claims a
+ *  week of data it doesn't have. */
+export function teamWeeklyReportText(report: TeamWeeklyReport, teamName: string, scope: ReportScope = 'week'): string {
   const lines = [
-    `Team weekly report: ${teamName}`,
+    scope === 'today' ? `Team report for today: ${teamName}` : `Team weekly report: ${teamName}`,
     report.headline,
     '',
     `Team average: ${report.avgScore} (${report.status}) across ${report.athletes} athletes.`,
-    `Compliance: ${report.compliance}% of days on plan.`,
+    scope === 'today' ? `Compliance: ${report.compliance}% task completion today.` : `Compliance: ${report.compliance}% of days on plan.`,
     `Standing: ${report.onStandard} on standard, ${report.onBubble} on the bubble, ${report.needsIntervention} needs intervention.`,
     report.movedLine,
     report.mostImproved ? `Best mover: ${report.mostImproved.name} (${report.mostImproved.score}).` : 'Best mover: none trending up yet.',

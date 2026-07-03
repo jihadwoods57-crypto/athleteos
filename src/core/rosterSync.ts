@@ -87,3 +87,52 @@ export function mapLinkedDaysToRoster(
 function shortId(id: string): string {
   return id ? `#${id.slice(0, 4)}` : '#????';
 }
+
+/** One active team member as the `team_roster` RPC returns it (0040). */
+export interface RosterMember {
+  athlete_id: string;
+  athlete_name: string | null;
+  position: string | null;
+}
+
+/**
+ * The honest live roster: the ACTIVE MEMBERSHIP ∪ today's day rows. Every member
+ * appears — an athlete who hasn't logged today renders `loggedToday: false` with
+ * zeroes instead of vanishing (the silent athlete is the whole point of the
+ * accountability read), and members carry their real name/position instead of a
+ * uuid stub. Day rows from links outside the member list (e.g. a trainer's
+ * practice client) are kept with the uuid fallback so nothing RLS granted us is
+ * dropped. Trend direction compares today's score to yesterday's day row.
+ */
+export function buildLiveRoster(
+  members: RosterMember[],
+  today: LinkedDay[],
+  yesterday: LinkedDay[],
+): RosterRow[] {
+  const todayById = new Map(today.map((d) => [d.athlete_id, d]));
+  const prevById = new Map(yesterday.map((d) => [d.athlete_id, d]));
+
+  const memberRows: RosterRow[] = members.map((m) => {
+    const d = todayById.get(m.athlete_id);
+    const name = m.athlete_name?.trim() || shortId(m.athlete_id);
+    const prev = prevById.get(m.athlete_id)?.score;
+    const score = d ? clampPct(d.score ?? 0) : 0;
+    return {
+      name,
+      initials: initialsFromName(name),
+      pos: m.position?.trim() || '',
+      comp: d ? dayCompliance(d) : 0,
+      score,
+      dir: d ? trendDir(score, prev ?? undefined) : 'flat',
+      loggedToday: d != null,
+      athleteId: m.athlete_id,
+    };
+  });
+
+  const memberIds = new Set(members.map((m) => m.athlete_id));
+  const extraRows = mapLinkedDaysToRoster(
+    today.filter((d) => !memberIds.has(d.athlete_id)),
+    (id) => ({ prevScore: prevById.get(id)?.score ?? undefined }),
+  );
+  return [...memberRows, ...extraRows];
+}

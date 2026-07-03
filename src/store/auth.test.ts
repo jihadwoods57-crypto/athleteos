@@ -8,6 +8,8 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 
 const signIn = jest.fn<Promise<AuthResult>, [string, string]>();
 const fetchDay = jest.fn<Promise<unknown>, [string, string]>();
+const joinTeam = jest.fn<Promise<string | null>, [string]>();
+const joinPractice = jest.fn<Promise<string | null>, [string]>();
 const signUp = jest.fn<Promise<AuthResult>, [string, string, string | undefined]>();
 const signOut = jest.fn<Promise<void>, []>();
 const resetPassword = jest.fn<Promise<AuthResult>, [string]>();
@@ -32,7 +34,7 @@ function loadStore(backendLive: boolean): LiveStore {
       isSupabaseConfigured: backendLive,
       auth: { signIn, signUp, signOut, resetPassword, signInWithAppleToken },
       // signInLive hydrates the day after auth; no remote row in these unit tests.
-      db: { fetchDay, upsertDay: jest.fn().mockResolvedValue(undefined), fetchActiveTrustPass: jest.fn().mockResolvedValue(null), createTeam, coachSetGoals, fetchEntitlement, fetchProfile, fetchGuardianRequests: jest.fn().mockResolvedValue([]), revokeViewer: jest.fn().mockResolvedValue(undefined) },
+      db: { fetchDay, upsertDay: jest.fn().mockResolvedValue(undefined), fetchActiveTrustPass: jest.fn().mockResolvedValue(null), createTeam, coachSetGoals, fetchEntitlement, fetchProfile, fetchGuardianRequests: jest.fn().mockResolvedValue([]), revokeViewer: jest.fn().mockResolvedValue(undefined), joinTeam, joinPractice },
     }));
     store = require('./useStore').useStore;
   });
@@ -42,6 +44,8 @@ function loadStore(backendLive: boolean): LiveStore {
 beforeEach(() => {
   signIn.mockReset();
   fetchDay.mockReset().mockResolvedValue(null);
+  joinTeam.mockReset().mockResolvedValue('team-1');
+  joinPractice.mockReset().mockResolvedValue('practice-1');
   signUp.mockReset();
   signOut.mockReset().mockResolvedValue(undefined);
   resetPassword.mockReset();
@@ -259,6 +263,48 @@ describe('flag ON: live auth routes through the wrappers', () => {
     const ok = await useStore.getState().pushAthleteGoals('ath-1', t);
     expect(ok).toBe(true);
     expect(coachSetGoals).toHaveBeenCalledWith('ath-1', t, null);
+  });
+
+  it('pushAthleteGoals persists the chosen scoring profile inside the targets jsonb', async () => {
+    // Constitution 11a: the coach owns the profile. Before this, the picker was
+    // decorative — the selection was discarded on close and the editor re-seeded
+    // recommendation defaults, silently overwriting the coach's prior plan.
+    const useStore = loadStore(true);
+    const t = { protein: 160, calories: 2400, weight: 170 };
+    const ok = await useStore.getState().pushAthleteGoals('ath-1', t, 'general');
+    expect(ok).toBe(true);
+    expect(coachSetGoals).toHaveBeenCalledWith('ath-1', { ...t, profile: 'general' }, null);
+  });
+
+  it('joinTeamLive marks the coach connection only AFTER the join succeeds', async () => {
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    const ok = await useStore.getState().joinTeamLive('gators');
+    expect(ok).toBe(true);
+    expect(joinTeam).toHaveBeenCalledWith('GATORS');
+    expect(useStore.getState().supportTeam).toContain('coach');
+    expect(useStore.getState().inviteCode).toBe('GATORS');
+  });
+
+  it('joinTeamLive returns false and connects NOTHING when the join RPC fails', async () => {
+    // Before: connectCoach fired joinTeam fire-and-forget and the UI showed
+    // "You're on the roster" regardless — the athlete then waited forever for a
+    // coach who never saw them.
+    joinTeam.mockRejectedValue(new Error('revoked code'));
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    const ok = await useStore.getState().joinTeamLive('GATORS');
+    expect(ok).toBe(false);
+    expect(useStore.getState().supportTeam).not.toContain('coach');
+    expect(useStore.getState().inviteCode).toBe('');
+  });
+
+  it('joinPracticeLive mirrors the same contract for trainers', async () => {
+    joinPractice.mockRejectedValue(new Error('nope'));
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    expect(await useStore.getState().joinPracticeLive('APEX99')).toBe(false);
+    expect(useStore.getState().supportTeam).not.toContain('trainer');
   });
 
   it('signOutLive calls the wrapper and clears the session', async () => {

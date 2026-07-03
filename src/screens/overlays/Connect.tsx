@@ -73,17 +73,26 @@ export function Connect() {
     else setCodeErr('We couldn’t find that code. Double-check it with your coach.');
   };
 
-  const joinResolved = () => {
-    if (!resolved) return;
-    haptics.success();
+  const joinResolved = async () => {
+    if (!resolved || checking) return;
     const v = code.trim().toUpperCase();
-    if (resolved.kind === 'team') {
-      s.connectCoach(v);
-      setDone(`You’re on ${resolved.data.coach_name ? `${resolved.data.coach_name}’s` : 'the'} roster.`);
-    } else {
-      s.connectTrainer(v);
-      setDone(`You’re connected to ${resolved.data.trainer_name ?? 'your trainer'}.`);
+    setCodeErr(null);
+    setChecking(true);
+    // The join must actually land before the success screen: "You're on the roster"
+    // over a failed RPC strands the athlete waiting for a coach who never saw them.
+    const ok = resolved.kind === 'team' ? await s.joinTeamLive(v) : await s.joinPracticeLive(v);
+    setChecking(false);
+    if (!ok) {
+      haptics.tap();
+      setCodeErr("The join didn't go through. Check your connection and try again.");
+      return;
     }
+    haptics.success();
+    setDone(
+      resolved.kind === 'team'
+        ? `You’re on ${resolved.data.coach_name ? `${resolved.data.coach_name}’s` : 'the'} roster.`
+        : `You’re connected to ${resolved.data.trainer_name ?? 'your trainer'}.`,
+    );
   };
 
   const pickOrg = async (o: OrgRow) => {
@@ -157,7 +166,9 @@ export function Connect() {
                     ? [resolved.data.school, resolved.data.name, resolved.data.sport].filter(Boolean).join(' · ')
                     : resolved.data.name}
                 </Txt>
-                <Btn label={resolved.kind === 'team' ? 'Join this team' : 'Join this practice'} haptic="success" onPress={joinResolved} style={{ marginTop: 14 }} />
+                {/* Outcome haptics live in joinResolved — a success buzz on press would
+                    celebrate a join that may be about to fail. */}
+                <Btn label={checking ? 'Joining…' : resolved.kind === 'team' ? 'Join this team' : 'Join this practice'} haptic="none" disabled={checking} onPress={() => void joinResolved()} style={{ marginTop: 14 }} />
               </Card>
             ) : (
               <Btn label={checking ? 'Checking…' : 'Continue'} disabled={checking || code.trim().length < 3} onPress={checkCode} />

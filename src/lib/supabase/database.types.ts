@@ -131,7 +131,10 @@ export type AthleteProfileRow = {
   base_weight: number | null;
   base_age: number | null;
   base_goal: string | null;
-  targets: { protein?: number; calories?: number; weight?: number };
+  /** Coach-set plan. `profile` is the coach's chosen scoring profile (constitution 11a
+   *  — the coach owns targets + profile), persisted inside the same jsonb so it
+   *  round-trips into the goals editor. */
+  targets: { protein?: number; calories?: number; weight?: number; profile?: string };
   season_goal: { start?: number; target?: number; deadline?: string };
   team_code: string | null;
   updated_at: string;
@@ -300,6 +303,14 @@ export interface Database {
       pending_team_requests: {
         Args: { team: string };
         Returns: { athlete_id: string; athlete_name: string | null; position: string | null; requested_at: string }[];
+      };
+      team_roster: {
+        Args: { team: string };
+        Returns: { athlete_id: string; athlete_name: string | null; position: string | null; joined_at: string }[];
+      };
+      practice_roster: {
+        Args: { practice: string };
+        Returns: { client_id: string; client_name: string | null; joined_at: string }[];
       };
       join_practice: {
         Args: { code: string };

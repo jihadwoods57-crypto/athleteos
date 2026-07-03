@@ -154,6 +154,25 @@ describe('teamWeeklyReport — coach roster aggregate', () => {
     expect(text).toContain('Most at risk: Silva');
     expect(text).not.toContain('—');
   });
+
+  it("scope 'today': the live one-day aggregate never wears week language", () => {
+    // Live data is TODAY's day rows, not a week. Sharing "Compliance: 78% of days
+    // on plan" over one day is a false weekly artifact a coach could send to
+    // parents/AD. Every sentence must say today.
+    const r = teamWeeklyReport(roster, 'today');
+    expect(r.headline).toBe('Mixed day'); // avg 79
+    expect(r.movedLine).toContain('vs yesterday');
+    expect(r.movedLine).not.toContain('week');
+    const text = teamWeeklyReportText(r, 'Linebackers', 'today');
+    expect(text).toContain('Team report for today: Linebackers');
+    expect(text).toContain('task completion today');
+    expect(text).not.toContain('week');
+  });
+
+  it("scope 'today': a flat room holds steady today, not this week", () => {
+    const flat: TeamMember[] = [{ name: 'A', score: 80, comp: 80, dir: 'flat' }];
+    expect(teamWeeklyReport(flat, 'today').movedLine).toBe('The room is holding steady today.');
+  });
 });
 
 describe('weeklyReportFromState', () => {

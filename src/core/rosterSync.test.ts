@@ -3,6 +3,7 @@
 // for every fetched row, name/initials/trend from the provided profile meta) and that
 // the Phase-5 filters + risk ranking run unchanged on the projected rows.
 import {
+  buildLiveRoster,
   dayCompliance,
   filterRoster,
   initialsFromName,
@@ -40,6 +41,50 @@ describe('dayCompliance', () => {
   });
   it('never emits NaN/out-of-range from a null/garbage score', () => {
     expect(dayCompliance(day('a', { tasks: [], score: null }))).toBe(0);
+  });
+});
+
+describe('buildLiveRoster — membership ∪ day rows: the accountability read', () => {
+  const members = [
+    { athlete_id: 'a', athlete_name: 'Marcus Cole', position: 'LB' },
+    { athlete_id: 'b', athlete_name: 'Jordan Reed', position: 'WR' },
+    { athlete_id: 'c', athlete_name: null, position: null },
+  ];
+
+  it('every active member appears — the SILENT athlete shows as not logged, not absent', () => {
+    const rows = buildLiveRoster(members, [day('a', { score: 84 })], []);
+    expect(rows).toHaveLength(3);
+    const byId = Object.fromEntries(rows.map((r) => [r.athleteId, r]));
+    expect(byId.a).toMatchObject({ name: 'Marcus Cole', loggedToday: true, score: 84 });
+    expect(byId.b).toMatchObject({ name: 'Jordan Reed', pos: 'WR', loggedToday: false, score: 0, comp: 0 });
+    expect(byId.b.initials).toBe('JR');
+  });
+
+  it('derives the trend from yesterday’s day row for the same athlete', () => {
+    const rows = buildLiveRoster(members, [day('a', { score: 84 }), day('b', { score: 60 })], [day('a', { score: 70 }), day('b', { score: 90 })]);
+    const byId = Object.fromEntries(rows.map((r) => [r.athleteId, r]));
+    expect(byId.a.dir).toBe('up');
+    expect(byId.b.dir).toBe('down');
+    expect(byId.c.dir).toBe('flat'); // no data either day
+  });
+
+  it('a day row from a non-member link still appears (uuid fallback), so no linked athlete is dropped', () => {
+    const rows = buildLiveRoster(members, [day('d4f2aaaa-0000-0000-0000-000000000000', { score: 77 })], []);
+    expect(rows).toHaveLength(4);
+    const extra = rows.find((r) => r.athleteId === 'd4f2aaaa-0000-0000-0000-000000000000');
+    expect(extra).toMatchObject({ loggedToday: true, score: 77 });
+  });
+
+  it('a null profile name falls back to the short id, never an empty string', () => {
+    const rows = buildLiveRoster(members, [], []);
+    const c = rows.find((r) => r.athleteId === 'c');
+    expect(c?.name).toBe('#c');
+  });
+
+  it('an empty membership with day rows behaves like the old projection (nothing lost)', () => {
+    const rows = buildLiveRoster([], [day('a', { score: 82 })], []);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ loggedToday: true, score: 82 });
   });
 });
 

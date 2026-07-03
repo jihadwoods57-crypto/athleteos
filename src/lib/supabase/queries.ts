@@ -354,6 +354,30 @@ export async function declineMember(teamId: string, athleteId: string): Promise<
   if (error) throw error;
 }
 
+/** One active member as the `team_roster` RPC (0040) returns it. */
+export type TeamRosterMember = { athlete_id: string; athlete_name: string | null; position: string | null; joined_at: string };
+
+/** ACTIVE members of a team, names included, via the SECURITY DEFINER team_roster RPC
+ *  (0040 — the mirror of pending_team_requests for approved athletes). Staff-gated
+ *  server-side. This is what lets the dashboard show real names and, crucially, the
+ *  athletes who have NOT logged today. */
+export async function fetchTeamRoster(teamId: string): Promise<TeamRosterMember[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase().rpc('team_roster', { team: teamId });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** ACTIVE clients of a practice, names included, via the practice_roster RPC (0040 —
+ *  the mirror of pending_practice_requests for approved clients). Owner-gated
+ *  server-side. Shaped as TeamRosterMember so the shared roster projection applies. */
+export async function fetchPracticeRoster(practiceId: string): Promise<TeamRosterMember[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase().rpc('practice_roster', { practice: practiceId });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ athlete_id: r.client_id, athlete_name: r.client_name, position: null, joined_at: r.joined_at }));
+}
+
 /** Teams the signed-in user is staff on (teams_read RLS returns the coach's own teams).
  *  Used to gather the coach's pending-request inbox across their team(s). */
 export async function fetchMyTeams(): Promise<Pick<TeamRow, 'id' | 'name'>[]> {

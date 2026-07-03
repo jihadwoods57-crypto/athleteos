@@ -164,6 +164,11 @@ export interface Actions {
   /** Client joins a trainer's practice by code (mirror of connectCoach): marks the
    *  trainer in the local support network and joins via join_practice when live. */
   connectTrainer: (code: string) => void;
+  /** AWAITED live joins for the code-confirm screen: the server join must succeed
+   *  BEFORE any local "connected" state flips or a success screen shows. False on
+   *  failure so the UI can say so — never a success screen over a dead join. */
+  joinTeamLive: (code: string) => Promise<boolean>;
+  joinPracticeLive: (code: string) => Promise<boolean>;
   /** Open/close the athlete "Connect your coach" overlay; openConnect may carry an
    *  invite-link code to prefill the code door. */
   openConnect: (prefillCode?: string | null) => void;
@@ -276,8 +281,10 @@ export interface Actions {
    *  'pending'). Server value only — never client-writable to 'verified'. Gated; soft-fails. */
   hydrateGuardianConsent: () => Promise<void>;
   /** Coach sets a roster athlete's targets via the coach_set_goals RPC (gated). The
-   *  coach owns the plan (Constitution Rule #13). Returns success; inert when off. */
-  pushAthleteGoals: (athleteId: string, targets: { protein: number; calories: number; weight: number }) => Promise<boolean>;
+   *  coach owns the plan (Constitution Rule #13). The chosen scoring profile rides
+   *  inside the same targets jsonb so it persists and round-trips into the editor.
+   *  Returns success; inert when off. */
+  pushAthleteGoals: (athleteId: string, targets: { protein: number; calories: number; weight: number }, profile?: string) => Promise<boolean>;
   /** Overseer self-profile edits (coach/trainer/parent). Update the display name +
    *  org/team name; when live they also push to the profiles row (gated seam). */
   setDisplayName: (v: string) => void;
@@ -609,6 +616,31 @@ export const useStore = create<Store>()(
         if (!c) return;
         set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('trainer') ? s.supportTeam : [...s.supportTeam, 'trainer'] }));
         if (isBackendLive) void db.joinPractice(c).catch(() => undefined);
+      },
+      joinTeamLive: async (code) => {
+        const c = code.trim().toUpperCase();
+        if (!isBackendLive || !c) return false;
+        // The join must SUCCEED before anything claims a connection: a fire-and-forget
+        // join with a success screen stranded athletes waiting on a roster they never
+        // reached. Local state flips only after the server accepted the code.
+        try {
+          await db.joinTeam(c);
+        } catch {
+          return false;
+        }
+        set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('coach') ? s.supportTeam : [...s.supportTeam, 'coach'] }));
+        return true;
+      },
+      joinPracticeLive: async (code) => {
+        const c = code.trim().toUpperCase();
+        if (!isBackendLive || !c) return false;
+        try {
+          await db.joinPractice(c);
+        } catch {
+          return false;
+        }
+        set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('trainer') ? s.supportTeam : [...s.supportTeam, 'trainer'] }));
+        return true;
       },
       createPracticeLive: async (name, handle, discoverable) => {
         if (!isBackendLive) return null;
@@ -1114,10 +1146,10 @@ export const useStore = create<Store>()(
           /* keep the local (fail-closed) status on error */
         }
       },
-      pushAthleteGoals: async (athleteId, targets) => {
+      pushAthleteGoals: async (athleteId, targets, profile) => {
         if (!isBackendLive || !athleteId) return false;
         try {
-          await db.coachSetGoals(athleteId, targets, null);
+          await db.coachSetGoals(athleteId, profile ? { ...targets, profile } : targets, null);
           set({ authError: null });
           return true;
         } catch (e) {

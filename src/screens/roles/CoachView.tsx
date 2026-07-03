@@ -49,7 +49,10 @@ export function CoachView() {
   const onTrack = roster.length - kpis.alerts;
   const attention = needsAttention(roster);
   const teamTitle = coachTeamTitle({ isReal: s.athleteName.trim().length > 0, sport: s.obMeta.sport, school: s.obMeta.school, orgName: s.orgName });
-  const teamReport = teamWeeklyReport(roster);
+  // Live data is TODAY's day rows (trend vs yesterday), so the report speaks in
+  // day language; only the seeded week-shaped demo may say "week".
+  const reportScope = rosterLive ? ('today' as const) : ('week' as const);
+  const teamReport = teamWeeklyReport(roster, reportScope);
   const groups = rosterGroups(roster);
   const groupStats = rosterGroupStats(roster);
   const notLogged = notLoggedCount(roster);
@@ -57,7 +60,7 @@ export function CoachView() {
     roster.map((r) => [r.name, { initials: r.initials, pos: r.pos, comp: r.comp, athleteId: r.athleteId }]),
   );
   const shareTeamReport = async () => {
-    try { await Share.share({ message: teamWeeklyReportText(teamReport, teamTitle) }); }
+    try { await Share.share({ message: teamWeeklyReportText(teamReport, teamTitle, reportScope) }); }
     catch { /* user cancelled the share sheet */ }
   };
 
@@ -69,11 +72,12 @@ export function CoachView() {
           <CoachDashboard
             teamTitle={teamTitle} rosterLive={rosterLive} kpis={kpis} teamReport={teamReport}
             attention={attention} rosterMeta={rosterMeta} onTrack={onTrack} rosterCount={roster.length}
+            reportScope={reportScope}
           />
         )}
         {tab === 'roster' && <CoachRoster roster={roster} groups={groups} notLogged={notLogged} />}
         {tab === 'attention' && <CoachAttention attention={attention} rosterMeta={rosterMeta} rosterCount={roster.length} />}
-        {tab === 'reports' && <CoachReports teamTitle={teamTitle} teamReport={teamReport} groupStats={groupStats} compliance={kpis.compliance} onShare={shareTeamReport} roster={roster} />}
+        {tab === 'reports' && <CoachReports teamTitle={teamTitle} teamReport={teamReport} groupStats={groupStats} compliance={kpis.compliance} onShare={shareTeamReport} roster={roster} reportScope={reportScope} />}
         {tab === 'profile' && <CoachProfile teamTitle={teamTitle} />}
       </View>
 
@@ -180,7 +184,7 @@ function SectionTitle({ eyebrow, title, right }: { eyebrow?: string; title: stri
  *  returns []). Approve flips the request to active; the athlete then joins the roster. */
 function PendingRequestsCard() {
   const c = useColors();
-  const { items, approve, decline } = usePendingRequests();
+  const { items, approve, decline, error } = usePendingRequests();
   if (items.length === 0) return null;
   return (
     <Reveal index={0}>
@@ -199,7 +203,7 @@ function PendingRequestsCard() {
             accessibilityRole="button"
             accessibilityLabel={`Approve ${it.athleteName || 'athlete'}`}
             hitSlop={6}
-            onPress={() => { haptics.success(); void approve(it.teamId, it.athleteId); }}
+            onPress={() => { void approve(it.teamId, it.athleteId).then((ok) => (ok ? haptics.success() : haptics.tap())); }}
             style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 11, backgroundColor: c.accent }}
           >
             <Txt w="b" size={13} color={c.white}>Approve</Txt>
@@ -215,16 +219,21 @@ function PendingRequestsCard() {
           </Pressable>
         </Row>
       ))}
+      {error ? (
+        <Txt w="sb" size={12} color={c.alert} style={{ marginTop: 4 }}>
+          {error}
+        </Txt>
+      ) : null}
     </View>
     </Reveal>
   );
 }
 
-function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, rosterMeta, onTrack, rosterCount }: {
+function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, rosterMeta, onTrack, rosterCount, reportScope }: {
   teamTitle: string; rosterLive: boolean; kpis: { avgScore: number; compliance: number; alerts: number };
   teamReport: ReturnType<typeof teamWeeklyReport>; attention: ReturnType<typeof needsAttention>;
   rosterMeta: Record<string, { initials: string; pos: string; comp: number; athleteId?: string }>;
-  onTrack: number; rosterCount: number;
+  onTrack: number; rosterCount: number; reportScope: 'week' | 'today';
 }) {
   const c = useColors();
   const s = useStore();
@@ -279,7 +288,7 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
       <Reveal index={1}>
       <PressScale accessibilityLabel="Open the full weekly report" haptic="none" onPress={() => { haptics.tap(); s.setCoachTab('reports'); }} style={{ marginTop: 14 }}>
         <Card variant="hero" style={{ borderRadius: 20 }}>
-          <Txt w="eb" size={11} color={c.textTertiary} ls={0.7}>THIS WEEK</Txt>
+          <Txt w="eb" size={11} color={c.textTertiary} ls={0.7}>{reportScope === 'today' ? 'TODAY' : 'THIS WEEK'}</Txt>
           <Txt w="eb" size={18} ls={-0.3} style={{ marginTop: 3 }}>{teamReport.headline}</Txt>
           <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>
             {teamReport.movedLine} {teamReport.onStandard} on standard, {teamReport.onBubble} on the bubble, {teamReport.needsIntervention} need intervention.
@@ -334,7 +343,13 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
           <SampleTag />
         </Row>
         <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 22 }}>
-          The room is trending up: {onTrack} of {rosterCount} athletes are on track this week.{' '}
+          {/* Lead with the fact, never an unconditional "trending up" — the same card must
+              read honestly on a collapsing room, and in the span the data actually covers. */}
+          {onTrack === rosterCount
+            ? `The whole room is on track ${reportScope === 'today' ? 'today' : 'this week'} — all ${rosterCount} athletes.`
+            : onTrack >= Math.ceil(rosterCount / 2)
+              ? `Most of the room is on track: ${onTrack} of ${rosterCount} athletes ${reportScope === 'today' ? 'today' : 'this week'}.`
+              : `The room needs work: only ${onTrack} of ${rosterCount} athletes are on track ${reportScope === 'today' ? 'today' : 'this week'}.`}{' '}
           {kpis.alerts === 0
             ? 'No one is below the alert line right now, so keep the cadence going.'
             : `${kpis.alerts} ${kpis.alerts === 1 ? 'athlete is' : 'athletes are'} pulling the average down. A quick check-in could help before it slips further.`}
@@ -474,8 +489,8 @@ function CoachAttention({ attention, rosterMeta, rosterCount }: { attention: Ret
 }
 
 /* ---------------------------------------------------------------- Reports */
-function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, roster }: {
-  teamTitle: string; teamReport: ReturnType<typeof teamWeeklyReport>; groupStats: RosterGroupStat[]; compliance: number; onShare: () => void; roster: AtRiskInput[];
+function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, roster, reportScope }: {
+  teamTitle: string; teamReport: ReturnType<typeof teamWeeklyReport>; groupStats: RosterGroupStat[]; compliance: number; onShare: () => void; roster: AtRiskInput[]; reportScope: 'week' | 'today';
 }) {
   const c = useColors();
   return (
@@ -486,10 +501,10 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, 
       <Card variant="hero" style={{ borderRadius: 20 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Txt w="eb" size={11} color={c.textTertiary} ls={0.7}>WEEKLY REPORT</Txt>
+            <Txt w="eb" size={11} color={c.textTertiary} ls={0.7}>{reportScope === 'today' ? "TODAY'S REPORT" : 'WEEKLY REPORT'}</Txt>
             <Txt w="eb" size={18} ls={-0.3} style={{ marginTop: 3 }}>{teamReport.headline}</Txt>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Share team weekly report" hitSlop={6} onPress={onShare}
+          <Pressable accessibilityRole="button" accessibilityLabel={reportScope === 'today' ? "Share today's team report" : 'Share team weekly report'} hitSlop={6} onPress={onShare}
             style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: c.accentSurface, opacity: pressed ? 0.8 : 1 })}>
             <Icon name="send" size={14} color={c.accent} />
             <Txt w="b" size={12} color={c.accent}>Share</Txt>
@@ -522,7 +537,7 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, 
         <Txt w="eb" size={15} ls={-0.3}>Compliance</Txt>
         <Row style={{ alignItems: 'baseline', gap: 8, marginTop: 10 }}>
           <Txt w="eb" num size={34} ls={-1} color={roster.length === 0 ? c.textTertiary : kpiTone(c, 'compliance', compliance)}>{compliance}%</Txt>
-          <Txt w="b" size={12} color={c.textTertiary}>of the plan, team-wide this week</Txt>
+          <Txt w="b" size={12} color={c.textTertiary}>{reportScope === 'today' ? 'of the plan, team-wide today' : 'of the plan, team-wide this week'}</Txt>
         </Row>
         <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>{teamReport.movedLine}</Txt>
       </Card>

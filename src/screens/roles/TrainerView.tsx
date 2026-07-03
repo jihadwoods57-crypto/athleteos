@@ -20,6 +20,7 @@ import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
 import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
 import { usePendingClients } from './usePendingClients';
+import { useLiveRoster } from './useLiveRoster';
 import { RoleTabBar, SettingRow, type RoleTab } from './roleChrome';
 import type { TrainerTab } from '@/core';
 
@@ -33,6 +34,10 @@ export function TrainerView() {
   const s = useStore();
   const tab = s.trainerTab;
   const kpis = trainerBookKpis(TRAINER_CLIENTS);
+  // The trainer's REAL clients (approved practice_clients + their day rows). Before
+  // this read existed, the approve inbox flipped a real row to active and the client
+  // then vanished into a book that could only ever show the 5 demo people.
+  const { roster: liveClients, live: clientsLive } = useLiveRoster([], 'practice');
   // Needs-Follow-Up derives from the same book the FOLLOW-UPS KPI counts, so the
   // badge count always equals the rows shown and only REAL clients can appear
   // (the old list hand-named a client who was not in the book at all).
@@ -92,13 +97,54 @@ export function TrainerView() {
               demo and is hidden once the backend is live (no fabricated metric for a real trainer). */}
           <Reveal index={0}>
           <Row style={{ gap: 10, marginTop: 20 }}>
-            <Kpi value={String(kpis.clients)} label="CLIENTS" />
+            {/* Live: count the REAL book, never the 5 demo people. */}
+            <Kpi value={String(clientsLive ? liveClients.length : kpis.clients)} label="CLIENTS" />
             <Kpi value={`${kpis.avgCompliance}%`} label="AVG COMPLY" />
             {isBackendLive ? null : <Kpi value="92%" label="RETENTION" color={cx.success} sample />}
           </Row>
           </Reveal>
 
           <PendingClientsCard />
+
+          {/* Your real clients — the surface an approved client lands on. */}
+          {clientsLive && liveClients.length > 0 ? (
+            <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: cx.card, ...shadow.card }}>
+              <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+                <Txt w="eb" size={12} color={cx.accent} ls={0.7}>YOUR CLIENTS</Txt>
+                <Txt w="sb" size={12} color={cx.textTertiary}>{liveClients.length} active</Txt>
+              </Row>
+              {liveClients.map((cl, i) => {
+                const g = gradeFor(cl.score);
+                return (
+                  <PressScale
+                    key={cl.athleteId ?? cl.name}
+                    accessibilityLabel={`${cl.name}, score ${cl.score}. View client.`}
+                    onPress={() => s.openPerson({ name: cl.name, initials: cl.initials, pos: cl.pos, score: cl.score, comp: cl.comp, athleteId: cl.athleteId })}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: cx.border }}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: cx.bg2, alignItems: 'center', justifyContent: 'center' }}>
+                      <Txt w="b" size={12} color={cx.slate600}>{cl.initials}</Txt>
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Row style={{ gap: 6 }}>
+                        <Txt w="b" size={14}>{cl.name}</Txt>
+                        {cl.loggedToday === false ? (
+                          <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 5, backgroundColor: cx.alertSurface }}>
+                            <Txt w="b" size={10} color={cx.alert}>Not logged</Txt>
+                          </View>
+                        ) : null}
+                      </Row>
+                      <Txt w="m" size={12} color={cx.textTertiary} style={{ marginTop: 2 }}>{cl.comp}% compliant today</Txt>
+                    </View>
+                    <Txt w="eb" num size={18}>{cl.score}</Txt>
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg }}>
+                      <Txt w="eb" size={12} color={g.c}>{g.g}</Txt>
+                    </View>
+                  </PressScale>
+                );
+              })}
+            </View>
+          ) : null}
 
           {/* book compliance trend */}
           <Reveal index={1}>

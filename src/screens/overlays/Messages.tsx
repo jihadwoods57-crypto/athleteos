@@ -2,7 +2,7 @@
 import React from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { useStore } from '@/store';
-import { messageDeliveryNote } from '@/core';
+import { messageDeliveryNote, messagingAllowed, messagingGateNote } from '@/core';
 import { isBackendLive } from '@/lib/supabase';
 import { font, shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
@@ -23,6 +23,17 @@ export function Messages() {
   // fall back to the role's showcase contact only when no person is in context.
   const them = s.personDetail?.name?.trim() || THEM_BY_ROLE[s.role ?? ''] || 'Coach Davis';
   const initials = them.split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  // msgThread is ONE global array seeded with showcase bubbles. Rendering it under a
+  // REAL person's name fabricates speech from a real (possibly minor) athlete — and
+  // shows the same conversation for everyone the overseer opens. A real counterpart
+  // (live athleteId) or a real signed-up user gets an honest empty thread instead.
+  const realCounterpart = Boolean(s.personDetail?.athleteId) || s.athleteName.trim() !== '';
+  // The beta minor-messaging rule, applied on the athlete side where age is known
+  // (the real enforcement is RLS, migration 0006 — this keeps the UI from offering a
+  // channel the backend would reject). Overseer roles pass through.
+  const allowed = s.role === 'athlete'
+    ? messagingAllowed({ athleteAge: s.baseAge, counterpartAuthorized: (s.supportTeam ?? []).includes('coach') })
+    : true;
 
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.bg, zIndex: 110 }}>
@@ -49,39 +60,49 @@ export function Messages() {
       </SafeAreaView>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 14 }}>
-        {s.msgThread.map((m, i) => {
-          const me = m.who === 'me';
-          return (
-            <View key={i} style={{ alignItems: me ? 'flex-end' : 'flex-start', gap: 4 }}>
-              <Txt w="eb" size={10} color={c.textTertiary}>
-                {me ? 'You' : them}
-              </Txt>
-              <View style={[{ maxWidth: '80%', paddingHorizontal: 14, paddingVertical: 11, borderRadius: 16, backgroundColor: me ? c.accent : c.card }, me ? undefined : shadow.card]}>
-                <Txt w="m" size={14} color={me ? c.white : c.slate700} style={{ lineHeight: 20 }}>
-                  {m.text}
+        {realCounterpart ? (
+          <Txt w="m" size={13} color={c.textTertiary} style={{ textAlign: 'center', marginTop: 24, lineHeight: 19, paddingHorizontal: 16 }}>
+            No messages with {them} yet.
+          </Txt>
+        ) : (
+          s.msgThread.map((m, i) => {
+            const me = m.who === 'me';
+            return (
+              <View key={i} style={{ alignItems: me ? 'flex-end' : 'flex-start', gap: 4 }}>
+                <Txt w="eb" size={10} color={c.textTertiary}>
+                  {me ? 'You' : them}
                 </Txt>
+                <View style={[{ maxWidth: '80%', paddingHorizontal: 14, paddingVertical: 11, borderRadius: 16, backgroundColor: me ? c.accent : c.card }, me ? undefined : shadow.card]}>
+                  <Txt w="m" size={14} color={me ? c.white : c.slate700} style={{ lineHeight: 20 }}>
+                    {m.text}
+                  </Txt>
+                </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })
+        )}
       </ScrollView>
 
       <SafeAreaView edges={['bottom']} style={{ backgroundColor: c.card, borderTopWidth: 1, borderTopColor: c.divider2 }}>
         <Txt w="m" size={11} color={c.textTertiary} style={{ textAlign: 'center', paddingHorizontal: 20, paddingTop: 10 }}>
-          {messageDeliveryNote(isBackendLive)}
+          {allowed ? messageDeliveryNote(isBackendLive) : messagingGateNote(false)}
         </Txt>
-        <Row style={{ gap: 8, paddingHorizontal: 20, paddingVertical: 14 }}>
-          <TextInput
-            value={s.msgDraft}
-            onChangeText={s.setMsgDraft}
-            placeholder="Message…"
-            placeholderTextColor={c.textTertiary}
-            style={{ flex: 1, height: 48, borderRadius: 14, backgroundColor: c.bg, paddingHorizontal: 15, fontFamily: font.m, fontSize: 15, color: c.text }}
-          />
-          <Pressable accessibilityRole="button" accessibilityLabel="Send message" onPress={s.sendMsg} style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="send" size={19} color={c.white} />
-          </Pressable>
-        </Row>
+        {allowed ? (
+          <Row style={{ gap: 8, paddingHorizontal: 20, paddingVertical: 14 }}>
+            <TextInput
+              value={s.msgDraft}
+              onChangeText={s.setMsgDraft}
+              placeholder="Message…"
+              placeholderTextColor={c.textTertiary}
+              style={{ flex: 1, height: 48, borderRadius: 14, backgroundColor: c.bg, paddingHorizontal: 15, fontFamily: font.m, fontSize: 15, color: c.text }}
+            />
+            <Pressable accessibilityRole="button" accessibilityLabel="Send message" onPress={s.sendMsg} style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="send" size={19} color={c.white} />
+            </Pressable>
+          </Row>
+        ) : (
+          <View style={{ paddingVertical: 14 }} />
+        )}
       </SafeAreaView>
     </View>
   );
