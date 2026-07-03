@@ -1,5 +1,13 @@
 # OnStandard UX/UI Audit — 2026-07-02
 
+> **STATUS 2026-07-03: fully remediated.** All P0s and the entire "what still needs fixing"
+> roadmap (Phases 2–5) are implemented, tested (1383 green), and verified live. Commits:
+> `99f164b` (P0 truth), `377bf6a` (Phase 2 first-day), `cd3c244` (Phase 3 coach zero-state),
+> `af98f0d` (Phase 4 accessibility), `d776022` (Phase 5 polish). Per-issue status is marked
+> inline below with ✅. Remaining known gaps: real guardian-age verification (backend/Resend
+> pending), the `ALLOWED_ORIGINS` function secret for web builds (config, see supabase/README),
+> and Parent/Trainer role views (not walked this pass).
+
 **Method:** Live end-to-end walkthrough of the Expo web build (`:8082`) via Playwright at 390×844 (mobile) and 1440×900 (desktop). Fresh-athlete onboarding (Lose Fat path, age 17), meal logging (all 3 modes), commitment tap, weekly check-in, all 4 athlete tabs + Profile + Notifications + Performance, fresh-coach onboarding (High School Coach) and all 5 coach tabs, sign-in error path, dark mode, programmatic contrast + touch-target + keyboard checks. 50+ screenshots (`ux-01` … `ux-54`, in playsmithai2026 working dir). Parent/Trainer role views were **not** walked this pass (they share the coach chrome; spot-check later).
 
 **Quality bar:** Oura / Linear / Whoop / Stripe, per founder instruction.
