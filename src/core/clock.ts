@@ -18,6 +18,26 @@ export function daysAgoStamp(n: number, now: Date = new Date()): string {
   return todayStamp(d);
 }
 
+/** Whole calendar days from stamp `a` to stamp `b` (both YYYY-MM-DD; b - a).
+ *  Parsed at local noon so DST shifts can never produce an off-by-one. Non-parsable
+ *  input yields NaN, which every caller must treat as "no valid distance". */
+export function daysBetweenStamps(a: string, b: string): number {
+  const parse = (s: string): number => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s ?? '');
+    if (!m) return NaN;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12).getTime();
+  };
+  return Math.round((parse(b) - parse(a)) / 86_400_000);
+}
+
+/** True when `fromStamp` falls within the trailing week ending at `toStamp`
+ *  (0–6 whole days ago). The shared window behind the WEEKLY check-in credit:
+ *  scoring, reminders, and the Home banner must all agree on "done this week". */
+export function withinTrailingWeek(fromStamp: string, toStamp: string): boolean {
+  const d = daysBetweenStamps(fromStamp, toStamp);
+  return Number.isFinite(d) && d >= 0 && d <= 6;
+}
+
 /**
  * Time-of-day greeting for the Home header. Uses the LOCAL hour so it tracks the
  * athlete's clock: morning < 12:00, afternoon 12:00–16:59, evening from 17:00.

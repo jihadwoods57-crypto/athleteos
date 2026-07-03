@@ -266,6 +266,34 @@ describe('wStep clamp', () => {
   });
 });
 
+describe('rollDayForeground — the day boundary fires without a cold restart', () => {
+  it('rolls a stale in-memory day, archives history once, and is idempotent same-day', () => {
+    useStore.setState({
+      athleteName: 'Marcus Cole',
+      dateStamp: '2020-01-01',
+      meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+      hydrationL: 3.1,
+      scoreHistory: [],
+      weightHistory: [],
+      nutritionHistory: [],
+    });
+    useStore.getState().rollDayForeground();
+    const s = useStore.getState();
+    expect(s.dateStamp).toBe(todayStamp());
+    // Real athlete -> honest empty morning (the game-plan moment).
+    expect(s.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
+    expect(s.hydrationL).toBe(0);
+    // Yesterday archived exactly once, under yesterday's date.
+    expect(s.scoreHistory).toHaveLength(1);
+    expect(s.scoreHistory[0].date).toBe('2020-01-01');
+    // Same-day call is a no-op (no double-archive, no day reset).
+    useStore.getState().addWater();
+    useStore.getState().rollDayForeground();
+    expect(useStore.getState().scoreHistory).toHaveLength(1);
+    expect(useStore.getState().hydrationL).toBeGreaterThan(0);
+  });
+});
+
 describe('session persistence / rehydrate', () => {
   beforeEach(async () => {
     // Isolate from the global resetDemo() (which touches in-memory state only):

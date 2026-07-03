@@ -214,4 +214,27 @@ describe('reminderSnapshotFromState', () => {
     const snap = reminderSnapshotFromState({ proteinToday: 180, proteinTarget: 180, hydrationL: HYDRATION_TARGET, meals: { dinner: true }, ciSubmitted: true, weighedToday: true });
     expect(reminderNotifySpecs(defaultReminderSettings(), snap)).toEqual([]);
   });
+
+  it('checkinDue honors the WEEKLY carry: a fresh submission this week is not due', () => {
+    // The reminder is titled "Weekly check-in" but fired daily (ciSubmitted resets
+    // nightly) — a daily 6 PM nag labeled weekly. A ciLast within the trailing week
+    // means the ritual is done for the week.
+    const snap = reminderSnapshotFromState({
+      ...base,
+      ciSubmitted: false,
+      ciLast: { date: '2026-07-01', recovery: 70 },
+      dateStamp: '2026-07-03',
+    });
+    expect(snap.checkinDue).toBe(false);
+  });
+
+  it('an expired weekly snapshot makes the check-in due again', () => {
+    const snap = reminderSnapshotFromState({
+      ...base,
+      ciSubmitted: false,
+      ciLast: { date: '2026-07-01', recovery: 70 },
+      dateStamp: '2026-07-09',
+    });
+    expect(snap.checkinDue).toBe(true);
+  });
 });

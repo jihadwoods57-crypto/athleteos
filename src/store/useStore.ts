@@ -36,6 +36,8 @@ import {
   sleepHoursToSlider,
   startingScore,
   WEIGHT_TARGET,
+  DAY_DEFAULT_KEYS,
+  computeDerived,
   freshRealDay,
   rollDayIfStale,
   todayStamp,
@@ -280,6 +282,12 @@ export interface Actions {
    *  server-VERIFIED guardian actually unblocks the minor (the client only ever wrote
    *  'pending'). Server value only — never client-writable to 'verified'. Gated; soft-fails. */
   hydrateGuardianConsent: () => Promise<void>;
+  /** Foreground day-boundary: the rollover used to run ONLY in the persist merge
+   *  (cold restart), so an app backgrounded overnight reopened onto yesterday's
+   *  completed day — no fresh morning game plan, and a post-midnight action synced
+   *  yesterday's day under today's date. Archives yesterday + resets the day slice
+   *  exactly like the merge; same-day call is a no-op. Wired to AppState in Root. */
+  rollDayForeground: () => void;
   /** Coach sets a roster athlete's targets via the coach_set_goals RPC (gated). The
    *  coach owns the plan (Constitution Rule #13). The chosen scoring profile rides
    *  inside the same targets jsonb so it persists and round-trips into the editor.
@@ -516,6 +524,8 @@ const syncReminders = (s: AppState): void => {
     hydrationL: s.hydrationL,
     meals: s.meals,
     ciSubmitted: s.ciSubmitted,
+    ciLast: s.ciLast,
+    dateStamp: s.dateStamp,
     weighedToday: s.weighInStamp === todayStamp(),
   });
   void refreshReminderSchedule(reminderNotifySpecs(s.reminderSettings, snapshot), s.notif);
@@ -1111,11 +1121,23 @@ export const useStore = create<Store>()(
           if (!p) return;
           // Prefer the backend's stored values; fall back to whatever's local so an
           // empty column never blanks a name the user just typed.
-          set((s) => ({
-            athleteName: p.full_name?.trim() || s.athleteName,
-            orgName: p.org_name?.trim() || s.orgName,
-            athleteEmail: p.email?.trim() || s.athleteEmail,
-          }));
+          set((s) => {
+            // Route a returning user to THEIR app: signinDone drops everyone on the
+            // athlete Home, so a coach on a fresh device landed on an athlete demo
+            // day with no path to their roster. Only corrects the post-sign-in 'app'
+            // flow — an in-progress onboarding is never yanked mid-flow.
+            // The DB's UserRole is a superset of the app's Role union; an unknown
+            // value maps to flow 'app' via ROLE_DEFS and reroutes nothing.
+            const serverRole = (p.primary_role ?? null) as Role | null;
+            const targetFlow = serverRole ? flowForRole(serverRole) : null;
+            const reroute = serverRole && targetFlow && targetFlow !== 'app' && s.flow === 'app' ? { role: serverRole, flow: targetFlow } : null;
+            return {
+              athleteName: p.full_name?.trim() || s.athleteName,
+              orgName: p.org_name?.trim() || s.orgName,
+              athleteEmail: p.email?.trim() || s.athleteEmail,
+              ...reroute,
+            };
+          });
         } catch {
           /* keep the local identity on error */
         }
@@ -1145,6 +1167,20 @@ export const useStore = create<Store>()(
         } catch {
           /* keep the local (fail-closed) status on error */
         }
+      },
+      rollDayForeground: () => {
+        const s = get();
+        const today = todayStamp();
+        if (s.dateStamp === today) return;
+        // Mirror of the persist-merge rollover (archive BEFORE reset), for the app
+        // that never cold-restarts: backgrounded overnight, reopened in the morning.
+        const scoreHistory = recordDayScore(s, today);
+        const weightHistory = recordDayWeight(s, today);
+        const nutritionHistory = recordDayNutrition(s, today);
+        const rolled = rollDayIfStale(s as AppState, today);
+        const patch: Partial<AppState> = { dateStamp: today, ciWeight: rolled.ciWeight, scoreHistory, weightHistory, nutritionHistory };
+        for (const k of DAY_DEFAULT_KEYS) (patch as Record<string, unknown>)[k] = rolled[k];
+        set(patch);
       },
       pushAthleteGoals: async (athleteId, targets, profile) => {
         if (!isBackendLive || !athleteId) return false;
@@ -1318,6 +1354,10 @@ export const useStore = create<Store>()(
       toggleCiQ: (k) => set((s) => ({ ciConfig: { ...s.ciConfig, [k]: !s.ciConfig[k] } })),
       submitCi: () => {
         set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight, weighInStamp: todayStamp() }));
+        // Snapshot the just-earned recovery sub-score: the ritual is WEEKLY, so
+        // scoring credits this for 7 days instead of zeroing at midnight.
+        const d = computeDerived(get());
+        if (d.recoveryScoreIsReal) set({ ciLast: { date: get().dateStamp, recovery: d.recoveryScore } });
         syncReminders(get());
         scheduleDaySync(get);
       },
@@ -1600,6 +1640,9 @@ export const useStore = create<Store>()(
         ciSoreness: s.ciSoreness,
         ciMotivation: s.ciMotivation,
         ciConfig: s.ciConfig,
+        // Cross-day weekly check-in snapshot (NOT a DAY_DEFAULT_KEY): the weekly
+        // credit must survive the nightly rollover — that's its whole job.
+        ciLast: s.ciLast,
         visibility: s.visibility,
         notif: s.notif,
         reminderSettings: s.reminderSettings,

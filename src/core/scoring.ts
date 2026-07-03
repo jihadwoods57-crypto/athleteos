@@ -11,6 +11,7 @@ import {
   WEIGHT_START,
   WEIGHT_TARGET,
 } from './constants';
+import { withinTrailingWeek } from './clock';
 import { trendSeries } from './history';
 import { mealMacros, type MacroSet } from './mealEdit';
 import { DEFAULT_PLAN } from './coachPlan';
@@ -278,6 +279,19 @@ export function computeDerived(s: AppState): Derived {
       recoveryScoreIsReal = true;
     }
   }
+  // WEEKLY carry: the ritual is branded "Weekly Check-In", so a real submission
+  // earlier THIS week (ciLast snapshot, <=6 days old) still backs the number. It is
+  // earned evidence — a real check-in happened — not the banned neutral placeholder.
+  // Without it the credit vanished nightly and an honest perfect day capped at 65.
+  const ciCarryValid =
+    !recoveryScoreIsReal &&
+    s.ciLast != null &&
+    Number.isFinite(s.ciLast.recovery) &&
+    withinTrailingWeek(s.ciLast.date, s.dateStamp);
+  if (ciCarryValid) {
+    recoveryScore = Math.min(100, Math.max(0, Math.round(s.ciLast!.recovery)));
+    recoveryScoreIsReal = true;
+  }
   // Weight is a LONG-ARC goal, not a daily-accountability signal, so it is no
   // longer mixed into the daily score (a flawless day shouldn't be denied an A
   // because season weight progress is slow, which is partly outside daily control).
@@ -297,7 +311,9 @@ export function computeDerived(s: AppState): Derived {
   });
   const weightScore = weightPhase === 'first-run' ? 80 : clamp(weightProgress.pctThere, 0, 100);
   const tasksScore = tasksTotal > 0 ? Math.round((tasksDone / tasksTotal) * 100) : 0;
-  const checkinScore = s.ciSubmitted ? 100 : 0;
+  // Check-in credit follows the same weekly window: submitted today OR carried from
+  // a real submission this week (the 0.1 slot answers "did you check in this week?").
+  const checkinScore = s.ciSubmitted || ciCarryValid ? 100 : 0;
 
   // Daily accountability score: what you did TODAY. Nutrition leads (the heaviest
   // lever and the one the staff cares most about); recovery is self-reported; tasks

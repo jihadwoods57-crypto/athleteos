@@ -32,6 +32,7 @@ import {
   trendGeometry,
   trendSeries,
   trendSummary,
+  withinTrailingWeek,
 } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiMemoryTag } from '@/lib/ai';
@@ -693,15 +694,21 @@ function CheckinBanner() {
   const s = useStore();
   const isReal = s.athleteName.trim().length > 0;
   const checkinAudience = supportAudience({ isReal, supportTeam: s.supportTeam, demo: 'Coach Davis' });
-  if (!s.ciSubmitted) {
+  // A WEEKLY ritual is due weekly: a real submission this week (the carried ciLast
+  // snapshot scoring credits) keeps the calm completed state instead of nagging
+  // "DUE" every morning after a Monday check-in. Question count follows ciConfig —
+  // the banner promised "6 questions" while the default asks 4.
+  const doneThisWeek = s.ciSubmitted || (s.ciLast != null && withinTrailingWeek(s.ciLast.date, s.dateStamp));
+  const questionCount = Object.values(s.ciConfig).filter(Boolean).length;
+  if (!doneThisWeek) {
     return (
-      <Pressable accessibilityRole="button" accessibilityLabel="Weekly check-in due: 6 questions, about 2 minutes" onPress={s.goCheckin} style={[{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, shadow.cta]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Weekly check-in due: ${questionCount} questions, about 2 minutes`} onPress={s.goCheckin} style={[{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, shadow.cta]}>
         <View>
           <Txt w="eb" size={11} color="rgba(255,255,255,0.85)" ls={0.7}>
             WEEKLY CHECK-IN DUE
           </Txt>
           <Txt w="b" size={15} color={c.white} style={{ marginTop: 5 }}>
-            6 questions · 2 min
+            {questionCount} questions · 2 min
           </Txt>
         </View>
         <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>

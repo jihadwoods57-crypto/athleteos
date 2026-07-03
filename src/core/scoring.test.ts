@@ -48,6 +48,43 @@ describe('computeDerived — default state', () => {
     expect(d.athleteScore).toBe(expected);
   });
 
+  it('weekly check-in carry: a submission earlier THIS week still backs recovery + check-in', () => {
+    // The product brands the ritual "Weekly Check-In", but the credit used to vanish
+    // at midnight — an honest perfect day (meals + protein + commitment) capped at 65
+    // (grade D) and on-standard was mathematically unreachable without re-answering a
+    // "weekly" form every single day.
+    const carried = computeDerived({
+      ...createInitialState(),
+      dateStamp: '2026-07-03',
+      ciSubmitted: false,
+      ciLast: { date: '2026-07-01', recovery: 72 },
+    });
+    expect(carried.recoveryScoreIsReal).toBe(true);
+    expect(carried.recoveryScore).toBe(72);
+    expect(carried.checkinScore).toBe(100);
+  });
+
+  it('weekly check-in carry: a snapshot older than 7 days has expired (due again)', () => {
+    const expired = computeDerived({
+      ...createInitialState(),
+      dateStamp: '2026-07-09',
+      ciSubmitted: false,
+      ciLast: { date: '2026-07-01', recovery: 72 },
+    });
+    expect(expired.recoveryScoreIsReal).toBe(false);
+    expect(expired.checkinScore).toBe(0);
+  });
+
+  it("weekly check-in carry: today's live submission wins over the carried snapshot", () => {
+    const live = computeDerived({
+      ...createInitialState(),
+      ciSubmitted: true,
+      ciLast: { date: '2026-06-30', recovery: 20 },
+    });
+    expect(live.recoveryScoreIsReal).toBe(true);
+    expect(live.recoveryScore).not.toBe(20); // computed from today's answers, not the snapshot
+  });
+
   it('tasks = 3 of 6 done -> 50 (protein task id 2 not done: 142 < 180)', () => {
     // id 1 (done), id 2 (protein 142 < 180 -> NOT done), id 3 (false),
     // id 4 (false), id 5 (done), id 6 (done) = 3 done. round(3/6*100) = 50.

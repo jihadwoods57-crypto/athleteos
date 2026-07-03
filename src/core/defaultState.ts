@@ -98,6 +98,7 @@ export function createInitialState(): AppState {
     ciMotivation: 8,
     ciSubmitted: false,
     ciConfig: { energy: true, recovery: true, sleep: true, confidence: true, soreness: false, motivation: false },
+    ciLast: null,
 
     // nav / overlays
     tab: 'home',

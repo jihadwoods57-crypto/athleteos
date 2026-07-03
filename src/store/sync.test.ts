@@ -92,6 +92,47 @@ describe('pushDay consent gate', () => {
     const res = await pushDay(coach, 'coach-1');
     expect(res).toEqual({ pushed: true, reason: 'ok' });
   });
+
+  it("writes the day under the STATE's dateStamp, not the wall clock", async () => {
+    // A 12:05am action before the rollover fires must upsert YESTERDAY's day under
+    // yesterday's date — not overwrite today's server row with yesterday's meals.
+    const { pushDay } = loadSync(true);
+    const lateNight: AppState = { ...adultConsenting(), dateStamp: '2026-07-02' };
+    await pushDay(lateNight, 'athlete-1');
+    const row = upsertDay.mock.calls[0][0] as DayRow;
+    expect(row.date).toBe('2026-07-02');
+  });
+});
+
+describe('cross-device day roundtrip — the score survives hydration', () => {
+  it('mapStateToDayRow → dayRowToState preserves check-in + commitment (score parity)', () => {
+    // Before: hydration dropped ciSubmitted/answers and dailyCommitment, so the same
+    // lived day recomputed ~35 points lower on a second device — and the next push
+    // then overwrote the server row with the collapsed number.
+    const { mapStateToDayRow, dayRowToState } = loadSync(true);
+    const { computeDerived } = require('@/core/scoring');
+    const lived: AppState = {
+      ...adultConsenting(),
+      ciSubmitted: true,
+      ciEnergy: 9,
+      ciRecovery: 8,
+      ciSleep: 9,
+      ciConfidence: 8,
+      dailyCommitment: 'yes',
+    };
+    const row = mapStateToDayRow(lived, 'a-1', '2026-07-03');
+    const restored: AppState = { ...adultConsenting(), ...dayRowToState(row as DayRow) };
+    expect(restored.ciSubmitted).toBe(true);
+    expect(restored.dailyCommitment).toBe('yes');
+    expect(computeDerived(restored).athleteScore).toBe(computeDerived(lived).athleteScore);
+  });
+
+  it('a legacy row without the new checkin keys hydrates without inventing a check-in', () => {
+    const { dayRowToState } = loadSync(true);
+    const slice = dayRowToState(dayRow('2026-07-01', 70, 180));
+    expect(slice.ciSubmitted).toBeUndefined();
+    expect(slice.dailyCommitment).toBeUndefined();
+  });
 });
 
 describe('consentContextFromState', () => {

@@ -74,15 +74,22 @@ export function mapStateToDayRow(
       soreness: s.ciSoreness,
       motivation: s.ciMotivation,
       submitted: s.ciSubmitted,
+      // The one-tap plan commitment rides in the same jsonb (no schema change) so a
+      // second device can rebuild the full score instead of dropping the 0.15 slot.
+      commitment: s.dailyCommitment,
     },
     score: d.athleteScore,
     grade: gradeFor(d.athleteScore).g,
   };
 }
 
-/** Project a `days` row back onto the local day-slice for hydration. */
+/** Project a `days` row back onto the local day-slice for hydration. Restores the
+ *  check-in answers + submitted flag and the daily commitment the row itself carries
+ *  (mapStateToDayRow writes them) — dropping them collapsed the same lived day by
+ *  ~35 points on a second device, which then pushed the lower score back over the
+ *  server row. A legacy row without those keys restores nothing (no invented data). */
 export function dayRowToState(row: DayRow): Partial<AppState> {
-  return {
+  const slice: Partial<AppState> = {
     meals: row.meals as unknown as AppState['meals'],
     hydrationL: row.hydration_l,
     tasks: (row.tasks ?? []) as unknown as AppState['tasks'],
@@ -90,6 +97,27 @@ export function dayRowToState(row: DayRow): Partial<AppState> {
     currentWeight: row.current_weight ?? undefined,
     dateStamp: row.date,
   };
+  const ci = (row.checkin ?? null) as Record<string, unknown> | null;
+  if (ci && typeof ci.submitted === 'boolean') {
+    slice.ciSubmitted = ci.submitted;
+    const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+    const energy = num(ci.energy);
+    const recovery = num(ci.recovery);
+    const sleep = num(ci.sleep);
+    const confidence = num(ci.confidence);
+    const soreness = num(ci.soreness);
+    const motivation = num(ci.motivation);
+    if (energy !== undefined) slice.ciEnergy = energy;
+    if (recovery !== undefined) slice.ciRecovery = recovery;
+    if (sleep !== undefined) slice.ciSleep = sleep;
+    if (confidence !== undefined) slice.ciConfidence = confidence;
+    if (soreness !== undefined) slice.ciSoreness = soreness;
+    if (motivation !== undefined) slice.ciMotivation = motivation;
+  }
+  if (ci && (ci.commitment === 'yes' || ci.commitment === 'partial' || ci.commitment === 'no')) {
+    slice.dailyCommitment = ci.commitment;
+  }
+  return slice;
 }
 
 /**
@@ -102,11 +130,14 @@ export function dayRowToState(row: DayRow): Partial<AppState> {
  *   - athlete without consent-> { pushed: false, reason: 'consent-required' }
  *   - consent ok             -> upsert, { pushed: true, reason: 'ok' }
  */
-export async function pushDay(s: AppState, athleteId: string, date = todayStamp()): Promise<PushResult> {
+export async function pushDay(s: AppState, athleteId: string, date?: string): Promise<PushResult> {
   if (!isBackendLive) return { pushed: false, reason: 'backend-off' };
   const gate = realDataConsent(consentContextFromState(s, isBackendLive));
   if (!gate.ok) return { pushed: false, reason: gate.reason };
-  await db.upsertDay(mapStateToDayRow(s, athleteId, date));
+  // The day is written under the date it BELONGS to (the state's stamp), not the wall
+  // clock: a 12:05am action before the rollover fires must upsert yesterday's day, not
+  // overwrite today's server row with yesterday's meals and score.
+  await db.upsertDay(mapStateToDayRow(s, athleteId, date ?? s.dateStamp ?? todayStamp()));
   return { pushed: true, reason: 'ok' };
 }
 

@@ -156,7 +156,29 @@ export function Account() {
         </Card>
         </Reveal>
 
-        <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+          onPress={() => {
+            haptics.tap();
+            // Sign-out resets local state to the fresh install. For a user whose data
+            // exists ONLY on this device (no consent to sync — including minors with an
+            // unverified guardian), that is an irreversible erase of their whole record.
+            // Delete-account confirms; a one-tap sign-out must too, with honest stakes.
+            const localOnly = !s.userId || !s.realDataConsent;
+            Alert.alert(
+              'Sign out',
+              localOnly
+                ? 'Signing out clears the data stored on this device. Your history here is not backed up anywhere — it will be gone.'
+                : 'Signing out clears this device. Your synced history stays safe in your account.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Sign out', style: 'destructive', onPress: () => s.signOut() },
+              ],
+            );
+          }}
+          style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}
+        >
           <Txt w="b" size={15} color={c.alert}>
             Sign out
           </Txt>

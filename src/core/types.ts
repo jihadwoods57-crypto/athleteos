@@ -289,6 +289,12 @@ export interface AppState {
   ciMotivation: number;
   ciSubmitted: boolean;
   ciConfig: CiConfig;
+  /** The latest REAL check-in submission (its date + earned recovery sub-score).
+   *  Cross-day (survives rollover, persisted): the ritual is branded WEEKLY, so
+   *  scoring credits this snapshot for 7 days — before it existed the credit
+   *  vanished at midnight and an honest perfect day capped at 65. Null until the
+   *  first real submission; never written by an unsubmitted day. */
+  ciLast: { date: string; recovery: number } | null;
 
   // ---- nav / overlays ----
   tab: Tab;

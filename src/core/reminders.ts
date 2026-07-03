@@ -11,6 +11,7 @@
 // gated by isNotifyAvailable; nothing here fires a notification. Copy follows the
 // shipped guardrails: factual, no guilt, no em dash.
 import { HYDRATION_TARGET } from './constants';
+import { withinTrailingWeek } from './clock';
 
 export type ReminderKind = 'protein' | 'hydration' | 'log_dinner' | 'checkin' | 'weigh_in';
 
@@ -224,14 +225,20 @@ export function reminderSnapshotFromState(s: {
   ciSubmitted: boolean;
   /** Whether the athlete has logged a weight today (drives the weigh-in nudge). */
   weighedToday: boolean;
+  /** The weekly check-in snapshot + today's stamp: a real submission within the
+   *  trailing week means the WEEKLY ritual is done — no daily nag labeled weekly. */
+  ciLast?: { date: string; recovery: number } | null;
+  dateStamp?: string;
 }): ReminderSnapshot {
+  const doneThisWeek =
+    s.ciSubmitted || (s.ciLast != null && s.dateStamp != null && withinTrailingWeek(s.ciLast.date, s.dateStamp));
   return {
     proteinToday: s.proteinToday,
     proteinTarget: s.proteinTarget,
     hydrationL: s.hydrationL,
     hydrationTargetL: HYDRATION_TARGET,
     dinnerLogged: s.meals.dinner,
-    checkinDue: !s.ciSubmitted,
+    checkinDue: !doneThisWeek,
     weighInDue: !s.weighedToday,
   };
 }

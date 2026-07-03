@@ -307,6 +307,27 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(useStore.getState().supportTeam).not.toContain('trainer');
   });
 
+  it('hydrateProfile routes a returning coach to the COACH app, not the athlete Home', async () => {
+    // signinDone unconditionally lands every returning user on flow 'app' (athlete),
+    // so a coach reinstalling saw an athlete demo day with no path to their roster.
+    fetchProfile.mockResolvedValue({ full_name: 'Dana Reyes', org_name: 'Eastside HS', email: 'c@d.io', primary_role: 'hs_coach' });
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    useStore.setState({ userId: 'u-9', flow: 'app', role: null });
+    await useStore.getState().hydrateProfile();
+    expect(useStore.getState().flow).toBe('coach');
+    expect(useStore.getState().role).toBe('hs_coach');
+  });
+
+  it('hydrateProfile never yanks an in-progress onboarding to another flow', async () => {
+    fetchProfile.mockResolvedValue({ full_name: 'Dana Reyes', org_name: null, email: 'c@d.io', primary_role: 'hs_coach' });
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    useStore.setState({ userId: 'u-9', flow: 'onboarding', role: null });
+    await useStore.getState().hydrateProfile();
+    expect(useStore.getState().flow).toBe('onboarding');
+  });
+
   it('signOutLive calls the wrapper and clears the session', async () => {
     signIn.mockResolvedValue({ ok: true, userId: 'u-1' });
     const useStore = loadStore(true);
