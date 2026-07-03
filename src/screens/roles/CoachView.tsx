@@ -72,7 +72,7 @@ export function CoachView() {
           />
         )}
         {tab === 'roster' && <CoachRoster roster={roster} groups={groups} notLogged={notLogged} />}
-        {tab === 'attention' && <CoachAttention attention={attention} rosterMeta={rosterMeta} />}
+        {tab === 'attention' && <CoachAttention attention={attention} rosterMeta={rosterMeta} rosterCount={roster.length} />}
         {tab === 'reports' && <CoachReports teamTitle={teamTitle} teamReport={teamReport} groupStats={groupStats} compliance={kpis.compliance} onShare={shareTeamReport} roster={roster} />}
         {tab === 'profile' && <CoachProfile teamTitle={teamTitle} />}
       </View>
@@ -91,6 +91,67 @@ export function CoachView() {
 
 /* ---------------------------------------------------------------- shared scaffolding */
 const SCROLL_PAD = { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 104 } as const;
+
+/** Status color bound to the VALUE, not the metric name: 0% compliance is not "green"
+ *  just because the tile is labelled COMPLIANCE, and 0 alerts is not "red" (that's good).
+ *  A neutral (undefined) result renders in the default text color. */
+function kpiTone(c: ReturnType<typeof useColors>, kind: 'compliance' | 'alerts', value: number): string | undefined {
+  if (kind === 'compliance') return value >= 70 ? c.successDeep : value >= 40 ? c.warningDeep : c.alert;
+  return value > 0 ? c.alert : c.successDeep; // alerts: red only when someone actually needs a look
+}
+
+/** The team join-code, shared honestly. A real server code gets a Share button and
+ *  "give this to your athletes"; the demo fallback is tagged SAMPLE with a working
+ *  Create-my-code retry (onboarding's create_team can fail, e.g. email unconfirmed).
+ *  One source of truth reused by the empty Dashboard and the empty Roster. */
+function TeamCodeShare() {
+  const c = useColors();
+  const s = useStore();
+  const realCode = !!s.teamCode?.trim();
+  const code = s.teamCode?.trim() || 'EAGLES24';
+  const share = async () => {
+    try { await Share.share({ message: `Join our team on OnStandard — enter team code ${code} after you sign up.` }); }
+    catch { /* user cancelled the share sheet */ }
+  };
+  const retryCreate = () => {
+    haptics.tap();
+    const meta = s.obMeta ?? {};
+    const sport = typeof meta.sport === 'string' ? meta.sport : undefined;
+    const school = typeof meta.school === 'string' ? meta.school.trim() : '';
+    const orgId = typeof meta.orgId === 'string' && meta.orgId ? meta.orgId : null;
+    void s.createTeamLive(school || (sport ? `${sport} team` : 'My Team'), sport, orgId, s.teamDiscoverable);
+  };
+  return (
+    <View style={{ marginTop: 14, alignItems: 'center', gap: 10 }}>
+      <View style={{ paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12, backgroundColor: c.accentSurface }}>
+        <Txt w="eb" size={24} ls={2} color={c.accent}>{code}</Txt>
+      </View>
+      {realCode ? (
+        <>
+          <Pressable accessibilityRole="button" accessibilityLabel="Share team code" onPress={share} style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 11, backgroundColor: c.accent }}>
+            <Txt w="b" size={13} color={c.white}>Share team code</Txt>
+          </Pressable>
+          <Txt w="sb" size={12} color={c.textTertiary} style={{ textAlign: 'center' }}>Athletes enter this after they sign up.</Txt>
+        </>
+      ) : (
+        <>
+          <Row style={{ gap: 6 }}>
+            <SampleTag />
+            <Txt w="sb" size={12} color={c.textTertiary} style={{ flexShrink: 1 }}>Sample code, don&apos;t share it. Your real one isn&apos;t ready yet.</Txt>
+          </Row>
+          {isBackendLive ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Create my team code" onPress={retryCreate} style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 9, backgroundColor: c.accent }}>
+              <Txt w="b" size={13} color={c.white}>Create my team code</Txt>
+            </Pressable>
+          ) : null}
+          {s.authError ? (
+            <Txt w="sb" size={12} color={c.alertDeep} style={{ textAlign: 'center' }}>{s.authError}</Txt>
+          ) : null}
+        </>
+      )}
+    </View>
+  );
+}
 
 function Section({ children }: { children: React.ReactNode }) {
   return (
@@ -186,11 +247,30 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
         </View>
       </Row>
 
+      {rosterCount === 0 ? (
+        // With no athletes, every KPI / trend / "everyone above the line" / "0 of 0 on
+        // track" line is nonsense — so the whole dashboard collapses to ONE honest state:
+        // share your code. Also re-surfaces the invite the coach may have skipped at setup.
+        <Reveal index={0}>
+        <Card variant="hero" style={{ marginTop: 20, borderRadius: 20, alignItems: 'center', paddingVertical: 26 }}>
+          <View style={{ width: 52, height: 52, borderRadius: 15, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="squad" size={24} color={c.accent} />
+          </View>
+          <Txt w="eb" size={18} ls={-0.3} style={{ marginTop: 14, textAlign: 'center' }}>No athletes yet</Txt>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19, paddingHorizontal: 12 }}>
+            Share your team code and your dashboard fills in as athletes join and start logging.
+          </Txt>
+          <TeamCodeShare />
+        </Card>
+        <PendingRequestsCard />
+        </Reveal>
+      ) : (
+        <>
       <Reveal index={0}>
       <Row style={{ gap: 10, marginTop: 20 }}>
         <Kpi value={`${kpis.avgScore}`} label="TEAM AVG" />
-        <Kpi value={`${kpis.compliance}%`} label="COMPLIANCE" color={c.success} />
-        <Kpi value={`${kpis.alerts}`} label="ALERTS" color={c.alert} />
+        <Kpi value={`${kpis.compliance}%`} label="COMPLIANCE" color={kpiTone(c, 'compliance', kpis.compliance)} />
+        <Kpi value={`${kpis.alerts}`} label="ALERTS" color={kpiTone(c, 'alerts', kpis.alerts)} />
       </Row>
       </Reveal>
 
@@ -261,6 +341,8 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
         </Txt>
       </Card>
       </Reveal>
+        </>
+      )}
     </Section>
   );
 }
@@ -331,45 +413,7 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
               : notLoggedOnly ? 'Everyone in this view has logged today.' : `No athletes match${group ? ` in ${group}` : ''}${query.trim() ? ` for "${query.trim()}"` : ''}.`}
           </Txt>
           {roster.length === 0 ? (
-            (() => {
-              // Surface the join code as the obvious next action for a new coach (instead of sending
-              // them to dig through Account). Honest: when there is no real code yet it is labelled a
-              // sample, in plain language, with a working retry — onboarding's create_team call can
-              // fail (e.g. email not confirmed yet) and this was the coach's only recovery path.
-              const code = s.teamCode?.trim() || 'EAGLES24';
-              const isDemoCode = !s.teamCode?.trim();
-              const retryCreate = () => {
-                haptics.tap();
-                const meta = s.obMeta ?? {};
-                const sport = typeof meta.sport === 'string' ? meta.sport : undefined;
-                const school = typeof meta.school === 'string' ? meta.school.trim() : '';
-                const orgId = typeof meta.orgId === 'string' && meta.orgId ? meta.orgId : null;
-                void s.createTeamLive(school || (sport ? `${sport} team` : 'My Team'), sport, orgId, s.teamDiscoverable);
-              };
-              return (
-                <View style={{ marginTop: 14, alignItems: 'center', gap: 9 }}>
-                  <View style={{ paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12, backgroundColor: c.accentSurface }}>
-                    <Txt w="eb" size={24} ls={2} color={c.accent}>{code}</Txt>
-                  </View>
-                  {isDemoCode ? (
-                    <>
-                      <Row style={{ gap: 6 }}>
-                        <SampleTag />
-                        <Txt w="sb" size={12} color={c.textTertiary} style={{ flexShrink: 1 }}>Sample code, don't share it. Your real one isn't ready yet.</Txt>
-                      </Row>
-                      {isBackendLive ? (
-                        <Pressable accessibilityRole="button" accessibilityLabel="Create my team code" onPress={retryCreate} style={{ marginTop: 2, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9, backgroundColor: c.accent }}>
-                          <Txt w="b" size={13} color={c.white}>Create my team code</Txt>
-                        </Pressable>
-                      ) : null}
-                      {s.authError ? (
-                        <Txt w="sb" size={12} color={c.alertDeep} style={{ textAlign: 'center' }}>{s.authError}</Txt>
-                      ) : null}
-                    </>
-                  ) : null}
-                </View>
-              );
-            })()
+            <TeamCodeShare />
           ) : (
             <Pressable accessibilityRole="button" onPress={() => { haptics.tap(); setQuery(''); setGroup(null); setNotLoggedOnly(false); }} style={{ marginTop: 12, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9, backgroundColor: c.bg2 }}>
               <Txt w="b" size={13} color={c.slate700}>Clear filters</Txt>
@@ -382,14 +426,25 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
 }
 
 /* ---------------------------------------------------------------- Needs Attention */
-function CoachAttention({ attention, rosterMeta }: { attention: ReturnType<typeof needsAttention>; rosterMeta: Record<string, { initials: string; pos: string; comp: number; athleteId?: string }> }) {
+function CoachAttention({ attention, rosterMeta, rosterCount }: { attention: ReturnType<typeof needsAttention>; rosterMeta: Record<string, { initials: string; pos: string; comp: number; athleteId?: string }>; rosterCount: number }) {
   const c = useColors();
   const s = useStore();
+  // With no athletes, "Everyone is above the line" is false — there's no one. Say so honestly.
+  const empty = rosterCount === 0;
   return (
     <Section>
-      <SectionTitle eyebrow={attention.length > 0 ? `${attention.length} need a look` : 'All clear'} title="Needs Attention" />
+      <SectionTitle eyebrow={empty ? 'No athletes yet' : attention.length > 0 ? `${attention.length} need a look` : 'All clear'} title="Needs Attention" />
       <Reveal index={0}>
-      {attention.length > 0 ? (
+      {empty ? (
+        <Card style={{ borderRadius: 20, padding: 22, alignItems: 'center' }}>
+          <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <Icon name="squad" size={22} color={c.accent} />
+          </View>
+          <Txt w="eb" size={16} color={c.slate700} style={{ textAlign: 'center' }}>No athletes to watch yet</Txt>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>Share your team code — once athletes join, anyone slipping shows up here.</Txt>
+          <TeamCodeShare />
+        </Card>
+      ) : attention.length > 0 ? (
         <View style={{ borderRadius: 20, padding: 18, backgroundColor: c.alertSurface, borderWidth: 1, borderColor: c.alertBorder }}>
           {attention.map((a, i) => {
             const m = rosterMeta[a.name] ?? { initials: a.name.slice(0, 2).toUpperCase(), pos: '', comp: a.comp };
@@ -466,7 +521,7 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, 
       <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
         <Txt w="eb" size={15} ls={-0.3}>Compliance</Txt>
         <Row style={{ alignItems: 'baseline', gap: 8, marginTop: 10 }}>
-          <Txt w="eb" num size={34} ls={-1} color={c.successDeep}>{compliance}%</Txt>
+          <Txt w="eb" num size={34} ls={-1} color={roster.length === 0 ? c.textTertiary : kpiTone(c, 'compliance', compliance)}>{compliance}%</Txt>
           <Txt w="b" size={12} color={c.textTertiary}>of the plan, team-wide this week</Txt>
         </Row>
         <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>{teamReport.movedLine}</Txt>
