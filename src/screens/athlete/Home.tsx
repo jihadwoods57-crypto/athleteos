@@ -89,7 +89,9 @@ export function Home() {
   // earned. Seeded demo: pad with the showcase lead. Grace (council 2026-07-02, flag-gated) forgives
   // one recent miss so a single off day doesn't zero a long streak; graceUsed drives a small pip,
   // atRisk lets today's sub-threshold state read honestly instead of a bare 0.
-  const streakData = streakInfo(s.scoreHistory, d.athleteScore, { seedPad: !isReal, grace: isStreakGraceEnabled });
+  // Real athletes walk calendar days (a day never opened is a miss); the dateless
+  // showcase keeps the positional walk + its seed pad.
+  const streakData = streakInfo(s.scoreHistory, d.athleteScore, { seedPad: !isReal, grace: isStreakGraceEnabled, today: isReal ? s.dateStamp : undefined });
   const streak = streakData.days;
   // Plain-English, honest streak label (council Phase 0): reads as accountability, and today's
   // at-risk / day-1 states never present a false chain.

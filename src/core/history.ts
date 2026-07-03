@@ -2,6 +2,7 @@
 // Turns a series of daily scores into the SVG geometry the Home/Parent/Coach
 // trend charts draw, replacing the prototype's hard-coded path. The live score
 // is the last point, so the chart reacts to today's accountability.
+import { daysBetweenStamps, shiftStamp } from './clock';
 import type { DayScore, TrendDir, WeightPoint } from './types';
 
 export type { DayScore, WeightPoint } from './types';
@@ -302,6 +303,12 @@ export interface StreakOptions {
   /** Enable the one-per-trailing-window grace day (council 2026-07-02). Off preserves the strict
    *  "first miss ends it" behavior exactly. Gated by isStreakGraceEnabled at the call site. */
   grace?: boolean;
+  /** Today's date stamp (YYYY-MM-DD). When given, the streak walks REAL calendar days
+   *  backward from today, so a day the app never opened (no history entry at all)
+   *  counts as a miss instead of being invisible — without it, a weekend-only logger
+   *  accrued an unbroken "streak" and grace was meaningless (absence was already free).
+   *  Omitted = the legacy positional walk (the seeded showcase's dateless history). */
+  today?: string;
 }
 
 /**
@@ -325,6 +332,27 @@ export function streakInfo(
   const grace = opts.grace ?? false;
   // Today is live: missing the bar today breaks the streak immediately (no grace for today itself).
   if (liveScore < threshold) return { days: 0, graceUsed: false, atRisk: true };
+  // Date-aware walk (real athletes): step back one CALENDAR day at a time so an absent
+  // day is a miss. Grace forgives exactly one missed/failed day within the window.
+  if (opts.today) {
+    const byDate = new Map<string, number>();
+    for (const h of history) if (typeof h.score === 'number' && Number.isFinite(h.score)) byDate.set(h.date, h.score);
+    let d = 1;
+    let g = false;
+    const maxBack = history.length + GRACE_WINDOW + 1; // can't exceed entries + forgiven days
+    for (let back = 1; back <= maxBack; back++) {
+      const score = byDate.get(shiftStamp(opts.today, -back));
+      if (score == null || score < threshold) {
+        if (grace && !g && back <= GRACE_WINDOW) {
+          g = true;
+          continue;
+        }
+        break;
+      }
+      d++;
+    }
+    return { days: d, graceUsed: g, atRisk: false };
+  }
   let days = 1;
   let graceUsed = false;
   const scores = history.map((h) => h.score);
@@ -374,13 +402,19 @@ export function currentStreak(
 export function longestStreak(history: DayScore[], threshold: number = COMPLIANCE_THRESHOLD): number {
   let best = 0;
   let run = 0;
+  let prevDate: string | null = null;
   for (const d of history) {
     if (d.score >= threshold) {
-      run++;
+      // Consecutive means date-adjacent: a gap the app never recorded resets the run
+      // (entries are chronological — appendDayScore keys by date). Dateless legacy
+      // entries (NaN distance) also reset, never bridge.
+      const adjacent = prevDate != null && daysBetweenStamps(prevDate, d.date) === 1;
+      run = adjacent && run > 0 ? run + 1 : 1;
       if (run > best) best = run;
     } else {
       run = 0;
     }
+    prevDate = d.date;
   }
   return best;
 }

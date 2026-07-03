@@ -5,6 +5,7 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { athleteSubtitle, computeDerived, displayWeight, firstName, GOAL_LABELS, initials, passEligibility, passStatus, scoringProfileLabel, supportVisibilityRows, trainingCadence, weeklyReportFromState, weightStepLb, weightUnit, WEIGHT_TARGET } from '@/core';
 import { isTrustPassEnabled } from '@/lib/features';
+import { isBackendLive } from '@/lib/supabase';
 import { useStore } from '@/store';
 import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
@@ -340,40 +341,53 @@ export function Profile() {
                     ? 'Spot-check today — log your meals to keep your pass.'
                     : `Camera-free. ${tpDaysLeft} day${tpDaysLeft === 1 ? '' : 's'} left — one honest tap counts as a real day at your proven level.`}
                 </Txt>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="End trust pass"
-                  onPress={() => {
-                    haptics.tap();
-                    s.endTrustPass();
-                  }}
-                  style={({ pressed }) => ({ marginTop: 14, alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.border, opacity: pressed ? 0.6 : 1 })}
-                >
-                  <Txt w="eb" size={14} color={c.textSecondary}>
-                    End pass
+                {/* Live, the pass is coach-granted and server-held: a local "end" would
+                    just resync on the next hydrate. The pilot (backend off) keeps it. */}
+                {isBackendLive ? (
+                  <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 8 }}>
+                    Granted by your coach. Ask them to end it early.
                   </Txt>
-                </Pressable>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="End trust pass"
+                    onPress={() => {
+                      haptics.tap();
+                      s.endTrustPass();
+                    }}
+                    style={({ pressed }) => ({ marginTop: 14, alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.border, opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <Txt w="eb" size={14} color={c.textSecondary}>
+                      End pass
+                    </Txt>
+                  </Pressable>
+                )}
               </>
             ) : (
               <>
                 <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 10, lineHeight: 19 }}>
                   Earn a camera-free stretch by staying on standard. {tpElig.onStandardDays} of 7 on-standard days.
                 </Txt>
-                <Pressable
-                  disabled={!tpElig.eligible}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: !tpElig.eligible }}
-                  accessibilityLabel="Start a 10-day trust pass"
-                  onPress={() => {
-                    haptics.success();
-                    s.grantTrustPass(10);
-                  }}
-                  style={({ pressed }) => ({ marginTop: 14, alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 11, borderRadius: 12, backgroundColor: tpElig.eligible ? c.accent : c.bg, borderWidth: tpElig.eligible ? 0 : 1, borderColor: c.border, opacity: pressed ? 0.7 : tpElig.eligible ? 1 : 0.6 })}
-                >
-                  <Txt w="eb" size={14} color={tpElig.eligible ? c.white : c.textTertiary}>
-                    Start 10-day pass
-                  </Txt>
-                </Pressable>
+                {/* The card's own copy says the coach unlocks this — live, only the coach
+                    can (server RPC). A self-serve grant button contradicting that copy was
+                    the exact gaming vector the council's structural locks forbid. */}
+                {isBackendLive ? null : (
+                  <Pressable
+                    disabled={!tpElig.eligible}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !tpElig.eligible }}
+                    accessibilityLabel="Start a 10-day trust pass"
+                    onPress={() => {
+                      haptics.success();
+                      s.grantTrustPass(10);
+                    }}
+                    style={({ pressed }) => ({ marginTop: 14, alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 11, borderRadius: 12, backgroundColor: tpElig.eligible ? c.accent : c.bg, borderWidth: tpElig.eligible ? 0 : 1, borderColor: c.border, opacity: pressed ? 0.7 : tpElig.eligible ? 1 : 0.6 })}
+                  >
+                    <Txt w="eb" size={14} color={tpElig.eligible ? c.white : c.textTertiary}>
+                      Start 10-day pass
+                    </Txt>
+                  </Pressable>
+                )}
                 <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 8 }}>
                   Your coach unlocks this once you&apos;ve earned it.
                 </Txt>

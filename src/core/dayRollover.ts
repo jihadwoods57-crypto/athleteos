@@ -66,13 +66,15 @@ export function recordDayWeight(preRoll: AppState, todayIso: string): WeightPoin
 
 /**
  * Record the prior day's nutrition sub-score into history BEFORE the day slice
- * resets, mirroring `recordDayScore`. Snapshots the derived nutrition score
- * against the day it belonged to; same-day or a stamp-less install is a no-op.
+ * resets, mirroring `recordDayScore`. Archives the EARNED (pre-trust-credit) value:
+ * nutritionHistory is the source of the trailing camera-proven median, so a
+ * credited camera-free day must never refresh its own baseline (council lock).
+ * Same-day or a stamp-less install is a no-op.
  */
 export function recordDayNutrition(preRoll: AppState, todayIso: string): DayScore[] {
   const history = preRoll.nutritionHistory ?? [];
   if (!preRoll.dateStamp || preRoll.dateStamp === todayIso) return history;
-  const nutrition = computeDerived(preRoll).nutritionScore;
+  const nutrition = computeDerived(preRoll).earnedNutritionScore;
   return appendDayScore(history, preRoll.dateStamp, nutrition);
 }
 

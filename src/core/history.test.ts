@@ -386,6 +386,60 @@ describe('realTrendDays', () => {
   });
 });
 
+describe('streakInfo — date-aware counting (missed days are misses, not invisible)', () => {
+  it('a weekend-only logger does not accrue an unbroken streak across the week', () => {
+    // Two on-standard Saturdays a week apart used to read as a 3-day chain because the
+    // walk was positional: a day the app never opened produced NO entry at all, so a
+    // plain absence was free — making grace meaningless.
+    const hist: DayScore[] = [
+      { date: '2026-06-20', score: 85 },
+      { date: '2026-06-27', score: 85 },
+    ];
+    const st = streakInfo(hist, 85, { today: '2026-06-28' });
+    expect(st.days).toBe(2); // today + yesterday(06-27); the gap week broke the chain
+  });
+
+  it('a single gap day consumes grace (bridged, not counted) when grace is on', () => {
+    const hist: DayScore[] = [
+      { date: '2026-06-30', score: 85 },
+      { date: '2026-07-01', score: 85 },
+      // 2026-07-02 never opened — a real miss
+    ];
+    expect(streakInfo(hist, 85, { today: '2026-07-03' }).days).toBe(1); // strict: ends at the gap
+    const graced = streakInfo(hist, 85, { today: '2026-07-03', grace: true });
+    expect(graced.days).toBe(3); // today + the two real days; gap forgiven, not counted
+    expect(graced.graceUsed).toBe(true);
+  });
+
+  it('a multi-day gap ends the streak even with grace (one forgiven day only)', () => {
+    const hist: DayScore[] = [{ date: '2026-06-28', score: 85 }];
+    expect(streakInfo(hist, 85, { today: '2026-07-03', grace: true }).days).toBe(1);
+  });
+
+  it('an unbroken date-adjacent run counts exactly like the positional path', () => {
+    const hist: DayScore[] = [
+      { date: '2026-06-30', score: 85 },
+      { date: '2026-07-01', score: 85 },
+      { date: '2026-07-02', score: 85 },
+    ];
+    expect(streakInfo(hist, 85, { today: '2026-07-03' }).days).toBe(4);
+  });
+});
+
+describe('longestStreak — date-aware (gaps reset the run)', () => {
+  it('two runs separated by a gap are two runs, not one', () => {
+    const hist: DayScore[] = [
+      { date: '2026-06-01', score: 85 },
+      { date: '2026-06-02', score: 85 },
+      // gap
+      { date: '2026-06-10', score: 85 },
+      { date: '2026-06-11', score: 85 },
+      { date: '2026-06-12', score: 85 },
+    ];
+    expect(longestStreak(hist)).toBe(3);
+  });
+});
+
 describe('currentStreak', () => {
   const mk = (...scores: number[]): DayScore[] =>
     scores.map((score, i) => ({ date: `2026-06-${String(i + 1).padStart(2, '0')}`, score }));

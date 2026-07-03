@@ -328,6 +328,19 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(useStore.getState().flow).toBe('onboarding');
   });
 
+  it('grantTrustPass / endTrustPass are INERT when live — the pass is server-authoritative', async () => {
+    // The athlete-facing Profile card carried a self-serve "Start 10-day pass"
+    // button wired to a plain client set — under copy reading "Your coach unlocks
+    // this." Live, only the coach RPC grants and only the server ends a pass.
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    useStore.getState().grantTrustPass(10);
+    expect(useStore.getState().trustPass).toBeNull();
+    useStore.setState({ trustPass: { grantedDate: '2026-07-01', lengthDays: 10 } });
+    useStore.getState().endTrustPass();
+    expect(useStore.getState().trustPass).not.toBeNull();
+  });
+
   it('signOutLive calls the wrapper and clears the session', async () => {
     signIn.mockResolvedValue({ ok: true, userId: 'u-1' });
     const useStore = loadStore(true);

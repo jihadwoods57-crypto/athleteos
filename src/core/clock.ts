@@ -30,6 +30,14 @@ export function daysBetweenStamps(a: string, b: string): number {
   return Math.round((parse(b) - parse(a)) / 86_400_000);
 }
 
+/** Shift a YYYY-MM-DD stamp by whole days (negative = back). Non-parsable input
+ *  returns the input unchanged so a corrupt date can never fabricate a real one. */
+export function shiftStamp(stamp: string, deltaDays: number): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(stamp ?? '');
+  if (!m) return stamp;
+  return todayStamp(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + deltaDays));
+}
+
 /** True when `fromStamp` falls within the trailing week ending at `toStamp`
  *  (0–6 whole days ago). The shared window behind the WEEKLY check-in credit:
  *  scoring, reminders, and the Home banner must all agree on "done this week". */

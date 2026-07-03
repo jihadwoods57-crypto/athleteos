@@ -181,6 +181,34 @@ describe('recordDayWeight — logs the prior day weight before reset', () => {
   });
 });
 
+describe('recordDayNutrition — the trust-pass baseline never eats its own credit', () => {
+  it('archives the EARNED (pre-credit) nutrition on a camera-free pass day', () => {
+    // Council lock: nutritionHistory holds only REAL photo-earned sub-scores — the
+    // trailing median is computed FROM it. Archiving the credited floor would let
+    // every camera-free day refresh the baseline with unearned points, defeating
+    // the staleness decay and making the median self-perpetuating.
+    const photoDays = Array.from({ length: 10 }, (_, i) => ({ date: `2026-06-${String(20 + i).padStart(2, '0')}`, score: 80 }));
+    const preRoll: AppState = {
+      ...createInitialState(),
+      athleteName: 'Marcus Cole',
+      dateStamp: '2026-07-02',
+      trustPass: { grantedDate: '2026-07-01', lengthDays: 10 },
+      dailyCommitment: 'yes',
+      meals: { breakfast: false, lunch: false, snack: false, dinner: false },
+      mealFoods: {},
+      quickAdded: [false, false, false],
+      nutritionHistory: photoDays,
+    };
+    const derived = computeDerived(preRoll);
+    expect(derived.nutritionIsTrustCredited).toBe(true); // sanity: the credit is active (80 floor)
+    const hist = recordDayNutrition(preRoll, '2026-07-03');
+    const recorded = hist[hist.length - 1];
+    expect(recorded.date).toBe('2026-07-02');
+    expect(recorded.score).toBe(derived.earnedNutritionScore);
+    expect(recorded.score).toBeLessThan(derived.nutritionScore); // credited 80 never enters history
+  });
+});
+
 describe('recordDayNutrition — logs the prior day nutrition sub-score before reset', () => {
   it('appends the derived nutrition score, stamped with the prior date', () => {
     const preRoll: AppState = { ...createInitialState(), dateStamp: '2026-06-20', nutritionHistory: [] };

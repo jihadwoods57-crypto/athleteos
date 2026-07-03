@@ -478,6 +478,10 @@ export interface Derived {
   /** True on day 0 (no real prior day yet) — the UI says "starting today" instead of a fake trend. */
   isDay0: boolean;
   nutritionScore: number;
+  /** The photo-EARNED nutrition sub-score before any trust-pass credit floors it.
+   *  This — never the credited value — is what nutritionHistory archives, so the
+   *  trailing median can only ever be built from real camera evidence. */
+  earnedNutritionScore: number;
   recoveryScore: number;
   /** True only once a real check-in backs the recovery number (else it's the 86 fallback). */
   recoveryScoreIsReal: boolean;

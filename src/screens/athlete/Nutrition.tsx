@@ -15,6 +15,9 @@ import {
   WEIGHT_START,
   activePlan,
   planView,
+  displayWeight,
+  weightStepLb,
+  weightUnit,
 } from '@/core';
 import type { MealKey, PlanViewEntry, SlotComplianceState } from '@/core';
 import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
@@ -40,7 +43,9 @@ export function Nutrition() {
   // athlete is NEVER shown a gain target (the audit P0). Performance athletes
   // hold weight, so they read as maintain here.
   const goalDir = s.baseGoal === 'gain' ? 'gain' : s.baseGoal === 'lose' ? 'lose' : 'maintain';
-  const pace = paceProjection(s.weeklyGoalLb, weeklyProgress, goalDir);
+  // A real athlete's week clock is the actual weekday; the dateless showcase keeps
+  // its prototype mid-week constants.
+  const pace = paceProjection(s.weeklyGoalLb, weeklyProgress, goalDir, isReal ? new Date() : undefined);
   const goalHeadline =
     goalDir === 'gain' ? `Gain ${s.weeklyGoalLb.toFixed(1)} lb`
     : goalDir === 'lose' ? `Lose ${s.weeklyGoalLb.toFixed(1)} lb`
@@ -451,7 +456,15 @@ function WinTheDayCard() {
   // on one screen (2,348 vs 2,150 in the audit) — same number, everywhere, always.
   const target = { kcal: d.calTarget, protein: d.proteinTarget };
   const win = winTheDay({ protein: d.proteinToday, kcal: d.kcalToday, carbs: 0, fat: 0 }, target);
-  const [wt, setWt] = React.useState(() => Math.round(s.currentWeight));
+  // The weigh-in speaks the athlete's UNIT setting (mirrors CheckIn): internal state
+  // stays in lb, the stepper moves by one display unit, and the log converts back —
+  // a metric athlete dialing "82" no longer poisons weightHistory with 82 lb.
+  const units = s.units ?? 'imperial';
+  const unit = weightUnit(units);
+  const stepLb = weightStepLb(units);
+  const [wtLb, setWtLb] = React.useState(() => s.currentWeight);
+  React.useEffect(() => { setWtLb(s.currentWeight); }, [s.currentWeight]); // re-sync after any weigh-in
+  const wtShown = displayWeight(wtLb, units);
   const pPct = Math.min(100, Math.round((d.proteinToday / Math.max(1, target.protein)) * 100));
   const cPct = Math.min(100, Math.round((d.kcalToday / Math.max(1, target.kcal)) * 100));
   return (
@@ -464,7 +477,7 @@ function WinTheDayCard() {
           </View>
         </Row>
         <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6, lineHeight: 19 }}>
-          {`Fuel goal for your ${s.weightTarget} lb target: ${target.kcal.toLocaleString()} cal, ${target.protein}g protein.`}
+          {`Fuel goal for your ${displayWeight(s.weightTarget, units)} ${unit} target: ${target.kcal.toLocaleString()} cal, ${target.protein}g protein.`}
         </Txt>
         <View style={{ gap: 12, marginTop: 14 }}>
           <FuelRow label="Protein" today={`${d.proteinToday}g`} target={`${target.protein}g`} pct={pPct} hit={win.proteinHit} c={c} />
@@ -473,16 +486,16 @@ function WinTheDayCard() {
         <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
           <Txt w="eb" size={11} color={c.textTertiary} ls={0.5}>TODAY'S WEIGH-IN</Txt>
           <Row style={{ gap: 12, alignItems: 'center' }}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Lower weight" hitSlop={8} onPress={() => setWt((v) => Math.max(60, v - 1))} style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Lower weight" hitSlop={8} onPress={() => setWtLb((v) => Math.max(60, v - stepLb))} style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="minus" size={16} color={c.accent} />
             </Pressable>
-            <Txt w="eb" num size={20} style={{ minWidth: 52, textAlign: 'center' }}>{wt}</Txt>
-            <Pressable accessibilityRole="button" accessibilityLabel="Raise weight" hitSlop={8} onPress={() => setWt((v) => Math.min(500, v + 1))} style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt w="eb" num size={20} style={{ minWidth: 52, textAlign: 'center' }}>{wtShown}</Txt>
+            <Pressable accessibilityRole="button" accessibilityLabel="Raise weight" hitSlop={8} onPress={() => setWtLb((v) => Math.min(500, v + stepLb))} style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="plus" size={16} color={c.accent} />
             </Pressable>
           </Row>
         </Row>
-        <Btn label={`Log ${wt} lb`} onPress={() => s.logWeight(wt)} style={{ marginTop: 12 }} />
+        <Btn label={`Log ${wtShown} ${unit}`} onPress={() => s.logWeight(Math.round(wtLb))} style={{ marginTop: 12 }} />
       </Card>
     </Reveal>
   );

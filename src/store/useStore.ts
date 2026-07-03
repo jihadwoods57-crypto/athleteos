@@ -1345,8 +1345,18 @@ export const useStore = create<Store>()(
         scheduleDaySync(get);
       },
 
-      grantTrustPass: (lengthDays) => set({ trustPass: { grantedDate: todayStamp(), lengthDays } }),
-      endTrustPass: () => set({ trustPass: null }),
+      // Local pilot ONLY (flag-on, backend off). Live, the pass is server-authoritative:
+      // granted via the coach RPC, synced down by hydrateDay — an athlete's device can
+      // neither self-grant a camera-free pass nor locally "end" one the server still
+      // holds (it would just resync). The Profile card hides its self-serve button live.
+      grantTrustPass: (lengthDays) => {
+        if (isBackendLive) return;
+        set({ trustPass: { grantedDate: todayStamp(), lengthDays } });
+      },
+      endTrustPass: () => {
+        if (isBackendLive) return;
+        set({ trustPass: null });
+      },
 
       // ---- check-in ----
       wStep: (d) => set((s) => ({ ciWeight: clamp(s.ciWeight + d, 70, 350) })),

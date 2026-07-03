@@ -327,15 +327,22 @@ export type PaceDirection = 'gain' | 'lose' | 'maintain';
  *  unchanged; a real athlete passes their actual weekly progress so the card
  *  never contradicts Home's "gained since start".
  *  `direction` orients the whole projection: on a cut, weight LOST is progress
- *  and a behind-pace athlete is told to trim intake — never to add calories. */
+ *  and a behind-pace athlete is told to trim intake — never to add calories.
+ *  `now` reads the REAL weekday (week ends Sunday) — real callers must pass it,
+ *  else "3 days left" and the calorie advice come from a fabricated mid-week
+ *  clock (the showcase's prototype constant, kept only for the dateless demo). */
 export function paceProjection(
   weeklyGoalLb: number,
   progressLb: number = 0.6,
   direction: PaceDirection = 'gain',
+  now?: Date,
 ): PaceProjection {
   const goal = weeklyGoalLb;
-  const daysLeft = 3;
-  const daysElapsed = 4;
+  // ISO weekday (Mon=1..Sun=7): elapsed includes today; Sunday floors daysLeft at 1
+  // so the "over the next N days" advice never divides by zero.
+  const isoWeekday = now ? ((now.getDay() + 6) % 7) + 1 : null;
+  const daysLeft = isoWeekday != null ? Math.max(1, 7 - isoWeekday) : 3;
+  const daysElapsed = isoWeekday ?? 4;
   const surplus = direction === 'maintain' ? 0 : Math.round((goal * 3500) / 7);
   // Clamp the linear extrapolation to a believable weekly band. A brand-new athlete
   // with no weekly weight history yet has `progressLb` fall back to their season-total

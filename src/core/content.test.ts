@@ -366,8 +366,21 @@ describe('paceProjection', () => {
     expect(paceProjection(2.0).surplus).toBe(1000);
   });
 
-  it('always leaves 3 days remaining (prototype constant)', () => {
+  it('without a clock (showcase default) keeps the prototype 4-elapsed/3-left week', () => {
     expect(paceProjection(1.0).daysLeft).toBe(3);
+  });
+
+  it('with a real clock, reads the actual weekday (week ends Sunday)', () => {
+    // A real athlete's card said "3 days left" and "the week is 4 days gone" on every
+    // day of the week — calorie advice computed from a fabricated clock.
+    expect(paceProjection(1.0, 0.2, 'gain', new Date(2026, 6, 6)).daysLeft).toBe(6); // Monday
+    expect(paceProjection(1.0, 0.2, 'gain', new Date(2026, 6, 10)).daysLeft).toBe(2); // Friday
+    expect(paceProjection(1.0, 0.2, 'gain', new Date(2026, 6, 12)).daysLeft).toBe(1); // Sunday floors at 1
+  });
+
+  it('with a real clock, extrapolates from the real elapsed days', () => {
+    // Friday = 5 elapsed: (0.5 / 5) * 7 = 0.7
+    expect(paceProjection(1.0, 0.5, 'gain', new Date(2026, 6, 10)).projected).toBe(0.7);
   });
 
   it('defaults progressLb to the seeded showcase (0.6) when omitted', () => {

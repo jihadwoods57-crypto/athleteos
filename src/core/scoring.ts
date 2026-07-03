@@ -237,6 +237,10 @@ export function computeDerived(s: AppState): Derived {
   // the real logged score), so logging can still earn higher and an honest "no" (credit 0) is
   // never masked. See docs/council/2026-07-02-trust-pass.md.
   let nutritionIsTrustCredited = false;
+  // The PRE-credit value is what history archives (recordDayNutrition): the trailing
+  // median is computed FROM nutritionHistory, so letting the credited floor re-enter
+  // it would make the baseline self-perpetuating and defeat the staleness decay.
+  const earnedNutritionScore = nutritionScore;
   const passCredit = passDayCredit(s.trustPass, s.nutritionHistory ?? [], s.dateStamp, s.dailyCommitment);
   if (passCredit && !passCredit.requiresPhoto && passCredit.nutrition > nutritionScore) {
     nutritionScore = passCredit.nutrition;
@@ -366,6 +370,7 @@ export function computeDerived(s: AppState): Derived {
     deltaColor,
     isDay0,
     nutritionScore,
+    earnedNutritionScore,
     recoveryScore,
     recoveryScoreIsReal,
     nutritionIsTrustCredited,
