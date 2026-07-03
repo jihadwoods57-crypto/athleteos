@@ -61,7 +61,7 @@ export function Profile() {
       <Txt w="sb" size={14} color={c.textSecondary}>
         Account
       </Txt>
-      <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
+      <Txt w="eb" size={28} ls={-0.8} accessibilityRole="header" style={{ marginTop: 1 }}>
         Profile
       </Txt>
 

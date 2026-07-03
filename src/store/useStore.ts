@@ -144,6 +144,9 @@ export interface Actions {
   hStep: (d: number) => void;
   bwStep: (d: number) => void;
   ageStep: (d: number) => void;
+  setBaseWeight: (n: number) => void;
+  setBaseAge: (n: number) => void;
+  setWeightTarget: (n: number) => void;
   startSignin: () => void;
   exitSignin: () => void;
   signinDone: () => void;
@@ -571,6 +574,11 @@ export const useStore = create<Store>()(
       // Floor at MIN_SIGNUP_AGE (13): the app does not sign up under-13s, keeping it out of
       // COPPA scope. 13-17 still flow through the minor guardian-consent gate (consent.ts).
       ageStep: (d) => set((s) => ({ baseAge: clamp(s.baseAge + d, MIN_SIGNUP_AGE, 24) })),
+      // Absolute setters for tap-to-type on the steppers (same clamps as the delta actions),
+      // so a big change is one typed number instead of dozens of taps. NaN is ignored upstream.
+      setBaseWeight: (n) => set({ baseWeight: clamp(Math.round(n), 70, 350) }),
+      setBaseAge: (n) => set({ baseAge: clamp(Math.round(n), MIN_SIGNUP_AGE, 24) }),
+      setWeightTarget: (n) => set({ weightTarget: clamp(Math.round(n), 120, 350), weightTargetTouched: true }),
       startSignin: () => set({ signinMode: true }),
       exitSignin: () => set({ signinMode: false }),
       signinDone: () => set({ signinMode: false, flow: 'app', tab: 'home' }),

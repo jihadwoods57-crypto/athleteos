@@ -158,7 +158,7 @@ function TabItem({ item, active, onPress }: { item: { label: string; icon: IconN
       accessibilityLabel={item.label}
       accessibilityState={{ selected: active }}
       onPress={onPress}
-      style={{ flex: 1, alignItems: 'center', gap: 4 }}
+      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 44 }}
     >
       <Icon name={item.icon} size={23} color={color} />
       <Txt w={active ? 'b' : 'sb'} size={11} color={color} maxFontSizeMultiplier={MAX_FONT_SCALE}>

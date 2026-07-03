@@ -65,7 +65,8 @@ export function CoachCopilot({ roster }: { roster: AtRiskInput[] }) {
             accessibilityRole="button"
             accessibilityLabel={q.label}
             onPress={() => ask(q)}
-            style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: active === q.label ? c.accent : c.bg2 }}
+            hitSlop={{ top: 8, bottom: 8 }}
+            style={{ paddingHorizontal: 12, paddingVertical: 11, borderRadius: 10, backgroundColor: active === q.label ? c.accent : c.bg2 }}
           >
             <Txt w="b" size={13} color={active === q.label ? c.white : c.slate700}>{q.label}</Txt>
           </Pressable>

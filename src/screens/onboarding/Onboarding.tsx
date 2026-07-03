@@ -619,12 +619,12 @@ function AthleteFlow() {
         <StepShell progress={progress} onBack={s.obBack} title="About you" sub="Tap to adjust. This calibrates your targets." footer={cont(true)}>
           <View style={{ gap: 14 }}>
             <Row style={{ gap: 12 }}>
-              <Stepper label="Age" value={String(s.baseAge)} unit="years" onDec={() => s.ageStep(-1)} onInc={() => s.ageStep(1)} />
+              <Stepper label="Age" value={String(s.baseAge)} unit="years" onDec={() => s.ageStep(-1)} onInc={() => s.ageStep(1)} onSet={s.setBaseAge} />
               <Stepper label="Height" value={formatHeight(s.baseHeight)} onDec={() => s.hStep(-1)} onInc={() => s.hStep(1)} />
             </Row>
             <Row style={{ gap: 12 }}>
-              <Stepper label="Weight" value={String(s.baseWeight)} unit="lb" onDec={() => s.bwStep(-1)} onInc={() => s.bwStep(1)} />
-              <Stepper label="Target weight" value={String(shownTarget)} unit="lb" onDec={() => s.adjustWeightTarget(-1)} onInc={() => s.adjustWeightTarget(1)} />
+              <Stepper label="Weight" value={String(s.baseWeight)} unit="lb" onDec={() => s.bwStep(-1)} onInc={() => s.bwStep(1)} onSet={s.setBaseWeight} />
+              <Stepper label="Target weight" value={String(shownTarget)} unit="lb" onDec={() => s.adjustWeightTarget(-1)} onInc={() => s.adjustWeightTarget(1)} onSet={s.setWeightTarget} />
             </Row>
             {targetHint ? (
               <Txt w="sb" size={12} color={c.textSecondary} style={{ marginTop: -6 }}>

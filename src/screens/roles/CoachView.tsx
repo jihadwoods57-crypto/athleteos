@@ -167,7 +167,7 @@ function SectionTitle({ eyebrow, title, right }: { eyebrow?: string; title: stri
     <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16 }}>
       <View style={{ flex: 1 }}>
         {eyebrow ? <Txt w="sb" size={13} color={c.textSecondary}>{eyebrow}</Txt> : null}
-        <Txt w="eb" size={26} ls={-0.5}>{title}</Txt>
+        <Txt w="eb" size={26} ls={-0.5} accessibilityRole="header">{title}</Txt>
       </View>
       {right}
     </Row>
@@ -625,7 +625,7 @@ function CoachTabItem({ item, active, onPress }: { item: { label: string; icon: 
   const c = useColors();
   const color = active ? c.accent : c.textTertiary;
   return (
-    <Pressable accessibilityRole="tab" accessibilityLabel={item.label} accessibilityState={{ selected: active }} onPress={onPress} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+    <Pressable accessibilityRole="tab" accessibilityLabel={item.label} accessibilityState={{ selected: active }} onPress={onPress} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 44 }}>
       <Icon name={item.icon} size={22} color={color} />
       <Txt w={active ? 'b' : 'sb'} size={10.5} color={color} maxFontSizeMultiplier={MAX_FONT_SCALE}>{item.label}</Txt>
     </Pressable>

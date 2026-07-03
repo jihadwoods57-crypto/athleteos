@@ -7,7 +7,10 @@ export const colors = {
   card: '#FFFFFF',
   text: '#0F172A',
   textSecondary: '#64748B',
-  textTertiary: '#94A3B8',
+  // Darkened from #94A3B8 (2.56:1 — a WCAG AA fail flagged in the audit) to #667085,
+  // which clears 4.5:1 on card/bg/accent surfaces while staying a touch lighter than
+  // secondary. Small muted labels (11px eyebrows, meta, tab labels) are now legible.
+  textTertiary: '#667085',
   slate500: '#64748B',
   slate600: '#475569',
   slate700: '#334155',
@@ -75,7 +78,9 @@ export const darkColors: ColorTheme = {
   card: '#1E293B',
   text: '#F1F5F9',
   textSecondary: '#94A3B8',
-  textTertiary: '#64748B',
+  // Lightened from #64748B (3.07:1 on the dark card — an AA fail) to #8A98AC, which
+  // clears 4.5:1 on the dark surfaces. Mirrors the light-mode tertiary legibility fix.
+  textTertiary: '#8A98AC',
   slate500: '#94A3B8',
   slate600: '#CBD5E1',
   slate700: '#E2E8F0',

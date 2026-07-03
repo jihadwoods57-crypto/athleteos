@@ -40,7 +40,7 @@ export function Squad() {
           <Txt w="sb" size={14} color={c.textSecondary}>
             This week
           </Txt>
-          <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
+          <Txt w="eb" size={28} ls={-0.8} accessibilityRole="header" style={{ marginTop: 1 }}>
             Leaderboard
           </Txt>
         </View>

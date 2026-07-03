@@ -59,7 +59,7 @@ export function Performance() {
         <Pressable accessibilityRole="button" accessibilityLabel="Back to Home" hitSlop={8} onPress={goHome} style={{ marginLeft: -6, padding: 6 }}>
           <Icon name="chevronLeft" size={24} color={c.text} />
         </Pressable>
-        <Txt w="eb" size={28} ls={-0.8}>
+        <Txt w="eb" size={28} ls={-0.8} accessibilityRole="header">
           Performance
         </Txt>
       </Row>

@@ -354,14 +354,30 @@ export function Stepper({
   onInc,
   label,
   unit,
+  onSet,
 }: {
   value: string;
   onDec: () => void;
   onInc: () => void;
   label?: string;
   unit?: string;
+  /** When provided, the value is tappable to type an exact number (commits on blur/submit),
+   *  so a large change isn't dozens of taps. Omit to keep a pure +/- stepper. */
+  onSet?: (n: number) => void;
 }) {
   const c = useColors();
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(value);
+  const commit = () => {
+    setEditing(false);
+    const n = parseFloat(draft);
+    if (Number.isFinite(n) && onSet) onSet(n);
+  };
+  const beginEdit = () => {
+    if (!onSet) return;
+    setDraft(value.replace(/[^0-9.]/g, ''));
+    setEditing(true);
+  };
   return (
     <View style={{ flex: 1 }}>
       {label ? (
@@ -369,18 +385,38 @@ export function Stepper({
           {label}
         </Txt>
       ) : null}
-      <Row style={{ justifyContent: 'space-between', backgroundColor: c.card, borderRadius: radius.tile, padding: 10, ...shadow.card }}>
+      <Row style={{ justifyContent: 'space-between', backgroundColor: c.card, borderRadius: radius.tile, padding: 10, minHeight: 64, ...shadow.card }}>
         <StepBtn glyph="−" onPress={onDec} />
-        <View style={{ alignItems: 'center' }}>
-          <Txt w="eb" size={22} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-            {value}
-          </Txt>
+        <Pressable
+          accessibilityRole={onSet ? 'button' : undefined}
+          accessibilityLabel={onSet ? `${label ?? 'value'}, tap to type` : undefined}
+          onPress={beginEdit}
+          hitSlop={8}
+          style={{ alignItems: 'center', flex: 1 }}
+        >
+          {editing ? (
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              onBlur={commit}
+              onSubmitEditing={commit}
+              keyboardType="numeric"
+              autoFocus
+              selectTextOnFocus
+              maxFontSizeMultiplier={MAX_FONT_SCALE}
+              style={{ fontFamily: font.eb, fontSize: 22, color: c.text, textAlign: 'center', minWidth: 60, padding: 0 }}
+            />
+          ) : (
+            <Txt w="eb" size={22} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+              {value}
+            </Txt>
+          )}
           {unit ? (
             <Txt w="sb" size={10} color={c.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {unit}
             </Txt>
           ) : null}
-        </View>
+        </Pressable>
         <StepBtn glyph="+" onPress={onInc} />
       </Row>
     </View>
