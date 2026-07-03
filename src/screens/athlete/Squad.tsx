@@ -7,6 +7,7 @@ import { useStore, useDerived } from '@/store';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Row, SampleTag, Txt, Pressable, Reveal } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 
 export function Squad() {
@@ -63,6 +64,7 @@ export function Squad() {
           score={d.athleteScore}
           dir={youDir}
           empty={view.empty}
+          onConnect={() => useStore.getState().openConnect()}
         />
       ) : (
         <DemoBoard
@@ -178,6 +180,7 @@ function SoloSquad({
   score,
   dir,
   empty,
+  onConnect,
 }: {
   name: string;
   monogram: string;
@@ -185,6 +188,7 @@ function SoloSquad({
   score: number;
   dir: ReturnType<typeof trendSummary>['dir'];
   empty: { title: string; body: string };
+  onConnect: () => void;
 }) {
   const c = useColors();
   const tr = trendInfo(dir);
@@ -236,7 +240,8 @@ function SoloSquad({
         </Txt>
       </Row>
 
-      {/* Honest empty-peer state: no fabricated teammates for a real athlete. */}
+      {/* Honest empty-peer state: no fabricated teammates for a real athlete — with a
+          real way OUT of the dead end (the audit: the empty state had no CTA). */}
       <View style={[{ marginTop: 14, borderRadius: 16, backgroundColor: c.card, padding: 20, alignItems: 'center' }, shadow.card]}>
         <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="squad" size={22} color={c.textTertiary} />
@@ -247,6 +252,14 @@ function SoloSquad({
         <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
           {empty.body}
         </Txt>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Connect your team or coach"
+          onPress={() => { haptics.tap(); onConnect(); }}
+          style={({ pressed }) => [{ marginTop: 16, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12, backgroundColor: c.accent, minHeight: 44, justifyContent: 'center', opacity: pressed ? 0.9 : 1 }, shadow.cta]}
+        >
+          <Txt w="b" size={14} color={c.white}>Enter a team code</Txt>
+        </Pressable>
       </View>
     </>
   );

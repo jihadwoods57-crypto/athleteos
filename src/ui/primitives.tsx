@@ -566,6 +566,32 @@ export function Input(props: TextInputProps) {
   );
 }
 
+/** Password field with a Show/Hide toggle, so people can verify what they typed (the audit:
+ *  masked-only entry has no reveal). Same visual as Input; the reveal button sits inside on
+ *  the right and never covers the text. */
+export function PasswordInput(props: TextInputProps) {
+  const c = useColors();
+  const [show, setShow] = React.useState(false);
+  return (
+    <View style={{ position: 'relative', justifyContent: 'center' }}>
+      <Input
+        {...props}
+        secureTextEntry={!show}
+        style={[{ paddingRight: 66 }, props.style]}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={show ? 'Hide password' : 'Show password'}
+        hitSlop={8}
+        onPress={() => setShow((v) => !v)}
+        style={{ position: 'absolute', right: 8, height: '100%', justifyContent: 'center', paddingHorizontal: 8, minHeight: 44 }}
+      >
+        <Txt w="b" size={13} color={c.accent}>{show ? 'Hide' : 'Show'}</Txt>
+      </Pressable>
+    </View>
+  );
+}
+
 /** Safe-area screen wrapper with the app canvas background. */
 export function Screen({ children, style, bg }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; bg?: string }) {
   const c = useColors();

@@ -19,6 +19,8 @@ export function Plan() {
   const d = useDerived();
   const dailyCommitment = useStore((s) => s.dailyCommitment);
   const setDailyCommitment = useStore((s) => s.setDailyCommitment);
+  const openMeal = useStore((s) => s.openMeal);
+  const setMealType = useStore((s) => s.setMealType);
 
   // Coach plan / Accountability Engine (the execution card is engine-gated below).
   const meals = useStore((s) => s.meals);
@@ -122,6 +124,48 @@ export function Plan() {
           </Row>
         </View>
       </Reveal>
+
+      {/* Today's meals — the day's structure, so the Plan tab is a real plan and not just
+          Home's commitment card repeated (the audit: "nearly empty"). Only when the engine is
+          OFF (the beta); with engines ON the "Plan execution" card below is the meal surface. */}
+      {!isEnginesEnabled ? (
+        <Reveal index={2}>
+          <View style={[{ marginTop: 14, backgroundColor: c.card, borderRadius: 20, padding: 18 }, shadow.card]}>
+            <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
+              <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>TODAY&apos;S MEALS</Txt>
+              <Txt w="b" size={12} color={c.textTertiary}>
+                {windowStatuses.filter((w) => w.state === 'logged').length} of {windowStatuses.length} logged
+              </Txt>
+            </Row>
+            {windowStatuses.map((w) => {
+              const chip = w.state === 'logged'
+                ? { label: 'Logged', bg: c.successSurface, fg: c.successDeep }
+                : w.state === 'missed'
+                  ? { label: 'Missed', bg: c.alertSurface, fg: c.alert }
+                  : w.state === 'open'
+                    ? { label: 'Log now', bg: c.accentSurface, fg: c.accent }
+                    : { label: 'Upcoming', bg: c.bg, fg: c.textTertiary };
+              return (
+                <Pressable
+                  key={w.window.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${w.window.label}: ${chip.label}. Log it.`}
+                  onPress={() => { haptics.tap(); setMealType(w.window.label as never); openMeal(); }}
+                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, minHeight: 44, opacity: pressed ? 0.6 : 1 })}
+                >
+                  <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center' }}>
+                    <Txt w="eb" size={13} color={w.state === 'logged' ? c.successDeep : c.slate600}>{w.window.label[0]}</Txt>
+                  </View>
+                  <Txt w="b" size={14} style={{ flex: 1 }}>{w.window.label}</Txt>
+                  <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: chip.bg }}>
+                    <Txt w="eb" size={11} color={chip.fg}>{chip.label}</Txt>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Reveal>
+      ) : null}
 
       {/* Meal Plans entry — shown when the Meal Plans feature is on but the accountability
           engine is OFF, so there's a way to open the Coach Plan editor (prescribed meals)

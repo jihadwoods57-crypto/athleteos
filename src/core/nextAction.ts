@@ -31,6 +31,23 @@ const SLOTS: { key: MealKey; label: string; due: number }[] = [
 ];
 
 /**
+ * The meal the athlete should log RIGHT NOW, chosen by the clock — not just the first
+ * unlogged slot. At 9pm a fresh athlete is nudged toward DINNER (the current window),
+ * never "log breakfast" (the audit bug). Order: the current time-window meal if it's
+ * unlogged; else the next upcoming unlogged meal; else the earliest still-missed one.
+ * `overdue` means the chosen slot's due hour has already passed.
+ */
+function targetMeal(meals: AppState['meals'], hour: number): { slot: (typeof SLOTS)[number]; overdue: boolean } | null {
+  let current = SLOTS[0];
+  for (const slot of SLOTS) if (hour >= slot.due) current = slot;
+  if (!meals[current.key]) return { slot: current, overdue: hour >= current.due };
+  const upcoming = SLOTS.find((slot) => slot.due > hour && !meals[slot.key]);
+  if (upcoming) return { slot: upcoming, overdue: false };
+  const missed = SLOTS.find((slot) => !meals[slot.key]);
+  return missed ? { slot: missed, overdue: hour >= missed.due } : null;
+}
+
+/**
  * The single most impactful next step, given today's real state + the current hour.
  * `now` is injectable for tests (mirrors clock.ts). Returns a `done` action only
  * when protein is met, every meal is logged, the check-in is in, and hydration is
@@ -38,20 +55,19 @@ const SLOTS: { key: MealKey; label: string; due: number }[] = [
  */
 export function nextBestAction(s: AppState, d: Derived, now: Date = new Date()): NextAction {
   const hour = now.getHours();
-  const firstUnlogged = SLOTS.find((slot) => !s.meals[slot.key]);
+  const target = targetMeal(s.meals, hour);
   const litersLeft = Math.max(0, +(HYDRATION_TARGET - s.hydrationL).toFixed(1));
 
   // 1) Protein is the dominant lever (half the score). If the athlete is short,
-  //    that is the move — log the next due meal, or top up if every meal is in.
+  //    that is the move — log the time-appropriate meal, or top up if every meal is in.
   if (d.proteinGap > 0) {
-    if (firstUnlogged) {
-      const late = hour >= firstUnlogged.due;
+    if (target) {
       return {
         key: 'log-meal',
-        title: `Log ${firstUnlogged.label}`,
-        detail: late
-          ? `You're ${d.proteinGap}g of protein behind and ${firstUnlogged.label} is overdue — logging it now is the fastest way to catch up.`
-          : `You're ${d.proteinGap}g of protein short today. ${cap(firstUnlogged.label)} is your next chance to close the gap.`,
+        title: `Log ${target.slot.label}`,
+        detail: target.overdue
+          ? `You're ${d.proteinGap}g of protein behind and ${target.slot.label} is overdue — logging it now is the fastest way to catch up.`
+          : `You're ${d.proteinGap}g of protein short today. ${cap(target.slot.label)} is your next chance to close the gap.`,
         cta: 'meal',
         done: false,
       };
@@ -66,11 +82,11 @@ export function nextBestAction(s: AppState, d: Derived, now: Date = new Date()):
   }
 
   // 2) Protein is met but a meal is still missing — keep the day complete.
-  if (firstUnlogged) {
+  if (target) {
     return {
       key: 'log-meal',
-      title: `Log ${firstUnlogged.label}`,
-      detail: `Protein's already on target — nice. Log ${firstUnlogged.label} to keep the day complete.`,
+      title: `Log ${target.slot.label}`,
+      detail: `Protein's already on target — nice. Log ${target.slot.label} to keep the day complete.`,
       cta: 'meal',
       done: false,
     };

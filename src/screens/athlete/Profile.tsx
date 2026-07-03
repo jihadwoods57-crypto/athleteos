@@ -375,7 +375,7 @@ export function Profile() {
                   </Txt>
                 </Pressable>
                 <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 8 }}>
-                  Pilot: your coach grants this at launch.
+                  Your coach unlocks this once you&apos;ve earned it.
                 </Txt>
               </>
             )}

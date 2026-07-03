@@ -32,7 +32,7 @@ import { aiPrefix, isAiConfigured } from '@/lib/ai';
 import { useStore } from '@/store';
 import type { Store } from '@/store';
 import { useColors, useTheme } from '@/ui/theme';
-import { Btn, Card, Input, ProgressBar, Row, SampleTag, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Input, PasswordInput, ProgressBar, Row, SampleTag, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
 import { useReduceMotion } from '@/ui/useReduceMotion';
@@ -279,7 +279,7 @@ function SignIn() {
     >
       <View style={{ gap: 12 }}>
         <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
-        <Input value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
+        <PasswordInput value={password} onChangeText={setPassword} placeholder="Password" />
         {authError ? (
           <Txt w="sb" size={13} color={c.alert} style={{ marginTop: 2 }}>
             {authError}
@@ -380,7 +380,7 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
     <StepShell
       progress={progress}
       onBack={s.obBack}
-      eyebrow="Create your account"
+      eyebrow="Last step"
       title={title}
       sub={sub}
       footer={<Btn label={busy ? 'Creating...' : 'Create account'} disabled={busy || !ready || !s.termsAcceptedAt} onPress={onCreate} />}
@@ -388,9 +388,9 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
       <View style={{ gap: 12 }}>
         <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
         {email.length > 0 && errors.email ? <FieldError text={errors.email} /> : null}
-        <Input value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
+        <PasswordInput value={password} onChangeText={setPassword} placeholder="Password" />
         {password.length > 0 && errors.password ? <FieldError text={errors.password} /> : null}
-        <Input value={confirm} onChangeText={setConfirm} placeholder="Confirm password" secureTextEntry />
+        <PasswordInput value={confirm} onChangeText={setConfirm} placeholder="Confirm password" />
         {confirm.length > 0 && errors.confirm ? <FieldError text={errors.confirm} /> : null}
         {authError ? <Txt w="sb" size={13} color={c.alert} style={{ marginTop: 2 }}>{authError}</Txt> : null}
         <AppleButton busy={busy} onPress={onApple} />

@@ -53,6 +53,7 @@ import {
   baseGoalForPrimary,
   goalConfig,
   deriveTargetsFromGoal,
+  friendlyAuthError,
   realDataConsent,
   reminderNotifySpecs,
   reminderSnapshotFromState,
@@ -1291,7 +1292,7 @@ export const useStore = create<Store>()(
         if (!isBackendLive) return false;
         const res = await auth.signUp(email.trim(), password, fullName.trim() || undefined);
         if (!res.ok) {
-          set({ authError: res.error });
+          set({ authError: friendlyAuthError(res.error) });
           return false;
         }
         // Keep the email for the account/verify panels (password is never stored). Record whether
@@ -1310,7 +1311,7 @@ export const useStore = create<Store>()(
         // Never leak whether the email exists: surface the same confirmation unless
         // the request itself errored on the network.
         if (!res.ok && res.error !== 'notConfigured') {
-          set({ authError: res.error });
+          set({ authError: friendlyAuthError(res.error) });
           return false;
         }
         set({ passwordResetSent: true, authError: null });
@@ -1320,7 +1321,7 @@ export const useStore = create<Store>()(
         if (!isBackendLive) return false;
         const res = await auth.signInWithAppleToken(identityToken);
         if (!res.ok) {
-          set({ authError: res.error });
+          set({ authError: friendlyAuthError(res.error) });
           return false;
         }
         set({ userId: res.userId, authError: null });
@@ -1342,7 +1343,7 @@ export const useStore = create<Store>()(
         if (!isBackendLive) return false;
         const res = await auth.signIn(email.trim(), password);
         if (!res.ok) {
-          set({ authError: res.error });
+          set({ authError: friendlyAuthError(res.error) });
           return false;
         }
         set({ userId: res.userId, authError: null });

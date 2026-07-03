@@ -77,16 +77,24 @@ export function CheckIn() {
             </Txt>
           </Row>
           <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 22 }}>
-            {checkinSummary({
-              name: s.athleteName,
-              energy: s.ciEnergy,
-              recovery: s.ciRecovery,
-              sleep: s.ciSleep,
-              confidence: s.ciConfidence,
-              soreness: s.ciSoreness,
-              motivation: s.ciMotivation,
-              config: s.ciConfig,
-            })}
+            {checkinSummary(
+              {
+                name: s.athleteName,
+                energy: s.ciEnergy,
+                recovery: s.ciRecovery,
+                sleep: s.ciSleep,
+                confidence: s.ciConfidence,
+                soreness: s.ciSoreness,
+                motivation: s.ciMotivation,
+                config: s.ciConfig,
+              },
+              // Reconcile with the training-readiness verdict shown just below so the two
+              // never contradict ("strong week" over "train with caution").
+              (() => {
+                const r = readinessScore({ energy: s.ciEnergy, recovery: s.ciRecovery, sleep: s.ciSleep, soreness: s.ciSoreness });
+                return r == null ? undefined : readinessBand(r);
+              })(),
+            )}
           </Txt>
         </Card>
         {(() => {

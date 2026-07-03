@@ -202,17 +202,23 @@ function SectionLabel({ children, style }: { children: React.ReactNode; style?: 
 
 function NotifCard({ icon, initials, accent, iconBg, iconColor, title, time, text, onPress }: { icon?: IconName; initials?: string; accent?: string; iconBg?: string; iconColor?: string; title: string; time: string; text: string; onPress?: () => void }) {
   const c = useColors();
-  const boxStyle = { flexDirection: 'row' as const, gap: 13, backgroundColor: c.card, borderRadius: 16, padding: 15, borderLeftWidth: accent && onPress ? 3 : 0, borderLeftColor: accent };
+  // No side-stripe (a project design-law ban) — the tinted icon square already carries the
+  // accent. Unread rows get a full accent hairline + a subtle unread dot instead.
+  const unread = !!accent && !!onPress;
+  const boxStyle = { flexDirection: 'row' as const, gap: 13, backgroundColor: c.card, borderRadius: 16, padding: 15, borderWidth: 1, borderColor: unread ? c.accentBorder : c.border };
   const body = (
     <>
       <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: initials ? c.text : iconBg ?? c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
         {initials ? <Txt w="b" size={13} color={c.white}>{initials}</Txt> : <Icon name={icon!} size={19} color={iconColor ?? c.accent} />}
       </View>
       <View style={{ flex: 1 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Txt w="b" size={14}>
-            {title}
-          </Txt>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Row style={{ gap: 7, alignItems: 'center', flex: 1 }}>
+            {unread ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.accent }} /> : null}
+            <Txt w="b" size={14}>
+              {title}
+            </Txt>
+          </Row>
           <Txt w="sb" num size={11} color={c.textTertiary}>
             {time}
           </Txt>

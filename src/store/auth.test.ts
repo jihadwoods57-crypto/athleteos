@@ -107,13 +107,15 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(useStore.getState().authError).toBeNull();
   });
 
-  it('signInLive surfaces the error + leaves userId null on failure', async () => {
+  it('signInLive surfaces a FRIENDLY error + leaves userId null on failure', async () => {
     signIn.mockResolvedValue({ ok: false, error: 'Invalid login credentials' });
     const useStore = loadStore(true);
     const ok = await useStore.getState().signInLive('a@b.io', 'bad');
     expect(ok).toBe(false);
     expect(useStore.getState().userId).toBeNull();
-    expect(useStore.getState().authError).toBe('Invalid login credentials');
+    // The raw Supabase string is rewritten in product voice (audit copy fix), never leaked.
+    expect(useStore.getState().authError).not.toBe('Invalid login credentials');
+    expect(useStore.getState().authError).toMatch(/doesn't match/i);
   });
 
   it('signUpLive stores userId + forwards the full name + keeps the email', async () => {
@@ -143,12 +145,13 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(useStore.getState().passwordResetSent).toBe(true);
   });
 
-  it('requestPasswordReset stays neutral on a real error but surfaces it', async () => {
+  it('requestPasswordReset stays neutral on a real error but surfaces it (friendly)', async () => {
     resetPassword.mockResolvedValue({ ok: false, error: 'rate limited' });
     const useStore = loadStore(true);
     const ok = await useStore.getState().requestPasswordReset('a@b.io');
     expect(ok).toBe(false);
-    expect(useStore.getState().authError).toBe('rate limited');
+    // Surfaced in product voice, not the raw machine string.
+    expect(useStore.getState().authError).toMatch(/too many attempts/i);
     expect(useStore.getState().passwordResetSent).toBe(false);
   });
 

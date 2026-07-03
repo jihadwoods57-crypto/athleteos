@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, useColorScheme } from 'react-native';
+import { View, useColorScheme, useWindowDimensions } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -31,6 +31,15 @@ export default function RootLayout() {
   const scheme: 'light' | 'dark' = themeMode === 'auto' ? (os === 'dark' ? 'dark' : 'light') : themeMode;
   const palette = scheme === 'dark' ? darkColors : lightColors;
 
+  // Oversight roles (coach / trainer / parent) are used on a laptop, not just a phone, so on a
+  // genuinely wide screen they get a roomier frame instead of the phone-width column that made
+  // the coach product feel like an emulator on desktop (the audit). Athletes + onboarding stay
+  // phone-first. Reactive via useWindowDimensions so a browser resize re-flows.
+  const flow = useStore((s) => s.flow);
+  const { width } = useWindowDimensions();
+  const isOversight = flow === 'coach' || flow === 'trainer' || flow === 'parent';
+  const frameMaxWidth = isOversight && width >= 900 ? 760 : DEVICE_MAX_WIDTH;
+
   // Schedule the athlete's local reminders + request permission once, on launch (no-op on web).
   React.useEffect(() => {
     useStore.getState().initReminders();
@@ -43,9 +52,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider scheme={scheme}>
       <SafeAreaProvider>
-        {/* Center a phone-width frame on wide screens (web/tablet). */}
+        {/* Center a phone-width frame on wide screens (web/tablet); oversight roles get more room. */}
         <View style={{ flex: 1, backgroundColor: palette.bg2, alignItems: 'center' }}>
-          <View style={{ flex: 1, width: '100%', maxWidth: DEVICE_MAX_WIDTH, backgroundColor: palette.bg }}>
+          <View style={{ flex: 1, width: '100%', maxWidth: frameMaxWidth, backgroundColor: palette.bg }}>
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.bg } }} />
           </View>
         </View>

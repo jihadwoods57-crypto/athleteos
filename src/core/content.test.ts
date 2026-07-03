@@ -7,6 +7,7 @@ import {
   checkinSummary,
   coachGuidance,
   heroStatus,
+  friendlyAuthError,
   mealResultFor,
   MEAL_RESULTS,
   notificationCopy,
@@ -106,6 +107,19 @@ describe('checkinSummary — reflects the real slider inputs (no static blurb)',
   it('falls back to a steady line when nothing is strong or low', () => {
     const out = checkinSummary({ name: 'Jo', energy: 6, recovery: 6, sleep: 6, confidence: 6, soreness: 4, motivation: 6, config: allOn });
     expect(out.toLowerCase()).toContain('steady');
+  });
+
+  it('never calls the week "strong" when readiness is caution/compromised (the audit contradiction)', () => {
+    const answers = { name: 'Maya', energy: 9, recovery: 5, sleep: 8, confidence: 9, soreness: 3, motivation: 6, config: allOn };
+    // Without the readiness context it may lead with "strong this week" (legacy behavior).
+    expect(checkinSummary(answers).toLowerCase()).toContain('strong this week');
+    // With a caution verdict, it must NOT claim a broadly strong week — it defers to readiness.
+    const caution = checkinSummary(answers, 'caution').toLowerCase();
+    expect(caution).not.toContain('strong this week');
+    expect(caution).toContain('under-recovered');
+    const compromised = checkinSummary(answers, 'compromised').toLowerCase();
+    expect(compromised).not.toContain('strong this week');
+    expect(compromised).toContain('recovery is the story');
   });
 });
 
@@ -574,6 +588,23 @@ describe('notificationCopy', () => {
     const c = notificationCopy({ isReal: true, supportTeam: [], athleteScore: 80 });
     expect(c.checkin).not.toMatch(/coach|parent/i);
     expect(c.coachNote).toBeNull();
+  });
+});
+
+describe('friendlyAuthError (raw backend strings never leak to users)', () => {
+  it('rewrites the bare "Invalid login credentials" the audit flagged', () => {
+    expect(friendlyAuthError('Invalid login credentials')).toMatch(/doesn't match/i);
+    expect(friendlyAuthError('Invalid login credentials')).not.toBe('Invalid login credentials');
+  });
+  it('maps the common cases to product voice', () => {
+    expect(friendlyAuthError('Email not confirmed')).toMatch(/confirm your email/i);
+    expect(friendlyAuthError('User already registered')).toMatch(/already exists/i);
+    expect(friendlyAuthError('rate limited')).toMatch(/too many/i);
+  });
+  it('never returns an empty or lowercase machine string, even on unknown input', () => {
+    expect(friendlyAuthError('some_weird_internal_code')).toMatch(/something went wrong/i);
+    expect(friendlyAuthError('')).toMatch(/something went wrong/i);
+    expect(friendlyAuthError(null)).toMatch(/something went wrong/i);
   });
 });
 

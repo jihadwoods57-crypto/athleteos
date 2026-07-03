@@ -2,6 +2,7 @@
 // Ported from the prototype: meal log, meal-analysis results, AI insight, pace.
 import type { AppState, CiConfig, Derived, MealKey, MealLabel } from './types';
 import type { MacroConfidence } from './macroGrounding';
+import type { ReadinessBand } from './readiness';
 import { mealSlotMacros } from './scoring';
 
 export interface LoggedMeal {
@@ -592,6 +593,29 @@ export function notificationCopy(opts: {
   };
 }
 
+/**
+ * Rewrite a raw backend auth error into product voice — the audit flagged the bare
+ * Supabase string "Invalid login credentials" leaking to users. Maps the known cases
+ * and falls back to a calm generic; never leaks a stack or a lowercase machine string.
+ */
+export function friendlyAuthError(raw: string | null | undefined): string {
+  const msg = (raw ?? '').toLowerCase();
+  if (!msg) return 'Something went wrong. Check your connection and try again.';
+  if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
+    return "That email or password doesn't match. Try again, or reset your password.";
+  }
+  if (msg.includes('email not confirmed')) return 'Confirm your email first — check your inbox for the link we sent.';
+  if (msg.includes('already registered') || msg.includes('already exists')) {
+    return 'An account with this email already exists. Try signing in instead.';
+  }
+  if (msg.includes('rate limit') || msg.includes('too many')) return 'Too many attempts. Give it a minute, then try again.';
+  if (msg.includes('network') || msg.includes('fetch') || msg.includes('timeout')) {
+    return "Couldn't reach the server. Check your connection and try again.";
+  }
+  if (msg.includes('password')) return raw as string; // password-rule messages are already user-facing
+  return 'Something went wrong. Try again in a moment.';
+}
+
 export type FeedNotifKind = 'checkin' | 'meal' | 'score' | 'hydration' | 'coachNote';
 export type FeedNotifAction = 'checkin' | 'meal' | 'squad' | 'none';
 
@@ -727,8 +751,13 @@ export interface CheckinAnswers {
  * entered). Names only the enabled questions, classifies each strong (>=8) / watch
  * (<5), with soreness read inversely (high soreness = something to watch). Resilient
  * to missing/non-finite answers; factual, no guilt, no em dash.
+ *
+ * `readiness` (the band shown on the training-readiness card right below) reconciles the
+ * two: when readiness is caution/compromised the summary must NOT open by calling the week
+ * broadly "strong" (the audit contradiction: "Energy, sleep and confidence are strong"
+ * directly above "Train with caution"). It defers to the readiness verdict instead.
  */
-export function checkinSummary(a: CheckinAnswers): string {
+export function checkinSummary(a: CheckinAnswers, readiness?: ReadinessBand): string {
   const first = (a.name ?? '').trim().split(/\s+/)[0] || 'there';
   const fin = (v: number | undefined): number | null =>
     typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -753,8 +782,20 @@ export function checkinSummary(a: CheckinAnswers): string {
   const cap = (str: string): string => (str ? str[0].toUpperCase() + str.slice(1) : str);
 
   const sentences: string[] = [];
-  if (strong.length) sentences.push(`${cap(join(strong))} ${strong.length === 1 ? 'is' : 'are'} strong this week.`);
-  if (watch.length) sentences.push(`Keep an eye on ${join(watch)}.`);
-  if (sentences.length === 0) sentences.push('Your numbers are steady across the board.');
+  const under = readiness === 'caution' || readiness === 'compromised';
+  if (under) {
+    // Lead with a line that AGREES with the readiness verdict below — never "strong this week".
+    sentences.push(
+      readiness === 'compromised'
+        ? "Recovery is the story this week. Your training readiness below has the plan."
+        : "You logged some solid numbers, but you're a little under-recovered this week.",
+    );
+    if (strong.length) sentences.push(`${cap(join(strong))} held up.`);
+    if (watch.length) sentences.push(`Keep an eye on ${join(watch)}.`);
+  } else {
+    if (strong.length) sentences.push(`${cap(join(strong))} ${strong.length === 1 ? 'is' : 'are'} strong this week.`);
+    if (watch.length) sentences.push(`Keep an eye on ${join(watch)}.`);
+    if (sentences.length === 0) sentences.push('Your numbers are steady across the board.');
+  }
   return `Check-in saved, ${first}. ${sentences.join(' ')}`;
 }
