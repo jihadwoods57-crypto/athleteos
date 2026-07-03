@@ -78,6 +78,12 @@
           "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only."
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only."
+        }
+      ],
       "expo-secure-store"
     ],
     "experiments": {

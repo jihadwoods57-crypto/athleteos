@@ -13,6 +13,7 @@ import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
 import { isDictationAvailable, startDictation, type DictationHandle } from '@/lib/voice/dictation';
 import { Overlay } from './Overlay';
+import { LiveCamera } from './LiveCamera';
 
 const MEAL_TYPES: MealLabel[] = ['Breakfast', 'Lunch', 'Snack', 'Dinner'];
 
@@ -21,6 +22,8 @@ export function MealCapture() {
   const s = useStore();
   const isLabel = s.mealCaptureMode === 'label';
   const isSearch = s.mealCaptureMode === 'search';
+  // The live in-app camera replaces the tap-to-open placeholder for meal photos during capture.
+  const liveCapture = s.mealCaptureMode === 'meal' && s.mealStage === 'capture';
   const header =
     s.mealStage === 'result'
       ? isLabel ? 'Label' : 'Analysis'
@@ -41,31 +44,40 @@ export function MealCapture() {
           <FoodSearch />
         ) : (
           <>
-            {/* image slot — tappable during capture to open the camera (or scan a label) */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={isLabel ? 'Scan nutrition label' : 'Capture meal photo'}
-              disabled={s.mealStage !== 'capture'}
-              onPress={() => {
-                if (s.mealStage !== 'capture') return;
-                haptics.tap();
-                if (isLabel) s.captureLabel();
-                else s.capture();
-              }}
-              style={[{ width: '100%', aspectRatio: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: c.track }, shadow.elevated]}
-            >
-              <ImageSlot analyzing={s.mealStage === 'analyzing'} label={isLabel} />
-              {[
-                { top: 14, left: 14 },
-                { top: 14, right: 14 },
-                { bottom: 14, left: 14 },
-                { bottom: 14, right: 14 },
-              ].map((pos, i) => (
-                <View key={i} style={{ position: 'absolute', width: 26, height: 26, borderColor: c.white, opacity: 0.9, borderTopWidth: i < 2 ? 3 : 0, borderBottomWidth: i >= 2 ? 3 : 0, borderLeftWidth: i % 2 === 0 ? 3 : 0, borderRightWidth: i % 2 === 1 ? 3 : 0, ...pos }} />
-              ))}
-            </Pressable>
+            {/* image slot — LIVE in-app camera for meal photos during capture; otherwise the
+                tap-to-open placeholder (label mode + the analyzing / result stages). */}
+            {liveCapture ? (
+              <LiveCamera
+                onCapture={(b64) => s.capture(false, b64)}
+                onFallback={() => s.capture()}
+                onPickLibrary={() => s.capture(true)}
+              />
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={isLabel ? 'Scan nutrition label' : 'Capture meal photo'}
+                disabled={s.mealStage !== 'capture'}
+                onPress={() => {
+                  if (s.mealStage !== 'capture') return;
+                  haptics.tap();
+                  if (isLabel) s.captureLabel();
+                  else s.capture();
+                }}
+                style={[{ width: '100%', aspectRatio: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: c.track }, shadow.elevated]}
+              >
+                <ImageSlot analyzing={s.mealStage === 'analyzing'} label={isLabel} />
+                {[
+                  { top: 14, left: 14 },
+                  { top: 14, right: 14 },
+                  { bottom: 14, left: 14 },
+                  { bottom: 14, right: 14 },
+                ].map((pos, i) => (
+                  <View key={i} style={{ position: 'absolute', width: 26, height: 26, borderColor: c.white, opacity: 0.9, borderTopWidth: i < 2 ? 3 : 0, borderBottomWidth: i >= 2 ? 3 : 0, borderLeftWidth: i % 2 === 0 ? 3 : 0, borderRightWidth: i % 2 === 1 ? 3 : 0, ...pos }} />
+                ))}
+              </Pressable>
+            )}
 
-            {s.mealStage === 'capture' && <CaptureControls />}
+            {s.mealStage === 'capture' && <CaptureControls liveMode={liveCapture} />}
             {s.mealStage === 'analyzing' && <Analyzing label={isLabel} />}
             {s.mealStage === 'questions' && <Questions />}
             {s.mealStage === 'result' && (isLabel
@@ -154,7 +166,7 @@ function ImageSlot({ analyzing, label }: { analyzing: boolean; label?: boolean }
   );
 }
 
-function CaptureControls() {
+function CaptureControls({ liveMode }: { liveMode?: boolean }) {
   const c = useColors();
   const s = useStore();
   const isLabel = s.mealCaptureMode === 'label';
@@ -188,36 +200,40 @@ function CaptureControls() {
 
       {isLabel ? null : <Usuals />}
 
-      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingHorizontal: 20 }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Pick a photo from your library"
-          onPress={() => {
-            haptics.tap();
-            if (isLabel) s.captureLabel();
-            else s.capture(true);
-          }}
-          style={[{ width: 48, height: 48, borderRadius: 14, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}
-        >
-          <Icon name="gallery" size={20} color={c.textSecondary} />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={isLabel ? 'Scan nutrition label' : 'Capture meal photo'}
-          onPress={() => {
-            haptics.tap();
-            if (isLabel) s.captureLabel();
-            else s.capture();
-          }}
-          style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: c.accent, padding: 5 }}
-        >
-          <View style={{ flex: 1, borderRadius: 30, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
-            {isLabel ? <Icon name="barcode" size={26} color={c.white} /> : null}
-          </View>
-        </Pressable>
-        {/* balances the row so the shutter stays centered (was a dead "×4" label) */}
-        <View style={{ width: 48, height: 48 }} />
-      </Row>
+      {/* Shutter + gallery row — hidden in live-camera mode (the LiveCamera has its own shutter
+          and gallery button overlaid on the feed); kept for label mode + as the non-live path. */}
+      {liveMode ? null : (
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingHorizontal: 20 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Pick a photo from your library"
+            onPress={() => {
+              haptics.tap();
+              if (isLabel) s.captureLabel();
+              else s.capture(true);
+            }}
+            style={[{ width: 48, height: 48, borderRadius: 14, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}
+          >
+            <Icon name="gallery" size={20} color={c.textSecondary} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isLabel ? 'Scan nutrition label' : 'Capture meal photo'}
+            onPress={() => {
+              haptics.tap();
+              if (isLabel) s.captureLabel();
+              else s.capture();
+            }}
+            style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: c.accent, padding: 5 }}
+          >
+            <View style={{ flex: 1, borderRadius: 30, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+              {isLabel ? <Icon name="barcode" size={26} color={c.white} /> : null}
+            </View>
+          </Pressable>
+          {/* balances the row so the shutter stays centered (was a dead "×4" label) */}
+          <View style={{ width: 48, height: 48 }} />
+        </Row>
+      )}
 
       {/* Free-text "describe your meal" only helps the plate estimate (hidden foods, portion, a
           drink off-frame); a label is read verbatim, so it has no place in label mode. */}

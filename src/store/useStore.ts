@@ -236,7 +236,7 @@ export interface Actions {
   openMeal: () => void;
   closeMeal: () => void;
   setMealType: (m: MealLabel) => void;
-  capture: (fromLibrary?: boolean) => void;
+  capture: (fromLibrary?: boolean, providedPhoto?: string) => void;
   /** Answer the AI's clarifying questions and get the finalized analysis (the 2nd call). */
   finalizeMeal: (answers: string[]) => void;
   /** Reuse a past "usual" meal's confirmed macros â€” skips the model call and the daily-cap slot. */
@@ -884,11 +884,14 @@ export const useStore = create<Store>()(
       },
       closeMeal: () => set({ mealOpen: false }),
       setMealType: (m) => set({ mealType: m }),
-      capture: (fromLibrary = false) => {
+      capture: (fromLibrary = false, providedPhoto?: string) => {
         set({ mealStage: 'analyzing', mealAnalysis: null, mealQuestions: [], mealError: null });
         if (mealTimer) clearTimeout(mealTimer);
-        // The shutter opens the camera; the gallery button (fromLibrary) opens the photo library.
-        const pickPhoto = fromLibrary ? pickMealPhotoBase64 : capturePhotoBase64;
+        // A live in-app camera passes its already-captured photo in directly; otherwise the
+        // shutter opens the system camera and the gallery button (fromLibrary) the library.
+        const pickPhoto = providedPhoto !== undefined
+          ? () => Promise.resolve<string | undefined>(providedPhoto)
+          : fromLibrary ? pickMealPhotoBase64 : capturePhotoBase64;
         // Sending the meal photo to the AI endpoint is REAL athlete data leaving the
         // device to a third party (Anthropic), so it must clear the SAME consent gate as
         // pushDay/recordMeal and FAIL CLOSED: an un-consented athlete, an unverified
@@ -904,7 +907,7 @@ export const useStore = create<Store>()(
           const st = get();
           // Capture a real meal photo when a camera is wired (device only); on web /
           // cancel / denial this resolves undefined and the model infers from context.
-          (isCameraAvailable ? pickPhoto() : Promise.resolve<string | undefined>(undefined))
+          ((isCameraAvailable || providedPhoto !== undefined) ? pickPhoto() : Promise.resolve<string | undefined>(undefined))
             .catch(() => undefined)
             .then(async (photoBase64) => {
               // Hold the captured photo so addMeal/saveMeal can upload it to the

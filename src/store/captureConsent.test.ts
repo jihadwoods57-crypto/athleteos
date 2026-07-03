@@ -76,6 +76,28 @@ it('DOES send for a consenting adult athlete (gate passes)', async () => {
   expect(analyzeMeal).toHaveBeenCalledTimes(1);
 });
 
+it('a LIVE-camera photo (providedPhoto) is analyzed directly — even when the picker is unavailable', async () => {
+  // The live in-app camera hands its already-shot base64 straight to capture(); the analysis
+  // must use THAT photo (not the system picker, which the mock reports unavailable).
+  const useStore = loadStore();
+  useStore.setState({ role: 'athlete', baseAge: 25, realDataConsent: true, sharingPaused: false, mealType: 'Lunch', primaryGoal: null });
+  useStore.getState().capture(false, 'LIVEPHOTO');
+  await flush();
+  expect(analyzeMeal).toHaveBeenCalledTimes(1);
+  expect(analyzeMeal.mock.calls[0][0].photoBase64).toBe('LIVEPHOTO'); // the live shot itself
+  expect(useStore.getState().mealPhoto).toBe('LIVEPHOTO'); // held for upload on log
+});
+
+it('a LIVE-camera photo still honors the consent gate: a minor without consent never sends', async () => {
+  const useStore = loadStore();
+  useStore.setState({ athleteName: 'Marcus Cole', role: 'athlete', baseAge: 15, realDataConsent: false, guardianStatus: 'none', sharingPaused: false, mealType: 'Lunch', primaryGoal: null });
+  useStore.getState().capture(false, 'LIVEPHOTO');
+  await flush();
+  expect(analyzeMeal).not.toHaveBeenCalled();
+  expect(useStore.getState().mealStage).toBe('unavailable');
+  expect(useStore.getState().mealError).toBe('consent');
+});
+
 it('captureLabel honors the same egress gate: minor without consent never sends', async () => {
   const useStore = loadStore();
   useStore.setState({ role: 'athlete', baseAge: 15, realDataConsent: false, sharingPaused: false });
