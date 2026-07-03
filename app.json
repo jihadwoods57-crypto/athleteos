@@ -7,7 +7,6 @@
     "icon": "./assets/icon.png",
     "scheme": "onstandard",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.onstandard.app",
