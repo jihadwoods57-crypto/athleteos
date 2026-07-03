@@ -1,4 +1,4 @@
-import { weeklyReport, weeklyReportText, weeklyReportFromState, teamWeeklyReport, teamWeeklyReportText, MOVE_THRESHOLD, type WeeklyReportInput, type TeamMember } from './weeklyReport';
+import { weeklyReport, weeklyReportText, weeklyReportFromState, teamWeeklyReport, teamWeeklyReportText, weeklyRosterFromDays, MOVE_THRESHOLD, type WeeklyReportInput, type TeamMember } from './weeklyReport';
 import type { DayScore } from './types';
 
 const strong: WeeklyReportInput = {
@@ -172,6 +172,41 @@ describe('teamWeeklyReport — coach roster aggregate', () => {
   it("scope 'today': a flat room holds steady today, not this week", () => {
     const flat: TeamMember[] = [{ name: 'A', score: 80, comp: 80, dir: 'flat' }];
     expect(teamWeeklyReport(flat, 'today').movedLine).toBe('The room is holding steady today.');
+  });
+});
+
+describe('weeklyRosterFromDays — a REAL week per athlete from 7 days of day rows', () => {
+  const members = [
+    { athlete_id: 'a', athlete_name: 'Marcus Cole', position: 'LB' },
+    { athlete_id: 'b', athlete_name: 'Jordan Reed', position: 'WR' },
+    { athlete_id: 'c', athlete_name: 'Silent Sam', position: null },
+  ];
+  const row = (id: string, date: string, score: number) => ({ athlete_id: id, date, score, grade: null, tasks: [] });
+
+  it('aggregates each member: weekly average, % of days on plan, real trend direction', () => {
+    const rows = [
+      row('a', '2026-06-28', 70), row('a', '2026-06-30', 82), row('a', '2026-07-02', 90),
+      row('b', '2026-06-28', 92), row('b', '2026-07-01', 60),
+    ];
+    const week = weeklyRosterFromDays(members, rows);
+    const byName = Object.fromEntries(week.map((m) => [m.name, m]));
+    expect(byName['Marcus Cole'].score).toBe(81); // round(mean(70,82,90))
+    expect(byName['Marcus Cole'].comp).toBe(29); // 2 of 7 days on plan (>=80)
+    expect(byName['Marcus Cole'].dir).toBe('up'); // last 90 vs first 70
+    expect(byName['Jordan Reed'].dir).toBe('down');
+  });
+
+  it('a member with NO rows all week reads 0 — the silent athlete is the report\'s point', () => {
+    const week = weeklyRosterFromDays(members, [row('a', '2026-07-01', 85)]);
+    const sam = week.find((m) => m.name === 'Silent Sam');
+    expect(sam).toMatchObject({ score: 0, comp: 0, dir: 'flat' });
+  });
+
+  it('feeds straight into teamWeeklyReport as an honest week', () => {
+    const rows = Array.from({ length: 7 }, (_, i) => row('a', `2026-06-2${i + 1}`, 85));
+    const report = teamWeeklyReport(weeklyRosterFromDays(members, rows), 'week');
+    expect(report.athletes).toBe(3);
+    expect(report.needsIntervention).toBe(2); // the two silent members
   });
 });
 

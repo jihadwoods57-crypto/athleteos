@@ -43,16 +43,16 @@ export function CoachView() {
   const d = useDerived();
   // Real roster from fetchLinkedDays when isBackendLive, else the seeded showcase (identical
   // when off). Computed ONCE here; sections receive it so the live fetch runs only once.
-  const { roster: rosterSource, live: rosterLive } = useLiveRoster(ROSTER);
+  const { roster: rosterSource, live: rosterLive, weekReport } = useLiveRoster(ROSTER);
   const roster = rosterSource.map((r) => (r.you ? { ...r, score: d.athleteScore } : r));
   const kpis = coachRosterKpis(roster);
   const onTrack = roster.length - kpis.alerts;
   const attention = needsAttention(roster);
   const teamTitle = coachTeamTitle({ isReal: s.athleteName.trim().length > 0, sport: s.obMeta.sport, school: s.obMeta.school, orgName: s.orgName });
-  // Live data is TODAY's day rows (trend vs yesterday), so the report speaks in
-  // day language; only the seeded week-shaped demo may say "week".
-  const reportScope = rosterLive ? ('today' as const) : ('week' as const);
-  const teamReport = teamWeeklyReport(roster, reportScope);
+  // Live with membership: a REAL 7-day report (silent athletes counted) in honest week
+  // language. Live without it: today's snapshot in day language. Demo: the seeded week.
+  const reportScope = !rosterLive || weekReport ? ('week' as const) : ('today' as const);
+  const teamReport = weekReport ?? teamWeeklyReport(roster, reportScope);
   const groups = rosterGroups(roster);
   const groupStats = rosterGroupStats(roster);
   const notLogged = notLoggedCount(roster);

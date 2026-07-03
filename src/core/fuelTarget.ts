@@ -27,6 +27,27 @@ export function fuelTarget(bodyWeightLb: number, weeklyGoalLb: number, direction
   return { kcal: Math.round(kcal), protein: bw };
 }
 
+export interface MacroTargets {
+  carbs: number;
+  fat: number;
+}
+
+/**
+ * Carb/fat gram targets derived from the PLAN (calorie + protein targets) instead of
+ * fixed constants, so the rings can never contradict the plan shown on the same
+ * screen. Deterministic split: fat = 30% of calories on a cut (satiety), 25%
+ * otherwise; carbs = whatever calories remain after protein + fat. Floored at 0 so an
+ * aggressive protein target can't produce a negative carb goal. Pure.
+ */
+export function derivedMacroTargets(calTarget: number, proteinTargetG: number, direction: FuelDirection | 'performance'): MacroTargets {
+  const cal = Math.max(0, Math.round(calTarget) || 0);
+  const proteinKcal = Math.max(0, Math.round(proteinTargetG) || 0) * 4;
+  const fatPct = direction === 'lose' ? 0.3 : 0.25;
+  const fat = Math.round((cal * fatPct) / 9);
+  const carbs = Math.max(0, Math.round((cal - proteinKcal - fat * 9) / 4));
+  return { carbs, fat };
+}
+
 export interface DayWin {
   proteinHit: boolean;
   fuelHit: boolean;

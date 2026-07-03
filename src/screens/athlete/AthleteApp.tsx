@@ -58,9 +58,16 @@ export function AthleteApp() {
   // Fire the athlete's daily reminders on launch: requests notification permission (native)
   // and schedules today's active reminders. Without this, reminders only scheduled when the
   // user manually toggled one — so a fresh install never got them. No-op on web.
+  //
+  // Timing: HELD while the meal overlay is open. On a fresh install, activation opens the
+  // first-meal capture immediately — firing the OS notification dialog there stacks it on
+  // top of the camera permission at the product's make-or-break moment, which drives
+  // denials that gut every reminder after. The effect re-runs when the overlay closes
+  // (their first logged meal — a natural "keep me on track?" moment) and it's idempotent.
   useEffect(() => {
+    if (mealOpen) return;
     initReminders();
-  }, [initReminders]);
+  }, [initReminders, mealOpen]);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>

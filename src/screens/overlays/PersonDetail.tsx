@@ -1,7 +1,7 @@
 // OnStandard — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { coachMealPatterns, displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal } from '@/core';
+import { coachMealPatterns, displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, passStatus, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal, type TrustPass } from '@/core';
 import { useStore } from '@/store';
 import { db, isBackendLive } from '@/lib/supabase';
 import { isTrustPassEnabled } from '@/lib/features';
@@ -22,6 +22,29 @@ export function PersonDetail() {
   const c = useColors();
   const s = useStore();
   const [tpMsg, setTpMsg] = React.useState<string | null>(null);
+  // The coach's live view of this athlete's Trust Pass — FETCHED, not guessed, so
+  // Grant/End stop being blind trial-and-error (the card used to show both buttons
+  // with no idea whether a pass existed). Hooks live above the early return.
+  const [activePass, setActivePass] = React.useState<TrustPass | null>(null);
+  const [passLoaded, setPassLoaded] = React.useState(false);
+  const passAthleteId = isTrustPassEnabled && isBackendLive ? s.personDetail?.athleteId : undefined;
+  React.useEffect(() => {
+    if (!passAthleteId) return;
+    let cancelled = false;
+    setPassLoaded(false);
+    db.fetchActiveTrustPass(passAthleteId)
+      .then((p) => {
+        if (cancelled) return;
+        setActivePass(p);
+        setPassLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setPassLoaded(true); // soft-fail: buttons still work, just unlabeled
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [passAthleteId]);
   const pd = s.personDetail;
   if (!pd) return null;
   const grade = gradeFor(pd.score);
@@ -171,48 +194,69 @@ export function PersonDetail() {
               <Txt w="eb" size={15} style={{ flex: 1 }}>
                 Trust Pass
               </Txt>
+              {activePass ? (
+                <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, backgroundColor: c.successSurface }}>
+                  <Txt w="eb" size={11} color={c.successDeep}>ACTIVE</Txt>
+                </View>
+              ) : null}
             </Row>
             <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 6, lineHeight: 17 }}>
-              Reward a proven athlete with camera-free days. Needs 7+ on-standard days on record.
+              {!passLoaded
+                ? 'Checking pass status…'
+                : activePass
+                  ? (() => {
+                      const st = passStatus(activePass, todayStamp());
+                      const left = st ? Math.max(0, activePass.lengthDays - st.dayIndex) : activePass.lengthDays;
+                      return `Camera-free pass running — ${left} day${left === 1 ? '' : 's'} left. One honest tap counts as a real day at their proven level.`;
+                    })()
+                  : 'Reward a proven athlete with camera-free days. Needs 7+ on-standard days on record.'}
             </Txt>
             <Row style={{ gap: 10, marginTop: 12 }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Grant ${pd.name} a 10-day trust pass`}
-                onPress={async () => {
-                  try {
-                    await s.coachGrantTrustPass(pd.athleteId!, 10);
-                    haptics.success();
-                    setTpMsg('Granted — 10 camera-free days.');
-                  } catch (e) {
-                    haptics.tap();
-                    setTpMsg(e instanceof Error && /eligible/i.test(e.message) ? 'Not yet — needs 7+ on-standard days.' : 'Could not grant the pass.');
-                  }
-                }}
-                style={({ pressed }) => ({ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, backgroundColor: c.accent, opacity: pressed ? 0.7 : 1 })}
-              >
-                <Txt w="eb" size={14} color={c.white}>
-                  Grant 10-day pass
-                </Txt>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`End ${pd.name}'s trust pass`}
-                onPress={async () => {
-                  try {
-                    await s.coachEndTrustPass(pd.athleteId!);
-                    haptics.tap();
-                    setTpMsg('Pass ended.');
-                  } catch {
-                    setTpMsg('Could not end the pass.');
-                  }
-                }}
-                style={({ pressed }) => ({ paddingHorizontal: 16, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: c.border, opacity: pressed ? 0.6 : 1 })}
-              >
-                <Txt w="eb" size={14} color={c.textSecondary}>
-                  End
-                </Txt>
-              </Pressable>
+              {/* Only the button that applies: Grant when no pass, End when one is running. */}
+              {!activePass ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !passLoaded }}
+                  disabled={!passLoaded}
+                  accessibilityLabel={`Grant ${pd.name} a 10-day trust pass`}
+                  onPress={async () => {
+                    try {
+                      await s.coachGrantTrustPass(pd.athleteId!, 10);
+                      haptics.success();
+                      setActivePass({ grantedDate: todayStamp(), lengthDays: 10 });
+                      setTpMsg('Granted — 10 camera-free days.');
+                    } catch (e) {
+                      haptics.tap();
+                      setTpMsg(e instanceof Error && /eligible/i.test(e.message) ? 'Not yet — needs 7+ on-standard days.' : 'Could not grant the pass.');
+                    }
+                  }}
+                  style={({ pressed }) => ({ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, backgroundColor: c.accent, opacity: pressed || !passLoaded ? 0.7 : 1 })}
+                >
+                  <Txt w="eb" size={14} color={c.white}>
+                    Grant 10-day pass
+                  </Txt>
+                </Pressable>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`End ${pd.name}'s trust pass`}
+                  onPress={async () => {
+                    try {
+                      await s.coachEndTrustPass(pd.athleteId!);
+                      haptics.tap();
+                      setActivePass(null);
+                      setTpMsg('Pass ended. Their photo path takes over from today.');
+                    } catch {
+                      setTpMsg('Could not end the pass.');
+                    }
+                  }}
+                  style={({ pressed }) => ({ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: c.border, opacity: pressed ? 0.6 : 1 })}
+                >
+                  <Txt w="eb" size={14} color={c.textSecondary}>
+                    End pass
+                  </Txt>
+                </Pressable>
+              )}
             </Row>
             {tpMsg ? (
               <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 10 }}>

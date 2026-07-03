@@ -171,6 +171,44 @@ export interface TeamMember {
   dir: 'up' | 'down' | 'flat';
 }
 
+/** The slices of a member row + a `days` row this aggregation needs. */
+interface WeekMemberIn { athlete_id: string; athlete_name: string | null; }
+interface WeekDayIn { athlete_id: string; date: string; score: number | null; }
+
+/** How many on-standard days of 7 the compliance percentage measures against. */
+const WEEK_DAYS = 7;
+const ON_PLAN = 80; // COMPLIANCE_THRESHOLD, restated locally to avoid an import cycle
+
+/**
+ * Build a REAL per-athlete week from up to 7 days of `days` rows: weekly average
+ * score, % of the week's days on plan (unrecorded days count against — accountability
+ * is the point), and a real trend (last recorded score vs first). A member with no
+ * rows all week reads 0/0/flat — the silent athlete is exactly who the weekly report
+ * exists to surface. Feeds straight into teamWeeklyReport(…, 'week'). Pure.
+ */
+export function weeklyRosterFromDays(members: WeekMemberIn[], rows: WeekDayIn[]): TeamMember[] {
+  const byAthlete = new Map<string, WeekDayIn[]>();
+  for (const r of rows) {
+    if (typeof r.score !== 'number' || !Number.isFinite(r.score)) continue;
+    const list = byAthlete.get(r.athlete_id) ?? [];
+    list.push(r);
+    byAthlete.set(r.athlete_id, list);
+  }
+  return members.map((m) => {
+    const days = (byAthlete.get(m.athlete_id) ?? []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    const name = m.athlete_name?.trim() || `#${m.athlete_id.slice(0, 4)}`;
+    if (days.length === 0) return { name, score: 0, comp: 0, dir: 'flat' as const };
+    const scores = days.map((d) => d.score as number);
+    const score = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    const onPlan = scores.filter((s) => s >= ON_PLAN).length;
+    const comp = Math.round((onPlan / WEEK_DAYS) * 100);
+    const first = scores[0];
+    const last = scores[scores.length - 1];
+    const dir = scores.length < 2 || last === first ? ('flat' as const) : last > first ? ('up' as const) : ('down' as const);
+    return { name, score, comp, dir };
+  });
+}
+
 export interface TeamWeeklyReport {
   athletes: number;
   /** Mean roster score, rounded (0 for an empty roster). */

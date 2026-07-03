@@ -179,6 +179,27 @@ export function reminderCopy(kind: ReminderKind, s: ReminderSnapshot): { title: 
   }
 }
 
+/**
+ * Forward-looking copy for a DAILY reminder scheduled while today's condition is
+ * already satisfied: the trigger repeats on fresh days (where the condition holds
+ * again by definition), so it must carry no stale "you're behind" numbers. Factual,
+ * no guilt, no em dash.
+ */
+export function genericReminderCopy(kind: ReminderKind): { title: string; body: string } {
+  switch (kind) {
+    case 'protein':
+      return { title: 'Protein check', body: 'A high-protein option now keeps you ahead of your target.' };
+    case 'hydration':
+      return { title: 'Hydration', body: 'A glass of water now keeps you on pace for the day.' };
+    case 'log_dinner':
+      return { title: 'Log dinner', body: "Add tonight's dinner to keep your day complete." };
+    case 'checkin':
+      return { title: 'Weekly check-in', body: 'Your check-in is ready. Your coach will see your update.' };
+    case 'weigh_in':
+      return { title: 'Weigh-in', body: 'A quick weigh-in keeps your trend honest. Takes ten seconds.' };
+  }
+}
+
 /** Format a 0-23 local hour as a 12-hour label for the settings UI ("4 PM", "12 PM"). */
 export function formatReminderHour(hour: number): string {
   const h = clampHour(hour);
@@ -197,17 +218,27 @@ export interface ReminderNotifySpec {
 }
 
 /**
- * The local notifications to (re)schedule today: one per active reminder, carrying
- * its user-set hour and its athlete-first copy. This is the PURE hand-off the device
- * seam (src/lib/notify) consumes; it fires nothing. Order follows REMINDER_DEFS.
+ * The local notifications to (re)schedule: one per ENABLED reminder, carrying its
+ * user-set hour and copy. Condition still holding today -> today's specific copy
+ * (real numbers); condition already satisfied -> generic forward-looking copy,
+ * because the trigger is DAILY-repeating and tomorrow's fresh day makes the
+ * condition true again. The old contract dropped satisfied reminders entirely,
+ * which left a user who finished day 0 on-track in total silence on day 1.
+ * Exception: the check-in is a WEEKLY ritual — done for the week means no reminder
+ * at all, not a daily generic nag. This is the PURE hand-off the device seam
+ * (src/lib/notify) consumes; it fires nothing. Order follows REMINDER_DEFS.
  */
 export function reminderNotifySpecs(
   settings: ReminderSettings,
   snapshot: ReminderSnapshot,
 ): ReminderNotifySpec[] {
-  return activeReminders(settings, snapshot).map((d) => {
-    const { title, body } = reminderCopy(d.kind, snapshot);
-    return { kind: d.kind, title, body, hour: clampHour(settings[d.kind].hour) };
+  return REMINDER_DEFS.flatMap((d) => {
+    const set = settings[d.kind];
+    if (!set || !set.enabled) return [];
+    const met = d.conditional ? conditionMet(d.kind, snapshot) : true;
+    if (!met && d.kind === 'checkin') return [];
+    const { title, body } = met ? reminderCopy(d.kind, snapshot) : genericReminderCopy(d.kind);
+    return [{ kind: d.kind, title, body, hour: clampHour(set.hour) }];
   });
 }
 

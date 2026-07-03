@@ -207,6 +207,20 @@ export async function fetchLinkedDays(date: string): Promise<RosterDayRow[]> {
   return (data ?? []) as RosterDayRow[];
 }
 
+/** The roster's day rows since a date (inclusive) — one query covers today (roster),
+ *  yesterday (trend), and the whole week (the REAL weekly report). Same slim columns;
+ *  RLS scopes rows to linked athletes. 2000 ≈ 7 days × ~285 athletes headroom. */
+export async function fetchLinkedDaysSince(since: string): Promise<RosterDayRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('days')
+    .select('athlete_id, date, score, grade, tasks')
+    .gte('date', since)
+    .limit(2000);
+  if (error) throw error;
+  return (data ?? []) as RosterDayRow[];
+}
+
 // ---------------------------------------------------------------- schools directory
 /** A directory match: safe display columns only (the `search_orgs`/`find_org` RPCs never return
  *  created_by, so the org creator's identity stays private). Shaped as OrgRow for callers; the

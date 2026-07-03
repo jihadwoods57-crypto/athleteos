@@ -1,4 +1,4 @@
-// OnStandard — single session store (Zustand) + AsyncStorage persistence.
+// OnStandard â€” single session store (Zustand) + AsyncStorage persistence.
 // Mirrors the prototype's component state + methods; the day slice persists
 // under key `aos_day`, exactly like the prototype's localStorage usage.
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -168,7 +168,7 @@ export interface Actions {
   connectTrainer: (code: string) => void;
   /** AWAITED live joins for the code-confirm screen: the server join must succeed
    *  BEFORE any local "connected" state flips or a success screen shows. False on
-   *  failure so the UI can say so — never a success screen over a dead join. */
+   *  failure so the UI can say so â€” never a success screen over a dead join. */
   joinTeamLive: (code: string) => Promise<boolean>;
   joinPracticeLive: (code: string) => Promise<boolean>;
   /** Open/close the athlete "Connect your coach" overlay; openConnect may carry an
@@ -177,7 +177,7 @@ export interface Actions {
   closeConnect: () => void;
   /** Athlete dismissed the first-run Home connect card ("not now"). */
   dismissConnectCard: () => void;
-  /** Athlete-first request to join a discoverable team → a pending row the coach
+  /** Athlete-first request to join a discoverable team â†’ a pending row the coach
    *  approves. Returns true on success; inert (false) when the backend is off. */
   requestJoinTeamLive: (teamId: string, position?: string) => Promise<boolean>;
   setInviteCode: (v: string) => void;
@@ -240,13 +240,13 @@ export interface Actions {
   capture: (fromLibrary?: boolean) => void;
   /** Answer the AI's clarifying questions and get the finalized analysis (the 2nd call). */
   finalizeMeal: (answers: string[]) => void;
-  /** Reuse a past "usual" meal's confirmed macros — skips the model call and the daily-cap slot. */
+  /** Reuse a past "usual" meal's confirmed macros â€” skips the model call and the daily-cap slot. */
   pickUsual: (u: UsualMeal) => void;
   /** Switch the meal overlay between photographing a plate and scanning a label. */
   setMealCaptureMode: (mode: MealCaptureMode) => void;
   /** Scan a Nutrition Facts label (transcribe). Honors the same photo-egress consent gate. */
   captureLabel: () => void;
-  /** Set how many servings of the scanned label were eaten (¼-step). */
+  /** Set how many servings of the scanned label were eaten (Â¼-step). */
   setLabelServings: (n: number) => void;
   /** Log the scanned label (scaled by servings) into the selected meal slot. */
   addScannedLabel: () => void;
@@ -280,11 +280,11 @@ export interface Actions {
   hydrateRecord: () => Promise<void>;
   /** Read the athlete's guardian-consent status back from the backend after sign-in, so a
    *  server-VERIFIED guardian actually unblocks the minor (the client only ever wrote
-   *  'pending'). Server value only — never client-writable to 'verified'. Gated; soft-fails. */
+   *  'pending'). Server value only â€” never client-writable to 'verified'. Gated; soft-fails. */
   hydrateGuardianConsent: () => Promise<void>;
   /** Foreground day-boundary: the rollover used to run ONLY in the persist merge
    *  (cold restart), so an app backgrounded overnight reopened onto yesterday's
-   *  completed day — no fresh morning game plan, and a post-midnight action synced
+   *  completed day â€” no fresh morning game plan, and a post-midnight action synced
    *  yesterday's day under today's date. Archives yesterday + resets the day slice
    *  exactly like the merge; same-day call is a no-op. Wired to AppState in Root. */
   rollDayForeground: () => void;
@@ -358,7 +358,7 @@ export interface Actions {
   // daily plan-commitment (yes/partial/no one-tap)
   setDailyCommitment: (answer: AppState['dailyCommitment']) => void;
 
-  // Trust Pass (earned camera-free reward) — coach-granted at go-live; pilot grant is client-side
+  // Trust Pass (earned camera-free reward) â€” coach-granted at go-live; pilot grant is client-side
   grantTrustPass: (lengthDays: number) => void;
   endTrustPass: () => void;
 
@@ -430,7 +430,7 @@ function scheduleDaySync(get: () => Store): void {
   syncTimer = setTimeout(() => {
     const s = get();
     if (!s.userId) return;
-    // Track the push so a failure is surfaced (audit item 12) instead of silently swallowed — an
+    // Track the push so a failure is surfaced (audit item 12) instead of silently swallowed â€” an
     // athlete logging on a dead connection must not believe their coach can see the day. Only a real
     // write flips to 'synced'; a consent/backend gate (pushed:false) is intentional, not an error.
     useStore.setState({ syncState: 'syncing' });
@@ -457,7 +457,7 @@ function scheduleMealRecord(get: () => Store, key: MealKey): void {
 }
 
 // The WRITE half of the AI memory flywheel (audit item 13): when the athlete CORRECTS an AI-detected
-// plate (removes a food), infer a candidate 'dislike' and store it — a SAFETY kind, so admitCandidate
+// plate (removes a food), infer a candidate 'dislike' and store it â€” a SAFETY kind, so admitCandidate
 // routes it to 'pending_confirmation' and MemoryConfirm asks the athlete before it ever binds. Only
 // fires on a genuine correction of an existing plate; fails closed for a non-consenting/minor athlete
 // (no inferred facts leave the device) and is fully fire-and-forget (a meal always logs regardless).
@@ -499,25 +499,27 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 
 // Mirror of core computeDerived's proteinToday formula (meal macros + quick-add
 // grams). Used only to flip the visible "Hit 180g protein" task row (id 2) in
-// store actions for immediate UI feedback — core scoring remains the authority.
+// store actions for immediate UI feedback â€” core scoring remains the authority.
 const computeProteinToday = (
   meals: AppState['meals'],
   mealFoods: AppState['mealFoods'],
   quickAdded: AppState['quickAdded'],
+  athleteName: AppState['athleteName'],
 ): number => {
-  // Mirror core scoring: saved edited plates win over the slot constant, so the
-  // task row's optimistic protein matches the authoritative computeDerived value.
-  const proteinBase = loggedDayMacros({ meals, mealFoods }).protein;
+  // Mirror core scoring exactly (incl. the evidence rule: a real user's plate-less
+  // slot earns 0 macros), so the task row's optimistic protein always matches the
+  // authoritative computeDerived value.
+  const proteinBase = loggedDayMacros({ meals, mealFoods, athleteName }).protein;
   const quickGrams = QUICK_FOODS.reduce((a, f, i) => a + (quickAdded[i] ? f.g : 0), 0);
   return proteinBase + quickGrams;
 };
 
 /** Hand the device notification seam the day's active reminders. No-op today (the seam in
  *  src/lib/notify is inert until expo-notifications is installed + isNotifyAvailable flips
- *  on a device, and only fires when the master `notif` flag is on) — wired here so the
+ *  on a device, and only fires when the master `notif` flag is on) â€” wired here so the
  *  call site is complete and the founder's remaining work is the device install, not glue. */
 const syncReminders = (s: AppState): void => {
-  const proteinToday = computeProteinToday(s.meals, s.mealFoods, s.quickAdded);
+  const proteinToday = computeProteinToday(s.meals, s.mealFoods, s.quickAdded, s.athleteName);
   const snapshot = reminderSnapshotFromState({
     proteinToday,
     proteinTarget: s.proteinTarget,
@@ -710,14 +712,14 @@ export const useStore = create<Store>()(
       // A brand-new user has no meal in front of them at signup, so auto-opening the camera was a
       // dead-end first impression; instead Home's "Log breakfast" mission is the prompt they tap WHEN
       // they actually eat. Swap the SEEDED DEMO day for a genuinely empty day so the first Home is
-      // honest — nothing pre-logged, every task open, score building from the Starting Point anchor
+      // honest â€” nothing pre-logged, every task open, score building from the Starting Point anchor
       // and rising the moment they log. The seeded demo is untouched (only this path runs here).
       startFirstMealChallenge: () =>
         set((s) => ({
           ...emptyDaySlice(),
           flow: 'app',
           tab: 'home',
-          // The activation CTA is "Upload your first meal" — so it must land ON the camera,
+          // The activation CTA is "Upload your first meal" â€” so it must land ON the camera,
           // not drop the athlete on Home to hunt for it (the audit's broken-promise deep-link).
           // Mirror openMeal's capture-overlay reset so "Start now" opens straight into capture.
           mealOpen: true,
@@ -762,7 +764,7 @@ export const useStore = create<Store>()(
       goPerformance: () => set({ flow: 'app', tab: 'performance' }),
       goReminders: () => set({ flow: 'app', tab: 'reminders' }),
 
-      // ---- performance (P1) — a separate development track; never folds into
+      // ---- performance (P1) â€” a separate development track; never folds into
       // the daily Accountability Score. Persisted locally; when the backend goes
       // live (P0) this list is what a future `pushPerf` seam would sync.
       logPr: (spec) =>
@@ -789,7 +791,7 @@ export const useStore = create<Store>()(
 
       setSquadMode: (m) => set({ squadMode: m }),
       toggleNotif: () => { set((s) => ({ notif: !s.notif })); syncReminders(get()); },
-      // On launch, (re)schedule today's reminders — this also triggers the one-time permission
+      // On launch, (re)schedule today's reminders â€” this also triggers the one-time permission
       // request inside refreshReminderSchedule. No-op on web / when the master flag is off.
       initReminders: () => { syncReminders(get()); },
       initPush: async () => {
@@ -821,11 +823,11 @@ export const useStore = create<Store>()(
       // Editable daily nutrition targets. Protein feeds scoring + the id-2 task row,
       // so re-derive that visible flag here (mirrors addMeal/toggleQuick) to keep the
       // Plan row honest the instant the target moves. Calories feed the Nutrition/Profile
-      // labels + bars. Clamped to sane ranges; stepped by the UI's ± controls.
+      // labels + bars. Clamped to sane ranges; stepped by the UI's Â± controls.
       adjustProteinTarget: (d) =>
         set((s) => {
           const proteinTarget = clamp(s.proteinTarget + d, 80, 320);
-          const protein = computeProteinToday(s.meals, s.mealFoods, s.quickAdded);
+          const protein = computeProteinToday(s.meals, s.mealFoods, s.quickAdded, s.athleteName);
           const tasks = s.tasks.map((x) => (x.id === 2 ? { ...x, done: protein >= proteinTarget } : x));
           return { proteinTarget, tasks };
         }),
@@ -917,18 +919,18 @@ export const useStore = create<Store>()(
               return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64, slotTarget: slotTargetFor(st), avoid });
             })
             .then((res) => {
-              // The analyze call returns a finished result, 1-3 clarifying questions, or — when a
-              // configured model couldn't answer — an honest 'unavailable' signal (never a fake plate).
+              // The analyze call returns a finished result, 1-3 clarifying questions, or â€” when a
+              // configured model couldn't answer â€” an honest 'unavailable' signal (never a fake plate).
               if (res.kind === 'questions') set({ mealQuestions: res.questions, mealStage: 'questions' });
               else if (res.kind === 'unavailable') set({ mealError: res.reason, mealStage: 'unavailable' });
               else set({ mealAnalysis: res.result, mealStage: 'result' });
             })
             // A failure anywhere in the chain must NEVER strand the user on the "analyzing" spinner.
-            // Route to the honest 'unavailable' stage (retry / enter manually) — we do not fabricate.
+            // Route to the honest 'unavailable' stage (retry / enter manually) â€” we do not fabricate.
             .catch(() => set({ mealError: 'error', mealStage: 'unavailable' }));
         } else if (get().athleteName.trim()) {
           // A REAL user whose photo can't be analyzed (consent gate blocked it, or this
-          // build has no AI endpoint) gets the honest blocked state — never the showcase's
+          // build has no AI endpoint) gets the honest blocked state â€” never the showcase's
           // fabricated "Detecting foods" scan of a photo that was never taken.
           set({ mealError: isAiConfigured ? 'consent' : 'not_configured', mealStage: 'unavailable' });
         } else {
@@ -943,7 +945,7 @@ export const useStore = create<Store>()(
         // Second call: same photo + note, now WITH the athlete's answers, forced to report (the
         // finalize phase can't ask again). Consent + photo egress already cleared on the analyze
         // call, and finalize does not claim another daily slot. Never strands the spinner.
-        // The avoid list rides along again — finalize is the pass most likely to ADD foods
+        // The avoid list rides along again â€” finalize is the pass most likely to ADD foods
         // (the answers describe hidden items), so it must carry the same allergy constraint
         // the analyze pass had. Fail-safe empty, same as capture().
         fetchMemoryFacts('active')
@@ -968,7 +970,7 @@ export const useStore = create<Store>()(
           .catch(() => set({ mealError: 'error', mealQuestions: [], mealStage: 'unavailable' }));
       },
       pickUsual: (u) => {
-        // Reuse the athlete's own confirmed macros — no photo, no model call, no daily slot.
+        // Reuse the athlete's own confirmed macros â€” no photo, no model call, no daily slot.
         set({ mealAnalysis: usualToResult(u), mealQuestions: [], mealPhoto: null, mealStage: 'result' });
       },
       setMealCaptureMode: (mode) => set({ mealCaptureMode: mode, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], mealError: null, labelFacts: null }),
@@ -978,7 +980,7 @@ export const useStore = create<Store>()(
         if (mealTimer) clearTimeout(mealTimer);
         // Same fail-closed photo-egress gate as capture()/pushDay: a label photo is real
         // data leaving the device to Anthropic, so an un-consented athlete, unverified minor,
-        // or paused athlete NEVER egresses — they get the deterministic sample on-device.
+        // or paused athlete NEVER egresses â€” they get the deterministic sample on-device.
         // Keyed on isAiConfigured (the egress switch), not isBackendLive.
         const photoConsent = realDataConsent(consentContextFromState(get(), isAiConfigured));
         if (isAiConfigured && photoConsent.ok) {
@@ -990,7 +992,7 @@ export const useStore = create<Store>()(
             })
             .then((facts) => set({ labelFacts: facts, labelServings: 1, mealStage: 'result' }))
             // A configured scan that fails must NOT present the deterministic sample as a real
-            // reading ("exact, off the label") — that fabricates the athlete's actual photo. Show
+            // reading ("exact, off the label") â€” that fabricates the athlete's actual photo. Show
             // the honest 'unavailable' stage (retry) instead; never strand the spinner.
             .catch((e) => set({ mealError: e instanceof AiUnavailableError ? e.reason : 'error', mealStage: 'unavailable' }));
         } else if (get().athleteName.trim()) {
@@ -1013,7 +1015,7 @@ export const useStore = create<Store>()(
       },
       addSearchedFood: (food) => {
         // Append the picked food (EXACT USDA macros) to the selected slot, alongside anything
-        // already logged there — same saveMeal path as a label scan or a snack, so it persists,
+        // already logged there â€” same saveMeal path as a label scan or a snack, so it persists,
         // scores, and counts toward the coach's logging-completeness read.
         const { mealType, mealFoods } = get();
         const key = (mealType || 'Dinner').toLowerCase() as MealKey;
@@ -1027,16 +1029,16 @@ export const useStore = create<Store>()(
           // When a REAL AI analysis is present (mealAnalysis is non-null only on a live AI
           // result; the deterministic path leaves it null), log its grounded macros as the
           // slot's foods so the SCORE reflects the actual meal, not the generic slot constant
-          // — the same path the label scan and an edited plate use. No AI result -> unchanged.
+          // â€” the same path the label scan and an edited plate use. No AI result -> unchanged.
           const mealFoods = s.mealAnalysis ? { ...s.mealFoods, [key]: [mealResultToFood(s.mealAnalysis)] } : s.mealFoods;
-          const protein = computeProteinToday(meals, mealFoods, s.quickAdded);
+          const protein = computeProteinToday(meals, mealFoods, s.quickAdded, s.athleteName);
           const tasks = s.tasks.map((x) => {
             if (x.id === 2) return { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) };
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
             return x;
           });
           // On-time stamping is the Accountability Engine's punctuality signal (Feature 8),
-          // and it feeds the Development Score — so it's gated by the engines master switch.
+          // and it feeds the Development Score â€” so it's gated by the engines master switch.
           // With engines OFF (the first-beta config) we record NO timestamp: every meal counts
           // on-time and the score stays byte-for-byte untouched, per the ratified keystone
           // ("engines off -> score untouched"). Engines ON: stamp -> late logging lowers it.
@@ -1046,7 +1048,7 @@ export const useStore = create<Store>()(
           const mealNotes = s.mealAnalysis?.note?.trim() ? { ...s.mealNotes, [key]: s.mealAnalysis.note.trim() } : s.mealNotes;
           return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], meals, mealFoods, mealLoggedAt, mealNotes, tasks };
         });
-        // Persist the meal (macros + photo) BEFORE clearing the captured photo —
+        // Persist the meal (macros + photo) BEFORE clearing the captured photo â€”
         // recordMeal reads the photo off current state. No-op unless backend live.
         const key = (get().mealType || 'Dinner').toLowerCase() as MealKey;
         scheduleMealRecord(get, key);
@@ -1064,7 +1066,7 @@ export const useStore = create<Store>()(
       addSnack: (preset) => {
         // Log the snack/shake as a real EditableFood in the day's snack slot (append, don't
         // replace), so it persists to the meals table, scores, and counts toward the coach's
-        // logging-completeness read — unlike the ephemeral quick-add toggles.
+        // logging-completeness read â€” unlike the ephemeral quick-add toggles.
         const s = get();
         s.saveMeal('snack', appendSnack(s.mealFoods.snack, snackToFood(preset)));
       },
@@ -1075,7 +1077,7 @@ export const useStore = create<Store>()(
         // Pull the athlete's own stored meals when the backend is live; otherwise the
         // overlay falls back to today's locally-logged meals (mealHistory stays null).
         // Reading own data needs only the flag gate (consent gates collecting, not
-        // resuming) — mirrors hydrateDay.
+        // resuming) â€” mirrors hydrateDay.
         if (!isBackendLive) return;
         const s = get();
         if (!s.userId) return;
@@ -1089,7 +1091,7 @@ export const useStore = create<Store>()(
         set({ nutritionMemoryOpen: true });
         // Pull the athlete's own stored meals so memory runs on REAL per-slot history when
         // live; offline it falls back to the sample seed (the view flags it). Same own-data
-        // read as openMealHistory — only the flag gate applies.
+        // read as openMealHistory â€” only the flag gate applies.
         if (!isBackendLive) return;
         const s = get();
         if (!s.userId) return;
@@ -1131,7 +1133,7 @@ export const useStore = create<Store>()(
             // Route a returning user to THEIR app: signinDone drops everyone on the
             // athlete Home, so a coach on a fresh device landed on an athlete demo
             // day with no path to their roster. Only corrects the post-sign-in 'app'
-            // flow — an in-progress onboarding is never yanked mid-flow.
+            // flow â€” an in-progress onboarding is never yanked mid-flow.
             // The DB's UserRole is a superset of the app's Role union; an unknown
             // value maps to flow 'app' via ROLE_DEFS and reroutes nothing.
             const serverRole = (p.primary_role ?? null) as Role | null;
@@ -1231,13 +1233,13 @@ export const useStore = create<Store>()(
           // Saving a meal's edited plate logs the slot AND records its real foods.
           const meals = { ...s.meals, [key]: true };
           const mealFoods = { ...s.mealFoods, [key]: foods };
-          const protein = computeProteinToday(meals, mealFoods, s.quickAdded);
+          const protein = computeProteinToday(meals, mealFoods, s.quickAdded, s.athleteName);
           const tasks = s.tasks.map((x) => {
             if (x.id === 2) return { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) };
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
             return x;
           });
-          // Punctuality stamp gated by the engines switch — see addMeal above (keystone:
+          // Punctuality stamp gated by the engines switch â€” see addMeal above (keystone:
           // engines off -> Development Score untouched).
           const mealLoggedAt = isEnginesEnabled ? { ...s.mealLoggedAt, [key]: nowMinutes() } : s.mealLoggedAt;
           return { meals, mealFoods, mealLoggedAt, tasks, mealDetailOpen: false };
@@ -1254,7 +1256,7 @@ export const useStore = create<Store>()(
         set((s) => {
           const q = [...s.quickAdded];
           q[i] = !q[i];
-          const protein = computeProteinToday(s.meals, s.mealFoods, q);
+          const protein = computeProteinToday(s.meals, s.mealFoods, q, s.athleteName);
           const tasks = s.tasks.map((x) => (x.id === 2 ? { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) } : x));
           return { quickAdded: q, tasks };
         });
@@ -1306,7 +1308,7 @@ export const useStore = create<Store>()(
 
       // ---- overseer action ----
       // The only overseer action this phase (product spec): a lightweight nudge
-      // to an at-risk athlete. Deterministic + offline — it records the athlete as
+      // to an at-risk athlete. Deterministic + offline â€” it records the athlete as
       // nudged today (idempotent), which flips the dashboard button to "Nudged",
       // and logs the athlete's compliance/score at send-time (the baseline the
       // "did anything move since the nudge" read compares against, core/nudge.ts).
@@ -1326,7 +1328,7 @@ export const useStore = create<Store>()(
         // When live + we know the athlete's id, deliver the nudge for real: the send-push
         // edge function records an in-app notification and pushes to their device(s).
         if (isBackendLive && athleteId) {
-          const body = note?.trim() || 'Your coach nudged you — jump back in and log your next win.';
+          const body = note?.trim() || 'Your coach nudged you â€” jump back in and log your next win.';
           void db.nudgePush(athleteId, 'Your coach sent a nudge', body).catch(() => undefined);
         }
       },
@@ -1352,7 +1354,7 @@ export const useStore = create<Store>()(
       },
 
       // Local pilot ONLY (flag-on, backend off). Live, the pass is server-authoritative:
-      // granted via the coach RPC, synced down by hydrateDay — an athlete's device can
+      // granted via the coach RPC, synced down by hydrateDay â€” an athlete's device can
       // neither self-grant a camera-free pass nor locally "end" one the server still
       // holds (it would just resync). The Profile card hides its self-serve button live.
       grantTrustPass: (lengthDays) => {
@@ -1398,7 +1400,7 @@ export const useStore = create<Store>()(
         }
         // Keep the email for the account/verify panels (password is never stored). Record whether
         // the project actually requires confirmation, so the "check your email" panel is honest
-        // (and silent when confirm is OFF — no false "we sent a link" claim).
+        // (and silent when confirm is OFF â€” no false "we sent a link" claim).
         set({ userId: res.userId, athleteEmail: email.trim(), emailConfirmPending: res.needsConfirmation ?? false, authError: null });
         return true;
       },
@@ -1456,7 +1458,7 @@ export const useStore = create<Store>()(
           if (slice) set(slice);
           // No server day to resume (dateStamp only arrives with a real day row) and
           // nobody has onboarded locally: the pre-sign-in state is the unowned seeded
-          // showcase, which must never become an account's real day — it would sync
+          // showcase, which must never become an account's real day â€” it would sync
           // 3 fabricated meals to the coach. Start this account honestly empty.
           if (slice?.dateStamp == null && !get().athleteName.trim()) set({ ...freshRealDay(), dateStamp: todayStamp() });
         } catch {
@@ -1560,7 +1562,7 @@ export const useStore = create<Store>()(
       // Versioned persistence (audit item 17): establishes the migrate hook so a future change to a
       // PERSISTED field's shape has ONE clean upgrade path instead of scattered read-site guards.
       // zustand shallow-merges the persisted slice over createInitialState(), so any newly-persisted
-      // key missing from an older blob already falls back to its default — the passthrough is safe.
+      // key missing from an older blob already falls back to its default â€” the passthrough is safe.
       // v0 = the pre-versioning blob (same persisted shape as v1). When a persisted field's shape
       // changes incompatibly, bump this and branch on `from` here.
       version: 1,
@@ -1598,7 +1600,7 @@ export const useStore = create<Store>()(
         inviteWho: s.inviteWho,
         parentFocus: s.parentFocus,
         coachTrack: s.coachTrack,
-        // onboarding (redesign) — cross-day identity + baseline
+        // onboarding (redesign) â€” cross-day identity + baseline
         primaryGoal: s.primaryGoal,
         trainingFreq: s.trainingFreq,
         supportTeam: s.supportTeam,
@@ -1657,7 +1659,7 @@ export const useStore = create<Store>()(
         ciMotivation: s.ciMotivation,
         ciConfig: s.ciConfig,
         // Cross-day weekly check-in snapshot (NOT a DAY_DEFAULT_KEY): the weekly
-        // credit must survive the nightly rollover — that's its whole job.
+        // credit must survive the nightly rollover â€” that's its whole job.
         ciLast: s.ciLast,
         visibility: s.visibility,
         notif: s.notif,

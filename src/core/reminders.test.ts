@@ -161,16 +161,21 @@ describe('formatReminderHour', () => {
 });
 
 describe('reminderNotifySpecs', () => {
-  it('produces one spec per active reminder with its hour + copy', () => {
+  it('produces one spec per enabled reminder; behind conditions carry specific copy', () => {
     const specs = reminderNotifySpecs(defaultReminderSettings(), behind);
-    expect(specs.map((s) => s.kind)).toEqual(['protein', 'hydration', 'log_dinner', 'checkin']);
+    // weigh_in rides along with generic copy (its condition isn't set in this snapshot,
+    // but daily triggers repeat on fresh days — see the day-1-silence contract).
+    expect(specs.map((s) => s.kind)).toEqual(['protein', 'hydration', 'log_dinner', 'checkin', 'weigh_in']);
     const protein = specs.find((s) => s.kind === 'protein')!;
     expect(protein.hour).toBe(16); // the default protein hour
     expect(protein.title).toBe('Protein check');
     expect(protein.body).toContain('140g');
   });
-  it('is empty when no condition holds', () => {
-    expect(reminderNotifySpecs(defaultReminderSettings(), onTrack)).toEqual([]);
+  it('a fully on-track day still schedules the generic daily floor (day-1 silence fix)', () => {
+    const specs = reminderNotifySpecs(defaultReminderSettings(), onTrack);
+    expect(specs.length).toBeGreaterThan(0);
+    expect(specs.some((s) => s.kind === 'checkin')).toBe(false); // weekly ritual done = done
+    for (const s of specs) expect(s.body).not.toMatch(/\d+g from/); // no stale behind-numbers
   });
   it('carries the user-set hour, clamped', () => {
     const settings: ReminderSettings = { ...defaultReminderSettings(), protein: { enabled: true, hour: 99 } };
@@ -210,9 +215,27 @@ describe('reminderSnapshotFromState', () => {
     expect(snap.checkinDue).toBe(false);
   });
 
-  it('feeds straight into reminderNotifySpecs (an at-target athlete with all done -> no specs)', () => {
+  it('an at-target athlete still gets tomorrow\'s floor: generic dailies, never total silence', () => {
+    // The old contract scheduled NOTHING for a user who finished day 0 on-track —
+    // total notification silence on day 1, for exactly the user retention needs to
+    // pull back. Daily triggers repeat on FRESH days (where the conditions hold
+    // again by definition), so they schedule with generic forward-looking copy.
     const snap = reminderSnapshotFromState({ proteinToday: 180, proteinTarget: 180, hydrationL: HYDRATION_TARGET, meals: { dinner: true }, ciSubmitted: true, weighedToday: true });
-    expect(reminderNotifySpecs(defaultReminderSettings(), snap)).toEqual([]);
+    const specs = reminderNotifySpecs(defaultReminderSettings(), snap);
+    expect(specs.map((s) => s.kind).sort()).toEqual(['hydration', 'log_dinner', 'protein', 'weigh_in']);
+    // Generic copy carries no stale "behind" numbers.
+    const protein = specs.find((s) => s.kind === 'protein');
+    expect(protein?.body).not.toMatch(/\d+g from/);
+  });
+
+  it('a check-in done this week schedules NO check-in reminder (weekly ritual, not a daily nag)', () => {
+    const snap = reminderSnapshotFromState({
+      proteinToday: 0, proteinTarget: 180, hydrationL: 0, meals: { dinner: false }, weighedToday: false,
+      ciSubmitted: false, ciLast: { date: '2026-07-01', recovery: 70 }, dateStamp: '2026-07-03',
+    });
+    const specs = reminderNotifySpecs(defaultReminderSettings(), snap);
+    expect(specs.some((s) => s.kind === 'checkin')).toBe(false);
+    expect(specs.some((s) => s.kind === 'protein')).toBe(true); // behind conditions still fire specific copy
   });
 
   it('checkinDue honors the WEEKLY carry: a fresh submission this week is not due', () => {

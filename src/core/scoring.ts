@@ -12,6 +12,7 @@ import {
   WEIGHT_TARGET,
 } from './constants';
 import { withinTrailingWeek } from './clock';
+import { derivedMacroTargets } from './fuelTarget';
 import { trendSeries } from './history';
 import { mealMacros, type MacroSet } from './mealEdit';
 import { DEFAULT_PLAN } from './coachPlan';
@@ -45,21 +46,28 @@ export function effectiveMealsLogged(s: Pick<AppState, 'meals' | 'mealLoggedAt'>
 }
 
 /**
- * The macros a single logged meal slot contributes. When the athlete has SAVED an
- * edited plate for the slot (`mealFoods[k]`), the totals come from those real
- * per-food macros; otherwise we fall back to the per-slot `MEAL_MACROS` constant.
- * This is what makes the loop real — a logged-and-edited meal moves the score,
- * while the seeded demo (no `mealFoods`) stays byte-for-byte unchanged.
+ * The macros a single logged meal slot contributes. When the athlete has SAVED a
+ * plate for the slot (`mealFoods[k]` — every real logging path creates one: photo
+ * analysis, label scan, search, snack preset, usuals, plate edit), the totals come
+ * from those real per-food macros.
+ *
+ * Without a plate, the EVIDENCE RULE applies (founder ruling 2026-07-03): a real
+ * user's bare toggle carries no evidence, so it contributes ZERO macros — it still
+ * counts toward "meals logged" (the 35-point share), but four taps can no longer
+ * manufacture 194g of "protein" and a nutrition score of 100. Only the seeded
+ * showcase (blank athleteName, whose whole day is illustrative) keeps the per-slot
+ * `MEAL_MACROS` constants.
  */
-export function mealSlotMacros(s: Pick<AppState, 'mealFoods'>, k: MealKey): MacroSet {
+export function mealSlotMacros(s: Pick<AppState, 'mealFoods' | 'athleteName'>, k: MealKey): MacroSet {
   const saved = s.mealFoods?.[k];
   if (saved) return mealMacros(saved);
+  if ((s.athleteName ?? '').trim() !== '') return { protein: 0, kcal: 0, carbs: 0, fat: 0 };
   const m = MEAL_MACROS[k];
   return { protein: m.p, kcal: m.k, carbs: m.c, fat: m.f };
 }
 
 /** Sum the macros across every LOGGED slot, using saved edited plates when present. */
-export function loggedDayMacros(s: Pick<AppState, 'meals' | 'mealFoods'>): MacroSet {
+export function loggedDayMacros(s: Pick<AppState, 'meals' | 'mealFoods' | 'athleteName'>): MacroSet {
   return (Object.keys(s.meals) as MealKey[]).reduce<MacroSet>(
     (a, k) => {
       if (!s.meals[k]) return a;
@@ -193,8 +201,14 @@ export function computeDerived(s: AppState): Derived {
   const kcalToday = kcalBase + quickKcal;
   const carbsToday = carbsBase + quickCarbs;
   const fatToday = fatBase + quickFat;
-  const carbPct = clamp(Math.round((carbsToday / CARB_TARGET) * 100), 0, 100);
-  const fatPct = clamp(Math.round((fatToday / FAT_TARGET) * 100), 0, 100);
+  // Carb/fat targets derive from the PLAN (calories + protein + goal direction) for a
+  // real user, so the macro rings can never contradict the plan on the same screen —
+  // the fixed constants (300g carbs against a 1,500-cal cut) are showcase-only.
+  const planMacros = (s.athleteName ?? '').trim() !== ''
+    ? derivedMacroTargets(calTarget, proteinTarget, s.baseGoal === 'lose' ? 'lose' : s.baseGoal === 'gain' ? 'gain' : 'maintain')
+    : { carbs: CARB_TARGET, fat: FAT_TARGET };
+  const carbPct = clamp(Math.round((carbsToday / Math.max(1, planMacros.carbs)) * 100), 0, 100);
+  const fatPct = clamp(Math.round((fatToday / Math.max(1, planMacros.fat)) * 100), 0, 100);
   const proteinGap = Math.max(0, proteinTarget - proteinToday);
   const proteinPct = Math.min(100, Math.round((proteinToday / proteinTarget) * 100));
   const hydrationPct = clamp(Math.round((s.hydrationL / HYDRATION_TARGET) * 100), 0, 100);
@@ -386,10 +400,10 @@ export function computeDerived(s: AppState): Derived {
     kcalToday,
     calTarget,
     carbsToday,
-    carbTarget: CARB_TARGET,
+    carbTarget: planMacros.carbs,
     carbPct,
     fatToday,
-    fatTarget: FAT_TARGET,
+    fatTarget: planMacros.fat,
     fatPct,
     mealsLoggedCount,
     hydrationPct,

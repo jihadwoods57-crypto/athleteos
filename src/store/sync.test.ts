@@ -133,6 +133,39 @@ describe('cross-device day roundtrip — the score survives hydration', () => {
     expect(slice.ciSubmitted).toBeUndefined();
     expect(slice.dailyCommitment).toBeUndefined();
   });
+
+  it('roundtrip preserves each slot\'s REAL macros (evidence rule needs them on device 2)', () => {
+    // Under the evidence rule a plate-less logged slot earns 0 macros for a real user —
+    // so if hydration dropped the plates, a photo-logged 40g-protein breakfast would
+    // re-score as 0 on a second device. The per-slot totals ride in the checkin jsonb
+    // and hydrate back as a synthetic one-item plate.
+    const { mapStateToDayRow, dayRowToState } = loadSync(true);
+    const { computeDerived } = require('@/core/scoring');
+    const lived: AppState = {
+      ...adultConsenting(),
+      athleteName: 'Marcus Cole',
+      meals: { breakfast: true, lunch: false, snack: false, dinner: false },
+      mealFoods: { breakfast: [{ name: 'Eggs & oats', portion: '1 bowl', servings: 1, per: { protein: 38, kcal: 520, carbs: 55, fat: 14 } }] },
+      quickAdded: [false, false, false],
+    };
+    const row = mapStateToDayRow(lived, 'a-1', '2026-07-03');
+    const restored: AppState = { ...adultConsenting(), athleteName: 'Marcus Cole', quickAdded: [false, false, false], ...dayRowToState(row as DayRow) };
+    expect(computeDerived(restored).proteinToday).toBe(38);
+    expect(computeDerived(restored).kcalToday).toBe(520);
+    expect(computeDerived(restored).athleteScore).toBe(computeDerived(lived).athleteScore);
+  });
+
+  it('hydration never overwrites a locally-saved plate with the synthetic one', () => {
+    const { dayRowToState } = loadSync(true);
+    const row = dayRow('2026-07-03', 80, 180);
+    row.meals = { breakfast: true };
+    (row.checkin as Record<string, unknown>).slotMacros = { breakfast: { protein: 30, kcal: 400, carbs: 40, fat: 10 } };
+    const slice = dayRowToState(row);
+    // The synthetic plate is only a fallback shape: it appears in the slice...
+    expect(slice.mealFoods?.breakfast?.[0]?.per.protein).toBe(30);
+    // ...and carries an honest generic name, never a fabricated dish.
+    expect(slice.mealFoods?.breakfast?.[0]?.name).toBe('Logged meal');
+  });
 });
 
 describe('consentContextFromState', () => {

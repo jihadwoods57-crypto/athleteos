@@ -48,6 +48,54 @@ describe('computeDerived — default state', () => {
     expect(d.athleteScore).toBe(expected);
   });
 
+  it('evidence rule: a REAL user\'s plate-less logged slot earns meal-count credit, never constant macros', () => {
+    // Founder ruling 2026-07-03: photo/label/search logs carry real plates (mealFoods);
+    // a bare toggle has NO evidence, so it counts toward "meals logged" (the 35-point
+    // lever) but contributes ZERO protein/kcal — four taps can no longer manufacture
+    // 194g of "protein" and a nutrition score of 100.
+    const real = computeDerived({
+      ...createInitialState(),
+      athleteName: 'Marcus Cole',
+      meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+      mealFoods: {},
+      quickAdded: [false, false, false],
+    });
+    expect(real.proteinToday).toBe(0);
+    expect(real.kcalToday).toBe(0);
+    expect(real.mealsLoggedCount).toBe(4); // the honest meal-count credit stands
+    expect(real.nutritionScore).toBeLessThanOrEqual(35); // meals share only — never "on standard" from taps
+  });
+
+  it('evidence rule: a real plate still earns its real macros for a real user', () => {
+    const real = computeDerived({
+      ...createInitialState(),
+      athleteName: 'Marcus Cole',
+      meals: { breakfast: true, lunch: false, snack: false, dinner: false },
+      mealFoods: { breakfast: [{ name: 'Shake', portion: '1', servings: 1, per: { protein: 40, kcal: 300, carbs: 10, fat: 6 } }] },
+      quickAdded: [false, false, false],
+    });
+    expect(real.proteinToday).toBe(40);
+    expect(real.kcalToday).toBe(300);
+  });
+
+  it('evidence rule: the seeded showcase (blank name) keeps its slot constants byte-for-byte', () => {
+    const demo = computeDerived(createInitialState());
+    expect(demo.proteinToday).toBe(142); // 42 + 51 + 49 (seeded 3 slots)
+  });
+
+  it('carb/fat ring targets derive from the PLAN for a real user, never contradicting constants', () => {
+    // A lose-fat client on a 1,500-cal plan saw rings targeting 300g carbs (~1,200 kcal
+    // of carbs alone) two cards under that plan. Real users: fat = 30% of calories on a
+    // cut (25% otherwise), carbs = the remainder after protein + fat. Demo keeps the
+    // showcase constants.
+    const d = computeDerived({ ...createInitialState(), athleteName: 'Marcus Cole', calTarget: 1500, proteinTarget: 140, baseGoal: 'lose' });
+    expect(d.fatTarget).toBe(50); // round(1500*0.30/9)
+    expect(d.carbTarget).toBe(123); // round((1500 - 140*4 - 50*9)/4)
+    const demo = computeDerived(createInitialState());
+    expect(demo.carbTarget).toBe(300);
+    expect(demo.fatTarget).toBe(80);
+  });
+
   it('weekly check-in carry: a submission earlier THIS week still backs recovery + check-in', () => {
     // The product brands the ritual "Weekly Check-In", but the credit used to vanish
     // at midnight — an honest perfect day (meals + protein + commitment) capped at 65

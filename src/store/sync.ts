@@ -16,12 +16,14 @@ import {
   daysAgoStamp,
   gradeFor,
   HISTORY_CAP,
+  mealMacros,
   realDataConsent,
   todayStamp,
   type AppState,
   type ConsentContext,
   type ConsentReason,
   type DayScore,
+  type MealKey,
   type WeightPoint,
 } from '@/core';
 import { db, isBackendLive } from '@/lib/supabase';
@@ -77,6 +79,15 @@ export function mapStateToDayRow(
       // The one-tap plan commitment rides in the same jsonb (no schema change) so a
       // second device can rebuild the full score instead of dropping the 0.15 slot.
       commitment: s.dailyCommitment,
+      // Per-slot macro totals for slots with a REAL plate. The evidence rule scores a
+      // plate-less slot at 0 macros, so without these a photo-logged day would
+      // re-score near 0 on a second device. Totals only — food names/photos stay in
+      // the meals table; hydration rebuilds a synthetic one-item plate per slot.
+      slotMacros: Object.fromEntries(
+        (Object.keys(s.meals) as MealKey[])
+          .filter((k) => s.meals[k] && (s.mealFoods?.[k]?.length ?? 0) > 0)
+          .map((k) => [k, mealMacros(s.mealFoods[k]!)]),
+      ),
     },
     score: d.athleteScore,
     grade: gradeFor(d.athleteScore).g,
@@ -116,6 +127,23 @@ export function dayRowToState(row: DayRow): Partial<AppState> {
   }
   if (ci && (ci.commitment === 'yes' || ci.commitment === 'partial' || ci.commitment === 'no')) {
     slice.dailyCommitment = ci.commitment;
+  }
+  // Rebuild each slot's REAL macro evidence as a synthetic one-item plate ("Logged
+  // meal" — an honest generic name, never a fabricated dish). Without this, the
+  // evidence rule (plate-less slot = 0 macros) would collapse a photo-logged day on a
+  // second device. Only slots the row marks logged; a legacy row restores nothing.
+  const sm = (ci?.slotMacros ?? null) as Record<string, { protein?: unknown; kcal?: unknown; carbs?: unknown; fat?: unknown }> | null;
+  if (sm && typeof sm === 'object') {
+    const nonneg = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
+    const mealFoods: AppState['mealFoods'] = {};
+    for (const k of ['breakfast', 'lunch', 'snack', 'dinner'] as MealKey[]) {
+      const m = sm[k];
+      if (!m || !(slice.meals as Record<string, boolean> | undefined)?.[k]) continue;
+      const per = { protein: nonneg(m.protein), kcal: nonneg(m.kcal), carbs: nonneg(m.carbs), fat: nonneg(m.fat) };
+      if (per.protein === 0 && per.kcal === 0) continue;
+      mealFoods[k] = [{ name: 'Logged meal', portion: '', servings: 1, per }];
+    }
+    if (Object.keys(mealFoods).length > 0) slice.mealFoods = mealFoods;
   }
   return slice;
 }
