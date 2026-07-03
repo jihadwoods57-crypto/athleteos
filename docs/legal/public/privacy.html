@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy — OnStandard</title>
+<meta name="robots" content="all" />
+<style>
+  :root { --ink:#1a2233; --muted:#5b6577; --line:#e6e9ef; --accent:#2f6bff; --todo:#fff3bf; --todoedge:#e0b400; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#f7f8fb; color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 40px 22px 80px; }
+  .brand { font-weight:800; font-size:20px; letter-spacing:-.3px; }
+  .brand b { color:var(--accent); }
+  h1 { font-size: 30px; letter-spacing:-.5px; margin: 26px 0 6px; }
+  h2 { font-size: 19px; margin: 34px 0 8px; padding-top: 8px; }
+  .meta { color:var(--muted); font-size:14px; border-bottom:1px solid var(--line); padding-bottom:20px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:22px 26px; margin-top:22px;
+    box-shadow: 0 1px 2px rgba(20,30,50,.04); }
+  p, li { color:#222c3d; }
+  ul { padding-left: 20px; }
+  li { margin: 5px 0; }
+  a { color: var(--accent); }
+  .todo { background:var(--todo); border:1px solid var(--todoedge); border-radius:5px; padding:1px 6px;
+    font-weight:600; color:#7a5a00; white-space: normal; }
+  .banner { background:#fff8e1; border:1px solid #f0d47a; border-radius:12px; padding:14px 18px; margin-top:18px;
+    font-size:14px; color:#6b5300; }
+  footer { color:var(--muted); font-size:13px; margin-top:40px; border-top:1px solid var(--line); padding-top:18px; }
+  code { background:#eef1f6; padding:1px 5px; border-radius:4px; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">On<b>Standard</b></div>
+  <h1>Privacy Policy</h1>
+  <div class="meta">
+    <strong>Effective date:</strong> <span class="todo">[SET THE DATE YOU PUBLISH THIS]</span><br />
+    <strong>Operator:</strong> <span class="todo">[LEGAL ENTITY NAME]</span>, <span class="todo">[ADDRESS]</span><br />
+    <strong>Contact:</strong> <a href="mailto:support@onstandard.app">support@onstandard.app</a>
+  </div>
+
+  <div class="banner">
+    <strong>Note for the operator:</strong> highlighted items still need your (or your attorney's) input before
+    this is final — see the checklist in <code>legal-fill-in.md</code>. Everything else is accurate to how the app
+    actually works. This is a company document; have a qualified attorney review it before you rely on it.
+  </div>
+
+  <div class="card">
+  <h2>1. Who this policy is for</h2>
+  <p>OnStandard is an athlete nutrition-accountability platform for athletes and the people who support them
+  (parents/guardians, personal trainers, sports-performance coaches, nutritionists, and high-school and college
+  coaches). The app's primary users are athletes roughly ages 13–22. <strong>Some athletes are minors.</strong>
+  We treat athlete nutrition, weight, and check-in data as sensitive and apply heightened protections to minors'
+  data (see §7 and §8).</p>
+
+  <h2>2. Two modes: on-device vs. connected</h2>
+  <ul>
+    <li><strong>On-device only.</strong> When the app's backend is not enabled, the app runs entirely on your
+    device using local storage. In this state, no personal data is sent to or collected by our servers.</li>
+    <li><strong>Connected (backend enabled).</strong> When the backend is enabled and you sign in, your data is
+    stored on our hosted infrastructure so it can sync across your devices and be shared with the people you have
+    linked, subject to the consent rules in §7.</li>
+  </ul>
+
+  <h2>3. What we collect (connected state)</h2>
+  <ul>
+    <li><strong>Account and identity:</strong> name, email, role (athlete / parent / trainer / coach /
+    nutritionist), and — for athletes — sport, position, school or program/organization name, primary goal,
+    training frequency, and the age you enter at setup.</li>
+    <li><strong>Nutrition and health data:</strong> meals you log and their estimated or transcribed macros;
+    meal photos and Nutrition Facts label photos you capture (see §4); daily accountability scores; body weight,
+    starting weight, and weight goals; hydration; weekly check-in answers; and performance records (PRs) you log.</li>
+    <li><strong>Relationships and links:</strong> the coaches, trainers, nutritionists, and guardians you link to;
+    team/join codes; and, for staff accounts, the athletes on your roster or client book.</li>
+    <li><strong>Messages</strong> you send to linked people through the app.</li>
+    <li><strong>Authentication data:</strong> your sign-in is handled by our authentication provider; we store your
+    account identifier and email. We never store your password in the app.</li>
+    <li><strong>We do NOT collect</strong> advertising identifiers, cross-app tracking data, location data, or
+    analytics from third-party advertising/tracking SDKs. The app contains no third-party analytics, advertising,
+    attribution, or crash-tracking SDKs.</li>
+  </ul>
+
+  <h2>4. Meal-photo and label analysis by a third-party AI (Anthropic / Claude)</h2>
+  <p>When AI meal analysis is configured, a photo you take of a meal or a Nutrition Facts label is sent to our AI
+  provider, <strong>Anthropic (the Claude API)</strong>, to identify foods and estimate or transcribe nutrition
+  information. This is the only path by which a photo or meal data leaves your device to a third party.</p>
+  <ul>
+    <li>The photo is sent only when (a) AI analysis is configured and (b) a consent gate passes. The gate
+    <strong>fails closed</strong>: an athlete without consent, an athlete who has paused sharing, and a minor whose
+    guardian is not verified never have a photo sent off the device.</li>
+    <li>The Anthropic API key is held only on our server; it is never in the app.</li>
+    <li>We use the AI to provide the nutrition feature. <strong>We do not use your photos for advertising.</strong></li>
+    <li>Two in-app text features may send already-computed text and numbers (no photos) to Anthropic purely to
+    reword them in a coach voice; the app re-verifies the numbers and never lets the AI change them.</li>
+  </ul>
+  <p><span class="todo">[FOUNDER/DPA TO CONFIRM: Anthropic's retention period for submitted images/data and whether
+  it is used for model training — verify against the Anthropic commercial terms / DPA in force before publishing a
+  specific claim here.]</span></p>
+
+  <h2>5. Not medical advice</h2>
+  <p>OnStandard provides nutrition education and accountability, <strong>not medical advice.</strong> AI meal
+  estimates, scores, and coaching copy are estimates and may be inaccurate. The app is not a substitute for a
+  physician or registered dietitian. If you or someone you support is struggling with eating or body image, help is
+  available: in the U.S., the <strong>National Alliance for Eating Disorders</strong> helpline at
+  <strong>1-866-662-1235</strong>, or call or text <strong>988</strong> (Suicide &amp; Crisis Lifeline).
+  <span class="todo">[Confirm / localize these resources for your operating regions.]</span></p>
+
+  <h2>6. How we use your data</h2>
+  <p>We use your data to provide the service: analyze and log meals, compute and show your accountability score and
+  trends, let the people you have linked see what you have agreed to share, generate roster/compliance views for
+  your coach or trainer, and send the reminders you enable. <strong>We do not sell your personal information, and we
+  do not share it for cross-context behavioral advertising.</strong></p>
+
+  <h2>7. Who can see your data, and your sharing controls</h2>
+  <ul>
+    <li><strong>You</strong> can always see and export your own data.</li>
+    <li><strong>People you link</strong> can see the athlete data you have consented to share — e.g. your daily
+    score, compliance, and weight trend.</li>
+    <li><strong>Consent is required and revocable.</strong> Real athlete data is only collected and shared after
+    consent is recorded. You can <strong>pause all sharing</strong> at any time from the Profile screen, which
+    immediately stops data leaving the device, and you can remove a linked viewer's access.</li>
+    <li><strong>Service providers (subprocessors):</strong> our hosting/database/storage and authentication
+    provider (<strong>Supabase</strong>), our email provider (<strong>Resend</strong>) for account emails, and
+    <strong>Anthropic</strong> for the AI analysis in §4. Each operates under contract.
+    <span class="todo">[Confirm the final provider list and attach a DPA for each.]</span></li>
+    <li><strong>Legal disclosure:</strong> we may disclose data if required by law or to protect users (especially
+    minors).</li>
+  </ul>
+
+  <h2>8. Minors and parental/guardian consent</h2>
+  <ul>
+    <li><strong>Under 13 are barred.</strong> The minimum signup age is 13. We do not knowingly collect personal
+    information from children under 13; if we learn we have, we will delete it.</li>
+    <li><strong>Ages 13–17 require verified guardian consent before any data is shared.</strong> For an athlete
+    under 18, the app keeps the athlete's real data on the device only until a parent or guardian is verifiably
+    approved. A self-tapped checkbox by the minor is not sufficient; the gate fails closed.</li>
+    <li><strong>Minor safety in messaging.</strong> A registered minor cannot be placed in an unsupervised message
+    thread with an unrelated adult; minor messaging is limited to the minor's authorized coach, trainer, or guardian.</li>
+    <li><strong>Guardian rights.</strong> A parent or guardian can review their minor's data, request its deletion,
+    and withdraw consent at any time using the in-app controls or by contacting support@onstandard.app.</li>
+  </ul>
+
+  <h2>9. Education records (FERPA)</h2>
+  <p>Where a school, team, or coach provides rosters, or where OnStandard handles data that may constitute education
+  records, we handle that data to provide the service and do not sell it or use it for unrelated purposes.
+  <span class="todo">[Attach a school data-processing addendum if OnStandard is sold to or used by schools.]</span></p>
+
+  <h2>10. Your rights: access, export, and deletion</h2>
+  <ul>
+    <li><strong>Export.</strong> You can export a structured (JSON) copy of your own data from the Account screen.</li>
+    <li><strong>Deletion.</strong> You can permanently delete your account and data from the app. Deletion removes
+    your server account and cascades to delete the data you own (days, meals, check-ins, links, threads) and your
+    meal-photo storage, and wipes your local on-device data.</li>
+    <li><strong>GDPR / CCPA-CPRA.</strong> EU/UK and California residents have additional rights (access, correction,
+    deletion, portability, and opt-out of sale/sharing). <strong>We do not sell or share personal information</strong>
+    as those terms are used by CCPA/CPRA. To exercise any right, use the in-app controls or email
+    support@onstandard.app.</li>
+  </ul>
+
+  <h2>11. Data retention</h2>
+  <p>We keep your data while your account is active. When you delete your account, we delete your personal data and
+  meal photos as described in §10, and complete deletion within <span class="todo">[N — e.g. 30]</span> days.
+  <span class="todo">[Confirm the active-account retention policy and this deletion window.]</span></p>
+
+  <h2>12. Security</h2>
+  <ul>
+    <li>The app stores your authenticated session token in the device's encrypted OS keychain, not in plain storage.</li>
+    <li>Data is transmitted over encrypted connections (HTTPS/TLS), and the database enforces row-level security so
+    that only you and the people you have linked can read your data.</li>
+    <li>The app bundle contains no secret keys. The public API key shipped in the app is a publishable key gated by
+    server-side row-level security; the Anthropic key lives only on the server.</li>
+    <li>Meal photos are sent over an encrypted connection to our server and to Anthropic for analysis, where they are
+    processed for that purpose. No system is perfectly secure.</li>
+  </ul>
+
+  <h2>13. International transfers</h2>
+  <p><span class="todo">[If data is processed outside the user's country (e.g. by our hosting provider or Anthropic),
+  describe the transfer mechanism — e.g. Standard Contractual Clauses.]</span></p>
+
+  <h2>14. Changes to this policy</h2>
+  <p>We will post changes here and update the effective date. We will provide notice of material changes; material
+  changes affecting minors will be communicated to guardians.</p>
+
+  <h2>15. Contact</h2>
+  <p>Questions or requests: <a href="mailto:support@onstandard.app">support@onstandard.app</a> —
+  <span class="todo">[LEGAL ENTITY NAME]</span>, <span class="todo">[ADDRESS]</span>.</p>
+  </div>
+
+  <footer>© <span id="y"></span> OnStandard. <a href="/terms">Terms of Service</a></footer>
+</div>
+<script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+</body>
+</html>
