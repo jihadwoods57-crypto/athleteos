@@ -7,6 +7,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 import {
   streakInfo,
   coachGuidance,
+  comebackInfo,
   medicalDisclaimer,
   nextBestAction,
   passStatus,
@@ -36,6 +37,7 @@ import {
 } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiMemoryTag } from '@/lib/ai';
+import { db, isBackendLive } from '@/lib/supabase';
 import { isStreakGraceEnabled, isTrustPassEnabled } from '@/lib/features';
 import { gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
@@ -63,6 +65,9 @@ export function Home() {
   // Used to gate showcase-only strings that have no real data source (a season
   // deadline, an unread-notification dot) so a real user never sees fabricated data.
   const isReal = s.athleteName.trim().length > 0;
+  // The comeback moment: a 3+ day lapse gets a welcome, not a shame wall. Any action
+  // today (a logged meal, the daily commitment) makes it disappear.
+  const comeback = comebackInfo(s.scoreHistory, s.dateStamp, d.mealsLoggedCount > 0 || s.dailyCommitment != null);
   // Human-coach guidance, gated so a brand-new real athlete with no coach never
   // sees the seeded demo's "Coach Davis" note (the demo showcase is unchanged).
   const guidance = coachGuidance({
@@ -186,6 +191,26 @@ export function Home() {
         </Row>
       </Row>
 
+      {/* The comeback moment (churn build): a returning athlete is welcomed, never shamed.
+          Fires only for real athletes after a 3+ day lapse, and any action today kills it.
+          The streak math stays honest elsewhere; this changes the FIRST thing they see. */}
+      {isReal && comeback.isComeback ? (
+        <Card variant="hero" style={{ borderRadius: 20, marginTop: 14 }}>
+          <Row style={{ gap: 12, alignItems: 'flex-start' }}>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="sparkle" size={20} color={c.successDeep} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="eb" size={17} ls={-0.3}>{comeback.headline}</Txt>
+              <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
+                {comeback.detail}
+              </Txt>
+            </View>
+          </Row>
+          <Btn label={comeback.cta} onPress={s.openMeal} style={{ marginTop: 12 }} />
+        </Card>
+      ) : null}
+
       {/* Honest sync state (audit item 12): when the last push to the server failed, say so — an
           athlete logging on a dead connection must not believe their coach can already see today. */}
       {s.syncState === 'error' ? (
@@ -250,6 +275,10 @@ export function Home() {
         </View>
       </Card>
       </Reveal>
+
+      {/* Close-the-loop receipt (0043): shows ONLY when a linked coach/trainer really opened
+          this athlete's day today — being seen is the retention engine, and it is never faked. */}
+      {isReal ? <SeenToday /> : null}
 
       {/* daily plan-commitment — the first daily action; carries the 0.15 score slot.
           On its own a one-tap can never reach on-standard (>=80); logging your meals is
@@ -861,5 +890,45 @@ function TrendChart({ series, flat }: { series: number[]; flat: boolean }) {
       <Path d={linePath} fill="none" stroke="#22C55E" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
       <Circle cx={last.x} cy={last.y} r={5.5} fill="#22C55E" stroke={c.card} strokeWidth={2.5} />
     </Svg>
+  );
+}
+
+/**
+ * "Seen by your coach" (0043 close-the-loop receipt). Renders a quiet line under the score
+ * hero ONLY when a linked coach/trainer/parent really opened this athlete's day today.
+ * Honest by construction: the row exists because a human looked; no rows, no line. Polls
+ * once per mount (Home re-mounts on tab focus) — receipts are ambient, not realtime.
+ */
+function SeenToday() {
+  const c = useColors();
+  const s = useStore();
+  const [names, setNames] = React.useState<string[]>([]);
+  const live = isBackendLive && !!s.userId;
+  React.useEffect(() => {
+    if (!live || !s.userId) return;
+    let cancelled = false;
+    db.fetchDayViews(s.userId, s.dateStamp)
+      .then((rows) => {
+        if (cancelled) return;
+        const seen = rows.map((r) => (r.viewer_name ?? '').trim()).filter(Boolean);
+        setNames([...new Set(seen)]);
+      })
+      .catch(() => { /* receipts are ambient; a failed read shows nothing */ });
+    return () => { cancelled = true; };
+  }, [live, s.userId, s.dateStamp]);
+
+  if (names.length === 0) return null;
+  const who = names.length === 1 ? names[0] : `${names[0]} and ${names.length - 1} more`;
+  return (
+    <Row
+      accessibilityRole="text"
+      accessibilityLabel={`${who} saw your day today`}
+      style={{ gap: 7, alignItems: 'center', justifyContent: 'center', marginTop: 10 }}
+    >
+      <Icon name="eye" size={13} color={c.textTertiary} />
+      <Txt w="sb" size={12} color={c.textTertiary}>
+        {who} saw your day today
+      </Txt>
+    </Row>
   );
 }

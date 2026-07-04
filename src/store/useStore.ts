@@ -37,6 +37,7 @@ import {
   startingScore,
   WEIGHT_TARGET,
   DAY_DEFAULT_KEYS,
+  COMPLIANCE_THRESHOLD,
   computeDerived,
   freshRealDay,
   rollDayIfStale,
@@ -519,6 +520,15 @@ const computeProteinToday = (
  *  call site is complete and the founder's remaining work is the device install, not glue. */
 const syncReminders = (s: AppState): void => {
   const proteinToday = computeProteinToday(s.meals, s.mealFoods, s.quickAdded, s.athleteName);
+  // The pulls that make a reminder a REASON instead of a chore (churn build): the live
+  // score gap to on-standard ("6 points from locking today") and the linked overseer's
+  // presence ("Your coach sees tonight's log"). No name is fabricated: AppState carries
+  // linked ROLES (supportTeam), so the copy uses the honest role word.
+  const coachName = s.supportTeam.includes('coach')
+    ? 'Your coach'
+    : s.supportTeam.includes('trainer')
+      ? 'Your trainer'
+      : null;
   const snapshot = reminderSnapshotFromState({
     proteinToday,
     proteinTarget: s.proteinTarget,
@@ -528,6 +538,9 @@ const syncReminders = (s: AppState): void => {
     ciLast: s.ciLast,
     dateStamp: s.dateStamp,
     weighedToday: s.weighInStamp === todayStamp(),
+    coachName,
+    liveScore: computeDerived(s).athleteScore,
+    threshold: COMPLIANCE_THRESHOLD,
   });
   void refreshReminderSchedule(reminderNotifySpecs(s.reminderSettings, snapshot), s.notif);
 };

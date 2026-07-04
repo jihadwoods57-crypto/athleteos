@@ -104,6 +104,12 @@ export interface ReminderSnapshot {
   /** No weight logged yet today (drives the weigh-in nudge). Optional so existing snapshot
    *  literals stay valid; treated as "not due" when absent. */
   weighInDue?: boolean;
+  /** The athlete's linked coach/trainer first name, when one exists. Presence is the pull:
+   *  "Coach Mark sees tonight's log" beats a generic chore. Optional; absent = no coach line. */
+  coachName?: string | null;
+  /** Points between the live score and on-standard (threshold - score), when today is close
+   *  (0 < gap <= 25). The near-goal pull: "you're 6 points from locking today". Optional. */
+  pointsToStandard?: number | null;
 }
 
 /**
@@ -144,7 +150,23 @@ export function activeReminders(settings: ReminderSettings, snapshot: ReminderSn
   });
 }
 
-/** Athlete-first copy for a reminder. Factual, no guilt, no em dash. */
+/** The near-goal pull, when today is genuinely close: a real gap, small enough to close
+ *  tonight. Returns '' otherwise so callers can append unconditionally. */
+function scorePull(s: ReminderSnapshot): string {
+  const gap = s.pointsToStandard;
+  if (typeof gap !== 'number' || !Number.isFinite(gap) || gap <= 0 || gap > 25) return '';
+  return ` You're ${Math.round(gap)} ${Math.round(gap) === 1 ? 'point' : 'points'} from on standard today.`;
+}
+
+/** The coach-presence line, when a real coach is linked. '' otherwise. */
+function coachPull(s: ReminderSnapshot, verb: string): string {
+  const name = (s.coachName ?? '').trim();
+  return name ? ` ${name} ${verb}.` : '';
+}
+
+/** Athlete-first copy for a reminder. Factual, no guilt, no em dash. A reminder is a
+ *  specific reason to open the app today (a real gap, a real coach watching), never a
+ *  generic chore ("log your meal"). */
 export function reminderCopy(kind: ReminderKind, s: ReminderSnapshot): { title: string; body: string } {
   switch (kind) {
     case 'protein': {
@@ -164,12 +186,12 @@ export function reminderCopy(kind: ReminderKind, s: ReminderSnapshot): { title: 
     case 'log_dinner':
       return {
         title: 'Log dinner',
-        body: 'Add tonight\'s dinner to keep your day complete.',
+        body: `Add tonight's dinner to keep your day complete.${scorePull(s)}${coachPull(s, 'sees tonight\'s log')}`,
       };
     case 'checkin':
       return {
         title: 'Weekly check-in',
-        body: 'Your check-in is ready. Your coach will see your update.',
+        body: `Your check-in is ready.${(s.coachName ?? '').trim() ? ` ${(s.coachName ?? '').trim()} will see your update.` : ' Your coach will see your update.'}`,
       };
     case 'weigh_in':
       return {
@@ -260,9 +282,18 @@ export function reminderSnapshotFromState(s: {
    *  trailing week means the WEEKLY ritual is done — no daily nag labeled weekly. */
   ciLast?: { date: string; recovery: number } | null;
   dateStamp?: string;
+  /** The linked coach/trainer's name (presence pull) — optional, real links only. */
+  coachName?: string | null;
+  /** Today's live score + the on-standard threshold, for the near-goal pull. Optional. */
+  liveScore?: number;
+  threshold?: number;
 }): ReminderSnapshot {
   const doneThisWeek =
     s.ciSubmitted || (s.ciLast != null && s.dateStamp != null && withinTrailingWeek(s.ciLast.date, s.dateStamp));
+  const gap =
+    typeof s.liveScore === 'number' && typeof s.threshold === 'number' && Number.isFinite(s.liveScore)
+      ? s.threshold - s.liveScore
+      : null;
   return {
     proteinToday: s.proteinToday,
     proteinTarget: s.proteinTarget,
@@ -271,5 +302,7 @@ export function reminderSnapshotFromState(s: {
     dinnerLogged: s.meals.dinner,
     checkinDue: !doneThisWeek,
     weighInDue: !s.weighedToday,
+    coachName: s.coachName ?? null,
+    pointsToStandard: gap,
   };
 }

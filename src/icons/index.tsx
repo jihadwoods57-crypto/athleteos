@@ -31,7 +31,8 @@ export type IconName =
   | 'barcode'
   | 'search'
   | 'sparkle'
-  | 'mic';
+  | 'mic'
+  | 'eye';
 
 export function Icon({
   name,
@@ -175,6 +176,13 @@ function render(name: IconName, color: string, p: object) {
       );
     case 'sparkle':
       return <Path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6z" {...p} />;
+    case 'eye':
+      return (
+        <>
+          <Path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" {...p} />
+          <Circle cx={12} cy={12} r={2.8} {...p} />
+        </>
+      );
     default:
       return null;
   }

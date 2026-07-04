@@ -102,6 +102,17 @@ export type SubscriptionRow = {
   updated_at: string;
 }
 
+/** A coach-seen receipt (0043): a real human opened this athlete's day. The viewer writes
+ *  their own row (RLS: only for athletes they can_view); the athlete reads receipts about
+ *  themselves — "Coach Mark saw your day" is never fabricated. */
+export type CoachViewRow = {
+  athlete_id: string;
+  viewer_id: string;
+  date: string;
+  viewer_name: string | null;
+  seen_at: string;
+}
+
 /** The signed-in user's referral code row (0042). Client creates its own, reads its own. */
 export type ReferralCodeRow = {
   owner_id: string;
@@ -271,6 +282,7 @@ export interface Database {
       subscriptions: Table<SubscriptionRow>;
       referral_codes: Table<ReferralCodeRow>;
       referral_redemptions: Table<ReferralRedemptionRow>;
+      coach_views: Table<CoachViewRow>;
       org_memberships: Table<OrgMembershipRow>;
       guardian_consent_requests: Table<GuardianConsentRequestRow>;
       trust_passes: Table<TrustPassRow>;

@@ -45,6 +45,16 @@ export function PersonDetail() {
       cancelled = true;
     };
   }, [passAthleteId]);
+  // Close-the-loop receipt (0043): opening a linked athlete's day stamps "a real human
+  // looked", which the athlete sees as "Coach saw your day". Fire-and-forget; markDayViewed
+  // never throws. Only real linked athletes (athleteId + live backend + signed-in viewer).
+  const seenAthleteId = isBackendLive ? s.personDetail?.athleteId : undefined;
+  const viewerId = s.userId;
+  React.useEffect(() => {
+    if (!seenAthleteId || !viewerId) return;
+    void db.markDayViewed(seenAthleteId, todayStamp(), viewerId, s.athleteName.trim() || null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stamp once per open, not per keystroke of unrelated state
+  }, [seenAthleteId, viewerId]);
   const pd = s.personDetail;
   if (!pd) return null;
   const grade = gradeFor(pd.score);

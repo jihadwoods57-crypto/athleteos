@@ -6,6 +6,7 @@ import { isSupabaseConfigured, requireSupabase } from './client';
 import type {
   AthleteProfileRow,
   CheckinRow,
+  CoachViewRow,
   DayRow,
   GuardianConsentRequestRow,
   MealRow,
@@ -174,6 +175,40 @@ export async function fetchEntitlement(userId: string): Promise<SubscriptionRow 
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+// ---------------------------------------------------------------- coach-seen receipts (0043)
+
+/** Stamp "I looked at this athlete's day" (coach/trainer/parent side). Upsert refreshes
+ *  seen_at on a re-open. RLS limits it to the viewer's own id + athletes they can_view.
+ *  Never throws — a receipt is nice-to-have, a failed one must not break PersonDetail. */
+export async function markDayViewed(athleteId: string, date: string, viewerId: string, viewerName: string | null): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  try {
+    await requireSupabase()
+      .from('coach_views')
+      .upsert(
+        { athlete_id: athleteId, viewer_id: viewerId, date, viewer_name: viewerName, seen_at: new Date().toISOString() },
+        { onConflict: 'athlete_id,viewer_id,date' },
+      );
+  } catch {
+    // best-effort: receipts fail silently
+  }
+}
+
+/** The receipts on the signed-in athlete's day — who really looked. RLS scopes reads to
+ *  the athlete themselves (or the viewer's own rows). Empty when unconfigured. */
+export async function fetchDayViews(athleteId: string, date: string): Promise<CoachViewRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('coach_views')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .eq('date', date)
+    .order('seen_at', { ascending: false })
+    .limit(10);
+  if (error) throw error;
+  return data ?? [];
 }
 
 // ---------------------------------------------------------------- referrals (0042)

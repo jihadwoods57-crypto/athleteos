@@ -39,6 +39,7 @@ export * from './overseerAlerts';
 export * from './subscription';
 export * from './pricing';
 export * from './referral';
+export * from './comeback';
 export * from './membership';
 export * from './workspace';
 export * from './foodDb';

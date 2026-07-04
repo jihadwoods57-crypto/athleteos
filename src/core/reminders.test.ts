@@ -206,7 +206,30 @@ describe('reminderSnapshotFromState', () => {
       dinnerLogged: false,
       checkinDue: true,
       weighInDue: true,
+      coachName: null,
+      pointsToStandard: null,
     });
+  });
+
+  it('carries the presence + near-goal pulls when provided (churn build)', () => {
+    const snap = reminderSnapshotFromState({ ...base, coachName: 'Your coach', liveScore: 74, threshold: 80 });
+    expect(snap.coachName).toBe('Your coach');
+    expect(snap.pointsToStandard).toBe(6);
+  });
+
+  it('dinner reminder pulls with the real gap and the honest role word', () => {
+    const snap = reminderSnapshotFromState({ ...base, coachName: 'Your coach', liveScore: 74, threshold: 80 });
+    const copy = reminderCopy('log_dinner', snap);
+    expect(copy.body).toContain('6 points from on standard');
+    expect(copy.body).toContain("Your coach sees tonight's log");
+    expect(copy.body).not.toContain('—');
+  });
+
+  it('no pull lines fire when the day is not close or no coach is linked', () => {
+    const far = reminderCopy('log_dinner', reminderSnapshotFromState({ ...base, liveScore: 30, threshold: 80 }));
+    expect(far.body).toBe("Add tonight's dinner to keep your day complete.");
+    const done = reminderCopy('log_dinner', reminderSnapshotFromState({ ...base, liveScore: 92, threshold: 80 }));
+    expect(done.body).not.toContain('points from');
   });
 
   it('reads dinnerLogged from the meal slot and checkinDue from ciSubmitted', () => {
