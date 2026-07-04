@@ -8,6 +8,7 @@ import type {
   CheckinRow,
   CoachViewRow,
   DayRow,
+  MealCommentRow,
   GuardianConsentRequestRow,
   MealRow,
   NotificationRow,
@@ -175,6 +176,39 @@ export async function fetchEntitlement(userId: string): Promise<SubscriptionRow 
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+// ---------------------------------------------------------------- meal comments (0046)
+
+/** The comment thread on one stored meal, oldest first. RLS scopes reads to the athlete
+ *  + their linked overseers, so a plain select returns exactly what the viewer may see. */
+export async function fetchMealComments(mealId: string): Promise<MealCommentRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('meal_comments')
+    .select('*')
+    .eq('meal_id', mealId)
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Post one comment into a meal's thread, always as yourself (RLS enforces author_id =
+ *  auth.uid() and the athlete/coach role split + link). Throws on rejection so the UI
+ *  can keep the draft instead of silently dropping a coach's feedback. */
+export async function postMealComment(
+  mealId: string,
+  athleteId: string,
+  authorId: string,
+  role: 'athlete' | 'coach',
+  text: string,
+): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase()
+    .from('meal_comments')
+    .insert({ meal_id: mealId, athlete_id: athleteId, author_id: authorId, role, text });
+  if (error) throw error;
 }
 
 // ---------------------------------------------------------------- coach-seen receipts (0043)

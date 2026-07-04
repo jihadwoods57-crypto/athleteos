@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import {
   streakInfo,
+  ateEnoughLine,
   coachGuidance,
   comebackInfo,
   medicalDisclaimer,
@@ -68,6 +69,8 @@ export function Home() {
   // The comeback moment: a 3+ day lapse gets a welcome, not a shame wall. Any action
   // today (a logged meal, the daily commitment) makes it disappear.
   const comeback = comebackInfo(s.scoreHistory, s.dateStamp, d.mealsLoggedCount > 0 || s.dailyCommitment != null);
+  // Client experience (roleVoice): the ate-enough positive, general profile only.
+  const ateEnough = d.mealsLoggedCount > 0 ? ateEnoughLine(s.scoringProfile, d.kcalToday, d.calTarget) : null;
   // Human-coach guidance, gated so a brand-new real athlete with no coach never
   // sees the seeded demo's "Coach Davis" note (the demo showcase is unchanged).
   const guidance = coachGuidance({
@@ -279,6 +282,17 @@ export function Home() {
       {/* Close-the-loop receipt (0043): shows ONLY when a linked coach/trainer really opened
           this athlete's day today — being seen is the retention engine, and it is never faked. */}
       {isReal ? <SeenToday /> : null}
+
+      {/* The anti-crash-diet positive (roleVoice): a general-profile client who hit their
+          calorie window WITHOUT under-eating gets told so — the exact thing most diet apps
+          get backwards. Fires only when the score already credits it, so copy and math
+          can never disagree. */}
+      {isReal && ateEnough ? (
+        <Row style={{ gap: 8, alignItems: 'flex-start', backgroundColor: c.successSurface, borderRadius: 13, paddingHorizontal: 13, paddingVertical: 11, marginTop: 12 }}>
+          <Icon name="check" size={15} color={c.successDeep} />
+          <Txt w="sb" size={12.5} color={c.successDeep} style={{ flex: 1, lineHeight: 18 }}>{ateEnough}</Txt>
+        </Row>
+      ) : null}
 
       {/* daily plan-commitment — the first daily action; carries the 0.15 score slot.
           On its own a one-tap can never reach on-standard (>=80); logging your meals is

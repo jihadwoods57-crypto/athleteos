@@ -1,10 +1,12 @@
 // OnStandard — Meal capture overlay: capture → analyzing (~2.3s) → result.
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, ScrollView, TextInput, View } from 'react-native';
-import { coachGuidance, mealResultFor, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer, flagIngredients, scaleLabel, labelQuality, labelProvenanceNote, matchUsuals, foodLookupToEditable } from '@/core';
+import { captureProof, coachGuidance, experienceKind, mealResultFor, overseerNoun, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer, flagIngredients, scaleLabel, labelQuality, labelProvenanceNote, matchUsuals, foodLookupToEditable } from '@/core';
 import type { MealLabel, LabelFacts, IngredientFlag, MealResult, MealCaptureMode, MealErrorReason, FoodLookupResult } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiCoachTag } from '@/lib/ai';
+import { isEnginesEnabled } from '@/lib/features';
+import { isBackendLive } from '@/lib/supabase';
 import { searchFoods, isFoodLookupConfigured } from '@/lib/food';
 import { shadow } from '@/ui/tokens';
 import { Avatar, Btn, Card, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
@@ -39,6 +41,11 @@ export function MealCapture() {
     <Overlay title={header} onClose={s.closeMeal} closeIcon="close">
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {s.mealStage === 'capture' ? <ModeToggle mode={s.mealCaptureMode} onPick={s.setMealCaptureMode} /> : null}
+
+        {/* Capture-proof context (2026-07-04): this photo satisfies a REQUIREMENT — name it,
+            show its real window + time left, and who sees it land. Photo mode only; the
+            search/label paths are utilities, not the proof moment. */}
+        {s.mealStage === 'capture' && !isSearch && !isLabel ? <ProofHeader /> : null}
 
         {isSearch ? (
           <FoodSearch />
@@ -1062,6 +1069,52 @@ function Usuals() {
           </Pressable>
         ))}
       </View>
+    </View>
+  );
+}
+
+/**
+ * The proof header (2026-07-04): the accountability context above the viewfinder. Which
+ * requirement this photo satisfies, the real window it belongs to, how much time is left
+ * (urgency in color: open / closing / past), and — when a coach or trainer is really
+ * linked — that they see it the moment it lands. Every line derives from the plan-window
+ * model and the actual link graph; the late line only threatens the score when late
+ * scoring is really collected (engines switch), and nobody is told about a watcher who
+ * does not exist.
+ */
+function ProofHeader() {
+  const c = useColors();
+  const s = useStore();
+  const isReal = s.athleteName.trim().length > 0;
+  const kind = experienceKind(s.scoringProfile);
+  // Honest audience: only when linked AND the backend really delivers logs to them.
+  const overseer =
+    isReal && isBackendLive && s.supportTeam.length > 0 ? overseerNoun(kind, s.supportTeam) : null;
+  const now = new Date();
+  const proof = captureProof({
+    mealType: s.mealType,
+    nowMin: now.getHours() * 60 + now.getMinutes(),
+    overseer,
+    lateMatters: isEnginesEnabled,
+  });
+  if (!proof.windowLine) return null;
+  const accent = proof.urgency === 'late' ? c.textTertiary : proof.urgency === 'closing' ? c.warningDeep : c.successDeep;
+  const surface = proof.urgency === 'closing' ? c.warnTint ?? c.alertSurface : c.bg2;
+  return (
+    <View style={{ borderRadius: 14, backgroundColor: surface, paddingHorizontal: 14, paddingVertical: 11, marginBottom: 14 }}>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <Row style={{ gap: 7, alignItems: 'center' }}>
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: accent }} />
+          <Txt w="eb" size={11} color={c.slate700} ls={0.6}>{proof.windowLine}</Txt>
+        </Row>
+        <Txt w="b" size={12} color={accent}>{proof.timeLine}</Txt>
+      </Row>
+      {proof.seenLine ? (
+        <Row style={{ gap: 6, alignItems: 'center', marginTop: 7 }}>
+          <Icon name="eye" size={12} color={c.textTertiary} />
+          <Txt w="sb" size={11.5} color={c.textTertiary}>{proof.seenLine}</Txt>
+        </Row>
+      ) : null}
     </View>
   );
 }

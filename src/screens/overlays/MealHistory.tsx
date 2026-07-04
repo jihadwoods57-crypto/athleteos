@@ -44,6 +44,7 @@ export function MealHistory() {
 
 function DaySection({ day, index = 0 }: { day: MealHistoryDay; index?: number }) {
   const c = useColors();
+  const s = useStore();
   if (day.cards.length === 0) return null;
   return (
     <Reveal index={index}>
@@ -52,8 +53,14 @@ function DaySection({ day, index = 0 }: { day: MealHistoryDay; index?: number })
           {day.dayLabel.toUpperCase()}
         </Txt>
         <Card variant="low" style={{ borderRadius: 20, gap: 14 }}>
-          {day.cards.map((c) => (
-            <MealCardItem key={c.id} card={c} />
+          {day.cards.map((card) => (
+            <MealCardItem
+              key={card.id}
+              card={card}
+              // Stored meals open the SAME review + thread surface the coach uses — the
+              // athlete reads and replies to coach comments on the exact meal (0046).
+              onPress={card.serverId && s.userId ? () => s.openMealReview(card.serverId!, s.userId!, s.athleteName || 'You', card) : undefined}
+            />
           ))}
         </Card>
       </View>

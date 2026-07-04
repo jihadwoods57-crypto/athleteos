@@ -7,7 +7,9 @@ import React from 'react';
 import { Image, View } from 'react-native';
 import type { MealCard } from '@/core';
 import { db, isBackendLive } from '@/lib/supabase';
-import { Row, Txt } from '@/ui/primitives';
+import { Pressable, Row, Txt } from '@/ui/primitives';
+import { haptics } from '@/ui/haptics';
+import { Icon } from '@/icons';
 import { useColors } from '@/ui/theme';
 
 function MealThumb({ card }: { card: MealCard }) {
@@ -31,10 +33,13 @@ function MealThumb({ card }: { card: MealCard }) {
   return <View style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: card.thumb }} />;
 }
 
-export function MealCardItem({ card }: { card: MealCard }) {
+/** The shared row. `onPress` (optional) makes it a drill-down into the meal review +
+ *  comment thread — passed only for stored meals (serverId), so a local-only card stays a
+ *  plain row and nothing ever opens onto a meal the server doesn't have. */
+export function MealCardItem({ card, onPress }: { card: MealCard; onPress?: () => void }) {
   const c = useColors();
   const strong = card.quality >= 90;
-  return (
+  const body = (
     <Row style={{ gap: 13 }}>
       <MealThumb card={card} />
       <View style={{ flex: 1, minWidth: 0 }}>
@@ -50,6 +55,22 @@ export function MealCardItem({ card }: { card: MealCard }) {
           {card.quality}
         </Txt>
       </View>
+      {onPress ? (
+        <View style={{ alignSelf: 'center' }}>
+          <Icon name="chevronRight" size={16} color={c.textTertiary} />
+        </View>
+      ) : null}
     </Row>
+  );
+  if (!onPress) return body;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${card.label}: ${card.name}. Review and comment.`}
+      onPress={() => { haptics.tap(); onPress(); }}
+      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+    >
+      {body}
+    </Pressable>
   );
 }

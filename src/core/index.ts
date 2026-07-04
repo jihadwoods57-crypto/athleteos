@@ -46,6 +46,7 @@ export * from './deepDive';
 export * from './rosterExport';
 export * from './assistantBrief';
 export * from './roleVoice';
+export * from './captureProof';
 export * from './membership';
 export * from './workspace';
 export * from './foodDb';

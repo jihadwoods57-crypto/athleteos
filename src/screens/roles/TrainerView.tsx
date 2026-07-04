@@ -22,6 +22,7 @@ import { Plans } from '@/screens/overlays/Plans';
 import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
+import { MealReview } from '@/screens/overlays/MealReview';
 import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
 import { usePendingClients } from './usePendingClients';
 import { useLiveRoster } from './useLiveRoster';
@@ -279,6 +280,7 @@ export function TrainerView() {
       <RoleTabBar tabs={TRAINER_TABS} active={tab} onChange={s.setTrainerTab} />
 
       {s.personDetail && <PersonDetail />}
+      {s.mealReview && <MealReview />}
       {s.personDetail && s.coachGoalsOpen && <CoachGoalsEditor />}
       {s.msgOpen && <Messages />}
       {s.accountOpen && <Account />}

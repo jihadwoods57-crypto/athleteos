@@ -43,10 +43,15 @@ export type MealLabel = 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
  *  imports the lib type and stays pure. Defined here (not in mealHistory) so
  *  AppState can hold StoredMeal[] without an import cycle. */
 export interface StoredMeal {
+  /** Server row uuid (backend rows via select *). The key the per-meal comment thread
+   *  (0046) hangs on; optional so local/test constructors can omit it. */
+  id?: string;
   type: string | null;
   name: string | null;
   protein: number | null;
   kcal: number | null;
+  /** The AI's coach-voiced read for this meal (backend rows only) — shown in the review. */
+  note?: string | null;
   /** Present on backend rows (select *); optional so local/test constructors can omit them.
    *  Used by the "usuals" matcher to reuse a repeat meal's confirmed macros. */
   carbs?: number | null;
@@ -321,9 +326,15 @@ export interface AppState {
    *  Two-slot dance: on open, prevDashboardOpenedAt <- lastDashboardOpenedAt <- now. */
   lastDashboardOpenedAt: string | null;
   prevDashboardOpenedAt: string | null;
-  // ---- meal review (coach/trainer taps a meal in PersonDetail) ----
-  /** The stored meal (server uuid) under coach review, or null. Ephemeral. */
-  mealReview: { mealId: string; athleteId: string; athleteName: string } | null;
+  // ---- meal review (a stored meal opened from PersonDetail or MealHistory) ----
+  /** The stored meal (server uuid) under review, plus the display card captured at
+   *  open (photo path, macros, the AI read). Null when closed. Ephemeral. */
+  mealReview: {
+    mealId: string;
+    athleteId: string;
+    athleteName: string;
+    card: { label: string; name: string; protein: number; kcal: number; quality: number; thumb: string; photoPath: string | null; note: string | null };
+  } | null;
   mealOpen: boolean;
   mealStage: MealStage;
   /** 'meal' = photograph a plate (estimated); 'label' = scan a Nutrition Facts panel (exact). */

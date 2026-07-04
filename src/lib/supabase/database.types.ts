@@ -113,6 +113,18 @@ export type CoachViewRow = {
   seen_at: string;
 }
 
+/** One per-meal comment (0046): the athlete/coach/AI conversation living on the plate it
+ *  is about. Written as yourself only (RLS); read by the athlete + linked overseers. */
+export type MealCommentRow = {
+  id: string;
+  meal_id: string;
+  athlete_id: string;
+  author_id: string;
+  role: 'athlete' | 'coach' | 'ai';
+  text: string;
+  created_at: string;
+}
+
 /** The signed-in user's referral code row (0042). Client creates its own, reads its own. */
 export type ReferralCodeRow = {
   owner_id: string;
@@ -283,6 +295,7 @@ export interface Database {
       referral_codes: Table<ReferralCodeRow>;
       referral_redemptions: Table<ReferralRedemptionRow>;
       coach_views: Table<CoachViewRow>;
+      meal_comments: Table<MealCommentRow>;
       org_memberships: Table<OrgMembershipRow>;
       guardian_consent_requests: Table<GuardianConsentRequestRow>;
       trust_passes: Table<TrustPassRow>;

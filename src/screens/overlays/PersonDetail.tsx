@@ -378,6 +378,7 @@ export function PersonDetail() {
  */
 function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) {
   const c = useColors();
+  const s = useStore();
   const live = isBackendLive && !!athleteId;
   const [meals, setMeals] = React.useState<StoredMeal[] | null>(null);
   React.useEffect(() => {
@@ -442,7 +443,13 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
                 {day.dayLabel.toUpperCase()}
               </Txt>
               {day.cards.map((meal) => (
-                <MealCardItem key={meal.id} card={meal} />
+                <MealCardItem
+                  key={meal.id}
+                  card={meal}
+                  // Stored meals drill into the review + comment thread (0046) — the coach
+                  // reviews the plate and leaves feedback on the exact meal it's about.
+                  onPress={meal.serverId && athleteId ? () => s.openMealReview(meal.serverId!, athleteId, name, meal) : undefined}
+                />
               ))}
             </View>
           ))}

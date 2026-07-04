@@ -324,7 +324,7 @@ export interface Actions {
   // Assistant Nutritionist (2026-07-04)
   setBriefNarration: (date: string, text: string) => void;
   stampDashboardOpened: () => void;
-  openMealReview: (mealId: string, athleteId: string, athleteName: string) => void;
+  openMealReview: (mealId: string, athleteId: string, athleteName: string, card: NonNullable<AppState['mealReview']>['card']) => void;
   closeMealReview: () => void;
   openAccount: () => void;
   closeAccount: () => void;
@@ -1291,8 +1291,8 @@ export const useStore = create<Store>()(
       // Two-slot dance so "since you last looked" reads the PREVIOUS open, not this one.
       stampDashboardOpened: () =>
         set((s) => ({ prevDashboardOpenedAt: s.lastDashboardOpenedAt, lastDashboardOpenedAt: new Date().toISOString() })),
-      // Coach/trainer taps a meal card in PersonDetail -> role-aware MealDetail review.
-      openMealReview: (mealId, athleteId, athleteName) => set({ mealReview: { mealId, athleteId, athleteName } }),
+      // A stored meal opened for review (coach from PersonDetail, athlete from MealHistory).
+      openMealReview: (mealId, athleteId, athleteName, card) => set({ mealReview: { mealId, athleteId, athleteName, card } }),
       closeMealReview: () => set({ mealReview: null }),
       openAccount: () => set({ accountOpen: true }),
       closeAccount: () => set({ accountOpen: false }),

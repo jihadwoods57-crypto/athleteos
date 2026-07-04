@@ -26,6 +26,7 @@ import { Plans } from '@/screens/overlays/Plans';
 import { OverseerProfile } from '@/screens/overlays/OverseerProfile';
 import { Messages } from '@/screens/overlays/Messages';
 import { PersonDetail } from '@/screens/overlays/PersonDetail';
+import { MealReview } from '@/screens/overlays/MealReview';
 import { CoachGoalsEditor } from '@/screens/overlays/CoachGoalsEditor';
 import { useLiveRoster } from './useLiveRoster';
 import { usePendingRequests } from './usePendingRequests';
@@ -95,6 +96,7 @@ export function CoachView() {
       <CoachTabBar />
 
       {s.personDetail && <PersonDetail />}
+      {s.mealReview && <MealReview />}
       {s.personDetail && s.coachGoalsOpen && <CoachGoalsEditor />}
       {s.msgOpen && <Messages />}
       {s.accountOpen && <Account />}

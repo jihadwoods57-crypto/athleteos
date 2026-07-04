@@ -8,7 +8,7 @@ import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Txt, Pressable } from '@/ui/primitives';
 import { Icon, IconName } from '@/icons';
-import type { Tab } from '@/core';
+import { experienceKind, type Tab } from '@/core';
 import { Home } from './Home';
 import { Plan } from './Plan';
 import { Squad } from './Squad';
@@ -21,6 +21,7 @@ import { MealCapture } from '@/screens/overlays/MealCapture';
 import { Connect } from '@/screens/overlays/Connect';
 import { MealDetail } from '@/screens/overlays/MealDetail';
 import { MealHistory } from '@/screens/overlays/MealHistory';
+import { MealReview } from '@/screens/overlays/MealReview';
 import { NutritionMemory } from '@/screens/overlays/NutritionMemory';
 import { Account } from '@/screens/overlays/Account';
 import { Plans } from '@/screens/overlays/Plans';
@@ -39,6 +40,11 @@ const TABS: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: 'squad', label: 'Squad', icon: 'squad' },
 ];
 
+// The non-athlete CLIENT experience (roleVoice.experienceKind === 'client'): an adult on a
+// personal goal did not sign up for a teen team leaderboard, so the Squad slot becomes their
+// own Progress (the performance/measurements screen). Team furniture off by default.
+const CLIENT_FOURTH_TAB: { tab: Tab; label: string; icon: IconName } = { tab: 'performance', label: 'Progress', icon: 'trophy' };
+
 export function AthleteApp() {
   const tab = useStore((s) => s.tab);
   const mealOpen = useStore((s) => s.mealOpen);
@@ -52,6 +58,7 @@ export function AthleteApp() {
   const mealHistoryOpen = useStore((s) => s.mealHistoryOpen);
   const nutritionMemoryOpen = useStore((s) => s.nutritionMemoryOpen);
   const connectOpen = useStore((s) => s.connectOpen);
+  const mealReview = useStore((s) => s.mealReview);
   const initReminders = useStore((s) => s.initReminders);
   const c = useColors();
 
@@ -88,6 +95,7 @@ export function AthleteApp() {
       {mealOpen && <MealCapture />}
       {mealDetailOpen && <MealDetail />}
       {mealHistoryOpen && <MealHistory />}
+      {mealReview && <MealReview />}
       {nutritionMemoryOpen && <NutritionMemory />}
       {accountOpen && <Account />}
       {connectOpen && <Connect />}
@@ -110,9 +118,12 @@ function TabBar() {
   const tab = useStore((s) => s.tab);
   const setTab = useStore((s) => s.setTab);
   const openMeal = useStore((s) => s.openMeal);
+  const scoringProfile = useStore((s) => s.scoringProfile);
   const c = useColors();
 
   const isAthleteTab = (t: Tab) => tab === t;
+  // Client experience: the fourth slot is THEIR progress, not a team leaderboard.
+  const fourthTab = experienceKind(scoringProfile) === 'client' ? CLIENT_FOURTH_TAB : TABS[3];
 
   return (
     <View
@@ -151,7 +162,7 @@ function TabBar() {
       </View>
 
       <TabItem item={TABS[2]} active={isAthleteTab('tasks')} onPress={() => setTab('tasks')} />
-      <TabItem item={TABS[3]} active={isAthleteTab('squad')} onPress={() => setTab('squad')} />
+      <TabItem item={fourthTab} active={isAthleteTab(fourthTab.tab)} onPress={() => setTab(fourthTab.tab)} />
     </View>
   );
 }
