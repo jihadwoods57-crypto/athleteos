@@ -42,7 +42,7 @@ async function withinGlobalCap(): Promise<boolean> {
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
 const BASE_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   Vary: 'Origin',
 };
