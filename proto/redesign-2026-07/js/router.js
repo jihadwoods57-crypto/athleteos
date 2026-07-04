@@ -56,14 +56,17 @@ function render() {
       ${mod.hideTabs ? '' : tabbar(activeTab)}
     </div>`;
 
+  // haptic feedback where the platform supports it (Android web; no-op elsewhere)
+  const buzz = (ms) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch { /* no-op */ } };
   // wire navigation
   device.querySelectorAll('[data-go]').forEach(el => {
-    el.addEventListener('click', (e) => { e.stopPropagation(); go(el.getAttribute('data-go')); });
+    el.addEventListener('click', (e) => { e.stopPropagation(); buzz(6); go(el.getAttribute('data-go')); });
   });
   // wire actions: data-act="name" or data-act="name:arg"; data-then="route" navigates after
   device.querySelectorAll('[data-act]').forEach(el => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
+      buzz(14);
       const [name, arg] = el.getAttribute('data-act').split(':');
       if (act[name]) act[name](arg !== undefined ? +arg || arg : undefined);
       const then = el.getAttribute('data-then');

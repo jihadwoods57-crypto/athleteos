@@ -33,6 +33,7 @@ export default {
       </div>
     </div>
 
+    ${S.reachPlan.length ? `
     <div class="eyebrow">How to reach ${S.possible}</div>
     <section class="card reach">
       ${S.reachPlan.map(r => `
@@ -42,9 +43,15 @@ export default {
           <span class="gain">+${r.gain} pts</span>
         </div>`).join('')}
       <div style="padding-top:14px">
-        <button class="btn green sm" data-go="camera">${icon('camera', 19)} Log Dinner now</button>
+        <button class="btn ${S.reachPlan[0].accent === 'g' ? 'green' : 'primary'} sm" data-go="${S.reachPlan[0].accent === 'g' ? 'camera' : 'recovery'}" ${S.reachPlan[0].accent === 'p' ? 'style="background:linear-gradient(150deg, var(--purple-bright), #7e22ce)"' : ''}>${icon(S.reachPlan[0].accent === 'g' ? 'camera' : 'moon', 19)} ${S.reachPlan[0].label.replace('Submit ', 'Do ')} now</button>
       </div>
-    </section>
+    </section>` : `
+    <div class="eyebrow">Day complete</div>
+    <div class="day-done">
+      <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
+      <div><div class="tt">Every point that was on the table is in.</div>
+      <div class="ts">${S.score} of ${S.possible} possible. This is what OnStandard looks like.</div></div>
+    </div>`}
     <div style="height:8px"></div>
     `;
   },

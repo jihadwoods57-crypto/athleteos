@@ -91,6 +91,24 @@ export function animateRing(root) {
   }
 }
 
+/* Brand mark: the score ring broken open at the top-right, with the check's
+   long stroke rising through the gap — "clear the standard, then rise past it." */
+export function logoMark(size = 96, uid = 'lm') {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 64 64" fill="none">
+    <defs>
+      <linearGradient id="lg${uid}" x1="0.1" y1="0.85" x2="0.9" y2="0.15">
+        <stop offset="0%" stop-color="#34D399"/>
+        <stop offset="50%" stop-color="#22D3EE"/>
+        <stop offset="100%" stop-color="#3B82F6"/>
+      </linearGradient>
+    </defs>
+    <circle cx="32" cy="32" r="25" stroke="url(#lg${uid})" stroke-width="7" stroke-linecap="round"
+      stroke-dasharray="118 39" transform="rotate(76 32 32)"/>
+    <path d="M19 34 L29 44 L51 15" stroke="url(#lg${uid})" stroke-width="7.5"
+      stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
 export function appHead() {
   const n = S.unreadNotifs;
   return `<header class="apphead">

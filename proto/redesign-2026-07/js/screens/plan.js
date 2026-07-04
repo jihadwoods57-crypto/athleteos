@@ -1,5 +1,6 @@
-import { S } from '../state.js';
+import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
+import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, fmtMin } from '../requirements.js';
 
 const P = S.plan;
 
@@ -62,7 +63,7 @@ const overview = () => `
 
   <div class="eyebrow">Need clarity?</div>
   <div class="btn-row">
-    <button class="btn ghost sm" style="flex:1" data-go="meal-detail">${icon('message', 17)} Ask Coach</button>
+    <button class="btn ghost sm" style="flex:1" data-go="messages">${icon('message', 17)} Ask Coach</button>
     <button class="btn primary sm" style="flex:1" data-go="plan/notes">${icon('sparkle', 17)} Ask AI</button>
   </div>
   <div style="height:10px"></div>`;
@@ -98,24 +99,40 @@ const nutrition = () => `
   </div>
 
   <div style="height:16px"></div>
-  <button class="btn ghost sm">${icon('sparkle', 17)} Ask about this nutrition plan</button>
+  <button class="btn ghost sm" data-go="plan/notes">${icon('sparkle', 17)} Ask about this nutrition plan</button>
   <div style="height:10px"></div>`;
 
 const schedule = () => `
-  <div class="eyebrow">The rules, set by ${S.coach.name}</div>
+  <div class="eyebrow">The rules, set by ${S.coach.name} · tap one for the why</div>
   <section class="card" style="padding:6px 16px">
-    ${P.schedule.map(r => `
-      <div class="bd-row">
+    ${CATALOG.map(r => {
+      const impact = IMPACT_LABEL[r.impact.kind === 'component' ? r.impact.comp : r.impact.kind];
+      const due = r.window.label || `Due by ${fmtMin(r.window.due)}`;
+      return `
+      <div class="bd-row" data-go="requirement/${r.id}" style="cursor:pointer">
         <div style="display:flex;align-items:center;gap:12px">
           <div class="req-icon ${r.accent}" style="width:40px;height:40px">${icon(r.icon, 19)}</div>
           <div style="flex:1">
-            <div style="font-size:15px;font-weight:800">${r.title}</div>
-            <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${r.freq} · ${r.due}</div>
+            <div style="font-size:15px;font-weight:800">${r.title}${r.required ? '' : ' <small style="color:var(--text-3);font-weight:700">· optional</small>'}</div>
+            <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${freqLabel(r.freq)} · ${due}</div>
           </div>
+          ${icon('chevron', 16, 'style="color:var(--text-3)"')}
         </div>
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-          <span class="bd-weight">${r.proof}</span>
-          <span class="bd-weight" style="color:var(--${r.accent === 'g' ? 'green-bright' : r.accent === 'p' ? 'purple-bright' : r.accent === 'b' ? 'blue-bright' : 'amber-bright'})">${r.impact}</span>
+          <span class="bd-weight">${PROOF[r.proof].label}</span>
+          <span class="bd-weight" style="color:var(--${r.accent === 'g' ? 'green-bright' : r.accent === 'p' ? 'purple-bright' : r.accent === 'b' ? 'blue-bright' : 'amber-bright'})">${impact}</span>
+        </div>
+      </div>`;
+    }).join('')}
+    ${RT.assigned.map(a => `
+      <div class="bd-row" data-go="requirement/${a.id}" style="cursor:pointer">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="req-icon ${a.done ? 'g' : 'b'}" style="width:40px;height:40px">${icon(a.icon || 'clipboard', 18)}</div>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:800">${a.title} <small style="color:var(--blue-bright);font-weight:700">· from coach</small></div>
+            <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">One-time · ${a.dueLabel}</div>
+          </div>
+          ${icon('chevron', 16, 'style="color:var(--text-3)"')}
         </div>
       </div>`).join('')}
   </section>
@@ -150,5 +167,11 @@ export default {
     const t = sub || 'overview';
     const body = t === 'nutrition' ? nutrition() : t === 'schedule' ? schedule() : t === 'notes' ? notes() : overview();
     return `${head()}${tabs(t)}${body}`;
+  },
+  async mount(root, { sub }) {
+    if ((sub || 'overview') === 'notes') {
+      const { wireComposer } = await import('./settings.js');
+      wireComposer(root, 'ai', 'OnStandard AI', 'Based on Coach Mark’s plan: yes, that fits. Keep protein at 190 and get the water in before practice.');
+    }
   },
 };

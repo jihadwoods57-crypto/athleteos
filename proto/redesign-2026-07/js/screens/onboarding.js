@@ -25,7 +25,7 @@ function frame(n, title, sub, body, cta, next, opts = {}) {
 
 const steps = {
   1: () => frame(1, 'Who are you?', 'Your coach sees this next to every log.', `
-    <input class="ob-input" value="Jihad Woods" readonly />
+    <input class="ob-input" value="Jihad Woods" />
     <div style="height:14px"></div>
     <div class="chip-row">
       <span class="chp on">Football</span><span class="chp">Basketball</span><span class="chp">Baseball</span>
@@ -125,5 +125,11 @@ export default {
   render({ sub }) {
     const n = Math.min(6, Math.max(1, +(sub || 1)));
     return steps[n]();
+  },
+  async mount(root) {
+    const { wireToggles } = await import('./settings.js');
+    // every chip-row and choice-grid is a working single-select group
+    root.querySelectorAll('.chip-row, .choice-grid').forEach(g => g.setAttribute('data-toggle-group', ''));
+    wireToggles(root);
   },
 };

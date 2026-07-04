@@ -132,13 +132,22 @@
 }
 
 /* ----- Auth / welcome ----- */
-.welcome { display: flex; flex-direction: column; min-height: 100%; text-align: center; padding-top: 60px; }
-.logo-ring { width: 96px; height: 96px; margin: 0 auto 26px; position: relative; }
-.wordmark { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; }
+.welcome { display: flex; flex-direction: column; min-height: 100%; text-align: center; padding-top: 54px; }
+.logo-wrap {
+  width: 104px; height: 104px; margin: 0 auto 24px;
+  filter: drop-shadow(0 0 34px rgba(52,211,153,0.35)) drop-shadow(0 0 60px rgba(59,130,246,0.2));
+  animation: logoIn 800ms var(--ease-out) both;
+}
+@keyframes logoIn { from { transform: scale(0.7) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.wordmark { font-size: 38px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; }
 .wordmark .on { color: var(--green-bright); }
-.tagline { font-size: 15.5px; font-weight: 600; color: var(--text-2); margin-top: 12px; line-height: 1.55; padding: 0 12px; }
+.brandline {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--text-3); margin-top: 10px;
+}
+.tagline { font-size: 15.5px; font-weight: 600; color: var(--text-2); margin-top: 18px; line-height: 1.6; padding: 0 12px; }
 .welcome .spacer { flex: 1; }
-.role-note { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top: 14px; }
+.role-note { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top: 14px; line-height: 1.5; }
 
 /* ----- Coach dashboard ----- */
 .flagdot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
@@ -156,6 +165,13 @@
 .roster-row .rn .s { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .roster-row .rs { font-size: 18px; font-weight: 800; width: 34px; text-align: right; }
 .roster-row .rl { font-size: 11.5px; font-weight: 700; color: var(--text-3); width: 30px; text-align: right; }
+
+/* honest delivery status line in threads */
+.msg-status {
+  align-self: center; font-size: 11.5px; font-weight: 700; color: var(--text-3);
+  padding: 5px 12px; border-radius: var(--r-pill); background: var(--surface-1);
+  border: 1px solid var(--hairline-soft); margin-top: 2px;
+}
 
 /* ----- States gallery ----- */
 .state-demo { border: 1px dashed rgba(148,176,224,0.25); border-radius: var(--r-card); padding: 22px 18px; text-align: center; margin-bottom: 14px; }

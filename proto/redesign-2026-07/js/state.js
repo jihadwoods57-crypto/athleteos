@@ -7,6 +7,8 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
+import { CATALOG, runsToday, derive, deriveAssigned } from './requirements.js';
+
 export const WEIGHTS = { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
 
 export function computeScore(c) {
@@ -37,6 +39,8 @@ const DEFAULT_RT = {
   day0: false,           // fresh-athlete empty-state mode (set by finishing onboarding)
   day0Breakfast: false,  // day-0 first meal logged
   lastMove: null,        // {from, to, gain, what} — powers confirmation screens
+  assigned: [],          // coach-assigned requirements: {id,title,icon,note,from,dueLabel,done,seen}
+  coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
 };
 function load() {
   try { return { ...DEFAULT_RT, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; }
@@ -93,7 +97,27 @@ export const act = {
     save();
   },
   startDay0() { RT.day0 = true; RT.day0Breakfast = false; RT.lastMove = null; save(); },
-  reset() { Object.assign(RT, DEFAULT_RT, { lastMove: null }); save(); },
+  /* Coach assigns a requirement -> it lands on the athlete's Home + notifications. */
+  assignReq(templateId) {
+    const T = {
+      pwm:  { id: 'pwm',  title: 'Post-Workout Meal', icon: 'utensils', note: 'Within 45 min of lifting. Protein + carb, photo it like any meal.', dueLabel: 'After tomorrow’s lift' },
+      supp: { id: 'supp', title: 'Supplement Log', icon: 'check', note: 'Confirm creatine + multivitamin with dinner.', dueLabel: 'Tonight' },
+      body: { id: 'body', title: 'Body Photo', icon: 'camera', note: 'Same pose, same light as last month. Coach-only, never shared.', dueLabel: 'Sunday' },
+      sleep:{ id: 'sleep',title: 'Sleep Target · 8h', icon: 'moon', note: 'Lights out by 10:30 on school nights this week.', dueLabel: 'This week' },
+    };
+    const t = T[templateId] || T.supp;
+    if (RT.assigned.some(a => a.id === t.id)) return;
+    RT.assigned.push({ ...t, from: 'Coach Mark', done: false, seen: false });
+    RT.notifsRead = false;
+    save();
+  },
+  completeAssigned(id) {
+    const a = RT.assigned.find(x => x.id === id);
+    if (a && !a.done) { a.done = true; a.seen = true; save(); }
+  },
+  seeAssigned() { RT.assigned.forEach(a => { a.seen = true; }); save(); },
+  coachComment(text) { if (text) { RT.coachComments.push(String(text).slice(0, 300)); save(); } },
+  reset() { Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { lastMove: null }); save(); },
 };
 window.__act = act;
 
@@ -102,7 +126,7 @@ export const S = {
   athlete: { first: 'Jihad', last: 'Woods', initials: 'J2', sport: 'Football', position: 'Wide Receiver', school: 'Central Catholic', level: 'High School' },
   coach:   { name: 'Coach Mark', initials: 'M', role: 'Head Coach', team: 'Central Catholic · Varsity' },
 
-  now: '10:20',
+  now: '7:12',
   greeting: 'Good evening',
 
   get components() { return { now: componentsNow(), done: componentsDone() }; },
@@ -154,33 +178,54 @@ export const S = {
         { id: 'recovery', title: 'Recovery Check-In', icon: 'moon', accent: 'p', status: 'Later', statusColor: 'p', sub: 'Before bed', subColor: 'p', meta: '+23 pts', done: false, route: 'recovery' },
       ];
     }
-    return [
-      { id: 'breakfast', title: 'Breakfast', icon: 'utensils', accent: 'g', status: 'Logged', statusColor: 'g',
-        sub: 'Logged 8:14 AM', subColor: 'g', meta: 'Scored 95', done: true, route: 'meal-detail' },
-      { id: 'lunch', title: 'Lunch', icon: 'bowl', accent: 'g', status: 'Logged', statusColor: 'g',
-        sub: 'Logged 12:18 PM', subColor: 'g', meta: 'Scored 91', done: true, route: 'meal-detail' },
-      RT.weightLogged
-        ? { id: 'weight', title: 'Morning Weight', icon: 'scale', accent: 'g', status: 'Logged late', statusColor: 'a',
-            sub: 'Logged tonight', subColor: 'a', meta: 'Trend only', done: true, route: 'weight' }
-        : { id: 'weight', title: 'Morning Weight', icon: 'scale', accent: 'a', status: 'Missed', statusColor: 'a',
-            sub: 'Was due 9:00 AM', subColor: 'a', meta: 'Not scored', done: false, missed: true, route: 'weight' },
-      RT.dinnerLogged
-        ? { id: 'dinner', title: 'Dinner', icon: 'bowl', accent: 'g', status: 'Logged', statusColor: 'g',
-            sub: 'Logged 7:12 PM', subColor: 'g', meta: 'Scored 90', done: true, route: 'meal-detail/dinner' }
-        : { id: 'dinner', title: 'Dinner', icon: 'bowl', accent: 'a', status: 'Due soon', statusColor: 'a',
-            sub: 'Due by 8:00 PM', subColor: 'a', meta: '+6 pts', done: false, next: true, route: 'camera' },
-      RT.recoveryDone
-        ? { id: 'recovery', title: 'Recovery Check-In', icon: 'moon', accent: 'g', status: 'Done', statusColor: 'g',
-            sub: 'Submitted tonight', subColor: 'g', meta: '+6 earned', done: true, route: 'recovery-confirm' }
-        : { id: 'recovery', title: 'Recovery Check-In', icon: 'moon', accent: 'p', status: 'Later', statusColor: 'p',
-            sub: 'Before bed', subColor: 'p', meta: '+6 pts', done: false, route: 'recovery' },
-    ];
+    /* ---- ENGINE-DERIVED: today's list from the catalog + runtime ---- */
+    const resolve = (id) => {
+      switch (id) {
+        case 'breakfast': return { done: true };
+        case 'lunch':     return { done: true };
+        case 'weight':    return { done: RT.weightLogged, late: RT.weightLogged };
+        case 'dinner':    return { done: RT.dinnerLogged };
+        case 'hydration': return { done: RT.hydrationOz >= 120, progress: `${RT.hydrationOz} of 120 oz` };
+        case 'recovery':  return { done: RT.recoveryDone };
+        default: return {};
+      }
+    };
+    const decorate = (d) => {
+      const meta =
+        d.id === 'breakfast' ? 'Scored 95' :
+        d.id === 'lunch' ? 'Scored 91' :
+        d.id === 'dinner' ? (d.done ? 'Scored 90' : '+6 pts') :
+        d.id === 'weight' ? (d.done ? 'Trend only' : 'Not scored') :
+        d.id === 'hydration' ? (d.done ? 'Focus hit' : 'Optional') :
+        d.id === 'recovery' ? (d.done ? '+6 earned' : '+6 pts') : '';
+      const route =
+        d.id === 'breakfast' ? 'meal-detail' :
+        d.id === 'lunch' ? 'meal-detail' :
+        d.id === 'dinner' ? (d.done ? 'meal-detail/dinner' : 'camera') :
+        d.id === 'weight' ? 'weight' :
+        d.id === 'hydration' ? 'log' :
+        d.id === 'recovery' ? (d.done ? 'recovery-confirm' : 'recovery') : 'home';
+      // seeded on-time subs for the two morning logs
+      const sub = d.id === 'breakfast' ? 'Logged 8:14 AM' : d.id === 'lunch' ? 'Logged 12:18 PM' :
+                  d.id === 'dinner' && d.done ? 'Logged 7:12 PM' : d.sub;
+      const subColor = (d.id === 'breakfast' || d.id === 'lunch' || (d.id === 'dinner' && d.done)) ? 'g' : d.subColor;
+      return { ...d, meta, route, sub, subColor };
+    };
+    const rows = CATALOG
+      .filter(r => runsToday(r) && r.id !== 'weekly' && r.id !== 'hydration')
+      .map(r => decorate(derive(r, resolve(r.id))));
+    // hydration rides as the optional row after the required set
+    const hydro = decorate(derive(CATALOG.find(r => r.id === 'hydration'), resolve('hydration')));
+    const assigned = RT.assigned.map(a => ({ ...deriveAssigned(a), meta: a.done ? 'Coach sees it' : 'From coach', route: `requirement/${a.id}` }));
+    const fresh = assigned.filter(a => a.fresh);
+    const rest = assigned.filter(a => !a.fresh);
+    return [...fresh, ...rows, hydro, ...rest];
   },
   get metCount() {
     if (RT.day0) return RT.day0Breakfast ? 1 : 0;
-    return 2 + (RT.dinnerLogged ? 1 : 0) + (RT.recoveryDone ? 1 : 0);
+    return 2 + (RT.dinnerLogged ? 1 : 0) + (RT.recoveryDone ? 1 : 0) + RT.assigned.filter(a => a.done).length;
   },
-  get reqTotal() { return 4; },
+  get reqTotal() { return 4 + RT.assigned.length; },
 
   get activity() {
     if (RT.day0) {
@@ -228,7 +273,7 @@ export const S = {
       : { active: true, day: 3, length: 14, note: 'On standard, camera-free today. Credited from your 10-day median.' };
   },
 
-  get unreadNotifs() { return RT.notifsRead ? 0 : (RT.dinnerLogged ? 2 : 3); },
+  get unreadNotifs() { return RT.notifsRead ? 0 : this.notifications.new.length; },
 
   // ---------- PLAN ----------
   plan: {
@@ -264,18 +309,22 @@ export const S = {
   },
 
   // ---------- MEAL (lunch detail; dinner uses logging.*) ----------
-  meal: {
-    name: 'Lunch', loggedAt: '12:18 PM', onTime: true, score: 91,
-    foods: ['Grilled chicken', 'White rice', 'Black beans', 'Avocado', 'Salsa'],
-    macros: { protein: 42, carbs: 68, fat: 18, cals: 610 },
-    ai: 'Strong lunch. Good protein and carb balance for recovery. Add more water with this meal.',
-    planNote: 'Fits your plan: protein-forward, carbs around training. On target for lean mass.',
-    thread: [
-      { who: 'coach', name: 'Coach Mark', text: 'Great lunch. Keep this structure.' },
-      { who: 'ai', name: 'OnStandard AI', text: 'Coach is right, this fits your plan well: protein plus carbs after training.' },
-      { who: 'athlete', name: 'You', text: 'Could I swap rice for potatoes?' },
-      { who: 'ai', name: 'OnStandard AI', text: 'Yes. Potatoes fit your carb target. Keep the portion similar.' },
-    ],
+  get meal() {
+    return {
+      name: 'Lunch', loggedAt: '12:18 PM', onTime: true, score: 91,
+      foods: ['Grilled chicken', 'White rice', 'Black beans', 'Avocado', 'Salsa'],
+      macros: { protein: 42, carbs: 68, fat: 18, cals: 610 },
+      ai: 'Strong lunch. Good protein and carb balance for recovery. Add more water with this meal.',
+      planNote: 'Fits your plan: protein-forward, carbs around training. On target for lean mass.',
+      thread: [
+        { who: 'coach', name: 'Coach Mark', text: 'Great lunch. Keep this structure.' },
+        { who: 'ai', name: 'OnStandard AI', text: 'Coach is right, this fits your plan well: protein plus carbs after training.' },
+        { who: 'athlete', name: 'You', text: 'Could I swap rice for potatoes?' },
+        { who: 'ai', name: 'OnStandard AI', text: 'Yes. Potatoes fit your carb target. Keep the portion similar.' },
+        // comments the coach ACTUALLY sent from the coach view this session
+        ...RT.coachComments.map(t => ({ who: 'coach', name: 'Coach Mark', text: t })),
+      ],
+    };
   },
 
   // dinner being logged tonight — richer AI result per the brief
@@ -361,15 +410,18 @@ export const S = {
   // ---------- NOTIFICATIONS (live) ----------
   get notifications() {
     const fresh = [];
-    if (!RT.recoveryDone) fresh.push({ level: 'high', title: 'Recovery check-in before bed', body: 'Do it tonight to lock +6 and keep your 5-day streak.', when: 'now', icon: 'moon' });
-    fresh.push({ level: 'positive', title: 'Coach Mark liked your lunch', body: '“Great lunch. Keep this structure.”', when: '18m', icon: 'heart' });
-    if (RT.dinnerLogged) fresh.push({ level: 'positive', title: 'Dinner logged on time', body: `+6 pts. You’re at ${computeScore(componentsNow())}${RT.recoveryDone ? ' — OnStandard.' : '. One move left tonight.'}`, when: 'now', icon: 'check' });
-    else fresh.push({ level: 'medium', title: 'Dinner window open', body: 'Log dinner by 8:00 PM to finish today on plan.', when: '32m', icon: 'bowl' });
+    RT.assigned.filter(a => !a.done).forEach(a => fresh.push({
+      level: 'medium', title: `Coach Mark added: ${a.title}`, body: `${a.note} Due: ${a.dueLabel.toLowerCase()}.`, when: 'now', icon: 'clipboard', route: `requirement/${a.id}`,
+    }));
+    if (!RT.recoveryDone) fresh.push({ level: 'high', title: 'Recovery check-in before bed', body: 'Do it tonight to lock +6 and keep your 5-day streak.', when: 'now', icon: 'moon', route: 'recovery' });
+    fresh.push({ level: 'positive', title: 'Coach Mark liked your lunch', body: '“Great lunch. Keep this structure.”', when: '18m', icon: 'heart', route: 'meal-detail' });
+    if (RT.dinnerLogged) fresh.push({ level: 'positive', title: 'Dinner logged on time', body: `+6 pts. You’re at ${computeScore(componentsNow())}${RT.recoveryDone ? ', OnStandard.' : '. One move left tonight.'}`, when: 'now', icon: 'check', route: 'meal-detail/dinner' });
+    else fresh.push({ level: 'medium', title: 'Dinner window open', body: 'Log dinner by 8:00 PM to finish today on plan.', when: '32m', icon: 'bowl', route: 'camera' });
     return {
       new: fresh,
       earlier: [
-        { level: 'critical', title: 'Morning Weight overdue', body: 'You missed the 9:00 AM window. Coach can see missed logs.', when: '1:12 PM', icon: 'scale' },
-        { level: 'positive', title: 'Breakfast logged on time', body: 'Strong start, meal score 95.', when: '8:14 AM', icon: 'check' },
+        { level: 'critical', title: 'Morning Weight overdue', body: 'You missed the 9:00 AM window. Coach can see missed logs.', when: '1:12 PM', icon: 'scale', route: 'weight' },
+        { level: 'positive', title: 'Breakfast logged on time', body: 'Strong start, meal score 95.', when: '8:14 AM', icon: 'check', route: 'meal-detail' },
       ],
     };
   },

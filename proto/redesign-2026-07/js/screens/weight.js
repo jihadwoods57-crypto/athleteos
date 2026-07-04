@@ -61,7 +61,7 @@ export default {
     </div>
 
     <div style="height:16px"></div>
-    <div class="lrow" style="border:1px solid var(--hairline);border-radius:15px;padding:13px 15px">
+    <div class="lrow" id="photo-row" style="border:1px solid var(--hairline);border-radius:15px;padding:13px 15px">
       <div class="lic">${icon('camera', 18)}</div>
       <div class="lm"><div class="lt">Add photo proof</div><div class="ls">Optional for this requirement</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
@@ -71,5 +71,21 @@ export default {
     <button class="btn primary" data-act="logWeight" data-then="home">${icon('check', 19)} Log Weight (late · trend only)</button>
     <div style="height:10px"></div>
     `;
+  },
+  mount(root) {
+    // stepper actually adjusts the display value
+    const wv = root.querySelector('.weight-display .wv');
+    const [minus, plus] = root.querySelectorAll('.stepper .sbtn');
+    if (wv && minus && plus) {
+      minus.addEventListener('click', () => { wv.textContent = (parseFloat(wv.textContent) - 0.1).toFixed(1); });
+      plus.addEventListener('click', () => { wv.textContent = (parseFloat(wv.textContent) + 0.1).toFixed(1); });
+    }
+    const row = root.querySelector('#photo-row');
+    if (row) row.addEventListener('click', () => {
+      row.style.borderColor = 'var(--green-border)';
+      row.querySelector('.lt').textContent = 'Photo attached';
+      row.querySelector('.ls').textContent = 'Scale photo added to this log';
+      row.querySelector('.lic').style.cssText = 'background:var(--green-surface);color:var(--green-bright)';
+    });
   },
 };

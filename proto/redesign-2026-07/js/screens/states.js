@@ -50,7 +50,7 @@ export default {
       <div class="sd-ic">${icon('camera', 22)}</div>
       <div class="sd-t">Your meal photo didn't upload</div>
       <div class="sd-s">Check your connection and try again. The photo is saved on your phone; nothing is lost.</div>
-      <div class="sd-cta"><button class="btn ghost sm" style="width:auto;padding:0 22px">Try Again</button></div>
+      <div class="sd-cta"><button class="btn ghost sm" style="width:auto;padding:0 22px" data-go="camera">Try Again</button></div>
     </div>
     <div class="state-demo err-box">
       <div class="sd-ic">${icon('bolt', 22)}</div>

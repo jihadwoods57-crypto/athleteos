@@ -3,7 +3,7 @@ import { icon } from '../icons.js';
 import { backHead } from '../components.js';
 
 function notif(n) {
-  return `<div class="notif ${n.level}">
+  return `<div class="notif ${n.level}" ${n.route ? `data-go="${n.route}" style="cursor:pointer"` : ''}>
     <div class="nic">${icon(n.icon, 19)}</div>
     <div style="flex:1">
       <span class="level-tag ${n.level}">${n.level === 'positive' ? 'nice work' : n.level}</span>

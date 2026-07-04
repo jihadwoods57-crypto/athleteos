@@ -54,10 +54,19 @@ export const analysis = {
       </div>
     </div>
 
-    <div class="eyebrow">Detected</div>
-    <div class="foodchips">
+    <div class="eyebrow">Detected <span class="link" id="edit-foods">Edit</span></div>
+    <div class="foodchips" id="foods">
       ${L.foods.map(f => `<span class="foodchip"><span class="dot"></span>${f}</span>`).join('')}
     </div>
+
+    <div class="eyebrow">One quick check</div>
+    <section class="card pad" style="display:flex;align-items:center;gap:12px">
+      <div style="flex:1;font-size:14px;font-weight:700">Butter or oil on the potatoes?</div>
+      <span class="chip-row" data-toggle-group style="gap:8px">
+        <span class="chp on" style="padding:8px 14px">Butter</span>
+        <span class="chp" style="padding:8px 14px">Oil</span>
+      </span>
+    </section>
 
     <div class="eyebrow">What the AI sees</div>
     <section class="card" style="padding:6px 16px">
@@ -85,7 +94,9 @@ export const analysis = {
       <div><div class="who">AI Feedback</div><p>${L.ai}</p></div>
     </div>
 
-    ${already ? '' : `<div class="score-change">${icon('arrowUp', 16)} Logging this moves your score ${S.score} → ${S.score + 6} and closes 1 of ${S.remainingCount} remaining requirements.</div>`}
+    ${already ? '' : RT.day0
+      ? `<div class="score-change">${icon('arrowUp', 16)} Your first log. This starts your score moving.</div>`
+      : `<div class="score-change">${icon('arrowUp', 16)} Logging this moves your score ${S.score} → ${S.score + 6} and closes 1 of ${S.remainingCount} remaining requirements.</div>`}
 
     <div style="height:20px"></div>
     <div class="btn-row">
@@ -96,6 +107,23 @@ export const analysis = {
     </div>
     <div style="height:10px"></div>
     `;
+  },
+  async mount(root) {
+    const { wireToggles } = await import('./settings.js');
+    wireToggles(root);
+    // Edit mode: chips become removable — real editing, not a dead button
+    const btn = root.querySelector('#edit-foods');
+    const box = root.querySelector('#foods');
+    if (btn && box) btn.addEventListener('click', () => {
+      const editing = box.classList.toggle('editing');
+      btn.textContent = editing ? 'Done' : 'Edit';
+      box.querySelectorAll('.foodchip').forEach(ch => {
+        if (editing && !ch.querySelector('.rm')) {
+          ch.insertAdjacentHTML('beforeend', '<span class="rm" style="margin-left:6px;color:var(--red);font-weight:800;cursor:pointer">✕</span>');
+          ch.querySelector('.rm').addEventListener('click', (e) => { e.stopPropagation(); ch.remove(); });
+        } else if (!editing) { const x = ch.querySelector('.rm'); if (x) x.remove(); }
+      });
+    });
   },
 };
 
@@ -222,5 +250,9 @@ export const detail = {
     </div>
     <div style="height:10px"></div>
     `;
+  },
+  async mount(root) {
+    const { wireComposer } = await import('./settings.js');
+    wireComposer(root, 'ai', 'OnStandard AI', 'Good question. Based on Coach Mark’s plan, keep protein the same and match the portion; the swap works.');
   },
 };

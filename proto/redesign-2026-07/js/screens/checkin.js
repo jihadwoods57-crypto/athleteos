@@ -48,4 +48,9 @@ export default {
     <div style="height:10px"></div>
     `;
   },
+  async mount(root) {
+    const { wireToggles } = await import('./settings.js');
+    root.querySelectorAll('.chips5').forEach(g => g.setAttribute('data-toggle-group', ''));
+    wireToggles(root);
+  },
 };

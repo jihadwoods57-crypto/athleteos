@@ -1,5 +1,5 @@
 import { icon } from '../icons.js';
-import { scoreRing } from '../components.js';
+import { logoMark } from '../components.js';
 
 /* Welcome / auth entry. Simulated auth: both paths land where they should. */
 export default {
@@ -7,8 +7,9 @@ export default {
   render() {
     return `
     <div class="welcome">
-      <div class="logo-ring">${scoreRing({ score: 94, size: 96, stroke: 9, showCenter: false, uid: 'logo' })}</div>
+      <div class="logo-wrap">${logoMark(104, 'welcome')}</div>
       <div class="wordmark"><span class="on">On</span>Standard</div>
+      <div class="brandline">Athlete execution platform</div>
       <div class="tagline">The coach sets the standard.<br>You prove the work.<br>The score never lies.</div>
       <div class="spacer"></div>
 

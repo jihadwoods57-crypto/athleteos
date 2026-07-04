@@ -75,7 +75,7 @@ export default {
     </section>
 
     <div class="eyebrow">Where You Lost Points</div>
-    <section class="card losttable" style="padding:6px 16px">
+    <section class="card losttable" style="padding:6px 16px;cursor:pointer" data-go="score-breakdown">
       ${P.lost.map(l => `
         <div class="lrow2">
           <span style="color:var(--text-2)">${l.k}</span>
@@ -101,5 +101,10 @@ export default {
     </div>
     <div style="height:10px"></div>
     `;
+  },
+  async mount(root) {
+    const { wireToggles } = await import('./settings.js');
+    root.querySelectorAll('.seg').forEach(g => g.setAttribute('data-toggle-group', ''));
+    wireToggles(root);
   },
 };

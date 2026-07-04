@@ -8,7 +8,7 @@ export default {
     return `
     <div class="screen-title">Profile</div>
 
-    <section class="card id-card">
+    <section class="card id-card" data-go="onboarding/1" style="cursor:pointer">
       <div class="big-av">${S.athlete.initials}</div>
       <div style="flex:1">
         <div class="nm">${S.athlete.first} ${S.athlete.last}</div>
@@ -30,9 +30,9 @@ export default {
 
     <div class="eyebrow">Coach Connection</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow">
+      <div class="lrow" data-go="messages">
         <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204;font-weight:800;font-size:14px">M</div>
-        <div class="lm"><div class="lt">${S.coach.name}</div><div class="ls">${S.coach.team}</div></div>
+        <div class="lm"><div class="lt">${S.coach.name}</div><div class="ls">${S.coach.team} · tap to message</div></div>
         <span class="status-pill g">Connected</span>
       </div>
       <div class="lrow" data-go="connect">
@@ -59,7 +59,7 @@ export default {
         <div class="lm"><div class="lt">Notifications</div><div class="ls">Reminder level: High</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      <div class="lrow">
+      <div class="lrow" data-go="progress">
         <div class="lic" style="color:var(--amber-bright)">${icon('flame', 18)}</div>
         <div class="lm"><div class="lt">Streak</div><div class="ls">${S.streakDays} days on standard · 1 grace per 7 days</div></div>
         <span class="lv">${S.streakDays}d</span>
@@ -78,6 +78,11 @@ export default {
         <div class="lm"><div class="lt">Coach view</div><div class="ls">Roster, live scores, who needs attention</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
+      <div class="lrow" data-go="trainer">
+        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Trainer view</div><div class="ls">Clients · recovery, readiness, consistency</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
       <div class="lrow" data-go="parent">
         <div class="lic">${icon('heart', 17)}</div>
         <div class="lm"><div class="lt">Parent view</div><div class="ls">Simple accountability, privacy-scoped</div></div>
@@ -92,11 +97,11 @@ export default {
 
     <div class="eyebrow">Settings</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow"><div class="lic">${icon('user', 18)}</div><div class="lm"><div class="lt">Goals & body metrics</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy</div><div class="ls">Role-scoped visibility · photos private by default</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan & billing</div><div class="ls">Individual athlete · team plans available</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & preferences</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
+      <div class="lrow" data-go="onboarding/3"><div class="lic">${icon('user', 18)}</div><div class="lm"><div class="lt">Goals & body metrics</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy</div><div class="ls">Role-scoped visibility · photos private by default</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="billing"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan & billing</div><div class="ls">Individual athlete · team plans available</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & preferences</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
     </section>
 
     <div class="eyebrow">Prototype controls</div>

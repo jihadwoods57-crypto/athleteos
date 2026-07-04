@@ -4,6 +4,7 @@
 html, body { height: 100%; }
 body {
   font-family: var(--font);
+  font-variant-numeric: tabular-nums; /* numbers are the product; they never jitter */
   background:
     radial-gradient(1200px 600px at 50% -8%, #0d1830 0%, transparent 60%),
     #05070d;
@@ -73,6 +74,19 @@ body {
 /* view fade-in */
 .view { animation: viewIn var(--dur-2) var(--ease-out); }
 @keyframes viewIn { from { opacity: 0; transform: translateY(8px);} to { opacity:1; transform:none; } }
+/* staggered row entrances — list content settles like it landed, not popped */
+.view .req-row, .view .act-card, .view .notif, .view .roster-row {
+  animation: rowIn 420ms var(--ease-out) both;
+}
+@keyframes rowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.view .req-row:nth-of-type(2), .view .act-card:nth-of-type(2), .view .notif:nth-of-type(2), .view .roster-row:nth-of-type(2) { animation-delay: 45ms; }
+.view .req-row:nth-of-type(3), .view .act-card:nth-of-type(3), .view .notif:nth-of-type(3), .view .roster-row:nth-of-type(3) { animation-delay: 90ms; }
+.view .req-row:nth-of-type(4), .view .act-card:nth-of-type(4), .view .notif:nth-of-type(4), .view .roster-row:nth-of-type(4) { animation-delay: 135ms; }
+.view .req-row:nth-of-type(5), .view .act-card:nth-of-type(5), .view .roster-row:nth-of-type(5) { animation-delay: 180ms; }
+.view .req-row:nth-of-type(6), .view .roster-row:nth-of-type(6) { animation-delay: 225ms; }
+@media (prefers-reduced-motion: reduce) {
+  .view, .view *, .ring-arc, .aurora { animation: none !important; transition: none !important; }
+}
 
 /* ===== App header ===== */
 .apphead {

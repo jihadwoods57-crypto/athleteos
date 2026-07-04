@@ -41,4 +41,10 @@ export default {
       </div>
     </div>`;
   },
+  mount(root) {
+    root.querySelectorAll('.vf-tool').forEach(t => t.addEventListener('click', (e) => {
+      e.stopPropagation();
+      t.style.color = t.style.color === 'var(--amber-bright)' ? '#fff' : 'var(--amber-bright)';
+    }));
+  },
 };

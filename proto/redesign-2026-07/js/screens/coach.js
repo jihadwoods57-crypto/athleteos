@@ -21,7 +21,7 @@ export const coach = {
     ${attention.length ? `
     <div class="eyebrow">Needs attention</div>
     ${attention.map(r => `
-    <div class="notif critical">
+    <div class="notif critical" data-go="copilot" style="cursor:pointer">
       <div class="nic">${icon('bell', 19)}</div>
       <div style="flex:1">
         <div class="nt">${r.name} · ${r.unit}</div>
@@ -32,35 +32,114 @@ export const coach = {
 
     <div class="eyebrow">Roster · live scores</div>
     <section class="card" style="padding:2px 0">
-      ${S.roster.map(r => `
-        <div class="roster-row" ${r.you ? 'data-go="coach-athlete"' : ''}>
-          <div class="flagdot ${r.flag}"></div>
+      ${S.roster.map(r => {
+        // J. Woods' row is LIVE: score, logs, and note derive from his actual state
+        const score = r.you ? jihadScore : r.score;
+        const logs = r.you ? `${S.metCount}/${S.reqTotal}` : r.logs;
+        const note = r.you
+          ? (S.remainingCount === 0 ? `Finished day · ${S.tier.name}` : `${S.remainingCount} still open tonight`)
+          : r.note;
+        const flag = r.you ? (score >= 80 ? (S.remainingCount === 0 ? 'g' : 'y') : 'y') : r.flag;
+        return `
+        <div class="roster-row" ${r.you ? 'data-go="coach-athlete"' : 'style="cursor:default"'}>
+          <div class="flagdot ${flag}"></div>
           <div class="rn">
             <div class="t">${r.name} <small style="color:var(--text-3);font-weight:700">· ${r.unit}</small>${r.you ? ' <span class="status-pill b" style="font-size:9.5px;padding:2px 8px">REVIEW</span>' : ''}</div>
-            <div class="s">${r.note}</div>
+            <div class="s">${note}</div>
           </div>
-          <span class="rl">${r.logs}</span>
-          <span class="rs" style="color:${r.score >= 80 ? 'var(--green-bright)' : r.score >= 60 ? 'var(--amber-bright)' : 'var(--red)'}">${r.you ? jihadScore : r.score}</span>
-        </div>`).join('')}
+          <span class="rl">${logs}</span>
+          <span class="rs" style="color:${score >= 80 ? 'var(--green-bright)' : score >= 60 ? 'var(--amber-bright)' : 'var(--red)'}">${score}</span>
+        </div>`;
+      }).join('')}
     </section>
 
     <div class="eyebrow">Coach tools</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow">
+      <div class="lrow" data-go="coach-assign">
         <div class="lic" style="background:rgba(52,211,153,0.16);color:var(--green-bright)">${icon('plus', 18)}</div>
-        <div class="lm"><div class="lt">Assign a requirement</div><div class="ls">Meal, weight, recovery, film, custom task</div></div>
+        <div class="lm"><div class="lt">Assign a requirement</div><div class="ls">Post-workout meal, supplements, body photo, sleep, custom</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      <div class="lrow">
+      <div class="lrow" data-go="plan">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('clipboard', 17)}</div>
         <div class="lm"><div class="lt">Edit the game plan</div><div class="ls">Targets, meal windows, weekly focus</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      <div class="lrow">
+      <div class="lrow" data-go="copilot">
         <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 18)}</div>
         <div class="lm"><div class="lt">Copilot</div><div class="ls">Who needs attention? Who's improving? Team summary.</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
+    </section>
+    <div style="height:10px"></div>
+    `;
+  },
+};
+
+/* ---------- Coach assign flow: template -> lands on the athlete's Home ---------- */
+export const coachAssign = {
+  hideTabs: true,
+  render() {
+    const already = (id) => RT.assigned.some(a => a.id === id);
+    const T = [
+      { id: 'pwm',  icon: 'utensils', t: 'Post-Workout Meal', s: 'Photo proof · within 45 min of lifting' },
+      { id: 'supp', icon: 'check',    t: 'Supplement Log', s: 'One-tap confirm · with dinner' },
+      { id: 'body', icon: 'camera',   t: 'Body Photo', s: 'Coach-only · same pose, same light' },
+      { id: 'sleep',icon: 'moon',     t: 'Sleep Target · 8h', s: 'This week · lights out 10:30' },
+    ];
+    return `
+    ${backHead('Assign to J. Woods', 'It lands on his Home the moment you send it', 'coach')}
+
+    <div class="eyebrow">Templates</div>
+    <section class="card" style="padding:6px 16px">
+      ${T.map(x => `
+        <div class="lrow" ${already(x.id) ? '' : `data-act="assignReq:${x.id}" data-then="coach"`}>
+          <div class="lic" style="${already(x.id) ? 'background:var(--green-surface);color:var(--green-bright)' : ''}">${icon(already(x.id) ? 'check' : x.icon, 17)}</div>
+          <div class="lm"><div class="lt">${x.t}</div><div class="ls">${already(x.id) ? 'Assigned · on his Home now' : x.s}</div></div>
+          ${already(x.id) ? '<span class="status-pill g">Sent</span>' : `<span class="status-pill b">Assign</span>`}
+        </div>`).join('')}
+    </section>
+
+    <div style="height:14px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
+      <div><div class="tt">Tasks don't mint points</div>
+      <div class="ts">The score stays four honest components. Assigned tasks are part of the plan his commitment answer covers, and you see completion either way.</div></div>
+    </div>
+    <div style="height:10px"></div>
+    `;
+  },
+};
+
+/* ---------- Copilot: deterministic roster reads, AI-narrated (mirrors RN assist fn) ---------- */
+export const copilot = {
+  hideTabs: true,
+  render() {
+    return `
+    ${backHead('Copilot', 'Deterministic roster reads, narrated', 'coach')}
+
+    <div class="eyebrow">Ask</div>
+    <div class="chip-row">
+      <span class="chp on">Who needs attention?</span>
+      <span class="chp" data-go="copilot">Who's improving?</span>
+      <span class="chp" data-go="copilot">Team summary</span>
+    </div>
+
+    <div style="height:16px"></div>
+    <div class="ai-note">
+      <div class="av">${icon('sparkle', 18)}</div>
+      <div><div class="who">Copilot</div>
+      <p><b>K. Bell</b> is the outlier: no logs since Tuesday, score 58, trending down two weeks straight. Text him tonight, not Friday. <b>M. Reyes</b> is a smaller fix: hydration short 3 days running, everything else holds. Everyone else is on standard or one habit away.</p></div>
+    </div>
+
+    <div class="eyebrow">The numbers behind it</div>
+    <section class="card" style="padding:2px 0">
+      ${S.roster.filter(r => r.flag !== 'g').map(r => `
+        <div class="roster-row" style="cursor:default">
+          <div class="flagdot ${r.flag}"></div>
+          <div class="rn"><div class="t">${r.name}</div><div class="s">${r.note}</div></div>
+          <span class="rs" style="color:${r.score >= 60 ? 'var(--amber-bright)' : 'var(--red)'}">${r.score}</span>
+        </div>`).join('')}
     </section>
     <div style="height:10px"></div>
     `;
@@ -83,7 +162,7 @@ export const coachAthlete = {
     <div class="eyebrow">Today's proof</div>
     <div class="hscroll">
       ${S.activity.filter(a => a.img).map(a => `
-        <div class="act-card">
+        <div class="act-card" ${a.route && a.route.startsWith('meal-detail') ? `data-go="${a.route}"` : 'style="cursor:default"'}>
           <div class="act-time">${a.time}</div>
           <div class="act-media" style="background-image:url('${a.img}')">${a.dim ? `<div class="dim">${icon('moon', 30)}</div>` : ''}</div>
           <div class="act-body"><div class="act-type">${a.type}</div><div class="act-value ${a.vClass}">${a.value}</div></div>
@@ -106,14 +185,100 @@ export const coachAthlete = {
     <div class="eyebrow">Comment on the lunch log</div>
     <div class="thread">
       <div class="msg coach"><div class="av">M</div><div><div class="who">You</div><div class="bubble">Great lunch. Keep this structure.</div></div></div>
-      <div class="msg ai"><div class="av">${icon('sparkle', 15)}</div><div><div class="who">OnStandard AI</div><div class="bubble">Sent to Jihad. I'll reinforce the same structure at dinner.</div></div></div>
+      <div class="msg-status">In Jihad's meal thread · he sees it on the log</div>
+      ${RT.coachComments.map(t => `<div class="msg coach"><div class="av">M</div><div><div class="who">You</div><div class="bubble">${t.replace(/</g, '&lt;')}</div></div></div>`).join('')}
     </div>
     <div class="composer">
-      <input placeholder="Message Jihad about today…" />
+      <input placeholder="Comment on Jihad's lunch…" />
       <div class="send">${icon('arrowUp', 19)}</div>
     </div>
     <div style="height:10px"></div>
     `;
+  },
+  async mount(root) {
+    const { wireComposer } = await import('./settings.js');
+    // The send is REAL in-sim: it lands in the athlete's meal thread (state.coachComments).
+    wireComposer(root, 'delivery', '', "Delivered to Jihad's meal thread", (text) => window.__act.coachComment(text));
+  },
+};
+
+/* ---------- Trainer view: clients, not a team. Scope = recovery + readiness + nutrition consistency ---------- */
+export const trainer = {
+  hideTabs: true,
+  render() {
+    const clients = [
+      { name: 'J. Woods', tag: 'WR · lean mass', ready: 84, consist: 87, flag: 'g', you: true },
+      { name: 'S. Carter', tag: 'Volleyball · perform', ready: 71, consist: 78, flag: 'y' },
+      { name: 'R. Nunez', tag: 'Wrestling · cut', ready: 62, consist: 91, flag: 'y' },
+    ];
+    return `
+    ${backHead('Trainer view', 'Your clients · recovery, readiness, consistency', 'profile')}
+
+    <section class="card" style="padding:2px 0">
+      ${clients.map(c => `
+        <div class="roster-row" ${c.you ? 'data-go="trainer-client"' : 'style="cursor:default"'}>
+          <div class="flagdot ${c.flag}"></div>
+          <div class="rn">
+            <div class="t">${c.name}${c.you ? ' <span class="status-pill b" style="font-size:9.5px;padding:2px 8px">OPEN</span>' : ''}</div>
+            <div class="s">${c.tag}</div>
+          </div>
+          <span class="rl" title="readiness">${c.ready}</span>
+          <span class="rs" style="color:${c.consist >= 80 ? 'var(--green-bright)' : 'var(--amber-bright)'}">${c.consist}%</span>
+        </div>`).join('')}
+    </section>
+    <div style="display:flex;justify-content:space-between;padding:8px 18px 0;font-size:10.5px;font-weight:700;color:var(--text-3);letter-spacing:0.05em">
+      <span></span><span>READINESS · CONSISTENCY</span>
+    </div>
+
+    <div style="height:14px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div><div class="tt">Trainer scope</div>
+      <div class="ts">You see recovery, readiness, and nutrition consistency. Team scores, coach comments, and body photos stay in the coach lane.</div></div>
+    </div>
+    <div style="height:10px"></div>
+    `;
+  },
+};
+
+/* ---------- Trainer -> client detail (Jihad as client) ---------- */
+export const trainerClient = {
+  hideTabs: true,
+  render() {
+    return `
+    ${backHead('J. Woods', 'Client · lean mass phase', 'trainer')}
+
+    <div class="coach-stats">
+      <div class="coach-stat"><div class="v" style="color:var(--blue-bright)">${S.weekly.readiness}</div><div class="k">Readiness</div></div>
+      <div class="coach-stat"><div class="v" style="color:var(--green-bright)">87%</div><div class="k">Consistency</div></div>
+      <div class="coach-stat"><div class="v" style="color:${RT.recoveryDone ? 'var(--green-bright)' : 'var(--amber-bright)'}">${RT.recoveryDone ? 'In' : 'Open'}</div><div class="k">Tonight's recovery</div></div>
+    </div>
+
+    <div class="eyebrow">Recovery pattern · this week</div>
+    <section class="card pad">
+      <div class="consist">
+        ${[['Sleep quality', 78, 'b'], ['Soreness load', 64, 'a'], ['Recovery check-ins', 71, 'p'], ['Hydration', 80, 'b']].map(([k, v, a]) => `
+          <div class="cons-row">
+            <span class="k" style="width:120px">${k}</span>
+            <div class="track"><div class="fillb" style="width:${v}%;background:linear-gradient(90deg,${a === 'p' ? '#7e22ce,var(--purple-bright)' : a === 'a' ? '#b45309,var(--amber-bright)' : 'var(--blue-deep),var(--blue-bright)'})"></div></div>
+            <span class="v">${v}%</span>
+          </div>`).join('')}
+      </div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:14px">Soreness tracks his two missed recovery nights. Night habits are the coaching point, not effort.</div>
+    </section>
+
+    <div class="eyebrow">Note to client</div>
+    <div class="thread"></div>
+    <div class="composer">
+      <input placeholder="Note for Jihad…" />
+      <div class="send">${icon('arrowUp', 19)}</div>
+    </div>
+    <div style="height:10px"></div>
+    `;
+  },
+  async mount(root) {
+    const { wireComposer } = await import('./settings.js');
+    wireComposer(root, 'delivery', '', 'Delivered · Jihad sees trainer notes in his feed');
   },
 };
 
