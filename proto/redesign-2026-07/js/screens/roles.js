@@ -32,6 +32,33 @@ async function toggles(root) {
   wireToggles(root);
 }
 
+/* ---------- Sign-in role select: every role lands on ITS dashboard ---------- */
+export const signin = {
+  hideTabs: true,
+  render() {
+    const row = (go, ic, cls, t, s) => `
+      <div class="lrow" data-go="${go}">
+        <div class="lic" style="${cls}">${icon(ic, 18)}</div>
+        <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>`;
+    return `
+    ${backHead('Sign in as', 'Every role gets its own dashboard', 'welcome')}
+    <section class="card" style="padding:6px 16px">
+      ${row('home', 'bolt', 'background:rgba(52,211,153,0.18);color:var(--green-bright)', 'Jihad Woods · Athlete', 'Home, plan, camera, progress')}
+      ${row('coach', 'users', 'background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204', 'Coach Mark · Coach', 'Team board, assign, plan, Copilot')}
+      ${row('trainer', 'heart', 'background:rgba(168,85,247,0.18);color:var(--purple-bright)', 'Tracy Boone · Trainer', 'Clients, readiness, notes')}
+      ${row('parent', 'lock', 'background:var(--blue-surface);color:var(--blue-bright)', 'Parent of Jihad', 'Score and streaks, privacy-scoped')}
+    </section>
+    <div style="height:14px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div><div class="tt">One account, one role</div>
+      <div class="ts">In the real app your login knows who you are. This picker stands in for that.</div></div>
+    </div>`;
+  },
+};
+
 /* ---------- Role picker ---------- */
 export const role = {
   hideTabs: true,
@@ -291,7 +318,7 @@ export const clientOb = {
 
 /* ============ COACH & TRAINER PROFILES ============ */
 export const coachProfile = {
-  hideTabs: true,
+  nav: 'coach', tab: 'profile',
   render() {
     return `
     ${backHead('Coach Profile', 'You, your team, your code', 'coach')}
@@ -334,7 +361,7 @@ export const coachProfile = {
 };
 
 export const trainerProfile = {
-  hideTabs: true,
+  nav: 'trainer', tab: 'profile',
   render() {
     return `
     ${backHead('Trainer Profile', 'Your practice and client code', 'trainer')}

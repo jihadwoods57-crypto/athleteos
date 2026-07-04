@@ -4,7 +4,7 @@ import { backHead } from '../components.js';
 
 /* ---------- Coach Dashboard (role view; mirrors the RN coach side + Copilot) ---------- */
 export const coach = {
-  hideTabs: true,
+  nav: 'coach', tab: 'team',
   render() {
     const avg = Math.round(S.roster.reduce((a, r) => a + r.score, 0) / S.roster.length);
     const attention = S.roster.filter(r => r.flag === 'r');
@@ -53,6 +53,19 @@ export const coach = {
       }).join('')}
     </section>
 
+    <div class="eyebrow">Leaderboard · what the athletes see</div>
+    <section class="card pad" style="display:flex;align-items:center;gap:14px">
+      <div style="flex:1">
+        <div style="font-size:14.5px;font-weight:800">Board scope</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px">Changes their Squad view the moment you pick.</div>
+      </div>
+      <div class="seg" style="width:190px">
+        <button class="${RT.squadScope === 'team' ? 'on' : ''}" data-act="setSquadScope:team" data-then="coach">Team</button>
+        <button class="${RT.squadScope === 'position' ? 'on' : ''}" data-act="setSquadScope:position" data-then="coach">Room</button>
+        <button class="${RT.squadScope === 'off' ? 'on' : ''}" data-act="setSquadScope:off" data-then="coach">Off</button>
+      </div>
+    </section>
+
     <div class="eyebrow">Coach tools</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-assign">
@@ -83,7 +96,7 @@ export const coach = {
 
 /* ---------- Coach assign flow: template -> lands on the athlete's Home ---------- */
 export const coachAssign = {
-  hideTabs: true,
+  nav: 'coach', tab: 'assign',
   render() {
     const already = (id) => RT.assigned.some(a => a.id === id);
     const T = [
@@ -131,7 +144,7 @@ export const coachAssign = {
 
 /* ---------- Coach plan editor: adjust targets, publish -> athlete's Plan·Notes + notification ---------- */
 export const coachPlan = {
-  hideTabs: true,
+  nav: 'coach', tab: 'plan',
   render() {
     return `
     ${backHead('Edit Game Plan', 'J. Woods · Lean Mass Phase · Week 2 of 6', 'coach')}
@@ -185,7 +198,7 @@ export const coachPlan = {
 
 /* ---------- Copilot: deterministic roster reads, AI-narrated (mirrors RN assist fn) ---------- */
 export const copilot = {
-  hideTabs: true,
+  nav: 'coach', tab: 'copilot',
   render() {
     return `
     ${backHead('Copilot', 'Deterministic roster reads, narrated', 'coach')}
@@ -220,7 +233,7 @@ export const copilot = {
 
 /* ---------- Coach → athlete detail (review Jihad's day, comment on a log) ---------- */
 export const coachAthlete = {
-  hideTabs: true,
+  nav: 'coach', tab: 'team',
   render() {
     return `
     ${backHead('J. Woods · WR', `Today · ${S.score} ${S.tier.name}`, 'coach')}
@@ -276,7 +289,7 @@ export const coachAthlete = {
 
 /* ---------- Trainer view: clients, not a team. Scope = recovery + readiness + nutrition consistency ---------- */
 export const trainer = {
-  hideTabs: true,
+  nav: 'trainer', tab: 'clients',
   render() {
     const clients = [
       { name: 'J. Woods', tag: 'WR · lean mass', ready: 84, consist: 87, flag: 'g', you: true },
@@ -324,7 +337,7 @@ export const trainer = {
 
 /* ---------- Trainer -> client detail (Jihad as client) ---------- */
 export const trainerClient = {
-  hideTabs: true,
+  nav: 'trainer', tab: 'note',
   render() {
     return `
     ${backHead('J. Woods', 'Client · lean mass phase', 'trainer')}
@@ -359,7 +372,8 @@ export const trainerClient = {
   },
   async mount(root) {
     const { wireComposer } = await import('./settings.js');
-    wireComposer(root, 'delivery', '', 'Delivered · Jihad sees trainer notes in his feed');
+    // REAL in-sim: the note lands in the client's notifications
+    wireComposer(root, 'delivery', '', "Delivered · Jihad sees it in his notifications", (text) => window.__act.trainerNote(text));
   },
 };
 

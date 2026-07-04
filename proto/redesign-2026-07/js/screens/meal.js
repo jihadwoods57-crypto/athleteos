@@ -222,13 +222,28 @@ export const detail = {
       ${M.foods.map(f => `<span class="foodchip"><span class="dot"></span>${f}</span>`).join('')}
     </div>
 
-    <div class="eyebrow">Macros</div>
-    ${macroRow(M.macros)}
+    <div class="eyebrow">Macros · share of today's targets</div>
+    <section class="card pad">
+      ${[['Protein', M.macros.protein, 190, 'g', 'g'], ['Carbs', M.macros.carbs, 260, 'g', 'b'], ['Fat', M.macros.fat, 70, 'g', 'a'], ['Calories', M.macros.cals, 2400, '', 'p']].map(([k, v, target, u, cl]) => `
+        <div class="cons-row" style="margin-bottom:11px">
+          <span class="k" style="width:64px">${k}</span>
+          <div class="track"><div class="fillb" style="width:${Math.min(100, Math.round((v / target) * 100))}%;background:linear-gradient(90deg,${cl === 'g' ? '#16a34a,var(--green-bright)' : cl === 'b' ? 'var(--blue-deep),var(--blue-bright)' : cl === 'a' ? '#b45309,var(--amber-bright)' : '#7e22ce,var(--purple-bright)'})"></div></div>
+          <span class="v" style="width:86px">${v}${u} <small style="color:var(--text-3)">/ ${target}${u}</small></span>
+        </div>`).join('')}
+      <div style="font-size:12px;font-weight:600;color:var(--text-3)">One meal's share of the day ${S.coach.name} set. Not a verdict, a position.</div>
+    </section>
 
     <div style="height:16px"></div>
     <div class="sidebox">
       <div class="req-icon g" style="width:38px;height:38px">${checkFill(20)}</div>
       <div><div class="tt">Plan check</div><div class="ts">${M.planNote}</div></div>
+    </div>
+
+    <div class="eyebrow">Ask the AI</div>
+    <div class="chip-row" id="quick-asks">
+      <span class="chp" data-q="Could I swap the rice for potatoes?">Swap ideas</span>
+      <span class="chp" data-q="Was the portion right for my goal?">Portion check</span>
+      <span class="chp" data-q="What should I order eating out tomorrow?">Eating out</span>
     </div>
 
     <div class="eyebrow">Conversation</div>
@@ -254,5 +269,11 @@ export const detail = {
   async mount(root) {
     const { wireComposer } = await import('./settings.js');
     wireComposer(root, 'ai', 'OnStandard AI', 'Good question. Based on Coach Mark’s plan, keep protein the same and match the portion; the swap works.');
+    // quick-ask chips inject the question into the composer and send it
+    root.querySelectorAll('#quick-asks .chp').forEach(ch => ch.addEventListener('click', () => {
+      const input = root.querySelector('.composer input');
+      const send = root.querySelector('.composer .send');
+      if (input && send) { input.value = ch.getAttribute('data-q'); send.click(); }
+    }));
   },
 };

@@ -123,14 +123,39 @@ export default {
 
     <div style="height:20px"></div>
     <section class="card finish">
-      <div class="finish-head">${icon('target', 17)}<span class="t">Finish Today</span></div>
-      <div class="finish-strip">
-        <div class="finish-cell"><div class="k">Current Score</div><div class="v">${S.finish.current}</div></div>
-        <div class="finish-cell"><div class="k">Possible Score</div><div class="v g">${S.finish.possible}</div></div>
-        <div class="finish-cell"><div class="k">Requirements Met</div><div class="v"><span class="b">${S.metCount}</span><small>/${S.reqTotal}</small></div></div>
-        <div class="finish-cell" ${S.nextMove ? `data-go="${S.nextMove.route}"` : ''}><div class="k">Next Biggest Move</div><div class="v txt">${S.finish.nextMove}${S.finish.nextGain ? `<br><span class="g">+${S.finish.nextGain} pts</span>` : `<br><span class="g">locked in</span>`}</div></div>
-        <div class="finish-cell" ${RT.recoveryDone ? '' : 'data-go="recovery"'}><div class="k">Highest Risk</div><div class="v txt">${S.finish.risk}<br><span class="${RT.recoveryDone ? 'g' : 'p'}">${RT.recoveryDone ? 'clear' : 'tonight'}</span></div></div>
+      <div class="finish-head" style="justify-content:space-between">
+        <span style="display:flex;align-items:center;gap:9px">${icon('target', 17)}<span class="t">Finish Today</span></span>
+        <span style="font-size:12px;font-weight:800;color:var(--text-2)">${S.metCount} of ${S.reqTotal} in</span>
       </div>
+      <div class="finish-segs">
+        ${Array.from({ length: S.reqTotal }, (_, i) => `<div class="fseg ${i < S.metCount ? 'on' : ''}"></div>`).join('')}
+      </div>
+      <div class="finish-score-line">
+        <span class="fs-now">${S.finish.current}</span>
+        <div class="fs-bridge">
+          <div class="fs-track"><div class="fs-fill" style="width:${Math.round((S.finish.current / S.finish.possible) * 100)}%"></div></div>
+          <span class="fs-note">${S.remainingCount === 0 ? 'everything is in' : `+${S.finish.possible - S.finish.current} still on the table`}</span>
+        </div>
+        <span class="fs-goal">${S.finish.possible}</span>
+      </div>
+      ${S.nextMove ? `
+      <div class="finish-moves">
+        <div class="fmove" data-go="${S.nextMove.route}">
+          <div class="req-icon ${S.nextMove.accent}" style="width:36px;height:36px">${icon(S.nextMove.accent === 'p' ? 'moon' : 'bowl', 17)}</div>
+          <div style="flex:1"><div class="fm-t">${S.finish.nextMove}</div><div class="fm-s">next biggest move</div></div>
+          <span class="fm-v">+${S.finish.nextGain}</span>
+        </div>
+        ${RT.recoveryDone ? '' : `
+        <div class="fmove" data-go="recovery">
+          <div class="req-icon a" style="width:36px;height:36px">${icon('clock', 17)}</div>
+          <div style="flex:1"><div class="fm-t">${S.finish.risk}</div><div class="fm-s">highest risk · keeps the streak</div></div>
+          <span class="fm-v" style="color:var(--purple-bright)">tonight</span>
+        </div>`}
+      </div>` : `
+      <div class="day-done" style="margin-top:14px">
+        <div class="req-icon g" style="width:40px;height:40px">${icon('check', 19)}</div>
+        <div><div class="tt">Done at ${S.score}. That's the standard.</div></div>
+      </div>`}
     </section>
     `;
   },

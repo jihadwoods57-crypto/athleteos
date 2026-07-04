@@ -29,10 +29,11 @@ export default {
     ${N.earlier.map(notif).join('')}
 
     <div style="height:6px"></div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('bell', 18)}</div>
-      <div><div class="tt">Reminder level: High</div>
-      <div class="ts">${S.coach.name} sets urgency per requirement. You control quiet hours in Profile → Notifications.</div></div>
+    <div class="sidebox" data-go="notif-settings" style="cursor:pointer">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('gear', 17)}</div>
+      <div style="flex:1"><div class="tt">Notification settings</div>
+      <div class="ts">${S.coach.name} sets urgency per requirement. You set pressure level and quiet hours.</div></div>
+      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>
     <div style="height:10px"></div>
     `;

@@ -6,7 +6,7 @@ import { analyzing, analysis, confirm, detail } from './meal.js';
 import weight from './weight.js';
 import recovery, { recoveryConfirm } from './recovery.js';
 import progress from './progress.js';
-import profile from './profile.js';
+import profile, { editProfile, squad } from './profile.js';
 import connect from './connect.js';
 import notifications from './notifications.js';
 import log from './log.js';
@@ -16,10 +16,10 @@ import checkin from './checkin.js';
 import { coach, coachAthlete, coachAssign, coachPlan, copilot, trainer, trainerClient, parent } from './coach.js';
 import states from './states.js';
 import requirement from './requirement.js';
-import { messages, settings as prefs, privacy, billing } from './settings.js';
+import { messages, settings as prefs, privacy, billing, notifSettings, deleteAccount, terms } from './settings.js';
 import { foodSearch, labelScan } from './foodsearch.js';
 import { trust, streak, history } from './trust.js';
-import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
+import { role, signin, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
 
 export const screens = {
   home,
@@ -61,9 +61,15 @@ export const screens = {
   streak,
   history,
   role,
+  signin,
   'coach-ob': coachOb,
   'trainer-ob': trainerOb,
   'client-ob': clientOb,
   'coach-profile': coachProfile,
   'trainer-profile': trainerProfile,
+  'edit-profile': editProfile,
+  squad,
+  'notif-settings': notifSettings,
+  'delete-account': deleteAccount,
+  terms,
 };

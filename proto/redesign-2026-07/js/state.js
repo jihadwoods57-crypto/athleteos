@@ -42,6 +42,10 @@ const DEFAULT_RT = {
   assigned: [],          // coach-assigned requirements: {id,title,icon,note,from,dueLabel,done,seen}
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
   planUpdate: null,      // coach-published plan update; REALLY lands in Plan·Notes + notifications
+  squadScope: 'position',// coach-controlled leaderboard scope: 'team' | 'position' | 'off'
+  trainerNotes: [],      // trainer->client notes; REALLY land in the athlete's notifications
+  camPrimed: false,      // Apple-style camera permission priming shown once
+  profile: null,         // athlete edits: {name, sport, position, school, avatar(dataURL)}
 };
 function load() {
   try { return { ...DEFAULT_RT, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; }
@@ -134,14 +138,32 @@ export const act = {
     RT.notifsRead = false;
     save();
   },
+  setSquadScope(s) { if (['team', 'position', 'off'].includes(s)) { RT.squadScope = s; save(); } },
+  trainerNote(text) {
+    const t = String(text || '').trim().slice(0, 300);
+    if (t) { RT.trainerNotes.push(t); RT.notifsRead = false; save(); }
+  },
+  primeCamera() { RT.camPrimed = true; save(); },
+  saveProfile(p) { RT.profile = { ...(RT.profile || {}), ...p }; save(); },
   reset() { Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { lastMove: null }); save(); },
 };
 window.__act = act;
 
 /* ---------------- The app state (live getters) ---------------- */
 export const S = {
-  athlete: { first: 'Jihad', last: 'Woods', initials: 'J2', sport: 'Football', position: 'Wide Receiver', school: 'Central Catholic', level: 'High School' },
-  coach:   { name: 'Coach Mark', initials: 'M', role: 'Head Coach', team: 'Central Catholic · Varsity' },
+  get athlete() {
+    const p = RT.profile || {};
+    const first = (p.name || 'Jihad Woods').split(' ')[0];
+    const last = (p.name || 'Jihad Woods').split(' ').slice(1).join(' ') || 'Woods';
+    return {
+      first, last, name: p.name || 'Jihad Woods',
+      initials: (first[0] || 'J') + (last[0] || 'W'),
+      sport: p.sport || 'Football', position: p.position || 'Wide Receiver',
+      school: p.school || 'Central Catholic', level: 'High School',
+      avatar: p.avatar || null,
+    };
+  },
+  coach: { name: 'Coach Mark', initials: 'M', role: 'Head Coach', team: 'Central Catholic · Varsity' },
 
   now: '7:12',
   greeting: 'Good evening',
@@ -440,13 +462,29 @@ export const S = {
     aiSummary: 'You’re trending up. Meal consistency improved, but recovery and hydration are your biggest gaps. Get water in before practice and do your check-in before bed.',
   },
 
-  // ---------- SQUAD / COACH ----------
-  squad: [
-    { rank: 1, name: 'D. Okafor', unit: 'WR', score: 93, you: false },
-    { rank: 2, name: 'You', unit: 'WR', score: 82, you: true },
-    { rank: 3, name: 'M. Reyes', unit: 'WR', score: 79, you: false },
-    { rank: 4, name: 'T. Boone', unit: 'WR', score: 74, you: false },
-  ],
+  // ---------- SQUAD / COACH (scope is coach-controlled) ----------
+  get squadScope() { return RT.squadScope; },
+  get squad() {
+    if (RT.squadScope === 'off') return [];
+    const me = { name: 'You', unit: 'WR', score: this.score, you: true };
+    const room = [
+      { name: 'D. Okafor', unit: 'WR', score: 93 },
+      me,
+      { name: 'M. Reyes', unit: 'WR', score: 79 },
+      { name: 'T. Boone', unit: 'WR', score: 74 },
+    ];
+    const team = [
+      { name: 'A. Grant', unit: 'RB', score: 91 },
+      { name: 'C. Dune', unit: 'QB', score: 88 },
+      { name: 'J. Ford', unit: 'LB', score: 84 },
+      { name: 'P. Ellis', unit: 'OL', score: 77 },
+      { name: 'K. Bell', unit: 'RB', score: 58 },
+    ];
+    const rows = (RT.squadScope === 'team' ? [...room.filter(r => !r.you), me, ...team] : room)
+      .sort((a, b) => b.score - a.score)
+      .map((r, i) => ({ ...r, rank: i + 1 }));
+    return rows;
+  },
   roster: [
     { name: 'D. Okafor', unit: 'WR', score: 93, logs: '4/4', flag: 'g', note: 'On standard 12 days straight' },
     { name: 'J. Woods', unit: 'WR', score: 82, logs: '2/4', flag: 'y', note: 'Dinner + recovery still open', you: true },
@@ -463,6 +501,7 @@ export const S = {
       level: 'medium', title: `Coach Mark added: ${a.title}`, body: `${a.note} Due: ${a.dueLabel.toLowerCase()}.`, when: 'now', icon: 'clipboard', route: `requirement/${a.id}`,
     }));
     if (RT.planUpdate) fresh.push({ level: 'medium', title: 'Coach Mark updated your plan', body: `“${RT.planUpdate.text}”`, when: RT.planUpdate.when, icon: 'clipboard', route: 'plan/notes' });
+    RT.trainerNotes.forEach(t => fresh.push({ level: 'medium', title: 'Note from Tracy (trainer)', body: `“${t}”`, when: 'now', icon: 'heart', route: 'notifications' }));
     if (RT.hydrationOz >= 120) fresh.push({ level: 'positive', title: 'Hydration standard hit', body: `120 oz in. This week's focus, handled. Coach sees it.`, when: 'now', icon: 'droplet', route: 'log' });
     if (!RT.recoveryDone) fresh.push({ level: 'high', title: 'Recovery check-in before bed', body: 'Do it tonight to lock +6 and keep your 5-day streak.', when: 'now', icon: 'moon', route: 'recovery' });
     fresh.push({ level: 'positive', title: 'Coach Mark liked your lunch', body: '“Great lunch. Keep this structure.”', when: '18m', icon: 'heart', route: 'meal-detail' });

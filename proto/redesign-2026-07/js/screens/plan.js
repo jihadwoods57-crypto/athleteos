@@ -20,7 +20,8 @@ function head() {
     </div>
     <span class="status-pill b">${P.phase.split('·')[1].trim()}</span>
   </div>
-  <div style="font-size:12px;font-weight:700;color:var(--text-3);margin-top:6px">${P.phase.split('·')[0].trim()}</div>`;
+  <div style="font-size:12px;font-weight:700;color:var(--text-3);margin-top:6px">${P.phase.split('·')[0].trim()}</div>
+  <div class="phase-bar">${Array.from({ length: 6 }, (_, i) => `<div class="pb ${i < 2 ? 'on' : ''}"></div>`).join('')}</div>`;
 }
 
 const overview = () => `

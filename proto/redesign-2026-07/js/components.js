@@ -118,7 +118,9 @@ export function appHead() {
     </div>
     <div class="actions">
       <div class="iconbtn" data-go="notifications">${icon('bell', 20)}${n ? `<span class="dot">${n}</span>` : ''}</div>
-      <div class="avatar" data-go="profile">${S.athlete.initials}</div>
+      ${S.athlete.avatar
+        ? `<div class="avatar" data-go="profile" style="background-image:url('${S.athlete.avatar}');background-size:cover;background-position:center"></div>`
+        : `<div class="avatar" data-go="profile">${S.athlete.initials}</div>`}
     </div>
   </header>`;
 }

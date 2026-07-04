@@ -41,7 +41,8 @@ const steps = {
     <div class="eyebrow" style="margin:8px 2px 10px">Level</div>
     <div class="chip-row">
       <span class="chp">Youth</span><span class="chp on">High School</span><span class="chp">College</span><span class="chp">Pro</span>
-    </div>`, 'Next', 'onboarding/2'),
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:16px;line-height:1.5">You must be 13 or older. Under 13 requires a parent or guardian on the account, and parents of minors can request data access or deletion anytime.</div>`, 'Next', 'onboarding/2'),
 
   2: () => frame(2, 'What are we building?', 'This decides how your nutrition gets scored. Your coach can adjust it.', `
     <div class="choice-grid">

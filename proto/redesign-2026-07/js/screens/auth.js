@@ -15,7 +15,7 @@ export default {
 
       <button class="btn green" data-go="role">Get Started</button>
       <div style="height:10px"></div>
-      <button class="btn ghost" data-go="home">Sign In</button>
+      <button class="btn ghost" data-go="signin">Sign In</button>
       <div class="role-note">Athlete, client, coach, or trainer — every role has its own view.<br>Parents join from an athlete's invite.</div>
       <div style="height:14px"></div>
     </div>`;

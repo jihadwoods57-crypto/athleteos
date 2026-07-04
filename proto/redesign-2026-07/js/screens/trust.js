@@ -34,6 +34,17 @@ export const trust = {
           <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Granted by ${S.coach.name} after 7 on-standard days with photo proof.</div>
         </div>
       </div>
+      <div class="pass-days">
+        ${Array.from({ length: t.length }, (_, i) => {
+          const d = i + 1;
+          const isCheck = d === 5 || d === 10;
+          const cls = d <= t.day ? 'done' : isCheck ? 'check' : '';
+          return `<div class="pd ${cls}">${d}</div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:10.5px;font-weight:700;color:var(--text-3)">
+        <span>DAY ${t.day} · CREDITED</span><span style="color:var(--amber-bright)">DAYS 5 & 10 · CAMERA CHECK</span>
+      </div>
     </section>
 
     <div class="eyebrow">How today gets credited</div>

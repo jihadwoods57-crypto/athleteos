@@ -3,13 +3,28 @@ import { S, act } from './state.js';
 import { icon } from './icons.js';
 import { screens } from './screens/index.js';
 
-const TABS = [
-  { id: 'home',     route: 'home',     label: 'Home',     icon: 'home' },
-  { id: 'plan',     route: 'plan',     label: 'Plan',     icon: 'clipboard' },
-  { id: 'camera',   route: 'camera',   label: '',         icon: 'camera', fab: true },
-  { id: 'progress', route: 'progress', label: 'Progress', icon: 'bars' },
-  { id: 'profile',  route: 'profile',  label: 'Profile',  icon: 'user' },
-];
+/* Each role gets its own dashboard shell — not a modal off someone else's app. */
+const NAVS = {
+  athlete: [
+    { id: 'home',     route: 'home',     label: 'Home',     icon: 'home' },
+    { id: 'plan',     route: 'plan',     label: 'Plan',     icon: 'clipboard' },
+    { id: 'camera',   route: 'log',      label: '',         icon: 'camera', fab: true },
+    { id: 'progress', route: 'progress', label: 'Progress', icon: 'bars' },
+    { id: 'profile',  route: 'profile',  label: 'Profile',  icon: 'user' },
+  ],
+  coach: [
+    { id: 'team',    route: 'coach',        label: 'Team',    icon: 'users' },
+    { id: 'plan',    route: 'coach-plan',   label: 'Plan',    icon: 'clipboard' },
+    { id: 'assign',  route: 'coach-assign', label: '',        icon: 'plus', fab: true },
+    { id: 'copilot', route: 'copilot',      label: 'Copilot', icon: 'sparkle' },
+    { id: 'profile', route: 'coach-profile',label: 'Profile', icon: 'user' },
+  ],
+  trainer: [
+    { id: 'clients', route: 'trainer',         label: 'Clients', icon: 'heart' },
+    { id: 'note',    route: 'trainer-client',  label: '',        icon: 'message', fab: true },
+    { id: 'profile', route: 'trainer-profile', label: 'Profile', icon: 'user' },
+  ],
+};
 
 function statusbar() {
   return `<div class="statusbar">
@@ -22,10 +37,11 @@ function statusbar() {
   </div>`;
 }
 
-function tabbar(activeTab) {
-  return `<nav class="tabbar">${TABS.map(t => {
-    if (t.fab) return `<div class="tab"><div class="fab" data-go="log">${icon('camera', 26)}</div></div>`;
-    const on = t.id === activeTab ? `active ${t.id === 'home' ? 'home' : ''}` : '';
+function tabbar(activeTab, nav = 'athlete') {
+  const tabs = NAVS[nav] || NAVS.athlete;
+  return `<nav class="tabbar" style="grid-template-columns: repeat(${tabs.length}, 1fr)">${tabs.map(t => {
+    if (t.fab) return `<div class="tab"><div class="fab" data-go="${t.route}">${icon(t.icon, 26)}</div></div>`;
+    const on = t.id === activeTab ? `active ${t.id === 'home' || t.id === 'team' || t.id === 'clients' ? 'home' : ''}` : '';
     return `<div class="tab ${on}" data-go="${t.route}">${icon(t.icon, 23)}<span>${t.label}</span></div>`;
   }).join('')}</nav>`;
 }
@@ -53,7 +69,7 @@ function render() {
       <div class="viewport ${mod.bleed ? 'bleed' : ''}" id="viewport">
         <div class="view" id="view">${body}</div>
       </div>
-      ${mod.hideTabs ? '' : tabbar(activeTab)}
+      ${mod.hideTabs ? '' : tabbar(activeTab, mod.nav || 'athlete')}
     </div>`;
 
   // haptic feedback where the platform supports it (Android web; no-op elsewhere)
