@@ -68,7 +68,7 @@ export default {
     </div>
 
     <div style="height:18px"></div>
-    <button class="btn primary" data-go="home">${icon('check', 19)} Log Weight</button>
+    <button class="btn primary" data-act="logWeight" data-then="home">${icon('check', 19)} Log Weight (late · trend only)</button>
     <div style="height:10px"></div>
     `;
   },

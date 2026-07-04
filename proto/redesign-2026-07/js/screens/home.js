@@ -1,4 +1,4 @@
-import { S } from '../state.js';
+import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { appHead, scoreRing, animateRing } from '../components.js';
 
@@ -41,19 +41,68 @@ function actCard(a) {
   </div>`;
 }
 
+function nextActionBlock() {
+  const next = S.nextMove;
+  if (!next) {
+    return `<div class="day-done">
+      <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
+      <div><div class="tt">You're OnStandard. Nothing left today.</div>
+      <div class="ts">Every requirement is in. Day ${S.streakDays + 1} of your streak locks at midnight.</div></div>
+    </div>`;
+  }
+  const cls = next.accent === 'p' ? 'p-accent' : 'green';
+  return `<div class="next-cta">
+    <button class="btn ${cls}" data-go="${next.route}">
+      ${icon(next.accent === 'p' ? 'moon' : 'camera', 20)} ${next.label}${next.gain ? ` · +${next.gain} pts` : ''}
+    </button>
+  </div>`;
+}
+
 export default {
   tab: 'home',
   render() {
     const t = S.trustPass;
+    const remaining = S.remainingCount;
+    const foot = remaining === 0
+      ? `Day complete at <b>${S.score}</b>. That's the standard.`
+      : `<b>${remaining} requirement${remaining > 1 ? 's' : ''}</b> remaining to reach <b>${S.possible}</b>.`;
+
+    // Day-0 (fresh athlete) empty-state variant
+    if (RT.day0 && !RT.day0Breakfast) {
+      return `
+      ${appHead()}
+      <section class="hero" data-go="score-breakdown">
+        ${scoreRing({ score: S.score, tierName: 'Day one', tierCls: 'b' })}
+        <div class="hero-foot">Your score starts moving with your <b>first log</b>.</div>
+      </section>
+      <div class="next-cta"><button class="btn green" data-go="camera">${icon('camera', 20)} Log First Meal</button></div>
+
+      <div class="eyebrow">Today's Requirements</div>
+      <section class="reqcard"><div class="rc-title">Your Standard · set in onboarding</div>
+        ${S.requirements.map(reqRow).join('')}<div style="height:6px"></div>
+      </section>
+
+      <div class="eyebrow">Recent Activity</div>
+      <div class="state-demo">
+        <div class="sd-ic">${icon('camera', 24)}</div>
+        <div class="sd-t">No logs yet</div>
+        <div class="sd-s">Your proof trail builds here as you log. Take a photo to begin today's standard.</div>
+      </div>
+      <div style="height:8px"></div>
+      `;
+    }
+
     return `
     ${appHead()}
 
     <section class="hero" data-go="score-breakdown">
-      ${scoreRing({ score: S.score, delta: `+${S.score - S.scoreYesterday} pts`, streak: `${S.streakDays} day streak` })}
-      <div class="hero-foot"><b>2 requirements</b> remaining to reach <b>${S.possible}</b>.</div>
+      ${scoreRing({ score: S.score, delta: `+${S.score - S.scoreYesterday} pts`, streak: RT.day0 ? null : `${S.streakDays} day streak`, tierName: S.tier.name, tierCls: S.tier.cls })}
+      <div class="hero-foot">${foot}</div>
     </section>
 
-    ${t.active ? `<div class="trust" data-go="profile">
+    ${nextActionBlock()}
+
+    ${t.active ? `<div class="trust" data-go="profile" style="margin-top:14px">
       <div class="ic">${icon('shield', 20)}</div>
       <div style="flex:1">
         <div class="tt">Trust Pass · day ${t.day} of ${t.length}</div>
@@ -78,9 +127,9 @@ export default {
       <div class="finish-strip">
         <div class="finish-cell"><div class="k">Current Score</div><div class="v">${S.finish.current}</div></div>
         <div class="finish-cell"><div class="k">Possible Score</div><div class="v g">${S.finish.possible}</div></div>
-        <div class="finish-cell"><div class="k">Requirements Met</div><div class="v"><span class="b">2</span><small>/4</small></div></div>
-        <div class="finish-cell" data-go="camera"><div class="k">Next Biggest Move</div><div class="v txt">${S.finish.nextMove}<br><span class="g">+${S.finish.nextGain} pts</span></div></div>
-        <div class="finish-cell" data-go="recovery"><div class="k">Highest Risk</div><div class="v txt">${S.finish.risk}<br><span class="p">tonight</span></div></div>
+        <div class="finish-cell"><div class="k">Requirements Met</div><div class="v"><span class="b">${S.metCount}</span><small>/${S.reqTotal}</small></div></div>
+        <div class="finish-cell" ${S.nextMove ? `data-go="${S.nextMove.route}"` : ''}><div class="k">Next Biggest Move</div><div class="v txt">${S.finish.nextMove}${S.finish.nextGain ? `<br><span class="g">+${S.finish.nextGain} pts</span>` : `<br><span class="g">locked in</span>`}</div></div>
+        <div class="finish-cell" ${RT.recoveryDone ? '' : 'data-go="recovery"'}><div class="k">Highest Risk</div><div class="v txt">${S.finish.risk}<br><span class="${RT.recoveryDone ? 'g' : 'p'}">${RT.recoveryDone ? 'clear' : 'tonight'}</span></div></div>
       </div>
     </section>
     `;

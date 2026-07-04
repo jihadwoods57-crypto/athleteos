@@ -16,6 +16,7 @@ function notif(n) {
 
 export default {
   tab: 'home',
+  mount() { window.__act.readNotifs(); },
   render() {
     const N = S.notifications;
     return `

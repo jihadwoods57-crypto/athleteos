@@ -27,6 +27,13 @@ export default {
       </div>
     </section>
 
+    <div style="height:16px"></div>
+    <div class="coach-stats">
+      <div class="coach-stat"><div class="v" style="color:var(--amber-bright)">${P.bestStreak}d</div><div class="k">Best streak</div></div>
+      <div class="coach-stat"><div class="v">${P.monthConsistency}%</div><div class="k">30-day consistency</div></div>
+      <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${P.weekAvg}</div><div class="k">Avg score</div></div>
+    </div>
+
     <div class="eyebrow">Requirements Consistency</div>
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.consistency}%</span><span class="d">${P.consDelta}</span></div>
@@ -74,6 +81,11 @@ export default {
           <span style="color:var(--text-2)">${l.k}</span>
           <span class="amt" style="color:var(--${l.accent === 'p' ? 'purple-bright' : 'amber-bright'})">${l.v}${l.note ? ` <small style="color:var(--text-3);font-weight:700">· ${l.note}</small>` : ''}</span>
         </div>`).join('')}
+    </section>
+
+    <div class="eyebrow">Weekly Summary</div>
+    <section class="card pad">
+      <p style="font-size:14.5px;font-weight:600;line-height:1.55;color:var(--text)">${P.weeklySummary}</p>
     </section>
 
     <div class="eyebrow">Coach Feedback</div>

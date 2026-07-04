@@ -5,7 +5,7 @@ import { icon } from './icons.js';
 /* Signature score ring — cinematic, uncontained. Layers:
    rotating aurora (CSS) → under-glow arc → thick gradient band → inner echo
    ring → comet tip + lens sparkle → center stack (label / N / /100 / delta / streak). */
-export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, showCenter = true, uid = 'r', delta = null, streak = null } = {}) {
+export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b' } = {}) {
   const r = (size - stroke) / 2 - 14;
   const cx = size / 2, cy = size / 2;
   const C = 2 * Math.PI * r;
@@ -63,6 +63,7 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
       <span class="label">OnStandard Score</span>
       <span class="score" data-count="${score}">0</span>
       <span class="outof">/100</span>
+      ${tierName ? `<span class="tier-chip ${tierCls}">${tierName}</span>` : ''}
       ${delta ? `<span class="delta"><span class="up">${icon('arrowUp', 15)} ${delta}</span><span class="muted">vs yesterday</span></span>` : ''}
       ${streak ? `<span class="streak-pill">${icon('flame', 15, 'class="flame"')} ${streak}</span>` : ''}
     </div>` : ''}
@@ -91,13 +92,14 @@ export function animateRing(root) {
 }
 
 export function appHead() {
+  const n = S.unreadNotifs;
   return `<header class="apphead">
     <div>
       <div class="greeting">${S.greeting},</div>
       <div class="name">${S.athlete.first}</div>
     </div>
     <div class="actions">
-      <div class="iconbtn" data-go="notifications">${icon('bell', 20)}<span class="dot">3</span></div>
+      <div class="iconbtn" data-go="notifications">${icon('bell', 20)}${n ? `<span class="dot">${n}</span>` : ''}</div>
       <div class="avatar" data-go="profile">${S.athlete.initials}</div>
     </div>
   </header>`;

@@ -71,12 +71,50 @@ export default {
       </div>
     </section>
 
+    <div class="eyebrow">Other views</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="coach">
+        <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${icon('users', 18)}</div>
+        <div class="lm"><div class="lt">Coach view</div><div class="ls">Roster, live scores, who needs attention</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="parent">
+        <div class="lic">${icon('heart', 17)}</div>
+        <div class="lm"><div class="lt">Parent view</div><div class="ls">Simple accountability, privacy-scoped</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="checkin">
+        <div class="lic">${icon('clipboard', 17)}</div>
+        <div class="lm"><div class="lt">Weekly check-in</div><div class="ls">${S.weekly.status}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+    </section>
+
     <div class="eyebrow">Settings</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow"><div class="lic">${icon('user', 18)}</div><div class="lm"><div class="lt">Goals & body metrics</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy</div><div class="ls">Role-scoped visibility · photos private by default</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan & billing</div><div class="ls">Individual athlete · team plans available</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & preferences</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
+    </section>
+
+    <div class="eyebrow">Prototype controls</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="welcome">
+        <div class="lic">${icon('sparkle', 17)}</div>
+        <div class="lm"><div class="lt">View onboarding</div><div class="ls">Welcome, Standard setup, Day 1 empty states</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="states">
+        <div class="lic">${icon('grid', 17)}</div>
+        <div class="lm"><div class="lt">Design states gallery</div><div class="ls">Empty, loading, error, and tier states</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-act="reset" data-then="home">
+        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('flip', 17)}</div>
+        <div class="lm"><div class="lt">Reset the demo day</div><div class="ls">Back to 10:20 PM, 82, dinner + recovery open</div></div>
+      </div>
     </section>
     <div style="height:10px"></div>
     `;

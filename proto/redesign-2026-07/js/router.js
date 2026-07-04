@@ -1,5 +1,5 @@
 /* Hash router + chrome (status bar, tab bar). Screens register in js/screens/index.js */
-import { S } from './state.js';
+import { S, act } from './state.js';
 import { icon } from './icons.js';
 import { screens } from './screens/index.js';
 
@@ -24,7 +24,7 @@ function statusbar() {
 
 function tabbar(activeTab) {
   return `<nav class="tabbar">${TABS.map(t => {
-    if (t.fab) return `<div class="tab"><div class="fab" data-go="camera">${icon('camera', 26)}</div></div>`;
+    if (t.fab) return `<div class="tab"><div class="fab" data-go="log">${icon('camera', 26)}</div></div>`;
     const on = t.id === activeTab ? `active ${t.id === 'home' ? 'home' : ''}` : '';
     return `<div class="tab ${on}" data-go="${t.route}">${icon(t.icon, 23)}<span>${t.label}</span></div>`;
   }).join('')}</nav>`;
@@ -59,6 +59,17 @@ function render() {
   // wire navigation
   device.querySelectorAll('[data-go]').forEach(el => {
     el.addEventListener('click', (e) => { e.stopPropagation(); go(el.getAttribute('data-go')); });
+  });
+  // wire actions: data-act="name" or data-act="name:arg"; data-then="route" navigates after
+  device.querySelectorAll('[data-act]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const [name, arg] = el.getAttribute('data-act').split(':');
+      if (act[name]) act[name](arg !== undefined ? +arg || arg : undefined);
+      const then = el.getAttribute('data-then');
+      if (then) { if (('#' + then) === location.hash) render(); else go(then); }
+      else render();
+    });
   });
   document.getElementById('viewport').scrollTop = 0;
   if (mod.mount) mod.mount(device, { sub, S });

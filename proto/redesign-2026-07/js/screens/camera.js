@@ -30,12 +30,12 @@ export default {
       <div class="cam-note">Hidden foods, portion, drink, how you're feeling…</div>
 
       <div class="cam-actions">
-        <div class="cam-side"><div class="cbtn">${icon('image', 21)}</div>Gallery</div>
-        <div class="shutter" data-go="meal-analysis"><div class="inner">${icon('camera', 26)}</div></div>
-        <div class="cam-side" data-go="meal-analysis"><div class="cbtn">${icon('search', 20)}</div>Search</div>
+        <div class="cam-side" data-go="analyzing"><div class="cbtn">${icon('image', 21)}</div>Gallery</div>
+        <div class="shutter" data-go="analyzing"><div class="inner">${icon('camera', 26)}</div></div>
+        <div class="cam-side" data-go="analyzing"><div class="cbtn">${icon('search', 20)}</div>Search</div>
       </div>
       <div style="display:flex;justify-content:center;padding-bottom:10px">
-        <div class="cam-side" data-go="meal-analysis" style="flex-direction:row;gap:8px;align-items:center">
+        <div class="cam-side" data-go="analyzing" style="flex-direction:row;gap:8px;align-items:center">
           <span style="color:var(--text-3)">${icon('barcode', 16)}</span> Scan Label
         </div>
       </div>
