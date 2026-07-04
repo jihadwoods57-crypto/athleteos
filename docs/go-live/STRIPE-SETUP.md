@@ -63,7 +63,12 @@ per-customer portal session on demand.
 5. While you're in Billing settings: **Settings → Billing → Automatic collection → Smart
    Retries ON** (recovers 20-40% of failed charges for free).
 
-## Step 6 — Hand me three secrets, I deploy everything
+## Step 6 — Set three secrets (everything else is ALREADY deployed)
+**Status 2026-07-04: migration 0042 is applied to live and all four billing functions
+(stripe-webhook, billing-checkout, billing-portal, billing-return) are deployed.** Until
+the secrets below exist they answer an honest "billing not configured" — nothing can break.
+The ONLY remaining step is:
+
 - **`STRIPE_SECRET_KEY`** — Developers → API keys → Secret key (`sk_live_...` / `sk_test_...`)
 - **`STRIPE_WEBHOOK_SECRET`** — the `whsec_...` from step 5
 - **`STRIPE_REFERRAL_COUPON_ID`** — the coupon ID from step 3
@@ -72,12 +77,10 @@ Don't paste them in chat — set them yourself (or tell me you've saved them som
 run it with you):
 ```
 supabase secrets set STRIPE_SECRET_KEY=sk_... STRIPE_WEBHOOK_SECRET=whsec_... STRIPE_REFERRAL_COUPON_ID=... --project-ref ftwrvylzoyznhbzhgism
-supabase db push                                   # applies migration 0042 (billing lifecycle + referrals)
-supabase functions deploy stripe-webhook --use-api --no-verify-jwt
-supabase functions deploy billing-checkout --use-api
-supabase functions deploy billing-portal --use-api
-supabase functions deploy billing-return --use-api --no-verify-jwt
+supabase functions deploy billing-checkout billing-portal --use-api
+supabase functions deploy stripe-webhook billing-return --use-api --no-verify-jwt
 ```
+(The redeploy just rebinds the new secrets to fresh instances — same code.)
 
 ## Step 7 — Test one checkout end to end (before going live)
 In **Test mode**: open the app signed in as a test trainer → Account → See plans → pick Solo →
