@@ -7,8 +7,9 @@ import React from 'react';
 import { ScrollView, Share, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  CHECKIN_QUESTIONS, ROSTER, coachRosterKpis, coachTeamTitle, filterRoster, gradeFor, needsAttention,
-  notLoggedCount, rankByRisk, rosterGroups, rosterGroupStats, teamWeeklyReport, teamWeeklyReportText, trendInfo,
+  CHECKIN_QUESTIONS, ROSTER, activationStatus, coachRosterKpis, coachTeamTitle, filterRoster, gradeFor,
+  needsAttention, notLoggedCount, nudgeMessageFor, parseRosterTarget, rankByRisk, rosterGroups,
+  rosterGroupStats, teamWeeklyReport, teamWeeklyReportText, trendInfo,
 } from '@/core';
 import type { RosterRow, RosterGroupStat, AtRiskInput } from '@/core';
 import { useStore, useDerived } from '@/store';
@@ -318,7 +319,7 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
               <AttentionRow
                 key={a.name} initials={m.initials} name={a.name} meta={a.reason} score={a.score}
                 color={a.tone === 'alert' ? c.alert : c.warning} nudged={s.nudged.includes(a.name)}
-                onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }, undefined, a.athleteId); }}
+                onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }, nudgeMessageFor(a), a.athleteId); }}
                 onPress={() => s.openPerson({ name: a.name, initials: m.initials, pos: m.pos, score: a.score, comp: m.comp, athleteId: m.athleteId })}
                 last={i === preview.length - 1}
               />
@@ -363,6 +364,73 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
 }
 
 /* ---------------------------------------------------------------- Roster */
+/**
+ * Team activation (churn build): getting the whole team ON the app IS coach retention —
+ * an empty dashboard churns before it ever shows value. The coach states how many
+ * athletes should be here (their number, stored in obMeta.rosterTarget); this card tracks
+ * the join rate + hands them the share tooling until everyone is on, then retires itself.
+ */
+function RosterActivation({ joined }: { joined: number }) {
+  const c = useColors();
+  const s = useStore();
+  const targetRaw = s.obMeta.rosterTarget;
+  const target = typeof targetRaw === 'number' ? targetRaw : null;
+  const status = activationStatus(joined, target);
+  const [draft, setDraft] = React.useState('');
+  if (!status.show) return null;
+  return (
+    <Card variant="low" style={{ borderRadius: 18, padding: 16, marginBottom: 12 }}>
+      {status.needsTarget ? (
+        <>
+          <Txt w="eb" size={15} ls={-0.2}>Get your whole team on</Txt>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
+            How many athletes should be on this roster? Set it and we track who still needs to join.
+          </Txt>
+          <Row style={{ gap: 10, marginTop: 12 }}>
+            <Input
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="e.g. 40"
+              keyboardType="number-pad"
+              accessibilityLabel="Expected roster size"
+              style={{ flex: 1 }}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save roster size"
+              onPress={() => {
+                const n = parseRosterTarget(draft);
+                if (n == null) return;
+                haptics.tap();
+                s.setObMeta('rosterTarget', n);
+              }}
+              style={({ pressed }) => [{ paddingHorizontal: 18, borderRadius: 12, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.85 : 1 }]}
+            >
+              <Txt w="b" size={14} color={c.white}>Track</Txt>
+            </Pressable>
+          </Row>
+        </>
+      ) : (
+        <>
+          <Row style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <Txt w="eb" size={15} ls={-0.2}>{status.line}</Txt>
+            <Pressable accessibilityRole="button" accessibilityLabel="Change expected roster size" hitSlop={8} onPress={() => { haptics.tap(); s.setObMeta('rosterTarget', 0); }}>
+              <Txt w="sb" size={12} color={c.textTertiary}>edit</Txt>
+            </Pressable>
+          </Row>
+          <View style={{ height: 8, borderRadius: 5, backgroundColor: c.bg2, marginTop: 10, overflow: 'hidden' }}>
+            <View style={{ width: `${status.pct}%`, height: 8, borderRadius: 5, backgroundColor: c.accent }} />
+          </View>
+          <Txt w="m" size={12.5} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 18 }}>
+            {status.missing} still to join. Share the code at practice; most teams get everyone on in a week.
+          </Txt>
+          <TeamCodeShare />
+        </>
+      )}
+    </Card>
+  );
+}
+
 function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; groups: string[]; notLogged: number }) {
   const c = useColors();
   const s = useStore();
@@ -382,6 +450,7 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
           </Pressable>
         ) : undefined
       } />
+      <RosterActivation joined={roster.length} />
       <Input value={query} onChangeText={setQuery} placeholder="Search athletes" accessibilityLabel="Search athletes by name" autoCapitalize="words" autoCorrect={false} style={{ marginBottom: 10 }} />
       {groups.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
@@ -467,7 +536,7 @@ function CoachAttention({ attention, rosterMeta, rosterCount }: { attention: Ret
               <AttentionRow
                 key={a.name} initials={m.initials} name={a.name} meta={a.reason} score={a.score}
                 color={a.tone === 'alert' ? c.alert : c.warning} nudged={s.nudged.includes(a.name)}
-                onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }, undefined, a.athleteId); }}
+                onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }, nudgeMessageFor(a), a.athleteId); }}
                 onPress={() => s.openPerson({ name: a.name, initials: m.initials, pos: m.pos, score: a.score, comp: m.comp, athleteId: m.athleteId })}
                 last={i === attention.length - 1}
               />

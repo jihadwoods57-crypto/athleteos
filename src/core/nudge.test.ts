@@ -76,3 +76,21 @@ describe('nudgeOutcome', () => {
     }
   });
 });
+
+describe('nudgeMessageFor (one-tap outreach default)', () => {
+  const { nudgeMessageFor } = require('./nudge');
+  it('speaks to the silent athlete without guilt', () => {
+    const msg = nudgeMessageFor({ comp: 0 });
+    expect(msg).toContain('start with your next meal');
+    expect(msg).not.toContain('—');
+  });
+  it('names the protein signal supportively', () => {
+    expect(nudgeMessageFor({ comp: 55, proteinMissed: 3 })).toContain('Protein');
+  });
+  it('asks for the overdue check-in', () => {
+    expect(nudgeMessageFor({ comp: 62, checkinDaysAgo: 4 })).toContain('check-in');
+  });
+  it('defaults to a near-goal encouragement', () => {
+    expect(nudgeMessageFor({ comp: 74 })).toContain('back on standard');
+  });
+});

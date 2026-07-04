@@ -1342,7 +1342,7 @@ export const useStore = create<Store>()(
         // When live + we know the athlete's id, deliver the nudge for real: the send-push
         // edge function records an in-app notification and pushes to their device(s).
         if (isBackendLive && athleteId) {
-          const body = note?.trim() || 'Your coach nudged you â€” jump back in and log your next win.';
+          const body = note?.trim() || 'Your coach nudged you. Jump back in and log your next win.';
           void db.nudgePush(athleteId, 'Your coach sent a nudge', body).catch(() => undefined);
         }
       },
