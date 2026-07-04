@@ -18,6 +18,15 @@ export const coach = {
       <div class="coach-stat"><div class="v" style="color:var(--red)">${attention.length}</div><div class="k">Need attention</div></div>
     </div>
 
+    <div style="height:14px"></div>
+    <div class="ai-note" style="border-color:rgba(245,165,36,0.35);background:linear-gradient(120deg, rgba(245,165,36,0.10), rgba(59,130,246,0.04))">
+      <div class="av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${icon('sparkle', 18)}</div>
+      <div>
+        <div class="who" style="color:var(--amber-bright)">Morning Briefing · 6:00 AM · pushed before practice</div>
+        <p><b>K. Bell</b> is your conversation today: no logs since Tuesday, trending down two weeks. <b>Reyes</b> is hydration-short three days running. <b>Woods</b> is at ${jihadScore} with ${S.remainingCount === 0 ? 'a finished day' : S.remainingCount + ' still open tonight'}. Everyone else held the standard.</p>
+      </div>
+    </div>
+
     ${attention.length ? `
     <div class="eyebrow">Needs attention</div>
     ${attention.map(r => `
@@ -82,6 +91,21 @@ export const coach = {
         <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 18)}</div>
         <div class="lm"><div class="lt">Copilot</div><div class="ls">Who needs attention? Who's improving? Team summary.</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="team-diet">
+        <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
+        <div class="lm"><div class="lt">Team dietary sheet</div><div class="ls">Allergies & restrictions · 2 severe on roster</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="safety">
+        <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('heart', 17)}</div>
+        <div class="lm"><div class="lt">Wellness flags</div><div class="ls">Protective patterns · no flags this week</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('bars', 17)}</div>
+        <div class="lm"><div class="lt">Log game stats</div><div class="ls">Feeds the execution ↔ performance card</div></div>
+        <span class="status-pill b">Fri</span>
       </div>
       <div class="lrow" data-go="coach-profile">
         <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204;font-weight:800;font-size:13px">M</div>
@@ -397,6 +421,16 @@ export const parent = {
       <div style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:6px">Jihad is showing up. Meals are consistent; night recovery check-ins are the habit still being built.</div>
     </section>
 
+    <div class="eyebrow">Sunday digest · pushed 7 PM</div>
+    <section class="card pad">
+      <div style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">This week's summary</div>
+      <p style="font-size:14.5px;font-weight:600;line-height:1.55">Jihad finished 5 of 7 days on standard, his best week of the phase. Meals are nearly automatic now. The habit still forming: the nightly recovery check-in. If you ask one question this week, ask about sleep.</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--hairline-soft)">
+        <span style="font-size:12.5px;font-weight:700;color:var(--text-2)">Delivered Sundays · push + email</span>
+        <div class="seg" style="width:104px" data-toggle-group><button class="on">On</button><button>Off</button></div>
+      </div>
+    </section>
+
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
@@ -406,4 +440,5 @@ export const parent = {
     <div style="height:10px"></div>
     `;
   },
+  async mount(root) { const { wireToggles } = await import('./settings.js'); wireToggles(root); },
 };

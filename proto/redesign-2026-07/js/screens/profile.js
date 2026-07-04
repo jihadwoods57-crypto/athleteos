@@ -96,6 +96,35 @@ export default {
         <div class="lm"><div class="lt">Weekly check-in</div><div class="ls">${S.weekly.status}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
+      <div class="lrow" data-go="partner">
+        <div class="lic" style="background:rgba(52,211,153,0.16);color:var(--green-bright)">${icon('users', 17)}</div>
+        <div class="lm"><div class="lt">Accountability partner</div><div class="ls">D. Okafor · paired by ${S.coach.name}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="recruiting">
+        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div>
+        <div class="lm"><div class="lt">Discipline record</div><div class="ls">Coach-verified · share with recruiters</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+    </section>
+
+    <div class="eyebrow">Health & safety</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="restrictions">
+        <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
+        <div class="lm"><div class="lt">Food restrictions & allergies</div><div class="ls">${RT.allergies.length ? RT.allergies.join(' · ') : 'None declared'}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="devices">
+        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
+        <div class="lm"><div class="lt">Connected devices</div><div class="ls">${RT.wearable ? 'Apple Watch · recovery verified' : 'None connected'}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="injury">
+        <div class="lic" style="background:rgba(245,165,36,0.16);color:var(--amber-bright)">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Injury mode</div><div class="ls">${RT.injured ? 'Active · hamstring week 2 of 4' : 'The Standard adapts when you’re hurt'}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
     </section>
 
     <div class="eyebrow">Settings</div>

@@ -104,6 +104,23 @@ export default {
       <p style="font-size:14.5px;font-weight:600;line-height:1.55;color:var(--text)">${P.weeklySummary}</p>
     </section>
 
+    <div class="eyebrow">Execution ↔ Performance</div>
+    <section class="card pad">
+      <div style="display:flex;gap:12px">
+        <div class="tile" style="flex:1;border-color:var(--green-border)">
+          <div class="k">Weeks at 85+</div>
+          <div class="v" style="color:var(--green-bright)">2 drops</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:3px">0 missed assignments</div>
+        </div>
+        <div class="tile" style="flex:1">
+          <div class="k">Weeks under 75</div>
+          <div class="v" style="color:var(--amber-bright)">5 drops</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:3px">3 missed assignments</div>
+        </div>
+      </div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:12px">From game stats ${S.coach.name} logs · 6 weeks of data. The thesis, tested: execution shows up on film.</div>
+    </section>
+
     <div class="eyebrow">Coach Feedback</div>
     <div class="coachnote">
       <div class="who"><div class="av">M</div><div><div class="nm">${S.coach.name}</div><div class="rl">This week</div></div></div>

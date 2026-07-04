@@ -62,6 +62,12 @@ const steps = {
       <div class="bignum" style="border-color:var(--green-border)"><div class="bv" style="color:var(--green-bright)">188</div><div class="bk">Target lb</div></div>
     </div>
     <div style="height:16px"></div>
+    <div class="eyebrow" style="margin:8px 2px 10px">Allergies & restrictions · enforced on every scan</div>
+    <div class="chip-row" data-multi>
+      <span class="chp on">Peanuts · severe</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
+      <span class="chp">Gluten</span><span class="chp">Shellfish</span><span class="chp">Vegetarian</span><span class="chp">Halal</span>
+    </div>
+    <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
       <div><div class="tt">How weight works in OnStandard</div>
@@ -129,8 +135,10 @@ export default {
   },
   async mount(root) {
     const { wireToggles } = await import('./settings.js');
-    // every chip-row and choice-grid is a working single-select group
-    root.querySelectorAll('.chip-row, .choice-grid').forEach(g => g.setAttribute('data-toggle-group', ''));
+    // single-select groups everywhere EXCEPT [data-multi] (allergies toggle independently)
+    root.querySelectorAll('.chip-row:not([data-multi]), .choice-grid').forEach(g => g.setAttribute('data-toggle-group', ''));
     wireToggles(root);
+    root.querySelectorAll('[data-multi] .chp').forEach(ch =>
+      ch.addEventListener('click', () => ch.classList.toggle('on')));
   },
 };

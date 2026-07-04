@@ -28,8 +28,10 @@ function frame(n, total, title, sub, body, cta, next, opts = {}) {
 }
 async function toggles(root) {
   const { wireToggles } = await import('./settings.js');
-  root.querySelectorAll('.chip-row, .choice-grid, .seg').forEach(g => g.setAttribute('data-toggle-group', ''));
+  root.querySelectorAll('.chip-row:not([data-multi]), .choice-grid, .seg').forEach(g => g.setAttribute('data-toggle-group', ''));
   wireToggles(root);
+  root.querySelectorAll('[data-multi] .chp').forEach(ch =>
+    ch.addEventListener('click', () => ch.classList.toggle('on')));
 }
 
 /* ---------- Sign-in role select: every role lands on ITS dashboard ---------- */
@@ -270,6 +272,12 @@ const clientSteps = {
       <div class="bignum" style="border-color:var(--amber-border)"><div class="bv" style="color:var(--amber-bright)">185</div><div class="bk">Target lb</div></div>
     </div>
     <div style="height:16px"></div>
+    <div class="eyebrow" style="margin:8px 2px 10px">Allergies & restrictions · checked on every scan</div>
+    <div class="chip-row" data-multi>
+      <span class="chp">Peanuts</span><span class="chp">Tree nuts</span><span class="chp on">Dairy</span>
+      <span class="chp">Gluten</span><span class="chp">Shellfish</span><span class="chp">Vegetarian</span>
+    </div>
+    <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
       <div><div class="tt">No shame mechanics</div>
@@ -344,6 +352,7 @@ export const coachProfile = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Game plan defaults</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-assign"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">What you assign most</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI in your voice</div><div class="ls">It reinforces your rulings, never invents</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="billing"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Team plan & billing</div><div class="ls">Priced per roster</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>

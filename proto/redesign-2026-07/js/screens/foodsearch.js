@@ -114,16 +114,32 @@ export const labelScan = {
   tab: 'camera',
   hideTabs: true,
   render() {
-    const rows = [['Serving size', '1 scoop (32g)'], ['Calories', '140'], ['Protein', '25g'], ['Total carbs', '5g'], ['Total fat', '2g'], ['Sodium', '135mg']];
+    const rows = [['Serving size', '1 bar (50g)'], ['Calories', '140'], ['Protein', '25g'], ['Total carbs', '5g'], ['Total fat', '2g'], ['Sodium', '135mg']];
+    const peanutAllergy = RT.allergies.some(a => a.toLowerCase().includes('peanut'));
     return `
     ${backHead('Scan Label', 'Exact numbers off the panel, never estimates', 'camera')}
 
     <div class="scanbox" style="width:100%;height:150px;border-radius:20px">
       <div class="img" style="background:linear-gradient(160deg,#e8e6df,#cfcdc6);display:grid;place-items:center">
-        <div style="color:#1a1a1a;font-weight:800;font-size:13px;letter-spacing:0.02em;border:2px solid #1a1a1a;padding:8px 14px;font-family:Arial">NUTRITION FACTS</div>
+        <div style="text-align:center;color:#1a1a1a;font-family:Arial">
+          <div style="font-weight:800;font-size:13px;letter-spacing:0.02em;border:2px solid #1a1a1a;padding:6px 14px">NUTRITION FACTS</div>
+          <div style="font-size:9px;font-weight:700;margin-top:5px">PEANUT BUTTER PROTEIN BAR · CONTAINS: PEANUTS</div>
+        </div>
       </div>
       <div class="scanline"></div>
     </div>
+
+    ${peanutAllergy ? `
+    <div style="height:14px"></div>
+    <div class="state-demo err-box" style="text-align:left;margin-bottom:0;padding:15px 16px">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div class="sd-ic" style="width:42px;height:42px;margin:0;border-radius:13px">${icon('bell', 20)}</div>
+        <div>
+          <div class="sd-t" style="font-size:15px">Guardian: contains peanuts</div>
+          <div class="sd-s" style="margin-top:4px">Your restriction list flags this as <b style="color:var(--red)">severe</b>. If you log it as eaten, ${S.coach.name} and your parent are notified immediately.</div>
+        </div>
+      </div>
+    </div>` : ''}
 
     <div class="eyebrow">Transcribed panel</div>
     <section class="card" style="padding:4px 18px">
@@ -149,9 +165,11 @@ export const labelScan = {
     </div>
 
     <div style="height:16px"></div>
-    ${RT.dinnerLogged && !RT.day0
-      ? `<button class="btn ghost" data-go="home">Dinner already logged · Back Home</button>`
-      : `<button class="btn green" data-act="${RT.day0 ? 'day0Meal' : 'logDinner'}" data-then="meal-confirm">${icon('check', 19)} Add to ${S.logging.name}</button>`}
+    ${RT.allergies.some(a => a.toLowerCase().includes('peanut'))
+      ? `<button class="btn ghost" style="border:1.5px solid var(--red-border);color:var(--red)" data-go="camera">${icon('x', 18)} Not for you · scan something else</button>`
+      : RT.dinnerLogged && !RT.day0
+        ? `<button class="btn ghost" data-go="home">Dinner already logged · Back Home</button>`
+        : `<button class="btn green" data-act="${RT.day0 ? 'day0Meal' : 'logDinner'}" data-then="meal-confirm">${icon('check', 19)} Add to ${S.logging.name}</button>`}
     <div style="height:10px"></div>
     `;
   },

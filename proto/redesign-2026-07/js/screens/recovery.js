@@ -70,8 +70,23 @@ export default {
     return `
     ${backHead('Recovery Check-In', 'Before bed · Refreshes Recovery (25% of score)')}
 
+    ${RT.wearable ? `
+    <section class="card pad" style="border-color:var(--green-border)">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
+        <span style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-2)">Verified · Apple Watch</span>
+        <span class="status-pill g" style="font-size:10px">${icon('check', 11)} Auto-filled</span>
+      </div>
+      <div class="macro-row">
+        <div class="macro"><div class="mv">7h 42m</div><div class="mk">Sleep</div></div>
+        <div class="macro"><div class="mv" style="color:var(--green-bright)">68ms</div><div class="mk">HRV</div></div>
+        <div class="macro"><div class="mv">52</div><div class="mk">Rest HR</div></div>
+      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px">Hardware answers what it can. The rest below is still yours to answer honestly.</div>
+    </section>
+    <div style="height:12px"></div>` : ''}
+
     <section class="card" style="padding: 4px 18px 8px">
-      ${R.fields.map(f => `
+      ${R.fields.filter(f => !RT.wearable || f.k !== 'Sleep quality').map(f => `
         <div class="rec-field">
           <div class="rec-top">
             <span class="rec-name">${f.k}</span>

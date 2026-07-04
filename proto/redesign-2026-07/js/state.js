@@ -46,6 +46,10 @@ const DEFAULT_RT = {
   trainerNotes: [],      // trainer->client notes; REALLY land in the athlete's notifications
   camPrimed: false,      // Apple-style camera permission priming shown once
   profile: null,         // athlete edits: {name, sport, position, school, avatar(dataURL)}
+  allergies: ['Peanuts · severe'], // declared once, enforced everywhere (guardian)
+  injured: false,        // injury mode: the Standard adapts (rehab replaces recovery emphasis)
+  partnerNudged: false,  // peer accountability: one nudge sent tonight
+  wearable: true,        // Apple Watch connected: recovery inputs verified, not vibes
 };
 function load() {
   try { return { ...DEFAULT_RT, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; }
@@ -145,6 +149,22 @@ export const act = {
   },
   primeCamera() { RT.camPrimed = true; save(); },
   saveProfile(p) { RT.profile = { ...(RT.profile || {}), ...p }; save(); },
+  saveAllergies(list) { RT.allergies = list.slice(0, 8); save(); },
+  toggleWearable() { RT.wearable = !RT.wearable; save(); },
+  nudgePartner() { RT.partnerNudged = true; save(); },
+  toggleInjury() {
+    RT.injured = !RT.injured;
+    const rehabIdx = RT.assigned.findIndex(a => a.id === 'rehab');
+    if (RT.injured && rehabIdx === -1) {
+      RT.assigned.push({ id: 'rehab', title: 'Rehab · band work 2×15', icon: 'bolt',
+        note: 'Right hamstring, week 2 of 4. From your athletic trainer; coach sees completion.',
+        from: 'Athletic Trainer', dueLabel: 'Before practice', done: false, seen: false });
+      RT.notifsRead = false;
+    } else if (!RT.injured && rehabIdx !== -1) {
+      RT.assigned.splice(rehabIdx, 1);
+    }
+    save();
+  },
   reset() { Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { lastMove: null }); save(); },
 };
 window.__act = act;
@@ -188,7 +208,7 @@ export const S = {
       { key: 'Nutrition', earned: Math.round(WEIGHTS.nutrition * c.nutrition), possible: 50,
         note: RT.dinnerLogged ? 'All three meals logged on time' : 'Breakfast + lunch logged on time; dinner still open', accent: 'g', weightPct: 50 },
       { key: 'Recovery', earned: Math.round(WEIGHTS.recovery * c.recovery), possible: 25,
-        note: RT.recoveryDone ? 'Tonight’s check-in submitted' : 'Carried from Tuesday check-in; tonight refreshes it', accent: 'p', weightPct: 25 },
+        note: (RT.recoveryDone ? 'Tonight’s check-in submitted' : 'Carried from Tuesday check-in; tonight refreshes it') + (RT.wearable ? ' · sleep + HRV Watch-verified' : ''), accent: 'p', weightPct: 25 },
       { key: 'Daily commitment', earned: Math.round(WEIGHTS.commitment * c.commitment), possible: 15,
         note: 'You confirmed you hit your plan today', accent: 'b', weightPct: 15 },
       { key: 'Weekly check-in', earned: Math.round(WEIGHTS.checkin * c.checkin), possible: 10,
@@ -502,6 +522,7 @@ export const S = {
     }));
     if (RT.planUpdate) fresh.push({ level: 'medium', title: 'Coach Mark updated your plan', body: `“${RT.planUpdate.text}”`, when: RT.planUpdate.when, icon: 'clipboard', route: 'plan/notes' });
     RT.trainerNotes.forEach(t => fresh.push({ level: 'medium', title: 'Note from Tracy (trainer)', body: `“${t}”`, when: 'now', icon: 'heart', route: 'notifications' }));
+    if (RT.injured) fresh.push({ level: 'medium', title: 'Your Standard adapted', body: 'Hamstring rehab is on your list; nutrition tilts anti-inflammatory. Coach and your AT both see progress.', when: 'now', icon: 'bolt', route: 'injury' });
     if (RT.hydrationOz >= 120) fresh.push({ level: 'positive', title: 'Hydration standard hit', body: `120 oz in. This week's focus, handled. Coach sees it.`, when: 'now', icon: 'droplet', route: 'log' });
     if (!RT.recoveryDone) fresh.push({ level: 'high', title: 'Recovery check-in before bed', body: 'Do it tonight to lock +6 and keep your 5-day streak.', when: 'now', icon: 'moon', route: 'recovery' });
     fresh.push({ level: 'positive', title: 'Coach Mark liked your lunch', body: '“Great lunch. Keep this structure.”', when: '18m', icon: 'heart', route: 'meal-detail' });

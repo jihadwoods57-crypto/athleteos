@@ -89,6 +89,11 @@ export const analysis = {
     </div>
 
     <div style="height:14px"></div>
+    <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--green-surface);border:1px solid var(--green-border)">
+      ${icon('shield', 15)} <span style="font-size:12.5px;font-weight:700;color:var(--green-bright)">Guardian: no conflicts with your restrictions (${RT.allergies.length ? RT.allergies.join(', ') : 'none declared'})</span>
+    </div>
+
+    <div style="height:12px"></div>
     <div class="ai-note">
       <div class="av">${icon('sparkle', 18)}</div>
       <div><div class="who">AI Feedback</div><p>${L.ai}</p></div>

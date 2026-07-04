@@ -118,6 +118,24 @@ export default {
       <div style="height:6px"></div>
     </section>
 
+    ${RT.injured ? `
+    <div style="height:12px"></div>
+    <div class="trust" data-go="injury" style="cursor:pointer;background:linear-gradient(100deg, rgba(245,165,36,0.14), rgba(59,130,246,0.05));border-color:var(--amber-border)">
+      <div class="ic" style="background:rgba(245,165,36,0.2);color:var(--amber-bright)">${icon('bolt', 20)}</div>
+      <div style="flex:1">
+        <div class="tt">Injury mode · hamstring, week 2 of 4</div>
+        <div class="ts">Your Standard adapted. Rehab is on the list; coach and AT see the same bar.</div>
+      </div>
+      ${icon('chevron', 18, 'style="color:var(--text-3)"')}
+    </div>` : ''}
+
+    <div style="height:12px"></div>
+    <div class="fmove" data-go="partner" style="background:var(--surface-1);border:1px solid var(--hairline)">
+      <div class="big-av" style="width:34px;height:34px;font-size:12px;background:linear-gradient(150deg,#34D399,#0d9488);box-shadow:none">DO</div>
+      <div style="flex:1"><div class="fm-t" style="font-size:13.5px">D. Okafor checked in today ✓</div><div class="fm-s">your accountability partner</div></div>
+      ${icon('chevron', 16, 'style="color:var(--text-3)"')}
+    </div>
+
     <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
     <div class="hscroll">${S.activity.map(actCard).join('')}</div>
 

@@ -20,6 +20,7 @@ import { messages, settings as prefs, privacy, billing, notifSettings, deleteAcc
 import { foodSearch, labelScan } from './foodsearch.js';
 import { trust, streak, history } from './trust.js';
 import { role, signin, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
+import { devices, recruiting, restrictions, teamDiet, injury, partner, coachVoice, safety } from './features.js';
 
 export const screens = {
   home,
@@ -72,4 +73,12 @@ export const screens = {
   'notif-settings': notifSettings,
   'delete-account': deleteAccount,
   terms,
+  devices,
+  recruiting,
+  restrictions,
+  'team-diet': teamDiet,
+  injury,
+  partner,
+  'coach-voice': coachVoice,
+  safety,
 };

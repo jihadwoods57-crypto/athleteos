@@ -34,6 +34,9 @@ export default {
       <div class="viewfinder">
         <div class="vf-img" style="background-image:url('assets/meal-lunch.jpg'); filter: blur(1.5px) brightness(0.85); transform: scale(1.06)"></div>
         <div class="vf-deadline">${icon('clock', 13)} ${L.remaining}</div>
+        <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:6px;background:rgba(7,11,20,0.6);backdrop-filter:blur(8px);border:1px solid var(--green-border);color:var(--green-bright);font-size:11px;font-weight:800;padding:5px 12px;border-radius:999px">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--green-bright);box-shadow:0 0 8px var(--green-bright)"></span> LIVE
+        </div>
         <div class="vf-corner tl"></div><div class="vf-corner tr"></div>
         <div class="vf-corner bl"></div><div class="vf-corner br"></div>
         <div class="vf-tools">
@@ -45,14 +48,15 @@ export default {
       <div class="cam-note">Hidden foods, portion, drink, how you're feeling…</div>
 
       <div class="cam-actions">
-        <div class="cam-side" data-go="analyzing"><div class="cbtn">${icon('image', 21)}</div>Gallery</div>
+        <div class="cam-side" style="cursor:default;opacity:0.45"><div class="cbtn">${icon('lock', 19)}</div>Gallery</div>
         <div class="shutter" data-go="analyzing"><div class="inner">${icon('camera', 26)}</div></div>
         <div class="cam-side" data-go="food-search"><div class="cbtn">${icon('search', 20)}</div>Search</div>
       </div>
-      <div style="display:flex;justify-content:center;padding-bottom:10px">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding-bottom:10px">
         <div class="cam-side" data-go="label-scan" style="flex-direction:row;gap:8px;align-items:center">
           <span style="color:var(--text-3)">${icon('barcode', 16)}</span> Scan Label
         </div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3)">Live capture only for scored meals. That's the integrity rule.</div>
       </div>
     </div>`;
   },
