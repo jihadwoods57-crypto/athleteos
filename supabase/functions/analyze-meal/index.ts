@@ -43,10 +43,12 @@ const TEXT_MODEL = Deno.env.get('ANTHROPIC_TEXT_MODEL') ?? 'claude-haiku-4-5-202
 // function returns 429 and the app shows the free deterministic result (analyzeMeal/
 // analyzeLabel already fall back on any error), so logging never blocks.
 // Guard a misconfigured DAILY_ANALYSIS_CAP: a non-number or <=0 would make `count < NaN`
-// always false and 429 every signed-in athlete. Fall back to the safe default of 40.
+// always false and 429 every signed-in athlete. Fall back to the safe default of 12 (cost
+// sweep 2026-07-04: 40 was sized for beta trust, not for a real per-seat cost budget; 12/day
+// still comfortably covers 3 meals + a couple of label scans and rephrases).
 const DAILY_CAP = (() => {
-  const n = Math.floor(Number(Deno.env.get('DAILY_ANALYSIS_CAP') ?? '40'));
-  return Number.isFinite(n) && n > 0 ? n : 40;
+  const n = Math.floor(Number(Deno.env.get('DAILY_ANALYSIS_CAP') ?? '12'));
+  return Number.isFinite(n) && n > 0 ? n : 12;
 })();
 // Positive-int env with a safe fallback (a non-number / <=0 would break the `count < cap` compare).
 function posIntCap(name: string, fallback: number): number {
@@ -560,13 +562,23 @@ Deno.serve(async (request) => {
   const tools = askable ? [MEAL_TOOL, ASK_TOOL] : [singleTool];
   const toolChoice = askable ? { type: 'any' as const } : { type: 'tool' as const, name: singleTool.name };
 
+  // Prompt caching (cost sweep 2026-07-04): the system prompt and tool schemas are 100%
+  // static per mode and identical across every athlete's call, so mark the end of each as a
+  // cache breakpoint (request prefix order is tools -> system -> messages). Any call in the
+  // same mode within the 5-min TTL — including a DIFFERENT athlete's call, since the cache key
+  // is the exact byte prefix, not per-user — reads this prefix at ~10% of input price instead
+  // of paying full price for it on every single meal photo.
+  const cachedTools = tools.map((t, i) =>
+    i === tools.length - 1 ? { ...t, cache_control: { type: 'ephemeral' as const } } : t
+  );
+
   try {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
       model: isMemory || isOrder ? TEXT_MODEL : MODEL,
       max_tokens: 1024,
-      system,
-      tools,
+      system: [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }],
+      tools: cachedTools,
       tool_choice: toolChoice,
       messages: [{ role: 'user', content }],
     });

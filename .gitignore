@@ -50,3 +50,7 @@ aos-qr.png
 
 # dev QR / scratch images
 aos-dev-qr*.png
+
+# iOS local build credentials (never commit)
+credentials.json
+ios-certs/

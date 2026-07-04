@@ -143,8 +143,11 @@ Deno.serve(async (request) => {
     const msg = await client.messages.create({
       model: MODEL, // one server tier; the client can no longer elect a pricier model (see MODEL note)
       max_tokens: 512,
-      system: SYSTEM,
-      tools: [NARRATION_TOOL],
+      // Prompt caching (cost sweep 2026-07-04): harmless to mark even though SYSTEM + NARRATION_TOOL
+      // here are small enough they may sit under the model's minimum cacheable prefix — below that
+      // floor this is a silent no-op, not an error.
+      system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
+      tools: [{ ...NARRATION_TOOL, cache_control: { type: 'ephemeral' } }],
       tool_choice: { type: 'tool', name: NARRATION_TOOL.name },
       messages: [{ role: 'user', content: [{ type: 'text', text: userText }] }],
     });

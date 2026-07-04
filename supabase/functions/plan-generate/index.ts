@@ -18,10 +18,13 @@ const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 // generous for real use. Over the cap the function returns 429 and the client falls back to
 // its local draft, so plan-building never blocks.
 // Guard a misconfigured DAILY_ANALYSIS_CAP: a non-number or <=0 would make `count < NaN`
-// always false and 429 every signed-in athlete. Fall back to the safe default of 40.
+// always false and 429 every signed-in athlete. Fall back to the safe default of 12 (cost
+// sweep 2026-07-04: shares the DAILY_ANALYSIS_CAP env/counter with analyze-meal, so this
+// tracks that default down from 40 — a plan draft is a rare, deliberate action, not a
+// several-times-a-day one, so 12/day is generous headroom, not a real constraint).
 const DAILY_CAP = (() => {
-  const n = Math.floor(Number(Deno.env.get('DAILY_ANALYSIS_CAP') ?? '40'));
-  return Number.isFinite(n) && n > 0 ? n : 40;
+  const n = Math.floor(Number(Deno.env.get('DAILY_ANALYSIS_CAP') ?? '12'));
+  return Number.isFinite(n) && n > 0 ? n : 12;
 })();
 // Positive-int env with a safe fallback (a non-number / <=0 would break the `count < cap` compare).
 function posIntCap(name: string, fallback: number): number {
@@ -293,8 +296,10 @@ Deno.serve(async (request) => {
       // draft rather than returning a partial/invalid tool_use.
       model: MODEL,
       max_tokens: 4096,
-      system: PLAN_SYSTEM,
-      tools: [PLAN_TOOL],
+      // Prompt caching (cost sweep 2026-07-04): PLAN_SYSTEM + PLAN_TOOL are static and identical
+      // on every draft call; caching this prefix cuts input cost on any call within the 5-min TTL.
+      system: [{ type: 'text', text: PLAN_SYSTEM, cache_control: { type: 'ephemeral' } }],
+      tools: [{ ...PLAN_TOOL, cache_control: { type: 'ephemeral' } }],
       tool_choice: { type: 'tool', name: PLAN_TOOL.name },
       messages: [{ role: 'user', content: buildPrompt(req) }],
     });

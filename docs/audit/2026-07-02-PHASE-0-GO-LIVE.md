@@ -5,9 +5,15 @@ project (`ftwrvylzoyznhbzhgism`). It supersedes the migration/apply instructions
 `START-HERE.md` and `docs/FOUNDER-GO-LIVE-CHECKLIST.md`, both of which predate the live cutover and
 are now wrong about what's applied.
 
+> **STATUS (2026-07-04): CLOSED.** Every migration and redeploy this doc describes — 0034 through
+> 0041 — is now confirmed applied on live via `supabase migration list --linked` (Local and Remote
+> match through 0041). See the reconciled ledger at the bottom. The narrative below is kept for
+> historical record of what each fix does and why; **do not read "Nothing here has been applied to
+> live" further down as current** — it describes the state on 2026-07-02, before the push.
+
 Everything below was authored + statically reviewed + typechecked, and the full test suite is green
-(1345 tests). **Nothing here has been applied to live** — these are the steps that need your
-credentials and a throwaway-DB validation pass first. Do them in order.
+(1345 tests). ~~**Nothing here has been applied to live**~~ *(historical — see STATUS above)* — these
+are the steps that need your credentials and a throwaway-DB validation pass first. Do them in order.
 
 > **CONFIRMED LIVE STATE (2026-07-02, via `supabase migration list --linked`):** the ledger is
 > **clean — Step 0 needs no repair.** Local and remote match 1:1 through **0033** (both correctly
@@ -198,3 +204,21 @@ is not needed until the consumer Individual tier ships.
 ## Reconciled applied-set (fill in after Step 0)
 
 > _Record here what `supabase migration list` shows as applied on live, once reconciled._
+
+**2026-07-04 — reconciled, verified via `supabase migration list` against the linked project
+(`ftwrvylzoyznhbzhgism`):**
+
+- **0001–0041: all applied, Local and Remote match exactly.** No drift, no phantom versions.
+  This includes 0034 (coach-visibility sync), 0035 (guardian-consent-token XSS + notify() forgery),
+  0036 (notification grants), 0037–0040 (analytics, linking-consent, trust-pass, team-roster), and
+  0041 (score-evidence ceiling — applied this session via `supabase db push`, dry-run confirmed
+  first, single migration, no other pending changes).
+- **Edge functions redeployed and confirmed ACTIVE:** `analyze-meal` (v19), `assist` (v9),
+  `plan-generate` (v6), `food-lookup` (v14) — all four show the same ~9-second deploy timestamp
+  cluster, consistent with a single Step-4 redeploy batch. `guardian-verify` (v5) and `send-push`
+  (v5) were deployed separately, ~23h earlier, unrelated to this batch.
+- **Outstanding from the "Deferred" section above:** items 1 (deeper function-EXECUTE lockdown),
+  2 (full server-side score-authority — 0041 only closes the fabricated-flat-score slice, not a
+  true recompute), 3 (self-attested minor age / COPPA risk-acceptance), and 4 (meal_plans write
+  path confirmation before flipping `isMealPlansEnabled`) are all still open by design — each
+  needs a real DB to validate against per the reasoning already given, not a blind push.

@@ -37,10 +37,15 @@ export const PLAN_CATALOG: PricedPlan[] = [
     blurb: 'Keep your history, score, AI coach, and daily game plan — on your own.' },
   { id: 'individual_plus', name: 'Individual Plus', audience: 'individual', rail: 'iap', monthly: 24.99, annual: 249, trialDays: 7,
     blurb: 'Adds your full portable record across every team + a shareable recruiting card.' },
-  { id: 'pro_solo', name: 'Solo', audience: 'professional', rail: 'stripe', monthly: 69, annual: 690, trialDays: 14, seatLimit: 25,
+  // Cost sweep 2026-07-04: Solo/Professional were repriced up (69->99, 124.99->179) and the extra-seat
+  // add-on 3->10. The old numbers sat at/below the per-seat AI-cost floor once a trainer's roster was
+  // genuinely engaged, so a MORE successful trainer earned us LESS margin. New floor: ~$4/seat of budget
+  // against a ~$2 heavy-user AI cost, and the $10 overage stays clean margin as a roster grows past 50.
+  // Nothing was anchored to the old prices (free preview), so this is free.
+  { id: 'pro_solo', name: 'Solo', audience: 'professional', rail: 'stripe', monthly: 99, annual: 990, trialDays: 14, seatLimit: 25,
     blurb: 'For the independent trainer or nutritionist. Up to 25 active clients.' },
-  { id: 'professional', name: 'Professional', audience: 'professional', rail: 'stripe', monthly: 124.99, annual: 1249, trialDays: 14, seatLimit: 50, extraSeatMonthly: 3,
-    blurb: 'For a busy practice. Up to 50 active clients; $3/mo each beyond.' },
+  { id: 'professional', name: 'Professional', audience: 'professional', rail: 'stripe', monthly: 179, annual: 1790, trialDays: 14, seatLimit: 50, extraSeatMonthly: 10,
+    blurb: 'For a busy practice. Up to 50 active clients; $10/mo each beyond.' },
   { id: 'org_starter', name: 'Starter', audience: 'organization', rail: 'stripe', monthly: 249, annual: 2490, trialDays: 14, seatLimit: 30,
     blurb: 'Teams, gyms & facilities. Up to 30 active participants.' },
   { id: 'org_growth', name: 'Growth', audience: 'organization', rail: 'stripe', monthly: 499, annual: 4990, trialDays: 14, seatLimit: 75,

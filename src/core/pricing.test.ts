@@ -14,8 +14,8 @@ describe('catalog shape', () => {
   it('has the recommended consumer + pro + org plans', () => {
     expect(planById('individual')?.monthly).toBe(14.99);
     expect(planById('individual_plus')?.monthly).toBe(24.99);
-    expect(planById('pro_solo')).toMatchObject({ monthly: 69, seatLimit: 25 });
-    expect(planById('professional')).toMatchObject({ monthly: 124.99, seatLimit: 50, extraSeatMonthly: 3 });
+    expect(planById('pro_solo')).toMatchObject({ monthly: 99, seatLimit: 25 });
+    expect(planById('professional')).toMatchObject({ monthly: 179, seatLimit: 50, extraSeatMonthly: 10 });
     expect(planById('org_performance')).toMatchObject({ monthly: 799, seatLimit: 150 });
     expect(planById('enterprise')?.custom).toBe(true);
   });
@@ -63,7 +63,7 @@ describe('planTerms (compliant disclosure)', () => {
 
 describe('purchaseCtaLabel (consent in the button — FTC)', () => {
   it('carries the auto-renewal terms in the label', () => {
-    expect(purchaseCtaLabel(planById('professional')!)).toBe('Start — $124.99/mo, auto-renews');
+    expect(purchaseCtaLabel(planById('professional')!)).toBe('Start — $179/mo, auto-renews');
     expect(purchaseCtaLabel(planById('enterprise')!)).toBe('Contact sales');
   });
 });
