@@ -39,14 +39,19 @@ export default {
         <div class="st"><div class="t">Log Weight</div><div class="s">${RT.weightLogged ? 'Logged late tonight · trend only' : 'Missed 9:00 AM · log late for the trend'}</div></div>
         <span class="sv" style="color:var(--text-3)">trend</span>
       </div>
-      <div class="sheet-row">
-        <div class="si" style="background:var(--cyan-surface);color:var(--cyan)">${icon('droplet', 20)}</div>
-        <div class="st"><div class="t">Log Water</div><div class="s">${RT.hydrationOz} of 120 oz today</div></div>
-        <div class="water-btns">
-          <span class="wb2" data-act="addWater:8" data-then="log">+8</span>
-          <span class="wb2" data-act="addWater:16" data-then="log">+16</span>
-        </div>
-      </div>
+      ${RT.hydrationOz >= 120
+        ? `<div class="sheet-row" style="background:linear-gradient(90deg, rgba(52,211,153,0.14), transparent 85%);border-radius:16px">
+            <div class="si" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 20)}</div>
+            <div class="st"><div class="t">Hydration standard hit</div><div class="s">${RT.hydrationOz} oz · this week's focus, handled. Coach sees it.</div></div>
+          </div>`
+        : `<div class="sheet-row">
+            <div class="si" style="background:var(--cyan-surface);color:var(--cyan)">${icon('droplet', 20)}</div>
+            <div class="st"><div class="t">Log Water</div><div class="s">${RT.hydrationOz} of 120 oz today</div></div>
+            <div class="water-btns">
+              <span class="wb2" data-act="addWater:8" data-then="log">+8</span>
+              <span class="wb2" data-act="addWater:16" data-then="log">+16</span>
+            </div>
+          </div>`}
       ${recRow}
       <div class="sheet-row" data-go="checkin">
         <div class="si" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('clipboard', 19)}</div>

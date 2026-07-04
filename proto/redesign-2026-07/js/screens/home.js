@@ -102,7 +102,7 @@ export default {
 
     ${nextActionBlock()}
 
-    ${t.active ? `<div class="trust" data-go="profile" style="margin-top:14px">
+    ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px">
       <div class="ic">${icon('shield', 20)}</div>
       <div style="flex:1">
         <div class="tt">Trust Pass · day ${t.day} of ${t.length}</div>

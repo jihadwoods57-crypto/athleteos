@@ -41,6 +41,7 @@ const DEFAULT_RT = {
   lastMove: null,        // {from, to, gain, what} — powers confirmation screens
   assigned: [],          // coach-assigned requirements: {id,title,icon,note,from,dueLabel,done,seen}
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
+  planUpdate: null,      // coach-published plan update; REALLY lands in Plan·Notes + notifications
 };
 function load() {
   try { return { ...DEFAULT_RT, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; }
@@ -117,6 +118,22 @@ export const act = {
   },
   seeAssigned() { RT.assigned.forEach(a => { a.seen = true; }); save(); },
   coachComment(text) { if (text) { RT.coachComments.push(String(text).slice(0, 300)); save(); } },
+  assignCustom(title) {
+    const t = String(title || '').trim().slice(0, 60);
+    if (!t) return;
+    const id = 'custom-' + t.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24);
+    if (RT.assigned.some(a => a.id === id)) return;
+    RT.assigned.push({ id, title: t, icon: 'clipboard', note: `Set by Coach Mark for you specifically.`, from: 'Coach Mark', dueLabel: 'This week', done: false, seen: false });
+    RT.notifsRead = false;
+    save();
+  },
+  publishPlanUpdate(text) {
+    const t = String(text || '').trim().slice(0, 200);
+    if (!t) return;
+    RT.planUpdate = { text: t, when: 'just now' };
+    RT.notifsRead = false;
+    save();
+  },
   reset() { Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { lastMove: null }); save(); },
 };
 window.__act = act;
@@ -301,11 +318,15 @@ export const S = {
       { title: 'Recovery Check-In', freq: 'Required daily', due: 'Before bed', proof: 'Quick form', impact: 'Recovery (25%)', accent: 'p', icon: 'moon' },
       { title: 'Weekly Check-In', freq: 'Required weekly', due: 'Sundays', proof: 'Form + weight', impact: 'Check-in (10%)', accent: 'g', icon: 'clipboard' },
     ],
-    notes: [
-      { who: 'coach', name: 'Coach Mark', when: '2h ago', text: 'Bumped water to 120 oz this week. You practice in heat Wed/Thu, get ahead of it.' },
-      { who: 'ai', name: 'OnStandard AI', when: '2h ago', text: 'Applied Coach Mark’s update: hydration target 96 to 120 oz. Your other targets are unchanged.' },
-      { who: 'coach', name: 'Coach Mark', when: 'Mon', text: 'Lean mass phase, week 2. Keep protein at 190 and don’t chase the scale, we’re building.' },
-    ],
+    get notes() {
+      const base = [
+        { who: 'coach', name: 'Coach Mark', when: '2h ago', text: 'Bumped water to 120 oz this week. You practice in heat Wed/Thu, get ahead of it.' },
+        { who: 'ai', name: 'OnStandard AI', when: '2h ago', text: 'Applied Coach Mark’s update: hydration target 96 to 120 oz. Your other targets are unchanged.' },
+        { who: 'coach', name: 'Coach Mark', when: 'Mon', text: 'Lean mass phase, week 2. Keep protein at 190 and don’t chase the scale, we’re building.' },
+      ];
+      // a plan update the coach ACTUALLY published from the coach plan editor
+      return RT.planUpdate ? [{ who: 'coach', name: 'Coach Mark', when: RT.planUpdate.when, text: RT.planUpdate.text }, ...base] : base;
+    },
   },
 
   // ---------- MEAL (lunch detail; dinner uses logging.*) ----------
@@ -327,21 +348,49 @@ export const S = {
     };
   },
 
-  // dinner being logged tonight — richer AI result per the brief
-  logging: {
-    name: 'Dinner', due: 'Due by 8:00 PM', remaining: '48 min remaining',
-    img: 'assets/meal-dinner.jpg', score: 90,
-    foods: ['Steak', 'Roasted potatoes', 'Green beans', 'Butter'],
-    macros: { protein: 46, carbs: 52, fat: 24, cals: 640 },
-    componentsRead: [
-      { k: 'Protein', v: 'Steak · high quality', ok: true },
-      { k: 'Carb source', v: 'Roasted potatoes · slow carb', ok: true },
-      { k: 'Color / micros', v: 'Green beans · add one more color', ok: 'warn' },
-      { k: 'Portion', v: 'Right for a training day', ok: true },
-    ],
-    planMatch: { verdict: 'Matches your plan', detail: 'Plan called for protein + slow carb + vegetable at dinner. This hits all three.', level: 'g' },
-    ai: 'Strong dinner. Protein is on target and the carbs land right after training. One more glass of water before bed.',
+  // what's being logged right now — day-0 logs breakfast; Jihad's day logs dinner
+  get logging() {
+    if (RT.day0) {
+      return {
+        name: 'Breakfast', due: 'Due by 10:00 AM', remaining: 'Morning window open',
+        img: 'assets/meal-breakfast.jpg', score: 88,
+        foods: ['Eggs', 'Toast', 'Bacon', 'Greens'],
+        macros: { protein: 34, carbs: 38, fat: 22, cals: 480 },
+        componentsRead: [
+          { k: 'Protein', v: 'Eggs + bacon · solid start', ok: true },
+          { k: 'Carb source', v: 'Toast · add oats or fruit', ok: 'warn' },
+          { k: 'Color / micros', v: 'Greens · good', ok: true },
+          { k: 'Portion', v: 'Fine for a first log', ok: true },
+        ],
+        planMatch: { verdict: 'Fits your Standard', detail: 'First log of day one. Protein first thing, exactly what the plan asks for.', level: 'g' },
+        ai: 'Good first log. Protein up front sets the day. Add a fruit or oats next time for a slower carb.',
+      };
+    }
+    return {
+      name: 'Dinner', due: 'Due by 8:00 PM', remaining: '48 min remaining',
+      img: 'assets/meal-dinner.jpg', score: 90,
+      foods: ['Steak', 'Roasted potatoes', 'Green beans', 'Butter'],
+      macros: { protein: 46, carbs: 52, fat: 24, cals: 640 },
+      componentsRead: [
+        { k: 'Protein', v: 'Steak · high quality', ok: true },
+        { k: 'Carb source', v: 'Roasted potatoes · slow carb', ok: true },
+        { k: 'Color / micros', v: 'Green beans · add one more color', ok: 'warn' },
+        { k: 'Portion', v: 'Right for a training day', ok: true },
+      ],
+      planMatch: { verdict: 'Matches your plan', detail: 'Plan called for protein + slow carb + vegetable at dinner. This hits all three.', level: 'g' },
+      ai: 'Strong dinner. Protein is on target and the carbs land right after training. One more glass of water before bed.',
+    };
   },
+
+  // ---------- MEAL HISTORY (past days; today derives live) ----------
+  history: [
+    { day: 'Thursday', date: 'Jul 3', score: 86, tier: 'Locked In',
+      meals: [ { type: 'Breakfast', score: 92, img: 'assets/meal-breakfast.jpg' }, { type: 'Lunch', score: 84, img: 'assets/meal-lunch.jpg' }, { type: 'Dinner', score: 89, img: 'assets/meal-dinner.jpg' } ] },
+    { day: 'Wednesday', date: 'Jul 2', score: 72, tier: 'Building', note: 'Recovery missed · late lunch',
+      meals: [ { type: 'Breakfast', score: 90, img: 'assets/meal-breakfast.jpg' }, { type: 'Lunch · late', score: 71, img: 'assets/meal-lunch.jpg' }, { type: 'Dinner', score: 85, img: 'assets/meal-dinner.jpg' } ] },
+    { day: 'Tuesday', date: 'Jul 1', score: 90, tier: 'OnStandard',
+      meals: [ { type: 'Breakfast', score: 95, img: 'assets/meal-breakfast.jpg' }, { type: 'Lunch', score: 91, img: 'assets/meal-lunch.jpg' }, { type: 'Dinner', score: 88, img: 'assets/meal-dinner.jpg' } ] },
+  ],
 
   // ---------- WEIGHT ----------
   weight: { current: '183.8', unit: 'lb', target: 188, start: 179, lastLogged: 'Fri 7:02 AM', deltaMonth: '+1.2 lb', pace: 'On pace', history: [180.1, 180.9, 181.6, 182.4, 182.0, 183.1, 183.8] },
@@ -413,6 +462,8 @@ export const S = {
     RT.assigned.filter(a => !a.done).forEach(a => fresh.push({
       level: 'medium', title: `Coach Mark added: ${a.title}`, body: `${a.note} Due: ${a.dueLabel.toLowerCase()}.`, when: 'now', icon: 'clipboard', route: `requirement/${a.id}`,
     }));
+    if (RT.planUpdate) fresh.push({ level: 'medium', title: 'Coach Mark updated your plan', body: `“${RT.planUpdate.text}”`, when: RT.planUpdate.when, icon: 'clipboard', route: 'plan/notes' });
+    if (RT.hydrationOz >= 120) fresh.push({ level: 'positive', title: 'Hydration standard hit', body: `120 oz in. This week's focus, handled. Coach sees it.`, when: 'now', icon: 'droplet', route: 'log' });
     if (!RT.recoveryDone) fresh.push({ level: 'high', title: 'Recovery check-in before bed', body: 'Do it tonight to lock +6 and keep your 5-day streak.', when: 'now', icon: 'moon', route: 'recovery' });
     fresh.push({ level: 'positive', title: 'Coach Mark liked your lunch', body: '“Great lunch. Keep this structure.”', when: '18m', icon: 'heart', route: 'meal-detail' });
     if (RT.dinnerLogged) fresh.push({ level: 'positive', title: 'Dinner logged on time', body: `+6 pts. You’re at ${computeScore(componentsNow())}${RT.recoveryDone ? ', OnStandard.' : '. One move left tonight.'}`, when: 'now', icon: 'check', route: 'meal-detail/dinner' });

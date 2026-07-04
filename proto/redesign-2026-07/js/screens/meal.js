@@ -42,7 +42,7 @@ export const analysis = {
   hideTabs: true,
   render() {
     const L = S.logging;
-    const already = RT.dinnerLogged;
+    const already = RT.day0 ? RT.day0Breakfast : RT.dinnerLogged;
     return `
     ${backHead(`${L.name} Analysis`, 'Check it before it counts', 'camera')}
 

@@ -47,6 +47,17 @@ body {
   z-index: 60;
 }
 
+/* ===== Phone-native mode: on a real phone the frame IS the phone ===== */
+@media (max-width: 520px) {
+  body { padding: 0; display: block; }
+  .device { width: 100vw; height: 100dvh; border-radius: 0; padding: 0; box-shadow: none; background: none; }
+  .screen { border-radius: 0; }
+  .island { display: none; }
+  .statusbar { display: none; }
+  .viewport { padding-top: max(14px, env(safe-area-inset-top)); }
+  .tabbar { padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+}
+
 /* ===== Status bar ===== */
 .statusbar {
   height: 52px; flex: none;

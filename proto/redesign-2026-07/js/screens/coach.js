@@ -60,9 +60,9 @@ export const coach = {
         <div class="lm"><div class="lt">Assign a requirement</div><div class="ls">Post-workout meal, supplements, body photo, sleep, custom</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      <div class="lrow" data-go="plan">
+      <div class="lrow" data-go="coach-plan">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('clipboard', 17)}</div>
-        <div class="lm"><div class="lt">Edit the game plan</div><div class="ls">Targets, meal windows, weekly focus</div></div>
+        <div class="lm"><div class="lt">Edit the game plan</div><div class="ls">Targets, weekly focus · publishing notifies him</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="copilot">
@@ -100,6 +100,12 @@ export const coachAssign = {
         </div>`).join('')}
     </section>
 
+    <div class="eyebrow">Custom task</div>
+    <div class="composer" style="margin-top:2px">
+      <input id="custom-task" placeholder="Name it… e.g. Extra water at practice" />
+      <div class="send" id="custom-send" style="background:linear-gradient(150deg, var(--green-bright), #16a34a);color:#04140b">${icon('plus', 19)}</div>
+    </div>
+
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
@@ -108,6 +114,67 @@ export const coachAssign = {
     </div>
     <div style="height:10px"></div>
     `;
+  },
+  mount(root) {
+    const input = root.querySelector('#custom-task');
+    const send = root.querySelector('#custom-send');
+    const submit = () => { if (input.value.trim()) { window.__act.assignCustom(input.value); location.hash = '#coach'; } };
+    if (send) send.addEventListener('click', submit);
+    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  },
+};
+
+/* ---------- Coach plan editor: adjust targets, publish -> athlete's Plan·Notes + notification ---------- */
+export const coachPlan = {
+  hideTabs: true,
+  render() {
+    return `
+    ${backHead('Edit Game Plan', 'J. Woods · Lean Mass Phase · Week 2 of 6', 'coach')}
+
+    <div class="eyebrow">Targets</div>
+    <section class="card" style="padding:6px 16px">
+      ${[['Protein', 'plan-protein', 190, 'g'], ['Calories', 'plan-cals', 2400, ''], ['Water', 'plan-water', 120, ' oz']].map(([k, id, v, u]) => `
+        <div class="lrow" style="cursor:default">
+          <div class="lm"><div class="lt">${k}</div></div>
+          <span class="wb2" data-step="${id}" data-d="-1" style="padding:6px 13px">−</span>
+          <span id="${id}" data-u="${u}" style="font-size:16px;font-weight:800;width:74px;text-align:center">${v}${u}</span>
+          <span class="wb2" data-step="${id}" data-d="1" style="padding:6px 13px">+</span>
+        </div>`).join('')}
+    </section>
+
+    <div class="eyebrow">This week's focus</div>
+    <div class="composer" style="margin-top:2px">
+      <input id="focus-input" value="Hydration is the standard this week. 120 oz, water with every meal." />
+      <div class="send" style="display:none"></div>
+    </div>
+
+    <div style="height:14px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div>
+      <div><div class="tt">Publishing notifies Jihad</div>
+      <div class="ts">The update lands in his Plan · Notes and his notifications the moment you send it. Nothing silent.</div></div>
+    </div>
+
+    <div style="height:16px"></div>
+    <button class="btn primary" id="publish-plan">${icon('check', 19)} Publish Update</button>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root) {
+    root.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
+      const el = root.querySelector('#' + b.getAttribute('data-step'));
+      const u = el.getAttribute('data-u');
+      const step = b.getAttribute('data-step') === 'plan-cals' ? 50 : 5;
+      el.textContent = (parseInt(el.textContent) + step * +b.dataset.d) + u;
+    }));
+    const pub = root.querySelector('#publish-plan');
+    if (pub) pub.addEventListener('click', () => {
+      const focus = root.querySelector('#focus-input').value.trim() || 'Plan updated.';
+      const p = parseInt(root.querySelector('#plan-protein').textContent);
+      const w = parseInt(root.querySelector('#plan-water').textContent);
+      window.__act.publishPlanUpdate(`${focus} Targets: ${p}g protein · ${w} oz water.`);
+      location.hash = '#coach';
+    });
   },
 };
 

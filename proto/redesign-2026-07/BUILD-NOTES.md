@@ -55,11 +55,24 @@ and everything persists in localStorage until you reset. One `computeScore()` in
 | 27 | App Store readiness | **RN-app work** (EAS build already on the launch list) |
 | 28 | Polish details | **BUILT** — ring draw, count-ups, pop-in check, sheet slide, tier promotion, no dead buttons (31 routes verified) |
 
-## Verification (2026-07-04)
-- All **31 routes** render, zero console errors.
-- Live-loop test: 82 Locked In → logDinner → 88 (+6) → submitRecovery → **94 OnStandard**,
-  `breakdown.sum === score` at every state; reset returns to 82.
-- Em-dash-free UI copy; real photography in activity/camera/analysis.
+## Verification (2026-07-04, final pass)
+- All **48 routes** render, zero console errors, automated dead-button sweep clean.
+- Live-loop: 82 Locked In → dinner → 88 → recovery → **94 OnStandard**; breakdown sums
+  equal the score at every state; reset returns to 82.
+- Round-trips proven in-browser: coach assigns (template or custom) → athlete Home +
+  notification → complete → coach sees; coach publishes plan update → athlete Plan·Notes +
+  notification; coach comment → athlete meal thread; hydration 120 oz → payoff + notification.
+- Food search: plate math correct (2× chicken = 62g protein); label scan: serving
+  multiplier correct (2 servings = 280 cal).
+- Em-dash-free UI copy; real photography; honest clock (7:12 matches windows); composers
+  never fabricate a human reply.
+
+## Complete route map (48)
+Athlete: home, score-breakdown, plan×4, camera, analyzing, meal-analysis, meal-confirm,
+meal-detail(+/dinner), food-search, label-scan, weight, recovery(+confirm), checkin,
+progress, history, streak, trust, requirement/<id>, log (quick sheet), notifications,
+messages, profile, connect, settings, privacy, billing, welcome, onboarding×6, states.
+Roles: coach, coach-athlete, coach-assign, coach-plan, copilot, trainer, trainer-client, parent.
 
 ## Port-to-RN map (when Bo says go)
 - `state.js` getters → the existing `computeDerived()`/store; tiers are a pure add.

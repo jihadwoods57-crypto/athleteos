@@ -20,12 +20,13 @@ export default {
 
     ${t.active ? `
     <div style="height:12px"></div>
-    <div class="trust">
+    <div class="trust" data-go="trust" style="cursor:pointer">
       <div class="ic">${icon('shield', 20)}</div>
       <div style="flex:1">
         <div class="tt">Trust Pass active · day ${t.day} of ${t.length}</div>
-        <div class="ts">Earned with 7 on-standard days. Spot-check every 5th day; credit decays if it goes stale.</div>
+        <div class="ts">Earned with 7 on-standard days. Tap for the rules.</div>
       </div>
+      ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : ''}
 
     <div class="eyebrow">Coach Connection</div>
@@ -59,14 +60,14 @@ export default {
         <div class="lm"><div class="lt">Notifications</div><div class="ls">Reminder level: High</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      <div class="lrow" data-go="progress">
+      <div class="lrow" data-go="streak">
         <div class="lic" style="color:var(--amber-bright)">${icon('flame', 18)}</div>
         <div class="lm"><div class="lt">Streak</div><div class="ls">${S.streakDays} days on standard · 1 grace per 7 days</div></div>
         <span class="lv">${S.streakDays}d</span>
       </div>
-      <div class="lrow" data-go="progress">
+      <div class="lrow" data-go="history">
         <div class="lic">${icon('clipboard', 17)}</div>
-        <div class="lm"><div class="lt">Requirement history</div><div class="ls">Every log, every day</div></div>
+        <div class="lm"><div class="lt">Meal & log history</div><div class="ls">The proof trail, day by day</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
     </section>

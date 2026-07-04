@@ -1,5 +1,4 @@
 import home from './home.js';
-import homeOpus from './home.opus.js';
 import breakdown from './breakdown.js';
 import plan from './plan.js';
 import camera from './camera.js';
@@ -14,14 +13,15 @@ import log from './log.js';
 import auth from './auth.js';
 import onboarding from './onboarding.js';
 import checkin from './checkin.js';
-import { coach, coachAthlete, coachAssign, copilot, trainer, trainerClient, parent } from './coach.js';
+import { coach, coachAthlete, coachAssign, coachPlan, copilot, trainer, trainerClient, parent } from './coach.js';
 import states from './states.js';
 import requirement from './requirement.js';
 import { messages, settings as prefs, privacy, billing } from './settings.js';
+import { foodSearch, labelScan } from './foodsearch.js';
+import { trust, streak, history } from './trust.js';
 
 export const screens = {
   home,
-  'home-opus': homeOpus, // pre-Fable snapshot for side-by-side comparison
   'score-breakdown': breakdown,
   plan,
   camera,
@@ -43,6 +43,7 @@ export const screens = {
   coach,
   'coach-athlete': coachAthlete,
   'coach-assign': coachAssign,
+  'coach-plan': coachPlan,
   copilot,
   trainer,
   'trainer-client': trainerClient,
@@ -53,4 +54,9 @@ export const screens = {
   settings: prefs,
   privacy,
   billing,
+  'food-search': foodSearch,
+  'label-scan': labelScan,
+  trust,
+  streak,
+  history,
 };

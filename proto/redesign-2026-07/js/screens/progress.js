@@ -1,4 +1,4 @@
-import { S } from '../state.js';
+import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 
 const DAYS = ['M','T','W','T','F','S','S'];
@@ -7,6 +7,22 @@ export default {
   tab: 'progress',
   render() {
     const P = S.progress;
+    if (RT.day0) {
+      return `
+      <div class="screen-title">Progress</div>
+      <div style="height:14px"></div>
+      <div class="state-demo">
+        <div class="sd-ic">${icon('bars', 24)}</div>
+        <div class="sd-t">Progress builds as you log</div>
+        <div class="sd-s">After your first few days, trends, streaks, and patterns show up here. Day one is about one thing: log the meals.</div>
+        <div class="sd-cta"><button class="btn green sm" style="width:auto;padding:0 22px" data-go="camera">${icon('camera', 17)} Log a Meal</button></div>
+      </div>
+      <div class="sidebox">
+        <div class="req-icon b" style="width:38px;height:38px">${icon('target', 17)}</div>
+        <div><div class="tt">What you'll see here</div>
+        <div class="ts">Weekly score trend, requirement consistency, your biggest pattern, weight trend toward the coach target, and where points slipped.</div></div>
+      </div>`;
+    }
     const accent = { g: 'linear-gradient(90deg,#16a34a,var(--green-bright))', b: 'linear-gradient(90deg,var(--blue-deep),var(--blue-bright))', p: 'linear-gradient(90deg,#7e22ce,var(--purple-bright))', a: 'linear-gradient(90deg,#b45309,var(--amber-bright))' };
     return `
     <div class="screen-title">Progress</div>
@@ -54,7 +70,7 @@ export default {
       <p>${P.pattern}</p>
     </div>
 
-    <div class="eyebrow">Nutrition Progress</div>
+    <div class="eyebrow">Nutrition Progress <span class="link" data-go="history">Meal history</span></div>
     <section class="card pad">
       <div class="macro-row">
         <div class="macro"><div class="mv">93</div><div class="mk">Avg meal</div></div>
