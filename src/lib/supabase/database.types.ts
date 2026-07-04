@@ -81,17 +81,42 @@ export type OrgMembershipRow = {
 }
 
 /** A coach/org subscription (B2B per-seat). Written by the Stripe webhook
- *  (service_role) at go-live; the owner reads their own row. Added in migration 0010. */
+ *  (service_role) at go-live; the owner reads their own row. Added in migration 0010;
+ *  lifecycle columns (plan_id / paused / cancel_at_period_end / payment_failed_at)
+ *  added in 0042. */
 export type SubscriptionRow = {
   owner_id: string;
   tier: 'preview' | 'team';
-  status: 'preview' | 'active' | 'past_due' | 'canceled';
+  status: 'preview' | 'active' | 'past_due' | 'canceled' | 'paused';
+  /** Which catalog plan was bought (pro_solo / professional / org_*). Null pre-0042. */
+  plan_id: string | null;
   seats: number | null;
   seats_used: number | null;
   current_period_end: string | null;
+  /** True when the owner canceled but access runs to period end ("canceling on <date>"). */
+  cancel_at_period_end: boolean | null;
+  /** When the last invoice failed (dunning); null when billing is healthy. */
+  payment_failed_at: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   updated_at: string;
+}
+
+/** The signed-in user's referral code row (0042). Client creates its own, reads its own. */
+export type ReferralCodeRow = {
+  owner_id: string;
+  code: string;
+  created_at: string;
+}
+
+/** One referral redemption (0042): who brought whom. Written only by the webhook. */
+export type ReferralRedemptionRow = {
+  referred_owner_id: string;
+  referrer_owner_id: string;
+  code: string;
+  status: 'pending' | 'rewarded';
+  created_at: string;
+  rewarded_at: string | null;
 }
 
 export type CheckinRow = {
@@ -244,6 +269,8 @@ export interface Database {
       team_members: Table<TeamMemberRow>;
       practice_clients: Table<PracticeClientRow>;
       subscriptions: Table<SubscriptionRow>;
+      referral_codes: Table<ReferralCodeRow>;
+      referral_redemptions: Table<ReferralRedemptionRow>;
       org_memberships: Table<OrgMembershipRow>;
       guardian_consent_requests: Table<GuardianConsentRequestRow>;
       trust_passes: Table<TrustPassRow>;

@@ -1,88 +1,98 @@
 # Stripe — take your first payment (founder steps)
 
-**The code is done.** The `stripe-webhook` function (which flips a customer's plan to "active" the
-moment they pay) is written and committed — it just needs deploying with two secrets that only you
-can create. Everything below is the part only you can do (it needs your business identity + bank),
-laid out click-by-click. When you finish steps 1–4, hand me the two secrets from step 5 and I deploy
-the rest in one shot.
+**The code is done — all of it (2026-07-04 revenue build).** The app now has a real in-app
+checkout: a trainer taps "Start" on a plan, a Stripe payment page opens in their browser, they
+pay, and the webhook flips their account to active automatically. Manage / update card / pause /
+cancel all work through Stripe's hosted portal. Dunning (failed cards) and the give-a-month
+referral loop are wired too.
 
-Your model is **B2B off-platform** (a coach/gym pays per seat), so you skip Apple's in-app-purchase
-system entirely — this is just Stripe.
+What's left is only what needs your business identity and bank: **~40 minutes of clicking in
+Stripe**, then two secrets, then I deploy. Here it is click-by-click.
+
+Your model is **B2B off-platform** (a trainer/gym pays; their athletes ride free), so you skip
+Apple's in-app-purchase cut entirely — this is just Stripe. (The consumer Individual/Family
+plans are App Store IAP later, separate track.)
 
 ---
 
 ## Step 1 — Create a Stripe account (~15 min)
 1. Go to **https://stripe.com** → Sign up.
-2. Fill in your business details and connect a bank account (this is where payouts land). You can
-   test everything in **Test mode** first without this, but you need it before real charges.
+2. Fill in your business details and connect a bank account (payouts land there). You can test
+   everything in **Test mode** first; you need the bank before real charges.
 
-## Step 2 — Create your plan(s) as Products (~10 min)
-In Stripe: **Products → Add product.** Create at least the one you'll sell first. These match the
-prices the app already assumes:
+## Step 2 — Create the plans as Products (~15 min)
+In Stripe: **Products → Add product** — one product per plan, each with a monthly AND an annual
+recurring price. **The critical detail: every Price must carry its `lookup_key`** (shown below) —
+that is how the app finds the price, so no price IDs ever live in code and you can change a
+price in the dashboard without a deploy.
 
-| Product name | Price | Billing | Who it's for |
-|---|---|---|---|
-| **Solo** | $69 / month | Recurring, monthly | a single personal trainer (up to 25 athletes) |
-| **Starter** | $249 / month | Recurring, monthly | a small gym / program (up to 30 athletes) |
-| **Growth** | $499 / month | Recurring | up to 75 athletes |
-| **Performance** | $799 / month | Recurring | up to 150 athletes |
+| Product | Monthly price | its lookup_key | Annual price | its lookup_key |
+|---|---|---|---|---|
+| **Solo** | $99 | `pro_solo_monthly` | $990 | `pro_solo_annual` |
+| **Professional** | $179 | `professional_monthly` | $1,790 | `professional_annual` |
+| **Starter** | $249 | `org_starter_monthly` | $2,490 | `org_starter_annual` |
+| **Growth** | $499 | `org_growth_monthly` | $4,990 | `org_growth_annual` |
+| **Performance** | $799 | `org_performance_monthly` | $7,990 | `org_performance_annual` |
 
-For each: set it **Recurring / monthly**, USD. (You can add the annual prices later — $690, $2490,
-$4990, $7990.) **Start with just Solo or Starter** — you only need one to make your first sale.
+(In the dashboard, the lookup key field is under the price's **Advanced / additional options**.
+If you only want to start with one plan, create just Solo — the others' buttons will say
+"plan not available yet" honestly until you add them.)
 
-## Step 3 — Create a Payment Link (~5 min)
-1. **Products → your Starter (or Solo) price → Create payment link** (or **Payment Links → New**).
-2. Turn **on** "Let customers adjust quantity" if you want to charge per-seat; otherwise leave the
-   quantity at 1 seat-bundle.
-3. Save it. You'll get a URL like `https://buy.stripe.com/xxxxx`.
+## Step 3 — Referral coupon (~3 min)
+**Products → Coupons → New:** name it `Referral month`, **100% off, once** (duration: once).
+Copy its coupon ID. This one coupon powers both halves of give-a-month/get-a-month: the new
+customer gets it applied at checkout when they enter a friend's code, and the friend gets it
+applied to their own next invoice automatically by the webhook.
 
-**Important — how a payment finds the right coach:** when you send this link to a specific gym, add
-their OnStandard account id to the end like this:
+## Step 4 — Customer portal ON (~5 min)
+**Settings → Billing → Customer portal → Activate.** Turn on: update payment method, cancel
+subscription, and **pause subscription** (this is the churn-saver — the app's cancel flow
+points people at pause first). You do NOT need to copy a portal link — the app now creates a
+per-customer portal session on demand.
 
-```
-https://buy.stripe.com/xxxxx?client_reference_id=THAT-COACHS-USER-ID
-```
-
-(You get a coach's user id from **Supabase → Auth → Users** after they've signed up. This is how the
-webhook knows whose account to upgrade. For your very first sale you can also just tell me the id and
-I'll confirm the row flipped.)
-
-## Step 4 — Point Stripe at your webhook (~5 min)
+## Step 5 — Point Stripe at the webhook (~5 min)
 1. **Developers → Webhooks → Add endpoint.**
 2. Endpoint URL:
    ```
    https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/stripe-webhook
    ```
-3. Select events to send: **`checkout.session.completed`**, **`customer.subscription.updated`**,
-   **`customer.subscription.deleted`**.
-4. Add endpoint. Stripe shows a **Signing secret** that starts with `whsec_...` — copy it.
+3. Select events: **`checkout.session.completed`**, **`customer.subscription.updated`**,
+   **`customer.subscription.deleted`**, **`invoice.payment_failed`**, **`invoice.paid`**.
+   (The last two power dunning — the "your card failed, fix it" banner and its all-clear.)
+4. Add endpoint → copy the **Signing secret** (`whsec_...`).
+5. While you're in Billing settings: **Settings → Billing → Automatic collection → Smart
+   Retries ON** (recovers 20-40% of failed charges for free).
 
-## Step 5 — Hand me two secrets, I finish it
-Give me (paste them privately — actually, don't paste secrets in chat; drop them into a note and tell
-me you're ready, OR set them yourself with the commands below):
+## Step 6 — Hand me three secrets, I deploy everything
+- **`STRIPE_SECRET_KEY`** — Developers → API keys → Secret key (`sk_live_...` / `sk_test_...`)
+- **`STRIPE_WEBHOOK_SECRET`** — the `whsec_...` from step 5
+- **`STRIPE_REFERRAL_COUPON_ID`** — the coupon ID from step 3
 
-- **`STRIPE_SECRET_KEY`** — Developers → API keys → Secret key (`sk_live_...` or `sk_test_...`)
-- **`STRIPE_WEBHOOK_SECRET`** — the `whsec_...` from step 4
-
-Then the deploy is two commands (I can run them, or you can):
+Don't paste them in chat — set them yourself (or tell me you've saved them somewhere and I'll
+run it with you):
 ```
-supabase secrets set STRIPE_SECRET_KEY=sk_live_... STRIPE_WEBHOOK_SECRET=whsec_... --project-ref ftwrvylzoyznhbzhgism
-supabase functions deploy stripe-webhook --project-ref ftwrvylzoyznhbzhgism --use-api --no-verify-jwt
+supabase secrets set STRIPE_SECRET_KEY=sk_... STRIPE_WEBHOOK_SECRET=whsec_... STRIPE_REFERRAL_COUPON_ID=... --project-ref ftwrvylzoyznhbzhgism
+supabase db push                                   # applies migration 0042 (billing lifecycle + referrals)
+supabase functions deploy stripe-webhook --use-api --no-verify-jwt
+supabase functions deploy billing-checkout --use-api
+supabase functions deploy billing-portal --use-api
+supabase functions deploy billing-return --use-api --no-verify-jwt
 ```
 
-## Step 6 — Set the "Manage / cancel" link (~2 min)
-In Stripe: **Settings → Billing → Customer portal → activate.** Copy the portal link. That value goes
-into the app build as `EXPO_PUBLIC_BILLING_PORTAL_URL` (an EAS environment variable — see the App
-Store steps). This is what the in-app "Manage plan" button opens.
+## Step 7 — Test one checkout end to end (before going live)
+In **Test mode**: open the app signed in as a test trainer → Account → See plans → pick Solo →
+Start. Stripe's test card is `4242 4242 4242 4242` (any future expiry/CVC). Then check
+**Supabase → Table editor → subscriptions**: the row should read `tier = team`,
+`status = active`, `plan_id = pro_solo`. Reopen the app — the plan shows as active and
+"Manage / pause / cancel" opens the portal. Test the referral too: create a second test
+account, grab the first account's code from Account → Refer & earn, and check out with it —
+both sides should show the free month.
 
-## Step 7 — Test one checkout (before going live)
-Do a **Test mode** checkout using Stripe's test card `4242 4242 4242 4242` (any future expiry, any
-CVC), with `?client_reference_id=<a test user id>` on the link. Then check **Supabase → Table editor
-→ subscriptions** — that user's row should read `tier = team`, `status = active`. Once that works,
-switch your keys to **live** and you're taking real money.
+Once that works, flip your keys to **live** and you're taking real money.
 
 ---
 
-**What I can do the moment you're ready:** deploy the webhook (step 5) and verify the test checkout
-flips the subscription row (step 7). The account, products, payment link, and bank connection are
-inherently yours — but that's ~40 minutes of clicking, and then you can charge your first gym.
+**How a payment finds the right account (for your mental model):** the app's checkout carries
+the signed-in buyer's user id in the Stripe session (`client_reference_id`), so the webhook
+knows exactly whose row to flip. No manual URL editing, no telling me user ids — the old
+Payment-Link instructions from the previous version of this doc are obsolete.

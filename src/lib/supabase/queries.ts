@@ -13,6 +13,8 @@ import type {
   OrgRow,
   OrgType,
   ProfileRow,
+  ReferralCodeRow,
+  ReferralRedemptionRow,
   SubscriptionRow,
   TeamRow,
 } from './database.types';
@@ -172,6 +174,44 @@ export async function fetchEntitlement(userId: string): Promise<SubscriptionRow 
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+// ---------------------------------------------------------------- referrals (0042)
+
+/** The signed-in user's referral share code, or null if they have not created one yet. */
+export async function fetchReferralCode(userId: string): Promise<ReferralCodeRow | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase()
+    .from('referral_codes')
+    .select('*')
+    .eq('owner_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/** Create the signed-in user's referral code (one per account; RLS enforces own-id).
+ *  Throws on a code collision — the caller retries with a fresh generated code. */
+export async function createReferralCode(userId: string, code: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase()
+    .from('referral_codes')
+    .insert({ owner_id: userId, code });
+  if (error) throw error;
+}
+
+/** Redemptions where the signed-in user is the referrer — powers "2 people joined on
+ *  your code, 1 free month earned". Written only by the webhook; this is a pure read. */
+export async function fetchReferralRedemptions(userId: string): Promise<ReferralRedemptionRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('referral_redemptions')
+    .select('*')
+    .eq('referrer_owner_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function fetchAthleteProfile(athleteId: string): Promise<AthleteProfileRow | null> {

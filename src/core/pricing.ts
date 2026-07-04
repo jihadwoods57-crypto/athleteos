@@ -127,6 +127,38 @@ export function planTerms(p: PricedPlan): PlanTerms {
 
 /** The CTA label that carries the auto-renewal terms (FTC: consent before charge). */
 export function purchaseCtaLabel(p: PricedPlan): string {
+  return purchaseCtaLabelFor(p, 'monthly');
+}
+
+// ---------------------------------------------------------------- billing cadence
+// Annual-first checkout (revenue build 2026-07-04): annual is the highlighted default at
+// checkout — the buyer saves two months, the business gets cash up front and roughly half
+// the churn surface. These helpers keep every cadence-dependent string in one tested place.
+
+export type BillingCadence = 'monthly' | 'annual';
+
+/** The charge for a plan at a cadence (what the card is actually hit for). */
+export function cadenceAmount(p: PricedPlan, cadence: BillingCadence): number {
+  return cadence === 'annual' ? p.annual : p.monthly;
+}
+
+/** Price display for a plan card at a cadence: "$99" + "/ month", or "$990" + "/ year". */
+export function cadencePriceParts(p: PricedPlan, cadence: BillingCadence): { amount: string; per: string } {
+  return cadence === 'annual'
+    ? { amount: formatPrice(p.annual), per: '/ year' }
+    : { amount: formatPrice(p.monthly), per: '/ month' };
+}
+
+/** The cadence-aware CTA, still carrying the auto-renewal consent in the label. */
+export function purchaseCtaLabelFor(p: PricedPlan, cadence: BillingCadence): string {
   if (p.custom) return 'Contact sales';
-  return `Start — ${formatPrice(p.monthly)}/mo, auto-renews`;
+  return cadence === 'annual'
+    ? `Start — ${formatPrice(p.annual)}/yr, auto-renews`
+    : `Start — ${formatPrice(p.monthly)}/mo, auto-renews`;
+}
+
+/** The one-line saving pitch under the annual option ("Save $198 vs monthly"), or '' . */
+export function annualSavingsLine(p: PricedPlan): string {
+  const saved = annualSavings(p);
+  return saved > 0 ? `Save ${formatPrice(saved)} vs monthly` : '';
 }

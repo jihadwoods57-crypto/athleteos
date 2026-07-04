@@ -2,7 +2,12 @@
 import React, { useState } from 'react';
 import { Alert, ScrollView, Share, View } from 'react-native';
 import { useStore } from '@/store';
-import { accountIdentity, accountRows, APP_VERSION, isPro, type AccountRow } from '@/core';
+import {
+  accountIdentity, accountRows, APP_VERSION, isPro,
+  generateReferralCode, referralShareMessage, referralSummary,
+  type AccountRow,
+} from '@/core';
+import { db, isBackendLive } from '@/lib/supabase';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Row, Toggle, Txt, Pressable, PressScale, Reveal } from '@/ui/primitives';
@@ -101,6 +106,11 @@ export function Account() {
           </View>
           <Icon name="chevronRight" size={18} color={c.textTertiary} />
         </PressScale>
+        </Reveal>
+
+        {/* Referral loop — give a month, get a month. */}
+        <Reveal index={3}>
+          <ReferralCard />
         </Reveal>
 
         {/* Your data — GDPR/CCPA portability + Apple-required in-app deletion */}
@@ -235,5 +245,83 @@ function DisclosureRow({
         </Txt>
       ) : null}
     </View>
+  );
+}
+
+/**
+ * Referral loop — give a month, get a month. The card lazily ensures the signed-in user
+ * owns a share code (created client-side, unique-checked by the db), shows the honest
+ * earned/pending summary from the server-written redemptions, and shares the code via the
+ * native sheet. Preview accounts (no backend / not signed in) see honest launch copy —
+ * never a fake code.
+ */
+function ReferralCard() {
+  const c = useColors();
+  const s = useStore();
+  const live = isBackendLive && !!s.userId;
+  const [code, setCode] = useState<string | null>(null);
+  const [line, setLine] = useState<string>('Share your code. When someone subscribes with it, you both get a free month.');
+
+  React.useEffect(() => {
+    if (!live || !s.userId) return;
+    const uid = s.userId;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Ensure a code exists (one retry on the astronomically-unlikely collision).
+        let row = await db.fetchReferralCode(uid);
+        if (!row) {
+          for (let attempt = 0; attempt < 2 && !row; attempt++) {
+            try {
+              await db.createReferralCode(uid, generateReferralCode());
+              row = await db.fetchReferralCode(uid);
+            } catch { /* collision or transient error — retry once, else stay pending */ }
+          }
+        }
+        if (!cancelled && row) setCode(row.code);
+        const redemptions = await db.fetchReferralRedemptions(uid);
+        if (!cancelled) setLine(referralSummary(redemptions).line);
+      } catch { /* offline — keep the default line, card still explains the program */ }
+    })();
+    return () => { cancelled = true; };
+  }, [live, s.userId]);
+
+  const onShare = async () => {
+    haptics.tap();
+    if (!code) return;
+    try { await Share.share({ message: referralShareMessage(code) }); } catch { /* user cancelled */ }
+  };
+
+  return (
+    <Card variant="low" style={{ marginTop: 14, borderRadius: 20, padding: 16 }}>
+      <Row style={{ gap: 12, alignItems: 'center' }}>
+        <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="squad" size={18} color={c.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="b" size={15}>Refer & earn</Txt>
+          <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1, lineHeight: 17 }}>{line}</Txt>
+        </View>
+      </Row>
+      {live && code ? (
+        <Row style={{ gap: 10, marginTop: 12 }}>
+          <View style={{ flex: 1, height: 46, borderRadius: 12, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt w="eb" num size={17} ls={2}>{code}</Txt>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Share your referral code"
+            onPress={onShare}
+            style={({ pressed }) => [{ paddingHorizontal: 18, height: 46, borderRadius: 12, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.85 : 1 }]}
+          >
+            <Txt w="b" size={14} color={c.white}>Share</Txt>
+          </Pressable>
+        </Row>
+      ) : (
+        <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 10, lineHeight: 17 }}>
+          {live ? 'Setting up your code…' : 'Referral codes go live with the public launch.'}
+        </Txt>
+      )}
+    </Card>
   );
 }

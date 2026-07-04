@@ -5,6 +5,7 @@ import {
   FEATURE_KEYS,
   hasFeature,
   isPro,
+  needsBillingAttention,
   normalizeEntitlement,
   planLabel,
   previewEntitlement,
@@ -15,10 +16,20 @@ describe('previewEntitlement / isPro', () => {
   it('preview is not pro', () => {
     expect(isPro(previewEntitlement())).toBe(false);
   });
-  it('an active team plan is pro; past_due keeps access (grace); canceled does not', () => {
+  it('an active team plan is pro; past_due keeps access (grace); canceled and paused do not', () => {
     expect(isPro({ tier: 'team', status: 'active' })).toBe(true);
     expect(isPro({ tier: 'team', status: 'past_due' })).toBe(true);
     expect(isPro({ tier: 'team', status: 'canceled' })).toBe(false);
+    expect(isPro({ tier: 'team', status: 'paused' })).toBe(false);
+  });
+});
+
+describe('needsBillingAttention (dunning banner gate)', () => {
+  it('fires only on past_due', () => {
+    expect(needsBillingAttention({ tier: 'team', status: 'past_due' })).toBe(true);
+    expect(needsBillingAttention({ tier: 'team', status: 'active' })).toBe(false);
+    expect(needsBillingAttention({ tier: 'team', status: 'paused' })).toBe(false);
+    expect(needsBillingAttention(previewEntitlement())).toBe(false);
   });
 });
 
@@ -27,10 +38,33 @@ describe('entitlementFromRow (fail-safe)', () => {
     expect(entitlementFromRow(null)).toEqual(previewEntitlement());
     expect(entitlementFromRow({ tier: 'preview', status: 'active', seats: 9, seats_used: 1, current_period_end: null }).tier).toBe('preview');
   });
-  it('maps a team row into the entitlement', () => {
-    const e = entitlementFromRow({ tier: 'team', status: 'active', seats: 24, seats_used: 18, current_period_end: '2026-08-01' });
-    expect(e).toEqual({ tier: 'team', status: 'active', seats: 24, seatsUsed: 18, renewsAt: '2026-08-01' });
+  it('maps a team row into the entitlement (0042 lifecycle columns included)', () => {
+    const e = entitlementFromRow({
+      tier: 'team', status: 'active', seats: 24, seats_used: 18, current_period_end: '2026-08-01',
+      plan_id: 'pro_solo', cancel_at_period_end: false, payment_failed_at: null,
+    });
+    expect(e).toEqual({
+      tier: 'team', status: 'active', planId: 'pro_solo', seats: 24, seatsUsed: 18,
+      renewsAt: '2026-08-01', cancelAtPeriodEnd: false, paymentFailedAt: null,
+    });
     expect(isPro(e)).toBe(true);
+  });
+  it('tolerates a pre-0042 row with no lifecycle columns', () => {
+    const e = entitlementFromRow({ tier: 'team', status: 'active', seats: 24, seats_used: 18, current_period_end: '2026-08-01' });
+    expect(e.planId).toBeNull();
+    expect(e.cancelAtPeriodEnd).toBe(false);
+    expect(isPro(e)).toBe(true);
+  });
+  it('maps paused and carries the dunning timestamp', () => {
+    const paused = entitlementFromRow({ tier: 'team', status: 'paused', seats: 25, seats_used: 3, current_period_end: null });
+    expect(paused.status).toBe('paused');
+    expect(isPro(paused)).toBe(false);
+    const dunned = entitlementFromRow({
+      tier: 'team', status: 'past_due', seats: 25, seats_used: 3, current_period_end: null,
+      payment_failed_at: '2026-07-04T12:00:00Z',
+    });
+    expect(dunned.paymentFailedAt).toBe('2026-07-04T12:00:00Z');
+    expect(needsBillingAttention(dunned)).toBe(true);
   });
 });
 
@@ -45,7 +79,9 @@ describe('planLabel', () => {
   it('labels each state', () => {
     expect(planLabel(previewEntitlement())).toBe('Free preview');
     expect(planLabel({ tier: 'team', status: 'active' })).toBe('Team plan');
+    expect(planLabel({ tier: 'team', status: 'active', cancelAtPeriodEnd: true })).toBe('Team · ending soon');
     expect(planLabel({ tier: 'team', status: 'past_due' })).toBe('Team · payment due');
+    expect(planLabel({ tier: 'team', status: 'paused' })).toBe('Team · paused');
     expect(planLabel({ tier: 'team', status: 'canceled' })).toBe('Team · canceled');
   });
 });
@@ -89,9 +125,21 @@ describe('billingRowCopy', () => {
   it('an athlete on a team plan pays nothing (covered by the coach)', () => {
     expect(billingRowCopy({ tier: 'team', status: 'active' }, 'app').detail).toContain('covered by your coach');
   });
+  it('a paused coach plan says nothing was deleted and how to resume', () => {
+    const c = billingRowCopy({ tier: 'team', status: 'paused', seats: 25, seatsUsed: 4 }, 'trainer');
+    expect(c.hint).toBe('Paused');
+    expect(c.detail).toContain('nothing was deleted');
+    expect(c.detail.toLowerCase()).toContain('resume');
+  });
+  it('a canceling-at-period-end plan says access continues and can be undone', () => {
+    const c = billingRowCopy({ tier: 'team', status: 'active', seats: 25, cancelAtPeriodEnd: true, renewsAt: '2026-08-01' }, 'coach');
+    expect(c.hint).toBe('Ending soon');
+    expect(c.detail).toContain('until 2026-08-01');
+    expect(c.detail.toLowerCase()).toContain('undo');
+  });
   it('never uses an em dash (account copy ban)', () => {
     for (const flow of ['app', 'coach', 'trainer', 'parent'] as const) {
-      for (const e of [previewEntitlement(), { tier: 'team', status: 'active', seats: 5 }, { tier: 'team', status: 'past_due', seats: 5 }, { tier: 'team', status: 'canceled' }] as Entitlement[]) {
+      for (const e of [previewEntitlement(), { tier: 'team', status: 'active', seats: 5 }, { tier: 'team', status: 'past_due', seats: 5 }, { tier: 'team', status: 'paused', seats: 5 }, { tier: 'team', status: 'active', seats: 5, cancelAtPeriodEnd: true }, { tier: 'team', status: 'canceled' }] as Entitlement[]) {
         const c = billingRowCopy(e, flow);
         expect(c.hint).not.toContain('—');
         expect(c.detail).not.toContain('—');
