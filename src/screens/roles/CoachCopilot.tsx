@@ -100,8 +100,8 @@ function CopilotAnswer({ result }: { result: CopilotResult }) {
           const s = data as NutritionSummary;
           return (
             <Txt w="sb" size={14} color={c.slate700} style={{ lineHeight: 21 }}>
-              {s.count} athletes · avg {s.avgScore} · {s.avgCompliance}% compliant.{' '}
-              {s.onStandard} on standard, {s.needIntervention} need intervention.
+              {s.count} {s.count === 1 ? 'athlete' : 'athletes'} · avg {s.avgScore} · {s.avgCompliance}% compliant.{' '}
+              {s.onStandard} on standard, {s.needIntervention} {s.needIntervention === 1 ? 'needs' : 'need'} intervention.
             </Txt>
           );
         })()

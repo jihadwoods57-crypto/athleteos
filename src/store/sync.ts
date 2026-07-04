@@ -118,9 +118,12 @@ export function dayRowToState(row: DayRow): Partial<AppState> {
     hydrationL: row.hydration_l,
     tasks: (row.tasks ?? []) as unknown as AppState['tasks'],
     quickAdded: (row.quick_added ?? []) as AppState['quickAdded'],
-    currentWeight: row.current_weight ?? undefined,
     dateStamp: row.date,
   };
+  // Only restore weight when the row actually carries one. A null weight used to overwrite
+  // currentWeight with undefined, which rendered "now NaN lb / NaN% there" in the season-goal
+  // card on a fresh sign-in (2026-07-04 fix). Absent -> keep the athlete's existing weight.
+  if (typeof row.current_weight === 'number') slice.currentWeight = row.current_weight;
   const ci = (row.checkin ?? null) as Record<string, unknown> | null;
   if (ci && typeof ci.submitted === 'boolean') {
     slice.ciSubmitted = ci.submitted;

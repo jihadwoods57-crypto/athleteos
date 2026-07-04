@@ -182,15 +182,25 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(useStore.getState().authError).toMatch(/doesn't match/i);
   });
 
-  it('signUpLive stores userId + forwards the full name + keeps the email', async () => {
+  it('signUpLive stores userId + forwards the full name + role + keeps the email', async () => {
     signUp.mockResolvedValue({ ok: true, userId: 'u-2' });
     const useStore = loadStore(true);
     const ok = await useStore.getState().signUpLive(' c@d.io ', 'pw', ' Carla ');
     expect(ok).toBe(true);
-    expect(signUp).toHaveBeenCalledWith('c@d.io', 'pw', 'Carla');
+    // Role rides the signup call so a returning overseer routes correctly (2026-07-04 fix);
+    // the default onboarding role maps to 'athlete'.
+    expect(signUp).toHaveBeenCalledWith('c@d.io', 'pw', 'Carla', 'athlete');
     expect(useStore.getState().userId).toBe('u-2');
     expect(useStore.getState().athleteEmail).toBe('c@d.io');
     expect(useStore.getState().emailConfirmPending).toBe(false); // no needsConfirmation -> no false "check email"
+  });
+
+  it('signUpLive persists a COACH role in the signup metadata', async () => {
+    signUp.mockResolvedValue({ ok: true, userId: 'u-3' });
+    const useStore = loadStore(true);
+    useStore.setState({ role: 'sports_perf_coach' });
+    await useStore.getState().signUpLive('coach@d.io', 'pw', 'Coach Reyes');
+    expect(signUp).toHaveBeenCalledWith('coach@d.io', 'pw', 'Coach Reyes', 'coach');
   });
 
   it('signUpLive flags emailConfirmPending when the project requires confirmation (confirm-ON)', async () => {

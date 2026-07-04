@@ -16,18 +16,24 @@ export async function signIn(email: string, password: string): Promise<AuthResul
   return { ok: true, userId: data.user.id };
 }
 
-/** Create an account. `full_name` is stored in user metadata; the DB trigger
- *  `handle_new_user` copies it into `profiles` on insert. */
+/** Create an account. `full_name` and `role` are stored in user metadata; the DB trigger
+ *  `handle_new_user` copies them into `profiles` on insert. Passing `role` at signup is
+ *  what makes a returning overseer route to THEIR dashboard: with email-confirm ON there's
+ *  no session to write primary_role later, so it must ride the signup metadata (2026-07-04). */
 export async function signUp(
   email: string,
   password: string,
   fullName?: string,
+  role?: 'athlete' | 'coach' | 'trainer' | 'parent',
 ): Promise<AuthResult> {
   if (!isSupabaseConfigured) return { ok: false, error: 'notConfigured' };
+  const meta: Record<string, string> = {};
+  if (fullName) meta.full_name = fullName;
+  if (role) meta.role = role;
   const { data, error } = await requireSupabase().auth.signUp({
     email,
     password,
-    options: { data: fullName ? { full_name: fullName } : undefined },
+    options: { data: Object.keys(meta).length ? meta : undefined },
   });
   if (error || !data.user) return { ok: false, error: error?.message ?? 'Sign-up failed' };
   // With email-confirmation ON, Supabase returns the user but NO session until the link is

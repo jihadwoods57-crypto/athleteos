@@ -156,11 +156,29 @@ export async function fetchProfile(userId: string): Promise<ProfileRow | null> {
  *  added in migration 0009). */
 export async function updateProfile(
   userId: string,
-  fields: { full_name?: string | null; org_name?: string | null },
+  fields: { full_name?: string | null; org_name?: string | null; primary_role?: 'athlete' | 'coach' | 'trainer' | 'parent' },
 ): Promise<void> {
   if (!isSupabaseConfigured) return;
   const { error } = await requireSupabase().from('profiles').update(fields).eq('id', userId);
   if (error) throw error;
+}
+
+/** Which overseer roles a signed-in athlete/client is actively linked to, for rehydrating
+ *  `supportTeam` on a fresh sign-in (so a connected athlete doesn't see "Connect your coach"
+ *  and the coach-presence copy is right). RLS self-read: tm_read / pc_read allow reading own
+ *  rows. Empty on error/unconfigured — never blocks sign-in. */
+export async function fetchMyLinks(userId: string): Promise<{ coach: boolean; trainer: boolean }> {
+  if (!isSupabaseConfigured) return { coach: false, trainer: false };
+  try {
+    const sb = requireSupabase();
+    const [team, practice] = await Promise.all([
+      sb.from('team_members').select('team_id').eq('athlete_id', userId).eq('status', 'active').limit(1),
+      sb.from('practice_clients').select('practice_id').eq('client_id', userId).eq('status', 'active').limit(1),
+    ]);
+    return { coach: (team.data?.length ?? 0) > 0, trainer: (practice.data?.length ?? 0) > 0 };
+  } catch {
+    return { coach: false, trainer: false };
+  }
 }
 
 /** Read the signed-in user's own subscription row (RLS scopes it to owner_id =

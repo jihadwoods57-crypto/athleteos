@@ -164,7 +164,8 @@ export function buildAssistantBrief(opts: {
         ? 'No clients on your book yet. Share your practice code and your first brief starts building.'
         : 'No athletes on your roster yet. Share your team code and your first brief starts building.';
   } else {
-    const opener = `Reviewed all ${total} ${noun}${total === 1 ? '' : 's'}. Team average ${report.avgScore}, ${report.compliance}% on plan ${span}.`;
+    const reviewed = total === 1 ? `Reviewed your ${noun}` : `Reviewed all ${total} ${noun}s`;
+    const opener = `${reviewed}. Team average ${report.avgScore}, ${report.compliance}% on plan ${span}.`;
     const parts: string[] = [opener];
     if (role === 'trainer' && quiet.length > 0) {
       parts.push(

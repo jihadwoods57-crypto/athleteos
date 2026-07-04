@@ -25,6 +25,7 @@ import {
   createInitialState,
   emptyDaySlice,
   flowForRole,
+  serverRoleForFlow,
   HYDRATION_TARGET,
   MIN_SIGNUP_AGE,
   PROTEIN_TARGET,
@@ -494,7 +495,14 @@ function pushProfile(get: () => Store): void {
     const s = get();
     if (s.userId) {
       void db
-        .updateProfile(s.userId, { full_name: s.athleteName.trim() || null, org_name: s.orgName.trim() || null })
+        // Persist primary_role on every profile sync too (belt-and-braces with the signup
+        // metadata): a same-device confirm+use path never hits the trigger, so this keeps
+        // the stored role correct for the next fresh sign-in.
+        .updateProfile(s.userId, {
+          full_name: s.athleteName.trim() || null,
+          org_name: s.orgName.trim() || null,
+          primary_role: serverRoleForFlow(flowForRole(s.role)),
+        })
         .catch(() => undefined);
     }
   }, SYNC_DEBOUNCE_MS);
@@ -1165,6 +1173,25 @@ export const useStore = create<Store>()(
               ...reroute,
             };
           });
+          // Rehydrate the athlete/client's real coach/trainer link into supportTeam, so a
+          // connected athlete on a fresh device doesn't see "Connect your coach" and the
+          // coach-presence copy is right (2026-07-04 fix). Reconciles coach/trainer from the
+          // backend membership; preserves other locally-declared support (parent, etc.).
+          try {
+            const links = await db.fetchMyLinks(uid);
+            set((s) => {
+              const base = s.supportTeam.filter((k) => k !== 'coach' && k !== 'trainer');
+              return {
+                supportTeam: [
+                  ...base,
+                  ...(links.coach ? ['coach'] : []),
+                  ...(links.trainer ? ['trainer'] : []),
+                ],
+              };
+            });
+          } catch {
+            /* keep local supportTeam on error */
+          }
         } catch {
           /* keep the local identity on error */
         }
@@ -1424,7 +1451,11 @@ export const useStore = create<Store>()(
       // which falls back to the mock router when the flag is off.
       signUpLive: async (email, password, fullName) => {
         if (!isBackendLive) return false;
-        const res = await auth.signUp(email.trim(), password, fullName.trim() || undefined);
+        // Persist the onboarding role in signup metadata so a returning overseer routes to
+        // THEIR dashboard on a fresh device (2026-07-04 fix). Derived from the onboarding
+        // role -> flow -> DB enum, so 'sports_perf_coach' is stored as 'coach'.
+        const dbRole = serverRoleForFlow(flowForRole(get().role));
+        const res = await auth.signUp(email.trim(), password, fullName.trim() || undefined, dbRole);
         if (!res.ok) {
           set({ authError: friendlyAuthError(res.error) });
           return false;

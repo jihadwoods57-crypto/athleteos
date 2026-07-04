@@ -16,9 +16,12 @@ export const kgToLb = (kg: number): number => kg / KG_PER_LB;
 export const weightUnit = (units: Units): 'lb' | 'kg' => (units === 'metric' ? 'kg' : 'lb');
 
 /** Convert an internal lb weight to a whole number in the active unit. Whole
- *  numbers keep the big hero/goal figures clean in either system. */
-export const displayWeight = (lb: number, units: Units): number =>
-  units === 'metric' ? Math.round(lbToKg(lb)) : Math.round(lb);
+ *  numbers keep the big hero/goal figures clean in either system. A non-finite input
+ *  (no weight recorded) renders 0, never "NaN" (2026-07-04 fix). */
+export const displayWeight = (lb: number, units: Units): number => {
+  if (!Number.isFinite(lb)) return 0;
+  return units === 'metric' ? Math.round(lbToKg(lb)) : Math.round(lb);
+};
 
 /** "184 lb" / "83 kg" — value + unit label in the active system. */
 export const formatWeight = (lb: number, units: Units): string =>

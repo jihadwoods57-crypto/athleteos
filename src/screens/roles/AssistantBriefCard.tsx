@@ -112,9 +112,10 @@ export function AssistantKpiStrip({ brief, noun }: { brief: AssistantBrief; noun
   const c = useColors();
   const k = brief.kpis;
   if (k.total === 0) return null;
+  const singular = noun.replace(/s$/, '');
   return (
     <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 14, textAlign: 'center' }}>
-      Team {k.avgScore} · {k.compliance}% on plan · {k.alerts} {k.alerts === 1 ? 'alert' : 'alerts'} · {k.total} {noun}
+      Team {k.avgScore} · {k.compliance}% on plan · {k.alerts} {k.alerts === 1 ? 'alert' : 'alerts'} · {k.total} {k.total === 1 ? singular : noun}
     </Txt>
   );
 }

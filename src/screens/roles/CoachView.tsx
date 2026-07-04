@@ -317,7 +317,7 @@ function CoachDashboard({ teamTitle, rosterLive, brief, teamReport, attention, r
           <Txt w="eb" size={11} color={c.textTertiary} ls={0.7}>{reportScope === 'today' ? 'TODAY' : 'THIS WEEK'}</Txt>
           <Txt w="eb" size={17} ls={-0.3} style={{ marginTop: 3 }}>{teamReport.headline}</Txt>
           <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>
-            {teamReport.movedLine} {teamReport.onStandard} on standard, {teamReport.onBubble} on the bubble, {teamReport.needsIntervention} need intervention.
+            {teamReport.movedLine} {teamReport.onStandard} on standard, {teamReport.onBubble} on the bubble, {teamReport.needsIntervention} {teamReport.needsIntervention === 1 ? 'needs' : 'need'} intervention.
           </Txt>
           <Row style={{ gap: 6, marginTop: 12, alignItems: 'center' }}>
             <Txt w="b" size={13} color={c.accent}>Full report</Txt>
@@ -550,7 +550,7 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, 
           </Pressable>
         </Row>
         <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>
-          {teamReport.movedLine} {teamReport.onStandard} on standard, {teamReport.onBubble} on the bubble, {teamReport.needsIntervention} need intervention.
+          {teamReport.movedLine} {teamReport.onStandard} on standard, {teamReport.onBubble} on the bubble, {teamReport.needsIntervention} {teamReport.needsIntervention === 1 ? 'needs' : 'need'} intervention.
         </Txt>
         <Row style={{ gap: 10, marginTop: 14 }}>
           <ReportStat label="BEST MOVER" name={teamReport.mostImproved?.name ?? 'None yet'} score={teamReport.mostImproved?.score} color={c.successDeep} />

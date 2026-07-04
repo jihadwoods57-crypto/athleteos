@@ -95,18 +95,24 @@ export function seasonGoalProgress(
   start: number,
   target: number,
 ): { remaining: number; pctThere: number } {
-  const remaining = Math.round((target - currentWeight) * 10) / 10;
+  // No recorded weight yet (fresh sign-in, a null day-row weight): sit at the start anchor
+  // so the card reads "full span to go, 0% there" instead of NaN everywhere (2026-07-04
+  // fix). start/target are coerced too so one bad value never renders NaN.
+  const cw = Number.isFinite(currentWeight) ? currentWeight : (Number.isFinite(start) ? start : 0);
+  const st = Number.isFinite(start) ? start : cw;
+  const tg = Number.isFinite(target) ? target : cw;
+  const remaining = Math.round((tg - cw) * 10) / 10;
   // Degenerate range (start === target, e.g. a maintain goal, or a day-0 athlete
   // whose onboarding weight equals the default target): there is no span to
   // measure progress across, so (current - start)/(target - start) is 0/0 = NaN.
   // Treat "at or above the line" as 100% there, below as 0% — never NaN%.
-  const span = target - start;
+  const span = tg - st;
   const pctThere =
     span === 0
-      ? currentWeight >= target
+      ? cw >= tg
         ? 100
         : 0
-      : Math.round(clamp(((currentWeight - start) / span) * 100, 0, 100));
+      : Math.round(clamp(((cw - st) / span) * 100, 0, 100));
   return { remaining, pctThere };
 }
 
