@@ -34,6 +34,10 @@ export function MealReview() {
 
   const mealId = review?.mealId;
   const viewerId = s.userId;
+  // Demo review (seeded roster, no real backend meal): show the plate + AI read, but the
+  // conversation reads an honest sample state instead of querying/posting a meal that does
+  // not exist. Also treats a backend-off session as demo.
+  const demo = !!review?.demo || !isBackendLive;
   // Role is derived from the link, mirroring the RLS rule: your own meal -> athlete voice,
   // a linked athlete's meal -> coach voice.
   const viewerRole: 'athlete' | 'coach' = review && viewerId === review.athleteId ? 'athlete' : 'coach';
@@ -51,11 +55,11 @@ export function MealReview() {
   // The thread. RLS scopes it; an error renders the honest "couldn't load" line.
   const [threadError, setThreadError] = React.useState(false);
   const loadThread = React.useCallback(() => {
-    if (!isBackendLive || !mealId) return;
+    if (demo || !isBackendLive || !mealId) return;
     db.fetchMealComments(mealId)
       .then((rows) => { setComments(rows); setThreadError(false); })
       .catch(() => setThreadError(true));
-  }, [mealId]);
+  }, [demo, mealId]);
   React.useEffect(() => { loadThread(); }, [loadThread]);
 
   if (!review) return null;
@@ -125,9 +129,10 @@ export function MealReview() {
 
         {/* The conversation — the loop that makes logging worth it. */}
         <Txt w="eb" size={11} color={c.textTertiary} ls={0.7} style={{ marginTop: 18 }}>CONVERSATION</Txt>
-        {!isBackendLive ? (
+        {demo ? (
           <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 8, lineHeight: 19 }}>
-            Comments go live with your team connection.
+            This is a sample meal. On a real athlete’s log, you comment here and they get a
+            notification the moment you send — a live conversation on the exact meal.
           </Txt>
         ) : threadError ? (
           <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 8 }}>
@@ -161,7 +166,7 @@ export function MealReview() {
           </View>
         )}
 
-        {isBackendLive ? (
+        {!demo ? (
           <>
             <Row style={{ gap: 10, marginTop: 14 }}>
               <Input

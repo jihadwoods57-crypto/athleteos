@@ -334,6 +334,10 @@ export interface AppState {
     athleteId: string;
     athleteName: string;
     card: { label: string; name: string; protein: number; kcal: number; quality: number; thumb: string; photoPath: string | null; note: string | null };
+    /** Demo/sample review (seeded roster, no real backend meal): the plate + AI read show
+     *  so the flow is visible, but the conversation reads an honest sample state instead of
+     *  querying/posting to a meal that does not exist. */
+    demo: boolean;
   } | null;
   mealOpen: boolean;
   mealStage: MealStage;

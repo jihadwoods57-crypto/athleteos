@@ -1,7 +1,7 @@
 // OnStandard — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { coachMealPatterns, displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, passStatus, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal, type TrustPass } from '@/core';
+import { coachMealPatterns, displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, passStatus, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealCard, type MealHistoryDay, type StoredMeal, type TrustPass } from '@/core';
 import { useStore } from '@/store';
 import { db, isBackendLive } from '@/lib/supabase';
 import { isTrustPassEnabled } from '@/lib/features';
@@ -376,6 +376,14 @@ export function PersonDetail() {
  * off it shows the honest not-connected state, never fabricated food, matching the
  * DAY-STREAK / WEIGHT-Δ sample handling elsewhere in this overlay.
  */
+/** Seeded sample meals for the demo / not-connected coach view, so the review + comment
+ *  flow is demonstrable. Clearly sampled (rendered under the Recent Meals SampleTag), and
+ *  they open the review in demo mode — never a fabricated conversation. */
+const SAMPLE_REVIEW_MEALS: MealCard[] = [
+  { id: 'sample-lunch', label: 'Lunch', name: 'Chicken, Rice & Broccoli', protein: 48, kcal: 640, quality: 90, thumb: '#22C55E', photoPath: null, serverId: null, note: 'Textbook plate. Good protein, complete carbs, greens on it. This is the standard.' },
+  { id: 'sample-breakfast', label: 'Breakfast', name: 'Eggs, Oats & Fruit', protein: 32, kcal: 470, quality: 78, thumb: '#F59E0B', photoPath: null, serverId: null, note: 'Solid start. Protein is a touch light for the goal — an extra egg or a scoop would round it out.' },
+];
+
 function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) {
   const c = useColors();
   const s = useStore();
@@ -428,9 +436,24 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
       ) : null}
 
       {!live ? (
-        <Txt w="sb" size={13} color={c.textTertiary} style={{ lineHeight: 19 }}>
-          {firstName}’s logged meals — photo, macros, and quality — appear here once your team is connected to the backend.
-        </Txt>
+        // Demo / not-connected: no REAL athlete meals to show, but render SAMPLE cards so the
+        // review + conversation flow is visible and tunable. Clearly sampled (the header
+        // carries a SampleTag); tapping opens the review in demo mode (no fabricated thread).
+        <>
+          <View style={{ gap: 12 }}>
+            {SAMPLE_REVIEW_MEALS.map((meal) => (
+              <MealCardItem
+                key={meal.id}
+                card={meal}
+                onPress={() => s.openMealReview(meal.id, athleteId ?? 'sample', name, meal, true)}
+              />
+            ))}
+          </View>
+          <Txt w="sb" size={12} color={c.textTertiary} style={{ lineHeight: 18, marginTop: 12 }}>
+            Sample meals. {firstName}’s real logged meals — and a live conversation on each — appear
+            here once your team is connected.
+          </Txt>
+        </>
       ) : days.length === 0 ? (
         <Txt w="sb" size={13} color={c.textTertiary} style={{ lineHeight: 19 }}>
           No meals logged in the last {RECENT_MEAL_DAYS} days.

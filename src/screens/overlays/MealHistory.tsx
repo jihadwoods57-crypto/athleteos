@@ -58,8 +58,14 @@ function DaySection({ day, index = 0 }: { day: MealHistoryDay; index?: number })
               key={card.id}
               card={card}
               // Stored meals open the SAME review + thread surface the coach uses — the
-              // athlete reads and replies to coach comments on the exact meal (0046).
-              onPress={card.serverId && s.userId ? () => s.openMealReview(card.serverId!, s.userId!, s.athleteName || 'You', card) : undefined}
+              // athlete reads and replies to coach comments on the exact meal (0046). A
+              // local-only card (no serverId: demo / offline) opens the review in demo
+              // mode so the flow is visible either way.
+              onPress={
+                card.serverId && s.userId
+                  ? () => s.openMealReview(card.serverId!, s.userId!, s.athleteName || 'You', card, false)
+                  : () => s.openMealReview(card.id, s.userId ?? 'me', s.athleteName || 'You', card, true)
+              }
             />
           ))}
         </Card>

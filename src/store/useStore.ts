@@ -324,7 +324,7 @@ export interface Actions {
   // Assistant Nutritionist (2026-07-04)
   setBriefNarration: (date: string, text: string) => void;
   stampDashboardOpened: () => void;
-  openMealReview: (mealId: string, athleteId: string, athleteName: string, card: NonNullable<AppState['mealReview']>['card']) => void;
+  openMealReview: (mealId: string, athleteId: string, athleteName: string, card: NonNullable<AppState['mealReview']>['card'], demo?: boolean) => void;
   closeMealReview: () => void;
   openAccount: () => void;
   closeAccount: () => void;
@@ -1292,7 +1292,7 @@ export const useStore = create<Store>()(
       stampDashboardOpened: () =>
         set((s) => ({ prevDashboardOpenedAt: s.lastDashboardOpenedAt, lastDashboardOpenedAt: new Date().toISOString() })),
       // A stored meal opened for review (coach from PersonDetail, athlete from MealHistory).
-      openMealReview: (mealId, athleteId, athleteName, card) => set({ mealReview: { mealId, athleteId, athleteName, card } }),
+      openMealReview: (mealId, athleteId, athleteName, card, demo = false) => set({ mealReview: { mealId, athleteId, athleteName, card, demo } }),
       closeMealReview: () => set({ mealReview: null }),
       openAccount: () => set({ accountOpen: true }),
       closeAccount: () => set({ accountOpen: false }),
