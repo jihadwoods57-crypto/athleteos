@@ -114,12 +114,16 @@ export function needsBillingAttention(e: Entitlement): boolean {
 export type FeatureKey =
   | 'dev_score' | 'meal_analysis' | 'daily_game_plan'        // the core loop — free tier
   | 'ai_coach' | 'restaurant_intel' | 'weekly_insights'      // individual+ value
-  | 'client_dashboard' | 'accountability_engine' | 'reports' | 'groups'; // professional/program
+  | 'deep_dive' | 'recruiting_record'                        // premium add-ons (2026-07-04)
+  | 'client_dashboard' | 'accountability_engine' | 'reports' | 'groups' // professional/program
+  | 'white_label';                                           // enterprise: org branding
 
 export const FEATURE_KEYS: readonly FeatureKey[] = [
   'dev_score', 'meal_analysis', 'daily_game_plan',
   'ai_coach', 'restaurant_intel', 'weekly_insights',
+  'deep_dive', 'recruiting_record',
   'client_dashboard', 'accountability_engine', 'reports', 'groups',
+  'white_label',
 ];
 
 // Default entitlement catalog. `preview` keeps the core loop free; `team` unlocks

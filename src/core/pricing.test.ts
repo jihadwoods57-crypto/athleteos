@@ -17,6 +17,7 @@ describe('catalog shape', () => {
     expect(planById('pro_solo')).toMatchObject({ monthly: 99, seatLimit: 25 });
     expect(planById('professional')).toMatchObject({ monthly: 179, seatLimit: 50, extraSeatMonthly: 10 });
     expect(planById('org_performance')).toMatchObject({ monthly: 799, seatLimit: 150 });
+    expect(planById('family')).toMatchObject({ monthly: 39.99, seatLimit: 4, rail: 'iap' });
     expect(planById('enterprise')?.custom).toBe(true);
   });
   it('annual is ~2 months free (10x monthly) for priced plans', () => {
@@ -35,7 +36,8 @@ describe('plansForFlow', () => {
     expect(audienceForFlow('parent')).toBe('individual');
     expect(audienceForFlow('trainer')).toBe('professional');
     expect(audienceForFlow('coach')).toBe('organization');
-    expect(plansForFlow('app').map((p) => p.id)).toEqual(['individual', 'individual_plus']);
+    expect(plansForFlow('app').map((p) => p.id)).toEqual(['individual', 'individual_plus', 'family']);
+    expect(plansForFlow('parent').map((p) => p.id)).toContain('family');
     expect(plansForFlow('coach').every((p) => p.audience === 'organization')).toBe(true);
   });
 });

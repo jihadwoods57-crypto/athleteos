@@ -37,6 +37,11 @@ export const PLAN_CATALOG: PricedPlan[] = [
     blurb: 'Keep your history, score, AI coach, and daily game plan — on your own.' },
   { id: 'individual_plus', name: 'Individual Plus', audience: 'individual', rail: 'iap', monthly: 24.99, annual: 249, trialDays: 7,
     blurb: 'Adds your full portable record across every team + a shareable recruiting card.' },
+  // Family plan (add-on build 2026-07-04): a parent with 2-4 athlete kids pays one bill at
+  // ~33% under 4x Individual. Families churn slower than solo teens, and the parent digest
+  // gives the payer their own value. IAP rail (consumer), same as Individual.
+  { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 39.99, annual: 399, trialDays: 7, seatLimit: 4,
+    blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   // Cost sweep 2026-07-04: Solo/Professional were repriced up (69->99, 124.99->179) and the extra-seat
   // add-on 3->10. The old numbers sat at/below the per-seat AI-cost floor once a trainer's roster was
   // genuinely engaged, so a MORE successful trainer earned us LESS margin. New floor: ~$4/seat of budget
@@ -53,7 +58,7 @@ export const PLAN_CATALOG: PricedPlan[] = [
   { id: 'org_performance', name: 'Performance', audience: 'organization', rail: 'stripe', monthly: 799, annual: 7990, trialDays: 14, seatLimit: 150,
     blurb: 'Up to 150 active participants.' },
   { id: 'enterprise', name: 'Enterprise', audience: 'organization', rail: 'stripe', monthly: 0, annual: 0, trialDays: 14, custom: true,
-    blurb: 'Athletic departments, multi-location & 150+. SSO, API, white-glove onboarding.' },
+    blurb: 'Athletic departments, multi-location & 150+. White-label branding, SSO, API, white-glove onboarding.' },
 ];
 
 /** Format a USD amount: whole dollars drop the cents ($69), otherwise two places ($14.99). */

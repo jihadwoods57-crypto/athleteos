@@ -244,7 +244,7 @@ function PlanCard({ plan, cadence }: { plan: PricedPlan; cadence: BillingCadence
         {t.trial ? <TermLine icon="check" text={t.trial} /> : null}
         {cadence === 'monthly' && t.annual ? <TermLine icon="trophy" text={t.annual} /> : null}
         <TermLine icon="shield" text={t.cancellation} />
-        {plan.seatLimit ? <TermLine icon="squad" text={`Up to ${plan.seatLimit} active ${plan.audience === 'organization' ? 'participants' : 'clients'}${plan.extraSeatMonthly ? `; $${plan.extraSeatMonthly}/mo each beyond` : ''}.`} /> : null}
+        {plan.seatLimit ? <TermLine icon="squad" text={`Up to ${plan.seatLimit} ${plan.audience === 'organization' ? 'active participants' : plan.audience === 'individual' ? 'athletes in your household' : 'active clients'}${plan.extraSeatMonthly ? `; $${plan.extraSeatMonthly}/mo each beyond` : ''}.`} /> : null}
       </View>
 
       <Pressable

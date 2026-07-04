@@ -8,8 +8,8 @@ import { ScrollView, Share, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CHECKIN_QUESTIONS, ROSTER, activationStatus, coachRosterKpis, coachTeamTitle, filterRoster, gradeFor,
-  needsAttention, notLoggedCount, nudgeMessageFor, parseRosterTarget, rankByRisk, rosterGroups,
-  rosterGroupStats, teamWeeklyReport, teamWeeklyReportText, trendInfo,
+  needsAttention, notLoggedCount, nudgeMessageFor, parseRosterTarget, rankByRisk, rosterCsv,
+  rosterGroups, rosterGroupStats, teamWeeklyReport, teamWeeklyReportText, trendInfo,
 } from '@/core';
 import type { RosterRow, RosterGroupStat, AtRiskInput } from '@/core';
 import { useStore, useDerived } from '@/store';
@@ -64,6 +64,12 @@ export function CoachView() {
     try { await Share.share({ message: teamWeeklyReportText(teamReport, teamTitle, reportScope) }); }
     catch { /* user cancelled the share sheet */ }
   };
+  // Reporting add-on (2026-07-04): the spreadsheet-ready roster export a coach drops in
+  // front of an AD or a parent meeting. Same rows the dashboard renders, risk-ranked.
+  const shareRosterCsv = async () => {
+    try { await Share.share({ message: rosterCsv(rankByRisk(roster)), title: `${teamTitle} roster.csv` }); }
+    catch { /* user cancelled the share sheet */ }
+  };
 
   const tab = s.coachTab;
   return (
@@ -78,7 +84,7 @@ export function CoachView() {
         )}
         {tab === 'roster' && <CoachRoster roster={roster} groups={groups} notLogged={notLogged} />}
         {tab === 'attention' && <CoachAttention attention={attention} rosterMeta={rosterMeta} rosterCount={roster.length} />}
-        {tab === 'reports' && <CoachReports teamTitle={teamTitle} teamReport={teamReport} groupStats={groupStats} compliance={kpis.compliance} onShare={shareTeamReport} roster={roster} reportScope={reportScope} />}
+        {tab === 'reports' && <CoachReports teamTitle={teamTitle} teamReport={teamReport} groupStats={groupStats} compliance={kpis.compliance} onShare={shareTeamReport} onExportCsv={shareRosterCsv} roster={roster} reportScope={reportScope} />}
         {tab === 'profile' && <CoachProfile teamTitle={teamTitle} />}
       </View>
 
@@ -558,8 +564,8 @@ function CoachAttention({ attention, rosterMeta, rosterCount }: { attention: Ret
 }
 
 /* ---------------------------------------------------------------- Reports */
-function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, roster, reportScope }: {
-  teamTitle: string; teamReport: ReturnType<typeof teamWeeklyReport>; groupStats: RosterGroupStat[]; compliance: number; onShare: () => void; roster: AtRiskInput[]; reportScope: 'week' | 'today';
+function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, onExportCsv, roster, reportScope }: {
+  teamTitle: string; teamReport: ReturnType<typeof teamWeeklyReport>; groupStats: RosterGroupStat[]; compliance: number; onShare: () => void; onExportCsv: () => void; roster: AtRiskInput[]; reportScope: 'week' | 'today';
 }) {
   const c = useColors();
   return (
@@ -586,6 +592,17 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, 
           <ReportStat label="BEST MOVER" name={teamReport.mostImproved?.name ?? 'None yet'} score={teamReport.mostImproved?.score} color={c.successDeep} />
           <ReportStat label="MOST AT RISK" name={teamReport.mostAtRisk?.name ?? 'None'} score={teamReport.mostAtRisk?.score} color={c.alert} />
         </Row>
+        {/* Reporting add-on: spreadsheet-ready roster (name, score, grade, compliance) for
+            the AD / parent meeting. Same rows as the dashboard, risk-ranked. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Export the roster as a spreadsheet (CSV)"
+          onPress={() => { haptics.tap(); onExportCsv(); }}
+          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 12, backgroundColor: c.bg2, marginTop: 12, opacity: pressed ? 0.8 : 1 })}
+        >
+          <Icon name="copy" size={15} color={c.slate700} />
+          <Txt w="b" size={13} color={c.slate700}>Export roster CSV</Txt>
+        </Pressable>
       </Card>
       </Reveal>
 

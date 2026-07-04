@@ -7,6 +7,7 @@ import { AiUnavailableError, analyzeLabelRemote, analyzeMealRemote, isAiConfigur
 
 export { isAiConfigured, AI_ENDPOINT, AiUnavailableError } from './client';
 export type { AnalyzeMealRequest, AnalyzeLabelRequest, MealRemoteResponse, Clarification } from './client';
+export { isDeepDiveConfigured, runDeepDive, type DeepDiveFailure, type DeepDiveResponse } from './deepDive';
 
 // ---------------------------------------------------------------- honest labeling
 // Founder Rule #8: never call it AI until a model is actually doing the work. Until the

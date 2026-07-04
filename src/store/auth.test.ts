@@ -254,7 +254,11 @@ describe('flag ON: live auth routes through the wrappers', () => {
     useStore.setState({ userId: 'coach-1' });
     await useStore.getState().refreshEntitlement();
     expect(fetchEntitlement).toHaveBeenCalledWith('coach-1');
-    expect(useStore.getState().entitlement).toEqual({ tier: 'team', status: 'active', seats: 24, seatsUsed: 18, renewsAt: '2026-08-01' });
+    expect(useStore.getState().entitlement).toEqual({
+      tier: 'team', status: 'active', seats: 24, seatsUsed: 18, renewsAt: '2026-08-01',
+      // 0042 lifecycle fields default safe on a pre-0042 row.
+      planId: null, cancelAtPeriodEnd: false, paymentFailedAt: null,
+    });
   });
 
   it('pushAthleteGoals routes a roster athlete plan through coach_set_goals', async () => {
