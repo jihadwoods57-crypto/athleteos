@@ -13,10 +13,10 @@ export default {
       <div class="tagline">The coach sets the standard.<br>You prove the work.<br>The score never lies.</div>
       <div class="spacer"></div>
 
-      <button class="btn green" data-go="onboarding/1">Get Started</button>
+      <button class="btn green" data-go="role">Get Started</button>
       <div style="height:10px"></div>
       <button class="btn ghost" data-go="home">Sign In</button>
-      <div class="role-note">Coach, parent, or trainer? Your view starts from an athlete's invite.<br>Sign in above and pick your role.</div>
+      <div class="role-note">Athlete, client, coach, or trainer — every role has its own view.<br>Parents join from an athlete's invite.</div>
       <div style="height:14px"></div>
     </div>`;
   },

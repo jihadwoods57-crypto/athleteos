@@ -19,6 +19,7 @@ import requirement from './requirement.js';
 import { messages, settings as prefs, privacy, billing } from './settings.js';
 import { foodSearch, labelScan } from './foodsearch.js';
 import { trust, streak, history } from './trust.js';
+import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
 
 export const screens = {
   home,
@@ -59,4 +60,10 @@ export const screens = {
   trust,
   streak,
   history,
+  role,
+  'coach-ob': coachOb,
+  'trainer-ob': trainerOb,
+  'client-ob': clientOb,
+  'coach-profile': coachProfile,
+  'trainer-profile': trainerProfile,
 };
