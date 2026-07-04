@@ -66,7 +66,7 @@ function rateLimited(req: Request): boolean {
   return e.count > RL_MAX;
 }
 
-type AssistTask = 'meal_coaching' | 'copilot_query' | 'copilot_artifact';
+type AssistTask = 'meal_coaching' | 'copilot_query' | 'copilot_artifact' | 'daily_brief';
 
 interface AssistBody {
   task: AssistTask;
@@ -96,6 +96,18 @@ never introduce a number, name, statistic, or fact that is not present in the da
 command, set a target, or say a message was sent; never change or reinterpret a figure. You are
 phrasing only. One or two sentences, direct and encouraging, no hype, no em dashes. Always answer by
 calling report_narration.`;
+
+// The daily brief (Assistant Nutritionist, 2026-07-04) gets a little more room: it is the one
+// surface that speaks as a staff member delivering a morning briefing, so 2-4 short sentences.
+// Same hard rules — every name and number must come from the data; the deterministic brief the
+// client already rendered is the fallback if this fails.
+const BRIEF_SYSTEM = `You are the team's Assistant Nutritionist delivering the coach or trainer their
+daily brief. You are given DATA the app already computed (the source of truth): the review counts,
+team averages, who needs attention and why, who has gone quiet, who deserves recognition. Re-speak it
+as a real staff member would in person: first person, direct, specific. Hard rules: never introduce a
+number, name, statistic, or fact that is not present in the data; never change or reinterpret a
+figure; never say a message was sent. Two to four short sentences, no hype, no em dashes. Always
+answer by calling report_narration.`;
 
 Deno.serve(async (request) => {
   const cors = corsFor(request);
@@ -146,7 +158,7 @@ Deno.serve(async (request) => {
       // Prompt caching (cost sweep 2026-07-04): harmless to mark even though SYSTEM + NARRATION_TOOL
       // here are small enough they may sit under the model's minimum cacheable prefix — below that
       // floor this is a silent no-op, not an error.
-      system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: body.task === 'daily_brief' ? BRIEF_SYSTEM : SYSTEM, cache_control: { type: 'ephemeral' } }],
       tools: [{ ...NARRATION_TOOL, cache_control: { type: 'ephemeral' } }],
       tool_choice: { type: 'tool', name: NARRATION_TOOL.name },
       messages: [{ role: 'user', content: [{ type: 'text', text: userText }] }],

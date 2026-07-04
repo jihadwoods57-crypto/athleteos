@@ -312,6 +312,18 @@ export interface AppState {
    *  instead of flashing the seeded sample. Namespaced by cachedRosterUserId; purged on sign-out. */
   cachedRoster: RosterRow[] | null;
   cachedRosterUserId: string | null;
+  // ---- Assistant Nutritionist (2026-07-04) ----
+  /** The AI-narrated daily brief, cached ONCE PER DAY (the cost model): { date, text } or null.
+   *  The deterministic brief always renders regardless; this only swaps the phrasing. Persisted
+   *  so reopening the app does not re-spend a narration. */
+  briefNarration: { date: string; text: string } | null;
+  /** ISO timestamp of the previous dashboard open, driving the "since you last looked" delta.
+   *  Two-slot dance: on open, prevDashboardOpenedAt <- lastDashboardOpenedAt <- now. */
+  lastDashboardOpenedAt: string | null;
+  prevDashboardOpenedAt: string | null;
+  // ---- meal review (coach/trainer taps a meal in PersonDetail) ----
+  /** The stored meal (server uuid) under coach review, or null. Ephemeral. */
+  mealReview: { mealId: string; athleteId: string; athleteName: string } | null;
   mealOpen: boolean;
   mealStage: MealStage;
   /** 'meal' = photograph a plate (estimated); 'label' = scan a Nutrition Facts panel (exact). */

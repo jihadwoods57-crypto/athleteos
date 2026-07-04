@@ -1,13 +1,17 @@
-// OnStandard — Trainer mobile view: multi-org client book, KPIs, book-compliance
-// trend, needs-follow-up nudges, AI practice summary.
+// OnStandard — Trainer mobile view: the Assistant Nutritionist's brief leads (retention
+// first — paying clients drift quietly), then the client book, compliance trend, and
+// one-tap proof-of-value shares.
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, Share, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-import { ORG_COLORS, TRAINER_CLIENTS, gradeFor, initials, needsAttention, rankByRisk, trainerBookKpis, trainerLens } from '@/core';
+import {
+  ORG_COLORS, TRAINER_CLIENTS, buildAssistantBrief, clientResultText, gradeFor, initials,
+  rankByRisk, teamWeeklyReport, trainerBookKpis, trainerLens,
+} from '@/core';
+import { AssistantBriefCard, AssistantKpiStrip, AssistantUpgradeCard, TriageQueue, useAssistantUnlocked } from './AssistantBriefCard';
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
-import { aiPrefix } from '@/lib/ai';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, PressScale, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
@@ -38,10 +42,6 @@ export function TrainerView() {
   // this read existed, the approve inbox flipped a real row to active and the client
   // then vanished into a book that could only ever show the 5 demo people.
   const { roster: liveClients, live: clientsLive } = useLiveRoster([], 'practice');
-  // Needs-Follow-Up derives from the same book the FOLLOW-UPS KPI counts, so the
-  // badge count always equals the rows shown and only REAL clients can appear
-  // (the old list hand-named a client who was not in the book at all).
-  const followUps = needsAttention(TRAINER_CLIENTS);
   // Header identity: the seeded demo keeps the showcase gym + "MA"; a real trainer
   // gets a neutral practice label (no business name is collected) and their own
   // initials, so neither leaks another trainer's brand.
@@ -55,9 +55,22 @@ export function TrainerView() {
   const lens = trainerLens(s.role, isReal, s.obMeta.clientType, s.orgName);
   const orgTitle = lens.orgTitle;
   const monogram = initials(s.athleteName, 'MA');
-  const clientByName: Record<string, (typeof TRAINER_CLIENTS)[number]> = Object.fromEntries(
-    TRAINER_CLIENTS.map((c) => [c.name, c]),
+  const unlocked = useAssistantUnlocked();
+  // The Assistant Nutritionist's brief over THIS book (live clients when connected, the
+  // seeded demo book otherwise) — retention-first framing is the trainer role's directive.
+  const book = clientsLive && liveClients.length > 0 ? liveClients : TRAINER_CLIENTS;
+  const bookLive = clientsLive && liveClients.length > 0;
+  const bookScope = bookLive ? ('today' as const) : ('week' as const);
+  const bookReport = teamWeeklyReport(book.map((b) => ({ name: b.name, score: b.score, comp: b.comp, dir: b.dir })), bookScope);
+  const brief = buildAssistantBrief({ role: 'trainer', roster: book, report: bookReport, scope: bookScope });
+  const bookMeta: Record<string, { initials: string; pos: string; comp: number; athleteId?: string }> = Object.fromEntries(
+    book.map((b) => [b.name, { initials: b.initials ?? b.name.slice(0, 2).toUpperCase(), pos: ('pos' in b ? (b as { pos?: string }).pos : undefined) ?? ('sport' in b ? (b as { sport?: string }).sport : undefined) ?? '', comp: b.comp, athleteId: 'athleteId' in b ? (b as { athleteId?: string }).athleteId : undefined }]),
   );
+  // Proof-of-value share: the retention lever. Live clients only — a demo share would
+  // put fabricated numbers in a real client's messages.
+  const shareClientResult = async (cl: { name: string; score: number; comp: number; dir: 'up' | 'down' | 'flat' }) => {
+    try { await Share.share({ message: clientResultText(cl, bookScope) }); } catch { /* user cancelled */ }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: cx.bg }}>
@@ -93,15 +106,19 @@ export function TrainerView() {
             </View>
           </Row>
 
-          {/* RETENTION is a showcase sample with no real source yet, so it shows only in the
-              demo and is hidden once the backend is live (no fabricated metric for a real trainer). */}
+          {/* The briefing leads (Assistant Nutritionist, 2026-07-04): retention first —
+              a paying client going quiet is how a trainer's book shrinks. Locked accounts
+              get the honest upgrade card; metrics demote to the quiet strip either way. */}
           <Reveal index={0}>
-          <Row style={{ gap: 10, marginTop: 20 }}>
-            {/* Live: count the REAL book, never the 5 demo people. */}
-            <Kpi value={String(clientsLive ? liveClients.length : kpis.clients)} label="CLIENTS" />
-            <Kpi value={`${kpis.avgCompliance}%`} label="AVG COMPLY" />
-            {isBackendLive ? null : <Kpi value="92%" label="RETENTION" color={cx.success} sample />}
-          </Row>
+          {unlocked ? (
+            <>
+              <AssistantBriefCard brief={brief} live={bookLive} />
+              <TriageQueue brief={brief} rosterMeta={bookMeta} />
+            </>
+          ) : (
+            <AssistantUpgradeCard brief={brief} noun="client" />
+          )}
+          <AssistantKpiStrip brief={brief} noun="clients" />
           </Reveal>
 
           <PendingClientsCard />
@@ -136,6 +153,17 @@ export function TrainerView() {
                       </Row>
                       <Txt w="m" size={12} color={cx.textTertiary} style={{ marginTop: 2 }}>{cl.comp}% compliant today</Txt>
                     </View>
+                    {/* Proof-of-value (retention lever): send the client their real progress
+                        note in one tap. Live rows only — never share demo numbers. */}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Share ${cl.name}'s progress with them`}
+                      hitSlop={8}
+                      onPress={() => { haptics.tap(); void shareClientResult(cl); }}
+                      style={({ pressed }) => ({ width: 32, height: 32, borderRadius: 10, backgroundColor: cx.accentSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
+                    >
+                      <Icon name="send" size={14} color={cx.accent} />
+                    </Pressable>
                     <Txt w="eb" num size={18}>{cl.score}</Txt>
                     <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg }}>
                       <Txt w="eb" size={12} color={g.c}>{g.g}</Txt>
@@ -184,52 +212,8 @@ export function TrainerView() {
           </Card>
           </Reveal>
 
-          {/* needs follow-up */}
-          <Reveal index={2}>
-          {followUps.length > 0 ? (
-            <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: cx.alertSurface, borderWidth: 1, borderColor: cx.alertBorder }}>
-              <Row style={{ gap: 8, marginBottom: 13 }}>
-                <Txt w="eb" size={12} color={cx.alertDeep} ls={0.7}>
-                  NEEDS FOLLOW-UP
-                </Txt>
-                <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
-                  <Txt w="eb" size={11} color={cx.alertDeep}>
-                    {followUps.length}
-                  </Txt>
-                </View>
-              </Row>
-              {followUps.map((a, i) => {
-                const c = clientByName[a.name];
-                const org = (c && ORG_COLORS[c.org]) ?? ORG_COLORS.Independent;
-                return (
-                  <FollowUp
-                    key={a.name}
-                    initials={c?.initials ?? a.name.slice(0, 2).toUpperCase()}
-                    iconBg={org.bg}
-                    iconColor={org.c}
-                    name={a.name}
-                    meta={a.reason}
-                    score={a.score}
-                    color={a.tone === 'alert' ? cx.alert : cx.warning}
-                    nudged={s.nudged.includes(a.name)}
-                    onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }); }}
-                    onView={() => s.openPerson({ name: a.name, initials: c?.initials ?? a.name.slice(0, 2).toUpperCase(), pos: c?.sport ?? '', org: c?.org, score: a.score, comp: a.comp, last: c?.last })}
-                    last={i === followUps.length - 1}
-                  />
-                );
-              })}
-            </View>
-          ) : (
-            <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: cx.successSurface }}>
-              <Txt w="eb" size={12} color={cx.successDeep} ls={0.7} style={{ marginBottom: 6 }}>
-                NEEDS FOLLOW-UP
-              </Txt>
-              <Txt w="sb" size={14} color={cx.slate700} style={{ lineHeight: 20 }}>
-                {lens.allClearLine}
-              </Txt>
-            </View>
-          )}
-          </Reveal>
+          {/* (The old NEEDS FOLLOW-UP block is retired: the TriageQueue above carries the
+              same clients with evidence + a ready message, retention-ranked by the brief.) */}
 
           {/* all clients */}
           <Reveal index={3}>
@@ -286,25 +270,8 @@ export function TrainerView() {
           </View>
           </Reveal>
 
-          <Reveal index={4}>
-          <Card variant="low" style={{ marginTop: 16, borderRadius: 20 }}>
-            <Row style={{ gap: 9, marginBottom: 12 }}>
-              <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: cx.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="sparkle" size={17} color={cx.accent} />
-              </View>
-              <Txt w="eb" size={12} color={cx.accent} ls={0.4}>
-                {aiPrefix}PRACTICE SUMMARY
-              </Txt>
-              <SampleTag />
-            </Row>
-            <Txt w="m" size={14} color={cx.slate700} style={{ lineHeight: 22 }}>
-              Your book is healthy: {kpis.avgCompliance}% average compliance.{' '}
-              {followUps.length === 0
-                ? 'No clients are at risk right now, so keep the momentum with the steady ones.'
-                : `${followUps.length === 1 ? '1 client is a retention risk' : `${followUps.length} clients are retention risks`}: ${followUps.map((a) => a.name).join(', ')}. Reaching out today is the move before they drift.`}
-            </Txt>
-          </Card>
-          </Reveal>
+          {/* (The old showcase PRACTICE SUMMARY card is retired: the Assistant
+              Nutritionist brief at the top carries the same read, retention-first.) */}
         </ScrollView>
         )}
       </SafeAreaView>
@@ -383,70 +350,4 @@ function PendingClientsCard() {
   );
 }
 
-function Kpi({ value, label, color, sample }: { value: string; label: string; color?: string; sample?: boolean }) {
-  const cx = useColors();
-  return (
-    <Card style={{ flex: 1, borderRadius: 18, padding: 16 }}>
-      <Txt w="eb" num size={28} color={color}>
-        {value}
-      </Txt>
-      <Txt w="b" size={11} color={cx.textTertiary} style={{ marginTop: 3 }}>
-        {label}
-      </Txt>
-      {sample ? <SampleTag style={{ marginTop: 7 }} /> : null}
-    </Card>
-  );
-}
-
-function FollowUp({ initials, iconBg, iconColor, name, meta, score, color, nudged, onNudge, onView, last }: { initials: string; iconBg?: string; iconColor?: string; name: string; meta: string; score: number; color: string; nudged: boolean; onNudge: () => void; onView: () => void; last?: boolean }) {
-  const cx = useColors();
-  return (
-    <View style={{ backgroundColor: cx.card, borderRadius: 14, padding: 14, marginBottom: last ? 0 : 10 }}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Row style={{ gap: 11, flex: 1 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: iconBg ?? cx.bg2, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt w="b" size={12} color={iconColor ?? cx.slate600}>
-              {initials}
-            </Txt>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Txt w="b" size={14}>
-              {name}
-            </Txt>
-            <Txt w="sb" size={12} color={cx.alertDeep}>
-              {meta}
-            </Txt>
-          </View>
-        </Row>
-        <Txt w="eb" num size={18} color={color}>
-          {score}
-        </Txt>
-      </Row>
-      <Row style={{ gap: 8, marginTop: 12 }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={nudged ? `Nudge sent to ${name}` : `Send a nudge to ${name}`}
-          accessibilityState={{ disabled: nudged }}
-          disabled={nudged}
-          onPress={onNudge}
-          style={({ pressed }) => ({ flex: 1, height: 34, borderRadius: 9, backgroundColor: nudged ? cx.successSurface : cx.accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6, opacity: pressed ? 0.85 : 1 })}
-        >
-          {nudged ? <Icon name="check" size={14} color={cx.successDeep} /> : null}
-          <Txt w="b" size={12} color={nudged ? cx.successDeep : cx.white}>
-            {nudged ? 'Nudged' : 'Send nudge'}
-          </Txt>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`View ${name}`}
-          onPress={() => { haptics.tap(); onView(); }}
-          style={({ pressed }) => ({ flex: 1, height: 34, borderRadius: 9, backgroundColor: cx.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
-        >
-          <Txt w="b" size={12} color={cx.slate700}>
-            View
-          </Txt>
-        </Pressable>
-      </Row>
-    </View>
-  );
-}
+// (Kpi tiles + FollowUp rows retired: the Assistant Nutritionist brief and TriageQueue carry the same jobs.)

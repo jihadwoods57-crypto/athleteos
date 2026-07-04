@@ -7,14 +7,15 @@ import React from 'react';
 import { ScrollView, Share, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  CHECKIN_QUESTIONS, ROSTER, activationStatus, coachRosterKpis, coachTeamTitle, filterRoster, gradeFor,
-  needsAttention, notLoggedCount, nudgeMessageFor, parseRosterTarget, rankByRisk, rosterCsv,
-  rosterGroups, rosterGroupStats, teamWeeklyReport, teamWeeklyReportText, trendInfo,
+  CHECKIN_QUESTIONS, ROSTER, activationStatus, buildAssistantBrief, coachRosterKpis, coachTeamTitle,
+  filterRoster, gradeFor, needsAttention, notLoggedCount, nudgeMessageFor, parseRosterTarget,
+  rankByRisk, rosterCsv, rosterGroups, rosterGroupStats, teamWeeklyReport, teamWeeklyReportText,
+  trendInfo, type AssistantBrief,
 } from '@/core';
+import { AssistantBriefCard, AssistantKpiStrip, AssistantUpgradeCard, TriageQueue, useAssistantUnlocked } from './AssistantBriefCard';
 import type { RosterRow, RosterGroupStat, AtRiskInput } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
-import { aiTeamSummaryTag } from '@/lib/ai';
 import { shadow, MAX_FONT_SCALE } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Input, PressScale, Reveal, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
@@ -60,6 +61,9 @@ export function CoachView() {
   const rosterMeta: Record<string, { initials: string; pos: string; comp: number; athleteId?: string }> = Object.fromEntries(
     roster.map((r) => [r.name, { initials: r.initials, pos: r.pos, comp: r.comp, athleteId: r.athleteId }]),
   );
+  // The Assistant Nutritionist's brief: assembled from the SAME rows/report the dashboard
+  // already computed (no new fetches), so the brief can never disagree with the tabs.
+  const brief = buildAssistantBrief({ role: 'coach', roster, report: teamReport, scope: reportScope });
   const shareTeamReport = async () => {
     try { await Share.share({ message: teamWeeklyReportText(teamReport, teamTitle, reportScope) }); }
     catch { /* user cancelled the share sheet */ }
@@ -77,8 +81,8 @@ export function CoachView() {
       <View style={{ flex: 1 }}>
         {tab === 'dashboard' && (
           <CoachDashboard
-            teamTitle={teamTitle} rosterLive={rosterLive} kpis={kpis} teamReport={teamReport}
-            attention={attention} rosterMeta={rosterMeta} onTrack={onTrack} rosterCount={roster.length}
+            teamTitle={teamTitle} rosterLive={rosterLive} brief={brief} teamReport={teamReport}
+            attention={attention} rosterMeta={rosterMeta} rosterCount={roster.length}
             reportScope={reportScope}
           />
         )}
@@ -236,15 +240,15 @@ function PendingRequestsCard() {
   );
 }
 
-function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, rosterMeta, onTrack, rosterCount, reportScope }: {
-  teamTitle: string; rosterLive: boolean; kpis: { avgScore: number; compliance: number; alerts: number };
+function CoachDashboard({ teamTitle, rosterLive, brief, teamReport, attention, rosterMeta, rosterCount, reportScope }: {
+  teamTitle: string; rosterLive: boolean; brief: AssistantBrief;
   teamReport: ReturnType<typeof teamWeeklyReport>; attention: ReturnType<typeof needsAttention>;
   rosterMeta: Record<string, { initials: string; pos: string; comp: number; athleteId?: string }>;
-  onTrack: number; rosterCount: number; reportScope: 'week' | 'today';
+  rosterCount: number; reportScope: 'week' | 'today';
 }) {
   const c = useColors();
   const s = useStore();
-  const preview = attention.slice(0, 3);
+  const unlocked = useAssistantUnlocked();
   return (
     <Section>
       <Row style={{ gap: 12 }}>
@@ -282,21 +286,34 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
         </Reveal>
       ) : (
         <>
+      {/* The briefing leads (Assistant Nutritionist, 2026-07-04): the assistant already
+          reviewed everyone, so the first thing the coach reads is a sentence, not a metric
+          grid. Locked accounts (paywall flag on, no entitlement) get the honest upgrade
+          card built from the REAL review; metrics demote to a quiet strip either way. */}
       <Reveal index={0}>
-      <Row style={{ gap: 10, marginTop: 20 }}>
-        <Kpi value={`${kpis.avgScore}`} label="TEAM AVG" />
-        <Kpi value={`${kpis.compliance}%`} label="COMPLIANCE" color={kpiTone(c, 'compliance', kpis.compliance)} />
-        <Kpi value={`${kpis.alerts}`} label="ALERTS" color={kpiTone(c, 'alerts', kpis.alerts)} />
-      </Row>
+      {unlocked ? (
+        <>
+          <AssistantBriefCard brief={brief} live={rosterLive} />
+          <TriageQueue
+            brief={brief}
+            rosterMeta={rosterMeta}
+            viewAllCount={attention.length}
+            onViewAll={() => s.setCoachTab('attention')}
+          />
+        </>
+      ) : (
+        <AssistantUpgradeCard brief={brief} noun="athlete" />
+      )}
+      <AssistantKpiStrip brief={brief} noun="athletes" />
       </Reveal>
 
       <PendingRequestsCard />
 
       <Reveal index={1}>
       <PressScale accessibilityLabel="Open the full weekly report" haptic="none" onPress={() => { haptics.tap(); s.setCoachTab('reports'); }} style={{ marginTop: 14 }}>
-        <Card variant="hero" style={{ borderRadius: 20 }}>
+        <Card variant="low" style={{ borderRadius: 20 }}>
           <Txt w="eb" size={11} color={c.textTertiary} ls={0.7}>{reportScope === 'today' ? 'TODAY' : 'THIS WEEK'}</Txt>
-          <Txt w="eb" size={18} ls={-0.3} style={{ marginTop: 3 }}>{teamReport.headline}</Txt>
+          <Txt w="eb" size={17} ls={-0.3} style={{ marginTop: 3 }}>{teamReport.headline}</Txt>
           <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>
             {teamReport.movedLine} {teamReport.onStandard} on standard, {teamReport.onBubble} on the bubble, {teamReport.needsIntervention} need intervention.
           </Txt>
@@ -306,62 +323,6 @@ function CoachDashboard({ teamTitle, rosterLive, kpis, teamReport, attention, ro
           </Row>
         </Card>
       </PressScale>
-      </Reveal>
-
-      <Reveal index={2}>
-      {preview.length > 0 ? (
-        <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: c.alertSurface, borderWidth: 1, borderColor: c.alertBorder }}>
-          <Row style={{ justifyContent: 'space-between', marginBottom: 13 }}>
-            <Txt w="eb" size={11} color={c.alert} ls={0.7}>NEEDS ATTENTION</Txt>
-            {attention.length > preview.length ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={`View all ${attention.length} who need attention`} hitSlop={6} onPress={() => { haptics.tap(); s.setCoachTab('attention'); }}>
-                <Txt w="b" size={12} color={c.alert}>View all {attention.length}</Txt>
-              </Pressable>
-            ) : null}
-          </Row>
-          {preview.map((a, i) => {
-            const m = rosterMeta[a.name] ?? { initials: a.name.slice(0, 2).toUpperCase(), pos: '', comp: a.comp };
-            return (
-              <AttentionRow
-                key={a.name} initials={m.initials} name={a.name} meta={a.reason} score={a.score}
-                color={a.tone === 'alert' ? c.alert : c.warning} nudged={s.nudged.includes(a.name)}
-                onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }, nudgeMessageFor(a), a.athleteId); }}
-                onPress={() => s.openPerson({ name: a.name, initials: m.initials, pos: m.pos, score: a.score, comp: m.comp, athleteId: m.athleteId })}
-                last={i === preview.length - 1}
-              />
-            );
-          })}
-        </View>
-      ) : (
-        <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: c.successSurface }}>
-          <Txt w="eb" size={11} color={c.successDeep} ls={0.7} style={{ marginBottom: 6 }}>NEEDS ATTENTION</Txt>
-          <Txt w="sb" size={14} color={c.slate700} style={{ lineHeight: 20 }}>Everyone is above the line today. No one needs a nudge right now.</Txt>
-        </View>
-      )}
-      </Reveal>
-
-      <Reveal index={3}>
-      <Card variant="low" style={{ marginTop: 18, borderRadius: 20 }}>
-        <Row style={{ gap: 9, marginBottom: 12 }}>
-          <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="sparkle" size={17} color={c.accent} />
-          </View>
-          <Txt w="eb" size={12} color={c.accent} ls={0.4}>{aiTeamSummaryTag}</Txt>
-          <SampleTag />
-        </Row>
-        <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 22 }}>
-          {/* Lead with the fact, never an unconditional "trending up" — the same card must
-              read honestly on a collapsing room, and in the span the data actually covers. */}
-          {onTrack === rosterCount
-            ? `The whole room is on track ${reportScope === 'today' ? 'today' : 'this week'} — all ${rosterCount} athletes.`
-            : onTrack >= Math.ceil(rosterCount / 2)
-              ? `Most of the room is on track: ${onTrack} of ${rosterCount} athletes ${reportScope === 'today' ? 'today' : 'this week'}.`
-              : `The room needs work: only ${onTrack} of ${rosterCount} athletes are on track ${reportScope === 'today' ? 'today' : 'this week'}.`}{' '}
-          {kpis.alerts === 0
-            ? 'No one is below the alert line right now, so keep the cadence going.'
-            : `${kpis.alerts} ${kpis.alerts === 1 ? 'athlete is' : 'athletes are'} pulling the average down. A quick check-in could help before it slips further.`}
-        </Txt>
-      </Card>
       </Reveal>
         </>
       )}
@@ -568,6 +529,7 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, 
   teamTitle: string; teamReport: ReturnType<typeof teamWeeklyReport>; groupStats: RosterGroupStat[]; compliance: number; onShare: () => void; onExportCsv: () => void; roster: AtRiskInput[]; reportScope: 'week' | 'today';
 }) {
   const c = useColors();
+  const unlocked = useAssistantUnlocked();
   return (
     <Section>
       <SectionTitle eyebrow={teamTitle} title="Reports" />
@@ -593,16 +555,21 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, 
           <ReportStat label="MOST AT RISK" name={teamReport.mostAtRisk?.name ?? 'None'} score={teamReport.mostAtRisk?.score} color={c.alert} />
         </Row>
         {/* Reporting add-on: spreadsheet-ready roster (name, score, grade, compliance) for
-            the AD / parent meeting. Same rows as the dashboard, risk-ranked. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Export the roster as a spreadsheet (CSV)"
-          onPress={() => { haptics.tap(); onExportCsv(); }}
-          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 12, backgroundColor: c.bg2, marginTop: 12, opacity: pressed ? 0.8 : 1 })}
-        >
-          <Icon name="copy" size={15} color={c.slate700} />
-          <Txt w="b" size={13} color={c.slate700}>Export roster CSV</Txt>
-        </Pressable>
+            the AD / parent meeting. Same rows as the dashboard, risk-ranked. Part of the
+            Assistant Nutritionist bundle once the paywall flag is on. */}
+        {unlocked ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Export the roster as a spreadsheet (CSV)"
+            onPress={() => { haptics.tap(); onExportCsv(); }}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 12, backgroundColor: c.bg2, marginTop: 12, opacity: pressed ? 0.8 : 1 })}
+          >
+            <Icon name="copy" size={15} color={c.slate700} />
+            <Txt w="b" size={13} color={c.slate700}>Export roster CSV</Txt>
+          </Pressable>
+        ) : (
+          <AssistantLockedRow label="Report exports" />
+        )}
       </Card>
       </Reveal>
 
@@ -631,10 +598,31 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, 
 
       <Reveal index={3}>
       <View style={{ marginTop: 14 }}>
-        <CoachCopilot roster={roster} />
+        {unlocked ? <CoachCopilot roster={roster} /> : <AssistantLockedRow label="Ask-AI about your roster" />}
       </View>
       </Reveal>
     </Section>
+  );
+}
+
+/** The quiet locked row for individual assistant surfaces (Ask-AI, exports): names what
+ *  is locked and routes to Plans. Honest, never a dead button. */
+function AssistantLockedRow({ label }: { label: string }) {
+  const c = useColors();
+  const s = useStore();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label} is part of the Assistant Nutritionist. See plans.`}
+      onPress={() => { haptics.tap(); s.openPlans(); }}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 12, backgroundColor: c.bg2, padding: 13, marginTop: 12, opacity: pressed ? 0.8 : 1 })}
+    >
+      <Icon name="sparkle" size={15} color={c.accent} />
+      <Txt w="sb" size={13} color={c.slate700} style={{ flex: 1 }}>
+        {label} comes with the Assistant Nutritionist.
+      </Txt>
+      <Txt w="b" size={12.5} color={c.accent}>Unlock</Txt>
+    </Pressable>
   );
 }
 
@@ -734,15 +722,8 @@ function CoachTabItem({ item, active, onPress }: { item: { label: string; icon: 
 }
 
 /* ---------------------------------------------------------------- small shared bits */
-function Kpi({ value, label, color }: { value: string; label: string; color?: string }) {
-  const c = useColors();
-  return (
-    <Card style={{ flex: 1, borderRadius: 18, padding: 16 }}>
-      <Txt w="eb" num size={28} color={color}>{value}</Txt>
-      <Txt w="b" size={11} color={c.textTertiary} style={{ marginTop: 3 }}>{label}</Txt>
-    </Card>
-  );
-}
+// (The old Kpi tile grid is gone: the Assistant Nutritionist brief leads the dashboard and
+// metrics demoted to AssistantKpiStrip — a briefing, not a control panel.)
 
 function ReportStat({ label, name, score, color }: { label: string; name: string; score?: number; color: string }) {
   const c = useColors();

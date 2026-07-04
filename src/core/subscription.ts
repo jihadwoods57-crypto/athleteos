@@ -115,6 +115,9 @@ export type FeatureKey =
   | 'dev_score' | 'meal_analysis' | 'daily_game_plan'        // the core loop — free tier
   | 'ai_coach' | 'restaurant_intel' | 'weekly_insights'      // individual+ value
   | 'deep_dive' | 'recruiting_record'                        // premium add-ons (2026-07-04)
+  | 'assistant'                                              // the Assistant Nutritionist bundle:
+                                                             // AI daily brief, flags-with-evidence,
+                                                             // suggested messages, Ask-AI, digest, export
   | 'client_dashboard' | 'accountability_engine' | 'reports' | 'groups' // professional/program
   | 'white_label';                                           // enterprise: org branding
 
@@ -122,9 +125,15 @@ export const FEATURE_KEYS: readonly FeatureKey[] = [
   'dev_score', 'meal_analysis', 'daily_game_plan',
   'ai_coach', 'restaurant_intel', 'weekly_insights',
   'deep_dive', 'recruiting_record',
+  'assistant',
   'client_dashboard', 'accountability_engine', 'reports', 'groups',
   'white_label',
 ];
+
+/** How many athletes/clients a FREE (preview) coach/trainer can manage before the
+ *  assistant upgrade is the answer. Soft cap: the UI nudges past it, nothing is
+ *  hidden or deleted (server-side seat enforcement is a go-live follow-up). */
+export const FREE_ROSTER_LIMIT = 3;
 
 // Default entitlement catalog. `preview` keeps the core loop free; `team` unlocks
 // everything. (Today's beta policy is effectively all-on; the live catalog overrides

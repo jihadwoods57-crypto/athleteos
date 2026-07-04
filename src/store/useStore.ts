@@ -321,6 +321,11 @@ export interface Actions {
   toggleQuick: (i: number) => void;
   openPerson: (p: PersonDetail) => void;
   closePerson: () => void;
+  // Assistant Nutritionist (2026-07-04)
+  setBriefNarration: (date: string, text: string) => void;
+  stampDashboardOpened: () => void;
+  openMealReview: (mealId: string, athleteId: string, athleteName: string) => void;
+  closeMealReview: () => void;
   openAccount: () => void;
   closeAccount: () => void;
   openMsg: () => void;
@@ -345,7 +350,7 @@ export interface Actions {
   // overseer action (coach/trainer/nutritionist): the lightweight nudge. The
   // optional baseline captures the athlete's compliance/score at send-time so
   // the dashboard can later read whether anything moved (see core/nudge.ts).
-  sendNudge: (name: string, baseline?: { score: number; comp: number }, note?: string, athleteId?: string) => void;
+  sendNudge: (name: string, baseline?: { score: number; comp: number }, note?: string, athleteId?: string, title?: string) => void;
   /** Coach grants / ends a linked athlete's Trust Pass via the server RPC (backend-live). */
   coachGrantTrustPass: (athleteId: string, lengthDays: number) => Promise<void>;
   coachEndTrustPass: (athleteId: string) => Promise<void>;
@@ -1277,7 +1282,18 @@ export const useStore = create<Store>()(
         scheduleDaySync(get);
       },
       openPerson: (p) => set({ personDetail: p }),
-      closePerson: () => set({ personDetail: null }),
+      closePerson: () => set({ personDetail: null, mealReview: null }),
+
+      // ---- Assistant Nutritionist (2026-07-04) ----
+      // Cache the narrated brief once per day (the cost model): reopening the dashboard
+      // re-renders the cached phrasing instead of re-spending a narration.
+      setBriefNarration: (date, text) => set({ briefNarration: { date, text } }),
+      // Two-slot dance so "since you last looked" reads the PREVIOUS open, not this one.
+      stampDashboardOpened: () =>
+        set((s) => ({ prevDashboardOpenedAt: s.lastDashboardOpenedAt, lastDashboardOpenedAt: new Date().toISOString() })),
+      // Coach/trainer taps a meal card in PersonDetail -> role-aware MealDetail review.
+      openMealReview: (mealId, athleteId, athleteName) => set({ mealReview: { mealId, athleteId, athleteName } }),
+      closeMealReview: () => set({ mealReview: null }),
       openAccount: () => set({ accountOpen: true }),
       closeAccount: () => set({ accountOpen: false }),
       openMsg: () => set({ msgOpen: true }),
@@ -1327,7 +1343,7 @@ export const useStore = create<Store>()(
       // and logs the athlete's compliance/score at send-time (the baseline the
       // "did anything move since the nudge" read compares against, core/nudge.ts).
       // Day-scoped via rollover so the coach can nudge again tomorrow.
-      sendNudge: (name, baseline, note, athleteId) => {
+      sendNudge: (name, baseline, note, athleteId, title) => {
         set((s) =>
           s.nudged.includes(name)
             ? {}
@@ -1341,9 +1357,10 @@ export const useStore = create<Store>()(
         );
         // When live + we know the athlete's id, deliver the nudge for real: the send-push
         // edge function records an in-app notification and pushes to their device(s).
+        // `title` lets recognition land as praise instead of a generic nudge header.
         if (isBackendLive && athleteId) {
           const body = note?.trim() || 'Your coach nudged you. Jump back in and log your next win.';
-          void db.nudgePush(athleteId, 'Your coach sent a nudge', body).catch(() => undefined);
+          void db.nudgePush(athleteId, title?.trim() || 'Your coach sent a nudge', body).catch(() => undefined);
         }
       },
 
@@ -1642,6 +1659,10 @@ export const useStore = create<Store>()(
         // overseer read-cache (snappy paint); namespaced by cachedRosterUserId, purged on sign-out
         cachedRoster: s.cachedRoster,
         cachedRosterUserId: s.cachedRosterUserId,
+        // Assistant Nutritionist: the once-per-day narrated brief + the since-you-last-looked stamps
+        briefNarration: s.briefNarration,
+        lastDashboardOpenedAt: s.lastDashboardOpenedAt,
+        prevDashboardOpenedAt: s.prevDashboardOpenedAt,
         // day / check-in slice
         dateStamp: s.dateStamp,
         scoreHistory: s.scoreHistory,

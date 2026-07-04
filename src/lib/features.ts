@@ -32,3 +32,11 @@ export const isTrustPassEnabled = process.env.EXPO_PUBLIC_TRUST_PASS_ENABLED?.tr
 // athleteScore, so flipping this leaves the daily score untouched. When off, the streak keeps its
 // strict "first miss ends it" behavior exactly.
 export const isStreakGraceEnabled = process.env.EXPO_PUBLIC_STREAK_GRACE_ENABLED?.trim() === 'true';
+
+// Master switch for the Assistant Nutritionist PAYWALL (revenue build 2026-07-04). The assistant
+// surfaces (AI daily brief, triage queue with evidence, suggested messages, Ask-AI, digest, export)
+// are always BUILT; this flag only decides whether an account without the 'assistant' entitlement
+// sees them or sees the upgrade card. OFF by default so the free-preview beta is byte-unchanged —
+// the founder flips EXPO_PUBLIC_ASSISTANT_GATE=true when billing goes live, the same way the other
+// master switches work. (You can't honestly lock a feature behind a purchase that can't be made.)
+export const isAssistantGateEnabled = process.env.EXPO_PUBLIC_ASSISTANT_GATE?.trim() === 'true';

@@ -24,7 +24,7 @@ export const ASSIST_ENDPOINT = supaUrl ? `${supaUrl}/functions/v1/assist` : '';
 /** True only when a real backend endpoint + key exist — gates the narration call. */
 export const isAssistConfigured = Boolean(ASSIST_ENDPOINT && anonKey);
 
-type AssistTaskWire = 'copilot_query' | 'copilot_artifact' | 'meal_coaching';
+type AssistTaskWire = 'copilot_query' | 'copilot_artifact' | 'meal_coaching' | 'daily_brief';
 
 // (The old `deep` wire flag is gone: the server runs one model tier and ignored it.)
 async function narrate(task: AssistTaskWire, data: unknown, directive: string): Promise<string | null> {
@@ -79,6 +79,21 @@ export async function runCopilot(
   personality: PersonalityStyle = resolvePersonality(),
 ): Promise<CopilotResult> {
   return narrateCopilotResult(runCopilotTool(query, ctx), personality);
+}
+
+/**
+ * Narrate the Assistant Nutritionist's daily brief (WS2, 2026-07-04). The deterministic brief
+ * (core/assistantBrief) is the source of truth and ALWAYS renders; this asks the model to
+ * re-speak it in the assistant's staff voice using the brief's own role directive. Returns
+ * null (caller keeps the deterministic text) when unconfigured or on any failure — the brief
+ * never waits on the model and never gains a fact from it.
+ */
+export async function narrateDailyBrief(
+  narrationData: Record<string, unknown>,
+  directive: string,
+): Promise<string | null> {
+  if (!isAssistConfigured) return null;
+  return narrate('daily_brief', narrationData, directive);
 }
 
 /**
