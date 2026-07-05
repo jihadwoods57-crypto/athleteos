@@ -2,9 +2,13 @@
 
 *Author: Bo Woods · Date: 2026-07-05 · Status: Founding decision doc*
 
-> **Thesis in one line:** OnStandard is a **whole-athlete accountability platform** —
-> nutrition *and* academic eligibility on one score — sold to **club/academy programs**
-> through the **coach network**, priced **per-seat on Stripe**, run **solo and profitable**.
+> **Thesis in one line:** OnStandard is an **AI athlete execution platform** — one core
+> metric (the **Development Score**) that answers *"is this athlete executing the plan?"*
+> across every pillar of athletic success — sold to **club/academy programs** through the
+> **coach network**, priced **per-seat on Stripe**, run **solo and profitable**.
+>
+> Nutrition is pillar #1, academics pillar #2. Training, recovery, and mental performance are
+> the **same framework** turned on later — not unrelated features.
 
 This doc is the reasoning behind the model, the pricing, the go-to-market, and the unit
 economics — with the target-vs-model scorecard and the assumptions spelled out. It supersedes
@@ -29,49 +33,75 @@ way a solo SaaS owner gets buried — the entire model is built to avoid it.
 
 ## 1. What OnStandard is (the reframe)
 
-The brand was never "a nutrition app." It's **OnStandard — held to a standard.** Nutrition is
-module #1. The product is an **accountability engine** that any "standard" can plug into.
+The brand was never "a nutrition app." It's **OnStandard — held to a standard.** The product is
+an **athlete execution platform**: it answers one question for everyone around an athlete —
+**"is this athlete executing the plan?"** — whether the plan is nutrition, academics, training,
+recovery, or anything else. Every stakeholder operates in a silo today (coach, strength coach,
+nutritionist, athletic trainer, academic advisor, parent); OnStandard is the single place they
+all see whether the athlete is actually handling their responsibilities.
 
-At launch we run **two standards as a co-wedge**:
+The measurable output is the **Development Score** — a small set of honest **pillars** rolling up
+to one number. (Your engine already uses this name: [scoring.ts](../../src/core/scoring.ts)
+describes the execution signal *"in the Development Score."*)
 
-1. **Nutrition** — the athlete logs meals; AI estimates macros; a daily commitment and score
-   hold them accountable; parents/coaches see the truth.
-2. **Academic eligibility** — the athlete uploads their class schedule and syllabi; AI extracts
-   deadlines and exam dates; the same daily/weekly commitment loop holds them accountable;
-   parents, coaches, **and academic advisors** see risk *before* the athlete becomes ineligible.
+```
+   Today's Development
+   Nutrition 94 · Academics 91 · Recovery 82 · [Training —] · [Mental —]
+   Overall  91
+```
 
-Eligibility is often the **sharper pain** than body composition: a coach's worst nightmare after
-injury is losing a starter to a failed class; parents lose more sleep over grades than macros.
-Leading with "whole-athlete accountability" speaks to a hotter pain with the same audience, and
-deepens the switching cost (two modules of accumulated history, not one).
+### v1 scope discipline (the solo-owner landmine)
 
-### The discipline that keeps the same standard as nutrition
+The platform vision is a **destination, not the v1 build**. As a solo, profit-first owner, the
+danger is building a five-pillar platform before one loop is proven.
 
-We **never touch official academic records.** We track the *behavior that produces the grade*,
-not the grade itself:
+- **Ship now (co-wedge):** **Nutrition** (pillar #1, live) + **Academics** (pillar #2).
+  Recovery already exists as a live sub-signal (weekly check-in, 0.25 of today's score).
+- **Declared-future pillars:** Training, Mental performance, Habits — the *same* framework
+  (§2) turned on later, never a rewrite.
+- **The rule:** the engine supports *N* pillars from day one; the build ships *two*.
 
-- **Do** ingest syllabi/schedules and hold the athlete to *self-reported, stakeholder-verified*
-  commitments ("assignment turned in? study block done? showed up?").
-- **Don't** integrate the school LMS/SIS (Canvas/Banner), pull official grades, or store
+Why lead with academics: eligibility is often the **sharper pain** than body composition — a
+coach's worst nightmare after injury is losing a starter to a failed class; parents lose more
+sleep over grades than macros; and it deepens the switching cost (two pillars of accumulated
+history, not one).
+
+### NON-NEGOTIABLE: execution layer, not system of record
+
+OnStandard measures **execution**, it does not **replace the specialized systems** each
+stakeholder already uses. Canvas/Blackboard, MyFitnessPal, Whoop, Teamworks stay the systems of
+record; OnStandard is the accountability layer on top. Concretely:
+
+- **Do** ingest artifacts (syllabus, schedule, plan) and hold the athlete to *self-reported,
+  stakeholder-verified* commitments ("assignment turned in? study block done? showed up?").
+- **Don't** integrate the school LMS/SIS (Canvas/Banner), pull official grades/GPA, or store
   protected education records. That path is FERPA + institutional IT + procurement — the exact
-  glacial friction the whole model is designed to avoid, and a legal minefield for minors.
+  glacial friction this whole model avoids, and a legal minefield for minors. The advisor
+  dashboard shows **execution + risk** (missed deliverables, study streak, trending-ineligible),
+  **never GPA**.
 
-Same principle as nutrition: **we don't do the work, we hold them to the standard.**
+Same principle across every pillar: **we don't do the work, we measure whether it got done.**
+This is what keeps the product solo-buildable *and* out of the records-integration swamp.
 
 ---
 
-## 2. The engine (one engine, two standards)
+## 2. The engine (one engine, N pillars)
 
-The move that makes the co-wedge survivable for a solo owner: **do not build two products.**
-Build **one accountability engine** with a pluggable "standard" type. Both modules are the same
-five steps — they differ only in the artifact ingested and the commitment list produced.
+The move that makes the platform survivable for a solo owner: **do not build N products.**
+Build **one execution engine** with a **pluggable pillar** type. Every pillar is the same five
+steps — they differ only in the artifact ingested and the commitment list produced.
 
 ```
-  upload artifact   →   AI extracts commitments   →   daily/weekly check   →   verify        →   score & digest
-  ---------------       -----------------------       ------------------       ------------      ---------------
-  meal photo            macros / portions            yes / partial / no       parent            whole-athlete score
+  upload artifact   →   AI extracts commitments   →   daily/weekly check   →   verify        →   Development Score
+  ---------------       -----------------------       ------------------       ------------      -----------------
+  meal photo            macros / portions            yes / partial / no       parent            pillar score → composite
   syllabus + schedule   deadlines / exam dates       yes / partial / no       coach / advisor   risk flags → coach
+  [training plan]       [sets / sessions]            [ … same loop … ]        [strength coach]  [ … later pillar … ]
 ```
+
+Because it's a pillar *registry*, not two hardcoded modules, adding academics costs one artifact
+parser + one pillar config — and every future pillar (training, recovery-as-its-own-module,
+mental) costs the same. That is the architectural bet that lets one person carry a platform.
 
 Consequence: **academics adds one artifact parser and one content type — not a second product,
 a second support surface, or a second engineering vertical.** The syllabus parser reuses the
