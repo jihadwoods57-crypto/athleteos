@@ -95,8 +95,33 @@ the composite renders.
   deadline is imminent (academics is deadline-driven, not meal-by-meal).
 - **Checkpoint reconciliation** — advisor/parent enters confirmed standing at a checkpoint;
   the engine trues up verified deliverables and re-anchors the score.
-- **Eligibility risk flag** — the headline feature — fires through the **existing notifications +
-  `send-push` edge fn** to coach + advisor + parent *before* ineligibility.
+- **Eligibility risk flag** — fires through the **existing notifications + `send-push` edge fn**
+  to coach + advisor + parent *before* ineligibility.
+
+### The Advisor Assistant (the headline of the advisor surface)
+
+The advisor should feel like they have an **assistant**, exactly like the coach's Assistant
+Nutritionist and the Coach Copilot. It is a **third consumer of the existing `assist` engine**,
+not a new engine — a roster-level briefing for a "coach of academics."
+
+- **The brief** — every morning: *"I reviewed all 84 athletes. Three need you today…"* — opens
+  with the names that matter, not a spreadsheet to scan.
+- **Triage queue** ("handle these today") — the 🔴/🟡 athletes, each with **evidence** + a
+  **one-tap pre-drafted outreach** to athlete/parent/coach the advisor edits and sends. Kills the
+  repetitive intervention-writing burden.
+- **Praise lane** — earned recognition to send, so the advisor isn't only ever bad news.
+- **Checkpoint nudges** — *"these 5 are due for a grade-check — here's the request to send each
+  instructor"* — turns the mid-semester professor-chasing scramble into a click (and IS the
+  checkpoint-reconciliation capture).
+- **Auto-logged** — every brief, nudge, and message is logged: the compliance paper-trail
+  (NCAA / CYA) happens as a byproduct.
+
+Reuses: [`assist`](../../supabase/functions/assist/index.ts) (new `advisor_brief` task +
+`BRIEF_SYSTEM` variant), a deterministic `core/advisorBrief` (parallel to `assistantBrief`), and
+the existing [AssistantBriefCard](../../src/screens/roles/AssistantBriefCard.tsx) + TriageQueue
+surface. **Same honesty firewall:** narrates over app-computed *execution + risk* facts (never a
+grade), model rephrases and never adds. **Premium entitlement** (like the Assistant Nutritionist)
+— an Advisor Assistant seat is new expansion revenue on a college/HS account.
 
 ---
 
@@ -107,7 +132,7 @@ the composite renders.
 | **Academics tab** (athlete) | New — upcoming deadlines, week's commitments, class schedule, weekly one-tap | [Nutrition.tsx](../../src/screens/athlete/Nutrition.tsx) |
 | **Home** (athlete) | Changed — Development composite + Nutrition & Academics pillar rings; "What's in this score?" extends to pillars | [Home.tsx](../../src/screens/athlete/Home.tsx), [SCORE_WEIGHTS](../../src/core/scoring.ts) |
 | **Onboarding** | New step — "upload your schedule" | [ScoreReveal.tsx](../../src/screens/onboarding/ScoreReveal.tsx), `onboarding/flows.ts` |
-| **Advisor view** | New role view — execution + risk (NOT GPA), checkpoint-confirm action | [ParentView.tsx](../../src/screens/roles/ParentView.tsx) / [TrainerView.tsx](../../src/screens/roles/TrainerView.tsx) |
+| **Advisor view** | New role view — the **Advisor Assistant** (brief + triage queue + one-tap outreach + checkpoint-confirm), execution + risk **not GPA** | [AssistantBriefCard.tsx](../../src/screens/roles/AssistantBriefCard.tsx) + TriageQueue, [CoachView.tsx](../../src/screens/roles/CoachView.tsx) |
 | **Coach view** | Changed — eligibility column (🟢🟡🔴) on the roster | [CoachView.tsx](../../src/screens/roles/CoachView.tsx) |
 | **Parent view** | Changed — "going to class / passing / on track" surfaces alongside nutrition | [ParentView.tsx](../../src/screens/roles/ParentView.tsx) |
 
@@ -122,7 +147,9 @@ the composite renders.
    link, `enabledPillars`.
 3. **Syllabus ingest.** `analyze-syllabus` mode + parser; populate commitments; onboarding upload.
 4. **Athlete UI.** Academics tab + Home pillar rings/composite + score panel.
-5. **Advisor role + eligibility risk flag** via existing notifications/push.
+5. **Advisor Assistant** — `core/advisorBrief` (deterministic facts) + `advisor_brief` assist task
+   + `BRIEF_SYSTEM` variant; render via the existing AssistantBriefCard + TriageQueue; eligibility
+   risk flag via existing notifications/push. Gated behind a premium entitlement.
 6. **Checkpoint reconciliation** flow + provisional/verified labeling + score true-up.
 7. **Coach dashboard** eligibility column; parent surfaces.
 
