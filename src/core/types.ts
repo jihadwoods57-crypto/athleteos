@@ -75,7 +75,7 @@ export interface AppNotification {
   readAt: string | null;
 }
 
-export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutrition' | 'performance' | 'reminders';
+export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutrition' | 'performance' | 'progress' | 'reminders';
 /** Coach dashboard destinations (the 5-tab bar): one Home, one Work area, one Action,
  *  one Insights, one Admin. Mirrors the athlete tab model. */
 export type CoachTab = 'dashboard' | 'roster' | 'attention' | 'reports' | 'profile';
@@ -137,6 +137,10 @@ export interface Meals {
 export interface AppState {
   // ---- onboarding ----
   flow: Flow;
+  /** Landing gate: the branded Welcome/landing screen shows until the user taps
+   *  "Get Started" (sets this true), which reveals the existing onboarding steps.
+   *  Cross-day / persisted, so a returning mid-onboarding user isn't sent back to it. */
+  welcomeDone: boolean;
   obStep: number;
   role: Role | null;
   signinMode: boolean;

@@ -59,6 +59,10 @@ export const colors = {
   cyan: '#0EA5E9',
   purple: '#7C3AED',
 
+  // Dark text that sits on the green action button (proto's "Get Started"/"Log" CTAs use
+  // near-black text on green, not white — green is light enough that dark reads far better).
+  onGreen: '#04160D',
+
   white: '#FFFFFF',
 } as const;
 
@@ -137,6 +141,9 @@ export const darkColors: ColorTheme = {
   surface3: '#1A2436',
   cyan: '#38BDF8',
   purple: '#A855F7',
+
+  // Near-black text that sits on the green action button (green is light; dark text reads best).
+  onGreen: '#04160D',
 
   white: '#FFFFFF',
 };
@@ -247,6 +254,14 @@ export const shadow = {
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
+  } as Shadow,
+  // Green action glow — the redesign's primary CTA (Get Started / Log meal) + camera FAB.
+  ctaGreen: {
+    shadowColor: '#34D399',
+    shadowOpacity: 0.34,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   } as Shadow,
 } as const;
 

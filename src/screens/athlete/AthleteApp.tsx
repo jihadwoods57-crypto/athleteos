@@ -8,7 +8,7 @@ import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Txt, Pressable } from '@/ui/primitives';
 import { Icon, IconName } from '@/icons';
-import { experienceKind, type Tab } from '@/core';
+import { type Tab } from '@/core';
 import { Home } from './Home';
 import { Plan } from './Plan';
 import { Squad } from './Squad';
@@ -16,6 +16,7 @@ import { CheckIn } from './CheckIn';
 import { Nutrition } from './Nutrition';
 import { Profile } from './Profile';
 import { Performance } from './Performance';
+import { Progress } from './Progress';
 import { Reminders } from './Reminders';
 import { MealCapture } from '@/screens/overlays/MealCapture';
 import { Connect } from '@/screens/overlays/Connect';
@@ -31,19 +32,15 @@ import { FoodCoach } from '@/screens/overlays/FoodCoach';
 import { CoachPlanEditor } from '@/screens/overlays/CoachPlanEditor';
 import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 
-// Nutrition is the core daily surface, so it gets a tab (was buried behind a Home card).
-// Check-In is reached from its Home banner; Profile via the header avatar.
+// The redesign's 5-slot bar: Home · Plan · Camera(FAB) · Progress · Profile. Nutrition folds
+// into Plan and the leaderboard into Profile (matching the proto); Check-In is reached from
+// its Home banner.
 const TABS: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: 'home', label: 'Home', icon: 'home' },
-  { tab: 'nutrition', label: 'Nutrition', icon: 'utensils' },
   { tab: 'tasks', label: 'Plan', icon: 'plan' },
-  { tab: 'squad', label: 'Squad', icon: 'squad' },
+  { tab: 'progress', label: 'Progress', icon: 'trophy' },
+  { tab: 'profile', label: 'Profile', icon: 'user' },
 ];
-
-// The non-athlete CLIENT experience (roleVoice.experienceKind === 'client'): an adult on a
-// personal goal did not sign up for a teen team leaderboard, so the Squad slot becomes their
-// own Progress (the performance/measurements screen). Team furniture off by default.
-const CLIENT_FOURTH_TAB: { tab: Tab; label: string; icon: IconName } = { tab: 'performance', label: 'Progress', icon: 'trophy' };
 
 export function AthleteApp() {
   const tab = useStore((s) => s.tab);
@@ -85,6 +82,7 @@ export function AthleteApp() {
         {tab === 'checkin' && <CheckIn />}
         {tab === 'nutrition' && <Nutrition />}
         {tab === 'performance' && <Performance />}
+        {tab === 'progress' && <Progress />}
         {tab === 'reminders' && <Reminders />}
         {tab === 'profile' && <Profile />}
       </View>
@@ -118,12 +116,10 @@ function TabBar() {
   const tab = useStore((s) => s.tab);
   const setTab = useStore((s) => s.setTab);
   const openMeal = useStore((s) => s.openMeal);
-  const scoringProfile = useStore((s) => s.scoringProfile);
   const c = useColors();
 
   const isAthleteTab = (t: Tab) => tab === t;
-  // Client experience: the fourth slot is THEIR progress, not a team leaderboard.
-  const fourthTab = experienceKind(scoringProfile) === 'client' ? CLIENT_FOURTH_TAB : TABS[3];
+  const fourthTab = TABS[3];
 
   return (
     <View
@@ -153,11 +149,11 @@ function TabBar() {
           accessibilityLabel="Log a meal"
           onPress={openMeal}
           style={[
-            { width: 58, height: 58, borderRadius: 18, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: -28 },
-            shadow.cta,
+            { width: 62, height: 62, borderRadius: 31, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center', marginTop: -30 },
+            shadow.ctaGreen,
           ]}
         >
-          <Icon name="camera" size={26} color={c.white} />
+          <Icon name="camera" size={26} color={c.onGreen} />
         </Pressable>
       </View>
 
@@ -169,7 +165,7 @@ function TabBar() {
 
 function TabItem({ item, active, onPress }: { item: { label: string; icon: IconName }; active: boolean; onPress: () => void }) {
   const c = useColors();
-  const color = active ? c.accent : c.textTertiary;
+  const color = active ? c.success : c.textTertiary;
   return (
     <Pressable
       accessibilityRole="tab"

@@ -39,6 +39,7 @@ import { Icon, type IconName } from '@/icons';
 import { LogoMark } from '@/brand/Logo';
 import { ROLE_FLOWS, athleteFlowKeys, roleFlowFor, type GenStep } from './flows';
 import { ScoreReveal } from './ScoreReveal';
+import { Welcome as WelcomeLanding } from './Welcome';
 
 /* ------------------------------------------------------------------ shared shell */
 function StepShell({
@@ -1124,18 +1125,24 @@ function OrgPicker({ step, progress }: { step: Extract<GenStep, { kind: 'orgpick
 /* ------------------------------------------------------------------ entry */
 export function Onboarding() {
   const signinMode = useStore((s: Store) => s.signinMode);
+  const welcomeDone = useStore((s: Store) => s.welcomeDone);
   const obStep = useStore((s: Store) => s.obStep);
   const role = useStore((s: Store) => s.role);
 
   let content: React.ReactNode;
+  // Sign In takes priority even when it was launched from the landing screen.
   if (signinMode) content = <SignIn />;
+  // The branded landing is the front door: it shows until "Get Started" (passWelcome)
+  // reveals the existing steps below. All existing onboarding logic is untouched.
+  else if (!welcomeDone) content = <WelcomeLanding />;
   else if (obStep === 0) content = <Welcome />;
   else if (obStep === 1) content = <RolePicker />;
   else content = flowForRole(role) === 'app' && (role === 'athlete' || role == null) ? <AthleteFlow /> : <GenericFlow />;
 
   // The key remounts StepEnter on every step so the new screen fades + rises in, making the flow
   // feel fluid instead of hard-cutting between identical-looking forms.
-  return <StepEnter key={signinMode ? 'signin' : `step-${obStep}`}>{content}</StepEnter>;
+  const key = signinMode ? 'signin' : !welcomeDone ? 'landing' : `step-${obStep}`;
+  return <StepEnter key={key}>{content}</StepEnter>;
 }
 
 /** Fade + slight rise on mount (one beat, ease-out). Each onboarding step animates in; honors

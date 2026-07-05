@@ -132,6 +132,8 @@ function nextPerfId(entries: PerfEntry[]): string {
 
 export interface Actions {
   // onboarding
+  /** Dismiss the branded landing screen and enter the existing onboarding steps. */
+  passWelcome: () => void;
   obNext: () => void;
   obBack: () => void;
   finishOb: () => void;
@@ -581,6 +583,7 @@ export const useStore = create<Store>()(
       ...createInitialState(),
 
       // ---- onboarding ----
+      passWelcome: () => set({ welcomeDone: true }),
       obNext: () => set((s) => ({ obStep: s.obStep + 1 })),
       obBack: () => set((s) => ({ obStep: Math.max(0, s.obStep - 1) })),
       finishOb: () => {
@@ -879,7 +882,7 @@ export const useStore = create<Store>()(
         // Full reset to defaults (not just a nav reset) so the next person to onboard on this device
         // does NOT inherit the prior user's goal / targets / sport / name. A nav-only reset left
         // stale targets behind, which the goal-config clobber-guard then preserved as if user-edited.
-        set({ ...createInitialState(), flow: 'onboarding', obStep: 0, role: null, accountOpen: false });
+        set({ ...createInitialState(), flow: 'onboarding', welcomeDone: false, obStep: 0, role: null, accountOpen: false });
       },
       deleteAccount: async () => {
         // Delete server-side when connected; wipe local data either way so the in-app
@@ -1637,6 +1640,7 @@ export const useStore = create<Store>()(
         // session / flow + onboarding identity (cross-day)
         flow: s.flow,
         role: s.role,
+        welcomeDone: s.welcomeDone,
         obStep: s.obStep,
         signinMode: s.signinMode,
         athleteName: s.athleteName,
@@ -1758,6 +1762,7 @@ export const useStore = create<Store>()(
         // carried flow/role/identity (preserved through the roll), so restore is verbatim.
         if (p.flow == null) {
           merged.flow = 'onboarding';
+          merged.welcomeDone = false;
           merged.obStep = 0;
         }
         return merged;

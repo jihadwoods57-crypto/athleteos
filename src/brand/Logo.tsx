@@ -14,28 +14,39 @@ import { Txt } from '@/ui/primitives';
 const TRACK_D = 'M33 81.4 A34 34 0 1 1 67 81.4';
 const PROGRESS_D = 'M33 81.4 A34 34 0 0 1 50 18';
 
-/** The mark alone. Primary (blue on light) or reversed (on dark). */
-export function LogoMark({ size = 56, onDark = false }: { size?: number; onDark?: boolean }) {
-  const gid = `osdial${React.useId().replace(/:/g, '')}`;
-  const track = onDark ? 'rgba(255,255,255,0.16)' : '#DCE7FB';
-  const progress = onDark ? '#60A5FA' : `url(#${gid})`;
-  const markerOuter = onDark ? '#0F172A' : '#FFFFFF';
-  const markerInner = onDark ? '#FFFFFF' : `url(#${gid})`;
-  const innerR = onDark ? 6.5 : 6;
+/** The mark: the redesign's green→cyan→blue check-ring (transcribed 1:1 from the proto's
+ *  logoMark — an open progress ring with a checkmark breaking through). `onDark` is accepted
+ *  for call-site compatibility; the gradient reads on both light and dark. */
+export function LogoMark({ size = 56, onDark: _onDark = false }: { size?: number; onDark?: boolean }) {
+  const gid = `oslm${React.useId().replace(/:/g, '')}`;
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      {!onDark && (
-        <Defs>
-          <LinearGradient id={gid} x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor="#3B82F6" />
-            <Stop offset="1" stopColor="#2563EB" />
-          </LinearGradient>
-        </Defs>
-      )}
-      <Path d={TRACK_D} stroke={track} strokeWidth={12} strokeLinecap="round" />
-      <Path d={PROGRESS_D} stroke={progress} strokeWidth={12} strokeLinecap="round" />
-      <Circle cx={50} cy={18} r={10.5} fill={markerOuter} />
-      <Circle cx={50} cy={18} r={innerR} fill={markerInner} />
+    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <Defs>
+        <LinearGradient id={gid} x1="0.1" y1="0.85" x2="0.9" y2="0.15">
+          <Stop offset="0" stopColor="#34D399" />
+          <Stop offset="0.5" stopColor="#22D3EE" />
+          <Stop offset="1" stopColor="#3B82F6" />
+        </LinearGradient>
+      </Defs>
+      <Circle
+        cx={32}
+        cy={32}
+        r={25}
+        stroke={`url(#${gid})`}
+        strokeWidth={7}
+        strokeLinecap="round"
+        strokeDasharray="118 39"
+        transform="rotate(76 32 32)"
+        fill="none"
+      />
+      <Path
+        d="M19 34 L29 44 L51 15"
+        stroke={`url(#${gid})`}
+        strokeWidth={7.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
     </Svg>
   );
 }

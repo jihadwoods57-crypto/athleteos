@@ -10,6 +10,7 @@ export function createInitialState(): AppState {
   return {
     // onboarding
     flow: 'onboarding',
+    welcomeDone: false,
     obStep: 0,
     role: null,
     signinMode: false,

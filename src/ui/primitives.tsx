@@ -236,17 +236,17 @@ export function Btn({
           borderRadius: 18,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: primary ? c.accent : c.card,
+          backgroundColor: primary ? c.success : c.card,
           opacity: disabled ? 0.5 : pressed ? 0.92 : 1,
         },
-        primary ? shadow.cta : shadow.card,
+        primary ? shadow.ctaGreen : shadow.card,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={primary ? c.white : c.accent} />
+        <ActivityIndicator color={primary ? c.onGreen : c.accent} />
       ) : (
-        <Txt w="b" size={16} color={primary ? c.white : c.slate700} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+        <Txt w="b" size={16} color={primary ? c.onGreen : c.slate700} maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {label}
         </Txt>
       )}

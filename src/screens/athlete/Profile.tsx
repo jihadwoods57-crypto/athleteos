@@ -1,14 +1,24 @@
-// OnStandard — Profile. Identity, targets, read-only "managed by your program"
-// visibility panel, connections, settings, sign out.
+// OnStandard — Profile. Faithful rebuild of the redesign proto's Profile screen
+// (proto/redesign-2026-07/js/screens/profile.js) on real RN data.
+//
+// Proto section order, reproduced here: identity header → Trust Pass banner (when
+// active) → Coach Connection → Squad (leaderboard folded INTO Profile, coach-scoped)
+// → Accountability → Health & safety → Settings. Every store hook / action / piece of
+// copy from the previous Profile is preserved (targets editing, the WHO-CAN-SEE-YOUR-DATA
+// sharing panel, Discipline Record, Weekly Deep Dive, This Week digest, MemoryConfirm,
+// Trust Pass, the Appearance/theme toggle, Units, Notifications, Account, sign out,
+// delete). Where the proto shows data the RN app has no honest source for (a school
+// field, a wearable/allergies/injury store, a partner/streak/history nav), it is rendered
+// from the real equivalent or omitted — never fabricated.
 import React from 'react';
 import { ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { athleteSubtitle, buildDeepDivePayload, computeDerived, currentStreak, daysOnStandard, deepDiveReady, DEEP_MIN_DAYS, disciplineRecord, disciplineRecordText, displayWeight, firstName, GOAL_LABELS, initials, passEligibility, passStatus, RECORD_MIN_DAYS, scoringProfileLabel, supportVisibilityRows, weeklyReportFromState, weightStepLb, weightUnit, WEIGHT_TARGET, type DeepDiveResult } from '@/core';
+import { athleteSubtitle, buildDeepDivePayload, buildLeaderboard, computeDerived, currentStreak, daysOnStandard, deepDiveReady, DEEP_MIN_DAYS, disciplineRecord, disciplineRecordText, displayWeight, firstName, GOAL_LABELS, initials, medalColor, passEligibility, passStatus, RECORD_MIN_DAYS, scoringProfileLabel, squadView, supportVisibilityRows, tierFor, trendInfo, trendSeries, trendSummary, weeklyReportFromState, weightStepLb, weightUnit, WEIGHT_TARGET, type DeepDiveResult } from '@/core';
 import { isDeepDiveConfigured, runDeepDive, type DeepDiveFailure } from '@/lib/ai';
 import { isTrustPassEnabled } from '@/lib/features';
 import { isBackendLive } from '@/lib/supabase';
 import { useStore } from '@/store';
-import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
+import { MAX_FONT_SCALE, shadow, tierChip } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Row, SampleTag, Stepper, Toggle, Txt, Pressable, Reveal } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -64,7 +74,9 @@ export function Profile() {
         Profile
       </Txt>
 
-      {/* identity — the screen's one hero: avatar, name, sport/position, and the id chip */}
+      {/* IDENTITY — the screen's one hero (proto .id-card): avatar, name, sport · position,
+          the id line, and an Edit affordance. RN has no separate edit-profile screen, so
+          Edit opens the Account overlay (where identity/plan/data actually live). */}
       <Reveal index={0}>
       <Card variant="hero" style={{ marginTop: 18, borderRadius: 26, padding: 22, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
         <View style={{ width: 66, height: 66, borderRadius: 21, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.accentBorderStrong }}>
@@ -85,8 +97,42 @@ export function Profile() {
             </Txt>
           </View>
         </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Edit profile"
+          hitSlop={8}
+          onPress={s.openAccount}
+          style={({ pressed }) => ({ paddingHorizontal: 15, height: 38, borderRadius: 12, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+        >
+          <Txt w="b" size={13} color={c.slate700}>
+            Edit
+          </Txt>
+        </Pressable>
       </Card>
       </Reveal>
+
+      {/* Trust Pass banner (pilot, flag-gated) — proto's .trust banner when a pass is
+          active. All real Trust-Pass logic is preserved below; this ACTIVE banner mirrors
+          the proto shape, and the earn/end controls live in the full card further down. */}
+      {isTrustPassEnabled && tpStatus?.phase === 'active' ? (
+        <Reveal index={0}>
+          <Row style={{ marginTop: 12, gap: 13, alignItems: 'center', padding: 15, borderRadius: 18, backgroundColor: c.trainer + '22', borderWidth: 1, borderColor: c.trainer + '55' }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.trainer + '22', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="shield" size={20} color={c.trainerLight} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt w="eb" size={14}>
+                Trust Pass active · day {tpStatus.dayIndex + 1} of {s.trustPass?.lengthDays ?? 0}
+              </Txt>
+              <Txt w="sb" size={12} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>
+                {tpStatus.isCheckDay
+                  ? 'Spot-check today — log your meals to keep your pass.'
+                  : 'Earned with on-standard days. Credited at your proven level.'}
+              </Txt>
+            </View>
+          </Row>
+        </Reveal>
+      ) : null}
 
       {/* Discipline Record — the shareable recruiting card (Individual Plus seller).
           Earned in-app from real logged history; never renders below 7 real days. */}
@@ -250,12 +296,91 @@ export function Profile() {
       </Card>
       </Reveal>
 
-      {/* visibility — derived from the athlete's chosen support team (read-only) */}
+      {/* ── COACH CONNECTION (proto eyebrow + .lrow card) ─────────────────────────
+          The RN equivalent of the proto's coach row is the athlete's support team.
+          The demo shows the Coach Davis showcase; a real athlete sees their connected
+          people (or an honest "connect" state), then a row to enter another coach code. */}
       <Reveal index={3}>
+      <SectionLabel>COACH CONNECTION</SectionLabel>
+      <Card variant="low" style={{ borderRadius: 22, paddingVertical: 2 }}>
+        {isReal ? (
+          visRows.length > 0 ? (
+            visRows.map((r, i) => (
+              <ConnRow
+                key={r.key}
+                first={i === 0}
+                initials={VIS_INITIALS[r.key] ?? r.title[0]}
+                bg={VIS_COLORS[r.key] ?? c.text}
+                title={r.title}
+                sub={r.sub}
+                pill="Connected"
+              />
+            ))
+          ) : (
+            <LinkRow
+              first
+              icon="squad"
+              title="No coach connected"
+              sub="Join a coach or trainer group to get a plan and be seen"
+              onPress={() => s.openConnect()}
+            />
+          )
+        ) : (
+          <ConnRow first initials="CD" bg={c.warning} title="Coach Davis" sub="Central Catholic · tap to message" pill="Connected" onPress={s.openConnect} />
+        )}
+        <LinkRow
+          icon="user"
+          title="Enter coach code"
+          sub="Join another coach or trainer group"
+          onPress={() => s.openConnect()}
+        />
+      </Card>
+      </Reveal>
+
+      {/* ── SQUAD (proto folds the leaderboard INTO Profile) ──────────────────────
+          Coach-controlled scope + a top roster preview with tier-colored score chips.
+          Real data: buildLeaderboard (demo showcase) / squadView (a real athlete with
+          no connected peers gets the honest solo state instead of fabricated teammates). */}
+      <Reveal index={3}>
+        <SquadFold isReal={isReal} athleteScore={d.athleteScore} />
+      </Reveal>
+
+      {/* ── ACCOUNTABILITY (proto eyebrow + .lrow card) ───────────────────────────
+          Only rows with a REAL RN destination — no dead proto rows (streak/history/
+          partner have no nav here). Notifications opens Reminders; the sharing panel and
+          Discipline Record open the surfaces that own them. */}
+      <Reveal index={4}>
+      <SectionLabel>ACCOUNTABILITY</SectionLabel>
+      <Card variant="low" style={{ borderRadius: 22, paddingVertical: 2 }}>
+        <LinkRow
+          first
+          icon="bell"
+          title="Notifications"
+          sub="Protein, hydration, dinner & check-in reminders"
+          onPress={s.goReminders}
+          trailing={<Toggle on={s.notif} onPress={s.toggleNotif} label="Notifications" />}
+        />
+        <LinkRow
+          icon="squad"
+          title="Who can see your data"
+          sub={s.sharingPaused ? 'Paused — nothing leaves this device' : 'Your accountability circle, by role'}
+          onPress={s.openAccount}
+        />
+        <LinkRow
+          icon="shield"
+          title="Discipline record"
+          sub="Your earned proof of consistency — share with recruiters"
+          onPress={s.openAccount}
+        />
+      </Card>
+      </Reveal>
+
+      {/* WHO CAN SEE YOUR DATA — the full sharing/visibility panel (derived from the
+          athlete's chosen support team, read-only). Preserved in full: the per-viewer
+          rows, remove, and the pause-all toggle with its honest status line. */}
+      <Reveal index={4}>
       <View style={{ marginTop: 26 }}>
-        <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginLeft: 4, marginBottom: 10 }}>
-          WHO CAN SEE YOUR DATA
-        </Txt>
+        <SectionLabel style={{ marginTop: 0 }}>WHO CAN SEE YOUR DATA</SectionLabel>
         <Card variant="low" style={{ borderRadius: 22 }}>
           {isReal ? (
             visRows.length > 0 ? (
@@ -401,39 +526,13 @@ export function Profile() {
         </Reveal>
       ) : null}
 
-      {/* settings */}
+      {/* ── SETTINGS (proto eyebrow + .lrow card) ─────────────────────────────────
+          Notifications toggle lives up in Accountability; here: Appearance (theme),
+          Units, and the Account overlay entry that owns Plan & billing, Privacy, Terms,
+          Export my data, and Delete account. The theme toggle is preserved verbatim. */}
       <Reveal index={5}>
-      <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginTop: 26, marginLeft: 4, marginBottom: 10 }}>
-        SETTINGS
-      </Txt>
+      <SectionLabel>SETTINGS</SectionLabel>
       <Card variant="low" style={{ borderRadius: 22, paddingVertical: 4 }}>
-        {/* Notifications — icon-led row + master toggle; the row body opens the reminders detail. */}
-        <Row style={{ justifyContent: 'space-between', paddingVertical: 14, paddingRight: 2, borderBottomWidth: 1, borderBottomColor: c.hairline }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Reminders settings"
-            onPress={s.goReminders}
-            hitSlop={6}
-            style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.6 : 1 })}
-          >
-            <Row style={{ gap: 13, alignItems: 'center' }}>
-              <SettingIcon name="bell" />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Row style={{ gap: 5, alignItems: 'center' }}>
-                  <Txt w="b" size={15}>
-                    Notifications
-                  </Txt>
-                  <Icon name="chevronRight" size={16} color={c.slate300} />
-                </Row>
-                <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1 }}>
-                  Protein, hydration, dinner & check-in reminders
-                </Txt>
-              </View>
-            </Row>
-          </Pressable>
-          <Toggle on={s.notif} onPress={s.toggleNotif} label="Notifications" />
-        </Row>
-
         {/* Units — tap the row to flip imperial/metric; the value doubles as the affordance. */}
         <Pressable
           accessibilityRole="button"
@@ -445,7 +544,7 @@ export function Profile() {
             <Row style={{ gap: 13, alignItems: 'center', flex: 1 }}>
               <SettingIcon name="bolt" />
               <Txt w="b" size={15}>
-                Units
+                Units & preferences
               </Txt>
             </Row>
             <Txt w="sb" size={14} color={c.accent}>
@@ -489,19 +588,25 @@ export function Profile() {
           </Row>
         </View>
 
-        {/* Help & support — the entry to the Account overlay (plan/billing, data export & deletion). */}
+        {/* Plan & billing / Privacy / Terms / Export / Delete all live in the Account
+            overlay — one entry, honest subtitle. */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Help and support"
+          accessibilityLabel="Account: plan, billing, privacy and your data"
           onPress={s.openAccount}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
         >
           <Row style={{ justifyContent: 'space-between', paddingVertical: 14, paddingRight: 2 }}>
             <Row style={{ gap: 13, alignItems: 'center', flex: 1 }}>
               <SettingIcon name="user" />
-              <Txt w="b" size={15}>
-                Help & support
-              </Txt>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Txt w="b" size={15}>
+                  Plan, privacy & your data
+                </Txt>
+                <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1 }}>
+                  Billing, privacy, export & delete account
+                </Txt>
+              </View>
             </Row>
             <Icon name="chevronRight" size={20} color={c.slate300} />
           </Row>
@@ -518,6 +623,16 @@ export function Profile() {
         OnStandard · v1.0
       </Txt>
     </ScrollView>
+  );
+}
+
+/** Proto .eyebrow — the uppercase section label above each card group. */
+function SectionLabel({ children, style }: { children: React.ReactNode; style?: object }) {
+  const c = useColors();
+  return (
+    <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={[{ marginTop: 26, marginLeft: 4, marginBottom: 10 }, style]}>
+      {children}
+    </Txt>
   );
 }
 
@@ -546,6 +661,117 @@ function SettingIcon({ name }: { name: React.ComponentProps<typeof Icon>['name']
   );
 }
 
+/**
+ * Proto .lrow — a tappable list row (icon tile · title/sub · chevron), for the Coach
+ * Connection and Accountability groups. `trailing` overrides the chevron (e.g. a toggle).
+ */
+function LinkRow({
+  icon,
+  title,
+  sub,
+  onPress,
+  trailing,
+  first,
+}: {
+  icon: React.ComponentProps<typeof Icon>['name'];
+  title: string;
+  sub?: string;
+  onPress?: () => void;
+  trailing?: React.ReactNode;
+  first?: boolean;
+}) {
+  const c = useColors();
+  const body = (
+    <Row style={{ gap: 13, alignItems: 'center', flex: 1 }}>
+      <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} size={18} color={c.textSecondary} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Txt w="b" size={15}>
+          {title}
+        </Txt>
+        {sub ? (
+          <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1 }} numberOfLines={2}>
+            {sub}
+          </Txt>
+        ) : null}
+      </View>
+    </Row>
+  );
+  return (
+    <Row style={{ justifyContent: 'space-between', paddingVertical: 15, paddingRight: 2, borderTopWidth: first ? 0 : 1, borderTopColor: c.hairline }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        onPress={onPress}
+        hitSlop={6}
+        style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.6 : 1 })}
+      >
+        {body}
+      </Pressable>
+      {trailing ?? <Icon name="chevronRight" size={17} color={c.slate300} />}
+    </Row>
+  );
+}
+
+/** Proto coach-connection row — an initialed avatar tile + a status pill (or chevron). */
+function ConnRow({
+  initials,
+  bg,
+  title,
+  sub,
+  pill,
+  onPress,
+  first,
+}: {
+  initials: string;
+  bg: string;
+  title: string;
+  sub: string;
+  pill?: string;
+  onPress?: () => void;
+  first?: boolean;
+}) {
+  const c = useColors();
+  return (
+    <Row style={{ justifyContent: 'space-between', paddingVertical: 14, paddingRight: 2, borderTopWidth: first ? 0 : 1, borderTopColor: c.hairline }}>
+      <Pressable
+        accessibilityRole={onPress ? 'button' : 'text'}
+        accessibilityLabel={onPress ? `${title}. ${sub}` : `${title}, ${sub}`}
+        onPress={onPress}
+        disabled={!onPress}
+        hitSlop={6}
+        style={({ pressed }) => ({ flex: 1, opacity: pressed && onPress ? 0.6 : 1 })}
+      >
+        <Row style={{ gap: 12, alignItems: 'center', flex: 1 }}>
+          <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt w="eb" size={14} color={c.white}>
+              {initials}
+            </Txt>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Txt w="b" size={15} numberOfLines={1}>
+              {title}
+            </Txt>
+            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1 }} numberOfLines={1}>
+              {sub}
+            </Txt>
+          </View>
+        </Row>
+      </Pressable>
+      {pill ? (
+        <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1.5, borderColor: c.successBorderSoft, backgroundColor: c.successSurface }}>
+          <Txt w="eb" size={11} color={c.success} ls={0.2}>
+            {pill}
+          </Txt>
+        </View>
+      ) : (
+        <Icon name="chevronRight" size={17} color={c.slate300} />
+      )}
+    </Row>
+  );
+}
+
 function VisRow({ initials, bg, icon, title, sub, onRemove }: { initials?: string; bg?: string; icon?: any; title: string; sub: string; onRemove?: () => void }) {
   const c = useColors();
   return (
@@ -571,6 +797,176 @@ function VisRow({ initials, bg, icon, title, sub, onRemove }: { initials?: strin
         </Txt>
       )}
     </Row>
+  );
+}
+
+/**
+ * SQUAD, folded into Profile (proto: the leaderboard lives inside Profile).
+ * Coach-controlled scope + a compact top roster preview with tier-colored score chips,
+ * plus a link out to the full Squad tab. Real data only:
+ *  - demo (athleteName '') → buildLeaderboard(mode) showcase board;
+ *  - real athlete with no connected peers → the honest solo state from squadView.
+ */
+function SquadFold({ isReal, athleteScore }: { isReal: boolean; athleteScore: number }) {
+  const c = useColors();
+  const squadMode = useStore((st) => st.squadMode);
+  const setSquadMode = useStore((st) => st.setSquadMode);
+  const scoreHistory = useStore((st) => st.scoreHistory);
+  const athleteName = useStore((st) => st.athleteName);
+  const goSquad = useStore((st) => st.goSquad);
+  // The you-row arrow follows the same real score history the Home trend draws.
+  const youDir = trendSummary(trendSeries(scoreHistory, athleteScore)).dir;
+  const youIdentity = isReal ? { name: athleteName, initials: initials(athleteName, 'J') } : undefined;
+  const view = squadView({ isReal });
+
+  return (
+    <View>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 26, marginLeft: 4, marginRight: 4, marginBottom: 10 }}>
+        <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>
+          SQUAD
+        </Txt>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open the full leaderboard" hitSlop={8} onPress={goSquad}>
+          <Txt w="b" size={13} color={c.accent}>
+            Open
+          </Txt>
+        </Pressable>
+      </Row>
+
+      {view.kind === 'solo' ? (
+        // Honest empty-peer state — a real athlete with no connected squad. No fabricated
+        // teammates; their own week keeps tracking, and there's a real way out.
+        <Card variant="low" style={{ borderRadius: 22, padding: 20, alignItems: 'center' }}>
+          <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="squad" size={22} color={c.textTertiary} />
+          </View>
+          <Txt w="eb" size={15} ls={-0.2} style={{ marginTop: 12, textAlign: 'center' }}>
+            {view.empty?.title ?? 'No squad connected yet'}
+          </Txt>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
+            {view.empty?.body ?? 'When your team joins OnStandard, your leaderboard shows up here.'}
+          </Txt>
+        </Card>
+      ) : (
+        <>
+          {/* Coach-controlled scope segmented control (Team / Position). */}
+          <Row style={{ gap: 5, backgroundColor: c.surface2, borderRadius: 15, padding: 5, borderWidth: 1, borderColor: c.hairline }}>
+            <SquadSeg label="Whole team" active={squadMode === 'team'} onPress={() => setSquadMode('team')} />
+            <SquadSeg label="Position room" active={squadMode === 'position'} onPress={() => setSquadMode('position')} />
+          </Row>
+          <SquadBoard mode={squadMode} athleteScore={athleteScore} youDir={youDir} youIdentity={youIdentity} onOpen={goSquad} />
+        </>
+      )}
+    </View>
+  );
+}
+
+function SquadBoard({
+  mode,
+  athleteScore,
+  youDir,
+  youIdentity,
+  onOpen,
+}: {
+  mode: 'team' | 'position';
+  athleteScore: number;
+  youDir: ReturnType<typeof trendSummary>['dir'];
+  youIdentity: { name: string; initials: string } | undefined;
+  onOpen: () => void;
+}) {
+  const c = useColors();
+  const board = buildLeaderboard(mode, athleteScore, youDir, youIdentity);
+  const preview = board.slice(0, 4);
+  const scopeLabel = mode === 'team' ? 'Whole team' : 'Position room';
+
+  return (
+    <Card variant="low" style={{ marginTop: 12, borderRadius: 22, paddingVertical: 4, paddingHorizontal: 4 }}>
+      <Row style={{ gap: 7, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6 }}>
+        <SampleTag />
+        <Txt w="sb" size={12} color={c.textTertiary}>
+          {scopeLabel} · set by your coach
+        </Txt>
+      </Row>
+      {preview.map((r) => {
+        const tier = tierFor(r.score);
+        const chip = tierChip[tier.short];
+        const tr = trendInfo(r.dir);
+        return (
+          <Row
+            key={`${r.rank}-${r.name}`}
+            accessibilityRole="text"
+            accessibilityLabel={`Rank ${r.rank}, ${r.name}${r.you ? ' (you)' : ''}, ${tier.name}, score ${r.score}`}
+            style={{
+              gap: 12,
+              alignItems: 'center',
+              paddingVertical: 11,
+              paddingHorizontal: 10,
+              marginHorizontal: 4,
+              borderRadius: 14,
+              backgroundColor: r.you ? c.accentSurface : 'transparent',
+              borderWidth: r.you ? 1 : 0,
+              borderColor: r.you ? c.accentBorderStrong : 'transparent',
+            }}
+          >
+            <Txt w="eb" num size={14} color={r.rank <= 3 ? medalColor(r.rank) : c.textTertiary} style={{ width: 20, textAlign: 'center' }}>
+              {r.rank}
+            </Txt>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Row style={{ gap: 6 }}>
+                <Txt w="b" size={14.5} numberOfLines={1} style={{ flexShrink: 1 }}>
+                  {r.name}
+                </Txt>
+                {r.you ? (
+                  <View style={{ backgroundColor: c.accent, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 5 }}>
+                    <Txt w="eb" size={9} color={c.white} ls={0.3}>
+                      YOU
+                    </Txt>
+                  </View>
+                ) : null}
+              </Row>
+              <Txt w="sb" size={11} color={c.textTertiary} style={{ marginTop: 1 }}>
+                {r.pos}
+              </Txt>
+            </View>
+            <Txt w="eb" size={14} color={tr.c} accessibilityElementsHidden importantForAccessibility="no">
+              {tr.t}
+            </Txt>
+            <View style={{ minWidth: 40, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, backgroundColor: chip.bg, borderWidth: 1, borderColor: chip.border, alignItems: 'center' }}>
+              <Txt w="eb" num size={16} color={chip.fg}>
+                {r.score}
+              </Txt>
+            </View>
+          </Row>
+        );
+      })}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="See the full leaderboard"
+        onPress={onOpen}
+        style={({ pressed }) => ({ paddingVertical: 12, alignItems: 'center', opacity: pressed ? 0.6 : 1 })}
+      >
+        <Txt w="b" size={13} color={c.accent}>
+          See full leaderboard
+        </Txt>
+      </Pressable>
+    </Card>
+  );
+}
+
+function SquadSeg({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      hitSlop={{ top: 8, bottom: 8 }}
+      onPress={() => { haptics.select(); onPress(); }}
+      style={[{ flex: 1, paddingVertical: 10, borderRadius: 11, alignItems: 'center', backgroundColor: active ? c.accent : 'transparent' }, active ? shadow.cta : null]}
+    >
+      <Txt w="b" size={13} color={active ? c.white : c.textSecondary}>
+        {label}
+      </Txt>
+    </Pressable>
   );
 }
 
