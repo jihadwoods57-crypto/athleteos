@@ -33,6 +33,16 @@ export function MealCapture() {
   const isSearch = s.mealCaptureMode === 'search';
   // The live in-app camera replaces the tap-to-open placeholder for meal photos during capture.
   const liveCapture = s.mealCaptureMode === 'meal' && s.mealStage === 'capture';
+  // The real time-left string for the deadline chip on the photo viewfinder — same honest
+  // window model the ProofHeader uses (no fabricated countdown). Photo mode only.
+  const nowForVf = new Date();
+  const vfDeadline = captureProof({
+    mealType: s.mealType,
+    nowMin: nowForVf.getHours() * 60 + nowForVf.getMinutes(),
+    overseer: null,
+    lateMatters: isEnginesEnabled,
+  });
+  const viewfinderDeadline = vfDeadline.windowLine ? vfDeadline.timeLine : null;
   const header =
     s.mealStage === 'result'
       ? isLabel ? 'Label' : 'Analysis'
@@ -69,6 +79,7 @@ export function MealCapture() {
             ) : s.mealStage === 'result' || s.mealStage === 'analyzing' ? null : (
               <Viewfinder
                 label={isLabel}
+                deadline={isLabel ? null : viewfinderDeadline}
                 disabled={s.mealStage !== 'capture'}
                 onPress={() => {
                   if (s.mealStage !== 'capture') return;
@@ -132,11 +143,12 @@ function ModeToggle({ mode, onPick }: { mode: MealCaptureMode; onPick: (m: MealC
 }
 
 /**
- * The tap-to-open viewfinder for label mode + the non-live photo path. Pure-black capture
- * surface (a camera viewfinder IS dark — that's correct), subtle corner guides, and a centered
- * prompt. Replaces the old flat tile with the framed, deep-floating viewfinder look.
+ * The tap-to-open viewfinder for label mode + the non-live photo path — a faithful port of the
+ * proto `.viewfinder`: a taller 3:3.6 framed surface with a soft radial-lit dark interior, big
+ * corner brackets, a top-center deadline chip, and a bottom-center LIVE pill (photo mode). A
+ * camera viewfinder IS dark — that's correct. Deep-floating (shadow.hero).
  */
-function Viewfinder({ label, disabled, onPress }: { label?: boolean; disabled: boolean; onPress: () => void }) {
+function Viewfinder({ label, disabled, deadline, onPress }: { label?: boolean; disabled: boolean; deadline?: string | null; onPress: () => void }) {
   const c = useColors();
   return (
     <Pressable
@@ -144,8 +156,24 @@ function Viewfinder({ label, disabled, onPress }: { label?: boolean; disabled: b
       accessibilityLabel={label ? 'Scan nutrition label' : 'Capture meal photo'}
       disabled={disabled}
       onPress={onPress}
-      style={[{ width: '100%', aspectRatio: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: c.hairline }, shadow.hero]}
+      style={[
+        // proto .viewfinder: aspectRatio 3/3.6, radius 24, radial-lit dark interior.
+        // RN has no radial-gradient token, so we layer a soft accent-lit core over the dark base.
+        { width: '100%', aspectRatio: 3 / 3.6, borderRadius: 24, overflow: 'hidden', backgroundColor: '#141B29', borderWidth: 1, borderColor: c.hairline },
+        shadow.hero,
+      ]}
     >
+      {/* soft radial "lens light" — the proto's radial-gradient(#2b3548 → #141b29) center glow */}
+      <View pointerEvents="none" style={{ position: 'absolute', top: '10%', left: '12%', right: '12%', height: '62%', borderRadius: 999, backgroundColor: '#2B3548', opacity: 0.55 }} />
+
+      {/* top-center deadline chip — amber, glassy (proto .vf-deadline) */}
+      {deadline ? (
+        <View style={{ position: 'absolute', top: 16, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 13, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(7,11,20,0.6)', borderWidth: 1, borderColor: 'rgba(245,165,36,0.4)' }}>
+          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.warningDeep }} />
+          <Txt w="eb" size={12} color={c.warningDeep}>{deadline}</Txt>
+        </View>
+      ) : null}
+
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ width: 60, height: 60, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name={label ? 'barcode' : 'camera'} size={30} color="rgba(255,255,255,0.85)" />
@@ -154,25 +182,34 @@ function Viewfinder({ label, disabled, onPress }: { label?: boolean; disabled: b
           {label ? 'Point at the Nutrition Facts panel' : 'Tap to capture · or drop a meal photo'}
         </Txt>
       </View>
+
+      {/* bottom-center LIVE pill (photo mode) — green dot + glow (proto viewfinder LIVE tag) */}
+      {label ? null : (
+        <View style={{ position: 'absolute', bottom: 16, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(7,11,20,0.6)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.3)' }}>
+          <View style={[{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.successDeep }, shadow.ctaGreen]} />
+          <Txt w="eb" size={11} color={c.successDeep} ls={0.5}>LIVE</Txt>
+        </View>
+      )}
+
       <CornerGuides color="rgba(255,255,255,0.85)" />
     </Pressable>
   );
 }
 
-/** The four viewfinder corner brackets. */
+/** The four viewfinder corner brackets — proto .vf-corner: 34px, 3px, outer corners radiused. */
 function CornerGuides({ color }: { color: string }) {
   return (
     <>
       {[
-        { top: 16, left: 16 },
-        { top: 16, right: 16 },
-        { bottom: 16, left: 16 },
-        { bottom: 16, right: 16 },
+        { top: 16, left: 16, borderTopLeftRadius: 10 },
+        { top: 16, right: 16, borderTopRightRadius: 10 },
+        { bottom: 16, left: 16, borderBottomLeftRadius: 10 },
+        { bottom: 16, right: 16, borderBottomRightRadius: 10 },
       ].map((pos, i) => (
         <View
           key={i}
           pointerEvents="none"
-          style={{ position: 'absolute', width: 26, height: 26, borderColor: color, borderTopWidth: i < 2 ? 3 : 0, borderBottomWidth: i >= 2 ? 3 : 0, borderLeftWidth: i % 2 === 0 ? 3 : 0, borderRightWidth: i % 2 === 1 ? 3 : 0, ...pos }}
+          style={{ position: 'absolute', width: 34, height: 34, borderColor: color, borderTopWidth: i < 2 ? 3 : 0, borderBottomWidth: i >= 2 ? 3 : 0, borderLeftWidth: i % 2 === 0 ? 3 : 0, borderRightWidth: i % 2 === 1 ? 3 : 0, ...pos }}
         />
       ))}
     </>
@@ -218,37 +255,33 @@ function CaptureControls({ liveMode }: { liveMode?: boolean }) {
 
       {/* Shutter + tools row — hidden in live-camera mode (the LiveCamera has its own shutter
           and gallery button overlaid on the feed); kept for label mode + as the non-live path.
-          Gallery + a mode toggle flank the prominent center shutter. */}
+          Gallery + a mode toggle flank the prominent center GREEN shutter (proto .cam-actions). */}
       {liveMode ? null : (
-        <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 26, paddingHorizontal: 12 }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingHorizontal: 24 }}>
           <ToolButton
             icon="gallery"
             label="Pick a photo from your library"
+            caption="Gallery"
             onPress={() => {
               haptics.tap();
               if (isLabel) s.captureLabel();
               else s.capture(true);
             }}
           />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={isLabel ? 'Scan nutrition label' : 'Capture meal photo'}
+          <Shutter
+            label={isLabel}
             onPress={() => {
               haptics.tap();
               if (isLabel) s.captureLabel();
               else s.capture();
             }}
-            style={[{ width: 78, height: 78, borderRadius: 39, borderWidth: 4, borderColor: c.accent, padding: 5, backgroundColor: c.card }, shadow.cta]}
-          >
-            <View style={{ flex: 1, borderRadius: 30, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
-              {isLabel ? <Icon name="barcode" size={26} color={c.white} /> : null}
-            </View>
-          </Pressable>
+          />
           {/* switch to search — balances the row so the shutter stays centered, and keeps a
-              second tool reachable (proto: search + cancel on the far side) */}
+              second tool reachable (proto: search on the far side) */}
           <ToolButton
             icon="search"
             label="Search a food instead"
+            caption="Search"
             onPress={() => { haptics.select(); s.setMealCaptureMode('search'); }}
           />
         </Row>
@@ -264,17 +297,49 @@ function CaptureControls({ liveMode }: { liveMode?: boolean }) {
   );
 }
 
-/** A capture-bar tool tile (gallery / search), sized to flank the center shutter. */
-function ToolButton({ icon, label, onPress }: { icon: 'gallery' | 'search'; label: string; onPress: () => void }) {
+/** A capture-bar tool tile (gallery / search) with a caption below — proto .cam-side: a 50px
+ *  surface tile over an 11px label, flanking the center shutter. */
+function ToolButton({ icon, label, caption, onPress }: { icon: 'gallery' | 'search'; label: string; caption: string; onPress: () => void }) {
   const c = useColors();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={[{ width: 52, height: 52, borderRadius: 16, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center' }, shadow.card]}
+      style={{ alignItems: 'center', gap: 5, width: 56 }}
     >
-      <Icon name={icon} size={20} color={c.slate600} />
+      <View style={[{ width: 50, height: 50, borderRadius: 16, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center' }]}>
+        <Icon name={icon} size={20} color={c.slate700} />
+      </View>
+      <Txt w="b" size={11} color={c.textSecondary}>{caption}</Txt>
+    </Pressable>
+  );
+}
+
+/**
+ * The center capture shutter — a faithful port of the proto `.shutter`: a big GREEN disc
+ * (green = c.success) sitting inside a soft green glow ring, with an inner dark-bordered circle
+ * holding the camera / barcode glyph in near-black (c.onGreen). Green is the app's "go / log"
+ * action color; this is the primary tap of the whole screen.
+ */
+function Shutter({ label, onPress }: { label?: boolean; onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label ? 'Scan nutrition label' : 'Capture meal photo'}
+      onPress={onPress}
+      style={({ pressed }) => [{ alignItems: 'center', justifyContent: 'center', transform: [{ scale: pressed ? 0.92 : 1 }] }]}
+    >
+      {/* soft green glow ring — proto box-shadow: 0 0 0 7px rgba(52,211,153,0.14) */}
+      <View pointerEvents="none" style={{ position: 'absolute', width: 92, height: 92, borderRadius: 46, backgroundColor: c.success, opacity: 0.14 }} />
+      {/* the green shutter disc + green cast shadow (proto --sh-green) */}
+      <View style={[{ width: 78, height: 78, borderRadius: 39, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center' }, shadow.ctaGreen]}>
+        {/* inner ring: dark hairline circle holding the glyph */}
+        <View style={{ width: 62, height: 62, borderRadius: 31, borderWidth: 3, borderColor: 'rgba(4,20,11,0.35)', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={label ? 'barcode' : 'camera'} size={26} color={c.onGreen} />
+        </View>
+      </View>
     </Pressable>
   );
 }
@@ -430,12 +495,15 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           </View>
         </View>
         <View style={{ padding: 18 }}>
+          <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} style={{ marginBottom: 8 }}>DETECTED</Txt>
           <Txt w="eb" size={20} ls={-0.3}>{mr.name}</Txt>
-          <Row style={{ flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
+          {/* detected-food chips — proto .foodchip: fully-rounded surface pill with a green dot */}
+          <Row style={{ flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
             {mr.detected.map((dt) => (
-              <View key={dt} style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}>
-                <Txt w="b" size={12} color={c.slate700}>{dt}</Txt>
-              </View>
+              <Row key={dt} style={{ gap: 7, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}>
+                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.successDeep }} />
+                <Txt w="b" size={12.5} color={c.slate700}>{dt}</Txt>
+              </Row>
             ))}
           </Row>
         </View>
@@ -456,11 +524,13 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
       </Card>
       </Reveal>
 
-      {/* PLAN MATCH — the honest verdict box. When the AI found a closest-compliant swap vs the
-          plan slot's target, that's the miss + the fix; otherwise the plate cleared the slot. */}
+      {/* PLAN MATCH — the honest verdict box (proto .sidebox). When the AI found a closest-
+          compliant swap vs the plan slot's target, that's the miss + the fix (amber); otherwise
+          the plate cleared the slot (green, green-bordered). */}
       <Reveal index={2}>
+      <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} style={{ marginTop: 16, marginBottom: 4 }}>PLAN MATCH</Txt>
       {mr.substitution ? (
-        <View style={{ marginTop: 12, borderRadius: 20, padding: 18, backgroundColor: c.warnTint, borderWidth: 1, borderColor: c.warnTint }}>
+        <View style={{ marginTop: 6, borderRadius: 20, padding: 18, backgroundColor: c.warnTint, borderWidth: 1, borderColor: 'rgba(245,165,36,0.32)' }}>
           <Row style={{ gap: 9, alignItems: 'center' }}>
             <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="bolt" size={16} color={c.warnText} />
@@ -482,7 +552,7 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           </Txt>
         </View>
       ) : (
-        <Row style={{ marginTop: 12, borderRadius: 20, padding: 18, backgroundColor: c.successSurface, gap: 12, alignItems: 'center' }}>
+        <Row style={{ marginTop: 6, borderRadius: 20, padding: 18, backgroundColor: c.successSurface, borderWidth: 1, borderColor: 'rgba(52,211,153,0.3)', gap: 12, alignItems: 'center' }}>
           <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="check" size={20} color={c.successDeep} />
           </View>
@@ -537,24 +607,26 @@ function Result({ mealType, onAdd }: { mealType: MealLabel; onAdd: () => void })
           already counted today. */}
       <Reveal index={4}>
       {impact > 0 ? (
-        <Card variant="low" style={{ marginTop: 12, borderRadius: 20, padding: 18 }}>
+        // proto .score-change: the celebratory green beat — green surface + green hairline,
+        // the from→to numbers, and the +N badge. This is the reward that proves the loop.
+        <View style={{ marginTop: 12, borderRadius: 20, padding: 18, backgroundColor: c.successSurface, borderWidth: 1, borderColor: 'rgba(52,211,153,0.3)' }}>
           <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
-              <Txt w="eb" size={11} color={c.textTertiary} ls={0.6}>ADD THIS TO YOUR DAY</Txt>
+              <Txt w="eb" size={11} color={c.successText} ls={0.6}>ADD THIS TO YOUR DAY</Txt>
               <Row style={{ gap: 9, alignItems: 'center', marginTop: 8 }}>
                 <Txt w="sb" num size={18} color={c.textTertiary}>{derived.athleteScore}</Txt>
-                <Icon name="chevronRight" size={16} color={c.textTertiary} />
-                <Txt w="eb" num size={30} ls={-0.5} color={c.success}>{derived.athleteScore + impact}</Txt>
+                <Icon name="chevronRight" size={16} color={c.successDeep} />
+                <Txt w="eb" num size={30} ls={-0.5} color={c.successDeep}>{derived.athleteScore + impact}</Txt>
               </Row>
             </View>
-            <View style={{ paddingHorizontal: 13, paddingVertical: 8, borderRadius: 12, backgroundColor: c.successSurface }}>
+            <View style={{ paddingHorizontal: 13, paddingVertical: 8, borderRadius: 12, backgroundColor: c.card }}>
               <Txt w="eb" num size={16} color={c.successDeep}>+{impact}</Txt>
             </View>
           </Row>
-          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 12, lineHeight: 19 }}>
+          <Txt w="m" size={13} color={c.successText} style={{ marginTop: 12, lineHeight: 19, opacity: 0.92 }}>
             {coaching.dailyContext}
           </Txt>
-        </Card>
+        </View>
       ) : (
         <Row style={{ marginTop: 12, borderRadius: 20, padding: 16, backgroundColor: c.surface2, gap: 12, alignItems: 'center' }}>
           <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
