@@ -133,27 +133,35 @@ export function TrainerView() {
               </Row>
               {liveClients.map((cl, i) => {
                 const g = gradeFor(cl.score);
+                const openThis = () => s.openPerson({ name: cl.name, initials: cl.initials, pos: cl.pos, score: cl.score, comp: cl.comp, athleteId: cl.athleteId });
+                // Row is a plain container, NOT a button: the "view client" tap area and the
+                // Share button are SIBLINGS. Nesting them (a Pressable inside a Pressable) emits
+                // invalid <button> DOM and a hydration error on web (2026-07-04 fix).
                 return (
-                  <PressScale
+                  <View
                     key={cl.athleteId ?? cl.name}
-                    accessibilityLabel={`${cl.name}, score ${cl.score}. View client.`}
-                    onPress={() => s.openPerson({ name: cl.name, initials: cl.initials, pos: cl.pos, score: cl.score, comp: cl.comp, athleteId: cl.athleteId })}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: cx.border }}
                   >
-                    <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: cx.bg2, alignItems: 'center', justifyContent: 'center' }}>
-                      <Txt w="b" size={12} color={cx.slate600}>{cl.initials}</Txt>
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Row style={{ gap: 6 }}>
-                        <Txt w="b" size={14}>{cl.name}</Txt>
-                        {cl.loggedToday === false ? (
-                          <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 5, backgroundColor: cx.alertSurface }}>
-                            <Txt w="b" size={10} color={cx.alert}>Not logged</Txt>
-                          </View>
-                        ) : null}
-                      </Row>
-                      <Txt w="m" size={12} color={cx.textTertiary} style={{ marginTop: 2 }}>{cl.comp}% compliant today</Txt>
-                    </View>
+                    <PressScale
+                      accessibilityLabel={`${cl.name}, score ${cl.score}. View client.`}
+                      onPress={openThis}
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 }}
+                    >
+                      <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: cx.bg2, alignItems: 'center', justifyContent: 'center' }}>
+                        <Txt w="b" size={12} color={cx.slate600}>{cl.initials}</Txt>
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Row style={{ gap: 6 }}>
+                          <Txt w="b" size={14}>{cl.name}</Txt>
+                          {cl.loggedToday === false ? (
+                            <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 5, backgroundColor: cx.alertSurface }}>
+                              <Txt w="b" size={10} color={cx.alert}>Not logged</Txt>
+                            </View>
+                          ) : null}
+                        </Row>
+                        <Txt w="m" size={12} color={cx.textTertiary} style={{ marginTop: 2 }}>{cl.comp}% compliant today</Txt>
+                      </View>
+                    </PressScale>
                     {/* Proof-of-value (retention lever): send the client their real progress
                         note in one tap. Live rows only — never share demo numbers. */}
                     <Pressable
@@ -165,11 +173,17 @@ export function TrainerView() {
                     >
                       <Icon name="send" size={14} color={cx.accent} />
                     </Pressable>
-                    <Txt w="eb" num size={18}>{cl.score}</Txt>
-                    <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg }}>
-                      <Txt w="eb" size={12} color={g.c}>{g.g}</Txt>
-                    </View>
-                  </PressScale>
+                    <PressScale
+                      accessibilityLabel={`Open ${cl.name}`}
+                      onPress={openThis}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                    >
+                      <Txt w="eb" num size={18}>{cl.score}</Txt>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg }}>
+                        <Txt w="eb" size={12} color={g.c}>{g.g}</Txt>
+                      </View>
+                    </PressScale>
+                  </View>
                 );
               })}
             </View>

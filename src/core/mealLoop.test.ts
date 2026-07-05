@@ -36,6 +36,17 @@ describe('mealSlotMacros — saved plate overrides the slot constant', () => {
     ];
     expect(mealSlotMacros({ mealFoods: { lunch: foods }, athleteName: '' }, 'lunch')).toEqual({ protein: 50, kcal: 250, carbs: 13, fat: 5 });
   });
+
+  it('an unknown slot key degrades to zero instead of crashing (server-data hardening)', () => {
+    // A legacy/malformed/foreign-cased `days.meals` key (e.g. "Lunch" or "brunch") must never
+    // crash the whole app on Home render. Blank-name branch, no saved plate -> the constant
+    // lookup misses and we return zeros.
+    const bad = 'Lunch' as unknown as Parameters<typeof mealSlotMacros>[1];
+    expect(mealSlotMacros({ mealFoods: {}, athleteName: '' }, bad)).toEqual({ protein: 0, kcal: 0, carbs: 0, fat: 0 });
+    const s = { meals: { Lunch: true } as unknown as AppState['meals'], mealFoods: {}, athleteName: '' };
+    expect(() => loggedDayMacros(s)).not.toThrow();
+    expect(loggedDayMacros(s)).toEqual({ protein: 0, kcal: 0, carbs: 0, fat: 0 });
+  });
 });
 
 describe('loggedDayMacros — only logged slots, real plates when present', () => {

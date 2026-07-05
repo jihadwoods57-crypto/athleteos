@@ -62,7 +62,11 @@ export function mealSlotMacros(s: Pick<AppState, 'mealFoods' | 'athleteName'>, k
   const saved = s.mealFoods?.[k];
   if (saved) return mealMacros(saved);
   if ((s.athleteName ?? '').trim() !== '') return { protein: 0, kcal: 0, carbs: 0, fat: 0 };
+  // Only the blank-name showcase reaches here. Guard the constant lookup: an unknown slot
+  // key (a legacy/malformed/foreign-cased `days.meals` key from the server) must degrade to
+  // zero, never crash the whole app on Home render (2026-07-04 hardening).
   const m = MEAL_MACROS[k];
+  if (!m) return { protein: 0, kcal: 0, carbs: 0, fat: 0 };
   return { protein: m.p, kcal: m.k, carbs: m.c, fat: m.f };
 }
 

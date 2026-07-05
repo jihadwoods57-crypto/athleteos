@@ -16,6 +16,7 @@ import { Image, ScrollView, View } from 'react-native';
 import type { MealCommentRow } from '@/lib/supabase';
 import { db, isBackendLive } from '@/lib/supabase';
 import { useStore } from '@/store';
+import { flowForRole } from '@/core';
 import { aiCoachName } from '@/lib/ai';
 import { useColors } from '@/ui/theme';
 import { Card, Input, Pressable, Row, Txt } from '@/ui/primitives';
@@ -41,6 +42,18 @@ export function MealReview() {
   // Role is derived from the link, mirroring the RLS rule: your own meal -> athlete voice,
   // a linked athlete's meal -> coach voice.
   const viewerRole: 'athlete' | 'coach' = review && viewerId === review.athleteId ? 'athlete' : 'coach';
+  // The overseer's noun for user-facing copy: a trainer's comment must never read "Coach".
+  // The stored `meal_comments.role` stays the coach/athlete overseer split (RLS-shaped); only
+  // the DISPLAY is role-tailored. When we're the overseer we know our own role; when the
+  // athlete reads the thread we infer it from their support team (2026-07-04 role tailoring).
+  const overseerNoun =
+    viewerRole === 'coach'
+      ? flowForRole(s.role) === 'trainer'
+        ? 'Trainer'
+        : 'Coach'
+      : s.supportTeam.includes('trainer') && !s.supportTeam.includes('coach')
+        ? 'Trainer'
+        : 'Coach';
 
   // The photo, via the same signed-URL seam MealCardItem uses.
   React.useEffect(() => {
@@ -80,7 +93,7 @@ export function MealReview() {
       if (viewerRole === 'coach') {
         void db.nudgePush(
           review.athleteId,
-          `Coach commented on your ${card.label.toLowerCase()}`,
+          `${overseerNoun} commented on your ${card.label.toLowerCase()}`,
           text.slice(0, 280),
         ).catch(() => undefined);
       }
@@ -92,7 +105,7 @@ export function MealReview() {
   const bubbleName = (row: MealCommentRow): string => {
     if (row.role === 'ai') return aiCoachName;
     if (row.author_id === viewerId) return 'You';
-    return row.role === 'coach' ? 'Coach' : athleteName.split(' ')[0] || 'Athlete';
+    return row.role === 'coach' ? overseerNoun : athleteName.split(' ')[0] || 'Athlete';
   };
 
   return (
