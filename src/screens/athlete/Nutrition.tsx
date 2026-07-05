@@ -18,13 +18,14 @@ import {
   displayWeight,
   weightStepLb,
   weightUnit,
+  tierFor,
 } from '@/core';
 import type { MealKey, PlanViewEntry, SlotComplianceState } from '@/core';
 import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 import { useStore, useDerived, useNutritionMemory } from '@/store';
-import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
+import { MAX_FONT_SCALE, shadow, tierChip } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
-import { Btn, Card, ProgressBar, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, ProgressBar, Reveal, Row, SampleTag, Txt, Pressable, PressScale } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
 export function Nutrition() {
@@ -87,7 +88,7 @@ export function Nutrition() {
           weekly-goal card: the coach's plan for TODAY is the first thing to see. */}
       {showPlan ? (
         <Reveal index={0}>
-        <Card variant="low" style={{ marginTop: 16, borderRadius: 24 }}>
+        <Card variant="low" style={{ marginTop: 16, borderRadius: 24, padding: 22 }}>
           <Txt w="eb" size={16} ls={-0.3}>
             Today's Prescribed Meals
           </Txt>
@@ -135,7 +136,7 @@ export function Nutrition() {
 
       {/* weekly goal (coach-set) */}
       <Reveal index={2}>
-      <Card variant="hero" style={{ marginTop: 18, borderRadius: 24 }}>
+      <Card variant="hero" style={{ marginTop: 18, borderRadius: 24, padding: 24 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>
             THIS WEEK'S GOAL
@@ -190,22 +191,25 @@ export function Nutrition() {
 
       {/* macros */}
       <Reveal index={3}>
-      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 6 }}>
           <Txt w="eb" size={16} ls={-0.3}>
             Macros
           </Txt>
-          <Txt w="b" num size={14}>
-            {d.kcalToday.toLocaleString()} <Txt w="b" num size={14} color={c.textSecondary}>/ {d.calTarget.toLocaleString()} cal</Txt>
+          <Txt w="eb" num size={15}>
+            {d.kcalToday.toLocaleString()} <Txt w="sb" num size={13} color={c.textSecondary}>/ {d.calTarget.toLocaleString()} cal</Txt>
           </Txt>
         </Row>
+        <Txt w="eb" size={11} color={c.textTertiary} ls={0.5} style={{ marginBottom: 10 }}>
+          {calPct}% OF CALORIE TARGET
+        </Txt>
         <View style={{ marginBottom: 22 }}>
-          <ProgressBar pct={calPct} height={8} />
+          <ProgressBar pct={calPct} height={8} color={c.accent} />
         </View>
         <Row style={{ justifyContent: 'space-around' }}>
           <MacroRing label="Protein" value={d.proteinToday} target={`/${d.proteinTarget}g`} pct={d.proteinPct} color={c.accent} />
           <MacroRing label="Carbs" value={d.carbsToday} target={`/${d.carbTarget}g`} pct={d.carbPct} color={c.hydration} />
-          <MacroRing label="Fat" value={d.fatToday} target={`/${d.fatTarget}g`} pct={d.fatPct} color="#8B5CF6" />
+          <MacroRing label="Fat" value={d.fatToday} target={`/${d.fatTarget}g`} pct={d.fatPct} color={c.purple} />
         </Row>
       </Card>
       </Reveal>
@@ -215,14 +219,16 @@ export function Nutrition() {
 
       {/* protein gap quick-adds */}
       <Reveal index={4}>
-      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Txt w="eb" size={16} ls={-0.3}>
             Protein gap
           </Txt>
-          <Txt w="eb" num size={15} color={c.accent}>
-            {d.proteinGap}g to go
-          </Txt>
+          <View style={{ paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: c.accentSurface }}>
+            <Txt w="eb" num size={13} color={c.accent}>
+              {d.proteinGap}g to go
+            </Txt>
+          </View>
         </Row>
         <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6 }}>
           Quick wins to max today's nutrition score before dinner.
@@ -231,8 +237,10 @@ export function Nutrition() {
           {QUICK_FOODS.map((f, i) => {
             const added = s.quickAdded[i];
             return (
-              <Pressable
+              <PressScale
                 key={f.n}
+                accessibilityLabel={`${added ? 'Remove' : 'Add'} ${f.n}, ${f.g} grams protein`}
+                haptic={added ? 'tap' : 'success'}
                 onPress={() => s.toggleQuick(i)}
                 style={{
                   flexDirection: 'row',
@@ -243,7 +251,7 @@ export function Nutrition() {
                   borderRadius: 14,
                   backgroundColor: added ? c.successTint : c.bg,
                   borderWidth: 1.5,
-                  borderColor: added ? c.successBorderSoft : 'transparent',
+                  borderColor: added ? c.successBorderSoft : c.hairline,
                 }}
               >
                 <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: added ? c.success : c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
@@ -255,7 +263,7 @@ export function Nutrition() {
                 <Txt w="eb" num size={14} color={added ? c.successDeep : c.accent}>
                   +{f.g}g
                 </Txt>
-              </Pressable>
+              </PressScale>
             );
           })}
         </View>
@@ -264,7 +272,7 @@ export function Nutrition() {
 
       {/* snacks & shakes — one-tap between-meal logging (persists + scores like a meal) */}
       <Reveal index={5}>
-      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
         <Txt w="eb" size={16} ls={-0.3}>Snacks & shakes</Txt>
         <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6 }}>
           Tap to log between-meal fuel. It counts toward your day, just like a meal.
@@ -300,7 +308,7 @@ export function Nutrition() {
 
       {/* today's meals */}
       <Reveal index={5}>
-      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
         <Row style={{ justifyContent: 'space-between', marginBottom: 16 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Txt w="eb" size={16} ls={-0.3}>
@@ -323,34 +331,48 @@ export function Nutrition() {
             <Icon name="chevronRight" size={15} color={c.accent} />
           </Pressable>
         </Row>
-        <View style={{ gap: 12 }}>
+        <View style={{ gap: 10 }}>
           {rows.map((row) =>
             row.logged ? (
-              <Pressable key={row.key} onPress={() => s.openMealDetail(row.detailId)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
-                <View style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: row.thumb }} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Txt w="b" size={14}>
-                    {row.name}
-                  </Txt>
-                  <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2 }}>
-                    {row.protein}g protein · {row.kcal} cal
-                  </Txt>
-                </View>
-                <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: row.quality >= 90 ? c.successSurface : c.accentSurface }}>
-                  <Txt w="eb" num size={12} color={row.quality >= 90 ? c.successDeep : c.accent}>
-                    {row.quality}
-                  </Txt>
-                </View>
-                <Icon name="chevronRight" size={18} color={c.slate300} />
-              </Pressable>
+              // A logged meal's quality is a 0–100 score, so its chip speaks the same tier
+              // color the rest of the app does (green OnStandard → cyan Locked In → amber
+              // Building → red Off Standard) instead of a binary green/blue threshold.
+              (() => {
+                const chip = tierChip[tierFor(row.quality).short];
+                return (
+                  <PressScale
+                    key={row.key}
+                    accessibilityLabel={`${row.name}, ${row.protein} grams protein, ${row.kcal} calories, quality ${row.quality}`}
+                    onPress={() => s.openMealDetail(row.detailId)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 14, backgroundColor: c.bg, borderWidth: 1, borderColor: c.hairline }}
+                  >
+                    <View style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: row.thumb }} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Txt w="b" size={14}>
+                        {row.name}
+                      </Txt>
+                      <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2 }}>
+                        {row.protein}g protein · {row.kcal} cal
+                      </Txt>
+                    </View>
+                    <View style={{ minWidth: 34, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, backgroundColor: chip.bg, borderWidth: 1, borderColor: chip.border, alignItems: 'center' }}>
+                      <Txt w="eb" num size={13} color={chip.fg}>
+                        {row.quality}
+                      </Txt>
+                    </View>
+                    <Icon name="chevronRight" size={18} color={c.slate300} />
+                  </PressScale>
+                );
+              })()
             ) : (
-              <Pressable
+              <PressScale
                 key={row.key}
+                accessibilityLabel={`Log ${row.label}, due ${row.dueTime}`}
                 onPress={() => {
                   s.setMealType(row.label);
                   s.openMeal();
                 }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 14 }}
               >
                 <View style={{ width: 48, height: 48, borderRadius: 13, borderWidth: 2, borderStyle: 'dashed', borderColor: c.slate300, alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="camera" size={20} color={c.textTertiary} />
@@ -368,7 +390,7 @@ export function Nutrition() {
                     Log now
                   </Txt>
                 </View>
-              </Pressable>
+              </PressScale>
             ),
           )}
         </View>
@@ -469,7 +491,7 @@ function WinTheDayCard() {
   const cPct = Math.min(100, Math.round((d.kcalToday / Math.max(1, target.kcal)) * 100));
   return (
     <Reveal index={4}>
-      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 24, padding: 22 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Txt w="eb" size={16} ls={-0.3}>Win the day</Txt>
           <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: win.won ? c.successSurface : c.bg2 }}>
@@ -504,13 +526,14 @@ function WinTheDayCard() {
 function FuelRow({ label, today, target, pct, hit, c }: { label: string; today: string; target: string; pct: number; hit: boolean; c: ReturnType<typeof useColors> }) {
   return (
     <View>
-      <Row style={{ justifyContent: 'space-between', marginBottom: 5 }}>
-        <Txt w="b" size={13} color={c.slate700}>{label}</Txt>
+      <Row style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+        <Row style={{ gap: 5, alignItems: 'center' }}>
+          <Txt w="b" size={13} color={c.slate700}>{label}</Txt>
+          {hit ? <Icon name="check" size={12} color={c.successDeep} /> : null}
+        </Row>
         <Txt w="sb" size={12} color={hit ? c.successDeep : c.textSecondary}>{`${today} / ${target}`}</Txt>
       </Row>
-      <View style={{ height: 8, borderRadius: 4, backgroundColor: c.bg2, overflow: 'hidden' }}>
-        <View style={{ height: 8, width: `${pct}%`, backgroundColor: hit ? c.success : c.accent, borderRadius: 4 }} />
-      </View>
+      <ProgressBar pct={pct} height={8} color={hit ? c.success : c.accent} track={c.bg2} />
     </View>
   );
 }
@@ -546,7 +569,7 @@ function PlanSlotRow({ entry }: { entry: PlanViewEntry }) {
   const names = slot.mode === 'pinned' ? (slot.pinnedMeal ? [slot.pinnedMeal.name] : []) : slot.options.map((o) => o.name);
 
   return (
-    <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 13 }}>
+    <View style={{ backgroundColor: c.bg, borderRadius: 14, padding: 13, borderWidth: 1, borderColor: c.hairline }}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <Row style={{ gap: 7, alignItems: 'center' }}>
           <Txt w="eb" size={14}>

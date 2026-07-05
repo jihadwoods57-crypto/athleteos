@@ -491,11 +491,24 @@ export interface Grade {
   c: string;
 }
 
+export type TierKey = 'off' | 'building' | 'lockedin' | 'onstandard';
+
+/** The redesign's status band over the same 0–100 score (see core/tiers.ts). */
+export interface Tier {
+  key: TierKey;
+  /** "Off Standard" | "Building" | "Locked In" | "OnStandard" */
+  name: string;
+  /** Status color class: 'r' | 'a' | 'b' | 'g' (see ui/tokens tierChip). */
+  short: 'r' | 'a' | 'b' | 'g';
+}
+
 /** Everything derived from state for rendering — the single selector output. */
 export interface Derived {
   // scoring
   athleteScore: number;
   grade: Grade;
+  /** Redesign status tier (Off Standard / Building / Locked In / OnStandard) over the same score. */
+  tier: Tier;
   ringOffset: number;
   scoreDelta: number;
   deltaStr: string;

@@ -19,6 +19,7 @@ import { DEFAULT_PLAN } from './coachPlan';
 import { profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
 import { commitmentScore } from './commitment';
 import { passDayCredit } from './trustPass';
+import { tierFor } from './tiers';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
 
 /** A meal logged after its window deadline counts half toward the score's "meals" share. */
@@ -388,6 +389,7 @@ export function computeDerived(s: AppState): Derived {
   return {
     athleteScore,
     grade: gradeFor(athleteScore),
+    tier: tierFor(athleteScore),
     ringOffset,
     scoreDelta,
     deltaStr,

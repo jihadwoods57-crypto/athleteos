@@ -64,22 +64,22 @@ export function Profile() {
         Profile
       </Txt>
 
-      {/* identity */}
+      {/* identity — the screen's one hero: avatar, name, sport/position, and the id chip */}
       <Reveal index={0}>
-      <Card variant="hero" style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-        <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <Txt w="eb" size={24} color={c.white} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+      <Card variant="hero" style={{ marginTop: 18, borderRadius: 26, padding: 22, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <View style={{ width: 66, height: 66, borderRadius: 21, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.accentBorderStrong }}>
+          <Txt w="eb" size={25} color={c.white} maxFontSizeMultiplier={MAX_FONT_SCALE}>
             {initials(s.athleteName, 'J')}
           </Txt>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Txt w="eb" size={20} ls={-0.3}>
+          <Txt w="eb" size={21} ls={-0.4} numberOfLines={1}>
             {firstName(s.athleteName, 'Jihad')}
           </Txt>
-          <Txt w="sb" size={14} color={c.textSecondary} style={{ marginTop: 2 }}>
+          <Txt w="sb" size={14} color={c.textSecondary} style={{ marginTop: 3 }} numberOfLines={1}>
             {athleteSubtitle(s.position, s.sport, isReal)}
           </Txt>
-          <View style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: c.accentSurface }}>
+          <View style={{ marginTop: 11, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder }}>
             <Txt w="b" size={12} color={c.accent}>
               {idChip}
             </Txt>
@@ -252,11 +252,11 @@ export function Profile() {
 
       {/* visibility — derived from the athlete's chosen support team (read-only) */}
       <Reveal index={3}>
-      <View style={{ marginTop: 14 }}>
-        <Txt w="eb" size={16} ls={-0.3} style={{ marginLeft: 4, marginBottom: 12 }}>
-          Who can see your data
+      <View style={{ marginTop: 26 }}>
+        <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginLeft: 4, marginBottom: 10 }}>
+          WHO CAN SEE YOUR DATA
         </Txt>
-        <Card variant="low" style={{ borderRadius: 18 }}>
+        <Card variant="low" style={{ borderRadius: 22 }}>
           {isReal ? (
             visRows.length > 0 ? (
               <>
@@ -403,8 +403,12 @@ export function Profile() {
 
       {/* settings */}
       <Reveal index={5}>
-      <Card variant="low" style={{ marginTop: 14, borderRadius: 24, paddingVertical: 8 }}>
-        <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: c.border }}>
+      <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginTop: 26, marginLeft: 4, marginBottom: 10 }}>
+        SETTINGS
+      </Txt>
+      <Card variant="low" style={{ borderRadius: 22, paddingVertical: 4 }}>
+        {/* Notifications — icon-led row + master toggle; the row body opens the reminders detail. */}
+        <Row style={{ justifyContent: 'space-between', paddingVertical: 14, paddingRight: 2, borderBottomWidth: 1, borderBottomColor: c.hairline }}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Reminders settings"
@@ -412,38 +416,54 @@ export function Profile() {
             hitSlop={6}
             style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.6 : 1 })}
           >
-            <Row style={{ gap: 6, alignItems: 'center' }}>
-              <Txt w="b" size={15}>
-                Notifications
-              </Txt>
-              <Icon name="chevronRight" size={18} color={c.slate300} />
+            <Row style={{ gap: 13, alignItems: 'center' }}>
+              <SettingIcon name="bell" />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Row style={{ gap: 5, alignItems: 'center' }}>
+                  <Txt w="b" size={15}>
+                    Notifications
+                  </Txt>
+                  <Icon name="chevronRight" size={16} color={c.slate300} />
+                </Row>
+                <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1 }}>
+                  Protein, hydration, dinner & check-in reminders
+                </Txt>
+              </View>
             </Row>
-            <Txt w="m" size={13} color={c.textTertiary}>
-              Protein, hydration, dinner & check-in reminders
-            </Txt>
           </Pressable>
           <Toggle on={s.notif} onPress={s.toggleNotif} label="Notifications" />
         </Row>
+
+        {/* Units — tap the row to flip imperial/metric; the value doubles as the affordance. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Units: ${units === 'metric' ? 'Metric, kilograms' : 'Imperial, pounds'}. Tap to switch.`}
           onPress={s.toggleUnits}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
         >
-          <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: c.border }}>
-            <Txt w="b" size={15}>
-              Units
-            </Txt>
+          <Row style={{ justifyContent: 'space-between', paddingVertical: 14, paddingRight: 2, borderBottomWidth: 1, borderBottomColor: c.hairline }}>
+            <Row style={{ gap: 13, alignItems: 'center', flex: 1 }}>
+              <SettingIcon name="bolt" />
+              <Txt w="b" size={15}>
+                Units
+              </Txt>
+            </Row>
             <Txt w="sb" size={14} color={c.accent}>
               {units === 'metric' ? 'Metric (kg)' : 'Imperial (lb)'}
             </Txt>
           </Row>
         </Pressable>
-        <View style={{ paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: c.border }}>
-          <Txt w="b" size={15}>
-            Appearance
-          </Txt>
-          <Row style={{ marginTop: 11, backgroundColor: c.bg2, borderRadius: 12, padding: 3 }}>
+
+        {/* Appearance — the theme mode control (Light / Dark / System). Segmented control matches
+            the app's premium selector idiom; active state still reads s.themeMode. */}
+        <View style={{ paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: c.hairline }}>
+          <Row style={{ gap: 13, alignItems: 'center' }}>
+            <SettingIcon name="settings" />
+            <Txt w="b" size={15}>
+              Appearance
+            </Txt>
+          </Row>
+          <Row style={{ marginTop: 13, backgroundColor: c.surface2, borderRadius: 13, padding: 4, borderWidth: 1, borderColor: c.hairline }}>
             {(['light', 'dark', 'auto'] as const).map((key) => {
               const label = key === 'auto' ? 'System' : key === 'dark' ? 'Dark' : 'Light';
               const active = s.themeMode === key;
@@ -453,13 +473,14 @@ export function Profile() {
                   accessibilityRole="button"
                   accessibilityLabel={`Appearance: ${label}`}
                   accessibilityState={{ selected: active }}
+                  hitSlop={{ top: 8, bottom: 8 }}
                   onPress={() => {
                     haptics.select();
                     s.setThemeMode(key);
                   }}
-                  style={[{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: active ? c.card : 'transparent' }, active ? shadow.low : null]}
+                  style={[{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: active ? c.accent : 'transparent' }, active ? shadow.cta : null]}
                 >
-                  <Txt w="b" size={13} color={active ? c.accent : c.textSecondary}>
+                  <Txt w="b" size={13} color={active ? c.white : c.textSecondary}>
                     {label}
                   </Txt>
                 </Pressable>
@@ -467,23 +488,28 @@ export function Profile() {
             })}
           </Row>
         </View>
+
+        {/* Help & support — the entry to the Account overlay (plan/billing, data export & deletion). */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Help and support"
           onPress={s.openAccount}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
         >
-          <Row style={{ justifyContent: 'space-between', paddingVertical: 15 }}>
-            <Txt w="b" size={15}>
-              Help & support
-            </Txt>
+          <Row style={{ justifyContent: 'space-between', paddingVertical: 14, paddingRight: 2 }}>
+            <Row style={{ gap: 13, alignItems: 'center', flex: 1 }}>
+              <SettingIcon name="user" />
+              <Txt w="b" size={15}>
+                Help & support
+              </Txt>
+            </Row>
             <Icon name="chevronRight" size={20} color={c.slate300} />
           </Row>
         </Pressable>
       </Card>
       </Reveal>
 
-      <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={[{ marginTop: 16, height: 52, borderRadius: 16, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={({ pressed }) => [{ marginTop: 14, height: 54, borderRadius: 16, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.alertBorder, opacity: pressed ? 0.7 : 1 }, shadow.card]}>
         <Txt w="b" size={15} color={c.alert}>
           Sign out
         </Txt>
@@ -505,6 +531,17 @@ function TargetTile({ value, label }: { value: string; label: string }) {
       <Txt w="b" size={11} color={c.textTertiary} style={{ marginTop: 3 }}>
         {label}
       </Txt>
+    </View>
+  );
+}
+
+/** Rounded accent-surface icon tile that leads each settings row — the app's premium row
+ *  idiom (same tile used across Home / Account). Presentation only. */
+function SettingIcon({ name }: { name: React.ComponentProps<typeof Icon>['name'] }) {
+  const c = useColors();
+  return (
+    <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon name={name} size={17} color={c.accent} />
     </View>
   );
 }

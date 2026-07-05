@@ -28,7 +28,10 @@ export default function RootLayout() {
   // palette (via ThemeProvider) and the native chrome (status bar + the frame background).
   const themeMode = useStore((s) => s.themeMode);
   const os = useColorScheme();
-  const scheme: 'light' | 'dark' = themeMode === 'auto' ? (os === 'dark' ? 'dark' : 'light') : themeMode;
+  // The redesign is a dark-premium experience, so dark is the default: an unset or 'dark'
+  // preference renders dark; 'auto' follows the OS; only an explicit 'light' opts out.
+  const scheme: 'light' | 'dark' =
+    themeMode === 'auto' ? (os === 'dark' ? 'dark' : 'light') : themeMode === 'light' ? 'light' : 'dark';
   const palette = scheme === 'dark' ? darkColors : lightColors;
 
   // Oversight roles (coach / trainer / parent) are used on a laptop, not just a phone, so on a

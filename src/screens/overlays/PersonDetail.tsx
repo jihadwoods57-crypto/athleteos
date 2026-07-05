@@ -1,12 +1,12 @@
 // OnStandard — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { coachMealPatterns, displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, passStatus, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealCard, type MealHistoryDay, type StoredMeal, type TrustPass } from '@/core';
+import { coachMealPatterns, displayWeightDelta, findNudge, groupMealsByDay, nudgeOutcome, nudgeTrail, passStatus, personBreakdown, rosterNoun, scoreLanguage, tierFor, todayStamp, daysAgoStamp, weightUnit, type MealCard, type MealHistoryDay, type StoredMeal, type TrustPass } from '@/core';
 import { useStore } from '@/store';
 import { db, isBackendLive } from '@/lib/supabase';
 import { isTrustPassEnabled } from '@/lib/features';
 import { aiPrefix } from '@/lib/ai';
-import { gradeRing, shadow } from '@/ui/tokens';
+import { tierChip, ringGradient, shadow, MAX_FONT_SCALE } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Input, PressScale, ProgressBar, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -57,7 +57,7 @@ export function PersonDetail() {
   }, [seenAthleteId, viewerId]);
   const pd = s.personDetail;
   if (!pd) return null;
-  const grade = gradeFor(pd.score);
+  const tier = tierFor(pd.score);
   const bd = personBreakdown(pd.score);
   const units = s.units ?? 'imperial';
   const nudged = s.nudged.includes(pd.name);
@@ -87,27 +87,29 @@ export function PersonDetail() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <Reveal index={0}>
         <Card variant="hero" style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-          <Ring size={96} pct={pd.score} stroke={17} gradient={gradeRing[grade.g] ?? gradeRing.C} track={c.track}>
-            <Txt w="eb" num size={30} ls={-0.5}>
+          <Ring size={96} pct={pd.score} stroke={17} gradient={ringGradient} track={c.track}>
+            <Txt w="eb" num size={30} ls={-0.5} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {pd.score}
             </Txt>
-            <Txt w="eb" size={9} color={grade.c}>
-              GRADE {grade.g}
-            </Txt>
+            <View style={{ marginTop: 3, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: tierChip[tier.short].bg, borderWidth: 1, borderColor: tierChip[tier.short].border }}>
+              <Txt w="eb" size={9} color={tierChip[tier.short].fg} ls={0.2} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                {tier.name}
+              </Txt>
+            </View>
           </Ring>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Txt w="eb" size={20} ls={-0.3}>
               {pd.name}
             </Txt>
-            <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 2 }}>
+            <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
               {[pd.pos, pd.org ?? (isBackendLive ? null : 'Eastside HS')].filter(Boolean).join(' · ')}
             </Txt>
-            <View style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: statusBg }}>
+            <View style={{ marginTop: 10, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: statusBg }}>
               <Txt w="b" size={12} color={statusColor}>
                 {status}
               </Txt>
             </View>
-            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 6 }}>
+            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 8 }}>
               Last active · {lastActive}
             </Txt>
           </View>
@@ -158,13 +160,16 @@ export function PersonDetail() {
         {isBackendLive ? null : (
           <Reveal index={1}>
           <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
-            <Row style={{ gap: 8, marginBottom: 16 }}>
-              <Txt w="eb" size={15} ls={-0.3}>
+            <Row style={{ gap: 9, marginBottom: 16 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="bolt" size={16} color={c.accent} />
+              </View>
+              <Txt w="eb" size={15} ls={-0.3} style={{ flex: 1 }}>
                 Score Breakdown
               </Txt>
               <SampleTag />
             </Row>
-            <View style={{ gap: 12 }}>
+            <View style={{ gap: 13 }}>
               <BreakdownRow label="Nutrition" pct={bd.nutrition} />
               <BreakdownRow label="Recovery" pct={bd.recovery} accent />
               <BreakdownRow label="Commitment" pct={bd.commitment} />
@@ -198,19 +203,21 @@ export function PersonDetail() {
         {/* Trust Pass — coach grants a proven athlete camera-free days (server RPC enforces the
             coach-link + 7+ on-standard-day eligibility). Backend-live + flag-gated. */}
         {isTrustPassEnabled && isBackendLive && pd.athleteId && (s.flow === 'coach' || s.flow === 'trainer') ? (
-          <View style={[{ marginTop: 14, borderRadius: 20, padding: 16, backgroundColor: c.card }, shadow.card]}>
-            <Row style={{ gap: 10, alignItems: 'center' }}>
-              <Icon name="sparkle" size={18} color={c.accent} />
-              <Txt w="eb" size={15} style={{ flex: 1 }}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
+            <Row style={{ gap: 9, alignItems: 'center' }}>
+              <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="sparkle" size={16} color={c.accent} />
+              </View>
+              <Txt w="eb" size={15} ls={-0.3} style={{ flex: 1 }}>
                 Trust Pass
               </Txt>
               {activePass ? (
                 <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, backgroundColor: c.successSurface }}>
-                  <Txt w="eb" size={11} color={c.successDeep}>ACTIVE</Txt>
+                  <Txt w="eb" size={11} color={c.successDeep} ls={0.3}>ACTIVE</Txt>
                 </View>
               ) : null}
             </Row>
-            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 6, lineHeight: 17 }}>
+            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 10, lineHeight: 17 }}>
               {!passLoaded
                 ? 'Checking pass status…'
                 : activePass
@@ -273,7 +280,7 @@ export function PersonDetail() {
                 {tpMsg}
               </Txt>
             ) : null}
-          </View>
+          </Card>
         ) : null}
 
         <RecentMeals athleteId={pd.athleteId} name={pd.name} />
@@ -343,7 +350,7 @@ export function PersonDetail() {
           <View
             accessibilityRole="text"
             accessibilityLabel={`Nudge record: ${nudgeTrail(nudgeRec)}`}
-            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: c.bg2 }}
+            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 9, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}
           >
             <Icon name="check" size={15} color={c.successDeep} />
             <Txt w="sb" size={13} color={c.slate700} style={{ flex: 1, lineHeight: 19 }}>
@@ -356,10 +363,10 @@ export function PersonDetail() {
           <View
             accessibilityRole="text"
             accessibilityLabel={`Nudge follow-up: ${outcome.label}`}
-            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: outcome.improved ? c.successSurface : c.accentSurface }}
+            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: outcome.improved ? c.successSurface : c.accentSurface, borderWidth: 1, borderColor: outcome.improved ? c.successBorderSoft : c.accentBorder }}
           >
             <Icon name={outcome.improved ? 'bolt' : 'bell'} size={15} color={outcome.improved ? c.successDeep : c.accent} />
-            <Txt w="sb" size={13} color={outcome.improved ? c.successDeep : c.slate700} style={{ flex: 1 }}>
+            <Txt w="sb" size={13} color={outcome.improved ? c.successDeep : c.slate700} style={{ flex: 1, lineHeight: 19 }}>
               {outcome.label}
             </Txt>
           </View>
@@ -421,15 +428,15 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
       </Row>
 
       {patterns.length > 0 ? (
-        <View style={{ gap: 8, marginBottom: 14 }}>
+        <View style={{ gap: 9, marginBottom: 14 }}>
           {patterns.map((p) => (
-            <View key={p.id} style={{ flexDirection: 'row', gap: 10, padding: 12, borderRadius: 14, backgroundColor: c.warnTint }}>
+            <View key={p.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 13, borderRadius: 14, backgroundColor: c.warnTint }}>
               <Icon name="bell" size={15} color={c.warnText} />
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Txt w="eb" size={13} color={c.warnText}>{p.headline}</Txt>
-                <Txt w="m" size={12} color={c.slate700} style={{ marginTop: 2, lineHeight: 17 }}>{p.detail}</Txt>
+                <Txt w="m" size={12} color={c.slate700} style={{ marginTop: 3, lineHeight: 17 }}>{p.detail}</Txt>
               </View>
-              {p.metric ? <Txt w="eb" size={12} color={c.warnText}>{p.metric}</Txt> : null}
+              {p.metric ? <Txt w="eb" num size={12} color={c.warnText}>{p.metric}</Txt> : null}
             </View>
           ))}
         </View>
@@ -485,11 +492,11 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
 function StatTile({ value, label, color }: { value: string; label: string; color?: string }) {
   const c = useColors();
   return (
-    <View style={[{ flex: 1, backgroundColor: c.card, borderRadius: 18, padding: 16 }, shadow.card]}>
-      <Txt w="eb" num size={24} color={color}>
+    <View style={[{ flex: 1, backgroundColor: c.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.hairline }, shadow.card]}>
+      <Txt w="eb" num size={22} color={color} ls={-0.4}>
         {value}
       </Txt>
-      <Txt w="b" size={11} color={c.textTertiary} style={{ marginTop: 3 }}>
+      <Txt w="b" size={10} color={c.textTertiary} ls={0.3} style={{ marginTop: 3 }}>
         {label}
       </Txt>
     </View>

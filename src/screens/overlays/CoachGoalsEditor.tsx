@@ -94,13 +94,24 @@ export function CoachGoalsEditor() {
   return (
     <Overlay title={`${name}'s Plan`} onClose={s.closeCoachGoals}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Txt w="m" size={13} color={c.textSecondary} style={{ marginBottom: 16, lineHeight: 19 }}>
-          You set the plan; the platform scores against it. The suggestion below is the science-based
-          starting point — accept it or dial it in.
-        </Txt>
+        {/* intro — icon-tiled premium header framing the coach's ownership */}
+        <Reveal index={0}>
+        <Card variant="hero" style={{ marginTop: 4, borderRadius: 22, padding: 18, flexDirection: 'row', gap: 13, alignItems: 'flex-start' }}>
+          <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="shield" size={20} color={c.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt w="eb" size={11} color={c.accent} ls={0.5}>YOU OWN THE PLAN</Txt>
+            <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
+              You set the plan; the platform scores against it. The suggestion below is the science-based
+              starting point — accept it or dial it in.
+            </Txt>
+          </View>
+        </Card>
+        </Reveal>
 
         {/* scoring profile */}
-        <Txt w="eb" size={12} color={c.textTertiary} ls={0.5} upper style={{ marginBottom: 10, marginLeft: 2 }}>
+        <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper style={{ marginTop: 22, marginBottom: 10, marginLeft: 4 }}>
           Scoring profile
         </Txt>
         <View style={{ gap: 10 }}>
@@ -113,51 +124,60 @@ export function CoachGoalsEditor() {
                 accessibilityLabel={`${o.label} scoring`}
                 accessibilityState={{ selected: sel }}
                 onPress={() => pickProfile(o.key)}
-                style={({ pressed }) => [{ borderRadius: 16, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: sel ? c.accentSurface : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, opacity: pressed ? 0.92 : 1 }, sel ? undefined : shadow.card]}
+                style={({ pressed }) => [{ borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: sel ? c.accentSurface : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.hairline, opacity: pressed ? 0.92 : 1 }, sel ? undefined : shadow.card]}
               >
                 <View style={{ flex: 1 }}>
                   <Txt w="b" size={15} color={sel ? c.accent : c.text}>{o.label}</Txt>
                   <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>{o.desc}</Txt>
                 </View>
-                {sel ? <Icon name="check" size={18} color={c.accent} /> : null}
+                {sel ? (
+                  <View style={{ width: 26, height: 26, borderRadius: 9, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="check" size={15} color={c.white} />
+                  </View>
+                ) : null}
               </Pressable>
             );
           })}
         </View>
 
         {/* targets */}
-        <Txt w="eb" size={12} color={c.textTertiary} ls={0.5} upper style={{ marginTop: 22, marginBottom: 10, marginLeft: 2 }}>
+        <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper style={{ marginTop: 24, marginBottom: 10, marginLeft: 4 }}>
           Daily targets
         </Txt>
-        <Reveal index={0}>
-        <Card variant="low" style={{ borderRadius: 20, gap: 16 }}>
+        <Reveal index={1}>
+        <Card variant="low" style={{ borderRadius: 22, padding: 18, gap: 12 }}>
           <TargetRow label="Protein" unit="g" value={targets.protein} rec={rec.protein} onDec={() => step('protein', -1)} onInc={() => step('protein', 1)} />
           <TargetRow label="Calories" unit="kcal" value={targets.calories} rec={rec.calories} onDec={() => step('calories', -1)} onInc={() => step('calories', 1)} />
-          <TargetRow label="Weight goal" unit="lb" value={targets.weight} rec={rec.weight} onDec={() => step('weight', -1)} onInc={() => step('weight', 1)} />
+          <TargetRow label="Weight goal" unit="lb" value={targets.weight} rec={rec.weight} onDec={() => step('weight', -1)} onInc={() => step('weight', 1)} last />
         </Card>
         </Reveal>
 
         {/* plan summary */}
-        <View style={{ marginTop: 16, borderRadius: 16, padding: 15, backgroundColor: c.bg2, flexDirection: 'row', gap: 10 }}>
-          <Icon name="shield" size={16} color={c.accent} />
+        <View style={{ marginTop: 16, borderRadius: 18, padding: 16, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+          <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="shield" size={16} color={c.accent} />
+          </View>
           <Txt w="sb" size={13} color={c.slate700} style={{ flex: 1, lineHeight: 19 }}>
             {goalPlanSummary(name, targets, profile)}
           </Txt>
         </View>
 
         {!canPush ? (
-          <Row style={{ gap: 7, marginTop: 14 }}>
-            <SampleTag />
-            <Txt w="sb" size={12} color={c.textTertiary} style={{ flex: 1, lineHeight: 17 }}>
+          <Row style={{ gap: 9, marginTop: 14, alignItems: 'flex-start', backgroundColor: c.warnTint, borderRadius: 14, paddingHorizontal: 13, paddingVertical: 11 }}>
+            <SampleTag style={{ marginTop: 1 }} />
+            <Txt w="sb" size={12} color={c.warnText} style={{ flex: 1, lineHeight: 17 }}>
               Connect your team to push this plan to {name}. Until then it's a draft on this device.
             </Txt>
           </Row>
         ) : null}
 
         {error ? (
-          <Txt w="sb" size={13} color={c.alert} style={{ marginTop: 14, lineHeight: 18 }}>
-            {error}
-          </Txt>
+          <Row style={{ gap: 9, marginTop: 14, alignItems: 'flex-start', backgroundColor: c.alertSurface, borderWidth: 1, borderColor: c.alertBorder, borderRadius: 14, paddingHorizontal: 13, paddingVertical: 11 }}>
+            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.alert, marginTop: 5 }} />
+            <Txt w="sb" size={13} color={c.alertDeep} style={{ flex: 1, lineHeight: 18 }}>
+              {error}
+            </Txt>
+          </Row>
         ) : null}
 
         <Pressable
@@ -177,16 +197,19 @@ export function CoachGoalsEditor() {
   );
 }
 
-function TargetRow({ label, unit, value, rec, onDec, onInc }: { label: string; unit: string; value: number; rec: number; onDec: () => void; onInc: () => void }) {
+function TargetRow({ label, unit, value, rec, onDec, onInc, last }: { label: string; unit: string; value: number; rec: number; onDec: () => void; onInc: () => void; last?: boolean }) {
   const c = useColors();
   const offRec = value !== rec;
   return (
-    <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-      <View style={{ flex: 1 }}>
+    <Row style={{ justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14, marginBottom: last ? 0 : 12 }}>
+      <View style={{ flex: 1, paddingRight: 10 }}>
         <Txt w="b" size={15}>{label}</Txt>
-        <Txt w="m" num size={12} color={offRec ? c.textTertiary : c.success} style={{ marginTop: 2 }}>
-          {offRec ? `Recommended ${rec}${unit}` : `Matches recommendation`}
-        </Txt>
+        <Row style={{ gap: 5, alignItems: 'center', marginTop: 3 }}>
+          {offRec ? null : <Icon name="check" size={12} color={c.success} />}
+          <Txt w="m" num size={12} color={offRec ? c.textTertiary : c.success}>
+            {offRec ? `Recommended ${rec}${unit}` : `Matches recommendation`}
+          </Txt>
+        </Row>
       </View>
       <Stepper value={`${value}${unit}`} onDec={onDec} onInc={onInc} />
     </Row>

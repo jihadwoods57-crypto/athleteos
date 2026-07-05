@@ -14,7 +14,7 @@ import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Btn, Card, Input, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
-import { Icon } from '@/icons';
+import { Icon, IconName } from '@/icons';
 import { Overlay } from './Overlay';
 
 type Mode = 'code' | 'find';
@@ -121,11 +121,12 @@ export function Connect() {
     return (
       <Overlay title="Connect" onClose={s.closeConnect} closeIcon="close">
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 }}>
-          <View style={{ width: 72, height: 72, borderRadius: 24, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="check" size={34} color={c.successDeep} />
+          <View style={{ width: 84, height: 84, borderRadius: 28, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.successBorderSoft }}>
+            <Icon name="check" size={38} color={c.successDeep} />
           </View>
-          <Txt w="eb" size={20} style={{ marginTop: 18, textAlign: 'center' }}>{done}</Txt>
-          <Btn label="Done" onPress={s.closeConnect} style={{ marginTop: 24, alignSelf: 'stretch' }} />
+          <Txt w="eb" size={11} color={c.successDeep} ls={0.7} style={{ marginTop: 22 }}>CONNECTED</Txt>
+          <Txt w="eb" size={21} ls={-0.4} style={{ marginTop: 8, textAlign: 'center', lineHeight: 28 }}>{done}</Txt>
+          <Btn label="Done" onPress={s.closeConnect} style={{ marginTop: 26, alignSelf: 'stretch' }} />
         </View>
       </Overlay>
     );
@@ -134,7 +135,9 @@ export function Connect() {
   return (
     <Overlay title="Connect your coach" onClose={s.closeConnect} closeIcon="close">
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Row style={{ backgroundColor: c.bg2, borderRadius: 12, padding: 3, marginBottom: 18 }}>
+        {/* Two doors to the same roster — a premium segmented switch (surface2 + hairline,
+            the app's selector idiom; active seg lifts on the accent with the CTA glow). */}
+        <Row style={{ backgroundColor: c.surface2, borderRadius: 14, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: c.hairline }}>
           {(['code', 'find'] as Mode[]).map((m) => {
             const active = mode === m;
             const label = m === 'code' ? 'I have a code' : 'Find my coach';
@@ -144,83 +147,197 @@ export function Connect() {
                 accessibilityRole="button"
                 accessibilityLabel={label}
                 accessibilityState={{ selected: active }}
+                hitSlop={{ top: 8, bottom: 8 }}
                 onPress={() => { haptics.select(); setMode(m); setResolved(null); setCodeErr(null); }}
-                style={[{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: active ? c.card : 'transparent' }, active ? shadow.low : null]}
+                style={[{ flex: 1, paddingVertical: 11, borderRadius: 11, alignItems: 'center', backgroundColor: active ? c.accent : 'transparent' }, active ? shadow.cta : null]}
               >
-                <Txt w="b" size={13} color={active ? c.accent : c.textSecondary}>{label}</Txt>
+                <Txt w="b" size={13} color={active ? c.white : c.textSecondary}>{label}</Txt>
               </Pressable>
             );
           })}
         </Row>
 
         {mode === 'code' ? (
-          <View style={{ gap: 12 }}>
-            <Txt w="m" size={14} color={c.textSecondary} style={{ lineHeight: 20 }}>Enter the code your coach shared. It drops you straight onto their roster.</Txt>
-            <Input value={code} onChangeText={(v) => { setCode(v.toUpperCase()); setResolved(null); setCodeErr(null); }} placeholder="Team code (e.g. EAGLES24)" autoCapitalize="characters" />
-            {codeErr ? <Txt w="sb" size={13} color={c.alert}>{codeErr}</Txt> : null}
-            {resolved ? (
-              <Card elevated style={{ marginTop: 4 }}>
-                <Txt w="eb" size={16}>{resolved.kind === 'team' ? (resolved.data.coach_name || 'Your coach') : (resolved.data.trainer_name || 'Your trainer')}</Txt>
-                <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 2 }}>
-                  {resolved.kind === 'team'
-                    ? [resolved.data.school, resolved.data.name, resolved.data.sport].filter(Boolean).join(' · ')
-                    : resolved.data.name}
-                </Txt>
-                {/* Outcome haptics live in joinResolved — a success buzz on press would
-                    celebrate a join that may be about to fail. */}
-                <Btn label={checking ? 'Joining…' : resolved.kind === 'team' ? 'Join this team' : 'Join this practice'} haptic="none" disabled={checking} onPress={() => void joinResolved()} style={{ marginTop: 14 }} />
-              </Card>
-            ) : (
-              <Btn label={checking ? 'Checking…' : 'Continue'} disabled={checking || code.trim().length < 3} onPress={checkCode} />
-            )}
+          <View style={{ gap: 14 }}>
+            {/* Premium code-entry card: eyebrow, the clean dark field, then the confirm/preview. */}
+            <Card variant="low" style={{ borderRadius: 22, padding: 20 }}>
+              <Row style={{ gap: 11, marginBottom: 12 }}>
+                <IconTile name="shield" />
+                <View style={{ flex: 1 }}>
+                  <Eyebrow>TEAM CODE</Eyebrow>
+                  <Txt w="m" size={13.5} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>Enter the code your coach shared. It drops you straight onto their roster.</Txt>
+                </View>
+              </Row>
+              <Field
+                icon="bolt"
+                value={code}
+                onChangeText={(v) => { setCode(v.toUpperCase()); setResolved(null); setCodeErr(null); }}
+                placeholder="Team code (e.g. EAGLES24)"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                accessibilityLabel="Team code"
+              />
+              {codeErr ? <ErrLine text={codeErr} /> : null}
+              {resolved ? (
+                // Resolved preview: a framed accent-surface confirmation with an avatar tile.
+                <View style={{ marginTop: 14, borderRadius: 16, padding: 15, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder }}>
+                  <Row style={{ gap: 12, alignItems: 'center' }}>
+                    <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon name={resolved.kind === 'team' ? 'squad' : 'bolt'} size={20} color={c.white} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Txt w="eb" size={16} ls={-0.2} numberOfLines={1}>{resolved.kind === 'team' ? (resolved.data.coach_name || 'Your coach') : (resolved.data.trainer_name || 'Your trainer')}</Txt>
+                      <Txt w="m" size={12.5} color={c.textSecondary} style={{ marginTop: 2 }} numberOfLines={2}>
+                        {resolved.kind === 'team'
+                          ? [resolved.data.school, resolved.data.name, resolved.data.sport].filter(Boolean).join(' · ')
+                          : resolved.data.name}
+                      </Txt>
+                    </View>
+                  </Row>
+                  {/* Outcome haptics live in joinResolved — a success buzz on press would
+                      celebrate a join that may be about to fail. */}
+                  <Btn label={checking ? 'Joining…' : resolved.kind === 'team' ? 'Join this team' : 'Join this practice'} haptic="none" disabled={checking} onPress={() => void joinResolved()} style={{ marginTop: 14 }} />
+                </View>
+              ) : (
+                <Btn label={checking ? 'Checking…' : 'Continue'} disabled={checking || code.trim().length < 3} onPress={checkCode} style={{ marginTop: 14 }} />
+              )}
+            </Card>
           </View>
         ) : (
-          <View style={{ gap: 12 }}>
+          <View style={{ gap: 14 }}>
             {!isBackendLive ? (
-              <Txt w="m" size={14} color={c.textSecondary} style={{ lineHeight: 20 }}>Finding your coach by school needs you signed in. For now, use a team code above.</Txt>
+              <Card variant="low" style={{ borderRadius: 22, padding: 20 }}>
+                <Row style={{ gap: 11 }}>
+                  <IconTile name="search" />
+                  <View style={{ flex: 1 }}>
+                    <Eyebrow>FIND MY COACH</Eyebrow>
+                    <Txt w="m" size={13.5} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 20 }}>Finding your coach by school needs you signed in. For now, use a team code above.</Txt>
+                  </View>
+                </Row>
+              </Card>
             ) : !org ? (
-              <>
-                <Txt w="m" size={14} color={c.textSecondary} style={{ lineHeight: 20 }}>Search your school, then pick your coach to send a join request.</Txt>
-                <Input value={query} onChangeText={setQuery} placeholder="Search your school" autoCapitalize="words" />
-                {orgs.map((o) => (
-                  <Pressable key={o.id} accessibilityRole="button" accessibilityLabel={o.name} onPress={() => pickOrg(o)} style={{ backgroundColor: c.card, borderWidth: 1.5, borderColor: c.border, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 16 }}>
-                    <Txt w="b" size={15}>{o.name}</Txt>
-                    {[o.city, o.state].filter(Boolean).length ? <Txt w="m" size={12} color={c.textSecondary}>{[o.city, o.state].filter(Boolean).join(', ')}</Txt> : null}
-                  </Pressable>
-                ))}
-              </>
+              <Card variant="low" style={{ borderRadius: 22, padding: 20 }}>
+                <Row style={{ gap: 11, marginBottom: 12 }}>
+                  <IconTile name="search" />
+                  <View style={{ flex: 1 }}>
+                    <Eyebrow>FIND BY SCHOOL</Eyebrow>
+                    <Txt w="m" size={13.5} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>Search your school, then pick your coach to send a join request.</Txt>
+                  </View>
+                </Row>
+                <Field
+                  icon="search"
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Search your school"
+                  autoCapitalize="words"
+                  accessibilityLabel="Search your school"
+                />
+                {orgs.length > 0 ? (
+                  <View style={{ marginTop: 12, gap: 9 }}>
+                    {orgs.map((o) => (
+                      <Pressable key={o.id} accessibilityRole="button" accessibilityLabel={o.name} onPress={() => pickOrg(o)} style={({ pressed }) => ({ backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 11, opacity: pressed ? 0.75 : 1 })}>
+                        <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                          <Icon name="shield" size={16} color={c.accent} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Txt w="b" size={15} numberOfLines={1}>{o.name}</Txt>
+                          {[o.city, o.state].filter(Boolean).length ? <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 1 }}>{[o.city, o.state].filter(Boolean).join(', ')}</Txt> : null}
+                        </View>
+                        <Icon name="chevronRight" size={18} color={c.slate300} />
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+              </Card>
             ) : (
-              <>
-                <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Txt w="eb" size={15} style={{ flex: 1 }}>{org.name}</Txt>
-                  <Pressable accessibilityRole="button" accessibilityLabel="Change school" hitSlop={6} onPress={() => { setOrg(null); setTeams([]); }}>
-                    <Txt w="b" size={13} color={c.accent}>Change</Txt>
+              <Card variant="low" style={{ borderRadius: 22, padding: 20 }}>
+                <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Row style={{ gap: 11, flex: 1, minWidth: 0 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon name="shield" size={17} color={c.accent} />
+                    </View>
+                    <Txt w="eb" size={15} ls={-0.2} style={{ flex: 1 }} numberOfLines={1}>{org.name}</Txt>
+                  </Row>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Change school" hitSlop={6} onPress={() => { setOrg(null); setTeams([]); }} style={({ pressed }) => ({ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: c.surface2, opacity: pressed ? 0.7 : 1 })}>
+                    <Txt w="b" size={12.5} color={c.accent}>Change</Txt>
                   </Pressable>
                 </Row>
                 {teams.length === 0 ? (
-                  <Txt w="m" size={14} color={c.textSecondary} style={{ lineHeight: 20 }}>No coaches at this school have opened up join requests yet. Ask your coach for their team code.</Txt>
-                ) : teams.map((t) => (
-                  <Card key={t.id} elevated>
-                    <Row style={{ alignItems: 'center', gap: 10 }}>
-                      <View style={{ flex: 1 }}>
-                        <Txt w="eb" size={15}>{t.coach_name || t.name}</Txt>
-                        <Txt w="m" size={12} color={c.textSecondary}>{[t.name, t.sport].filter(Boolean).join(' · ')}</Txt>
+                  <Txt w="m" size={13.5} color={c.textSecondary} style={{ marginTop: 12, lineHeight: 20 }}>No coaches at this school have opened up join requests yet. Ask your coach for their team code.</Txt>
+                ) : (
+                  <View style={{ marginTop: 14, gap: 10 }}>
+                    {teams.map((t) => (
+                      <View key={t.id} style={{ borderRadius: 16, padding: 14, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}>
+                        <Row style={{ alignItems: 'center', gap: 11 }}>
+                          <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                            <Icon name="squad" size={19} color={c.accent} />
+                          </View>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Txt w="eb" size={15} ls={-0.2} numberOfLines={1}>{t.coach_name || t.name}</Txt>
+                            <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 1 }} numberOfLines={1}>{[t.name, t.sport].filter(Boolean).join(' · ')}</Txt>
+                          </View>
+                          <Btn
+                            label={requestingId === t.id ? 'Sending…' : 'Request'}
+                            disabled={requestingId !== null}
+                            haptic="success"
+                            onPress={() => request(t)}
+                            style={{ height: 44, paddingHorizontal: 18, borderRadius: 13 }}
+                          />
+                        </Row>
                       </View>
-                      <Btn
-                        label={requestingId === t.id ? 'Sending…' : 'Request'}
-                        disabled={requestingId !== null}
-                        haptic="success"
-                        onPress={() => request(t)}
-                      />
-                    </Row>
-                  </Card>
-                ))}
-                {reqErr ? <Txt w="sb" size={13} color={c.alert}>{reqErr}</Txt> : null}
-              </>
+                    ))}
+                  </View>
+                )}
+                {reqErr ? <ErrLine text={reqErr} /> : null}
+              </Card>
             )}
           </View>
         )}
       </ScrollView>
     </Overlay>
+  );
+}
+
+/** Small-caps section label — the app's eyebrow idiom (Home/Profile). Presentation only. */
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  const c = useColors();
+  return <Txt w="eb" size={11.5} color={c.accent} ls={0.6}>{children}</Txt>;
+}
+
+/** Rounded accent-surface icon tile that leads a section — the app's premium row idiom. */
+function IconTile({ name }: { name: IconName }) {
+  const c = useColors();
+  return (
+    <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon name={name} size={19} color={c.accent} />
+    </View>
+  );
+}
+
+/** Clean dark input field: a surface2 + hairline shell with a leading muted icon, so the
+ *  text field reads as an edge on the dark canvas (not the default floating white card).
+ *  Presentation wrapper around the same TextInput props the callers already pass. */
+function Field({ icon, accessibilityLabel, ...props }: React.ComponentProps<typeof Input> & { icon: IconName }) {
+  const c = useColors();
+  return (
+    <Row style={{ backgroundColor: c.surface2, borderRadius: 14, borderWidth: 1, borderColor: c.hairline, paddingLeft: 14, height: 54 }}>
+      <Icon name={icon} size={17} color={c.textTertiary} />
+      <Input
+        {...props}
+        accessibilityLabel={accessibilityLabel}
+        style={[{ flex: 1, height: 52, backgroundColor: 'transparent', paddingHorizontal: 12, shadowOpacity: 0, elevation: 0 }, props.style]}
+      />
+    </Row>
+  );
+}
+
+/** Inline error line with a small alert dot — honest failure copy, unchanged text. */
+function ErrLine({ text }: { text: string }) {
+  const c = useColors();
+  return (
+    <Row style={{ gap: 8, alignItems: 'center', marginTop: 12 }}>
+      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.alert }} />
+      <Txt w="sb" size={13} color={c.alert} style={{ flex: 1, lineHeight: 18 }}>{text}</Txt>
+    </Row>
   );
 }

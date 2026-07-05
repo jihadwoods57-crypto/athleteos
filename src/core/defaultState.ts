@@ -157,7 +157,9 @@ export function createInitialState(): AppState {
     reminderSettings: defaultReminderSettings(),
     overseerAlerts: defaultOverseerAlerts(),
     units: 'imperial',
-    themeMode: 'auto',
+    // The redesign is a dark-premium experience, so dark is the out-of-the-box default.
+    // Users can still choose Light or Auto (follow-OS) from Profile → Appearance.
+    themeMode: 'dark',
     mealDesc: '',
     chatDraft: '',
     msgDraft: '',

@@ -25,7 +25,7 @@ import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
-import { Icon } from '@/icons';
+import { Icon, IconName } from '@/icons';
 import { Overlay } from './Overlay';
 
 /** Whether the live Stripe checkout path is even possible in this build. */
@@ -45,9 +45,9 @@ export function Plans() {
         {onPaidPlan ? <ManageCurrent /> : null}
 
         {!canCheckout ? (
-          <Row style={{ gap: 7, marginBottom: 14 }}>
+          <Row style={{ gap: 9, marginBottom: 16, alignItems: 'flex-start', padding: 13, borderRadius: 14, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}>
             <SampleTag />
-            <Txt w="sb" size={12} color={c.textTertiary} style={{ flex: 1 }}>
+            <Txt w="sb" size={12} color={c.textSecondary} style={{ flex: 1, lineHeight: 17 }}>
               OnStandard is in free preview. These are launch prices — billing isn’t switched on yet.
             </Txt>
           </Row>
@@ -63,11 +63,14 @@ export function Plans() {
         </View>
         </Reveal>
 
-        <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 18, lineHeight: 16 }}>
-          Prices in USD. Subscriptions auto-renew until canceled; cancel anytime with no phone call.
-          Active organization participants are billed by the organization — athletes never pay while
-          attached to an active team.
-        </Txt>
+        <Row style={{ gap: 8, alignItems: 'flex-start', marginTop: 20 }}>
+          <Icon name="shield" size={14} color={c.textTertiary} />
+          <Txt w="m" size={11} color={c.textTertiary} style={{ flex: 1, lineHeight: 16 }}>
+            Prices in USD. Subscriptions auto-renew until canceled; cancel anytime with no phone call.
+            Active organization participants are billed by the organization — athletes never pay while
+            attached to an active team.
+          </Txt>
+        </Row>
       </ScrollView>
     </Overlay>
   );
@@ -82,7 +85,7 @@ function CadenceToggle({ cadence, onChange }: { cadence: BillingCadence; onChang
     { key: 'monthly', label: 'Monthly' },
   ];
   return (
-    <Row style={{ gap: 8, marginBottom: 14 }}>
+    <Row style={{ gap: 6, marginBottom: 16, backgroundColor: c.surface2, borderRadius: 15, padding: 5, borderWidth: 1, borderColor: c.hairline }}>
       {opts.map((o) => {
         const on = cadence === o.key;
         return (
@@ -91,15 +94,16 @@ function CadenceToggle({ cadence, onChange }: { cadence: BillingCadence; onChang
             accessibilityRole="button"
             accessibilityLabel={`Bill ${o.label.toLowerCase()}`}
             accessibilityState={{ selected: on }}
+            hitSlop={{ top: 8, bottom: 8 }}
             onPress={() => { haptics.tap(); onChange(o.key); }}
             style={({ pressed }) => [{
-              flex: 1, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
-              backgroundColor: on ? c.accent : c.bg2,
+              flex: 1, minHeight: 44, paddingVertical: 8, borderRadius: 11, alignItems: 'center', justifyContent: 'center',
+              backgroundColor: on ? c.accent : 'transparent',
               opacity: pressed ? 0.85 : 1,
-            }]}
+            }, on ? shadow.cta : null]}
           >
             <Txt w="b" size={14} color={on ? c.white : c.slate700}>{o.label}</Txt>
-            {o.sub ? <Txt w="sb" size={10.5} color={on ? c.white : c.textTertiary}>{o.sub}</Txt> : null}
+            {o.sub ? <Txt w="sb" size={10.5} color={on ? c.white : c.accent} style={{ marginTop: 1 }}>{o.sub}</Txt> : null}
           </Pressable>
         );
       })}
@@ -119,23 +123,28 @@ function DunningBanner() {
     await openBillingPortal();
   };
   return (
-    <Card variant="low" style={{ borderRadius: 16, marginBottom: 14, borderWidth: 1, borderColor: c.alertBorder }}>
-      <Row style={{ gap: 8, alignItems: 'flex-start' }}>
-        <Icon name="shield" size={16} color={c.alert} />
-        <Txt w="sb" size={13} color={c.slate700} style={{ flex: 1, lineHeight: 18 }}>
-          Your last payment didn’t go through{dateLine}. Your team still has access, but update
-          your card soon to keep it.
-        </Txt>
+    <View style={{ borderRadius: 18, marginBottom: 14, padding: 16, backgroundColor: c.alertSurface, borderWidth: 1, borderColor: c.alertBorder }}>
+      <Row style={{ gap: 10, alignItems: 'flex-start' }}>
+        <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="shield" size={18} color={c.alert} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="eb" size={11} color={c.alertDeep} ls={0.5}>PAYMENT NEEDS ATTENTION</Txt>
+          <Txt w="sb" size={13} color={c.slate700} style={{ marginTop: 4, lineHeight: 18 }}>
+            Your last payment didn’t go through{dateLine}. Your team still has access, but update
+            your card soon to keep it.
+          </Txt>
+        </View>
       </Row>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Update your card"
         onPress={onFix}
-        style={({ pressed }) => [{ height: 44, borderRadius: 12, backgroundColor: c.alert, alignItems: 'center', justifyContent: 'center', marginTop: 12, opacity: pressed ? 0.85 : 1 }]}
+        style={({ pressed }) => [{ minHeight: 46, paddingVertical: 8, borderRadius: 13, backgroundColor: c.alert, alignItems: 'center', justifyContent: 'center', marginTop: 14, opacity: pressed ? 0.85 : 1 }]}
       >
         <Txt w="b" size={14} color={c.white}>Update card</Txt>
       </Pressable>
-    </Card>
+    </View>
   );
 }
 
@@ -148,9 +157,17 @@ function ManageCurrent() {
     await openBillingPortal();
   };
   return (
-    <Card variant="hero" style={{ borderRadius: 20, marginBottom: 16 }}>
-      <Txt w="eb" size={15} ls={-0.3}>You’re on a paid plan</Txt>
-      <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
+    <Card variant="hero" style={{ borderRadius: 22, marginBottom: 16, padding: 20 }}>
+      <Row style={{ gap: 11, alignItems: 'center' }}>
+        <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="check" size={22} color={c.successDeep} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="eb" size={11} color={c.successDeep} ls={0.6}>ACTIVE PLAN</Txt>
+          <Txt w="eb" size={16} ls={-0.3} style={{ marginTop: 3 }}>You’re on a paid plan</Txt>
+        </View>
+      </Row>
+      <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 12, lineHeight: 19 }}>
         Manage billing, change seats, or cancel anytime — no phone call, no runaround.
       </Txt>
       <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 19 }}>
@@ -161,7 +178,7 @@ function ManageCurrent() {
         accessibilityRole="button"
         accessibilityLabel="Manage, pause, or cancel your plan"
         onPress={onManage}
-        style={({ pressed }) => [{ height: 50, borderRadius: 14, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center', marginTop: 14, flexDirection: 'row', gap: 8, opacity: pressed ? 0.8 : 1 }]}
+        style={({ pressed }) => [{ minHeight: 50, paddingVertical: 8, borderRadius: 14, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center', marginTop: 16, flexDirection: 'row', gap: 8, opacity: pressed ? 0.8 : 1 }]}
       >
         <Icon name="settings" size={17} color={c.slate700} />
         <Txt w="b" size={14} color={c.slate700}>
@@ -219,32 +236,41 @@ function PlanCard({ plan, cadence }: { plan: PricedPlan; cadence: BillingCadence
   })();
 
   return (
-    <Card variant="low" style={{ borderRadius: 20 }}>
+    <Card variant="low" style={{ borderRadius: 22, padding: 20 }}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <View style={{ flex: 1, paddingRight: 10 }}>
+        <View style={{ flex: 1, paddingRight: 12 }}>
           <Txt w="eb" size={17} ls={-0.3}>{plan.name}</Txt>
-          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>{plan.blurb}</Txt>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 18 }}>{plan.blurb}</Txt>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           {plan.custom ? (
-            <Txt w="eb" size={18}>Custom</Txt>
+            <Txt w="eb" size={19} ls={-0.4}>Custom</Txt>
           ) : (
             <>
-              <Txt w="eb" num size={22} ls={-0.5}>{price.amount}</Txt>
-              <Txt w="sb" size={12} color={c.textTertiary}>{price.per}</Txt>
-              {savings ? <Txt w="sb" size={11} color={c.accent} style={{ marginTop: 2 }}>{savings}</Txt> : null}
+              <Row style={{ alignItems: 'baseline', gap: 3 }}>
+                <Txt w="eb" num size={26} ls={-0.6}>{price.amount}</Txt>
+                <Txt w="sb" size={12} color={c.textTertiary}>{price.per}</Txt>
+              </Row>
+              {savings ? (
+                <View style={{ marginTop: 6, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder }}>
+                  <Txt w="eb" size={10.5} color={c.accent} ls={0.2}>{savings}</Txt>
+                </View>
+              ) : null}
             </>
           )}
         </View>
       </Row>
 
       {/* The compliant disclosure — shown BEFORE any purchase action. */}
-      <View style={{ marginTop: 14, gap: 7, padding: 13, borderRadius: 13, backgroundColor: c.bg2 }}>
-        <TermLine icon="bolt" text={cadence === 'annual' && !plan.custom ? 'Billed yearly, auto-renews until canceled.' : t.renewal} />
-        {t.trial ? <TermLine icon="check" text={t.trial} /> : null}
-        {cadence === 'monthly' && t.annual ? <TermLine icon="trophy" text={t.annual} /> : null}
-        <TermLine icon="shield" text={t.cancellation} />
-        {plan.seatLimit ? <TermLine icon="squad" text={`Up to ${plan.seatLimit} ${plan.audience === 'organization' ? 'active participants' : plan.audience === 'individual' ? 'athletes in your household' : 'active clients'}${plan.extraSeatMonthly ? `; $${plan.extraSeatMonthly}/mo each beyond` : ''}.`} /> : null}
+      <View style={{ marginTop: 16, padding: 14, borderRadius: 16, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}>
+        <Txt w="eb" size={10.5} color={c.textTertiary} ls={0.7} style={{ marginBottom: 10 }}>YOUR TERMS</Txt>
+        <View style={{ gap: 9 }}>
+          <TermLine icon="bolt" text={cadence === 'annual' && !plan.custom ? 'Billed yearly, auto-renews until canceled.' : t.renewal} />
+          {t.trial ? <TermLine icon="check" text={t.trial} /> : null}
+          {cadence === 'monthly' && t.annual ? <TermLine icon="trophy" text={t.annual} /> : null}
+          <TermLine icon="shield" text={t.cancellation} />
+          {plan.seatLimit ? <TermLine icon="squad" text={`Up to ${plan.seatLimit} ${plan.audience === 'organization' ? 'active participants' : plan.audience === 'individual' ? 'athletes in your household' : 'active clients'}${plan.extraSeatMonthly ? `; $${plan.extraSeatMonthly}/mo each beyond` : ''}.`} /> : null}
+        </View>
       </View>
 
       <Pressable
@@ -252,14 +278,14 @@ function PlanCard({ plan, cadence }: { plan: PricedPlan; cadence: BillingCadence
         accessibilityLabel={purchaseCtaLabelFor(plan, cadence)}
         onPress={onStart}
         disabled={state === 'opening'}
-        style={({ pressed }) => [{ height: 52, borderRadius: 14, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 14, opacity: pressed || state === 'opening' ? 0.85 : 1 }, shadow.cta]}
+        style={({ pressed }) => [{ minHeight: 54, paddingVertical: 8, borderRadius: 16, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 16, opacity: pressed || state === 'opening' ? 0.85 : 1 }, shadow.cta]}
       >
-        <Txt w="b" size={15} color={c.white}>
+        <Txt w="b" size={15} color={c.white} style={{ textAlign: 'center', paddingHorizontal: 14, lineHeight: 20 }}>
           {state === 'opening' ? 'Opening secure checkout…' : purchaseCtaLabelFor(plan, cadence)}
         </Txt>
       </Pressable>
       {footnote ? (
-        <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 10, textAlign: 'center', lineHeight: 17 }}>
+        <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 12, textAlign: 'center', lineHeight: 17 }}>
           {footnote}
         </Txt>
       ) : null}
@@ -267,12 +293,14 @@ function PlanCard({ plan, cadence }: { plan: PricedPlan; cadence: BillingCadence
   );
 }
 
-function TermLine({ icon, text }: { icon: 'bolt' | 'check' | 'shield' | 'trophy' | 'squad'; text: string }) {
+function TermLine({ icon, text }: { icon: IconName; text: string }) {
   const c = useColors();
   return (
-    <Row style={{ gap: 8, alignItems: 'flex-start' }}>
-      <Icon name={icon} size={14} color={c.textSecondary} />
-      <Txt w="sb" size={12} color={c.slate700} style={{ flex: 1, lineHeight: 17 }}>{text}</Txt>
+    <Row style={{ gap: 10, alignItems: 'flex-start' }}>
+      <View style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center', marginTop: 0 }}>
+        <Icon name={icon} size={13} color={c.accent} />
+      </View>
+      <Txt w="sb" size={12} color={c.slate700} style={{ flex: 1, lineHeight: 18, paddingTop: 3 }}>{text}</Txt>
     </Row>
   );
 }

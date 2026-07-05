@@ -8,15 +8,15 @@ import { ScrollView, Share, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CHECKIN_QUESTIONS, ROSTER, activationStatus, buildAssistantBrief, coachRosterKpis, coachTeamTitle,
-  filterRoster, gradeFor, needsAttention, notLoggedCount, nudgeMessageFor, parseRosterTarget,
+  filterRoster, needsAttention, notLoggedCount, nudgeMessageFor, parseRosterTarget,
   rankByRisk, rosterCsv, rosterGroups, rosterGroupStats, teamWeeklyReport, teamWeeklyReportText,
-  trendInfo, type AssistantBrief,
+  tierFor, trendInfo, type AssistantBrief,
 } from '@/core';
 import { AssistantBriefCard, AssistantKpiStrip, AssistantUpgradeCard, TriageQueue, useAssistantUnlocked } from './AssistantBriefCard';
 import type { RosterRow, RosterGroupStat, AtRiskInput } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
-import { shadow, MAX_FONT_SCALE } from '@/ui/tokens';
+import { tierChip, shadow, MAX_FONT_SCALE } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Input, PressScale, Reveal, Row, SampleTag, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -181,10 +181,10 @@ function Section({ children }: { children: React.ReactNode }) {
 function SectionTitle({ eyebrow, title, right }: { eyebrow?: string; title: string; right?: React.ReactNode }) {
   const c = useColors();
   return (
-    <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16 }}>
+    <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18 }}>
       <View style={{ flex: 1 }}>
-        {eyebrow ? <Txt w="sb" size={13} color={c.textSecondary}>{eyebrow}</Txt> : null}
-        <Txt w="eb" size={26} ls={-0.5} accessibilityRole="header">{title}</Txt>
+        {eyebrow ? <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} upper style={{ marginBottom: 3 }}>{eyebrow}</Txt> : null}
+        <Txt w="eb" size={28} ls={-0.8} accessibilityRole="header">{title}</Txt>
       </View>
       {right}
     </Row>
@@ -254,12 +254,12 @@ function CoachDashboard({ teamTitle, rosterLive, brief, teamReport, attention, r
   return (
     <Section>
       <Row style={{ gap: 12 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" hitSlop={6} onPress={s.openAccount} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" hitSlop={6} onPress={s.openAccount} style={[{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.hairline }, shadow.card]}>
           <Icon name="menu" size={20} color={c.slate600} />
         </Pressable>
-        <View>
-          <Txt w="sb" size={13} color={c.textSecondary}>Coach Dashboard</Txt>
-          <Txt w="eb" size={21} ls={-0.3}>{teamTitle}</Txt>
+        <View style={{ flex: 1 }}>
+          <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} upper>Coach Dashboard</Txt>
+          <Txt w="eb" size={22} ls={-0.5} style={{ marginTop: 2 }}>{teamTitle}</Txt>
           {rosterLive ? null : (
             <Row style={{ gap: 7, marginTop: 5 }}>
               <SampleTag />
@@ -387,7 +387,7 @@ function RosterActivation({ joined }: { joined: number }) {
               <Txt w="sb" size={12} color={c.textTertiary}>edit</Txt>
             </Pressable>
           </Row>
-          <View style={{ height: 8, borderRadius: 5, backgroundColor: c.bg2, marginTop: 10, overflow: 'hidden' }}>
+          <View style={{ height: 8, borderRadius: 5, backgroundColor: c.track, marginTop: 10, overflow: 'hidden' }}>
             <View style={{ width: `${status.pct}%`, height: 8, borderRadius: 5, backgroundColor: c.accent }} />
           </View>
           <Txt w="m" size={12.5} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 18 }}>
@@ -413,7 +413,7 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
       <SectionTitle eyebrow={filtering ? `${filtered.length} of ${roster.length}` : `${roster.length} athletes`} title="Roster" right={
         notLogged > 0 ? (
           <Pressable accessibilityRole="button" accessibilityLabel={`Filter to the ${notLogged} athletes who have not logged today`} accessibilityState={{ selected: notLoggedOnly }} onPress={() => { haptics.tap(); setNotLoggedOnly((v) => !v); }}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9, backgroundColor: notLoggedOnly ? c.alert : c.alertSurface }}>
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11, backgroundColor: notLoggedOnly ? c.alert : c.alertSurface, borderWidth: 1, borderColor: notLoggedOnly ? c.alert : c.alertBorder }}>
             <Icon name="bell" size={13} color={notLoggedOnly ? c.white : c.alert} />
             <Txt w="b" size={12} color={notLoggedOnly ? c.white : c.alert}>{notLogged} not logged</Txt>
           </Pressable>
@@ -428,38 +428,18 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
         </ScrollView>
       ) : null}
       {filtered.length > 0 ? (
-        <View style={{ gap: 8 }}>
-          {filtered.map((a) => {
-            const g = gradeFor(a.score);
-            const tr = trendInfo(a.dir);
-            return (
-              <PressScale key={a.name} accessibilityLabel={`${a.name}, score ${a.score}. View athlete.`} onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: a.pos, score: a.score, comp: a.comp, athleteId: a.athleteId })}
-                style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderRadius: 16, padding: 14 }, shadow.card]}>
-                <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
-                  <Txt w="b" size={13} color={c.slate600}>{a.initials}</Txt>
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Row style={{ gap: 6 }}>
-                    <Txt w="b" size={14}>{a.name}</Txt>
-                    {a.loggedToday === false ? (
-                      <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 5, backgroundColor: c.alertSurface }}>
-                        <Txt w="b" size={10} color={c.alert}>Not logged</Txt>
-                      </View>
-                    ) : null}
-                  </Row>
-                  <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2 }}>{a.pos} · {a.comp}% compliant</Txt>
-                </View>
-                <Txt w="eb" size={16} color={tr.c}>{tr.t}</Txt>
-                <Txt w="eb" num size={20} style={{ width: 32, textAlign: 'right' }}>{a.score}</Txt>
-                <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg }}>
-                  <Txt w="eb" size={12} color={g.c}>{g.g}</Txt>
-                </View>
-              </PressScale>
-            );
-          })}
+        <View style={{ gap: 9 }}>
+          {filtered.map((a, i) => (
+            <RosterRowCard
+              key={a.name}
+              rank={i + 1}
+              row={a}
+              onPress={() => s.openPerson({ name: a.name, initials: a.initials, pos: a.pos, score: a.score, comp: a.comp, athleteId: a.athleteId })}
+            />
+          ))}
         </View>
       ) : (
-        <Card style={{ borderRadius: 16, padding: 18, alignItems: 'center' }}>
+        <Card style={{ borderRadius: 20, padding: 20, alignItems: 'center' }}>
           <Txt w="sb" size={14} color={c.textSecondary} style={{ textAlign: 'center', lineHeight: 20 }}>
             {roster.length === 0
               ? 'No athletes yet. Share your team code so athletes can join.'
@@ -468,13 +448,81 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
           {roster.length === 0 ? (
             <TeamCodeShare />
           ) : (
-            <Pressable accessibilityRole="button" onPress={() => { haptics.tap(); setQuery(''); setGroup(null); setNotLoggedOnly(false); }} style={{ marginTop: 12, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9, backgroundColor: c.bg2 }}>
+            <Pressable accessibilityRole="button" onPress={() => { haptics.tap(); setQuery(''); setGroup(null); setNotLoggedOnly(false); }} style={{ marginTop: 12, paddingHorizontal: 15, paddingVertical: 9, borderRadius: 11, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}>
               <Txt w="b" size={13} color={c.slate700}>Clear filters</Txt>
             </Pressable>
           )}
         </Card>
       )}
     </Section>
+  );
+}
+
+/**
+ * One roster row — the coach-side echo of Squad's LeaderRowView so both screens read as one
+ * product. Risk-ranked numeral, avatar carrying a tier-colored status dot (the R/Y/G flag),
+ * name + optional "not logged" flag, position + tier meta, trend arrow, and a tier-colored
+ * score chip. Dark `c.card` surface inside a hairline frame; the whole row is a PressScale.
+ * Pure presentation — the tap still opens PersonDetail with the same payload as before.
+ */
+function RosterRowCard({ rank, row, onPress }: { rank: number; row: RosterRow; onPress: () => void }) {
+  const c = useColors();
+  const tier = tierFor(row.score);
+  const chip = tierChip[tier.short];
+  const tr = trendInfo(row.dir);
+  const notLogged = row.loggedToday === false;
+  return (
+    <PressScale
+      accessibilityLabel={`${row.name}, ${row.pos}, ${tier.name}, score ${row.score}${notLogged ? ', not logged today' : ''}. View athlete.`}
+      onPress={onPress}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: c.card,
+        borderRadius: 18,
+        paddingVertical: 13,
+        paddingHorizontal: 14,
+        borderWidth: 1,
+        borderColor: notLogged ? c.alertBorder : c.hairline,
+      }}
+    >
+      {/* risk rank — the roster is risk-ranked, so #1 is who needs the coach most */}
+      <Txt w="eb" num size={15} color={c.textTertiary} style={{ width: 22, textAlign: 'center' }}>{rank}</Txt>
+
+      {/* avatar with a tier-colored status flag dot (green OnStandard → red Off Standard) */}
+      <View>
+        <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt w="b" size={14} color={c.slate600}>{row.initials}</Txt>
+        </View>
+        <View style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, borderRadius: 7, backgroundColor: chip.fg, borderWidth: 2.5, borderColor: c.card }} />
+      </View>
+
+      {/* name + position/tier meta */}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Row style={{ gap: 7 }}>
+          <Txt w="b" size={15} numberOfLines={1} style={{ flexShrink: 1 }}>{row.name}</Txt>
+          {notLogged ? (
+            <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: c.alertSurface, borderWidth: 1, borderColor: c.alertBorder }}>
+              <Txt w="eb" size={10} color={c.alert} ls={0.3}>NOT LOGGED</Txt>
+            </View>
+          ) : null}
+        </Row>
+        <Row style={{ gap: 6, marginTop: 3 }}>
+          <Txt w="eb" size={11} color={c.textTertiary} ls={0.4}>{row.pos}</Txt>
+          <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: c.textTertiary, opacity: 0.5 }} />
+          <Txt w="sb" size={11.5} color={chip.fg}>{tier.name}</Txt>
+        </Row>
+      </View>
+
+      {/* trend arrow */}
+      <Txt w="eb" size={15} color={tr.c} accessibilityLabel={row.dir === 'up' ? 'Trending up' : row.dir === 'down' ? 'Trending down' : 'Trend flat'}>{tr.t}</Txt>
+
+      {/* tier-colored score chip */}
+      <View style={{ minWidth: 44, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 11, backgroundColor: chip.bg, borderWidth: 1, borderColor: chip.border, alignItems: 'center' }}>
+        <Txt w="eb" num size={18} color={chip.fg}>{row.score}</Txt>
+      </View>
+    </PressScale>
   );
 }
 
@@ -564,7 +612,7 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, 
             accessibilityRole="button"
             accessibilityLabel="Export the roster as a spreadsheet (CSV)"
             onPress={() => { haptics.tap(); onExportCsv(); }}
-            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 12, backgroundColor: c.bg2, marginTop: 12, opacity: pressed ? 0.8 : 1 })}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 46, borderRadius: 12, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, marginTop: 12, opacity: pressed ? 0.8 : 1 })}
           >
             <Icon name="copy" size={15} color={c.slate700} />
             <Txt w="b" size={13} color={c.slate700}>Export roster CSV</Txt>
@@ -617,7 +665,7 @@ function AssistantLockedRow({ label }: { label: string }) {
       accessibilityRole="button"
       accessibilityLabel={`${label} is part of the Assistant Nutritionist. See plans.`}
       onPress={() => { haptics.tap(); s.openPlans(); }}
-      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 12, backgroundColor: c.bg2, padding: 13, marginTop: 12, opacity: pressed ? 0.8 : 1 })}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 12, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, padding: 13, marginTop: 12, opacity: pressed ? 0.8 : 1 })}
     >
       <Icon name="sparkle" size={15} color={c.accent} />
       <Txt w="sb" size={13} color={c.slate700} style={{ flex: 1 }}>
@@ -630,16 +678,20 @@ function AssistantLockedRow({ label }: { label: string }) {
 
 function GroupStatRow({ stat }: { stat: RosterGroupStat }) {
   const c = useColors();
-  const g = gradeFor(stat.avgScore);
+  const t = tierFor(stat.avgScore);
+  const chip = tierChip[t.short];
   return (
-    <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-      <View style={{ flex: 1 }}>
-        <Txt w="b" size={14} color={c.slate700}>{stat.group}</Txt>
-        <Txt w="m" size={12} color={c.textTertiary}>{stat.count} {stat.count === 1 ? 'athlete' : 'athletes'} · {stat.avgCompliance}% compliant</Txt>
-      </View>
-      <Txt w="eb" num size={20} style={{ width: 34, textAlign: 'right' }}>{stat.avgScore}</Txt>
-      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: g.bg, marginLeft: 10 }}>
-        <Txt w="eb" size={12} color={g.c}>{g.g}</Txt>
+    <Row style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+      <Row style={{ gap: 9, flex: 1, minWidth: 0 }}>
+        {/* tier dot — the same status-color idiom as the roster + leaderboard status flags */}
+        <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: chip.fg }} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Txt w="b" size={14} color={c.slate700}>{stat.group}</Txt>
+          <Txt w="m" size={12} color={c.textTertiary}>{stat.count} {stat.count === 1 ? 'athlete' : 'athletes'} · {stat.avgCompliance}% compliant</Txt>
+        </View>
+      </Row>
+      <View style={{ minWidth: 44, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 11, backgroundColor: chip.bg, borderWidth: 1, borderColor: chip.border, alignItems: 'center' }}>
+        <Txt w="eb" num size={17} color={chip.fg}>{stat.avgScore}</Txt>
       </View>
     </Row>
   );
@@ -684,15 +736,15 @@ function SettingRow({ icon, label, sub, onPress }: { icon: IconName; label: stri
   const c = useColors();
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => { haptics.tap(); onPress(); }}
-      style={[{ flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: c.card, borderRadius: 16, padding: 16 }, shadow.card]}>
-      <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: c.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: c.hairline }}>
+      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name={icon} size={18} color={c.slate600} />
       </View>
       <View style={{ flex: 1 }}>
         <Txt w="b" size={15}>{label}</Txt>
         <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>{sub}</Txt>
       </View>
-      <Icon name="chevronRight" size={18} color="#CBD5E1" />
+      <Icon name="chevronRight" size={18} color={c.slate300} />
     </Pressable>
   );
 }
@@ -730,9 +782,9 @@ function CoachTabItem({ item, active, onPress }: { item: { label: string; icon: 
 function ReportStat({ label, name, score, color }: { label: string; name: string; score?: number; color: string }) {
   const c = useColors();
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg, borderRadius: 14, padding: 13 }}>
-      <Txt w="eb" size={10} color={c.textTertiary} ls={0.5}>{label}</Txt>
-      <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginTop: 5 }}>
+    <View style={{ flex: 1, backgroundColor: c.surface2, borderRadius: 14, padding: 13, borderWidth: 1, borderColor: c.hairline }}>
+      <Txt w="eb" size={10} color={c.textTertiary} ls={0.6} upper>{label}</Txt>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6 }}>
         <Txt w="b" size={14} color={c.slate700} style={{ flex: 1 }} numberOfLines={1}>{name}</Txt>
         {typeof score === 'number' ? <Txt w="eb" num size={16} color={color} style={{ marginLeft: 8 }}>{score}</Txt> : null}
       </Row>
@@ -744,8 +796,8 @@ function GroupChip({ label, active, onPress }: { label: string; active: boolean;
   const c = useColors();
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`Show ${label}`} accessibilityState={{ selected: active }} onPress={onPress}
-      style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: active ? c.accent : c.card, borderWidth: 1, borderColor: active ? c.accent : c.border }}>
-      <Txt w="b" size={13} color={active ? c.white : c.slate600}>{label}</Txt>
+      style={[{ paddingHorizontal: 15, paddingVertical: 9, borderRadius: 12, backgroundColor: active ? c.accent : c.card, borderWidth: 1, borderColor: active ? c.accent : c.hairline }, active ? shadow.cta : null]}>
+      <Txt w="b" size={13} color={active ? c.white : c.slate700}>{label}</Txt>
     </Pressable>
   );
 }
@@ -753,20 +805,29 @@ function GroupChip({ label, active, onPress }: { label: string; active: boolean;
 function AttentionRow({ initials, name, meta, score, color, nudged, onNudge, onPress, last }: { initials: string; name: string; meta: string; score: number; color: string; nudged: boolean; onNudge: () => void; onPress: () => void; last?: boolean }) {
   // The person tap and the nudge are SIBLING pressables (not nested), so this is valid on web too.
   const c = useColors();
+  const tier = tierFor(score);
+  const chip = tierChip[tier.short];
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: last ? 0 : 13 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${name}, score ${score}. ${meta}. View athlete.`} onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, flex: 1 }}>
-        <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
-          <Txt w="b" size={13} color={c.slate600}>{initials}</Txt>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: last ? 0 : 12 }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${name}, ${tier.name}, score ${score}. ${meta}. View athlete.`} onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, flex: 1, minWidth: 0 }}>
+        {/* avatar with a tone-colored status dot — mirrors the roster row idiom */}
+        <View>
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt w="b" size={13} color={c.slate600}>{initials}</Txt>
+          </View>
+          <View style={{ position: 'absolute', bottom: -2, right: -2, width: 13, height: 13, borderRadius: 7, backgroundColor: color, borderWidth: 2.5, borderColor: c.alertSurface }} />
         </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="b" size={14}>{name}</Txt>
-          <Txt w="m" size={12} color={c.textTertiary}>{meta}</Txt>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Txt w="b" size={15} numberOfLines={1}>{name}</Txt>
+          <Txt w="m" size={12} color={c.textTertiary} numberOfLines={2} style={{ marginTop: 2, lineHeight: 16 }}>{meta}</Txt>
         </View>
-        <Txt w="eb" num size={19} color={color} style={{ marginRight: 12 }}>{score}</Txt>
+        {/* score in a tone-colored chip, consistent with the roster + leaderboard chips */}
+        <View style={{ minWidth: 40, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10, backgroundColor: chip.bg, borderWidth: 1, borderColor: chip.border, alignItems: 'center' }}>
+          <Txt w="eb" num size={16} color={color}>{score}</Txt>
+        </View>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={nudged ? `Nudge sent to ${name}` : `Send a nudge to ${name}`} accessibilityState={{ disabled: nudged }} disabled={nudged} hitSlop={8} onPress={onNudge}
-        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9, backgroundColor: nudged ? c.successSurface : c.accent, opacity: pressed ? 0.85 : 1 })}>
+        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: nudged ? c.successSurface : c.accent, opacity: pressed ? 0.85 : 1 })}>
         {nudged ? <Icon name="check" size={12} color={c.successDeep} /> : null}
         <Txt w="b" size={12} color={nudged ? c.successDeep : c.white}>{nudged ? 'Nudged' : 'Nudge'}</Txt>
       </Pressable>

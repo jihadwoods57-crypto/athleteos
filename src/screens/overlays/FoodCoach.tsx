@@ -73,12 +73,26 @@ export function FoodCoach() {
   return (
     <Overlay title="Restaurant Coach" onClose={s.closeFoodCoach}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Txt w="m" size={14} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 20 }}>
-          You're {GOAL_LABEL[goal] ?? 'on plan'} with {proteinRemaining}g protein and {caloriesRemaining} calories left today. Where are you?
-        </Txt>
+        {/* intro — icon-tiled premium header with the live remaining-plan read */}
+        <Reveal index={0}>
+        <Card variant="hero" style={{ marginTop: 4, borderRadius: 22, padding: 18, flexDirection: 'row', gap: 13, alignItems: 'flex-start' }}>
+          <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="utensils" size={20} color={c.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt w="eb" size={11} color={c.accent} ls={0.5}>WHAT SHOULD I EAT?</Txt>
+            <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
+              You're {GOAL_LABEL[goal] ?? 'on plan'} with {proteinRemaining}g protein and {caloriesRemaining} calories left today. Where are you?
+            </Txt>
+          </View>
+        </Card>
+        </Reveal>
 
         {/* restaurant picker */}
-        <Row style={{ flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+        <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper style={{ marginTop: 22, marginBottom: 10, marginLeft: 4 }}>
+          Where are you?
+        </Txt>
+        <Row style={{ flexWrap: 'wrap', gap: 8 }}>
           {RESTAURANTS.map((r) => {
             const on = r.id === restaurantId;
             return (
@@ -88,7 +102,7 @@ export function FoodCoach() {
                 accessibilityLabel={r.name}
                 accessibilityState={{ selected: on }}
                 onPress={() => setRestaurantId(r.id)}
-                style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, borderWidth: 1.5, borderColor: on ? c.accent : c.border, backgroundColor: on ? c.accentSurface : c.card }}
+                style={({ pressed }) => [{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 13, borderWidth: 1.5, borderColor: on ? c.accent : c.hairline, backgroundColor: on ? c.accentSurface : c.card, opacity: pressed ? 0.85 : 1 }, on ? null : shadow.card]}
               >
                 <Txt w="b" size={13} color={on ? c.accent : c.text}>
                   {r.name}
@@ -101,7 +115,7 @@ export function FoodCoach() {
             accessibilityLabel="Somewhere else"
             accessibilityState={{ selected: elsewhere }}
             onPress={() => setRestaurantId(elsewhere ? RESTAURANTS[0].id : ELSEWHERE)}
-            style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: elsewhere ? c.accent : c.border, backgroundColor: elsewhere ? c.accentSurface : c.card }}
+            style={({ pressed }) => ({ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 13, borderWidth: 1.5, borderStyle: 'dashed', borderColor: elsewhere ? c.accent : c.slate300, backgroundColor: elsewhere ? c.accentSurface : c.surface2, opacity: pressed ? 0.85 : 1 })}
           >
             <Txt w="b" size={13} color={elsewhere ? c.accent : c.textSecondary}>
               Somewhere else
@@ -111,11 +125,11 @@ export function FoodCoach() {
 
         {/* budget — only meaningful when ordering off a real menu */}
         {!elsewhere ? (
-          <Row style={{ gap: 10, marginTop: 12, alignItems: 'center' }}>
-            <Txt w="b" size={14} color={c.textSecondary}>
+          <Row style={{ gap: 10, marginTop: 14, alignItems: 'center' }}>
+            <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper>
               Budget
             </Txt>
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, height: 44, borderRadius: 13, backgroundColor: c.bg, paddingHorizontal: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, height: 46, borderRadius: 13, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, paddingHorizontal: 14 }}>
               <Txt w="b" size={15} color={c.textTertiary}>
                 $
               </Txt>
@@ -134,7 +148,7 @@ export function FoodCoach() {
 
         {elsewhere ? (
           /* off-menu fallback — goal-aware "build your plate" guidance, then log it */
-          <Reveal index={0}>
+          <Reveal index={1}>
             <GuidanceCard
               guidance={guidance}
               onLog={() => { s.closeFoodCoach(); s.openMeal(); }}
@@ -143,7 +157,7 @@ export function FoodCoach() {
         ) : (
           <>
             {/* recommended order — owns the visual weight */}
-            <Reveal index={0}>
+            <Reveal index={1}>
               <OrderCard order={result.primary} byAI={byAI} onUse={() => useOrder(result.primary)} />
             </Reveal>
 
@@ -179,10 +193,10 @@ export function FoodCoach() {
 function GuidanceCard({ guidance, onLog }: { guidance: GenericGuidance; onLog: () => void }) {
   const c = useColors();
   return (
-    <Card variant="hero" style={{ marginTop: 16, borderRadius: 20, borderWidth: 1.5, borderColor: c.accent }}>
-      <Row style={{ gap: 9, marginBottom: 10 }}>
-        <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="sparkle" size={16} color={c.accent} />
+    <Card variant="hero" style={{ marginTop: 16, borderRadius: 22, borderWidth: 1.5, borderColor: c.accent }}>
+      <Row style={{ gap: 10, marginBottom: 12 }}>
+        <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="sparkle" size={17} color={c.accent} />
         </View>
         <Txt w="eb" size={16} ls={-0.3} color={c.accent} style={{ flex: 1 }}>
           Build your plate
@@ -197,18 +211,22 @@ function GuidanceCard({ guidance, onLog }: { guidance: GenericGuidance; onLog: (
         {guidance.calorieCeiling ? <Stat value={`≤${guidance.calorieCeiling}`} label="CALORIES" /> : null}
       </Row>
 
-      <View style={{ marginTop: 14, gap: 8 }}>
+      <View style={{ marginTop: 14, gap: 10, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 14, padding: 13 }}>
         {guidance.pick.map((p) => (
-          <Row key={p} style={{ gap: 9, alignItems: 'flex-start' }}>
-            <Icon name="check" size={15} color={c.successDeep} />
+          <Row key={p} style={{ gap: 10, alignItems: 'flex-start' }}>
+            <View style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+              <Icon name="check" size={13} color={c.successDeep} />
+            </View>
             <Txt w="m" size={13} color={c.slate700} style={{ flex: 1, lineHeight: 19 }}>
               {p}
             </Txt>
           </Row>
         ))}
         {guidance.skip.map((sk) => (
-          <Row key={sk} style={{ gap: 9, alignItems: 'flex-start' }}>
-            <Icon name="close" size={15} color={c.textTertiary} />
+          <Row key={sk} style={{ gap: 10, alignItems: 'flex-start' }}>
+            <View style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+              <Icon name="close" size={13} color={c.textTertiary} />
+            </View>
             <Txt w="m" size={13} color={c.textSecondary} style={{ flex: 1, lineHeight: 19 }}>
               {sk}
             </Txt>
@@ -226,30 +244,37 @@ function OrderCard({ order, byAI, onUse }: { order: RecommendedOrder; byAI: bool
   if (order.lines.length === 0) return null;
   const t = order.totals;
   return (
-    <Card variant="hero" style={{ marginTop: 16, borderRadius: 20, borderWidth: 1.5, borderColor: c.accent }}>
+    <Card variant="hero" style={{ marginTop: 16, borderRadius: 22, borderWidth: 1.5, borderColor: c.accent }}>
       {/* Provenance chip: only when the AI actually reworded the explanation (byAI). Otherwise the
           card is the deterministic coach recommendation and shows no AI badge. */}
       {byAI ? (
-        <Row style={{ gap: 6, marginBottom: 8 }}>
+        <Row style={{ gap: 6, marginBottom: 10, alignSelf: 'flex-start', backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 }}>
           <Icon name="sparkle" size={13} color={c.accent} />
           <Txt w="eb" size={11} color={c.accent} ls={0.6}>{aiRestaurantCoachTag}</Txt>
         </Row>
       ) : null}
-      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <Txt w="eb" size={16} ls={-0.3} color={c.accent}>
-          Recommended order
-        </Txt>
-        <Txt w="b" num size={13} color={c.textTertiary}>
-          ${t.price.toFixed(2)}
-        </Txt>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <Row style={{ gap: 10, alignItems: 'center', flex: 1 }}>
+          <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="check" size={17} color={c.accent} />
+          </View>
+          <Txt w="eb" size={16} ls={-0.3} color={c.accent}>
+            Recommended order
+          </Txt>
+        </Row>
+        <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}>
+          <Txt w="eb" num size={13} color={c.slate700}>
+            ${t.price.toFixed(2)}
+          </Txt>
+        </View>
       </Row>
-      <View style={{ gap: 6 }}>
+      <View style={{ gap: 8, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 14, padding: 13 }}>
         {order.lines.map((l) => (
           <Row key={l.item.id} style={{ justifyContent: 'space-between' }}>
-            <Txt w="m" size={14} color={c.slate700} style={{ flex: 1 }}>
+            <Txt w="sb" size={14} color={c.slate700} style={{ flex: 1, paddingRight: 10 }}>
               {l.item.name}
             </Txt>
-            <Txt w="m" size={12} color={c.textTertiary}>
+            <Txt w="m" num size={12} color={c.textTertiary}>
               {l.item.protein}g · {l.item.calories} cal
             </Txt>
           </Row>
@@ -274,7 +299,7 @@ function AltRow({ label, order, expanded, onToggle, onUse }: { label: string; or
   if (order.lines.length === 0) return null;
   const t = order.totals;
   return (
-    <View style={[{ marginTop: 10, backgroundColor: c.card, borderRadius: 16, padding: 14 }, shadow.card]}>
+    <View style={[{ marginTop: 10, backgroundColor: c.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: expanded ? c.accentBorder : c.hairline }, shadow.card]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${label} option`} accessibilityState={{ expanded }} onPress={onToggle} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Txt w="b" size={14} style={{ flex: 1 }}>
@@ -283,21 +308,25 @@ function AltRow({ label, order, expanded, onToggle, onUse }: { label: string; or
           <Txt w="m" num size={12} color={c.textTertiary} style={{ marginRight: 8 }}>
             {t.protein}g · {t.calories}cal · ${t.price.toFixed(2)}
           </Txt>
-          <Icon name={expanded ? 'minus' : 'chevronRight'} size={18} color={c.slate300} />
+          <View style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }}>
+            <Icon name="chevronRight" size={18} color={c.slate300} />
+          </View>
         </Row>
       </Pressable>
       {expanded ? (
-        <View style={{ marginTop: 10, gap: 5 }}>
-          {order.lines.map((l) => (
-            <Row key={l.item.id} style={{ justifyContent: 'space-between' }}>
-              <Txt w="m" size={13} color={c.slate700} style={{ flex: 1 }}>
-                {l.item.name}
-              </Txt>
-              <Txt w="m" size={11} color={c.textTertiary}>
-                {l.item.protein}g · {l.item.calories} cal
-              </Txt>
-            </Row>
-          ))}
+        <View style={{ marginTop: 12 }}>
+          <View style={{ gap: 6, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 12, padding: 12 }}>
+            {order.lines.map((l) => (
+              <Row key={l.item.id} style={{ justifyContent: 'space-between' }}>
+                <Txt w="sb" size={13} color={c.slate700} style={{ flex: 1, paddingRight: 10 }}>
+                  {l.item.name}
+                </Txt>
+                <Txt w="m" num size={11} color={c.textTertiary}>
+                  {l.item.protein}g · {l.item.calories} cal
+                </Txt>
+              </Row>
+            ))}
+          </View>
           <Btn label="Use this order" onPress={onUse} style={{ marginTop: 10 }} />
         </View>
       ) : null}
@@ -334,11 +363,11 @@ function useRephrasedOrders(result: RecommendResult): { display: RecommendResult
 function Stat({ value, label }: { value: string; label: string }) {
   const c = useColors();
   return (
-    <View style={[{ flex: 1, backgroundColor: c.bg, borderRadius: 12, padding: 10 }, shadow.card]}>
+    <View style={{ flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 13, padding: 11 }}>
       <Txt w="eb" num size={16} color={c.accent}>
         {value}
       </Txt>
-      <Txt w="b" size={9} color={c.textTertiary} style={{ marginTop: 2 }}>
+      <Txt w="b" size={9} color={c.textTertiary} style={{ marginTop: 3 }}>
         {label}
       </Txt>
     </View>

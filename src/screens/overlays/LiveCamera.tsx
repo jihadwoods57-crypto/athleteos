@@ -56,9 +56,9 @@ function FallbackCard({
       onPress={() => { haptics.tap(); onPress(); }}
       style={[SQUARE, { backgroundColor: c.track, alignItems: 'center', justifyContent: 'center', padding: 24 }]}
     >
-      <Icon name="camera" size={40} color="#94A3B8" />
+      <Icon name="camera" size={40} color={c.textTertiary} />
       <Txt w="eb" size={15} color={c.slate700} style={{ marginTop: 12, textAlign: 'center' }}>{title}</Txt>
-      <Txt w="sb" size={13} color="#94A3B8" style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>{sub}</Txt>
+      <Txt w="sb" size={13} color={c.textTertiary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>{sub}</Txt>
       {cta ? (
         <View style={{ marginTop: 14, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, backgroundColor: c.accent }}>
           <Txt w="b" size={14} color={c.white}>{cta}</Txt>

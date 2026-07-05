@@ -40,7 +40,7 @@ import { useStore, useDerived } from '@/store';
 import { aiMemoryTag } from '@/lib/ai';
 import { db, isBackendLive } from '@/lib/supabase';
 import { isStreakGraceEnabled, isTrustPassEnabled } from '@/lib/features';
-import { gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
+import { ringGradient, tierChip, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Btn, Card, Input, PressScale, ProgressBar, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -169,23 +169,6 @@ export function Home() {
               <View style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: c.alert, borderWidth: 1.5, borderColor: c.card }} />
             ) : null}
           </Pressable>
-          <Row
-            accessibilityRole="text"
-            accessibilityLabel={streakLabel}
-            style={[{ gap: 6, backgroundColor: c.card, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 }, shadow.card]}
-          >
-            {/* Flame dims when the streak is at risk today (sub-threshold live score) so a bare "0"
-                never reads as a false green; a small dot marks a spent grace day. */}
-            <View>
-              <Icon name="flame" size={15} color={streakData.atRisk ? c.textTertiary : c.warning} />
-              {streakData.graceUsed ? (
-                <View style={{ position: 'absolute', top: -2, right: -3, width: 6, height: 6, borderRadius: 3, backgroundColor: c.accent, borderWidth: 1, borderColor: c.card }} />
-              ) : null}
-            </View>
-            <Txt w="eb" size={14} color={streakData.atRisk ? c.textTertiary : c.text} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-              {streak}
-            </Txt>
-          </Row>
           <Pressable accessibilityRole="button" accessibilityLabel="Profile" hitSlop={6} onPress={s.goProfile} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
             <Txt w="b" size={14} color={c.white} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {monogram}
@@ -229,52 +212,62 @@ export function Home() {
         </Row>
       ) : null}
 
-      {/* score hero — the one thing this screen is about, so it gets the deep `hero` float
-          while everything below sits `low`. That elevation contrast IS the hierarchy. */}
+      {/* score hero — the redesign's signature moment: a big CENTERED ring with the premium
+          green→cyan→blue gradient, the tier name inside, and the honest delta + streak beneath.
+          It gets the deep `hero` float while everything below sits `low` — that contrast IS the
+          hierarchy. The tier chip (not a red-to-green ring) carries status, so the ring stays
+          aspirational at every score. */}
       <Reveal index={0}>
-      <Card variant="hero" style={{ marginTop: 20, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 20, padding: 24 }}>
-        <Ring size={138} pct={shownScore} stroke={17} gradient={gradeRing[d.grade.g] ?? gradeRing.C} track={c.track}>
+      <Card variant="hero" style={{ marginTop: 20, borderRadius: 24, alignItems: 'center', padding: 26 }}>
+        <Txt w="b" size={13} color={c.textSecondary} ls={0.2} style={{ marginBottom: 6 }}>
+          OnStandard Score
+        </Txt>
+        <Ring size={208} pct={shownScore} stroke={19} gradient={ringGradient} track={c.track}>
           <Txt w="eb" num size={typeScale.display.size} ls={typeScale.display.ls} style={{ lineHeight: typeScale.display.lineHeight }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
             {shownScore}
           </Txt>
-          <View style={{ marginTop: 5, paddingHorizontal: 9, paddingVertical: 2, borderRadius: 7, backgroundColor: d.grade.bg }}>
-            <Txt w="eb" size={11} color={d.grade.c} ls={0.4} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-              GRADE {d.grade.g}
+          <View style={{ marginTop: 6, paddingHorizontal: 12, paddingVertical: 3, borderRadius: 9, backgroundColor: tierChip[d.tier.short].bg, borderWidth: 1, borderColor: tierChip[d.tier.short].border }}>
+            <Txt w="eb" size={13} color={tierChip[d.tier.short].fg} ls={0.2} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+              {d.tier.name}
             </Txt>
           </View>
         </Ring>
-        <View style={{ flex: 1 }}>
-          <Txt w="b" size={13} color={c.textSecondary}>
-            Execution Score
-          </Txt>
-          <Row style={{ gap: 6, marginTop: 7 }}>
-            {d.isDay0 ? (
-              // Day 0: no week to compare against, so show a starting-line frame instead of a
-              // fabricated "↓58 this week / trending down". Naming the reveal's baseline here
-              // keeps the onboarding promise ("your starting point is 49") and today's measured
-              // score reading as ONE story: baseline set, now go earn today.
-              <Txt w="b" size={13} color={c.accent}>
+        <Row style={{ gap: 8, marginTop: 18 }}>
+          {d.isDay0 ? (
+            // Day 0: no week to compare against, so show a starting-line frame instead of a
+            // fabricated "↓58 this week". Names the reveal's baseline so onboarding and today
+            // read as one story: baseline set, now go earn today.
+            <View style={{ paddingHorizontal: 13, paddingVertical: 7, borderRadius: 999, backgroundColor: c.accentSurface }}>
+              <Txt w="b" size={12.5} color={c.accent}>
                 {s.startScore != null ? `Starting today · baseline ${s.startScore}` : 'Starting today'}
               </Txt>
-            ) : (
-              <>
-                <Txt w="eb" size={15} color={d.deltaColor}>
-                  {d.deltaStr}
-                </Txt>
-                <Txt w="sb" size={13} color={c.textTertiary}>
-                  this week
-                </Txt>
-              </>
-            )}
+            </View>
+          ) : (
+            <Row style={{ gap: 5, alignItems: 'center', paddingHorizontal: 13, paddingVertical: 7, borderRadius: 999, backgroundColor: c.surface2 }}>
+              <Txt w="eb" size={12.5} color={d.deltaColor}>{d.deltaStr}</Txt>
+              <Txt w="sb" size={12.5} color={c.textTertiary}>this week</Txt>
+            </Row>
+          )}
+          {/* Streak pill: flame dims when at risk today so a bare "0" never reads as a false
+              green; a small dot marks a spent grace day. */}
+          <Row accessibilityRole="text" accessibilityLabel={streakLabel} style={{ gap: 5, alignItems: 'center', paddingHorizontal: 13, paddingVertical: 7, borderRadius: 999, backgroundColor: c.surface2 }}>
+            <View>
+              <Icon name="flame" size={13} color={streakData.atRisk ? c.textTertiary : c.warning} />
+              {streakData.graceUsed ? (
+                <View style={{ position: 'absolute', top: -2, right: -3, width: 6, height: 6, borderRadius: 3, backgroundColor: c.accent, borderWidth: 1, borderColor: c.card }} />
+              ) : null}
+            </View>
+            <Txt w="eb" size={12.5} color={streakData.atRisk ? c.textTertiary : c.text} maxFontSizeMultiplier={MAX_FONT_SCALE}>{streak}</Txt>
+            <Txt w="sb" size={12.5} color={c.textTertiary}>day{streak === 1 ? '' : 's'}</Txt>
           </Row>
-          <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 13, lineHeight: 20 }}>
-            {status.line}
+        </Row>
+        <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 16, lineHeight: 20, textAlign: 'center' }}>
+          {status.line}
+        </Txt>
+        <View style={{ marginTop: 12, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 9, backgroundColor: toneSurface }}>
+          <Txt w="b" size={12} color={toneText}>
+            {status.standingLabel}
           </Txt>
-          <View style={{ marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: toneSurface }}>
-            <Txt w="b" size={12} color={toneText}>
-              {status.standingLabel}
-            </Txt>
-          </View>
         </View>
       </Card>
       </Reveal>
@@ -896,13 +889,13 @@ function TrendChart({ series, flat }: { series: number[]; flat: boolean }) {
     <Svg viewBox={`0 0 ${box.width} ${box.height}`} width="100%" height={100} preserveAspectRatio="none" style={{ marginTop: 6 }}>
       <Defs>
         <LinearGradient id="trend" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#22C55E" stopOpacity="0.18" />
-          <Stop offset="1" stopColor="#22C55E" stopOpacity="0" />
+          <Stop offset="0" stopColor={c.success} stopOpacity="0.18" />
+          <Stop offset="1" stopColor={c.success} stopOpacity="0" />
         </LinearGradient>
       </Defs>
       <Path d={areaPath} fill="url(#trend)" />
-      <Path d={linePath} fill="none" stroke="#22C55E" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <Circle cx={last.x} cy={last.y} r={5.5} fill="#22C55E" stroke={c.card} strokeWidth={2.5} />
+      <Path d={linePath} fill="none" stroke={c.success} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={last.x} cy={last.y} r={5.5} fill={c.success} stroke={c.card} strokeWidth={2.5} />
     </Svg>
   );
 }

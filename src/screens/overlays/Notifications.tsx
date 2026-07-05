@@ -1,12 +1,20 @@
 // OnStandard — in-app notification inbox (NEW / EARLIER).
+// Dark-premium redesign: graded-urgency notification center. Each row carries a tinted
+// icon tile + status dot in its urgency color (positive→success, medium→accent,
+// high→warning, critical→alert), a bold title, a secondary body line, and a relative
+// timestamp; tapping routes to the source. This is a VISUAL port only — every store hook /
+// action (the feed source, read/seen/clear logic, routing on tap, close) is preserved, and
+// urgency is derived deterministically from each notification's existing `kind` (a pure
+// presentation transform, like Squad's posAbbr) — no new data, no fabricated notifications.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { notificationFeed } from '@/core';
 import type { AppNotification, FeedNotif } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
-import { shadow } from '@/ui/tokens';
+import { shadow, typeScale } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
+import type { ColorTheme } from '@/ui/tokens';
 import { PressScale, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
 import { Icon, IconName } from '@/icons';
 import { Overlay } from './Overlay';
@@ -24,14 +32,69 @@ function relTime(iso: string): string {
 
 const KIND_ICON: Record<string, IconName> = { join_request: 'squad', join_approved: 'trophy', nudge: 'bell' };
 
+/** Graded urgency level for a notification. Maps to a semantic token family in `urgencyPalette`:
+ *  positive → success (green), medium → accent (blue), high → warning (amber), critical → alert (red). */
+type Urgency = 'positive' | 'medium' | 'high' | 'critical';
+
+/** One urgency's resolved token set: the tinted-tile surface + icon color, and the unread
+ *  accent (row border tint + status dot). Read from the active dark palette, never hardcoded. */
+interface UrgencyStyle {
+  /** Icon-tile background. */
+  surface: string;
+  /** Icon glyph + status-dot color. */
+  fg: string;
+  /** Unread row border tint. */
+  border: string;
+}
+
+/** The four graded-urgency palettes, keyed off semantic dark tokens. Amber has no dedicated
+ *  *Surface token, so it borrows warnTint (its intended tinted surface); alert/success/accent
+ *  each use their own Surface + Border. This is the only place urgency → color is decided. */
+function urgencyPalette(c: ColorTheme): Record<Urgency, UrgencyStyle> {
+  return {
+    positive: { surface: c.successSurface, fg: c.success, border: c.successBorderSoft },
+    medium: { surface: c.accentSurface, fg: c.accent, border: c.accentBorder },
+    high: { surface: c.warnTint, fg: c.warningDeep, border: c.warnText },
+    critical: { surface: c.alertSurface, fg: c.alert, border: c.alertBorder },
+  };
+}
+
+/** Derive urgency from a real (backend) notification's `kind` — a pure presentation transform of
+ *  the existing field, adds no data. Approvals read positive, join requests are a normal-priority
+ *  ask, an explicit "urgent"/"alert" kind escalates to critical, and everything else (nudges, the
+ *  default) is a high-priority reminder. */
+function realUrgency(kind: string): Urgency {
+  if (/approv|accepted|granted|complete/i.test(kind)) return 'positive';
+  if (/urgent|alert|critical|expired|overdue/i.test(kind)) return 'critical';
+  if (/request|invite|join/i.test(kind)) return 'medium';
+  return 'high';
+}
+
+/** Derive urgency from a demo/offline feed item's typed `kind`. Wins already read positive
+ *  (score/coach note), the two live nudges (meal, hydration) are normal-priority actions, and
+ *  a due weekly ritual (check-in) reads high — the same intent the old per-kind styling carried,
+ *  now expressed on the shared urgency scale. */
+function feedUrgency(kind: FeedNotif['kind']): Urgency {
+  switch (kind) {
+    case 'score':
+    case 'coachNote':
+      return 'positive';
+    case 'checkin':
+      return 'high';
+    case 'meal':
+    case 'hydration':
+      return 'medium';
+  }
+}
+
 /** A real (backend) notification rendered through the shared NotifCard. Unread rows are
- *  tappable (tap = mark read); read rows are flat. */
+ *  tappable (tap = mark read); read rows are flat. Urgency is derived from its kind. */
 function RealNotifCard({ n, onPress }: { n: AppNotification; onPress?: () => void }) {
-  const c = useColors();
   return (
     <NotifCard
       icon={KIND_ICON[n.kind] ?? 'bell'}
-      accent={n.readAt ? undefined : c.accent}
+      urgency={realUrgency(n.kind)}
+      unread={!n.readAt}
       title={n.title}
       time={relTime(n.createdAt)}
       text={n.body ?? ''}
@@ -70,7 +133,7 @@ export function Notifications() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {unread.length > 0 ? (
             <>
-              <SectionLabel>NEW</SectionLabel>
+              <SectionLabel count={unread.length}>NEW</SectionLabel>
               <View style={{ gap: 10 }}>
                 {unread.map((n) => (
                   <RealNotifCard key={n.id} n={n} onPress={() => void s.markNotificationRead(n.id)} />
@@ -80,7 +143,7 @@ export function Notifications() {
           ) : null}
           {earlier.length > 0 ? (
             <>
-              <SectionLabel style={{ marginTop: unread.length > 0 ? 20 : 0 }}>EARLIER</SectionLabel>
+              <SectionLabel style={{ marginTop: unread.length > 0 ? 22 : 0 }}>EARLIER</SectionLabel>
               <View style={{ gap: 10 }}>
                 {earlier.map((n) => (
                   <RealNotifCard key={n.id} n={n} />
@@ -105,13 +168,15 @@ export function Notifications() {
   });
   const actionFor = (a: FeedNotif['action']) =>
     a === 'checkin' ? go(s.goCheckin) : a === 'meal' ? go(s.openMeal) : a === 'squad' ? go(s.goSquad) : undefined;
-  const styleFor = (kind: FeedNotif['kind']): { icon?: IconName; initials?: boolean; accent: string; iconBg?: string; iconColor?: string } => {
+  // A coach-note row keeps its human-monogram tile (a person, not a status glyph); everything
+  // else takes the typed icon. Urgency (below) drives the tile TINT for both.
+  const styleFor = (kind: FeedNotif['kind']): { icon?: IconName; initials?: boolean } => {
     switch (kind) {
-      case 'checkin': return { icon: 'checkin', accent: c.accent };
-      case 'meal': return { icon: 'camera', accent: c.accent };
-      case 'score': return { icon: 'trophy', accent: c.success, iconBg: c.successSurface, iconColor: c.successDeep };
-      case 'hydration': return { icon: 'drop', accent: c.hydration, iconColor: c.hydration };
-      case 'coachNote': return { initials: true, accent: c.accent };
+      case 'checkin': return { icon: 'checkin' };
+      case 'meal': return { icon: 'camera' };
+      case 'score': return { icon: 'trophy' };
+      case 'hydration': return { icon: 'drop' };
+      case 'coachNote': return { initials: true };
     }
   };
   const newItems = feed.filter((n) => n.section === 'new');
@@ -121,11 +186,11 @@ export function Notifications() {
     <Overlay title="Notifications" onClose={s.closeNotif} right={<Pressable accessibilityRole="button" accessibilityLabel="Clear notifications" hitSlop={8} onPress={s.closeNotif}><Txt w="b" size={13} color={c.accent}>Clear</Txt></Pressable>}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {feed.length === 0 ? (
-          <View style={{ marginTop: 40, alignItems: 'center', paddingHorizontal: 24 }}>
-            <View style={{ width: 52, height: 52, borderRadius: 15, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="check" size={24} color={c.successDeep} />
+          <View style={{ marginTop: 48, alignItems: 'center', paddingHorizontal: 24 }}>
+            <View style={{ width: 58, height: 58, borderRadius: 17, backgroundColor: c.successSurface, borderWidth: 1, borderColor: c.successBorderSoft, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="check" size={26} color={c.success} />
             </View>
-            <Txt w="eb" size={16} style={{ marginTop: 14, textAlign: 'center' }}>You&apos;re all caught up</Txt>
+            <Txt w="eb" size={17} ls={-0.3} style={{ marginTop: 16, textAlign: 'center' }}>You&apos;re all caught up</Txt>
             <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
               No reminders right now. We&apos;ll nudge you when your check-in or next meal is due.
             </Txt>
@@ -134,7 +199,7 @@ export function Notifications() {
           <>
             {newItems.length > 0 ? (
               <>
-                <SectionLabel>NEW</SectionLabel>
+                <SectionLabel count={newItems.length}>NEW</SectionLabel>
                 <Reveal index={0}>
                 <View style={{ gap: 10 }}>
                   {newItems.map((n) => {
@@ -144,9 +209,8 @@ export function Notifications() {
                         key={n.key}
                         icon={st.icon}
                         initials={st.initials ? n.initials : undefined}
-                        accent={st.accent}
-                        iconBg={st.iconBg}
-                        iconColor={st.iconColor}
+                        urgency={feedUrgency(n.kind)}
+                        unread
                         title={n.title}
                         time={n.time}
                         text={n.text}
@@ -160,7 +224,7 @@ export function Notifications() {
             ) : null}
             {earlier.length > 0 ? (
               <>
-                <SectionLabel style={{ marginTop: newItems.length > 0 ? 20 : 0 }}>EARLIER</SectionLabel>
+                <SectionLabel style={{ marginTop: newItems.length > 0 ? 22 : 0 }}>EARLIER</SectionLabel>
                 <Reveal index={1}>
                 <View style={{ gap: 10 }}>
                   {earlier.map((n) => {
@@ -170,9 +234,8 @@ export function Notifications() {
                         key={n.key}
                         icon={st.icon}
                         initials={st.initials ? n.initials : undefined}
-                        accent={st.accent}
-                        iconBg={st.iconBg}
-                        iconColor={st.iconColor}
+                        urgency={feedUrgency(n.kind)}
+                        unread={false}
                         title={n.title}
                         time={n.time}
                         text={n.text}
@@ -191,31 +254,70 @@ export function Notifications() {
   );
 }
 
-function SectionLabel({ children, style }: { children: React.ReactNode; style?: any }) {
+/** Section header ("NEW" / "EARLIER"), with an optional count chip on the left group so the
+ *  unread total reads at a glance — the premium touch the flat label lacked. */
+function SectionLabel({ children, count, style }: { children: React.ReactNode; count?: number; style?: any }) {
   const c = useColors();
   return (
-    <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={[{ marginVertical: 10, marginLeft: 4 }, style]}>
-      {children}
-    </Txt>
+    <Row style={[{ gap: 8, alignItems: 'center', marginVertical: 12, marginLeft: 4 }, style]}>
+      <Txt w="eb" size={typeScale.overline.size} color={c.textTertiary} ls={typeScale.overline.ls}>
+        {children}
+      </Txt>
+      {count && count > 0 ? (
+        <View style={{ minWidth: 20, paddingHorizontal: 6, height: 18, borderRadius: 9, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt w="eb" num size={10.5} color={c.accent}>{count}</Txt>
+        </View>
+      ) : null}
+    </Row>
   );
 }
 
-function NotifCard({ icon, initials, accent, iconBg, iconColor, title, time, text, onPress }: { icon?: IconName; initials?: string; accent?: string; iconBg?: string; iconColor?: string; title: string; time: string; text: string; onPress?: () => void }) {
+function NotifCard({
+  icon,
+  initials,
+  urgency,
+  unread,
+  title,
+  time,
+  text,
+  onPress,
+}: {
+  icon?: IconName;
+  initials?: string;
+  urgency: Urgency;
+  unread: boolean;
+  title: string;
+  time: string;
+  text: string;
+  onPress?: () => void;
+}) {
   const c = useColors();
-  // No side-stripe (a project design-law ban) — the tinted icon square already carries the
-  // accent. Unread rows get a full accent hairline + a subtle unread dot instead.
-  const unread = !!accent && !!onPress;
-  const boxStyle = { flexDirection: 'row' as const, gap: 13, backgroundColor: c.card, borderRadius: 16, padding: 15, borderWidth: 1, borderColor: unread ? c.accentBorder : c.border };
+  const u = urgencyPalette(c)[urgency];
+  // No side-stripe (a project design-law ban) — the urgency is carried by the tinted icon tile
+  // and, on unread rows, a matching status dot + a tinted row border. A coach-note tile keeps
+  // the solid-text monogram treatment (a person), so its glyph stays readable on the tile.
+  const boxStyle = {
+    flexDirection: 'row' as const,
+    gap: 13,
+    backgroundColor: c.card,
+    borderRadius: 16,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: unread ? u.border : c.border,
+  };
+  const tileBg = initials ? c.text : u.surface;
+  const glyph = initials ? c.white : u.fg;
   const body = (
     <>
-      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: initials ? c.text : iconBg ?? c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-        {initials ? <Txt w="b" size={13} color={c.white}>{initials}</Txt> : <Icon name={icon!} size={19} color={iconColor ?? c.accent} />}
+      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: tileBg, alignItems: 'center', justifyContent: 'center' }}>
+        {initials ? <Txt w="b" size={13} color={glyph}>{initials}</Txt> : <Icon name={icon!} size={19} color={glyph} />}
       </View>
       <View style={{ flex: 1 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Row style={{ gap: 7, alignItems: 'center', flex: 1 }}>
-            {unread ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.accent }} /> : null}
-            <Txt w="b" size={14}>
+            {/* Unread status dot in the row's graded-urgency color. */}
+            {unread ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: u.fg }} /> : null}
+            <Txt w="b" size={14} style={{ flexShrink: 1 }}>
               {title}
             </Txt>
           </Row>

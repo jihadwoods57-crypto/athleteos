@@ -31,7 +31,7 @@ import { aiPrefix, isAiConfigured } from '@/lib/ai';
 import { useStore } from '@/store';
 import type { Store } from '@/store';
 import { useColors, useTheme } from '@/ui/theme';
-import { Btn, Card, Input, PasswordInput, ProgressBar, Row, SampleTag, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Card, Input, PasswordInput, ProgressBar, Reveal, Row, SampleTag, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
 import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
 import { useReduceMotion } from '@/ui/useReduceMotion';
@@ -72,7 +72,7 @@ function StepShell({
                 haptics.tap();
                 onBack();
               }}
-              style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 13, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+              style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 14, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
             >
               <Icon name="chevronLeft" size={22} color={c.slate600} />
             </Pressable>
@@ -89,20 +89,22 @@ function StepShell({
         </Row>
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 22, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-        {eyebrow ? (
-          <Txt w="eb" size={12} color={c.accent} ls={1} upper style={{ marginBottom: 10 }}>
-            {eyebrow}
+        <Reveal index={0}>
+          {eyebrow ? (
+            <Txt w="eb" size={12} color={c.accent} ls={1} upper style={{ marginBottom: 10 }}>
+              {eyebrow}
+            </Txt>
+          ) : null}
+          <Txt w="eb" size={28} ls={-0.8} style={{ lineHeight: 32 }}>
+            {title}
           </Txt>
-        ) : null}
-        <Txt w="eb" size={28} ls={-0.8} style={{ lineHeight: 32 }}>
-          {title}
-        </Txt>
-        {sub ? (
-          <Txt w="m" size={15} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 21 }}>
-            {sub}
-          </Txt>
-        ) : null}
-        <View style={{ marginTop: 24 }}>{children}</View>
+          {sub ? (
+            <Txt w="m" size={15} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 21 }}>
+              {sub}
+            </Txt>
+          ) : null}
+        </Reveal>
+        <Reveal index={1} style={{ marginTop: 24 }}>{children}</Reveal>
       </ScrollView>
       <View style={{ paddingHorizontal: 24, paddingBottom: 34, paddingTop: 6 }}>{footer}</View>
     </View>
@@ -122,15 +124,16 @@ function OptionRow({ label, selected, onPress, sub }: { label: string; selected:
         onPress();
       }}
       style={({ pressed }) => ({
-        backgroundColor: selected ? c.accentSurface : c.card,
+        backgroundColor: selected ? c.accentSurface : c.surface2,
         borderWidth: 1.5,
-        borderColor: selected ? c.accent : c.border,
-        borderRadius: 16,
+        borderColor: selected ? c.accent : c.hairline,
+        borderRadius: 18,
         paddingVertical: 17,
         paddingHorizontal: 18,
         marginBottom: 10,
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 12,
         opacity: pressed ? 0.92 : 1,
       })}
     >
@@ -144,7 +147,7 @@ function OptionRow({ label, selected, onPress, sub }: { label: string; selected:
           </Txt>
         ) : null}
       </View>
-      <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: selected ? c.accent : c.border, backgroundColor: selected ? c.accent : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: selected ? c.accent : c.slate300, backgroundColor: selected ? c.accent : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
         {selected ? <Icon name="check" size={13} color={c.white} /> : null}
       </View>
     </Pressable>
@@ -253,7 +256,7 @@ function SignIn() {
         }
       >
         {resetSent ? (
-          <Card style={{ marginTop: 6 }} elevated>
+          <Card variant="low" style={{ marginTop: 6, borderRadius: 20 }}>
             <Txt w="sb" size={15} color={c.slate700} style={{ lineHeight: 22 }}>
               If an account exists for that email, a reset link is on its way. Check your inbox (and spam).
             </Txt>
@@ -359,9 +362,9 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
         sub={pending ? 'We sent a confirmation link to keep your account secure.' : 'Your account is ready to go.'}
         footer={<Btn label="Continue" haptic="success" onPress={onDone} />}
       >
-        <Card style={{ marginTop: 6 }} elevated>
-          <Row style={{ gap: 10 }}>
-            <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+        <Card variant="low" style={{ marginTop: 6, borderRadius: 20 }}>
+          <Row style={{ gap: 12 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name={pending ? 'bell' : 'check'} size={19} color={c.accent} />
             </View>
             <Txt w="sb" size={14} color={c.slate700} style={{ flex: 1, lineHeight: 20 }}>
@@ -454,11 +457,11 @@ function RolePicker() {
               setRole(r.key);
             }}
             style={({ pressed }) => ({
-              backgroundColor: selected ? c.accentSurface : c.card,
+              backgroundColor: selected ? c.accentSurface : c.surface2,
               borderWidth: 1.5,
-              borderColor: selected ? c.accent : c.border,
-              borderRadius: 16,
-              padding: 15,
+              borderColor: selected ? c.accent : c.hairline,
+              borderRadius: 18,
+              padding: 16,
               marginBottom: 10,
               flexDirection: 'row',
               alignItems: 'center',
@@ -466,7 +469,7 @@ function RolePicker() {
               opacity: pressed ? 0.92 : 1,
             })}
           >
-            <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: selected ? c.accent : c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: selected ? c.accent : c.surface3, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name={r.icon as IconName} size={21} color={selected ? c.white : c.slate600} />
             </View>
             <View style={{ flex: 1 }}>
@@ -524,7 +527,7 @@ function AthleteFlow() {
                       accessibilityLabel={o.label}
                       accessibilityState={{ selected: sel }}
                       onPress={() => { haptics.select(); s.setPrimaryGoal(o.key); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, borderRadius: 13, paddingVertical: 12, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
+                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.surface2, borderWidth: 1.5, borderColor: sel ? c.accent : c.hairline, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16, opacity: pressed ? 0.9 : 1 })}
                     >
                       <Txt w="b" size={14} color={sel ? c.white : c.slate700}>
                         {o.label}
@@ -563,7 +566,7 @@ function AthleteFlow() {
                   accessibilityLabel={sp}
                   accessibilityState={{ selected: sel }}
                   onPress={() => { haptics.select(); s.setSport(sp); }}
-                  style={({ pressed }) => ({ width: '31.5%', backgroundColor: sel ? c.accent : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, borderRadius: 14, paddingVertical: 18, alignItems: 'center', opacity: pressed ? 0.9 : 1 })}
+                  style={({ pressed }) => ({ width: '31.5%', backgroundColor: sel ? c.accent : c.surface2, borderWidth: 1.5, borderColor: sel ? c.accent : c.hairline, borderRadius: 16, paddingVertical: 18, alignItems: 'center', opacity: pressed ? 0.9 : 1 })}
                 >
                   <Txt w="b" size={14} color={sel ? c.white : c.slate700}>
                     {sp}
@@ -587,7 +590,7 @@ function AthleteFlow() {
                       accessibilityLabel={p}
                       accessibilityState={{ selected: sel }}
                       onPress={() => { haptics.select(); s.setPosition(p); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, borderRadius: 13, paddingVertical: 13, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
+                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.surface2, borderWidth: 1.5, borderColor: sel ? c.accent : c.hairline, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
                     >
                       <Txt w="b" size={15} color={sel ? c.white : c.slate700}>
                         {p}
@@ -655,7 +658,7 @@ function AthleteFlow() {
                       accessibilityLabel={o.label}
                       accessibilityState={{ selected: sel }}
                       onPress={() => { haptics.select(); s.setBaseAnswer('baseProteinFreq', Number(o.key)); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.card, borderWidth: 1.5, borderColor: sel ? c.accent : c.border, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 15, opacity: pressed ? 0.9 : 1 })}
+                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.surface2, borderWidth: 1.5, borderColor: sel ? c.accent : c.hairline, borderRadius: 13, paddingVertical: 12, paddingHorizontal: 16, opacity: pressed ? 0.9 : 1 })}
                     >
                       <Txt w="b" size={14} color={sel ? c.white : c.slate700}>{o.label}</Txt>
                     </Pressable>
@@ -749,7 +752,7 @@ function AthleteFlow() {
           {/* Age is confirmed HERE, at the moment it decides the guardian requirement, not silently
               defaulted from the earlier "About you" step (COPPA gate — audit/founder fix). isMinor
               recomputes reactively as this changes, so the screen switches between adult/minor. */}
-          <Card style={{ marginTop: 6 }} elevated>
+          <Card variant="low" style={{ marginTop: 6, borderRadius: 20 }}>
             <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
               Confirm your age
             </Txt>
@@ -758,7 +761,7 @@ function AthleteFlow() {
               Under 18 needs a parent or guardian&apos;s approval before anything is shared with a coach.
             </Txt>
           </Card>
-          <Card style={{ marginTop: 14 }} elevated>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
             <Txt w="m" size={15} color={c.slate700} style={{ lineHeight: 22 }}>
               {consentSummary(minor)}
             </Txt>
@@ -824,8 +827,8 @@ function AthleteFlow() {
             : 'Log your meal and your nutrition coach scores it and shows you exactly what to do next, instantly.'}
           footer={<Btn label="Start now" haptic="success" onPress={s.startFirstMealChallenge} />}
         >
-          <Card style={{ alignItems: 'center', paddingVertical: 34, marginTop: 6 }} elevated>
-            <View style={{ width: 86, height: 86, borderRadius: 28, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Card variant="hero" style={{ alignItems: 'center', paddingVertical: 34, marginTop: 6, borderRadius: 24 }}>
+            <View style={{ width: 86, height: 86, borderRadius: 28, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="camera" size={38} color={c.accent} />
             </View>
             <Txt w="eb" size={17} style={{ marginTop: 16 }}>
@@ -882,7 +885,7 @@ function MiniRound({ glyph, onPress }: { glyph: string; onPress: () => void }) {
       accessibilityLabel={glyph === '+' ? 'Increase' : 'Decrease'}
       hitSlop={8}
       onPress={() => { haptics.select(); onPress(); }}
-      style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 14, backgroundColor: c.card, borderWidth: 1.5, borderColor: c.border, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}
+      style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 14, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}
     >
       <Txt w="b" size={24} color={c.accent}>{glyph}</Txt>
     </Pressable>
@@ -955,7 +958,7 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
             : <Btn label="Go to your dashboard" haptic="success" onPress={s.finishOb} />
         }
       >
-        <Card style={{ marginTop: 6 }} elevated>
+        <Card variant="low" style={{ marginTop: 6, borderRadius: 20 }}>
           <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} upper>
             {realCode ? step.codeLabel : 'Example team code'}
           </Txt>
@@ -963,7 +966,7 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
             <Txt w="eb" size={26} ls={1}>
               {s.teamCode || 'EAGLES24'}
             </Txt>
-            <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="copy" size={19} color={c.accent} />
             </View>
           </Row>
@@ -1102,7 +1105,7 @@ function OrgPicker({ step, progress }: { step: Extract<GenStep, { kind: 'orgpick
               accessibilityRole="button"
               accessibilityLabel={`Add ${term}`}
               onPress={addNew}
-              style={({ pressed }) => ({ borderWidth: 1.5, borderColor: c.border, borderStyle: 'dashed', borderRadius: 16, paddingVertical: 15, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
+              style={({ pressed }) => ({ backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.accentBorder, borderStyle: 'dashed', borderRadius: 18, paddingVertical: 15, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
             >
               <Txt w="b" size={15} color={c.accent}>{busy ? 'Adding…' : `+ Add “${term}”`}</Txt>
               <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 2 }}>Not in the list? Add your school or club.</Txt>

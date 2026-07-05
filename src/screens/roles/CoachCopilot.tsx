@@ -5,8 +5,9 @@
 import React from 'react';
 import { View } from 'react-native';
 import { narrateCopilotResult, isAssistConfigured } from '@/lib/ai/assist';
-import { runCopilotTool } from '@/core';
+import { runCopilotTool, tierFor } from '@/core';
 import type { AtRiskInput, CopilotQuery, CopilotResult, NutritionSummary } from '@/core';
+import { tierChip } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Pressable, Row, Txt } from '@/ui/primitives';
 import { Icon } from '@/icons';
@@ -55,29 +56,41 @@ export function CoachCopilot({ roster }: { roster: AtRiskInput[] }) {
 
   return (
     <Card variant="low" style={{ borderRadius: 20 }}>
-      <Row style={{ gap: 9, marginBottom: 12, alignItems: 'center' }}>
-        <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+      <Row style={{ gap: 10, marginBottom: 12, alignItems: 'center' }}>
+        <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="sparkle" size={17} color={c.accent} />
         </View>
-        <Txt w="eb" size={12} color={c.accent} ls={0.4}>{isAssistConfigured ? 'AI COPILOT' : 'COPILOT'}</Txt>
+        <Txt w="eb" size={11} color={c.textTertiary} ls={0.8}>{isAssistConfigured ? 'AI COPILOT' : 'COPILOT'}</Txt>
       </Row>
-      <Txt w="m" size={12} color={c.textSecondary} style={{ marginBottom: 12, lineHeight: 18 }}>
+      <Txt w="m" size={12} color={c.textSecondary} style={{ marginBottom: 14, lineHeight: 18 }}>
         Ask about your roster. Answers are computed from your own numbers.
       </Txt>
 
       <Row style={{ flexWrap: 'wrap', gap: 8 }}>
-        {QUESTIONS.map((q) => (
-          <Pressable
-            key={q.label}
-            accessibilityRole="button"
-            accessibilityLabel={q.label}
-            onPress={() => ask(q)}
-            hitSlop={{ top: 8, bottom: 8 }}
-            style={{ paddingHorizontal: 12, paddingVertical: 11, borderRadius: 10, backgroundColor: active === q.label ? c.accent : c.bg2 }}
-          >
-            <Txt w="b" size={13} color={active === q.label ? c.white : c.slate700}>{q.label}</Txt>
-          </Pressable>
-        ))}
+        {QUESTIONS.map((q) => {
+          const on = active === q.label;
+          return (
+            <Pressable
+              key={q.label}
+              accessibilityRole="button"
+              accessibilityLabel={q.label}
+              accessibilityState={{ selected: on }}
+              onPress={() => ask(q)}
+              hitSlop={{ top: 8, bottom: 8 }}
+              style={({ pressed }) => ({
+                paddingHorizontal: 13,
+                paddingVertical: 11,
+                borderRadius: 11,
+                backgroundColor: on ? c.accent : c.surface2,
+                borderWidth: 1,
+                borderColor: on ? c.accent : c.hairline,
+                opacity: pressed ? 0.85 : 1,
+              })}
+            >
+              <Txt w="b" size={13} color={on ? c.white : c.slate700}>{q.label}</Txt>
+            </Pressable>
+          );
+        })}
       </Row>
 
       {result ? <CopilotAnswer result={result} /> : null}
@@ -90,9 +103,9 @@ function CopilotAnswer({ result }: { result: CopilotResult }) {
   const { tool, data, narration } = result;
 
   return (
-    <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 14 }}>
+    <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: c.hairline, paddingTop: 14 }}>
       {narration ? (
-        <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 21, marginBottom: 10 }}>{narration}</Txt>
+        <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 21, marginBottom: 12 }}>{narration}</Txt>
       ) : null}
 
       {tool === 'summarize_nutrition' ? (
@@ -110,16 +123,28 @@ function CopilotAnswer({ result }: { result: CopilotResult }) {
           const list = athletes(data);
           if (list.length === 0) return <Txt w="sb" size={14} color={c.textSecondary}>No one right now — all clear.</Txt>;
           return (
-            <View style={{ gap: 9 }}>
-              {list.slice(0, 6).map((a) => (
-                <Row key={a.name} style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                  <View style={{ flex: 1 }}>
-                    <Txt w="b" size={14}>{a.name}</Txt>
-                    {a.reason ? <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>{a.reason}</Txt> : null}
-                  </View>
-                  {typeof a.score === 'number' ? <Txt w="eb" num size={17} color={c.slate600}>{a.score}</Txt> : null}
-                </Row>
-              ))}
+            <View style={{ gap: 8 }}>
+              {list.slice(0, 6).map((a) => {
+                // A 0-100 score here takes tier coloring, so the room's state reads in color:
+                // green OnStandard → cyan Locked In → amber Building → red Off Standard.
+                const chip = typeof a.score === 'number' ? tierChip[tierFor(a.score).short] : null;
+                return (
+                  <Row
+                    key={a.name}
+                    style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 13, paddingVertical: 11, paddingHorizontal: 13 }}
+                  >
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Txt w="b" size={14} numberOfLines={1}>{a.name}</Txt>
+                      {a.reason ? <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2, lineHeight: 16 }}>{a.reason}</Txt> : null}
+                    </View>
+                    {chip ? (
+                      <View style={{ minWidth: 42, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10, backgroundColor: chip.bg, borderWidth: 1, borderColor: chip.border, alignItems: 'center' }}>
+                        <Txt w="eb" num size={16} color={chip.fg}>{a.score}</Txt>
+                      </View>
+                    ) : null}
+                  </Row>
+                );
+              })}
             </View>
           );
         })()
