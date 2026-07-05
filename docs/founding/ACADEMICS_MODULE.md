@@ -81,6 +81,11 @@ New state (`src/core/types.ts`, seeded in `defaultState.ts`, persisted via a new
 Pillar-enablement flag per account (`enabledPillars: ('nutrition'|'academics')[]`) drives whether
 the composite renders.
 
+**Group thread:** extend `ChatWho` (`'ai'|'coach'|'athlete'|'advisor'|'me'|'them'` — add
+`'advisor'`), add **`academicChat: ChatMsg[]`** (parallel to `mealChat`), and a program-level
+**`academicThreadParticipants`** config (which optional roles — coach/parent — may join the
+default three).
+
 ---
 
 ## 4. Features & ingestion
@@ -125,6 +130,29 @@ grade), model rephrases and never adds. **Premium entitlement** (like the Assist
 
 ---
 
+### The academic group thread (AI advisor + advisor + player)
+
+The academic parallel to the nutrition **meal-review thread** ([`mealChat`](../../src/core/types.ts#L446),
+[MealReview.tsx](../../src/screens/overlays/MealReview.tsx)): a group chat where the **AI advisor
+assistant + the human advisor + the player** talk in one place — and the natural home where the
+Advisor Assistant's one-tap outreach *lands*.
+
+- **Flow:** the AI assistant drafts/opens (grounded in the athlete's execution data — *"2
+  assignments due Friday, calc exam Thursday, what's the plan tonight?"*, never a grade); the
+  human advisor edits/approves/adds their own voice; the player replies — in the same app they
+  already use for nutrition, not a new silo.
+- **Participants — configurable per program.** Core three always present (AI assistant, advisor,
+  athlete). Each club/school may add **coach** and/or **parent** via a program-level config
+  (`academicThreadParticipants`) — same platform-owns-structure / program-owns-setting pattern as
+  the pillar weights. Default = the three.
+- **Safeguards carried over, unchanged:** the **minor-messaging gate**
+  ([`messagingAllowed`](../../src/core/messaging.ts) / RLS 0006) applies **per participant**, so
+  adding a voice can never bypass authorization; the AI narrates computed *execution + risk* facts
+  and never fabricates; real users get an **honest empty thread** (never fabricated speech from a
+  real minor).
+- **Anchoring:** a message may reference a specific deliverable/checkpoint (*"re: your Bio lab"*)
+  or live in the standing academic thread — mirrors meal-anchored comments.
+
 ## 5. Screen inventory
 
 | Surface | New / changed | Reuses |
@@ -133,6 +161,7 @@ grade), model rephrases and never adds. **Premium entitlement** (like the Assist
 | **Home** (athlete) | Changed — Development composite + Nutrition & Academics pillar rings; "What's in this score?" extends to pillars | [Home.tsx](../../src/screens/athlete/Home.tsx), [SCORE_WEIGHTS](../../src/core/scoring.ts) |
 | **Onboarding** | New step — "upload your schedule" | [ScoreReveal.tsx](../../src/screens/onboarding/ScoreReveal.tsx), `onboarding/flows.ts` |
 | **Advisor view** | New role view — the **Advisor Assistant** (brief + triage queue + one-tap outreach + checkpoint-confirm), execution + risk **not GPA** | [AssistantBriefCard.tsx](../../src/screens/roles/AssistantBriefCard.tsx) + TriageQueue, [CoachView.tsx](../../src/screens/roles/CoachView.tsx) |
+| **Academic group thread** | New — AI advisor + advisor + player (configurable coach/parent); AI drafts, advisor sends, player replies | [MealReview.tsx](../../src/screens/overlays/MealReview.tsx) / [Messages.tsx](../../src/screens/overlays/Messages.tsx), `mealChat` |
 | **Coach view** | Changed — eligibility column (🟢🟡🔴) on the roster | [CoachView.tsx](../../src/screens/roles/CoachView.tsx) |
 | **Parent view** | Changed — "going to class / passing / on track" surfaces alongside nutrition | [ParentView.tsx](../../src/screens/roles/ParentView.tsx) |
 
@@ -150,8 +179,11 @@ grade), model rephrases and never adds. **Premium entitlement** (like the Assist
 5. **Advisor Assistant** — `core/advisorBrief` (deterministic facts) + `advisor_brief` assist task
    + `BRIEF_SYSTEM` variant; render via the existing AssistantBriefCard + TriageQueue; eligibility
    risk flag via existing notifications/push. Gated behind a premium entitlement.
-6. **Checkpoint reconciliation** flow + provisional/verified labeling + score true-up.
-7. **Coach dashboard** eligibility column; parent surfaces.
+6. **Academic group thread** — extend `ChatWho` (+`'advisor'`), `academicChat`,
+   `academicThreadParticipants` config, an `advisor_thread` assist task (AI drafts from execution
+   context), thread surface reusing MealReview/Messages; minor-gate applied per participant.
+7. **Checkpoint reconciliation** flow + provisional/verified labeling + score true-up.
+8. **Coach dashboard** eligibility column; parent surfaces.
 
 ---
 
