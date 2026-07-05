@@ -16,7 +16,7 @@ import { Image, ScrollView, View } from 'react-native';
 import type { MealCommentRow } from '@/lib/supabase';
 import { db, isBackendLive } from '@/lib/supabase';
 import { useStore } from '@/store';
-import { flowForRole } from '@/core';
+import { experienceKind, flowForRole, overseerNoun as overseerNounFor } from '@/core';
 import { aiCoachName } from '@/lib/ai';
 import { useColors } from '@/ui/theme';
 import { Card, Input, Pressable, Row, Txt } from '@/ui/primitives';
@@ -44,16 +44,14 @@ export function MealReview() {
   const viewerRole: 'athlete' | 'coach' = review && viewerId === review.athleteId ? 'athlete' : 'coach';
   // The overseer's noun for user-facing copy: a trainer's comment must never read "Coach".
   // The stored `meal_comments.role` stays the coach/athlete overseer split (RLS-shaped); only
-  // the DISPLAY is role-tailored. When we're the overseer we know our own role; when the
-  // athlete reads the thread we infer it from their support team (2026-07-04 role tailoring).
+  // the DISPLAY is role-tailored. When WE are the overseer we know our own role; when the
+  // athlete reads the thread we defer to roleVoice.overseerNoun (the canonical split by
+  // experience + support team) rather than re-deriving it here (2026-07-04 role tailoring).
+  const cap = (w: 'coach' | 'trainer') => (w === 'trainer' ? 'Trainer' : 'Coach');
   const overseerNoun =
     viewerRole === 'coach'
-      ? flowForRole(s.role) === 'trainer'
-        ? 'Trainer'
-        : 'Coach'
-      : s.supportTeam.includes('trainer') && !s.supportTeam.includes('coach')
-        ? 'Trainer'
-        : 'Coach';
+      ? cap(flowForRole(s.role) === 'trainer' ? 'trainer' : 'coach')
+      : cap(overseerNounFor(experienceKind(s.scoringProfile), s.supportTeam));
 
   // The photo, via the same signed-URL seam MealCardItem uses.
   React.useEffect(() => {
