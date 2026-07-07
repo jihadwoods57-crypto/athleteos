@@ -12,6 +12,7 @@ import { useColors } from '@/ui/theme';
 import { Card, Row, Toggle, Txt, Pressable, PressScale, Reveal } from '@/ui/primitives';
 import { Icon, IconName } from '@/icons';
 import { haptics } from '@/ui/haptics';
+import { buildLine } from '@/lib/buildInfo';
 import { Overlay } from './Overlay';
 
 /** Section eyebrow — the proto's `.eyebrow`: 11/800, 0.14em tracking, uppercase, text-3. */
@@ -241,9 +242,17 @@ export function Account() {
             Sign out
           </Txt>
         </Pressable>
-        <Txt w="sb" size={12} color={c.textSecondary} style={{ textAlign: 'center', marginTop: 16 }}>
-          OnStandard · {APP_VERSION}
-        </Txt>
+        {/* Version + build stamp. The second line is the exact commit this binary
+            was built from (+ its OTA channel) — so you can confirm at a glance
+            that your phone is running the newest code, not a stale build. */}
+        <View style={{ marginTop: 16, alignItems: 'center', gap: 3 }}>
+          <Txt w="sb" size={12} color={c.textSecondary}>
+            OnStandard · {APP_VERSION}
+          </Txt>
+          <Txt w="m" size={11} color={c.textTertiary}>
+            {buildLine()}
+          </Txt>
+        </View>
       </ScrollView>
     </Overlay>
   );

@@ -5,18 +5,35 @@ This is the working, repeatable pipeline. Future builds are essentially two comm
 
 ---
 
-## The two-command release (this is the whole thing now)
+## The release — one command (use this)
 
 ```bash
 cd C:/Users/Administrator/Downloads/athleteos
 export EXPO_TOKEN=<expo access token>          # or `eas login` once
 
+npm run ship
+```
+
+`ship` runs a **preflight guard** first, then `eas build`, then `eas submit`. The guard
+is the fix for the "10 updates but TestFlight still had old code" bug:
+
+> **EAS builds your last GIT COMMIT, not the files in your folder.** If you build with
+> uncommitted changes, you silently ship the OLD commit. The guard HARD-STOPS on a dirty
+> tree and prints the exact commit that will be built, so a stale build can't leave the ground.
+
+**Confirm it worked on your phone:** open the app → **Account** → the footer shows the
+commit the binary was built from (e.g. `7c22df6 · 2026-07-07 · production`). If that commit
+matches the one preflight printed, you're on the newest code. If it doesn't, you're looking
+at an old build — reinstall from TestFlight.
+
+Raw two-command form (skips the guard — prefer `npm run ship`):
+```bash
 eas build  --platform ios --profile production --non-interactive
 eas submit --platform ios --profile production --latest --non-interactive
 ```
 
-That's it. `autoIncrement` bumps the build number automatically each time, so testers
-get a new build with no manual version juggling.
+`autoIncrement` bumps the build number automatically each time, so testers get a new build
+with no manual version juggling.
 
 ## Why it "just works" now (one-time setup already done)
 - **Backend env vars** live on EAS (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`).

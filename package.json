@@ -49,7 +49,9 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "bundle": "expo export -p ios --output-dir .aos-export",
-    "verify": "npm run typecheck && npm run test && npm run bundle"
+    "verify": "npm run typecheck && npm run test && npm run bundle",
+    "preflight": "node scripts/preflight.mjs",
+    "ship": "node scripts/preflight.mjs && eas build --platform ios --profile production --non-interactive && eas submit --platform ios --profile production --latest --non-interactive"
   },
   "private": true,
   "expo": {
