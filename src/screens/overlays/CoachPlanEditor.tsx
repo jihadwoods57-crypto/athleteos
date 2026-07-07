@@ -55,7 +55,7 @@ export function CoachPlanEditor() {
     <Overlay title="Coach Plan" onClose={s.closePlanEditor}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <Txt w="m" size={14} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 20 }}>
-          The plan the athlete is held to. Every meal and the Execution Score are measured against this.
+          The plan the athlete is held to. Every meal and the OnStandard Score are measured against this.
         </Txt>
 
         {/* targets */}

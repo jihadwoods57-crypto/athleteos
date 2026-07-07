@@ -1,6 +1,6 @@
 // OnStandard — scoring profiles (pure TS, no RN imports).
 //
-// The Execution Score is ONE engine measured by a platform-owned formula; a profile only
+// The OnStandard Score is ONE engine measured by a platform-owned formula; a profile only
 // re-weights that engine for a different kind of client. The coach/trainer owns the TARGETS
 // (protein, calories, meals) and picks the PROFILE; the platform owns these WEIGHTS so an
 // "84" always means "84% of YOUR plan executed" and stays comparable across a book

@@ -686,7 +686,7 @@ describe('taskVisibilityNote', () => {
     const note = taskVisibilityNote({ isReal: true, supportTeam: [] });
     expect(note).not.toContain('Coach Davis');
     expect(note).not.toContain('visible to');
-    expect(note).toBe('Completed tasks feed your Execution Score.');
+    expect(note).toBe('Completed tasks feed your OnStandard Score.');
   });
 
   it('names the connected overseer for a real athlete (coach > trainer > nutritionist)', () => {

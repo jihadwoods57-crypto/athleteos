@@ -1,6 +1,6 @@
 // OnStandard — plan compliance read (pure). Matches what the athlete actually logged against the
 // prescribed slots. DISPLAY ONLY: this never feeds the day score (Constitution Rule #13); it is the
-// "did you eat the plan?" number the athlete + coach see alongside the unchanged Execution Score.
+// "did you eat the plan?" number the athlete + coach see alongside the unchanged OnStandard Score.
 import type { CoachPlan } from './coachPlan';
 import type { MealKey } from './types';
 

@@ -1,7 +1,7 @@
 // OnStandard — Coach view: a 5-destination tab shell (Dashboard / Roster / Needs Attention /
 // Reports / Profile) mirroring the athlete app. Each destination answers "what should I do
 // next"; the Dashboard is the morning briefing (who needs me today). All sections read the one
-// platform-owned Execution Score; no per-coach number. The roster is computed once here and
+// platform-owned OnStandard Score; no per-coach number. The roster is computed once here and
 // passed down so useLiveRoster fetches once. See docs/founding/ROLE_EXPERIENCE_ARCHITECTURE.md.
 import React from 'react';
 import { ScrollView, Share, View } from 'react-native';
@@ -636,7 +636,7 @@ function CoachReports({ teamTitle, teamReport, groupStats, compliance, onShare, 
         <Reveal index={1}>
         <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
           <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 4 }}>Position groups</Txt>
-          <Txt w="m" size={12} color={c.textSecondary} style={{ marginBottom: 14 }}>Average Execution Score and compliance by group.</Txt>
+          <Txt w="m" size={12} color={c.textSecondary} style={{ marginBottom: 14 }}>Average OnStandard Score and compliance by group.</Txt>
           <View style={{ gap: 12 }}>
             {groupStats.map((g) => <GroupStatRow key={g.group} stat={g} />)}
           </View>

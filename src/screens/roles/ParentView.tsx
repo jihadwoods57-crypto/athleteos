@@ -137,7 +137,7 @@ export function ParentView() {
               </Ring>
             </View>
             <Txt w="b" size={13} color={c.textSecondary} ls={0.2} style={{ marginTop: 14 }}>
-              Execution Score
+              OnStandard Score
             </Txt>
             <Row style={{ gap: 8, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
               <Row style={{ gap: 6, alignItems: 'center', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: c.surface2 }}>

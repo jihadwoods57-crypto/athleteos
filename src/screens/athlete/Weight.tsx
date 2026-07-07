@@ -150,21 +150,17 @@ export function Weight() {
       {/* the big number + stepper (proto .weight-display / .stepper) */}
       <Reveal index={0}>
         <Card style={{ paddingTop: 8, paddingHorizontal: 18, paddingBottom: 20 }}>
-          <View style={{ alignItems: 'center', paddingTop: 22, paddingBottom: 8 }}>
-            <Txt
-              w="eb"
-              num
-              size={76}
-              ls={-3.8}
-              maxFontSizeMultiplier={MAX_FONT_SCALE}
-              accessibilityLabel={`${displayWeight(draft, units)} ${wUnit}`}
-              style={{ lineHeight: 80 }}
-            >
+          {/* Number + unit as baseline siblings — nesting the unit inside the numeral made it
+              inherit the -3.8 tracking and crush into the digits. */}
+          <View
+            accessibilityLabel={`${displayWeight(draft, units)} ${wUnit}`}
+            style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 6, paddingTop: 22, paddingBottom: 8 }}
+          >
+            <Txt w="eb" num size={76} ls={-3.8} maxFontSizeMultiplier={MAX_FONT_SCALE} style={{ lineHeight: 80 }}>
               {displayWeight(draft, units)}
-              <Txt w="b" size={17} color={c.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-                {' '}
-                {wUnit}
-              </Txt>
+            </Txt>
+            <Txt w="b" size={17} color={c.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+              {wUnit}
             </Txt>
           </View>
           <Row style={{ justifyContent: 'center', gap: 22, marginTop: 14 }}>

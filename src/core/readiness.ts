@@ -1,6 +1,6 @@
 // OnStandard — training-readiness engine (pure TS, no RN imports).
 //
-// The Execution Score grades NUTRITION adherence. A strength/performance coach asks a different
+// The OnStandard Score grades NUTRITION adherence. A strength/performance coach asks a different
 // question: "is this athlete recovered enough to train hard today?" Readiness answers it from the
 // self-report check-in signals (energy, recovery, sleep, soreness), with an overtraining early-
 // warning when recovery trends down. This is the surface that turns a nutrition roll-up into

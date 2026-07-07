@@ -848,7 +848,7 @@ function AthleteFlow() {
           step={stepNo}
           total={total}
           onBack={s.obBack}
-          eyebrow="Your Starting Execution Score"
+          eyebrow="Your Starting OnStandard Score"
           title={name ? `${name}, here's where you stand.` : "Here's where you stand."}
           sub="This is your starting point, estimated from your habits. It rises as OnStandard learns from what you actually do."
           footer={<Btn label={nextIsChallenge ? "See today's challenge" : 'Continue'} onPress={s.obNext} />}
