@@ -2,8 +2,16 @@
 // (Starting Point Score -> first meal -> AI coaching), not account setup. One question
 // per screen, tap-first, in-system premium. 7 roles personalize onto the 4 dashboards.
 // See docs/specs/2026-06-23-onboarding-redesign.md.
+//
+// Visual system (2026-07 redesign): every step is a proto "ob" frame
+// (proto/redesign-2026-07/js/screens/onboarding.js + css/flows.css) — centered dot
+// progress, 27px tight title + 14.5px sub, surface2/hairline chips + tiles that turn
+// accent when selected, proto eyebrows, sideboxes, green primary CTAs, and the
+// "Your Standard is set." confirmation. The RN flow keeps MORE steps than the proto
+// (consent, baseline, auth) — those wear the same clothes so it reads as one design.
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, ScrollView, Share, View } from 'react-native';
+import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import {
   formatHeight,
   flowForRole,
@@ -19,6 +27,7 @@ import {
   PROTEIN_FREQ,
   ROLE_DEFS,
   SPORTS,
+  TIERS,
   validateCredentials,
   credentialsOk,
 } from '@/core';
@@ -31,7 +40,8 @@ import { aiPrefix, isAiConfigured } from '@/lib/ai';
 import { useStore } from '@/store';
 import type { Store } from '@/store';
 import { useColors, useTheme } from '@/ui/theme';
-import { Btn, Card, Input, PasswordInput, ProgressBar, Reveal, Row, SampleTag, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { Btn, Input, PasswordInput, Reveal, Row, SampleTag, Stepper, Toggle, Txt, Pressable } from '@/ui/primitives';
+import { shadow, tierChip, MAX_FONT_SCALE } from '@/ui/tokens';
 import { Slider } from '@/ui/Slider';
 import { haptics } from '@/ui/haptics';
 import { useReduceMotion } from '@/ui/useReduceMotion';
@@ -41,9 +51,194 @@ import { ROLE_FLOWS, athleteFlowKeys, roleFlowFor, type GenStep } from './flows'
 import { ScoreReveal } from './ScoreReveal';
 import { Welcome as WelcomeLanding } from './Welcome';
 
+/* ------------------------------------------------------------------ proto atoms */
+
+/** Proto `.ob-dots` step progress: past+current steps are green pills, the rest small
+ *  surface dots. Replaces the old thin ProgressBar so progress reads like the proto. */
+function ObDots({ step, total }: { step: number; total: number }) {
+  const c = useColors();
+  return (
+    <Row
+      accessible
+      accessibilityLabel={`Step ${step} of ${total}`}
+      style={{ gap: 7, justifyContent: 'center' }}
+    >
+      {Array.from({ length: total }, (_, i) => {
+        const on = i < step;
+        return (
+          <View
+            key={i}
+            style={on
+              ? { width: 22, height: 7, borderRadius: 4, backgroundColor: c.success }
+              : { width: 7, height: 7, borderRadius: 4, backgroundColor: c.surface3 }}
+          />
+        );
+      })}
+    </Row>
+  );
+}
+
+/** Back affordance (the proto has none — RN keeps it for the preserved obBack flow). */
+function BackChip({ onPress }: { onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
+      hitSlop={8}
+      onPress={() => {
+        haptics.tap();
+        onPress();
+      }}
+      style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 14, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+    >
+      <Icon name="chevronLeft" size={22} color={c.slate600} />
+    </Pressable>
+  );
+}
+
+/** Proto `.eyebrow` section label. */
+function Eyebrow({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+  const c = useColors();
+  return (
+    <Txt w="eb" size={11} color={c.textTertiary} ls={1.4} upper style={[{ marginBottom: 10 }, style]}>
+      {children}
+    </Txt>
+  );
+}
+
+/** Proto `.ob-input` treatment shared by Input + PasswordInput call sites:
+ *  56px tall, 16 radius, surface2 + 1.5 hairline, no floating shadow. */
+const fieldStyle = (c: ReturnType<typeof useColors>) =>
+  ({
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: c.surface2,
+    borderWidth: 1.5,
+    borderColor: c.hairline,
+    fontSize: 16,
+    shadowOpacity: 0,
+    elevation: 0,
+  }) as const;
+
+function ObInput(props: React.ComponentProps<typeof Input>) {
+  const c = useColors();
+  return <Input {...props} style={[fieldStyle(c), props.style]} />;
+}
+
+/** Proto `.chp` chip: pill, surface2 + hairline; selected = accent tint + accent border
+ *  + accent text (the proto's tinted selection, not a solid fill). */
+function Chp({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: on }}
+      onPress={() => {
+        haptics.select();
+        onPress();
+      }}
+      style={({ pressed }) => ({
+        paddingVertical: 11,
+        paddingHorizontal: 17,
+        borderRadius: 999,
+        backgroundColor: on ? c.accentSurface : c.surface2,
+        borderWidth: 1.5,
+        borderColor: on ? c.accent : c.hairline,
+        opacity: pressed ? 0.9 : 1,
+      })}
+    >
+      <Txt w="b" size={14} color={on ? c.accent : c.slate700}>
+        {label}
+      </Txt>
+    </Pressable>
+  );
+}
+
+/** Proto `.sidebox`: an icon tile + a short titled note on a quiet surface. */
+function Sidebox({ icon, tint, title, text, style }: { icon: IconName; tint: string; title: string; text: string; style?: StyleProp<ViewStyle> }) {
+  const c = useColors();
+  return (
+    <View style={[{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', padding: 15, borderRadius: 14, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }, style]}>
+      <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: `${tint}26`, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} size={17} color={tint} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Txt w="eb" size={13.5}>{title}</Txt>
+        <Txt w="sb" size={12.5} color={c.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>
+          {text}
+        </Txt>
+      </View>
+    </View>
+  );
+}
+
+/** Quiet content tile (the proto's surface2 + hairline panel). */
+function Tile({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  const c = useColors();
+  return (
+    <View style={[{ backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 18, padding: 16 }, style]}>
+      {children}
+    </View>
+  );
+}
+
+/** Proto `.code-boxes`: one letter per box, accent-tinted when the code is real. */
+function CodeBoxes({ code, sample }: { code: string; sample?: boolean }) {
+  const c = useColors();
+  const chars = code.split('');
+  const w = chars.length > 6 ? 38 : 46;
+  return (
+    <Row style={{ gap: chars.length > 6 ? 7 : 9, justifyContent: 'center' }}>
+      {chars.map((ch, i) => (
+        <View
+          key={i}
+          style={{
+            width: w,
+            height: 56,
+            borderRadius: 13,
+            backgroundColor: sample ? c.surface2 : c.accentSurface,
+            borderWidth: 1.5,
+            borderColor: sample ? c.hairline : c.accentBorder,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Txt w="eb" size={22} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+            {ch}
+          </Txt>
+        </View>
+      ))}
+    </Row>
+  );
+}
+
+/** Proto skip link ("Skip for now" — centered, muted). */
+function SkipLink({ label = 'Skip for now', onPress }: { label?: string; onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={8}
+      onPress={() => {
+        haptics.tap();
+        onPress();
+      }}
+      style={({ pressed }) => ({ alignSelf: 'center', paddingTop: 14, opacity: pressed ? 0.6 : 1 })}
+    >
+      <Txt w="b" size={14} color={c.textTertiary}>
+        {label}
+      </Txt>
+    </Pressable>
+  );
+}
+
 /* ------------------------------------------------------------------ shared shell */
 function StepShell({
-  progress,
+  step,
+  total,
   onBack,
   eyebrow,
   title,
@@ -51,7 +246,9 @@ function StepShell({
   children,
   footer,
 }: {
-  progress: number | null;
+  /** 1-based current step for the dot progress; omit (with total) to hide dots. */
+  step?: number | null;
+  total?: number | null;
   onBack?: () => void;
   eyebrow?: string;
   title: string;
@@ -63,56 +260,36 @@ function StepShell({
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={{ paddingTop: 60, paddingHorizontal: 24 }}>
-        <Row style={{ gap: 14, height: 40 }}>
-          {onBack ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              hitSlop={8}
-              onPress={() => {
-                haptics.tap();
-                onBack();
-              }}
-              style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 14, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
-            >
-              <Icon name="chevronLeft" size={22} color={c.slate600} />
-            </Pressable>
-          ) : (
-            <View style={{ width: 40, height: 40 }} />
-          )}
-          {progress != null ? (
-            <View style={{ flex: 1 }}>
-              <ProgressBar pct={progress * 100} height={6} />
+        <View style={{ height: 40, justifyContent: 'center' }}>
+          {step != null && total != null ? (
+            <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center' }}>
+              <ObDots step={step} total={total} />
             </View>
-          ) : (
-            <View style={{ flex: 1 }} />
-          )}
-        </Row>
-      </View>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 22, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-        <Reveal index={0}>
-          {eyebrow ? (
-            <Txt w="eb" size={12} color={c.accent} ls={1} upper style={{ marginBottom: 10 }}>
-              {eyebrow}
-            </Txt>
           ) : null}
-          <Txt w="eb" size={28} ls={-0.8} style={{ lineHeight: 32 }}>
+          {onBack ? <BackChip onPress={onBack} /> : null}
+        </View>
+      </View>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+        <Reveal index={0}>
+          {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
+          <Txt w="eb" size={27} ls={-0.8} style={{ lineHeight: 31 }}>
             {title}
           </Txt>
           {sub ? (
-            <Txt w="m" size={15} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 21 }}>
+            <Txt w="sb" size={14.5} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 22 }}>
               {sub}
             </Txt>
           ) : null}
         </Reveal>
-        <Reveal index={1} style={{ marginTop: 24 }}>{children}</Reveal>
+        <Reveal index={1} style={{ marginTop: 22 }}>{children}</Reveal>
       </ScrollView>
-      <View style={{ paddingHorizontal: 24, paddingBottom: 34, paddingTop: 6 }}>{footer}</View>
+      <View style={{ paddingHorizontal: 24, paddingBottom: 34, paddingTop: 14 }}>{footer}</View>
     </View>
   );
 }
 
-/** Big tappable option row — the primary answer affordance. */
+/** Big tappable option row — the primary answer affordance (proto tile language:
+ *  surface2 + hairline, accent tint + border when selected). */
 function OptionRow({ label, selected, onPress, sub }: { label: string; selected: boolean; onPress: () => void; sub?: string }) {
   const c = useColors();
   return (
@@ -139,11 +316,11 @@ function OptionRow({ label, selected, onPress, sub }: { label: string; selected:
       })}
     >
       <View style={{ flex: 1 }}>
-        <Txt w="b" size={16} color={selected ? c.accent : c.text}>
+        <Txt w="b" size={15} color={selected ? c.accent : c.text}>
           {label}
         </Txt>
         {sub ? (
-          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 2 }}>
+          <Txt w="sb" size={12.5} color={c.textSecondary} style={{ marginTop: 3, lineHeight: 17 }}>
             {sub}
           </Txt>
         ) : null}
@@ -174,30 +351,30 @@ function Welcome() {
   const ready = first.trim().length > 0 && last.trim().length > 0;
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingTop: 76, paddingHorizontal: 26, paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 64, paddingHorizontal: 24, paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
         <Row style={{ gap: 10 }}>
           <LogoMark size={30} onDark={scheme === 'dark'} />
           <Txt w="eb" size={20} ls={-0.4}>
-            On<Txt w="eb" size={20} color={c.accent}>Standard</Txt>
+            <Txt w="eb" size={20} color={c.successDeep}>On</Txt>Standard
           </Txt>
         </Row>
-        <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 28 }}>
-          <Txt w="eb" size={38} ls={-1.4} style={{ lineHeight: 42 }}>
-            Let's get you{'\n'}set up.
+        <Reveal index={0} style={{ marginTop: 34 }}>
+          <Txt w="eb" size={27} ls={-0.8} style={{ lineHeight: 31 }}>
+            Who are you?
           </Txt>
-          <Txt w="m" size={16} color={c.textSecondary} style={{ marginTop: 14, lineHeight: 23 }}>
-            A few quick questions and we'll tailor OnStandard to exactly how you'll use it. About two minutes.
+          <Txt w="sb" size={14.5} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 22 }}>
+            Your name sits next to everything you log — make it the real one. A few quick questions and OnStandard is tailored to exactly how you&apos;ll use it.
           </Txt>
-          <Txt w="eb" size={12} color={c.textTertiary} ls={0.8} upper style={{ marginTop: 32, marginBottom: 9 }}>
-            First, what should we call you?
-          </Txt>
+        </Reveal>
+        <Reveal index={1} style={{ marginTop: 26 }}>
+          <Eyebrow>Your name</Eyebrow>
           <View style={{ gap: 12 }}>
-            <Input value={first} onChangeText={onFirst} placeholder="First name" autoCapitalize="words" returnKeyType="next" />
-            <Input value={last} onChangeText={onLast} placeholder="Last name" autoCapitalize="words" returnKeyType="done" />
+            <ObInput value={first} onChangeText={onFirst} placeholder="First name" autoCapitalize="words" returnKeyType="next" />
+            <ObInput value={last} onChangeText={onLast} placeholder="Last name" autoCapitalize="words" returnKeyType="done" />
           </View>
-        </View>
+        </Reveal>
       </ScrollView>
-      <View style={{ paddingHorizontal: 26, paddingBottom: 34, gap: 14 }}>
+      <View style={{ paddingHorizontal: 24, paddingBottom: 34, gap: 14 }}>
         <Btn label="Get started" disabled={!ready} onPress={obNext} />
         <Pressable accessibilityRole="button" accessibilityLabel="Sign in" hitSlop={8} onPress={() => { haptics.tap(); startSignin(); }} style={({ pressed }) => ({ alignSelf: 'center', opacity: pressed ? 0.6 : 1 })}>
           <Txt w="b" size={14} color={c.textSecondary}>
@@ -246,7 +423,6 @@ function SignIn() {
   if (mode === 'forgot') {
     return (
       <StepShell
-        progress={null}
         onBack={() => { setAuthError(null); setMode('in'); }}
         title="Reset your password"
         sub="Enter your email and we'll send a link to set a new one."
@@ -257,14 +433,15 @@ function SignIn() {
         }
       >
         {resetSent ? (
-          <Card variant="low" style={{ marginTop: 6, borderRadius: 20 }}>
-            <Txt w="sb" size={15} color={c.slate700} style={{ lineHeight: 22 }}>
-              If an account exists for that email, a reset link is on its way. Check your inbox (and spam).
-            </Txt>
-          </Card>
+          <Sidebox
+            icon="send"
+            tint={c.success}
+            title="Reset link on its way"
+            text="If an account exists for that email, a reset link is on its way. Check your inbox (and spam)."
+          />
         ) : (
           <View style={{ gap: 12 }}>
-            <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
+            <ObInput value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
             {authError ? <Txt w="sb" size={13} color={c.alert}>{authError}</Txt> : null}
           </View>
         )}
@@ -274,15 +451,14 @@ function SignIn() {
 
   return (
     <StepShell
-      progress={null}
       onBack={() => { setAuthError(null); exitSignin(); }}
       title="Welcome back"
       sub="Pick up right where you left off."
       footer={<Btn label={busy ? 'Signing in...' : 'Sign in'} disabled={busy} onPress={onSubmit} />}
     >
       <View style={{ gap: 12 }}>
-        <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
-        <PasswordInput value={password} onChangeText={setPassword} placeholder="Password" />
+        <ObInput value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
+        <PasswordInput value={password} onChangeText={setPassword} placeholder="Password" style={fieldStyle(c)} />
         {authError ? (
           <Txt w="sb" size={13} color={c.alert} style={{ marginTop: 2 }}>
             {authError}
@@ -299,7 +475,8 @@ function SignIn() {
 
 /** Sign in with Apple button — renders only when the native seam is available AND
  *  the backend is live (App Store 4.8). Hidden today; lights up at go-live once
- *  expo-apple-authentication is added. See src/lib/auth/apple.ts. */
+ *  expo-apple-authentication is added. See src/lib/auth/apple.ts. Apple mandates the
+ *  black treatment — it stays black in every theme. */
 function AppleButton({ busy, onPress }: { busy: boolean; onPress: () => void }) {
   const c = useColors();
   if (!isAppleAuthAvailable || !isBackendLive || Platform.OS !== 'ios') return null;
@@ -323,7 +500,7 @@ function AppleButton({ busy, onPress }: { busy: boolean; onPress: () => void }) 
  * has email-confirmation on) and a Continue button that advances the flow. The
  * account works locally immediately; sync waits on confirmation + consent.
  */
-function CreateAccountForm({ progress, title, sub, onDone }: { progress: number; title: string; sub: string; onDone: () => void }) {
+function CreateAccountForm({ step, total, title, sub, onDone }: { step: number; total: number; title: string; sub: string; onDone: () => void }) {
   const c = useColors();
   const s = useStore();
   const authError = useStore((st: Store) => st.authError);
@@ -356,32 +533,30 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
     const pending = s.emailConfirmPending;
     return (
       <StepShell
-        progress={progress}
+        step={step}
+        total={total}
         onBack={s.obBack}
         eyebrow="Almost there"
         title={pending ? 'Confirm your email' : "You're all set"}
         sub={pending ? 'We sent a confirmation link to keep your account secure.' : 'Your account is ready to go.'}
         footer={<Btn label="Continue" haptic="success" onPress={onDone} />}
       >
-        <Card variant="low" style={{ marginTop: 6, borderRadius: 20 }}>
-          <Row style={{ gap: 12 }}>
-            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name={pending ? 'bell' : 'check'} size={19} color={c.accent} />
-            </View>
-            <Txt w="sb" size={14} color={c.slate700} style={{ flex: 1, lineHeight: 20 }}>
-              {pending
-                ? `Check ${email.trim()} for a link. You can keep going now — your data stays on this device until you confirm.`
-                : `You're signed in as ${email.trim()}. Let's keep going.`}
-            </Txt>
-          </Row>
-        </Card>
+        <Sidebox
+          icon={pending ? 'bell' : 'check'}
+          tint={c.success}
+          title={pending ? 'Check your inbox' : "You're signed in"}
+          text={pending
+            ? `Check ${email.trim()} for a link. You can keep going now — your data stays on this device until you confirm.`
+            : `You're signed in as ${email.trim()}. Let's keep going.`}
+        />
       </StepShell>
     );
   }
 
   return (
     <StepShell
-      progress={progress}
+      step={step}
+      total={total}
       onBack={s.obBack}
       eyebrow="Last step"
       title={title}
@@ -389,11 +564,11 @@ function CreateAccountForm({ progress, title, sub, onDone }: { progress: number;
       footer={<Btn label={busy ? 'Creating...' : 'Create account'} disabled={busy || !ready || !s.termsAcceptedAt} onPress={onCreate} />}
     >
       <View style={{ gap: 12 }}>
-        <Input value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
+        <ObInput value={email} onChangeText={setEmail} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" />
         {email.length > 0 && errors.email ? <FieldError text={errors.email} /> : null}
-        <PasswordInput value={password} onChangeText={setPassword} placeholder="Password" />
+        <PasswordInput value={password} onChangeText={setPassword} placeholder="Password" style={fieldStyle(c)} />
         {password.length > 0 && errors.password ? <FieldError text={errors.password} /> : null}
-        <PasswordInput value={confirm} onChangeText={setConfirm} placeholder="Confirm password" />
+        <PasswordInput value={confirm} onChangeText={setConfirm} placeholder="Confirm password" style={fieldStyle(c)} />
         {confirm.length > 0 && errors.confirm ? <FieldError text={errors.confirm} /> : null}
         {authError ? <Txt w="sb" size={13} color={c.alert} style={{ marginTop: 2 }}>{authError}</Txt> : null}
         <AppleButton busy={busy} onPress={onApple} />
@@ -433,58 +608,86 @@ function TermsAgreement({ accepted, onToggle }: { accepted: boolean; onToggle: (
 }
 
 /* ------------------------------------------------------------------ role picker */
+/** Per-archetype accent for the role tile icon chips (proto choice-grid gives every
+ *  role its own tint: athlete green, client purple, team amber, nutrition cyan). */
+function roleTint(c: ReturnType<typeof useColors>, archetype: string): string {
+  switch (archetype) {
+    case 'athlete': return c.success;
+    case 'client': return c.purple;
+    case 'team': return c.warning;
+    case 'nutrition': return c.cyan;
+    default: return c.accent; // parent
+  }
+}
+
 function RolePicker() {
   const c = useColors();
+  const { scheme } = useTheme();
   const { role, setRole, obNext, obBack } = useStore();
   return (
-    <StepShell
-      progress={null}
-      onBack={obBack}
-      eyebrow="Who are you?"
-      title="How will you use OnStandard?"
-      sub="We tailor everything to this: your plan, your dashboard, your language."
-      footer={<Btn label="Continue" disabled={!role} onPress={obNext} />}
-    >
-      {ROLE_DEFS.map((r) => {
-        const selected = role === r.key;
-        return (
-          <Pressable
-            key={r.key}
-            accessibilityRole="button"
-            accessibilityLabel={r.title}
-            accessibilityState={{ selected }}
-            onPress={() => {
-              haptics.select();
-              setRole(r.key);
-            }}
-            style={({ pressed }) => ({
-              backgroundColor: selected ? c.accentSurface : c.surface2,
-              borderWidth: 1.5,
-              borderColor: selected ? c.accent : c.hairline,
-              borderRadius: 18,
-              padding: 16,
-              marginBottom: 10,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 14,
-              opacity: pressed ? 0.92 : 1,
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      <View style={{ paddingTop: 60, paddingHorizontal: 24 }}>
+        <View style={{ height: 40, justifyContent: 'center' }}>
+          <BackChip onPress={obBack} />
+        </View>
+      </View>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+        {/* Proto roles.js header: centered mark, centered title + sub. */}
+        <Reveal index={0} style={{ alignItems: 'center' }}>
+          <LogoMark size={56} onDark={scheme === 'dark'} />
+          <Txt w="eb" size={27} ls={-0.8} style={{ lineHeight: 31, marginTop: 18, textAlign: 'center' }}>
+            How will you use OnStandard?
+          </Txt>
+          <Txt w="sb" size={14.5} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 22, textAlign: 'center' }}>
+            Each role gets its own view. Nothing shared that shouldn&apos;t be.
+          </Txt>
+        </Reveal>
+        {/* Proto choice-grid: 2-up tiles, tinted icon chip, title + sub. */}
+        <Reveal index={1} style={{ marginTop: 22 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 11 }}>
+            {ROLE_DEFS.map((r) => {
+              const selected = role === r.key;
+              const tint = roleTint(c, r.archetype);
+              return (
+                <Pressable
+                  key={r.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={r.title}
+                  accessibilityState={{ selected }}
+                  onPress={() => {
+                    haptics.select();
+                    setRole(r.key);
+                  }}
+                  style={({ pressed }) => ({
+                    width: '47.8%',
+                    backgroundColor: selected ? c.accentSurface : c.surface2,
+                    borderWidth: 1.5,
+                    borderColor: selected ? c.accent : c.hairline,
+                    borderRadius: 18,
+                    paddingVertical: 17,
+                    paddingHorizontal: 15,
+                    opacity: pressed ? 0.92 : 1,
+                  })}
+                >
+                  <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: `${tint}26`, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name={r.icon as IconName} size={19} color={tint} />
+                  </View>
+                  <Txt w="eb" size={15} style={{ marginTop: 9 }}>
+                    {r.title}
+                  </Txt>
+                  <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 3, lineHeight: 16 }}>
+                    {r.sub}
+                  </Txt>
+                </Pressable>
+              );
             })}
-          >
-            <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: selected ? c.accent : c.surface3, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name={r.icon as IconName} size={21} color={selected ? c.white : c.slate600} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Txt w="b" size={16} color={selected ? c.accent : c.text}>
-                {r.title}
-              </Txt>
-              <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 1 }}>
-                {r.sub}
-              </Txt>
-            </View>
-          </Pressable>
-        );
-      })}
-    </StepShell>
+          </View>
+        </Reveal>
+      </ScrollView>
+      <View style={{ paddingHorizontal: 24, paddingBottom: 34, paddingTop: 14 }}>
+        <Btn label="Continue" disabled={!role} onPress={obNext} />
+      </View>
+    </View>
   );
 }
 
@@ -498,7 +701,8 @@ function AthleteFlow() {
   const s = useStore();
   const idx = s.obStep - 2;
   const key = ATHLETE_KEYS[idx] ?? 'challenge';
-  const progress = (idx + 1) / ATHLETE_KEYS.length;
+  const stepNo = idx + 1;
+  const total = ATHLETE_KEYS.length;
 
   // Compute the Starting Point Score the moment we land on the reveal.
   useEffect(() => {
@@ -511,31 +715,17 @@ function AthleteFlow() {
 
   switch (key) {
     case 'goal':
+      // Proto step 2 ("What are we building?") — the full grouped goal list stays
+      // (it drives AI coaching + the scoring profile), styled as proto chip rows.
       return (
-        <StepShell progress={progress} onBack={s.obBack} eyebrow="Your plan" title="What's your #1 goal right now?" sub={`This shapes every piece of ${aiPrefix}coaching you'll get.`} footer={cont(!!s.primaryGoal)}>
+        <StepShell step={stepNo} total={total} onBack={s.obBack} title="What are we building?" sub={`This shapes every piece of ${aiPrefix}coaching you'll get.`} footer={cont(!!s.primaryGoal)}>
           {GOAL_GROUPS.map((g) => (
-            <View key={g.group} style={{ marginBottom: 18 }}>
-              <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
-                {g.group}
-              </Txt>
+            <View key={g.group} style={{ marginBottom: 20 }}>
+              <Eyebrow>{g.group}</Eyebrow>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-                {g.options.map((o) => {
-                  const sel = s.primaryGoal === o.key;
-                  return (
-                    <Pressable
-                      key={o.key}
-                      accessibilityRole="button"
-                      accessibilityLabel={o.label}
-                      accessibilityState={{ selected: sel }}
-                      onPress={() => { haptics.select(); s.setPrimaryGoal(o.key); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.surface2, borderWidth: 1.5, borderColor: sel ? c.accent : c.hairline, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16, opacity: pressed ? 0.9 : 1 })}
-                    >
-                      <Txt w="b" size={14} color={sel ? c.white : c.slate700}>
-                        {o.label}
-                      </Txt>
-                    </Pressable>
-                  );
-                })}
+                {g.options.map((o) => (
+                  <Chp key={o.key} label={o.label} on={s.primaryGoal === o.key} onPress={() => s.setPrimaryGoal(o.key)} />
+                ))}
               </View>
             </View>
           ))}
@@ -551,54 +741,25 @@ function AthleteFlow() {
       const sportOptional = s.baseGoal !== 'performance';
       return (
         <StepShell
-          progress={progress}
+          step={stepNo}
+          total={total}
           onBack={s.obBack}
           title="What sport do you play?"
           sub={sportOptional ? 'Optional — skip if your goal isn’t sport-specific.' : undefined}
           footer={cont(sportOptional || !!s.sport)}
         >
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-            {[...SPORTS, 'Other'].map((sp) => {
-              const sel = s.sport === sp;
-              return (
-                <Pressable
-                  key={sp}
-                  accessibilityRole="button"
-                  accessibilityLabel={sp}
-                  accessibilityState={{ selected: sel }}
-                  onPress={() => { haptics.select(); s.setSport(sp); }}
-                  style={({ pressed }) => ({ width: '31.5%', backgroundColor: sel ? c.accent : c.surface2, borderWidth: 1.5, borderColor: sel ? c.accent : c.hairline, borderRadius: 16, paddingVertical: 18, alignItems: 'center', opacity: pressed ? 0.9 : 1 })}
-                >
-                  <Txt w="b" size={14} color={sel ? c.white : c.slate700}>
-                    {sp}
-                  </Txt>
-                </Pressable>
-              );
-            })}
+            {[...SPORTS, 'Other'].map((sp) => (
+              <Chp key={sp} label={sp} on={s.sport === sp} onPress={() => s.setSport(sp)} />
+            ))}
           </View>
           {s.sport ? (
-            <View style={{ marginTop: 22 }}>
-              <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
-                Your position (optional)
-              </Txt>
+            <View style={{ marginTop: 24 }}>
+              <Eyebrow>Position · optional</Eyebrow>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-                {positions.map((p) => {
-                  const sel = s.position === p;
-                  return (
-                    <Pressable
-                      key={p}
-                      accessibilityRole="button"
-                      accessibilityLabel={p}
-                      accessibilityState={{ selected: sel }}
-                      onPress={() => { haptics.select(); s.setPosition(p); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.surface2, borderWidth: 1.5, borderColor: sel ? c.accent : c.hairline, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 18, opacity: pressed ? 0.9 : 1 })}
-                    >
-                      <Txt w="b" size={15} color={sel ? c.white : c.slate700}>
-                        {p}
-                      </Txt>
-                    </Pressable>
-                  );
-                })}
+                {positions.map((p) => (
+                  <Chp key={p} label={p} on={s.position === p} onPress={() => s.setPosition(p)} />
+                ))}
               </View>
             </View>
           ) : null}
@@ -619,7 +780,14 @@ function AthleteFlow() {
         : s.baseGoal === 'maintain' ? 'Holding around your current weight.'
         : '';
       return (
-        <StepShell progress={progress} onBack={s.obBack} title="About you" sub="Tap to adjust. This calibrates your targets." footer={cont(true)}>
+        <StepShell
+          step={stepNo}
+          total={total}
+          onBack={s.obBack}
+          title="Where are you now?"
+          sub="Tap to adjust — this calibrates your targets."
+          footer={cont(true)}
+        >
           <View style={{ gap: 14 }}>
             <Row style={{ gap: 12 }}>
               <Stepper label="Age" value={String(s.baseAge)} unit="years" onDec={() => s.ageStep(-1)} onInc={() => s.ageStep(1)} onSet={s.setBaseAge} />
@@ -634,6 +802,13 @@ function AthleteFlow() {
                 {targetHint}
               </Txt>
             ) : null}
+            {/* Proto step 3 sidebox — true here too: weight is a season trend, never scored daily. */}
+            <Sidebox
+              icon="shield"
+              tint={c.accent}
+              title="How weight works in OnStandard"
+              text="Weight is a season trend here, never a daily judgment. It never moves your daily score, so one heavy morning can't wreck a perfect day."
+            />
           </View>
         </StepShell>
       );
@@ -643,28 +818,16 @@ function AthleteFlow() {
       // All six habit questions on ONE screen (was six separate steps). Same setters,
       // same starting-score math; compact controls so it's a ~30-second scroll.
       return (
-        <StepShell progress={progress} onBack={s.obBack} eyebrow="Baseline" title="A few quick habits" sub="Roughly is fine. This is what sets your starting score." footer={cont(true)}>
+        <StepShell step={stepNo} total={total} onBack={s.obBack} eyebrow="Baseline" title="A few quick habits" sub="Roughly is fine. This is what sets your starting score." footer={cont(true)}>
           <View style={{ gap: 20 }}>
             <MiniScale label="Confidence in your nutrition" value={s.baseNutritionConfidence} low="Not at all" high="Dialed in" onChange={(v) => s.setBaseAnswer('baseNutritionConfidence', v)} />
             <MiniScale label="Week-to-week consistency" value={s.baseConsistency} low="All over" high="Locked in" onChange={(v) => s.setBaseAnswer('baseConsistency', v)} />
             <View>
               <Txt w="b" size={14} color={c.slate700} style={{ marginBottom: 9 }}>How often do you hit your protein target?</Txt>
               <Row style={{ flexWrap: 'wrap', gap: 8 }}>
-                {PROTEIN_FREQ.map((o) => {
-                  const sel = s.baseProteinFreq === Number(o.key);
-                  return (
-                    <Pressable
-                      key={o.key}
-                      accessibilityRole="button"
-                      accessibilityLabel={o.label}
-                      accessibilityState={{ selected: sel }}
-                      onPress={() => { haptics.select(); s.setBaseAnswer('baseProteinFreq', Number(o.key)); }}
-                      style={({ pressed }) => ({ backgroundColor: sel ? c.accent : c.surface2, borderWidth: 1.5, borderColor: sel ? c.accent : c.hairline, borderRadius: 13, paddingVertical: 12, paddingHorizontal: 16, opacity: pressed ? 0.9 : 1 })}
-                    >
-                      <Txt w="b" size={14} color={sel ? c.white : c.slate700}>{o.label}</Txt>
-                    </Pressable>
-                  );
-                })}
+                {PROTEIN_FREQ.map((o) => (
+                  <Chp key={o.key} label={o.label} on={s.baseProteinFreq === Number(o.key)} onPress={() => s.setBaseAnswer('baseProteinFreq', Number(o.key))} />
+                ))}
               </Row>
             </View>
             <MiniCounter label="Meals a day" display={String(s.baseMealsPerDay)} onDec={() => s.setBaseAnswer('baseMealsPerDay', Math.max(2, s.baseMealsPerDay - 1))} onInc={() => s.setBaseAnswer('baseMealsPerDay', Math.min(6, s.baseMealsPerDay + 1))} />
@@ -677,14 +840,18 @@ function AthleteFlow() {
     case 'score': {
       const score = s.startScore ?? 0;
       const name = firstName(s.athleteName, '');
+      // Only promise "today's challenge" when the challenge is actually next (with the
+      // backend live, account + consent come first).
+      const nextIsChallenge = ATHLETE_KEYS[idx + 1] === 'challenge';
       return (
         <StepShell
-          progress={progress}
+          step={stepNo}
+          total={total}
           onBack={s.obBack}
           eyebrow="Your Starting Execution Score"
           title={name ? `${name}, here's where you stand.` : "Here's where you stand."}
           sub="This is your starting point, estimated from your habits. It rises as OnStandard learns from what you actually do."
-          footer={<Btn label="See today's challenge" onPress={s.obNext} />}
+          footer={<Btn label={nextIsChallenge ? "See today's challenge" : 'Continue'} onPress={s.obNext} />}
         >
           <View style={{ alignItems: 'center', marginTop: 12 }}>
             <ScoreReveal score={score} />
@@ -698,7 +865,8 @@ function AthleteFlow() {
       // account before consent so a userId exists for the data path.
       return (
         <CreateAccountForm
-          progress={progress}
+          step={stepNo}
+          total={total}
           title={firstName(s.athleteName, '') ? `Save your progress, ${firstName(s.athleteName, '')}.` : 'Save your progress.'}
           sub="Create an account so your score and meals sync across devices."
           onDone={s.obNext}
@@ -718,7 +886,8 @@ function AthleteFlow() {
       const emailValid = isValidGuardianEmail(s.guardianEmail);
       return (
         <StepShell
-          progress={progress}
+          step={stepNo}
+          total={total}
           onBack={s.obBack}
           eyebrow="Before you start"
           title={minor ? 'Your data, with a guardian' : 'Your data, your control'}
@@ -753,20 +922,18 @@ function AthleteFlow() {
           {/* Age is confirmed HERE, at the moment it decides the guardian requirement, not silently
               defaulted from the earlier "About you" step (COPPA gate — audit/founder fix). isMinor
               recomputes reactively as this changes, so the screen switches between adult/minor. */}
-          <Card variant="low" style={{ marginTop: 6, borderRadius: 20 }}>
-            <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper style={{ marginBottom: 10 }}>
-              Confirm your age
-            </Txt>
+          <Tile>
+            <Eyebrow>Confirm your age</Eyebrow>
             <Stepper label="Age" value={String(s.baseAge)} unit="years" onDec={() => s.ageStep(-1)} onInc={() => s.ageStep(1)} />
             <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 10, lineHeight: 17 }}>
               Under 18 needs a parent or guardian&apos;s approval before anything is shared with a coach.
             </Txt>
-          </Card>
-          <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
-            <Txt w="m" size={15} color={c.slate700} style={{ lineHeight: 22 }}>
+          </Tile>
+          <Tile style={{ marginTop: 12 }}>
+            <Txt w="m" size={14.5} color={c.slate700} style={{ lineHeight: 22 }}>
               {consentSummary(minor)}
             </Txt>
-          </Card>
+          </Tile>
           <View style={{ marginTop: 14 }}>
             <OptionRow
               label={minor
@@ -777,11 +944,9 @@ function AthleteFlow() {
             />
           </View>
           {minor ? (
-            <View style={{ marginTop: 14 }}>
-              <Txt w="eb" size={12} color={c.textTertiary} ls={0.6} upper style={{ marginBottom: 8 }}>
-                Parent or guardian approval
-              </Txt>
-              <Input
+            <View style={{ marginTop: 12 }}>
+              <Eyebrow style={{ marginBottom: 8 }}>Parent or guardian approval</Eyebrow>
+              <ObInput
                 value={s.guardianEmail}
                 onChangeText={s.setGuardianEmail}
                 placeholder="parent@email.com"
@@ -816,31 +981,70 @@ function AthleteFlow() {
     }
 
     case 'challenge':
-    default:
+    default: {
+      // Proto step 6 — the "Your Standard is set." confirmation. The halo-check moment,
+      // an honest summary of what the score is built from, the real tier ladder ("score
+      // to beat" comes from core/tiers.ts, not a hardcoded number), today's first-meal
+      // challenge (+3 — same activation semantics), and the green "Start Day 1" CTA
+      // (still startFirstMealChallenge: it lands straight in capture).
+      const onStandard = TIERS.find((t) => t.key === 'onstandard') ?? TIERS[0];
       return (
-        <StepShell
-          progress={progress}
-          onBack={s.obBack}
-          eyebrow="Today's challenge"
-          title="Upload your first meal"
-          sub={isAiConfigured
-            ? 'One photo. Your AI nutrition coach reads it, scores it, and shows you exactly what to do next, instantly.'
-            : 'Log your meal and your nutrition coach scores it and shows you exactly what to do next, instantly.'}
-          footer={<Btn label="Start now" haptic="success" onPress={s.startFirstMealChallenge} />}
-        >
-          <Card variant="hero" style={{ alignItems: 'center', paddingVertical: 34, marginTop: 6, borderRadius: 24 }}>
-            <View style={{ width: 86, height: 86, borderRadius: 28, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="camera" size={38} color={c.accent} />
+        <View style={{ flex: 1, backgroundColor: c.bg }}>
+          <View style={{ paddingTop: 60, paddingHorizontal: 24 }}>
+            <View style={{ height: 40, justifyContent: 'center' }}>
+              <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center' }}>
+                <ObDots step={total} total={total} />
+              </View>
+              <BackChip onPress={s.obBack} />
             </View>
-            <Txt w="eb" size={17} style={{ marginTop: 16 }}>
-              +3 to your score
-            </Txt>
-            <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, textAlign: 'center', paddingHorizontal: 20 }}>
-              Logging your first meal proves the loop. Your score moves the moment you do the work.
-            </Txt>
-          </Card>
-        </StepShell>
+          </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+            <Reveal index={0} style={{ alignItems: 'center' }}>
+              {/* Proto .standard-set halo + core: green glow ring, green core, dark check. */}
+              <View style={{ width: 130, height: 130, borderRadius: 65, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center', ...shadow.ctaGreen }}>
+                  <Icon name="check" size={38} color={c.onGreen} strokeWidth={2.5} />
+                </View>
+              </View>
+              <Txt w="eb" size={27} ls={-0.8} style={{ marginTop: 22, lineHeight: 31, textAlign: 'center' }}>
+                Your Standard is set.
+              </Txt>
+              <Txt w="sb" size={14.5} color={c.textSecondary} style={{ marginTop: 8, lineHeight: 22, textAlign: 'center', paddingHorizontal: 10 }}>
+                Starting now, your execution score is built from what you actually do — meals, recovery, check-ins. It moves the moment you do the work.
+              </Txt>
+            </Reveal>
+            <Reveal index={1} style={{ marginTop: 26, alignSelf: 'stretch' }}>
+              <Sidebox
+                icon="camera"
+                tint={c.success}
+                title="Today's challenge — upload your first meal"
+                text={isAiConfigured
+                  ? 'One photo. Your AI nutrition coach reads it, scores it, and shows you exactly what to do next, instantly. +3 to your score.'
+                  : 'Log your meal and your nutrition coach scores it and shows you exactly what to do next, instantly. +3 to your score.'}
+              />
+              {/* Proto tiles2: the standard to chase, from the real tier ladder. */}
+              <Row style={{ gap: 12, marginTop: 12 }}>
+                <Tile style={{ flex: 1, padding: 15 }}>
+                  <Txt w="eb" size={11} color={c.textTertiary} ls={0.8} upper>Score to beat</Txt>
+                  <Txt w="eb" size={20} ls={-0.4} style={{ marginTop: 5 }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                    {onStandard.min}
+                  </Txt>
+                </Tile>
+                <Tile style={{ flex: 1, padding: 15 }}>
+                  <Txt w="eb" size={11} color={c.textTertiary} ls={0.8} upper>That tier</Txt>
+                  <Txt w="eb" size={20} ls={-0.4} color={tierChip.g.fg} style={{ marginTop: 5 }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                    {onStandard.name}
+                  </Txt>
+                </Tile>
+              </Row>
+            </Reveal>
+          </ScrollView>
+          <View style={{ paddingHorizontal: 24, paddingBottom: 34, paddingTop: 14 }}>
+            <Btn label="Start Day 1" haptic="success" onPress={s.startFirstMealChallenge} />
+          </View>
+        </View>
       );
+    }
   }
 }
 
@@ -906,11 +1110,10 @@ function GenericFlow() {
     s.finishOb();
     return null;
   }
-  const progress = (idx + 1) / flow.length;
-  return <GenericStep step={step} progress={progress} />;
+  return <GenericStep step={step} stepNo={idx + 1} total={flow.length} />;
 }
 
-function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
+function GenericStep({ step, stepNo, total }: { step: GenStep; stepNo: number; total: number }) {
   const c = useColors();
   const s = useStore();
   const val = step.kind === 'select' || step.kind === 'multiselect' || step.kind === 'text' ? s.obMeta[step.field] : undefined;
@@ -948,60 +1151,49 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
     };
     return (
       <StepShell
-        progress={progress}
+        step={stepNo}
+        total={total}
         onBack={s.obBack}
         eyebrow="Activate"
         title={step.title}
         sub={realCode ? step.sub : 'Your real team code will be ready on your dashboard. Here is what it will look like.'}
         footer={
-          realCode
-            ? <Btn label={step.cta} haptic="success" onPress={() => { void shareCode(); s.finishOb(); }} />
-            : <Btn label="Go to your dashboard" haptic="success" onPress={s.finishOb} />
+          <View>
+            {realCode
+              ? <Btn label={step.cta} haptic="success" onPress={() => { void shareCode(); s.finishOb(); }} />
+              : <Btn label="Go to your dashboard" haptic="success" onPress={s.finishOb} />}
+            <SkipLink onPress={s.finishOb} />
+          </View>
         }
       >
-        <Card variant="low" style={{ marginTop: 6, borderRadius: 20 }}>
-          <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} upper>
-            {realCode ? step.codeLabel : 'Example team code'}
-          </Txt>
-          <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
-            <Txt w="eb" size={26} ls={1}>
-              {s.teamCode || 'EAGLES24'}
+        {/* Proto code-boxes: one letter per box; tinted only when the code is real. */}
+        <Eyebrow style={{ textAlign: 'center' }}>{realCode ? step.codeLabel : 'Example team code'}</Eyebrow>
+        <CodeBoxes code={s.teamCode || 'EAGLES24'} sample={!realCode} />
+        {!realCode ? (
+          <Row style={{ gap: 6, marginTop: 14, alignItems: 'flex-start' }}>
+            <SampleTag />
+            <Txt w="sb" size={12} color={c.textTertiary} style={{ flex: 1, lineHeight: 17 }}>
+              Sample — don&apos;t share this one. Your code appears on the Roster tab once your team is set up.
             </Txt>
-            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="copy" size={19} color={c.accent} />
-            </View>
           </Row>
-          {!realCode ? (
-            <Row style={{ gap: 6, marginTop: 10 }}>
-              <SampleTag />
-              <Txt w="sb" size={12} color={c.textTertiary} style={{ flex: 1 }}>
-                Sample — don't share this one. Your code appears on the Roster tab once your team is set up.
-              </Txt>
-            </Row>
-          ) : null}
-        </Card>
-        <Pressable accessibilityRole="button" accessibilityLabel="Skip for now" hitSlop={8} onPress={() => { haptics.tap(); s.finishOb(); }} style={({ pressed }) => ({ alignSelf: 'center', marginTop: 18, opacity: pressed ? 0.6 : 1 })}>
-          <Txt w="b" size={14} color={c.textSecondary}>
-            Skip for now
-          </Txt>
-        </Pressable>
+        ) : null}
       </StepShell>
     );
   }
 
   if (step.kind === 'account') {
-    return <CreateAccountForm progress={progress} title={step.title} sub={step.sub} onDone={s.obNext} />;
+    return <CreateAccountForm step={stepNo} total={total} title={step.title} sub={step.sub} onDone={s.obNext} />;
   }
 
   if (step.kind === 'orgpicker') {
-    return <OrgPicker step={step} progress={progress} />;
+    return <OrgPicker step={step} stepNo={stepNo} total={total} />;
   }
 
   if (step.kind === 'text') {
     const cur = typeof val === 'string' ? val : '';
     return (
-      <StepShell progress={progress} onBack={s.obBack} title={step.title} sub={step.sub} footer={<Btn label="Continue" disabled={cur.trim().length < 1} onPress={s.obNext} />}>
-        <Input value={cur} onChangeText={(v) => s.setObMeta(step.field, v)} placeholder={step.placeholder} autoCapitalize="words" />
+      <StepShell step={stepNo} total={total} onBack={s.obBack} title={step.title} sub={step.sub} footer={<Btn label="Continue" disabled={cur.trim().length < 1} onPress={s.obNext} />}>
+        <ObInput value={cur} onChangeText={(v) => s.setObMeta(step.field, v)} placeholder={step.placeholder} autoCapitalize="words" />
       </StepShell>
     );
   }
@@ -1009,7 +1201,7 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
   if (step.kind === 'multiselect') {
     const arr = Array.isArray(val) ? val : [];
     return (
-      <StepShell progress={progress} onBack={s.obBack} title={step.title} sub={step.sub} footer={<Btn label="Continue" disabled={arr.length < 1} onPress={s.obNext} />}>
+      <StepShell step={stepNo} total={total} onBack={s.obBack} title={step.title} sub={step.sub} footer={<Btn label="Continue" disabled={arr.length < 1} onPress={s.obNext} />}>
         {step.options.map((o) => (
           <OptionRow key={o.key} label={o.label} selected={arr.includes(o.key)} onPress={() => s.toggleObMetaItem(step.field, o.key)} />
         ))}
@@ -1019,7 +1211,7 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
 
   // select
   return (
-    <StepShell progress={progress} onBack={s.obBack} title={step.title} sub={step.sub} footer={<Btn label="Continue" disabled={!val} onPress={s.obNext} />}>
+    <StepShell step={stepNo} total={total} onBack={s.obBack} title={step.title} sub={step.sub} footer={<Btn label="Continue" disabled={!val} onPress={s.obNext} />}>
       {step.options.map((o) => (
         <OptionRow key={o.key} label={o.label} selected={val === o.key} onPress={() => s.setObMeta(step.field, o.key)} />
       ))}
@@ -1032,7 +1224,7 @@ function GenericStep({ step, progress }: { step: GenStep; progress: number }) {
  *  obMeta[field] and its id to obMeta.orgId (so an athlete and this coach land on the
  *  same school), plus the discoverable toggle. Offline/demo: degrades to the prior
  *  freetext behavior (name only, no org id) so the coach flow works without a backend. */
-function OrgPicker({ step, progress }: { step: Extract<GenStep, { kind: 'orgpicker' }>; progress: number }) {
+function OrgPicker({ step, stepNo, total }: { step: Extract<GenStep, { kind: 'orgpicker' }>; stepNo: number; total: number }) {
   const c = useColors();
   const s = useStore();
   const selectedName = typeof s.obMeta[step.field] === 'string' ? (s.obMeta[step.field] as string) : '';
@@ -1083,13 +1275,14 @@ function OrgPicker({ step, progress }: { step: Extract<GenStep, { kind: 'orgpick
 
   return (
     <StepShell
-      progress={progress}
+      step={stepNo}
+      total={total}
       onBack={s.obBack}
       title={step.title}
       sub={step.sub}
       footer={<Btn label="Continue" disabled={!ready} onPress={s.obNext} />}
     >
-      <Input value={query} onChangeText={onChange} placeholder="Search your school or club" autoCapitalize="words" />
+      <ObInput value={query} onChangeText={onChange} placeholder="Search your school or club" autoCapitalize="words" />
       {isBackendLive ? (
         <View style={{ marginTop: 10 }}>
           {results.map((o) => (

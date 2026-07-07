@@ -60,8 +60,8 @@ function FallbackCard({
       <Txt w="eb" size={15} color={c.slate700} style={{ marginTop: 12, textAlign: 'center' }}>{title}</Txt>
       <Txt w="sb" size={13} color={c.textTertiary} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>{sub}</Txt>
       {cta ? (
-        <View style={{ marginTop: 14, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, backgroundColor: c.accent }}>
-          <Txt w="b" size={14} color={c.white}>{cta}</Txt>
+        <View style={{ marginTop: 14, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, backgroundColor: c.success }}>
+          <Txt w="b" size={14} color={c.onGreen}>{cta}</Txt>
         </View>
       ) : null}
     </Pressable>
@@ -140,15 +140,16 @@ export function LiveCamera({
       >
         <Icon name="gallery" size={20} color={c.white} />
       </Pressable>
+      {/* The redesign's GREEN shutter (proto camera.js): green glow ring around a green disc. */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Capture meal photo"
         disabled={busy || !ready}
         onPress={take}
-        style={{ position: 'absolute', alignSelf: 'center', bottom: 16, width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: c.white, padding: 5, opacity: ready ? 1 : 0.5 }}
+        style={{ position: 'absolute', alignSelf: 'center', bottom: 16, width: 78, height: 78, borderRadius: 39, borderWidth: 4, borderColor: 'rgba(52,211,153,0.45)', padding: 5, opacity: ready ? 1 : 0.5 }}
       >
-        <View style={{ flex: 1, borderRadius: 30, backgroundColor: busy ? c.accent : c.white, alignItems: 'center', justifyContent: 'center' }}>
-          {busy ? <ActivityIndicator color={c.white} /> : null}
+        <View style={{ flex: 1, borderRadius: 31, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center' }}>
+          {busy ? <ActivityIndicator color={c.onGreen} /> : <Icon name="camera" size={24} color={c.onGreen} />}
         </View>
       </Pressable>
     </View>

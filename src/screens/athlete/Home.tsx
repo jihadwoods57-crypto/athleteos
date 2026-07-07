@@ -18,7 +18,6 @@ import {
   passStatus,
   withinTrailingWeek,
   todayStamp,
-  SCORE_WEIGHTS,
   type MealKey,
 } from '@/core';
 import { useStore, useDerived } from '@/store';
@@ -93,10 +92,6 @@ export function Home() {
   // ---- Recent Activity, from real logged meals + hydration + recovery ----
   const activity = buildActivity(s, d);
 
-  // In-screen score breakdown (the hero "tap → score-breakdown"): RN has no separate
-  // breakdown route, so tapping the hero expands the weights panel below it.
-  const [breakdownOpen, setBreakdownOpen] = React.useState(false);
-
   return (
     <ScrollView
       style={{ flex: 1 }}
@@ -157,7 +152,7 @@ export function Home() {
         <PressScale
           accessibilityLabel="OnStandard score. Tap for the breakdown."
           haptic="tap"
-          onPress={() => setBreakdownOpen((v) => !v)}
+          onPress={s.goBreakdown}
           style={{ paddingTop: 6, paddingBottom: 4 }}
         >
           <View style={{ alignItems: 'center' }}>
@@ -228,28 +223,6 @@ export function Home() {
         </PressScale>
       </Reveal>
 
-      {/* Score breakdown — revealed when the hero is tapped (the proto's score-breakdown route). */}
-      {breakdownOpen ? (
-        <Card variant="low" style={{ marginTop: 12, borderRadius: 20, padding: 18 }}>
-          <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} upper style={{ marginBottom: 14 }}>
-            What’s in this score
-          </Txt>
-          <View style={{ gap: 13 }}>
-            {SCORE_WEIGHTS.map((w) => (
-              <View key={w.key}>
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <Txt w="b" size={14}>{w.label}</Txt>
-                  <Txt w="eb" size={14} color={c.accent}>{w.pct}%</Txt>
-                </Row>
-                <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>
-                  {w.desc}
-                </Txt>
-              </View>
-            ))}
-          </View>
-        </Card>
-      ) : null}
-
       {/* ===== 3 · Next action — the big green CTA (or the done state) ===== */}
       <View style={{ marginTop: 16 }}>
         {na.done ? (
@@ -272,7 +245,7 @@ export function Home() {
             onPress={
               na.cta === 'meal' ? s.openMeal
               : na.cta === 'water' ? s.addWater
-              : na.cta === 'checkin' ? s.goCheckin
+              : na.cta === 'checkin' ? s.goRecovery
               : na.cta === 'plan' ? s.goTasks
               : undefined
             }
@@ -386,7 +359,7 @@ export function Home() {
               onPress={
                 na.cta === 'meal' ? s.openMeal
                 : na.cta === 'water' ? s.addWater
-                : na.cta === 'checkin' ? s.goCheckin
+                : na.cta === 'checkin' ? s.goRecovery
                 : na.cta === 'plan' ? s.goTasks
                 : undefined
               }
@@ -400,7 +373,7 @@ export function Home() {
                 sub="highest risk · keeps the streak"
                 value="tonight"
                 valueColor={c.warningDeep}
-                onPress={s.goCheckin}
+                onPress={s.goRecovery}
               />
             ) : null}
           </View>
@@ -464,7 +437,7 @@ function buildRequirements(
       // Weight is deliberately OUT of the daily score (season-goal arc) — say so honestly.
       meta: weightDone ? 'Trend only' : 'Not scored',
       done: weightDone,
-      onPress: s.goProfile,
+      onPress: s.goWeight,
     },
     {
       id: 'recovery',
@@ -478,7 +451,7 @@ function buildRequirements(
       // Recovery IS scored, and its number is real — show it when submitted (no fake score).
       meta: recoveryDone ? `Scored ${d.recoveryScore}` : '+ pts',
       done: recoveryDone,
-      onPress: s.goCheckin,
+      onPress: s.goRecovery,
     },
     {
       id: 'weekly',
@@ -530,8 +503,8 @@ function buildActivity(
   }
   out.push(
     d.recoveryScoreIsReal
-      ? { key: 'recovery', time: 'Tonight', type: 'Recovery Check-In', value: `${d.recoveryScore}`, vClass: 'g', icon: 'checkin', onPress: s.goCheckin }
-      : { key: 'recovery', time: 'Tonight', type: 'Recovery Check-In', value: 'Upcoming', vClass: 'muted', icon: 'checkin', dim: true, onPress: s.goCheckin },
+      ? { key: 'recovery', time: 'Tonight', type: 'Recovery Check-In', value: `${d.recoveryScore}`, vClass: 'g', icon: 'checkin', onPress: s.goRecovery }
+      : { key: 'recovery', time: 'Tonight', type: 'Recovery Check-In', value: 'Upcoming', vClass: 'muted', icon: 'checkin', dim: true, onPress: s.goRecovery },
   );
   return out;
 }

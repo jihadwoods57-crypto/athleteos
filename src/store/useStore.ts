@@ -209,6 +209,10 @@ export interface Actions {
   goPerformance: () => void;
   /** Open the Reminders settings screen (P3). */
   goReminders: () => void;
+  /** Redesign routes (proto): Score Breakdown, Morning Weight, Recovery Check-In. */
+  goBreakdown: () => void;
+  goWeight: () => void;
+  goRecovery: () => void;
   /** Log a performance result (PR). The store assigns a stable id + persists it.
    *  A separate development track from the daily score (never folds into it). */
   logPr: (spec: PrInput) => void;
@@ -790,6 +794,11 @@ export const useStore = create<Store>()(
       goNutrition: () => set({ flow: 'app', tab: 'nutrition' }),
       goPerformance: () => set({ flow: 'app', tab: 'performance' }),
       goReminders: () => set({ flow: 'app', tab: 'reminders' }),
+      goBreakdown: () => set({ flow: 'app', tab: 'breakdown' }),
+      goWeight: () => set({ flow: 'app', tab: 'weight' }),
+      // Same ciStage reset as goCheckin: the Recovery screen is the proto presentation
+      // over the SAME check-in instrument, so it must open on the form, not a stale 'done'.
+      goRecovery: () => set({ flow: 'app', tab: 'recovery', ciStage: 'open' }),
 
       // ---- performance (P1) â€” a separate development track; never folds into
       // the daily Accountability Score. Persisted locally; when the backend goes

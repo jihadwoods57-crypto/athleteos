@@ -7,8 +7,9 @@
 // label scan, the analyze-meal AI integration) are preserved unchanged.
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, ScrollView, TextInput, View } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { captureProof, coachGuidance, experienceKind, mealResultFor, overseerNoun, qualityLabel, mealCoaching, mealScoreImpact, medicalDisclaimer, flagIngredients, scaleLabel, labelQuality, labelProvenanceNote, matchUsuals, foodLookupToEditable } from '@/core';
-import type { MealLabel, LabelFacts, IngredientFlag, MealResult, MealCaptureMode, MealErrorReason, FoodLookupResult } from '@/core';
+import type { MealLabel, LabelFacts, IngredientFlag, MealResult, MealCaptureMode, MealErrorReason, FoodLookupResult, EditableFood } from '@/core';
 import { useStore, useDerived } from '@/store';
 import { aiCoachTag } from '@/lib/ai';
 import { isEnginesEnabled } from '@/lib/features';
@@ -94,7 +95,7 @@ export function MealCapture() {
             {s.mealStage === 'analyzing' && <Analyzing label={isLabel} />}
             {s.mealStage === 'questions' && <Questions />}
             {s.mealStage === 'result' && (isLabel
-              ? <LabelResult facts={s.labelFacts} servings={s.labelServings} onServings={s.setLabelServings} onAdd={s.addScannedLabel} />
+              ? <LabelResult facts={s.labelFacts} servings={s.labelServings} mealType={s.mealType} onServings={s.setLabelServings} onAdd={s.addScannedLabel} />
               : <Result mealType={s.mealType} onAdd={s.addMeal} />)}
             {s.mealStage === 'unavailable' && (
               <Unavailable
@@ -807,18 +808,23 @@ function MacroChip({ value, label, color }: { value: string; label: string; colo
 }
 
 /**
- * Label-scan result: the EXACT macros off the Nutrition Facts panel, scaled by servings,
- * plus the coach-style quality read and ingredient flags. No "~" on the macros — they're
- * read, not estimated (the honesty stance: facts exact, judgment humble).
+ * Label-scan result — a faithful port of the proto labelScan screen: the scanned product
+ * header, the "Transcribed panel" key/value read (EXACT numbers off the label, only
+ * multiplied by servings — 2 servings = doubled macros), the servings chips (proto's
+ * 1 / 1.5 / 2, plus ∓½ steps so every serving count stays reachable), the coach flags,
+ * the "panel numbers are locked" sidebox, and the green log CTA. No "~" on the macros —
+ * they're read, not estimated (the honesty stance: facts exact, judgment humble).
  */
 function LabelResult({
   facts,
   servings,
+  mealType,
   onServings,
   onAdd,
 }: {
   facts: LabelFacts | null;
   servings: number;
+  mealType: MealLabel;
   onServings: (n: number) => void;
   onAdd: () => void;
 }) {
@@ -832,11 +838,25 @@ function LabelResult({
     accent: { bg: c.accentSurface, fg: c.accent },
     warning: { bg: c.warnTint, fg: c.warnText },
   }[q.tone];
-  const servingsText = scaled.servings === 1 ? '1 serving' : `${scaled.servings} servings`;
+  // Proto "Transcribed panel": exact key/value rows off the panel, multiplied by servings
+  // only (scaleLabel does the math — macros to 1 decimal, calories/sodium whole).
+  const unit = facts.servingSize?.trim() || 'serving';
+  const panelRows: [string, string][] = [
+    ['Serving size', scaled.servings === 1 ? unit : `${scaled.servings} × ${unit}`],
+    ['Calories', `${scaled.calories}`],
+    ['Protein', `${scaled.protein}g`],
+    ['Total carbs', `${scaled.carbs}g`],
+    ['Total fat', `${scaled.fat}g`],
+    ['Sugar', `${scaled.sugar}g`],
+    ['Sodium', `${scaled.sodium}mg`],
+  ];
+  // The proto's serving chips. The ∓½ pills alongside keep every count reachable
+  // (setLabelServings clamps to ¼ steps), so the chips lose no capability.
+  const servingOptions = [1, 1.5, 2];
 
   return (
     <View>
-      {/* product + quality read */}
+      {/* scanned product header + the humble quality read */}
       <Reveal index={0}>
       <Card variant="hero" style={{ marginTop: 16, borderRadius: 20 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -846,11 +866,9 @@ function LabelResult({
             </View>
             <View style={{ flex: 1 }}>
               <Txt w="eb" size={19} ls={-0.3}>{facts.productName?.trim() || 'Scanned food'}</Txt>
-              {facts.servingSize ? (
-                <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 2 }}>
-                  Label serving: {facts.servingSize}
-                </Txt>
-              ) : null}
+              <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 2 }}>
+                Exact numbers off the panel, never estimates
+              </Txt>
             </View>
           </Row>
           <View style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: tone.bg }}>
@@ -860,49 +878,62 @@ function LabelResult({
       </Card>
       </Reveal>
 
-      {/* servings stepper */}
+      {/* transcribed panel — proto's key/value nutrition-facts card */}
       <Reveal index={1}>
-      <Card variant="low" style={{ marginTop: 12, borderRadius: 18 }}>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <View style={{ flex: 1 }}>
-            <Txt w="b" size={15}>How many did you eat?</Txt>
-            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 2 }}>
-              In servings of {facts.servingSize?.trim() || 'the label size'}
-            </Txt>
-          </View>
-          <Row style={{ gap: 14, alignItems: 'center' }}>
-            <StepBtn icon="minus" label="Fewer servings" onPress={() => onServings(servings - 0.5)} />
-            <Txt w="eb" num size={20} style={{ minWidth: 42, textAlign: 'center' }}>{servingsText.split(' ')[0]}</Txt>
-            <StepBtn icon="plus" label="More servings" onPress={() => onServings(servings + 0.5)} />
+      <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} style={{ marginTop: 26, marginBottom: 12, paddingHorizontal: 2 }}>
+        TRANSCRIBED PANEL
+      </Txt>
+      <View style={[{ borderRadius: 22, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline, paddingVertical: 4, paddingHorizontal: 18 }, shadow.card]}>
+        {panelRows.map(([k, v], i) => (
+          <Row key={k} style={{ justifyContent: 'space-between', paddingVertical: 11, borderBottomWidth: i < panelRows.length - 1 ? 1 : 0, borderBottomColor: c.divider2 }}>
+            <Txt w="b" size={14} color={c.textSecondary}>{k}</Txt>
+            <Txt w="eb" num size={14.5} maxFontSizeMultiplier={MAX_FONT_SCALE}>{v}</Txt>
           </Row>
-        </Row>
-      </Card>
+        ))}
+      </View>
       </Reveal>
 
-      {/* the exact macros that get logged */}
+      {/* servings — proto chip row (1 / 1.5 / 2) + fine ∓½ steps */}
       <Reveal index={2}>
-      <Card variant="hero" style={{ marginTop: 12, borderRadius: 18 }}>
-        <Txt w="eb" size={11} color={c.textTertiary} ls={0.4} style={{ marginBottom: 12 }}>
-          YOU ATE · {servingsText.toUpperCase()} · FROM THE LABEL
-        </Txt>
-        <Row style={{ gap: 14 }}>
-          <MacroChip value={`${Math.round(scaled.protein)}g`} label="Protein" color={c.accent} />
-          <MacroChip value={`${scaled.calories}`} label="Cal" />
-          <MacroChip value={`${Math.round(scaled.carbs)}g`} label="Carbs" />
-          <MacroChip value={`${Math.round(scaled.fat)}g`} label="Fat" />
+      <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} style={{ marginTop: 26, marginBottom: 12, paddingHorizontal: 2 }}>
+        SERVINGS
+      </Txt>
+      <Row style={{ gap: 9, flexWrap: 'wrap' }}>
+        {servingOptions.map((m) => {
+          const active = scaled.servings === m;
+          return (
+            <Pressable
+              key={m}
+              accessibilityRole="button"
+              accessibilityLabel={`${m} ${m === 1 ? 'serving' : 'servings'}`}
+              accessibilityState={{ selected: active }}
+              onPress={() => { haptics.select(); onServings(m); }}
+              style={{ paddingVertical: 11, paddingHorizontal: 17, borderRadius: 999, backgroundColor: active ? c.accentSurface : c.card, borderWidth: 1.5, borderColor: active ? c.accent : c.hairline }}
+            >
+              <Txt w="b" num size={14} color={active ? c.accent : c.text} maxFontSizeMultiplier={MAX_FONT_SCALE}>{m}</Txt>
+            </Pressable>
+          );
+        })}
+        {servingOptions.includes(scaled.servings) ? null : (
+          <View
+            accessible
+            accessibilityLabel={`${scaled.servings} servings selected`}
+            style={{ paddingVertical: 11, paddingHorizontal: 17, borderRadius: 999, backgroundColor: c.accentSurface, borderWidth: 1.5, borderColor: c.accent }}
+          >
+            <Txt w="b" num size={14} color={c.accent} maxFontSizeMultiplier={MAX_FONT_SCALE}>{scaled.servings}</Txt>
+          </View>
+        )}
+        <Row style={{ gap: 9, marginLeft: 'auto' }}>
+          <Wb2 glyph="−" label="Fewer servings" onPress={() => onServings(servings - 0.5)} />
+          <Wb2 glyph="+" label="More servings" onPress={() => onServings(servings + 0.5)} />
         </Row>
-        <View style={{ height: 1, backgroundColor: c.hairline, marginVertical: 14 }} />
-        <Row style={{ gap: 14 }}>
-          <MacroChip value={`${Math.round(scaled.sugar)}g`} label="Sugar" />
-          <MacroChip value={`${scaled.sodium}mg`} label="Sodium" />
-        </Row>
-      </Card>
+      </Row>
       </Reveal>
 
       {/* ingredient / nutrient flags */}
       {flags.length ? (
         <Reveal index={3}>
-        <Card variant="low" style={{ marginTop: 12, borderRadius: 18 }}>
+        <Card variant="low" style={{ marginTop: 16, borderRadius: 18 }}>
           <Txt w="eb" size={11} color={c.textTertiary} ls={0.4} style={{ marginBottom: 12 }}>
             FLAGGED · YOUR COACH'S LIST
           </Txt>
@@ -920,28 +951,21 @@ function LabelResult({
         </Txt>
       ) : null}
 
-      {/* honesty: facts exact, judgment humble */}
-      <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 8, paddingHorizontal: 4, lineHeight: 17 }}>
-        {labelProvenanceNote()}
-      </Txt>
+      {/* honesty sidebox — proto "Panel numbers are locked" (facts exact, judgment humble) */}
+      <Row style={{ marginTop: 16, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 15, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.divider2, gap: 12, alignItems: 'flex-start' }}>
+        <View style={{ width: 38, height: 38, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="shield" size={18} color={c.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt w="eb" size={13.5}>Panel numbers are locked</Txt>
+          <Txt w="sb" size={12.5} color={c.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>
+            {labelProvenanceNote()}
+          </Txt>
+        </View>
+      </Row>
 
-      <Btn label="Add to Log" haptic="success" onPress={onAdd} style={{ marginTop: 18 }} />
+      <ProtoCta label={`Add to ${mealType}`} onPress={onAdd} style={{ marginTop: 16 }} />
     </View>
-  );
-}
-
-function StepBtn({ icon, label, onPress }: { icon: 'plus' | 'minus'; label: string; onPress: () => void }) {
-  const c = useColors();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      hitSlop={8}
-      onPress={() => { haptics.tap(); onPress(); }}
-      style={({ pressed }) => [{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 }]}
-    >
-      <Icon name={icon} size={18} color={c.accent} />
-    </Pressable>
   );
 }
 
@@ -1160,10 +1184,14 @@ function confidenceMeta(
 }
 
 /**
- * Search a food by name (USDA FoodData Central) and pick EXACT macros from a ranked list — no
- * photo, no model call, no daily slot. "chicken breast" alone can't tell deli from raw, so we
- * surface the top matches and let the athlete pick theirs; picking logs the exact macros to the
- * selected slot via the normal saveMeal path. Fail-soft: no connection / no match -> a helpful note.
+ * Search a food by name (USDA FoodData Central) and build the plate from EXACT macros — no
+ * photo, no model call, no daily slot. A faithful port of the proto foodSearch screen: the
+ * composer search bar, tappable result rows (name + per-serving macros preview), the "Your
+ * plate" builder with ∓ serving steppers and live macro totals (the proto's plate math:
+ * 2× chicken = 62g of protein), and one green log CTA. "chicken breast" alone can't tell
+ * deli from raw, so the top matches surface and the athlete picks theirs; logging sends each
+ * plate item through the normal addSearchedFood/saveMeal path with its serving multiplier.
+ * Fail-soft: no connection / no match -> a helpful note.
  */
 function FoodSearch() {
   const c = useColors();
@@ -1173,6 +1201,8 @@ function FoodSearch() {
   const [loading, setLoading] = useState(false);
   // A dead network is not "no matches" — the two states get different, honest copy.
   const [failed, setFailed] = useState(false);
+  // The building plate (proto's `plate` array): each picked food with a serving count.
+  const [plate, setPlate] = useState<{ food: EditableFood; qty: number }[]>([]);
 
   const run = async () => {
     const q = query.trim();
@@ -1189,18 +1219,48 @@ function FoodSearch() {
       setLoading(false);
     }
   };
-  const pick = (r: FoodLookupResult) => {
-    haptics.success();
-    s.addSearchedFood(foodLookupToEditable(r));
+  // Tap a result to add it to the plate; tapping the same food again adds a serving (proto).
+  const addToPlate = (r: FoodLookupResult) => {
+    haptics.select();
+    const food = foodLookupToEditable(r);
+    setPlate((prev) => {
+      const i = prev.findIndex((x) => x.food.name === food.name && x.food.portion === food.portion);
+      if (i >= 0) return prev.map((x, j) => (j === i ? { ...x, qty: x.qty + 1 } : x));
+      return [...prev, { food, qty: 1 }];
+    });
+  };
+  const step = (i: number, d: number) => {
+    setPlate((prev) =>
+      prev
+        .map((x, j) => (j === i ? { ...x, qty: Math.max(0, x.qty + d) } : x))
+        .filter((x) => x.qty > 0),
+    );
+  };
+  // Live plate totals — the REAL math (per-serving macros × servings), the same numbers
+  // addSearchedFood logs. 2× chicken breast (31g protein/serving) totals 62g.
+  const totals = plate.reduce(
+    (a, x) => ({
+      p: a.p + x.food.per.protein * x.qty,
+      cb: a.cb + x.food.per.carbs * x.qty,
+      f: a.f + x.food.per.fat * x.qty,
+      kc: a.kc + x.food.per.kcal * x.qty,
+    }),
+    { p: 0, cb: 0, f: 0, kc: 0 },
+  );
+  const logPlate = () => {
+    if (plate.length === 0) return;
+    // Every plate item logs through the preserved addSearchedFood path: `servings` is the
+    // EditableFood multiplier, so the exact per-serving macros scale in mealMacros.
+    for (const x of plate) s.addSearchedFood({ ...x.food, servings: x.qty });
   };
 
   return (
     <View>
-      {/* which slot the picked food logs into */}
+      {/* which slot the plate logs into */}
       <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} style={{ marginBottom: 10 }}>
         LOG INTO
       </Txt>
-      <Row style={{ gap: 8, marginBottom: 16 }}>
+      <Row style={{ gap: 8 }}>
         {MEAL_TYPES.map((m) => {
           const active = s.mealType === m;
           return (
@@ -1218,18 +1278,17 @@ function FoodSearch() {
         })}
       </Row>
 
-      {/* search box */}
-      <Row style={[{ borderRadius: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline, paddingLeft: 14, paddingRight: 6, alignItems: 'center', gap: 8 }, shadow.card]}>
-        <Icon name="search" size={18} color={c.textTertiary} />
+      {/* search bar — proto .composer: pill input + a round surface send button */}
+      <Row style={{ gap: 10, marginTop: 16 }}>
         <TextInput
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={run}
           returnKeyType="search"
-          placeholder="Search a food, e.g. chicken breast"
+          placeholder="Search foods…"
           placeholderTextColor={c.textTertiary}
           autoCapitalize="none"
-          style={{ flex: 1, minHeight: 46, paddingVertical: 11, fontSize: 15, color: c.text }}
+          style={{ flex: 1, height: 48, borderRadius: 999, borderWidth: 1, borderColor: c.hairline, backgroundColor: c.card, color: c.text, paddingHorizontal: 18, fontSize: 14, fontWeight: '600' }}
           accessibilityLabel="Search a food by name"
         />
         <Pressable
@@ -1237,66 +1296,165 @@ function FoodSearch() {
           accessibilityLabel="Search"
           onPress={run}
           hitSlop={8}
-          style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accent }}
+          style={({ pressed }) => [{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface2, opacity: pressed ? 0.7 : 1 }]}
         >
-          {loading ? <Spinner /> : <Icon name="chevronRight" size={18} color={c.white} />}
+          {loading ? <Spinner /> : <Icon name="search" size={18} color={c.text} />}
         </Pressable>
       </Row>
 
-      {!isFoodLookupConfigured ? (
-        <SearchNote text="Food search needs a connection. Snap a photo or scan a label instead." />
-      ) : loading ? (
-        <SearchNote text="Searching the USDA database…" />
-      ) : failed ? (
-        <SearchNote text="Couldn't reach the food database — that's on the connection, not your search. Try again, or scan the label." />
-      ) : results === null ? (
-        <SearchNote text="Type a food and search. Numbers come straight from the USDA database — exact, not a photo estimate." />
-      ) : results.length === 0 ? (
-        <SearchNote text={`No matches for "${query.trim()}". Try a simpler name, or scan the label.`} />
-      ) : (
-        <View style={{ marginTop: 18, gap: 8 }}>
-          <Txt w="eb" size={11} color={c.textTertiary} ls={0.5}>TAP YOUR FOOD · EXACT MACROS</Txt>
-          {results.map((r, i) => <ResultRow key={`${r.name}-${i}`} result={r} onPick={() => pick(r)} />)}
-          <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 6, lineHeight: 16 }}>
-            {results[0]?.source === 'off' ? 'Data: Open Food Facts (ODbL)' : 'Data: USDA FoodData Central (CC0)'}
-          </Txt>
-        </View>
-      )}
+      {/* results — proto .card section of .lrow hits (or one honest state note) */}
+      <Txt w="eb" size={11} color={c.textTertiary} ls={0.6} style={{ marginTop: 26, marginBottom: 12, paddingHorizontal: 2 }}>
+        RESULTS
+      </Txt>
+      <View style={[{ borderRadius: 22, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline, paddingVertical: 2 }, shadow.card]}>
+        {!isFoodLookupConfigured ? (
+          <SearchNote text="Food search needs a connection. Snap a photo or scan a label instead." />
+        ) : loading ? (
+          <SearchNote text="Searching the USDA database…" />
+        ) : failed ? (
+          <SearchNote text="Couldn't reach the food database — that's on the connection, not your search. Try again, or scan the label." />
+        ) : results === null ? (
+          <SearchNote text="Type a food and search. Numbers come straight from the USDA database — exact, not a photo estimate." />
+        ) : results.length === 0 ? (
+          <SearchNote text={`No matches for "${query.trim()}". Try a simpler name, or scan the label.`} />
+        ) : (
+          results.map((r, i) => (
+            <ResultRow key={`${r.name}-${i}`} result={r} last={i === results.length - 1} onAdd={() => addToPlate(r)} />
+          ))
+        )}
+      </View>
+      {results?.length ? (
+        <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 8, paddingHorizontal: 2, lineHeight: 16 }}>
+          {results[0]?.source === 'off' ? 'Data: Open Food Facts (ODbL)' : 'Data: USDA FoodData Central (CC0)'}
+        </Txt>
+      ) : null}
+
+      {/* your plate — the proto builder: rows with ∓ serving pills, then live macro totals */}
+      <Row style={{ marginTop: 26, marginBottom: 12, paddingHorizontal: 2, justifyContent: 'space-between' }}>
+        <Txt w="eb" size={11} color={c.textTertiary} ls={0.6}>YOUR PLATE</Txt>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Clear the plate"
+          hitSlop={8}
+          onPress={() => { haptics.tap(); setPlate([]); }}
+        >
+          <Txt w="b" size={13} color={c.accent}>Clear</Txt>
+        </Pressable>
+      </Row>
+      <View style={[{ borderRadius: 22, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline, padding: 18 }, shadow.card]}>
+        {plate.length === 0 ? (
+          <Txt w="sb" size={13} color={c.textTertiary}>Tap results to build the plate.</Txt>
+        ) : (
+          <>
+            {plate.map((x, i) => (
+              <Row key={`${x.food.name}-${x.food.portion}`} style={{ gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.divider2 }}>
+                <Txt w="b" size={14} style={{ flex: 1 }} numberOfLines={1}>
+                  {x.food.name} <Txt w="sb" size={12} color={c.textTertiary}>· {x.food.portion}</Txt>
+                </Txt>
+                <Wb2 glyph="−" label={`One less serving of ${x.food.name}`} onPress={() => step(i, -1)} />
+                <Txt w="eb" num size={14} style={{ width: 26, textAlign: 'center' }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                  {x.qty}
+                </Txt>
+                <Wb2 glyph="+" label={`One more serving of ${x.food.name}`} onPress={() => step(i, 1)} />
+              </Row>
+            ))}
+            <Row style={{ gap: 10, marginTop: 12 }}>
+              <MacroTile value={`${Math.round(totals.p)}g`} label="Protein" />
+              <MacroTile value={`${Math.round(totals.cb)}g`} label="Carbs" />
+              <MacroTile value={`${Math.round(totals.f)}g`} label="Fat" />
+              <MacroTile value={`${Math.round(totals.kc)}`} label="Calories" />
+            </Row>
+          </>
+        )}
+      </View>
+
+      <ProtoCta label={`Log ${s.mealType}`} disabled={plate.length === 0} onPress={logPlate} style={{ marginTop: 16 }} />
     </View>
   );
 }
 
-/** One search hit: name + per-serving macros (scaled from per-100g), tap to log. */
-function ResultRow({ result, onPick }: { result: FoodLookupResult; onPick: () => void }) {
+/** One search hit — proto .lrow: a plus tile, the food name, and its per-serving macros
+ *  preview (scaled from per-100g). Tap to add it to the plate. */
+function ResultRow({ result, last, onAdd }: { result: FoodLookupResult; last?: boolean; onAdd: () => void }) {
   const c = useColors();
   const f = foodLookupToEditable(result);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Log ${f.name}, about ${f.per.protein} grams protein`}
-      onPress={onPick}
-      style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline, opacity: pressed ? 0.7 : 1 }, shadow.card]}
+      accessibilityLabel={`Add ${f.name} to your plate — ${f.portion}, ${f.per.protein} grams protein, ${f.per.kcal} calories`}
+      onPress={onAdd}
+      style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: last ? 0 : 1, borderBottomColor: c.divider2, opacity: pressed ? 0.7 : 1 }]}
     >
-      <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="utensils" size={15} color={c.accent} />
+      <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="plus" size={16} color={c.textSecondary} />
       </View>
       <View style={{ flex: 1 }}>
-        <Txt w="b" size={14} color={c.text} numberOfLines={2}>{f.name}</Txt>
-        <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
+        <Txt w="b" size={15} color={c.text} numberOfLines={2}>{f.name}</Txt>
+        <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
           {`${f.portion} · ${f.per.protein}g protein · ${f.per.kcal} cal`}
         </Txt>
       </View>
-      <Icon name="plus" size={16} color={c.accent} />
     </Pressable>
   );
 }
 
+/** An honest state note inside the results card (proto's no-match row styling). */
 function SearchNote({ text }: { text: string }) {
   const c = useColors();
   return (
-    <Txt w="m" size={13} color={c.textTertiary} style={{ marginTop: 18, paddingHorizontal: 4, lineHeight: 19, textAlign: 'center' }}>
+    <Txt w="sb" size={13} color={c.textTertiary} style={{ padding: 16, lineHeight: 19 }}>
       {text}
     </Txt>
+  );
+}
+
+/** Proto .wb2 stepper pill — the cyan ∓ used by the plate rows and the label servings. */
+function Wb2({ glyph, label, onPress }: { glyph: '+' | '−'; label: string; onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={8}
+      onPress={() => { haptics.tap(); onPress(); }}
+      style={({ pressed }) => [{ paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(56,189,248,0.13)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)', opacity: pressed ? 0.6 : 1 }]}
+    >
+      <Txt w="eb" size={13} color={c.cyan} maxFontSizeMultiplier={MAX_FONT_SCALE}>{glyph}</Txt>
+    </Pressable>
+  );
+}
+
+/** Proto .macro tile: a centered value over its uppercase key, on a soft elevated tile. */
+function MacroTile({ value, label }: { value: string; label: string }) {
+  const c = useColors();
+  return (
+    <View style={{ flex: 1, alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4, borderRadius: 15, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.divider2 }}>
+      <Txt w="eb" num size={19} ls={-0.4} maxFontSizeMultiplier={MAX_FONT_SCALE}>{value}</Txt>
+      <Txt w="b" size={11} color={c.textTertiary} upper ls={0.44} style={{ marginTop: 3 }}>{label}</Txt>
+    </View>
+  );
+}
+
+/** Proto .btn.green — the green log CTA with its leading check, dimmed (not hidden) while
+ *  there's nothing to log. Green is the app's "go / log" action color. */
+function ProtoCta({ label, disabled, onPress, style }: { label: string; disabled?: boolean; onPress: () => void; style?: StyleProp<ViewStyle> }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={() => { haptics.success(); onPress(); }}
+      style={({ pressed }) => [
+        { height: 56, borderRadius: 17, backgroundColor: c.success, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, opacity: disabled ? 0.45 : pressed ? 0.92 : 1 },
+        disabled ? null : shadow.ctaGreen,
+        style,
+      ]}
+    >
+      <Icon name="check" size={19} color={c.onGreen} />
+      <Txt w="eb" size={16} color={c.onGreen} ls={-0.16} maxFontSizeMultiplier={MAX_FONT_SCALE}>{label}</Txt>
+    </Pressable>
   );
 }
 

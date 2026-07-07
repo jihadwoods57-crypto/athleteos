@@ -18,6 +18,9 @@ import { Profile } from './Profile';
 import { Performance } from './Performance';
 import { Progress } from './Progress';
 import { Reminders } from './Reminders';
+import { ScoreBreakdown } from './ScoreBreakdown';
+import { Weight } from './Weight';
+import { Recovery } from './Recovery';
 import { MealCapture } from '@/screens/overlays/MealCapture';
 import { Connect } from '@/screens/overlays/Connect';
 import { MealDetail } from '@/screens/overlays/MealDetail';
@@ -85,6 +88,9 @@ export function AthleteApp() {
         {tab === 'progress' && <Progress />}
         {tab === 'reminders' && <Reminders />}
         {tab === 'profile' && <Profile />}
+        {tab === 'breakdown' && <ScoreBreakdown />}
+        {tab === 'weight' && <Weight />}
+        {tab === 'recovery' && <Recovery />}
       </View>
 
       <TabBar />
