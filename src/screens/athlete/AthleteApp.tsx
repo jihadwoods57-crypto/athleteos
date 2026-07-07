@@ -13,9 +13,7 @@ import { Home } from './Home';
 import { Plan } from './Plan';
 import { Squad } from './Squad';
 import { CheckIn } from './CheckIn';
-import { Nutrition } from './Nutrition';
 import { Profile } from './Profile';
-import { Performance } from './Performance';
 import { Progress } from './Progress';
 import { Reminders } from './Reminders';
 import { ScoreBreakdown } from './ScoreBreakdown';
@@ -27,7 +25,6 @@ import { Connect } from '@/screens/overlays/Connect';
 import { MealDetail } from '@/screens/overlays/MealDetail';
 import { MealHistory } from '@/screens/overlays/MealHistory';
 import { MealReview } from '@/screens/overlays/MealReview';
-import { NutritionMemory } from '@/screens/overlays/NutritionMemory';
 import { Account } from '@/screens/overlays/Account';
 import { Plans } from '@/screens/overlays/Plans';
 import { Messages } from '@/screens/overlays/Messages';
@@ -57,7 +54,6 @@ export function AthleteApp() {
   const foodCoachOpen = useStore((s) => s.foodCoachOpen);
   const planEditorOpen = useStore((s) => s.planEditorOpen);
   const mealHistoryOpen = useStore((s) => s.mealHistoryOpen);
-  const nutritionMemoryOpen = useStore((s) => s.nutritionMemoryOpen);
   const connectOpen = useStore((s) => s.connectOpen);
   const mealReview = useStore((s) => s.mealReview);
   const initReminders = useStore((s) => s.initReminders);
@@ -84,8 +80,6 @@ export function AthleteApp() {
         {tab === 'tasks' && <Plan />}
         {tab === 'squad' && <Squad />}
         {tab === 'checkin' && <CheckIn />}
-        {tab === 'nutrition' && <Nutrition />}
-        {tab === 'performance' && <Performance />}
         {tab === 'progress' && <Progress />}
         {tab === 'reminders' && <Reminders />}
         {tab === 'profile' && <Profile />}
@@ -104,7 +98,6 @@ export function AthleteApp() {
       {mealDetailOpen && <MealDetail />}
       {mealHistoryOpen && <MealHistory />}
       {mealReview && <MealReview />}
-      {nutritionMemoryOpen && <NutritionMemory />}
       {accountOpen && <Account />}
       {connectOpen && <Connect />}
       {plansOpen && <Plans />}

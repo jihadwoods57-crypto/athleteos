@@ -4,7 +4,6 @@ import { Alert, ScrollView, Share, View } from 'react-native';
 import { useStore } from '@/store';
 import {
   accountIdentity, accountRows, APP_VERSION, isPro,
-  generateReferralCode, referralShareMessage, referralSummary,
   type AccountRow,
 } from '@/core';
 import { db, isBackendLive } from '@/lib/supabase';
@@ -148,8 +147,6 @@ export function Account() {
             <Icon name="chevronRight" size={18} color={c.textTertiary} />
           </PressScale>
 
-          {/* Referral loop — give a month, get a month. */}
-          <ReferralCard />
         </View>
         </Reveal>
 
@@ -301,81 +298,5 @@ function DisclosureRow({
         </Txt>
       ) : null}
     </View>
-  );
-}
-
-/**
- * Referral loop — give a month, get a month. The card lazily ensures the signed-in user
- * owns a share code (created client-side, unique-checked by the db), shows the honest
- * earned/pending summary from the server-written redemptions, and shares the code via the
- * native sheet. Preview accounts (no backend / not signed in) see honest launch copy —
- * never a fake code.
- */
-function ReferralCard() {
-  const c = useColors();
-  const s = useStore();
-  const live = isBackendLive && !!s.userId;
-  const [code, setCode] = useState<string | null>(null);
-  const [line, setLine] = useState<string>('Share your code. When someone subscribes with it, you both get a free month.');
-
-  React.useEffect(() => {
-    if (!live || !s.userId) return;
-    const uid = s.userId;
-    let cancelled = false;
-    (async () => {
-      try {
-        // Ensure a code exists (one retry on the astronomically-unlikely collision).
-        let row = await db.fetchReferralCode(uid);
-        if (!row) {
-          for (let attempt = 0; attempt < 2 && !row; attempt++) {
-            try {
-              await db.createReferralCode(uid, generateReferralCode());
-              row = await db.fetchReferralCode(uid);
-            } catch { /* collision or transient error — retry once, else stay pending */ }
-          }
-        }
-        if (!cancelled && row) setCode(row.code);
-        const redemptions = await db.fetchReferralRedemptions(uid);
-        if (!cancelled) setLine(referralSummary(redemptions).line);
-      } catch { /* offline — keep the default line, card still explains the program */ }
-    })();
-    return () => { cancelled = true; };
-  }, [live, s.userId]);
-
-  const onShare = async () => {
-    haptics.tap();
-    if (!code) return;
-    try { await Share.share({ message: referralShareMessage(code) }); } catch { /* user cancelled */ }
-  };
-
-  return (
-    <Card variant="low" style={{ marginTop: 12, borderRadius: 20, padding: 16 }}>
-      <Row style={{ gap: 13, alignItems: 'center' }}>
-        <SettingIcon name="squad" />
-        <View style={{ flex: 1 }}>
-          <Txt w="b" size={15}>Refer & earn</Txt>
-          <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 1, lineHeight: 17 }}>{line}</Txt>
-        </View>
-      </Row>
-      {live && code ? (
-        <Row style={{ gap: 10, marginTop: 12 }}>
-          <View style={{ flex: 1, height: 46, borderRadius: 12, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.hairline }}>
-            <Txt w="eb" num size={17} ls={2}>{code}</Txt>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Share your referral code"
-            onPress={onShare}
-            style={({ pressed }) => [{ paddingHorizontal: 18, height: 46, borderRadius: 12, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.85 : 1 }, shadow.cta]}
-          >
-            <Txt w="b" size={14} color={c.white}>Share</Txt>
-          </Pressable>
-        </Row>
-      ) : (
-        <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 10, lineHeight: 17 }}>
-          {live ? 'Setting up your code…' : 'Referral codes go live with the public launch.'}
-        </Txt>
-      )}
-    </Card>
   );
 }

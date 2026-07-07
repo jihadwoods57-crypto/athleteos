@@ -4,26 +4,23 @@
 // Proto section order, reproduced here: identity header → Trust Pass banner (when
 // active) → Coach Connection → Squad (leaderboard folded INTO Profile, coach-scoped)
 // → Accountability → Health & safety → Settings. Every store hook / action / piece of
-// copy from the previous Profile is preserved (targets editing, the WHO-CAN-SEE-YOUR-DATA
-// sharing panel, Discipline Record, Weekly Deep Dive, This Week digest, MemoryConfirm,
-// Trust Pass, the Appearance/theme toggle, Units, Notifications, Account, sign out,
+// copy is preserved (the WHO-CAN-SEE-YOUR-DATA
+// sharing panel, Trust Pass, the Appearance/theme toggle, Units, Notifications, Account, sign out,
 // delete). Where the proto shows data the RN app has no honest source for (a school
 // field, a wearable/allergies/injury store, a partner/streak/history nav), it is rendered
 // from the real equivalent or omitted — never fabricated.
 import React from 'react';
-import { ScrollView, Share, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { athleteSubtitle, buildDeepDivePayload, buildLeaderboard, computeDerived, currentStreak, daysOnStandard, deepDiveReady, DEEP_MIN_DAYS, disciplineRecord, disciplineRecordText, displayWeight, firstName, GOAL_LABELS, initials, medalColor, passEligibility, passStatus, RECORD_MIN_DAYS, scoringProfileLabel, squadView, supportVisibilityRows, tierFor, trendInfo, trendSeries, trendSummary, weeklyReportFromState, weightStepLb, weightUnit, WEIGHT_TARGET, type DeepDiveResult } from '@/core';
-import { isDeepDiveConfigured, runDeepDive, type DeepDiveFailure } from '@/lib/ai';
+import { athleteSubtitle, buildLeaderboard, computeDerived, firstName, GOAL_LABELS, initials, medalColor, passEligibility, passStatus, squadView, supportVisibilityRows, tierFor, trendInfo, trendSeries, trendSummary } from '@/core';
 import { isTrustPassEnabled } from '@/lib/features';
 import { isBackendLive } from '@/lib/supabase';
 import { useStore } from '@/store';
 import { MAX_FONT_SCALE, shadow, tierChip } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
-import { Card, Row, SampleTag, Stepper, Toggle, Txt, Pressable, Reveal } from '@/ui/primitives';
+import { Card, Row, SampleTag, Toggle, Txt, Pressable, Reveal } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
 import { Icon } from '@/icons';
-import { MemoryConfirm } from './MemoryConfirm';
 
 /** Avatar initial per support-team role for the visibility rows. */
 const VIS_INITIALS: Record<string, string> = { coach: 'C', trainer: 'T', nutritionist: 'N', parent: 'P' };
@@ -41,9 +38,6 @@ export function Profile() {
   const tpElig = passEligibility(s.scoreHistory ?? []);
   const tpDaysLeft = s.trustPass && tpStatus?.phase === 'active' ? s.trustPass.lengthDays - tpStatus.dayIndex : 0;
   const units = s.units ?? 'imperial';
-  const wStepLb = weightStepLb(units);
-  const weightTarget = s.weightTarget ?? WEIGHT_TARGET;
-  const [editingTargets, setEditingTargets] = React.useState(false);
 
   // Real athlete (completed the new onboarding, so a name is set) vs the seeded
   // demo (athleteName ''). For a real athlete every identity surface derives from
@@ -134,167 +128,9 @@ export function Profile() {
         </Reveal>
       ) : null}
 
-      {/* Discipline Record — the shareable recruiting card (Individual Plus seller).
-          Earned in-app from real logged history; never renders below 7 real days. */}
-      <Reveal index={1}>
-        <DisciplineRecordCard />
-      </Reveal>
-
-      {/* Weekly Deep Dive — the premium AI pattern analysis (server-capped 1/week).
-          Hidden entirely when the AI backend is off; never a fake result. */}
-      {isDeepDiveConfigured ? (
-        <Reveal index={1}>
-          <DeepDiveCard />
-        </Reveal>
-      ) : null}
-
-      {/* this week — the weekly digest (generator existed but rendered nowhere) */}
-      <Reveal index={1}>
-      {(() => {
-        const wr = weeklyReportFromState({ name: firstName(s.athleteName, 'Jihad'), scoreHistory: s.scoreHistory, liveScore: d.athleteScore, todayStamp: s.dateStamp });
-        // Warm empty state: a brand-new athlete gets a welcoming, directive start instead
-        // of a report on day one. daysLogged is 0 both with no history at all and with only
-        // today's provisional day-0 anchor (the Starting Point Score is a baseline estimate,
-        // not a tracked day) — either way, no "Averaged 49 across 1 day" on day one.
-        if (wr.daysLogged === 0) {
-          return (
-            <Card variant="low" style={{ marginTop: 14, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="flame" size={20} color={c.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Txt w="eb" size={15} ls={-0.2}>
-                  Your week starts now
-                </Txt>
-                <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 19 }}>
-                  Log your first meal to start building your weekly trend. Every day you log stacks up here.
-                </Txt>
-              </View>
-            </Card>
-          );
-        }
-        return (
-          <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
-            <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <Txt w="eb" size={16} ls={-0.3}>
-                This week
-              </Txt>
-              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9, backgroundColor: c.accentSurface }}>
-                <Txt w="b" size={12} color={c.accent}>
-                  {wr.headline}
-                </Txt>
-              </View>
-            </Row>
-            <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 20 }}>
-              {wr.scoreLine}
-            </Txt>
-            <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 20, marginTop: 2 }}>
-              {wr.complianceLine}
-            </Txt>
-            <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 20, marginTop: 2 }}>
-              {wr.movedLine}
-            </Txt>
-            {wr.flag ? (
-              <View style={{ marginTop: 12, padding: 12, borderRadius: 14, backgroundColor: c.bg2 }}>
-                <Txt w="sb" size={13} color={c.warning} style={{ lineHeight: 18 }}>
-                  Heads up: {wr.flag}
-                </Txt>
-              </View>
-            ) : null}
-          </Card>
-        );
-      })()}
-      </Reveal>
-
-      <MemoryConfirm />
-
-      {/* targets */}
-      <Reveal index={2}>
-      <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
-        <Row style={{ justifyContent: 'space-between', marginBottom: 16 }}>
-          <Txt w="eb" size={16} ls={-0.3}>
-            Your Targets
-          </Txt>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={editingTargets ? 'Done editing targets' : 'Edit nutrition targets'}
-            hitSlop={10}
-            onPress={() => setEditingTargets((e) => !e)}
-          >
-            <Txt w="b" size={13} color={c.accent}>
-              {editingTargets ? 'Done' : 'Edit'}
-            </Txt>
-          </Pressable>
-        </Row>
-        {editingTargets ? (
-          <View style={{ gap: 12 }}>
-            <Row style={{ gap: 10, alignItems: 'flex-start' }}>
-              <Stepper
-                label="Protein"
-                unit="g / day"
-                value={`${d.proteinTarget}g`}
-                onDec={() => s.adjustProteinTarget(-10)}
-                onInc={() => s.adjustProteinTarget(10)}
-              />
-              <Stepper
-                label="Calories"
-                unit="kcal / day"
-                value={d.calTarget.toLocaleString()}
-                onDec={() => s.adjustCalTarget(-50)}
-                onInc={() => s.adjustCalTarget(50)}
-              />
-            </Row>
-            <Stepper
-              label="Weight"
-              unit={`${weightUnit(units)} season goal`}
-              value={`${displayWeight(weightTarget, units)}`}
-              onDec={() => s.adjustWeightTarget(-wStepLb)}
-              onInc={() => s.adjustWeightTarget(wStepLb)}
-            />
-          </View>
-        ) : (
-          <Row style={{ gap: 10 }}>
-            <TargetTile value={`${d.proteinTarget}g`} label="PROTEIN" />
-            <TargetTile value={d.calTarget.toLocaleString()} label="CALORIES" />
-            <TargetTile value={`${displayWeight(weightTarget, units)}${weightUnit(units)}`} label="WEIGHT" />
-          </Row>
-        )}
-        {isReal ? (() => {
-          // Disclose how this account is scored (auto-assigned from the goal at signup). A solo
-          // client should never wonder why a green-protein day didn't top out.
-          const sp = scoringProfileLabel(s.scoringProfile);
-          return (
-            <View style={{ marginTop: 14, padding: 13, borderRadius: 14, backgroundColor: c.bg }}>
-              <Row style={{ gap: 7, marginBottom: 4 }}>
-                <Icon name="bolt" size={13} color={c.accent} />
-                <Txt w="eb" size={13}>
-                  {sp.title}
-                </Txt>
-              </Row>
-              <Txt w="m" size={12} color={c.textSecondary} style={{ lineHeight: 17 }}>
-                {sp.how}
-              </Txt>
-            </View>
-          );
-        })() : null}
-        {workingToward.length > 0 ? (
-          <>
-            <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginTop: 14 }}>
-              WORKING TOWARD
-            </Txt>
-            <Row style={{ flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-              {workingToward.map((g) => (
-                <View key={g} style={{ paddingHorizontal: 13, paddingVertical: 7, borderRadius: 10, backgroundColor: c.accentSurface }}>
-                  <Txt w="b" size={13} color={c.accent}>
-                    {g}
-                  </Txt>
-                </View>
-              ))}
-            </Row>
-          </>
-        ) : null}
-      </Card>
-      </Reveal>
+      {/* Old-version cards (Discipline Record, Deep Dive, weekly digest, AI memory,
+          Targets) removed 2026-07-07: the 8124 prototype is the master and its Profile
+          carries identity → coach connection → squad → accountability → settings only. */}
 
       {/* ── COACH CONNECTION (proto eyebrow + .lrow card) ─────────────────────────
           The RN equivalent of the proto's coach row is the athlete's support team.
@@ -364,12 +200,6 @@ export function Profile() {
           icon="squad"
           title="Who can see your data"
           sub={s.sharingPaused ? 'Paused — nothing leaves this device' : 'Your accountability circle, by role'}
-          onPress={s.openAccount}
-        />
-        <LinkRow
-          icon="shield"
-          title="Discipline record"
-          sub="Your earned proof of consistency — share with recruiters"
           onPress={s.openAccount}
         />
       </Card>
@@ -967,180 +797,5 @@ function SquadSeg({ label, active, onPress }: { label: string; active: boolean; 
         {label}
       </Txt>
     </Pressable>
-  );
-}
-
-/**
- * The Discipline Record card (add-on build 2026-07-04): the athlete's shareable,
- * earned-in-app proof of consistency for recruiters and college coaches. Renders the
- * REAL record from logged history; below RECORD_MIN_DAYS it shows the honest
- * building state instead of a decorative small number. Share = native sheet, text card.
- */
-function DisciplineRecordCard() {
-  const c = useColors();
-  const s = useStore();
-  const d = computeDerived(s);
-  const isReal = s.athleteName.trim().length > 0;
-  const record = disciplineRecord(s.scoreHistory ?? [], d.athleteScore, s.weightHistory ?? []);
-  const name = s.athleteName.trim() || 'Jihad Carter';
-
-  const onShare = async () => {
-    haptics.tap();
-    if (!record) return;
-    try { await Share.share({ message: disciplineRecordText(record, name) }); } catch { /* user cancelled */ }
-  };
-
-  return (
-    <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
-      <Row style={{ gap: 12, alignItems: 'center' }}>
-        <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="trophy" size={20} color={c.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Row style={{ gap: 7 }}>
-            <Txt w="eb" size={15} ls={-0.2}>Discipline Record</Txt>
-            {!isReal ? <SampleTag /> : null}
-          </Row>
-          <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1, lineHeight: 17 }}>
-            {record
-              ? 'Your earned proof of consistency. Share it with a recruiter or college coach.'
-              : `Builds from your real logged days. ${Math.max(0, RECORD_MIN_DAYS - (s.scoreHistory ?? []).length)} more to unlock.`}
-          </Txt>
-        </View>
-      </Row>
-      {record ? (
-        <>
-          <Row style={{ gap: 8, marginTop: 14 }}>
-            <RecordStat label="Days logged" value={String(record.daysLogged)} />
-            <RecordStat label="On standard" value={`${record.onStandardPct}%`} />
-            <RecordStat label="Best streak" value={String(record.longestStreak)} />
-            <RecordStat label="Avg score" value={String(record.avgScore)} />
-          </Row>
-          <Txt w="m" size={11.5} color={c.textTertiary} style={{ marginTop: 10, lineHeight: 16 }}>
-            {record.integrityLine}
-          </Txt>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Share your discipline record"
-            onPress={onShare}
-            style={({ pressed }) => [{ height: 48, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 12, opacity: pressed ? 0.85 : 1 }]}
-          >
-            <Txt w="b" size={14} color={c.white}>Share record</Txt>
-          </Pressable>
-        </>
-      ) : null}
-    </Card>
-  );
-}
-
-function RecordStat({ label, value }: { label: string; value: string }) {
-  const c = useColors();
-  return (
-    <View style={{ flex: 1, borderRadius: 12, backgroundColor: c.bg2, paddingVertical: 10, alignItems: 'center' }}>
-      <Txt w="eb" num size={17}>{value}</Txt>
-      <Txt w="sb" size={10} color={c.textTertiary} style={{ marginTop: 2 }}>{label}</Txt>
-    </View>
-  );
-}
-
-/**
- * The weekly Deep Dive (add-on build 2026-07-04): one thorough AI pattern analysis per
- * week, server-capped (the cost model) and honest at every state — "already used this
- * week" and "not enough history yet" are named, never disguised as errors. The payload is
- * the athlete's own computed data (core/deepDive), so the model can't see or invent more.
- */
-function DeepDiveCard() {
-  const c = useColors();
-  const s = useStore();
-  const d = computeDerived(s);
-  const ready = deepDiveReady(s.scoreHistory ?? []);
-  const [phase, setPhase] = React.useState<'idle' | 'running' | 'done' | DeepDiveFailure>('idle');
-  const [result, setResult] = React.useState<DeepDiveResult | null>(null);
-
-  const onRun = async () => {
-    haptics.tap();
-    setPhase('running');
-    const last7 = (s.scoreHistory ?? []).slice(-7);
-    const payload = buildDeepDivePayload({
-      baseGoal: s.baseGoal,
-      scoreHistory: s.scoreHistory ?? [],
-      nutritionHistory: s.nutritionHistory ?? [],
-      weightHistory: s.weightHistory ?? [],
-      liveScore: d.athleteScore,
-      proteinToday: d.proteinToday,
-      proteinTarget: d.proteinTarget,
-      kcalToday: d.kcalToday,
-      calTarget: d.calTarget,
-      streakDays: currentStreak(s.scoreHistory ?? [], d.athleteScore),
-      compliancePct: Math.round((daysOnStandard(last7) / Math.max(1, last7.length)) * 100),
-    });
-    const res = await runDeepDive(payload);
-    if (res.kind === 'result') {
-      setResult(res.result);
-      setPhase('done');
-    } else {
-      setPhase(res.reason);
-    }
-  };
-
-  const failLine: Partial<Record<DeepDiveFailure, string>> = {
-    weekly_used: 'You already used this week’s deep dive. A fresh one unlocks Monday.',
-    requires_plan: 'Deep dives are part of the paid plan. See Plans in Account.',
-    sign_in_required: 'Sign in to run your deep dive.',
-    error: 'Couldn’t run the deep dive. Check your connection and try again.',
-    not_configured: 'Deep dives go live with the public launch.',
-  };
-
-  return (
-    <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
-      <Row style={{ gap: 12, alignItems: 'center' }}>
-        <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="sparkle" size={20} color={c.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="eb" size={15} ls={-0.2}>Weekly Deep Dive</Txt>
-          <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1, lineHeight: 17 }}>
-            {ready
-              ? 'One thorough AI read of your week: the pattern behind your good and bad days, and the one thing to change.'
-              : `Unlocks after ${DEEP_MIN_DAYS} logged days, so the analysis has something real to find.`}
-          </Txt>
-        </View>
-      </Row>
-
-      {result && phase === 'done' ? (
-        <View style={{ marginTop: 14 }}>
-          <Txt w="eb" size={16} ls={-0.3} style={{ lineHeight: 22 }}>{result.headline}</Txt>
-          {result.sections.map((sec) => (
-            <View key={sec.title} style={{ marginTop: 12 }}>
-              <Txt w="b" size={13.5} color={c.slate700}>{sec.title}</Txt>
-              <Txt w="m" size={13.5} color={c.textSecondary} style={{ marginTop: 3, lineHeight: 20 }}>{sec.body}</Txt>
-            </View>
-          ))}
-          <View style={{ marginTop: 14, padding: 13, borderRadius: 14, backgroundColor: c.accentSurface }}>
-            <Txt w="eb" size={11} color={c.accent} ls={0.5}>NEXT WEEK’S FOCUS</Txt>
-            <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 4, lineHeight: 20 }}>{result.focus}</Txt>
-          </View>
-        </View>
-      ) : null}
-
-      {phase !== 'done' && ready ? (
-        <>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Run your weekly deep dive"
-            onPress={onRun}
-            disabled={phase === 'running'}
-            style={({ pressed }) => [{ height: 48, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 12, opacity: pressed || phase === 'running' ? 0.85 : 1 }]}
-          >
-            <Txt w="b" size={14} color={c.white}>{phase === 'running' ? 'Analyzing your week…' : 'Run this week’s deep dive'}</Txt>
-          </Pressable>
-          {phase !== 'idle' && phase !== 'running' && failLine[phase] ? (
-            <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 10, textAlign: 'center', lineHeight: 17 }}>
-              {failLine[phase]}
-            </Txt>
-          ) : null}
-        </>
-      ) : null}
-    </Card>
   );
 }
