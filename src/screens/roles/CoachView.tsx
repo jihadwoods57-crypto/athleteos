@@ -7,7 +7,8 @@ import React from 'react';
 import { ScrollView, Share, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  CHECKIN_QUESTIONS, ROSTER, activationStatus, buildAssistantBrief, coachRosterKpis, coachTeamTitle,
+  CHECKIN_QUESTIONS, COACH_ALERT_THRESHOLD, ROSTER, activationStatus, atRiskReason,
+  buildAssistantBrief, coachRosterKpis, coachTeamTitle,
   filterRoster, needsAttention, notLoggedCount, nudgeMessageFor, parseRosterTarget,
   rankByRisk, rosterCsv, rosterGroups, rosterGroupStats, teamWeeklyReport, teamWeeklyReportText,
   tierFor, trendInfo, type AssistantBrief,
@@ -419,6 +420,7 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
           </Pressable>
         ) : undefined
       } />
+      {roster.length > 0 ? <TeamStatTiles roster={roster} /> : null}
       <RosterActivation joined={roster.length} />
       <Input value={query} onChangeText={setQuery} placeholder="Search athletes" accessibilityLabel="Search athletes by name" autoCapitalize="words" autoCorrect={false} style={{ marginBottom: 10 }} />
       {groups.length > 1 ? (
@@ -459,10 +461,13 @@ function CoachRoster({ roster, groups, notLogged }: { roster: RosterRow[]; group
 }
 
 /**
- * One roster row — the coach-side echo of Squad's LeaderRowView so both screens read as one
- * product. Risk-ranked numeral, avatar carrying a tier-colored status dot (the R/Y/G flag),
- * name + optional "not logged" flag, position + tier meta, trend arrow, and a tier-colored
- * score chip. Dark `c.card` surface inside a hairline frame; the whole row is a PressScale.
+ * One roster row — the proto's `.roster-row` anatomy (flows.css): risk-ranked numeral,
+ * avatar carrying the R/Y/G flag dot, a title line of "Name · POS" (name bold, unit small
+ * tertiary, exactly the proto's `.t small`), then the one-line note (`.s`) under it, trend
+ * arrow, and the tier-colored score chip on the right. The note line is HONEST: at-risk
+ * athletes get the same deterministic at-risk sentence Needs Attention shows; everyone
+ * else reads their tier name — never an invented status. (The proto's logs count `.rl`
+ * is omitted: RN roster rows carry no real per-day logs fraction to show.)
  * Pure presentation — the tap still opens PersonDetail with the same payload as before.
  */
 function RosterRowCard({ rank, row, onPress }: { rank: number; row: RosterRow; onPress: () => void }) {
@@ -471,6 +476,10 @@ function RosterRowCard({ rank, row, onPress }: { rank: number; row: RosterRow; o
   const chip = tierChip[tier.short];
   const tr = trendInfo(row.dir);
   const notLogged = row.loggedToday === false;
+  // Proto note line ("Hydration short 3 days running"): the deterministic at-risk read
+  // where a real signal exists (same threshold + sentence as Needs Attention), else the
+  // tier name. Adapted honestly — no fabricated streaks or open-requirement counts.
+  const note = row.score < COACH_ALERT_THRESHOLD ? atRiskReason(row) : tier.name;
   return (
     <PressScale
       accessibilityLabel={`${row.name}, ${row.pos}, ${tier.name}, score ${row.score}${notLogged ? ', not logged today' : ''}. View athlete.`}
@@ -490,7 +499,7 @@ function RosterRowCard({ rank, row, onPress }: { rank: number; row: RosterRow; o
       {/* risk rank — the roster is risk-ranked, so #1 is who needs the coach most */}
       <Txt w="eb" num size={15} color={c.textTertiary} style={{ width: 22, textAlign: 'center' }}>{rank}</Txt>
 
-      {/* avatar with a tier-colored status flag dot (green OnStandard → red Off Standard) */}
+      {/* avatar with the R/Y/G flag dot (tier-colored: green OnStandard → red Off Standard) */}
       <View>
         <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
           <Txt w="b" size={14} color={c.slate600}>{row.initials}</Txt>
@@ -498,27 +507,26 @@ function RosterRowCard({ rank, row, onPress }: { rank: number; row: RosterRow; o
         <View style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, borderRadius: 7, backgroundColor: chip.fg, borderWidth: 2.5, borderColor: c.card }} />
       </View>
 
-      {/* name + position/tier meta */}
+      {/* proto .rn — "Name · POS" title line + one-line note under it */}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Row style={{ gap: 7 }}>
-          <Txt w="b" size={15} numberOfLines={1} style={{ flexShrink: 1 }}>{row.name}</Txt>
+          <Row style={{ gap: 5, flexShrink: 1, minWidth: 0, alignItems: 'baseline' }}>
+            <Txt w="eb" size={15} numberOfLines={1} style={{ flexShrink: 1 }}>{row.name}</Txt>
+            <Txt w="b" size={12} color={c.textTertiary}>· {row.pos}</Txt>
+          </Row>
           {notLogged ? (
             <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: c.alertSurface, borderWidth: 1, borderColor: c.alertBorder }}>
               <Txt w="eb" size={10} color={c.alert} ls={0.3}>NOT LOGGED</Txt>
             </View>
           ) : null}
         </Row>
-        <Row style={{ gap: 6, marginTop: 3 }}>
-          <Txt w="eb" size={11} color={c.textTertiary} ls={0.4}>{row.pos}</Txt>
-          <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: c.textTertiary, opacity: 0.5 }} />
-          <Txt w="sb" size={11.5} color={chip.fg}>{tier.name}</Txt>
-        </Row>
+        <Txt w="sb" size={12} color={c.textTertiary} numberOfLines={1} style={{ marginTop: 2 }}>{note}</Txt>
       </View>
 
       {/* trend arrow */}
       <Txt w="eb" size={15} color={tr.c} accessibilityLabel={row.dir === 'up' ? 'Trending up' : row.dir === 'down' ? 'Trending down' : 'Trend flat'}>{tr.t}</Txt>
 
-      {/* tier-colored score chip */}
+      {/* tier-colored score chip (proto .rs, carried in the app's chip idiom) */}
       <View style={{ minWidth: 44, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 11, backgroundColor: chip.bg, borderWidth: 1, borderColor: chip.border, alignItems: 'center' }}>
         <Txt w="eb" num size={18} color={chip.fg}>{row.score}</Txt>
       </View>
@@ -546,16 +554,17 @@ function CoachAttention({ attention, rosterMeta, rosterCount }: { attention: Ret
           <TeamCodeShare />
         </Card>
       ) : attention.length > 0 ? (
-        <View style={{ borderRadius: 20, padding: 18, backgroundColor: c.alertSurface, borderWidth: 1, borderColor: c.alertBorder }}>
-          {attention.map((a, i) => {
+        // Proto "Needs attention" treatment (screens.css .notif.critical): each athlete is
+        // their OWN card with a tone-colored bell tile — not one merged red panel.
+        <View style={{ gap: 10 }}>
+          {attention.map((a) => {
             const m = rosterMeta[a.name] ?? { initials: a.name.slice(0, 2).toUpperCase(), pos: '', comp: a.comp };
             return (
               <AttentionRow
-                key={a.name} initials={m.initials} name={a.name} meta={a.reason} score={a.score}
-                color={a.tone === 'alert' ? c.alert : c.warning} nudged={s.nudged.includes(a.name)}
+                key={a.name} name={a.name} pos={m.pos} meta={a.reason} score={a.score}
+                critical={a.tone === 'alert'} color={a.tone === 'alert' ? c.alert : c.warning} nudged={s.nudged.includes(a.name)}
                 onNudge={() => { haptics.success(); s.sendNudge(a.name, { score: a.score, comp: a.comp }, nudgeMessageFor(a), a.athleteId); }}
                 onPress={() => s.openPerson({ name: a.name, initials: m.initials, pos: m.pos, score: a.score, comp: m.comp, athleteId: m.athleteId })}
-                last={i === attention.length - 1}
               />
             );
           })}
@@ -779,6 +788,38 @@ function CoachTabItem({ item, active, onPress }: { item: { label: string; icon: 
 // (The old Kpi tile grid is gone: the Assistant Nutritionist brief leads the dashboard and
 // metrics demoted to AssistantKpiStrip — a briefing, not a control panel.)
 
+/**
+ * Proto `coach-stats` (flows.css): the three centered team tiles — Team avg / On standard /
+ * Need attention. On-standard is green, need-attention red only when someone actually does
+ * (0 in red would read as an alarm about nothing). Same rows the list renders — all real.
+ */
+function TeamStatTiles({ roster }: { roster: RosterRow[] }) {
+  const c = useColors();
+  const kpis = coachRosterKpis(roster);
+  const onStd = roster.length - kpis.alerts;
+  return (
+    <Row
+      accessibilityRole="text"
+      accessibilityLabel={`Team average ${kpis.avgScore}. ${onStd} on standard. ${kpis.alerts} need attention.`}
+      style={{ gap: 11, marginBottom: 12 }}
+    >
+      <TeamStat value={String(kpis.avgScore)} label="TEAM AVG" />
+      <TeamStat value={String(onStd)} label="ON STANDARD" color={c.success} />
+      <TeamStat value={String(kpis.alerts)} label="NEED ATTENTION" color={kpis.alerts > 0 ? c.alert : undefined} />
+    </Row>
+  );
+}
+
+function TeamStat({ value, label, color }: { value: string; label: string; color?: string }) {
+  const c = useColors();
+  return (
+    <View style={{ flex: 1, alignItems: 'center', paddingVertical: 15, paddingHorizontal: 6, borderRadius: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline }}>
+      <Txt w="eb" num size={24} ls={-0.7} color={color}>{value}</Txt>
+      <Txt w="b" size={10.5} color={c.textTertiary} ls={0.5} upper style={{ marginTop: 3 }}>{label}</Txt>
+    </View>
+  );
+}
+
 function ReportStat({ label, name, score, color }: { label: string; name: string; score?: number; color: string }) {
   const c = useColors();
   return (
@@ -802,29 +843,32 @@ function GroupChip({ label, active, onPress }: { label: string; active: boolean;
   );
 }
 
-function AttentionRow({ initials, name, meta, score, color, nudged, onNudge, onPress, last }: { initials: string; name: string; meta: string; score: number; color: string; nudged: boolean; onNudge: () => void; onPress: () => void; last?: boolean }) {
-  // The person tap and the nudge are SIBLING pressables (not nested), so this is valid on web too.
+/**
+ * One needs-attention card — the proto's `.notif.critical` anatomy: a 42px tone-colored
+ * bell tile (`.nic`), "Name · POS" title (`.nt`), the honest at-risk sentence (`.nb`), and
+ * the score at the right edge, tone-colored. Critical rows carry the red border the proto
+ * gives `.notif.critical`; borderline warnings sit in the plain hairline frame. The nudge
+ * stays a SIBLING pressable (not nested), so this remains valid on web too.
+ */
+function AttentionRow({ name, pos, meta, score, critical, color, nudged, onNudge, onPress }: { name: string; pos: string; meta: string; score: number; critical: boolean; color: string; nudged: boolean; onNudge: () => void; onPress: () => void }) {
   const c = useColors();
   const tier = tierFor(score);
-  const chip = tierChip[tier.short];
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: last ? 0 : 12 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${name}, ${tier.name}, score ${score}. ${meta}. View athlete.`} onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, flex: 1, minWidth: 0 }}>
-        {/* avatar with a tone-colored status dot — mirrors the roster row idiom */}
-        <View>
-          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt w="b" size={13} color={c.slate600}>{initials}</Txt>
-          </View>
-          <View style={{ position: 'absolute', bottom: -2, right: -2, width: 13, height: 13, borderRadius: 7, backgroundColor: color, borderWidth: 2.5, borderColor: c.alertSurface }} />
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: critical ? c.alertBorder : c.hairline, paddingVertical: 15, paddingHorizontal: 15 }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${name}, ${tier.name}, score ${score}. ${meta}. View athlete.`} onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, flex: 1, minWidth: 0 }}>
+        {/* proto .nic — tone-colored bell tile (red surface for critical, warn tint for borderline) */}
+        <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: critical ? c.alertSurface : c.warnTint, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="bell" size={19} color={color} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Txt w="b" size={15} numberOfLines={1}>{name}</Txt>
-          <Txt w="m" size={12} color={c.textTertiary} numberOfLines={2} style={{ marginTop: 2, lineHeight: 16 }}>{meta}</Txt>
+          <Row style={{ gap: 5, alignItems: 'baseline' }}>
+            <Txt w="eb" size={14.5} numberOfLines={1} style={{ flexShrink: 1 }}>{name}</Txt>
+            {pos ? <Txt w="b" size={12} color={c.textTertiary}>· {pos}</Txt> : null}
+          </Row>
+          <Txt w="sb" size={12.5} color={c.textSecondary} numberOfLines={2} style={{ marginTop: 3, lineHeight: 17 }}>{meta}</Txt>
         </View>
-        {/* score in a tone-colored chip, consistent with the roster + leaderboard chips */}
-        <View style={{ minWidth: 40, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10, backgroundColor: chip.bg, borderWidth: 1, borderColor: chip.border, alignItems: 'center' }}>
-          <Txt w="eb" num size={16} color={color}>{score}</Txt>
-        </View>
+        {/* score, tone-colored (proto .nw slot) */}
+        <Txt w="eb" num size={17} color={color}>{score}</Txt>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={nudged ? `Nudge sent to ${name}` : `Send a nudge to ${name}`} accessibilityState={{ disabled: nudged }} disabled={nudged} hitSlop={8} onPress={onNudge}
         style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: nudged ? c.successSurface : c.accent, opacity: pressed ? 0.85 : 1 })}>

@@ -62,7 +62,7 @@ export function CoachPlanEditor() {
         <Reveal index={0}>
         <Card variant="low" style={{ marginTop: 18, borderRadius: 22, padding: 18 }}>
           <SectionHead icon="bolt" eyebrow="DAILY TARGETS" title="What they're held to" />
-          <View style={{ marginTop: 16 }}>
+          <View style={{ marginTop: 8 }}>
             <TargetRow label="Protein" value={`${plan.proteinTarget} g`} onDown={() => s.adjustProteinTarget(-5)} onUp={() => s.adjustProteinTarget(5)} />
             <TargetRow label="Calories" value={`${plan.calorieTarget}`} onDown={() => s.adjustCalTarget(-50)} onUp={() => s.adjustCalTarget(50)} last />
           </View>
@@ -73,11 +73,12 @@ export function CoachPlanEditor() {
         <Reveal index={1}>
         <Card variant="low" style={{ marginTop: 14, borderRadius: 22, padding: 18 }}>
           <SectionHead icon="checkin" eyebrow="MEAL WINDOWS" title="When each meal is due" />
-          <View style={{ gap: 10, marginTop: 16 }}>
-            {plan.windows.map((w) => (
-              <Row key={w.key} style={{ justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14 }}>
+          {/* Proto lrow treatment: one section of hairline-divided rows, not boxed sub-cards. */}
+          <View style={{ marginTop: 8 }}>
+            {plan.windows.map((w, i) => (
+              <Row key={w.key} style={{ justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 2, borderBottomWidth: i === plan.windows.length - 1 ? 0 : 1, borderBottomColor: c.hairline }}>
                 <Row style={{ gap: 8, alignItems: 'center' }}>
-                  <Txt w="b" size={14}>
+                  <Txt w="b" size={15}>
                     {w.label}
                   </Txt>
                   {w.required ? null : (
@@ -128,7 +129,8 @@ export function CoachPlanEditor() {
             ) : null}
           </View>
 
-          <Row style={{ gap: 8, marginTop: 12 }}>
+          {/* proto .composer: pill input + round send button */}
+          <Row style={{ gap: 10, marginTop: 12 }}>
             <TextInput
               value={draft}
               onChangeText={setDraft}
@@ -136,10 +138,10 @@ export function CoachPlanEditor() {
               placeholderTextColor={c.textTertiary}
               accessibilityLabel="New instruction"
               onSubmitEditing={() => add(draft)}
-              style={{ flex: 1, height: 46, borderRadius: 13, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, paddingHorizontal: 14, fontFamily: font.m, fontSize: 14, color: c.text }}
+              style={{ flex: 1, height: 48, borderRadius: 999, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, paddingHorizontal: 18, fontFamily: font.sb, fontSize: 14, color: c.text }}
             />
-            <Pressable accessibilityRole="button" accessibilityLabel="Add instruction" onPress={() => add(draft)} disabled={draft.trim().length === 0} style={[{ width: 46, height: 46, borderRadius: 13, backgroundColor: draft.trim() ? c.accent : c.surface2, borderWidth: draft.trim() ? 0 : 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center' }, draft.trim() ? shadow.cta : null]}>
-              <Icon name="plus" size={18} color={draft.trim() ? c.white : c.textTertiary} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Add instruction" onPress={() => add(draft)} disabled={draft.trim().length === 0} style={[{ width: 48, height: 48, borderRadius: 24, backgroundColor: draft.trim() ? c.accent : c.surface2, borderWidth: draft.trim() ? 0 : 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center' }, draft.trim() ? shadow.cta : null]}>
+              <Icon name="plus" size={19} color={draft.trim() ? c.white : c.textTertiary} />
             </Pressable>
           </Row>
 
@@ -213,29 +215,33 @@ function SectionHead({ icon, eyebrow, title }: { icon: IconName; eyebrow: string
   );
 }
 
+/**
+ * Proto coach-plan target row (coach.js `.lrow` + `.wb2`): label on the left, then a
+ * − pill, the value big and centered (proto: 16px/800, 74px wide), and a + pill —
+ * hairline-divided rows in one section instead of boxed sub-cards.
+ */
 function TargetRow({ label, value, onDown, onUp, last }: { label: string; value: string; onDown: () => void; onUp: () => void; last?: boolean }) {
   const c = useColors();
   return (
-    <Row style={{ justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 14, marginBottom: last ? 0 : 10 }}>
-      <Txt w="b" size={14}>
+    <Row style={{ justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 2, borderBottomWidth: last ? 0 : 1, borderBottomColor: c.hairline }}>
+      <Txt w="b" size={15} style={{ flex: 1 }}>
         {label}
       </Txt>
-      <Row style={{ gap: 12, alignItems: 'center' }}>
-        <Step glyph="−" label={`Lower ${label}`} onPress={onDown} />
-        <Txt w="eb" num size={15} style={{ minWidth: 64, textAlign: 'center' }}>
-          {value}
-        </Txt>
-        <Step glyph="+" label={`Raise ${label}`} onPress={onUp} />
-      </Row>
+      <Step glyph="−" label={`Lower ${label}`} onPress={onDown} />
+      <Txt w="eb" num size={16} style={{ width: 74, textAlign: 'center' }}>
+        {value}
+      </Txt>
+      <Step glyph="+" label={`Raise ${label}`} onPress={onUp} />
     </Row>
   );
 }
 
+/** Proto `.wb2` stepper pill: tinted pill with a bold accent glyph. */
 function Step({ glyph, label, onPress }: { glyph: string; label: string; onPress: () => void }) {
   const c = useColors();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={6} onPress={onPress} style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 11, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
-      <Txt w="b" size={18} color={c.accent}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={6} onPress={onPress} style={({ pressed }) => ({ paddingVertical: 6, paddingHorizontal: 13, borderRadius: 999, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
+      <Txt w="eb" size={16} color={c.accentLight}>
         {glyph}
       </Txt>
     </Pressable>

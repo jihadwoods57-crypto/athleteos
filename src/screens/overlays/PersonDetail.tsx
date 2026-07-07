@@ -119,11 +119,11 @@ export function PersonDetail() {
         {/* COMPLIANCE is real (derived from the roster). DAY STREAK + WEIGHT Δ are sample
             showcase values, the same for every athlete, so they are shown ONLY in the demo
             and hidden once the backend is live — a real coach never sees fabricated stats. */}
-        <Row style={{ gap: 10, marginTop: 14 }}>
+        <Row style={{ gap: 11, marginTop: 14 }}>
           <StatTile value={`${pd.comp ?? pd.score}%`} label="COMPLIANCE" color={c.success} />
           {isBackendLive ? null : (
             <>
-              <StatTile value="12" label="DAY STREAK" />
+              <StatTile value="12" label="DAY STREAK" color={c.warningDeep} />
               <StatTile value={`+${displayWeightDelta(7, units)}${weightUnit(units)}`} label="WEIGHT Δ" />
             </>
           )}
@@ -489,14 +489,15 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
   );
 }
 
+/** Proto `coach-stat` tile (flows.css): centered big value over a small uppercase key. */
 function StatTile({ value, label, color }: { value: string; label: string; color?: string }) {
   const c = useColors();
   return (
-    <View style={[{ flex: 1, backgroundColor: c.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.hairline }, shadow.card]}>
-      <Txt w="eb" num size={22} color={color} ls={-0.4}>
+    <View style={{ flex: 1, alignItems: 'center', backgroundColor: c.card, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 6, borderWidth: 1, borderColor: c.hairline }}>
+      <Txt w="eb" num size={24} color={color} ls={-0.7}>
         {value}
       </Txt>
-      <Txt w="b" size={10} color={c.textTertiary} ls={0.3} style={{ marginTop: 3 }}>
+      <Txt w="b" size={10.5} color={c.textTertiary} ls={0.5} upper style={{ marginTop: 3 }}>
         {label}
       </Txt>
     </View>

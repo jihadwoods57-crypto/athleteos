@@ -243,10 +243,23 @@ export function Progress() {
       <View style={{ height: 16 }} />
       <Reveal index={1}>
         <Row style={{ gap: 11 }}>
-          <StatTile value={`${bestStreak}d`} label="Best streak" color={c.warningDeep} />
+          {/* Streak tile routes to the streak detail; the row below it opens the 30-day record. */}
+          <PressScale accessibilityLabel="Streak detail" onPress={s.goStreak} style={{ flex: 1 }}>
+            <StatTile value={`${bestStreak}d`} label="Best streak" color={c.warningDeep} />
+          </PressScale>
           <StatTile value={`${monthConsistency}%`} label="30-day avg" />
           <StatTile value={`${weekAvg}`} label="Week avg" color={c.success} />
         </Row>
+        <PressScale
+          accessibilityLabel="Open your 30-day history"
+          onPress={s.goHistory}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 11, paddingVertical: 13, paddingHorizontal: 15, borderRadius: 16, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline }}
+        >
+          <Icon name="plan" size={17} color={c.textSecondary} />
+          <Txt w="b" size={13.5} style={{ flex: 1 }}>Day-by-day history</Txt>
+          <Txt w="sb" size={12} color={c.textTertiary}>30 days</Txt>
+          <Icon name="chevronRight" size={16} color={c.textTertiary} />
+        </PressScale>
       </Reveal>
 
       {/* ===== 3 · Requirements Consistency ===== */}

@@ -145,7 +145,7 @@ export function CoachGoalsEditor() {
           Daily targets
         </Txt>
         <Reveal index={1}>
-        <Card variant="low" style={{ borderRadius: 22, padding: 18, gap: 12 }}>
+        <Card variant="low" style={{ borderRadius: 22, paddingVertical: 6, paddingHorizontal: 16 }}>
           <TargetRow label="Protein" unit="g" value={targets.protein} rec={rec.protein} onDec={() => step('protein', -1)} onInc={() => step('protein', 1)} />
           <TargetRow label="Calories" unit="kcal" value={targets.calories} rec={rec.calories} onDec={() => step('calories', -1)} onInc={() => step('calories', 1)} />
           <TargetRow label="Weight goal" unit="lb" value={targets.weight} rec={rec.weight} onDec={() => step('weight', -1)} onInc={() => step('weight', 1)} last />
@@ -197,11 +197,15 @@ export function CoachGoalsEditor() {
   );
 }
 
+/**
+ * Proto target-editor row (coach-plan `.lrow`): label + honest recommendation read on the
+ * left, stepper on the right — hairline-divided rows in ONE section, not boxed sub-cards.
+ */
 function TargetRow({ label, unit, value, rec, onDec, onInc, last }: { label: string; unit: string; value: number; rec: number; onDec: () => void; onInc: () => void; last?: boolean }) {
   const c = useColors();
   const offRec = value !== rec;
   return (
-    <Row style={{ justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14, marginBottom: last ? 0 : 12 }}>
+    <Row style={{ justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 2, borderBottomWidth: last ? 0 : 1, borderBottomColor: c.hairline }}>
       <View style={{ flex: 1, paddingRight: 10 }}>
         <Txt w="b" size={15}>{label}</Txt>
         <Row style={{ gap: 5, alignItems: 'center', marginTop: 3 }}>

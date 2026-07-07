@@ -21,6 +21,7 @@ import { Reminders } from './Reminders';
 import { ScoreBreakdown } from './ScoreBreakdown';
 import { Weight } from './Weight';
 import { Recovery } from './Recovery';
+import { History, Streak, TrustDetail } from './TrustGroup';
 import { MealCapture } from '@/screens/overlays/MealCapture';
 import { Connect } from '@/screens/overlays/Connect';
 import { MealDetail } from '@/screens/overlays/MealDetail';
@@ -91,6 +92,9 @@ export function AthleteApp() {
         {tab === 'breakdown' && <ScoreBreakdown />}
         {tab === 'weight' && <Weight />}
         {tab === 'recovery' && <Recovery />}
+        {tab === 'history' && <History />}
+        {tab === 'streak' && <Streak />}
+        {tab === 'trustdetail' && <TrustDetail />}
       </View>
 
       <TabBar />

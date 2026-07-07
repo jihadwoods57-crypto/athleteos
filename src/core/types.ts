@@ -89,7 +89,10 @@ export type Tab =
   // not the tab bar, so the bar simply shows no active tab while one is open.
   | 'breakdown'
   | 'weight'
-  | 'recovery';
+  | 'recovery'
+  | 'history'
+  | 'streak'
+  | 'trustdetail';
 /** Coach dashboard destinations (the 5-tab bar): one Home, one Work area, one Action,
  *  one Insights, one Admin. Mirrors the athlete tab model. */
 export type CoachTab = 'dashboard' | 'roster' | 'attention' | 'reports' | 'profile';

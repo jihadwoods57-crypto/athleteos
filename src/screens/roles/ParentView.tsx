@@ -4,8 +4,9 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, tierFor, weightProgressTone, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, streakInfo, tierFor, weightProgressTone, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
+import { isStreakGraceEnabled } from '@/lib/features';
 import { tierChip, ringGradient, shadow, typeScale, MAX_FONT_SCALE } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
@@ -54,6 +55,11 @@ export function ParentView() {
   // partial week is labelled "Building history: N of 7" instead of implying a full
   // week (parent persona finding). completedDays = real recorded days this week.
   const digest = parentDigest({ score: d.athleteScore, completedDays: s.scoreHistory.length, first: athlete.first });
+  // Proto parent hero carries "· N-day streak" (coach.js `parent`): the SAME honest streak
+  // source the athlete's Home uses. This screen's data cards only render for the seeded
+  // showcase (athlete.isDemo), so the streak keeps the showcase seed pad — a real parent
+  // never sees it (they get PendingLinkCard, no fabricated chain).
+  const streak = streakInfo(s.scoreHistory, d.athleteScore, { seedPad: true, grace: isStreakGraceEnabled }).days;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -104,31 +110,37 @@ export function ParentView() {
 
           {athlete.isDemo ? (
           <>
-          {/* score — the child's execution score, consistent with the athlete Home hero:
-              the same premium green→cyan→blue ring + tier chip. Kept as a compact row (ring
-              + read) since the parent screen leads with reassurance, not a full-bleed number. */}
+          {/* score — the proto parent hero (coach.js `parent`): a CENTERED "Today" card, the
+              score carried in the app's signature green→cyan→blue ring + tier chip. The proto's
+              "N of M requirements done" is athlete-lane detail this scope withholds, so the
+              streak rides next to the honest week delta, with the coverage line under it. */}
           <Reveal index={0}>
-          <Card variant="hero" style={{ marginTop: 16, borderRadius: 24, padding: 22, flexDirection: 'row', alignItems: 'center', gap: 20 }}>
-            <Ring size={112} pct={d.athleteScore} stroke={18} gradient={ringGradient} track={c.track}>
-              <Txt w="eb" num size={36} ls={-0.5} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-                {d.athleteScore}
-              </Txt>
-              {(() => {
-                const t = tierFor(d.athleteScore);
-                return (
-                  <View style={{ marginTop: 4, paddingHorizontal: 9, paddingVertical: 2, borderRadius: 8, backgroundColor: tierChip[t.short].bg, borderWidth: 1, borderColor: tierChip[t.short].border }}>
-                    <Txt w="eb" size={10.5} color={tierChip[t.short].fg} ls={0.2} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-                      {t.name}
-                    </Txt>
-                  </View>
-                );
-              })()}
-            </Ring>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Txt w="b" size={13} color={c.textSecondary} ls={0.2}>
-                Execution Score
-              </Txt>
-              <Row style={{ gap: 6, alignItems: 'center', alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: c.surface2 }}>
+          <Card variant="hero" style={{ marginTop: 16, borderRadius: 24, padding: 22, alignItems: 'center' }}>
+            <Txt w="b" size={13} color={c.textSecondary} ls={0.2}>
+              Today
+            </Txt>
+            <View style={{ marginTop: 14 }}>
+              <Ring size={148} pct={d.athleteScore} stroke={18} gradient={ringGradient} track={c.track}>
+                <Txt w="eb" num size={42} ls={-0.8} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                  {d.athleteScore}
+                </Txt>
+                {(() => {
+                  const t = tierFor(d.athleteScore);
+                  return (
+                    <View style={{ marginTop: 4, paddingHorizontal: 9, paddingVertical: 2, borderRadius: 8, backgroundColor: tierChip[t.short].bg, borderWidth: 1, borderColor: tierChip[t.short].border }}>
+                      <Txt w="eb" size={10.5} color={tierChip[t.short].fg} ls={0.2} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                        {t.name}
+                      </Txt>
+                    </View>
+                  );
+                })()}
+              </Ring>
+            </View>
+            <Txt w="b" size={13} color={c.textSecondary} ls={0.2} style={{ marginTop: 14 }}>
+              Execution Score
+            </Txt>
+            <Row style={{ gap: 8, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <Row style={{ gap: 6, alignItems: 'center', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: c.surface2 }}>
                 <Txt w="eb" size={13} color={d.deltaColor}>
                   {d.deltaStr}
                 </Txt>
@@ -136,10 +148,20 @@ export function ParentView() {
                   vs last week
                 </Txt>
               </Row>
-              <Txt w="sb" size={13.5} color={c.slate700} style={{ marginTop: 12, lineHeight: 20 }}>
-                {digest.coverage}
-              </Txt>
-            </View>
+              <Row
+                accessibilityRole="text"
+                accessibilityLabel={`${streak} day streak`}
+                style={{ gap: 6, alignItems: 'center', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: c.surface2 }}
+              >
+                <Icon name="flame" size={13} color={c.warningDeep} />
+                <Txt w="eb" size={13} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                  {streak}-day streak
+                </Txt>
+              </Row>
+            </Row>
+            <Txt w="sb" size={13.5} color={c.slate700} style={{ marginTop: 12, lineHeight: 20, textAlign: 'center' }}>
+              {digest.coverage}
+            </Txt>
           </Card>
           </Reveal>
 
@@ -351,6 +373,29 @@ export function ParentView() {
           </View>
           </Reveal>
           ) : null}
+
+          {/* Proto sidebox (coach.js `parent`, screens.css .sidebox): the privacy contract,
+              stated in-product. Copy adapted honestly to THIS view's real scope (it shows
+              score, streak, and the weekly/weight/nutrition trends, so only what it truly
+              withholds is claimed): meal photos, macros, and check-in answers stay in the
+              athlete's lane. PRESERVE this scoping exactly — never widen it. */}
+          <Reveal index={6}>
+          <View
+            accessibilityRole="text"
+            accessibilityLabel={`What parents see. Score, streak, and trends only. Meal photos, macros, and check-in answers stay between ${athlete.first} and their coach.`}
+            style={{ marginTop: 14, borderRadius: 15, padding: 15, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}
+          >
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="shield" size={17} color={c.accent} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Txt w="eb" size={13.5} ls={-0.1}>What parents see</Txt>
+              <Txt w="sb" size={12.5} color={c.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>
+                Score, streak, and trends only. Meal photos, macros, and check-in answers stay between {athlete.first} and their coach.
+              </Txt>
+            </View>
+          </View>
+          </Reveal>
         </ScrollView>
         )}
       </SafeAreaView>

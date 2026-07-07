@@ -12,7 +12,7 @@ import {
 import { AssistantBriefCard, AssistantKpiStrip, AssistantUpgradeCard, TriageQueue, useAssistantUnlocked } from './AssistantBriefCard';
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
-import { tierChip, shadow } from '@/ui/tokens';
+import { tierChip, shadow, MAX_FONT_SCALE } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, PressScale, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -35,7 +35,7 @@ const TRAINER_TABS: RoleTab<TrainerTab>[] = [
 ];
 
 export function TrainerView() {
-  const cx = useColors();
+  const c = useColors();
   const s = useStore();
   const tab = s.trainerTab;
   const kpis = trainerBookKpis(TRAINER_CLIENTS);
@@ -74,19 +74,19 @@ export function TrainerView() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: cx.bg }}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       <SafeAreaView edges={['top']} style={{ flex: 1 }}>
         {tab === 'profile' ? (
-          <TrainerProfile orgTitle={orgTitle} />
+          <TrainerProfile orgTitle={orgTitle} monogram={monogram} clientCount={book.length} live={bookLive} />
         ) : (
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
           <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <Row style={{ gap: 12, flex: 1, minWidth: 0 }}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" hitSlop={6} onPress={s.openAccount} style={[{ width: 44, height: 44, borderRadius: 14, backgroundColor: cx.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
-                <Icon name="menu" size={20} color={cx.slate600} />
+              <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" hitSlop={6} onPress={s.openAccount} style={[{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+                <Icon name="menu" size={20} color={c.slate600} />
               </Pressable>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Txt w="sb" size={13} color={cx.textSecondary}>
+                <Txt w="sb" size={13} color={c.textSecondary}>
                   {orgTitle}
                 </Txt>
                 <Txt w="eb" size={22} ls={-0.5} style={{ marginTop: 1 }}>
@@ -94,14 +94,14 @@ export function TrainerView() {
                 </Txt>
                 <Row style={{ gap: 7, marginTop: 6 }}>
                   <SampleTag />
-                  <Txt w="sb" size={12} color={cx.textTertiary} numberOfLines={1} style={{ flexShrink: 1 }}>
+                  <Txt w="sb" size={12} color={c.textTertiary} numberOfLines={1} style={{ flexShrink: 1 }}>
                     Demo book, not your real clients
                   </Txt>
                 </Row>
               </View>
             </Row>
-            <View style={[{ width: 44, height: 44, borderRadius: 14, backgroundColor: cx.trainer, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
-              <Txt w="b" size={15} color={cx.white}>
+            <View style={[{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.trainer, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+              <Txt w="b" size={15} color={c.white}>
                 {monogram}
               </Txt>
             </View>
@@ -130,8 +130,8 @@ export function TrainerView() {
           {clientsLive && liveClients.length > 0 ? (
             <Card variant="low" style={{ marginTop: 14, borderRadius: 20, padding: 18 }}>
               <Row style={{ justifyContent: 'space-between', marginBottom: 6 }}>
-                <Txt w="eb" size={11} color={cx.accent} ls={0.8}>YOUR CLIENTS</Txt>
-                <Txt w="sb" size={12} color={cx.textTertiary}>{liveClients.length} active</Txt>
+                <Txt w="eb" size={11} color={c.accent} ls={0.8}>YOUR CLIENTS</Txt>
+                <Txt w="sb" size={12} color={c.textTertiary}>{liveClients.length} active</Txt>
               </Row>
               {liveClients.map((cl, i) => {
                 const t = tierFor(cl.score);
@@ -143,7 +143,7 @@ export function TrainerView() {
                 return (
                   <View
                     key={cl.athleteId ?? cl.name}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: cx.hairline }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: c.hairline }}
                   >
                     <PressScale
                       accessibilityLabel={`${cl.name}, ${t.name}, score ${cl.score}. View client.`}
@@ -151,24 +151,24 @@ export function TrainerView() {
                       style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 }}
                     >
                       <View>
-                        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: cx.surface2, alignItems: 'center', justifyContent: 'center' }}>
-                          <Txt w="b" size={13} color={cx.slate600}>{cl.initials}</Txt>
+                        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                          <Txt w="b" size={13} color={c.slate600}>{cl.initials}</Txt>
                         </View>
-                        <View style={{ position: 'absolute', bottom: -2, right: -2, width: 13, height: 13, borderRadius: 7, backgroundColor: chip.fg, borderWidth: 2.5, borderColor: cx.card }} />
+                        <View style={{ position: 'absolute', bottom: -2, right: -2, width: 13, height: 13, borderRadius: 7, backgroundColor: chip.fg, borderWidth: 2.5, borderColor: c.card }} />
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Row style={{ gap: 6 }}>
                           <Txt w="b" size={14.5} numberOfLines={1} style={{ flexShrink: 1 }}>{cl.name}</Txt>
                           {cl.loggedToday === false ? (
-                            <View style={{ paddingHorizontal: 7, paddingVertical: 1, borderRadius: 6, backgroundColor: cx.alertSurface }}>
-                              <Txt w="b" size={10} color={cx.alert}>Not logged</Txt>
+                            <View style={{ paddingHorizontal: 7, paddingVertical: 1, borderRadius: 6, backgroundColor: c.alertSurface }}>
+                              <Txt w="b" size={10} color={c.alert}>Not logged</Txt>
                             </View>
                           ) : null}
                         </Row>
                         <Row style={{ gap: 6, marginTop: 3 }}>
                           <Txt w="sb" size={11.5} color={chip.fg}>{t.name}</Txt>
-                          <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: cx.textTertiary, opacity: 0.5 }} />
-                          <Txt w="m" size={12} color={cx.textTertiary}>{cl.comp}% today</Txt>
+                          <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: c.textTertiary, opacity: 0.5 }} />
+                          <Txt w="m" size={12} color={c.textTertiary}>{cl.comp}% today</Txt>
                         </Row>
                       </View>
                     </PressScale>
@@ -179,9 +179,9 @@ export function TrainerView() {
                       accessibilityLabel={`Share ${cl.name}'s progress with them`}
                       hitSlop={8}
                       onPress={() => { haptics.tap(); void shareClientResult(cl); }}
-                      style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 11, backgroundColor: cx.accentSurface, borderWidth: 1, borderColor: cx.accentBorder, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
+                      style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 11, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
                     >
-                      <Icon name="send" size={14} color={cx.accent} />
+                      <Icon name="send" size={14} color={c.accent} />
                     </Pressable>
                     <PressScale
                       accessibilityLabel={`Open ${cl.name}`}
@@ -202,7 +202,7 @@ export function TrainerView() {
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
                 <Row style={{ gap: 8, marginBottom: 6 }}>
-                  <Txt w="eb" size={11} color={cx.textTertiary} ls={0.8}>
+                  <Txt w="eb" size={11} color={c.textTertiary} ls={0.8}>
                     COMPLIANCE TREND
                   </Txt>
                   <SampleTag />
@@ -210,7 +210,7 @@ export function TrainerView() {
                 <Txt w="eb" size={16} ls={-0.3}>
                   {lens.complianceTitle}
                 </Txt>
-                <Txt w="sb" size={13} color={cx.textSecondary} style={{ marginTop: 3 }}>
+                <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
                   All clients · 8-week average
                 </Txt>
               </View>
@@ -219,21 +219,21 @@ export function TrainerView() {
                   {kpis.avgCompliance}%
                 </Txt>
                 <Row style={{ gap: 3, alignItems: 'center', marginTop: 2 }}>
-                  <Txt w="b" size={12} color={cx.success}>↑</Txt>
-                  <Txt w="b" size={12} color={cx.success}>+6%</Txt>
+                  <Txt w="b" size={12} color={c.success}>↑</Txt>
+                  <Txt w="b" size={12} color={c.success}>+6%</Txt>
                 </Row>
               </View>
             </Row>
             <Svg viewBox="0 0 322 96" width="100%" height={92} preserveAspectRatio="none" style={{ marginTop: 10 }}>
               <Defs>
                 <LinearGradient id="tbc" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor={cx.accent} stopOpacity="0.16" />
-                  <Stop offset="1" stopColor={cx.accent} stopOpacity="0" />
+                  <Stop offset="0" stopColor={c.accent} stopOpacity="0.16" />
+                  <Stop offset="1" stopColor={c.accent} stopOpacity="0" />
                 </LinearGradient>
               </Defs>
               <Path d="M12,70 L62,66 L111,68 L161,58 L211,52 L260,46 L310,40 L310,96 L12,96 Z" fill="url(#tbc)" />
-              <Path d="M12,70 L62,66 L111,68 L161,58 L211,52 L260,46 L310,40" fill="none" stroke={cx.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-              <Circle cx={310} cy={40} r={5.5} fill={cx.accent} stroke={cx.card} strokeWidth={2.5} />
+              <Path d="M12,70 L62,66 L111,68 L161,58 L211,52 L260,46 L310,40" fill="none" stroke={c.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+              <Circle cx={310} cy={40} r={5.5} fill={c.accent} stroke={c.card} strokeWidth={2.5} />
             </Svg>
           </Card>
           </Reveal>
@@ -244,66 +244,88 @@ export function TrainerView() {
           {/* all clients — the full book, risk-ranked. Squad-standard rows: tier flag dot
               on the avatar, a trend arrow, and a tier-colored score chip. */}
           <Reveal index={3}>
-          <Txt w="eb" size={11} color={cx.textTertiary} ls={0.8} style={{ marginTop: 30, marginBottom: 2, marginHorizontal: 4 }}>
+          <Txt w="eb" size={11} color={c.textTertiary} ls={0.8} style={{ marginTop: 30, marginBottom: 2, marginHorizontal: 4 }}>
             YOUR BOOK
           </Txt>
           <Row style={{ justifyContent: 'space-between', marginBottom: 12, marginHorizontal: 4 }}>
             <Txt w="eb" size={20} ls={-0.5}>
               All Clients
             </Txt>
-            <Txt w="b" size={13} color={cx.textTertiary}>
+            <Txt w="b" size={13} color={c.textTertiary}>
               {kpis.clients} active
             </Txt>
           </Row>
           <View style={{ gap: 9 }}>
-            {rankByRisk(TRAINER_CLIENTS).map((c) => {
-              const t = tierFor(c.score);
+            {rankByRisk(TRAINER_CLIENTS).map((cl) => {
+              const t = tierFor(cl.score);
               const chip = tierChip[t.short];
-              const tr = trendInfo(c.dir);
+              const tr = trendInfo(cl.dir);
               // Trend color from the theme (never trendInfo's baked-in light hex), so the
               // arrow reads correctly on the dark canvas.
-              const trColor = c.dir === 'up' ? cx.success : c.dir === 'down' ? cx.alert : cx.textTertiary;
+              const trColor = cl.dir === 'up' ? c.success : cl.dir === 'down' ? c.alert : c.textTertiary;
               return (
                 <PressScale
-                  key={c.name}
-                  accessibilityLabel={`${c.name}, ${c.org}, ${t.name}, score ${c.score}. View client.`}
-                  onPress={() => s.openPerson({ name: c.name, initials: c.initials, pos: c.sport, score: c.score, org: c.org, comp: c.comp, last: c.last })}
-                  style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: cx.card, borderRadius: 18, borderWidth: 1, borderColor: cx.hairline, paddingVertical: 13, paddingHorizontal: 14 }, shadow.card]}
+                  key={cl.name}
+                  accessibilityLabel={`${cl.name}, ${cl.org}, ${t.name}, score ${cl.score}. View client.`}
+                  onPress={() => s.openPerson({ name: cl.name, initials: cl.initials, pos: cl.sport, score: cl.score, org: cl.org, comp: cl.comp, last: cl.last })}
+                  style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.hairline, paddingVertical: 13, paddingHorizontal: 14 }, shadow.card]}
                 >
                   <View>
-                    <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: cx.surface2, alignItems: 'center', justifyContent: 'center' }}>
-                      <Txt w="b" size={14} color={cx.slate600}>
-                        {c.initials}
+                    <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                      <Txt w="b" size={14} color={c.slate600}>
+                        {cl.initials}
                       </Txt>
                     </View>
-                    <View style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, borderRadius: 7, backgroundColor: chip.fg, borderWidth: 2.5, borderColor: cx.card }} />
+                    <View style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, borderRadius: 7, backgroundColor: chip.fg, borderWidth: 2.5, borderColor: c.card }} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Txt w="b" size={15} numberOfLines={1} style={{ flexShrink: 1 }}>
-                      {c.name}
+                      {cl.name}
                     </Txt>
                     <Row style={{ gap: 7, marginTop: 4 }}>
-                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 7, backgroundColor: cx.surface2, borderWidth: 1, borderColor: cx.hairline }}>
-                        <Txt w="b" size={11} color={cx.textSecondary}>
-                          {c.org}
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 7, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}>
+                        <Txt w="b" size={11} color={c.textSecondary}>
+                          {cl.org}
                         </Txt>
                       </View>
-                      <Txt w="sb" size={12} color={cx.textTertiary}>
-                        {c.comp}% · {c.last}
+                      <Txt w="sb" size={12} color={c.textTertiary}>
+                        {cl.comp}% · {cl.last}
                       </Txt>
                     </Row>
                   </View>
-                  <Txt w="eb" size={15} color={trColor} accessibilityLabel={c.dir === 'up' ? 'Trending up' : c.dir === 'down' ? 'Trending down' : 'Trend flat'}>
+                  <Txt w="eb" size={15} color={trColor} accessibilityLabel={cl.dir === 'up' ? 'Trending up' : cl.dir === 'down' ? 'Trending down' : 'Trend flat'}>
                     {tr.t}
                   </Txt>
                   <View style={{ minWidth: 46, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 11, backgroundColor: chip.bg, borderWidth: 1, borderColor: chip.border, alignItems: 'center' }}>
                     <Txt w="eb" num size={18} color={chip.fg}>
-                      {c.score}
+                      {cl.score}
                     </Txt>
                   </View>
                 </PressScale>
               );
             })}
+          </View>
+          </Reveal>
+
+          {/* Proto sidebox (coach.js `trainer`, screens.css .sidebox): the trainer's visibility
+              contract, stated in-product. Copy adapted honestly to THIS book's real scope — a
+              trainer sees their own clients (scores, compliance, meal logs); team boards and
+              coach threads stay in the coach lane. Never widen this scope. */}
+          <Reveal index={4}>
+          <View
+            accessibilityRole="text"
+            accessibilityLabel="Trainer scope. You see your clients only: scores, compliance, and their logged meals. Team boards and coach threads stay in the coach lane."
+            style={{ marginTop: 14, borderRadius: 15, padding: 15, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}
+          >
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="shield" size={17} color={c.accent} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Txt w="eb" size={13.5} ls={-0.1}>Trainer scope</Txt>
+              <Txt w="sb" size={12.5} color={c.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>
+                You see your clients only: scores, compliance, and their logged meals. Team boards and coach threads stay in the coach lane.
+              </Txt>
+            </View>
           </View>
           </Reveal>
 
@@ -326,18 +348,40 @@ export function TrainerView() {
   );
 }
 
-/** Trainer Profile tab — mirrors the coach profile: identity + settings entry points. */
-function TrainerProfile({ orgTitle }: { orgTitle: string }) {
-  const cx = useColors();
+/** Trainer Profile tab — the proto `trainer-profile` anatomy (roles.js): the identity
+ *  card leads (monogram tile in the trainer accent + practice line + honest book count),
+ *  then the settings entry points. The proto's share-code boxes live behind "Practice &
+ *  join code" (OverseerProfile) and its "Trainer plan & billing" row maps to the real
+ *  Plans overlay — every row routes somewhere real, never a dead link. */
+function TrainerProfile({ orgTitle, monogram, clientCount, live }: { orgTitle: string; monogram: string; clientCount: number; live: boolean }) {
+  const c = useColors();
   const s = useStore();
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-      <Txt w="eb" size={11} color={cx.accent} ls={0.8} upper style={{ marginBottom: 6 }}>{orgTitle}</Txt>
+      <Txt w="eb" size={11} color={c.accent} ls={0.8} upper style={{ marginBottom: 6 }}>{orgTitle}</Txt>
       <Txt w="eb" size={28} ls={-0.8} accessibilityRole="header" style={{ marginBottom: 20 }}>Profile</Txt>
+      {/* proto .id-card (screens.css): big trainer-purple monogram + practice + client count.
+          The count is the SAME book the Clients tab renders (live when connected, the demo
+          book otherwise) — labeled honestly so a sample never reads as a real practice. */}
+      <Card variant="low" style={{ borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+        <View style={[{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.trainer, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
+          <Txt w="eb" size={19} color={c.white} maxFontSizeMultiplier={MAX_FONT_SCALE}>{monogram}</Txt>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Txt w="eb" size={17} ls={-0.3} numberOfLines={1}>{orgTitle}</Txt>
+          <Row style={{ gap: 6, marginTop: 3, alignItems: 'center' }}>
+            {live ? null : <SampleTag />}
+            <Txt w="sb" size={12.5} color={c.textSecondary} numberOfLines={1} style={{ flexShrink: 1 }}>
+              {clientCount} {clientCount === 1 ? 'client' : 'clients'}{live ? ' active' : ' · demo book'}
+            </Txt>
+          </Row>
+        </View>
+      </Card>
       <View style={{ gap: 10 }}>
         <SettingRow icon="menu" label="Account & settings" sub="Name, sign out, data export" onPress={s.openAccount} />
         <SettingRow icon="user" label="Practice & join code" sub="What clients see · edit your code" onPress={s.openOverseerProfile} />
         <SettingRow icon="send" label="Messages" sub="Your client threads" onPress={s.openMsg} />
+        <SettingRow icon="bolt" label="Plan & billing" sub="Your plan and upgrades" onPress={s.openPlans} />
       </View>
     </ScrollView>
   );

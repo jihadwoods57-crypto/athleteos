@@ -15,24 +15,24 @@ import { Icon, IconName } from '@/icons';
 import { haptics } from '@/ui/haptics';
 import { Overlay } from './Overlay';
 
-/** Section eyebrow — the small uppercase label that groups a card below it (Profile idiom). */
+/** Section eyebrow — the proto's `.eyebrow`: 11/800, 0.14em tracking, uppercase, text-3. */
 function Eyebrow({ children }: { children: React.ReactNode }) {
   const c = useColors();
   return (
-    <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginLeft: 4, marginBottom: 10 }}>
+    <Txt w="eb" size={11} upper color={c.textTertiary} ls={1.5} style={{ marginLeft: 2, marginBottom: 12 }}>
       {children}
     </Txt>
   );
 }
 
-/** Rounded accent-surface icon tile that leads each settings row — the app's premium row
- *  idiom (same tile used across Home / Profile). Presentation only. */
-function SettingIcon({ name, tone = 'accent' }: { name: IconName; tone?: 'accent' | 'alert' }) {
+/** The proto's `.lic` icon tile that leads each settings row: 38×38, radius 11, elevated
+ *  surface-2 with a quiet text-2 glyph (alert rows keep the red treatment). Presentation only. */
+function SettingIcon({ name, tone = 'default' }: { name: IconName; tone?: 'default' | 'alert' }) {
   const c = useColors();
-  const bg = tone === 'alert' ? c.alertSurface : c.accentSurface;
-  const fg = tone === 'alert' ? c.alert : c.accent;
+  const bg = tone === 'alert' ? c.alertSurface : c.surface2;
+  const fg = tone === 'alert' ? c.alert : c.textSecondary;
   return (
-    <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
       <Icon name={name} size={17} color={fg} />
     </View>
   );
@@ -99,16 +99,16 @@ export function Account() {
         <Reveal index={1}>
         <View style={{ marginTop: 26 }}>
           <Eyebrow>PREFERENCES</Eyebrow>
-          <Card variant="low" style={{ borderRadius: 22, paddingVertical: 4 }}>
-            {/* Notifications — icon-led row + master toggle. */}
-            <Row style={{ justifyContent: 'space-between', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: c.hairline }}>
+          <Card variant="low" style={{ borderRadius: 22, paddingVertical: 6, paddingHorizontal: 16 }}>
+            {/* Notifications — proto `.lrow`: icon tile + title/sub + control, soft divider. */}
+            <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: c.divider2 }}>
               <Row style={{ gap: 13, alignItems: 'center', flex: 1, paddingRight: 12 }}>
                 <SettingIcon name="bell" />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Txt w="b" size={15}>
                     Notifications
                   </Txt>
-                  <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1 }}>
+                  <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
                     {s.notif ? 'Alerts & reminders on' : 'All alerts paused'}
                   </Txt>
                 </View>
@@ -136,12 +136,12 @@ export function Account() {
           <PressScale
             accessibilityLabel={isPro(s.entitlement) ? 'Manage your plan' : 'See plans'}
             onPress={s.openPlans}
-            style={[{ borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: c.card }, shadow.card]}
+            style={[{ borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline }, shadow.card]}
           >
             <SettingIcon name="bolt" />
             <View style={{ flex: 1 }}>
               <Txt w="b" size={15}>{isPro(s.entitlement) ? 'Manage your plan' : 'See plans'}</Txt>
-              <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1 }}>
+              <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
                 {isPro(s.entitlement) ? 'Billing, seats & cancellation' : 'Pricing, trials & what’s included'}
               </Txt>
             </View>
@@ -157,7 +157,7 @@ export function Account() {
         <Reveal index={3}>
         <View style={{ marginTop: 24 }}>
           <Eyebrow>YOUR DATA</Eyebrow>
-          <Card variant="low" style={{ borderRadius: 22, paddingVertical: 4 }}>
+          <Card variant="low" style={{ borderRadius: 22, paddingVertical: 6, paddingHorizontal: 16 }}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Export my data"
@@ -167,14 +167,14 @@ export function Account() {
               }}
               style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
             >
-              <Row style={{ justifyContent: 'space-between', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: c.hairline }}>
+              <Row style={{ justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: c.divider2 }}>
                 <Row style={{ gap: 13, alignItems: 'center', flex: 1, paddingRight: 12 }}>
                   <SettingIcon name="send" />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Txt w="b" size={15}>
                       Export my data
                     </Txt>
-                    <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1 }}>
+                    <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
                       Download a copy of everything in your account
                     </Txt>
                   </View>
@@ -198,14 +198,14 @@ export function Account() {
               }}
               style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
             >
-              <Row style={{ justifyContent: 'space-between', paddingVertical: 13 }}>
+              <Row style={{ justifyContent: 'space-between', paddingVertical: 15 }}>
                 <Row style={{ gap: 13, alignItems: 'center', flex: 1, paddingRight: 12 }}>
                   <SettingIcon name="close" tone="alert" />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Txt w="b" size={15} color={c.alert}>
                       Delete account
                     </Txt>
-                    <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1 }}>
+                    <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
                       Permanently erase your account and data
                     </Txt>
                   </View>
@@ -267,7 +267,7 @@ function DisclosureRow({
 }) {
   const c = useColors();
   return (
-    <View style={{ borderBottomWidth: border ? 1 : 0, borderBottomColor: c.hairline }}>
+    <View style={{ borderBottomWidth: border ? 1 : 0, borderBottomColor: c.divider2 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${row.label}, ${row.hint}`}
@@ -278,7 +278,7 @@ function DisclosureRow({
         }}
         style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
       >
-        <Row style={{ justifyContent: 'space-between', paddingVertical: 13 }}>
+        <Row style={{ justifyContent: 'space-between', paddingVertical: 15 }}>
           <Row style={{ gap: 13, alignItems: 'center', flex: 1, paddingRight: 10 }}>
             <SettingIcon name={icon} />
             <Txt w="b" size={15}>
@@ -286,7 +286,7 @@ function DisclosureRow({
             </Txt>
           </Row>
           <Row style={{ gap: 8 }}>
-            <Txt w="sb" size={13} color={c.textSecondary}>
+            <Txt w="b" size={13} color={c.textSecondary}>
               {row.hint}
             </Txt>
             <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
@@ -296,7 +296,7 @@ function DisclosureRow({
         </Row>
       </Pressable>
       {open ? (
-        <Txt w="m" size={13} color={c.textSecondary} style={{ lineHeight: 19, paddingBottom: 14, paddingLeft: 49, paddingRight: 8 }}>
+        <Txt w="m" size={13} color={c.textSecondary} style={{ lineHeight: 19, paddingBottom: 15, paddingLeft: 51, paddingRight: 8 }}>
           {row.detail}
         </Txt>
       ) : null}
@@ -354,7 +354,7 @@ function ReferralCard() {
         <SettingIcon name="squad" />
         <View style={{ flex: 1 }}>
           <Txt w="b" size={15}>Refer & earn</Txt>
-          <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1, lineHeight: 17 }}>{line}</Txt>
+          <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 1, lineHeight: 17 }}>{line}</Txt>
         </View>
       </Row>
       {live && code ? (

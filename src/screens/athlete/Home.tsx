@@ -253,9 +253,9 @@ export function Home() {
         )}
       </View>
 
-      {/* ===== 4 · Trust Pass (only while active) ===== */}
+      {/* ===== 4 · Trust Pass (only while active) — routes to the trust detail (proto data-go="trust") ===== */}
       {tpStatus?.phase === 'active' ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, borderRadius: 18, marginTop: 14, backgroundColor: c.trainer + '22', borderWidth: 1, borderColor: c.trainer + '55' }}>
+        <PressScale accessibilityLabel="Trust Pass details" onPress={s.goTrustDetail} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, borderRadius: 18, marginTop: 14, backgroundColor: c.trainer + '22', borderWidth: 1, borderColor: c.trainer + '55' }}>
           <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.trainer + '22', alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="shield" size={20} color={c.trainerLight} />
           </View>
@@ -267,7 +267,8 @@ export function Home() {
                 : 'On standard, camera-free today. Credited from your proven baseline.'}
             </Txt>
           </View>
-        </View>
+          <Icon name="chevronRight" size={18} color={c.textTertiary} />
+        </PressScale>
       ) : null}
 
       {/* ===== 5 · Today's Requirements ===== */}
@@ -286,7 +287,7 @@ export function Home() {
         <Txt w="eb" size={11} color={c.textTertiary} ls={1.5} upper>
           Recent Activity
         </Txt>
-        <Pressable accessibilityRole="button" accessibilityLabel="View all activity" hitSlop={6} onPress={s.goPerformance}>
+        <Pressable accessibilityRole="button" accessibilityLabel="View all activity" hitSlop={6} onPress={() => s.setTab('progress')}>
           <Txt w="b" size={13} color={c.accentLight}>View all</Txt>
         </Pressable>
       </Row>
