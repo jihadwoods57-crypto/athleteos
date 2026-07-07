@@ -142,8 +142,8 @@ function TabBar() {
         },
       ]}
     >
-      <TabItem item={TABS[0]} active={isAthleteTab('home')} onPress={() => setTab('home')} />
-      <TabItem item={TABS[1]} active={isAthleteTab('nutrition')} onPress={() => setTab('nutrition')} />
+      <TabItem item={TABS[0]} active={isAthleteTab(TABS[0].tab)} onPress={() => setTab(TABS[0].tab)} />
+      <TabItem item={TABS[1]} active={isAthleteTab(TABS[1].tab)} onPress={() => setTab(TABS[1].tab)} />
 
       {/* center camera FAB */}
       <View style={{ width: 72, alignItems: 'center' }}>
@@ -160,7 +160,7 @@ function TabBar() {
         </Pressable>
       </View>
 
-      <TabItem item={TABS[2]} active={isAthleteTab('tasks')} onPress={() => setTab('tasks')} />
+      <TabItem item={TABS[2]} active={isAthleteTab(TABS[2].tab)} onPress={() => setTab(TABS[2].tab)} />
       <TabItem item={fourthTab} active={isAthleteTab(fourthTab.tab)} onPress={() => setTab(fourthTab.tab)} />
     </View>
   );
