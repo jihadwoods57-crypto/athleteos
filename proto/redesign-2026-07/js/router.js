@@ -1,5 +1,5 @@
 /* Hash router + chrome (status bar, tab bar). Screens register in js/screens/index.js */
-import { S, act } from './state.js';
+import { S, act, RT, routeForRole } from './state.js';
 import { icon } from './icons.js';
 import { screens } from './screens/index.js';
 
@@ -76,15 +76,21 @@ function render() {
   const buzz = (ms) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch { /* no-op */ } };
   // wire navigation
   device.querySelectorAll('[data-go]').forEach(el => {
-    el.addEventListener('click', (e) => { e.stopPropagation(); buzz(6); go(el.getAttribute('data-go')); });
+    el.addEventListener('click', async (e) => {
+      e.stopPropagation(); buzz(6);
+      const target = el.getAttribute('data-go');
+      // Any path back to Welcome from inside the app is a sign-out (no-op if not signed in).
+      if (target === 'welcome') { try { await act.signOut(); } catch { /* ignore */ } }
+      go(target);
+    });
   });
   // wire actions: data-act="name" or data-act="name:arg"; data-then="route" navigates after
   device.querySelectorAll('[data-act]').forEach(el => {
-    el.addEventListener('click', (e) => {
+    el.addEventListener('click', async (e) => {
       e.stopPropagation();
       buzz(14);
       const [name, arg] = el.getAttribute('data-act').split(':');
-      if (act[name]) act[name](arg !== undefined ? +arg || arg : undefined);
+      if (act[name]) await act[name](arg !== undefined ? +arg || arg : undefined);
       const then = el.getAttribute('data-then');
       if (then) { if (('#' + then) === location.hash) render(); else go(then); }
       else render();
@@ -94,6 +100,24 @@ function render() {
   if (mod.mount) mod.mount(device, { sub, S });
 }
 
+// Boot gate: restore a Keychain session and gate app screens behind auth. Auth screens are
+// always reachable; fresh (signed-out) users land on Welcome. Runs once on load.
+const AUTH_ROUTES = ['welcome', 'role', 'signin', 'onboarding', 'coach-ob', 'trainer-ob', 'client-ob'];
+async function boot() {
+  let authed = false;
+  try {
+    const sb = window.sb;
+    if (sb) {
+      const { data } = await sb.auth.getSession();
+      if (data && data.session) { authed = true; act._syncSession(data.session.user); }
+    }
+  } catch { /* offline / no client → treat as signed out */ }
+  const { route } = parse();
+  if (!authed && !AUTH_ROUTES.includes(route)) { location.hash = '#welcome'; return; } // hashchange → render
+  if (authed && (route === 'welcome' || !location.hash)) { location.hash = '#' + routeForRole(RT.authRole || 'athlete'); return; }
+  render();
+}
+
 window.addEventListener('hashchange', render);
-window.addEventListener('DOMContentLoaded', render);
-if (document.readyState !== 'loading') render();
+window.addEventListener('DOMContentLoaded', boot);
+if (document.readyState !== 'loading') boot();

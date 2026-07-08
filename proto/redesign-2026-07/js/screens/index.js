@@ -19,7 +19,8 @@ import requirement from './requirement.js';
 import { messages, settings as prefs, privacy, billing, notifSettings, deleteAccount, terms } from './settings.js';
 import { foodSearch, labelScan } from './foodsearch.js';
 import { trust, streak, history } from './trust.js';
-import { role, signin, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
+import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
+import signin from './signin.js';
 import { devices, recruiting, restrictions, teamDiet, injury, partner, coachVoice, safety } from './features.js';
 
 export const screens = {

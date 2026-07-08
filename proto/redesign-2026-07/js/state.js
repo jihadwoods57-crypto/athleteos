@@ -50,6 +50,10 @@ const DEFAULT_RT = {
   injured: false,        // injury mode: the Standard adapts (rehab replaces recovery emphasis)
   partnerNudged: false,  // peer accountability: one nudge sent tonight
   wearable: true,        // Apple Watch connected: recovery inputs verified, not vibes
+  // --- real auth (Supabase session drives these; null until signed in) ---
+  userId: null,
+  email: null,
+  authRole: null,        // 'athlete' | 'coach' | 'trainer' | 'parent' (from profile)
 };
 function load() {
   try { return { ...DEFAULT_RT, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; }
@@ -57,6 +61,21 @@ function load() {
 }
 export const RT = load();
 function save() { localStorage.setItem(KEY, JSON.stringify(RT)); }
+
+/* ---------------- Auth helpers ---------------- */
+export function routeForRole(role) {
+  return role === 'coach' ? 'coach' : role === 'trainer' ? 'trainer' : role === 'parent' ? 'parent' : 'home';
+}
+function friendlyAuth(msg) {
+  const m = String(msg || '').toLowerCase();
+  if (m.includes('invalid login')) return 'That email or password is incorrect.';
+  if (m.includes('already registered') || m.includes('already been registered') || m.includes('user already')) return 'That email already has an account — try signing in.';
+  if (m.includes('rate limit') || m.includes('too many')) return 'Too many attempts. Wait a minute and try again.';
+  if (m.includes('password')) return 'Password must be at least 6 characters.';
+  if (m.includes('valid email') || m.includes('email address')) return 'Enter a valid email address.';
+  if (m.includes('network') || m.includes('fetch') || m.includes('failed to')) return 'Network problem — check your connection.';
+  return msg || 'Something went wrong. Try again.';
+}
 
 /* ---------------- Derived (live) ---------------- */
 function componentsNow() {
@@ -166,6 +185,48 @@ export const act = {
     save();
   },
   reset() { Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { lastMove: null }); save(); },
+
+  /* ---------------- Real auth (Supabase, in the WebView) ---------------- */
+  async signUp(email, password, name, role) {
+    const sb = window.sb;
+    if (!sb) return { ok: false, error: 'Auth is not ready yet. Try again in a moment.' };
+    const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: name, role } } });
+    if (error) return { ok: false, error: friendlyAuth(error.message) };
+    RT.userId = data.user ? data.user.id : null;
+    RT.email = email;
+    RT.authRole = role;
+    save();
+    return { ok: true, session: !!data.session };
+  },
+  async signIn(email, password) {
+    const sb = window.sb;
+    if (!sb) return { ok: false, error: 'Auth is not ready yet. Try again in a moment.' };
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) return { ok: false, error: friendlyAuth(error.message) };
+    RT.userId = data.user.id;
+    RT.email = email;
+    let role = 'athlete';
+    try {
+      const { data: prof } = await sb.from('profiles').select('primary_role').eq('id', data.user.id).maybeSingle();
+      if (prof && prof.primary_role) role = prof.primary_role;
+    } catch { /* fall back to athlete */ }
+    RT.authRole = role;
+    save();
+    return { ok: true, role };
+  },
+  async signOut() {
+    const sb = window.sb;
+    try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
+    RT.userId = null; RT.email = null; RT.authRole = null;
+    save();
+  },
+  async saveAthleteProfile(fields) {
+    const sb = window.sb;
+    if (!sb || !RT.userId) return;
+    try { await sb.from('athlete_profiles').upsert({ athlete_id: RT.userId, ...fields }); } catch { /* best-effort; full capture is Phase 6 */ }
+  },
+  // Called by the router boot gate to sync RT from a restored Keychain session.
+  _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },
 };
 window.__act = act;
 

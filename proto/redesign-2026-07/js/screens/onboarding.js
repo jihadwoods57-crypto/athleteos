@@ -111,18 +111,18 @@ const steps = {
   6: () => `
   <div class="ob">
     ${dots(6)}
-    <div class="standard-set">
+    <div class="standard-set" style="padding-bottom:6px">
       <div class="halo"><div class="core">${icon('check', 38)}</div></div>
-      <div class="ob-title" style="margin-top:22px">Your Standard is set.</div>
-      <div class="ob-sub" style="padding:0 10px">Starting now, your execution score is built from your meals, requirements, and check-ins. ${S.coach.name} can see whether you show up.</div>
-      <div style="height:26px"></div>
-      <div class="tiles2" style="text-align:left">
-        <div class="tile"><div class="k">Score to beat</div><div class="v">80</div></div>
-        <div class="tile"><div class="k">That tier</div><div class="v" style="color:var(--green-bright)">OnStandard</div></div>
-      </div>
+      <div class="ob-title" style="margin-top:18px">Your Standard is set.</div>
+      <div class="ob-sub" style="padding:0 10px">Create your account to save it — your score, meals, and coach connection sync across devices.</div>
     </div>
+    <div style="height:16px"></div>
+    <input id="su-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Email" />
+    <div style="height:12px"></div>
+    <input id="su-pass" class="ob-input" type="password" placeholder="Create a password (6+ characters)" />
+    <div id="su-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
     <div class="ob-foot" style="margin-top:auto">
-      <button class="btn green" data-act="startDay0" data-then="home">Start Day 1</button>
+      <button id="su-go" class="btn green">Create account &amp; Start</button>
     </div>
   </div>`,
 };
@@ -140,5 +140,36 @@ export default {
     wireToggles(root);
     root.querySelectorAll('[data-multi] .chp').forEach(ch =>
       ch.addEventListener('click', () => ch.classList.toggle('on')));
+
+    // Step 6: real, instant account creation.
+    const btn = root.querySelector('#su-go');
+    if (btn) {
+      const { act, S } = await import('../state.js');
+      const err = root.querySelector('#su-err');
+      const emailEl = root.querySelector('#su-email');
+      const passEl = root.querySelector('#su-pass');
+      const submit = async () => {
+        err.textContent = '';
+        const email = (emailEl.value || '').trim();
+        const password = passEl.value || '';
+        if (!email || !password) { err.textContent = 'Enter an email and a password.'; return; }
+        if (password.length < 6) { err.textContent = 'Password must be at least 6 characters.'; return; }
+        btn.disabled = true;
+        btn.textContent = 'Creating your account…';
+        const r = await act.signUp(email, password, S.athlete.name, 'athlete');
+        if (r.ok) {
+          act.startDay0();
+          // best-effort profile save (full onboarding capture is Phase 6)
+          act.saveAthleteProfile({ sport: S.athlete.sport, position: S.athlete.position, level: S.athlete.level });
+          window.__go('home');
+        } else {
+          err.textContent = r.error || 'Could not create your account.';
+          btn.disabled = false;
+          btn.textContent = 'Create account & Start';
+        }
+      };
+      btn.addEventListener('click', submit);
+      passEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    }
   },
 };
