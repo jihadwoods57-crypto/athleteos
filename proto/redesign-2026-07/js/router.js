@@ -99,6 +99,9 @@ function render() {
   document.getElementById('viewport').scrollTop = 0;
   if (mod.mount) mod.mount(device, { sub, S });
 }
+// Re-render the current route in place — used by async (data-driven) screens to repaint once a
+// best-effort fetch resolves. Guarded so a screen's own mount doesn't loop (fetch once, then paint).
+window.__render = render;
 
 // Boot gate: restore a Keychain session and gate app screens behind auth. Auth screens are
 // always reachable; fresh (signed-out) users land on Welcome. Runs once on load.

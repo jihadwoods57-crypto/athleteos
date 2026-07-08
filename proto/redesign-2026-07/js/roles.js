@@ -1,0 +1,187 @@
+/* Proto role data layer — mirrors the RN `db.*` seam (src/lib/supabase/queries.ts).
+   supabase-js runs inside the WebView; RLS is the real authz, so these are plain selects/RPCs
+   with NO explicit coach-id filter — the server's can_view() scopes rows to linked athletes.
+
+   Every call is best-effort: on a missing client, a not-applied table/RPC, or any error it
+   returns []/null so role screens render an HONEST empty state, never a fabricated one.
+   No new endpoints — the exact tables/RPCs the RN app already uses. */
+
+function sb() { return window.sb; }
+function iso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+export function todayISO() { return iso(new Date()); }
+export function daysAgoISO(n) { const d = new Date(); d.setDate(d.getDate() - n); return iso(d); }
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/* ---------------- coach: teams + roster ---------------- */
+export async function fetchMyTeams() {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.from('teams').select('id,name'); return data || []; } catch { return []; }
+}
+export async function fetchTeamRoster(teamId) {
+  const c = sb(); if (!c || !teamId) return [];
+  try { const { data } = await c.rpc('team_roster', { team: teamId }); return data || []; } catch { return []; }
+}
+export async function fetchLinkedDaysSince(sinceISO) {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.from('days').select('athlete_id,date,score,grade,tasks').gte('date', sinceISO).limit(2000); return data || []; } catch { return []; }
+}
+export async function pendingTeamRequests(teamId) {
+  const c = sb(); if (!c || !teamId) return [];
+  try { const { data } = await c.rpc('pending_team_requests', { team: teamId }); return data || []; } catch { return []; }
+}
+export async function approveMember(teamId, athleteId) {
+  const c = sb(); if (!c) return false;
+  try { const { error } = await c.from('team_members').update({ status: 'active' }).eq('team_id', teamId).eq('athlete_id', athleteId); return !error; } catch { return false; }
+}
+export async function declineMember(teamId, athleteId) {
+  const c = sb(); if (!c) return false;
+  try { const { error } = await c.from('team_members').delete().eq('team_id', teamId).eq('athlete_id', athleteId); return !error; } catch { return false; }
+}
+
+/* ---------------- coach → athlete review ---------------- */
+export async function fetchDay(athleteId, date) {
+  const c = sb(); if (!c || !athleteId) return null;
+  try { const { data } = await c.from('days').select('*').eq('athlete_id', athleteId).eq('date', date).maybeSingle(); return data || null; } catch { return null; }
+}
+export async function fetchRecentMeals(athleteId, sinceISO) {
+  const c = sb(); if (!c || !athleteId) return [];
+  try {
+    const { data } = await c.from('meals').select('*').eq('athlete_id', athleteId).gte('day_date', sinceISO).order('day_date', { ascending: false }).order('logged_at', { ascending: true });
+    return data || [];
+  } catch { return []; }
+}
+export async function signedMealPhotoUrl(path) {
+  const c = sb(); if (!c || !path) return null;
+  try { const { data } = await c.storage.from('meal-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
+}
+export async function markDayViewed(athleteId, date, viewerId, viewerName) {
+  const c = sb(); if (!c || !athleteId || !viewerId) return;
+  try { await c.from('coach_views').upsert({ athlete_id: athleteId, viewer_id: viewerId, date, viewer_name: viewerName || null, seen_at: new Date().toISOString() }, { onConflict: 'athlete_id,viewer_id,date' }); } catch { /* best-effort receipt */ }
+}
+
+/* ---------------- meal comments (the real coach↔athlete thread) ---------------- */
+export async function fetchMealComments(mealId) {
+  const c = sb(); if (!c || !mealId) return [];
+  try { const { data } = await c.from('meal_comments').select('*').eq('meal_id', mealId).order('created_at', { ascending: true }).limit(200); return data || []; } catch { return []; }
+}
+export async function postMealComment(mealId, athleteId, authorId, role, text) {
+  const c = sb(); if (!c || !mealId || !authorId) return false;
+  try { const { error } = await c.from('meal_comments').insert({ meal_id: mealId, athlete_id: athleteId, author_id: authorId, role, text }); return !error; } catch { return false; }
+}
+
+/* ---------------- coach: targets / trust pass (RPCs) ---------------- */
+export async function coachSetGoals(athleteId, targets) {
+  const c = sb(); if (!c || !athleteId) return false;
+  try { const { error } = await c.rpc('coach_set_goals', { athlete: athleteId, new_targets: targets, new_season_goal: null }); return !error; } catch { return false; }
+}
+export async function fetchActiveTrustPass(athleteId) {
+  const c = sb(); if (!c || !athleteId) return null;
+  try { const { data } = await c.from('trust_passes').select('granted_date,length_days').eq('athlete_id', athleteId).is('ended_at', null).maybeSingle(); return data || null; } catch { return null; }
+}
+export async function grantTrustPass(athleteId, lengthDays) {
+  const c = sb(); if (!c || !athleteId) return { ok: false };
+  try { const { error } = await c.rpc('grant_trust_pass', { p_athlete: athleteId, p_length: lengthDays || 10 }); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
+}
+export async function endTrustPass(athleteId) {
+  const c = sb(); if (!c || !athleteId) return false;
+  try { const { error } = await c.rpc('end_trust_pass', { p_athlete: athleteId }); return !error; } catch { return false; }
+}
+
+/* ---------------- notify (edge fn; must allowlist file:// null origin) ---------------- */
+export async function nudgePush(athleteId, title, body) {
+  const c = sb(); if (!c || !athleteId) return false;
+  try { const { error } = await c.functions.invoke('send-push', { body: { athlete_id: athleteId, title, body } }); return !error; } catch { return false; }
+}
+
+/* ---------------- trainer mirror (practices) ---------------- */
+export async function fetchMyPractices() {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.from('practices').select('id,name'); return data || []; } catch { return []; }
+}
+export async function fetchPracticeRoster(practiceId) {
+  const c = sb(); if (!c || !practiceId) return [];
+  try {
+    const { data } = await c.rpc('practice_roster', { practice: practiceId });
+    return (data || []).map(r => ({ athlete_id: r.client_id, athlete_name: r.client_name, position: null, joined_at: r.joined_at }));
+  } catch { return []; }
+}
+export async function pendingPracticeRequests(practiceId) {
+  const c = sb(); if (!c || !practiceId) return [];
+  try { const { data } = await c.rpc('pending_practice_requests', { practice: practiceId }); return data || []; } catch { return []; }
+}
+export async function approveClient(practiceId, clientId) {
+  const c = sb(); if (!c) return false;
+  try { const { error } = await c.from('practice_clients').update({ status: 'active' }).eq('practice_id', practiceId).eq('client_id', clientId); return !error; } catch { return false; }
+}
+export async function declineClient(practiceId, clientId) {
+  const c = sb(); if (!c) return false;
+  try { const { error } = await c.from('practice_clients').delete().eq('practice_id', practiceId).eq('client_id', clientId); return !error; } catch { return false; }
+}
+
+/* ---------------- pure roster projection (honest: no invented numbers) ---------------- */
+export function tierFlag(score) { return score == null ? '' : score >= 80 ? 'g' : score >= 60 ? 'y' : 'r'; }
+/** Merge a roster member (from the RPC) with today's real day row into a UI row.
+    A member with no day row today is honestly "No logs today" — never a made-up score. */
+export function buildRosterRow(member, dayRow) {
+  const name = member.athlete_name || 'Athlete';
+  const logged = !!dayRow;
+  const score = logged && dayRow.score != null ? dayRow.score : null;
+  const tasks = (dayRow && Array.isArray(dayRow.tasks)) ? dayRow.tasks : [];
+  const done = tasks.filter(t => t && t.done).length;
+  return {
+    athleteId: member.athlete_id,
+    name, unit: member.position || '',
+    score, loggedToday: logged,
+    flag: logged ? tierFlag(score) : 'r',
+    logs: logged && tasks.length ? `${done}/${tasks.length}` : (logged ? 'Logged' : '—'),
+    note: logged
+      ? (score != null ? (score >= 80 ? 'On standard today' : 'Logged · below the bar') : 'Logged today')
+      : 'No logs today',
+  };
+}
+
+/** Full coach roster: teams → members (RPC) → merged with today's linked day rows. */
+export async function loadCoachRoster() {
+  const teams = await fetchMyTeams();
+  if (!teams.length) return { teams: [], rows: [] };
+  const [perTeam, days] = await Promise.all([
+    Promise.all(teams.map(t => fetchTeamRoster(t.id))),
+    fetchLinkedDaysSince(daysAgoISO(1)),
+  ]);
+  const today = todayISO();
+  const dayByAthlete = {};
+  for (const d of days) { if (d.date === today) dayByAthlete[d.athlete_id] = d; }
+  const seen = new Set(); const rows = [];
+  for (const members of perTeam) {
+    for (const m of members) {
+      if (seen.has(m.athlete_id)) continue; seen.add(m.athlete_id);
+      rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id]));
+    }
+  }
+  rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  return { teams, rows };
+}
+
+/** Trainer book: practices → clients (RPC) → merged with today's linked day rows. */
+export async function loadTrainerBook() {
+  const practices = await fetchMyPractices();
+  if (!practices.length) return { practices: [], rows: [] };
+  const [perPractice, days] = await Promise.all([
+    Promise.all(practices.map(p => fetchPracticeRoster(p.id))),
+    fetchLinkedDaysSince(daysAgoISO(1)),
+  ]);
+  const today = todayISO();
+  const dayByAthlete = {};
+  for (const d of days) { if (d.date === today) dayByAthlete[d.athlete_id] = d; }
+  const seen = new Set(); const rows = [];
+  for (const clients of perPractice) {
+    for (const m of clients) {
+      if (seen.has(m.athlete_id)) continue; seen.add(m.athlete_id);
+      rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id]));
+    }
+  }
+  rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  return { practices, rows };
+}
+
+export { cap };
