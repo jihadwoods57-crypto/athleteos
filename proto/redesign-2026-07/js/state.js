@@ -9,7 +9,7 @@
 
 import { CATALOG, runsToday, derive, deriveAssigned } from './requirements.js';
 import {
-  DAY, computeComponents as realComponents, projectedDay,
+  DAY, computeComponents as realComponents, projectedDay, scoreFor,
   streakDays as dayStreak, loadDay, pushDay, uploadMealPhoto,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
 } from './day.js';
@@ -72,14 +72,18 @@ const DEFAULT_RT = {
   allergies: ['Peanuts · severe'], // declared once, enforced everywhere (guardian)
   injured: false,        // injury mode: the Standard adapts (rehab replaces recovery emphasis)
   partnerNudged: false,  // peer accountability: one nudge sent tonight
-  wearable: true,        // Apple Watch connected: recovery inputs verified, not vibes
+  wearable: false,       // v1 has NO wearable integration — never show fabricated hardware data
   // --- real auth (Supabase session drives these; null until signed in) ---
   userId: null,
   email: null,
   authRole: null,        // 'athlete' | 'coach' | 'trainer' | 'parent' (from profile)
 };
 function load() {
-  try { return { ...DEFAULT_RT, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; }
+  try {
+    const rt = { ...DEFAULT_RT, ...(JSON.parse(localStorage.getItem(KEY)) || {}) };
+    rt.wearable = false; // v1: no wearable integration exists — override any stale saved flag
+    return rt;
+  }
   catch { return { ...DEFAULT_RT }; }
 }
 export const RT = load();
@@ -119,6 +123,16 @@ function loggingMacros() {
   return { protein: m.protein || 0, kcal: m.cals || 0, carbs: m.carbs || 0, fat: m.fat || 0 };
 }
 
+/** Honest projection: what the score becomes if the check-in is submitted right now with
+ *  `ci` answers (falls back to the day's current answers). Never a hardcoded "+6". */
+export function checkinProjection(ci) {
+  const p = JSON.parse(JSON.stringify(DAY));
+  if (ci) p.ci = { ...p.ci, ...ci };
+  p.ciSubmitted = true;
+  const to = scoreFor(p);
+  return { to, gain: Math.max(0, to - computeScore(componentsNow())) };
+}
+
 /** After loadDay(), reflect the real day into the RT flags the rest of the UI still reads. */
 export function syncRtFromDay() {
   RT.dinnerLogged = !!DAY.meals.dinner;
@@ -143,11 +157,11 @@ export const act = {
     RT.lastMove = { from, to, gain: to - from, what: 'Dinner' };
     save();
   },
-  submitRecovery() {
+  submitRecovery(ciValues) {
     if (DAY.ciSubmitted) return;
     const from = computeScore(componentsNow());
     RT.recoveryDone = true;
-    daySubmitCheckin(RT.userId);
+    daySubmitCheckin(RT.userId, ciValues);
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: 'Recovery Check-In' };
     save();
@@ -324,7 +338,14 @@ export const S = {
   get score() { return computeScore(componentsNow()); },
   get possible() { return computeScore(componentsDone()); },
   get tier() { return tier(this.score); },
-  scoreYesterday: 76,
+  // Yesterday's real score from history, or null if yesterday has no row (the ring then
+  // hides the "vs yesterday" delta rather than comparing against a different day).
+  get scoreYesterday() {
+    const d = new Date(DAY.date + 'T00:00:00'); d.setDate(d.getDate() - 1);
+    const yISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const y = (DAY.scoreHistory || []).find(h => h.date === yISO);
+    return y ? y.score : null;
+  },
   get streakDays() { return dayStreak(); },
   streakGraceUsed: false,
 
@@ -340,7 +361,8 @@ export const S = {
       { key: 'Nutrition', earned: Math.round(WEIGHTS.nutrition * c.nutrition), possible: 50,
         note: RT.dinnerLogged ? 'All three meals logged on time' : 'Breakfast + lunch logged on time; dinner still open', accent: 'g', weightPct: 50 },
       { key: 'Recovery', earned: Math.round(WEIGHTS.recovery * c.recovery), possible: 25,
-        note: (RT.recoveryDone ? 'Tonight’s check-in submitted' : 'Carried from Tuesday check-in; tonight refreshes it') + (RT.wearable ? ' · sleep + HRV Watch-verified' : ''), accent: 'p', weightPct: 25 },
+        note: RT.recoveryDone ? 'Tonight’s check-in submitted'
+          : (DAY.ciLast ? 'Carried from your last check-in; tonight refreshes it' : 'No check-in yet — submit tonight to earn this'), accent: 'p', weightPct: 25 },
       { key: 'Daily commitment', earned: Math.round(WEIGHTS.commitment * c.commitment), possible: 15,
         note: 'You confirmed you hit your plan today', accent: 'b', weightPct: 15 },
       { key: 'Weekly check-in', earned: Math.round(WEIGHTS.checkin * c.checkin), possible: 10,
@@ -586,16 +608,24 @@ export const S = {
   // ---------- WEIGHT ----------
   weight: { current: '183.8', unit: 'lb', target: 188, start: 179, lastLogged: 'Fri 7:02 AM', deltaMonth: '+1.2 lb', pace: 'On pace', history: [180.1, 180.9, 181.6, 182.4, 182.0, 183.1, 183.8] },
 
-  // ---------- RECOVERY ----------
-  recovery: {
-    fields: [
-      { k: 'Sleep quality', lo: 'Poor', hi: 'Great', val: 4 },
-      { k: 'Soreness', lo: 'High', hi: 'None', val: 3 },
-      { k: 'Energy', lo: 'Low', hi: 'High', val: 4 },
-      { k: 'Mood', lo: 'Off', hi: 'Locked in', val: 4 },
-      { k: 'Stress', lo: 'High', hi: 'Calm', val: 3 },
-    ],
-    gain: 6,
+  // ---------- RECOVERY (engine-driven: these questions ARE the scoring inputs) ----------
+  get recovery() {
+    // Question set = the engine's check-in keys, filtered by the enabled config — identical to
+    // the RN Recovery screen. Anchors keep REAL polarity (soreness: 5 chips = very sore; the
+    // engine inverts it internally), so the stored value is always honest to what was answered.
+    const ANCHORS = [
+      { key: 'energy',     k: 'Energy',        lo: 'Low',     hi: 'High' },
+      { key: 'recovery',   k: 'Recovery',      lo: 'Beat up', hi: 'Fully recovered' },
+      { key: 'sleep',      k: 'Sleep quality', lo: 'Poor',    hi: 'Great' },
+      { key: 'confidence', k: 'Confidence',    lo: 'Shaky',   hi: 'Dialed in' },
+      { key: 'soreness',   k: 'Soreness',      lo: 'None',    hi: 'Very sore' },
+      { key: 'motivation', k: 'Motivation',    lo: 'Flat',    hi: 'Fired up' },
+    ];
+    // 5 chips map to the engine's 0–10 scale as 2/4/6/8/10; initial selection reflects the
+    // day's current values so reopening the form shows what will actually be submitted.
+    const fields = ANCHORS.filter(a => DAY.ciConfig && DAY.ciConfig[a.key])
+      .map(a => ({ ...a, val: Math.min(5, Math.max(1, Math.round((DAY.ci[a.key] ?? 6) / 2))) }));
+    return { fields };
   },
 
   // ---------- WEEKLY CHECK-IN ----------
