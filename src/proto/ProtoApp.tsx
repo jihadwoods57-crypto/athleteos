@@ -5,12 +5,14 @@ import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { ensureProtoExtracted, PROTO_ROOT_DIR } from './protoBundle';
+import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 
 const BG = '#080B0A';
 
 // Runs BEFORE any proto code: forwards console + errors to native so device issues are
-// diagnosable (not a silent blank screen). Later phases prepend the haptics/native shims here.
-const PRELUDE = `
+// diagnosable (not a silent blank screen). The native bridge shim (haptics/share/secure store)
+// is appended right after so both are live at document-start, before the proto's modules run.
+const CONSOLE_BRIDGE = `
 (function(){
   function send(o){ try{ window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(o)); }catch(e){} }
   ['log','warn','error'].forEach(function(l){ var orig=console[l]; console[l]=function(){ send({__log:{level:l,msg:Array.prototype.map.call(arguments,String).join(' ')}}); try{orig.apply(console,arguments);}catch(e){} }; });
@@ -19,6 +21,7 @@ const PRELUDE = `
 })();
 true;
 `;
+const PRELUDE = CONSOLE_BRIDGE + BRIDGE_SHIM;
 
 function Center({ children }: { children: React.ReactNode }) {
   return <View style={styles.center}>{children}</View>;
@@ -27,6 +30,7 @@ function Center({ children }: { children: React.ReactNode }) {
 export function ProtoApp() {
   const [uri, setUri] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
+  const webviewRef = React.useRef<WebView>(null);
 
   React.useEffect(() => {
     let alive = true;
@@ -39,19 +43,14 @@ export function ProtoApp() {
   }, []);
 
   const onMessage = React.useCallback((e: WebViewMessageEvent) => {
-    let data: unknown;
+    let msg: BridgeMessage;
     try {
-      data = JSON.parse(e.nativeEvent.data);
+      msg = JSON.parse(e.nativeEvent.data) as BridgeMessage;
     } catch {
       return;
     }
-    const d = data as { __log?: { level: string; msg: string } };
-    if (d.__log) {
-      // Surfaces proto console output in the native logs during device QA.
-      // eslint-disable-next-line no-console
-      console.log(`[proto:${d.__log.level}]`, d.__log.msg);
-    }
-    // Later phases: route native-capability messages (CAPTURE_MEAL, HAPTIC, SHARE, ...) here.
+    // Native bridge: haptics, share, secure-store (Phase 2); camera/meal loop lands here later.
+    void handleBridgeMessage(webviewRef, msg);
   }, []);
 
   if (err) {
@@ -72,6 +71,7 @@ export function ProtoApp() {
 
   return (
     <WebView
+      ref={webviewRef}
       source={{ uri }}
       style={styles.web}
       containerStyle={styles.web}
