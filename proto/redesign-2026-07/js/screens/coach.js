@@ -597,44 +597,27 @@ export const trainerClient = {
   },
 };
 
-/* ---------- Parent view — simple accountability, not surveillance ---------- */
+/* ---------- Parent view — honest pending state (no parent→child data path yet) ---------- */
 export const parent = {
   hideTabs: true,
   render() {
+    // A real guardian has NO server data path in v1 (guardianship + minor-consent verification
+    // aren't wired). So we show an honest pending state — never a fabricated child's score/digest.
     return `
-    ${backHead('Parent view', 'Jihad · this week', 'profile')}
+    ${backHead('Parent view', 'Setting up access', 'profile')}
 
-    <section class="card pad" style="text-align:center">
-      <div style="font-size:13px;font-weight:700;color:var(--text-2)">Today</div>
-      <div style="font-size:58px;font-weight:800;letter-spacing:-0.04em;margin-top:4px">${S.score}</div>
-      <span class="tier-chip ${S.tier.cls}">${S.tier.name}</span>
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:12px">${S.metCount} of ${S.reqTotal} requirements done · ${S.streakDays}-day streak</div>
-    </section>
+    <div class="state-demo">
+      <div class="sd-ic">${icon('users', 24)}</div>
+      <div class="sd-t">Parent access is being set up</div>
+      <div class="sd-s">Once your athlete confirms the link (and, for a minor, consent is verified), their score, streak, and weekly digest show up here. Until then there's nothing to show — we won't invent it.</div>
+    </div>
 
-    <div class="eyebrow">This week</div>
-    <section class="card pad">
-      <div class="bigstat"><span class="n" style="font-size:34px">5 of 7</span><span class="d">days on standard</span></div>
-      <div style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:6px">Jihad is showing up. Meals are consistent; night recovery check-ins are the habit still being built.</div>
-    </section>
-
-    <div class="eyebrow">Sunday digest · pushed 7 PM</div>
-    <section class="card pad">
-      <div style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">This week's summary</div>
-      <p style="font-size:14.5px;font-weight:600;line-height:1.55">Jihad finished 5 of 7 days on standard, his best week of the phase. Meals are nearly automatic now. The habit still forming: the nightly recovery check-in. If you ask one question this week, ask about sleep.</p>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--hairline-soft)">
-        <span style="font-size:12.5px;font-weight:700;color:var(--text-2)">Delivered Sundays · push + email</span>
-        <div class="seg" style="width:104px" data-toggle-group><button class="on">On</button><button>Off</button></div>
-      </div>
-    </section>
-
-    <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
-      <div><div class="tt">What parents see</div>
-      <div class="ts">Scores, streaks, and completion only. Meal photos, weight, and check-in answers stay between Jihad and his coach by default.</div></div>
+      <div><div class="tt">What parents will see</div>
+      <div class="ts">Scores, streaks, and completion only. Meal photos, weight, and check-in answers stay between your athlete and their coach by default.</div></div>
     </div>
     <div style="height:10px"></div>
     `;
   },
-  async mount(root) { const { wireToggles } = await import('./settings.js'); wireToggles(root); },
 };
