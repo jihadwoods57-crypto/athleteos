@@ -69,7 +69,7 @@ const DEFAULT_RT = {
   dinnerLogged: false,
   recoveryDone: false,
   weightLogged: false,   // late log (window was 9 AM) — trend only, never scored
-  hydrationOz: 88,
+  hydrationOz: 0,        // real: 0 until the athlete logs water (syncRtFromDay reflects DAY.hydrationL)
   notifsRead: false,
   day0: false,           // fresh-athlete empty-state mode (set by finishing onboarding)
   day0Breakfast: false,  // day-0 first meal logged
@@ -269,7 +269,7 @@ export const act = {
     };
   },
 
-  startDay0() { RT.day0 = true; RT.day0Breakfast = false; RT.lastMove = null; dayResetLocal(); pushDay(RT.userId, true); save(); },
+  startDay0() { RT.lastMove = null; dayResetLocal(); syncRtFromDay(); pushDay(RT.userId, true); save(); },
   /* Coach assigns a requirement -> it lands on the athlete's Home + notifications. */
   assignReq(templateId) {
     const T = {
