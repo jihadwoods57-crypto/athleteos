@@ -146,56 +146,73 @@ export const coachAssign = {
   },
 };
 
-/* ---------- Coach plan editor: adjust targets, publish -> athlete's Plan·Notes + notification ---------- */
+/* ---------- Coach sets an athlete's REAL nutrition targets (coach_set_goals RPC) ---------- */
+let TGT = null;           // { athleteId, targets } loaded from athlete_profiles
+let tgtLoadingId = null;
+async function loadTargets(athleteId) {
+  if (!athleteId || tgtLoadingId === athleteId) return;
+  tgtLoadingId = athleteId;
+  TGT = { athleteId, targets: (await roles.fetchAthleteTargets(athleteId)) || {} };
+  tgtLoadingId = null;
+  if (location.hash.startsWith('#coach-plan')) window.__render();
+}
 export const coachPlan = {
   nav: 'coach', tab: 'plan',
-  render() {
+  render({ sub }) {
+    const athleteId = sub;
+    const who = rosterName(athleteId);
+    const head = backHead('Nutrition targets', `${esc(who.name)} · coach owns the plan`, athleteId ? `coach-athlete/${esc(athleteId)}` : 'coach');
+    if (!athleteId) return `${head}<div class="state-demo"><div class="sd-t">Open from an athlete</div><div class="sd-s">Review an athlete, then set their targets.</div></div>`;
+    if (!TGT || TGT.athleteId !== athleteId) {
+      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">Loading their targets…</div></div></div>`;
+    }
+    const t = TGT.targets || {};
+    const rows = [['Protein', 'tg-protein', t.protein != null ? t.protein : 180, 'g', 5], ['Calories', 'tg-calories', t.calories != null ? t.calories : 2400, '', 50], ['Target weight', 'tg-weight', t.weight != null ? t.weight : 180, ' lb', 1]];
     return `
-    ${backHead('Edit Game Plan', 'J. Woods · Lean Mass Phase · Week 2 of 6', 'coach')}
+    ${head}
 
     <div class="eyebrow">Targets</div>
     <section class="card" style="padding:6px 16px">
-      ${[['Protein', 'plan-protein', 190, 'g'], ['Calories', 'plan-cals', 2400, ''], ['Water', 'plan-water', 120, ' oz']].map(([k, id, v, u]) => `
+      ${rows.map(([k, id, v, u, step]) => `
         <div class="lrow" style="cursor:default">
           <div class="lm"><div class="lt">${k}</div></div>
-          <span class="wb2" data-step="${id}" data-d="-1" style="padding:6px 13px">−</span>
-          <span id="${id}" data-u="${u}" style="font-size:16px;font-weight:800;width:74px;text-align:center">${v}${u}</span>
-          <span class="wb2" data-step="${id}" data-d="1" style="padding:6px 13px">+</span>
+          <span class="wb2" data-step="${id}" data-d="-1" data-s="${step}" style="padding:6px 13px">−</span>
+          <span id="${id}" data-u="${u}" style="font-size:16px;font-weight:800;width:84px;text-align:center">${v}${u}</span>
+          <span class="wb2" data-step="${id}" data-d="1" data-s="${step}" style="padding:6px 13px">+</span>
         </div>`).join('')}
     </section>
 
-    <div class="eyebrow">This week's focus</div>
-    <div class="composer" style="margin-top:2px">
-      <input id="focus-input" value="Hydration is the standard this week. 120 oz, water with every meal." />
-      <div class="send" style="display:none"></div>
-    </div>
-
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div>
-      <div><div class="tt">Publishing notifies Jihad</div>
-      <div class="ts">The update lands in his Plan · Notes and his notifications the moment you send it. Nothing silent.</div></div>
+      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div><div class="tt">Coach owns the numbers</div>
+      <div class="ts">Saving writes these to the athlete's plan (athlete_profiles.targets) via the coach_set_goals RPC. Their nutrition scoring is unaffected — the score is always the four honest components.</div></div>
     </div>
 
     <div style="height:16px"></div>
-    <button class="btn primary" id="publish-plan">${icon('check', 19)} Publish Update</button>
+    <button class="btn primary" id="save-targets">${icon('check', 19)} Save targets</button>
+    <div id="tg-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
     <div style="height:10px"></div>
     `;
   },
-  mount(root) {
+  mount(root, { sub }) {
+    loadCoachRoster();
+    loadTargets(sub);
     root.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
       const el = root.querySelector('#' + b.getAttribute('data-step'));
       const u = el.getAttribute('data-u');
-      const step = b.getAttribute('data-step') === 'plan-cals' ? 50 : 5;
-      el.textContent = (parseInt(el.textContent) + step * +b.dataset.d) + u;
+      const step = +b.getAttribute('data-s') || 1;
+      el.textContent = Math.max(0, parseInt(el.textContent) + step * +b.dataset.d) + u;
     }));
-    const pub = root.querySelector('#publish-plan');
-    if (pub) pub.addEventListener('click', () => {
-      const focus = root.querySelector('#focus-input').value.trim() || 'Plan updated.';
-      const p = parseInt(root.querySelector('#plan-protein').textContent);
-      const w = parseInt(root.querySelector('#plan-water').textContent);
-      window.__act.publishPlanUpdate(`${focus} Targets: ${p}g protein · ${w} oz water.`);
-      location.hash = '#coach';
+    const save = root.querySelector('#save-targets');
+    const status = root.querySelector('#tg-status');
+    if (save) save.addEventListener('click', async () => {
+      const num = (id) => parseInt(root.querySelector('#' + id).textContent) || 0;
+      save.disabled = true; if (status) status.textContent = 'Saving…';
+      const ok = await roles.coachSetGoals(sub, { protein: num('tg-protein'), calories: num('tg-calories'), weight: num('tg-weight') });
+      if (ok) { if (status) status.textContent = 'Saved to their plan.'; TGT = null; setTimeout(() => { location.hash = `#coach-athlete/${sub}`; }, 600); }
+      else { save.disabled = false; if (status) status.textContent = 'Could not save — check the connection.'; }
     });
   },
 };
@@ -320,6 +337,14 @@ export const coachAthlete = {
           <div class="lm"><div class="lt">Everything is in</div><div class="ls">Finished day${score != null ? ` · ${score}` : ''}</div></div></div>`}
     </section>`}
 
+    <div class="eyebrow">Coach actions</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="coach-plan/${esc(athleteId)}">
+        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('clipboard', 17)}</div>
+        <div class="lm"><div class="lt">Set nutrition targets</div><div class="ls">Protein · calories · target weight</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+    </section>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:8px;padding:0 2px">Tap a meal photo to review and comment on it.</div>
     <div style="height:10px"></div>
     `;

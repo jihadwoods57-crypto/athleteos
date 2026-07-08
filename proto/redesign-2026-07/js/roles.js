@@ -70,6 +70,10 @@ export async function postMealComment(mealId, athleteId, authorId, role, text) {
 }
 
 /* ---------------- coach: targets / trust pass (RPCs) ---------------- */
+export async function fetchAthleteTargets(athleteId) {
+  const c = sb(); if (!c || !athleteId) return null;
+  try { const { data } = await c.from('athlete_profiles').select('targets').eq('athlete_id', athleteId).maybeSingle(); return (data && data.targets) || null; } catch { return null; }
+}
 export async function coachSetGoals(athleteId, targets) {
   const c = sb(); if (!c || !athleteId) return false;
   try { const { error } = await c.rpc('coach_set_goals', { athlete: athleteId, new_targets: targets, new_season_goal: null }); return !error; } catch { return false; }
