@@ -67,5 +67,5 @@ if (ahead !== '0' && ahead !== '?') {
 
 console.log('');
 console.log(`${GRN}✓ Working tree clean — the build will contain exactly ${commit}.${RST}`);
-console.log(`${DIM}  After it installs, open Account and confirm the footer shows ${commit}.${RST}`);
+console.log(`${DIM}  Confirm in TestFlight that the new build number is the one you install.${RST}`);
 console.log('');
