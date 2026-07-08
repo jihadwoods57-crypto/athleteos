@@ -147,6 +147,8 @@ const schedule = () => `
 
 const notes = () => `
   <div class="eyebrow">Plan history & updates</div>
+  ${P.notes.length ? '' : `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+    <div><div class="tt">No plan updates yet</div><div class="ts">When your coach changes your targets, the update shows up here. You can still ask the AI about your plan below.</div></div></div>`}
   <div class="thread">
     ${P.notes.map(n => `
       <div class="msg ${n.who}">

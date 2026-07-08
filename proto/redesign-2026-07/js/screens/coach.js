@@ -128,51 +128,26 @@ export const coach = {
   },
 };
 
-/* ---------- Coach assign flow: template -> lands on the athlete's Home ---------- */
+/* ---------- Coach assign flow — no backend table yet, so honestly a coming-soon ---------- */
 export const coachAssign = {
   nav: 'coach', tab: 'assign',
   render() {
-    const already = (id) => RT.assigned.some(a => a.id === id);
-    const T = [
-      { id: 'pwm',  icon: 'utensils', t: 'Post-Workout Meal', s: 'Photo proof · within 45 min of lifting' },
-      { id: 'supp', icon: 'check',    t: 'Supplement Log', s: 'One-tap confirm · with dinner' },
-      { id: 'body', icon: 'camera',   t: 'Body Photo', s: 'Coach-only · same pose, same light' },
-      { id: 'sleep',icon: 'moon',     t: 'Sleep Target · 8h', s: 'This week · lights out 10:30' },
-    ];
     return `
-    ${backHead('Assign to J. Woods', 'It lands on his Home the moment you send it', 'coach')}
-
-    <div class="eyebrow">Templates</div>
+    ${backHead('Assign a requirement', 'Coming soon', 'coach')}
+    <div class="state-demo">
+      <div class="sd-ic">${icon('plus', 24)}</div>
+      <div class="sd-t">Custom assignments are coming</div>
+      <div class="sd-s">There's no requirement-assignment backend yet, so this stays a real coming-soon instead of a task that never reaches the athlete. Today your levers are real: set their nutrition targets and comment on their meals.</div>
+    </div>
     <section class="card" style="padding:6px 16px">
-      ${T.map(x => `
-        <div class="lrow" ${already(x.id) ? '' : `data-act="assignReq:${x.id}" data-then="coach"`}>
-          <div class="lic" style="${already(x.id) ? 'background:var(--green-surface);color:var(--green-bright)' : ''}">${icon(already(x.id) ? 'check' : x.icon, 17)}</div>
-          <div class="lm"><div class="lt">${x.t}</div><div class="ls">${already(x.id) ? 'Assigned · on his Home now' : x.s}</div></div>
-          ${already(x.id) ? '<span class="status-pill g">Sent</span>' : `<span class="status-pill b">Assign</span>`}
-        </div>`).join('')}
+      <div class="lrow" data-go="coach">
+        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('users', 17)}</div>
+        <div class="lm"><div class="lt">Back to the roster</div><div class="ls">Review an athlete, set targets, comment on a meal</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
     </section>
-
-    <div class="eyebrow">Custom task</div>
-    <div class="composer" style="margin-top:2px">
-      <input id="custom-task" placeholder="Name it… e.g. Extra water at practice" />
-      <div class="send" id="custom-send" style="background:linear-gradient(150deg, var(--green-bright), #16a34a);color:#04140b">${icon('plus', 19)}</div>
-    </div>
-
-    <div style="height:14px"></div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
-      <div><div class="tt">Tasks don't mint points</div>
-      <div class="ts">The score stays four honest components. Assigned tasks are part of the plan his commitment answer covers, and you see completion either way.</div></div>
-    </div>
     <div style="height:10px"></div>
     `;
-  },
-  mount(root) {
-    const input = root.querySelector('#custom-task');
-    const send = root.querySelector('#custom-send');
-    const submit = () => { if (input.value.trim()) { window.__act.assignCustom(input.value); location.hash = '#coach'; } };
-    if (send) send.addEventListener('click', submit);
-    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
   },
 };
 

@@ -280,47 +280,13 @@ export const act = {
   },
 
   startDay0() { RT.lastMove = null; dayResetLocal(); syncRtFromDay(); pushDay(RT.userId, true); save(); },
-  /* Coach assigns a requirement -> it lands on the athlete's Home + notifications. */
-  assignReq(templateId) {
-    const T = {
-      pwm:  { id: 'pwm',  title: 'Post-Workout Meal', icon: 'utensils', note: 'Within 45 min of lifting. Protein + carb, photo it like any meal.', dueLabel: 'After tomorrow’s lift' },
-      supp: { id: 'supp', title: 'Supplement Log', icon: 'check', note: 'Confirm creatine + multivitamin with dinner.', dueLabel: 'Tonight' },
-      body: { id: 'body', title: 'Body Photo', icon: 'camera', note: 'Same pose, same light as last month. Coach-only, never shared.', dueLabel: 'Sunday' },
-      sleep:{ id: 'sleep',title: 'Sleep Target · 8h', icon: 'moon', note: 'Lights out by 10:30 on school nights this week.', dueLabel: 'This week' },
-    };
-    const t = T[templateId] || T.supp;
-    if (RT.assigned.some(a => a.id === t.id)) return;
-    RT.assigned.push({ ...t, from: 'Coach Mark', done: false, seen: false });
-    RT.notifsRead = false;
-    save();
-  },
+  // Coach→athlete assignments have no backend table (P4 scope) — the assign flow is an honest
+  // coming-soon. Only the injury-mode rehab item still populates RT.assigned locally.
   completeAssigned(id) {
     const a = RT.assigned.find(x => x.id === id);
     if (a && !a.done) { a.done = true; a.seen = true; save(); }
   },
   seeAssigned() { RT.assigned.forEach(a => { a.seen = true; }); save(); },
-  coachComment(text) { if (text) { RT.coachComments.push(String(text).slice(0, 300)); save(); } },
-  assignCustom(title) {
-    const t = String(title || '').trim().slice(0, 60);
-    if (!t) return;
-    const id = 'custom-' + t.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24);
-    if (RT.assigned.some(a => a.id === id)) return;
-    RT.assigned.push({ id, title: t, icon: 'clipboard', note: `Set by Coach Mark for you specifically.`, from: 'Coach Mark', dueLabel: 'This week', done: false, seen: false });
-    RT.notifsRead = false;
-    save();
-  },
-  publishPlanUpdate(text) {
-    const t = String(text || '').trim().slice(0, 200);
-    if (!t) return;
-    RT.planUpdate = { text: t, when: 'just now' };
-    RT.notifsRead = false;
-    save();
-  },
-  setSquadScope(s) { if (['team', 'position', 'off'].includes(s)) { RT.squadScope = s; save(); } },
-  trainerNote(text) {
-    const t = String(text || '').trim().slice(0, 300);
-    if (t) { RT.trainerNotes.push(t); RT.notifsRead = false; save(); }
-  },
   primeCamera() { RT.camPrimed = true; save(); },
   saveProfile(p) { RT.profile = { ...(RT.profile || {}), ...p }; save(); },
   /* Onboarding scratch: the athlete's real selections captured step-by-step (DOM is wiped
@@ -654,14 +620,10 @@ export const S = {
       { title: 'Recovery Check-In', freq: 'Required daily', due: 'Before bed', proof: 'Quick form', impact: 'Recovery (25%)', accent: 'p', icon: 'moon' },
       { title: 'Weekly Check-In', freq: 'Required weekly', due: 'Sundays', proof: 'Form + weight', impact: 'Check-in (10%)', accent: 'g', icon: 'clipboard' },
     ],
+    // Plan-change notes have no backend feed (coach changes are targets via coach_set_goals).
+    // Only surface a real published update if one exists; otherwise honestly empty.
     get notes() {
-      const base = [
-        { who: 'coach', name: 'Coach Mark', when: '2h ago', text: 'Bumped water to 120 oz this week. You practice in heat Wed/Thu, get ahead of it.' },
-        { who: 'ai', name: 'OnStandard AI', when: '2h ago', text: 'Applied Coach Mark’s update: hydration target 96 to 120 oz. Your other targets are unchanged.' },
-        { who: 'coach', name: 'Coach Mark', when: 'Mon', text: 'Lean mass phase, week 2. Keep protein at 190 and don’t chase the scale, we’re building.' },
-      ];
-      // a plan update the coach ACTUALLY published from the coach plan editor
-      return RT.planUpdate ? [{ who: 'coach', name: 'Coach Mark', when: RT.planUpdate.when, text: RT.planUpdate.text }, ...base] : base;
+      return RT.planUpdate ? [{ who: 'coach', name: 'Coach', when: RT.planUpdate.when, text: RT.planUpdate.text }] : [];
     },
   },
 
@@ -828,37 +790,8 @@ export const S = {
     };
   },
 
-  // ---------- SQUAD / COACH (scope is coach-controlled) ----------
-  get squadScope() { return RT.squadScope; },
-  get squad() {
-    if (RT.squadScope === 'off') return [];
-    const me = { name: 'You', unit: 'WR', score: this.score, you: true };
-    const room = [
-      { name: 'D. Okafor', unit: 'WR', score: 93 },
-      me,
-      { name: 'M. Reyes', unit: 'WR', score: 79 },
-      { name: 'T. Boone', unit: 'WR', score: 74 },
-    ];
-    const team = [
-      { name: 'A. Grant', unit: 'RB', score: 91 },
-      { name: 'C. Dune', unit: 'QB', score: 88 },
-      { name: 'J. Ford', unit: 'LB', score: 84 },
-      { name: 'P. Ellis', unit: 'OL', score: 77 },
-      { name: 'K. Bell', unit: 'RB', score: 58 },
-    ];
-    const rows = (RT.squadScope === 'team' ? [...room.filter(r => !r.you), me, ...team] : room)
-      .sort((a, b) => b.score - a.score)
-      .map((r, i) => ({ ...r, rank: i + 1 }));
-    return rows;
-  },
-  roster: [
-    { name: 'D. Okafor', unit: 'WR', score: 93, logs: '4/4', flag: 'g', note: 'On standard 12 days straight' },
-    { name: 'J. Woods', unit: 'WR', score: 82, logs: '2/4', flag: 'y', note: 'Dinner + recovery still open', you: true },
-    { name: 'M. Reyes', unit: 'WR', score: 79, logs: '3/4', flag: 'y', note: 'Hydration short 3 days running' },
-    { name: 'T. Boone', unit: 'WR', score: 74, logs: '2/4', flag: 'y', note: 'Late lunches all week' },
-    { name: 'K. Bell', unit: 'RB', score: 58, logs: '1/4', flag: 'r', note: 'No logs since Tuesday · needs attention' },
-    { name: 'A. Grant', unit: 'RB', score: 91, logs: '4/4', flag: 'g', note: 'Weekly check-in due today' },
-  ],
+  // Squad / leaderboard: no backend (comp_mode is unused; the real roster lives coach-side).
+  // The athlete Squad screen is an honest "coming soon" — no fabricated teammates here.
 
   // ---------- NOTIFICATIONS (live) ----------
   get notifications() {

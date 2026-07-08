@@ -13,8 +13,6 @@ export default {
   tab: 'profile',
   render() {
     const t = S.trustPass;
-    const scope = S.squadScope;
-    const scopeLabel = scope === 'team' ? 'Whole team' : scope === 'position' ? 'WR room' : 'Off';
     return `
     <div class="screen-title">Profile</div>
 
@@ -57,22 +55,12 @@ export default {
       </div>
     </section>
 
-    <div class="eyebrow">Squad <span class="link" data-go="squad">Open</span></div>
-    ${scope === 'off'
-      ? `<div class="sidebox">
-          <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
-          <div><div class="tt">Leaderboard is off</div>
-          <div class="ts">${S.coach.name} turned rankings off for now. Your work still counts on his board.</div></div>
-        </div>`
-      : `<section class="card" style="padding:6px 0" data-go="squad">
-          <div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-3)">${scopeLabel} · set by ${S.coach.name}</div>
-          ${S.squad.slice(0, 4).map(a => `
-            <div class="lb-row ${a.you ? 'you' : ''}">
-              <span class="lb-rank">${a.rank}</span>
-              <span class="lb-name">${a.name} <small style="color:var(--text-3);font-weight:700">· ${a.unit}</small></span>
-              <span class="lb-score" style="color:${a.score >= 80 ? 'var(--green-bright)' : 'var(--text-2)'}">${a.score}</span>
-            </div>`).join('')}
-        </section>`}
+    <div class="eyebrow">Squad</div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+      <div><div class="tt">Leaderboard coming soon</div>
+      <div class="ts">Team rankings turn on when your coach's board is wired — until then there's no roster to compare against, and we won't invent one.</div></div>
+    </div>
 
     <div class="eyebrow">Accountability</div>
     <section class="card" style="padding:6px 16px">
@@ -245,44 +233,17 @@ export const editProfile = {
 export const squad = {
   tab: 'profile',
   render() {
-    const scope = S.squadScope;
-    if (scope === 'off') {
-      return `${backHead('Squad', 'Rankings are off right now', 'profile')}
-      <div class="state-demo">
-        <div class="sd-ic">${icon('users', 24)}</div>
-        <div class="sd-t">${S.coach.name} turned the board off</div>
-        <div class="sd-s">Some weeks are about you versus yesterday, not you versus the room. Your score still counts on his dashboard.</div>
-      </div>`;
-    }
-    const label = scope === 'team' ? 'Whole team' : 'WR room';
-    const rows = S.squad;
-    const leader = rows[0];
     return `
-    ${backHead('Squad', `${label} · this week · set by ${S.coach.name}`, 'profile')}
-
-    <section class="card pad" style="display:flex;align-items:center;gap:14px">
-      <div class="req-icon a" style="width:48px;height:48px;border-radius:15px">${icon('flame', 22)}</div>
-      <div style="flex:1">
-        <div style="font-size:15px;font-weight:800">${leader.you ? 'You lead the room.' : `${leader.name} leads the ${scope === 'team' ? 'team' : 'room'}.`}</div>
-        <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">Ranked on OnStandard Score. Finish tonight and you jump.</div>
-      </div>
-    </section>
-
-    <div class="eyebrow">${label}</div>
-    <section class="card" style="padding:6px 0">
-      ${rows.map(a => `
-        <div class="lb-row ${a.you ? 'you' : ''}">
-          <span class="lb-rank">${a.rank}</span>
-          <span class="lb-name">${a.name} <small style="color:var(--text-3);font-weight:700">· ${a.unit}</small></span>
-          <span class="lb-score" style="color:${a.score >= 80 ? 'var(--green-bright)' : a.score >= 60 ? 'var(--amber-bright)' : 'var(--red)'}">${a.score}</span>
-        </div>`).join('')}
-    </section>
-
-    <div style="height:14px"></div>
+    ${backHead('Squad', 'Leaderboard coming soon', 'profile')}
+    <div class="state-demo">
+      <div class="sd-ic">${icon('users', 24)}</div>
+      <div class="sd-t">No leaderboard yet</div>
+      <div class="sd-s">Rankings turn on when your coach's board is wired. There's no real roster to rank against yet, so nothing is shown — we won't fill it with made-up teammates.</div>
+    </div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
-      <div><div class="tt">What the room sees</div>
-      <div class="ts">Score only. Nobody sees your meals, weight, or check-ins — that stays between you and ${S.coach.name}.</div></div>
+      <div><div class="tt">What the room will see</div>
+      <div class="ts">Score only. Meals, weight, and check-ins stay between you and your coach.</div></div>
     </div>
     <div style="height:10px"></div>
     `;
