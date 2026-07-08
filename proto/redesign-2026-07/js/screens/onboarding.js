@@ -1,8 +1,10 @@
-import { S } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 
 /* 6-step onboarding: builds the athlete's Standard, not a survey.
-   Steps: 1 about-you · 2 goal · 3 weights · 4 coach connect · 5 your standard · 6 set. */
+   Steps: 1 about-you · 2 goal · 3 weights · 4 coach connect · 5 your standard · 6 set.
+   Every selection is the REAL user's — captured into RT.ob as they go (DOM is wiped between
+   routes) and written to the account on step 6. Nothing here fabricates an identity. */
 
 const STEPS = 6;
 function dots(n) {
@@ -22,49 +24,51 @@ function frame(n, title, sub, body, cta, next, opts = {}) {
     </div>
   </div>`;
 }
+const numInput = 'width:100%;background:transparent;border:none;outline:none;text-align:center;font-size:34px;font-weight:800;color:inherit;font-family:inherit;padding:0';
 
 const steps = {
   1: () => frame(1, 'Who are you?', 'Your coach sees this next to every log.', `
-    <input class="ob-input" value="Jihad Woods" />
+    <input id="ob-name" class="ob-input" placeholder="Your name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:14px"></div>
-    <div class="chip-row">
+    <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
+    <div class="chip-row" id="ob-sport">
       <span class="chp on">Football</span><span class="chp">Basketball</span><span class="chp">Baseball</span>
       <span class="chp">Soccer</span><span class="chp">Track</span><span class="chp">Other</span>
     </div>
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Position</div>
-    <div class="chip-row">
+    <div class="chip-row" id="ob-pos">
       <span class="chp">QB</span><span class="chp">RB</span><span class="chp on">WR</span><span class="chp">TE</span>
       <span class="chp">OL</span><span class="chp">DL</span><span class="chp">LB</span><span class="chp">DB</span>
     </div>
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Level</div>
-    <div class="chip-row">
+    <div class="chip-row" id="ob-level">
       <span class="chp">Youth</span><span class="chp on">High School</span><span class="chp">College</span><span class="chp">Pro</span>
     </div>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:16px;line-height:1.5">You must be 13 or older. Under 13 requires a parent or guardian on the account, and parents of minors can request data access or deletion anytime.</div>`, 'Next', 'onboarding/2'),
 
   2: () => frame(2, 'What are we building?', 'This decides how your nutrition gets scored. Your coach can adjust it.', `
-    <div class="choice-grid">
-      <div class="choice on"><div class="cic" style="background:rgba(52,211,153,0.18);color:var(--green-bright)">${icon('arrowUp', 19)}</div>
+    <div class="choice-grid" id="ob-goal">
+      <div class="choice on" data-val="gain"><div class="cic" style="background:rgba(52,211,153,0.18);color:var(--green-bright)">${icon('arrowUp', 19)}</div>
         <div class="ct">Gain weight</div><div class="cs">Calorie floor · protein heavy</div></div>
-      <div class="choice"><div class="cic" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('target', 19)}</div>
+      <div class="choice" data-val="lose"><div class="cic" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('target', 19)}</div>
         <div class="ct">Lose fat</div><div class="cs">Calorie window · keep protein</div></div>
-      <div class="choice"><div class="cic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('shield', 19)}</div>
+      <div class="choice" data-val="maintain"><div class="cic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('shield', 19)}</div>
         <div class="ct">Maintain</div><div class="cs">Consistency over everything</div></div>
-      <div class="choice"><div class="cic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('bolt', 19)}</div>
+      <div class="choice" data-val="perform"><div class="cic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('bolt', 19)}</div>
         <div class="ct">Perform</div><div class="cs">Fuel training · recover hard</div></div>
     </div>`, 'Next', 'onboarding/3'),
 
   3: () => frame(3, 'Where are you now?', 'Weight is a season trend here, never a daily judgment.', `
     <div class="bignum-pair">
-      <div class="bignum"><div class="bv">183.8</div><div class="bk">Current lb</div></div>
-      <div class="bignum" style="border-color:var(--green-border)"><div class="bv" style="color:var(--green-bright)">188</div><div class="bk">Target lb</div></div>
+      <div class="bignum"><input id="ob-cur" type="number" inputmode="decimal" placeholder="—" style="${numInput}" /><div class="bk">Current lb</div></div>
+      <div class="bignum" style="border-color:var(--green-border)"><input id="ob-tgt" type="number" inputmode="decimal" placeholder="—" style="${numInput};color:var(--green-bright)" /><div class="bk">Target lb</div></div>
     </div>
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Allergies & restrictions · enforced on every scan</div>
     <div class="chip-row" data-multi>
-      <span class="chp on">Peanuts · severe</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
+      <span class="chp">Peanuts · severe</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
       <span class="chp">Gluten</span><span class="chp">Shellfish</span><span class="chp">Vegetarian</span><span class="chp">Halal</span>
     </div>
     <div style="height:14px"></div>
@@ -74,20 +78,14 @@ const steps = {
       <div class="ts">You log it on your coach's schedule. It never moves your daily score, so one heavy morning can't wreck a perfect day.</div></div>
     </div>`, 'Next', 'onboarding/4'),
 
-  4: () => frame(4, 'Connect your coach', 'Your work only counts as accountability when someone you respect can see it.', `
-    <div class="code-boxes">
-      <div class="cb filled">M</div><div class="cb filled">4</div><div class="cb filled">R</div>
-      <div class="cb filled">K</div><div class="cb filled">7</div><div class="cb cursor"></div>
-    </div>
+  4: () => frame(4, 'Connect your coach', 'A coach code links your logs to someone who holds you accountable.', `
+    <input id="ob-code" class="ob-input" placeholder="Coach code (optional)" autocapitalize="characters" autocorrect="off" spellcheck="false" />
     <div style="height:14px"></div>
-    <section class="card team-preview">
-      <div class="tp-av">M</div>
-      <div style="flex:1">
-        <div style="font-size:16px;font-weight:800">${S.coach.name}'s Group</div>
-        <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${S.coach.team} · 24 athletes</div>
-      </div>
-      <span class="status-pill b">Match</span>
-    </section>`, 'Join the Group', 'onboarding/5', { skip: 'onboarding/5' }),
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 18)}</div>
+      <div><div class="tt">No code yet? Skip it.</div>
+      <div class="ts">Your Standard works solo from day one. When a coach shares a code, add it any time from Profile → Enter coach code.</div></div>
+    </div>`, 'Continue', 'onboarding/5', { skip: 'onboarding/5' }),
 
   5: () => frame(5, 'Your Standard', 'These are the daily requirements your score is built on. Coach Mark can add more.', `
     <section class="card" style="padding:6px 16px">
@@ -104,7 +102,7 @@ const steps = {
         </div>`).join('')}
     </section>
     <div style="height:12px"></div>
-    <div class="chip-row" style="justify-content:center">
+    <div class="chip-row" id="ob-pressure" style="justify-content:center">
       <span class="chp">Remind me gently</span><span class="chp on">Hold me accountable</span><span class="chp">Max pressure</span>
     </div>`, 'Set My Standard', 'onboarding/6'),
 
@@ -141,26 +139,77 @@ export default {
     root.querySelectorAll('[data-multi] .chp').forEach(ch =>
       ch.addEventListener('click', () => ch.classList.toggle('on')));
 
-    // Step 6: real, instant account creation.
+    const grab = (s) => root.querySelector(s);
+    const cap = (patch) => act.captureOb(patch);
+    // Persist the selected chip of a single-select group into RT.ob[key] on every change,
+    // and once up front so the accepted default is captured even if the user never taps.
+    const wireGroup = (sel, key, read) => {
+      const g = grab(sel); if (!g) return;
+      const val = read || (() => { const on = g.querySelector('.on'); return on ? on.textContent.trim() : null; });
+      const sync = () => { const v = val(); if (v != null) cap({ [key]: v }); };
+      g.addEventListener('click', sync);
+      sync();
+    };
+
+    // ---- Step 1: name is REQUIRED (gates Next) + sport / position / level ----
+    const nameEl = grab('#ob-name');
+    if (nameEl) {
+      const nextBtn = root.querySelector('.ob-foot .btn');
+      const sync = () => { cap({ name: nameEl.value.trim() }); if (nextBtn) nextBtn.disabled = !nameEl.value.trim(); };
+      nameEl.addEventListener('input', sync);
+      sync(); // starts empty → Next disabled until a real name is typed
+    }
+    wireGroup('#ob-sport', 'sport');
+    wireGroup('#ob-pos', 'position');
+    wireGroup('#ob-level', 'level');
+
+    // ---- Step 2: goal (slug from data-val) ----
+    wireGroup('#ob-goal', 'goal', () => { const on = grab('#ob-goal .on'); return on ? on.getAttribute('data-val') : null; });
+
+    // ---- Step 3: weights + allergies (none selected by default) ----
+    const cur = grab('#ob-cur'); if (cur) cur.addEventListener('input', () => cap({ currentWeight: parseFloat(cur.value) || null }));
+    const tgt = grab('#ob-tgt'); if (tgt) tgt.addEventListener('input', () => cap({ targetWeight: parseFloat(tgt.value) || null }));
+    const alg = grab('[data-multi]');
+    if (alg) { const readA = () => cap({ allergies: [...alg.querySelectorAll('.chp.on')].map(c => c.textContent.trim()) }); alg.addEventListener('click', readA); readA(); }
+
+    // ---- Step 4: coach code (captured for the later real-join phase; no fabricated "match") ----
+    const code = grab('#ob-code'); if (code) code.addEventListener('input', () => cap({ coachCode: code.value.trim() }));
+
+    // ---- Step 5: reminder pressure ----
+    wireGroup('#ob-pressure', 'pressure');
+
+    // ---- Step 6: real account creation from the captured Standard ----
     const btn = root.querySelector('#su-go');
     if (btn) {
-      const { act, S } = await import('../state.js');
       const err = root.querySelector('#su-err');
       const emailEl = root.querySelector('#su-email');
       const passEl = root.querySelector('#su-pass');
       const submit = async () => {
         err.textContent = '';
+        const ob = RT.ob || {};
+        const name = (ob.name || '').trim();
         const email = (emailEl.value || '').trim();
         const password = passEl.value || '';
+        if (!name) { err.textContent = 'Add your name in step 1 before creating your account.'; return; }
         if (!email || !password) { err.textContent = 'Enter an email and a password.'; return; }
         if (password.length < 6) { err.textContent = 'Password must be at least 6 characters.'; return; }
         btn.disabled = true;
         btn.textContent = 'Creating your account…';
-        const r = await act.signUp(email, password, S.athlete.name, 'athlete');
+        const r = await act.signUp(email, password, name, 'athlete');
         if (r.ok) {
           act.startDay0();
-          // best-effort profile save (full onboarding capture is Phase 6)
-          act.saveAthleteProfile({ sport: S.athlete.sport, position: S.athlete.position, level: S.athlete.level });
+          // Reflect the athlete's REAL identity locally so Home shows who they are immediately.
+          act.saveProfile({ name, sport: ob.sport || '', position: ob.position || '', level: ob.level || '' });
+          act.saveAllergies(ob.allergies || []);
+          // Best-effort server profile — real columns only (0001_schema.sql athlete_profiles).
+          const fields = {};
+          if (ob.sport) fields.sport = ob.sport;
+          if (ob.position) fields.position = ob.position;
+          if (ob.level) fields.level = ob.level;
+          if (ob.goal) fields.base_goal = ob.goal;
+          if (ob.currentWeight) fields.base_weight = Math.round(ob.currentWeight);
+          if (ob.currentWeight || ob.targetWeight) fields.season_goal = { start: ob.currentWeight || null, target: ob.targetWeight || null };
+          act.saveAthleteProfile(fields);
           window.__go('home');
         } else {
           err.textContent = r.error || 'Could not create your account.';

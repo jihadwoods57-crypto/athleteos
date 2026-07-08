@@ -68,8 +68,9 @@ const DEFAULT_RT = {
   squadScope: 'position',// coach-controlled leaderboard scope: 'team' | 'position' | 'off'
   trainerNotes: [],      // trainer->client notes; REALLY land in the athlete's notifications
   camPrimed: false,      // Apple-style camera permission priming shown once
-  profile: null,         // athlete edits: {name, sport, position, school, avatar(dataURL)}
-  allergies: ['Peanuts · severe'], // declared once, enforced everywhere (guardian)
+  profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
+  ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
+  allergies: [],         // declared in onboarding, enforced everywhere (guardian). Empty until the athlete declares one.
   injured: false,        // injury mode: the Standard adapts (rehab replaces recovery emphasis)
   partnerNudged: false,  // peer accountability: one nudge sent tonight
   wearable: false,       // v1 has NO wearable integration — never show fabricated hardware data
@@ -249,6 +250,9 @@ export const act = {
   },
   primeCamera() { RT.camPrimed = true; save(); },
   saveProfile(p) { RT.profile = { ...(RT.profile || {}), ...p }; save(); },
+  /* Onboarding scratch: the athlete's real selections captured step-by-step (DOM is wiped
+     between routes, so each interaction persists here rather than being read at the end). */
+  captureOb(patch) { RT.ob = { ...(RT.ob || {}), ...patch }; save(); },
   saveAllergies(list) { RT.allergies = list.slice(0, 8); save(); },
   toggleWearable() { RT.wearable = !RT.wearable; save(); },
   nudgePartner() { RT.partnerNudged = true; save(); },
@@ -293,9 +297,24 @@ export const act = {
     } catch { /* fall back to athlete */ }
     RT.authRole = role;
     save();
+    await this._loadProfileIntoRt(RT.userId);
     await loadDay(RT.userId);
     syncRtFromDay();
     return { ok: true, role };
+  },
+  /* Read the athlete's REAL identity from the server into RT.profile so the UI shows who they
+     actually are — never the Jihad Woods placeholder. Best-effort; keeps whatever we already have. */
+  async _loadProfileIntoRt(userId) {
+    const sb = window.sb;
+    if (!sb || !userId) return;
+    try {
+      const { data: prof } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
+      const { data: ap } = await sb.from('athlete_profiles').select('sport,position,level').eq('athlete_id', userId).maybeSingle();
+      const patch = {};
+      if (prof && prof.full_name) patch.name = prof.full_name;
+      if (ap) { if (ap.sport) patch.sport = ap.sport; if (ap.position) patch.position = ap.position; if (ap.level) patch.level = ap.level; }
+      if (Object.keys(patch).length) { RT.profile = { ...(RT.profile || {}), ...patch }; save(); }
+    } catch { /* offline / RLS — keep whatever identity we have */ }
   },
   async signOut() {
     const sb = window.sb;
@@ -311,21 +330,25 @@ export const act = {
   // Called by the router boot gate to sync RT from a restored Keychain session.
   _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },
   // Load today's real day from Supabase and reflect it into the UI flags.
-  async hydrateDay() { await loadDay(RT.userId); syncRtFromDay(); },
+  async hydrateDay() { if (RT.userId) await this._loadProfileIntoRt(RT.userId); await loadDay(RT.userId); syncRtFromDay(); },
 };
 window.__act = act;
 
 /* ---------------- The app state (live getters) ---------------- */
 export const S = {
+  // Identity comes from the athlete's real profile (onboarding capture or the signed-in
+  // profiles/athlete_profiles rows loaded into RT.profile). Never fabricate a real-sounding
+  // name/school/sport — an unknown field is blank/neutral, not "Jihad Woods · Central Catholic".
   get athlete() {
     const p = RT.profile || {};
-    const first = (p.name || 'Jihad Woods').split(' ')[0];
-    const last = (p.name || 'Jihad Woods').split(' ').slice(1).join(' ') || 'Woods';
+    const name = (p.name || '').trim();
+    const first = name ? name.split(' ')[0] : 'Athlete';
+    const last = name ? name.split(' ').slice(1).join(' ') : '';
     return {
-      first, last, name: p.name || 'Jihad Woods',
-      initials: (first[0] || 'J') + (last[0] || 'W'),
-      sport: p.sport || 'Football', position: p.position || 'Wide Receiver',
-      school: p.school || 'Central Catholic', level: 'High School',
+      first, last, name: name || 'Athlete',
+      initials: ((first[0] || 'A') + (last[0] || '')).toUpperCase(),
+      sport: p.sport || '', position: p.position || '',
+      school: p.school || '', level: p.level || '',
       avatar: p.avatar || null,
     };
   },

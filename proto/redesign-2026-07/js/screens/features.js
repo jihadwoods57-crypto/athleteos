@@ -66,7 +66,7 @@ export const recruiting = {
       <div style="display:flex;align-items:center;gap:14px">
         <div class="req-icon g" style="width:52px;height:52px;border-radius:16px">${icon('shield', 25)}</div>
         <div style="flex:1">
-          <div style="font-size:17px;font-weight:800">${S.athlete.name} · ${S.athlete.position}</div>
+          <div style="font-size:17px;font-weight:800">${[S.athlete.name, S.athlete.position].filter(Boolean).join(' · ')}</div>
           <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">Verified by ${S.coach.name}, ${S.coach.team}</div>
         </div>
       </div>

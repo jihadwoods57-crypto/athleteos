@@ -26,8 +26,8 @@ export default {
       </div>
       <div style="flex:1">
         <div class="nm">${S.athlete.name}</div>
-        <div class="meta">${S.athlete.sport} · ${S.athlete.position}</div>
-        <div class="meta" style="margin-top:1px">${S.athlete.school}</div>
+        <div class="meta">${[S.athlete.sport, S.athlete.position].filter(Boolean).join(' · ') || 'Add your sport'}</div>
+        <div class="meta" style="margin-top:1px">${S.athlete.school || 'Add your school'}</div>
       </div>
       <button class="btn ghost sm" style="width:auto;padding:0 16px;height:40px" data-go="edit-profile">Edit</button>
     </section>
@@ -196,7 +196,7 @@ export const editProfile = {
     ${backHead('Edit Profile', 'Only what your coach and score need', 'profile')}
 
     <div class="eyebrow">Name</div>
-    <input class="ob-input" id="ep-name" value="${a.name}" />
+    <input class="ob-input" id="ep-name" value="${a.name}" placeholder="Your name" />
 
     <div class="eyebrow">Sport</div>
     <div class="chip-row" id="ep-sport" data-toggle-group>
@@ -211,7 +211,7 @@ export const editProfile = {
     </div>
 
     <div class="eyebrow">School / organization</div>
-    <input class="ob-input" id="ep-school" value="${a.school}" />
+    <input class="ob-input" id="ep-school" value="${a.school}" placeholder="Your school or team" />
 
     <div style="height:14px"></div>
     <div class="sidebox">
@@ -229,11 +229,12 @@ export const editProfile = {
     const { wireToggles } = await import('./settings.js');
     wireToggles(root);
     root.querySelector('#ep-save').addEventListener('click', () => {
+      // Save the athlete's REAL edits — a blank field stays blank, never a fabricated default.
       window.__act.saveProfile({
-        name: root.querySelector('#ep-name').value.trim() || 'Jihad Woods',
-        school: root.querySelector('#ep-school').value.trim() || 'Central Catholic',
-        sport: root.querySelector('#ep-sport .on')?.textContent || 'Football',
-        position: root.querySelector('#ep-pos .on')?.textContent || 'Wide Receiver',
+        name: root.querySelector('#ep-name').value.trim(),
+        school: root.querySelector('#ep-school').value.trim(),
+        sport: root.querySelector('#ep-sport .on')?.textContent || '',
+        position: root.querySelector('#ep-pos .on')?.textContent || '',
       });
       location.hash = '#profile';
     });
