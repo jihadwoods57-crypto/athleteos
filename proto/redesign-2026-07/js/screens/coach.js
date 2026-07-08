@@ -14,7 +14,15 @@ export async function loadCoachRoster(force) {
   if (rosterLoading) return;
   if (ROSTER && !force) return;
   rosterLoading = true;
-  ROSTER = await roles.loadCoachRoster();
+  const r = await roles.loadCoachRoster();
+  // Pending join requests per team (athlete names before their link is active).
+  const pending = [];
+  for (const t of r.teams) {
+    const reqs = await roles.pendingTeamRequests(t.id);
+    for (const q of reqs) pending.push({ teamId: t.id, ...q });
+  }
+  r.pending = pending;
+  ROSTER = r;
   rosterLoading = false;
   if (location.hash === '#coach' || location.hash === '#copilot') window.__render();
 }
@@ -51,6 +59,18 @@ export const coach = {
       <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${onStd}</div><div class="k">On standard</div></div>
       <div class="coach-stat"><div class="v" style="color:var(--red)">${attention.length}</div><div class="k">Need attention</div></div>
     </div>
+
+    ${ROSTER && ROSTER.pending && ROSTER.pending.length ? `
+    <div class="eyebrow">Join requests</div>
+    <section class="card" style="padding:6px 16px">
+      ${ROSTER.pending.map(q => `
+        <div class="lrow" style="cursor:default">
+          <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
+          <div class="lm"><div class="lt">${esc(q.athlete_name || 'Athlete')}${q.position ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(q.position)}</small>` : ''}</div><div class="ls">Wants to join</div></div>
+          <button class="btn ghost sm" data-jr="decline" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="width:auto;padding:0 12px;height:32px">Decline</button>
+          <button class="btn green sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="width:auto;padding:0 12px;height:32px;margin-left:6px">Approve</button>
+        </div>`).join('')}
+    </section>` : ''}
 
     ${rows === null ? `
     <div class="eyebrow">Roster</div>
@@ -95,7 +115,17 @@ export const coach = {
     <div style="height:10px"></div>
     `;
   },
-  mount() { loadCoachRoster(); },
+  mount(root) {
+    loadCoachRoster();
+    // Approve/decline a join request → real team_members flip/delete, then refresh the roster.
+    root.querySelectorAll('[data-jr]').forEach(b => b.addEventListener('click', async () => {
+      const team = b.getAttribute('data-team'), ath = b.getAttribute('data-ath');
+      b.disabled = true; b.textContent = '…';
+      if (b.getAttribute('data-jr') === 'approve') await roles.approveMember(team, ath);
+      else await roles.declineMember(team, ath);
+      await loadCoachRoster(true);
+    }));
+  },
 };
 
 /* ---------- Coach assign flow: template -> lands on the athlete's Home ---------- */
