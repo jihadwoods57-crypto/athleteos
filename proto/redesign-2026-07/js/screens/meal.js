@@ -221,19 +221,14 @@ export const detail = {
     return `
     ${backHead(M.name, heroTop)}
 
-    ${M.img ? `
-    <div class="photo-hero" style="background-image:url('${safeImg(M.img)}')">
+    <div class="photo-hero" id="meal-hero" style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))">
+      <img id="meal-photo" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
       <div class="ph-grad"></div>
       <div class="ph-meta">
         <div><div class="ph-t">${esc(M.name)}</div><div class="ph-s">Counted toward Nutrition (50%)</div></div>
         ${M.score != null ? `<div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}
       </div>
-    </div>` : `
-    <section class="card pad" style="display:flex;align-items:center;justify-content:space-between;background:linear-gradient(150deg, rgba(52,211,153,0.12), rgba(37,99,235,0.06))">
-      <div><div style="font-size:17px;font-weight:800">${esc(M.name)}</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">Counted toward Nutrition (50%)${M.img === null ? ' · photo not on this device' : ''}</div></div>
-      ${M.score != null ? `<div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}
-    </section>`}
+    </div>
 
     ${M.foods.length ? `
     <div class="eyebrow">Detected foods</div>
@@ -272,8 +267,16 @@ export const detail = {
   },
   async mount(root, { sub }) {
     const M = mealDetail(sub || MEAL.key || 'dinner');
-    if (!M.mealId) return;
     const roles = await import('../roles.js');
+    // Photo: the in-session capture, else a signed Storage URL so it survives a reload. The URL
+    // is set as an img.src property (not HTML), so no injection risk; best-effort.
+    const photo = root.querySelector('#meal-photo');
+    if (photo && M.logged) {
+      let url = M.img;
+      if (!url && RT.userId) url = await roles.signedMealPhotoUrl(`${RT.userId}/${DAY.date}/${M.slot}.jpg`);
+      if (url) { photo.src = url; photo.style.display = 'block'; }
+    }
+    if (!M.mealId) return;
     const thread = root.querySelector('#meal-thread');
     const paint = (comments) => {
       if (!thread) return;
