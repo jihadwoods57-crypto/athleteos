@@ -367,7 +367,7 @@ export const trainerClient = {
     ${backHead('J. Woods', 'Client · lean mass phase', 'trainer')}
 
     <div class="coach-stats">
-      <div class="coach-stat"><div class="v" style="color:var(--blue-bright)">${S.weekly.readiness}</div><div class="k">Readiness</div></div>
+      <div class="coach-stat"><div class="v" style="color:var(--blue-bright)">${S.weekly.readiness != null ? S.weekly.readiness : '—'}</div><div class="k">Readiness</div></div>
       <div class="coach-stat"><div class="v" style="color:var(--green-bright)">87%</div><div class="k">Consistency</div></div>
       <div class="coach-stat"><div class="v" style="color:${RT.recoveryDone ? 'var(--green-bright)' : 'var(--amber-bright)'}">${RT.recoveryDone ? 'In' : 'Open'}</div><div class="k">Tonight's recovery</div></div>
     </div>

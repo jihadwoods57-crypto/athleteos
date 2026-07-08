@@ -37,10 +37,10 @@ export default {
     <div class="eyebrow">How to reach ${S.possible}</div>
     <section class="card reach">
       ${S.reachPlan.map(r => `
-        <div class="reach-row" data-go="${r.label.includes('dinner') ? 'camera' : 'recovery'}">
+        <div class="reach-row" data-go="${r.accent === 'g' ? 'camera' : 'recovery'}">
           <div class="ic ${r.accent === 'g' ? 'req-icon g' : 'req-icon p'}">${icon(r.accent === 'g' ? 'bowl' : 'moon', 18)}</div>
           <span class="t">${r.label}</span>
-          <span class="gain">+${r.gain} pts</span>
+          ${r.gain ? `<span class="gain">+${r.gain} pts</span>` : ''}
         </div>`).join('')}
       <div style="padding-top:14px">
         <button class="btn ${S.reachPlan[0].accent === 'g' ? 'green' : 'primary'} sm" data-go="${S.reachPlan[0].accent === 'g' ? 'camera' : 'recovery'}" ${S.reachPlan[0].accent === 'p' ? 'style="background:linear-gradient(150deg, var(--purple-bright), #7e22ce)"' : ''}>${icon(S.reachPlan[0].accent === 'g' ? 'camera' : 'moon', 19)} ${S.reachPlan[0].label.replace('Submit ', 'Do ')} now</button>
