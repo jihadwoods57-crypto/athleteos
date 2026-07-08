@@ -44,13 +44,13 @@ export default {
     <div class="eyebrow">Coach Connection</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="messages">
-        <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204;font-weight:800;font-size:14px">M</div>
-        <div class="lm"><div class="lt">${S.coach.name}</div><div class="ls">${S.coach.team} · tap to message</div></div>
-        <span class="status-pill g">Connected</span>
+        <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204;font-weight:800;font-size:14px">${icon('message', 17)}</div>
+        <div class="lm"><div class="lt">Messages</div><div class="ls">Your conversation with your coach</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="connect">
         <div class="lic">${icon('key', 18)}</div>
-        <div class="lm"><div class="lt">Enter coach code</div><div class="ls">Join another coach or trainer group</div></div>
+        <div class="lm"><div class="lt">Enter coach code</div><div class="ls">Connect a coach or trainer group</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
     </section>
@@ -86,7 +86,7 @@ export default {
       </div>
       <div class="lrow" data-go="partner">
         <div class="lic" style="background:rgba(52,211,153,0.16);color:var(--green-bright)">${icon('users', 17)}</div>
-        <div class="lm"><div class="lt">Accountability partner</div><div class="ls">D. Okafor · paired by ${S.coach.name}</div></div>
+        <div class="lm"><div class="lt">Accountability partner</div><div class="ls">Not paired yet · coming soon</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="recruiting">

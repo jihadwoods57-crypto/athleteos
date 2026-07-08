@@ -42,35 +42,40 @@ export const devices = {
 export const recruiting = {
   tab: 'profile',
   render() {
+    const P = S.progress;
     return `
-    ${backHead('Discipline Record', 'Coach-verified. Yours to share.', 'profile')}
+    ${backHead('Discipline Record', 'Your real execution, yours to share', 'profile')}
 
     <section class="card pad" style="border-color:var(--green-border)">
       <div style="display:flex;align-items:center;gap:14px">
         <div class="req-icon g" style="width:52px;height:52px;border-radius:16px">${icon('shield', 25)}</div>
         <div style="flex:1">
           <div style="font-size:17px;font-weight:800">${esc([S.athlete.name, S.athlete.position].filter(Boolean).join(' · '))}</div>
-          <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">Verified by ${S.coach.name}, ${S.coach.team}</div>
+          <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">Your real execution record</div>
         </div>
       </div>
+      ${P.hasHistory ? `
       <div class="macro-row" style="margin-top:16px">
-        <div class="macro"><div class="mv" style="color:var(--green-bright)">84</div><div class="mk">Season avg</div></div>
-        <div class="macro"><div class="mv">87%</div><div class="mk">Consistency</div></div>
-        <div class="macro"><div class="mv" style="color:var(--amber-bright)">9d</div><div class="mk">Best streak</div></div>
-        <div class="macro"><div class="mv">92%</div><div class="mk">Meals logged</div></div>
-      </div>
+        <div class="macro"><div class="mv" style="color:var(--green-bright)">${P.weekAvg}</div><div class="mk">Recent avg</div></div>
+        ${P.monthConsistency != null ? `<div class="macro"><div class="mv">${P.monthConsistency}%</div><div class="mk">Consistency</div></div>` : ''}
+        <div class="macro"><div class="mv" style="color:var(--amber-bright)">${P.bestStreak}d</div><div class="mk">Best streak</div></div>
+      </div>` : `
+      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:14px">Your record builds as you log. A few days in, your real average, consistency, and best streak show up here.</div>`}
     </section>
 
     <div class="eyebrow">Why a recruiter cares</div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
       <div><div class="tt">Film shows talent. This shows habits.</div>
-      <div class="ts">Six months of coach-verified daily execution is a signal no highlight reel carries: this athlete does the work when nobody claps.</div></div>
+      <div class="ts">Coach-verified daily execution is a signal no highlight reel carries: this athlete does the work when nobody claps.</div></div>
     </div>
 
     <div style="height:16px"></div>
-    <button class="btn primary">${icon('arrowUp', 18)} Share with a recruiter</button>
-    <div style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);margin-top:12px;line-height:1.5">Sharing is always your choice, link by link. Nothing is public,<br>and ${S.coach.name} countersigns every shared record.</div>
+    <div class="sidebox">
+      <div class="req-icon a" style="width:38px;height:38px">${icon('clock', 17)}</div>
+      <div><div class="tt">Sharing coming soon</div>
+      <div class="ts">Recruiter-shareable links land with the coach-verification backend. Your record is real and yours — nothing is public.</div></div>
+    </div>
     <div style="height:10px"></div>
     `;
   },
@@ -205,25 +210,19 @@ export const partner = {
   tab: 'home',
   render() {
     return `
-    ${backHead('Accountability Partner', 'Paired by Coach Mark this month', 'home')}
+    ${backHead('Accountability Partner', 'Coming soon', 'home')}
 
-    <section class="card pad" style="display:flex;align-items:center;gap:14px">
-      <div class="big-av" style="width:52px;height:52px;background:linear-gradient(150deg,#34D399,#0d9488);font-size:17px">DO</div>
-      <div style="flex:1">
-        <div style="font-size:16px;font-weight:800">D. Okafor · WR</div>
-        <div style="font-size:12.5px;font-weight:600;color:var(--green-bright);margin-top:3px">Checked in today ✓ · 12-day streak</div>
-      </div>
-      ${RT.partnerNudged
-        ? '<span class="status-pill g">Nudged ✓</span>'
-        : `<button class="btn green sm" style="width:auto;padding:0 16px;height:40px" data-act="nudgePartner" data-then="partner">Nudge</button>`}
-    </section>
-    ${RT.partnerNudged ? '<div class="msg-status" style="display:block;text-align:center;margin-top:10px">Delivered · he gets one push: “Your partner is done for today.”</div>' : ''}
+    <div class="state-demo">
+      <div class="sd-ic">${icon('users', 24)}</div>
+      <div class="sd-t">No partner yet</div>
+      <div class="sd-s">When your coach pairs you with a teammate, you'll see whether they finished today (never their meals, weight, or score) and can send one nudge a day. There's no partner to show until then — we won't invent one.</div>
+    </div>
 
-    <div class="eyebrow">The rules</div>
+    <div class="eyebrow">How it will work</div>
     <section class="card" style="padding:6px 16px">
       ${[
-        ['check', 'You see one thing', 'Whether your partner finished today. Never his meals, weight, or score.'],
-        ['bell', 'One nudge a day', 'If he is behind by 8 PM, you can send exactly one push. Pressure, rationed.'],
+        ['check', 'You see one thing', 'Whether your partner finished today. Never their meals, weight, or score.'],
+        ['bell', 'One nudge a day', 'If they are behind by 8 PM, you can send exactly one push. Pressure, rationed.'],
         ['users', 'Coach pairs, coach rotates', 'Pairs change monthly so it stays a push, not a clique.'],
       ].map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
