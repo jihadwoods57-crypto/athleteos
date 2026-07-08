@@ -1,4 +1,5 @@
-import { S, RT, tier, act, MEAL } from '../state.js';
+import { S, RT, tier, act, MEAL, mealDetail } from '../state.js';
+import { DAY } from '../day.js';
 import { icon, checkFill } from '../icons.js';
 import { backHead, esc, safeImg } from '../components.js';
 
@@ -41,8 +42,8 @@ export const analyzing = {
       if (sub) { sub.textContent = 'Tap to retake'; sub.style.cursor = 'pointer'; sub.onclick = () => { location.hash = '#camera'; }; }
       return;
     }
-    // No photo (demo path) — advance to the placeholder analysis.
-    setTimeout(() => { if (location.hash === '#analyzing') location.hash = '#meal-analysis'; }, 2000);
+    // No photo → nothing to analyze. Send them back to capture instead of a fabricated analysis.
+    if (location.hash === '#analyzing') location.hash = '#camera';
   },
 };
 
@@ -52,7 +53,8 @@ export const analysis = {
   hideTabs: true,
   render() {
     const L = S.logging;
-    const already = RT.day0 ? RT.day0Breakfast : RT.dinnerLogged;
+    const slot = MEAL.key || 'dinner';
+    const already = !!DAY.meals[slot];
     return `
     ${backHead(`${L.name} Analysis`, 'Check it before it counts', 'camera')}
 
@@ -68,15 +70,6 @@ export const analysis = {
     <div class="foodchips" id="foods">
       ${L.foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(f)}</span>`).join('')}
     </div>
-
-    <div class="eyebrow">One quick check</div>
-    <section class="card pad" style="display:flex;align-items:center;gap:12px">
-      <div style="flex:1;font-size:14px;font-weight:700">Butter or oil on the potatoes?</div>
-      <span class="chip-row" data-toggle-group style="gap:8px">
-        <span class="chp on" style="padding:8px 14px">Butter</span>
-        <span class="chp" style="padding:8px 14px">Oil</span>
-      </span>
-    </section>
 
     <div class="eyebrow">What the AI sees</div>
     <section class="card" style="padding:6px 16px">
@@ -109,16 +102,14 @@ export const analysis = {
       <div><div class="who">AI Feedback</div><p>${esc(L.ai)}</p></div>
     </div>
 
-    ${already ? '' : RT.day0
-      ? `<div class="score-change">${icon('arrowUp', 16)} Your first log. This starts your score moving.</div>`
-      : `<div class="score-change">${icon('arrowUp', 16)} Logging this moves your score ${S.score} → ${S.score + 6} and closes 1 of ${S.remainingCount} remaining requirements.</div>`}
+    ${already ? '' : `<div class="score-change">${icon('arrowUp', 16)} Logging this counts toward Nutrition (50%) and closes 1 of ${S.remainingCount} remaining tonight.</div>`}
 
     <div style="height:20px"></div>
     <div class="btn-row">
-      <button class="btn ghost sm" style="flex:1" data-go="camera">${icon('camera', 17)} Retake</button>
+      <button class="btn ghost sm" style="flex:1" data-go="camera/${slot}">${icon('camera', 17)} Retake</button>
       ${already
         ? `<button class="btn ghost sm" style="flex:1.6" data-go="home">Already logged · Back Home</button>`
-        : `<button class="btn green sm" style="flex:1.6" data-act="${RT.day0 ? 'day0Meal' : 'logDinner'}" data-then="meal-confirm">${icon('check', 18)} Log ${RT.day0 ? 'Breakfast' : L.name}</button>`}
+        : `<button class="btn green sm" style="flex:1.6" data-act="logMeal:${slot}" data-then="meal-confirm">${icon('check', 18)} Log ${esc(L.name)}</button>`}
     </div>
     <div style="height:10px"></div>
     `;
@@ -191,7 +182,7 @@ export const confirm = {
     ${next ? `<button class="btn ${next.accent === 'p' ? 'primary' : 'green'}" style="${next.accent === 'p' ? 'background:linear-gradient(150deg, var(--purple-bright), #7e22ce); box-shadow: 0 10px 30px rgba(168,85,247,0.35)' : ''}" data-go="${next.route}">${icon(next.accent === 'p' ? 'moon' : 'camera', 19)} ${next.label}</button><div style="height:10px"></div>` : ''}
     <div class="btn-row">
       <button class="btn ghost sm" style="flex:1" data-go="home">Back Home</button>
-      <button class="btn ghost sm" style="flex:1" data-go="meal-detail/dinner">View Details</button>
+      <button class="btn ghost sm" style="flex:1" data-go="meal-detail/${MEAL.key || 'dinner'}">View Details</button>
     </div>
     <div style="height:10px"></div>
     `;
@@ -210,32 +201,47 @@ export const confirm = {
   },
 };
 
-/* ---------- Meal Detail / Conversation (lunch default, dinner via sub-route) ---------- */
+/* ---------- Meal Detail / Conversation — per-slot, from the REAL persisted plate ---------- */
 export const detail = {
   tab: 'home',
   render({ sub }) {
-    const isDinner = sub === 'dinner' && RT.dinnerLogged;
-    const M = isDinner
-      ? { name: 'Dinner', loggedAt: '7:12 PM', score: S.logging.score, foods: S.logging.foods, macros: S.logging.macros, img: S.logging.img,
-          planNote: S.logging.planMatch.detail, thread: [
-            { who: 'ai', name: 'OnStandard AI', text: S.logging.ai },
-          ] }
-      : { ...S.meal, img: 'assets/meal-lunch.jpg' };
+    const M = mealDetail(sub || MEAL.key || 'dinner');
+    if (!M.logged) {
+      return `
+      ${backHead(M.name, 'Not logged yet', 'home')}
+      <div class="state-demo">
+        <div class="sd-ic">${icon('camera', 24)}</div>
+        <div class="sd-t">${esc(M.name)} isn't logged yet</div>
+        <div class="sd-s">Log it with a photo and its analysis — foods, macros, meal score — shows up here.</div>
+      </div>
+      <button class="btn green" data-go="camera/${M.slot}">${icon('camera', 18)} Log ${esc(M.name)}</button>
+      <div style="height:10px"></div>`;
+    }
+    // Real coach comments only (they arrive with coach wiring); no fabricated thread.
+    const comments = RT.coachComments || [];
+    const heroTop = `Logged ${M.loggedAt || 'today'}${M.late ? ' · late' : ' · on time'}`;
     return `
-    ${backHead(M.name, `Logged ${M.loggedAt} · On time`)}
+    ${backHead(M.name, heroTop)}
 
+    ${M.img ? `
     <div class="photo-hero" style="background-image:url('${safeImg(M.img)}')">
       <div class="ph-grad"></div>
       <div class="ph-meta">
-        <div><div class="ph-t">${esc(M.name)}</div><div class="ph-s">On time · counted toward Nutrition (50%)</div></div>
-        <div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>
+        <div><div class="ph-t">${esc(M.name)}</div><div class="ph-s">Counted toward Nutrition (50%)</div></div>
+        ${M.score != null ? `<div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}
       </div>
-    </div>
+    </div>` : `
+    <section class="card pad" style="display:flex;align-items:center;justify-content:space-between;background:linear-gradient(150deg, rgba(52,211,153,0.12), rgba(37,99,235,0.06))">
+      <div><div style="font-size:17px;font-weight:800">${esc(M.name)}</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">Counted toward Nutrition (50%)${M.img === null ? ' · photo not on this device' : ''}</div></div>
+      ${M.score != null ? `<div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}
+    </section>`}
 
+    ${M.foods.length ? `
     <div class="eyebrow">Detected foods</div>
     <div class="foodchips">
       ${M.foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(f)}</span>`).join('')}
-    </div>
+    </div>` : ''}
 
     <div class="eyebrow">Macros · share of today's targets</div>
     <section class="card pad">
@@ -245,35 +251,31 @@ export const detail = {
           <div class="track"><div class="fillb" style="width:${Math.min(100, Math.round((v / target) * 100))}%;background:linear-gradient(90deg,${cl === 'g' ? '#16a34a,var(--green-bright)' : cl === 'b' ? 'var(--blue-deep),var(--blue-bright)' : cl === 'a' ? '#b45309,var(--amber-bright)' : '#7e22ce,var(--purple-bright)'})"></div></div>
           <span class="v" style="width:86px">${v}${u} <small style="color:var(--text-3)">/ ${target}${u}</small></span>
         </div>`).join('')}
-      <div style="font-size:12px;font-weight:600;color:var(--text-3)">One meal's share of the day ${S.coach.name} set. Not a verdict, a position.</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-3)">One meal's share of the day ${esc(S.coach.name)} set. Not a verdict, a position.</div>
     </section>
 
+    ${M.note ? `
     <div style="height:16px"></div>
     <div class="sidebox">
       <div class="req-icon g" style="width:38px;height:38px">${checkFill(20)}</div>
-      <div><div class="tt">Plan check</div><div class="ts">${esc(M.planNote)}</div></div>
-    </div>
+      <div><div class="tt">AI note</div><div class="ts">${esc(M.note)}</div></div>
+    </div>` : ''}
 
     <div class="eyebrow">Ask the AI</div>
     <div class="chip-row" id="quick-asks">
-      <span class="chp" data-q="Could I swap the rice for potatoes?">Swap ideas</span>
       <span class="chp" data-q="Was the portion right for my goal?">Portion check</span>
       <span class="chp" data-q="What should I order eating out tomorrow?">Eating out</span>
+      <span class="chp" data-q="How do I improve this meal next time?">Improve it</span>
     </div>
 
     <div class="eyebrow">Conversation</div>
-    ${M.thread.length ? `
+    ${comments.length ? `
     <div class="thread">
-      ${M.thread.map(m => `
-        <div class="msg ${m.who}">
-          ${m.who !== 'athlete' ? `<div class="av">${m.who === 'coach' ? 'M' : icon('sparkle', 15)}</div>` : ''}
-          <div>
-            ${m.who !== 'athlete' ? `<div class="who">${esc(m.name)}</div>` : ''}
-            <div class="bubble">${esc(m.text)}</div>
-          </div>
-        </div>`).join('')}
-    </div>` : ''}
-    ${isDinner ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:10px">${S.coach.name} hasn't commented yet. He'll see this log tonight.</div>` : ''}
+      ${comments.map(t => `
+        <div class="msg coach"><div class="av">M</div><div>
+          <div class="who">${esc(S.coach.name)}</div><div class="bubble">${esc(t)}</div>
+        </div></div>`).join('')}
+    </div>` : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:2px">No comments yet. ${esc(S.coach.name)} sees this log and can reply.</div>`}
     <div class="composer">
       <input placeholder="Ask about this meal…" />
       <div class="send">${icon('arrowUp', 19)}</div>

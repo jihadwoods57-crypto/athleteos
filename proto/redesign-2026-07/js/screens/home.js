@@ -154,7 +154,7 @@ export default {
         <div class="fmove" data-go="${S.nextMove.route}">
           <div class="req-icon ${S.nextMove.accent}" style="width:36px;height:36px">${icon(S.nextMove.accent === 'p' ? 'moon' : 'bowl', 17)}</div>
           <div style="flex:1"><div class="fm-t">${S.finish.nextMove}</div><div class="fm-s">next biggest move</div></div>
-          <span class="fm-v">+${S.finish.nextGain}</span>
+          ${S.finish.nextGain ? `<span class="fm-v">+${S.finish.nextGain}</span>` : ''}
         </div>
         ${RT.recoveryDone ? '' : `
         <div class="fmove" data-go="recovery">

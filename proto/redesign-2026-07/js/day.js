@@ -229,11 +229,20 @@ export function dayResetLocal() {
 }
 
 /* ---- mutators (each persists) ---- */
-export function dayLogMeal(userId, key, macros) {
+export function dayLogMeal(userId, key, macros, meta) {
   if (!DAY.meals.hasOwnProperty(key)) return;
   DAY.meals[key] = true;
   DAY.mealLoggedAt[key] = minutesNow();
-  if (macros && typeof macros.protein === 'number') DAY.slotMacros[key] = { protein: macros.protein || 0, kcal: macros.kcal || 0, carbs: macros.carbs || 0, fat: macros.fat || 0 };
+  const m = { ...(DAY.slotMacros[key] || {}) };
+  if (macros && typeof macros.protein === 'number') { m.protein = macros.protein || 0; m.kcal = macros.kcal || 0; m.carbs = macros.carbs || 0; m.fat = macros.fat || 0; }
+  // Persist the AI plate meta (quality/foods/note) so meal-detail survives reload — it rides
+  // through the checkin.slotMacros jsonb (pushDay/projectRowToDay). Scoring reads only .protein.
+  if (meta) {
+    if (meta.quality != null) m.quality = meta.quality;
+    if (Array.isArray(meta.foods)) m.foods = meta.foods.slice(0, 8);
+    if (meta.note) m.note = meta.note;
+  }
+  if (Object.keys(m).length) DAY.slotMacros[key] = m;
   pushDay(userId);
 }
 export function daySubmitCheckin(userId, ciValues) {

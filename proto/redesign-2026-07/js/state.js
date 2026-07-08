@@ -136,6 +136,42 @@ function loggingMacros() {
   return { protein: m.protein || 0, kcal: m.cals || 0, carbs: m.carbs || 0, fat: m.fat || 0 };
 }
 
+/* Meal slots surfaced as required rows (snack is an optional bonus slot, still loggable). */
+const REQ_MEAL_SLOTS = ['breakfast', 'lunch', 'dinner'];
+const SLOT_DUE = { breakfast: 'Due by 10:00 AM', lunch: 'Due by 2:00 PM', snack: 'Optional', dinner: 'Due by 8:00 PM' };
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+/* The slot a new capture should fill: an explicit choice (from a requirement row), else the
+   next OPEN slot by time of day — the earliest unlogged slot whose deadline is still ahead,
+   or the latest open slot if every window has passed. Never a hardcoded breakfast/dinner. */
+function nextOpenSlot(explicit) {
+  if (explicit && MEAL_KEYS.includes(explicit) && !DAY.meals[explicit]) return explicit;
+  const open = MEAL_KEYS.filter(k => !DAY.meals[k]);
+  if (!open.length) return null;
+  const now = minutesNow();
+  return open.find(k => now <= DEADLINE[k]) || open[open.length - 1];
+}
+
+/* Meal detail for one slot, built from the REAL persisted plate (slotMacros meta + logged time).
+   No fabricated lunch, no canned coach thread. Photo is the in-session capture when available;
+   across reloads there's no local photo, so the detail shows the data without a fake stock plate. */
+export function mealDetail(slot) {
+  const k = MEAL_KEYS.includes(slot) ? slot : (MEAL_KEYS.find(x => DAY.meals[x]) || 'dinner');
+  const logged = !!DAY.meals[k];
+  const meta = DAY.slotMacros[k] || {};
+  const at = DAY.mealLoggedAt[k];
+  const late = at != null && at > DEADLINE[k];
+  const foods = Array.isArray(meta.foods) && meta.foods.length ? meta.foods : (logged ? ['Your logged meal'] : []);
+  return {
+    slot: k, logged, name: cap(k),
+    loggedAt: at != null ? fmtClock(at) : null, late,
+    score: meta.quality != null ? meta.quality : null,
+    foods,
+    macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
+    img: (MEAL.key === k && MEAL.photoDataUrl) ? MEAL.photoDataUrl : null,
+    note: meta.note || '',
+  };
+}
+
 /** Honest projection: what the score becomes if the check-in is submitted right now with
  *  `ci` answers (falls back to the day's current answers). Never a hardcoded "+6". */
 export function checkinProjection(ci) {
@@ -160,16 +196,26 @@ export function syncRtFromDay() {
 
 /* ---------------- Actions ---------------- */
 export const act = {
-  logDinner() {
-    if (DAY.meals.dinner) return;
+  /* Log a real meal into a real slot. One implementation for every meal (camera or search),
+     any slot — not a hardcoded breakfast/dinner. Persists the AI plate (quality/foods/note)
+     per slot so the meal-detail screen survives a reload. */
+  logMeal(slotArg) {
+    const slot = nextOpenSlot(slotArg) || slotArg || MEAL.key;
+    if (!slot || !MEAL_KEYS.includes(slot) || DAY.meals[slot]) return;
     const from = computeScore(componentsNow());
-    RT.dinnerLogged = true;
-    dayLogMeal(RT.userId, 'dinner', loggingMacros());
-    if (MEAL.photoBase64 && MEAL.key === 'dinner') uploadMealPhoto(RT.userId, 'dinner', MEAL.photoBase64);
+    const meta = MEAL.result ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note } : null;
+    dayLogMeal(RT.userId, slot, loggingMacros(), meta);
+    if (MEAL.photoBase64 && MEAL.key === slot) uploadMealPhoto(RT.userId, slot, MEAL.photoBase64);
+    // keep legacy flags in sync for any screen still reading them
+    if (slot === 'dinner') RT.dinnerLogged = true;
+    if (slot === 'breakfast') RT.day0Breakfast = true;
     const to = computeScore(componentsNow());
-    RT.lastMove = { from, to, gain: to - from, what: 'Dinner' };
+    RT.lastMove = { from, to, gain: to - from, what: cap(slot) };
     save();
   },
+  // Back-compat aliases (camera/search buttons and older routes) → the single logMeal impl.
+  logDinner() { this.logMeal('dinner'); },
+  day0Meal() { this.logMeal('breakfast'); },
   submitRecovery(ciValues) {
     if (DAY.ciSubmitted) return;
     const from = computeScore(componentsNow());
@@ -185,10 +231,12 @@ export const act = {
   setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); },
 
   /* ---- Phase 5: real meal capture → AI → real macros ---- */
-  captureMeal(base64, dataUrl) {
+  captureMeal(base64, dataUrl, slot) {
     MEAL.photoBase64 = base64; MEAL.photoDataUrl = dataUrl; MEAL.result = null;
-    MEAL.mealType = RT.day0 ? 'Breakfast' : 'Dinner';
-    MEAL.key = RT.day0 ? 'breakfast' : 'dinner';
+    // Real slot: the requirement row's slot if it passed one, else the next open slot by time.
+    const key = nextOpenSlot(slot) || slot || 'dinner';
+    MEAL.key = key;
+    MEAL.mealType = cap(key);
     save();
   },
   async runAnalysis() {
@@ -207,17 +255,20 @@ export const act = {
     } catch (e) { return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
   },
   clearMeal() { MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null; MEAL.result = null; },
-
-  day0Meal() {
-    if (DAY.meals.breakfast) return;
-    const from = computeScore(componentsNow());
-    RT.day0Breakfast = true;
-    dayLogMeal(RT.userId, 'breakfast', loggingMacros());
-    if (MEAL.photoBase64 && MEAL.key === 'breakfast') uploadMealPhoto(RT.userId, 'breakfast', MEAL.photoBase64);
-    const to = computeScore(componentsNow());
-    RT.lastMove = { from, to, gain: to - from, what: 'Breakfast' };
-    save();
+  /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
+     the actual macros the athlete assembled, not a demo constant. No AI "quality" is invented. */
+  captureManual(macros, foods, slot) {
+    MEAL.key = nextOpenSlot(slot) || slot || 'dinner';
+    MEAL.mealType = cap(MEAL.key);
+    MEAL.photoBase64 = null; MEAL.photoDataUrl = null;
+    MEAL.result = {
+      quality: null,
+      protein: Math.round(macros.protein || 0), carbs: Math.round(macros.carbs || 0),
+      fat: Math.round(macros.fat || 0), kcal: Math.round(macros.kcal || 0),
+      detected: Array.isArray(foods) ? foods.slice(0, 8) : [], note: '',
+    };
   },
+
   startDay0() { RT.day0 = true; RT.day0Breakfast = false; RT.lastMove = null; dayResetLocal(); pushDay(RT.userId, true); save(); },
   /* Coach assigns a requirement -> it lands on the athlete's Home + notifications. */
   assignReq(templateId) {
@@ -395,10 +446,14 @@ export const S = {
   },
   get streakDays() { return dayStreak(); },
   streakGraceUsed: false,
+  // The slot a manual/camera log should fill right now (next open by time of day), or null if
+  // every meal is already logged. Drives the food-search / label-scan log buttons.
+  get currentSlot() { return nextOpenSlot(); },
 
   get remainingCount() {
     if (RT.day0) return RT.day0Breakfast ? 3 : 4;
-    return (RT.dinnerLogged ? 0 : 1) + (RT.recoveryDone ? 0 : 1);
+    const openMeals = REQ_MEAL_SLOTS.filter(k => !DAY.meals[k]).length;
+    return openMeals + (DAY.ciSubmitted ? 0 : 1);
   },
 
   /* Human-readable breakdown that MAPS onto the real weights and sums to /100. */
@@ -432,8 +487,8 @@ export const S = {
   },
   get reachPlan() {
     const plan = [];
-    if (!RT.dinnerLogged) plan.push({ label: 'Log dinner', gain: 6, accent: 'g' });
-    if (!RT.recoveryDone) plan.push({ label: 'Submit recovery check-in', gain: 6, accent: 'p' });
+    REQ_MEAL_SLOTS.forEach(k => { if (!DAY.meals[k]) plan.push({ label: `Log ${cap(k)}`, gain: null, accent: 'g' }); });
+    if (!DAY.ciSubmitted) { const g = checkinProjection().gain; plan.push({ label: 'Submit recovery check-in', gain: g || null, accent: 'p' }); }
     return plan;
   },
 
@@ -444,47 +499,49 @@ export const S = {
           sub: RT.day0Breakfast ? 'Logged just now' : 'Photo proof', subColor: RT.day0Breakfast ? 'g' : 'a', meta: RT.day0Breakfast ? 'First log' : 'Start here', done: RT.day0Breakfast, route: RT.day0Breakfast ? 'meal-detail' : 'camera' },
         { id: 'lunch', title: 'Lunch', icon: 'bowl', accent: 'b', status: 'Upcoming', statusColor: 'b', sub: 'Due by 2:00 PM', subColor: 'b', meta: 'Photo proof', done: false, route: 'camera' },
         { id: 'dinner', title: 'Dinner', icon: 'bowl', accent: 'b', status: 'Upcoming', statusColor: 'b', sub: 'Due by 8:00 PM', subColor: 'b', meta: 'Photo proof', done: false, route: 'camera' },
-        { id: 'recovery', title: 'Recovery Check-In', icon: 'moon', accent: 'p', status: 'Later', statusColor: 'p', sub: 'Before bed', subColor: 'p', meta: '+23 pts', done: false, route: 'recovery' },
+        { id: 'recovery', title: 'Recovery Check-In', icon: 'moon', accent: 'p', status: 'Later', statusColor: 'p', sub: 'Before bed', subColor: 'p', meta: 'Recovery · 25%', done: false, route: 'recovery' },
       ];
     }
-    /* ---- ENGINE-DERIVED: today's list from the catalog + runtime ---- */
+    /* ---- ENGINE-DERIVED: today's list from the catalog + REAL runtime (DAY) ---- */
+    const lateMeal = (k) => DAY.mealLoggedAt[k] != null && DAY.mealLoggedAt[k] > DEADLINE[k];
     const resolve = (id) => {
       switch (id) {
-        case 'breakfast': return { done: true };
-        case 'lunch':     return { done: true };
+        case 'breakfast': return { done: !!DAY.meals.breakfast, late: lateMeal('breakfast') };
+        case 'lunch':     return { done: !!DAY.meals.lunch, late: lateMeal('lunch') };
+        case 'dinner':    return { done: !!DAY.meals.dinner, late: lateMeal('dinner') };
         case 'weight':    return { done: RT.weightLogged, late: RT.weightLogged };
-        case 'dinner':    return { done: RT.dinnerLogged };
         case 'hydration': return { done: RT.hydrationOz >= 120, progress: `${RT.hydrationOz} of 120 oz` };
-        case 'recovery':  return { done: RT.recoveryDone };
+        case 'recovery':  return { done: DAY.ciSubmitted };
         default: return {};
       }
     };
     const decorate = (d) => {
-      const meta =
-        d.id === 'breakfast' ? 'Scored 95' :
-        d.id === 'lunch' ? 'Scored 91' :
-        d.id === 'dinner' ? (d.done ? 'Scored 90' : '+6 pts') :
-        d.id === 'weight' ? (d.done ? 'Trend only' : 'Not scored') :
-        d.id === 'hydration' ? (d.done ? 'Focus hit' : 'Optional') :
-        d.id === 'recovery' ? (d.done ? '+6 earned' : '+6 pts') : '';
-      const route =
-        d.id === 'breakfast' ? 'meal-detail' :
-        d.id === 'lunch' ? 'meal-detail' :
-        d.id === 'dinner' ? (d.done ? 'meal-detail/dinner' : 'camera') :
-        d.id === 'weight' ? 'weight' :
-        d.id === 'hydration' ? 'log' :
-        d.id === 'recovery' ? (d.done ? 'recovery-confirm' : 'recovery') : 'home';
-      // seeded on-time subs for the two morning logs
-      const sub = d.id === 'breakfast' ? 'Logged 8:14 AM' : d.id === 'lunch' ? 'Logged 12:18 PM' :
-                  d.id === 'dinner' && d.done ? 'Logged 7:12 PM' : d.sub;
-      const subColor = (d.id === 'breakfast' || d.id === 'lunch' || (d.id === 'dinner' && d.done)) ? 'g' : d.subColor;
+      const isMeal = REQ_MEAL_SLOTS.includes(d.id);
+      let meta, route, sub = d.sub, subColor = d.subColor;
+      if (isMeal) {
+        const q = DAY.slotMacros[d.id] && DAY.slotMacros[d.id].quality;
+        meta = d.done ? (q != null ? `Scored ${q}` : 'Logged') : 'Photo proof';
+        route = d.done ? `meal-detail/${d.id}` : `camera/${d.id}`;
+        if (d.done) {
+          const at = DAY.mealLoggedAt[d.id];
+          sub = at != null ? `Logged ${fmtClock(at)}${d.late ? ' · late' : ''}` : 'Logged';
+          subColor = d.late ? 'a' : 'g';
+        }
+      } else if (d.id === 'weight') {
+        meta = d.done ? 'Trend only' : 'Not scored'; route = 'weight';
+      } else if (d.id === 'hydration') {
+        meta = d.done ? 'Focus hit' : 'Optional'; route = 'log';
+      } else if (d.id === 'recovery') {
+        meta = d.done ? 'Recovery in' : 'Recovery · 25%'; route = d.done ? 'recovery-confirm' : 'recovery';
+      } else { meta = ''; route = 'home'; }
       return { ...d, meta, route, sub, subColor };
     };
+    const now = minutesNow();
     const rows = CATALOG
       .filter(r => runsToday(r) && r.id !== 'weekly' && r.id !== 'hydration')
-      .map(r => decorate(derive(r, resolve(r.id))));
+      .map(r => decorate(derive(r, resolve(r.id), now)));
     // hydration rides as the optional row after the required set
-    const hydro = decorate(derive(CATALOG.find(r => r.id === 'hydration'), resolve('hydration')));
+    const hydro = decorate(derive(CATALOG.find(r => r.id === 'hydration'), resolve('hydration'), now));
     const assigned = RT.assigned.map(a => ({ ...deriveAssigned(a), meta: a.done ? 'Coach sees it' : 'From coach', route: `requirement/${a.id}` }));
     const fresh = assigned.filter(a => a.fresh);
     const rest = assigned.filter(a => !a.fresh);
@@ -492,35 +549,47 @@ export const S = {
   },
   get metCount() {
     if (RT.day0) return RT.day0Breakfast ? 1 : 0;
-    return 2 + (RT.dinnerLogged ? 1 : 0) + (RT.recoveryDone ? 1 : 0) + RT.assigned.filter(a => a.done).length;
+    const meals = REQ_MEAL_SLOTS.filter(k => DAY.meals[k]).length;
+    return meals + (DAY.ciSubmitted ? 1 : 0) + RT.assigned.filter(a => a.done).length;
   },
-  get reqTotal() { return 4 + RT.assigned.length; },
+  get reqTotal() { return 4 + RT.assigned.length; }, // 3 meals + recovery + coach-assigned
 
+  // Real proof trail: one card per actually-logged meal (real time + real meal score if the AI
+  // saved one), plus hydration/weight/recovery from real state. No canned 8:14 AM / 95 / 183.8 lb.
   get activity() {
-    if (RT.day0) {
-      return RT.day0Breakfast
-        ? [{ time: 'Just now', type: 'Breakfast', value: '88', vClass: 'g', img: 'assets/meal-breakfast.jpg', route: 'meal-detail' }]
-        : [];
+    const a = [];
+    for (const k of MEAL_KEYS) {
+      if (!DAY.meals[k]) continue;
+      const at = DAY.mealLoggedAt[k];
+      const meta = DAY.slotMacros[k] || {};
+      const late = at != null && at > DEADLINE[k];
+      // in-session photo for the just-captured slot; else no fake stock plate
+      const img = (MEAL.key === k && MEAL.photoDataUrl) ? MEAL.photoDataUrl : null;
+      a.push({
+        time: at != null ? `Today · ${fmtClock(at)}${late ? ' · late' : ''}` : 'Today',
+        type: cap(k),
+        value: meta.quality != null ? String(meta.quality) : 'Logged',
+        vClass: meta.quality != null ? (meta.quality >= 80 ? 'g' : 'b') : 'muted',
+        img, route: `meal-detail/${k}`,
+      });
     }
-    const a = [
-      { time: 'Today · 8:14 AM', type: 'Breakfast', value: '95', vClass: 'g', img: 'assets/meal-breakfast.jpg', route: 'meal-detail' },
-      { time: 'Today · 12:18 PM', type: 'Lunch', value: '91', vClass: 'g', img: 'assets/meal-lunch.jpg', route: 'meal-detail' },
-      { time: 'Today · 3:30 PM', type: 'Hydration', value: `${RT.hydrationOz} oz`, vClass: 'b', img: null, route: 'log' },
-    ];
-    if (RT.dinnerLogged) a.push({ time: 'Today · 7:12 PM', type: 'Dinner', value: '90', vClass: 'g', img: 'assets/meal-dinner.jpg', route: 'meal-detail/dinner' });
-    if (RT.weightLogged) a.push({ time: 'Tonight', type: 'Morning Weight', value: '183.8 lb', vClass: 'muted', img: 'assets/scale.jpg', route: 'weight' });
-    a.push(RT.recoveryDone
-      ? { time: 'Tonight', type: 'Recovery Check-In', value: 'Done', vClass: 'g', img: 'assets/recovery.jpg', route: 'recovery-confirm' }
-      : { time: 'Tonight', type: 'Recovery Check-In', value: 'Upcoming', vClass: 'muted', img: 'assets/recovery.jpg', dim: true, route: 'recovery' });
+    if (RT.hydrationOz > 0) a.push({ time: 'Today', type: 'Hydration', value: `${RT.hydrationOz} oz`, vClass: 'b', img: null, route: 'log' });
+    if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });
+    a.push(DAY.ciSubmitted
+      ? { time: 'Today', type: 'Recovery Check-In', value: 'Done', vClass: 'g', img: null, route: 'recovery-confirm' }
+      : { time: 'Tonight', type: 'Recovery Check-In', value: 'Upcoming', vClass: 'muted', img: null, dim: true, route: 'recovery' });
     return a;
   },
 
   get nextMove() {
     if (RT.day0) return RT.day0Breakfast
-      ? { label: 'Log Lunch', gain: null, route: 'camera', accent: 'g' }
+      ? { label: 'Log Lunch', gain: null, route: 'camera/lunch', accent: 'g' }
       : { label: 'Log First Meal', gain: null, route: 'camera', accent: 'g' };
-    if (!RT.dinnerLogged) return { label: 'Log Dinner', gain: 6, route: 'camera', accent: 'g' };
-    if (!RT.recoveryDone) return { label: 'Do Recovery Check-In', gain: 6, route: 'recovery', accent: 'p' };
+    const openReq = REQ_MEAL_SLOTS.filter(k => !DAY.meals[k]);
+    const openSlot = openReq.find(k => minutesNow() <= DEADLINE[k]) || openReq[0];
+    // Meal gain depends on the plate, unknown until analyzed → no fabricated "+6".
+    if (openSlot) return { label: `Log ${cap(openSlot)}`, gain: null, route: `camera/${openSlot}`, accent: 'g' };
+    if (!DAY.ciSubmitted) return { label: 'Do Recovery Check-In', gain: checkinProjection().gain || null, route: 'recovery', accent: 'p' };
     return null; // day complete
   },
 
@@ -531,8 +600,8 @@ export const S = {
       met: `${this.metCount}/${this.reqTotal}`,
       nextMove: next ? next.label.replace('Do ', '') : 'Day complete',
       nextGain: next ? next.gain : null,
-      risk: RT.recoveryDone ? 'None left' : 'Recovery Check-In',
-      riskSub: RT.recoveryDone ? 'everything is in' : 'keeps your streak alive',
+      risk: DAY.ciSubmitted ? 'None left' : 'Recovery Check-In',
+      riskSub: DAY.ciSubmitted ? 'everything is in' : 'keeps your streak alive',
     };
   },
 
@@ -580,33 +649,19 @@ export const S = {
     },
   },
 
-  // ---------- MEAL (lunch detail; dinner uses logging.*) ----------
-  get meal() {
-    return {
-      name: 'Lunch', loggedAt: '12:18 PM', onTime: true, score: 91,
-      foods: ['Grilled chicken', 'White rice', 'Black beans', 'Avocado', 'Salsa'],
-      macros: { protein: 42, carbs: 68, fat: 18, cals: 610 },
-      ai: 'Strong lunch. Good protein and carb balance for recovery. Add more water with this meal.',
-      planNote: 'Fits your plan: protein-forward, carbs around training. On target for lean mass.',
-      thread: [
-        { who: 'coach', name: 'Coach Mark', text: 'Great lunch. Keep this structure.' },
-        { who: 'ai', name: 'OnStandard AI', text: 'Coach is right, this fits your plan well: protein plus carbs after training.' },
-        { who: 'athlete', name: 'You', text: 'Could I swap rice for potatoes?' },
-        { who: 'ai', name: 'OnStandard AI', text: 'Yes. Potatoes fit your carb target. Keep the portion similar.' },
-        // comments the coach ACTUALLY sent from the coach view this session
-        ...RT.coachComments.map(t => ({ who: 'coach', name: 'Coach Mark', text: t })),
-      ],
-    };
-  },
+  // Meal detail is built per-slot from the real persisted plate via mealDetail(slot) — the old
+  // fabricated lunch + canned coach thread are gone. (meal.js calls mealDetail directly.)
 
-  // what's being logged right now — REAL analyzed meal when present, else the day's demo.
+  // what's being logged right now — REAL analyzed meal when present; a real persisted plate when
+  // revisiting a logged slot; otherwise an HONEST empty state (never demo steak-and-potatoes).
   get logging() {
+    const slot = MEAL.key || nextOpenSlot() || 'dinner';
     if (MEAL.result) {
       const r = MEAL.result;
       return {
-        name: MEAL.mealType || (RT.day0 ? 'Breakfast' : 'Dinner'),
-        due: RT.day0 ? 'Due by 10:00 AM' : 'Due by 8:00 PM', remaining: 'Captured just now',
-        img: MEAL.photoDataUrl || 'assets/meal-dinner.jpg', score: r.quality,
+        name: MEAL.mealType || cap(slot),
+        due: SLOT_DUE[slot] || 'Log when ready', remaining: 'Captured just now',
+        img: MEAL.photoDataUrl || null, score: r.quality,
         foods: r.detected.length ? r.detected : ['Your meal'],
         macros: { protein: r.protein, carbs: r.carbs, fat: r.fat, cals: r.kcal },
         componentsRead: [
@@ -615,38 +670,31 @@ export const S = {
           { k: 'Foods', v: (r.detected.slice(0, 3).join(', ')) || 'read from your photo', ok: true },
         ],
         planMatch: { verdict: r.quality >= 75 ? 'Strong meal' : 'Logged', detail: r.note || 'Analyzed from your photo.', level: r.quality >= 75 ? 'g' : 'b' },
-        ai: r.note || 'Logged from your photo.',
+        ai: r.note || 'Logged from your photo.', empty: false,
       };
     }
-    if (RT.day0) {
+    // Already-logged slot being revisited: show its REAL persisted plate, not a demo meal.
+    const meta = DAY.slotMacros[slot];
+    if (meta && DAY.meals[slot]) {
       return {
-        name: 'Breakfast', due: 'Due by 10:00 AM', remaining: 'Morning window open',
-        img: 'assets/meal-breakfast.jpg', score: 88,
-        foods: ['Eggs', 'Toast', 'Bacon', 'Greens'],
-        macros: { protein: 34, carbs: 38, fat: 22, cals: 480 },
-        componentsRead: [
-          { k: 'Protein', v: 'Eggs + bacon · solid start', ok: true },
-          { k: 'Carb source', v: 'Toast · add oats or fruit', ok: 'warn' },
-          { k: 'Color / micros', v: 'Greens · good', ok: true },
-          { k: 'Portion', v: 'Fine for a first log', ok: true },
-        ],
-        planMatch: { verdict: 'Fits your Standard', detail: 'First log of day one. Protein first thing, exactly what the plan asks for.', level: 'g' },
-        ai: 'Good first log. Protein up front sets the day. Add a fruit or oats next time for a slower carb.',
+        name: cap(slot), due: SLOT_DUE[slot] || '', remaining: 'Logged',
+        img: (MEAL.key === slot && MEAL.photoDataUrl) || null,
+        score: meta.quality != null ? meta.quality : null,
+        foods: Array.isArray(meta.foods) && meta.foods.length ? meta.foods : ['Your logged meal'],
+        macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
+        componentsRead: [],
+        planMatch: { verdict: 'Logged', detail: meta.note || 'Analyzed from your photo.', level: 'b' },
+        ai: meta.note || 'Logged from your photo.', empty: false,
       };
     }
+    // Nothing captured or analyzed yet — honest empty state, never steak-and-potatoes constants.
     return {
-      name: 'Dinner', due: 'Due by 8:00 PM', remaining: '48 min remaining',
-      img: 'assets/meal-dinner.jpg', score: 90,
-      foods: ['Steak', 'Roasted potatoes', 'Green beans', 'Butter'],
-      macros: { protein: 46, carbs: 52, fat: 24, cals: 640 },
-      componentsRead: [
-        { k: 'Protein', v: 'Steak · high quality', ok: true },
-        { k: 'Carb source', v: 'Roasted potatoes · slow carb', ok: true },
-        { k: 'Color / micros', v: 'Green beans · add one more color', ok: 'warn' },
-        { k: 'Portion', v: 'Right for a training day', ok: true },
-      ],
-      planMatch: { verdict: 'Matches your plan', detail: 'Plan called for protein + slow carb + vegetable at dinner. This hits all three.', level: 'g' },
-      ai: 'Strong dinner. Protein is on target and the carbs land right after training. One more glass of water before bed.',
+      name: cap(slot), due: SLOT_DUE[slot] || 'Log when ready', remaining: 'Take a photo to analyze',
+      img: null, score: null, foods: [],
+      macros: { protein: 0, carbs: 0, fat: 0, cals: 0 },
+      componentsRead: [],
+      planMatch: { verdict: 'Not analyzed yet', detail: 'Capture your meal and the AI reads it — real macros from your photo, no guesses.', level: 'b' },
+      ai: 'Take a photo of your meal and I’ll analyze it for real.', empty: true,
     };
   },
 

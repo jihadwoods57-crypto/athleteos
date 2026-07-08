@@ -23,8 +23,10 @@ export const foodSearch = {
   tab: 'camera',
   hideTabs: true,
   render() {
+    const slot = S.currentSlot;
+    const slotName = slot ? slot.charAt(0).toUpperCase() + slot.slice(1) : 'meal';
     return `
-    ${backHead(`Search Food · ${S.logging.name}`, 'When a photo isn’t possible. Same score rules.', 'camera')}
+    ${backHead(`Search Food · ${slotName}`, 'When a photo isn’t possible. Same score rules.', 'camera')}
 
     <div class="composer" style="margin-top:2px">
       <input id="fs-input" placeholder="Search foods…" autocomplete="off" />
@@ -47,13 +49,14 @@ export const foodSearch = {
     </section>
 
     <div style="height:16px"></div>
-    ${RT.dinnerLogged && !RT.day0
-      ? `<button class="btn ghost" data-go="home">Dinner already logged · Back Home</button>`
-      : `<button class="btn green" id="fs-log" data-act="${RT.day0 ? 'day0Meal' : 'logDinner'}" data-then="meal-confirm" style="opacity:.45;pointer-events:none">${icon('check', 19)} Log ${S.logging.name}</button>`}
+    ${!slot
+      ? `<button class="btn ghost" data-go="home">All meals logged · Back Home</button>`
+      : `<button class="btn green" id="fs-log" style="opacity:.45;pointer-events:none">${icon('check', 19)} Log ${slotName}</button>`}
     <div style="height:10px"></div>
     `;
   },
   mount(root) {
+    const SLOT = S.currentSlot;
     const input = root.querySelector('#fs-input');
     const results = root.querySelector('#fs-results');
     const items = root.querySelector('#fs-items');
@@ -103,6 +106,15 @@ export const foodSearch = {
         renderPlate();
       }));
     };
+    // Log the REAL assembled plate into the real open slot — not a demo constant.
+    if (logBtn) logBtn.addEventListener('click', () => {
+      if (!plate.length || !SLOT) return;
+      const sum = plate.reduce((a, x) => ({ p: a.p + x.p * x.q, c: a.c + x.c * x.q, f: a.f + x.f * x.q, kc: a.kc + x.kc * x.q }), { p: 0, c: 0, f: 0, kc: 0 });
+      window.__act.captureManual({ protein: sum.p, carbs: sum.c, fat: sum.f, kcal: sum.kc }, plate.map(x => x.n), SLOT);
+      window.__act.logMeal(SLOT);
+      location.hash = '#meal-confirm';
+    });
+
     input.addEventListener('input', () => renderResults(input.value));
     renderResults('');
     renderTotals();
@@ -116,6 +128,8 @@ export const labelScan = {
   render() {
     const rows = [['Serving size', '1 bar (50g)'], ['Calories', '140'], ['Protein', '25g'], ['Total carbs', '5g'], ['Total fat', '2g'], ['Sodium', '135mg']];
     const peanutAllergy = RT.allergies.some(a => a.toLowerCase().includes('peanut'));
+    const slot = S.currentSlot;
+    const slotName = slot ? slot.charAt(0).toUpperCase() + slot.slice(1) : 'meal';
     return `
     ${backHead('Scan Label', 'Exact numbers off the panel, never estimates', 'camera')}
 
@@ -165,20 +179,21 @@ export const labelScan = {
     </div>
 
     <div style="height:16px"></div>
-    ${RT.allergies.some(a => a.toLowerCase().includes('peanut'))
+    ${peanutAllergy
       ? `<button class="btn ghost" style="border:1.5px solid var(--red-border);color:var(--red)" data-go="camera">${icon('x', 18)} Not for you · scan something else</button>`
-      : RT.dinnerLogged && !RT.day0
-        ? `<button class="btn ghost" data-go="home">Dinner already logged · Back Home</button>`
-        : `<button class="btn green" data-act="${RT.day0 ? 'day0Meal' : 'logDinner'}" data-then="meal-confirm">${icon('check', 19)} Add to ${S.logging.name}</button>`}
+      : !slot
+        ? `<button class="btn ghost" data-go="home">All meals logged · Back Home</button>`
+        : `<button class="btn green" id="ls-log">${icon('check', 19)} Add to ${slotName}</button>`}
     <div style="height:10px"></div>
     `;
   },
   async mount(root) {
     const { wireToggles } = await import('./settings.js');
     wireToggles(root);
+    let mult = 1;
     // serving multiplier really recomputes the numeric rows
     root.querySelectorAll('#serv .chp').forEach(ch => ch.addEventListener('click', () => {
-      const m = +ch.dataset.m;
+      const m = +ch.dataset.m; mult = m;
       root.querySelectorAll('[data-base]').forEach(el => {
         const base = el.getAttribute('data-base');
         const num = parseFloat(base);
@@ -188,5 +203,15 @@ export const labelScan = {
         }
       });
     }));
+    // Log the REAL transcribed panel (× servings) into the real open slot.
+    const lsBtn = root.querySelector('#ls-log');
+    const SLOT = S.currentSlot;
+    if (lsBtn && SLOT) lsBtn.addEventListener('click', () => {
+      window.__act.captureManual(
+        { protein: 25 * mult, carbs: 5 * mult, fat: 2 * mult, kcal: 140 * mult },
+        ['Protein bar'], SLOT);
+      window.__act.logMeal(SLOT);
+      location.hash = '#meal-confirm';
+    });
   },
 };

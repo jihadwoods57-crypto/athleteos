@@ -25,8 +25,9 @@ function downscaleToJpeg(file, maxDim, quality) {
 export default {
   tab: 'camera',
   hideTabs: true,
-  render() {
+  render({ sub } = {}) {
     const L = S.logging;
+    const slotName = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : L.name;
     // Apple-style permission priming: explain BEFORE the OS ever asks
     if (!RT.camPrimed) {
       return `
@@ -47,7 +48,7 @@ export default {
       <div class="cam-head">
         <div class="bk iconbtn" data-go="home" style="width:40px;height:40px">${icon('back', 19)}</div>
         <div class="meta">
-          <div class="t">Log ${L.name}</div>
+          <div class="t">Log ${slotName}</div>
           <div class="s">${L.due} <span class="dim">· Nutrition is 50% of your score</span></div>
         </div>
       </div>
@@ -82,7 +83,7 @@ export default {
       </div>
     </div>`;
   },
-  mount(root) {
+  mount(root, { sub } = {}) {
     root.querySelectorAll('.vf-tool').forEach(t => t.addEventListener('click', (e) => {
       e.stopPropagation();
       t.style.color = t.style.color === 'var(--amber-bright)' ? '#fff' : 'var(--amber-bright)';
@@ -99,7 +100,7 @@ export default {
         shutter.style.opacity = '0.5';
         try {
           const { base64, dataUrl } = await downscaleToJpeg(f, 1000, 0.82);
-          act.captureMeal(base64, dataUrl);
+          act.captureMeal(base64, dataUrl, sub || undefined);
           window.__go('analyzing');
         } catch { shutter.style.opacity = '1'; }
       });
