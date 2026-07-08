@@ -478,39 +478,65 @@ export const coachMeal = {
   },
 };
 
-/* ---------- Trainer view: clients, not a team. Scope = recovery + readiness + nutrition consistency ---------- */
+/* ---------- Trainer view: real client book (practice_roster), scoped by RLS to owned practices ---------- */
+let BOOK = null;
+let bookLoading = false;
+export async function loadTrainerBook(force) {
+  if (bookLoading) return;
+  if (BOOK && !force) return;
+  bookLoading = true;
+  const r = await roles.loadTrainerBook();
+  const pending = [];
+  for (const p of r.practices) {
+    const reqs = await roles.pendingPracticeRequests(p.id);
+    for (const q of reqs) pending.push({ practiceId: p.id, clientId: q.client_id, clientName: q.client_name });
+  }
+  r.pending = pending;
+  BOOK = r;
+  bookLoading = false;
+  if (location.hash === '#trainer') window.__render();
+}
+function bookName(athleteId) {
+  const r = BOOK && BOOK.rows.find(x => x.athleteId === athleteId);
+  return r ? r.name : 'Client';
+}
 export const trainer = {
   nav: 'trainer', tab: 'clients',
   render() {
-    const clients = [
-      { name: 'J. Woods', tag: 'WR · lean mass', ready: 84, consist: 87, flag: 'g', you: true },
-      { name: 'S. Carter', tag: 'Volleyball · perform', ready: 71, consist: 78, flag: 'y' },
-      { name: 'R. Nunez', tag: 'Wrestling · cut', ready: 62, consist: 91, flag: 'y' },
-    ];
+    const rows = BOOK ? BOOK.rows : null;
     return `
-    ${backHead('Trainer view', 'Your clients · recovery, readiness, consistency', 'profile')}
+    ${backHead('Trainer view', 'Your clients · recovery & nutrition consistency', 'profile')}
 
-    <section class="card" style="padding:2px 0">
-      ${clients.map(c => `
-        <div class="roster-row" ${c.you ? 'data-go="trainer-client"' : 'style="cursor:default"'}>
-          <div class="flagdot ${c.flag}"></div>
-          <div class="rn">
-            <div class="t">${c.name}${c.you ? ' <span class="status-pill b" style="font-size:9.5px;padding:2px 8px">OPEN</span>' : ''}</div>
-            <div class="s">${c.tag}</div>
-          </div>
-          <span class="rl" title="readiness">${c.ready}</span>
-          <span class="rs" style="color:${c.consist >= 80 ? 'var(--green-bright)' : 'var(--amber-bright)'}">${c.consist}%</span>
+    ${BOOK && BOOK.pending && BOOK.pending.length ? `
+    <div class="eyebrow">Client requests</div>
+    <section class="card" style="padding:6px 16px">
+      ${BOOK.pending.map(q => `
+        <div class="lrow" style="cursor:default">
+          <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
+          <div class="lm"><div class="lt">${esc(q.clientName || 'Client')}</div><div class="ls">Wants to join your practice</div></div>
+          <button class="btn ghost sm" data-cr="decline" data-p="${esc(q.practiceId)}" data-c="${esc(q.clientId)}" style="width:auto;padding:0 12px;height:32px">Decline</button>
+          <button class="btn green sm" data-cr="approve" data-p="${esc(q.practiceId)}" data-c="${esc(q.clientId)}" style="width:auto;padding:0 12px;height:32px;margin-left:6px">Approve</button>
         </div>`).join('')}
-    </section>
-    <div style="display:flex;justify-content:space-between;padding:8px 18px 0;font-size:10.5px;font-weight:700;color:var(--text-3);letter-spacing:0.05em">
-      <span></span><span>READINESS · CONSISTENCY</span>
-    </div>
+    </section>` : ''}
+
+    ${rows === null ? `
+    <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
+    <div><div class="tt">Loading your clients…</div></div></div>`
+    : rows.length === 0 ? `
+    <div class="state-demo"><div class="sd-ic">${icon('heart', 24)}</div>
+    <div class="sd-t">No clients yet</div><div class="sd-s">Share your practice code so athletes can connect. Their real scores show up here.</div></div>`
+    : `<section class="card" style="padding:2px 0">${rows.map(r => `
+      <div class="roster-row" data-go="trainer-client/${esc(r.athleteId)}">
+        <div class="flagdot ${r.flag}"></div>
+        <div class="rn"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.note)}</div></div>
+        <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>
+      </div>`).join('')}</section>`}
 
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
       <div><div class="tt">Trainer scope</div>
-      <div class="ts">You see recovery, readiness, and nutrition consistency. Team scores, coach comments, and body photos stay in the coach lane.</div></div>
+      <div class="ts">You see your clients' day score, recovery, and nutrition — the same can_view data a coach sees. Team leaderboards and coach-only notes stay in the coach lane.</div></div>
     </div>
 
     <div style="height:12px"></div>
@@ -524,47 +550,75 @@ export const trainer = {
     <div style="height:10px"></div>
     `;
   },
+  mount(root) {
+    loadTrainerBook();
+    root.querySelectorAll('[data-cr]').forEach(b => b.addEventListener('click', async () => {
+      const p = b.getAttribute('data-p'), c = b.getAttribute('data-c');
+      b.disabled = true; b.textContent = '…';
+      if (b.getAttribute('data-cr') === 'approve') await roles.approveClient(p, c);
+      else await roles.declineClient(p, c);
+      await loadTrainerBook(true);
+    }));
+  },
 };
 
-/* ---------- Trainer -> client detail (Jihad as client) ---------- */
+/* ---------- Trainer → client detail: real day (RLS can_view); a note is a real push ---------- */
 export const trainerClient = {
   nav: 'trainer', tab: 'note',
-  render() {
+  render({ sub }) {
+    const athleteId = sub;
+    const name = bookName(athleteId);
+    const head = backHead(esc(name), 'Client · recovery & nutrition', 'trainer');
+    if (!athleteId) return `${head}<div class="state-demo"><div class="sd-t">Open a client</div></div>`;
+    if (!ATH || ATH.athleteId !== athleteId) {
+      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
+      <div><div class="tt">Loading their day…</div></div></div>`;
+    }
+    const day = ATH.day;
+    const ci = (day && day.checkin) || {};
+    const score = day && day.score != null ? day.score : null;
+    const readiness = ci.submitted && ci.recovery != null ? Math.round(ci.recovery) : null;
     return `
-    ${backHead('J. Woods', 'Client · lean mass phase', 'trainer')}
+    ${head}
 
     <div class="coach-stats">
-      <div class="coach-stat"><div class="v" style="color:var(--blue-bright)">${S.weekly.readiness != null ? S.weekly.readiness : '—'}</div><div class="k">Readiness</div></div>
-      <div class="coach-stat"><div class="v" style="color:var(--green-bright)">87%</div><div class="k">Consistency</div></div>
-      <div class="coach-stat"><div class="v" style="color:${RT.recoveryDone ? 'var(--green-bright)' : 'var(--amber-bright)'}">${RT.recoveryDone ? 'In' : 'Open'}</div><div class="k">Tonight's recovery</div></div>
+      <div class="coach-stat"><div class="v" style="color:${scoreColor(score)}">${score != null ? score : '—'}</div><div class="k">Score today</div></div>
+      <div class="coach-stat"><div class="v" style="color:var(--blue-bright)">${readiness != null ? readiness : '—'}</div><div class="k">Readiness</div></div>
+      <div class="coach-stat"><div class="v" style="color:${ci.submitted ? 'var(--green-bright)' : 'var(--amber-bright)'}">${ci.submitted ? 'In' : 'Open'}</div><div class="k">Recovery</div></div>
     </div>
 
-    <div class="eyebrow">Recovery pattern · this week</div>
-    <section class="card pad">
-      <div class="consist">
-        ${[['Sleep quality', 78, 'b'], ['Soreness load', 64, 'a'], ['Recovery check-ins', 71, 'p'], ['Hydration', 80, 'b']].map(([k, v, a]) => `
-          <div class="cons-row">
-            <span class="k" style="width:120px">${k}</span>
-            <div class="track"><div class="fillb" style="width:${v}%;background:linear-gradient(90deg,${a === 'p' ? '#7e22ce,var(--purple-bright)' : a === 'a' ? '#b45309,var(--amber-bright)' : 'var(--blue-deep),var(--blue-bright)'})"></div></div>
-            <span class="v">${v}%</span>
-          </div>`).join('')}
-      </div>
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:14px">Soreness tracks his two missed recovery nights. Night habits are the coaching point, not effort.</div>
-    </section>
+    <div style="height:14px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
+      <div><div class="tt">Recovery trend</div>
+      <div class="ts">Per-client recovery patterns show up here once there's enough real check-in history — no invented bars until then.</div></div>
+    </div>
 
     <div class="eyebrow">Note to client</div>
-    <div class="thread"></div>
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sends a real push to their notifications.</div>
     <div class="composer">
-      <input placeholder="Note for Jihad…" />
-      <div class="send">${icon('arrowUp', 19)}</div>
+      <input id="tn-input" placeholder="Note for ${esc(name)}…" />
+      <div class="send" id="tn-send">${icon('arrowUp', 19)}</div>
     </div>
+    <div id="tn-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     <div style="height:10px"></div>
     `;
   },
-  async mount(root) {
-    const { wireComposer } = await import('./settings.js');
-    // REAL in-sim: the note lands in the client's notifications
-    wireComposer(root, 'delivery', '', "Delivered · Jihad sees it in his notifications", (text) => window.__act.trainerNote(text));
+  mount(root, { sub }) {
+    loadTrainerBook();
+    loadAthlete(sub, RT.userId, S.athlete.name);
+    const input = root.querySelector('#tn-input');
+    const send = root.querySelector('#tn-send');
+    const status = root.querySelector('#tn-status');
+    const submit = async () => {
+      const text = (input.value || '').trim();
+      if (!text) return;
+      input.value = '';
+      const ok = await roles.nudgePush(sub, `Note from ${S.athlete.name}`, text);
+      if (status) status.textContent = ok ? 'Sent to their notifications.' : 'Could not send — check the connection.';
+    };
+    if (send) send.addEventListener('click', submit);
+    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
   },
 };
 
