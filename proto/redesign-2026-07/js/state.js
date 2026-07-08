@@ -698,15 +698,28 @@ export const S = {
     };
   },
 
-  // ---------- MEAL HISTORY (past days; today derives live) ----------
-  history: [
-    { day: 'Thursday', date: 'Jul 3', score: 86, tier: 'Locked In',
-      meals: [ { type: 'Breakfast', score: 92, img: 'assets/meal-breakfast.jpg' }, { type: 'Lunch', score: 84, img: 'assets/meal-lunch.jpg' }, { type: 'Dinner', score: 89, img: 'assets/meal-dinner.jpg' } ] },
-    { day: 'Wednesday', date: 'Jul 2', score: 72, tier: 'Building', note: 'Recovery missed · late lunch',
-      meals: [ { type: 'Breakfast', score: 90, img: 'assets/meal-breakfast.jpg' }, { type: 'Lunch · late', score: 71, img: 'assets/meal-lunch.jpg' }, { type: 'Dinner', score: 85, img: 'assets/meal-dinner.jpg' } ] },
-    { day: 'Tuesday', date: 'Jul 1', score: 90, tier: 'OnStandard',
-      meals: [ { type: 'Breakfast', score: 95, img: 'assets/meal-breakfast.jpg' }, { type: 'Lunch', score: 91, img: 'assets/meal-lunch.jpg' }, { type: 'Dinner', score: 88, img: 'assets/meal-dinner.jpg' } ] },
-  ],
+  // ---------- MEAL HISTORY (past days, from real day rows; today derives live) ----------
+  // Real per-day score + tier from scoreHistory. Per-meal thumbnails aren't stored historically,
+  // so no fabricated plates — just the honest day scores, most recent first.
+  get history() {
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return (DAY.scoreHistory || []).slice().reverse().map(h => {
+      const d = new Date(h.date + 'T00:00:00');
+      return { day: DOW[d.getDay()], date: `${MON[d.getMonth()]} ${d.getDate()}`, score: h.score || 0, tier: tier(h.score || 0).name, meals: [] };
+    });
+  },
+  // Last 6 days incl. today, for the streak week strip — real scores, honest gaps.
+  get streakWeek() {
+    const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const past = (DAY.scoreHistory || []).slice(-5).map(h => {
+      const d = new Date(h.date + 'T00:00:00');
+      return { d: DOW[d.getDay()], s: h.score || 0, on: (h.score || 0) >= 80 };
+    });
+    const today = new Date(DAY.date + 'T00:00:00');
+    past.push({ d: DOW[today.getDay()], s: this.score, on: this.score >= 80, today: true });
+    return past;
+  },
 
   // ---------- WEIGHT (real: today's log + historical current_weight rows) ----------
   // Nothing here is invented. current = today's log or the latest real historical value.
@@ -756,37 +769,47 @@ export const S = {
     return { fields };
   },
 
-  // ---------- WEEKLY CHECK-IN ----------
-  weekly: {
-    status: 'Submitted Sunday · next opens Sunday',
-    readiness: 84,
-    fields: [
-      { k: 'Energy this week', val: 4 }, { k: 'Recovery', val: 3 }, { k: 'Sleep', val: 4 },
-      { k: 'Confidence', val: 4 }, { k: 'Soreness', val: 3 }, { k: 'Motivation', val: 5 },
-    ],
+  // ---------- WEEKLY CHECK-IN (honest: the weekly ritual isn't separately wired in v1) ----------
+  // No fabricated "Submitted Sunday · readiness 84". Readiness reflects the last REAL recovery
+  // check-in if one exists; the form is a blank preview until the weekly flow is wired.
+  get weekly() {
+    const last = DAY.ciLast && DAY.ciLast.date ? DAY.ciLast : null;
+    return {
+      status: 'Opens Sunday · not submitted yet',
+      submitted: false,
+      readiness: last ? Math.round(last.recovery) : null,
+      fields: [
+        { k: 'Energy this week' }, { k: 'Recovery' }, { k: 'Sleep' },
+        { k: 'Confidence' }, { k: 'Soreness' }, { k: 'Motivation' },
+      ],
+    };
   },
 
-  // ---------- PROGRESS ----------
-  progress: {
-    weekAvg: 84, weekDelta: '+6', onDays: '5 of 7',
-    weekScores: [78, 88, 72, 90, 82, 86, 82],
-    monthConsistency: 81, bestStreak: 9,
-    consistency: 87, consDone: '26 of 30', consDelta: '+12%',
-    consBreak: [
-      { k: 'Meals', v: 92, accent: 'g' }, { k: 'Recovery', v: 71, accent: 'p' },
-      { k: 'Hydration', v: 80, accent: 'b' }, { k: 'Weight logs', v: 67, accent: 'a' },
-      { k: 'Check-ins', v: 100, accent: 'g' },
-    ],
-    pattern: 'You average 11 more points on days you log breakfast before 9 AM.',
-    nutritionInsight: 'Protein is strong. Hydration is holding your score back.',
-    lost: [
-      { k: 'Recovery missed (Wed)', v: '-6', accent: 'p' },
-      { k: 'Late lunch (Thu)', v: '-4', accent: 'a' },
-      { k: 'Weight log skipped', v: '—', accent: 'a', note: 'streak only' },
-    ],
-    weeklySummary: 'Best week of the phase. Meal logging is near-automatic now; the gap is night habits: recovery check-ins and water after practice.',
-    coachFeedback: 'Best week yet. Keep breakfast consistent and clean up the hydration misses.',
-    aiSummary: 'You’re trending up. Meal consistency improved, but recovery and hydration are your biggest gaps. Get water in before practice and do your check-in before bed.',
+  // ---------- PROGRESS (real: computed from DAY.scoreHistory + today's live score) ----------
+  // Only the metrics we can actually compute from real day rows. Per-requirement consistency,
+  // "biggest pattern", coach/AI summaries etc. have no real source yet → the screen shows an
+  // honest "more as you log" note instead of inventing them.
+  get progress() {
+    const hist = (DAY.scoreHistory || []).map(h => ({ date: h.date, score: h.score || 0 }));
+    const series = [...hist, { date: DAY.date, score: this.score }];
+    const avg = (arr) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
+    const last7 = series.slice(-7);
+    const weekScores = last7.map(d => d.score);
+    const weekAvg = avg(weekScores);
+    const prev7 = series.slice(-14, -7).map(d => d.score);
+    const prevAvg = avg(prev7);
+    const weekDelta = (weekAvg != null && prevAvg != null) ? `${weekAvg - prevAvg >= 0 ? '+' : ''}${weekAvg - prevAvg}` : null;
+    const last30 = series.slice(-30);
+    const monthConsistency = last30.length >= 5 ? Math.round(last30.filter(d => d.score >= 80).length / last30.length * 100) : null;
+    let best = 0, run = 0;
+    for (const d of series) { if (d.score >= 80) { run++; best = Math.max(best, run); } else run = 0; }
+    return {
+      hasHistory: hist.length > 0,
+      weekScores, weekAvg, weekDelta,
+      onDays: `${weekScores.filter(s => s >= 80).length} of ${weekScores.length}`,
+      weekDayLabels: last7.map(d => 'SMTWTFS'[new Date(d.date + 'T00:00:00').getDay()]),
+      monthConsistency, bestStreak: best,
+    };
   },
 
   // ---------- SQUAD / COACH (scope is coach-controlled) ----------

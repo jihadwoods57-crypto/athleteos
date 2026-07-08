@@ -97,13 +97,7 @@ export const trust = {
 export const streak = {
   tab: 'home',
   render() {
-    const days = [
-      { d: 'Sun', s: 90, on: true }, { d: 'Mon', s: 84, on: true }, { d: 'Tue', s: 90, on: true },
-      { d: 'Wed', s: 72, on: false, grace: false }, { d: 'Thu', s: 86, on: true },
-      { d: 'Fri', s: S.score, on: S.score >= 80, today: true },
-    ];
-    // honest framing: Wednesday was sub-80; streak survived because Thu-Fri rebuilt it? No —
-    // seeded truth: streak = 5 counting from after Wednesday's grace day.
+    const days = S.streakWeek; // real: last logged days + today, honest scores
     return `
     ${backHead('Streak', `${S.streakDays} days on standard · grace intact`)}
 
@@ -130,7 +124,7 @@ export const streak = {
             <div style="font-size:10.5px;font-weight:700;color:var(--text-3);margin-top:6px">${x.d}${x.today ? ' · now' : ''}</div>
           </div>`).join('')}
       </div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:14px">Wednesday's 72 ended the last run. This streak started Thursday, built honestly since.</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:14px">${days.length > 1 ? 'Your real day scores. A day under 80 ends the run unless your weekly grace covers it.' : 'Your streak week fills in as you log day by day.'}</div>
     </section>
 
     <div class="eyebrow">The rules</div>
@@ -156,29 +150,32 @@ export const streak = {
   },
 };
 
-/* ---------- Meal History: the proof trail across days ---------- */
+/* ---------- Meal History: the real proof trail across days ---------- */
 export const history = {
   tab: 'progress',
   render() {
-    const todayMeals = S.activity.filter(a => a.img && a.type !== 'Recovery Check-In' && a.type !== 'Morning Weight');
-    const dayBlock = (label, score, tierName, meals, note) => `
+    // Today's REAL logged meals (from activity; a meal type is any non-recovery/weight/hydration).
+    const todayMeals = S.activity.filter(a => !['Recovery Check-In', 'Morning Weight', 'Hydration'].includes(a.type));
+    const dayHead = (label, score, tierName) => `
       <div class="eyebrow" style="display:flex;justify-content:space-between;align-items:baseline">
         <span>${label}</span>
         <span style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:800;color:${score >= 90 ? 'var(--green-bright)' : score >= 75 ? 'var(--blue-bright)' : 'var(--amber-bright)'}">${score} · ${tierName}</span>
-      </div>
-      ${note ? `<div style="font-size:12px;font-weight:600;color:var(--amber-bright);margin:-6px 2px 10px">${note}</div>` : ''}
-      <div class="hscroll">
-        ${meals.map(m => `
-          <div class="act-card" style="cursor:default">
-            <div class="act-time">${m.type}</div>
-            <div class="act-media" style="background-image:url('${m.img}')"></div>
-            <div class="act-body"><div class="act-type">Meal score</div><div class="act-value ${m.score >= 85 ? 'g' : 'b'}">${m.score}</div></div>
-          </div>`).join('')}
       </div>`;
+    const todayLabel = `Today · ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()]}`;
     return `
     ${backHead('Meal History', 'The proof trail, day by day', 'progress')}
-    ${dayBlock('Today · Friday', S.score, S.tier.name, todayMeals.map(m => ({ type: m.type, img: m.img, score: +String(m.value).replace(/\D/g, '') || 90 })))}
-    ${S.history.map(d => dayBlock(`${d.day} · ${d.date}`, d.score, d.tier, d.meals, d.note)).join('')}
+    ${dayHead(todayLabel, S.score, S.tier.name)}
+    ${todayMeals.length ? `<div class="hscroll">
+      ${todayMeals.map(m => `
+        <div class="act-card" style="cursor:default" ${m.route ? `data-go="${m.route}"` : ''}>
+          <div class="act-time">${m.type}</div>
+          <div class="act-media icon" style="background:linear-gradient(150deg, rgba(52,211,153,0.22), rgba(37,99,235,0.12));color:var(--green-bright)">${icon('utensils', 26)}</div>
+          <div class="act-body"><div class="act-type">${m.type === 'Recovery Check-In' ? 'Recovery' : 'Meal'}</div><div class="act-value ${m.vClass || 'b'}">${m.value}</div></div>
+        </div>`).join('')}
+    </div>` : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:-4px 2px 12px">Nothing logged today yet.</div>`}
+    ${S.history.length ? S.history.map(d => dayHead(`${d.day} · ${d.date}`, d.score, d.tier)).join('') : `
+      <div class="sidebox" style="margin-top:12px"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">Past days fill in here</div><div class="ts">Each day you log becomes part of your proof trail — real scores, no gaps hidden.</div></div></div>`}
     <div style="height:10px"></div>
     `;
   },

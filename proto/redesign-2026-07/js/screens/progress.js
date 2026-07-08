@@ -1,8 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 
-const DAYS = ['M','T','W','T','F','S','S'];
-
 export default {
   tab: 'progress',
   render() {
@@ -23,22 +21,35 @@ export default {
         <div class="ts">Weekly score trend, requirement consistency, your biggest pattern, weight trend toward the coach target, and where points slipped.</div></div>
       </div>`;
     }
-    const accent = { g: 'linear-gradient(90deg,#16a34a,var(--green-bright))', b: 'linear-gradient(90deg,var(--blue-deep),var(--blue-bright))', p: 'linear-gradient(90deg,#7e22ce,var(--purple-bright))', a: 'linear-gradient(90deg,#b45309,var(--amber-bright))' };
+    // Not enough history yet → honest near-empty (today alone isn't a trend).
+    if (!P.hasHistory) {
+      return `
+      <div class="screen-title">Progress</div>
+      <div style="height:14px"></div>
+      <div class="state-demo">
+        <div class="sd-ic">${icon('bars', 24)}</div>
+        <div class="sd-t">One day in — trends need a few more</div>
+        <div class="sd-s">Your weekly score, streak, and consistency show up here once you have a few days logged. Today counts: you're at ${S.score}.</div>
+      </div>
+
+      <div class="eyebrow">Weight Trend</div>
+      <section class="card pad" data-go="weight" style="cursor:pointer">
+        <div style="font-size:13.5px;font-weight:600;color:var(--text-2)">${S.weight.current != null ? `${S.weight.current} lb logged · builds your season trend` : 'No weight logged yet. Tap to start your trend.'}</div>
+      </section>
+      <div style="height:10px"></div>`;
+    }
     return `
     <div class="screen-title">Progress</div>
-    <div class="seg" style="margin-top:6px">
-      <button class="on">Week</button><button>Month</button><button>Season</button>
-    </div>
 
-    <div class="eyebrow">Weekly OnStandard Score</div>
+    <div class="eyebrow">Recent OnStandard Score</div>
     <section class="card pad">
-      <div class="bigstat"><span class="n">${P.weekAvg}</span><span class="d">${P.weekDelta} vs last week</span></div>
+      <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d">${P.weekDelta} vs prior week</span>` : ''}</div>
       <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} days on standard (≥80)</div>
       <div class="weekbars">
         ${P.weekScores.map((v, i) => `
           <div class="wb ${v >= 80 ? 'hi' : ''}">
             <div class="bar" style="height:${Math.round((v / 100) * 86)}px"></div>
-            <span class="d">${DAYS[i]}</span>
+            <span class="d">${P.weekDayLabels[i] || ''}</span>
           </div>`).join('')}
       </div>
     </section>
@@ -46,40 +57,16 @@ export default {
     <div style="height:16px"></div>
     <div class="coach-stats">
       <div class="coach-stat"><div class="v" style="color:var(--amber-bright)">${P.bestStreak}d</div><div class="k">Best streak</div></div>
-      <div class="coach-stat"><div class="v">${P.monthConsistency}%</div><div class="k">30-day consistency</div></div>
+      ${P.monthConsistency != null ? `<div class="coach-stat"><div class="v">${P.monthConsistency}%</div><div class="k">Consistency (≥80)</div></div>` : ''}
       <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${P.weekAvg}</div><div class="k">Avg score</div></div>
     </div>
 
-    <div class="eyebrow">Requirements Consistency</div>
-    <section class="card pad">
-      <div class="bigstat"><span class="n">${P.consistency}%</span><span class="d">${P.consDelta}</span></div>
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin:2px 0 16px">${P.consDone} completed this week</div>
-      <div class="consist">
-        ${P.consBreak.map(c => `
-          <div class="cons-row">
-            <span class="k">${c.k}</span>
-            <div class="track"><div class="fillb" style="width:${c.v}%;background:${accent[c.accent]}"></div></div>
-            <span class="v">${c.v}%</span>
-          </div>`).join('')}
-      </div>
-    </section>
-
-    <div class="eyebrow">Biggest Pattern</div>
-    <div class="insight">
-      <div class="req-icon g" style="width:38px;height:38px;flex:none">${icon('bolt', 18)}</div>
-      <p>${P.pattern}</p>
+    <div style="height:16px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('sparkle', 17)}</div>
+      <div><div class="tt">More insight as you log</div>
+      <div class="ts">Per-requirement consistency, your biggest pattern, and coach + AI summaries turn on once there's enough real history to be honest about. <span class="link" data-go="history">See meal history</span></div></div>
     </div>
-
-    <div class="eyebrow">Nutrition Progress <span class="link" data-go="history">Meal history</span></div>
-    <section class="card pad">
-      <div class="macro-row">
-        <div class="macro"><div class="mv">93</div><div class="mk">Avg meal</div></div>
-        <div class="macro"><div class="mv">96%</div><div class="mk">Protein</div></div>
-        <div class="macro"><div class="mv">88%</div><div class="mk">On time</div></div>
-        <div class="macro"><div class="mv" style="color:var(--amber-bright)">80%</div><div class="mk">Hydration</div></div>
-      </div>
-      <div style="font-size:13.5px;font-weight:700;color:var(--text-2);margin-top:14px">${P.nutritionInsight}</div>
-    </section>
 
     <div class="eyebrow">Weight Trend</div>
     <section class="card pad" data-go="weight" style="cursor:pointer">
@@ -92,48 +79,6 @@ export default {
       : `<div style="font-size:13.5px;font-weight:600;color:var(--text-2)">No weight logged yet. Tap to log your first — it builds your season trend, never your daily score.</div>`}
     </section>
 
-    <div class="eyebrow">Where You Lost Points</div>
-    <section class="card losttable" style="padding:6px 16px;cursor:pointer" data-go="score-breakdown">
-      ${P.lost.map(l => `
-        <div class="lrow2">
-          <span style="color:var(--text-2)">${l.k}</span>
-          <span class="amt" style="color:var(--${l.accent === 'p' ? 'purple-bright' : 'amber-bright'})">${l.v}${l.note ? ` <small style="color:var(--text-3);font-weight:700">· ${l.note}</small>` : ''}</span>
-        </div>`).join('')}
-    </section>
-
-    <div class="eyebrow">Weekly Summary</div>
-    <section class="card pad">
-      <p style="font-size:14.5px;font-weight:600;line-height:1.55;color:var(--text)">${P.weeklySummary}</p>
-    </section>
-
-    <div class="eyebrow">Execution ↔ Performance</div>
-    <section class="card pad">
-      <div style="display:flex;gap:12px">
-        <div class="tile" style="flex:1;border-color:var(--green-border)">
-          <div class="k">Weeks at 85+</div>
-          <div class="v" style="color:var(--green-bright)">2 drops</div>
-          <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:3px">0 missed assignments</div>
-        </div>
-        <div class="tile" style="flex:1">
-          <div class="k">Weeks under 75</div>
-          <div class="v" style="color:var(--amber-bright)">5 drops</div>
-          <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:3px">3 missed assignments</div>
-        </div>
-      </div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:12px">From game stats ${S.coach.name} logs · 6 weeks of data. The thesis, tested: execution shows up on film.</div>
-    </section>
-
-    <div class="eyebrow">Coach Feedback</div>
-    <div class="coachnote">
-      <div class="who"><div class="av">M</div><div><div class="nm">${S.coach.name}</div><div class="rl">This week</div></div></div>
-      <p>“${P.coachFeedback}”</p>
-    </div>
-
-    <div class="eyebrow">AI Summary</div>
-    <div class="ai-note">
-      <div class="av">${icon('sparkle', 18)}</div>
-      <div><div class="who">This week</div><p>${P.aiSummary}</p></div>
-    </div>
     <div style="height:10px"></div>
     `;
   },
