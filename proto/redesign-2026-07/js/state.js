@@ -8,6 +8,11 @@
 */
 
 import { CATALOG, runsToday, derive, deriveAssigned } from './requirements.js';
+import {
+  DAY, computeComponents as realComponents, projectedDay,
+  streakDays as dayStreak, loadDay, pushDay,
+  dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
+} from './day.js';
 
 export const WEIGHTS = { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
 
@@ -77,54 +82,71 @@ function friendlyAuth(msg) {
   return msg || 'Something went wrong. Try again.';
 }
 
-/* ---------------- Derived (live) ---------------- */
+/* ---------------- Derived (live) — REAL, from the persisted DAY (parity-proven engine) ---------------- */
+// recovery is reported as its scoring CONTRIBUTION (0 unless a real check-in backs it), so
+// computeScore(componentsNow()) === the engine's athleteScore. See day.js + scoreParity.test.ts.
 function componentsNow() {
-  if (RT.day0) {
-    // brand-new athlete: nothing carried, commitment unanswered, no check-in yet
-    return { nutrition: RT.day0Breakfast ? 35 : 0, recovery: 0, commitment: RT.day0Breakfast ? 100 : 0, checkin: 0 };
-  }
-  return {
-    nutrition: RT.dinnerLogged ? 92 : 80,
-    recovery: RT.recoveryDone ? 92 : 68,
-    commitment: 100,
-    checkin: 100,
-  };
+  const c = realComponents(DAY);
+  return { nutrition: c.nutrition, recovery: c.recoveryContribution, commitment: c.commitment, checkin: c.checkin };
 }
 function componentsDone() {
-  if (RT.day0) return { nutrition: 35, recovery: 92, commitment: 100, checkin: 100 };
-  return { nutrition: 92, recovery: 92, commitment: 100, checkin: 100 };
+  const c = realComponents(projectedDay());
+  return { nutrition: c.nutrition, recovery: c.recoveryContribution, commitment: c.commitment, checkin: c.checkin };
+}
+
+/* Macros for the meal currently being logged. Until the AI loop (Phase 5) fills real macros,
+   this uses the proto's analysis macros so a logged meal contributes real protein to the score. */
+function loggingMacros() {
+  const m = (S.logging && S.logging.macros) || {};
+  return { protein: m.protein || 0, kcal: m.cals || 0, carbs: m.carbs || 0, fat: m.fat || 0 };
+}
+
+/** After loadDay(), reflect the real day into the RT flags the rest of the UI still reads. */
+export function syncRtFromDay() {
+  RT.dinnerLogged = !!DAY.meals.dinner;
+  RT.recoveryDone = !!DAY.ciSubmitted;
+  RT.day0Breakfast = !!DAY.meals.breakfast;
+  RT.weightLogged = DAY.currentWeight != null;
+  RT.hydrationOz = Math.round(DAY.hydrationL / 0.0295735);
+  // "day 0" (fresh empty state) until the athlete logs anything real today
+  RT.day0 = !DAY.meals.breakfast && !DAY.meals.lunch && !DAY.meals.snack && !DAY.meals.dinner && !DAY.ciSubmitted && !DAY.dailyCommitment;
+  save();
 }
 
 /* ---------------- Actions ---------------- */
 export const act = {
   logDinner() {
-    if (RT.dinnerLogged) return;
+    if (DAY.meals.dinner) return;
     const from = computeScore(componentsNow());
     RT.dinnerLogged = true;
+    dayLogMeal(RT.userId, 'dinner', loggingMacros());
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: 'Dinner' };
     save();
   },
   submitRecovery() {
-    if (RT.recoveryDone) return;
+    if (DAY.ciSubmitted) return;
     const from = computeScore(componentsNow());
     RT.recoveryDone = true;
+    daySubmitCheckin(RT.userId);
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: 'Recovery Check-In' };
     save();
   },
-  logWeight() { RT.weightLogged = true; save(); },
-  addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); save(); },
+  logWeight() { RT.weightLogged = true; dayLogWeight(RT.userId, parseFloat(S.weight.current)); save(); },
+  addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); },
   readNotifs() { RT.notifsRead = true; save(); },
+  setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); },
   day0Meal() {
-    if (RT.day0Breakfast) return;
+    if (DAY.meals.breakfast) return;
     const from = computeScore(componentsNow());
     RT.day0Breakfast = true;
+    dayLogMeal(RT.userId, 'breakfast', loggingMacros());
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: 'Breakfast' };
     save();
   },
-  startDay0() { RT.day0 = true; RT.day0Breakfast = false; RT.lastMove = null; save(); },
+  startDay0() { RT.day0 = true; RT.day0Breakfast = false; RT.lastMove = null; dayResetLocal(); pushDay(RT.userId, true); save(); },
   /* Coach assigns a requirement -> it lands on the athlete's Home + notifications. */
   assignReq(templateId) {
     const T = {
@@ -212,6 +234,8 @@ export const act = {
     } catch { /* fall back to athlete */ }
     RT.authRole = role;
     save();
+    await loadDay(RT.userId);
+    syncRtFromDay();
     return { ok: true, role };
   },
   async signOut() {
@@ -227,6 +251,8 @@ export const act = {
   },
   // Called by the router boot gate to sync RT from a restored Keychain session.
   _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },
+  // Load today's real day from Supabase and reflect it into the UI flags.
+  async hydrateDay() { await loadDay(RT.userId); syncRtFromDay(); },
 };
 window.__act = act;
 
@@ -254,7 +280,7 @@ export const S = {
   get possible() { return computeScore(componentsDone()); },
   get tier() { return tier(this.score); },
   scoreYesterday: 76,
-  get streakDays() { return RT.day0 ? 0 : 5; },
+  get streakDays() { return dayStreak(); },
   streakGraceUsed: false,
 
   get remainingCount() {

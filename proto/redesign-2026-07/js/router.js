@@ -109,7 +109,7 @@ async function boot() {
     const sb = window.sb;
     if (sb) {
       const { data } = await sb.auth.getSession();
-      if (data && data.session) { authed = true; act._syncSession(data.session.user); }
+      if (data && data.session) { authed = true; act._syncSession(data.session.user); await act.hydrateDay(); }
     }
   } catch { /* offline / no client → treat as signed out */ }
   const { route } = parse();

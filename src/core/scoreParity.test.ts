@@ -7,7 +7,7 @@ import { MEAL_MACROS } from './constants';
 import { mealMacros } from './mealEdit';
 import type { AppState } from './types';
 // proto is plain ESM JS (no types)
-// @ts-expect-error — importing the proto's ported compute functions
+// @ts-ignore — importing the proto's ported compute functions (allowJs)
 import { computeComponents, scoreFor } from '../../proto/redesign-2026-07/js/day.js';
 
 const MEAL_KEYS = ['breakfast', 'lunch', 'snack', 'dinner'] as const;

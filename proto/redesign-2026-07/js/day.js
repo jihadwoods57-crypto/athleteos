@@ -109,3 +109,141 @@ export function evidenceCeiling(day) {
   return (hasNutrition ? 55 : 0) + (hasCheckin ? 35 : 0) + (hasCommitment ? 15 : 0);
 }
 export function clampedScore(day) { return Math.min(scoreFor(day), evidenceCeiling(day)); }
+
+/* ================= real per-account day state + Supabase I/O ================= */
+// (browser-only below; the pure functions above stay Node-importable for the parity test.)
+
+function todayISO() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function addDaysISO(iso, n) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function minutesNow() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
+
+const DEFAULT_CI = { energy: 8, recovery: 7, sleep: 8, confidence: 9, soreness: 4, motivation: 8 };
+const DEFAULT_CICFG = { energy: true, recovery: true, sleep: true, confidence: true, soreness: false, motivation: false };
+
+export const DAY = {
+  date: todayISO(),
+  meals: { breakfast: false, lunch: false, snack: false, dinner: false },
+  mealLoggedAt: {},
+  slotMacros: {},
+  quickAdded: [false, false, false],
+  hydrationL: 0,
+  dailyCommitment: null,
+  ci: { ...DEFAULT_CI },
+  ciConfig: { ...DEFAULT_CICFG },
+  ciSubmitted: false,
+  ciLast: null,          // { date, recovery }
+  proteinTarget: 180,
+  scoringProfile: 'athlete',
+  currentWeight: null,
+  scoreHistory: [],      // [{date, score}] past days, for streak/trend
+};
+
+export function dayScore() { return scoreFor(DAY); }
+/** "If you finish today" projection — all requirements done — for the reach/possible messaging. */
+export function projectedDay() {
+  const p = JSON.parse(JSON.stringify(DAY));
+  p.meals = { breakfast: true, lunch: true, snack: true, dinner: true };
+  p.ciSubmitted = true;
+  p.dailyCommitment = 'yes';
+  return p;
+}
+export function dayComponents() { return computeComponents(DAY); }
+export function tierFor(s) { return s >= 90 ? { name: 'OnStandard', cls: 'g' } : s >= 75 ? { name: 'Locked In', cls: 'b' } : s >= 60 ? { name: 'Building', cls: 'a' } : { name: 'Off Standard', cls: 'r' }; }
+
+/** Simple honest streak: consecutive days >= 80 ending today (today must be live-on-standard). */
+export function streakDays() {
+  const THRESH = 80;
+  if (dayScore() < THRESH) return 0;
+  let days = 1;
+  let expect = addDaysISO(DAY.date, -1);
+  const hist = (DAY.scoreHistory || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  for (const h of hist) {
+    if (h.date === expect && h.score >= THRESH) { days++; expect = addDaysISO(expect, -1); }
+    else if (h.date <= expect) break; // a below-threshold day or a gap ends the run
+  }
+  return days;
+}
+
+/* ---- offline cache (per user) ---- */
+function cacheKey(userId) { return `onstd-day-${userId}-${DAY.date}`; }
+function saveCache(userId) { try { localStorage.setItem(cacheKey(userId), JSON.stringify(DAY)); } catch { /* quota */ } }
+function loadCache(userId) { try { const j = JSON.parse(localStorage.getItem(cacheKey(userId)) || 'null'); if (j && j.date === DAY.date) Object.assign(DAY, j); } catch { /* ignore */ } }
+
+/* ---- Supabase read/write ---- */
+function projectRowToDay(row) {
+  if (!row) return;
+  DAY.meals = { ...DAY.meals, ...(row.meals || {}) };
+  DAY.hydrationL = Number(row.hydration_l) || 0;
+  if (Array.isArray(row.quick_added) && row.quick_added.length) DAY.quickAdded = row.quick_added;
+  DAY.currentWeight = row.current_weight ?? null;
+  const ck = row.checkin || {};
+  DAY.ci = { energy: ck.energy ?? DAY.ci.energy, recovery: ck.recovery ?? DAY.ci.recovery, sleep: ck.sleep ?? DAY.ci.sleep, confidence: ck.confidence ?? DAY.ci.confidence, soreness: ck.soreness ?? DAY.ci.soreness, motivation: ck.motivation ?? DAY.ci.motivation };
+  DAY.ciSubmitted = !!ck.submitted;
+  DAY.ciLast = ck.ciLast && ck.ciLast.date ? ck.ciLast : (typeof ck.ciLast === 'string' ? { date: ck.ciLast, recovery: ck.recovery ?? 0 } : DAY.ciLast);
+  DAY.dailyCommitment = ck.commitment ?? DAY.dailyCommitment;
+  if (ck.slotMacros) DAY.slotMacros = ck.slotMacros;
+}
+
+export async function loadDay(userId) {
+  DAY.date = todayISO();
+  loadCache(userId); // instant offline paint
+  const sb = window.sb;
+  if (!sb || !userId) return;
+  try {
+    const { data } = await sb.from('days').select('*').eq('athlete_id', userId).eq('date', DAY.date).maybeSingle();
+    projectRowToDay(data);
+    const since = addDaysISO(DAY.date, -60);
+    const { data: hist } = await sb.from('days').select('date,score').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date');
+    if (Array.isArray(hist)) DAY.scoreHistory = hist.map((r) => ({ date: r.date, score: r.score ?? 0 }));
+    saveCache(userId);
+  } catch (e) { console.warn('[day] loadDay failed', e && e.message); }
+}
+
+let pushTimer = null;
+export function pushDay(userId, immediate) {
+  saveCache(userId);
+  if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
+  const doPush = async () => {
+    const sb = window.sb;
+    if (!sb || !userId) return;
+    const s = clampedScore(DAY);
+    const row = {
+      athlete_id: userId, date: DAY.date,
+      meals: DAY.meals, hydration_l: DAY.hydrationL, quick_added: DAY.quickAdded,
+      current_weight: DAY.currentWeight,
+      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, slotMacros: DAY.slotMacros },
+      score: s, grade: gradeFor(s),
+    };
+    try { await sb.from('days').upsert(row, { onConflict: 'athlete_id,date' }); }
+    catch (e) { console.warn('[day] pushDay failed', e && e.message); }
+  };
+  if (immediate) return doPush();
+  pushTimer = setTimeout(doPush, 1000); // debounce bursts of taps
+}
+
+export function dayResetLocal() {
+  DAY.meals = { breakfast: false, lunch: false, snack: false, dinner: false };
+  DAY.mealLoggedAt = {}; DAY.slotMacros = {}; DAY.quickAdded = [false, false, false];
+  DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
+  DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = [];
+}
+
+/* ---- mutators (each persists) ---- */
+export function dayLogMeal(userId, key, macros) {
+  if (!DAY.meals.hasOwnProperty(key)) return;
+  DAY.meals[key] = true;
+  DAY.mealLoggedAt[key] = minutesNow();
+  if (macros && typeof macros.protein === 'number') DAY.slotMacros[key] = { protein: macros.protein || 0, kcal: macros.kcal || 0, carbs: macros.carbs || 0, fat: macros.fat || 0 };
+  pushDay(userId);
+}
+export function daySubmitCheckin(userId, ciValues) {
+  if (ciValues) DAY.ci = { ...DAY.ci, ...ciValues };
+  DAY.ciSubmitted = true;
+  const rec = recoveryParts(DAY);
+  DAY.ciLast = { date: DAY.date, recovery: rec.score };
+  pushDay(userId);
+}
+export function daySetCommitment(userId, ans) { DAY.dailyCommitment = ans; pushDay(userId); }
+export function dayAddWaterOz(userId, oz) { DAY.hydrationL = Math.min(6, DAY.hydrationL + oz * 0.0295735); pushDay(userId); }
+export function dayLogWeight(userId, lb) { if (lb) DAY.currentWeight = Math.round(lb); pushDay(userId); }
+export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[i]; pushDay(userId); }
