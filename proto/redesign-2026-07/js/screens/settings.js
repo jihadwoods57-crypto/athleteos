@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead } from '../components.js';
+import { backHead, esc } from '../components.js';
 
 /* Context-aware AI replies: keyword-routed, plan-grounded, never contradicts the coach. */
 export function smartReply(text, fallback) {
@@ -25,7 +25,7 @@ export function wireComposer(root, replyWho = 'ai', replyName = 'OnStandard AI',
     const text = input.value.trim();
     if (!text) return;
     thread.insertAdjacentHTML('beforeend',
-      `<div class="msg athlete"><div><div class="bubble">${text.replace(/</g, '&lt;')}</div></div></div>`);
+      `<div class="msg athlete"><div><div class="bubble">${esc(text)}</div></div></div>`);
     input.value = '';
     if (onSend) onSend(text);
     setTimeout(() => {

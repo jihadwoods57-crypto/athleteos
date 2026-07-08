@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { appHead, scoreRing, animateRing } from '../components.js';
+import { appHead, scoreRing, animateRing, esc, safeImg } from '../components.js';
 
 /* status badge glyph per row state (mini-dot on the icon tile corner) */
 function badgeFor(r) {
@@ -13,7 +13,7 @@ function reqRow(r) {
   return `<div class="req-row ${r.done ? 'done' : ''}" data-go="${r.route}">
     <div class="req-icon ${r.accent}">${icon(r.icon, 20)}${badgeFor(r)}</div>
     <div class="req-main">
-      <div class="req-title">${r.title}</div>
+      <div class="req-title">${esc(r.title)}</div>
       <div class="req-sub ${r.subColor}">${r.sub}</div>
     </div>
     <div class="req-right">
@@ -26,8 +26,8 @@ function reqRow(r) {
 
 function actCard(a) {
   let media;
-  if (a.img) {
-    media = `<div class="act-media" style="background-image:url('${a.img}')">${a.dim ? `<div class="dim">${icon('moon', 30)}</div>` : ''}</div>`;
+  if (a.img && safeImg(a.img)) {
+    media = `<div class="act-media" style="background-image:url('${safeImg(a.img)}')">${a.dim ? `<div class="dim">${icon('moon', 30)}</div>` : ''}</div>`;
   } else {
     media = `<div class="act-media icon" style="background:linear-gradient(150deg, rgba(56,189,248,0.28), rgba(37,99,235,0.16));color:var(--cyan)">${icon('droplet', 34)}</div>`;
   }

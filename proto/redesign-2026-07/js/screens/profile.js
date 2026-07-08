@@ -1,12 +1,12 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead } from '../components.js';
+import { backHead, esc, safeImg } from '../components.js';
 
 function avatarEl(size = 62) {
   const a = S.athlete;
-  return a.avatar
-    ? `<div class="big-av" style="width:${size}px;height:${size}px;background-image:url('${a.avatar}');background-size:cover;background-position:center"></div>`
-    : `<div class="big-av" style="width:${size}px;height:${size}px">${a.initials}</div>`;
+  return a.avatar && safeImg(a.avatar)
+    ? `<div class="big-av" style="width:${size}px;height:${size}px;background-image:url('${safeImg(a.avatar)}');background-size:cover;background-position:center"></div>`
+    : `<div class="big-av" style="width:${size}px;height:${size}px">${esc(a.initials)}</div>`;
 }
 
 export default {
@@ -25,9 +25,9 @@ export default {
         <input type="file" id="avatar-file" accept="image/*" style="display:none" />
       </div>
       <div style="flex:1">
-        <div class="nm">${S.athlete.name}</div>
-        <div class="meta">${[S.athlete.sport, S.athlete.position].filter(Boolean).join(' · ') || 'Add your sport'}</div>
-        <div class="meta" style="margin-top:1px">${S.athlete.school || 'Add your school'}</div>
+        <div class="nm">${esc(S.athlete.name)}</div>
+        <div class="meta">${esc([S.athlete.sport, S.athlete.position].filter(Boolean).join(' · ') || 'Add your sport')}</div>
+        <div class="meta" style="margin-top:1px">${esc(S.athlete.school || 'Add your school')}</div>
       </div>
       <button class="btn ghost sm" style="width:auto;padding:0 16px;height:40px" data-go="edit-profile">Edit</button>
     </section>
@@ -112,7 +112,7 @@ export default {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="restrictions">
         <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Food restrictions & allergies</div><div class="ls">${RT.allergies.length ? RT.allergies.join(' · ') : 'None declared'}</div></div>
+        <div class="lm"><div class="lt">Food restrictions & allergies</div><div class="ls">${RT.allergies.length ? esc(RT.allergies.join(' · ')) : 'None declared'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="devices">
@@ -196,7 +196,7 @@ export const editProfile = {
     ${backHead('Edit Profile', 'Only what your coach and score need', 'profile')}
 
     <div class="eyebrow">Name</div>
-    <input class="ob-input" id="ep-name" value="${a.name}" placeholder="Your name" />
+    <input class="ob-input" id="ep-name" value="${esc(a.name)}" placeholder="Your name" />
 
     <div class="eyebrow">Sport</div>
     <div class="chip-row" id="ep-sport" data-toggle-group>
@@ -211,7 +211,7 @@ export const editProfile = {
     </div>
 
     <div class="eyebrow">School / organization</div>
-    <input class="ob-input" id="ep-school" value="${a.school}" placeholder="Your school or team" />
+    <input class="ob-input" id="ep-school" value="${esc(a.school)}" placeholder="Your school or team" />
 
     <div style="height:14px"></div>
     <div class="sidebox">

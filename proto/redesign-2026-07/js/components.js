@@ -2,6 +2,31 @@
 import { S } from './state.js';
 import { icon } from './icons.js';
 
+/* Every screen is rendered by concatenating template literals into device.innerHTML
+   (router.js), so any interpolated value that can carry user- or cross-user-authored text
+   is an HTML-injection sink. esc() HTML-entity-escapes the five significant characters,
+   including BOTH quote styles, so it is safe in text content AND in double/single-quoted
+   attribute contexts. Apply it at every such interpolation. */
+export function esc(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* Image values that flow into url('${...}') / background-image / src. Only allow our own
+   bundled assets and self-produced data:image base64 (camera captures, downscaled avatars).
+   The strict pattern rejects anything containing quotes, parens or whitespace, so a crafted
+   value can never break out of the url() context. Returns '' (harmless) when disallowed. */
+export function safeImg(v) {
+  const s = String(v == null ? '' : v);
+  const ok = /^data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(s)
+    || /^assets\/[\w./-]+$/.test(s);
+  return ok ? s : '';
+}
+
 /* Signature score ring — cinematic, uncontained. Layers:
    rotating aurora (CSS) → under-glow arc → thick gradient band → inner echo
    ring → comet tip + lens sparkle → center stack (label / N / /100 / delta / streak). */
@@ -114,21 +139,23 @@ export function appHead() {
   return `<header class="apphead">
     <div>
       <div class="greeting">${S.greeting},</div>
-      <div class="name">${S.athlete.first}</div>
+      <div class="name">${esc(S.athlete.first)}</div>
     </div>
     <div class="actions">
       <div class="iconbtn" data-go="notifications">${icon('bell', 20)}${n ? `<span class="dot">${n}</span>` : ''}</div>
-      ${S.athlete.avatar
-        ? `<div class="avatar" data-go="profile" style="background-image:url('${S.athlete.avatar}');background-size:cover;background-position:center"></div>`
-        : `<div class="avatar" data-go="profile">${S.athlete.initials}</div>`}
+      ${S.athlete.avatar && safeImg(S.athlete.avatar)
+        ? `<div class="avatar" data-go="profile" style="background-image:url('${safeImg(S.athlete.avatar)}');background-size:cover;background-position:center"></div>`
+        : `<div class="avatar" data-go="profile">${esc(S.athlete.initials)}</div>`}
     </div>
   </header>`;
 }
 
 export function backHead(title, sub, to = 'home') {
+  // title/sub can carry cross-user text (e.g. a coach-assigned requirement title) — escape here
+  // so every caller is safe. All current callers pass plain text, so this only hardens.
   return `<div class="back-head">
     <div class="bk" data-go="${to}">${icon('back', 20)}</div>
-    <div><div class="ht">${title}</div>${sub ? `<div class="hs">${sub}</div>` : ''}</div>
+    <div><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
   </div>`;
 }
 

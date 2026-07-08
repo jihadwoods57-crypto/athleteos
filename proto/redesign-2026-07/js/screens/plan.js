@@ -1,5 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
+import { esc } from '../components.js';
 import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, fmtMin } from '../requirements.js';
 
 const P = S.plan;
@@ -130,7 +131,7 @@ const schedule = () => `
         <div style="display:flex;align-items:center;gap:12px">
           <div class="req-icon ${a.done ? 'g' : 'b'}" style="width:40px;height:40px">${icon(a.icon || 'clipboard', 18)}</div>
           <div style="flex:1">
-            <div style="font-size:15px;font-weight:800">${a.title} <small style="color:var(--blue-bright);font-weight:700">· from coach</small></div>
+            <div style="font-size:15px;font-weight:800">${esc(a.title)} <small style="color:var(--blue-bright);font-weight:700">· from coach</small></div>
             <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">One-time · ${a.dueLabel}</div>
           </div>
           ${icon('chevron', 16, 'style="color:var(--text-3)"')}
@@ -151,8 +152,8 @@ const notes = () => `
       <div class="msg ${n.who}">
         <div class="av">${n.who === 'coach' ? 'M' : icon('sparkle', 15)}</div>
         <div>
-          <div class="who">${n.name} · ${n.when}</div>
-          <div class="bubble">${n.text}</div>
+          <div class="who">${esc(n.name)} · ${esc(n.when)}</div>
+          <div class="bubble">${esc(n.text)}</div>
         </div>
       </div>`).join('')}
   </div>

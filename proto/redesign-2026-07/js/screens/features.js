@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead } from '../components.js';
+import { backHead, esc } from '../components.js';
 
 /* ============================================================
    The 11 approved ideas, made walkable. Live where possible,
@@ -66,7 +66,7 @@ export const recruiting = {
       <div style="display:flex;align-items:center;gap:14px">
         <div class="req-icon g" style="width:52px;height:52px;border-radius:16px">${icon('shield', 25)}</div>
         <div style="flex:1">
-          <div style="font-size:17px;font-weight:800">${[S.athlete.name, S.athlete.position].filter(Boolean).join(' · ')}</div>
+          <div style="font-size:17px;font-weight:800">${esc([S.athlete.name, S.athlete.position].filter(Boolean).join(' · '))}</div>
           <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">Verified by ${S.coach.name}, ${S.coach.team}</div>
         </div>
       </div>
@@ -154,7 +154,7 @@ export const teamDiet = {
       ${rows.map(x => `
         <div class="lrow" style="cursor:default">
           <div class="lic" style="${x.sev ? 'background:var(--red-surface);color:var(--red)' : ''}">${icon(x.sev ? 'bell' : 'check', 16)}</div>
-          <div class="lm"><div class="lt">${x.n}</div><div class="ls">${x.r.join(' · ')}</div></div>
+          <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.r.join(' · '))}</div></div>
           ${x.sev ? '<span class="status-pill" style="color:var(--red);border-color:var(--red-border)">Severe</span>' : ''}
         </div>`).join('')}
     </section>

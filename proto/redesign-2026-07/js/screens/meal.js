@@ -1,6 +1,6 @@
 import { S, RT, tier, act, MEAL } from '../state.js';
 import { icon, checkFill } from '../icons.js';
-import { backHead } from '../components.js';
+import { backHead, esc, safeImg } from '../components.js';
 
 function macroRow(m) {
   return `<div class="macro-row">
@@ -16,7 +16,7 @@ export const analyzing = {
   tab: 'camera',
   hideTabs: true,
   render() {
-    const img = (MEAL && MEAL.photoDataUrl) || S.logging.img;
+    const img = safeImg((MEAL && MEAL.photoDataUrl) || S.logging.img);
     return `
     <div class="analyzing">
       <div class="scanbox">
@@ -56,17 +56,17 @@ export const analysis = {
     return `
     ${backHead(`${L.name} Analysis`, 'Check it before it counts', 'camera')}
 
-    <div class="photo-hero" style="background-image:url('${L.img}')">
+    <div class="photo-hero" style="background-image:url('${safeImg(L.img)}')">
       <div class="ph-grad"></div>
       <div class="ph-meta">
-        <div><div class="ph-t">${L.name}</div><div class="ph-s">Captured just now · on time</div></div>
+        <div><div class="ph-t">${esc(L.name)}</div><div class="ph-s">Captured just now · on time</div></div>
         <div class="scorechip"><span class="v">${L.score}</span><span class="k">Meal</span></div>
       </div>
     </div>
 
     <div class="eyebrow">Detected <span class="link" id="edit-foods">Edit</span></div>
     <div class="foodchips" id="foods">
-      ${L.foods.map(f => `<span class="foodchip"><span class="dot"></span>${f}</span>`).join('')}
+      ${L.foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(f)}</span>`).join('')}
     </div>
 
     <div class="eyebrow">One quick check</div>
@@ -84,7 +84,7 @@ export const analysis = {
         ${L.componentsRead.map(c => `
           <div class="cr">
             <div class="ci ${c.ok === true ? 'ok' : 'warn'}">${icon(c.ok === true ? 'check' : 'clock', 13)}</div>
-            <span class="ck">${c.k}</span><span class="cv">${c.v}</span>
+            <span class="ck">${esc(c.k)}</span><span class="cv">${esc(c.v)}</span>
           </div>`).join('')}
       </div>
     </section>
@@ -95,18 +95,18 @@ export const analysis = {
     <div style="height:16px"></div>
     <div class="sidebox" style="border-color:var(--green-border)">
       <div class="req-icon g" style="width:38px;height:38px">${checkFill(20)}</div>
-      <div><div class="tt">${L.planMatch.verdict}</div><div class="ts">${L.planMatch.detail}</div></div>
+      <div><div class="tt">${esc(L.planMatch.verdict)}</div><div class="ts">${esc(L.planMatch.detail)}</div></div>
     </div>
 
     <div style="height:14px"></div>
     <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--green-surface);border:1px solid var(--green-border)">
-      ${icon('shield', 15)} <span style="font-size:12.5px;font-weight:700;color:var(--green-bright)">Guardian: no conflicts with your restrictions (${RT.allergies.length ? RT.allergies.join(', ') : 'none declared'})</span>
+      ${icon('shield', 15)} <span style="font-size:12.5px;font-weight:700;color:var(--green-bright)">Guardian: no conflicts with your restrictions (${RT.allergies.length ? esc(RT.allergies.join(', ')) : 'none declared'})</span>
     </div>
 
     <div style="height:12px"></div>
     <div class="ai-note">
       <div class="av">${icon('sparkle', 18)}</div>
-      <div><div class="who">AI Feedback</div><p>${L.ai}</p></div>
+      <div><div class="who">AI Feedback</div><p>${esc(L.ai)}</p></div>
     </div>
 
     ${already ? '' : RT.day0
@@ -184,7 +184,7 @@ export const confirm = {
     <div style="height:22px"></div>
     <div class="ai-note">
       <div class="av">${icon('sparkle', 18)}</div>
-      <div><div class="who">AI Insight</div><p>${S.logging.ai}</p></div>
+      <div><div class="who">AI Insight</div><p>${esc(S.logging.ai)}</p></div>
     </div>
 
     <div style="height:20px"></div>
@@ -224,17 +224,17 @@ export const detail = {
     return `
     ${backHead(M.name, `Logged ${M.loggedAt} · On time`)}
 
-    <div class="photo-hero" style="background-image:url('${M.img}')">
+    <div class="photo-hero" style="background-image:url('${safeImg(M.img)}')">
       <div class="ph-grad"></div>
       <div class="ph-meta">
-        <div><div class="ph-t">${M.name}</div><div class="ph-s">On time · counted toward Nutrition (50%)</div></div>
+        <div><div class="ph-t">${esc(M.name)}</div><div class="ph-s">On time · counted toward Nutrition (50%)</div></div>
         <div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>
       </div>
     </div>
 
     <div class="eyebrow">Detected foods</div>
     <div class="foodchips">
-      ${M.foods.map(f => `<span class="foodchip"><span class="dot"></span>${f}</span>`).join('')}
+      ${M.foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(f)}</span>`).join('')}
     </div>
 
     <div class="eyebrow">Macros · share of today's targets</div>
@@ -251,7 +251,7 @@ export const detail = {
     <div style="height:16px"></div>
     <div class="sidebox">
       <div class="req-icon g" style="width:38px;height:38px">${checkFill(20)}</div>
-      <div><div class="tt">Plan check</div><div class="ts">${M.planNote}</div></div>
+      <div><div class="tt">Plan check</div><div class="ts">${esc(M.planNote)}</div></div>
     </div>
 
     <div class="eyebrow">Ask the AI</div>
@@ -268,8 +268,8 @@ export const detail = {
         <div class="msg ${m.who}">
           ${m.who !== 'athlete' ? `<div class="av">${m.who === 'coach' ? 'M' : icon('sparkle', 15)}</div>` : ''}
           <div>
-            ${m.who !== 'athlete' ? `<div class="who">${m.name}</div>` : ''}
-            <div class="bubble">${m.text}</div>
+            ${m.who !== 'athlete' ? `<div class="who">${esc(m.name)}</div>` : ''}
+            <div class="bubble">${esc(m.text)}</div>
           </div>
         </div>`).join('')}
     </div>` : ''}

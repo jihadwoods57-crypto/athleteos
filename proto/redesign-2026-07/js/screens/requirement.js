@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead } from '../components.js';
+import { backHead, esc } from '../components.js';
 import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, deriveAssigned } from '../requirements.js';
 
 /* Requirement Detail — every rule in the system is legible: what it is, when,
@@ -51,7 +51,7 @@ export default {
     <div class="eyebrow">Why it's on your standard</div>
     <div class="coachnote">
       <div class="who"><div class="av">M</div><div><div class="nm">${S.coach.name}</div><div class="rl">${assigned ? 'On this task' : 'On this requirement'}</div></div></div>
-      <p>“${req.note}”</p>
+      <p>“${esc(req.note)}”</p>
     </div>
 
     <div style="height:18px"></div>

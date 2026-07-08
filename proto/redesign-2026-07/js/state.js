@@ -22,13 +22,16 @@ export const MEAL = { key: null, mealType: null, photoBase64: null, photoDataUrl
    can never spike the score — a lightweight port of macroGrounding for v1. */
 function groundResult(d) {
   const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(v || 0)));
+  // Belt-and-braces: the AI response is untrusted text. Strip angle brackets at the source so a
+  // crafted analyze-meal payload can never inject markup (render sites still escape as well).
+  const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
   const protein = clampN(d.protein, 120), carbs = clampN(d.carbs, 250), fat = clampN(d.fat, 150);
   const kcal = clampN(d.kcal || (4 * protein + 4 * carbs + 9 * fat), 2200);
   return {
-    name: d.name || 'Meal', quality: clampN(d.quality, 100),
+    name: clean(d.name) || 'Meal', quality: clampN(d.quality, 100),
     protein, carbs, fat, kcal,
-    detected: Array.isArray(d.detected) ? d.detected.slice(0, 8) : [],
-    note: d.note || '',
+    detected: Array.isArray(d.detected) ? d.detected.slice(0, 8).map(clean).filter(Boolean) : [],
+    note: clean(d.note),
   };
 }
 
