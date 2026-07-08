@@ -17,6 +17,16 @@ const DIM = c('\x1b[2m'), BOLD = c('\x1b[1m'), RST = c('\x1b[0m');
 
 const git = (args) => execSync(`git ${args}`, { encoding: 'utf8' }).trim();
 
+// Rebuild the bundled proto from source so a stale assets/proto.zip can never ship. If the
+// proto changed since the last zip, this makes the tree dirty and the clean-tree gate below
+// stops the build until you commit the regenerated bundle — never a silent stale-proto ship.
+try {
+  execSync('node scripts/build-proto-zip.mjs', { stdio: 'inherit' });
+} catch {
+  console.error(`${RED}✗ preflight: failed to rebuild assets/proto.zip. Aborting.${RST}`);
+  process.exit(1);
+}
+
 let branch, commit, subject, dirty;
 try {
   branch = git('rev-parse --abbrev-ref HEAD');

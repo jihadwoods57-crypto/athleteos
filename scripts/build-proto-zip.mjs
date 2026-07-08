@@ -29,7 +29,9 @@ for (const p of files) {
   entries[rel] = new Uint8Array(readFileSync(p));
 }
 
-const zipped = zipSync(entries, { level: 6 });
+// Pin a fixed mtime so the zip is byte-deterministic across runs (otherwise fflate stamps
+// "now" into every entry, changing the content hash every build and dirtying the tree forever).
+const zipped = zipSync(entries, { level: 6, mtime: new Date('2020-01-01T00:00:00Z') });
 mkdirSync(dirname(OUT_ZIP), { recursive: true });
 writeFileSync(OUT_ZIP, zipped);
 
