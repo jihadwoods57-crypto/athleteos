@@ -193,8 +193,8 @@ export async function loadDay(userId) {
     const { data } = await sb.from('days').select('*').eq('athlete_id', userId).eq('date', DAY.date).maybeSingle();
     projectRowToDay(data);
     const since = addDaysISO(DAY.date, -60);
-    const { data: hist } = await sb.from('days').select('date,score').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date');
-    if (Array.isArray(hist)) DAY.scoreHistory = hist.map((r) => ({ date: r.date, score: r.score ?? 0 }));
+    const { data: hist } = await sb.from('days').select('date,score,current_weight').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date');
+    if (Array.isArray(hist)) DAY.scoreHistory = hist.map((r) => ({ date: r.date, score: r.score ?? 0, weight: r.current_weight ?? null }));
     saveCache(userId);
   } catch (e) { console.warn('[day] loadDay failed', e && e.message); }
 }

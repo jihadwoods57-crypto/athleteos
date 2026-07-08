@@ -167,7 +167,7 @@ export const act = {
     RT.lastMove = { from, to, gain: to - from, what: 'Recovery Check-In' };
     save();
   },
-  logWeight() { RT.weightLogged = true; dayLogWeight(RT.userId, parseFloat(S.weight.current)); save(); },
+  logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; dayLogWeight(RT.userId, v); save(); },
   addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); },
   readNotifs() { RT.notifsRead = true; save(); },
   setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); },
@@ -309,10 +309,14 @@ export const act = {
     if (!sb || !userId) return;
     try {
       const { data: prof } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-      const { data: ap } = await sb.from('athlete_profiles').select('sport,position,level').eq('athlete_id', userId).maybeSingle();
+      const { data: ap } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,season_goal').eq('athlete_id', userId).maybeSingle();
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
-      if (ap) { if (ap.sport) patch.sport = ap.sport; if (ap.position) patch.position = ap.position; if (ap.level) patch.level = ap.level; }
+      if (ap) {
+        if (ap.sport) patch.sport = ap.sport; if (ap.position) patch.position = ap.position; if (ap.level) patch.level = ap.level;
+        if (ap.base_weight != null) patch.baseWeight = ap.base_weight;
+        if (ap.season_goal && typeof ap.season_goal === 'object') patch.seasonGoal = ap.season_goal;
+      }
       if (Object.keys(patch).length) { RT.profile = { ...(RT.profile || {}), ...patch }; save(); }
     } catch { /* offline / RLS — keep whatever identity we have */ }
   },
@@ -628,8 +632,33 @@ export const S = {
       meals: [ { type: 'Breakfast', score: 95, img: 'assets/meal-breakfast.jpg' }, { type: 'Lunch', score: 91, img: 'assets/meal-lunch.jpg' }, { type: 'Dinner', score: 88, img: 'assets/meal-dinner.jpg' } ] },
   ],
 
-  // ---------- WEIGHT ----------
-  weight: { current: '183.8', unit: 'lb', target: 188, start: 179, lastLogged: 'Fri 7:02 AM', deltaMonth: '+1.2 lb', pace: 'On pace', history: [180.1, 180.9, 181.6, 182.4, 182.0, 183.1, 183.8] },
+  // ---------- WEIGHT (real: today's log + historical current_weight rows) ----------
+  // Nothing here is invented. current = today's log or the latest real historical value.
+  // target/start come from the athlete's season_goal (athlete_profiles). deltaMonth/pace
+  // stay null until there are ≥2 real data points / a real target — the UI hides them.
+  get weight() {
+    const p = RT.profile || {};
+    const sg = p.seasonGoal || {};
+    const rows = (DAY.scoreHistory || []).filter(h => h.weight != null).map(h => Number(h.weight));
+    const history = DAY.currentWeight != null ? [...rows, Number(DAY.currentWeight)] : rows;
+    const current = history.length ? history[history.length - 1] : (p.baseWeight != null ? Number(p.baseWeight) : null);
+    const target = sg.target != null ? Number(sg.target) : null;
+    const start = sg.start != null ? Number(sg.start) : (p.baseWeight != null ? Number(p.baseWeight) : null);
+    let deltaMonth = null;
+    if (history.length >= 2) {
+      const d = history[history.length - 1] - history[0];
+      deltaMonth = `${d >= 0 ? '+' : ''}${d.toFixed(1)} lb`;
+    }
+    let pace = null;
+    if (target != null && current != null && history.length >= 2) {
+      pace = Math.abs(target - current) <= Math.abs(target - history[0]) ? 'On pace' : 'Off pace';
+    }
+    return {
+      current: current != null ? String(current) : null,
+      unit: 'lb', target, start, history,
+      deltaMonth, pace,
+    };
+  },
 
   // ---------- RECOVERY (engine-driven: these questions ARE the scoring inputs) ----------
   get recovery() {

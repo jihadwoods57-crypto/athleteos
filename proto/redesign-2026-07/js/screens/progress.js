@@ -83,11 +83,13 @@ export default {
 
     <div class="eyebrow">Weight Trend</div>
     <section class="card pad" data-go="weight" style="cursor:pointer">
+      ${S.weight.current != null ? `
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div class="bigstat"><span class="n" style="font-size:32px">${S.weight.current}</span><span class="d">${S.weight.deltaMonth} this month</span></div>
-        <span class="status-pill g">${S.weight.pace}</span>
+        <div class="bigstat"><span class="n" style="font-size:32px">${S.weight.current}</span>${S.weight.deltaMonth ? `<span class="d">${S.weight.deltaMonth}</span>` : ''}</div>
+        ${S.weight.pace ? `<span class="status-pill ${S.weight.pace === 'On pace' ? 'g' : 'a'}">${S.weight.pace}</span>` : ''}
       </div>
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">Goal ${S.weight.target} lb · doesn't affect the daily score</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${S.weight.target != null ? `Goal ${S.weight.target} lb · ` : ''}doesn't affect the daily score</div>`
+      : `<div style="font-size:13.5px;font-weight:600;color:var(--text-2)">No weight logged yet. Tap to log your first — it builds your season trend, never your daily score.</div>`}
     </section>
 
     <div class="eyebrow">Where You Lost Points</div>
