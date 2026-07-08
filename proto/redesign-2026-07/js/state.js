@@ -347,13 +347,15 @@ export const act = {
     if (!sb || !userId) return;
     try {
       const { data: prof } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-      const { data: ap } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,season_goal').eq('athlete_id', userId).maybeSingle();
+      const { data: ap } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets').eq('athlete_id', userId).maybeSingle();
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
       if (ap) {
         if (ap.sport) patch.sport = ap.sport; if (ap.position) patch.position = ap.position; if (ap.level) patch.level = ap.level;
         if (ap.base_weight != null) patch.baseWeight = ap.base_weight;
+        if (ap.base_goal) patch.baseGoal = ap.base_goal;
         if (ap.season_goal && typeof ap.season_goal === 'object') patch.seasonGoal = ap.season_goal;
+        if (ap.targets && typeof ap.targets === 'object') patch.targets = ap.targets;
       }
       if (Object.keys(patch).length) { RT.profile = { ...(RT.profile || {}), ...patch }; save(); }
     } catch { /* offline / RLS — keep whatever identity we have */ }
@@ -437,6 +439,18 @@ export const S = {
   // The slot a manual/camera log should fill right now (next open by time of day), or null if
   // every meal is already logged. Drives the food-search / label-scan log buttons.
   get currentSlot() { return nextOpenSlot(); },
+  // The athlete's REAL coach-set nutrition targets (athlete_profiles.targets), or null if none.
+  get planTargets() {
+    const t = (RT.profile && RT.profile.targets) || null;
+    if (!t) return null;
+    const v = (x) => (x != null && x !== '' ? x : null);
+    const out = { protein: v(t.protein), calories: v(t.calories), weight: v(t.weight) };
+    return (out.protein || out.calories || out.weight) ? out : null;
+  },
+  get planGoalLabel() {
+    const g = RT.profile && RT.profile.baseGoal;
+    return g === 'gain' ? 'Gain weight' : g === 'lose' ? 'Lose fat' : g === 'maintain' ? 'Maintain' : g === 'perform' ? 'Perform' : null;
+  },
 
   get remainingCount() {
     if (RT.day0) return RT.day0Breakfast ? 3 : 4;
@@ -608,30 +622,14 @@ export const S = {
   get unreadNotifs() { return RT.notifsRead ? 0 : this.notifications.new.length; },
 
   // ---------- PLAN ----------
+  // Per-athlete plan claims are now real getters (planTargets/planGoalLabel + S.weight). This
+  // object holds only GENERIC nutrition guidance (not per-athlete facts) + the honest notes feed.
   plan: {
-    title: "Today's Game Plan", coachLine: 'Set by Coach Mark · Updated 2h ago',
-    phase: 'Lean Mass Phase · Week 2 of 6',
-    objectiveTitle: 'Fuel training. Recover hard.',
-    objectiveBody: 'Hydration is the focus today. Hit 120 oz and complete your recovery check-in before bed.',
-    goal: 'Lean mass', targetW: '188 lb', currentW: '183.8 lb', focus: 'Hydration + meal timing',
-    macros: { protein: '190g', carbs: '260g', fat: '70g', cals: '2,400', water: '120 oz' },
-    windows: [
-      { k: 'Breakfast', v: '7–10 AM' }, { k: 'Lunch', v: '12–2 PM' }, { k: 'Dinner', v: '6–8 PM' }, { k: 'Snack', v: 'Optional' },
-    ],
-    coachNote: 'Prioritize protein at breakfast. Keep carbs around training. Don’t skip lunch. Hydration is the standard this week.',
     plate: ['1 protein', '1 carb', '1 color', '1 fluid'],
     swaps: [
       { k: 'Protein', v: 'chicken · steak · eggs · turkey · Greek yogurt · tuna' },
       { k: 'Carbs', v: 'rice · potatoes · oats · pasta · fruit · tortillas' },
       { k: 'On the go', v: 'Chipotle bowl · grilled sandwich · smoothie · rice bowl' },
-    ],
-    schedule: [
-      { title: 'Morning Weight', freq: 'Required Mon / Wed / Fri', due: 'Due by 9:00 AM', proof: 'Photo not required', impact: 'Logging streak · not scored', accent: 'a', icon: 'scale' },
-      { title: 'Breakfast', freq: 'Required daily', due: 'Due by 10:00 AM', proof: 'Photo required', impact: 'Nutrition (50%)', accent: 'g', icon: 'utensils' },
-      { title: 'Lunch', freq: 'Required daily', due: 'Due by 2:00 PM', proof: 'Photo required', impact: 'Nutrition (50%)', accent: 'g', icon: 'bowl' },
-      { title: 'Dinner', freq: 'Required daily', due: 'Due by 8:00 PM', proof: 'Photo required', impact: 'Nutrition (50%)', accent: 'b', icon: 'bowl' },
-      { title: 'Recovery Check-In', freq: 'Required daily', due: 'Before bed', proof: 'Quick form', impact: 'Recovery (25%)', accent: 'p', icon: 'moon' },
-      { title: 'Weekly Check-In', freq: 'Required weekly', due: 'Sundays', proof: 'Form + weight', impact: 'Check-in (10%)', accent: 'g', icon: 'clipboard' },
     ],
     // Plan-change notes have no backend feed (coach changes are targets via coach_set_goals).
     // Only surface a real published update if one exists; otherwise honestly empty.

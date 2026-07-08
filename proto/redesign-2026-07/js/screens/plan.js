@@ -12,56 +12,55 @@ function tabs(active) {
 }
 
 function head() {
+  const goal = S.planGoalLabel;
   return `
   <div class="screen-title">Plan</div>
   <div style="display:flex;align-items:center;justify-content:space-between">
     <div>
-      <div style="font-size:16px;font-weight:800">${P.title}</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">${P.coachLine}</div>
+      <div style="font-size:16px;font-weight:800">Your nutrition plan</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">${S.planTargets ? 'Targets set by your coach' : 'Log meals — your coach can set targets any time'}</div>
     </div>
-    <span class="status-pill b">${P.phase.split('·')[1].trim()}</span>
-  </div>
-  <div style="font-size:12px;font-weight:700;color:var(--text-3);margin-top:6px">${P.phase.split('·')[0].trim()}</div>
-  <div class="phase-bar">${Array.from({ length: 6 }, (_, i) => `<div class="pb ${i < 2 ? 'on' : ''}"></div>`).join('')}</div>`;
+    ${goal ? `<span class="status-pill b">${esc(goal)}</span>` : ''}
+  </div>`;
 }
 
-const overview = () => `
+// Real coach-set targets when present; honest dashes when the coach hasn't set them.
+function targetsRow() {
+  const T = S.planTargets || {};
+  return `<div class="macro-row">
+    <div class="macro"><div class="mv">${T.protein != null ? esc(T.protein) + 'g' : '—'}</div><div class="mk">Protein</div></div>
+    <div class="macro"><div class="mv">${T.calories != null ? esc(T.calories) : '—'}</div><div class="mk">Calories</div></div>
+    <div class="macro"><div class="mv">${T.weight != null ? esc(T.weight) + ' lb' : '—'}</div><div class="mk">Target wt</div></div>
+  </div>`;
+}
+
+const overview = () => {
+  const T = S.planTargets;
+  return `
   <div class="eyebrow">Today's Objective</div>
   <section class="card pad" style="display:flex;gap:14px;align-items:flex-start">
     <div class="req-icon b" style="width:44px;height:44px;border-radius:14px">${icon('bolt', 21)}</div>
     <div>
-      <div style="font-size:17px;font-weight:800;letter-spacing:-0.01em">${P.objectiveTitle}</div>
-      <p style="font-size:14px;font-weight:600;color:var(--text-2);line-height:1.5;margin-top:6px">${P.objectiveBody}</p>
+      <div style="font-size:17px;font-weight:800;letter-spacing:-0.01em">${T ? 'Hit your targets, log every meal' : 'Log every meal, on time'}</div>
+      <p style="font-size:14px;font-weight:600;color:var(--text-2);line-height:1.5;margin-top:6px">${T
+        ? `Your coach set ${T.protein != null ? T.protein + 'g protein' : 'your targets'}${T.calories != null ? ` and ${T.calories} calories` : ''}. Nutrition is 50% of your score — consistency is the win.`
+        : 'Your coach hasn’t set targets yet. Consistency is the plan: three meals with photo proof and your recovery check-in each day.'}</p>
     </div>
   </section>
 
   <div class="eyebrow">Plan Summary</div>
   <div class="tiles2">
-    <div class="tile"><div class="k">Goal</div><div class="v">${P.goal}</div></div>
-    <div class="tile"><div class="k">Target weight</div><div class="v">${P.targetW}</div></div>
-    <div class="tile"><div class="k">Current</div><div class="v">${P.currentW}</div></div>
-    <div class="tile"><div class="k">Coach focus</div><div class="v" style="font-size:14.5px;line-height:1.3">${P.focus}</div></div>
+    <div class="tile"><div class="k">Goal</div><div class="v">${esc(S.planGoalLabel || '—')}</div></div>
+    <div class="tile"><div class="k">Target weight</div><div class="v">${S.weight.target != null ? S.weight.target + ' lb' : '—'}</div></div>
+    <div class="tile"><div class="k">Current</div><div class="v">${S.weight.current != null ? S.weight.current + ' lb' : '—'}</div></div>
+    <div class="tile"><div class="k">Protein target</div><div class="v">${T && T.protein != null ? T.protein + 'g' : '—'}</div></div>
   </div>
 
-  <div class="eyebrow">Nutrition Structure</div>
+  <div class="eyebrow">Coach Targets</div>
   <section class="card pad">
-    <div class="macro-row">
-      <div class="macro"><div class="mv">${P.macros.protein}</div><div class="mk">Protein</div></div>
-      <div class="macro"><div class="mv">${P.macros.carbs}</div><div class="mk">Carbs</div></div>
-      <div class="macro"><div class="mv">${P.macros.fat}</div><div class="mk">Fat</div></div>
-      <div class="macro"><div class="mv">${P.macros.water}</div><div class="mk">Water</div></div>
-    </div>
-    <div class="list" style="margin-top:8px">
-      ${P.windows.map(w => `<div class="lrow" style="cursor:default"><div class="lm"><div class="lt">${w.k}</div></div><div class="lv">${w.v}</div></div>`).join('')}
-    </div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:4px">Structure only. Live progress lives on Home.</div>
+    ${targetsRow()}
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:8px">${T ? 'Set by your coach. Live progress lives on Home.' : 'No targets set yet — your coach can add them any time.'}</div>
   </section>
-
-  <div class="eyebrow">Coach Note</div>
-  <div class="coachnote">
-    <div class="who"><div class="av">M</div><div><div class="nm">${S.coach.name}</div><div class="rl">${S.coach.role}</div></div></div>
-    <p>“${P.coachNote}”</p>
-  </div>
 
   <div class="eyebrow">Need clarity?</div>
   <div class="btn-row">
@@ -69,15 +68,11 @@ const overview = () => `
     <button class="btn primary sm" style="flex:1" data-go="plan/notes">${icon('sparkle', 17)} Ask AI</button>
   </div>
   <div style="height:10px"></div>`;
+};
 
 const nutrition = () => `
-  <div class="eyebrow">Macro Targets</div>
-  <div class="macro-row">
-    <div class="macro"><div class="mv">${P.macros.protein}</div><div class="mk">Protein</div></div>
-    <div class="macro"><div class="mv">${P.macros.carbs}</div><div class="mk">Carbs</div></div>
-    <div class="macro"><div class="mv">${P.macros.fat}</div><div class="mk">Fat</div></div>
-    <div class="macro"><div class="mv">${P.macros.cals}</div><div class="mk">Calories</div></div>
-  </div>
+  <div class="eyebrow">Macro Targets ${S.planTargets ? '' : '· not set yet'}</div>
+  ${targetsRow()}
 
   <div class="eyebrow">Build Your Plate</div>
   <section class="card pad" style="display:flex;gap:8px">
@@ -93,11 +88,11 @@ const nutrition = () => `
       </div>`).join('')}
   </section>
 
-  <div class="eyebrow">Hydration Rules</div>
+  <div class="eyebrow">Hydration</div>
   <div class="sidebox">
     <div class="req-icon b" style="width:38px;height:38px;color:var(--cyan);background:var(--cyan-surface)">${icon('droplet', 18)}</div>
-    <div><div class="tt">${P.macros.water} daily: this week's standard</div>
-    <div class="ts">Get 20 oz in before practice. Water with every meal. Finish before 9 PM so sleep stays clean.</div></div>
+    <div><div class="tt">Water with every meal</div>
+    <div class="ts">Get some in before practice, drink with each meal, and finish before bed so sleep stays clean. General guidance — not a scored target.</div></div>
   </div>
 
   <div style="height:16px"></div>
