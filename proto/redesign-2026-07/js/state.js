@@ -12,7 +12,7 @@ import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor,
   streakDays as dayStreak, loadDay, pushDay, uploadMealPhoto,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
-  MEAL_KEYS, DEADLINE, minutesNow,
+  insertMeal, MEAL_KEYS, DEADLINE, minutesNow,
 } from './day.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
@@ -203,9 +203,18 @@ export const act = {
     const slot = nextOpenSlot(slotArg) || slotArg || MEAL.key;
     if (!slot || !MEAL_KEYS.includes(slot) || DAY.meals[slot]) return;
     const from = computeScore(componentsNow());
-    const meta = MEAL.result ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note } : null;
-    dayLogMeal(RT.userId, slot, loggingMacros(), meta);
-    if (MEAL.photoBase64 && MEAL.key === slot) uploadMealPhoto(RT.userId, slot, MEAL.photoBase64);
+    const meta = MEAL.result
+      ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note, name: MEAL.result.name || MEAL.mealType }
+      : { name: MEAL.mealType || cap(slot) };
+    const macros = loggingMacros();
+    dayLogMeal(RT.userId, slot, macros, meta);
+    const hasPhoto = MEAL.photoBase64 && MEAL.key === slot;
+    if (hasPhoto) uploadMealPhoto(RT.userId, slot, MEAL.photoBase64);
+    // Insert a real `meals` row so a coach can review + comment; persist the id for the thread.
+    const photoPath = hasPhoto ? `${RT.userId}/${DAY.date}/${slot}.jpg` : null;
+    insertMeal(RT.userId, slot, macros, meta, photoPath).then((id) => {
+      if (id) { DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), mealId: id }; pushDay(RT.userId); }
+    });
     // keep legacy flags in sync for any screen still reading them
     if (slot === 'dinner') RT.dinnerLogged = true;
     if (slot === 'breakfast') RT.day0Breakfast = true;

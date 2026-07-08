@@ -257,6 +257,32 @@ export function dayAddWaterOz(userId, oz) { DAY.hydrationL = Math.min(6, DAY.hyd
 export function dayLogWeight(userId, lb) { if (lb) DAY.currentWeight = Math.round(lb); pushDay(userId); }
 export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[i]; pushDay(userId); }
 
+/** Insert a real row into the `meals` table (mirrors the RN insertMeal / mapMealToRow) so a coach
+ *  can review and comment on the plate. The proto otherwise only writes `days`; coach review +
+ *  meal_comments key on a real meal id. Best-effort — a failed insert never blocks logging.
+ *  Returns the new meal id (or null) so callers can persist it for the comment thread. */
+export async function insertMeal(userId, key, macros, meta, photoPath) {
+  const sb = window.sb;
+  if (!sb || !userId) return null;
+  try {
+    const m = meta || {};
+    const row = {
+      athlete_id: userId, day_date: DAY.date, type: key,
+      photo_path: photoPath || null,
+      name: m.name || (key.charAt(0).toUpperCase() + key.slice(1)),
+      protein: (macros && macros.protein) || 0, kcal: (macros && macros.kcal) || 0,
+      carbs: (macros && macros.carbs) || 0, fat: (macros && macros.fat) || 0,
+      quality: m.quality != null ? m.quality : null,
+      detected: Array.isArray(m.foods) ? m.foods : [],
+      note: m.note || '',
+      logged_at: new Date().toISOString(),
+    };
+    const { data, error } = await sb.from('meals').insert(row).select('id').maybeSingle();
+    if (error) { console.warn('[day] insertMeal failed', error.message); return null; }
+    return data ? data.id : null;
+  } catch (e) { console.warn('[day] insertMeal failed', e && e.message); return null; }
+}
+
 /** Upload a meal photo (raw base64 jpeg) to the private meal-photos bucket. Path MUST start with
  *  the athlete's id (storage RLS). Best-effort — a failed upload never blocks logging the meal. */
 export async function uploadMealPhoto(userId, key, base64) {
