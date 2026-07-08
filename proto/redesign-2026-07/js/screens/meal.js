@@ -1,4 +1,4 @@
-import { S, RT, tier } from '../state.js';
+import { S, RT, tier, act, MEAL } from '../state.js';
 import { icon, checkFill } from '../icons.js';
 import { backHead } from '../components.js';
 
@@ -16,23 +16,33 @@ export const analyzing = {
   tab: 'camera',
   hideTabs: true,
   render() {
+    const img = (MEAL && MEAL.photoDataUrl) || S.logging.img;
     return `
     <div class="analyzing">
       <div class="scanbox">
-        <div class="img" style="background-image:url('${S.logging.img}')"></div>
+        <div class="img" style="background-image:url('${img}')"></div>
         <div class="scanline"></div>
       </div>
-      <div class="phase" id="an-phase">Checking meal quality<span class="dots"></span></div>
+      <div class="phase" id="an-phase">Reading your meal<span class="dots"></span></div>
       <div class="phase-sub" id="an-sub">Detecting foods and portions</div>
     </div>`;
   },
-  mount(root) {
+  async mount(root) {
     const phase = root.querySelector('#an-phase');
     const sub = root.querySelector('#an-sub');
-    setTimeout(() => {
-      if (phase) { phase.innerHTML = 'Matching this meal to your plan<span class="dots"></span>'; sub.textContent = 'Coach Mark set protein + slow carb + vegetable'; }
-    }, 1100);
-    setTimeout(() => { if (location.hash === '#analyzing') location.hash = '#meal-analysis'; }, 2300);
+    setTimeout(() => { if (phase && location.hash === '#analyzing') { phase.innerHTML = 'Estimating macros<span class="dots"></span>'; if (sub) sub.textContent = 'Matching to your plan'; } }, 1000);
+
+    if (MEAL && MEAL.photoBase64 && !MEAL.result) {
+      // REAL analysis via the analyze-meal edge function.
+      const r = await act.runAnalysis();
+      if (location.hash !== '#analyzing') return; // navigated away
+      if (r.ok) { location.hash = '#meal-analysis'; return; }
+      if (phase) phase.textContent = r.error || 'Analysis failed.';
+      if (sub) { sub.textContent = 'Tap to retake'; sub.style.cursor = 'pointer'; sub.onclick = () => { location.hash = '#camera'; }; }
+      return;
+    }
+    // No photo (demo path) — advance to the placeholder analysis.
+    setTimeout(() => { if (location.hash === '#analyzing') location.hash = '#meal-analysis'; }, 2000);
   },
 };
 

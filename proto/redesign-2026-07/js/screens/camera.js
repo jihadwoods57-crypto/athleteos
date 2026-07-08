@@ -1,5 +1,26 @@
-import { S, RT } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
+
+/** Load, downscale (max side), and JPEG-encode a picked photo → { dataUrl, base64 }.
+ *  Keeps the upload well under the 8MB analyze-meal limit and fast to send. */
+function downscaleToJpeg(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      w = Math.max(1, Math.round(w * scale)); h = Math.max(1, Math.round(h * scale));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      const dataUrl = cv.toDataURL('image/jpeg', quality);
+      resolve({ dataUrl, base64: dataUrl.split(',')[1] });
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
 
 export default {
   tab: 'camera',
@@ -47,9 +68,10 @@ export default {
 
       <div class="cam-note">Hidden foods, portion, drink, how you're feeling…</div>
 
+      <input type="file" accept="image/*" capture="environment" id="cam-file" style="display:none" />
       <div class="cam-actions">
         <div class="cam-side" style="cursor:default;opacity:0.45"><div class="cbtn">${icon('lock', 19)}</div>Gallery</div>
-        <div class="shutter" data-go="analyzing"><div class="inner">${icon('camera', 26)}</div></div>
+        <div class="shutter" id="shutter"><div class="inner">${icon('camera', 26)}</div></div>
         <div class="cam-side" data-go="food-search"><div class="cbtn">${icon('search', 20)}</div>Search</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding-bottom:10px">
@@ -65,5 +87,22 @@ export default {
       e.stopPropagation();
       t.style.color = t.style.color === 'var(--amber-bright)' ? '#fff' : 'var(--amber-bright)';
     }));
+    // Real capture: shutter opens the native camera/photo picker; the photo is downscaled,
+    // handed to state, and the analyzing screen runs the AI on it.
+    const file = root.querySelector('#cam-file');
+    const shutter = root.querySelector('#shutter');
+    if (file && shutter) {
+      shutter.addEventListener('click', () => file.click());
+      file.addEventListener('change', async () => {
+        const f = file.files && file.files[0];
+        if (!f) return;
+        shutter.style.opacity = '0.5';
+        try {
+          const { base64, dataUrl } = await downscaleToJpeg(f, 1000, 0.82);
+          act.captureMeal(base64, dataUrl);
+          window.__go('analyzing');
+        } catch { shutter.style.opacity = '1'; }
+      });
+    }
   },
 };

@@ -247,3 +247,16 @@ export function daySetCommitment(userId, ans) { DAY.dailyCommitment = ans; pushD
 export function dayAddWaterOz(userId, oz) { DAY.hydrationL = Math.min(6, DAY.hydrationL + oz * 0.0295735); pushDay(userId); }
 export function dayLogWeight(userId, lb) { if (lb) DAY.currentWeight = Math.round(lb); pushDay(userId); }
 export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[i]; pushDay(userId); }
+
+/** Upload a meal photo (raw base64 jpeg) to the private meal-photos bucket. Path MUST start with
+ *  the athlete's id (storage RLS). Best-effort — a failed upload never blocks logging the meal. */
+export async function uploadMealPhoto(userId, key, base64) {
+  const sb = window.sb;
+  if (!sb || !userId || !base64) return;
+  try {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    await sb.storage.from('meal-photos').upload(`${userId}/${DAY.date}/${key}.jpg`, bytes, { contentType: 'image/jpeg', upsert: true });
+  } catch (e) { console.warn('[day] photo upload failed', e && e.message); }
+}

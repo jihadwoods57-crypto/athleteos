@@ -10,9 +10,27 @@
 import { CATALOG, runsToday, derive, deriveAssigned } from './requirements.js';
 import {
   DAY, computeComponents as realComponents, projectedDay,
-  streakDays as dayStreak, loadDay, pushDay,
+  streakDays as dayStreak, loadDay, pushDay, uploadMealPhoto,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
 } from './day.js';
+
+/* The meal currently being captured (Phase 5 AI loop). When MEAL.result is set, S.logging and
+   the score use the REAL analyzed macros instead of the demo placeholders. */
+export const MEAL = { key: null, mealType: null, photoBase64: null, photoDataUrl: null, result: null };
+
+/** Bound the AI's macros to sane per-meal ranges (Atwater fallback for calories) so a mis-read
+   can never spike the score — a lightweight port of macroGrounding for v1. */
+function groundResult(d) {
+  const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(v || 0)));
+  const protein = clampN(d.protein, 120), carbs = clampN(d.carbs, 250), fat = clampN(d.fat, 150);
+  const kcal = clampN(d.kcal || (4 * protein + 4 * carbs + 9 * fat), 2200);
+  return {
+    name: d.name || 'Meal', quality: clampN(d.quality, 100),
+    protein, carbs, fat, kcal,
+    detected: Array.isArray(d.detected) ? d.detected.slice(0, 8) : [],
+    note: d.note || '',
+  };
+}
 
 export const WEIGHTS = { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
 
@@ -120,6 +138,7 @@ export const act = {
     const from = computeScore(componentsNow());
     RT.dinnerLogged = true;
     dayLogMeal(RT.userId, 'dinner', loggingMacros());
+    if (MEAL.photoBase64 && MEAL.key === 'dinner') uploadMealPhoto(RT.userId, 'dinner', MEAL.photoBase64);
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: 'Dinner' };
     save();
@@ -137,11 +156,37 @@ export const act = {
   addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); },
   readNotifs() { RT.notifsRead = true; save(); },
   setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); },
+
+  /* ---- Phase 5: real meal capture → AI → real macros ---- */
+  captureMeal(base64, dataUrl) {
+    MEAL.photoBase64 = base64; MEAL.photoDataUrl = dataUrl; MEAL.result = null;
+    MEAL.mealType = RT.day0 ? 'Breakfast' : 'Dinner';
+    MEAL.key = RT.day0 ? 'breakfast' : 'dinner';
+    save();
+  },
+  async runAnalysis() {
+    const sb = window.sb;
+    if (!sb || !MEAL.photoBase64) return { ok: false, error: 'No photo to analyze.' };
+    const body = { mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null, photoBase64: MEAL.photoBase64 };
+    try {
+      let { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...body, phase: 'analyze' } });
+      if (!error && data && data.kind === 'questions') {
+        const fin = await sb.functions.invoke('analyze-meal', { body: { ...body, phase: 'finalize', clarifications: [] } });
+        data = fin.data; error = fin.error;
+      }
+      if (error) return { ok: false, error: 'Analysis failed. Check your connection and retake.' };
+      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); return { ok: true }; }
+      return { ok: false, error: 'Could not read that meal. Try another angle.' };
+    } catch (e) { return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
+  },
+  clearMeal() { MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null; MEAL.result = null; },
+
   day0Meal() {
     if (DAY.meals.breakfast) return;
     const from = computeScore(componentsNow());
     RT.day0Breakfast = true;
     dayLogMeal(RT.userId, 'breakfast', loggingMacros());
+    if (MEAL.photoBase64 && MEAL.key === 'breakfast') uploadMealPhoto(RT.userId, 'breakfast', MEAL.photoBase64);
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: 'Breakfast' };
     save();
@@ -477,8 +522,25 @@ export const S = {
     };
   },
 
-  // what's being logged right now — day-0 logs breakfast; Jihad's day logs dinner
+  // what's being logged right now — REAL analyzed meal when present, else the day's demo.
   get logging() {
+    if (MEAL.result) {
+      const r = MEAL.result;
+      return {
+        name: MEAL.mealType || (RT.day0 ? 'Breakfast' : 'Dinner'),
+        due: RT.day0 ? 'Due by 10:00 AM' : 'Due by 8:00 PM', remaining: 'Captured just now',
+        img: MEAL.photoDataUrl || 'assets/meal-dinner.jpg', score: r.quality,
+        foods: r.detected.length ? r.detected : ['Your meal'],
+        macros: { protein: r.protein, carbs: r.carbs, fat: r.fat, cals: r.kcal },
+        componentsRead: [
+          { k: 'Protein', v: `${r.protein}g detected`, ok: r.protein >= 25 ? true : 'warn' },
+          { k: 'Calories', v: `${r.kcal} kcal estimated`, ok: true },
+          { k: 'Foods', v: (r.detected.slice(0, 3).join(', ')) || 'read from your photo', ok: true },
+        ],
+        planMatch: { verdict: r.quality >= 75 ? 'Strong meal' : 'Logged', detail: r.note || 'Analyzed from your photo.', level: r.quality >= 75 ? 'g' : 'b' },
+        ai: r.note || 'Logged from your photo.',
+      };
+    }
     if (RT.day0) {
       return {
         name: 'Breakfast', due: 'Due by 10:00 AM', remaining: 'Morning window open',
