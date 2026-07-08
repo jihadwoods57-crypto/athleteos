@@ -117,7 +117,7 @@ export default {
       </div>
       <div class="lrow" data-go="devices">
         <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
-        <div class="lm"><div class="lt">Connected devices</div><div class="ls">${RT.wearable ? 'Apple Watch · recovery verified' : 'None connected'}</div></div>
+        <div class="lm"><div class="lt">Connected devices</div><div class="ls">None connected · coming soon</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="injury">

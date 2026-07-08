@@ -317,7 +317,6 @@ export const act = {
      between routes, so each interaction persists here rather than being read at the end). */
   captureOb(patch) { RT.ob = { ...(RT.ob || {}), ...patch }; save(); },
   saveAllergies(list) { RT.allergies = list.slice(0, 8); save(); },
-  toggleWearable() { RT.wearable = !RT.wearable; save(); },
   nudgePartner() { RT.partnerNudged = true; save(); },
   toggleInjury() {
     RT.injured = !RT.injured;

@@ -11,44 +11,27 @@ import { backHead, esc } from '../components.js';
 export const devices = {
   tab: 'profile',
   render() {
-    const on = RT.wearable;
     return `
-    ${backHead('Connected Devices', 'Recovery stops being a vibe check', 'profile')}
+    ${backHead('Connected Devices', 'Wearable recovery is coming', 'profile')}
 
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:${on ? 'var(--green-surface)' : 'var(--surface-2)'};color:${on ? 'var(--green-bright)' : 'var(--text-3)'}">${icon('check', 17)}</div>
-        <div class="lm"><div class="lt">Apple Watch</div><div class="ls">${on ? 'Connected · sleep, HRV, resting HR' : 'Not connected'}</div></div>
-        <div class="seg" style="width:104px">
-          <button class="${on ? 'on' : ''}" data-act="toggleWearable" data-then="devices">On</button>
-          <button class="${on ? '' : 'on'}" data-act="toggleWearable" data-then="devices">Off</button>
-        </div>
+        <div class="lic" style="background:var(--surface-2);color:var(--text-3)">${icon('moon', 17)}</div>
+        <div class="lm"><div class="lt">Apple Watch</div><div class="ls">Not connected · coming soon</div></div>
+        <span class="status-pill" style="color:var(--text-3)">Soon</span>
       </div>
       <div class="lrow" style="cursor:default">
-        <div class="lic">${icon('target', 17)}</div>
-        <div class="lm"><div class="lt">Whoop</div><div class="ls">Available · same rules</div></div>
-        <span class="status-pill b">Connect</span>
+        <div class="lic" style="background:var(--surface-2);color:var(--text-3)">${icon('target', 17)}</div>
+        <div class="lm"><div class="lt">Whoop</div><div class="ls">Not connected · coming soon</div></div>
+        <span class="status-pill" style="color:var(--text-3)">Soon</span>
       </div>
-    </section>
-
-    <div class="eyebrow">What it changes</div>
-    <section class="card" style="padding:6px 16px">
-      ${[
-        ['moon', 'Sleep fills itself in', '7h 42m last night, from the watch. You stop guessing.'],
-        ['bolt', 'HRV + resting HR verify readiness', 'Objective inputs get a Verified badge in your score breakdown.'],
-        ['edit', 'Feelings stay yours', 'Soreness, mood, and stress are still asked. Hardware can’t feel a hamstring.'],
-      ].map(([ic, t, s]) => `
-        <div class="lrow" style="cursor:default">
-          <div class="lic">${icon(ic, 17)}</div>
-          <div class="lm"><div class="lt">${t}</div><div class="ls" style="white-space:normal;line-height:1.4">${s}</div></div>
-        </div>`).join('')}
     </section>
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon g" style="width:38px;height:38px">${icon('shield', 17)}</div>
-      <div><div class="tt">Why this matters here</div>
-      <div class="ts">Recovery is 25% of your score and was the last self-reported piece. Verified data closes the last honest gap in “the score never lies.”</div></div>
+      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div><div class="tt">Honest about what v1 measures</div>
+      <div class="ts">Recovery in v1 comes from your own check-in answers — nothing here reads your watch yet. When HealthKit and Whoop are wired, verified sleep/HRV will show up here. We won't fake hardware data until then.</div></div>
     </div>
     <div style="height:10px"></div>
     `;

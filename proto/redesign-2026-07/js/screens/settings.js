@@ -1,16 +1,17 @@
-import { S } from '../state.js';
+import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 
-/* Context-aware AI replies: keyword-routed, plan-grounded, never contradicts the coach. */
+/* Context-aware AI replies: keyword-routed, plan-grounded. Any specifics come from REAL state
+   (hydration, live score) — never a fabricated "122g of 190g" / "88 oz" / "that's 94". */
 export function smartReply(text, fallback) {
   const t = text.toLowerCase();
   if (/(swap|instead|replace|substitute)/.test(t)) return 'Yes, swap it. Based on Coach Mark’s plan: any protein for protein, any slow carb for slow carb, keep the portion the same. Rice, potatoes, oats, and tortillas are all interchangeable for you.';
-  if (/(water|hydrat|drink)/.test(t)) return 'Hydration is this week’s focus: 120 oz. You’re at ' + '88' + ' oz — get 20 in before bed and finish the rest with breakfast. It doesn’t move today’s score, but Coach Mark is watching it.';
+  if (/(water|hydrat|drink)/.test(t)) return `Hydration is this week’s focus: 120 oz. You’re at ${RT.hydrationOz} oz — top it up before bed. It doesn’t move today’s score, but Coach Mark is watching it.`;
   if (/(late|miss|forgot|skip)/.test(t)) return 'Honest answer: a late meal counts at half weight for punctuality, and a missed one just stays missed. Log it anyway — the trend matters more than one slot, and your coach respects a truthful log over a blank.';
-  if (/(protein|macro)/.test(t)) return 'You’re at 122g of your 190g protein target with dinner still to come. A protein-forward dinner (steak, chicken, or the shake as backup) closes the gap.';
+  if (/(protein|macro)/.test(t)) return 'Aim protein-forward at every meal — a solid protein source plus a slow carb hits your plan. If a meal slot is still open, that’s where to close any gap.';
   if (/(eat out|restaurant|chipotle|fast food|on the go)/.test(t)) return 'From your plan’s approved list: Chipotle bowl (double chicken, rice, beans), a grilled sandwich, or a rice bowl. Order protein first, add the carb, skip nothing green.';
-  if (/(score|point|tier)/.test(t)) return 'Your score is four honest parts: Nutrition 50%, Recovery 25%, Commitment 15%, Weekly check-in 10%. Tonight: dinner is worth +6 and the recovery check-in +6 — that’s 94 and OnStandard.';
+  if (/(score|point|tier)/.test(t)) return `Your score is four honest parts: Nutrition 50%, Recovery 25%, Commitment 15%, Weekly check-in 10%. Right now you’re at ${S.score}; finishing what’s still open tonight takes you toward ${S.possible}.`;
   return fallback;
 }
 
@@ -52,11 +53,7 @@ export const messages = {
     ${backHead(S.coach.name, `${S.coach.role} · ${S.coach.team}`, 'plan')}
 
     <div class="thread">
-      <div class="msg coach"><div class="av">M</div><div><div class="who">${S.coach.name} · 2h ago</div>
-        <div class="bubble">Bumped water to 120 oz this week. You practice in heat Wed/Thu, get ahead of it.</div></div></div>
-      <div class="msg athlete"><div><div class="bubble">Got it coach. Bringing the big jug.</div></div></div>
-      <div class="msg coach"><div class="av">M</div><div><div class="who">${S.coach.name}</div>
-        <div class="bubble">That's the standard. Dinner and recovery tonight, then we're 6 for 6 this week.</div></div></div>
+      <div class="msg-status">No messages yet. Anything ${esc(S.coach.name)} sends will land here — and your messages reach him.</div>
     </div>
     <div class="composer">
       <input placeholder="Message ${S.coach.name}…" />
@@ -65,7 +62,7 @@ export const messages = {
     <div style="height:10px"></div>
     `;
   },
-  mount(root) { wireComposer(root, 'delivery', '', `Delivered · ${S.coach.name} usually replies after practice`); },
+  mount(root) { wireComposer(root, 'delivery', '', `Delivered · ${S.coach.name} sees it on his side`); },
 };
 
 /* ---------- Units & preferences (working toggles) ---------- */
