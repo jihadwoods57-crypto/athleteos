@@ -96,7 +96,7 @@ export default {
     ${appHead()}
 
     <section class="hero" data-go="score-breakdown">
-      ${scoreRing({ score: S.score, delta: `+${S.score - S.scoreYesterday} pts`, streak: RT.day0 ? null : `${S.streakDays} day streak`, tierName: S.tier.name, tierCls: S.tier.cls })}
+      ${scoreRing({ score: S.score, delta: (S.scoreYesterday != null && S.score > S.scoreYesterday) ? `+${S.score - S.scoreYesterday} pts` : null, streak: (!RT.day0 && S.streakDays > 0) ? `${S.streakDays} day streak` : null, tierName: S.tier.name, tierCls: S.tier.cls })}
       <div class="hero-foot">${foot}</div>
     </section>
 
@@ -128,13 +128,6 @@ export default {
       </div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : ''}
-
-    <div style="height:12px"></div>
-    <div class="fmove" data-go="partner" style="background:var(--surface-1);border:1px solid var(--hairline)">
-      <div class="big-av" style="width:34px;height:34px;font-size:12px;background:linear-gradient(150deg,#34D399,#0d9488);box-shadow:none">DO</div>
-      <div style="flex:1"><div class="fm-t" style="font-size:13.5px">D. Okafor checked in today ✓</div><div class="fm-s">your accountability partner</div></div>
-      ${icon('chevron', 16, 'style="color:var(--text-3)"')}
-    </div>
 
     <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
     <div class="hscroll">${S.activity.map(actCard).join('')}</div>

@@ -12,8 +12,8 @@ export const PROFILE_WEIGHTS = {
   general: { nutrition: 0.55, recovery: 0.20, commitment: 0.15, checkin: 0.10 },
   gain:    { nutrition: 0.55, recovery: 0.25, commitment: 0.10, checkin: 0.10 },
 };
-const MEAL_KEYS = ['breakfast', 'lunch', 'snack', 'dinner'];
-const DEADLINE = { breakfast: 570, lunch: 840, snack: 1020, dinner: 1230 }; // minutes from midnight
+export const MEAL_KEYS = ['breakfast', 'lunch', 'snack', 'dinner'];
+export const DEADLINE = { breakfast: 570, lunch: 840, snack: 1020, dinner: 1230 }; // minutes from midnight
 const QUICK_G = [18, 30, 22]; // Greek yogurt / protein shake / turkey roll-ups
 const PROTEIN_TARGET = 180;
 const CI_KEYS = ['energy', 'recovery', 'sleep', 'confidence', 'soreness', 'motivation'];
@@ -115,7 +115,7 @@ export function clampedScore(day) { return Math.min(scoreFor(day), evidenceCeili
 
 function todayISO() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function addDaysISO(iso, n) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-function minutesNow() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
+export function minutesNow() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
 
 const DEFAULT_CI = { energy: 8, recovery: 7, sleep: 8, confidence: 9, soreness: 4, motivation: 8 };
 const DEFAULT_CICFG = { energy: true, recovery: true, sleep: true, confidence: true, soreness: false, motivation: false };

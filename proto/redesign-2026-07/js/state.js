@@ -12,7 +12,16 @@ import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor,
   streakDays as dayStreak, loadDay, pushDay, uploadMealPhoto,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
+  MEAL_KEYS, DEADLINE, minutesNow,
 } from './day.js';
+
+/* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
+function fmtClock(min) {
+  if (min == null) return '';
+  let h = Math.floor(min / 60) % 12; if (h === 0) h = 12;
+  const ap = Math.floor(min / 60) < 12 ? 'AM' : 'PM';
+  return `${h}:${String(min % 60).padStart(2, '0')} ${ap}`;
+}
 
 /* The meal currently being captured (Phase 5 AI loop). When MEAL.result is set, S.logging and
    the score use the REAL analyzed macros instead of the demo placeholders. */
@@ -361,8 +370,16 @@ export const S = {
   },
   coach: { name: 'Coach Mark', initials: 'M', role: 'Head Coach', team: 'Central Catholic · Varsity' },
 
-  now: '7:12',
-  greeting: 'Good evening',
+  // Real on-device clock + greeting (the status bar renders S.now; on iOS this is the system
+  // clock — here it's the browser's, never a frozen 7:12).
+  get now() {
+    const d = new Date(); let h = d.getHours() % 12; if (h === 0) h = 12;
+    return `${h}:${String(d.getMinutes()).padStart(2, '0')}`;
+  },
+  get greeting() {
+    const h = new Date().getHours();
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  },
 
   get components() { return { now: componentsNow(), done: componentsDone() }; },
   get score() { return computeScore(componentsNow()); },
@@ -387,16 +404,25 @@ export const S = {
   /* Human-readable breakdown that MAPS onto the real weights and sums to /100. */
   get breakdown() {
     const c = componentsNow();
+    const logged = MEAL_KEYS.filter(k => DAY.meals[k]);
+    const nutriNote = logged.length
+      ? `${logged.length} of 4 meals logged${logged.length < 4 ? ' — more to come' : ' · full day'}`
+      : 'No meals logged yet — each one builds Nutrition';
+    const commit = DAY.dailyCommitment;
+    const commitNote = commit === 'yes' ? 'You confirmed you hit your plan today'
+      : commit === 'partial' ? 'You logged a partial day — honest counts'
+      : commit === 'no' ? 'You logged an off day — the honest tap still counts'
+      : 'No commitment logged yet — one honest tap earns it';
     return [
       { key: 'Nutrition', earned: Math.round(WEIGHTS.nutrition * c.nutrition), possible: 50,
-        note: RT.dinnerLogged ? 'All three meals logged on time' : 'Breakfast + lunch logged on time; dinner still open', accent: 'g', weightPct: 50 },
+        note: nutriNote, accent: 'g', weightPct: 50 },
       { key: 'Recovery', earned: Math.round(WEIGHTS.recovery * c.recovery), possible: 25,
-        note: RT.recoveryDone ? 'Tonight’s check-in submitted'
+        note: DAY.ciSubmitted ? 'Tonight’s check-in submitted'
           : (DAY.ciLast ? 'Carried from your last check-in; tonight refreshes it' : 'No check-in yet — submit tonight to earn this'), accent: 'p', weightPct: 25 },
       { key: 'Daily commitment', earned: Math.round(WEIGHTS.commitment * c.commitment), possible: 15,
-        note: 'You confirmed you hit your plan today', accent: 'b', weightPct: 15 },
+        note: commitNote, accent: 'b', weightPct: 15 },
       { key: 'Weekly check-in', earned: Math.round(WEIGHTS.checkin * c.checkin), possible: 10,
-        note: 'Submitted Sunday', accent: 'g', weightPct: 10 },
+        note: c.checkin ? 'This week’s check-in is in' : 'No weekly check-in yet — opens Sunday', accent: 'g', weightPct: 10 },
     ];
   },
   get weightLine() {
@@ -510,11 +536,10 @@ export const S = {
     };
   },
 
-  get trustPass() {
-    return RT.day0
-      ? { active: false }
-      : { active: true, day: 3, length: 14, note: 'On standard, camera-free today. Credited from your 10-day median.' };
-  },
+  // Trust Pass is a real server feature (migration 0039) that isn't wired to the proto yet.
+  // Until it is, it stays inactive everywhere — never a fabricated "day 3 of 14". The Trust
+  // screen explains what it is and how it's earned.
+  get trustPass() { return { active: false }; },
 
   get unreadNotifs() { return RT.notifsRead ? 0 : this.notifications.new.length; },
 
@@ -758,17 +783,13 @@ export const S = {
     RT.trainerNotes.forEach(t => fresh.push({ level: 'medium', title: 'Note from Tracy (trainer)', body: `“${t}”`, when: 'now', icon: 'heart', route: 'notifications' }));
     if (RT.injured) fresh.push({ level: 'medium', title: 'Your Standard adapted', body: 'Hamstring rehab is on your list; nutrition tilts anti-inflammatory. Coach and your AT both see progress.', when: 'now', icon: 'bolt', route: 'injury' });
     if (RT.hydrationOz >= 120) fresh.push({ level: 'positive', title: 'Hydration standard hit', body: `120 oz in. This week's focus, handled. Coach sees it.`, when: 'now', icon: 'droplet', route: 'log' });
-    if (!RT.recoveryDone) fresh.push({ level: 'high', title: 'Recovery check-in before bed', body: 'Do it tonight to lock +6 and keep your 5-day streak.', when: 'now', icon: 'moon', route: 'recovery' });
-    fresh.push({ level: 'positive', title: 'Coach Mark liked your lunch', body: '“Great lunch. Keep this structure.”', when: '18m', icon: 'heart', route: 'meal-detail' });
-    if (RT.dinnerLogged) fresh.push({ level: 'positive', title: 'Dinner logged on time', body: `+6 pts. You’re at ${computeScore(componentsNow())}${RT.recoveryDone ? ', OnStandard.' : '. One move left tonight.'}`, when: 'now', icon: 'check', route: 'meal-detail/dinner' });
-    else fresh.push({ level: 'medium', title: 'Dinner window open', body: 'Log dinner by 8:00 PM to finish today on plan.', when: '32m', icon: 'bowl', route: 'camera' });
-    return {
-      new: fresh,
-      earlier: [
-        { level: 'critical', title: 'Morning Weight overdue', body: 'You missed the 9:00 AM window. Coach can see missed logs.', when: '1:12 PM', icon: 'scale', route: 'weight' },
-        { level: 'positive', title: 'Breakfast logged on time', body: 'Strong start, meal score 95.', when: '8:14 AM', icon: 'check', route: 'meal-detail' },
-      ],
-    };
+    if (!DAY.ciSubmitted) fresh.push({ level: 'high', title: 'Recovery check-in before bed', body: 'Submit it tonight before bed to lock in your recovery score.', when: 'now', icon: 'moon', route: 'recovery' });
+    // Meal nudge / confirmation — from REAL logged state, never a canned "liked your lunch".
+    const openMeals = ['breakfast', 'lunch', 'dinner'].filter(k => !DAY.meals[k]).length;
+    if (openMeals === 0) fresh.push({ level: 'positive', title: 'All meals logged', body: `Every meal in today. You’re at ${computeScore(componentsNow())}.`, when: 'now', icon: 'check', route: 'progress' });
+    else fresh.push({ level: 'medium', title: 'Meals still open', body: `${openMeals} meal${openMeals > 1 ? 's' : ''} left today. Log each with a photo to build Nutrition.`, when: 'now', icon: 'bowl', route: 'camera' });
+    // "Earlier" only carries REAL past events. Nothing fabricated lives here until history is wired.
+    return { new: fresh, earlier: [] };
   },
 };
 

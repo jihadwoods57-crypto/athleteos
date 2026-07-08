@@ -24,11 +24,16 @@ export default {
     return `
     ${backHead('Notifications', 'Accountability moments, not spam')}
 
-    <div class="eyebrow">New</div>
-    ${N.new.map(notif).join('')}
+    ${N.new.length ? `<div class="eyebrow">New</div>${N.new.map(notif).join('')}` : ''}
 
-    <div class="eyebrow">Earlier today</div>
-    ${N.earlier.map(notif).join('')}
+    ${N.earlier.length ? `<div class="eyebrow">Earlier today</div>${N.earlier.map(notif).join('')}` : ''}
+
+    ${!N.new.length && !N.earlier.length ? `
+    <div class="state-demo">
+      <div class="sd-ic">${icon('bell', 24)}</div>
+      <div class="sd-t">You're all caught up</div>
+      <div class="sd-s">Accountability moments land here — coach notes, plan updates, and deadline nudges.</div>
+    </div>` : ''}
 
     <div style="height:6px"></div>
     <div class="sidebox" data-go="notif-settings" style="cursor:pointer">
