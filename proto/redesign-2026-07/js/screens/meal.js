@@ -217,8 +217,6 @@ export const detail = {
       <button class="btn green" data-go="camera/${M.slot}">${icon('camera', 18)} Log ${esc(M.name)}</button>
       <div style="height:10px"></div>`;
     }
-    // Real coach comments only (they arrive with coach wiring); no fabricated thread.
-    const comments = RT.coachComments || [];
     const heroTop = `Logged ${M.loggedAt || 'today'}${M.late ? ' · late' : ' · on time'}`;
     return `
     ${backHead(M.name, heroTop)}
@@ -261,36 +259,46 @@ export const detail = {
       <div><div class="tt">AI note</div><div class="ts">${esc(M.note)}</div></div>
     </div>` : ''}
 
-    <div class="eyebrow">Ask the AI</div>
-    <div class="chip-row" id="quick-asks">
-      <span class="chp" data-q="Was the portion right for my goal?">Portion check</span>
-      <span class="chp" data-q="What should I order eating out tomorrow?">Eating out</span>
-      <span class="chp" data-q="How do I improve this meal next time?">Improve it</span>
-    </div>
-
     <div class="eyebrow">Conversation</div>
-    ${comments.length ? `
-    <div class="thread">
-      ${comments.map(t => `
-        <div class="msg coach"><div class="av">M</div><div>
-          <div class="who">${esc(S.coach.name)}</div><div class="bubble">${esc(t)}</div>
-        </div></div>`).join('')}
-    </div>` : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:2px">No comments yet. ${esc(S.coach.name)} sees this log and can reply.</div>`}
-    <div class="composer">
-      <input placeholder="Ask about this meal…" />
-      <div class="send">${icon('arrowUp', 19)}</div>
+    <div class="thread" id="meal-thread">
+      <div class="msg-status">${M.mealId ? 'Loading…' : 'Comments sync once this meal is uploaded. Your coach sees the log either way.'}</div>
     </div>
+    ${M.mealId ? `<div class="composer">
+      <input id="meal-msg" placeholder="Message your coach about this meal…" />
+      <div class="send" id="meal-send">${icon('arrowUp', 19)}</div>
+    </div>` : ''}
     <div style="height:10px"></div>
     `;
   },
-  async mount(root) {
-    const { wireComposer } = await import('./settings.js');
-    wireComposer(root, 'ai', 'OnStandard AI', 'Good question. Based on Coach Mark’s plan, keep protein the same and match the portion; the swap works.');
-    // quick-ask chips inject the question into the composer and send it
-    root.querySelectorAll('#quick-asks .chp').forEach(ch => ch.addEventListener('click', () => {
-      const input = root.querySelector('.composer input');
-      const send = root.querySelector('.composer .send');
-      if (input && send) { input.value = ch.getAttribute('data-q'); send.click(); }
-    }));
+  async mount(root, { sub }) {
+    const M = mealDetail(sub || MEAL.key || 'dinner');
+    if (!M.mealId) return;
+    const roles = await import('../roles.js');
+    const thread = root.querySelector('#meal-thread');
+    const paint = (comments) => {
+      if (!thread) return;
+      thread.innerHTML = comments.length
+        ? comments.map(c => `
+          <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
+            ${c.role !== 'athlete' ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : 'M'}</div>` : ''}
+            <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'OnStandard AI' : 'Coach'}</div>` : ''}
+            <div class="bubble">${esc(c.text)}</div></div>
+          </div>`).join('')
+        : `<div class="msg-status">No comments yet. Your coach sees this log and can reply.</div>`;
+      thread.scrollTop = thread.scrollHeight;
+    };
+    paint(await roles.fetchMealComments(M.mealId));
+    // Athlete posts a REAL comment on their own meal (role 'athlete') so the coach sees it.
+    const input = root.querySelector('#meal-msg');
+    const send = root.querySelector('#meal-send');
+    const submit = async () => {
+      const text = (input.value || '').trim();
+      if (!text) return;
+      input.value = '';
+      await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', text);
+      paint(await roles.fetchMealComments(M.mealId));
+    };
+    if (send) send.addEventListener('click', submit);
+    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
   },
 };

@@ -3,6 +3,8 @@ import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import * as roles from '../roles.js';
 
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
 /* Coach roster cache: null = not loaded (show loading), else { teams, rows } from real data.
    Fetched once on mount, repainted via window.__render; the athletes' scores are their own real
    numbers (days.score), and a member with no day row today is honestly "No logs today". */
@@ -242,59 +244,161 @@ export const copilot = {
   mount() { loadCoachRoster(); },
 };
 
-/* ---------- Coach → athlete detail (review Jihad's day, comment on a log) ---------- */
+/* ---------- Coach → athlete review: real day + meals, RLS-scoped; a "seen" receipt on open ---------- */
+let ATH = null;           // { athleteId, day, meals } for the athlete being reviewed
+let athLoadingId = null;
+function rosterName(athleteId) {
+  const r = ROSTER && ROSTER.rows.find(x => x.athleteId === athleteId);
+  return r ? { name: r.name, unit: r.unit } : { name: 'Athlete', unit: '' };
+}
+async function loadAthlete(athleteId, viewerId, viewerName) {
+  if (!athleteId || athLoadingId === athleteId) return;
+  athLoadingId = athleteId;
+  const today = roles.todayISO();
+  const [day, meals] = await Promise.all([
+    roles.fetchDay(athleteId, today),
+    roles.fetchRecentMeals(athleteId, roles.daysAgoISO(14)),
+  ]);
+  for (const m of meals) { if (m.photo_path) m._url = await roles.signedMealPhotoUrl(m.photo_path); }
+  ATH = { athleteId, day, meals };
+  athLoadingId = null;
+  roles.markDayViewed(athleteId, today, viewerId, viewerName); // fire-and-forget "coach saw your day"
+  if (location.hash.startsWith('#coach-athlete')) window.__render();
+}
+const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
 export const coachAthlete = {
   nav: 'coach', tab: 'team',
-  render() {
+  render({ sub }) {
+    const athleteId = sub;
+    const who = rosterName(athleteId);
+    const head = backHead(`${esc(who.name)}${who.unit ? ` · ${esc(who.unit)}` : ''}`, 'Their day · read-only', 'coach');
+    if (!athleteId) return `${head}<div class="state-demo"><div class="sd-t">No athlete selected</div></div>`;
+    if (!ATH || ATH.athleteId !== athleteId) {
+      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('user', 17)}</div>
+      <div><div class="tt">Loading their day…</div><div class="ts">Pulling today's real score and logged meals.</div></div></div>`;
+    }
+    const day = ATH.day;
+    const today = roles.todayISO();
+    const todayMeals = ATH.meals.filter(m => m.day_date === today);
+    const score = day && day.score != null ? day.score : null;
+    const mealsJson = (day && day.meals) || {};
+    const ci = (day && day.checkin) || {};
+    const openSlots = ['breakfast', 'lunch', 'dinner'].filter(k => !mealsJson[k]);
     return `
-    ${backHead('J. Woods · WR', `Today · ${S.score} ${S.tier.name}`, 'coach')}
+    ${head}
 
     <div class="coach-stats">
-      <div class="coach-stat"><div class="v">${S.score}</div><div class="k">Score now</div></div>
-      <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${S.metCount}/${S.reqTotal}</div><div class="k">Requirements</div></div>
-      <div class="coach-stat"><div class="v" style="color:var(--amber-bright)">${S.streakDays}d</div><div class="k">Streak</div></div>
+      <div class="coach-stat"><div class="v" style="color:${scoreColor(score)}">${score != null ? score : '—'}</div><div class="k">Score today</div></div>
+      <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${MEAL_SLOTS.filter(k => mealsJson[k]).length}</div><div class="k">Meals logged</div></div>
+      <div class="coach-stat"><div class="v" style="color:${ci.submitted ? 'var(--green-bright)' : 'var(--amber-bright)'}">${ci.submitted ? 'In' : 'Open'}</div><div class="k">Recovery</div></div>
     </div>
 
-    <div class="eyebrow">Today's proof</div>
-    <div class="hscroll">
-      ${S.activity.filter(a => a.img).map(a => `
-        <div class="act-card" ${a.route && a.route.startsWith('meal-detail') ? `data-go="${a.route}"` : 'style="cursor:default"'}>
-          <div class="act-time">${a.time}</div>
-          <div class="act-media" style="background-image:url('${a.img}')">${a.dim ? `<div class="dim">${icon('moon', 30)}</div>` : ''}</div>
-          <div class="act-body"><div class="act-type">${a.type}</div><div class="act-value ${a.vClass}">${a.value}</div></div>
+    ${!day ? `<div class="sidebox" style="margin-top:14px"><div class="req-icon a" style="width:38px;height:38px">${icon('clock', 17)}</div>
+    <div><div class="tt">No logs today yet</div><div class="ts">Nothing to review — they haven't logged. Their day appears here as they log it.</div></div></div>`
+    : `
+    <div class="eyebrow">Today's proof${todayMeals.length ? '' : ' · none yet'}</div>
+    ${todayMeals.length ? `<div class="hscroll">
+      ${todayMeals.map(m => `
+        <div class="act-card" data-go="coach-meal/${esc(m.id)}">
+          <div class="act-time">${esc(cap(m.type || 'Meal'))}</div>
+          ${m._url
+            ? `<div class="act-media"><img src="${esc(m._url)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
+            : `<div class="act-media icon" style="background:linear-gradient(150deg, rgba(52,211,153,0.2), rgba(37,99,235,0.1));color:var(--green-bright)">${icon('utensils', 26)}</div>`}
+          <div class="act-body"><div class="act-type">${m.quality != null ? 'Meal score' : 'Logged'}</div><div class="act-value ${m.quality != null && m.quality >= 80 ? 'g' : 'b'}">${m.quality != null ? m.quality : '·'}</div></div>
         </div>`).join('')}
-    </div>
+    </div>` : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:-2px 2px 10px">No meal photos logged today.</div>`}
 
     <div class="eyebrow">What's open</div>
     <section class="card" style="padding:6px 16px">
-      ${S.requirements.filter(r => !r.done).length
-        ? S.requirements.filter(r => !r.done).map(r => `
-          <div class="lrow" style="cursor:default">
-            <div class="lic" style="color:var(--amber-bright)">${icon(r.icon, 17)}</div>
-            <div class="lm"><div class="lt">${r.title}</div><div class="ls">${r.sub}</div></div>
-            <span class="status-pill ${r.statusColor}">${r.status}</span>
-          </div>`).join('')
+      ${openSlots.length || !ci.submitted ? `
+        ${openSlots.map(k => `
+          <div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bowl', 17)}</div>
+          <div class="lm"><div class="lt">${cap(k)}</div><div class="ls">Not logged yet</div></div><span class="status-pill a">Open</span></div>`).join('')}
+        ${!ci.submitted ? `<div class="lrow" style="cursor:default"><div class="lic" style="color:var(--purple-bright)">${icon('moon', 17)}</div>
+          <div class="lm"><div class="lt">Recovery check-in</div><div class="ls">Before bed</div></div><span class="status-pill p">Open</span></div>` : ''}`
         : `<div class="lrow" style="cursor:default"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
-           <div class="lm"><div class="lt">Everything is in</div><div class="ls">Finished day · ${S.score} ${S.tier.name}</div></div></div>`}
-    </section>
+          <div class="lm"><div class="lt">Everything is in</div><div class="ls">Finished day${score != null ? ` · ${score}` : ''}</div></div></div>`}
+    </section>`}
 
-    <div class="eyebrow">Comment on the lunch log</div>
-    <div class="thread">
-      <div class="msg coach"><div class="av">M</div><div><div class="who">You</div><div class="bubble">Great lunch. Keep this structure.</div></div></div>
-      <div class="msg-status">In Jihad's meal thread · he sees it on the log</div>
-      ${RT.coachComments.map(t => `<div class="msg coach"><div class="av">M</div><div><div class="who">You</div><div class="bubble">${t.replace(/</g, '&lt;')}</div></div></div>`).join('')}
-    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:8px;padding:0 2px">Tap a meal photo to review and comment on it.</div>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root, { sub }) {
+    loadCoachRoster(); // ensure the name is available
+    loadAthlete(sub, RT.userId, S.athlete.name);
+  },
+};
+
+/* ---------- Coach → meal review + comment: the REAL meal_comments thread (slice 5) ---------- */
+let MC = null;            // { mealId, comments }
+let mcLoadingId = null;
+async function loadMealComments(mealId, force) {
+  if (!mealId || (mcLoadingId === mealId && !force)) return;
+  mcLoadingId = mealId;
+  MC = { mealId, comments: await roles.fetchMealComments(mealId) };
+  mcLoadingId = null;
+  if (location.hash.startsWith('#coach-meal')) window.__render();
+}
+function mealById(mealId) { return ATH && ATH.meals.find(m => m.id === mealId); }
+export const coachMeal = {
+  nav: 'coach', tab: 'team',
+  render({ sub }) {
+    const mealId = sub;
+    const meal = mealById(mealId);
+    const title = meal ? cap(meal.type || 'Meal') : 'Meal';
+    const head = backHead(title, 'Your comment lands on the athlete’s log', ATH ? `coach-athlete/${ATH.athleteId}` : 'coach');
+    if (!MC || MC.mealId !== mealId) {
+      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('message', 17)}</div>
+      <div><div class="tt">Loading the thread…</div><div class="ts">Reading the athlete’s comments on this meal.</div></div></div>`;
+    }
+    const foods = meal && Array.isArray(meal.detected) ? meal.detected : [];
+    return `
+    ${head}
+
+    ${meal ? `
+    <div class="photo-hero" ${meal._url ? '' : 'style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))"'}>
+      ${meal._url ? `<img src="${esc(meal._url)}" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0"/>` : ''}
+      <div class="ph-grad"></div>
+      <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${meal.protein != null ? `${meal.protein}g protein` : 'Logged'}</div></div>
+      ${meal.quality != null ? `<div class="scorechip"><span class="v">${meal.quality}</span><span class="k">Meal</span></div>` : ''}</div>
+    </div>` : ''}
+
+    ${foods.length ? `<div class="eyebrow">Detected</div><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(f)}</span>`).join('')}</div>` : ''}
+
+    <div class="eyebrow">Conversation</div>
+    ${MC.comments.length ? `<div class="thread">
+      ${MC.comments.map(c => `
+        <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
+          ${c.role !== 'athlete' ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : 'M'}</div>` : ''}
+          <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'OnStandard AI' : 'Coach'}</div>` : ''}
+          <div class="bubble">${esc(c.text)}</div></div>
+        </div>`).join('')}
+    </div>` : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet. Say something — the athlete sees it on the log.</div>`}
     <div class="composer">
-      <input placeholder="Comment on Jihad's lunch…" />
-      <div class="send">${icon('arrowUp', 19)}</div>
+      <input id="cm-input" placeholder="Comment on this meal…" />
+      <div class="send" id="cm-send">${icon('arrowUp', 19)}</div>
     </div>
     <div style="height:10px"></div>
     `;
   },
-  async mount(root) {
-    const { wireComposer } = await import('./settings.js');
-    // The send is REAL in-sim: it lands in the athlete's meal thread (state.coachComments).
-    wireComposer(root, 'delivery', '', "Delivered to Jihad's meal thread", (text) => window.__act.coachComment(text));
+  mount(root, { sub }) {
+    loadMealComments(sub);
+    const input = root.querySelector('#cm-input');
+    const send = root.querySelector('#cm-send');
+    const submit = async () => {
+      const text = (input.value || '').trim();
+      if (!text) return;
+      const meal = mealById(sub);
+      const athleteId = meal ? meal.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
+      if (!athleteId) return;
+      input.value = '';
+      const ok = await roles.postMealComment(sub, athleteId, RT.userId, 'coach', text);
+      if (ok) roles.nudgePush(athleteId, `${S.athlete.name} commented on your ${meal ? cap(meal.type) : 'meal'}`, text);
+      await loadMealComments(sub, true);
+    };
+    if (send) send.addEventListener('click', submit);
+    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
   },
 };
 

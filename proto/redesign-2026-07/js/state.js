@@ -169,6 +169,7 @@ export function mealDetail(slot) {
     macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
     img: (MEAL.key === k && MEAL.photoDataUrl) ? MEAL.photoDataUrl : null,
     note: meta.note || '',
+    mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
   };
 }
 
