@@ -277,7 +277,8 @@ async function loadAthlete(athleteId, viewerId, viewerName) {
     roles.fetchRecentMeals(athleteId, roles.daysAgoISO(14)),
   ]);
   for (const m of meals) { if (m.photo_path) m._url = await roles.signedMealPhotoUrl(m.photo_path); }
-  ATH = { athleteId, day, meals };
+  const pass = await roles.fetchActiveTrustPass(athleteId);
+  ATH = { athleteId, day, meals, pass };
   athLoadingId = null;
   roles.markDayViewed(athleteId, today, viewerId, viewerName); // fire-and-forget "coach saw your day"
   if (location.hash.startsWith('#coach-athlete')) window.__render();
@@ -344,14 +345,34 @@ export const coachAthlete = {
         <div class="lm"><div class="lt">Set nutrition targets</div><div class="ls">Protein · calories · target weight</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
+      <div class="lrow" style="cursor:default">
+        <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('shield', 17)}</div>
+        <div class="lm"><div class="lt">Trust Pass</div><div class="ls">${ATH.pass ? `Active · granted ${esc(ATH.pass.granted_date)}` : 'Camera-free days, earned with photo-logged history'}</div></div>
+        <button class="btn ghost sm" id="tp-btn" style="width:auto;padding:0 14px;height:34px">${ATH.pass ? 'End' : 'Grant'}</button>
+      </div>
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:8px;padding:0 2px">Tap a meal photo to review and comment on it.</div>
+    <div id="tp-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:4px;padding:0 2px">Tap a meal photo to review and comment on it.</div>
     <div style="height:10px"></div>
     `;
   },
   mount(root, { sub }) {
     loadCoachRoster(); // ensure the name is available
     loadAthlete(sub, RT.userId, S.athlete.name);
+    const btn = root.querySelector('#tp-btn');
+    const status = root.querySelector('#tp-status');
+    if (btn) btn.addEventListener('click', async () => {
+      btn.disabled = true; if (status) status.textContent = ATH.pass ? 'Ending…' : 'Granting…';
+      if (ATH.pass) {
+        const ok = await roles.endTrustPass(sub);
+        if (status) status.textContent = ok ? 'Trust Pass ended.' : 'Could not end it.';
+      } else {
+        const r = await roles.grantTrustPass(sub, 10);
+        if (status) status.textContent = r.ok ? 'Trust Pass granted.' : (r.error && /on.?standard|photo|eligib/i.test(r.error) ? 'Not eligible yet — needs 7 photo-logged days.' : 'Could not grant it.');
+      }
+      ATH = null; // force a refresh of the pass state
+      setTimeout(() => { if (location.hash.startsWith('#coach-athlete')) { loadAthlete(sub, RT.userId, S.athlete.name); } }, 500);
+    });
   },
 };
 

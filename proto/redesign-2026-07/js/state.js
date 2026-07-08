@@ -614,10 +614,17 @@ export const S = {
     };
   },
 
-  // Trust Pass is a real server feature (migration 0039) that isn't wired to the proto yet.
-  // Until it is, it stays inactive everywhere — never a fabricated "day 3 of 14". The Trust
-  // screen explains what it is and how it's earned.
-  get trustPass() { return { active: false }; },
+  // Real Trust Pass: reflects an active `trust_passes` row (coach-granted, migration 0033/0039),
+  // loaded by day.js. No pass → honestly inactive; never a fabricated "day 3 of 14".
+  get trustPass() {
+    const tp = DAY.trustPass;
+    if (!tp || !tp.granted_date) return { active: false };
+    const start = new Date(tp.granted_date + 'T00:00:00');
+    const now = new Date(DAY.date + 'T00:00:00');
+    const len = tp.length_days || 10;
+    const day = Math.min(len, Math.max(1, Math.floor((now - start) / 86400000) + 1));
+    return { active: true, day, length: len, note: 'Camera-free today, credited from your real logging history.' };
+  },
 
   get unreadNotifs() { return RT.notifsRead ? 0 : this.notifications.new.length; },
 

@@ -136,6 +136,7 @@ export const DAY = {
   scoringProfile: 'athlete',
   currentWeight: null,
   scoreHistory: [],      // [{date, score}] past days, for streak/trend
+  trustPass: null,       // { granted_date, length_days } from trust_passes, or null (real, coach-granted)
 };
 
 export function dayScore() { return scoreFor(DAY); }
@@ -195,6 +196,11 @@ export async function loadDay(userId) {
     const since = addDaysISO(DAY.date, -60);
     const { data: hist } = await sb.from('days').select('date,score,current_weight').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date');
     if (Array.isArray(hist)) DAY.scoreHistory = hist.map((r) => ({ date: r.date, score: r.score ?? 0, weight: r.current_weight ?? null }));
+    // Real active Trust Pass (coach-granted; migration 0033/0039). Null if none / not applied.
+    try {
+      const { data: tp } = await sb.from('trust_passes').select('granted_date,length_days').eq('athlete_id', userId).is('ended_at', null).maybeSingle();
+      DAY.trustPass = tp || null;
+    } catch { DAY.trustPass = null; }
     saveCache(userId);
   } catch (e) { console.warn('[day] loadDay failed', e && e.message); }
 }
@@ -225,7 +231,7 @@ export function dayResetLocal() {
   DAY.meals = { breakfast: false, lunch: false, snack: false, dinner: false };
   DAY.mealLoggedAt = {}; DAY.slotMacros = {}; DAY.quickAdded = [false, false, false];
   DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
-  DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = [];
+  DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.trustPass = null;
 }
 
 /* ---- mutators (each persists) ---- */
