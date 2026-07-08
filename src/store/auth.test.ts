@@ -7,6 +7,9 @@ import type { Store } from './useStore';
 import type { StoreApi, UseBoundStore } from 'zustand';
 
 const signIn = jest.fn<Promise<AuthResult>, [string, string]>();
+const fetchDay = jest.fn<Promise<unknown>, [string, string]>();
+const joinTeam = jest.fn<Promise<string | null>, [string]>();
+const joinPractice = jest.fn<Promise<string | null>, [string]>();
 const signUp = jest.fn<Promise<AuthResult>, [string, string, string | undefined]>();
 const signOut = jest.fn<Promise<void>, []>();
 const resetPassword = jest.fn<Promise<AuthResult>, [string]>();
@@ -16,8 +19,12 @@ const coachSetGoals = jest.fn<Promise<void>, [string, unknown, unknown]>();
 const fetchEntitlement = jest.fn<Promise<unknown>, [string]>();
 const fetchProfile = jest.fn<Promise<unknown>, [string]>();
 
-function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
-  let store!: UseBoundStore<StoreApi<Store>>;
+// The real store type (including the persist API, which the hydration-settling
+// tests below use) rather than a bare UseBoundStore.
+type LiveStore = typeof import('./useStore').useStore;
+
+function loadStore(backendLive: boolean): LiveStore {
+  let store!: LiveStore;
   jest.isolateModules(() => {
     jest.doMock('@react-native-async-storage/async-storage', () =>
       require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -27,7 +34,7 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
       isSupabaseConfigured: backendLive,
       auth: { signIn, signUp, signOut, resetPassword, signInWithAppleToken },
       // signInLive hydrates the day after auth; no remote row in these unit tests.
-      db: { fetchDay: jest.fn().mockResolvedValue(null), upsertDay: jest.fn().mockResolvedValue(undefined), createTeam, coachSetGoals, fetchEntitlement, fetchProfile, fetchGuardianRequests: jest.fn().mockResolvedValue([]), revokeViewer: jest.fn().mockResolvedValue(undefined) },
+      db: { fetchDay, upsertDay: jest.fn().mockResolvedValue(undefined), fetchActiveTrustPass: jest.fn().mockResolvedValue(null), createTeam, coachSetGoals, fetchEntitlement, fetchProfile, fetchGuardianRequests: jest.fn().mockResolvedValue([]), revokeViewer: jest.fn().mockResolvedValue(undefined), joinTeam, joinPractice },
     }));
     store = require('./useStore').useStore;
   });
@@ -36,6 +43,9 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
 
 beforeEach(() => {
   signIn.mockReset();
+  fetchDay.mockReset().mockResolvedValue(null);
+  joinTeam.mockReset().mockResolvedValue('team-1');
+  joinPractice.mockReset().mockResolvedValue('practice-1');
   signUp.mockReset();
   signOut.mockReset().mockResolvedValue(undefined);
   resetPassword.mockReset();
@@ -107,24 +117,90 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(useStore.getState().authError).toBeNull();
   });
 
-  it('signInLive surfaces the error + leaves userId null on failure', async () => {
+  it('signInLive with no remote day resets the unowned showcase day to an honest empty day', async () => {
+    signIn.mockResolvedValue({ ok: true, userId: 'u-1' });
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate(); // settle async hydration before acting
+    // The pre-sign-in local state is the seeded showcase (blank athleteName,
+    // 3 demo meals pre-logged). An account must never adopt it as its real day.
+    expect(useStore.getState().athleteName).toBe('');
+    expect(useStore.getState().meals.breakfast).toBe(true);
+    await useStore.getState().signInLive('a@b.io', 'pw');
+    const s = useStore.getState();
+    expect(s.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
+    expect(s.hydrationL).toBe(0);
+    expect(s.tasks.some((t) => t.done)).toBe(false);
+  });
+
+  it('signInLive keeps a REAL local day when the server has none (same-device re-sign-in)', async () => {
+    signIn.mockResolvedValue({ ok: true, userId: 'u-1' });
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate(); // settle async hydration before acting
+    useStore.setState({
+      athleteName: 'Marcus Cole',
+      meals: { breakfast: true, lunch: false, snack: false, dinner: false },
+      hydrationL: 1.2,
+    });
+    await useStore.getState().signInLive('a@b.io', 'pw');
+    const s = useStore.getState();
+    expect(s.meals).toEqual({ breakfast: true, lunch: false, snack: false, dinner: false });
+    expect(s.hydrationL).toBe(1.2);
+  });
+
+  it('signInLive adopts the server day when one exists', async () => {
+    signIn.mockResolvedValue({ ok: true, userId: 'u-1' });
+    fetchDay.mockResolvedValue({
+      athlete_id: 'u-1',
+      date: '2026-07-03',
+      meals: { breakfast: false, lunch: true, snack: false, dinner: false },
+      hydration_l: 0.8,
+      tasks: [],
+      quick_added: [false, false, false],
+      current_weight: 172,
+      checkin: null,
+      score: 61,
+      grade: 'D',
+    });
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate(); // settle async hydration before acting
+    await useStore.getState().signInLive('a@b.io', 'pw');
+    const s = useStore.getState();
+    expect(s.meals.lunch).toBe(true);
+    expect(s.meals.breakfast).toBe(false);
+    expect(s.hydrationL).toBe(0.8);
+    expect(s.currentWeight).toBe(172);
+  });
+
+  it('signInLive surfaces a FRIENDLY error + leaves userId null on failure', async () => {
     signIn.mockResolvedValue({ ok: false, error: 'Invalid login credentials' });
     const useStore = loadStore(true);
     const ok = await useStore.getState().signInLive('a@b.io', 'bad');
     expect(ok).toBe(false);
     expect(useStore.getState().userId).toBeNull();
-    expect(useStore.getState().authError).toBe('Invalid login credentials');
+    // The raw Supabase string is rewritten in product voice (audit copy fix), never leaked.
+    expect(useStore.getState().authError).not.toBe('Invalid login credentials');
+    expect(useStore.getState().authError).toMatch(/doesn't match/i);
   });
 
-  it('signUpLive stores userId + forwards the full name + keeps the email', async () => {
+  it('signUpLive stores userId + forwards the full name + role + keeps the email', async () => {
     signUp.mockResolvedValue({ ok: true, userId: 'u-2' });
     const useStore = loadStore(true);
     const ok = await useStore.getState().signUpLive(' c@d.io ', 'pw', ' Carla ');
     expect(ok).toBe(true);
-    expect(signUp).toHaveBeenCalledWith('c@d.io', 'pw', 'Carla');
+    // Role rides the signup call so a returning overseer routes correctly (2026-07-04 fix);
+    // the default onboarding role maps to 'athlete'.
+    expect(signUp).toHaveBeenCalledWith('c@d.io', 'pw', 'Carla', 'athlete');
     expect(useStore.getState().userId).toBe('u-2');
     expect(useStore.getState().athleteEmail).toBe('c@d.io');
     expect(useStore.getState().emailConfirmPending).toBe(false); // no needsConfirmation -> no false "check email"
+  });
+
+  it('signUpLive persists a COACH role in the signup metadata', async () => {
+    signUp.mockResolvedValue({ ok: true, userId: 'u-3' });
+    const useStore = loadStore(true);
+    useStore.setState({ role: 'sports_perf_coach' });
+    await useStore.getState().signUpLive('coach@d.io', 'pw', 'Coach Reyes');
+    expect(signUp).toHaveBeenCalledWith('coach@d.io', 'pw', 'Coach Reyes', 'coach');
   });
 
   it('signUpLive flags emailConfirmPending when the project requires confirmation (confirm-ON)', async () => {
@@ -143,12 +219,13 @@ describe('flag ON: live auth routes through the wrappers', () => {
     expect(useStore.getState().passwordResetSent).toBe(true);
   });
 
-  it('requestPasswordReset stays neutral on a real error but surfaces it', async () => {
+  it('requestPasswordReset stays neutral on a real error but surfaces it (friendly)', async () => {
     resetPassword.mockResolvedValue({ ok: false, error: 'rate limited' });
     const useStore = loadStore(true);
     const ok = await useStore.getState().requestPasswordReset('a@b.io');
     expect(ok).toBe(false);
-    expect(useStore.getState().authError).toBe('rate limited');
+    // Surfaced in product voice, not the raw machine string.
+    expect(useStore.getState().authError).toMatch(/too many attempts/i);
     expect(useStore.getState().passwordResetSent).toBe(false);
   });
 
@@ -187,7 +264,11 @@ describe('flag ON: live auth routes through the wrappers', () => {
     useStore.setState({ userId: 'coach-1' });
     await useStore.getState().refreshEntitlement();
     expect(fetchEntitlement).toHaveBeenCalledWith('coach-1');
-    expect(useStore.getState().entitlement).toEqual({ tier: 'team', status: 'active', seats: 24, seatsUsed: 18, renewsAt: '2026-08-01' });
+    expect(useStore.getState().entitlement).toEqual({
+      tier: 'team', status: 'active', seats: 24, seatsUsed: 18, renewsAt: '2026-08-01',
+      // 0042 lifecycle fields default safe on a pre-0042 row.
+      planId: null, cancelAtPeriodEnd: false, paymentFailedAt: null,
+    });
   });
 
   it('pushAthleteGoals routes a roster athlete plan through coach_set_goals', async () => {
@@ -196,6 +277,82 @@ describe('flag ON: live auth routes through the wrappers', () => {
     const ok = await useStore.getState().pushAthleteGoals('ath-1', t);
     expect(ok).toBe(true);
     expect(coachSetGoals).toHaveBeenCalledWith('ath-1', t, null);
+  });
+
+  it('pushAthleteGoals persists the chosen scoring profile inside the targets jsonb', async () => {
+    // Constitution 11a: the coach owns the profile. Before this, the picker was
+    // decorative — the selection was discarded on close and the editor re-seeded
+    // recommendation defaults, silently overwriting the coach's prior plan.
+    const useStore = loadStore(true);
+    const t = { protein: 160, calories: 2400, weight: 170 };
+    const ok = await useStore.getState().pushAthleteGoals('ath-1', t, 'general');
+    expect(ok).toBe(true);
+    expect(coachSetGoals).toHaveBeenCalledWith('ath-1', { ...t, profile: 'general' }, null);
+  });
+
+  it('joinTeamLive marks the coach connection only AFTER the join succeeds', async () => {
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    const ok = await useStore.getState().joinTeamLive('gators');
+    expect(ok).toBe(true);
+    expect(joinTeam).toHaveBeenCalledWith('GATORS');
+    expect(useStore.getState().supportTeam).toContain('coach');
+    expect(useStore.getState().inviteCode).toBe('GATORS');
+  });
+
+  it('joinTeamLive returns false and connects NOTHING when the join RPC fails', async () => {
+    // Before: connectCoach fired joinTeam fire-and-forget and the UI showed
+    // "You're on the roster" regardless — the athlete then waited forever for a
+    // coach who never saw them.
+    joinTeam.mockRejectedValue(new Error('revoked code'));
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    const ok = await useStore.getState().joinTeamLive('GATORS');
+    expect(ok).toBe(false);
+    expect(useStore.getState().supportTeam).not.toContain('coach');
+    expect(useStore.getState().inviteCode).toBe('');
+  });
+
+  it('joinPracticeLive mirrors the same contract for trainers', async () => {
+    joinPractice.mockRejectedValue(new Error('nope'));
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    expect(await useStore.getState().joinPracticeLive('APEX99')).toBe(false);
+    expect(useStore.getState().supportTeam).not.toContain('trainer');
+  });
+
+  it('hydrateProfile routes a returning coach to the COACH app, not the athlete Home', async () => {
+    // signinDone unconditionally lands every returning user on flow 'app' (athlete),
+    // so a coach reinstalling saw an athlete demo day with no path to their roster.
+    fetchProfile.mockResolvedValue({ full_name: 'Dana Reyes', org_name: 'Eastside HS', email: 'c@d.io', primary_role: 'hs_coach' });
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    useStore.setState({ userId: 'u-9', flow: 'app', role: null });
+    await useStore.getState().hydrateProfile();
+    expect(useStore.getState().flow).toBe('coach');
+    expect(useStore.getState().role).toBe('hs_coach');
+  });
+
+  it('hydrateProfile never yanks an in-progress onboarding to another flow', async () => {
+    fetchProfile.mockResolvedValue({ full_name: 'Dana Reyes', org_name: null, email: 'c@d.io', primary_role: 'hs_coach' });
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    useStore.setState({ userId: 'u-9', flow: 'onboarding', role: null });
+    await useStore.getState().hydrateProfile();
+    expect(useStore.getState().flow).toBe('onboarding');
+  });
+
+  it('grantTrustPass / endTrustPass are INERT when live — the pass is server-authoritative', async () => {
+    // The athlete-facing Profile card carried a self-serve "Start 10-day pass"
+    // button wired to a plain client set — under copy reading "Your coach unlocks
+    // this." Live, only the coach RPC grants and only the server ends a pass.
+    const useStore = loadStore(true);
+    await useStore.persist.rehydrate();
+    useStore.getState().grantTrustPass(10);
+    expect(useStore.getState().trustPass).toBeNull();
+    useStore.setState({ trustPass: { grantedDate: '2026-07-01', lengthDays: 10 } });
+    useStore.getState().endTrustPass();
+    expect(useStore.getState().trustPass).not.toBeNull();
   });
 
   it('signOutLive calls the wrapper and clears the session', async () => {

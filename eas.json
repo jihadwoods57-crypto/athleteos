@@ -6,22 +6,37 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "credentialsSource": "local",
+      "env": {
+        "EXPO_PUBLIC_BACKEND_LIVE": "true"
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_BACKEND_LIVE": "true"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
+      "credentialsSource": "local",
       "env": {
         "EXPO_PUBLIC_BACKEND_LIVE": "true"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascApiKeyPath": "./ios-certs/AuthKey_TNS4WL4GLR.p8",
+        "ascApiKeyId": "TNS4WL4GLR",
+        "ascApiKeyIssuerId": "3dcac87d-ec88-493a-8f31-e298ae76af64",
+        "ascAppId": "6787705639"
+      }
+    }
   }
 }

@@ -7,7 +7,10 @@ export const colors = {
   card: '#FFFFFF',
   text: '#0F172A',
   textSecondary: '#64748B',
-  textTertiary: '#94A3B8',
+  // Darkened from #94A3B8 (2.56:1 — a WCAG AA fail flagged in the audit) to #667085,
+  // which clears 4.5:1 on card/bg/accent surfaces while staying a touch lighter than
+  // secondary. Small muted labels (11px eyebrows, meta, tab labels) are now legible.
+  textTertiary: '#667085',
   slate500: '#64748B',
   slate600: '#475569',
   slate700: '#334155',
@@ -49,6 +52,17 @@ export const colors = {
   warnText: '#B45309',
   slate300: '#CBD5E1',
 
+  // Elevation surfaces + extra semantic accents the redesign leans on (dark holds the
+  // premium values; light keeps sensible equivalents so both palettes share every key).
+  surface2: '#F1F5F9',
+  surface3: '#E9EEF4',
+  cyan: '#0EA5E9',
+  purple: '#7C3AED',
+
+  // Dark text that sits on the green action button (proto's "Get Started"/"Log" CTAs use
+  // near-black text on green, not white — green is light enough that dark reads far better).
+  onGreen: '#04160D',
+
   white: '#FFFFFF',
 } as const;
 
@@ -69,51 +83,67 @@ export type ColorTheme = { [K in keyof typeof colors]: string };
 /** Designed dark palette — same keys as light. Surfaces become elevated grays (not pure
  *  black), accents/status brighten for contrast on dark, white stays white (text on
  *  colored buttons). Tuned for WCAG-AA; run src/core/contrast.ts over pairs at QA time. */
+// Redesign dark palette — transcribed from the proto's css/tokens.css. Deep navy-black
+// canvas (never pure #000), cool-tinted text, brand-blue spine, and semantic accents that
+// each hold ONE meaning (green positive, amber warning, purple recovery, cyan hydration,
+// red critical). Hairlines are low-opacity slate so cards read as edges, not boxes.
 export const darkColors: ColorTheme = {
-  bg: '#0B1120',
-  bg2: '#111827',
-  card: '#1E293B',
-  text: '#F1F5F9',
-  textSecondary: '#94A3B8',
-  textTertiary: '#64748B',
-  slate500: '#94A3B8',
-  slate600: '#CBD5E1',
-  slate700: '#E2E8F0',
+  bg: '#070B14',
+  bg2: '#05080F',
+  card: '#0E1421',
+  text: '#EEF3FB',
+  textSecondary: '#9AA9C2',
+  // Proto text-3 is #64748B, but that's ~4.1:1 on the near-black canvas — an AA fail on the
+  // tiny meta labels the contrast guard covers. Held at #8A98AC: clears 4.5:1, still clearly
+  // a step down from secondary. (Tints/borders below are the proto's rgba washes flattened to
+  // solid hex over the dark surface, since the palette invariant requires 6-digit hex.)
+  textTertiary: '#8A98AC',
+  slate500: '#9AA9C2',
+  slate600: '#B7C4D8',
+  slate700: '#D7E0EE',
 
   accent: '#3B82F6',
   accentLight: '#60A5FA',
-  accentSurface: '#172554',
-  accentBorder: '#1E3A8A',
+  accentSurface: '#14233F',
+  accentBorder: '#1D3969',
   accentBorderStrong: '#2563EB',
 
-  success: '#22C55E',
+  success: '#34D399',
   successDeep: '#4ADE80',
-  successSurface: '#052E16',
+  successSurface: '#132D31',
 
-  warning: '#F59E0B',
+  warning: '#F5A524',
   warningDeep: '#FBBF24',
 
-  alert: '#F87171',
+  alert: '#F65757',
   alertDeep: '#FCA5A5',
-  alertSurface: '#450A0A',
-  alertBorder: '#7F1D1D',
+  alertSurface: '#2C1D28',
+  alertBorder: '#542831',
 
   hydration: '#38BDF8',
   trainer: '#A855F7',
   trainerLight: '#C084FC',
 
-  divider: '#1E293B',
-  divider2: '#172033',
-  track: '#334155',
-  border: '#1E293B',
-  hairline: '#243044',
+  divider: '#1B2434',
+  divider2: '#151D2C',
+  track: '#1A2436',
+  border: '#1B2434',
+  hairline: '#1B2434',
 
-  successTint: '#0C2A20',
+  successTint: '#132D31',
   successText: '#4ADE80',
-  successBorderSoft: '#14532D',
-  warnTint: '#3A2A08',
-  warnText: '#FCD34D',
+  successBorderSoft: '#194D45',
+  warnTint: '#2C2721',
+  warnText: '#FBBF24',
   slate300: '#475569',
+
+  surface2: '#131C2D',
+  surface3: '#1A2436',
+  cyan: '#38BDF8',
+  purple: '#A855F7',
+
+  // Near-black text that sits on the green action button (green is light; dark text reads best).
+  onGreen: '#04160D',
 
   white: '#FFFFFF',
 };
@@ -153,6 +183,25 @@ export const gradeRing: Record<string, [string, string]> = {
   C: ['#FBBF24', '#D97706'],
   D: ['#FB923C', '#EA580C'],
   F: ['#F87171', '#DC2626'],
+};
+
+/**
+ * The redesign's signature score ring: a premium green → cyan → blue sweep, constant across
+ * every score. The ring reads as "energy/progress"; the TIER CHIP (below) carries the status
+ * color, so a low score isn't a red ring fighting a red chip — the ring stays aspirational.
+ */
+export const ringGradient = ['#34D399', '#22D3EE', '#3B82F6'] as const;
+
+/**
+ * Tier chip palette keyed by the proto's tier class:
+ *   r = Off Standard (red) · a = Building (amber) · b = Locked In (cyan) · g = OnStandard (green).
+ * Filled tint + hairline border in the tier color — legible on the dark canvas.
+ */
+export const tierChip: Record<'r' | 'a' | 'b' | 'g', { fg: string; bg: string; border: string }> = {
+  r: { fg: '#F65757', bg: 'rgba(246,87,87,0.13)', border: 'rgba(246,87,87,0.30)' },
+  a: { fg: '#F5A524', bg: 'rgba(245,165,36,0.13)', border: 'rgba(245,165,36,0.32)' },
+  b: { fg: '#38BDF8', bg: 'rgba(56,189,248,0.13)', border: 'rgba(56,189,248,0.30)' },
+  g: { fg: '#34D399', bg: 'rgba(52,211,153,0.13)', border: 'rgba(52,211,153,0.30)' },
 };
 
 export const radius = {
@@ -205,6 +254,14 @@ export const shadow = {
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
+  } as Shadow,
+  // Green action glow — the redesign's primary CTA (Get Started / Log meal) + camera FAB.
+  ctaGreen: {
+    shadowColor: '#34D399',
+    shadowOpacity: 0.34,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   } as Shadow,
 } as const;
 

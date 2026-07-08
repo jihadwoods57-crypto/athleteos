@@ -20,11 +20,6 @@ describe('athlete onboarding setters', () => {
     expect(useStore.getState().primaryGoal).toBe('gain_muscle');
   });
 
-  it('setTrainingFreq stores the frequency', () => {
-    useStore.getState().setTrainingFreq('twice');
-    expect(useStore.getState().trainingFreq).toBe('twice');
-  });
-
   it('the age stepper floors at the 13+ signup minimum (no under-13 -> out of COPPA scope)', () => {
     expect(MIN_SIGNUP_AGE).toBe(13);
     useStore.setState({ baseAge: MIN_SIGNUP_AGE });
@@ -193,5 +188,32 @@ describe('7-role -> 4-dashboard routing', () => {
     const s = useStore.getState();
     expect(s.scoringProfile).toBe('general'); // two-sided calorie target is right for maintenance
     expect(s.weightTarget).toBe(178); // target = current weight (a stay-at goal, not a reach goal)
+  });
+});
+
+describe('target-weight stepper is direction-aware (the About You audit fix)', () => {
+  it('a Lose Fat user\'s first adjust steps DOWN from the goal-derived target, not up from 184', () => {
+    useStore.getState().resetDemo();
+    useStore.setState({ role: 'athlete', baseWeight: 178, weightTarget: 184, weightTargetTouched: false });
+    useStore.getState().setPrimaryGoal('lose_fat'); // -> baseGoal 'lose', derived target ~164
+    useStore.getState().adjustWeightTarget(-1);
+    // Seeds from derived (~164) then -1, never from the gain-shaped 184.
+    expect(useStore.getState().weightTarget).toBeLessThan(178);
+    expect(useStore.getState().weightTargetTouched).toBe(true);
+  });
+
+  it('once touched, further adjusts move from the athlete\'s own value (not re-seeded)', () => {
+    useStore.getState().resetDemo();
+    useStore.setState({ role: 'athlete', baseWeight: 178, weightTarget: 170, weightTargetTouched: true });
+    useStore.getState().adjustWeightTarget(1);
+    expect(useStore.getState().weightTarget).toBe(171); // 170 + 1, no re-seed
+  });
+
+  it('a gain user\'s first adjust steps UP from the goal-derived target', () => {
+    useStore.getState().resetDemo();
+    useStore.setState({ role: 'athlete', baseWeight: 178, weightTarget: 184, weightTargetTouched: false });
+    useStore.getState().setPrimaryGoal('gain_muscle'); // -> baseGoal 'gain', derived ~192
+    useStore.getState().adjustWeightTarget(1);
+    expect(useStore.getState().weightTarget).toBeGreaterThan(178);
   });
 });

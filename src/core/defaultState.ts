@@ -10,6 +10,7 @@ export function createInitialState(): AppState {
   return {
     // onboarding
     flow: 'onboarding',
+    welcomeDone: false,
     obStep: 0,
     role: null,
     signinMode: false,
@@ -31,7 +32,6 @@ export function createInitialState(): AppState {
 
     // onboarding (redesign)
     primaryGoal: null,
-    trainingFreq: null,
     supportTeam: [],
     inviteCode: '',
     teamCode: '',
@@ -56,6 +56,7 @@ export function createInitialState(): AppState {
     emailConfirmPending: false,
     sharingPaused: false,
     entitlement: previewEntitlement(),
+    trustPass: null,
 
     // day
     dateStamp: todayStamp(),
@@ -68,10 +69,12 @@ export function createInitialState(): AppState {
     meals: { breakfast: true, lunch: true, snack: true, dinner: false },
     mealFoods: {},
     mealLoggedAt: {},
+    mealNotes: {},
     hydrationL: 2.4,
     quickAdded: [false, false, false],
     nudged: [],
     nudgeLog: [],
+    dailyCommitment: null,
     tasks: [
       { id: 1, group: 'NUTRITION', title: 'Log breakfast', meta: '42g protein', done: true },
       { id: 2, group: null, title: 'Hit 180g protein', meta: 'protein goal', done: false },
@@ -95,6 +98,7 @@ export function createInitialState(): AppState {
     ciMotivation: 8,
     ciSubmitted: false,
     ciConfig: { energy: true, recovery: true, sleep: true, confidence: true, soreness: false, motivation: false },
+    ciLast: null,
 
     // nav / overlays
     tab: 'home',
@@ -104,12 +108,19 @@ export function createInitialState(): AppState {
     squadMode: 'team',
     cachedRoster: null,
     cachedRosterUserId: null,
+    briefNarration: null,
+    lastDashboardOpenedAt: null,
+    prevDashboardOpenedAt: null,
+    mealReview: null,
     mealOpen: false,
     mealStage: 'capture',
     mealCaptureMode: 'meal',
     mealType: 'Dinner',
     mealAnalysis: null,
     mealQuestions: [],
+    mealError: null,
+    syncState: 'idle',
+    lastSyncedAt: null,
     labelFacts: null,
     labelServings: 1,
     mealPhoto: null,
@@ -137,13 +148,19 @@ export function createInitialState(): AppState {
     proteinTarget: PROTEIN_TARGET,
     calTarget: CAL_TARGET,
     planInstructions: [],
+    planSlots: [],
     weightTarget: WEIGHT_TARGET,
+    // False until the athlete adjusts the target on About You; while false the step shows
+    // (and seeds from) the goal-derived default so a Lose Fat user never sees a gain target.
+    weightTargetTouched: false,
     visibility: 'parent',
     notif: true,
     reminderSettings: defaultReminderSettings(),
     overseerAlerts: defaultOverseerAlerts(),
     units: 'imperial',
-    themeMode: 'auto',
+    // The redesign is a dark-premium experience, so dark is the out-of-the-box default.
+    // Users can still choose Light or Auto (follow-OS) from Profile → Appearance.
+    themeMode: 'dark',
     mealDesc: '',
     chatDraft: '',
     msgDraft: '',

@@ -25,9 +25,25 @@ import { createClient } from 'npm:@supabase/supabase-js@^2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
+// The token is an opaque server-generated id: encode(gen_random_bytes(16),'hex') = 32 hex chars
+// (migration 0008). Anything outside this charset is malformed/hostile and is rejected BEFORE it
+// can be reflected into the page — the primary guard against reflected XSS via the token param.
+const TOKEN_RE = /^[A-Za-z0-9_-]{16,128}$/;
+
+// Defense-in-depth: escape any value interpolated into HTML so a stray character can never break
+// out of an attribute or open a tag, even if a future caller forgets to pre-validate.
+function esc(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function page(status: number, title: string, body: string, button?: { token: string }): Response {
   const action = button
-    ? `<form method="POST"><input type="hidden" name="token" value="${button.token}"/>
+    ? `<form method="POST"><input type="hidden" name="token" value="${esc(button.token)}"/>
          <button type="submit" style="margin-top:20px;background:#2563EB;color:#fff;border:0;border-radius:14px;padding:15px 26px;font-size:16px;font-weight:700;cursor:pointer">Approve</button>
        </form>`
     : '';
@@ -55,6 +71,8 @@ Deno.serve(async (request) => {
     token = (form?.get('token')?.toString() ?? token).trim();
   }
   if (!token) return page(400, 'Invalid link', 'This approval link is missing its token.');
+  // Reject a malformed token before it is ever reflected into the page or hits the DB.
+  if (!TOKEN_RE.test(token)) return page(400, 'Invalid link', 'This approval link is malformed.');
 
   // GET: show the confirm page (no write — prevents email-prefetch auto-approval).
   if (request.method !== 'POST') {

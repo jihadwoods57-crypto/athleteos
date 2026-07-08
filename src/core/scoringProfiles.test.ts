@@ -10,11 +10,11 @@ describe('PROFILE_WEIGHTS', () => {
   it('every profile mix sums to 1', () => {
     for (const p of ['athlete', 'general', 'gain'] as const) {
       const w = PROFILE_WEIGHTS[p];
-      expect(w.nutrition + w.recovery + w.tasks + w.checkin).toBeCloseTo(1, 5);
+      expect(w.nutrition + w.recovery + w.commitment + w.checkin).toBeCloseTo(1, 5);
     }
   });
   it('athlete keeps the shipped .5/.25/.15/.1 mix', () => {
-    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.5, recovery: 0.25, tasks: 0.15, checkin: 0.1 });
+    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 });
   });
 });
 

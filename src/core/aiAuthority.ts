@@ -2,8 +2,13 @@
 //
 // The rule (Constitution §11a, Founder Rule #3 & #13): the deterministic engine + the coach's plan
 // are the source of truth; the AI is only a language layer. If the AI disagrees with the coach,
-// THE COACH WINS. The `assist` edge function runs every model-proposed value through `arbitrate()`
-// before it can touch anything, so an AI value can never silently become the effective value.
+// THE COACH WINS.
+//
+// STATUS (honest): `arbitrate()` is NOT yet wired into any live path — no edge function calls it.
+// The safety floors that ARE live today are deterministic client guards: clampPlanSlots (calorie
+// floor + confirmed-allergen drop on every AI plan draft, src/core/planValidate.ts), the number-lock
+// rephrase guards, and macro grounding. Wire arbitrate() when an assist task starts proposing plan
+// values; until then do not describe it as running.
 //
 // The hierarchy (highest authority first):
 //   1. Safety floor   — medical/scope bounds, minor calorie minimums, allergy constraints. ABSOLUTE;

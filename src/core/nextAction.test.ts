@@ -29,6 +29,18 @@ describe('nextBestAction — protein leads (the dominant lever)', () => {
     expect(early).not.toContain('overdue');
   });
 
+  it('is time-aware: a fresh athlete at 9pm is told to log DINNER, never breakfast', () => {
+    // The audit bug: with nothing logged, "first unlogged" was always breakfast, so a
+    // 9pm athlete got "Log breakfast". Now it names the current time-window meal.
+    const fresh: AppState = { ...createInitialState(), meals: { breakfast: false, lunch: false, snack: false, dinner: false }, mealFoods: {} };
+    const at9pm = act(fresh, 21);
+    expect(at9pm.title).toBe('Log dinner');
+    const at8am = act(fresh, 8);
+    expect(at8am.title).toBe('Log breakfast'); // early morning still points at breakfast
+    const atNoon = act(fresh, 12);
+    expect(atNoon.title).toBe('Log breakfast'); // breakfast window (due 9) still current until lunch (13)
+  });
+
   it('all meals logged but still short -> a protein top-up, not a meal', () => {
     const s: AppState = { ...createInitialState(), meals: { breakfast: true, lunch: true, snack: true, dinner: true }, mealFoods: { breakfast: [], lunch: [], snack: [], dinner: [] } };
     const a = act(s);

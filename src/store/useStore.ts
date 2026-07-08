@@ -1,26 +1,31 @@
-// OnStandard — single session store (Zustand) + AsyncStorage persistence.
+// OnStandard â€” single session store (Zustand) + AsyncStorage persistence.
 // Mirrors the prototype's component state + methods; the day slice persists
 // under key `aos_day`, exactly like the prototype's localStorage usage.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { analyzeLabel, analyzeMeal, isAiConfigured } from '@/lib/ai';
+import { AiUnavailableError, analyzeLabel, analyzeMeal, isAiConfigured } from '@/lib/ai';
+import { fetchMemoryFacts, insertMemoryFacts } from '@/lib/ai/memory';
 import { capturePhotoBase64, pickMealPhotoBase64, isCameraAvailable } from '@/lib/capture';
-import { isEnginesEnabled } from '@/lib/features';
+import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 import { auth, db, isBackendLive } from '@/lib/supabase';
 import { refreshReminderSchedule, getPushToken } from '@/lib/notify';
 import { Platform } from 'react-native';
-import { consentContextFromState, hydrateDay, pushDay } from './sync';
+import { consentContextFromState, hydrateDay, hydrateHistory, pushDay } from './sync';
 import { recordMeal } from './mealSync';
 import {
   addPerfEntry,
   removePerfEntry,
+  admitCandidate,
+  avoidFoodsFromFacts,
+  candidateFactsFromFoodChange,
   clampHour,
   CUSTOM_METRIC_KEY,
   appendDayScore,
   createInitialState,
   emptyDaySlice,
   flowForRole,
+  serverRoleForFlow,
   HYDRATION_TARGET,
   MIN_SIGNUP_AGE,
   PROTEIN_TARGET,
@@ -32,6 +37,10 @@ import {
   sleepHoursToSlider,
   startingScore,
   WEIGHT_TARGET,
+  DAY_DEFAULT_KEYS,
+  COMPLIANCE_THRESHOLD,
+  computeDerived,
+  freshRealDay,
   rollDayIfStale,
   todayStamp,
   daysAgoStamp,
@@ -48,10 +57,17 @@ import {
   appendSnack,
   baseGoalForPrimary,
   goalConfig,
+  deriveTargetsFromGoal,
+  friendlyAuthError,
   realDataConsent,
   reminderNotifySpecs,
   reminderSnapshotFromState,
   sampleScannedLabel,
+  activePlan,
+  parsePlanSlots,
+  buildPlanDraft,
+  applySlotPatch,
+  toggleMode,
 } from '@/core';
 import type {
   AppState,
@@ -77,6 +93,8 @@ import type {
   CoachTab,
   TrainerTab,
   ParentTab,
+  PlanSlot,
+  EngineGoal,
 } from '@/core';
 
 type CiSliderKey = 'ciEnergy' | 'ciRecovery' | 'ciSleep' | 'ciConfidence' | 'ciSoreness' | 'ciMotivation';
@@ -114,6 +132,8 @@ function nextPerfId(entries: PerfEntry[]): string {
 
 export interface Actions {
   // onboarding
+  /** Dismiss the branded landing screen and enter the existing onboarding steps. */
+  passWelcome: () => void;
   obNext: () => void;
   obBack: () => void;
   finishOb: () => void;
@@ -132,13 +152,15 @@ export interface Actions {
   hStep: (d: number) => void;
   bwStep: (d: number) => void;
   ageStep: (d: number) => void;
+  setBaseWeight: (n: number) => void;
+  setBaseAge: (n: number) => void;
+  setWeightTarget: (n: number) => void;
   startSignin: () => void;
   exitSignin: () => void;
   signinDone: () => void;
 
   // onboarding (redesign)
   setPrimaryGoal: (k: string) => void;
-  setTrainingFreq: (k: string) => void;
   toggleSupport: (k: string) => void;
   /** Athlete joins a coach/trainer by team code: stores the code, marks a coach connected in the
    *  local model (so coach guidance + visibility activate), and when the backend is live actually
@@ -147,13 +169,18 @@ export interface Actions {
   /** Client joins a trainer's practice by code (mirror of connectCoach): marks the
    *  trainer in the local support network and joins via join_practice when live. */
   connectTrainer: (code: string) => void;
+  /** AWAITED live joins for the code-confirm screen: the server join must succeed
+   *  BEFORE any local "connected" state flips or a success screen shows. False on
+   *  failure so the UI can say so â€” never a success screen over a dead join. */
+  joinTeamLive: (code: string) => Promise<boolean>;
+  joinPracticeLive: (code: string) => Promise<boolean>;
   /** Open/close the athlete "Connect your coach" overlay; openConnect may carry an
    *  invite-link code to prefill the code door. */
   openConnect: (prefillCode?: string | null) => void;
   closeConnect: () => void;
   /** Athlete dismissed the first-run Home connect card ("not now"). */
   dismissConnectCard: () => void;
-  /** Athlete-first request to join a discoverable team → a pending row the coach
+  /** Athlete-first request to join a discoverable team â†’ a pending row the coach
    *  approves. Returns true on success; inert (false) when the backend is off. */
   requestJoinTeamLive: (teamId: string, position?: string) => Promise<boolean>;
   setInviteCode: (v: string) => void;
@@ -182,6 +209,14 @@ export interface Actions {
   goPerformance: () => void;
   /** Open the Reminders settings screen (P3). */
   goReminders: () => void;
+  /** Redesign routes (proto): Score Breakdown, Morning Weight, Recovery Check-In,
+   *  30-day History, Streak detail, Trust Pass detail. */
+  goBreakdown: () => void;
+  goWeight: () => void;
+  goRecovery: () => void;
+  goHistory: () => void;
+  goStreak: () => void;
+  goTrustDetail: () => void;
   /** Log a performance result (PR). The store assigns a stable id + persists it.
    *  A separate development track from the daily score (never folds into it). */
   logPr: (spec: PrInput) => void;
@@ -213,19 +248,21 @@ export interface Actions {
   openMeal: () => void;
   closeMeal: () => void;
   setMealType: (m: MealLabel) => void;
-  capture: (fromLibrary?: boolean) => void;
+  capture: (fromLibrary?: boolean, providedPhoto?: string) => void;
   /** Answer the AI's clarifying questions and get the finalized analysis (the 2nd call). */
   finalizeMeal: (answers: string[]) => void;
-  /** Reuse a past "usual" meal's confirmed macros — skips the model call and the daily-cap slot. */
+  /** Reuse a past "usual" meal's confirmed macros â€” skips the model call and the daily-cap slot. */
   pickUsual: (u: UsualMeal) => void;
   /** Switch the meal overlay between photographing a plate and scanning a label. */
   setMealCaptureMode: (mode: MealCaptureMode) => void;
   /** Scan a Nutrition Facts label (transcribe). Honors the same photo-egress consent gate. */
   captureLabel: () => void;
-  /** Set how many servings of the scanned label were eaten (¼-step). */
+  /** Set how many servings of the scanned label were eaten (Â¼-step). */
   setLabelServings: (n: number) => void;
   /** Log the scanned label (scaled by servings) into the selected meal slot. */
   addScannedLabel: () => void;
+  /** Log a food picked from name search (USDA, exact macros) into the selected meal slot. */
+  addSearchedFood: (food: EditableFood) => void;
   addMeal: () => void;
   addWater: () => void;
   /** Log a snack/shake preset into the day's snack slot (persists + scores, like a meal). */
@@ -251,20 +288,29 @@ export interface Actions {
    *  after sign-in, so a fresh device shows their real identity, not the seeded demo.
    *  Gated; soft-fails to the local cache. */
   hydrateProfile: () => Promise<void>;
+  hydrateRecord: () => Promise<void>;
   /** Read the athlete's guardian-consent status back from the backend after sign-in, so a
    *  server-VERIFIED guardian actually unblocks the minor (the client only ever wrote
-   *  'pending'). Server value only — never client-writable to 'verified'. Gated; soft-fails. */
+   *  'pending'). Server value only â€” never client-writable to 'verified'. Gated; soft-fails. */
   hydrateGuardianConsent: () => Promise<void>;
+  /** Foreground day-boundary: the rollover used to run ONLY in the persist merge
+   *  (cold restart), so an app backgrounded overnight reopened onto yesterday's
+   *  completed day â€” no fresh morning game plan, and a post-midnight action synced
+   *  yesterday's day under today's date. Archives yesterday + resets the day slice
+   *  exactly like the merge; same-day call is a no-op. Wired to AppState in Root. */
+  rollDayForeground: () => void;
   /** Coach sets a roster athlete's targets via the coach_set_goals RPC (gated). The
-   *  coach owns the plan (Constitution Rule #13). Returns success; inert when off. */
-  pushAthleteGoals: (athleteId: string, targets: { protein: number; calories: number; weight: number }) => Promise<boolean>;
+   *  coach owns the plan (Constitution Rule #13). The chosen scoring profile rides
+   *  inside the same targets jsonb so it persists and round-trips into the editor.
+   *  Returns success; inert when off. */
+  pushAthleteGoals: (athleteId: string, targets: { protein: number; calories: number; weight: number }, profile?: string) => Promise<boolean>;
   /** Overseer self-profile edits (coach/trainer/parent). Update the display name +
    *  org/team name; when live they also push to the profiles row (gated seam). */
   setDisplayName: (v: string) => void;
   setOrgName: (v: string) => void;
   /** Persist an edited meal's foods into the day slice and mark the slot logged, so
    *  reopening shows the saved plate and the daily score reflects its real macros. */
-  saveMeal: (key: MealKey, foods: EditableFood[]) => void;
+  saveMeal: (key: MealKey, foods: EditableFood[], learn?: boolean) => void;
   openFoodCoach: () => void;
   closeFoodCoach: () => void;
   openPlanEditor: () => void;
@@ -272,9 +318,25 @@ export interface Actions {
   /** Add a standing coach instruction (trimmed, deduped, capped). */
   addPlanInstruction: (text: string) => void;
   removePlanInstruction: (index: number) => void;
+  /** Replace the plan's slot list wholesale (sanitized through parsePlanSlots), e.g. after
+   *  a model-generated plan comes back. */
+  setPlanSlots: (slots: PlanSlot[]) => void;
+  /** Patch one meal slot (note/photoRequired/macros/etc.) without touching the others. */
+  updatePlanSlot: (key: MealKey, patch: Partial<PlanSlot>) => void;
+  /** Flip one slot between 'pinned' (locked to the prescribed meal) and 'open' (athlete's choice). */
+  togglePlanSlotMode: (key: MealKey) => void;
+  /** Fill planSlots from the deterministic offline draft builder for the given goal. */
+  generatePlanDraftLocal: (goal: EngineGoal) => void;
+  /** Clear the plan back to empty (e.g. coach resets it). */
+  clearPlan: () => void;
   toggleQuick: (i: number) => void;
   openPerson: (p: PersonDetail) => void;
   closePerson: () => void;
+  // Assistant Nutritionist (2026-07-04)
+  setBriefNarration: (date: string, text: string) => void;
+  stampDashboardOpened: () => void;
+  openMealReview: (mealId: string, athleteId: string, athleteName: string, card: NonNullable<AppState['mealReview']>['card'], demo?: boolean) => void;
+  closeMealReview: () => void;
   openAccount: () => void;
   closeAccount: () => void;
   openMsg: () => void;
@@ -299,12 +361,22 @@ export interface Actions {
   // overseer action (coach/trainer/nutritionist): the lightweight nudge. The
   // optional baseline captures the athlete's compliance/score at send-time so
   // the dashboard can later read whether anything moved (see core/nudge.ts).
-  sendNudge: (name: string, baseline?: { score: number; comp: number }, note?: string, athleteId?: string) => void;
+  sendNudge: (name: string, baseline?: { score: number; comp: number }, note?: string, athleteId?: string, title?: string) => void;
+  /** Coach grants / ends a linked athlete's Trust Pass via the server RPC (backend-live). */
+  coachGrantTrustPass: (athleteId: string, lengthDays: number) => Promise<void>;
+  coachEndTrustPass: (athleteId: string) => Promise<void>;
   /** Capture + register this device's push token (native, backend-live only). No-op elsewhere. */
   initPush: () => Promise<void>;
 
   // tasks
   toggleTask: (id: number) => void;
+
+  // daily plan-commitment (yes/partial/no one-tap)
+  setDailyCommitment: (answer: AppState['dailyCommitment']) => void;
+
+  // Trust Pass (earned camera-free reward) â€” coach-granted at go-live; pilot grant is client-side
+  grantTrustPass: (lengthDays: number) => void;
+  endTrustPass: () => void;
 
   // check-in
   wStep: (d: number) => void;
@@ -366,14 +438,24 @@ let mealTimer: ReturnType<typeof setTimeout> | undefined;
 // writes a non-consenting (or minor) athlete's data. AsyncStorage stays the cache.
 const SYNC_DEBOUNCE_MS = 1200;
 // How far back the client meal-history overlay pulls (one stored meal per slot/day).
-const MEAL_HISTORY_DAYS = 14;
+const MEAL_HISTORY_DAYS = 30;
 let syncTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleDaySync(get: () => Store): void {
   if (!isBackendLive) return;
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     const s = get();
-    if (s.userId) void pushDay(s, s.userId).catch(() => undefined);
+    if (!s.userId) return;
+    // Track the push so a failure is surfaced (audit item 12) instead of silently swallowed â€” an
+    // athlete logging on a dead connection must not believe their coach can see the day. Only a real
+    // write flips to 'synced'; a consent/backend gate (pushed:false) is intentional, not an error.
+    useStore.setState({ syncState: 'syncing' });
+    pushDay(s, s.userId)
+      .then((r) => {
+        if (r.pushed) useStore.setState({ syncState: 'synced', lastSyncedAt: new Date().toISOString() });
+        else useStore.setState({ syncState: 'idle' });
+      })
+      .catch(() => useStore.setState({ syncState: 'error' }));
   }, SYNC_DEBOUNCE_MS);
 }
 
@@ -390,6 +472,28 @@ function scheduleMealRecord(get: () => Store, key: MealKey): void {
   void recordMeal(s, s.userId, key).catch(() => undefined);
 }
 
+// The WRITE half of the AI memory flywheel (audit item 13): when the athlete CORRECTS an AI-detected
+// plate (removes a food), infer a candidate 'dislike' and store it â€” a SAFETY kind, so admitCandidate
+// routes it to 'pending_confirmation' and MemoryConfirm asks the athlete before it ever binds. Only
+// fires on a genuine correction of an existing plate; fails closed for a non-consenting/minor athlete
+// (no inferred facts leave the device) and is fully fire-and-forget (a meal always logs regardless).
+// v1 learns dislikes only (favorites are noisier and deferred); deduped against existing facts so the
+// same food is never re-asked.
+async function learnFromCorrection(get: () => Store, beforeNames: string[], after: EditableFood[]): Promise<void> {
+  if (!isBackendLive) return;
+  const s = get();
+  if (!s.userId) return;
+  if (!realDataConsent(consentContextFromState(s, isBackendLive)).ok) return; // fail closed
+  const candidates = candidateFactsFromFoodChange(beforeNames, after)
+    .map(admitCandidate)
+    .filter((f) => f.status === 'pending_confirmation'); // safety dislikes the athlete will confirm
+  if (candidates.length === 0) return;
+  const existing = await fetchMemoryFacts().catch(() => []);
+  const have = new Set(existing.map((f) => `${f.kind}:${String(f.value).toLowerCase()}`));
+  const fresh = candidates.filter((f) => !have.has(`${f.kind}:${String(f.value).toLowerCase()}`));
+  if (fresh.length) await insertMemoryFacts(fresh).catch(() => undefined);
+}
+
 // Debounced write-through of the overseer's editable profile (display name +
 // org/team name) to the profiles row. Gated on isBackendLive: flag OFF -> nothing
 // armed, the edit stays local exactly as today.
@@ -401,7 +505,14 @@ function pushProfile(get: () => Store): void {
     const s = get();
     if (s.userId) {
       void db
-        .updateProfile(s.userId, { full_name: s.athleteName.trim() || null, org_name: s.orgName.trim() || null })
+        // Persist primary_role on every profile sync too (belt-and-braces with the signup
+        // metadata): a same-device confirm+use path never hits the trigger, so this keeps
+        // the stored role correct for the next fresh sign-in.
+        .updateProfile(s.userId, {
+          full_name: s.athleteName.trim() || null,
+          org_name: s.orgName.trim() || null,
+          primary_role: serverRoleForFlow(flowForRole(s.role)),
+        })
         .catch(() => undefined);
     }
   }, SYNC_DEBOUNCE_MS);
@@ -411,34 +522,61 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 
 // Mirror of core computeDerived's proteinToday formula (meal macros + quick-add
 // grams). Used only to flip the visible "Hit 180g protein" task row (id 2) in
-// store actions for immediate UI feedback — core scoring remains the authority.
+// store actions for immediate UI feedback â€” core scoring remains the authority.
 const computeProteinToday = (
   meals: AppState['meals'],
   mealFoods: AppState['mealFoods'],
   quickAdded: AppState['quickAdded'],
+  athleteName: AppState['athleteName'],
 ): number => {
-  // Mirror core scoring: saved edited plates win over the slot constant, so the
-  // task row's optimistic protein matches the authoritative computeDerived value.
-  const proteinBase = loggedDayMacros({ meals, mealFoods }).protein;
+  // Mirror core scoring exactly (incl. the evidence rule: a real user's plate-less
+  // slot earns 0 macros), so the task row's optimistic protein always matches the
+  // authoritative computeDerived value.
+  const proteinBase = loggedDayMacros({ meals, mealFoods, athleteName }).protein;
   const quickGrams = QUICK_FOODS.reduce((a, f, i) => a + (quickAdded[i] ? f.g : 0), 0);
   return proteinBase + quickGrams;
 };
 
 /** Hand the device notification seam the day's active reminders. No-op today (the seam in
  *  src/lib/notify is inert until expo-notifications is installed + isNotifyAvailable flips
- *  on a device, and only fires when the master `notif` flag is on) — wired here so the
+ *  on a device, and only fires when the master `notif` flag is on) â€” wired here so the
  *  call site is complete and the founder's remaining work is the device install, not glue. */
 const syncReminders = (s: AppState): void => {
-  const proteinToday = computeProteinToday(s.meals, s.mealFoods, s.quickAdded);
+  const proteinToday = computeProteinToday(s.meals, s.mealFoods, s.quickAdded, s.athleteName);
+  // The pulls that make a reminder a REASON instead of a chore (churn build): the live
+  // score gap to on-standard ("6 points from locking today") and the linked overseer's
+  // presence ("Your coach sees tonight's log"). No name is fabricated: AppState carries
+  // linked ROLES (supportTeam), so the copy uses the honest role word.
+  const coachName = s.supportTeam.includes('coach')
+    ? 'Your coach'
+    : s.supportTeam.includes('trainer')
+      ? 'Your trainer'
+      : null;
   const snapshot = reminderSnapshotFromState({
     proteinToday,
     proteinTarget: s.proteinTarget,
     hydrationL: s.hydrationL,
     meals: s.meals,
     ciSubmitted: s.ciSubmitted,
+    ciLast: s.ciLast,
+    dateStamp: s.dateStamp,
     weighedToday: s.weighInStamp === todayStamp(),
+    coachName,
+    liveScore: computeDerived(s).athleteScore,
+    threshold: COMPLIANCE_THRESHOLD,
   });
   void refreshReminderSchedule(reminderNotifySpecs(s.reminderSettings, snapshot), s.notif);
+};
+
+/** The active plan slot's macro target for the athlete's CURRENT meal type (Meal Plans feature),
+ *  when the flag is on and a matching slot exists. Feeds analyze-meal's slotTarget so the model
+ *  can offer a supportive "closest compliant swap" when the plate misses it. Flag-off or no
+ *  matching slot: undefined, so analyze-meal behaves exactly as it does today. */
+const slotTargetFor = (s: AppState): { kcal: number; protein: number } | undefined => {
+  if (!isMealPlansEnabled) return undefined;
+  const key = s.mealType.toLowerCase() as MealKey;
+  const slot = s.planSlots.find((p) => p.key === key);
+  return slot ? { kcal: slot.macros.kcal, protein: slot.macros.protein } : undefined;
 };
 
 /** Local minutes-from-midnight, stamped when a meal is logged for on-time accountability. */
@@ -453,6 +591,7 @@ export const useStore = create<Store>()(
       ...createInitialState(),
 
       // ---- onboarding ----
+      passWelcome: () => set({ welcomeDone: true }),
       obNext: () => set((s) => ({ obStep: s.obStep + 1 })),
       obBack: () => set((s) => ({ obStep: Math.max(0, s.obStep - 1) })),
       finishOb: () => {
@@ -492,6 +631,11 @@ export const useStore = create<Store>()(
       // Floor at MIN_SIGNUP_AGE (13): the app does not sign up under-13s, keeping it out of
       // COPPA scope. 13-17 still flow through the minor guardian-consent gate (consent.ts).
       ageStep: (d) => set((s) => ({ baseAge: clamp(s.baseAge + d, MIN_SIGNUP_AGE, 24) })),
+      // Absolute setters for tap-to-type on the steppers (same clamps as the delta actions),
+      // so a big change is one typed number instead of dozens of taps. NaN is ignored upstream.
+      setBaseWeight: (n) => set({ baseWeight: clamp(Math.round(n), 70, 350) }),
+      setBaseAge: (n) => set({ baseAge: clamp(Math.round(n), MIN_SIGNUP_AGE, 24) }),
+      setWeightTarget: (n) => set({ weightTarget: clamp(Math.round(n), 120, 350), weightTargetTouched: true }),
       startSignin: () => set({ signinMode: true }),
       exitSignin: () => set({ signinMode: false }),
       signinDone: () => set({ signinMode: false, flow: 'app', tab: 'home' }),
@@ -500,7 +644,6 @@ export const useStore = create<Store>()(
       // Map the rich onboarding goal to the 4-bucket BaseGoal that drives scoring (lose_fat -> 'lose',
       // gain_muscle -> 'gain', ...). Before this the goal was collected but never reached the engine.
       setPrimaryGoal: (k) => set({ primaryGoal: k, baseGoal: baseGoalForPrimary(k) }),
-      setTrainingFreq: (k) => set({ trainingFreq: k }),
       toggleSupport: (k) =>
         set((s) => {
           if (k === 'none') return { supportTeam: [] };
@@ -520,6 +663,31 @@ export const useStore = create<Store>()(
         if (!c) return;
         set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('trainer') ? s.supportTeam : [...s.supportTeam, 'trainer'] }));
         if (isBackendLive) void db.joinPractice(c).catch(() => undefined);
+      },
+      joinTeamLive: async (code) => {
+        const c = code.trim().toUpperCase();
+        if (!isBackendLive || !c) return false;
+        // The join must SUCCEED before anything claims a connection: a fire-and-forget
+        // join with a success screen stranded athletes waiting on a roster they never
+        // reached. Local state flips only after the server accepted the code.
+        try {
+          await db.joinTeam(c);
+        } catch {
+          return false;
+        }
+        set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('coach') ? s.supportTeam : [...s.supportTeam, 'coach'] }));
+        return true;
+      },
+      joinPracticeLive: async (code) => {
+        const c = code.trim().toUpperCase();
+        if (!isBackendLive || !c) return false;
+        try {
+          await db.joinPractice(c);
+        } catch {
+          return false;
+        }
+        set((s) => ({ inviteCode: c, supportTeam: s.supportTeam.includes('trainer') ? s.supportTeam : [...s.supportTeam, 'trainer'] }));
+        return true;
       },
       createPracticeLive: async (name, handle, discoverable) => {
         if (!isBackendLive) return null;
@@ -579,14 +747,24 @@ export const useStore = create<Store>()(
       // A brand-new user has no meal in front of them at signup, so auto-opening the camera was a
       // dead-end first impression; instead Home's "Log breakfast" mission is the prompt they tap WHEN
       // they actually eat. Swap the SEEDED DEMO day for a genuinely empty day so the first Home is
-      // honest — nothing pre-logged, every task open, score building from the Starting Point anchor
+      // honest â€” nothing pre-logged, every task open, score building from the Starting Point anchor
       // and rising the moment they log. The seeded demo is untouched (only this path runs here).
       startFirstMealChallenge: () =>
         set((s) => ({
           ...emptyDaySlice(),
           flow: 'app',
           tab: 'home',
-          mealOpen: false,
+          // The activation CTA is "Upload your first meal" â€” so it must land ON the camera,
+          // not drop the athlete on Home to hunt for it (the audit's broken-promise deep-link).
+          // Mirror openMeal's capture-overlay reset so "Start now" opens straight into capture.
+          mealOpen: true,
+          mealStage: 'capture',
+          mealCaptureMode: 'meal',
+          mealAnalysis: null,
+          mealQuestions: [],
+          labelFacts: null,
+          labelServings: 1,
+          mealPhoto: null,
           // Surface the weight the athlete entered in onboarding: it anchors the
           // season-goal progress (start) and is their live current weight (no
           // progress yet, so "gained since start" honestly reads 0). Check-in
@@ -620,8 +798,16 @@ export const useStore = create<Store>()(
       goNutrition: () => set({ flow: 'app', tab: 'nutrition' }),
       goPerformance: () => set({ flow: 'app', tab: 'performance' }),
       goReminders: () => set({ flow: 'app', tab: 'reminders' }),
+      goBreakdown: () => set({ flow: 'app', tab: 'breakdown' }),
+      goWeight: () => set({ flow: 'app', tab: 'weight' }),
+      // Same ciStage reset as goCheckin: the Recovery screen is the proto presentation
+      // over the SAME check-in instrument, so it must open on the form, not a stale 'done'.
+      goRecovery: () => set({ flow: 'app', tab: 'recovery', ciStage: 'open' }),
+      goHistory: () => set({ flow: 'app', tab: 'history' }),
+      goStreak: () => set({ flow: 'app', tab: 'streak' }),
+      goTrustDetail: () => set({ flow: 'app', tab: 'trustdetail' }),
 
-      // ---- performance (P1) — a separate development track; never folds into
+      // ---- performance (P1) â€” a separate development track; never folds into
       // the daily Accountability Score. Persisted locally; when the backend goes
       // live (P0) this list is what a future `pushPerf` seam would sync.
       logPr: (spec) =>
@@ -648,7 +834,7 @@ export const useStore = create<Store>()(
 
       setSquadMode: (m) => set({ squadMode: m }),
       toggleNotif: () => { set((s) => ({ notif: !s.notif })); syncReminders(get()); },
-      // On launch, (re)schedule today's reminders — this also triggers the one-time permission
+      // On launch, (re)schedule today's reminders â€” this also triggers the one-time permission
       // request inside refreshReminderSchedule. No-op on web / when the master flag is off.
       initReminders: () => { syncReminders(get()); },
       initPush: async () => {
@@ -680,17 +866,27 @@ export const useStore = create<Store>()(
       // Editable daily nutrition targets. Protein feeds scoring + the id-2 task row,
       // so re-derive that visible flag here (mirrors addMeal/toggleQuick) to keep the
       // Plan row honest the instant the target moves. Calories feed the Nutrition/Profile
-      // labels + bars. Clamped to sane ranges; stepped by the UI's ± controls.
+      // labels + bars. Clamped to sane ranges; stepped by the UI's Â± controls.
       adjustProteinTarget: (d) =>
         set((s) => {
           const proteinTarget = clamp(s.proteinTarget + d, 80, 320);
-          const protein = computeProteinToday(s.meals, s.mealFoods, s.quickAdded);
+          const protein = computeProteinToday(s.meals, s.mealFoods, s.quickAdded, s.athleteName);
           const tasks = s.tasks.map((x) => (x.id === 2 ? { ...x, done: protein >= proteinTarget } : x));
           return { proteinTarget, tasks };
         }),
       adjustCalTarget: (d) => set((s) => ({ calTarget: clamp(s.calTarget + d, 1200, 6000) })),
       adjustWeightTarget: (d) =>
-        set((s) => ({ weightTarget: clamp((s.weightTarget ?? WEIGHT_TARGET) + d, 120, 350) })),
+        // On the FIRST adjust of an untouched target, seed from the goal-derived value (which
+        // points the right way for the chosen goal) so a Lose Fat athlete steps from ~164, not
+        // from the gain-shaped 184 constant. Once touched it steps purely from the athlete's
+        // own value. `weightTargetTouched` also drives the About You display, so the shown
+        // default and the first step agree, and nothing silently flips later.
+        set((s) => {
+          const base = s.weightTargetTouched
+            ? (s.weightTarget ?? WEIGHT_TARGET)
+            : deriveTargetsFromGoal(s.baseGoal, s.baseWeight).weightTarget;
+          return { weightTarget: clamp(base + d, 120, 350), weightTargetTouched: true };
+        }),
       signOut: () => {
         // Terminate the real Supabase session (clears the persisted refresh token) AND
         // clear the sensitive session state (userId / consent / entitlement) via the
@@ -702,7 +898,7 @@ export const useStore = create<Store>()(
         // Full reset to defaults (not just a nav reset) so the next person to onboard on this device
         // does NOT inherit the prior user's goal / targets / sport / name. A nav-only reset left
         // stale targets behind, which the goal-config clobber-guard then preserved as if user-edited.
-        set({ ...createInitialState(), flow: 'onboarding', obStep: 0, role: null, accountOpen: false });
+        set({ ...createInitialState(), flow: 'onboarding', welcomeDone: false, obStep: 0, role: null, accountOpen: false });
       },
       deleteAccount: async () => {
         // Delete server-side when connected; wipe local data either way so the in-app
@@ -733,11 +929,14 @@ export const useStore = create<Store>()(
       },
       closeMeal: () => set({ mealOpen: false }),
       setMealType: (m) => set({ mealType: m }),
-      capture: (fromLibrary = false) => {
-        set({ mealStage: 'analyzing', mealAnalysis: null, mealQuestions: [] });
+      capture: (fromLibrary = false, providedPhoto?: string) => {
+        set({ mealStage: 'analyzing', mealAnalysis: null, mealQuestions: [], mealError: null });
         if (mealTimer) clearTimeout(mealTimer);
-        // The shutter opens the camera; the gallery button (fromLibrary) opens the photo library.
-        const pickPhoto = fromLibrary ? pickMealPhotoBase64 : capturePhotoBase64;
+        // A live in-app camera passes its already-captured photo in directly; otherwise the
+        // shutter opens the system camera and the gallery button (fromLibrary) the library.
+        const pickPhoto = providedPhoto !== undefined
+          ? () => Promise.resolve<string | undefined>(providedPhoto)
+          : fromLibrary ? pickMealPhotoBase64 : capturePhotoBase64;
         // Sending the meal photo to the AI endpoint is REAL athlete data leaving the
         // device to a third party (Anthropic), so it must clear the SAME consent gate as
         // pushDay/recordMeal and FAIL CLOSED: an un-consented athlete, an unverified
@@ -753,24 +952,33 @@ export const useStore = create<Store>()(
           const st = get();
           // Capture a real meal photo when a camera is wired (device only); on web /
           // cancel / denial this resolves undefined and the model infers from context.
-          (isCameraAvailable ? pickPhoto() : Promise.resolve<string | undefined>(undefined))
+          ((isCameraAvailable || providedPhoto !== undefined) ? pickPhoto() : Promise.resolve<string | undefined>(undefined))
             .catch(() => undefined)
-            .then((photoBase64) => {
+            .then(async (photoBase64) => {
               // Hold the captured photo so addMeal/saveMeal can upload it to the
               // meal-photos bucket on log (recordMeal). Ephemeral, never persisted.
               if (photoBase64) set({ mealPhoto: photoBase64 });
-              return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64 });
+              // Memory flywheel READ half (audit item 13): tell the model the athlete's CONFIRMED
+              // allergies/dislikes so it won't identify a plate item as one of them. Fail-safe: an
+              // empty avoid list on any error, so analysis is never blocked by the memory read.
+              const avoid = avoidFoodsFromFacts(await fetchMemoryFacts('active').catch(() => []));
+              return analyzeMeal({ mealType: st.mealType, goal: st.primaryGoal, description: st.mealDesc || undefined, photoBase64, slotTarget: slotTargetFor(st), avoid });
             })
             .then((res) => {
-              // The analyze call returns EITHER a finished result OR 1-3 clarifying questions.
+              // The analyze call returns a finished result, 1-3 clarifying questions, or â€” when a
+              // configured model couldn't answer â€” an honest 'unavailable' signal (never a fake plate).
               if (res.kind === 'questions') set({ mealQuestions: res.questions, mealStage: 'questions' });
+              else if (res.kind === 'unavailable') set({ mealError: res.reason, mealStage: 'unavailable' });
               else set({ mealAnalysis: res.result, mealStage: 'result' });
             })
-            // analyzeMeal already degrades to a deterministic result internally, but a
-            // failure anywhere in the chain must NEVER strand the user on the "analyzing"
-            // spinner. Fall through to the result stage (the UI fills the deterministic
-            // estimate when mealAnalysis is null).
-            .catch(() => set({ mealAnalysis: null, mealStage: 'result' }));
+            // A failure anywhere in the chain must NEVER strand the user on the "analyzing" spinner.
+            // Route to the honest 'unavailable' stage (retry / enter manually) â€” we do not fabricate.
+            .catch(() => set({ mealError: 'error', mealStage: 'unavailable' }));
+        } else if (get().athleteName.trim()) {
+          // A REAL user whose photo can't be analyzed (consent gate blocked it, or this
+          // build has no AI endpoint) gets the honest blocked state â€” never the showcase's
+          // fabricated "Detecting foods" scan of a photo that was never taken.
+          set({ mealError: isAiConfigured ? 'consent' : 'not_configured', mealStage: 'unavailable' });
         } else {
           mealTimer = setTimeout(() => set({ mealStage: 'result' }), 2300);
         }
@@ -778,38 +986,47 @@ export const useStore = create<Store>()(
       finalizeMeal: (answers) => {
         const st = get();
         const clarifications = st.mealQuestions.map((q, i) => ({ question: q, answer: (answers[i] ?? '').trim() }));
-        set({ mealStage: 'analyzing' });
+        set({ mealStage: 'analyzing', mealError: null });
         if (mealTimer) clearTimeout(mealTimer);
         // Second call: same photo + note, now WITH the athlete's answers, forced to report (the
         // finalize phase can't ask again). Consent + photo egress already cleared on the analyze
         // call, and finalize does not claim another daily slot. Never strands the spinner.
-        analyzeMeal({
+        // The avoid list rides along again â€” finalize is the pass most likely to ADD foods
+        // (the answers describe hidden items), so it must carry the same allergy constraint
+        // the analyze pass had. Fail-safe empty, same as capture().
+        fetchMemoryFacts('active')
+          .catch(() => [])
+          .then((facts) => analyzeMeal({
           mealType: st.mealType,
           goal: st.primaryGoal,
           description: st.mealDesc || undefined,
           photoBase64: st.mealPhoto ?? undefined,
           phase: 'finalize',
           clarifications,
-        })
+          slotTarget: slotTargetFor(st),
+          avoid: avoidFoodsFromFacts(facts),
+        }))
           .then((res) => {
             if (res.kind === 'result') set({ mealAnalysis: res.result, mealQuestions: [], mealStage: 'result' });
-            // A finalize that somehow still asks is ignored; fall to the deterministic result UI.
-            else set({ mealQuestions: [], mealStage: 'result' });
+            else if (res.kind === 'unavailable') set({ mealError: res.reason, mealQuestions: [], mealStage: 'unavailable' });
+            // A finalize that somehow still asks can't be answered again; treat as unavailable
+            // rather than fabricate a deterministic plate for the athlete's real photo.
+            else set({ mealError: 'error', mealQuestions: [], mealStage: 'unavailable' });
           })
-          .catch(() => set({ mealQuestions: [], mealStage: 'result' }));
+          .catch(() => set({ mealError: 'error', mealQuestions: [], mealStage: 'unavailable' }));
       },
       pickUsual: (u) => {
-        // Reuse the athlete's own confirmed macros — no photo, no model call, no daily slot.
+        // Reuse the athlete's own confirmed macros â€” no photo, no model call, no daily slot.
         set({ mealAnalysis: usualToResult(u), mealQuestions: [], mealPhoto: null, mealStage: 'result' });
       },
-      setMealCaptureMode: (mode) => set({ mealCaptureMode: mode, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], labelFacts: null }),
+      setMealCaptureMode: (mode) => set({ mealCaptureMode: mode, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], mealError: null, labelFacts: null }),
       setLabelServings: (n) => set({ labelServings: Math.min(20, Math.max(0.25, Math.round(n * 4) / 4)) }),
       captureLabel: () => {
-        set({ mealStage: 'analyzing', mealAnalysis: null });
+        set({ mealStage: 'analyzing', mealAnalysis: null, mealError: null });
         if (mealTimer) clearTimeout(mealTimer);
         // Same fail-closed photo-egress gate as capture()/pushDay: a label photo is real
         // data leaving the device to Anthropic, so an un-consented athlete, unverified minor,
-        // or paused athlete NEVER egresses — they get the deterministic sample on-device.
+        // or paused athlete NEVER egresses â€” they get the deterministic sample on-device.
         // Keyed on isAiConfigured (the egress switch), not isBackendLive.
         const photoConsent = realDataConsent(consentContextFromState(get(), isAiConfigured));
         if (isAiConfigured && photoConsent.ok) {
@@ -820,10 +1037,16 @@ export const useStore = create<Store>()(
               return analyzeLabel({ photoBase64 });
             })
             .then((facts) => set({ labelFacts: facts, labelServings: 1, mealStage: 'result' }))
-            // Any failure degrades to the deterministic sample; never strand the spinner.
-            .catch(() => set({ labelFacts: sampleScannedLabel(), labelServings: 1, mealStage: 'result' }));
+            // A configured scan that fails must NOT present the deterministic sample as a real
+            // reading ("exact, off the label") â€” that fabricates the athlete's actual photo. Show
+            // the honest 'unavailable' stage (retry) instead; never strand the spinner.
+            .catch((e) => set({ mealError: e instanceof AiUnavailableError ? e.reason : 'error', mealStage: 'unavailable' }));
+        } else if (get().athleteName.trim()) {
+          // A REAL user never sees the deterministic SAMPLE label presented as a scan of
+          // their product ("read straight off the label"). Honest blocked state instead.
+          set({ mealError: isAiConfigured ? 'consent' : 'not_configured', mealStage: 'unavailable' });
         } else {
-          // Gate blocked or no endpoint: deterministic sample, nothing leaves the device.
+          // Seeded showcase only: deterministic sample, nothing leaves the device.
           mealTimer = setTimeout(() => set({ labelFacts: sampleScannedLabel(), labelServings: 1, mealStage: 'result' }), 1400);
         }
       },
@@ -836,6 +1059,15 @@ export const useStore = create<Store>()(
         get().saveMeal(key, [labelToFood(labelFacts, labelServings)]);
         set({ mealOpen: false, mealStage: 'capture', mealCaptureMode: 'meal', labelFacts: null, labelServings: 1, mealAnalysis: null, mealQuestions: [] });
       },
+      addSearchedFood: (food) => {
+        // Append the picked food (EXACT USDA macros) to the selected slot, alongside anything
+        // already logged there â€” same saveMeal path as a label scan or a snack, so it persists,
+        // scores, and counts toward the coach's logging-completeness read.
+        const { mealType, mealFoods } = get();
+        const key = (mealType || 'Dinner').toLowerCase() as MealKey;
+        get().saveMeal(key, [...(mealFoods[key] ?? []), food]);
+        set({ mealOpen: false, mealStage: 'capture', mealCaptureMode: 'meal', mealAnalysis: null, mealQuestions: [] });
+      },
       addMeal: () => {
         set((s) => {
           const key = (s.mealType || 'Dinner').toLowerCase() as keyof typeof s.meals;
@@ -843,23 +1075,26 @@ export const useStore = create<Store>()(
           // When a REAL AI analysis is present (mealAnalysis is non-null only on a live AI
           // result; the deterministic path leaves it null), log its grounded macros as the
           // slot's foods so the SCORE reflects the actual meal, not the generic slot constant
-          // — the same path the label scan and an edited plate use. No AI result -> unchanged.
+          // â€” the same path the label scan and an edited plate use. No AI result -> unchanged.
           const mealFoods = s.mealAnalysis ? { ...s.mealFoods, [key]: [mealResultToFood(s.mealAnalysis)] } : s.mealFoods;
-          const protein = computeProteinToday(meals, mealFoods, s.quickAdded);
+          const protein = computeProteinToday(meals, mealFoods, s.quickAdded, s.athleteName);
           const tasks = s.tasks.map((x) => {
             if (x.id === 2) return { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) };
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
             return x;
           });
           // On-time stamping is the Accountability Engine's punctuality signal (Feature 8),
-          // and it feeds the Development Score — so it's gated by the engines master switch.
+          // and it feeds the Development Score â€” so it's gated by the engines master switch.
           // With engines OFF (the first-beta config) we record NO timestamp: every meal counts
           // on-time and the score stays byte-for-byte untouched, per the ratified keystone
           // ("engines off -> score untouched"). Engines ON: stamp -> late logging lowers it.
           const mealLoggedAt = isEnginesEnabled ? { ...s.mealLoggedAt, [key]: nowMinutes() } : s.mealLoggedAt;
-          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], meals, mealFoods, mealLoggedAt, tasks };
+          // Keep the model's REAL coaching note for this slot so MealDetail can show it
+          // back later (the reward beat) instead of a canned showcase note.
+          const mealNotes = s.mealAnalysis?.note?.trim() ? { ...s.mealNotes, [key]: s.mealAnalysis.note.trim() } : s.mealNotes;
+          return { mealOpen: false, mealStage: 'capture', mealAnalysis: null, mealQuestions: [], meals, mealFoods, mealLoggedAt, mealNotes, tasks };
         });
-        // Persist the meal (macros + photo) BEFORE clearing the captured photo —
+        // Persist the meal (macros + photo) BEFORE clearing the captured photo â€”
         // recordMeal reads the photo off current state. No-op unless backend live.
         const key = (get().mealType || 'Dinner').toLowerCase() as MealKey;
         scheduleMealRecord(get, key);
@@ -877,7 +1112,7 @@ export const useStore = create<Store>()(
       addSnack: (preset) => {
         // Log the snack/shake as a real EditableFood in the day's snack slot (append, don't
         // replace), so it persists to the meals table, scores, and counts toward the coach's
-        // logging-completeness read — unlike the ephemeral quick-add toggles.
+        // logging-completeness read â€” unlike the ephemeral quick-add toggles.
         const s = get();
         s.saveMeal('snack', appendSnack(s.mealFoods.snack, snackToFood(preset)));
       },
@@ -888,7 +1123,7 @@ export const useStore = create<Store>()(
         // Pull the athlete's own stored meals when the backend is live; otherwise the
         // overlay falls back to today's locally-logged meals (mealHistory stays null).
         // Reading own data needs only the flag gate (consent gates collecting, not
-        // resuming) — mirrors hydrateDay.
+        // resuming) â€” mirrors hydrateDay.
         if (!isBackendLive) return;
         const s = get();
         if (!s.userId) return;
@@ -902,7 +1137,7 @@ export const useStore = create<Store>()(
         set({ nutritionMemoryOpen: true });
         // Pull the athlete's own stored meals so memory runs on REAL per-slot history when
         // live; offline it falls back to the sample seed (the view flags it). Same own-data
-        // read as openMealHistory — only the flag gate applies.
+        // read as openMealHistory â€” only the flag gate applies.
         if (!isBackendLive) return;
         const s = get();
         if (!s.userId) return;
@@ -940,13 +1175,58 @@ export const useStore = create<Store>()(
           if (!p) return;
           // Prefer the backend's stored values; fall back to whatever's local so an
           // empty column never blanks a name the user just typed.
-          set((s) => ({
-            athleteName: p.full_name?.trim() || s.athleteName,
-            orgName: p.org_name?.trim() || s.orgName,
-            athleteEmail: p.email?.trim() || s.athleteEmail,
-          }));
+          set((s) => {
+            // Route a returning user to THEIR app: signinDone drops everyone on the
+            // athlete Home, so a coach on a fresh device landed on an athlete demo
+            // day with no path to their roster. Only corrects the post-sign-in 'app'
+            // flow â€” an in-progress onboarding is never yanked mid-flow.
+            // The DB's UserRole is a superset of the app's Role union; an unknown
+            // value maps to flow 'app' via ROLE_DEFS and reroutes nothing.
+            const serverRole = (p.primary_role ?? null) as Role | null;
+            const targetFlow = serverRole ? flowForRole(serverRole) : null;
+            const reroute = serverRole && targetFlow && targetFlow !== 'app' && s.flow === 'app' ? { role: serverRole, flow: targetFlow } : null;
+            return {
+              athleteName: p.full_name?.trim() || s.athleteName,
+              orgName: p.org_name?.trim() || s.orgName,
+              athleteEmail: p.email?.trim() || s.athleteEmail,
+              ...reroute,
+            };
+          });
+          // Rehydrate the athlete/client's real coach/trainer link into supportTeam, so a
+          // connected athlete on a fresh device doesn't see "Connect your coach" and the
+          // coach-presence copy is right (2026-07-04 fix). Reconciles coach/trainer from the
+          // backend membership; preserves other locally-declared support (parent, etc.).
+          try {
+            const links = await db.fetchMyLinks(uid);
+            set((s) => {
+              const base = s.supportTeam.filter((k) => k !== 'coach' && k !== 'trainer');
+              return {
+                supportTeam: [
+                  ...base,
+                  ...(links.coach ? ['coach'] : []),
+                  ...(links.trainer ? ['trainer'] : []),
+                ],
+              };
+            });
+          } catch {
+            /* keep local supportTeam on error */
+          }
         } catch {
           /* keep the local identity on error */
+        }
+      },
+      hydrateRecord: async () => {
+        // Rebuild the athlete's full score + weight record from the server (audit item 14) so a new
+        // device / returning athlete sees their season, not just the local 14-day cache. Gated +
+        // soft-fail: never blocks sign-in, and an offline/empty read leaves the local cache intact.
+        if (!isBackendLive) return;
+        const uid = get().userId;
+        if (!uid) return;
+        try {
+          const slice = await hydrateHistory(uid);
+          if (slice) set(slice);
+        } catch {
+          /* keep the AsyncStorage-cached history on error */
         }
       },
       hydrateGuardianConsent: async () => {
@@ -961,10 +1241,24 @@ export const useStore = create<Store>()(
           /* keep the local (fail-closed) status on error */
         }
       },
-      pushAthleteGoals: async (athleteId, targets) => {
+      rollDayForeground: () => {
+        const s = get();
+        const today = todayStamp();
+        if (s.dateStamp === today) return;
+        // Mirror of the persist-merge rollover (archive BEFORE reset), for the app
+        // that never cold-restarts: backgrounded overnight, reopened in the morning.
+        const scoreHistory = recordDayScore(s, today);
+        const weightHistory = recordDayWeight(s, today);
+        const nutritionHistory = recordDayNutrition(s, today);
+        const rolled = rollDayIfStale(s as AppState, today);
+        const patch: Partial<AppState> = { dateStamp: today, ciWeight: rolled.ciWeight, scoreHistory, weightHistory, nutritionHistory };
+        for (const k of DAY_DEFAULT_KEYS) (patch as Record<string, unknown>)[k] = rolled[k];
+        set(patch);
+      },
+      pushAthleteGoals: async (athleteId, targets, profile) => {
         if (!isBackendLive || !athleteId) return false;
         try {
-          await db.coachSetGoals(athleteId, targets, null);
+          await db.coachSetGoals(athleteId, profile ? { ...targets, profile } : targets, null);
           set({ authError: null });
           return true;
         } catch (e) {
@@ -992,18 +1286,25 @@ export const useStore = create<Store>()(
         }),
       removePlanInstruction: (index) =>
         set((s) => ({ planInstructions: s.planInstructions.filter((_, i) => i !== index) })),
-      saveMeal: (key, foods) => {
+      setPlanSlots: (slots) => set({ planSlots: parsePlanSlots(slots) }),
+      updatePlanSlot: (key, patch) => set((s) => ({ planSlots: applySlotPatch(s.planSlots, key, patch) })),
+      togglePlanSlotMode: (key) => set((s) => ({ planSlots: toggleMode(s.planSlots, key) })),
+      generatePlanDraftLocal: (goal) => set((s) => ({ planSlots: buildPlanDraft(activePlan(s), goal) })),
+      clearPlan: () => set({ planSlots: [] }),
+      saveMeal: (key, foods, learn = false) => {
+        // Capture the plate BEFORE this save so a genuine correction (a removed food) can be learned.
+        const beforeNames = (get().mealFoods[key] ?? []).map((f) => f.name);
         set((s) => {
           // Saving a meal's edited plate logs the slot AND records its real foods.
           const meals = { ...s.meals, [key]: true };
           const mealFoods = { ...s.mealFoods, [key]: foods };
-          const protein = computeProteinToday(meals, mealFoods, s.quickAdded);
+          const protein = computeProteinToday(meals, mealFoods, s.quickAdded, s.athleteName);
           const tasks = s.tasks.map((x) => {
             if (x.id === 2) return { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) };
             if (x.id === 3 && key === 'dinner') return { ...x, done: true };
             return x;
           });
-          // Punctuality stamp gated by the engines switch — see addMeal above (keystone:
+          // Punctuality stamp gated by the engines switch â€” see addMeal above (keystone:
           // engines off -> Development Score untouched).
           const mealLoggedAt = isEnginesEnabled ? { ...s.mealLoggedAt, [key]: nowMinutes() } : s.mealLoggedAt;
           return { meals, mealFoods, mealLoggedAt, tasks, mealDetailOpen: false };
@@ -1012,19 +1313,33 @@ export const useStore = create<Store>()(
         scheduleMealRecord(get, key);
         set({ mealPhoto: null });
         scheduleDaySync(get);
+        // Learn from a genuine plate correction (the MealDetail edit passes learn=true). Fire-and-
+        // forget: a meal always logs even if learning is off, unconfigured, or fails.
+        if (learn) void learnFromCorrection(get, beforeNames, foods);
       },
       toggleQuick: (i) => {
         set((s) => {
           const q = [...s.quickAdded];
           q[i] = !q[i];
-          const protein = computeProteinToday(s.meals, s.mealFoods, q);
+          const protein = computeProteinToday(s.meals, s.mealFoods, q, s.athleteName);
           const tasks = s.tasks.map((x) => (x.id === 2 ? { ...x, done: protein >= (s.proteinTarget ?? PROTEIN_TARGET) } : x));
           return { quickAdded: q, tasks };
         });
         scheduleDaySync(get);
       },
       openPerson: (p) => set({ personDetail: p }),
-      closePerson: () => set({ personDetail: null }),
+      closePerson: () => set({ personDetail: null, mealReview: null }),
+
+      // ---- Assistant Nutritionist (2026-07-04) ----
+      // Cache the narrated brief once per day (the cost model): reopening the dashboard
+      // re-renders the cached phrasing instead of re-spending a narration.
+      setBriefNarration: (date, text) => set({ briefNarration: { date, text } }),
+      // Two-slot dance so "since you last looked" reads the PREVIOUS open, not this one.
+      stampDashboardOpened: () =>
+        set((s) => ({ prevDashboardOpenedAt: s.lastDashboardOpenedAt, lastDashboardOpenedAt: new Date().toISOString() })),
+      // A stored meal opened for review (coach from PersonDetail, athlete from MealHistory).
+      openMealReview: (mealId, athleteId, athleteName, card, demo = false) => set({ mealReview: { mealId, athleteId, athleteName, card, demo } }),
+      closeMealReview: () => set({ mealReview: null }),
       openAccount: () => set({ accountOpen: true }),
       closeAccount: () => set({ accountOpen: false }),
       openMsg: () => set({ msgOpen: true }),
@@ -1069,12 +1384,12 @@ export const useStore = create<Store>()(
 
       // ---- overseer action ----
       // The only overseer action this phase (product spec): a lightweight nudge
-      // to an at-risk athlete. Deterministic + offline — it records the athlete as
+      // to an at-risk athlete. Deterministic + offline â€” it records the athlete as
       // nudged today (idempotent), which flips the dashboard button to "Nudged",
       // and logs the athlete's compliance/score at send-time (the baseline the
       // "did anything move since the nudge" read compares against, core/nudge.ts).
       // Day-scoped via rollover so the coach can nudge again tomorrow.
-      sendNudge: (name, baseline, note, athleteId) => {
+      sendNudge: (name, baseline, note, athleteId, title) => {
         set((s) =>
           s.nudged.includes(name)
             ? {}
@@ -1088,10 +1403,20 @@ export const useStore = create<Store>()(
         );
         // When live + we know the athlete's id, deliver the nudge for real: the send-push
         // edge function records an in-app notification and pushes to their device(s).
+        // `title` lets recognition land as praise instead of a generic nudge header.
         if (isBackendLive && athleteId) {
-          const body = note?.trim() || 'Your coach nudged you — jump back in and log your next win.';
-          void db.nudgePush(athleteId, 'Your coach sent a nudge', body).catch(() => undefined);
+          const body = note?.trim() || 'Your coach nudged you. Jump back in and log your next win.';
+          void db.nudgePush(athleteId, title?.trim() || 'Your coach sent a nudge', body).catch(() => undefined);
         }
+      },
+
+      // Coach grants / ends a linked athlete's Trust Pass via the server RPC (RLS + server-side
+      // eligibility enforce it). Throws on unauthorized/ineligible so the UI can surface it.
+      coachGrantTrustPass: async (athleteId, lengthDays) => {
+        if (isBackendLive) await db.grantTrustPass(athleteId, lengthDays);
+      },
+      coachEndTrustPass: async (athleteId) => {
+        if (isBackendLive) await db.endTrustPass(athleteId);
       },
 
       // ---- tasks ----
@@ -1100,12 +1425,34 @@ export const useStore = create<Store>()(
         scheduleDaySync(get);
       },
 
+      setDailyCommitment: (answer) => {
+        set({ dailyCommitment: answer });
+        scheduleDaySync(get);
+      },
+
+      // Local pilot ONLY (flag-on, backend off). Live, the pass is server-authoritative:
+      // granted via the coach RPC, synced down by hydrateDay â€” an athlete's device can
+      // neither self-grant a camera-free pass nor locally "end" one the server still
+      // holds (it would just resync). The Profile card hides its self-serve button live.
+      grantTrustPass: (lengthDays) => {
+        if (isBackendLive) return;
+        set({ trustPass: { grantedDate: todayStamp(), lengthDays } });
+      },
+      endTrustPass: () => {
+        if (isBackendLive) return;
+        set({ trustPass: null });
+      },
+
       // ---- check-in ----
       wStep: (d) => set((s) => ({ ciWeight: clamp(s.ciWeight + d, 70, 350) })),
       setCi: (key, value) => set({ [key]: value } as Partial<AppState>),
       toggleCiQ: (k) => set((s) => ({ ciConfig: { ...s.ciConfig, [k]: !s.ciConfig[k] } })),
       submitCi: () => {
         set((s) => ({ ciStage: 'done', ciSubmitted: true, currentWeight: s.ciWeight, weighInStamp: todayStamp() }));
+        // Snapshot the just-earned recovery sub-score: the ritual is WEEKLY, so
+        // scoring credits this for 7 days instead of zeroing at midnight.
+        const d = computeDerived(get());
+        if (d.recoveryScoreIsReal) set({ ciLast: { date: get().dateStamp, recovery: d.recoveryScore } });
         syncReminders(get());
         scheduleDaySync(get);
       },
@@ -1123,14 +1470,18 @@ export const useStore = create<Store>()(
       // which falls back to the mock router when the flag is off.
       signUpLive: async (email, password, fullName) => {
         if (!isBackendLive) return false;
-        const res = await auth.signUp(email.trim(), password, fullName.trim() || undefined);
+        // Persist the onboarding role in signup metadata so a returning overseer routes to
+        // THEIR dashboard on a fresh device (2026-07-04 fix). Derived from the onboarding
+        // role -> flow -> DB enum, so 'sports_perf_coach' is stored as 'coach'.
+        const dbRole = serverRoleForFlow(flowForRole(get().role));
+        const res = await auth.signUp(email.trim(), password, fullName.trim() || undefined, dbRole);
         if (!res.ok) {
-          set({ authError: res.error });
+          set({ authError: friendlyAuthError(res.error) });
           return false;
         }
         // Keep the email for the account/verify panels (password is never stored). Record whether
         // the project actually requires confirmation, so the "check your email" panel is honest
-        // (and silent when confirm is OFF — no false "we sent a link" claim).
+        // (and silent when confirm is OFF â€” no false "we sent a link" claim).
         set({ userId: res.userId, athleteEmail: email.trim(), emailConfirmPending: res.needsConfirmation ?? false, authError: null });
         return true;
       },
@@ -1144,7 +1495,7 @@ export const useStore = create<Store>()(
         // Never leak whether the email exists: surface the same confirmation unless
         // the request itself errored on the network.
         if (!res.ok && res.error !== 'notConfigured') {
-          set({ authError: res.error });
+          set({ authError: friendlyAuthError(res.error) });
           return false;
         }
         set({ passwordResetSent: true, authError: null });
@@ -1154,19 +1505,21 @@ export const useStore = create<Store>()(
         if (!isBackendLive) return false;
         const res = await auth.signInWithAppleToken(identityToken);
         if (!res.ok) {
-          set({ authError: res.error });
+          set({ authError: friendlyAuthError(res.error) });
           return false;
         }
         set({ userId: res.userId, authError: null });
         try {
           const slice = await hydrateDay(res.userId);
           if (slice) set(slice);
+          if (slice?.dateStamp == null && !get().athleteName.trim()) set({ ...freshRealDay(), dateStamp: todayStamp() });
         } catch {
           /* keep the AsyncStorage-cached day */
         }
         // Read the real identity (name/org/email) + entitlement back from the backend
         // so a fresh device isn't stuck on the seeded demo identity. Both gated + soft-fail.
         void get().hydrateProfile();
+        void get().hydrateRecord();
         void get().refreshEntitlement();
         void get().hydrateGuardianConsent();
         return true;
@@ -1175,7 +1528,7 @@ export const useStore = create<Store>()(
         if (!isBackendLive) return false;
         const res = await auth.signIn(email.trim(), password);
         if (!res.ok) {
-          set({ authError: res.error });
+          set({ authError: friendlyAuthError(res.error) });
           return false;
         }
         set({ userId: res.userId, authError: null });
@@ -1184,12 +1537,18 @@ export const useStore = create<Store>()(
         try {
           const slice = await hydrateDay(res.userId);
           if (slice) set(slice);
+          // No server day to resume (dateStamp only arrives with a real day row) and
+          // nobody has onboarded locally: the pre-sign-in state is the unowned seeded
+          // showcase, which must never become an account's real day â€” it would sync
+          // 3 fabricated meals to the coach. Start this account honestly empty.
+          if (slice?.dateStamp == null && !get().athleteName.trim()) set({ ...freshRealDay(), dateStamp: todayStamp() });
         } catch {
           /* keep the AsyncStorage-cached day */
         }
         // Read the real identity (name/org/email) + entitlement back from the backend
         // so a fresh device isn't stuck on the seeded demo identity. Both gated + soft-fail.
         void get().hydrateProfile();
+        void get().hydrateRecord();
         void get().refreshEntitlement();
         void get().hydrateGuardianConsent();
         return true;
@@ -1281,6 +1640,14 @@ export const useStore = create<Store>()(
     {
       name: 'aos_day',
       storage: createJSONStorage(() => AsyncStorage),
+      // Versioned persistence (audit item 17): establishes the migrate hook so a future change to a
+      // PERSISTED field's shape has ONE clean upgrade path instead of scattered read-site guards.
+      // zustand shallow-merges the persisted slice over createInitialState(), so any newly-persisted
+      // key missing from an older blob already falls back to its default â€” the passthrough is safe.
+      // v0 = the pre-versioning blob (same persisted shape as v1). When a persisted field's shape
+      // changes incompatibly, bump this and branch on `from` here.
+      version: 1,
+      migrate: (persisted, _from) => persisted as Partial<Store>,
       // Persist the day/check-in slice PLUS the session-identity fields (flow, role,
       // onboarding identity) so a reload lands the user back where they were instead of
       // dumping them at onboarding. Identity/flow fields are cross-day: they are NOT in
@@ -1289,6 +1656,7 @@ export const useStore = create<Store>()(
         // session / flow + onboarding identity (cross-day)
         flow: s.flow,
         role: s.role,
+        welcomeDone: s.welcomeDone,
         obStep: s.obStep,
         signinMode: s.signinMode,
         athleteName: s.athleteName,
@@ -1304,17 +1672,18 @@ export const useStore = create<Store>()(
         weeklyGoalLb: s.weeklyGoalLb,
         proteinTarget: s.proteinTarget,
         planInstructions: s.planInstructions,
+        planSlots: s.planSlots,
         calTarget: s.calTarget,
         weightTarget: s.weightTarget,
+        weightTargetTouched: s.weightTargetTouched,
         scoringProfile: s.scoringProfile,
         compMode: s.compMode,
         goals: s.goals,
         inviteWho: s.inviteWho,
         parentFocus: s.parentFocus,
         coachTrack: s.coachTrack,
-        // onboarding (redesign) — cross-day identity + baseline
+        // onboarding (redesign) â€” cross-day identity + baseline
         primaryGoal: s.primaryGoal,
-        trainingFreq: s.trainingFreq,
         supportTeam: s.supportTeam,
         inviteCode: s.inviteCode,
         teamCode: s.teamCode,
@@ -1337,9 +1706,14 @@ export const useStore = create<Store>()(
         termsAcceptedAt: s.termsAcceptedAt,
         sharingPaused: s.sharingPaused,
         entitlement: s.entitlement,
+        trustPass: s.trustPass,
         // overseer read-cache (snappy paint); namespaced by cachedRosterUserId, purged on sign-out
         cachedRoster: s.cachedRoster,
         cachedRosterUserId: s.cachedRosterUserId,
+        // Assistant Nutritionist: the once-per-day narrated brief + the since-you-last-looked stamps
+        briefNarration: s.briefNarration,
+        lastDashboardOpenedAt: s.lastDashboardOpenedAt,
+        prevDashboardOpenedAt: s.prevDashboardOpenedAt,
         // day / check-in slice
         dateStamp: s.dateStamp,
         scoreHistory: s.scoreHistory,
@@ -1349,8 +1723,10 @@ export const useStore = create<Store>()(
         meals: s.meals,
         mealFoods: s.mealFoods,
         mealLoggedAt: s.mealLoggedAt,
+        mealNotes: s.mealNotes,
         hydrationL: s.hydrationL,
         tasks: s.tasks,
+        dailyCommitment: s.dailyCommitment,
         quickAdded: s.quickAdded,
         nudged: s.nudged,
         nudgeLog: s.nudgeLog,
@@ -1367,6 +1743,9 @@ export const useStore = create<Store>()(
         ciSoreness: s.ciSoreness,
         ciMotivation: s.ciMotivation,
         ciConfig: s.ciConfig,
+        // Cross-day weekly check-in snapshot (NOT a DAY_DEFAULT_KEY): the weekly
+        // credit must survive the nightly rollover â€” that's its whole job.
+        ciLast: s.ciLast,
         visibility: s.visibility,
         notif: s.notif,
         reminderSettings: s.reminderSettings,
@@ -1399,6 +1778,7 @@ export const useStore = create<Store>()(
         // carried flow/role/identity (preserved through the roll), so restore is verbatim.
         if (p.flow == null) {
           merged.flow = 'onboarding';
+          merged.welcomeDone = false;
           merged.obStep = 0;
         }
         return merged;

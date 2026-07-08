@@ -34,7 +34,7 @@ export function Ring({
   color?: string;
   track?: string;
   children?: React.ReactNode;
-  gradient?: [string, string];
+  gradient?: readonly string[];
 }) {
   const c = useColors();
   const trackColor = track ?? c.track;
@@ -69,11 +69,16 @@ export function Ring({
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size} viewBox="0 0 200 200" style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
-        {gradient ? (
+        {gradient && gradient.length > 0 ? (
           <Defs>
             <LinearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor={gradient[0]} />
-              <Stop offset="1" stopColor={gradient[1]} />
+              {gradient.map((col, i) => (
+                <Stop
+                  key={i}
+                  offset={gradient.length === 1 ? 1 : i / (gradient.length - 1)}
+                  stopColor={col}
+                />
+              ))}
             </LinearGradient>
           </Defs>
         ) : null}

@@ -80,6 +80,16 @@ export async function pickMealPhotoBase64(): Promise<string | undefined> {
   }
 }
 
+/**
+ * Downscale a photo captured from the LIVE in-app camera (a file URI from
+ * CameraView.takePictureAsync) to the same base64 JPEG the analyze pipeline expects. Reuses
+ * the shared resize/compress path. Returns undefined on any failure so live capture can fall
+ * back to the system camera — capture must never block logging.
+ */
+export async function photoUriToBase64(uri: string, width?: number, height?: number): Promise<string | undefined> {
+  return downscaleToBase64(uri, width, height);
+}
+
 /** Pure: the resize target that caps the image's LONG edge at `max`, preserving aspect ratio
  *  (ImageManipulator keeps the other dimension when only one is given). Never upscales.
  *  Exported for tests. */

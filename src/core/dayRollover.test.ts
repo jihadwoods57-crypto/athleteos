@@ -14,6 +14,7 @@ function staleSlice(): Partial<AppState> {
     dateStamp: '2026-06-20',
     meals: { breakfast: true, lunch: true, snack: true, dinner: true },
     mealFoods: { dinner: [{ name: 'Chicken', portion: '8 oz', servings: 2, per: { protein: 50, kcal: 330, carbs: 0, fat: 7 } }] },
+    mealNotes: { dinner: 'Great plate yesterday.' },
     hydrationL: 3.8,
     quickAdded: [true, true, true],
     nudged: ['Andre Silva'],
@@ -180,6 +181,34 @@ describe('recordDayWeight — logs the prior day weight before reset', () => {
   });
 });
 
+describe('recordDayNutrition — the trust-pass baseline never eats its own credit', () => {
+  it('archives the EARNED (pre-credit) nutrition on a camera-free pass day', () => {
+    // Council lock: nutritionHistory holds only REAL photo-earned sub-scores — the
+    // trailing median is computed FROM it. Archiving the credited floor would let
+    // every camera-free day refresh the baseline with unearned points, defeating
+    // the staleness decay and making the median self-perpetuating.
+    const photoDays = Array.from({ length: 10 }, (_, i) => ({ date: `2026-06-${String(20 + i).padStart(2, '0')}`, score: 80 }));
+    const preRoll: AppState = {
+      ...createInitialState(),
+      athleteName: 'Marcus Cole',
+      dateStamp: '2026-07-02',
+      trustPass: { grantedDate: '2026-07-01', lengthDays: 10 },
+      dailyCommitment: 'yes',
+      meals: { breakfast: false, lunch: false, snack: false, dinner: false },
+      mealFoods: {},
+      quickAdded: [false, false, false],
+      nutritionHistory: photoDays,
+    };
+    const derived = computeDerived(preRoll);
+    expect(derived.nutritionIsTrustCredited).toBe(true); // sanity: the credit is active (80 floor)
+    const hist = recordDayNutrition(preRoll, '2026-07-03');
+    const recorded = hist[hist.length - 1];
+    expect(recorded.date).toBe('2026-07-02');
+    expect(recorded.score).toBe(derived.earnedNutritionScore);
+    expect(recorded.score).toBeLessThan(derived.nutritionScore); // credited 80 never enters history
+  });
+});
+
 describe('recordDayNutrition — logs the prior day nutrition sub-score before reset', () => {
   it('appends the derived nutrition score, stamped with the prior date', () => {
     const preRoll: AppState = { ...createInitialState(), dateStamp: '2026-06-20', nutritionHistory: [] };
@@ -277,6 +306,47 @@ describe('ciConfig persistence — archived score uses the answered questions, n
     expect(rolled.ciSubmitted).toBe(false);
     expect(rolled.meals).toEqual(init.meals);
     expect(rolled.dateStamp).toBe(TODAY);
+  });
+});
+
+describe('rollDayIfStale — a REAL athlete rolls to an EMPTY day, never the seeded demo day', () => {
+  // Same stale slice, but the user has onboarded as themselves (the codebase-wide
+  // `isReal` convention: athleteName is non-blank). Founder Rule 10: demo data
+  // never touches a real user — so their fresh morning must start with nothing
+  // logged, not the showcase's 3 pre-logged meals / 2.4L water / 3 done tasks.
+  const rolled = rollDayIfStale({ ...staleSlice(), athleteName: 'Marcus Cole' }, TODAY);
+
+  it('starts the day with no meals logged', () => {
+    expect(rolled.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
+  });
+
+  it('starts the day with zero hydration', () => {
+    expect(rolled.hydrationL).toBe(0);
+  });
+
+  it('starts the day with every task still open', () => {
+    expect(rolled.tasks?.some((t) => t.done)).toBe(false);
+  });
+
+  it('still stamps today and preserves cross-day fields', () => {
+    expect(rolled.dateStamp).toBe(TODAY);
+    expect(rolled.currentWeight).toBe(190);
+    expect(rolled.ciWeight).toBe(190);
+  });
+
+  it('still clears plates, punctuality, notes, commitment, and check-in with the day', () => {
+    expect(rolled.mealFoods).toEqual({});
+    expect(rolled.mealLoggedAt).toEqual({});
+    expect(rolled.mealNotes).toEqual({});
+    expect(rolled.dailyCommitment).toBeNull();
+    expect(rolled.ciSubmitted).toBe(false);
+    expect(rolled.ciStage).toBe('open');
+  });
+
+  it('a whitespace-only name still counts as the seeded demo', () => {
+    const demo = rollDayIfStale({ ...staleSlice(), athleteName: '   ' }, TODAY);
+    expect(demo.meals).toEqual(createInitialState().meals);
+    expect(demo.hydrationL).toBe(createInitialState().hydrationL);
   });
 });
 

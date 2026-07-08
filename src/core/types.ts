@@ -10,10 +10,13 @@ import type { LabelFacts } from './nutritionLabel';
 import type { RosterRow } from './constants';
 import type { GuardianStatus } from './guardianConsent';
 import type { NudgeRecord } from './nudge';
+import type { CommitmentAnswer } from './commitment';
+import type { TrustPass } from './trustPass';
 import type { PerfEntry } from './performance';
 import type { ReminderSettings } from './reminders';
 import type { OverseerAlerts } from './overseerAlerts';
 import type { Entitlement } from './subscription';
+import type { PlanSlot } from './coachPlan';
 
 /** The 7 onboarding identities. Each maps onto one of the 4 dashboard flows
  *  (see ROLE_DEFS in constants) and personalizes copy/labels/goals. */
@@ -40,10 +43,15 @@ export type MealLabel = 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
  *  imports the lib type and stays pure. Defined here (not in mealHistory) so
  *  AppState can hold StoredMeal[] without an import cycle. */
 export interface StoredMeal {
+  /** Server row uuid (backend rows via select *). The key the per-meal comment thread
+   *  (0046) hangs on; optional so local/test constructors can omit it. */
+  id?: string;
   type: string | null;
   name: string | null;
   protein: number | null;
   kcal: number | null;
+  /** The AI's coach-voiced read for this meal (backend rows only) — shown in the review. */
+  note?: string | null;
   /** Present on backend rows (select *); optional so local/test constructors can omit them.
    *  Used by the "usuals" matcher to reuse a repeat meal's confirmed macros. */
   carbs?: number | null;
@@ -67,16 +75,43 @@ export interface AppNotification {
   readAt: string | null;
 }
 
-export type Tab = 'home' | 'tasks' | 'squad' | 'checkin' | 'profile' | 'nutrition' | 'performance' | 'reminders';
+export type Tab =
+  | 'home'
+  | 'tasks'
+  | 'squad'
+  | 'checkin'
+  | 'profile'
+  | 'nutrition'
+  | 'performance'
+  | 'progress'
+  | 'reminders'
+  // Redesign routes (proto breakdown.js / weight.js / recovery.js) — reached from Home,
+  // not the tab bar, so the bar simply shows no active tab while one is open.
+  | 'breakdown'
+  | 'weight'
+  | 'recovery'
+  | 'history'
+  | 'streak'
+  | 'trustdetail';
 /** Coach dashboard destinations (the 5-tab bar): one Home, one Work area, one Action,
  *  one Insights, one Admin. Mirrors the athlete tab model. */
 export type CoachTab = 'dashboard' | 'roster' | 'attention' | 'reports' | 'profile';
 /** Trainer / Parent bottom-tab destinations (so every role has a tab bar + Profile). */
 export type TrainerTab = 'dashboard' | 'profile';
 export type ParentTab = 'overview' | 'profile';
-export type MealStage = 'capture' | 'analyzing' | 'questions' | 'result';
-/** Which camera flow the meal overlay is in: estimate a plate, or transcribe a label. */
-export type MealCaptureMode = 'meal' | 'label';
+export type MealStage = 'capture' | 'analyzing' | 'questions' | 'result' | 'unavailable';
+/** Live day-sync status to the server. 'error' means the last push failed, so the athlete's logged
+ *  day may not have reached their coach — surfaced honestly instead of failing silently. */
+export type SyncState = 'idle' | 'syncing' | 'synced' | 'error';
+/** Why a photo analysis couldn't run. 'rate_limited' = the athlete hit the daily cap (429);
+ *  'error' = any other failure (network, timeout, 5xx); 'consent' = the fail-closed egress
+ *  gate blocked the photo (unverified minor / no consent / sharing paused); 'not_configured'
+ *  = this build has no AI endpoint. Drives the honest 'unavailable' stage — we never
+ *  fabricate a plate/label for a real user, whatever the reason the model couldn't answer. */
+export type MealErrorReason = 'rate_limited' | 'error' | 'consent' | 'not_configured';
+/** Which flow the meal overlay is in: estimate a plate (photo), transcribe a label, or search a
+ *  food by name (USDA) and pick exact macros from the ranked results. */
+export type MealCaptureMode = 'meal' | 'label' | 'search';
 export type CiStage = 'open' | 'done';
 export type SquadMode = 'team' | 'position';
 export type CompMode = 'position' | 'team' | 'off';
@@ -119,6 +154,10 @@ export interface Meals {
 export interface AppState {
   // ---- onboarding ----
   flow: Flow;
+  /** Landing gate: the branded Welcome/landing screen shows until the user taps
+   *  "Get Started" (sets this true), which reveals the existing onboarding steps.
+   *  Cross-day / persisted, so a returning mid-onboarding user isn't sent back to it. */
+  welcomeDone: boolean;
   obStep: number;
   role: Role | null;
   signinMode: boolean;
@@ -144,8 +183,6 @@ export interface AppState {
   // ---- onboarding (redesign) ----
   /** Athlete primary goal key (e.g. 'get_faster'); drives AI coaching copy. */
   primaryGoal: string | null;
-  /** Training frequency key: 'once' | 'twice' | 'three_plus'. */
-  trainingFreq: string | null;
   /** Selected support roles (coach/trainer/nutritionist/parent) building the network. */
   supportTeam: string[];
   /** Optional invite/join code entered during onboarding (athlete joining a team). */
@@ -196,6 +233,10 @@ export interface AppState {
    *  preview; a Stripe webhook flips the backend row, refreshEntitlement reads it.
    *  Persisted so the plan shows offline. INERT until monetization is wired. */
   entitlement: Entitlement;
+  /** An active earned Trust Pass (coach-granted camera-free reward), or null. Cross-day: a
+   *  multi-day grant survives calendar rollover. Client state for the pilot; server-authoritative
+   *  at go-live. See docs/council/2026-07-02-trust-pass.md. */
+  trustPass: TrustPass | null;
   /** True once a password-reset email has been requested, so the reset screen shows
    *  its neutral confirmation. Ephemeral (not persisted). */
   passwordResetSent: boolean;
@@ -234,8 +275,16 @@ export interface AppState {
    *  Day-scoped. Absent = treated as on-time, so the seeded demo + legacy days are
    *  unchanged; only a meal logged AFTER its window deadline is scored as late. */
   mealLoggedAt: Partial<Record<MealKey, number>>;
+  /** The REAL AI coach note from each slot's analysis, kept so MealDetail can show the
+   *  model's actual coaching instead of a canned showcase note. Day-scoped (resets on
+   *  rollover). Absent for slots logged without an AI result — surfaces render nothing
+   *  rather than fabricate. */
+  mealNotes: Partial<Record<MealKey, string>>;
   hydrationL: number;
   tasks: Task[];
+  /** The daily plan-commitment one-tap ("did you hit your plan today?"). Day-scoped
+   *  (resets on rollover); null = not answered yet. Carries the 0.15 behavioral score slot. */
+  dailyCommitment: CommitmentAnswer | null;
   quickAdded: boolean[];
   /** Names of at-risk athletes the overseer has nudged today. Day-scoped (clears
    *  on rollover) so a coach/trainer can act again tomorrow. Backs the dashboard
@@ -264,6 +313,12 @@ export interface AppState {
   ciMotivation: number;
   ciSubmitted: boolean;
   ciConfig: CiConfig;
+  /** The latest REAL check-in submission (its date + earned recovery sub-score).
+   *  Cross-day (survives rollover, persisted): the ritual is branded WEEKLY, so
+   *  scoring credits this snapshot for 7 days — before it existed the credit
+   *  vanished at midnight and an honest perfect day capped at 65. Null until the
+   *  first real submission; never written by an unsubmitted day. */
+  ciLast: { date: string; recovery: number } | null;
 
   // ---- nav / overlays ----
   tab: Tab;
@@ -271,11 +326,40 @@ export interface AppState {
   trainerTab: TrainerTab;
   parentTab: ParentTab;
   squadMode: SquadMode;
+  // ---- day-sync status (audit item 12: a failed push must not be silent) ----
+  /** Status of the debounced day push to the server. 'error' surfaces an honest "not synced" pill
+   *  so an athlete logging on a dead connection isn't invisibly out of sync with their coach.
+   *  Ephemeral; never persisted (recomputed on the next push). */
+  syncState: SyncState;
+  /** ISO timestamp of the last SUCCESSFUL day push, or null. Ephemeral; never persisted. */
+  lastSyncedAt: string | null;
   // ---- overseer read-cache (snappy paint, revalidated on mount) ----
   /** Last real roster fetched for the signed-in overseer, so their dashboard paints instantly
    *  instead of flashing the seeded sample. Namespaced by cachedRosterUserId; purged on sign-out. */
   cachedRoster: RosterRow[] | null;
   cachedRosterUserId: string | null;
+  // ---- Assistant Nutritionist (2026-07-04) ----
+  /** The AI-narrated daily brief, cached ONCE PER DAY (the cost model): { date, text } or null.
+   *  The deterministic brief always renders regardless; this only swaps the phrasing. Persisted
+   *  so reopening the app does not re-spend a narration. */
+  briefNarration: { date: string; text: string } | null;
+  /** ISO timestamp of the previous dashboard open, driving the "since you last looked" delta.
+   *  Two-slot dance: on open, prevDashboardOpenedAt <- lastDashboardOpenedAt <- now. */
+  lastDashboardOpenedAt: string | null;
+  prevDashboardOpenedAt: string | null;
+  // ---- meal review (a stored meal opened from PersonDetail or MealHistory) ----
+  /** The stored meal (server uuid) under review, plus the display card captured at
+   *  open (photo path, macros, the AI read). Null when closed. Ephemeral. */
+  mealReview: {
+    mealId: string;
+    athleteId: string;
+    athleteName: string;
+    card: { label: string; name: string; protein: number; kcal: number; quality: number; thumb: string; photoPath: string | null; note: string | null };
+    /** Demo/sample review (seeded roster, no real backend meal): the plate + AI read show
+     *  so the flow is visible, but the conversation reads an honest sample state instead of
+     *  querying/posting to a meal that does not exist. */
+    demo: boolean;
+  } | null;
   mealOpen: boolean;
   mealStage: MealStage;
   /** 'meal' = photograph a plate (estimated); 'label' = scan a Nutrition Facts panel (exact). */
@@ -292,6 +376,9 @@ export interface AppState {
   /** Clarifying questions the AI asked about the current meal (1-3), or empty. Non-empty means
    *  the capture flow is on the 'questions' stage awaiting answers. Ephemeral; never persisted. */
   mealQuestions: string[];
+  /** Why the last CONFIGURED analysis failed, when mealStage is 'unavailable'. Drives the honest
+   *  "couldn't analyze" panel (retry / enter manually); null otherwise. Ephemeral; never persisted. */
+  mealError: MealErrorReason | null;
   /** The last captured meal photo (base64 JPEG, no data: prefix), held only long
    *  enough to upload it to the meal-photos bucket on log. Ephemeral; never
    *  persisted (kept out of partialize so a multi-MB blob never hits AsyncStorage). */
@@ -344,10 +431,18 @@ export interface AppState {
   /** Coach/overseer standing instructions for the plan ("Pre-bed protein shake",
    *  "No sugary drinks"). Read by activePlan() so both engines reflect them. */
   planInstructions: string[];
+  /** Structured prescribed-meal slots for the Meal Plans feature (gated by
+   *  isMealPlansEnabled). Empty until generated/set; persisted so an in-progress
+   *  plan survives an app restart. */
+  planSlots: PlanSlot[];
   /** Athlete-editable season weight goal (lb). Single source of truth for the
    *  Home season-goal card, Check-In + Parent weight trends, and Profile.
    *  Defaults to the WEIGHT_TARGET constant. */
   weightTarget: number;
+  /** True once the athlete has adjusted the target weight themselves. While false, the
+   *  About You step displays and seeds from the goal-derived default (so a Lose Fat athlete
+   *  never sees a target above their weight), and activation applies the derived value. */
+  weightTargetTouched: boolean;
   visibility: string;
   notif: boolean;
   /** Per-reminder settings (enabled + local hour) for the P3 reminder schedule.
@@ -417,11 +512,24 @@ export interface Grade {
   c: string;
 }
 
+export type TierKey = 'off' | 'building' | 'lockedin' | 'onstandard';
+
+/** The redesign's status band over the same 0–100 score (see core/tiers.ts). */
+export interface Tier {
+  key: TierKey;
+  /** "Off Standard" | "Building" | "Locked In" | "OnStandard" */
+  name: string;
+  /** Status color class: 'r' | 'a' | 'b' | 'g' (see ui/tokens tierChip). */
+  short: 'r' | 'a' | 'b' | 'g';
+}
+
 /** Everything derived from state for rendering — the single selector output. */
 export interface Derived {
   // scoring
   athleteScore: number;
   grade: Grade;
+  /** Redesign status tier (Off Standard / Building / Locked In / OnStandard) over the same score. */
+  tier: Tier;
   ringOffset: number;
   scoreDelta: number;
   deltaStr: string;
@@ -429,11 +537,20 @@ export interface Derived {
   /** True on day 0 (no real prior day yet) — the UI says "starting today" instead of a fake trend. */
   isDay0: boolean;
   nutritionScore: number;
+  /** The photo-EARNED nutrition sub-score before any trust-pass credit floors it.
+   *  This — never the credited value — is what nutritionHistory archives, so the
+   *  trailing median can only ever be built from real camera evidence. */
+  earnedNutritionScore: number;
   recoveryScore: number;
   /** True only once a real check-in backs the recovery number (else it's the 86 fallback). */
   recoveryScoreIsReal: boolean;
+  /** True when today's nutrition was credited from an active Trust Pass (camera-free) rather
+   *  than a logged photo — drives the honest "Trust Pass" vs "photo verified" render. */
+  nutritionIsTrustCredited: boolean;
   weightScore: number;
   tasksScore: number;
+  /** 0..100 daily plan-commitment sub-score (yes=100/partial=60/no=0/unanswered=0). */
+  commitmentScore: number;
   checkinScore: number;
   // nutrition
   proteinToday: number;

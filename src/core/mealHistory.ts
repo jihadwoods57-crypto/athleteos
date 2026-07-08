@@ -22,6 +22,11 @@ export interface MealCard {
   /** Storage path of the photo, when one was uploaded; null otherwise. The screen
    *  resolves it to a signed URL (a lib concern) and falls back to `thumb`. */
   photoPath: string | null;
+  /** Server row uuid (backend rows only) — present means the card can open the meal
+   *  review + comment thread (0046). Null on local-only cards. */
+  serverId: string | null;
+  /** The AI's coach-voiced read for this meal (backend rows only). */
+  note: string | null;
 }
 
 /** Meals for one calendar day, newest day first, with a friendly heading. */
@@ -91,6 +96,8 @@ export function storedMealToCard(m: StoredMeal): MealCard {
     quality: Math.max(0, Math.round(m.quality ?? 0)),
     thumb: SLOT_THUMB[key],
     photoPath: m.photo_path,
+    serverId: m.id ?? null,
+    note: m.note ?? null,
   };
 }
 
@@ -134,5 +141,7 @@ export function localTodayCards(state: AppState): MealCard[] {
       quality: r.quality,
       thumb: r.thumb,
       photoPath: null,
+      serverId: null, // local-only card: no server row, so no comment thread to open
+      note: null,
     }));
 }

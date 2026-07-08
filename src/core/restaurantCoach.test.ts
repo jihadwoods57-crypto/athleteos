@@ -51,6 +51,26 @@ describe('goal-awareness — same restaurant, different athlete', () => {
   });
 });
 
+describe('confirmed-allergy avoid list — the hard filter a recommender must honor', () => {
+  it('never recommends (or one-tap logs) an item matching a confirmed avoid food', () => {
+    // memory.ts promises avoidFoodsFromFacts is "the hard filter a recommender must
+    // honor" — but recommendOrder had no avoid input at all: an athlete who confirmed
+    // "chicken = allergy" still got chicken items recommended and one-tap loggable.
+    const withAvoid = recommendOrder({ restaurantId: 'chickfila', goal: 'gain', proteinRemaining: 45, caloriesRemaining: 900, avoid: ['chicken'] });
+    const names = [
+      ...withAvoid.primary.lines.map((l) => l.item.name.toLowerCase()),
+      ...withAvoid.alternatives.flatMap((a) => a.order.lines.map((l) => l.item.name.toLowerCase())),
+    ];
+    expect(names.some((n) => n.includes('chicken'))).toBe(false);
+  });
+
+  it('an empty avoid list changes nothing', () => {
+    const plain = recommendOrder({ restaurantId: 'chickfila', goal: 'gain', proteinRemaining: 45, caloriesRemaining: 900 });
+    const empty = recommendOrder({ restaurantId: 'chickfila', goal: 'gain', proteinRemaining: 45, caloriesRemaining: 900, avoid: [] });
+    expect(empty.primary.totals).toEqual(plain.primary.totals);
+  });
+});
+
 describe('budget awareness', () => {
   it('never exceeds the stated budget', () => {
     const r = recommendOrder(base({ goal: 'gain', budget: 12 }));

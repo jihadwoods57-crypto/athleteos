@@ -112,6 +112,29 @@ function scoreUSDA(desc: string, query: string): number {
   return s;
 }
 
+/** Rank USDA search hits for a query, best first. A light index penalty preserves USDA's own
+ *  relevance order as the tiebreak between equally-scored entries. Drops entries with no macros. */
+function usdaCandidates(foods: Array<Record<string, unknown>> | undefined, query: string): FoodOut[] {
+  return (foods ?? [])
+    .map((f, i) => ({ out: fromUSDA(f), sc: scoreUSDA(String(f?.description ?? ''), query) - i * 0.1 }))
+    .filter((x): x is { out: FoodOut; sc: number } => x.out !== null)
+    .sort((a, b) => b.sc - a.sc)
+    .map((x) => x.out);
+}
+
+/** USDA repeats near-identical descriptions; keep only the first (best-ranked) of each name. */
+function dedupeByName(items: FoodOut[]): FoodOut[] {
+  const seen = new Set<string>();
+  const out: FoodOut[] = [];
+  for (const it of items) {
+    const k = it.name.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(it);
+  }
+  return out;
+}
+
 async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
   try {
     const res = await fetch(url, { headers: { 'User-Agent': 'OnStandard/1.0 (nutrition app)' } });
@@ -122,12 +145,32 @@ async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
   }
 }
 
+// Best-effort per-IP rate limit (same in-memory pattern as the paid functions). This endpoint
+// was the ONLY one with no limiter at all: unbounded anon traffic could exhaust the shared USDA
+// key (killing Search for everyone) and grow food_cache without bound. Per-instance; enough to
+// blunt a single abusive client. Tunable via RATE_LIMIT_PER_MIN.
+const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '30');
+const RL_WINDOW_MS = 60_000;
+const rlHits = new Map<string, { count: number; resetAt: number }>();
+function rateLimited(req: Request): boolean {
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const now = Date.now();
+  const e = rlHits.get(ip);
+  if (!e || now > e.resetAt) {
+    rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS });
+    return false;
+  }
+  e.count++;
+  return e.count > RL_MAX;
+}
+
 Deno.serve(async (request) => {
   const cors = corsFor(request);
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: cors });
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+  if (rateLimited(request)) return json({ found: false, error: 'rate limited, slow down' }, 429);
 
   let req: { barcode?: unknown; query?: unknown; refresh?: unknown };
   try {
@@ -136,64 +179,55 @@ Deno.serve(async (request) => {
     return json({ found: false, error: 'bad request' }, 400);
   }
 
-  const barcode = typeof req.barcode === 'string' ? req.barcode.replace(/\D/g, '') : '';
-  const query = typeof req.query === 'string' ? req.query.trim() : '';
+  // Bound the inputs: no food name needs 100 chars, and a barcode is at most EAN-14.
+  const barcode = typeof req.barcode === 'string' ? req.barcode.replace(/\D/g, '').slice(0, 14) : '';
+  const query = typeof req.query === 'string' ? req.query.trim().slice(0, 100) : '';
   const refresh = req.refresh === true; // skip the cache read + overwrite the row with a fresh lookup
   const source: 'off' | 'usda' = barcode ? 'off' : 'usda';
   const key = barcode || query.toLowerCase();
   if (!key) return json({ found: false, error: 'barcode or query required' }, 400);
 
-  // Cache read (service role; the client never touches food_cache directly).
   const sb = SUPABASE_URL && SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY) : null;
-  if (sb && !refresh) {
-    try {
-      const { data } = await sb.from('food_cache').select('name,serving,per100,source,attribution').eq('source', source).eq('key', key).maybeSingle();
-      if (data) return json({ found: true, ...data, cached: true });
-    } catch {
-      // cache miss/unreachable -> fall through to a live lookup
-    }
-  }
+  const cacheWrite = (out: FoodOut) => {
+    if (!sb) return Promise.resolve();
+    return sb.from('food_cache')
+      .upsert({ source, key, name: out.name, serving: out.serving, per100: out.per100, attribution: out.attribution })
+      .then(() => {}, () => {}); // never let a cache write failure block the result
+  };
 
-  // Live lookup.
-  let out: FoodOut | null = null;
+  // ---- Barcode: one exact packaged product (cached; a scanned bottle is unambiguous). ----
   if (barcode) {
-    const data = await fetchJson(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,nutriments,serving_size`);
-    if (data && data.status !== 0) out = fromOFF(data.product as Record<string, unknown> | undefined);
-  } else {
-    // Prefer USDA's clean GENERIC whole-food datasets (SR Legacy + Foundation). USDA ranks noisy
-    // Branded products first, and even within generic results the plainest entry is usually the
-    // SHORTEST description ("Bananas, raw" over "Bananas, dehydrated, or banana powder"). Pick
-    // that; only fall back to Branded packaged foods when there is no generic match at all.
-    const q = encodeURIComponent(query);
-    const base = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${q}`;
-    const generic = (await fetchJson(`${base}&pageSize=25&dataType=${encodeURIComponent('SR Legacy,Foundation')}`))?.foods as Array<Record<string, unknown>> | undefined;
-    const gcands = (generic ?? [])
-      .map((f) => ({ out: fromUSDA(f), desc: String(f?.description ?? '') }))
-      .filter((x): x is { out: FoodOut; desc: string } => x.out !== null);
-    if (gcands.length) {
-      // Best match: leads with the query, raw/plain, not a derivative form; USDA relevance breaks ties.
-      out = gcands
-        .map((x, i) => ({ x, sc: scoreUSDA(x.desc, query) - i * 0.1 }))
-        .reduce((best, c) => (c.sc > best.sc ? c : best)).x.out;
-    } else {
-      const branded = (await fetchJson(`${base}&pageSize=5&dataType=Branded`))?.foods as Array<Record<string, unknown>> | undefined;
-      for (const f of branded ?? []) {
-        out = fromUSDA(f);
-        if (out) break;
+    // Cache read (service role; the client never touches food_cache directly).
+    if (sb && !refresh) {
+      try {
+        const { data } = await sb.from('food_cache').select('name,serving,per100,source,attribution').eq('source', source).eq('key', key).maybeSingle();
+        if (data) return json({ found: true, ...data, cached: true });
+      } catch {
+        // cache miss/unreachable -> fall through to a live lookup
       }
     }
+    const data = await fetchJson(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,nutriments,serving_size`);
+    const out = data && data.status !== 0 ? fromOFF(data.product as Record<string, unknown> | undefined) : null;
+    if (!out) return json({ found: false });
+    await cacheWrite(out);
+    return json(out);
   }
 
-  if (!out) return json({ found: false });
-
-  // Cache write (best-effort).
-  if (sb) {
-    try {
-      await sb.from('food_cache').upsert({ source, key, name: out.name, serving: out.serving, per100: out.per100, attribution: out.attribution });
-    } catch {
-      // never let a cache write failure block the result
-    }
+  // ---- Query: a RANKED LIST the athlete picks from. A plain term ("chicken breast") returns many
+  // USDA variants; auto-picking the single right one is guesswork, so we surface the top matches and
+  // let them choose theirs. Prefer the clean generic datasets (SR Legacy + Foundation); fall back to
+  // Branded packaged foods only when there is no generic hit. Queries are always live (USDA is free),
+  // so the picker never gets stuck on one stale cached auto-pick. ----
+  const q = encodeURIComponent(query);
+  const base = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${q}`;
+  let ranked = usdaCandidates((await fetchJson(`${base}&pageSize=25&dataType=${encodeURIComponent('SR Legacy,Foundation')}`))?.foods as Array<Record<string, unknown>> | undefined, query);
+  if (!ranked.length) {
+    ranked = usdaCandidates((await fetchJson(`${base}&pageSize=15&dataType=Branded`))?.foods as Array<Record<string, unknown>> | undefined, query);
   }
-
-  return json(out);
+  const results = dedupeByName(ranked).slice(0, 6);
+  if (!results.length) return json({ found: false });
+  // Keep the auto-pick warm — but only for short, reusable queries: every novel query text is a
+  // service-role row in food_cache, so long one-off strings would just grow the table forever.
+  if (query.length <= 60) await cacheWrite(results[0]);
+  return json({ found: true, ...results[0], results });
 });

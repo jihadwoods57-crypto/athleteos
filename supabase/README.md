@@ -52,3 +52,19 @@ Scaffolded modules:
 5. Point the sign-in/create-account screens at `auth.signIn` / `auth.signUp`, and the role
    views at `db.fetchLinkedDays` (RLS-filtered) instead of the seeded `ROSTER` / `TRAINER_CLIENTS`.
 6. Optional: `days`-table Realtime subscription for live roster updates.
+
+## Edge-function CORS (web builds)
+
+Every edge function (`analyze-meal`, `assist`, `food-lookup`, `plan-generate`) allowlists
+browser origins via the `ALLOWED_ORIGINS` function secret (comma-separated). Native apps
+send no `Origin` header and are unaffected. **A web build (including `expo start --web`)
+is blocked with a CORS preflight failure unless its origin is listed.**
+
+```bash
+# example: local web dev + future production web origin
+supabase secrets set ALLOWED_ORIGINS="http://localhost:8081,http://localhost:8082,https://app.onstandard.app"
+```
+
+Symptom when missing: the browser console shows "blocked by CORS policy … functions/v1/food-lookup",
+and food search / copilot silently degrade (search shows the connection-error note; copilot falls
+back to locally computed answers).

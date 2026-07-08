@@ -1,7 +1,7 @@
 // OnStandard — Projected Development Score. Proves the projection reuses computeDerived
 // (single authority), never reads below current, lists the right remaining actions, and
 // collapses to "nothing left" on a fully-completed day.
-import { projectedScore } from './projection';
+import { idealizeDay, projectedScore } from './projection';
 import { computeDerived } from './scoring';
 import { createInitialState } from './defaultState';
 import type { AppState } from './types';
@@ -23,8 +23,45 @@ function completeDay(): AppState {
     mealFoods: { breakfast: plate(target) },
     tasks: base.tasks.map((t) => ({ ...t, done: true })),
     ciSubmitted: true,
+    dailyCommitment: 'yes',
   };
 }
+
+describe('idealizeDay — the projection can only promise what remains REACHABLE', () => {
+  it('never un-eats a logged plate: real slot foods survive idealization', () => {
+    // Replacing a logged breakfast with a synthetic 0-kcal plate could RAISE the
+    // two-sided calorie adherence of an over-eaten day ('general' profile) — a
+    // promised score only attainable by deleting food already eaten.
+    const s: AppState = {
+      ...createInitialState(),
+      meals: { breakfast: true, lunch: false, snack: false, dinner: false },
+      mealFoods: { breakfast: [{ name: 'Big plate', portion: '1', servings: 1, per: { protein: 30, kcal: 2400, carbs: 200, fat: 90 } }] },
+    };
+    const ideal = idealizeDay(s);
+    expect(ideal.mealFoods.breakfast?.[0]?.name).toBe('Big plate');
+    expect(ideal.mealFoods.breakfast?.[0]?.per.kcal).toBe(2400);
+  });
+
+  it('adds only the remaining protein GAP, into a slot the athlete has not logged', () => {
+    const s: AppState = {
+      ...createInitialState(),
+      meals: { breakfast: true, lunch: false, snack: false, dinner: false },
+      mealFoods: { breakfast: plate(100) },
+    };
+    const target = computeDerived(s).proteinTarget;
+    const ideal = idealizeDay(s);
+    const added = ideal.mealFoods.lunch?.[0];
+    expect(added?.per.protein).toBe(Math.max(0, target - 100));
+  });
+
+  it('keeps punctuality stamps: credit already lost to a late log is not resurrected', () => {
+    const s: AppState = {
+      ...createInitialState(),
+      mealLoggedAt: { breakfast: 700 },
+    };
+    expect(idealizeDay(s).mealLoggedAt).toEqual({ breakfast: 700 });
+  });
+});
 
 describe('projectedScore — current vs reachable', () => {
   it('projects at or above the current score for the seeded day', () => {

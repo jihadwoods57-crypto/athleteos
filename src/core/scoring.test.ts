@@ -39,6 +39,100 @@ describe('computeDerived — default state', () => {
     expect(d.recoveryScore).toBe(86);
   });
 
+  it('recovery fallback (86) is excluded from athleteScore until a real check-in backs it', () => {
+    // The DISPLAY keeps 86 as a neutral placeholder, but an unearned recovery must
+    // never inflate the accountability score (the UI already shows Recovery 0% /
+    // "check-in not submitted"). So the score is the blend with recovery contributing 0.
+    expect(d.recoveryScoreIsReal).toBe(false);
+    const expected = Math.round(0.5 * d.nutritionScore + 0.15 * d.commitmentScore + 0.1 * d.checkinScore);
+    expect(d.athleteScore).toBe(expected);
+  });
+
+  it('evidence rule: a REAL user\'s plate-less logged slot earns meal-count credit, never constant macros', () => {
+    // Founder ruling 2026-07-03: photo/label/search logs carry real plates (mealFoods);
+    // a bare toggle has NO evidence, so it counts toward "meals logged" (the 35-point
+    // lever) but contributes ZERO protein/kcal — four taps can no longer manufacture
+    // 194g of "protein" and a nutrition score of 100.
+    const real = computeDerived({
+      ...createInitialState(),
+      athleteName: 'Marcus Cole',
+      meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+      mealFoods: {},
+      quickAdded: [false, false, false],
+    });
+    expect(real.proteinToday).toBe(0);
+    expect(real.kcalToday).toBe(0);
+    expect(real.mealsLoggedCount).toBe(4); // the honest meal-count credit stands
+    expect(real.nutritionScore).toBeLessThanOrEqual(35); // meals share only — never "on standard" from taps
+  });
+
+  it('evidence rule: a real plate still earns its real macros for a real user', () => {
+    const real = computeDerived({
+      ...createInitialState(),
+      athleteName: 'Marcus Cole',
+      meals: { breakfast: true, lunch: false, snack: false, dinner: false },
+      mealFoods: { breakfast: [{ name: 'Shake', portion: '1', servings: 1, per: { protein: 40, kcal: 300, carbs: 10, fat: 6 } }] },
+      quickAdded: [false, false, false],
+    });
+    expect(real.proteinToday).toBe(40);
+    expect(real.kcalToday).toBe(300);
+  });
+
+  it('evidence rule: the seeded showcase (blank name) keeps its slot constants byte-for-byte', () => {
+    const demo = computeDerived(createInitialState());
+    expect(demo.proteinToday).toBe(142); // 42 + 51 + 49 (seeded 3 slots)
+  });
+
+  it('carb/fat ring targets derive from the PLAN for a real user, never contradicting constants', () => {
+    // A lose-fat client on a 1,500-cal plan saw rings targeting 300g carbs (~1,200 kcal
+    // of carbs alone) two cards under that plan. Real users: fat = 30% of calories on a
+    // cut (25% otherwise), carbs = the remainder after protein + fat. Demo keeps the
+    // showcase constants.
+    const d = computeDerived({ ...createInitialState(), athleteName: 'Marcus Cole', calTarget: 1500, proteinTarget: 140, baseGoal: 'lose' });
+    expect(d.fatTarget).toBe(50); // round(1500*0.30/9)
+    expect(d.carbTarget).toBe(123); // round((1500 - 140*4 - 50*9)/4)
+    const demo = computeDerived(createInitialState());
+    expect(demo.carbTarget).toBe(300);
+    expect(demo.fatTarget).toBe(80);
+  });
+
+  it('weekly check-in carry: a submission earlier THIS week still backs recovery + check-in', () => {
+    // The product brands the ritual "Weekly Check-In", but the credit used to vanish
+    // at midnight — an honest perfect day (meals + protein + commitment) capped at 65
+    // (grade D) and on-standard was mathematically unreachable without re-answering a
+    // "weekly" form every single day.
+    const carried = computeDerived({
+      ...createInitialState(),
+      dateStamp: '2026-07-03',
+      ciSubmitted: false,
+      ciLast: { date: '2026-07-01', recovery: 72 },
+    });
+    expect(carried.recoveryScoreIsReal).toBe(true);
+    expect(carried.recoveryScore).toBe(72);
+    expect(carried.checkinScore).toBe(100);
+  });
+
+  it('weekly check-in carry: a snapshot older than 7 days has expired (due again)', () => {
+    const expired = computeDerived({
+      ...createInitialState(),
+      dateStamp: '2026-07-09',
+      ciSubmitted: false,
+      ciLast: { date: '2026-07-01', recovery: 72 },
+    });
+    expect(expired.recoveryScoreIsReal).toBe(false);
+    expect(expired.checkinScore).toBe(0);
+  });
+
+  it("weekly check-in carry: today's live submission wins over the carried snapshot", () => {
+    const live = computeDerived({
+      ...createInitialState(),
+      ciSubmitted: true,
+      ciLast: { date: '2026-06-30', recovery: 20 },
+    });
+    expect(live.recoveryScoreIsReal).toBe(true);
+    expect(live.recoveryScore).not.toBe(20); // computed from today's answers, not the snapshot
+  });
+
   it('tasks = 3 of 6 done -> 50 (protein task id 2 not done: 142 < 180)', () => {
     // id 1 (done), id 2 (protein 142 < 180 -> NOT done), id 3 (false),
     // id 4 (false), id 5 (done), id 6 (done) = 3 done. round(3/6*100) = 50.
@@ -52,12 +146,13 @@ describe('computeDerived — default state', () => {
     expect(d.checkinScore).toBe(0);
   });
 
-  it('accountability score = clamp(round(.5*78 + .25*86 + .15*50 + .1*0)) = 68', () => {
-    // 39 + 21.5 + 7.5 + 0 = 68 -> grade D. With the nutrition floor removed (D-B),
-    // the seeded day (3 meals, protein short of target, no check-in submitted) reads
-    // an honest D instead of a propped-up C. Weight is not in the daily score.
-    expect(d.athleteScore).toBe(68);
-    expect(d.grade.g).toBe('D');
+  it('accountability score = clamp(round(.5*78 + .25*0 + .15*0 + .1*0)) = 39 (recovery + commitment not given)', () => {
+    // 39 + 0 + 0 + 0 = 39 -> grade F. The seeded day has no real check-in (recovery 0)
+    // and no daily commitment answered (commitment 0), so only its logged nutrition
+    // scores. The 0.15 slot is the plan-commitment now (was the fake task checklist).
+    // Photo-logged nutrition is the only lever moving this day. Weight is not in the score.
+    expect(d.athleteScore).toBe(39);
+    expect(d.grade.g).toBe('F');
   });
 
   it('ring offset = round(540 * (1 - score/100))', () => {
@@ -605,7 +700,7 @@ describe('SCORE_WEIGHTS', () => {
     expect(SCORE_WEIGHTS.map((w) => w.key)).toEqual([
       'nutrition',
       'recovery',
-      'tasks',
+      'commitment',
       'checkin',
     ]);
   });
@@ -615,16 +710,59 @@ describe('SCORE_WEIGHTS', () => {
   });
 
   it('matches the coefficients computeDerived actually applies (no invented weights)', () => {
-    // Mirror of athleteScore: 0.5 nutrition + 0.25 recovery + 0.15 tasks + 0.1 checkin.
+    // Mirror of athleteScore: 0.5 nutrition + 0.25 recovery + 0.15 commitment + 0.1 checkin.
     const expected: Record<string, number> = {
       nutrition: 50,
       recovery: 25,
-      tasks: 15,
+      commitment: 15,
       checkin: 10,
     };
     for (const w of SCORE_WEIGHTS) {
       expect(w.pct).toBe(expected[w.key]);
       expect(w.desc.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('computeDerived — Trust Pass credit (data-gated)', () => {
+  const cameraFree = { breakfast: false, lunch: false, snack: false, dinner: false };
+  const earned = [80, 82, 84, 86, 88, 80, 82, 84, 86, 88].map((score, i) => ({
+    date: `2026-05-${String(i + 1).padStart(2, '0')}`,
+    score,
+  })); // median 84
+
+  it('an active pass credits the trailing nutrition median on a camera-free "yes" day', () => {
+    const s = {
+      ...createInitialState(),
+      meals: cameraFree,
+      dailyCommitment: 'yes',
+      nutritionHistory: earned,
+      trustPass: { grantedDate: '2026-06-01', lengthDays: 10 },
+      dateStamp: '2026-06-02', // day 1: active, not a spot-check day
+    } as AppState;
+    const d = computeDerived(s);
+    expect(d.nutritionIsTrustCredited).toBe(true);
+    expect(d.nutritionScore).toBe(84); // his own proven median, not a fabricated number
+  });
+
+  it('WITHOUT a pass, a camera-free day still scores nutrition 0 (firewall intact)', () => {
+    const s = { ...createInitialState(), meals: cameraFree, dailyCommitment: 'yes', nutritionHistory: earned } as AppState;
+    const d = computeDerived(s);
+    expect(d.nutritionIsTrustCredited).toBe(false);
+    expect(d.nutritionScore).toBe(0);
+  });
+
+  it('an honest "no" on a pass day is never masked by the baseline credit', () => {
+    const s = {
+      ...createInitialState(),
+      meals: cameraFree,
+      dailyCommitment: 'no',
+      nutritionHistory: earned,
+      trustPass: { grantedDate: '2026-06-01', lengthDays: 10 },
+      dateStamp: '2026-06-02',
+    } as AppState;
+    const d = computeDerived(s);
+    expect(d.nutritionIsTrustCredited).toBe(false);
+    expect(d.nutritionScore).toBe(0); // f(no)=0 -> credit 0 -> real (0) stands
   });
 });

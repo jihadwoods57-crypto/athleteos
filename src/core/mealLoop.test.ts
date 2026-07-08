@@ -14,13 +14,18 @@ const plate = (protein: number, kcal = 0, carbs = 0, fat = 0): EditableFood[] =>
 ];
 
 describe('mealSlotMacros — saved plate overrides the slot constant', () => {
-  it('falls back to MEAL_MACROS when no plate is saved', () => {
-    const m = mealSlotMacros({ mealFoods: {} }, 'breakfast');
+  it('falls back to MEAL_MACROS when no plate is saved (showcase only)', () => {
+    const m = mealSlotMacros({ mealFoods: {}, athleteName: '' }, 'breakfast');
     expect(m).toEqual({ protein: MEAL_MACROS.breakfast.p, kcal: MEAL_MACROS.breakfast.k, carbs: MEAL_MACROS.breakfast.c, fat: MEAL_MACROS.breakfast.f });
   });
 
+  it('evidence rule: a REAL user with no plate gets zeros, never the constant', () => {
+    const m = mealSlotMacros({ mealFoods: {}, athleteName: 'Marcus Cole' }, 'breakfast');
+    expect(m).toEqual({ protein: 0, kcal: 0, carbs: 0, fat: 0 });
+  });
+
   it('uses the saved plate macros when present', () => {
-    const m = mealSlotMacros({ mealFoods: { breakfast: plate(60, 500, 40, 12) } }, 'breakfast');
+    const m = mealSlotMacros({ mealFoods: { breakfast: plate(60, 500, 40, 12) }, athleteName: '' }, 'breakfast');
     expect(m).toEqual({ protein: 60, kcal: 500, carbs: 40, fat: 12 });
   });
 
@@ -29,7 +34,18 @@ describe('mealSlotMacros — saved plate overrides the slot constant', () => {
       { name: 'a', portion: '1', servings: 2, per: { protein: 20, kcal: 100, carbs: 5, fat: 2 } },
       { name: 'b', portion: '1', servings: 1, per: { protein: 10, kcal: 50, carbs: 3, fat: 1 } },
     ];
-    expect(mealSlotMacros({ mealFoods: { lunch: foods } }, 'lunch')).toEqual({ protein: 50, kcal: 250, carbs: 13, fat: 5 });
+    expect(mealSlotMacros({ mealFoods: { lunch: foods }, athleteName: '' }, 'lunch')).toEqual({ protein: 50, kcal: 250, carbs: 13, fat: 5 });
+  });
+
+  it('an unknown slot key degrades to zero instead of crashing (server-data hardening)', () => {
+    // A legacy/malformed/foreign-cased `days.meals` key (e.g. "Lunch" or "brunch") must never
+    // crash the whole app on Home render. Blank-name branch, no saved plate -> the constant
+    // lookup misses and we return zeros.
+    const bad = 'Lunch' as unknown as Parameters<typeof mealSlotMacros>[1];
+    expect(mealSlotMacros({ mealFoods: {}, athleteName: '' }, bad)).toEqual({ protein: 0, kcal: 0, carbs: 0, fat: 0 });
+    const s = { meals: { Lunch: true } as unknown as AppState['meals'], mealFoods: {}, athleteName: '' };
+    expect(() => loggedDayMacros(s)).not.toThrow();
+    expect(loggedDayMacros(s)).toEqual({ protein: 0, kcal: 0, carbs: 0, fat: 0 });
   });
 });
 

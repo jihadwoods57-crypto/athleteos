@@ -28,6 +28,16 @@ export type DayRow = {
   updated_at: string;
 }
 
+export type TrustPassRow = {
+  id: string;
+  athlete_id: string;
+  granted_by: string;
+  granted_date: string; // YYYY-MM-DD
+  length_days: number;
+  ended_at: string | null;
+  created_at: string;
+}
+
 export type MealRow = {
   id: string;
   athlete_id: string;
@@ -71,17 +81,65 @@ export type OrgMembershipRow = {
 }
 
 /** A coach/org subscription (B2B per-seat). Written by the Stripe webhook
- *  (service_role) at go-live; the owner reads their own row. Added in migration 0010. */
+ *  (service_role) at go-live; the owner reads their own row. Added in migration 0010;
+ *  lifecycle columns (plan_id / paused / cancel_at_period_end / payment_failed_at)
+ *  added in 0042. */
 export type SubscriptionRow = {
   owner_id: string;
   tier: 'preview' | 'team';
-  status: 'preview' | 'active' | 'past_due' | 'canceled';
+  status: 'preview' | 'active' | 'past_due' | 'canceled' | 'paused';
+  /** Which catalog plan was bought (pro_solo / professional / org_*). Null pre-0042. */
+  plan_id: string | null;
   seats: number | null;
   seats_used: number | null;
   current_period_end: string | null;
+  /** True when the owner canceled but access runs to period end ("canceling on <date>"). */
+  cancel_at_period_end: boolean | null;
+  /** When the last invoice failed (dunning); null when billing is healthy. */
+  payment_failed_at: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   updated_at: string;
+}
+
+/** A coach-seen receipt (0043): a real human opened this athlete's day. The viewer writes
+ *  their own row (RLS: only for athletes they can_view); the athlete reads receipts about
+ *  themselves — "Coach Mark saw your day" is never fabricated. */
+export type CoachViewRow = {
+  athlete_id: string;
+  viewer_id: string;
+  date: string;
+  viewer_name: string | null;
+  seen_at: string;
+}
+
+/** One per-meal comment (0046): the athlete/coach/AI conversation living on the plate it
+ *  is about. Written as yourself only (RLS); read by the athlete + linked overseers. */
+export type MealCommentRow = {
+  id: string;
+  meal_id: string;
+  athlete_id: string;
+  author_id: string;
+  role: 'athlete' | 'coach' | 'ai';
+  text: string;
+  created_at: string;
+}
+
+/** The signed-in user's referral code row (0042). Client creates its own, reads its own. */
+export type ReferralCodeRow = {
+  owner_id: string;
+  code: string;
+  created_at: string;
+}
+
+/** One referral redemption (0042): who brought whom. Written only by the webhook. */
+export type ReferralRedemptionRow = {
+  referred_owner_id: string;
+  referrer_owner_id: string;
+  code: string;
+  status: 'pending' | 'rewarded';
+  created_at: string;
+  rewarded_at: string | null;
 }
 
 export type CheckinRow = {
@@ -121,7 +179,10 @@ export type AthleteProfileRow = {
   base_weight: number | null;
   base_age: number | null;
   base_goal: string | null;
-  targets: { protein?: number; calories?: number; weight?: number };
+  /** Coach-set plan. `profile` is the coach's chosen scoring profile (constitution 11a
+   *  — the coach owns targets + profile), persisted inside the same jsonb so it
+   *  round-trips into the goals editor. */
+  targets: { protein?: number; calories?: number; weight?: number; profile?: string };
   season_goal: { start?: number; target?: number; deadline?: string };
   team_code: string | null;
   updated_at: string;
@@ -231,8 +292,13 @@ export interface Database {
       team_members: Table<TeamMemberRow>;
       practice_clients: Table<PracticeClientRow>;
       subscriptions: Table<SubscriptionRow>;
+      referral_codes: Table<ReferralCodeRow>;
+      referral_redemptions: Table<ReferralRedemptionRow>;
+      coach_views: Table<CoachViewRow>;
+      meal_comments: Table<MealCommentRow>;
       org_memberships: Table<OrgMembershipRow>;
       guardian_consent_requests: Table<GuardianConsentRequestRow>;
+      trust_passes: Table<TrustPassRow>;
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -268,6 +334,16 @@ export interface Database {
         Args: { org: string };
         Returns: { id: string; name: string; sport: string | null; coach_name: string | null }[];
       };
+      // School-directory search via SECURITY DEFINER RPCs (migration 0031). Return SAFE display
+      // columns only (never created_by), so orgs_read can stay locked (audit: 0013<->0022).
+      search_orgs: {
+        Args: { q: string; lim?: number | null };
+        Returns: { id: string; name: string; type: OrgType; city: string | null; state: string | null }[];
+      };
+      find_org: {
+        Args: { p_name: string; p_state?: string | null };
+        Returns: { id: string; name: string; type: OrgType; city: string | null; state: string | null }[];
+      };
       resolve_team_code: {
         Args: { code: string };
         Returns: { id: string; name: string; sport: string | null; coach_name: string | null; school: string | null }[];
@@ -279,6 +355,14 @@ export interface Database {
       pending_team_requests: {
         Args: { team: string };
         Returns: { athlete_id: string; athlete_name: string | null; position: string | null; requested_at: string }[];
+      };
+      team_roster: {
+        Args: { team: string };
+        Returns: { athlete_id: string; athlete_name: string | null; position: string | null; joined_at: string }[];
+      };
+      practice_roster: {
+        Args: { practice: string };
+        Returns: { client_id: string; client_name: string | null; joined_at: string }[];
       };
       join_practice: {
         Args: { code: string };
@@ -315,6 +399,14 @@ export interface Database {
           new_targets: AthleteProfileRow['targets'] | null;
           new_season_goal: AthleteProfileRow['season_goal'] | null;
         };
+        Returns: undefined;
+      };
+      grant_trust_pass: {
+        Args: { p_athlete: string; p_length?: number | null; p_min_on_standard?: number | null };
+        Returns: string;
+      };
+      end_trust_pass: {
+        Args: { p_athlete: string };
         Returns: undefined;
       };
     };

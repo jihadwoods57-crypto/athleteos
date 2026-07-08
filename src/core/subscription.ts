@@ -14,18 +14,25 @@ import type { Flow } from './types';
 
 /** preview = free beta; team = a paid coach/org plan. */
 export type PlanTier = 'preview' | 'team';
-/** Lifecycle of a paid plan (preview accounts are simply 'preview'). */
-export type PlanStatus = 'preview' | 'active' | 'past_due' | 'canceled';
+/** Lifecycle of a paid plan (preview accounts are simply 'preview'). 'paused' = the owner
+ *  paused billing (Stripe pause_collection): the row and data stay, paid access does not. */
+export type PlanStatus = 'preview' | 'active' | 'past_due' | 'canceled' | 'paused';
 
 export interface Entitlement {
   tier: PlanTier;
   status: PlanStatus;
+  /** Which catalog plan (pricing.ts id, e.g. 'pro_solo'), when known. */
+  planId?: string | null;
   /** Paid athlete seats on the plan (team tier only). */
   seats?: number;
   /** Seats currently consumed, for the "X of N seats" line. */
   seatsUsed?: number;
   /** ISO date the current period renews / ends, when active. */
   renewsAt?: string | null;
+  /** The owner canceled but access runs to period end ("canceling on <date>"). */
+  cancelAtPeriodEnd?: boolean;
+  /** ISO timestamp of the last failed charge (dunning), null/undefined when healthy. */
+  paymentFailedAt?: string | null;
 }
 
 /** The default for every account until a real subscription is read in. */
@@ -41,6 +48,10 @@ export interface SubscriptionLike {
   seats: number | null;
   seats_used: number | null;
   current_period_end: string | null;
+  /** 0042 lifecycle columns — optional so pre-0042 rows/tests still satisfy the shape. */
+  plan_id?: string | null;
+  cancel_at_period_end?: boolean | null;
+  payment_failed_at?: string | null;
 }
 
 /** Project a stored subscription row into the entitlement model. Null/garbage rows
@@ -50,9 +61,12 @@ export function entitlementFromRow(row?: SubscriptionLike | null): Entitlement {
   return normalizeEntitlement({
     tier: 'team',
     status: (row.status ?? 'preview') as PlanStatus,
+    planId: row.plan_id ?? null,
     seats: row.seats ?? undefined,
     seatsUsed: row.seats_used ?? undefined,
     renewsAt: row.current_period_end ?? null,
+    cancelAtPeriodEnd: row.cancel_at_period_end === true,
+    paymentFailedAt: row.payment_failed_at ?? null,
   });
 }
 
@@ -60,15 +74,33 @@ export function entitlementFromRow(row?: SubscriptionLike | null): Entitlement {
 export function normalizeEntitlement(e?: Partial<Entitlement> | null): Entitlement {
   if (!e || (e.tier !== 'team' && e.tier !== 'preview')) return previewEntitlement();
   const status: PlanStatus =
-    e.status === 'active' || e.status === 'past_due' || e.status === 'canceled' ? e.status : 'preview';
-  return { tier: e.tier, status, seats: e.seats, seatsUsed: e.seatsUsed, renewsAt: e.renewsAt ?? null };
+    e.status === 'active' || e.status === 'past_due' || e.status === 'canceled' || e.status === 'paused'
+      ? e.status
+      : 'preview';
+  return {
+    tier: e.tier,
+    status,
+    planId: e.planId ?? null,
+    seats: e.seats,
+    seatsUsed: e.seatsUsed,
+    renewsAt: e.renewsAt ?? null,
+    cancelAtPeriodEnd: e.cancelAtPeriodEnd === true,
+    paymentFailedAt: e.paymentFailedAt ?? null,
+  };
 }
 
 /** Whether paid features are unlocked. A team plan unlocks while active OR past_due
- *  (a grace window — don't lock a coach out the instant a card fails); canceled and
- *  preview do not. The single gate the app should check, mirroring isBackendLive. */
+ *  (a grace window — don't lock a coach out the instant a card fails); canceled, paused,
+ *  and preview do not. The single gate the app should check, mirroring isBackendLive. */
 export function isPro(e: Entitlement): boolean {
   return e.tier === 'team' && (e.status === 'active' || e.status === 'past_due');
+}
+
+/** Dunning surface: true when the plan needs a billing fix NOW (card failed / payment due).
+ *  Drives the "update your card" banner — separate from isPro because access continues
+ *  through the grace window while the banner shows. */
+export function needsBillingAttention(e: Entitlement): boolean {
+  return e.tier === 'team' && e.status === 'past_due';
 }
 
 // ---------------------------------------------------------------- feature entitlements
@@ -82,13 +114,26 @@ export function isPro(e: Entitlement): boolean {
 export type FeatureKey =
   | 'dev_score' | 'meal_analysis' | 'daily_game_plan'        // the core loop — free tier
   | 'ai_coach' | 'restaurant_intel' | 'weekly_insights'      // individual+ value
-  | 'client_dashboard' | 'accountability_engine' | 'reports' | 'groups'; // professional/program
+  | 'deep_dive' | 'recruiting_record'                        // premium add-ons (2026-07-04)
+  | 'assistant'                                              // the Assistant Nutritionist bundle:
+                                                             // AI daily brief, flags-with-evidence,
+                                                             // suggested messages, Ask-AI, digest, export
+  | 'client_dashboard' | 'accountability_engine' | 'reports' | 'groups' // professional/program
+  | 'white_label';                                           // enterprise: org branding
 
 export const FEATURE_KEYS: readonly FeatureKey[] = [
   'dev_score', 'meal_analysis', 'daily_game_plan',
   'ai_coach', 'restaurant_intel', 'weekly_insights',
+  'deep_dive', 'recruiting_record',
+  'assistant',
   'client_dashboard', 'accountability_engine', 'reports', 'groups',
+  'white_label',
 ];
+
+/** How many athletes/clients a FREE (preview) coach/trainer can manage before the
+ *  assistant upgrade is the answer. Soft cap: the UI nudges past it, nothing is
+ *  hidden or deleted (server-side seat enforcement is a go-live follow-up). */
+export const FREE_ROSTER_LIMIT = 3;
 
 // Default entitlement catalog. `preview` keeps the core loop free; `team` unlocks
 // everything. (Today's beta policy is effectively all-on; the live catalog overrides
@@ -118,8 +163,9 @@ export function entitlementFeatures(e: Entitlement): FeatureKey[] {
 export function planLabel(e: Entitlement): string {
   if (e.tier !== 'team') return 'Free preview';
   switch (e.status) {
-    case 'active': return 'Team plan';
+    case 'active': return e.cancelAtPeriodEnd ? 'Team · ending soon' : 'Team plan';
     case 'past_due': return 'Team · payment due';
+    case 'paused': return 'Team · paused';
     case 'canceled': return 'Team · canceled';
     default: return 'Free preview';
   }
@@ -154,9 +200,15 @@ export function billingRowCopy(e: Entitlement, flow: Flow): BillingRowCopy {
   const seatHint = e.seats != null ? `Team · ${e.seats} seats` : 'Team plan';
   switch (e.status) {
     case 'active':
+      if (e.cancelAtPeriodEnd) {
+        const until = e.renewsAt ? `until ${e.renewsAt}` : 'until the period ends';
+        return { hint: 'Ending soon', detail: `${seatLine}Your plan is set to end ${until}. You keep full access until then, and you can undo the cancellation from billing.` };
+      }
       return { hint: seatHint, detail: `${seatLine}${renew}Manage billing or change seats from your account portal.` };
     case 'past_due':
       return { hint: 'Payment due', detail: `${seatLine}Your last payment did not go through, so update billing to keep your team's access.` };
+    case 'paused':
+      return { hint: 'Paused', detail: `${seatLine}Your plan is paused, so paid features are off but nothing was deleted. Resume any time from billing.` };
     case 'canceled':
       return { hint: 'Canceled', detail: `${seatLine}Your team plan is canceled. Reactivate any time to restore paid features.` };
     default:

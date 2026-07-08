@@ -55,6 +55,25 @@ export function nudgeTrail(record: NudgeRecord): string {
 }
 
 /**
+ * The one-tap outreach message (churn build 2026-07-04): what the ATHLETE receives when a
+ * coach taps Nudge on an at-risk row without writing their own note. The dashboard reason
+ * is clinical ("protein missed 3 of 7"); the athlete-facing default is supportive and
+ * specific to the same signal, never guilt. A coach-typed note always wins over this.
+ */
+export function nudgeMessageFor(a: { comp: number; proteinMissed?: number; checkinDaysAgo?: number }): string {
+  if (a.comp <= 0) {
+    return "Haven't seen a log from you in a bit. Nothing to catch up on, just start with your next meal. I'll see it.";
+  }
+  if (typeof a.proteinMissed === 'number' && a.proteinMissed >= 2) {
+    return 'Protein has slipped this week. One solid meal tonight gets it moving. I am watching for it.';
+  }
+  if (typeof a.checkinDaysAgo === 'number' && a.checkinDaysAgo >= 3) {
+    return 'Your check-in is overdue. Twenty seconds tonight and I know how you are really doing.';
+  }
+  return 'You are close to back on standard. Log your next meal and let us stack a good day.';
+}
+
+/**
  * Derive the honest "did anything move since the nudge" read. Compares the
  * athlete's live compliance against the baseline captured when the nudge was
  * sent. Improvement only ever comes from real movement in the data: a static

@@ -35,12 +35,13 @@ export function appendMessage(thread: ChatMsg[], who: ChatWho, draft: string): C
 
 /**
  * Honest one-line delivery status for the composer, so the UI never implies a
- * message reached a real person while the backend is off. When live, messages
- * deliver to the connected team; when off, they are kept on this device.
+ * message reached a real person. Delivery does not exist yet on EITHER flag
+ * state (`deliverMessage` in src/lib/messaging is an unwired stub) — until it
+ * ships and is actually called by sendMsg, this note must never say "Delivered".
  */
 export function messageDeliveryNote(isBackendLive: boolean): string {
   return isBackendLive
-    ? 'Delivered to your connected team.'
+    ? 'Saved on this device. Delivery to your team is still being built.'
     : 'Saved on this device. Connect your team to deliver messages.';
 }
 

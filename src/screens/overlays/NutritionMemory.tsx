@@ -9,10 +9,9 @@ import { ScrollView, View } from 'react-native';
 import type { MemoryInsight, MemoryTone } from '@/core';
 import { useStore, useNutritionMemory } from '@/store';
 import { isAiConfigured, rephraseMemoryInsights } from '@/lib/ai';
-import { shadow } from '@/ui/tokens';
 import { Card, Reveal, Row, SampleTag, Txt } from '@/ui/primitives';
 import { useColors } from '@/ui/theme';
-import { Icon } from '@/icons';
+import { Icon, type IconName } from '@/icons';
 import { Overlay } from './Overlay';
 
 export function NutritionMemory() {
@@ -104,25 +103,34 @@ function useRephrasedMemory(insights: MemoryInsight[]): { display: MemoryInsight
 
 function InsightCard({ insight }: { insight: MemoryInsight }) {
   const c = useColors();
-  const TONE: Record<MemoryTone, { bg: string; fg: string; bar: string }> = {
-    win: { bg: c.successSurface, fg: c.successDeep, bar: c.successDeep },
-    watch: { bg: c.warnTint, fg: c.warnText, bar: c.warnText },
-    neutral: { bg: c.accentSurface, fg: c.accent, bar: c.accent },
+  // Tone drives ONE semantic color (win green / watch amber / neutral accent) across the
+  // left spine, the header icon tile, and the metric chip — a memory read, not a 0–100 score,
+  // so it carries its own tone rather than the tier band.
+  const TONE: Record<MemoryTone, { bg: string; border: string; fg: string; bar: string; icon: IconName }> = {
+    win: { bg: c.successSurface, border: c.successBorderSoft, fg: c.successDeep, bar: c.successDeep, icon: 'check' },
+    watch: { bg: c.warnTint, border: c.warning, fg: c.warnText, bar: c.warnText, icon: 'flame' },
+    neutral: { bg: c.accentSurface, border: c.accentBorder, fg: c.accent, bar: c.accent, icon: 'sparkle' },
   };
   const tone = TONE[insight.tone];
   return (
     <Card variant="low" style={{ borderRadius: 18, flexDirection: 'row', gap: 0, padding: 0, overflow: 'hidden' }}>
+      {/* tone spine */}
       <View style={{ width: 4, backgroundColor: tone.bar }} />
       <View style={{ flex: 1, padding: 16 }}>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-          <Txt w="eb" size={15} ls={-0.2} style={{ flex: 1 }}>{insight.headline}</Txt>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 11 }}>
+          <Row style={{ gap: 10, flex: 1, alignItems: 'flex-start' }}>
+            <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={tone.icon} size={15} color={tone.fg} />
+            </View>
+            <Txt w="eb" size={15} ls={-0.2} style={{ flex: 1, marginTop: 5 }}>{insight.headline}</Txt>
+          </Row>
           {insight.metric ? (
-            <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: tone.bg }}>
+            <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border }}>
               <Txt w="eb" num size={13} color={tone.fg}>{insight.metric}</Txt>
             </View>
           ) : null}
         </Row>
-        <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 7, lineHeight: 19 }}>
+        <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 10, lineHeight: 19 }}>
           {insight.detail}
         </Txt>
       </View>

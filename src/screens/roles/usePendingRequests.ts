@@ -19,14 +19,20 @@ export interface PendingItem {
 
 export interface PendingInbox {
   items: PendingItem[];
-  approve: (teamId: string, athleteId: string) => Promise<void>;
-  decline: (teamId: string, athleteId: string) => Promise<void>;
+  /** Resolve true on success; false means the failure is surfaced in `error` —
+   *  the join-request loop is the coach's distribution moment, it must visibly
+   *  succeed or visibly fail, never silently leave the row sitting there. */
+  approve: (teamId: string, athleteId: string) => Promise<boolean>;
+  decline: (teamId: string, athleteId: string) => Promise<boolean>;
+  /** The last approve/decline failure, in product voice; null when clean. */
+  error: string | null;
   refresh: () => Promise<void>;
 }
 
 export function usePendingRequests(): PendingInbox {
   const userId = useStore((s) => s.userId);
   const [items, setItems] = useState<PendingItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!isBackendLive) {
@@ -57,19 +63,33 @@ export function usePendingRequests(): PendingInbox {
 
   const approve = useCallback(
     async (teamId: string, athleteId: string) => {
-      await db.approveMember(teamId, athleteId).catch(() => undefined);
+      setError(null);
+      try {
+        await db.approveMember(teamId, athleteId);
+      } catch {
+        setError("Couldn't approve that request. Check your connection and try again.");
+        return false;
+      }
       await load();
+      return true;
     },
     [load],
   );
 
   const decline = useCallback(
     async (teamId: string, athleteId: string) => {
-      await db.declineMember(teamId, athleteId).catch(() => undefined);
+      setError(null);
+      try {
+        await db.declineMember(teamId, athleteId);
+      } catch {
+        setError("Couldn't decline that request. Check your connection and try again.");
+        return false;
+      }
       await load();
+      return true;
     },
     [load],
   );
 
-  return { items, approve, decline, refresh: load };
+  return { items, approve, decline, error, refresh: load };
 }

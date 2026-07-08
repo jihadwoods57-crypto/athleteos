@@ -1,11 +1,12 @@
 // OnStandard — Athlete/Client detail overlay (from coach/trainer roster rows).
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { coachMealPatterns, displayWeightDelta, findNudge, gradeFor, groupMealsByDay, nudgeOutcome, nudgeTrail, personBreakdown, rosterNoun, scoreLanguage, todayStamp, daysAgoStamp, weightUnit, type MealHistoryDay, type StoredMeal } from '@/core';
+import { coachMealPatterns, displayWeightDelta, findNudge, groupMealsByDay, nudgeOutcome, nudgeTrail, passStatus, personBreakdown, rosterNoun, scoreLanguage, tierFor, todayStamp, daysAgoStamp, weightUnit, type MealCard, type MealHistoryDay, type StoredMeal, type TrustPass } from '@/core';
 import { useStore } from '@/store';
 import { db, isBackendLive } from '@/lib/supabase';
+import { isTrustPassEnabled } from '@/lib/features';
 import { aiPrefix } from '@/lib/ai';
-import { shadow } from '@/ui/tokens';
+import { tierChip, ringGradient, shadow, MAX_FONT_SCALE } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Input, PressScale, ProgressBar, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { haptics } from '@/ui/haptics';
@@ -20,9 +21,43 @@ const RECENT_MEAL_DAYS = 14;
 export function PersonDetail() {
   const c = useColors();
   const s = useStore();
+  const [tpMsg, setTpMsg] = React.useState<string | null>(null);
+  // The coach's live view of this athlete's Trust Pass — FETCHED, not guessed, so
+  // Grant/End stop being blind trial-and-error (the card used to show both buttons
+  // with no idea whether a pass existed). Hooks live above the early return.
+  const [activePass, setActivePass] = React.useState<TrustPass | null>(null);
+  const [passLoaded, setPassLoaded] = React.useState(false);
+  const passAthleteId = isTrustPassEnabled && isBackendLive ? s.personDetail?.athleteId : undefined;
+  React.useEffect(() => {
+    if (!passAthleteId) return;
+    let cancelled = false;
+    setPassLoaded(false);
+    db.fetchActiveTrustPass(passAthleteId)
+      .then((p) => {
+        if (cancelled) return;
+        setActivePass(p);
+        setPassLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setPassLoaded(true); // soft-fail: buttons still work, just unlabeled
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [passAthleteId]);
+  // Close-the-loop receipt (0043): opening a linked athlete's day stamps "a real human
+  // looked", which the athlete sees as "Coach saw your day". Fire-and-forget; markDayViewed
+  // never throws. Only real linked athletes (athleteId + live backend + signed-in viewer).
+  const seenAthleteId = isBackendLive ? s.personDetail?.athleteId : undefined;
+  const viewerId = s.userId;
+  React.useEffect(() => {
+    if (!seenAthleteId || !viewerId) return;
+    void db.markDayViewed(seenAthleteId, todayStamp(), viewerId, s.athleteName.trim() || null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stamp once per open, not per keystroke of unrelated state
+  }, [seenAthleteId, viewerId]);
   const pd = s.personDetail;
   if (!pd) return null;
-  const grade = gradeFor(pd.score);
+  const tier = tierFor(pd.score);
   const bd = personBreakdown(pd.score);
   const units = s.units ?? 'imperial';
   const nudged = s.nudged.includes(pd.name);
@@ -42,7 +77,7 @@ export function PersonDetail() {
   // number (spec: "on standard" / "on the bubble" / "needs intervention").
   const status = scoreLanguage(pd.score);
   const statusColor = pd.score >= 85 ? c.successDeep : pd.score >= 70 ? c.warningDeep : c.alert;
-  const statusBg = pd.score >= 85 ? c.successSurface : pd.score >= 70 ? '#FEF3C7' : c.alertSurface;
+  const statusBg = pd.score >= 85 ? c.successSurface : pd.score >= 70 ? c.warnTint : c.alertSurface;
   // Honest "last active": the trainer book carries real recency; otherwise the
   // roster is current-day, so it reads Today.
   const lastActive = pd.last ?? 'Today';
@@ -52,27 +87,29 @@ export function PersonDetail() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <Reveal index={0}>
         <Card variant="hero" style={{ borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-          <Ring size={96} pct={pd.score} stroke={17} gradient={['#22C55E', '#16A34A']} track={c.track}>
-            <Txt w="eb" num size={30} ls={-0.5}>
+          <Ring size={96} pct={pd.score} stroke={17} gradient={ringGradient} track={c.track}>
+            <Txt w="eb" num size={30} ls={-0.5} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {pd.score}
             </Txt>
-            <Txt w="eb" size={9} color={grade.c}>
-              GRADE {grade.g}
-            </Txt>
+            <View style={{ marginTop: 3, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: tierChip[tier.short].bg, borderWidth: 1, borderColor: tierChip[tier.short].border }}>
+              <Txt w="eb" size={9} color={tierChip[tier.short].fg} ls={0.2} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                {tier.name}
+              </Txt>
+            </View>
           </Ring>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Txt w="eb" size={20} ls={-0.3}>
               {pd.name}
             </Txt>
-            <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 2 }}>
+            <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
               {[pd.pos, pd.org ?? (isBackendLive ? null : 'Eastside HS')].filter(Boolean).join(' · ')}
             </Txt>
-            <View style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: statusBg }}>
+            <View style={{ marginTop: 10, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: statusBg }}>
               <Txt w="b" size={12} color={statusColor}>
                 {status}
               </Txt>
             </View>
-            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 6 }}>
+            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 8 }}>
               Last active · {lastActive}
             </Txt>
           </View>
@@ -82,11 +119,11 @@ export function PersonDetail() {
         {/* COMPLIANCE is real (derived from the roster). DAY STREAK + WEIGHT Δ are sample
             showcase values, the same for every athlete, so they are shown ONLY in the demo
             and hidden once the backend is live — a real coach never sees fabricated stats. */}
-        <Row style={{ gap: 10, marginTop: 14 }}>
+        <Row style={{ gap: 11, marginTop: 14 }}>
           <StatTile value={`${pd.comp ?? pd.score}%`} label="COMPLIANCE" color={c.success} />
           {isBackendLive ? null : (
             <>
-              <StatTile value="12" label="DAY STREAK" />
+              <StatTile value="12" label="DAY STREAK" color={c.warningDeep} />
               <StatTile value={`+${displayWeightDelta(7, units)}${weightUnit(units)}`} label="WEIGHT Δ" />
             </>
           )}
@@ -116,19 +153,31 @@ export function PersonDetail() {
           </Card>
         ) : null}
 
-        <Reveal index={1}>
-        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
-          <Txt w="eb" size={15} ls={-0.3} style={{ marginBottom: 16 }}>
-            Score Breakdown
-          </Txt>
-          <View style={{ gap: 12 }}>
-            <BreakdownRow label="Nutrition" pct={bd.nutrition} />
-            <BreakdownRow label="Recovery" pct={bd.recovery} accent />
-            <BreakdownRow label="Tasks" pct={bd.tasks} />
-            <BreakdownRow label="Check-in" pct={bd.checkin} />
-          </View>
-        </Card>
-        </Reveal>
+        {/* The per-pillar breakdown is derived from fixed OFFSETS off the headline score —
+            showcase math, not component data (it makes recovery every athlete's weakest area
+            by construction). Same rule as DAY STREAK above: a real coach never sees
+            fabricated stats, so it is demo-only until real component data ships. */}
+        {isBackendLive ? null : (
+          <Reveal index={1}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
+            <Row style={{ gap: 9, marginBottom: 16 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="bolt" size={16} color={c.accent} />
+              </View>
+              <Txt w="eb" size={15} ls={-0.3} style={{ flex: 1 }}>
+                Score Breakdown
+              </Txt>
+              <SampleTag />
+            </Row>
+            <View style={{ gap: 13 }}>
+              <BreakdownRow label="Nutrition" pct={bd.nutrition} />
+              <BreakdownRow label="Recovery" pct={bd.recovery} accent />
+              <BreakdownRow label="Commitment" pct={bd.commitment} />
+              <BreakdownRow label="Check-in" pct={bd.checkin} />
+            </View>
+          </Card>
+          </Reveal>
+        )}
 
         {/* Coach owns the plan (Constitution Rule #13): set this athlete's targets +
             scoring profile. Shown to the overseer flows that open this overlay. */}
@@ -151,30 +200,118 @@ export function PersonDetail() {
           </PressScale>
         ) : null}
 
+        {/* Trust Pass — coach grants a proven athlete camera-free days (server RPC enforces the
+            coach-link + 7+ on-standard-day eligibility). Backend-live + flag-gated. */}
+        {isTrustPassEnabled && isBackendLive && pd.athleteId && (s.flow === 'coach' || s.flow === 'trainer') ? (
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
+            <Row style={{ gap: 9, alignItems: 'center' }}>
+              <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="sparkle" size={16} color={c.accent} />
+              </View>
+              <Txt w="eb" size={15} ls={-0.3} style={{ flex: 1 }}>
+                Trust Pass
+              </Txt>
+              {activePass ? (
+                <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, backgroundColor: c.successSurface }}>
+                  <Txt w="eb" size={11} color={c.successDeep} ls={0.3}>ACTIVE</Txt>
+                </View>
+              ) : null}
+            </Row>
+            <Txt w="m" size={12} color={c.textTertiary} style={{ marginTop: 10, lineHeight: 17 }}>
+              {!passLoaded
+                ? 'Checking pass status…'
+                : activePass
+                  ? (() => {
+                      const st = passStatus(activePass, todayStamp());
+                      const left = st ? Math.max(0, activePass.lengthDays - st.dayIndex) : activePass.lengthDays;
+                      return `Camera-free pass running — ${left} day${left === 1 ? '' : 's'} left. One honest tap counts as a real day at their proven level.`;
+                    })()
+                  : 'Reward a proven athlete with camera-free days. Needs 7+ on-standard days on record.'}
+            </Txt>
+            <Row style={{ gap: 10, marginTop: 12 }}>
+              {/* Only the button that applies: Grant when no pass, End when one is running. */}
+              {!activePass ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !passLoaded }}
+                  disabled={!passLoaded}
+                  accessibilityLabel={`Grant ${pd.name} a 10-day trust pass`}
+                  onPress={async () => {
+                    try {
+                      await s.coachGrantTrustPass(pd.athleteId!, 10);
+                      haptics.success();
+                      setActivePass({ grantedDate: todayStamp(), lengthDays: 10 });
+                      setTpMsg('Granted — 10 camera-free days.');
+                    } catch (e) {
+                      haptics.tap();
+                      setTpMsg(e instanceof Error && /eligible/i.test(e.message) ? 'Not yet — needs 7+ on-standard days.' : 'Could not grant the pass.');
+                    }
+                  }}
+                  style={({ pressed }) => ({ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, backgroundColor: c.accent, opacity: pressed || !passLoaded ? 0.7 : 1 })}
+                >
+                  <Txt w="eb" size={14} color={c.white}>
+                    Grant 10-day pass
+                  </Txt>
+                </Pressable>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`End ${pd.name}'s trust pass`}
+                  onPress={async () => {
+                    try {
+                      await s.coachEndTrustPass(pd.athleteId!);
+                      haptics.tap();
+                      setActivePass(null);
+                      setTpMsg('Pass ended. Their photo path takes over from today.');
+                    } catch {
+                      setTpMsg('Could not end the pass.');
+                    }
+                  }}
+                  style={({ pressed }) => ({ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: c.border, opacity: pressed ? 0.6 : 1 })}
+                >
+                  <Txt w="eb" size={14} color={c.textSecondary}>
+                    End pass
+                  </Txt>
+                </Pressable>
+              )}
+            </Row>
+            {tpMsg ? (
+              <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 10 }}>
+                {tpMsg}
+              </Txt>
+            ) : null}
+          </Card>
+        ) : null}
+
         <RecentMeals athleteId={pd.athleteId} name={pd.name} />
 
         {pd.athleteId ? <AthleteProfileView athleteId={pd.athleteId} recentScores={[pd.score]} /> : null}
 
-        <Reveal index={2}>
-        <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
-          <Row style={{ gap: 9, marginBottom: 12 }}>
-            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="sparkle" size={17} color={c.accent} />
-            </View>
-            <Txt w="eb" size={12} color={c.accent} ls={0.4}>
-              {aiPrefix}SUMMARY
+        {/* The "summary" is a fixed score-band narrative asserting invented facts ("the
+            streak is alive", "Recovery is the gap") about whoever is open. Fine as showcase
+            flavor; a real coach would coach off it, so it is demo-only like the breakdown. */}
+        {isBackendLive ? null : (
+          <Reveal index={2}>
+          <Card variant="low" style={{ marginTop: 14, borderRadius: 20 }}>
+            <Row style={{ gap: 9, marginBottom: 12 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="sparkle" size={17} color={c.accent} />
+              </View>
+              <Txt w="eb" size={12} color={c.accent} ls={0.4}>
+                {aiPrefix}SUMMARY
+              </Txt>
+              <SampleTag />
+            </Row>
+            <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 22 }}>
+              {pd.score >= 85
+                ? `${pd.name} is one of your most consistent. Nutrition is locked in and the streak is alive. Watch recovery; a small sleep gain would push this to an A+.`
+                : pd.score >= 75
+                ? `${pd.name} is holding steady. Nutrition and tasks are solid. Recovery is the gap; a sleep nudge would move the grade.`
+                : `${pd.name} needs attention. The score is below the line. A check-in could help reset the routine.`}
             </Txt>
-            <SampleTag />
-          </Row>
-          <Txt w="m" size={14} color={c.slate700} style={{ lineHeight: 22 }}>
-            {pd.score >= 85
-              ? `${pd.name} is one of your most consistent. Nutrition is locked in and the streak is alive. Watch recovery; a small sleep gain would push this to an A+.`
-              : pd.score >= 75
-              ? `${pd.name} is holding steady. Nutrition and tasks are solid. Recovery is the gap; a sleep nudge would move the grade.`
-              : `${pd.name} needs attention. The score is below the line. A check-in could help reset the routine.`}
-          </Txt>
-        </Card>
-        </Reveal>
+          </Card>
+          </Reveal>
+        )}
 
         {!nudged ? (
           <Input
@@ -213,7 +350,7 @@ export function PersonDetail() {
           <View
             accessibilityRole="text"
             accessibilityLabel={`Nudge record: ${nudgeTrail(nudgeRec)}`}
-            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: c.bg2 }}
+            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 9, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}
           >
             <Icon name="check" size={15} color={c.successDeep} />
             <Txt w="sb" size={13} color={c.slate700} style={{ flex: 1, lineHeight: 19 }}>
@@ -226,10 +363,10 @@ export function PersonDetail() {
           <View
             accessibilityRole="text"
             accessibilityLabel={`Nudge follow-up: ${outcome.label}`}
-            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: outcome.improved ? c.successSurface : c.accentSurface }}
+            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: outcome.improved ? c.successSurface : c.accentSurface, borderWidth: 1, borderColor: outcome.improved ? c.successBorderSoft : c.accentBorder }}
           >
             <Icon name={outcome.improved ? 'bolt' : 'bell'} size={15} color={outcome.improved ? c.successDeep : c.accent} />
-            <Txt w="sb" size={13} color={outcome.improved ? c.successDeep : c.slate700} style={{ flex: 1 }}>
+            <Txt w="sb" size={13} color={outcome.improved ? c.successDeep : c.slate700} style={{ flex: 1, lineHeight: 19 }}>
               {outcome.label}
             </Txt>
           </View>
@@ -246,8 +383,17 @@ export function PersonDetail() {
  * off it shows the honest not-connected state, never fabricated food, matching the
  * DAY-STREAK / WEIGHT-Δ sample handling elsewhere in this overlay.
  */
+/** Seeded sample meals for the demo / not-connected coach view, so the review + comment
+ *  flow is demonstrable. Clearly sampled (rendered under the Recent Meals SampleTag), and
+ *  they open the review in demo mode — never a fabricated conversation. */
+const SAMPLE_REVIEW_MEALS: MealCard[] = [
+  { id: 'sample-lunch', label: 'Lunch', name: 'Chicken, Rice & Broccoli', protein: 48, kcal: 640, quality: 90, thumb: '#22C55E', photoPath: null, serverId: null, note: 'Textbook plate. Good protein, complete carbs, greens on it. This is the standard.' },
+  { id: 'sample-breakfast', label: 'Breakfast', name: 'Eggs, Oats & Fruit', protein: 32, kcal: 470, quality: 78, thumb: '#F59E0B', photoPath: null, serverId: null, note: 'Solid start. Protein is a touch light for the goal — an extra egg or a scoop would round it out.' },
+];
+
 function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) {
   const c = useColors();
+  const s = useStore();
   const live = isBackendLive && !!athleteId;
   const [meals, setMeals] = React.useState<StoredMeal[] | null>(null);
   React.useEffect(() => {
@@ -282,24 +428,39 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
       </Row>
 
       {patterns.length > 0 ? (
-        <View style={{ gap: 8, marginBottom: 14 }}>
+        <View style={{ gap: 9, marginBottom: 14 }}>
           {patterns.map((p) => (
-            <View key={p.id} style={{ flexDirection: 'row', gap: 10, padding: 12, borderRadius: 14, backgroundColor: c.warnTint }}>
+            <View key={p.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 13, borderRadius: 14, backgroundColor: c.warnTint }}>
               <Icon name="bell" size={15} color={c.warnText} />
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Txt w="eb" size={13} color={c.warnText}>{p.headline}</Txt>
-                <Txt w="m" size={12} color={c.slate700} style={{ marginTop: 2, lineHeight: 17 }}>{p.detail}</Txt>
+                <Txt w="m" size={12} color={c.slate700} style={{ marginTop: 3, lineHeight: 17 }}>{p.detail}</Txt>
               </View>
-              {p.metric ? <Txt w="eb" size={12} color={c.warnText}>{p.metric}</Txt> : null}
+              {p.metric ? <Txt w="eb" num size={12} color={c.warnText}>{p.metric}</Txt> : null}
             </View>
           ))}
         </View>
       ) : null}
 
       {!live ? (
-        <Txt w="sb" size={13} color={c.textTertiary} style={{ lineHeight: 19 }}>
-          {firstName}’s logged meals — photo, macros, and quality — appear here once your team is connected to the backend.
-        </Txt>
+        // Demo / not-connected: no REAL athlete meals to show, but render SAMPLE cards so the
+        // review + conversation flow is visible and tunable. Clearly sampled (the header
+        // carries a SampleTag); tapping opens the review in demo mode (no fabricated thread).
+        <>
+          <View style={{ gap: 12 }}>
+            {SAMPLE_REVIEW_MEALS.map((meal) => (
+              <MealCardItem
+                key={meal.id}
+                card={meal}
+                onPress={() => s.openMealReview(meal.id, athleteId ?? 'sample', name, meal, true)}
+              />
+            ))}
+          </View>
+          <Txt w="sb" size={12} color={c.textTertiary} style={{ lineHeight: 18, marginTop: 12 }}>
+            Sample meals. {firstName}’s real logged meals — and a live conversation on each — appear
+            here once your team is connected.
+          </Txt>
+        </>
       ) : days.length === 0 ? (
         <Txt w="sb" size={13} color={c.textTertiary} style={{ lineHeight: 19 }}>
           No meals logged in the last {RECENT_MEAL_DAYS} days.
@@ -312,7 +473,13 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
                 {day.dayLabel.toUpperCase()}
               </Txt>
               {day.cards.map((meal) => (
-                <MealCardItem key={meal.id} card={meal} />
+                <MealCardItem
+                  key={meal.id}
+                  card={meal}
+                  // Stored meals drill into the review + comment thread (0046) — the coach
+                  // reviews the plate and leaves feedback on the exact meal it's about.
+                  onPress={meal.serverId && athleteId ? () => s.openMealReview(meal.serverId!, athleteId, name, meal) : undefined}
+                />
               ))}
             </View>
           ))}
@@ -322,14 +489,15 @@ function RecentMeals({ athleteId, name }: { athleteId?: string; name: string }) 
   );
 }
 
+/** Proto `coach-stat` tile (flows.css): centered big value over a small uppercase key. */
 function StatTile({ value, label, color }: { value: string; label: string; color?: string }) {
   const c = useColors();
   return (
-    <View style={[{ flex: 1, backgroundColor: c.card, borderRadius: 18, padding: 16 }, shadow.card]}>
-      <Txt w="eb" num size={24} color={color}>
+    <View style={{ flex: 1, alignItems: 'center', backgroundColor: c.card, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 6, borderWidth: 1, borderColor: c.hairline }}>
+      <Txt w="eb" num size={24} color={color} ls={-0.7}>
         {value}
       </Txt>
-      <Txt w="b" size={11} color={c.textTertiary} style={{ marginTop: 3 }}>
+      <Txt w="b" size={10.5} color={c.textTertiary} ls={0.5} upper style={{ marginTop: 3 }}>
         {label}
       </Txt>
     </View>

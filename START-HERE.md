@@ -1,5 +1,13 @@
 # When you get back to the computer — start here
 
+> **⚠️ 2026-07-02 — parts of this page are out of date.** The backend **is now live**
+> (`EXPO_PUBLIC_BACKEND_LIVE=true`, verified 2026-07-02) and migrations through ~0028 are applied —
+> so the lines below saying "nothing is connected to a real server yet" and the
+> `claude/crew-update-wvkvhh` branch reference no longer hold. For anything about **applying
+> migrations or going live, follow `docs/audit/2026-07-02-PHASE-0-GO-LIVE.md`** (the current source
+> of truth), not the migration steps on this page. The human-chain advice below (lawyer, email
+> vendor, billing) is still accurate.
+
 Plain-English, in order. The full technical version is `docs/LAUNCH-CHECKLIST.md`; the
 business decisions you already approved are in `docs/founding/STRATEGIC-DECISIONS.md`.
 

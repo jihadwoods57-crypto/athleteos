@@ -58,6 +58,7 @@ describe('computeDerived — never throws, always sane', () => {
     ciRecovery: 10,
     ciSleep: 10,
     ciConfidence: 10,
+    dailyCommitment: 'yes',
   };
 
   const cases: [string, Partial<AppState>][] = [

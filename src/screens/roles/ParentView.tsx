@@ -4,9 +4,10 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
-import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, weightProgressTone, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
+import { WEIGHT_START, WEIGHT_TARGET, displayWeight, displayWeightDelta, monitoredAthlete, parentDigest, streakInfo, tierFor, weightProgressTone, weightUnit, nutritionTrend, weeklyCompliance, weightSeries, weightTrendGeometry } from '@/core';
 import { useStore, useDerived } from '@/store';
-import { shadow } from '@/ui/tokens';
+import { isStreakGraceEnabled } from '@/lib/features';
+import { tierChip, ringGradient, shadow, typeScale, MAX_FONT_SCALE } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
 import { Icon } from '@/icons';
@@ -54,6 +55,11 @@ export function ParentView() {
   // partial week is labelled "Building history: N of 7" instead of implying a full
   // week (parent persona finding). completedDays = real recorded days this week.
   const digest = parentDigest({ score: d.athleteScore, completedDays: s.scoreHistory.length, first: athlete.first });
+  // Proto parent hero carries "· N-day streak" (coach.js `parent`): the SAME honest streak
+  // source the athlete's Home uses. This screen's data cards only render for the seeded
+  // showcase (athlete.isDemo), so the streak keeps the showcase seed pad — a real parent
+  // never sees it (they get PendingLinkCard, no fabricated chain).
+  const streak = streakInfo(s.scoreHistory, d.athleteScore, { seedPad: true, grace: isStreakGraceEnabled }).days;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -62,71 +68,112 @@ export function ParentView() {
           <ParentProfile childFirst={athlete.first} />
         ) : (
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Row style={{ gap: 12 }}>
+          <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Row style={{ gap: 12, flex: 1, minWidth: 0 }}>
               <Pressable accessibilityRole="button" accessibilityLabel="Account & settings" hitSlop={6} onPress={s.openAccount} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
                 <Icon name="menu" size={20} color={c.slate600} />
               </Pressable>
-              <View>
-                <Txt w="sb" size={13} color={c.textSecondary}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Txt w="eb" size={12} color={c.accent} ls={1} upper>
                   Parent View
                 </Txt>
-                <Txt w="eb" size={21} ls={-0.3}>
+                <Txt w="eb" size={26} ls={-0.6} accessibilityRole="header" style={{ marginTop: 2 }}>
                   This week
                 </Txt>
-                <Row style={{ gap: 7, marginTop: 5 }}>
-                  <SampleTag />
-                  <Txt w="sb" size={12} color={c.textTertiary}>
-                    Sample data, not yet linked to your athlete
+                <Row style={{ gap: 7, marginTop: 6 }}>
+                  {athlete.isDemo ? <SampleTag /> : null}
+                  <Txt w="sb" size={12} color={c.textTertiary} numberOfLines={1} style={{ flexShrink: 1 }}>
+                    {athlete.isDemo ? 'Sample data, not yet linked to your athlete' : `Waiting on ${athlete.first}'s account`}
                   </Txt>
                 </Row>
               </View>
             </Row>
-            <Row style={[{ gap: 7, backgroundColor: c.card, padding: 7, borderRadius: 13 }, shadow.card]}>
+            <Row style={[{ gap: 8, backgroundColor: c.card, paddingLeft: 7, paddingRight: 11, paddingVertical: 7, borderRadius: 13, borderWidth: 1, borderColor: c.hairline }, shadow.card]}>
               <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
-                <Txt w="b" size={13} color={c.white}>
+                <Txt w="b" size={13} color={c.white} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                   {athlete.monogram}
                 </Txt>
               </View>
-              <Txt w="b" size={13} style={{ paddingRight: 3 }}>
+              <Txt w="b" size={13} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                 {athlete.first}
               </Txt>
             </Row>
           </Row>
 
-          {/* score */}
+          {/* The four data cards + the "For you" digest below derive from THIS DEVICE's
+              local demo state — there is no parent→child data path yet. Rendering them
+              about a REAL child by name is fabricated reassurance ("nothing needs you
+              this week"), the exact trust break the Human Connection pillar forbids.
+              A real parent gets one honest pending card instead; the showcase (no child
+              name entered) keeps the full sample dashboard, labeled. */}
+          {!athlete.isDemo ? <PendingLinkCard first={athlete.first} monogram={athlete.monogram} /> : null}
+
+          {athlete.isDemo ? (
+          <>
+          {/* score — the proto parent hero (coach.js `parent`): a CENTERED "Today" card, the
+              score carried in the app's signature green→cyan→blue ring + tier chip. The proto's
+              "N of M requirements done" is athlete-lane detail this scope withholds, so the
+              streak rides next to the honest week delta, with the coverage line under it. */}
           <Reveal index={0}>
-          <Card variant="hero" style={{ marginTop: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-            <Ring size={104} pct={d.athleteScore} stroke={17} gradient={['#22C55E', '#16A34A']} track={c.track}>
-              <Txt w="eb" num size={34} ls={-0.5}>
-                {d.athleteScore}
-              </Txt>
-              <Txt w="eb" size={10} color={d.grade.c}>
-                GRADE {d.grade.g}
-              </Txt>
-            </Ring>
-            <View style={{ flex: 1 }}>
-              <Txt w="b" size={13} color={c.textSecondary}>
-                Execution Score
-              </Txt>
-              <Row style={{ gap: 6, marginTop: 6 }}>
-                <Txt w="eb" size={15} color={d.deltaColor}>
+          <Card variant="hero" style={{ marginTop: 16, borderRadius: 24, padding: 22, alignItems: 'center' }}>
+            <Txt w="b" size={13} color={c.textSecondary} ls={0.2}>
+              Today
+            </Txt>
+            <View style={{ marginTop: 14 }}>
+              <Ring size={148} pct={d.athleteScore} stroke={18} gradient={ringGradient} track={c.track}>
+                <Txt w="eb" num size={42} ls={-0.8} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                  {d.athleteScore}
+                </Txt>
+                {(() => {
+                  const t = tierFor(d.athleteScore);
+                  return (
+                    <View style={{ marginTop: 4, paddingHorizontal: 9, paddingVertical: 2, borderRadius: 8, backgroundColor: tierChip[t.short].bg, borderWidth: 1, borderColor: tierChip[t.short].border }}>
+                      <Txt w="eb" size={10.5} color={tierChip[t.short].fg} ls={0.2} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                        {t.name}
+                      </Txt>
+                    </View>
+                  );
+                })()}
+              </Ring>
+            </View>
+            <Txt w="b" size={13} color={c.textSecondary} ls={0.2} style={{ marginTop: 14 }}>
+              OnStandard Score
+            </Txt>
+            <Row style={{ gap: 8, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <Row style={{ gap: 6, alignItems: 'center', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: c.surface2 }}>
+                <Txt w="eb" size={13} color={d.deltaColor}>
                   {d.deltaStr}
                 </Txt>
-                <Txt w="sb" size={13} color={c.textTertiary}>
+                <Txt w="sb" size={12.5} color={c.textTertiary}>
                   vs last week
                 </Txt>
               </Row>
-              <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 11, lineHeight: 20 }}>
-                {digest.coverage}
-              </Txt>
-            </View>
+              <Row
+                accessibilityRole="text"
+                accessibilityLabel={`${streak} day streak`}
+                style={{ gap: 6, alignItems: 'center', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: c.surface2 }}
+              >
+                <Icon name="flame" size={13} color={c.warningDeep} />
+                <Txt w="eb" size={13} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                  {streak}-day streak
+                </Txt>
+              </Row>
+            </Row>
+            <Txt w="sb" size={13.5} color={c.slate700} style={{ marginTop: 12, lineHeight: 20, textAlign: 'center' }}>
+              {digest.coverage}
+            </Txt>
           </Card>
           </Reveal>
 
+          {/* ---- THE WEEK IN DETAIL — the privacy-scoped read a parent is allowed: on-plan
+               days, weight trend, and nutrition consistency. No macros, no meal photos. ---- */}
+          <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginTop: 30, marginBottom: 2 }}>
+            THE WEEK IN DETAIL
+          </Txt>
+
           {/* weekly compliance */}
           <Reveal index={1}>
-          <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
+          <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18 }}>
               <View>
                 <Txt w="eb" size={16} ls={-0.3}>
@@ -136,21 +183,21 @@ export function ParentView() {
                   {week.onPlan} of {week.total} days on plan
                 </Txt>
               </View>
-              <Txt w="eb" num size={30} color={c.success} ls={-0.5}>
+              <Txt w="eb" num size={30} color={c.success} ls={-0.5} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                 {week.pct}%
               </Txt>
             </Row>
             <Row style={{ justifyContent: 'space-between' }}>
               {week.days.map((w, i) => (
-                <View key={i} style={{ alignItems: 'center', gap: 8 }}>
+                <View key={i} style={{ alignItems: 'center', gap: 9 }}>
                   <View
                     style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 11,
-                      backgroundColor: w.today ? c.accentSurface : w.ok ? c.successSurface : '#FEE2E2',
-                      borderWidth: w.today ? 2 : 0,
-                      borderColor: c.accent,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 12,
+                      backgroundColor: w.today ? c.accentSurface : w.ok ? c.successSurface : c.alertSurface,
+                      borderWidth: w.today ? 2 : 1,
+                      borderColor: w.today ? c.accent : w.ok ? c.successBorderSoft : c.alertBorder,
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
@@ -163,7 +210,7 @@ export function ParentView() {
                       <Icon name="close" size={13} color={c.alertDeep} />
                     )}
                   </View>
-                  <Txt w="b" size={11} color={w.today ? c.accent : c.textTertiary}>
+                  <Txt w="b" size={11} color={w.today ? c.accent : c.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                     {w.label}
                   </Txt>
                 </View>
@@ -174,9 +221,9 @@ export function ParentView() {
 
           {/* weight trend */}
           <Reveal index={2}>
-          <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
+          <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <View>
+              <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
                 <Txt w="eb" size={16} ls={-0.3}>
                   Weight Trend
                 </Txt>
@@ -185,7 +232,7 @@ export function ParentView() {
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Txt w="eb" num size={26} ls={-0.5}>
+                <Txt w="eb" num size={26} ls={-0.5} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                   {displayWeight(s.currentWeight, units)}
                   <Txt w="sb" size={13} color={c.textTertiary}>
                     {' '}
@@ -197,31 +244,32 @@ export function ParentView() {
                   const tone = weightProgressTone(s.currentWeight - startWeight, s.baseGoal);
                   const toneColor = tone === 'good' ? c.success : tone === 'bad' ? c.alert : c.textSecondary;
                   return (
-                    <Txt w="b" size={12} color={toneColor}>
+                    <Txt w="b" size={12} color={toneColor} style={{ marginTop: 2 }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                       {gain >= 0 ? `↑ +${gain}` : `↓ ${gain}`} {wUnit}
                     </Txt>
                   );
                 })()}
               </View>
             </Row>
-            <Svg viewBox="0 0 322 134" width="100%" height={120} preserveAspectRatio="none" style={{ marginTop: 6 }}>
+            <Svg viewBox="0 0 322 134" width="100%" height={120} preserveAspectRatio="none" style={{ marginTop: 12 }}>
               <Defs>
                 <LinearGradient id="pwt" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor="#2563EB" stopOpacity="0.18" />
-                  <Stop offset="1" stopColor="#2563EB" stopOpacity="0" />
+                  <Stop offset="0" stopColor={c.accent} stopOpacity="0.18" />
+                  <Stop offset="1" stopColor={c.accent} stopOpacity="0" />
                 </LinearGradient>
               </Defs>
-              <Line x1="0" y1={wt.goalY} x2="322" y2={wt.goalY} stroke="#22C55E" strokeWidth="1.5" strokeDasharray="5 5" strokeOpacity="0.5" />
+              <Line x1="0" y1={wt.goalY} x2="322" y2={wt.goalY} stroke={c.success} strokeWidth="1.5" strokeDasharray="5 5" strokeOpacity="0.5" />
               <Path d={wt.areaPath} fill="url(#pwt)" />
-              <Path d={wt.linePath} fill="none" stroke="#2563EB" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-              <Circle cx={wt.last.x} cy={wt.last.y} r={5.5} fill="#2563EB" stroke={c.card} strokeWidth={2.5} />
+              <Path d={wt.linePath} fill="none" stroke={c.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+              <Circle cx={wt.last.x} cy={wt.last.y} r={5.5} fill={c.accent} stroke={c.card} strokeWidth={2.5} />
             </Svg>
           </Card>
           </Reveal>
 
-          {/* nutrition consistency */}
+          {/* nutrition consistency — aggregate % of the daily protein target hit, never the
+              raw macros or meal photos the parent view intentionally withholds. */}
           <Reveal index={3}>
-          <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
+          <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
               <View>
                 <Txt w="eb" size={16} ls={-0.3}>
@@ -232,7 +280,7 @@ export function ParentView() {
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Txt w="eb" num size={26} ls={-0.5}>
+                <Txt w="eb" num size={26} ls={-0.5} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                   {nutri.avg}%
                 </Txt>
                 <Txt w="sb" size={12} color={c.textSecondary}>
@@ -244,11 +292,11 @@ export function ParentView() {
               {nutri.bars.map((h, i) => {
                 const today = i === nutri.bars.length - 1;
                 return (
-                  <View key={i} style={{ alignItems: 'center', gap: 7, flex: 1 }}>
-                    <View style={{ width: 22, height: 86, borderRadius: 6, backgroundColor: c.track, justifyContent: 'flex-end', overflow: 'hidden' }}>
-                      <View style={{ width: '100%', height: `${Math.max(0, Math.min(100, h))}%`, borderRadius: 6, backgroundColor: today ? '#93C5FD' : c.accent }} />
+                  <View key={i} style={{ alignItems: 'center', gap: 9, flex: 1 }}>
+                    <View style={{ width: 22, height: 82, borderRadius: 7, backgroundColor: c.track, justifyContent: 'flex-end', overflow: 'hidden' }}>
+                      <View style={{ width: '100%', height: `${Math.max(0, Math.min(100, h))}%`, borderRadius: 7, backgroundColor: today ? c.accentLight : c.accent }} />
                     </View>
-                    <Txt w="b" size={11} color={today ? c.accent : c.textTertiary}>
+                    <Txt w="b" size={11} color={today ? c.accent : c.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                       {week.days[i]?.label ?? ''}
                     </Txt>
                   </View>
@@ -257,44 +305,49 @@ export function ParentView() {
             </Row>
           </Card>
           </Reveal>
+          </>
+          ) : null}
+
+          {/* ---- FROM THE COACH — the human line home, kept honest: a real note when one exists,
+               an explicit empty state otherwise (never a fabricated coach quote for a real family). ---- */}
+          <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginTop: 30, marginBottom: 2 }}>
+            FROM THE COACH
+          </Txt>
 
           {/* coach notes */}
           <Reveal index={4}>
-          <Card variant="low" style={{ marginTop: 14, borderRadius: 24 }}>
-            <Txt w="eb" size={16} ls={-0.3} style={{ marginBottom: 16 }}>
-              Coach Notes
-            </Txt>
+          <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
             {athlete.isDemo ? (
               <Row style={{ gap: 13, alignItems: 'flex-start' }}>
-                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.text, alignItems: 'center', justifyContent: 'center' }}>
-                  <Txt w="b" size={14} color={c.white}>
+                <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.text, alignItems: 'center', justifyContent: 'center' }}>
+                  <Txt w="b" size={14} color={c.card} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                     CD
                   </Txt>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Row style={{ justifyContent: 'space-between' }}>
-                    <Txt w="b" size={14}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Txt w="b" size={14.5}>
                       Coach Davis
                     </Txt>
                     <Txt w="sb" size={12} color={c.textTertiary}>
                       2 days ago
                     </Txt>
                   </Row>
-                  <Txt w="m" size={14} color={c.slate700} style={{ marginTop: 7, lineHeight: 21 }}>
+                  <Txt w="m" size={14} color={c.slate700} style={{ marginTop: 8, lineHeight: 21 }}>
                     Jihad's nutrition has been excellent. He's one of the most consistent in the linebacker room. We're focused on adding sleep to convert this into on-field strength. Great support at home.
                   </Txt>
                 </View>
               </Row>
             ) : (
               <Row style={{ gap: 13, alignItems: 'flex-start' }}>
-                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.bg2, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="user" size={18} color={c.slate600} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Txt w="b" size={14}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Txt w="b" size={14.5}>
                     No notes yet
                   </Txt>
-                  <Txt w="m" size={14} color={c.slate700} style={{ marginTop: 7, lineHeight: 21 }}>
+                  <Txt w="m" size={14} color={c.slate700} style={{ marginTop: 8, lineHeight: 21 }}>
                     When {athlete.first}'s coach leaves a note, it shows up here so you stay in the loop.
                   </Txt>
                 </View>
@@ -303,11 +356,13 @@ export function ParentView() {
           </Card>
           </Reveal>
 
-          {/* AI parent summary */}
+          {/* AI parent summary — demo-only: the digest narrates the local sample score,
+              which must never speak about a real child. */}
+          {athlete.isDemo ? (
           <Reveal index={5}>
-          <View style={{ marginTop: 14, borderRadius: 20, padding: 20, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, flexDirection: 'row', gap: 13 }}>
-            <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="sparkle" size={17} color={c.accent} />
+          <View style={{ marginTop: 12, borderRadius: 24, padding: 20, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, flexDirection: 'row', gap: 14 }}>
+            <View style={[{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.low]}>
+              <Icon name="sparkle" size={18} color={c.accent} />
             </View>
             <Txt w="m" size={14} color={c.slate700} style={{ flex: 1, lineHeight: 21 }}>
               <Txt w="b" size={14} color={c.accent}>
@@ -315,6 +370,30 @@ export function ParentView() {
               </Txt>
               {digest.summary}
             </Txt>
+          </View>
+          </Reveal>
+          ) : null}
+
+          {/* Proto sidebox (coach.js `parent`, screens.css .sidebox): the privacy contract,
+              stated in-product. Copy adapted honestly to THIS view's real scope (it shows
+              score, streak, and the weekly/weight/nutrition trends, so only what it truly
+              withholds is claimed): meal photos, macros, and check-in answers stay in the
+              athlete's lane. PRESERVE this scoping exactly — never widen it. */}
+          <Reveal index={6}>
+          <View
+            accessibilityRole="text"
+            accessibilityLabel={`What parents see. Score, streak, and trends only. Meal photos, macros, and check-in answers stay between ${athlete.first} and their coach.`}
+            style={{ marginTop: 14, borderRadius: 15, padding: 15, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}
+          >
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="shield" size={17} color={c.accent} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Txt w="eb" size={13.5} ls={-0.1}>What parents see</Txt>
+              <Txt w="sb" size={12.5} color={c.textSecondary} style={{ marginTop: 3, lineHeight: 18 }}>
+                Score, streak, and trends only. Meal photos, macros, and check-in answers stay between {athlete.first} and their coach.
+              </Txt>
+            </View>
           </View>
           </Reveal>
         </ScrollView>
@@ -327,6 +406,37 @@ export function ParentView() {
       {s.plansOpen && <Plans />}
       {s.overseerProfileOpen && <OverseerProfile />}
     </View>
+  );
+}
+
+/** The honest state for a REAL parent: no fabricated dashboard, one card that says
+ *  exactly where things stand and what will appear here. Absence beats theater for
+ *  the one persona whose entire pillar is trust. */
+function PendingLinkCard({ first, monogram }: { first: string; monogram: string }) {
+  const c = useColors();
+  return (
+    <Card variant="hero" style={{ marginTop: 16, borderRadius: 24, padding: 22 }}>
+      <Row style={{ gap: 14, alignItems: 'center' }}>
+        <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt w="b" size={18} color={c.white} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+            {monogram}
+          </Txt>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Txt w="eb" size={17} ls={-0.3}>
+            {first}'s day isn't linked yet
+          </Txt>
+          <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
+            Nothing on this screen is live data yet
+          </Txt>
+        </View>
+      </Row>
+      <Txt w="m" size={14} color={c.slate700} style={{ marginTop: 16, lineHeight: 21 }}>
+        Once {first} is on OnStandard and account linking opens up, you'll see their real score,
+        logged meals, and weekly trend here — never estimates, never samples. We'll say so the
+        moment it's live.
+      </Txt>
+    </Card>
   );
 }
 

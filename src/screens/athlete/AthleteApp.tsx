@@ -8,35 +8,39 @@ import { MAX_FONT_SCALE, shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Txt, Pressable } from '@/ui/primitives';
 import { Icon, IconName } from '@/icons';
-import type { Tab } from '@/core';
+import { type Tab } from '@/core';
 import { Home } from './Home';
 import { Plan } from './Plan';
 import { Squad } from './Squad';
 import { CheckIn } from './CheckIn';
-import { Nutrition } from './Nutrition';
 import { Profile } from './Profile';
-import { Performance } from './Performance';
+import { Progress } from './Progress';
 import { Reminders } from './Reminders';
+import { ScoreBreakdown } from './ScoreBreakdown';
+import { Weight } from './Weight';
+import { Recovery } from './Recovery';
+import { History, Streak, TrustDetail } from './TrustGroup';
 import { MealCapture } from '@/screens/overlays/MealCapture';
 import { Connect } from '@/screens/overlays/Connect';
 import { MealDetail } from '@/screens/overlays/MealDetail';
 import { MealHistory } from '@/screens/overlays/MealHistory';
-import { NutritionMemory } from '@/screens/overlays/NutritionMemory';
+import { MealReview } from '@/screens/overlays/MealReview';
 import { Account } from '@/screens/overlays/Account';
 import { Plans } from '@/screens/overlays/Plans';
 import { Messages } from '@/screens/overlays/Messages';
 import { Notifications } from '@/screens/overlays/Notifications';
 import { FoodCoach } from '@/screens/overlays/FoodCoach';
 import { CoachPlanEditor } from '@/screens/overlays/CoachPlanEditor';
-import { isEnginesEnabled } from '@/lib/features';
+import { isEnginesEnabled, isMealPlansEnabled } from '@/lib/features';
 
-// Nutrition is the core daily surface, so it gets a tab (was buried behind a Home card).
-// Check-In is reached from its Home banner; Profile via the header avatar.
+// The redesign's 5-slot bar: Home · Plan · Camera(FAB) · Progress · Profile. Nutrition folds
+// into Plan and the leaderboard into Profile (matching the proto); Check-In is reached from
+// its Home banner.
 const TABS: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: 'home', label: 'Home', icon: 'home' },
-  { tab: 'nutrition', label: 'Nutrition', icon: 'utensils' },
   { tab: 'tasks', label: 'Plan', icon: 'plan' },
-  { tab: 'squad', label: 'Squad', icon: 'squad' },
+  { tab: 'progress', label: 'Progress', icon: 'trophy' },
+  { tab: 'profile', label: 'Profile', icon: 'user' },
 ];
 
 export function AthleteApp() {
@@ -50,17 +54,24 @@ export function AthleteApp() {
   const foodCoachOpen = useStore((s) => s.foodCoachOpen);
   const planEditorOpen = useStore((s) => s.planEditorOpen);
   const mealHistoryOpen = useStore((s) => s.mealHistoryOpen);
-  const nutritionMemoryOpen = useStore((s) => s.nutritionMemoryOpen);
   const connectOpen = useStore((s) => s.connectOpen);
+  const mealReview = useStore((s) => s.mealReview);
   const initReminders = useStore((s) => s.initReminders);
   const c = useColors();
 
   // Fire the athlete's daily reminders on launch: requests notification permission (native)
   // and schedules today's active reminders. Without this, reminders only scheduled when the
   // user manually toggled one — so a fresh install never got them. No-op on web.
+  //
+  // Timing: HELD while the meal overlay is open. On a fresh install, activation opens the
+  // first-meal capture immediately — firing the OS notification dialog there stacks it on
+  // top of the camera permission at the product's make-or-break moment, which drives
+  // denials that gut every reminder after. The effect re-runs when the overlay closes
+  // (their first logged meal — a natural "keep me on track?" moment) and it's idempotent.
   useEffect(() => {
+    if (mealOpen) return;
     initReminders();
-  }, [initReminders]);
+  }, [initReminders, mealOpen]);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -69,10 +80,15 @@ export function AthleteApp() {
         {tab === 'tasks' && <Plan />}
         {tab === 'squad' && <Squad />}
         {tab === 'checkin' && <CheckIn />}
-        {tab === 'nutrition' && <Nutrition />}
-        {tab === 'performance' && <Performance />}
+        {tab === 'progress' && <Progress />}
         {tab === 'reminders' && <Reminders />}
         {tab === 'profile' && <Profile />}
+        {tab === 'breakdown' && <ScoreBreakdown />}
+        {tab === 'weight' && <Weight />}
+        {tab === 'recovery' && <Recovery />}
+        {tab === 'history' && <History />}
+        {tab === 'streak' && <Streak />}
+        {tab === 'trustdetail' && <TrustDetail />}
       </View>
 
       <TabBar />
@@ -81,7 +97,7 @@ export function AthleteApp() {
       {mealOpen && <MealCapture />}
       {mealDetailOpen && <MealDetail />}
       {mealHistoryOpen && <MealHistory />}
-      {nutritionMemoryOpen && <NutritionMemory />}
+      {mealReview && <MealReview />}
       {accountOpen && <Account />}
       {connectOpen && <Connect />}
       {plansOpen && <Plans />}
@@ -90,7 +106,10 @@ export function AthleteApp() {
       {/* Engine overlays only mount when the master switch is on (defense in depth —
           their entry points are already hidden when off). */}
       {isEnginesEnabled && foodCoachOpen && <FoodCoach />}
-      {isEnginesEnabled && planEditorOpen && <CoachPlanEditor />}
+      {/* Coach Plan editor mounts under EITHER the engines switch or the meal-plans switch,
+          so the Meal Plans feature (its "Prescribed meals" section) is reachable behind its
+          own flag without also requiring the accountability engine. */}
+      {(isEnginesEnabled || isMealPlansEnabled) && planEditorOpen && <CoachPlanEditor />}
     </View>
   );
 }
@@ -103,6 +122,7 @@ function TabBar() {
   const c = useColors();
 
   const isAthleteTab = (t: Tab) => tab === t;
+  const fourthTab = TABS[3];
 
   return (
     <View
@@ -122,8 +142,8 @@ function TabBar() {
         },
       ]}
     >
-      <TabItem item={TABS[0]} active={isAthleteTab('home')} onPress={() => setTab('home')} />
-      <TabItem item={TABS[1]} active={isAthleteTab('nutrition')} onPress={() => setTab('nutrition')} />
+      <TabItem item={TABS[0]} active={isAthleteTab(TABS[0].tab)} onPress={() => setTab(TABS[0].tab)} />
+      <TabItem item={TABS[1]} active={isAthleteTab(TABS[1].tab)} onPress={() => setTab(TABS[1].tab)} />
 
       {/* center camera FAB */}
       <View style={{ width: 72, alignItems: 'center' }}>
@@ -132,30 +152,30 @@ function TabBar() {
           accessibilityLabel="Log a meal"
           onPress={openMeal}
           style={[
-            { width: 58, height: 58, borderRadius: 18, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: -28 },
-            shadow.cta,
+            { width: 62, height: 62, borderRadius: 31, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center', marginTop: -30 },
+            shadow.ctaGreen,
           ]}
         >
-          <Icon name="camera" size={26} color={c.white} />
+          <Icon name="camera" size={26} color={c.onGreen} />
         </Pressable>
       </View>
 
-      <TabItem item={TABS[2]} active={isAthleteTab('tasks')} onPress={() => setTab('tasks')} />
-      <TabItem item={TABS[3]} active={isAthleteTab('squad')} onPress={() => setTab('squad')} />
+      <TabItem item={TABS[2]} active={isAthleteTab(TABS[2].tab)} onPress={() => setTab(TABS[2].tab)} />
+      <TabItem item={fourthTab} active={isAthleteTab(fourthTab.tab)} onPress={() => setTab(fourthTab.tab)} />
     </View>
   );
 }
 
 function TabItem({ item, active, onPress }: { item: { label: string; icon: IconName }; active: boolean; onPress: () => void }) {
   const c = useColors();
-  const color = active ? c.accent : c.textTertiary;
+  const color = active ? c.success : c.textTertiary;
   return (
     <Pressable
       accessibilityRole="tab"
       accessibilityLabel={item.label}
       accessibilityState={{ selected: active }}
       onPress={onPress}
-      style={{ flex: 1, alignItems: 'center', gap: 4 }}
+      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 44 }}
     >
       <Icon name={item.icon} size={23} color={color} />
       <Txt w={active ? 'b' : 'sb'} size={11} color={color} maxFontSizeMultiplier={MAX_FONT_SCALE}>

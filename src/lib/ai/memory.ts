@@ -51,6 +51,30 @@ export async function setFactStatus(id: string, status: 'active' | 'rejected'): 
   return !error;
 }
 
+/**
+ * Write inferred/stated candidate facts for the current athlete (the missing WRITE half of the
+ * memory flywheel). RLS scopes rows to auth.uid(); the caller has already run them through
+ * admitCandidate, so a safety fact arrives 'pending_confirmation' and only the athlete's confirm
+ * flips it active. Fails safe (returns false) when the backend is off or no session — the meal
+ * still logs; only the learning is skipped.
+ */
+export async function insertMemoryFacts(facts: MemoryFact[]): Promise<boolean> {
+  if (!supabase || facts.length === 0) return false;
+  const uid = (await supabase.auth.getUser()).data.user?.id;
+  if (!uid) return false;
+  const rows = facts.map((f) => ({
+    athlete_id: uid,
+    kind: f.kind,
+    value: f.value,
+    confidence: f.confidence,
+    source: f.source,
+    evidence_n: f.evidenceN,
+    status: f.status,
+  }));
+  const { error } = await (supabase.from as Loose)('athlete_memory_facts').insert(rows);
+  return !error;
+}
+
 export interface ProfileRow {
   feedback_log?: { authorId: string; scope: string; text: string; at: string }[];
 }

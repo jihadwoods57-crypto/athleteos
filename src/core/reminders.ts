@@ -11,6 +11,7 @@
 // gated by isNotifyAvailable; nothing here fires a notification. Copy follows the
 // shipped guardrails: factual, no guilt, no em dash.
 import { HYDRATION_TARGET } from './constants';
+import { withinTrailingWeek } from './clock';
 
 export type ReminderKind = 'protein' | 'hydration' | 'log_dinner' | 'checkin' | 'weigh_in';
 
@@ -103,6 +104,12 @@ export interface ReminderSnapshot {
   /** No weight logged yet today (drives the weigh-in nudge). Optional so existing snapshot
    *  literals stay valid; treated as "not due" when absent. */
   weighInDue?: boolean;
+  /** The athlete's linked coach/trainer first name, when one exists. Presence is the pull:
+   *  "Coach Mark sees tonight's log" beats a generic chore. Optional; absent = no coach line. */
+  coachName?: string | null;
+  /** Points between the live score and on-standard (threshold - score), when today is close
+   *  (0 < gap <= 25). The near-goal pull: "you're 6 points from locking today". Optional. */
+  pointsToStandard?: number | null;
 }
 
 /**
@@ -143,7 +150,23 @@ export function activeReminders(settings: ReminderSettings, snapshot: ReminderSn
   });
 }
 
-/** Athlete-first copy for a reminder. Factual, no guilt, no em dash. */
+/** The near-goal pull, when today is genuinely close: a real gap, small enough to close
+ *  tonight. Returns '' otherwise so callers can append unconditionally. */
+function scorePull(s: ReminderSnapshot): string {
+  const gap = s.pointsToStandard;
+  if (typeof gap !== 'number' || !Number.isFinite(gap) || gap <= 0 || gap > 25) return '';
+  return ` You're ${Math.round(gap)} ${Math.round(gap) === 1 ? 'point' : 'points'} from on standard today.`;
+}
+
+/** The coach-presence line, when a real coach is linked. '' otherwise. */
+function coachPull(s: ReminderSnapshot, verb: string): string {
+  const name = (s.coachName ?? '').trim();
+  return name ? ` ${name} ${verb}.` : '';
+}
+
+/** Athlete-first copy for a reminder. Factual, no guilt, no em dash. A reminder is a
+ *  specific reason to open the app today (a real gap, a real coach watching), never a
+ *  generic chore ("log your meal"). */
 export function reminderCopy(kind: ReminderKind, s: ReminderSnapshot): { title: string; body: string } {
   switch (kind) {
     case 'protein': {
@@ -163,18 +186,39 @@ export function reminderCopy(kind: ReminderKind, s: ReminderSnapshot): { title: 
     case 'log_dinner':
       return {
         title: 'Log dinner',
-        body: 'Add tonight\'s dinner to keep your day complete.',
+        body: `Add tonight's dinner to keep your day complete.${scorePull(s)}${coachPull(s, 'sees tonight\'s log')}`,
       };
     case 'checkin':
       return {
         title: 'Weekly check-in',
-        body: 'Your check-in is ready. Your coach will see your update.',
+        body: `Your check-in is ready.${(s.coachName ?? '').trim() ? ` ${(s.coachName ?? '').trim()} will see your update.` : ' Your coach will see your update.'}`,
       };
     case 'weigh_in':
       return {
         title: 'Weigh-in',
         body: 'Log your weight to keep your goal on track. Takes ten seconds.',
       };
+  }
+}
+
+/**
+ * Forward-looking copy for a DAILY reminder scheduled while today's condition is
+ * already satisfied: the trigger repeats on fresh days (where the condition holds
+ * again by definition), so it must carry no stale "you're behind" numbers. Factual,
+ * no guilt, no em dash.
+ */
+export function genericReminderCopy(kind: ReminderKind): { title: string; body: string } {
+  switch (kind) {
+    case 'protein':
+      return { title: 'Protein check', body: 'A high-protein option now keeps you ahead of your target.' };
+    case 'hydration':
+      return { title: 'Hydration', body: 'A glass of water now keeps you on pace for the day.' };
+    case 'log_dinner':
+      return { title: 'Log dinner', body: "Add tonight's dinner to keep your day complete." };
+    case 'checkin':
+      return { title: 'Weekly check-in', body: 'Your check-in is ready. Your coach will see your update.' };
+    case 'weigh_in':
+      return { title: 'Weigh-in', body: 'A quick weigh-in keeps your trend honest. Takes ten seconds.' };
   }
 }
 
@@ -196,17 +240,27 @@ export interface ReminderNotifySpec {
 }
 
 /**
- * The local notifications to (re)schedule today: one per active reminder, carrying
- * its user-set hour and its athlete-first copy. This is the PURE hand-off the device
- * seam (src/lib/notify) consumes; it fires nothing. Order follows REMINDER_DEFS.
+ * The local notifications to (re)schedule: one per ENABLED reminder, carrying its
+ * user-set hour and copy. Condition still holding today -> today's specific copy
+ * (real numbers); condition already satisfied -> generic forward-looking copy,
+ * because the trigger is DAILY-repeating and tomorrow's fresh day makes the
+ * condition true again. The old contract dropped satisfied reminders entirely,
+ * which left a user who finished day 0 on-track in total silence on day 1.
+ * Exception: the check-in is a WEEKLY ritual — done for the week means no reminder
+ * at all, not a daily generic nag. This is the PURE hand-off the device seam
+ * (src/lib/notify) consumes; it fires nothing. Order follows REMINDER_DEFS.
  */
 export function reminderNotifySpecs(
   settings: ReminderSettings,
   snapshot: ReminderSnapshot,
 ): ReminderNotifySpec[] {
-  return activeReminders(settings, snapshot).map((d) => {
-    const { title, body } = reminderCopy(d.kind, snapshot);
-    return { kind: d.kind, title, body, hour: clampHour(settings[d.kind].hour) };
+  return REMINDER_DEFS.flatMap((d) => {
+    const set = settings[d.kind];
+    if (!set || !set.enabled) return [];
+    const met = d.conditional ? conditionMet(d.kind, snapshot) : true;
+    if (!met && d.kind === 'checkin') return [];
+    const { title, body } = met ? reminderCopy(d.kind, snapshot) : genericReminderCopy(d.kind);
+    return [{ kind: d.kind, title, body, hour: clampHour(set.hour) }];
   });
 }
 
@@ -224,14 +278,31 @@ export function reminderSnapshotFromState(s: {
   ciSubmitted: boolean;
   /** Whether the athlete has logged a weight today (drives the weigh-in nudge). */
   weighedToday: boolean;
+  /** The weekly check-in snapshot + today's stamp: a real submission within the
+   *  trailing week means the WEEKLY ritual is done — no daily nag labeled weekly. */
+  ciLast?: { date: string; recovery: number } | null;
+  dateStamp?: string;
+  /** The linked coach/trainer's name (presence pull) — optional, real links only. */
+  coachName?: string | null;
+  /** Today's live score + the on-standard threshold, for the near-goal pull. Optional. */
+  liveScore?: number;
+  threshold?: number;
 }): ReminderSnapshot {
+  const doneThisWeek =
+    s.ciSubmitted || (s.ciLast != null && s.dateStamp != null && withinTrailingWeek(s.ciLast.date, s.dateStamp));
+  const gap =
+    typeof s.liveScore === 'number' && typeof s.threshold === 'number' && Number.isFinite(s.liveScore)
+      ? s.threshold - s.liveScore
+      : null;
   return {
     proteinToday: s.proteinToday,
     proteinTarget: s.proteinTarget,
     hydrationL: s.hydrationL,
     hydrationTargetL: HYDRATION_TARGET,
     dinnerLogged: s.meals.dinner,
-    checkinDue: !s.ciSubmitted,
+    checkinDue: !doneThisWeek,
     weighInDue: !s.weighedToday,
+    coachName: s.coachName ?? null,
+    pointsToStandard: gap,
   };
 }

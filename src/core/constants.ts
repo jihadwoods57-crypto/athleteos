@@ -87,9 +87,30 @@ export const ROLE_DEFS: RoleDef[] = [
   { key: 'college_coach', title: 'College Coach', sub: 'Run your program', icon: 'checkin', flow: 'coach', archetype: 'team' },
 ];
 
-/** Map any role to its dashboard flow. New roles fall back to the athlete app. */
-export function flowForRole(role: Role | null): Flow {
-  return ROLE_DEFS.find((r) => r.key === role)?.flow ?? 'app';
+/** The backend `profiles.primary_role` is the coarse DB `user_role` enum, NOT the app's
+ *  granular Role — so the two vocabularies must map both ways. */
+const DB_ROLE_FLOW: Record<string, Flow> = { athlete: 'app', coach: 'coach', trainer: 'trainer', parent: 'parent' };
+
+/** Map any role to its dashboard flow. Handles BOTH the app's granular Role keys AND the
+ *  stored DB enum values ('coach'/'trainer'/'parent'/'athlete'); unknown falls back to the
+ *  athlete app. Without the DB-enum arm, a returning coach/trainer whose profile stores
+ *  'coach' resolved to 'app' and got dropped into the athlete experience (2026-07-04 bug). */
+export function flowForRole(role: Role | string | null): Flow {
+  if (!role) return 'app';
+  const def = ROLE_DEFS.find((r) => r.key === role);
+  if (def) return def.flow;
+  return DB_ROLE_FLOW[role] ?? 'app';
+}
+
+/** The DB `user_role` value to persist for a given dashboard flow, so a returning user on a
+ *  fresh device routes back to THEIR app. Coarser than the onboarding Role by design. */
+export function serverRoleForFlow(flow: Flow): 'athlete' | 'coach' | 'trainer' | 'parent' {
+  switch (flow) {
+    case 'coach': return 'coach';
+    case 'trainer': return 'trainer';
+    case 'parent': return 'parent';
+    default: return 'athlete';
+  }
 }
 
 /** Athlete Step 1 — primary goal, grouped. Single-select; drives AI coaching copy. */
@@ -128,12 +149,6 @@ export const GOAL_GROUPS: { group: string; options: GoalOption[] }[] = [
 export const GOAL_LABELS: Record<string, string> = Object.fromEntries(
   GOAL_GROUPS.flatMap((g) => g.options.map((o) => [o.key, o.label])),
 );
-
-export const TRAIN_FREQ: GoalOption[] = [
-  { key: 'once', label: 'Once per day' },
-  { key: 'twice', label: 'Twice per day' },
-  { key: 'three_plus', label: 'Three or more per day' },
-];
 
 export const SUPPORT_OPTIONS: GoalOption[] = [
   { key: 'coach', label: 'Coach' },

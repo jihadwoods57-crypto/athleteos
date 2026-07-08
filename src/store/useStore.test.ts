@@ -212,6 +212,8 @@ describe('editable season weight target', () => {
 
   it('lowering the weight target raises season-goal progress and shrinks "to go"', () => {
     const w = useStore.getState().currentWeight;
+    // An already-set (touched) target edits purely from its own value.
+    useStore.setState({ weightTarget: 184, weightTargetTouched: true });
     const before = seasonGoalProgress(w, WEIGHT_START, useStore.getState().weightTarget);
 
     useStore.getState().adjustWeightTarget(-4); // 184 -> 180, closer to current weight
@@ -223,6 +225,7 @@ describe('editable season weight target', () => {
   });
 
   it('clamps the weight target to [120, 350]', () => {
+    useStore.setState({ weightTarget: 184, weightTargetTouched: true });
     for (let i = 0; i < 400; i++) useStore.getState().adjustWeightTarget(-1);
     expect(useStore.getState().weightTarget).toBe(120);
     for (let i = 0; i < 400; i++) useStore.getState().adjustWeightTarget(1);
@@ -231,7 +234,7 @@ describe('editable season weight target', () => {
 
   it('falls back to the constant for a legacy blob with no weightTarget', () => {
     // Action must not produce NaN when the persisted state predates the field.
-    useStore.setState({ weightTarget: undefined as unknown as number });
+    useStore.setState({ weightTarget: undefined as unknown as number, weightTargetTouched: true });
     useStore.getState().adjustWeightTarget(2);
     expect(useStore.getState().weightTarget).toBe(WEIGHT_TARGET + 2);
   });
@@ -260,6 +263,34 @@ describe('wStep clamp', () => {
     useStore.getState().submitCi();
     expect(useStore.getState().currentWeight).toBe(70);
     expect(useStore.getState().currentWeight).toBeGreaterThanOrEqual(70);
+  });
+});
+
+describe('rollDayForeground — the day boundary fires without a cold restart', () => {
+  it('rolls a stale in-memory day, archives history once, and is idempotent same-day', () => {
+    useStore.setState({
+      athleteName: 'Marcus Cole',
+      dateStamp: '2020-01-01',
+      meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+      hydrationL: 3.1,
+      scoreHistory: [],
+      weightHistory: [],
+      nutritionHistory: [],
+    });
+    useStore.getState().rollDayForeground();
+    const s = useStore.getState();
+    expect(s.dateStamp).toBe(todayStamp());
+    // Real athlete -> honest empty morning (the game-plan moment).
+    expect(s.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
+    expect(s.hydrationL).toBe(0);
+    // Yesterday archived exactly once, under yesterday's date.
+    expect(s.scoreHistory).toHaveLength(1);
+    expect(s.scoreHistory[0].date).toBe('2020-01-01');
+    // Same-day call is a no-op (no double-archive, no day reset).
+    useStore.getState().addWater();
+    useStore.getState().rollDayForeground();
+    expect(useStore.getState().scoreHistory).toHaveLength(1);
+    expect(useStore.getState().hydrationL).toBeGreaterThan(0);
   });
 });
 
@@ -328,12 +359,12 @@ describe('session persistence / rehydrate', () => {
     });
     await useStore.persist.rehydrate();
     const s = useStore.getState();
-    const fresh = createInitialState();
 
-    // day slice reset to fresh defaults
-    expect(s.meals).toEqual(fresh.meals);
-    expect(s.hydrationL).toBe(fresh.hydrationL);
-    expect(s.tasks).toEqual(fresh.tasks);
+    // Day slice reset — and because this user has ONBOARDED (athleteName set), the
+    // fresh day is the honest EMPTY day, never the seeded showcase's pre-logged one.
+    expect(s.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
+    expect(s.hydrationL).toBe(0);
+    expect(s.tasks.some((t) => t.done)).toBe(false);
     expect(s.dateStamp).toBe(todayStamp());
 
     // prior day's score appended exactly once, for the stale date
@@ -417,6 +448,7 @@ describe('end-to-end perfect day', () => {
     useStore.getState().setCi('ciRecovery', 10);
     useStore.getState().setCi('ciSleep', 10);
     useStore.getState().submitCi();
+    useStore.getState().setDailyCommitment('yes');
 
     const end = derived();
     expect(end.athleteScore).toBeGreaterThanOrEqual(start);

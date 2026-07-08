@@ -29,8 +29,10 @@ export type IconName =
   | 'copy'
   | 'gallery'
   | 'barcode'
+  | 'search'
   | 'sparkle'
-  | 'mic';
+  | 'mic'
+  | 'eye';
 
 export function Icon({
   name,
@@ -73,6 +75,13 @@ function render(name: IconName, color: string, p: object) {
       );
     case 'barcode':
       return <Path d="M4 6v12M7 6v12M10 6v12M13.5 6v12M17 6v12M20 6v12" {...p} />;
+    case 'search':
+      return (
+        <>
+          <Circle cx={11} cy={11} r={7} {...p} />
+          <Path d="M16 16l4.5 4.5" {...p} />
+        </>
+      );
     case 'mic':
       return (
         <>
@@ -167,6 +176,13 @@ function render(name: IconName, color: string, p: object) {
       );
     case 'sparkle':
       return <Path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6z" {...p} />;
+    case 'eye':
+      return (
+        <>
+          <Path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" {...p} />
+          <Circle cx={12} cy={12} r={2.8} {...p} />
+        </>
+      );
     default:
       return null;
   }

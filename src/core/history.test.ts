@@ -5,6 +5,9 @@ import {
   appendDayWeight,
   COMPLIANCE_THRESHOLD,
   currentStreak,
+  daysOnStandard,
+  longestStreak,
+  streakInfo,
   DEFAULT_CHART_BOX,
   DEFAULT_WEIGHT_BOX,
   HISTORY_CAP,
@@ -383,6 +386,60 @@ describe('realTrendDays', () => {
   });
 });
 
+describe('streakInfo — date-aware counting (missed days are misses, not invisible)', () => {
+  it('a weekend-only logger does not accrue an unbroken streak across the week', () => {
+    // Two on-standard Saturdays a week apart used to read as a 3-day chain because the
+    // walk was positional: a day the app never opened produced NO entry at all, so a
+    // plain absence was free — making grace meaningless.
+    const hist: DayScore[] = [
+      { date: '2026-06-20', score: 85 },
+      { date: '2026-06-27', score: 85 },
+    ];
+    const st = streakInfo(hist, 85, { today: '2026-06-28' });
+    expect(st.days).toBe(2); // today + yesterday(06-27); the gap week broke the chain
+  });
+
+  it('a single gap day consumes grace (bridged, not counted) when grace is on', () => {
+    const hist: DayScore[] = [
+      { date: '2026-06-30', score: 85 },
+      { date: '2026-07-01', score: 85 },
+      // 2026-07-02 never opened — a real miss
+    ];
+    expect(streakInfo(hist, 85, { today: '2026-07-03' }).days).toBe(1); // strict: ends at the gap
+    const graced = streakInfo(hist, 85, { today: '2026-07-03', grace: true });
+    expect(graced.days).toBe(3); // today + the two real days; gap forgiven, not counted
+    expect(graced.graceUsed).toBe(true);
+  });
+
+  it('a multi-day gap ends the streak even with grace (one forgiven day only)', () => {
+    const hist: DayScore[] = [{ date: '2026-06-28', score: 85 }];
+    expect(streakInfo(hist, 85, { today: '2026-07-03', grace: true }).days).toBe(1);
+  });
+
+  it('an unbroken date-adjacent run counts exactly like the positional path', () => {
+    const hist: DayScore[] = [
+      { date: '2026-06-30', score: 85 },
+      { date: '2026-07-01', score: 85 },
+      { date: '2026-07-02', score: 85 },
+    ];
+    expect(streakInfo(hist, 85, { today: '2026-07-03' }).days).toBe(4);
+  });
+});
+
+describe('longestStreak — date-aware (gaps reset the run)', () => {
+  it('two runs separated by a gap are two runs, not one', () => {
+    const hist: DayScore[] = [
+      { date: '2026-06-01', score: 85 },
+      { date: '2026-06-02', score: 85 },
+      // gap
+      { date: '2026-06-10', score: 85 },
+      { date: '2026-06-11', score: 85 },
+      { date: '2026-06-12', score: 85 },
+    ];
+    expect(longestStreak(hist)).toBe(3);
+  });
+});
+
 describe('currentStreak', () => {
   const mk = (...scores: number[]): DayScore[] =>
     scores.map((score, i) => ({ date: `2026-06-${String(i + 1).padStart(2, '0')}`, score }));
@@ -412,5 +469,68 @@ describe('currentStreak', () => {
     // today(+1), 92(+1), 90(+1), then 50 is a miss → stop. Streak = 3 (even with seedPad).
     expect(currentStreak(mk(95, 50, 90, 92), 90)).toBe(3);
     expect(currentStreak(mk(95, 50, 90, 92), 90, undefined, true)).toBe(3);
+  });
+});
+
+describe('streakInfo (grace day — council ruling 2026-07-02)', () => {
+  const mk = (...scores: number[]): DayScore[] =>
+    scores.map((score, i) => ({ date: `2026-06-${String(i + 1).padStart(2, '0')}`, score }));
+
+  it('with grace OFF is byte-for-byte the strict count (first miss ends it)', () => {
+    expect(streakInfo(mk(95, 50, 90, 92), 90, { grace: false }).days).toBe(3);
+    expect(streakInfo(mk(95, 50, 90, 92), 90).days).toBe(3); // grace defaults off
+    expect(streakInfo(mk(85, 88, 91), 90).days).toBe(4);
+  });
+
+  it('forgives a single recent miss to bridge the chain, and flags graceUsed', () => {
+    // [95, 50(miss), 90, 92] + today90: back through 92,90 (days=3), forgive 50 (distance 3 ≤ 7),
+    // then count 95 → days=4. The forgiven day bridges but is not itself counted.
+    const info = streakInfo(mk(95, 50, 90, 92), 90, { grace: true });
+    expect(info).toEqual({ days: 4, graceUsed: true, atRisk: false });
+  });
+
+  it('ends the streak on a SECOND miss (grace forgives only one)', () => {
+    // [40(miss), 50(miss), 90, 92] + today90: forgive 50, then 40 is a second miss → stop at days=3.
+    const info = streakInfo(mk(40, 50, 90, 92), 90, { grace: true });
+    expect(info).toEqual({ days: 3, graceUsed: true, atRisk: false });
+  });
+
+  it('does NOT forgive a miss older than the trailing window', () => {
+    // [90, 90, 50(miss), 90,90,90,90,90] length 8 + today90. The 50 sits at distance 6 (≤7) so it
+    // IS forgiven → grace reaches the two 90s behind it (days=8). Contrast the strict count (=6).
+    expect(streakInfo(mk(90, 90, 50, 90, 90, 90, 90, 90), 90, { grace: true }).days).toBe(8);
+    expect(streakInfo(mk(90, 90, 50, 90, 90, 90, 90, 90), 90, { grace: false }).days).toBe(6);
+    // Push the miss out to distance 8 (> window): NOT forgiven even with grace on.
+    // [90, 50(miss), 90×7] length 9 + today90: strict stops at the 50 → days=8; grace can't rescue it.
+    const farMiss = mk(90, 50, 90, 90, 90, 90, 90, 90, 90);
+    expect(streakInfo(farMiss, 90, { grace: true })).toEqual({ days: 8, graceUsed: false, atRisk: false });
+  });
+
+  it('today below the bar reads 0 and atRisk, regardless of grace', () => {
+    expect(streakInfo(mk(95, 92, 88), 70, { grace: true })).toEqual({ days: 0, graceUsed: false, atRisk: true });
+  });
+
+  it('graceUsed stays false when there is no miss to forgive', () => {
+    expect(streakInfo(mk(90, 91, 92), 90, { grace: true })).toEqual({ days: 4, graceUsed: false, atRisk: false });
+  });
+});
+
+describe('longestStreak + daysOnStandard (season record — audit item 14)', () => {
+  const mk = (...scores: number[]): DayScore[] =>
+    scores.map((score, i) => ({ date: `2026-06-${String(i + 1).padStart(2, '0')}`, score }));
+
+  it('finds the longest run of on-standard days anywhere in history', () => {
+    // runs: [95,88] = 2, then break (50), then [90,91,92,84] = 4 -> best 4.
+    expect(longestStreak(mk(95, 88, 50, 90, 91, 92, 84))).toBe(4);
+  });
+
+  it('is 0 for empty or never-on-standard history', () => {
+    expect(longestStreak([])).toBe(0);
+    expect(longestStreak(mk(40, 55, 70))).toBe(0);
+  });
+
+  it('counts total days that cleared the bar', () => {
+    expect(daysOnStandard(mk(95, 50, 90, 79, 88))).toBe(3);
+    expect(daysOnStandard([])).toBe(0);
   });
 });

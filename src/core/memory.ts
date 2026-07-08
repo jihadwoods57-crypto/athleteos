@@ -83,7 +83,17 @@ export function admitCandidate(candidate: MemoryFact): MemoryFact {
 
 /** Propose (never commit) candidate facts from a meal correction. Low confidence, inferred. */
 export function candidateFactsFromCorrection(before: MealResult, after: EditableFood[]): MemoryFact[] {
-  const detected = new Set((before.detected ?? []).map((d) => d.toLowerCase()));
+  return candidateFactsFromFoodChange(before.detected ?? [], after);
+}
+
+/**
+ * The correction inference over raw food names (what the store has at the edit site): a name present
+ * BEFORE but not AFTER is a possible dislike (SAFETY -> confirmation); a name added that wasn't there
+ * before is a possible favorite (non-safety, accrues). Pure; the same rule `candidateFactsFromCorrection`
+ * uses, just keyed on the before-names directly so the meal-edit flow doesn't need a full MealResult.
+ */
+export function candidateFactsFromFoodChange(beforeNames: string[], after: EditableFood[]): MemoryFact[] {
+  const detected = new Set(beforeNames.map((d) => d.toLowerCase()));
   const kept = new Set(after.map((f) => f.name.toLowerCase()));
   const facts: MemoryFact[] = [];
 
@@ -100,6 +110,21 @@ export function candidateFactsFromCorrection(before: MealResult, after: Editable
     }
   }
   return facts;
+}
+
+/**
+ * The hard "don't put this on their plate" list the meal AI must honor — the values of the athlete's
+ * CONFIRMED (active) safety facts (allergy/dislike), lowercased + de-duped. This is what finally
+ * carries memory INTO a prompt: analyze-meal passes it so the model won't cheerfully identify a food
+ * the athlete is allergic to or has rejected. Never includes unconfirmed (pending) safety facts.
+ */
+export function avoidFoodsFromFacts(facts: MemoryFact[]): string[] {
+  const seen = new Set<string>();
+  for (const c of safetyConstraints(facts)) {
+    const v = String(c.value ?? '').trim().toLowerCase();
+    if (v) seen.add(v);
+  }
+  return [...seen];
 }
 
 /** Accrue evidence: the same pattern recurring raises confidence + evidenceN (deterministic). */

@@ -2,7 +2,9 @@
 // Ported from the prototype: meal log, meal-analysis results, AI insight, pace.
 import type { AppState, CiConfig, Derived, MealKey, MealLabel } from './types';
 import type { MacroConfidence } from './macroGrounding';
+import type { ReadinessBand } from './readiness';
 import { mealSlotMacros } from './scoring';
+import { mealMacros, mealQuality } from './mealEdit';
 
 export interface LoggedMeal {
   id: string;
@@ -112,6 +114,8 @@ export interface MealResult {
   reconcile?: string;
   /** Relationship of the athlete note to the photo. Feeds the coach pattern signal. */
   descriptionSignal?: DescriptionSignal;
+  /** Closest compliant swap vs the plan slot's macro target, present only when a target was given and missed. */
+  substitution?: { suggestion: string; items: string[]; deltaProtein: number; deltaKcal: number };
 }
 
 export const MEAL_RESULTS: Record<MealLabel, MealResult> = {
@@ -174,25 +178,34 @@ const SLOT_META: Record<MealKey, { label: MealLabel; detailId: string; thumb: st
 
 /**
  * Build the per-slot row model for all four meal slots from day state.
- * Name + quality come from mealResultFor(); protein + kcal come from mealSlotMacros
- * (the same source computeDerived sums — a saved edited plate when present, the slot
- * constant otherwise) so the rendered rows agree with the "N of 4 logged" header and
- * the macro totals even after the athlete edits a meal.
+ * Protein + kcal come from mealSlotMacros (the same source computeDerived sums) so the
+ * rendered rows agree with the "N of 4 logged" header and the macro totals.
+ *
+ * Name + quality are honest per plate: a slot with a SAVED plate (AI analysis, label
+ * scan, search, or an edit) is named after its real foods and re-scored from its real
+ * macros. Without a plate, the seeded showcase keeps its canned dishes, but a REAL
+ * user (athleteName set) reads the plain slot label — the app never tells an athlete
+ * they ate "Overnight Oats & Berries" when it has no idea what they ate.
  */
 export function mealRowsFor(state: AppState): MealRow[] {
+  const isReal = (state.athleteName ?? '').trim() !== '';
   return SLOT_ORDER.map((key) => {
     const meta = SLOT_META[key];
     const result = mealResultFor(meta.label);
     const macros = mealSlotMacros(state, key);
+    const plate = state.mealFoods?.[key];
+    const plateName = plate?.length
+      ? plate.length === 1 ? plate[0].name : `${plate[0].name} + ${plate.length - 1} more`
+      : null;
     return {
       key,
       label: meta.label,
       detailId: meta.detailId,
       logged: state.meals[key],
-      name: result.name,
+      name: plateName ?? (isReal ? meta.label : result.name),
       protein: macros.protein,
       kcal: macros.kcal,
-      quality: result.quality,
+      quality: plate?.length ? mealQuality(mealMacros(plate)) : isReal ? mealQuality(macros) : result.quality,
       thumb: meta.thumb,
       dueTime: meta.dueTime,
     };
@@ -307,15 +320,30 @@ export interface PaceProjection {
   progressLb: number;
 }
 
-/** Nutrition weekly-goal pace projection from the coach-set weekly lb goal.
+export type PaceDirection = 'gain' | 'lose' | 'maintain';
+
+/** Nutrition weekly-goal pace projection from the weekly lb goal.
  *  `progressLb` defaults to the seeded-demo showcase (0.6) so a one-arg call is
  *  unchanged; a real athlete passes their actual weekly progress so the card
- *  never contradicts Home's "gained since start". */
-export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): PaceProjection {
+ *  never contradicts Home's "gained since start".
+ *  `direction` orients the whole projection: on a cut, weight LOST is progress
+ *  and a behind-pace athlete is told to trim intake — never to add calories.
+ *  `now` reads the REAL weekday (week ends Sunday) — real callers must pass it,
+ *  else "3 days left" and the calorie advice come from a fabricated mid-week
+ *  clock (the showcase's prototype constant, kept only for the dateless demo). */
+export function paceProjection(
+  weeklyGoalLb: number,
+  progressLb: number = 0.6,
+  direction: PaceDirection = 'gain',
+  now?: Date,
+): PaceProjection {
   const goal = weeklyGoalLb;
-  const daysLeft = 3;
-  const daysElapsed = 4;
-  const surplus = Math.round((goal * 3500) / 7);
+  // ISO weekday (Mon=1..Sun=7): elapsed includes today; Sunday floors daysLeft at 1
+  // so the "over the next N days" advice never divides by zero.
+  const isoWeekday = now ? ((now.getDay() + 6) % 7) + 1 : null;
+  const daysLeft = isoWeekday != null ? Math.max(1, 7 - isoWeekday) : 3;
+  const daysElapsed = isoWeekday ?? 4;
+  const surplus = direction === 'maintain' ? 0 : Math.round((goal * 3500) / 7);
   // Clamp the linear extrapolation to a believable weekly band. A brand-new athlete
   // with no weekly weight history yet has `progressLb` fall back to their season-total
   // gain (e.g. +7 lb), which would otherwise project an absurd "+12.3 lb by Sunday"
@@ -325,7 +353,11 @@ export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): 
   // Calorie adjustment to hit the goal, bounded to a realistic ceiling (no one
   // meaningfully eats 1,000+ cal/day off-plan; a larger raw number is an artifact).
   const calAdjust = (lb: number) => Math.max(0, Math.min(1000, Math.round((lb * 3500) / daysLeft)));
-  const onPace = projected >= goal - 0.001;
+  // Signed progress/projection TOWARD the goal: on a cut, weight lost counts, weight
+  // gained reads as zero progress (never credit). Maintain measures drift from zero.
+  const towardGoal = direction === 'lose' ? -projected : projected;
+  const progressToward = direction === 'lose' ? -progressLb : progressLb;
+  const onPace = direction === 'maintain' ? Math.abs(projected) <= 1 : towardGoal >= goal - 0.001;
   // The UI clamps the weekly goal to >= 0.5, but a corrupt/legacy persisted blob (or a
   // future maintain goal) could carry 0/negative/NaN, making progressLb/goal divide as
   // Infinity (any progress) or 0/0 = NaN (a fresh athlete at 0 progress) and rendering
@@ -333,14 +365,34 @@ export function paceProjection(weeklyGoalLb: number, progressLb: number = 0.6): 
   // measure against, so mirror seasonGoalProgress's degenerate handling: at/above the
   // line (progress >= 0) reads 100%, below reads 0% — always a finite 0..100.
   const goalPct =
-    goal > 0
-      ? Math.max(0, Math.min(100, Math.round((progressLb / goal) * 100)))
-      : progressLb >= 0
-        ? 100
-        : 0;
+    direction === 'maintain'
+      ? Math.max(0, Math.min(100, Math.round(100 - Math.abs(progressLb) * 50)))
+      : goal > 0
+        ? Math.max(0, Math.min(100, Math.round((progressToward / goal) * 100)))
+        : progressToward >= 0
+          ? 100
+          : 0;
   const paceLabel = onPace ? '↑ On pace' : '↓ Behind pace';
+  // Signed weight-change string: a cut talks in minus pounds, a build in plus pounds.
+  const signed = (lb: number) => (lb > 0 ? `+${lb}` : lb < 0 ? `−${Math.abs(lb)}` : '0');
+  // Never advise a young athlete to slash more than ~500 cal/day off their intake,
+  // no matter how far behind the week is — catch-up math is not a crash-diet license.
+  const trimAdjust = (lb: number) => Math.min(500, calAdjust(lb));
   let paceAi: string;
-  if (projected > goal) {
+  if (direction === 'maintain') {
+    paceAi = onPace
+      ? `You're holding steady — right where the plan wants you. Keep intake where it is.`
+      : `You're drifting ${signed(projected)} lb this week. Level your intake to hold your weight.`;
+  } else if (direction === 'lose') {
+    if (towardGoal > goal + 0.001) {
+      // Losing faster than planned is a health flag for a young athlete, not a win.
+      paceAi = `You're tracking to ${signed(projected)} lb by Sunday — faster than the plan. Add back ~${calAdjust(towardGoal - goal)} cal/day so the cut stays fueled.`;
+    } else if (onPace) {
+      paceAi = `You're tracking to ${signed(projected)} lb by Sunday, right on target. Keep the deficit steady.`;
+    } else {
+      paceAi = `At today's intake you'll reach ${signed(projected)} lb. Trim ~${trimAdjust(goal - towardGoal)} cal/day over the next ${daysLeft} days to stay on track.`;
+    }
+  } else if (projected > goal) {
     paceAi = `You're tracking to +${projected} lb by Sunday, a touch ahead. Ease back ~${calAdjust(projected - goal)} cal/day to land exactly on target.`;
   } else if (onPace) {
     paceAi = `You're tracking to +${projected} lb by Sunday, right on target. Keep the surplus steady.`;
@@ -416,7 +468,7 @@ export function coachGuidance(opts: {
  * Mirrors coachGuidance's gating convention.
  */
 export function taskVisibilityNote(opts: { isReal: boolean; supportTeam: string[] }): string {
-  const base = 'Completed tasks feed your Execution Score';
+  const base = 'Completed tasks feed your OnStandard Score';
   if (!opts.isReal) return `${base} and stay visible to Coach Davis.`;
   if (opts.supportTeam.includes('coach')) return `${base} and stay visible to your coach.`;
   if (opts.supportTeam.includes('trainer')) return `${base} and stay visible to your trainer.`;
@@ -485,15 +537,29 @@ export const POSITION_LABELS: Record<string, Record<string, string>> = {
 };
 
 /**
- * Profile subtitle from the athlete's REAL onboarding selections. A real athlete
- * who chose a sport gets "{position} · {sport}" (or "{sport} athlete" if they
- * skipped position), so it never hard-codes the seed school. With no sport set
- * (the seeded demo, athleteName ''), it falls back to the demo identity
- * "Linebacker · Eastside HS" so the showcase is unchanged. The position label is
- * resolved against the athlete's sport (or Football, the demo sport, when none).
+ * Profile / Squad subtitle from the athlete's REAL onboarding selections.
+ *
+ * `isReal` (a name is set → onboarding finished) is the gate that stops the seeded
+ * demo identity from leaking to a real athlete (the audit's "Linebacker · Eastside
+ * HS on a user who entered neither" bug). Athletes have no position step, so a real
+ * athlete's position is usually null; they must read as themselves, never as the
+ * demo linebacker at a demo school:
+ *   - real, position + sport → "{label} · {sport}"
+ *   - real, position only    → "{label}"          (never a fabricated school)
+ *   - real, sport only       → "{sport} athlete"
+ *   - real, neither          → "Athlete"          (honest neutral)
+ * The seeded demo (isReal false, athleteName '') keeps the exact showcase
+ * "Linebacker · Eastside HS" so nothing about the demo changes.
  */
-export function athleteSubtitle(position: string | null, sport?: string | null): string {
+export function athleteSubtitle(position: string | null, sport?: string | null, isReal = false): string {
   const hasSport = !!(sport && sport.trim());
+  if (isReal) {
+    if (position) {
+      const label = (POSITION_LABELS[hasSport ? (sport as string) : 'Football'] ?? {})[position] ?? position;
+      return hasSport ? `${label} · ${sport}` : label;
+    }
+    return hasSport ? `${sport} athlete` : 'Athlete';
+  }
   if (!position) return hasSport ? `${sport} athlete` : 'Linebacker · Eastside HS';
   const label = (POSITION_LABELS[hasSport ? (sport as string) : 'Football'] ?? {})[position] ?? position;
   return `${label} · ${hasSport ? sport : 'Eastside HS'}`;
@@ -525,7 +591,7 @@ export function notificationCopy(opts: {
   if (!opts.isReal) {
     return {
       checkin: 'Takes 2 minutes. Your coach and parent will see your update.',
-      score: `Your Execution Score is ${opts.athleteScore}. You're #2 in the linebacker room.`,
+      score: `Your OnStandard Score is ${opts.athleteScore}. You're #2 in the linebacker room.`,
       coachNote: { initials: 'CD', title: 'Coach Davis', text: '"Strong week. Your nutrition is the best in the room. Keep it up."' },
     };
   }
@@ -539,27 +605,90 @@ export function notificationCopy(opts: {
   else checkin = 'Takes 2 minutes. Your weekly check-in keeps your score honest.';
   return {
     checkin,
-    score: `Your Execution Score is ${opts.athleteScore}. Tap to see your week.`,
+    score: `Your OnStandard Score is ${opts.athleteScore}. Tap to see your week.`,
     coachNote: null,
   };
 }
 
-/** Onboarding training-frequency key → a short Profile cadence phrase. */
-const TRAIN_CADENCE: Record<string, string> = {
-  once: 'Trains once a day',
-  twice: 'Trains twice a day',
-  three_plus: 'Trains 3+ times a day',
-};
+/**
+ * Rewrite a raw backend auth error into product voice — the audit flagged the bare
+ * Supabase string "Invalid login credentials" leaking to users. Maps the known cases
+ * and falls back to a calm generic; never leaks a stack or a lowercase machine string.
+ */
+export function friendlyAuthError(raw: string | null | undefined): string {
+  const msg = (raw ?? '').toLowerCase();
+  if (!msg) return 'Something went wrong. Check your connection and try again.';
+  if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
+    return "That email or password doesn't match. Try again, or reset your password.";
+  }
+  if (msg.includes('email not confirmed')) return 'Confirm your email first — check your inbox for the link we sent.';
+  if (msg.includes('already registered') || msg.includes('already exists')) {
+    return 'An account with this email already exists. Try signing in instead.';
+  }
+  if (msg.includes('rate limit') || msg.includes('too many')) return 'Too many attempts. Give it a minute, then try again.';
+  if (msg.includes('network') || msg.includes('fetch') || msg.includes('timeout')) {
+    return "Couldn't reach the server. Check your connection and try again.";
+  }
+  if (msg.includes('password')) return raw as string; // password-rule messages are already user-facing
+  return 'Something went wrong. Try again in a moment.';
+}
+
+export type FeedNotifKind = 'checkin' | 'meal' | 'score' | 'hydration' | 'coachNote';
+export type FeedNotifAction = 'checkin' | 'meal' | 'squad' | 'none';
+
+export interface FeedNotif {
+  key: string;
+  kind: FeedNotifKind;
+  title: string;
+  /** Honest timing label. Real-athlete items say "Now"/"Today"; the seeded demo keeps
+   *  its showcase relative stamps ("2m"/"6h"). Never a fabricated past for a real user. */
+  time: string;
+  text: string;
+  action: FeedNotifAction;
+  section: 'new' | 'earlier';
+  initials?: string;
+}
 
 /**
- * The athlete's training cadence for the Profile identity card, derived from the
- * onboarding `trainingFreq` answer (which was collected but never surfaced). Returns
- * null when unset (the seeded demo, so it stays unchanged) or for an unknown key, so
- * the caller drops the line rather than rendering a stray value.
+ * The inbox feed for the non-backend (demo/offline) path, built so a brand-new real
+ * athlete never sees fabricated history — the audit's "notifications timestamped 6h
+ * ago on a 10-minute-old account" bug. The seeded demo (isReal false) keeps the exact
+ * showcase (four cards with relative stamps). A real athlete gets only the reminders
+ * that are TRUE RIGHT NOW, stamped with honest timing ("Now"/"Today"): a check-in
+ * nudge while it's unsubmitted, and a log-your-next-meal nudge while protein is short.
+ * When nothing is due the list is empty and the screen shows an "all caught up" state.
+ * Pure.
  */
-export function trainingCadence(trainingFreq: string | null): string | null {
-  if (!trainingFreq) return null;
-  return TRAIN_CADENCE[trainingFreq] ?? null;
+export function notificationFeed(opts: {
+  isReal: boolean;
+  supportTeam: string[];
+  athleteScore: number;
+  checkinSubmitted: boolean;
+  proteinGap: number;
+}): FeedNotif[] {
+  const copy = notificationCopy(opts);
+  if (!opts.isReal) {
+    // Seeded showcase — unchanged from the original hardcoded cards.
+    const list: FeedNotif[] = [
+      { key: 'checkin', kind: 'checkin', title: 'Weekly check-in due', time: '2m', text: copy.checkin, action: 'checkin', section: 'new' },
+      { key: 'meal', kind: 'meal', title: 'Time to log dinner', time: '18m', text: `You're ${opts.proteinGap}g of protein from your target. One more meal does it.`, action: 'meal', section: 'new' },
+      { key: 'score', kind: 'score', title: 'Score update', time: '1h', text: copy.score, action: 'squad', section: 'new' },
+    ];
+    if (copy.coachNote) {
+      list.push({ key: 'coachNote', kind: 'coachNote', title: copy.coachNote.title, time: '4h', text: copy.coachNote.text, action: 'none', section: 'earlier', initials: copy.coachNote.initials });
+    }
+    list.push({ key: 'hydration', kind: 'hydration', title: 'Hydration reminder', time: '6h', text: "You're behind on water. Knock out 500ml before practice.", action: 'none', section: 'earlier' });
+    return list;
+  }
+  // Real athlete — only currently-true reminders, honest timing, no fabricated past.
+  const list: FeedNotif[] = [];
+  if (!opts.checkinSubmitted) {
+    list.push({ key: 'checkin', kind: 'checkin', title: 'Weekly check-in due', time: 'Today', text: copy.checkin, action: 'checkin', section: 'new' });
+  }
+  if (opts.proteinGap > 0) {
+    list.push({ key: 'meal', kind: 'meal', title: 'Log your next meal', time: 'Now', text: `You're ${opts.proteinGap}g of protein from your target. One more meal does it.`, action: 'meal', section: 'new' });
+  }
+  return list;
 }
 
 export interface SquadView {
@@ -621,8 +750,13 @@ export interface CheckinAnswers {
  * entered). Names only the enabled questions, classifies each strong (>=8) / watch
  * (<5), with soreness read inversely (high soreness = something to watch). Resilient
  * to missing/non-finite answers; factual, no guilt, no em dash.
+ *
+ * `readiness` (the band shown on the training-readiness card right below) reconciles the
+ * two: when readiness is caution/compromised the summary must NOT open by calling the week
+ * broadly "strong" (the audit contradiction: "Energy, sleep and confidence are strong"
+ * directly above "Train with caution"). It defers to the readiness verdict instead.
  */
-export function checkinSummary(a: CheckinAnswers): string {
+export function checkinSummary(a: CheckinAnswers, readiness?: ReadinessBand): string {
   const first = (a.name ?? '').trim().split(/\s+/)[0] || 'there';
   const fin = (v: number | undefined): number | null =>
     typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -647,8 +781,20 @@ export function checkinSummary(a: CheckinAnswers): string {
   const cap = (str: string): string => (str ? str[0].toUpperCase() + str.slice(1) : str);
 
   const sentences: string[] = [];
-  if (strong.length) sentences.push(`${cap(join(strong))} ${strong.length === 1 ? 'is' : 'are'} strong this week.`);
-  if (watch.length) sentences.push(`Keep an eye on ${join(watch)}.`);
-  if (sentences.length === 0) sentences.push('Your numbers are steady across the board.');
+  const under = readiness === 'caution' || readiness === 'compromised';
+  if (under) {
+    // Lead with a line that AGREES with the readiness verdict below — never "strong this week".
+    sentences.push(
+      readiness === 'compromised'
+        ? "Recovery is the story this week. Your training readiness below has the plan."
+        : "You logged some solid numbers, but you're a little under-recovered this week.",
+    );
+    if (strong.length) sentences.push(`${cap(join(strong))} held up.`);
+    if (watch.length) sentences.push(`Keep an eye on ${join(watch)}.`);
+  } else {
+    if (strong.length) sentences.push(`${cap(join(strong))} ${strong.length === 1 ? 'is' : 'are'} strong this week.`);
+    if (watch.length) sentences.push(`Keep an eye on ${join(watch)}.`);
+    if (sentences.length === 0) sentences.push('Your numbers are steady across the board.');
+  }
   return `Check-in saved, ${first}. ${sentences.join(' ')}`;
 }

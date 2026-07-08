@@ -62,7 +62,7 @@ export interface RosterGroupStat {
 }
 
 /**
- * Per-position-group rollup (count, average Execution Score, average compliance) for the coach
+ * Per-position-group rollup (count, average OnStandard Score, average compliance) for the coach
  * Reports position-comparison. Groups in first-seen order; averages rounded to whole numbers.
  * Pure: no UI logic, reads only the roster rows the dashboard already has.
  */

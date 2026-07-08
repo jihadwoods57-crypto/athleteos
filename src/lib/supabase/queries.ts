@@ -6,16 +6,21 @@ import { isSupabaseConfigured, requireSupabase } from './client';
 import type {
   AthleteProfileRow,
   CheckinRow,
+  CoachViewRow,
   DayRow,
+  MealCommentRow,
   GuardianConsentRequestRow,
   MealRow,
   NotificationRow,
   OrgRow,
   OrgType,
   ProfileRow,
+  ReferralCodeRow,
+  ReferralRedemptionRow,
   SubscriptionRow,
   TeamRow,
 } from './database.types';
+import type { TrustPass } from '@/core';
 
 // ---------------------------------------------------------------- athlete: own day
 export async function fetchDay(athleteId: string, date: string): Promise<DayRow | null> {
@@ -28,6 +33,22 @@ export async function fetchDay(athleteId: string, date: string): Promise<DayRow 
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+/** The athlete's day rows on or after `sinceDate`, oldest first — the paginated history read that
+ *  lets a new device / returning athlete rebuild their full record from the server instead of the
+ *  local 14-day cache (audit item 14). RLS scopes it to the athlete + linked overseers. Empty when
+ *  unconfigured. */
+export async function fetchDaysSince(athleteId: string, sinceDate: string): Promise<DayRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('days')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .gte('date', sinceDate)
+    .order('date', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
 }
 
 /** Upsert the athlete's day slice (athlete is the only writer per RLS). */
@@ -135,11 +156,29 @@ export async function fetchProfile(userId: string): Promise<ProfileRow | null> {
  *  added in migration 0009). */
 export async function updateProfile(
   userId: string,
-  fields: { full_name?: string | null; org_name?: string | null },
+  fields: { full_name?: string | null; org_name?: string | null; primary_role?: 'athlete' | 'coach' | 'trainer' | 'parent' },
 ): Promise<void> {
   if (!isSupabaseConfigured) return;
   const { error } = await requireSupabase().from('profiles').update(fields).eq('id', userId);
   if (error) throw error;
+}
+
+/** Which overseer roles a signed-in athlete/client is actively linked to, for rehydrating
+ *  `supportTeam` on a fresh sign-in (so a connected athlete doesn't see "Connect your coach"
+ *  and the coach-presence copy is right). RLS self-read: tm_read / pc_read allow reading own
+ *  rows. Empty on error/unconfigured — never blocks sign-in. */
+export async function fetchMyLinks(userId: string): Promise<{ coach: boolean; trainer: boolean }> {
+  if (!isSupabaseConfigured) return { coach: false, trainer: false };
+  try {
+    const sb = requireSupabase();
+    const [team, practice] = await Promise.all([
+      sb.from('team_members').select('team_id').eq('athlete_id', userId).eq('status', 'active').limit(1),
+      sb.from('practice_clients').select('practice_id').eq('client_id', userId).eq('status', 'active').limit(1),
+    ]);
+    return { coach: (team.data?.length ?? 0) > 0, trainer: (practice.data?.length ?? 0) > 0 };
+  } catch {
+    return { coach: false, trainer: false };
+  }
 }
 
 /** Read the signed-in user's own subscription row (RLS scopes it to owner_id =
@@ -157,6 +196,111 @@ export async function fetchEntitlement(userId: string): Promise<SubscriptionRow 
   return data;
 }
 
+// ---------------------------------------------------------------- meal comments (0046)
+
+/** The comment thread on one stored meal, oldest first. RLS scopes reads to the athlete
+ *  + their linked overseers, so a plain select returns exactly what the viewer may see. */
+export async function fetchMealComments(mealId: string): Promise<MealCommentRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('meal_comments')
+    .select('*')
+    .eq('meal_id', mealId)
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Post one comment into a meal's thread, always as yourself (RLS enforces author_id =
+ *  auth.uid() and the athlete/coach role split + link). Throws on rejection so the UI
+ *  can keep the draft instead of silently dropping a coach's feedback. */
+export async function postMealComment(
+  mealId: string,
+  athleteId: string,
+  authorId: string,
+  role: 'athlete' | 'coach',
+  text: string,
+): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase()
+    .from('meal_comments')
+    .insert({ meal_id: mealId, athlete_id: athleteId, author_id: authorId, role, text });
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------- coach-seen receipts (0043)
+
+/** Stamp "I looked at this athlete's day" (coach/trainer/parent side). Upsert refreshes
+ *  seen_at on a re-open. RLS limits it to the viewer's own id + athletes they can_view.
+ *  Never throws — a receipt is nice-to-have, a failed one must not break PersonDetail. */
+export async function markDayViewed(athleteId: string, date: string, viewerId: string, viewerName: string | null): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  try {
+    await requireSupabase()
+      .from('coach_views')
+      .upsert(
+        { athlete_id: athleteId, viewer_id: viewerId, date, viewer_name: viewerName, seen_at: new Date().toISOString() },
+        { onConflict: 'athlete_id,viewer_id,date' },
+      );
+  } catch {
+    // best-effort: receipts fail silently
+  }
+}
+
+/** The receipts on the signed-in athlete's day — who really looked. RLS scopes reads to
+ *  the athlete themselves (or the viewer's own rows). Empty when unconfigured. */
+export async function fetchDayViews(athleteId: string, date: string): Promise<CoachViewRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('coach_views')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .eq('date', date)
+    .order('seen_at', { ascending: false })
+    .limit(10);
+  if (error) throw error;
+  return data ?? [];
+}
+
+// ---------------------------------------------------------------- referrals (0042)
+
+/** The signed-in user's referral share code, or null if they have not created one yet. */
+export async function fetchReferralCode(userId: string): Promise<ReferralCodeRow | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase()
+    .from('referral_codes')
+    .select('*')
+    .eq('owner_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/** Create the signed-in user's referral code (one per account; RLS enforces own-id).
+ *  Throws on a code collision — the caller retries with a fresh generated code. */
+export async function createReferralCode(userId: string, code: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase()
+    .from('referral_codes')
+    .insert({ owner_id: userId, code });
+  if (error) throw error;
+}
+
+/** Redemptions where the signed-in user is the referrer — powers "2 people joined on
+ *  your code, 1 free month earned". Written only by the webhook; this is a pure read. */
+export async function fetchReferralRedemptions(userId: string): Promise<ReferralRedemptionRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('referral_redemptions')
+    .select('*')
+    .eq('referrer_owner_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function fetchAthleteProfile(athleteId: string): Promise<AthleteProfileRow | null> {
   if (!isSupabaseConfigured) return null;
   const { data, error } = await requireSupabase()
@@ -171,32 +315,58 @@ export async function fetchAthleteProfile(athleteId: string): Promise<AthletePro
 // ---------------------------------------------------------------- overseer: rosters
 // RLS (`can_view`) filters these to athletes the caller is linked to, so a plain
 // select returns exactly the roster the coach/trainer/parent is allowed to see.
-export async function fetchLinkedDays(date: string): Promise<DayRow[]> {
+
+/** The columns the coach roster projection (mapLinkedDaysToRoster) actually reads. */
+export type RosterDayRow = Pick<DayRow, 'athlete_id' | 'date' | 'score' | 'grade' | 'tasks'>;
+
+/** Today's day rows for the caller's roster. Scalability (audit item 19): select ONLY the columns
+ *  the roster list needs — never the multi-KB `meals` / `checkin` / `quick_added` JSONB blobs, which
+ *  the list view never reads (PersonDetail fetches full data when an athlete is opened). Naturally
+ *  bounded by "who logged today" ≤ roster size; the .limit is a backstop against a pathological read. */
+export async function fetchLinkedDays(date: string): Promise<RosterDayRow[]> {
   if (!isSupabaseConfigured) return [];
   const { data, error } = await requireSupabase()
     .from('days')
-    .select('*')
-    .eq('date', date);
+    .select('athlete_id, date, score, grade, tasks')
+    .eq('date', date)
+    .limit(1000);
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as RosterDayRow[];
+}
+
+/** The roster's day rows since a date (inclusive) — one query covers today (roster),
+ *  yesterday (trend), and the whole week (the REAL weekly report). Same slim columns;
+ *  RLS scopes rows to linked athletes. 2000 ≈ 7 days × ~285 athletes headroom. */
+export async function fetchLinkedDaysSince(since: string): Promise<RosterDayRow[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase()
+    .from('days')
+    .select('athlete_id, date, score, grade, tasks')
+    .gte('date', since)
+    .limit(2000);
+  if (error) throw error;
+  return (data ?? []) as RosterDayRow[];
 }
 
 // ---------------------------------------------------------------- schools directory
-/** Type-ahead over the schools/clubs directory (public `orgs_read` policy). Returns
- *  matches by name (case-insensitive substring), newest schema fields included. Empty
- *  when unconfigured or for a query shorter than 2 chars (avoids scanning on one letter). */
+/** A directory match: safe display columns only (the `search_orgs`/`find_org` RPCs never return
+ *  created_by, so the org creator's identity stays private). Shaped as OrgRow for callers; the
+ *  private fields are filled inert (never shown in the picker). */
+function toOrgRow(o: { id: string; name: string; type: OrgType; city: string | null; state: string | null }): OrgRow {
+  return { id: o.id, name: o.name, type: o.type, city: o.city, state: o.state, created_by: null, created_at: '' };
+}
+
+/** Type-ahead over the schools/clubs directory. Reads through the `search_orgs` SECURITY DEFINER
+ *  RPC (migration 0031) rather than a direct `orgs` select, so the directory works while the
+ *  `orgs_read` policy stays locked to connected orgs (0013) — no org-enumeration leak. Empty when
+ *  unconfigured or for a query shorter than 2 chars (the RPC enforces the same floor). */
 export async function searchOrgs(query: string, limit = 20): Promise<OrgRow[]> {
   if (!isSupabaseConfigured) return [];
   const term = query.trim();
   if (term.length < 2) return [];
-  const { data, error } = await requireSupabase()
-    .from('orgs')
-    .select('*')
-    .ilike('name', `%${term}%`)
-    .order('name', { ascending: true })
-    .limit(limit);
+  const { data, error } = await requireSupabase().rpc('search_orgs', { q: term, lim: limit });
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map(toOrgRow);
 }
 
 /** "Add your school/club": create an org if one with the same (name, state) doesn't
@@ -213,12 +383,12 @@ export async function createOrg(
   if (!isSupabaseConfigured) return null;
   const sb = requireSupabase();
   const trimmed = name.trim();
-  // Dedup pre-check on (lower(name), lower(state)) — backed by orgs_name_state_lower.
-  let dedup = sb.from('orgs').select('*').ilike('name', trimmed);
-  dedup = state ? dedup.ilike('state', state) : dedup.is('state', null);
-  const { data: existing, error: dedupErr } = await dedup.limit(1);
+  // Dedup pre-check via the `find_org` SECURITY DEFINER RPC (migration 0031), so the "add your
+  // school" path can see an existing school it isn't linked to yet and converge on it — impossible
+  // through a direct `orgs` select under the locked orgs_read policy (0013), which would spawn dups.
+  const { data: existing, error: dedupErr } = await sb.rpc('find_org', { p_name: trimmed, p_state: state ?? null });
   if (dedupErr) throw dedupErr;
-  if (existing && existing.length > 0) return existing[0];
+  if (existing && existing.length > 0) return toOrgRow(existing[0]);
 
   const { data, error } = await sb
     .from('orgs')
@@ -323,6 +493,30 @@ export async function declineMember(teamId: string, athleteId: string): Promise<
     .eq('team_id', teamId)
     .eq('athlete_id', athleteId);
   if (error) throw error;
+}
+
+/** One active member as the `team_roster` RPC (0040) returns it. */
+export type TeamRosterMember = { athlete_id: string; athlete_name: string | null; position: string | null; joined_at: string };
+
+/** ACTIVE members of a team, names included, via the SECURITY DEFINER team_roster RPC
+ *  (0040 — the mirror of pending_team_requests for approved athletes). Staff-gated
+ *  server-side. This is what lets the dashboard show real names and, crucially, the
+ *  athletes who have NOT logged today. */
+export async function fetchTeamRoster(teamId: string): Promise<TeamRosterMember[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase().rpc('team_roster', { team: teamId });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** ACTIVE clients of a practice, names included, via the practice_roster RPC (0040 —
+ *  the mirror of pending_practice_requests for approved clients). Owner-gated
+ *  server-side. Shaped as TeamRosterMember so the shared roster projection applies. */
+export async function fetchPracticeRoster(practiceId: string): Promise<TeamRosterMember[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await requireSupabase().rpc('practice_roster', { practice: practiceId });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ athlete_id: r.client_id, athlete_name: r.client_name, position: null, joined_at: r.joined_at }));
 }
 
 /** Teams the signed-in user is staff on (teams_read RLS returns the coach's own teams).
@@ -527,5 +721,34 @@ export async function coachSetGoals(
     new_targets: targets,
     new_season_goal: seasonGoal,
   });
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------- trust pass (earned camera-free reward)
+/** The athlete's active (un-ended) Trust Pass, or null. RLS: self or a linked coach may read. */
+export async function fetchActiveTrustPass(athleteId: string): Promise<TrustPass | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase()
+    .from('trust_passes')
+    .select('granted_date, length_days')
+    .eq('athlete_id', athleteId)
+    .is('ended_at', null)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? { grantedDate: data.granted_date as string, lengthDays: data.length_days as number } : null;
+}
+
+/** Coach grants a pass to a LINKED athlete. The SECURITY DEFINER RPC enforces the coach-link +
+ *  server-side eligibility (>=7 on-standard days); it throws if unauthorized or ineligible. */
+export async function grantTrustPass(athleteId: string, lengthDays: number): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase().rpc('grant_trust_pass', { p_athlete: athleteId, p_length: lengthDays });
+  if (error) throw error;
+}
+
+/** Coach ends (revokes) the athlete's active pass. Coach-only; idempotent. */
+export async function endTrustPass(athleteId: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase().rpc('end_trust_pass', { p_athlete: athleteId });
   if (error) throw error;
 }

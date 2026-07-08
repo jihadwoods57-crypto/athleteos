@@ -47,7 +47,6 @@ import {
   rosterNoun,
   squadView,
   notificationCopy,
-  trainingCadence,
   parentDigest,
   gradeFor,
   mealResultFor,
@@ -129,10 +128,6 @@ function exerciseAthleteSurfaces(s: AppState) {
   expect(notif.score).toContain(String(d.athleteScore));
   if (isReal) expect(notif.coachNote).toBeNull();
 
-  // Profile training-cadence line — string when answered, null otherwise
-  const cadence = trainingCadence(s.trainingFreq);
-  expect(cadence === null || cadence.length > 0).toBe(true);
-
   // Parent charts
   expect(weeklyCompliance(s.scoreHistory, d.athleteScore)).toHaveProperty('pct');
   const ws = weightSeries(s.weightHistory, s.currentWeight, WEIGHT_START);
@@ -209,6 +204,7 @@ describe('athlete screen-data smoke (edge states do not crash a screen)', () => 
       tasks: createInitialState().tasks.map((t) => ({ ...t, done: true })),
       ciEnergy: 10, ciRecovery: 10, ciSleep: 10, ciConfidence: 10, ciSoreness: 10, ciMotivation: 10,
       ciSubmitted: true,
+      dailyCommitment: 'yes',
     } as AppState;
     const d = computeDerived(s);
     expect(d.athleteScore).toBeGreaterThanOrEqual(90);

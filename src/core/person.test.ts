@@ -18,7 +18,7 @@ describe('personBreakdown', () => {
     // unclamped band is [12, 90] (max +10 offset, min -12 offset).
     for (const score of [68, 74, 79, 85, 90]) {
       const b = personBreakdown(score);
-      const mean = (b.nutrition + b.recovery + b.tasks + b.checkin) / 4;
+      const mean = (b.nutrition + b.recovery + b.commitment + b.checkin) / 4;
       // offsets sum to zero, so away from the clamp edges the mean equals the score.
       expect(mean).toBe(score);
     }
@@ -26,8 +26,8 @@ describe('personBreakdown', () => {
 
   it('keeps recovery the laggard and check-in the strongest category', () => {
     const b = personBreakdown(80);
-    expect(b.recovery).toBeLessThan(b.tasks);
-    expect(b.tasks).toBeLessThan(b.nutrition);
+    expect(b.recovery).toBeLessThan(b.commitment);
+    expect(b.commitment).toBeLessThan(b.nutrition);
     expect(b.nutrition).toBeLessThan(b.checkin);
   });
 

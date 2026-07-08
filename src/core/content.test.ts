@@ -7,15 +7,16 @@ import {
   checkinSummary,
   coachGuidance,
   heroStatus,
+  friendlyAuthError,
   mealResultFor,
   MEAL_RESULTS,
   notificationCopy,
+  notificationFeed,
   paceProjection,
   qualityLabel,
   squadView,
   supportAudience,
   taskVisibilityNote,
-  trainingCadence,
 } from './content';
 import { computeDerived, gradeFor } from './scoring';
 import { createInitialState } from './defaultState';
@@ -106,13 +107,26 @@ describe('checkinSummary — reflects the real slider inputs (no static blurb)',
     const out = checkinSummary({ name: 'Jo', energy: 6, recovery: 6, sleep: 6, confidence: 6, soreness: 4, motivation: 6, config: allOn });
     expect(out.toLowerCase()).toContain('steady');
   });
+
+  it('never calls the week "strong" when readiness is caution/compromised (the audit contradiction)', () => {
+    const answers = { name: 'Maya', energy: 9, recovery: 5, sleep: 8, confidence: 9, soreness: 3, motivation: 6, config: allOn };
+    // Without the readiness context it may lead with "strong this week" (legacy behavior).
+    expect(checkinSummary(answers).toLowerCase()).toContain('strong this week');
+    // With a caution verdict, it must NOT claim a broadly strong week — it defers to readiness.
+    const caution = checkinSummary(answers, 'caution').toLowerCase();
+    expect(caution).not.toContain('strong this week');
+    expect(caution).toContain('under-recovered');
+    const compromised = checkinSummary(answers, 'compromised').toLowerCase();
+    expect(compromised).not.toContain('strong this week');
+    expect(compromised).toContain('recovery is the story');
+  });
 });
 
 describe('aiInsight', () => {
   it('nudges to log dinner with the live protein gap before dinner is logged', () => {
     // A submitted check-in lifts the floor-less seed into the C band (70-79) where the
     // "log dinner to push into the green" nudge lives; the bare seed now reads D.
-    const s = { ...createInitialState(), ciSubmitted: true } as AppState;
+    const s = { ...createInitialState(), ciSubmitted: true, dailyCommitment: 'partial' } as AppState;
     const d = computeDerived(s);
     const msg = aiInsight(s, d);
     expect(msg).toContain(`${d.proteinGap}g`);
@@ -164,7 +178,7 @@ describe('aiInsight', () => {
   it('a C-grade day (70-79) is "close", never "tracking well" or a promised A — matches heroStatus neutral band', () => {
     // Seed + a submitted check-in scores in the C band (70-79). Since the nutrition
     // floor was removed (D-B), the bare seed reads D; the check-in lifts it to a C.
-    const s = { ...createInitialState(), ciSubmitted: true } as AppState;
+    const s = { ...createInitialState(), ciSubmitted: true, dailyCommitment: 'partial' } as AppState;
     const d = computeDerived(s);
     expect(d.athleteScore).toBeGreaterThanOrEqual(70);
     expect(d.athleteScore).toBeLessThan(80);
@@ -182,7 +196,7 @@ describe('aiInsight', () => {
     // Seed + a submitted check-in + a protein shake (quick-add) lifts the score into
     // the B band while the day is still incomplete (dinner unlogged). The floor removal
     // (D-B) means a partial day needs near-target protein to reach B now.
-    const s = { ...createInitialState(), ciSubmitted: true, quickAdded: [false, true, false] } as AppState;
+    const s = { ...createInitialState(), ciSubmitted: true, quickAdded: [false, true, false], dailyCommitment: 'yes' } as AppState;
     const d = computeDerived(s);
     expect(d.athleteScore).toBeGreaterThanOrEqual(80);
     expect(d.mealsLoggedCount).toBeLessThan(4); // not a complete day
@@ -227,6 +241,7 @@ describe('heroStatus', () => {
       ...createInitialState(),
       meals: { breakfast: true, lunch: true, snack: true, dinner: true },
       ciSubmitted: true,
+      dailyCommitment: 'yes',
     } as AppState;
     const d = computeDerived(s);
     // Verify the fixture actually lands in the day-complete A band before asserting.
@@ -242,14 +257,18 @@ describe('heroStatus', () => {
     expect(h.standingLabel).toBe('Top of your team'); // grade A
   });
 
-  it('day-complete but sub-90 (B band, unsubmitted check-in) → complete copy with no ask/nag', () => {
-    // All four meals logged + protein cleared, but the check-in is unsubmitted so the
-    // score lands in [80,89]. This used to fall through the lone `dayComplete && >=90`
-    // guard into the score-band branch and nag "finish the day strong" via `ask`.
+  it('day-complete but sub-90 (B band, moderate check-in) → complete copy with no ask/nag', () => {
+    // All four meals logged + protein cleared + a REAL but moderate check-in, so the score
+    // lands in [80,89]. (Recovery only counts once a real check-in backs it; an unsubmitted
+    // check-in now caps a completed day well below 80.) This used to fall through the lone
+    // `dayComplete && >=90` guard into the score-band branch and nag "finish the day strong".
     const s = {
       ...createInitialState(),
       meals: { breakfast: true, lunch: true, snack: true, dinner: true },
-      ciSubmitted: false,
+      ciSubmitted: true,
+      ciConfig: { energy: true, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false },
+      ciEnergy: 5,
+      dailyCommitment: 'yes',
     } as AppState;
     const d = computeDerived(s);
     // Band is REAL (driven through computeDerived), not hand-set.
@@ -269,7 +288,7 @@ describe('heroStatus', () => {
   it('on-pace partial day → not warn, references the real proteinGap, never the false on-pace claim', () => {
     // Seed + check-in + a protein shake reaches the on-pace (B) band with the day NOT
     // complete (3 meals) and protein still short — a real "on pace, gap remaining" state.
-    const s = { ...createInitialState(), ciSubmitted: true, quickAdded: [false, true, false] } as AppState;
+    const s = { ...createInitialState(), ciSubmitted: true, quickAdded: [false, true, false], dailyCommitment: 'yes' } as AppState;
     const d = computeDerived(s);
     // Bump into the on-pace (B) band but day NOT complete (3 meals).
     expect(d.athleteScore).toBeGreaterThanOrEqual(80);
@@ -346,8 +365,21 @@ describe('paceProjection', () => {
     expect(paceProjection(2.0).surplus).toBe(1000);
   });
 
-  it('always leaves 3 days remaining (prototype constant)', () => {
+  it('without a clock (showcase default) keeps the prototype 4-elapsed/3-left week', () => {
     expect(paceProjection(1.0).daysLeft).toBe(3);
+  });
+
+  it('with a real clock, reads the actual weekday (week ends Sunday)', () => {
+    // A real athlete's card said "3 days left" and "the week is 4 days gone" on every
+    // day of the week — calorie advice computed from a fabricated clock.
+    expect(paceProjection(1.0, 0.2, 'gain', new Date(2026, 6, 6)).daysLeft).toBe(6); // Monday
+    expect(paceProjection(1.0, 0.2, 'gain', new Date(2026, 6, 10)).daysLeft).toBe(2); // Friday
+    expect(paceProjection(1.0, 0.2, 'gain', new Date(2026, 6, 12)).daysLeft).toBe(1); // Sunday floors at 1
+  });
+
+  it('with a real clock, extrapolates from the real elapsed days', () => {
+    // Friday = 5 elapsed: (0.5 / 5) * 7 = 0.7
+    expect(paceProjection(1.0, 0.5, 'gain', new Date(2026, 6, 10)).projected).toBe(0.7);
   });
 
   it('defaults progressLb to the seeded showcase (0.6) when omitted', () => {
@@ -403,20 +435,98 @@ describe('paceProjection', () => {
       }
     }
   });
+
+  describe('lose direction (the audit P0: a Lose Fat athlete must never be told to add calories)', () => {
+    it('counts weight LOST as progress toward the goal', () => {
+      const p = paceProjection(1.0, -0.6, 'lose'); // lost 0.6 lb over 4 days -> -1.1 projected
+      expect(p.projected).toBe(-1.1);
+      expect(p.onPace).toBe(true); // losing 1.1 vs a 1.0 goal
+      expect(p.paceLabel).toBe('↑ On pace');
+      expect(p.goalPct).toBe(60); // 0.6 of 1.0 lb lost
+    });
+
+    it('a brand-new lose athlete at 0 progress is behind pace and told to TRIM, never add', () => {
+      const p = paceProjection(1.0, 0, 'lose');
+      expect(p.onPace).toBe(false);
+      expect(p.paceAi).toContain('Trim');
+      expect(p.paceAi).not.toContain('Add ~');
+    });
+
+    it('trim advice is capped at 500 cal/day — catch-up math is not a crash-diet license', () => {
+      const p = paceProjection(2.0, 0, 'lose'); // raw catch-up math would say ~2,333 cal/day
+      const calNum = Number((p.paceAi.match(/~(\d+) cal\/day/) ?? [])[1]);
+      expect(calNum).toBeLessThanOrEqual(500);
+    });
+
+    it('losing faster than the goal advises adding fuel back (teen-safe), not celebrating', () => {
+      const p = paceProjection(0.5, -1.2, 'lose'); // tracking to -2.1 vs a 0.5 goal
+      expect(p.onPace).toBe(true);
+      expect(p.paceAi).toContain('faster than the plan');
+      expect(p.paceAi).toContain('Add back');
+    });
+
+    it('weight GAINED on a cut is zero progress, never credit', () => {
+      const p = paceProjection(1.0, 0.8, 'lose');
+      expect(p.goalPct).toBe(0);
+      expect(p.onPace).toBe(false);
+    });
+
+    it('gain-direction behavior is unchanged (default param back-compat)', () => {
+      expect(paceProjection(1.0)).toEqual(paceProjection(1.0, 0.6, 'gain'));
+    });
+  });
+
+  describe('maintain direction', () => {
+    it('holding steady reads on pace with a full bar', () => {
+      const p = paceProjection(1.0, 0, 'maintain');
+      expect(p.onPace).toBe(true);
+      expect(p.goalPct).toBe(100);
+      expect(p.surplus).toBe(0);
+      expect(p.paceAi).toContain('steady');
+    });
+
+    it('a real drift reads off pace', () => {
+      const p = paceProjection(1.0, 2.4, 'maintain'); // projects past the ±1 lb band
+      expect(p.onPace).toBe(false);
+      expect(Number.isFinite(p.goalPct)).toBe(true);
+    });
+  });
 });
 
 describe('athleteSubtitle', () => {
-  it('expands a known position abbreviation', () => {
+  it('expands a known position abbreviation (seeded demo)', () => {
     expect(athleteSubtitle('QB')).toBe('Quarterback · Eastside HS');
     expect(athleteSubtitle('LB')).toBe('Linebacker · Eastside HS');
   });
 
-  it('passes through an unknown abbreviation verbatim', () => {
+  it('passes through an unknown abbreviation verbatim (seeded demo)', () => {
     expect(athleteSubtitle('XYZ')).toBe('XYZ · Eastside HS');
   });
 
-  it('defaults to Linebacker when no position is set', () => {
+  it('defaults to Linebacker when no position is set (seeded demo only)', () => {
     expect(athleteSubtitle(null)).toBe('Linebacker · Eastside HS');
+  });
+
+  describe('real athlete (isReal) — never leaks the demo Linebacker/Eastside HS', () => {
+    it('a solo athlete with no position and no sport reads a neutral "Athlete"', () => {
+      expect(athleteSubtitle(null, null, true)).toBe('Athlete');
+      expect(athleteSubtitle(null, '', true)).toBe('Athlete');
+    });
+
+    it('a sport but no position reads "{sport} athlete", never a fake school', () => {
+      expect(athleteSubtitle(null, 'Soccer', true)).toBe('Soccer athlete');
+      expect(athleteSubtitle(null, 'Soccer', true)).not.toContain('Eastside');
+    });
+
+    it('a position + sport reads "{label} · {sport}", never Eastside HS', () => {
+      expect(athleteSubtitle('QB', 'Football', true)).toBe('Quarterback · Football');
+      expect(athleteSubtitle('MID', 'Soccer', true)).toBe('Midfielder · Soccer');
+    });
+
+    it('a position with no sport reads just the position, never a fake school', () => {
+      expect(athleteSubtitle('QB', null, true)).toBe('Quarterback');
+      expect(athleteSubtitle('QB', null, true)).not.toContain('Eastside');
+    });
   });
 });
 
@@ -493,17 +603,53 @@ describe('notificationCopy', () => {
   });
 });
 
-describe('trainingCadence', () => {
-  it('maps each known onboarding frequency key to a phrase', () => {
-    expect(trainingCadence('once')).toBe('Trains once a day');
-    expect(trainingCadence('twice')).toBe('Trains twice a day');
-    expect(trainingCadence('three_plus')).toBe('Trains 3+ times a day');
+describe('friendlyAuthError (raw backend strings never leak to users)', () => {
+  it('rewrites the bare "Invalid login credentials" the audit flagged', () => {
+    expect(friendlyAuthError('Invalid login credentials')).toMatch(/doesn't match/i);
+    expect(friendlyAuthError('Invalid login credentials')).not.toBe('Invalid login credentials');
+  });
+  it('maps the common cases to product voice', () => {
+    expect(friendlyAuthError('Email not confirmed')).toMatch(/confirm your email/i);
+    expect(friendlyAuthError('User already registered')).toMatch(/already exists/i);
+    expect(friendlyAuthError('rate limited')).toMatch(/too many/i);
+  });
+  it('never returns an empty or lowercase machine string, even on unknown input', () => {
+    expect(friendlyAuthError('some_weird_internal_code')).toMatch(/something went wrong/i);
+    expect(friendlyAuthError('')).toMatch(/something went wrong/i);
+    expect(friendlyAuthError(null)).toMatch(/something went wrong/i);
+  });
+});
+
+describe('notificationFeed (honest inbox for the non-backend path)', () => {
+  it('keeps the full seeded showcase (4 cards, relative stamps) for the demo', () => {
+    const feed = notificationFeed({ isReal: false, supportTeam: [], athleteScore: 78, checkinSubmitted: false, proteinGap: 38 });
+    expect(feed.map((n) => n.key)).toEqual(['checkin', 'meal', 'score', 'coachNote', 'hydration']);
+    expect(feed.find((n) => n.key === 'hydration')?.time).toBe('6h');
+    expect(feed.find((n) => n.key === 'coachNote')?.initials).toBe('CD');
   });
 
-  it('returns null when unset (seeded demo) or unknown, so the caller drops the line', () => {
-    expect(trainingCadence(null)).toBeNull();
-    expect(trainingCadence('')).toBeNull();
-    expect(trainingCadence('weekly')).toBeNull();
+  it('a real athlete never gets fabricated-past timestamps — only "Now"/"Today"', () => {
+    const feed = notificationFeed({ isReal: true, supportTeam: ['coach'], athleteScore: 35, checkinSubmitted: false, proteinGap: 120 });
+    expect(feed.every((n) => n.time === 'Now' || n.time === 'Today')).toBe(true);
+    expect(feed.some((n) => /\dh$|\dm$/.test(n.time))).toBe(false);
+  });
+
+  it('a real athlete only sees reminders that are TRUE right now', () => {
+    // check-in unsubmitted + protein short → both nudges
+    let feed = notificationFeed({ isReal: true, supportTeam: [], athleteScore: 35, checkinSubmitted: false, proteinGap: 120 });
+    expect(feed.map((n) => n.key)).toEqual(['checkin', 'meal']);
+    // checked in + protein met → nothing due (screen shows "all caught up")
+    feed = notificationFeed({ isReal: true, supportTeam: [], athleteScore: 88, checkinSubmitted: true, proteinGap: 0 });
+    expect(feed).toEqual([]);
+    // checked in but still short → only the meal nudge
+    feed = notificationFeed({ isReal: true, supportTeam: [], athleteScore: 60, checkinSubmitted: true, proteinGap: 40 });
+    expect(feed.map((n) => n.key)).toEqual(['meal']);
+  });
+
+  it('a real athlete never gets the fabricated coach-praise note or hydration-history card', () => {
+    const feed = notificationFeed({ isReal: true, supportTeam: ['coach'], athleteScore: 35, checkinSubmitted: false, proteinGap: 120 });
+    expect(feed.some((n) => n.kind === 'coachNote')).toBe(false);
+    expect(feed.some((n) => n.kind === 'hydration')).toBe(false);
   });
 });
 
@@ -540,7 +686,7 @@ describe('taskVisibilityNote', () => {
     const note = taskVisibilityNote({ isReal: true, supportTeam: [] });
     expect(note).not.toContain('Coach Davis');
     expect(note).not.toContain('visible to');
-    expect(note).toBe('Completed tasks feed your Execution Score.');
+    expect(note).toBe('Completed tasks feed your OnStandard Score.');
   });
 
   it('names the connected overseer for a real athlete (coach > trainer > nutritionist)', () => {

@@ -1,0 +1,69 @@
+/* OnStandard — Redesign Prototype · Design Tokens
+   Dark premium system. Brand DNA kept from DESIGN.md (Plus Jakarta Sans,
+   semantic color meanings, heavy tight numerals) moved onto dark surfaces.
+   Every neutral is tinted toward the brand's slate-blue hue — never pure #000/#fff. */
+
+:root {
+  /* ---- Surfaces (deep navy-black, tinted toward brand hue) ---- */
+  --bg:            #070B14;   /* app canvas */
+  --bg-grad-top:   #0A1120;   /* subtle top wash behind the hero */
+  --surface-1:     #0E1421;   /* cards */
+  --surface-2:     #131C2D;   /* elevated rows / tiles */
+  --surface-3:     #1A2436;   /* pressed / inner wells */
+  --hairline:      rgba(148, 176, 224, 0.10);
+  --hairline-soft: rgba(148, 176, 224, 0.055);
+
+  /* ---- Text ---- */
+  --text:   #EEF3FB;   /* near-white, tinted cool */
+  --text-2: #9AA9C2;   /* slate secondary */
+  --text-3: #64748B;   /* tertiary / meta */
+  --text-on-accent: #FFFFFF;
+
+  /* ---- Athlete Blue (brand spine) ---- */
+  --blue:        #3B82F6;
+  --blue-bright: #60A5FA;
+  --blue-deep:   #2563EB;
+  --blue-surface: rgba(59, 130, 246, 0.14);
+  --blue-border:  rgba(59, 130, 246, 0.34);
+
+  /* ---- Semantic requirement colors (each has ONE meaning) ---- */
+  --green:  #34D399;  --green-bright: #4ADE80;  --green-surface: rgba(52, 211, 153, 0.13);  --green-border: rgba(52, 211, 153, 0.30);
+  --amber:  #F5A524;  --amber-bright: #FBBF24;  --amber-surface: rgba(245, 165, 36, 0.13);  --amber-border: rgba(245, 165, 36, 0.32);
+  --purple: #A855F7;  --purple-bright:#C084FC;  --purple-surface:rgba(168, 85, 247, 0.13);  --purple-border:rgba(168, 85, 247, 0.30);
+  --red:    #F65757;  --red-surface:  rgba(246, 87, 87, 0.13);   --red-border: rgba(246, 87, 87, 0.30);
+  --cyan:   #38BDF8;  --cyan-surface: rgba(56, 189, 248, 0.13);
+
+  /* Score ring gradient stops (green -> teal -> blue, the signature moment) */
+  --ring-a: #34D399;
+  --ring-b: #22D3EE;
+  --ring-c: #3B82F6;
+
+  /* ---- Typography ---- */
+  --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --num-tight: -0.03em;
+  --title-tight: -0.02em;
+
+  /* ---- Radii ---- */
+  --r-card: 22px;
+  --r-tile: 15px;
+  --r-pill: 999px;
+  --r-chip: 11px;
+  --r-btn: 17px;
+
+  /* ---- Spacing scale (rhythm, not uniform) ---- */
+  --s1: 4px;  --s2: 8px;  --s3: 12px;  --s4: 16px;  --s5: 20px;
+  --s6: 24px; --s7: 32px; --s8: 40px;  --s9: 56px;
+
+  --pad-screen: 20px;
+
+  /* ---- Elevation ---- */
+  --sh-card: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.36);
+  --sh-raised: 0 14px 40px rgba(0,0,0,0.48);
+  --sh-blue: 0 10px 30px rgba(37, 99, 235, 0.40);
+  --sh-green: 0 12px 34px rgba(52, 211, 153, 0.34);
+
+  /* ---- Motion ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);      /* ease-out-expo-ish */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --dur-1: 160ms; --dur-2: 280ms; --dur-3: 460ms; --dur-ring: 1400ms;
+}

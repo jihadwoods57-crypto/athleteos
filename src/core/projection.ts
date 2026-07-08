@@ -41,23 +41,35 @@ const MEAL_LABEL: Record<MealKey, string> = {
 
 /**
  * An end-of-day state where the athlete completed every CONTROLLABLE accountability action:
- * all four meals logged on time, the protein target met, tasks done, check-in submitted. A
- * synthetic protein plate in one slot guarantees the target is met without disturbing the
- * other slots; absent mealLoggedAt means on-time. Recovery is whatever the current check-in
- * answers compute to (an estimate, not inflated).
+ * the remaining meals logged, the protein target met, tasks done, check-in submitted.
+ *
+ * Reachability rules (the projection is a promise — it must be earnable by ACTIONS):
+ * - Logged plates are kept, never replaced: swapping a logged breakfast for a synthetic
+ *   0-kcal plate could RAISE an over-eaten day's two-sided calorie adherence, promising
+ *   points only attainable by un-eating food.
+ * - Only the remaining protein GAP is added, into a slot the athlete has NOT logged yet
+ *   (or appended to snack when all four are). Exported for the reachability tests.
+ * - Punctuality stamps are kept: credit already lost to a late log stays lost.
+ * Recovery is whatever the current check-in answers compute to (an estimate, not a max).
  */
-function idealizeDay(s: AppState): AppState {
-  const proteinTarget = computeDerived(s).proteinTarget;
-  const projectedPlate: EditableFood[] = [
-    { name: 'projected', portion: '', servings: 1, per: { protein: proteinTarget, kcal: 0, carbs: 0, fat: 0 } },
-  ];
+export function idealizeDay(s: AppState): AppState {
+  const d = computeDerived(s);
+  const gap = Math.max(0, Math.round(d.proteinGap));
+  const gapPlate: EditableFood[] = gap > 0 ? [{ name: 'projected', portion: '', servings: 1, per: { protein: gap, kcal: 0, carbs: 0, fat: 0 } }] : [];
+  const slots: MealKey[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+  const openSlot = slots.find((k) => !s.meals[k]);
+  const mealFoods = { ...s.mealFoods };
+  if (gapPlate.length > 0) {
+    if (openSlot) mealFoods[openSlot] = gapPlate;
+    else mealFoods.snack = [...(mealFoods.snack ?? []), ...gapPlate];
+  }
   return {
     ...s,
     meals: { breakfast: true, lunch: true, snack: true, dinner: true },
-    mealLoggedAt: {},
-    mealFoods: { ...s.mealFoods, breakfast: projectedPlate },
+    mealFoods,
     tasks: s.tasks.map((t) => ({ ...t, done: true })),
     ciSubmitted: true,
+    dailyCommitment: 'yes',
   };
 }
 
@@ -81,12 +93,9 @@ export function projectedScore(s: AppState): ScoreProjection {
   (Object.keys(s.meals) as MealKey[]).forEach((k) => {
     if (!s.meals[k]) actions.push({ key: `meal:${k}`, label: `Log ${MEAL_LABEL[k]}` });
   });
-  // Other daily tasks not already represented by the protein (id 2) and dinner (id 3) rows,
-  // so the checklist never double-counts them.
-  const coveredByAbove = (d.proteinGap > 0 ? 1 : 0) + (!s.meals.dinner ? 1 : 0);
-  const otherTasksLeft = Math.max(0, d.tasksTotal - d.tasksDone - coveredByAbove);
-  if (otherTasksLeft > 0) {
-    actions.push({ key: 'tasks', label: `Finish ${otherTasksLeft} more daily ${otherTasksLeft === 1 ? 'task' : 'tasks'}` });
+  // The daily plan-commitment — the 0.15 lever that replaced the retired task checklist.
+  if (!s.dailyCommitment) {
+    actions.push({ key: 'commitment', label: 'Confirm you hit your plan today' });
   }
   // Submit the weekly check-in if it is still open.
   if (!s.ciSubmitted) {

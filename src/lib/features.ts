@@ -12,3 +12,31 @@
 // The engines themselves stay fully built + unit-tested either way; this gates only their
 // UI entry points, so flipping it on reveals finished features rather than half-built ones.
 export const isEnginesEnabled = process.env.EXPO_PUBLIC_ENGINES_ENABLED?.trim() === 'true';
+
+// Master switch for the Meal Plans feature (structured prescribed meals + plan compliance).
+// OFF by default so the prove-the-loop beta is untouched; flip with EXPO_PUBLIC_MEAL_PLANS_ENABLED=true.
+export const isMealPlansEnabled = process.env.EXPO_PUBLIC_MEAL_PLANS_ENABLED?.trim() === 'true';
+
+// Master switch for the Trust Pass (an earned, coach-granted camera-free reward whose daily
+// one-tap credits the athlete's own proven nutrition baseline). OFF by default; gates the coach
+// grant control + the athlete-facing pass UI. The scoring credit itself is DATA-gated (it only
+// applies when an active pass exists in state), so flipping this off leaves scoring untouched.
+// Server-authoritative pass state (Supabase RLS) + seeded-random spot-checks are the go-live
+// upgrade (docs/council/2026-07-02-trust-pass.md); this pilot build keeps the pass client-side.
+export const isTrustPassEnabled = process.env.EXPO_PUBLIC_TRUST_PASS_ENABLED?.trim() === 'true';
+
+// Master switch for the streak GRACE day (council ruling 2026-07-02): one forgiven sub-threshold
+// day per trailing 7 so a single bad day doesn't zero a long streak, while a second miss still ends
+// it honestly. OFF by default — the founder validates the cadence and picks flag-dark vs live at
+// launch (ruling open questions #1/#3). Grace is a pure read over score history; it NEVER touches
+// athleteScore, so flipping this leaves the daily score untouched. When off, the streak keeps its
+// strict "first miss ends it" behavior exactly.
+export const isStreakGraceEnabled = process.env.EXPO_PUBLIC_STREAK_GRACE_ENABLED?.trim() === 'true';
+
+// Master switch for the Assistant Nutritionist PAYWALL (revenue build 2026-07-04). The assistant
+// surfaces (AI daily brief, triage queue with evidence, suggested messages, Ask-AI, digest, export)
+// are always BUILT; this flag only decides whether an account without the 'assistant' entitlement
+// sees them or sees the upgrade card. OFF by default so the free-preview beta is byte-unchanged —
+// the founder flips EXPO_PUBLIC_ASSISTANT_GATE=true when billing goes live, the same way the other
+// master switches work. (You can't honestly lock a feature behind a purchase that can't be made.)
+export const isAssistantGateEnabled = process.env.EXPO_PUBLIC_ASSISTANT_GATE?.trim() === 'true';

@@ -12,13 +12,21 @@
 // without recorded consent never pushes. `src/core` stays the single scoring authority:
 // `pushDay` writes the score `computeDerived` produced, never a second formula.
 import {
+  clampScoreToEvidence,
   computeDerived,
+  daysAgoStamp,
+  evidenceFromDerived,
   gradeFor,
+  HISTORY_CAP,
+  mealMacros,
   realDataConsent,
   todayStamp,
   type AppState,
   type ConsentContext,
   type ConsentReason,
+  type DayScore,
+  type MealKey,
+  type WeightPoint,
 } from '@/core';
 import { db, isBackendLive } from '@/lib/supabase';
 import type { DayRow } from '@/lib/supabase';
@@ -54,6 +62,11 @@ export function mapStateToDayRow(
   date = todayStamp(),
 ): Partial<DayRow> & Pick<DayRow, 'athlete_id' | 'date'> {
   const d = computeDerived(s);
+  // Defense in depth: never write a score above what this row's evidence can justify. A
+  // no-op for an honest client (computeDerived's score is always <= its evidence ceiling),
+  // so it can only ever cut a regression/tamper. The authoritative control is the 0041
+  // server trigger — a tampered client bypasses everything in this process.
+  const score = clampScoreToEvidence(d.athleteScore, evidenceFromDerived(d));
   return {
     athlete_id: athleteId,
     date,
@@ -70,22 +83,85 @@ export function mapStateToDayRow(
       soreness: s.ciSoreness,
       motivation: s.ciMotivation,
       submitted: s.ciSubmitted,
+      // The date of the last real weekly check-in. The 0041 server-side score-integrity
+      // trigger honors a legitimate weekly recovery CARRY from this marker, so an honest
+      // carry day is NEVER clamped even when the original check-in day's row never reached
+      // Postgres (offline / pre-consent). The row self-describes its carry instead of the
+      // server trying to reconstruct cross-day history it can't reliably see.
+      ciLast: s.ciLast?.date ?? null,
+      // The one-tap plan commitment rides in the same jsonb (no schema change) so a
+      // second device can rebuild the full score instead of dropping the 0.15 slot.
+      commitment: s.dailyCommitment,
+      // Per-slot macro totals for slots with a REAL plate. The evidence rule scores a
+      // plate-less slot at 0 macros, so without these a photo-logged day would
+      // re-score near 0 on a second device. Totals only — food names/photos stay in
+      // the meals table; hydration rebuilds a synthetic one-item plate per slot.
+      slotMacros: Object.fromEntries(
+        (Object.keys(s.meals) as MealKey[])
+          .filter((k) => s.meals[k] && (s.mealFoods?.[k]?.length ?? 0) > 0)
+          .map((k) => [k, mealMacros(s.mealFoods[k]!)]),
+      ),
     },
-    score: d.athleteScore,
-    grade: gradeFor(d.athleteScore).g,
+    score,
+    grade: gradeFor(score).g,
   };
 }
 
-/** Project a `days` row back onto the local day-slice for hydration. */
+/** Project a `days` row back onto the local day-slice for hydration. Restores the
+ *  check-in answers + submitted flag and the daily commitment the row itself carries
+ *  (mapStateToDayRow writes them) — dropping them collapsed the same lived day by
+ *  ~35 points on a second device, which then pushed the lower score back over the
+ *  server row. A legacy row without those keys restores nothing (no invented data). */
 export function dayRowToState(row: DayRow): Partial<AppState> {
-  return {
+  const slice: Partial<AppState> = {
     meals: row.meals as unknown as AppState['meals'],
     hydrationL: row.hydration_l,
     tasks: (row.tasks ?? []) as unknown as AppState['tasks'],
     quickAdded: (row.quick_added ?? []) as AppState['quickAdded'],
-    currentWeight: row.current_weight ?? undefined,
     dateStamp: row.date,
   };
+  // Only restore weight when the row actually carries one. A null weight used to overwrite
+  // currentWeight with undefined, which rendered "now NaN lb / NaN% there" in the season-goal
+  // card on a fresh sign-in (2026-07-04 fix). Absent -> keep the athlete's existing weight.
+  if (typeof row.current_weight === 'number') slice.currentWeight = row.current_weight;
+  const ci = (row.checkin ?? null) as Record<string, unknown> | null;
+  if (ci && typeof ci.submitted === 'boolean') {
+    slice.ciSubmitted = ci.submitted;
+    const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+    const energy = num(ci.energy);
+    const recovery = num(ci.recovery);
+    const sleep = num(ci.sleep);
+    const confidence = num(ci.confidence);
+    const soreness = num(ci.soreness);
+    const motivation = num(ci.motivation);
+    if (energy !== undefined) slice.ciEnergy = energy;
+    if (recovery !== undefined) slice.ciRecovery = recovery;
+    if (sleep !== undefined) slice.ciSleep = sleep;
+    if (confidence !== undefined) slice.ciConfidence = confidence;
+    if (soreness !== undefined) slice.ciSoreness = soreness;
+    if (motivation !== undefined) slice.ciMotivation = motivation;
+  }
+  if (ci && (ci.commitment === 'yes' || ci.commitment === 'partial' || ci.commitment === 'no')) {
+    slice.dailyCommitment = ci.commitment;
+  }
+  // Rebuild each slot's REAL macro evidence as a synthetic one-item plate ("Logged
+  // meal" — an honest generic name, never a fabricated dish). Without this, the
+  // evidence rule (plate-less slot = 0 macros) would collapse a photo-logged day on a
+  // second device. Only slots the row marks logged; a legacy row restores nothing.
+  const sm = (ci?.slotMacros ?? null) as Record<string, { protein?: unknown; kcal?: unknown; carbs?: unknown; fat?: unknown }> | null;
+  if (sm && typeof sm === 'object') {
+    const nonneg = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
+    const mealFoods: AppState['mealFoods'] = {};
+    for (const k of ['breakfast', 'lunch', 'snack', 'dinner'] as MealKey[]) {
+      const m = sm[k];
+      if (!m || !(slice.meals as Record<string, boolean> | undefined)?.[k]) continue;
+      const per = { protein: nonneg(m.protein), kcal: nonneg(m.kcal), carbs: nonneg(m.carbs), fat: nonneg(m.fat) };
+      if (per.protein === 0 && per.kcal === 0) continue;
+      mealFoods[k] = [{ name: 'Logged meal', portion: '', servings: 1, per }];
+    }
+    if (Object.keys(mealFoods).length > 0) slice.mealFoods = mealFoods;
+  }
+  return slice;
 }
 
 /**
@@ -98,12 +174,54 @@ export function dayRowToState(row: DayRow): Partial<AppState> {
  *   - athlete without consent-> { pushed: false, reason: 'consent-required' }
  *   - consent ok             -> upsert, { pushed: true, reason: 'ok' }
  */
-export async function pushDay(s: AppState, athleteId: string, date = todayStamp()): Promise<PushResult> {
+export async function pushDay(s: AppState, athleteId: string, date?: string): Promise<PushResult> {
   if (!isBackendLive) return { pushed: false, reason: 'backend-off' };
   const gate = realDataConsent(consentContextFromState(s, isBackendLive));
   if (!gate.ok) return { pushed: false, reason: gate.reason };
-  await db.upsertDay(mapStateToDayRow(s, athleteId, date));
+  // The day is written under the date it BELONGS to (the state's stamp), not the wall
+  // clock: a 12:05am action before the rollover fires must upsert yesterday's day, not
+  // overwrite today's server row with yesterday's meals and score.
+  await db.upsertDay(mapStateToDayRow(s, athleteId, date ?? s.dateStamp ?? todayStamp()));
   return { pushed: true, reason: 'ok' };
+}
+
+/**
+ * Project a run of `days` rows into the retained score + weight history (audit item 14). Today is
+ * skipped — it is the live, in-progress day that `trendSeries` appends separately, so including it
+ * would double-count. A row with no score (or no weight) contributes nothing to that array. Pure.
+ */
+export function historyFromDayRows(
+  rows: DayRow[],
+  todayDate = todayStamp(),
+): { scoreHistory: DayScore[]; weightHistory: WeightPoint[] } {
+  const scoreHistory: DayScore[] = [];
+  const weightHistory: WeightPoint[] = [];
+  for (const r of rows) {
+    if (r.date === todayDate) continue; // today is live; trendSeries adds it
+    if (typeof r.score === 'number') scoreHistory.push({ date: r.date, score: r.score });
+    if (typeof r.current_weight === 'number') weightHistory.push({ date: r.date, weight: r.current_weight });
+  }
+  return { scoreHistory, weightHistory };
+}
+
+/**
+ * Rebuild the athlete's retained record from the server (audit item 14): pull the last HISTORY_CAP
+ * days of `days` rows and project them into scoreHistory + weightHistory, so a NEW DEVICE or a
+ * returning athlete sees their full season instead of only what the local cache still holds. The
+ * server is the source of truth for completed days, so it replaces those arrays — but only when it
+ * actually returns data, so an offline/empty read never wipes the local cache. Backend-gated;
+ * returns null (no change) when off or empty. Reading one's OWN history needs no consent gate (that
+ * gates COLLECTING data, not resuming it) — the flag gate alone applies, like hydrateDay.
+ */
+export async function hydrateHistory(athleteId: string, sinceDays = HISTORY_CAP): Promise<Partial<AppState> | null> {
+  if (!isBackendLive) return null;
+  const rows = await db.fetchDaysSince(athleteId, daysAgoStamp(sinceDays));
+  if (rows.length === 0) return null;
+  const { scoreHistory, weightHistory } = historyFromDayRows(rows);
+  const slice: Partial<AppState> = {};
+  if (scoreHistory.length) slice.scoreHistory = scoreHistory;
+  if (weightHistory.length) slice.weightHistory = weightHistory;
+  return Object.keys(slice).length ? slice : null;
 }
 
 /** Pull today's day from Postgres, or null when the backend is off / no remote row
@@ -111,6 +229,10 @@ export async function pushDay(s: AppState, athleteId: string, date = todayStamp(
  *  their data, not the athlete resuming it); the flag gate alone applies. */
 export async function hydrateDay(athleteId: string, date = todayStamp()): Promise<Partial<AppState> | null> {
   if (!isBackendLive) return null;
-  const row = await db.fetchDay(athleteId, date);
-  return row ? dayRowToState(row) : null;
+  const [row, trustPass] = await Promise.all([db.fetchDay(athleteId, date), db.fetchActiveTrustPass(athleteId)]);
+  const dayState = row ? dayRowToState(row) : null;
+  if (!dayState && trustPass == null) return null;
+  // trustPass is server-authoritative when live: sync it every hydrate (even to null), so a
+  // coach-granted pass appears and a coach-ended one clears on the athlete's device.
+  return { ...(dayState ?? {}), trustPass };
 }

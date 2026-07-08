@@ -5,20 +5,23 @@
 import React from 'react';
 import { View } from 'react-native';
 import { fetchFactsFor, fetchProfileRow } from '@/lib/ai/memory';
-import { buildProfileView, type PerformanceProfileView } from '@/core';
+import { buildProfileView, tierFor, type PerformanceProfileView } from '@/core';
+import { tierChip } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Row, Txt } from '@/ui/primitives';
 import { Icon } from '@/icons';
 
-function Chips({ label, items, tone }: { label: string; items: string[]; tone: string }) {
+/** A hairline-framed chip group with an eyebrow. Filled tint + a matching hairline so the
+ *  chips read as edges on the dark canvas, not floating blocks. Border tone tracks the fill. */
+function Chips({ label, items, tone, border }: { label: string; items: string[]; tone: string; border: string }) {
   const c = useColors();
   if (items.length === 0) return null;
   return (
-    <View style={{ marginTop: 12 }}>
-      <Txt w="eb" size={10} color={c.textTertiary} ls={0.5} style={{ marginBottom: 7 }}>{label}</Txt>
+    <View style={{ marginTop: 14 }}>
+      <Txt w="eb" size={10} color={c.textTertiary} ls={0.6} style={{ marginBottom: 8 }}>{label}</Txt>
       <Row style={{ flexWrap: 'wrap', gap: 7 }}>
         {items.map((it) => (
-          <View key={it} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: tone }}>
+          <View key={it} style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9, backgroundColor: tone, borderWidth: 1, borderColor: border }}>
             <Txt w="b" size={12} color={c.slate700}>{it}</Txt>
           </View>
         ))}
@@ -52,30 +55,43 @@ export function AthleteProfileView({ athleteId, recentScores = [] }: { athleteId
     !strengths.length && !weaknesses.length && !feedback.length && consistency.last7 === 0;
   if (empty) return null;
 
+  // The 7-day average is a 0-100 score, so its stat tile takes tier coloring.
+  const chip = consistency.last7 > 0 ? tierChip[tierFor(consistency.last7).short] : null;
+
   return (
     <Card variant="low" style={{ borderRadius: 20, marginTop: 14 }}>
-      <Row style={{ gap: 9, marginBottom: 12, alignItems: 'center' }}>
-        <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
+      <Row style={{ gap: 10, marginBottom: 14, alignItems: 'center' }}>
+        <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accentBorder, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="user" size={16} color={c.accent} />
         </View>
-        <Txt w="eb" size={12} color={c.accent} ls={0.4}>PERFORMANCE PROFILE</Txt>
+        <Txt w="eb" size={11} color={c.textTertiary} ls={0.8}>PERFORMANCE PROFILE</Txt>
       </Row>
 
-      {consistency.last7 > 0 ? (
-        <Txt w="sb" size={14} color={c.slate700} style={{ lineHeight: 20 }}>
-          {consistency.last7} avg last 7 days · {consistency.last30} last 30 · trending {consistency.trend}.
-        </Txt>
+      {consistency.last7 > 0 && chip ? (
+        <Row style={{ gap: 10, alignItems: 'stretch' }}>
+          {/* Tier-colored headline stat: the 7-day average leads, framed like every other
+              score chip in the app. The trailing prose keeps the 30-day + trend context. */}
+          <View style={{ paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: chip.bg, borderWidth: 1, borderColor: chip.border, alignItems: 'center', justifyContent: 'center', minWidth: 76 }}>
+            <Txt w="eb" num size={26} color={chip.fg}>{consistency.last7}</Txt>
+            <Txt w="b" size={10} color={chip.fg} ls={0.4} style={{ marginTop: 2 }}>7-DAY AVG</Txt>
+          </View>
+          <View style={{ flex: 1, justifyContent: 'center', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 }}>
+            <Txt w="sb" size={13.5} color={c.slate700} style={{ lineHeight: 19 }}>
+              {consistency.last30} avg last 30 days · trending {consistency.trend}.
+            </Txt>
+          </View>
+        </Row>
       ) : null}
 
-      {strengths.length ? <Chips label="STRENGTHS" items={strengths} tone={c.successSurface} /> : null}
-      {weaknesses.length ? <Chips label="WATCH" items={weaknesses} tone={c.alertSurface} /> : null}
-      {preferences.allergies.length ? <Chips label="ALLERGIES" items={preferences.allergies} tone={c.alertSurface} /> : null}
-      {preferences.dislikes.length ? <Chips label="DISLIKES" items={preferences.dislikes} tone={c.bg2} /> : null}
-      {preferences.favoriteFoods.length ? <Chips label="FAVORITES" items={preferences.favoriteFoods} tone={c.bg2} /> : null}
+      {strengths.length ? <Chips label="STRENGTHS" items={strengths} tone={c.successSurface} border={c.successBorderSoft} /> : null}
+      {weaknesses.length ? <Chips label="WATCH" items={weaknesses} tone={c.alertSurface} border={c.alertBorder} /> : null}
+      {preferences.allergies.length ? <Chips label="ALLERGIES" items={preferences.allergies} tone={c.alertSurface} border={c.alertBorder} /> : null}
+      {preferences.dislikes.length ? <Chips label="DISLIKES" items={preferences.dislikes} tone={c.surface2} border={c.hairline} /> : null}
+      {preferences.favoriteFoods.length ? <Chips label="FAVORITES" items={preferences.favoriteFoods} tone={c.surface2} border={c.hairline} /> : null}
 
       {feedback.length ? (
-        <View style={{ marginTop: 14 }}>
-          <Txt w="eb" size={10} color={c.textTertiary} ls={0.5} style={{ marginBottom: 6 }}>LATEST FEEDBACK</Txt>
+        <View style={{ marginTop: 16, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline, borderRadius: 14, padding: 13 }}>
+          <Txt w="eb" size={10} color={c.textTertiary} ls={0.6} style={{ marginBottom: 6 }}>LATEST FEEDBACK</Txt>
           <Txt w="m" size={13} color={c.slate700} style={{ lineHeight: 19 }}>{feedback[feedback.length - 1].text}</Txt>
         </View>
       ) : null}

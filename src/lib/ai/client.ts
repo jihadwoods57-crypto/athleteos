@@ -6,8 +6,25 @@
 // the app falls back to the deterministic analysis (mealResultFor) so it runs exactly
 // as today. Set EXPO_PUBLIC_AI_ENDPOINT (or EXPO_PUBLIC_SUPABASE_URL, from which the
 // function URL is derived) + EXPO_PUBLIC_SUPABASE_ANON_KEY to light it up.
-import type { LabelFacts, MealLabel, MealResult, MemoryInsight, RephrasedInsight, RephrasedOrder } from '@/core';
+import type { LabelFacts, MealErrorReason, MealLabel, MealResult, MemoryInsight, RephrasedInsight, RephrasedOrder } from '@/core';
 import { supabase } from '@/lib/supabase/client';
+
+/** Thrown by the remote calls when a CONFIGURED backend cannot answer, carrying WHY so callers
+ *  can distinguish "you hit today's limit" (429) from a generic failure — and, above all, so the
+ *  app can show an honest "couldn't analyze" state instead of fabricating macros for a real photo. */
+export class AiUnavailableError extends Error {
+  readonly reason: MealErrorReason;
+  constructor(reason: MealErrorReason, message?: string) {
+    super(message ?? reason);
+    this.name = 'AiUnavailableError';
+    this.reason = reason;
+  }
+}
+
+/** Map a failed HTTP status to a MealErrorReason (429 = the daily cap; everything else generic). */
+function reasonForStatus(status: number): MealErrorReason {
+  return status === 429 ? 'rate_limited' : 'error';
+}
 
 const explicit = process.env.EXPO_PUBLIC_AI_ENDPOINT?.trim();
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -61,15 +78,27 @@ export interface AnalyzeMealRequest {
   phase?: 'analyze' | 'finalize';
   /** For 'finalize': the questions already asked and the athlete's answers. */
   clarifications?: Clarification[];
+  /** The active plan slot's macro target for this meal (Meal Plans feature), when the athlete has one. */
+  slotTarget?: { kcal: number; protein: number };
+  /** Foods the athlete must avoid — the values of their CONFIRMED allergy/dislike memory facts. The
+   *  model is told not to identify a plate item as one of these unless unmistakable (audit item 13:
+   *  the memory flywheel's read half — this is how a stored fact finally reaches the prompt). */
+  avoid?: string[];
 }
 
 /**
  * The backend's meal response: either the finished analysis, or 1-3 clarifying questions the
  * athlete should answer before the estimate is finalized. The app branches on `kind`.
  */
-export type MealRemoteResponse =
+/** What the raw remote resolves to: a finished analysis or clarifying questions. On failure it
+ *  THROWS (AiUnavailableError) rather than resolving, so this union has no failure member. */
+export type MealRemoteResult =
   | { kind: 'result'; result: MealResult }
   | { kind: 'questions'; questions: string[] };
+
+/** What the analyzeMeal WRAPPER resolves to: the remote result, plus an 'unavailable' member it
+ *  maps failures to (so the app shows an honest retry state instead of a fabricated plate). */
+export type MealRemoteResponse = MealRemoteResult | { kind: 'unavailable'; reason: MealErrorReason };
 
 /**
  * Call the backend to analyze a meal photo with Claude vision. Returns EITHER the finished
@@ -78,7 +107,7 @@ export type MealRemoteResponse =
  * result). 20s timeout. Pass `phase: 'finalize'` + `clarifications` to force a result after the
  * athlete has answered.
  */
-export async function analyzeMealRemote(req: AnalyzeMealRequest): Promise<MealRemoteResponse> {
+export async function analyzeMealRemote(req: AnalyzeMealRequest): Promise<MealRemoteResult> {
   if (!isAiConfigured) throw new Error('AI endpoint not configured');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
@@ -89,7 +118,7 @@ export async function analyzeMealRemote(req: AnalyzeMealRequest): Promise<MealRe
       body: JSON.stringify({ mode: 'meal', ...req }),
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`analyze-meal HTTP ${res.status}`);
+    if (!res.ok) throw new AiUnavailableError(reasonForStatus(res.status), `analyze-meal HTTP ${res.status}`);
     const data = (await res.json()) as { kind?: string; questions?: unknown } & Record<string, unknown>;
     if (data?.kind === 'questions') {
       const questions = Array.isArray(data.questions)
@@ -129,7 +158,7 @@ export async function analyzeLabelRemote(req: AnalyzeLabelRequest): Promise<Labe
       body: JSON.stringify({ mode: 'label', ...req }),
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`analyze-label HTTP ${res.status}`);
+    if (!res.ok) throw new AiUnavailableError(reasonForStatus(res.status), `analyze-label HTTP ${res.status}`);
     const data = (await res.json()) as LabelFacts;
     return data;
   } finally {

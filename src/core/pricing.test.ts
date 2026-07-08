@@ -14,9 +14,10 @@ describe('catalog shape', () => {
   it('has the recommended consumer + pro + org plans', () => {
     expect(planById('individual')?.monthly).toBe(14.99);
     expect(planById('individual_plus')?.monthly).toBe(24.99);
-    expect(planById('pro_solo')).toMatchObject({ monthly: 69, seatLimit: 25 });
-    expect(planById('professional')).toMatchObject({ monthly: 124.99, seatLimit: 50, extraSeatMonthly: 3 });
+    expect(planById('pro_solo')).toMatchObject({ monthly: 99, seatLimit: 25 });
+    expect(planById('professional')).toMatchObject({ monthly: 179, seatLimit: 50, extraSeatMonthly: 10 });
     expect(planById('org_performance')).toMatchObject({ monthly: 799, seatLimit: 150 });
+    expect(planById('family')).toMatchObject({ monthly: 39.99, seatLimit: 4, rail: 'iap' });
     expect(planById('enterprise')?.custom).toBe(true);
   });
   it('annual is ~2 months free (10x monthly) for priced plans', () => {
@@ -35,7 +36,8 @@ describe('plansForFlow', () => {
     expect(audienceForFlow('parent')).toBe('individual');
     expect(audienceForFlow('trainer')).toBe('professional');
     expect(audienceForFlow('coach')).toBe('organization');
-    expect(plansForFlow('app').map((p) => p.id)).toEqual(['individual', 'individual_plus']);
+    expect(plansForFlow('app').map((p) => p.id)).toEqual(['individual', 'individual_plus', 'family']);
+    expect(plansForFlow('parent').map((p) => p.id)).toContain('family');
     expect(plansForFlow('coach').every((p) => p.audience === 'organization')).toBe(true);
   });
 });
@@ -63,7 +65,7 @@ describe('planTerms (compliant disclosure)', () => {
 
 describe('purchaseCtaLabel (consent in the button — FTC)', () => {
   it('carries the auto-renewal terms in the label', () => {
-    expect(purchaseCtaLabel(planById('professional')!)).toBe('Start — $124.99/mo, auto-renews');
+    expect(purchaseCtaLabel(planById('professional')!)).toBe('Start — $179/mo, auto-renews');
     expect(purchaseCtaLabel(planById('enterprise')!)).toBe('Contact sales');
   });
 });

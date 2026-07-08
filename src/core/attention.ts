@@ -58,8 +58,10 @@ export function riskTone(a: AtRiskInput): RiskTone {
   return a.score < 70 || a.comp < 60 ? 'alert' : 'warning';
 }
 
-/** Parse a trainer "last logged" label into whole days since logging (or null). */
-function daysQuiet(last: string | undefined): number | null {
+/** Parse a trainer "last logged" label into whole days since logging (or null).
+ *  Exported for the Assistant Nutritionist brief's retention read (a client gone
+ *  quiet is a trainer's churn signal, not just an accountability one). */
+export function daysQuiet(last: string | undefined): number | null {
   if (!last) return null;
   const m = last.match(/(\d+)\s*day/i);
   if (m) return Number(m[1]);

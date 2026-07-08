@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>OnStandard — Athlete App Redesign</title>
+  <link rel="stylesheet" href="./css/fonts.css" />
+  <link rel="stylesheet" href="./css/tokens.css" />
+  <link rel="stylesheet" href="./css/app.css" />
+  <link rel="stylesheet" href="./css/screens.css" />
+  <link rel="stylesheet" href="./css/flows.css" />
+</head>
+<body>
+  <div class="device" id="device"></div>
+  <!-- Supabase config. The native shell injects window.__SUPABASE (document-start) before this
+       runs; the fallback lets the proto work at :8124. The anon key is public (RLS is the real
+       authorization), the same value the app already ships as EXPO_PUBLIC_SUPABASE_ANON_KEY. -->
+  <script>
+    window.__SUPABASE = window.__SUPABASE || {
+      url: 'https://ftwrvylzoyznhbzhgism.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0d3J2eWx6b3l6bmhiemhnaXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyODYyNDYsImV4cCI6MjA5Nzg2MjI0Nn0.mJBl-Esn2YRB_jaUv_SQXT8wGfbx06dx7Ss9xyGRoH0'
+    };
+  </script>
+  <script src="./js/vendor/supabase.js"></script>
+  <script type="module" src="./js/supabase.js"></script>
+  <script type="module" src="./js/router.js"></script>
+</body>
+</html>

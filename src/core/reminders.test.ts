@@ -161,16 +161,21 @@ describe('formatReminderHour', () => {
 });
 
 describe('reminderNotifySpecs', () => {
-  it('produces one spec per active reminder with its hour + copy', () => {
+  it('produces one spec per enabled reminder; behind conditions carry specific copy', () => {
     const specs = reminderNotifySpecs(defaultReminderSettings(), behind);
-    expect(specs.map((s) => s.kind)).toEqual(['protein', 'hydration', 'log_dinner', 'checkin']);
+    // weigh_in rides along with generic copy (its condition isn't set in this snapshot,
+    // but daily triggers repeat on fresh days — see the day-1-silence contract).
+    expect(specs.map((s) => s.kind)).toEqual(['protein', 'hydration', 'log_dinner', 'checkin', 'weigh_in']);
     const protein = specs.find((s) => s.kind === 'protein')!;
     expect(protein.hour).toBe(16); // the default protein hour
     expect(protein.title).toBe('Protein check');
     expect(protein.body).toContain('140g');
   });
-  it('is empty when no condition holds', () => {
-    expect(reminderNotifySpecs(defaultReminderSettings(), onTrack)).toEqual([]);
+  it('a fully on-track day still schedules the generic daily floor (day-1 silence fix)', () => {
+    const specs = reminderNotifySpecs(defaultReminderSettings(), onTrack);
+    expect(specs.length).toBeGreaterThan(0);
+    expect(specs.some((s) => s.kind === 'checkin')).toBe(false); // weekly ritual done = done
+    for (const s of specs) expect(s.body).not.toMatch(/\d+g from/); // no stale behind-numbers
   });
   it('carries the user-set hour, clamped', () => {
     const settings: ReminderSettings = { ...defaultReminderSettings(), protein: { enabled: true, hour: 99 } };
@@ -201,7 +206,30 @@ describe('reminderSnapshotFromState', () => {
       dinnerLogged: false,
       checkinDue: true,
       weighInDue: true,
+      coachName: null,
+      pointsToStandard: null,
     });
+  });
+
+  it('carries the presence + near-goal pulls when provided (churn build)', () => {
+    const snap = reminderSnapshotFromState({ ...base, coachName: 'Your coach', liveScore: 74, threshold: 80 });
+    expect(snap.coachName).toBe('Your coach');
+    expect(snap.pointsToStandard).toBe(6);
+  });
+
+  it('dinner reminder pulls with the real gap and the honest role word', () => {
+    const snap = reminderSnapshotFromState({ ...base, coachName: 'Your coach', liveScore: 74, threshold: 80 });
+    const copy = reminderCopy('log_dinner', snap);
+    expect(copy.body).toContain('6 points from on standard');
+    expect(copy.body).toContain("Your coach sees tonight's log");
+    expect(copy.body).not.toContain('—');
+  });
+
+  it('no pull lines fire when the day is not close or no coach is linked', () => {
+    const far = reminderCopy('log_dinner', reminderSnapshotFromState({ ...base, liveScore: 30, threshold: 80 }));
+    expect(far.body).toBe("Add tonight's dinner to keep your day complete.");
+    const done = reminderCopy('log_dinner', reminderSnapshotFromState({ ...base, liveScore: 92, threshold: 80 }));
+    expect(done.body).not.toContain('points from');
   });
 
   it('reads dinnerLogged from the meal slot and checkinDue from ciSubmitted', () => {
@@ -210,8 +238,49 @@ describe('reminderSnapshotFromState', () => {
     expect(snap.checkinDue).toBe(false);
   });
 
-  it('feeds straight into reminderNotifySpecs (an at-target athlete with all done -> no specs)', () => {
+  it('an at-target athlete still gets tomorrow\'s floor: generic dailies, never total silence', () => {
+    // The old contract scheduled NOTHING for a user who finished day 0 on-track —
+    // total notification silence on day 1, for exactly the user retention needs to
+    // pull back. Daily triggers repeat on FRESH days (where the conditions hold
+    // again by definition), so they schedule with generic forward-looking copy.
     const snap = reminderSnapshotFromState({ proteinToday: 180, proteinTarget: 180, hydrationL: HYDRATION_TARGET, meals: { dinner: true }, ciSubmitted: true, weighedToday: true });
-    expect(reminderNotifySpecs(defaultReminderSettings(), snap)).toEqual([]);
+    const specs = reminderNotifySpecs(defaultReminderSettings(), snap);
+    expect(specs.map((s) => s.kind).sort()).toEqual(['hydration', 'log_dinner', 'protein', 'weigh_in']);
+    // Generic copy carries no stale "behind" numbers.
+    const protein = specs.find((s) => s.kind === 'protein');
+    expect(protein?.body).not.toMatch(/\d+g from/);
+  });
+
+  it('a check-in done this week schedules NO check-in reminder (weekly ritual, not a daily nag)', () => {
+    const snap = reminderSnapshotFromState({
+      proteinToday: 0, proteinTarget: 180, hydrationL: 0, meals: { dinner: false }, weighedToday: false,
+      ciSubmitted: false, ciLast: { date: '2026-07-01', recovery: 70 }, dateStamp: '2026-07-03',
+    });
+    const specs = reminderNotifySpecs(defaultReminderSettings(), snap);
+    expect(specs.some((s) => s.kind === 'checkin')).toBe(false);
+    expect(specs.some((s) => s.kind === 'protein')).toBe(true); // behind conditions still fire specific copy
+  });
+
+  it('checkinDue honors the WEEKLY carry: a fresh submission this week is not due', () => {
+    // The reminder is titled "Weekly check-in" but fired daily (ciSubmitted resets
+    // nightly) — a daily 6 PM nag labeled weekly. A ciLast within the trailing week
+    // means the ritual is done for the week.
+    const snap = reminderSnapshotFromState({
+      ...base,
+      ciSubmitted: false,
+      ciLast: { date: '2026-07-01', recovery: 70 },
+      dateStamp: '2026-07-03',
+    });
+    expect(snap.checkinDue).toBe(false);
+  });
+
+  it('an expired weekly snapshot makes the check-in due again', () => {
+    const snap = reminderSnapshotFromState({
+      ...base,
+      ciSubmitted: false,
+      ciLast: { date: '2026-07-01', recovery: 70 },
+      dateStamp: '2026-07-09',
+    });
+    expect(snap.checkinDue).toBe(true);
   });
 });

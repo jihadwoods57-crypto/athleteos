@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OnStandard — nutrition accountability for athletes</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563EB'/%3E%3Crect x='7' y='14.75' width='18' height='2.5' rx='1.25' fill='white'/%3E%3C/svg%3E" />
+<meta name="description" content="OnStandard scores whether an athlete actually did the work — photographed, honest, and visible to their coach. One daily number that reflects the day, not the intention." />
+<meta name="robots" content="all" />
+<meta property="og:title" content="OnStandard — nutrition accountability for athletes" />
+<meta property="og:description" content="One honest daily number. Photograph the plate, get the score, and let the coach see who showed up." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#0A0D14; --ink2:#0C1119; --panel:#131A26; --panel2:#0F151F;
+    --line:#1E2635; --hair:#232D3E;
+    --fg:#EDF1F8; --muted:#818EA4; --dim:#5C6779;
+    --accent:#3B82F6; --accent-deep:#2563EB;
+    --above:#34D399; --below:#F87171;
+    --gA:#34D399; --gB:#60A5FA; --gC:#FBBF24; --gF:#F87171;
+    --maxw:1080px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--ink);color:var(--fg);
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.6;overflow-x:hidden;}
+  a{color:inherit;text-decoration:none;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 26px;}
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace;}
+  .eyebrow{font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.28em;
+    text-transform:uppercase;color:var(--accent);font-weight:500;}
+
+  /* ---- nav ---- */
+  nav{position:sticky;top:0;z-index:50;background:rgba(10,13,20,.72);
+    backdrop-filter:saturate(140%) blur(10px);border-bottom:1px solid var(--line);}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:64px;}
+  .brand{font-family:"Archivo",sans-serif;font-weight:800;font-size:20px;letter-spacing:-.02em;display:flex;align-items:center;gap:9px;}
+  .brand .dot{width:9px;height:9px;border-radius:2px;background:var(--accent);transform:translateY(1px);}
+  .brand b{color:var(--accent);font-weight:800;}
+  .nav-links{display:flex;align-items:center;gap:26px;font-size:14px;color:var(--muted);font-weight:500;}
+  .nav-links a:hover{color:var(--fg);}
+  .chip{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--accent);border:1px solid var(--hair);border-radius:999px;padding:5px 11px;}
+  @media(max-width:640px){.nav-links a:not(.chip){display:none;}}
+
+  /* ---- hero ---- */
+  .hero{position:relative;padding:96px 0 40px;}
+  .hero h1{font-family:"Archivo",sans-serif;font-weight:900;letter-spacing:-.035em;
+    font-size:clamp(46px,8.5vw,92px);line-height:.96;margin:18px 0 0;}
+  .hero h1 .mut{color:var(--muted);}
+  /* the standard line — the signature */
+  .standard{position:relative;margin:30px 0 22px;}
+  .standard .rule{height:2px;width:100%;
+    background:linear-gradient(90deg,transparent,var(--accent) 12%,var(--accent) 88%,transparent);
+    box-shadow:0 0 26px rgba(59,130,246,.45);}
+  .standard .tag{position:absolute;top:-13px;left:0;display:flex;align-items:center;gap:9px;
+    background:var(--ink);padding-right:14px;}
+  .standard .num{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:15px;color:var(--above);}
+  .standard .lbl{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);}
+  .standard .below{position:absolute;top:12px;right:0;font-family:"JetBrains Mono",monospace;
+    font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#4a5568;}
+  .lede{font-size:clamp(16px,2.1vw,20px);color:#B9C2D4;max-width:640px;margin:0;}
+  .lede b{color:var(--fg);font-weight:600;}
+  .scorecard{display:flex;gap:8px;margin-top:30px;align-items:center;}
+  .scorecard .k{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-right:6px;}
+  .grade{font-family:"Archivo",sans-serif;font-weight:800;font-size:15px;width:30px;height:30px;border-radius:8px;
+    display:grid;place-items:center;border:1px solid var(--hair);color:var(--muted);}
+  .grade.on{border-color:transparent;}
+  .grade.a{background:rgba(52,211,153,.14);color:var(--gA);}
+  .grade.f{background:rgba(248,113,113,.13);color:var(--gF);}
+
+  /* ---- section frame ---- */
+  section{padding:72px 0;border-top:1px solid var(--line);}
+  .sec-head{display:flex;align-items:baseline;gap:16px;margin-bottom:34px;}
+  .sec-head h2{font-family:"Archivo",sans-serif;font-weight:800;font-size:clamp(26px,3.6vw,36px);
+    letter-spacing:-.02em;margin:6px 0 0;}
+
+  /* ---- the three beats ---- */
+  .beats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .beat{background:var(--panel2);padding:28px 26px;}
+  .beat .step{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--accent);letter-spacing:.1em;}
+  .beat h3{font-family:"Archivo",sans-serif;font-weight:700;font-size:20px;margin:14px 0 8px;letter-spacing:-.01em;}
+  .beat p{color:var(--muted);font-size:14.5px;margin:0;line-height:1.62;}
+  @media(max-width:760px){.beats{grid-template-columns:1fr;}}
+
+  /* ---- honesty statement ---- */
+  .honesty{border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .honesty .wrap{padding-top:78px;padding-bottom:78px;}
+  .honesty p{font-family:"Archivo",sans-serif;font-weight:700;letter-spacing:-.02em;
+    font-size:clamp(26px,4.4vw,46px);line-height:1.14;margin:0;max-width:900px;}
+  .honesty .accent{color:var(--accent);}
+  .honesty small{display:block;font-family:"JetBrains Mono",monospace;font-weight:500;font-size:12px;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-top:24px;}
+
+  /* ---- audience split ---- */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  .col{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:30px 30px 32px;position:relative;}
+  .col .who{font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);}
+  .col h3{font-family:"Archivo",sans-serif;font-weight:800;font-size:23px;margin:12px 0 14px;letter-spacing:-.01em;}
+  .col ul{list-style:none;margin:0;padding:0;}
+  .col li{position:relative;padding-left:24px;margin:11px 0;color:#AEB8CA;font-size:15px;}
+  .col li::before{content:"";position:absolute;left:0;top:9px;width:11px;height:2px;background:var(--accent);}
+  @media(max-width:760px){.split{grid-template-columns:1fr;}}
+  @media(max-width:640px){.sec-head{flex-direction:column;gap:4px;}.hero{padding-top:72px;}}
+
+  /* ---- footer ---- */
+  footer{border-top:1px solid var(--line);padding:44px 0 56px;}
+  .foot-in{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap;}
+  .foot-links{display:flex;gap:24px;font-size:14px;color:var(--muted);}
+  .foot-links a:hover{color:var(--fg);}
+  .foot-note{color:#556074;font-size:13px;margin-top:16px;max-width:520px;line-height:1.6;}
+
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px;}
+
+  /* one orchestrated load reveal */
+  .rise{opacity:0;transform:translateY(14px);animation:rise .7s cubic-bezier(.2,.7,.2,1) forwards;}
+  .d1{animation-delay:.05s}.d2{animation-delay:.14s}.d3{animation-delay:.24s}.d4{animation-delay:.34s}.d5{animation-delay:.44s}
+  .rule{transform-origin:left;animation:draw .9s cubic-bezier(.65,0,.35,1) .2s both;}
+  @keyframes rise{to{opacity:1;transform:none;}}
+  @keyframes draw{from{transform:scaleX(0);}to{transform:scaleX(1);}}
+  @media(prefers-reduced-motion:reduce){.rise,.rule{animation:none;opacity:1;transform:none;}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="/"><span class="dot"></span>On<b>Standard</b></a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#who">For coaches &amp; athletes</a>
+      <a class="chip" href="#">Private beta</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow rise d1">Nutrition accountability</div>
+    <h1 class="rise d2">Above the line,<br /><span class="mut">every day.</span></h1>
+
+    <div class="standard rise d3">
+      <div class="rule"></div>
+      <div class="tag"><span class="num">80</span><span class="lbl">On standard</span></div>
+      <div class="below">Below · needs work</div>
+    </div>
+
+    <p class="lede rise d4">OnStandard scores whether an athlete actually did the work —
+      <b>photographed, honest, and visible to their coach.</b> One daily number that reflects the day, not the intention.</p>
+
+    <div class="scorecard rise d5">
+      <span class="k">Graded daily</span>
+      <span class="grade a on">A</span>
+      <span class="grade">B</span>
+      <span class="grade">C</span>
+      <span class="grade">D</span>
+      <span class="grade f on">F</span>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">How it works</span><h2>One photo. One honest number.</h2></div>
+    <div class="beats">
+      <div class="beat">
+        <div class="step">01 / Snap the plate</div>
+        <h3>Photograph the meal</h3>
+        <p>One photo. OnStandard reads the plate, estimates the macros, and scores it for the athlete's goal — no searching, no guesswork.</p>
+      </div>
+      <div class="beat">
+        <div class="step">02 / Get the score</div>
+        <h3>See where you stand</h3>
+        <p>A daily Execution Score, A to F. It moves the moment you do the work — not before. The number reflects the day you actually had.</p>
+      </div>
+      <div class="beat">
+        <div class="step">03 / The coach sees it</div>
+        <h3>Show up, visibly</h3>
+        <p>Link a coach, trainer, or parent. They see the day you agreed to share and who on the roster is slipping — before it becomes a habit.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="honesty">
+  <div class="wrap">
+    <p>The number reflects <span class="accent">what you did.</span><br />Not what you meant to do.</p>
+    <small>No streaks to game. No fake progress. Just the work.</small>
+  </div>
+</div>
+
+<section id="who">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Who it's for</span><h2>Built for both sides of the whistle.</h2></div>
+    <div class="split">
+      <div class="col">
+        <div class="who">For coaches &amp; trainers</div>
+        <h3>See the whole roster's day at a glance.</h3>
+        <ul>
+          <li>Every athlete's score and compliance, one screen</li>
+          <li>Spot who's slipping and nudge them in a tap</li>
+          <li>Accountability you can see, not just ask about</li>
+        </ul>
+      </div>
+      <div class="col">
+        <div class="who">For athletes</div>
+        <h3>Prove you showed up.</h3>
+        <ul>
+          <li>Log a meal in one photo, get instant feedback</li>
+          <li>An honest score that rewards the real work</li>
+          <li>Your data stays yours — share only what you choose</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-in">
+      <div>
+        <a class="brand" href="/"><span class="dot"></span>On<b>Standard</b></a>
+        <p class="foot-note">Nutrition education and accountability for athletes and their coaches. OnStandard provides guidance, not medical advice.</p>
+      </div>
+      <div class="foot-links">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="mailto:support@onstandard.app">Contact</a>
+      </div>
+    </div>
+    <p class="foot-note" style="margin-top:26px;">© <span id="y"></span> OnStandard. All rights reserved.</p>
+  </div>
+</footer>
+
+<script>document.getElementById('y').textContent=new Date().getFullYear();</script>
+</body>
+</html>

@@ -413,3 +413,10 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Stripe cannot present a Supabase JWT — it authenticates via its own webhook signature
+# (verified inside the function with STRIPE_WEBHOOK_SECRET). Pin verify_jwt = false so a
+# `supabase functions deploy` that forgets the --no-verify-jwt flag can't silently 401 every
+# Stripe webhook and freeze all subscription updates. (billing audit, 2026-07-03)
+[functions.stripe-webhook]
+verify_jwt = false

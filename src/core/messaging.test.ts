@@ -47,8 +47,14 @@ describe('messageDeliveryNote', () => {
     expect(note.toLowerCase()).toContain('this device');
     expect(note).not.toContain('—');
   });
-  it('confirms delivery only when the backend is live', () => {
-    expect(messageDeliveryNote(true).toLowerCase()).toContain('delivered');
+  it('never claims delivery while no delivery path exists (live is local-only too)', () => {
+    // deliverMessage is an unwired stub: nothing is ever sent to a real person on
+    // either flag state. The composer note must not tell a live coach "Delivered"
+    // while their intervention silently goes nowhere.
+    const note = messageDeliveryNote(true);
+    expect(note.toLowerCase()).not.toContain('delivered');
+    expect(note.toLowerCase()).toContain('this device');
+    expect(note).not.toContain('—');
   });
 });
 

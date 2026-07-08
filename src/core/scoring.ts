@@ -11,10 +11,15 @@ import {
   WEIGHT_START,
   WEIGHT_TARGET,
 } from './constants';
+import { withinTrailingWeek } from './clock';
+import { derivedMacroTargets } from './fuelTarget';
 import { trendSeries } from './history';
 import { mealMacros, type MacroSet } from './mealEdit';
 import { DEFAULT_PLAN } from './coachPlan';
 import { profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
+import { commitmentScore } from './commitment';
+import { passDayCredit } from './trustPass';
+import { tierFor } from './tiers';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
 
 /** A meal logged after its window deadline counts half toward the score's "meals" share. */
@@ -42,21 +47,32 @@ export function effectiveMealsLogged(s: Pick<AppState, 'meals' | 'mealLoggedAt'>
 }
 
 /**
- * The macros a single logged meal slot contributes. When the athlete has SAVED an
- * edited plate for the slot (`mealFoods[k]`), the totals come from those real
- * per-food macros; otherwise we fall back to the per-slot `MEAL_MACROS` constant.
- * This is what makes the loop real — a logged-and-edited meal moves the score,
- * while the seeded demo (no `mealFoods`) stays byte-for-byte unchanged.
+ * The macros a single logged meal slot contributes. When the athlete has SAVED a
+ * plate for the slot (`mealFoods[k]` — every real logging path creates one: photo
+ * analysis, label scan, search, snack preset, usuals, plate edit), the totals come
+ * from those real per-food macros.
+ *
+ * Without a plate, the EVIDENCE RULE applies (founder ruling 2026-07-03): a real
+ * user's bare toggle carries no evidence, so it contributes ZERO macros — it still
+ * counts toward "meals logged" (the 35-point share), but four taps can no longer
+ * manufacture 194g of "protein" and a nutrition score of 100. Only the seeded
+ * showcase (blank athleteName, whose whole day is illustrative) keeps the per-slot
+ * `MEAL_MACROS` constants.
  */
-export function mealSlotMacros(s: Pick<AppState, 'mealFoods'>, k: MealKey): MacroSet {
+export function mealSlotMacros(s: Pick<AppState, 'mealFoods' | 'athleteName'>, k: MealKey): MacroSet {
   const saved = s.mealFoods?.[k];
   if (saved) return mealMacros(saved);
+  if ((s.athleteName ?? '').trim() !== '') return { protein: 0, kcal: 0, carbs: 0, fat: 0 };
+  // Only the blank-name showcase reaches here. Guard the constant lookup: an unknown slot
+  // key (a legacy/malformed/foreign-cased `days.meals` key from the server) must degrade to
+  // zero, never crash the whole app on Home render (2026-07-04 hardening).
   const m = MEAL_MACROS[k];
+  if (!m) return { protein: 0, kcal: 0, carbs: 0, fat: 0 };
   return { protein: m.p, kcal: m.k, carbs: m.c, fat: m.f };
 }
 
 /** Sum the macros across every LOGGED slot, using saved edited plates when present. */
-export function loggedDayMacros(s: Pick<AppState, 'meals' | 'mealFoods'>): MacroSet {
+export function loggedDayMacros(s: Pick<AppState, 'meals' | 'mealFoods' | 'athleteName'>): MacroSet {
   return (Object.keys(s.meals) as MealKey[]).reduce<MacroSet>(
     (a, k) => {
       if (!s.meals[k]) return a;
@@ -84,18 +100,24 @@ export function seasonGoalProgress(
   start: number,
   target: number,
 ): { remaining: number; pctThere: number } {
-  const remaining = Math.round((target - currentWeight) * 10) / 10;
+  // No recorded weight yet (fresh sign-in, a null day-row weight): sit at the start anchor
+  // so the card reads "full span to go, 0% there" instead of NaN everywhere (2026-07-04
+  // fix). start/target are coerced too so one bad value never renders NaN.
+  const cw = Number.isFinite(currentWeight) ? currentWeight : (Number.isFinite(start) ? start : 0);
+  const st = Number.isFinite(start) ? start : cw;
+  const tg = Number.isFinite(target) ? target : cw;
+  const remaining = Math.round((tg - cw) * 10) / 10;
   // Degenerate range (start === target, e.g. a maintain goal, or a day-0 athlete
   // whose onboarding weight equals the default target): there is no span to
   // measure progress across, so (current - start)/(target - start) is 0/0 = NaN.
   // Treat "at or above the line" as 100% there, below as 0% — never NaN%.
-  const span = target - start;
+  const span = tg - st;
   const pctThere =
     span === 0
-      ? currentWeight >= target
+      ? cw >= tg
         ? 100
         : 0
-      : Math.round(clamp(((currentWeight - start) / span) * 100, 0, 100));
+      : Math.round(clamp(((cw - st) / span) * 100, 0, 100));
   return { remaining, pctThere };
 }
 
@@ -121,7 +143,7 @@ export function seasonGoalPhase(opts: {
 }
 
 export interface ScoreWeight {
-  key: 'nutrition' | 'recovery' | 'tasks' | 'checkin';
+  key: 'nutrition' | 'recovery' | 'commitment' | 'checkin';
   label: string;
   /** Whole-number percent weight in the Accountability Score (the four sum to 100). */
   pct: number;
@@ -141,7 +163,7 @@ export interface ScoreWeight {
 export const SCORE_WEIGHTS: ScoreWeight[] = [
   { key: 'nutrition', label: 'Nutrition', pct: 50, desc: 'Protein and the meals you log each day' },
   { key: 'recovery', label: 'Recovery', pct: 25, desc: 'Your own weekly check-in answers, so this part is self-reported' },
-  { key: 'tasks', label: 'Tasks', pct: 15, desc: 'The daily tasks you complete' },
+  { key: 'commitment', label: 'Commitment', pct: 15, desc: 'Your daily one-tap: did you hit your plan today?' },
   { key: 'checkin', label: 'Check-in', pct: 10, desc: 'Completing your weekly check-in at all' },
 ];
 
@@ -190,8 +212,14 @@ export function computeDerived(s: AppState): Derived {
   const kcalToday = kcalBase + quickKcal;
   const carbsToday = carbsBase + quickCarbs;
   const fatToday = fatBase + quickFat;
-  const carbPct = clamp(Math.round((carbsToday / CARB_TARGET) * 100), 0, 100);
-  const fatPct = clamp(Math.round((fatToday / FAT_TARGET) * 100), 0, 100);
+  // Carb/fat targets derive from the PLAN (calories + protein + goal direction) for a
+  // real user, so the macro rings can never contradict the plan on the same screen —
+  // the fixed constants (300g carbs against a 1,500-cal cut) are showcase-only.
+  const planMacros = (s.athleteName ?? '').trim() !== ''
+    ? derivedMacroTargets(calTarget, proteinTarget, s.baseGoal === 'lose' ? 'lose' : s.baseGoal === 'gain' ? 'gain' : 'maintain')
+    : { carbs: CARB_TARGET, fat: FAT_TARGET };
+  const carbPct = clamp(Math.round((carbsToday / Math.max(1, planMacros.carbs)) * 100), 0, 100);
+  const fatPct = clamp(Math.round((fatToday / Math.max(1, planMacros.fat)) * 100), 0, 100);
   const proteinGap = Math.max(0, proteinTarget - proteinToday);
   const proteinPct = Math.min(100, Math.round((proteinToday / proteinTarget) * 100));
   const hydrationPct = clamp(Math.round((s.hydrationL / HYDRATION_TARGET) * 100), 0, 100);
@@ -219,13 +247,30 @@ export function computeDerived(s: AppState): Derived {
   // byte-for-byte; 'general' re-weights to calorie-adherence for a trainer's general-fitness
   // client. The platform owns these weights; the coach owns the targets (Constitution #13).
   const profile = resolveProfile(s.scoringProfile);
-  const nutritionScore = profileNutritionScore(profile, {
+  let nutritionScore = profileNutritionScore(profile, {
     proteinToday,
     proteinTarget,
     kcalToday,
     calTarget,
     effectiveMeals: effectiveMealsLogged(s),
   });
+  // Trust Pass: on an active, coach-granted, camera-free day (not a spot-check day), a proven
+  // athlete's one-tap "yes" credits his trailing earned-nutrition MEDIAN instead of a photo —
+  // worth exactly what his own camera measured, never more. DATA-gated: with no active pass in
+  // state (every non-pilot account) this is a no-op, so the honesty firewall (nutrition = 0
+  // without a photo) is untouched for everyone else. Applied as a FLOOR (only when it exceeds
+  // the real logged score), so logging can still earn higher and an honest "no" (credit 0) is
+  // never masked. See docs/council/2026-07-02-trust-pass.md.
+  let nutritionIsTrustCredited = false;
+  // The PRE-credit value is what history archives (recordDayNutrition): the trailing
+  // median is computed FROM nutritionHistory, so letting the credited floor re-enter
+  // it would make the baseline self-perpetuating and defeat the staleness decay.
+  const earnedNutritionScore = nutritionScore;
+  const passCredit = passDayCredit(s.trustPass, s.nutritionHistory ?? [], s.dateStamp, s.dailyCommitment);
+  if (passCredit && !passCredit.requiresPhoto && passCredit.nutrition > nutritionScore) {
+    nutritionScore = passCredit.nutrition;
+    nutritionIsTrustCredited = true;
+  }
   // Recovery sub-score averages ONLY the coach-enabled check-in questions
   // (s.ciConfig), each on a 0–10 scale — not a hard-coded energy/recovery/sleep
   // trio. Mirrors CheckIn.tsx's CI_KEYS so the score reflects exactly the
@@ -263,6 +308,19 @@ export function computeDerived(s: AppState): Derived {
       recoveryScoreIsReal = true;
     }
   }
+  // WEEKLY carry: the ritual is branded "Weekly Check-In", so a real submission
+  // earlier THIS week (ciLast snapshot, <=6 days old) still backs the number. It is
+  // earned evidence — a real check-in happened — not the banned neutral placeholder.
+  // Without it the credit vanished nightly and an honest perfect day capped at 65.
+  const ciCarryValid =
+    !recoveryScoreIsReal &&
+    s.ciLast != null &&
+    Number.isFinite(s.ciLast.recovery) &&
+    withinTrailingWeek(s.ciLast.date, s.dateStamp);
+  if (ciCarryValid) {
+    recoveryScore = Math.min(100, Math.max(0, Math.round(s.ciLast!.recovery)));
+    recoveryScoreIsReal = true;
+  }
   // Weight is a LONG-ARC goal, not a daily-accountability signal, so it is no
   // longer mixed into the daily score (a flawless day shouldn't be denied an A
   // because season weight progress is slow, which is partly outside daily control).
@@ -282,15 +340,28 @@ export function computeDerived(s: AppState): Derived {
   });
   const weightScore = weightPhase === 'first-run' ? 80 : clamp(weightProgress.pctThere, 0, 100);
   const tasksScore = tasksTotal > 0 ? Math.round((tasksDone / tasksTotal) * 100) : 0;
-  const checkinScore = s.ciSubmitted ? 100 : 0;
+  // Check-in credit follows the same weekly window: submitted today OR carried from
+  // a real submission this week (the 0.1 slot answers "did you check in this week?").
+  const checkinScore = s.ciSubmitted || ciCarryValid ? 100 : 0;
 
   // Daily accountability score: what you did TODAY. Nutrition leads (the heaviest
   // lever and the one the staff cares most about); recovery is self-reported; tasks
   // and check-in round it out. Weights come from the account's scoring profile
   // ('athlete' default = the shipped .5/.25/.15/.1 mix, unchanged).
   const w = PROFILE_WEIGHTS[profile];
+  // Recovery only contributes to the accountability score once a real check-in backs it.
+  // The 86 `recoveryScore` fallback is a neutral DISPLAY placeholder (and the UI already
+  // shows "check-in not submitted" / 0%); crediting it into the blend was inflating every
+  // no-check-in day by w.recovery*86 unearned points — the exact "fake number" the honesty
+  // keystone forbids (D-B). When recovery is not real it contributes 0, matching the UI.
+  const recoveryContribution = recoveryScoreIsReal ? recoveryScore : 0;
+  // The daily plan-commitment (yes/partial/no one-tap) now carries the 0.15 behavioral slot
+  // that the retired, un-authored task checklist used to hold. On its own it can NEVER reach
+  // on-standard (>=80) — nutrition (0.5) is 0 without a logged meal, so photo logging stays
+  // the only road to 80. See docs/council/2026-07-02-trust-pass.md.
+  const commitmentSubScore = commitmentScore(s.dailyCommitment);
   const athleteScore = clamp(
-    Math.round(w.nutrition * nutritionScore + w.recovery * recoveryScore + w.tasks * tasksScore + w.checkin * checkinScore),
+    Math.round(w.nutrition * nutritionScore + w.recovery * recoveryContribution + w.commitment * commitmentSubScore + w.checkin * checkinScore),
     0,
     100,
   );
@@ -318,16 +389,20 @@ export function computeDerived(s: AppState): Derived {
   return {
     athleteScore,
     grade: gradeFor(athleteScore),
+    tier: tierFor(athleteScore),
     ringOffset,
     scoreDelta,
     deltaStr,
     deltaColor,
     isDay0,
     nutritionScore,
+    earnedNutritionScore,
     recoveryScore,
     recoveryScoreIsReal,
+    nutritionIsTrustCredited,
     weightScore,
     tasksScore,
+    commitmentScore: commitmentSubScore,
     checkinScore,
     proteinToday,
     proteinTarget,
@@ -337,10 +412,10 @@ export function computeDerived(s: AppState): Derived {
     kcalToday,
     calTarget,
     carbsToday,
-    carbTarget: CARB_TARGET,
+    carbTarget: planMacros.carbs,
     carbPct,
     fatToday,
-    fatTarget: FAT_TARGET,
+    fatTarget: planMacros.fat,
     fatPct,
     mealsLoggedCount,
     hydrationPct,

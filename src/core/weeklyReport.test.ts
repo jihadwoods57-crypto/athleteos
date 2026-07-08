@@ -1,4 +1,4 @@
-import { weeklyReport, weeklyReportText, weeklyReportFromState, teamWeeklyReport, teamWeeklyReportText, MOVE_THRESHOLD, type WeeklyReportInput, type TeamMember } from './weeklyReport';
+import { weeklyReport, weeklyReportText, weeklyReportFromState, teamWeeklyReport, teamWeeklyReportText, weeklyRosterFromDays, MOVE_THRESHOLD, type WeeklyReportInput, type TeamMember } from './weeklyReport';
 import type { DayScore } from './types';
 
 const strong: WeeklyReportInput = {
@@ -154,6 +154,60 @@ describe('teamWeeklyReport — coach roster aggregate', () => {
     expect(text).toContain('Most at risk: Silva');
     expect(text).not.toContain('—');
   });
+
+  it("scope 'today': the live one-day aggregate never wears week language", () => {
+    // Live data is TODAY's day rows, not a week. Sharing "Compliance: 78% of days
+    // on plan" over one day is a false weekly artifact a coach could send to
+    // parents/AD. Every sentence must say today.
+    const r = teamWeeklyReport(roster, 'today');
+    expect(r.headline).toBe('Mixed day'); // avg 79
+    expect(r.movedLine).toContain('vs yesterday');
+    expect(r.movedLine).not.toContain('week');
+    const text = teamWeeklyReportText(r, 'Linebackers', 'today');
+    expect(text).toContain('Team report for today: Linebackers');
+    expect(text).toContain('task completion today');
+    expect(text).not.toContain('week');
+  });
+
+  it("scope 'today': a flat room holds steady today, not this week", () => {
+    const flat: TeamMember[] = [{ name: 'A', score: 80, comp: 80, dir: 'flat' }];
+    expect(teamWeeklyReport(flat, 'today').movedLine).toBe('The room is holding steady today.');
+  });
+});
+
+describe('weeklyRosterFromDays — a REAL week per athlete from 7 days of day rows', () => {
+  const members = [
+    { athlete_id: 'a', athlete_name: 'Marcus Cole', position: 'LB' },
+    { athlete_id: 'b', athlete_name: 'Jordan Reed', position: 'WR' },
+    { athlete_id: 'c', athlete_name: 'Silent Sam', position: null },
+  ];
+  const row = (id: string, date: string, score: number) => ({ athlete_id: id, date, score, grade: null, tasks: [] });
+
+  it('aggregates each member: weekly average, % of days on plan, real trend direction', () => {
+    const rows = [
+      row('a', '2026-06-28', 70), row('a', '2026-06-30', 82), row('a', '2026-07-02', 90),
+      row('b', '2026-06-28', 92), row('b', '2026-07-01', 60),
+    ];
+    const week = weeklyRosterFromDays(members, rows);
+    const byName = Object.fromEntries(week.map((m) => [m.name, m]));
+    expect(byName['Marcus Cole'].score).toBe(81); // round(mean(70,82,90))
+    expect(byName['Marcus Cole'].comp).toBe(29); // 2 of 7 days on plan (>=80)
+    expect(byName['Marcus Cole'].dir).toBe('up'); // last 90 vs first 70
+    expect(byName['Jordan Reed'].dir).toBe('down');
+  });
+
+  it('a member with NO rows all week reads 0 — the silent athlete is the report\'s point', () => {
+    const week = weeklyRosterFromDays(members, [row('a', '2026-07-01', 85)]);
+    const sam = week.find((m) => m.name === 'Silent Sam');
+    expect(sam).toMatchObject({ score: 0, comp: 0, dir: 'flat' });
+  });
+
+  it('feeds straight into teamWeeklyReport as an honest week', () => {
+    const rows = Array.from({ length: 7 }, (_, i) => row('a', `2026-06-2${i + 1}`, 85));
+    const report = teamWeeklyReport(weeklyRosterFromDays(members, rows), 'week');
+    expect(report.athletes).toBe(3);
+    expect(report.needsIntervention).toBe(2); // the two silent members
+  });
 });
 
 describe('weeklyReportFromState', () => {
@@ -172,5 +226,57 @@ describe('weeklyReportFromState', () => {
     const r = weeklyReportFromState({ name: 'New', scoreHistory: [], liveScore: 0, now: new Date(2026, 5, 27) });
     expect(r.headline).toBe('No data yet');
     expect(r.daysLogged).toBe(0);
+  });
+
+  describe('day-0 anchor (the audit score-contradiction P0)', () => {
+    it('today-only history with todayStamp reads as no tracked days — never "Averaged 49 across 1 day"', () => {
+      const r = weeklyReportFromState({
+        name: 'Jordan',
+        scoreHistory: [{ date: '2026-07-02', score: 49 }],
+        liveScore: 35,
+        todayStamp: '2026-07-02',
+        now: new Date(2026, 6, 2),
+      });
+      expect(r.daysLogged).toBe(0);
+      expect(r.headline).toBe('No data yet');
+      expect(r.scoreLine).not.toContain('Averaged');
+      expect(r.status).not.toBe(undefined);
+    });
+
+    it('day-0 compliance is 0, never a percentage fabricated from seeded showcase days', () => {
+      const r = weeklyReportFromState({
+        name: 'Jordan',
+        scoreHistory: [{ date: '2026-07-02', score: 49 }],
+        liveScore: 35,
+        todayStamp: '2026-07-02',
+        now: new Date(2026, 6, 2),
+      });
+      expect(r.complianceLine).toBe('No meals on plan logged yet.');
+    });
+
+    it('once a REAL completed day exists, the report counts it normally', () => {
+      const r = weeklyReportFromState({
+        name: 'Jordan',
+        scoreHistory: [
+          { date: '2026-07-02', score: 62 },
+          { date: '2026-07-03', score: 71 },
+        ],
+        liveScore: 71,
+        todayStamp: '2026-07-03',
+        now: new Date(2026, 6, 3),
+      });
+      expect(r.daysLogged).toBe(2);
+      expect(r.avgScore).toBe(67);
+    });
+
+    it('without todayStamp the behavior is unchanged (back-compat for existing callers)', () => {
+      const r = weeklyReportFromState({
+        name: 'Jordan',
+        scoreHistory: [{ date: '2026-07-02', score: 49 }],
+        liveScore: 35,
+        now: new Date(2026, 6, 2),
+      });
+      expect(r.daysLogged).toBe(1);
+    });
   });
 });

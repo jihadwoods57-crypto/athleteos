@@ -1,709 +1,663 @@
-// OnStandard — Athlete Home: score hero, season goal, trend, progress, insight,
-// coach guidance, next action, check-in banner.
+// OnStandard — Athlete Home (redesign 2026-07, faithful rebuild of the proto Home).
+// Top → bottom: app head · score-ring hero (tap → breakdown) · next-action green CTA ·
+// Trust Pass · Today's Requirements card · Recent Activity h-scroll · Finish Today card.
+// Every value reads off the SAME real store/derived sources the old Home used — no
+// fabricated meal scores, streaks, or trends. Where the proto shows data the RN app does
+// not have (per-meal "Scored 95", meal photos), the row adapts honestly.
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import {
-  currentStreak,
-  coachGuidance,
-  medicalDisclaimer,
-  nextBestAction,
-  projectedScore,
-  DEFAULT_CHART_BOX,
-  displayWeight,
   firstName,
   greeting,
   initials,
-  displayWeightDelta,
   heroStatus,
-  HYDRATION_TARGET,
-  realTrendDays,
-  recentDayLabels,
-  SCORE_WEIGHTS,
-  seasonGoalProgress,
-  seasonGoalPhase,
-  supportAudience,
-  weightUnit,
-  WEIGHT_START,
-  WEIGHT_TARGET,
-  TREND_WINDOW,
-  trendGeometry,
-  trendSeries,
-  trendSummary,
+  streakInfo,
+  projectedScore,
+  nextBestAction,
+  passStatus,
+  withinTrailingWeek,
+  todayStamp,
+  type MealKey,
 } from '@/core';
 import { useStore, useDerived } from '@/store';
-import { aiMemoryTag } from '@/lib/ai';
-import { gradeRing, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
+import { isStreakGraceEnabled, isTrustPassEnabled } from '@/lib/features';
+import { ringGradient, tierChip, MAX_FONT_SCALE, shadow, typeScale } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
-import { Btn, Card, Input, PressScale, ProgressBar, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
-import { haptics } from '@/ui/haptics';
-import { Icon } from '@/icons';
+import { Card, PressScale, Reveal, Row, Txt, Pressable } from '@/ui/primitives';
+import { Icon, IconName } from '@/icons';
 import { Ring } from '@/ui/Ring';
+
+/** Accent class per the proto's semantic color system: g green · a amber · b blue · p purple. */
+type Accent = 'g' | 'a' | 'b' | 'p';
+
+/** One Today's-Requirements row, fully resolved from real state. */
+interface Req {
+  id: string;
+  title: string;
+  icon: IconName;
+  accent: Accent;
+  status: string;
+  statusColor: Accent;
+  sub: string;
+  subColor: Accent;
+  meta: string;
+  done: boolean;
+  missed?: boolean;
+  onPress?: () => void;
+}
 
 export function Home() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const s = useStore();
   const d = useDerived();
-  // Forward-looking framing: where the score reaches if the day's controllable actions
-  // get done, and the checklist to get there. Shown only while actions remain.
-  const projection = projectedScore(s);
-  // Reward moment: when the score changes (e.g. after logging a meal), the hero number +
-  // ring count up to the new value instead of snapping — the satisfying "it moved" beat.
-  const shownScore = useCountUp(d.athleteScore);
+
+  // A real athlete has set their name; the unnamed seeded state is the demo showcase.
+  // Gates showcase-only strings with no real data source (an unread-notification dot).
+  const isReal = s.athleteName.trim().length > 0;
   const name = firstName(s.athleteName, 'Jihad');
   const monogram = initials(s.athleteName, 'J');
-  // A real athlete has set their name; the unnamed seeded state is the demo showcase.
-  // Used to gate showcase-only strings that have no real data source (a season
-  // deadline, an unread-notification dot) so a real user never sees fabricated data.
-  const isReal = s.athleteName.trim().length > 0;
-  // Human-coach guidance, gated so a brand-new real athlete with no coach never
-  // sees the seeded demo's "Coach Davis" note (the demo showcase is unchanged).
-  const guidance = coachGuidance({
-    isReal,
-    supportTeam: s.supportTeam,
-    coachNote: s.coachNote,
-  });
-  // Real trend geometry: persisted prior-day scores + today's live score as the
-  // final point (seed pads the left only while real history is still filling up).
-  const series = trendSeries(s.scoreHistory, d.athleteScore);
-  const trend = trendSummary(series);
-  const dayLabels = recentDayLabels(series.length);
-  // Honest trend subtitle: until a real week has accrued, the chart's left is
-  // seeded padding — say "Building history · N of 7 days" instead of claiming a
-  // full "Past 7 days" the brand-new athlete hasn't lived yet.
-  const realDays = realTrendDays(s.scoreHistory);
-  const trendCaption = d.isDay0
-    ? 'Your first day · this fills in as you log'
-    : realDays >= TREND_WINDOW
-      ? 'Past 7 days'
-      : `Building history · ${realDays} of ${TREND_WINDOW} days`;
-  // Day streak: consecutive on-plan days ending today (live score + real
-  // history; seeded baseline pads the unknown pre-history like the trend chart).
-  // Real athlete: only days actually earned. Seeded demo: pad with the showcase lead.
-  const streak = currentStreak(s.scoreHistory, d.athleteScore, undefined, !isReal);
 
-  // Season weight goal — per-athlete start anchor (their onboarding weight, or the
-  // demo's WEIGHT_START), athlete-editable target, live weight.
-  const START = s.startWeight ?? WEIGHT_START;
-  const TARGET = s.weightTarget ?? WEIGHT_TARGET;
-  const goal = seasonGoalProgress(s.currentWeight, START, TARGET);
-  // Honesty gate: don't claim "On track, you'll reach X by Nov 7" before any real
-  // weight movement exists (a day-0 athlete still sits at their start anchor).
-  const goalPhase = seasonGoalPhase({
-    pctThere: goal.pctThere,
-    currentWeight: s.currentWeight,
-    start: START,
-    weightHistoryLen: (s.weightHistory ?? []).length,
-  });
-  const units = s.units ?? 'imperial';
-  const wUnit = weightUnit(units);
-  const remainingDisp = displayWeightDelta(goal.remaining, units);
-  // Goal-aware weight-goal copy: a Lose Fat user's target is BELOW current, so "+6 to go" / "SEASON
-  // GOAL" is wrong sports-furniture for them. Performance (incl. the seeded demo) keeps the old text.
-  const remainingAbs = Math.abs(remainingDisp);
-  const goalEyebrow = s.baseGoal === 'performance' ? 'SEASON GOAL' : 'YOUR GOAL';
-  const isMaintainGoal = s.baseGoal === 'maintain';
-  const goalRemainText =
-    s.baseGoal === 'lose'
-      ? remainingAbs < 0.1
-        ? 'On target'
-        : `${remainingAbs} to lose`
-      : s.baseGoal === 'gain'
-        ? remainingAbs < 0.1
-          ? 'On target'
-          : `${remainingAbs} to gain`
-        : `${remainingDisp > 0 ? `+${remainingDisp}` : remainingDisp} to go`; // performance / demo
-
-  // Reactive score-hero status line + standing badge (pure-core helper). Tone
-  // maps to existing surface/text tokens at this call site — no new tokens.
+  // Reward moment: the hero number + ring count up to the new value after a log.
+  const shownScore = useCountUp(d.athleteScore);
   const status = heroStatus(s, d);
-  const toneSurface =
-    status.tone === 'warn' ? c.alertSurface : status.tone === 'positive' ? c.successSurface : c.accentSurface;
-  const toneText =
-    status.tone === 'warn' ? c.alertDeep : status.tone === 'positive' ? c.successDeep : c.accent;
+
+  // Day streak (same honest source as before): real athletes walk calendar days; the
+  // dateless showcase keeps its seed pad. atRisk reads today's sub-threshold state honestly.
+  const streakData = streakInfo(s.scoreHistory, d.athleteScore, {
+    seedPad: !isReal,
+    grace: isStreakGraceEnabled,
+    today: isReal ? s.dateStamp : undefined,
+  });
+  const streak = streakData.days;
+
+  // Forward-looking projection: current score, where it reaches if today's controllable
+  // actions get done, and the checklist. Drives the hero-foot count + Finish Today card.
+  const projection = projectedScore(s);
+  const na = nextBestAction(s, d);
+
+  // Trust Pass (flag-gated) — the honest camera-free banner.
+  const tpStatus = isTrustPassEnabled ? passStatus(s.trustPass, s.dateStamp) : null;
+
+  // ---- Today's Requirements, resolved from real logging state ----
+  const reqs = buildRequirements(s, d);
+  const metCount = reqs.filter((r) => r.done).length;
+  const reqTotal = reqs.length;
+  // "N requirements remaining to reach {possible}" — remaining = the pending SCORED rows
+  // (weight is trend-only, so it never blocks the standard). possible = projected score.
+  const remaining = reqs.filter((r) => !r.done && r.id !== 'weight').length;
+  const possible = projection.projected;
+
+  // ---- Recent Activity, from real logged meals + hydration + recovery ----
+  const activity = buildActivity(s, d);
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
-      {/* header */}
-      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingTop: insets.top + 10, paddingHorizontal: 20, paddingBottom: 130 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ===== 1 · App head ===== */}
+      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 8 }}>
         <View>
-          <Txt w="sb" size={14} color={c.textSecondary}>
+          <Txt w="sb" size={15} color={c.textSecondary} ls={0.1}>
             {greeting()},
           </Txt>
-          <Txt w="eb" size={28} ls={-0.8} style={{ marginTop: 1 }}>
+          <Txt w="eb" size={27} ls={-0.5} accessibilityRole="header" style={{ marginTop: 2 }}>
             {name}
           </Txt>
         </View>
-        <Row style={{ gap: 10 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Notifications" hitSlop={6} onPress={s.openNotif} style={[{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }, shadow.card]}>
-            <Icon name="bell" size={19} color={c.slate600} />
-            {/* The unread-notification dot is showcase only: there is no real
-                seen/unseen model, so an always-on dot would fake unread urgency for
-                a real athlete. Shown for the seeded demo, hidden for a real user. */}
+        <Row style={{ gap: 10, marginTop: 4 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+            hitSlop={6}
+            onPress={s.openNotif}
+            style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name="bell" size={20} color={c.text} />
+            {/* Unread dot is showcase only: no real seen/unseen model, so an always-on dot
+                would fake unread urgency for a real athlete. */}
             {!isReal ? (
-              <View style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: c.alert, borderWidth: 1.5, borderColor: c.card }} />
+              <View style={{ position: 'absolute', top: 8, right: 9, minWidth: 8, height: 8, borderRadius: 4, backgroundColor: c.alert, borderWidth: 2, borderColor: c.card }} />
             ) : null}
           </Pressable>
-          <Row
-            accessibilityRole="text"
-            accessibilityLabel={`${streak} day streak`}
-            style={[{ gap: 6, backgroundColor: c.card, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 }, shadow.card]}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Profile"
+            hitSlop={6}
+            onPress={s.goProfile}
+            style={[{ width: 42, height: 42, borderRadius: 21, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }, shadow.cta]}
           >
-            <Icon name="flame" size={15} color={c.warning} />
-            <Txt w="eb" size={14} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-              {streak}
-            </Txt>
-          </Row>
-          <Pressable accessibilityRole="button" accessibilityLabel="Profile" hitSlop={6} onPress={s.goProfile} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt w="b" size={14} color={c.white} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+            <Txt w="eb" size={15} color={c.white} ls={-0.2} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {monogram}
             </Txt>
           </Pressable>
         </Row>
       </Row>
 
-      {/* score hero — the one thing this screen is about, so it gets the deep `hero` float
-          while everything below sits `low`. That elevation contrast IS the hierarchy. */}
+      {/* Honest sync state: when the last push to the server failed, say so. */}
+      {s.syncState === 'error' ? (
+        <Row style={{ gap: 9, alignItems: 'center', backgroundColor: c.alertSurface, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 6 }}>
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.alert }} />
+          <Txt w="sb" size={12.5} color={c.alertDeep} style={{ flex: 1 }}>
+            Not synced — your coach may not see today yet. We’ll retry when you’re back online.
+          </Txt>
+        </Row>
+      ) : null}
+
+      {/* ===== 2 · Hero — the uncontained score ring, tap → breakdown ===== */}
       <Reveal index={0}>
-      <Card variant="hero" style={{ marginTop: 20, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 20, padding: 24 }}>
-        <Ring size={138} pct={shownScore} stroke={17} gradient={gradeRing[d.grade.g] ?? gradeRing.C} track={c.track}>
-          <Txt w="eb" num size={typeScale.display.size} ls={typeScale.display.ls} style={{ lineHeight: typeScale.display.lineHeight }} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-            {shownScore}
-          </Txt>
-          <View style={{ marginTop: 5, paddingHorizontal: 9, paddingVertical: 2, borderRadius: 7, backgroundColor: d.grade.bg }}>
-            <Txt w="eb" size={11} color={d.grade.c} ls={0.4} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-              GRADE {d.grade.g}
-            </Txt>
-          </View>
-        </Ring>
-        <View style={{ flex: 1 }}>
-          <Txt w="b" size={13} color={c.textSecondary}>
-            Execution Score
-          </Txt>
-          <Row style={{ gap: 6, marginTop: 7 }}>
-            {d.isDay0 ? (
-              // Day 0: no week to compare against, so show a starting-line frame instead of a
-              // fabricated "↓58 this week / trending down".
-              <Txt w="b" size={13} color={c.accent}>
-                Starting today
+        <PressScale
+          accessibilityLabel="OnStandard score. Tap for the breakdown."
+          haptic="tap"
+          onPress={s.goBreakdown}
+          style={{ paddingTop: 6, paddingBottom: 4 }}
+        >
+          <View style={{ alignItems: 'center' }}>
+            <Ring size={236} pct={shownScore} stroke={20} gradient={ringGradient} track={c.track}>
+              <Txt w="b" size={12} color={c.slate600} ls={1.6} upper style={{ marginBottom: 2 }}>
+                OnStandard Score
               </Txt>
+              <Txt
+                w="eb"
+                num
+                size={typeScale.display.size + 20}
+                ls={-3}
+                style={{ lineHeight: (typeScale.display.size + 20) * 0.98 }}
+                maxFontSizeMultiplier={MAX_FONT_SCALE}
+              >
+                {shownScore}
+              </Txt>
+              <Txt w="b" size={14} color={c.textSecondary} style={{ marginTop: -2 }}>
+                /100
+              </Txt>
+              <View style={{ marginTop: 8, paddingHorizontal: 13, paddingVertical: 5, borderRadius: 999, backgroundColor: tierChip[d.tier.short].bg, borderWidth: 1, borderColor: tierChip[d.tier.short].border }}>
+                <Txt w="eb" size={11} color={tierChip[d.tier.short].fg} ls={1.2} upper maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                  {d.tier.name}
+                </Txt>
+              </View>
+              {!d.isDay0 && d.scoreDelta > 0 ? (
+                <Row style={{ gap: 5, alignItems: 'center', marginTop: 10 }}>
+                  <Icon name="chevronRight" size={13} color={c.success} strokeWidth={2.6} />
+                  <Txt w="b" size={13} color={c.success}>
+                    +{d.scoreDelta} pts
+                  </Txt>
+                  <Txt w="sb" size={13} color={c.textSecondary}>
+                    vs yesterday
+                  </Txt>
+                </Row>
+              ) : d.isDay0 ? (
+                <Txt w="b" size={13} color={c.textSecondary} style={{ marginTop: 10 }}>
+                  {s.startScore != null ? `Baseline ${s.startScore}` : 'Starting today'}
+                </Txt>
+              ) : null}
+              {/* Streak pill — flame dims when at risk so a bare 0 never reads as a false green. */}
+              <Row
+                accessibilityRole="text"
+                accessibilityLabel={streakData.atRisk ? 'Streak breaks today — log to keep your standard' : `${streak} day streak`}
+                style={{ gap: 7, alignItems: 'center', marginTop: 12, paddingVertical: 8, paddingLeft: 13, paddingRight: 16, borderRadius: 999, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}
+              >
+                <Icon name="flame" size={14} color={streakData.atRisk ? c.textTertiary : c.warningDeep} />
+                <Txt w="eb" size={13} color={streakData.atRisk ? c.textTertiary : c.text} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                  {streak} day{streak === 1 ? '' : 's'} streak
+                </Txt>
+              </Row>
+            </Ring>
+          </View>
+
+          {/* hero-foot: requirements remaining to reach {possible}, or day-complete standard line. */}
+          <Txt w="sb" size={15} color={c.textSecondary} style={{ marginTop: 14, textAlign: 'center', lineHeight: 21 }}>
+            {remaining === 0 ? (
+              <>
+                Day complete at <Txt w="eb" size={15} color={c.success}>{d.athleteScore}</Txt>. That’s the standard.
+              </>
             ) : (
               <>
-                <Txt w="eb" size={15} color={d.deltaColor}>
-                  {d.deltaStr}
-                </Txt>
-                <Txt w="sb" size={13} color={c.textTertiary}>
-                  this week
-                </Txt>
+                <Txt w="eb" size={15} color={c.success}>{remaining} requirement{remaining === 1 ? '' : 's'}</Txt> remaining to reach{' '}
+                <Txt w="eb" size={15} color={c.success}>{possible}</Txt>.
               </>
             )}
-          </Row>
-          <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 13, lineHeight: 20 }}>
-            {status.line}
           </Txt>
-          <View style={{ marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: toneSurface }}>
-            <Txt w="b" size={12} color={toneText}>
-              {status.standingLabel}
-            </Txt>
-          </View>
-        </View>
-      </Card>
+        </PressScale>
       </Reveal>
 
-      {/* DAILY HQ — lead with the single action that matters right now, not the data */}
-      <Reveal index={1}>
-        <NextMoveCard />
-      </Reveal>
-
-      {/* finish today — projected score + the checklist to reach it */}
-      {projection.actions.length > 0 ? (
-        <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
-          <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <View>
-              <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>
-                FINISH TODAY
-              </Txt>
-              <Row style={{ gap: 8, alignItems: 'center', marginTop: 6 }}>
-                <Txt w="sb" size={15} color={c.textTertiary}>
-                  {projection.current}
-                </Txt>
-                <Icon name="chevronRight" size={16} color={c.textTertiary} />
-                <Txt w="eb" size={30} ls={-0.5} color={c.accent}>
-                  {projection.projected}
-                </Txt>
-              </Row>
+      {/* ===== 3 · Next action — the big green CTA (or the done state) ===== */}
+      <View style={{ marginTop: 16 }}>
+        {na.done ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, padding: 16, borderRadius: 22, backgroundColor: c.successTint, borderWidth: 1, borderColor: c.successBorderSoft }}>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="check" size={22} color={c.successDeep} />
             </View>
-            <View style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, backgroundColor: c.successSurface }}>
-              <Txt w="eb" size={15} color={c.successDeep}>
-                +{projection.gain}
+            <View style={{ flex: 1 }}>
+              <Txt w="eb" size={15.5}>You’re OnStandard. Nothing left today.</Txt>
+              <Txt w="sb" size={12.5} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>
+                Every requirement is in. Day {streak + 1} of your streak locks at midnight.
               </Txt>
             </View>
-          </Row>
-          <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 12, lineHeight: 19 }}>
-            Finish today&apos;s plan and your Execution Score reaches {projection.projected}.
-          </Txt>
-          <View style={{ marginTop: 12, gap: 10 }}>
-            {projection.actions.map((a) => (
-              <Row key={a.key} style={{ gap: 11, alignItems: 'center' }}>
-                <View style={{ width: 20, height: 20, borderRadius: 7, borderWidth: 2, borderColor: c.accentBorder }} />
-                <Txt w="b" size={14} color={c.slate700} style={{ flex: 1 }}>
-                  {a.label}
-                </Txt>
-              </Row>
-            ))}
           </View>
-        </Card>
-      ) : null}
-
-      {/* check-in is an action, so it rides with the top act-now stack */}
-      <CheckinBanner />
-
-      {/* ---- YOUR PROGRESS — the look-back, below the act-now stack ---- */}
-      <Txt w="eb" size={12} color={c.textTertiary} ls={0.7} style={{ marginTop: 32, marginBottom: 2 }}>
-        YOUR PROGRESS
-      </Txt>
-
-      {/* what's in this score */}
-      <ScoreBreakdownPanel />
-
-      {/* season goal */}
-      <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Txt w="eb" size={12} color={c.textTertiary} ls={0.7}>
-            {goalEyebrow}
-          </Txt>
-          {/* "38 days left" / "Nov 14" are showcase deadlines with no real data
-              source (no season deadline is collected yet). Demo keeps the showcase;
-              a real athlete sees no fabricated countdown. */}
-          {!isReal ? (
-            <Row style={{ gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 9, backgroundColor: c.accentSurface }}>
-              <Icon name="checkin" size={12} color={c.accent} />
-              <Txt w="eb" size={12} color={c.accent}>
-                38 days left
-              </Txt>
-            </Row>
-          ) : null}
-        </Row>
-        {isMaintainGoal ? (
-          // Maintain is a STAY-AT-X goal, not a reach-X goal — so the reach-goal progress bar +
-          // "Goal reached / Season weight goal complete" (which fires on day 0 when target == current)
-          // is wrong. Show a calm "holding steady" status instead.
-          <>
-            <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
-              <View>
-                <Txt w="eb" size={29} ls={-0.9}>
-                  {displayWeight(TARGET, units)} {wUnit}
-                  <Txt w="b" size={15} color={c.textTertiary}>
-                    {' '}
-                    maintaining
-                  </Txt>
-                </Txt>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Txt w="eb" size={20} color={c.success}>
-                  {remainingAbs < 0.5 ? 'On target' : `${remainingAbs} ${wUnit} off`}
-                </Txt>
-                <Txt w="sb" size={12} color={c.textTertiary}>
-                  now {displayWeight(s.currentWeight, units)} {wUnit}
-                </Txt>
-              </View>
-            </Row>
-            <View style={{ marginTop: 16, borderRadius: 14, padding: 13, backgroundColor: c.successTint }}>
-              <Txt w="m" size={13} color={c.successText} style={{ lineHeight: 19 }}>
-                <Txt w="b" size={13} color={c.successText}>Holding steady · </Txt>
-                Your goal is to stay around {displayWeight(TARGET, units)} {wUnit}. Log your weekly weigh-ins to keep it honest.
-              </Txt>
-            </View>
-          </>
         ) : (
-          <>
-            <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
-              <View>
-                <Txt w="eb" size={29} ls={-0.9}>
-                  {displayWeight(TARGET, units)} {wUnit}
-                  <Txt w="b" size={15} color={c.textTertiary}>
-                    {' '}
-                    target
-                  </Txt>
-                </Txt>
-                {!isReal ? (
-                  <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
-                    by Playoffs · Nov 14
-                  </Txt>
-                ) : null}
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Txt w="eb" size={20} color={c.success}>
-                  {goalRemainText}
-                </Txt>
-                <Txt w="sb" size={12} color={c.textTertiary}>
-                  now {displayWeight(s.currentWeight, units)} {wUnit}
-                </Txt>
-              </View>
-            </Row>
-            <View style={{ marginTop: 16 }}>
-              <ProgressBar pct={goal.pctThere} height={10} />
-            </View>
-            <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
-              <Txt w="b" size={11} color={c.textTertiary}>
-                {displayWeight(START, units)} start
-              </Txt>
-              <Txt w="b" size={11} color={c.textTertiary}>
-                {goal.pctThere}% there
-              </Txt>
-              <Txt w="b" size={11} color={c.textTertiary}>
-                {displayWeight(TARGET, units)} goal
-              </Txt>
-            </Row>
-            <View
-              style={{
-                marginTop: 14,
-                borderRadius: 14,
-                padding: 13,
-                backgroundColor: goalPhase === 'first-run' ? c.bg2 : c.successTint,
-              }}
-            >
-              <Txt
-                w="m"
-                size={13}
-                color={goalPhase === 'first-run' ? c.textSecondary : c.successText}
-                style={{ lineHeight: 19 }}
-              >
-                <Txt
-                  w="b"
-                  size={13}
-                  color={goalPhase === 'first-run' ? c.textSecondary : c.successText}
-                >
-                  {goalPhase === 'reached' ? 'Goal reached ·' : goalPhase === 'first-run' ? 'Just getting started ·' : 'On track ·'}{' '}
-                </Txt>
-                {goalPhase === 'reached'
-                  ? `You hit ${displayWeight(TARGET, units)} ${wUnit}. Season weight goal complete.`
-                  : goalPhase === 'first-run'
-                    ? 'Log your check-ins and weight to see your pace toward the season goal.'
-                    : isReal
-                    ? `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit}.`
-                    : `At your current pace you'll reach ${displayWeight(TARGET, units)} ${wUnit} by Nov 7, a week ahead of playoffs.`}
-              </Txt>
-            </View>
-          </>
+          <GreenCta
+            label={na.title}
+            gain={ctaGain(na.key, projection)}
+            icon={na.cta === 'checkin' ? 'checkin' : na.cta === 'water' ? 'drop' : 'camera'}
+            onPress={
+              na.cta === 'meal' ? s.openMeal
+              : na.cta === 'water' ? s.addWater
+              : na.cta === 'checkin' ? s.goRecovery
+              : na.cta === 'plan' ? s.goTasks
+              : undefined
+            }
+          />
         )}
-      </Card>
+      </View>
 
-      {/* score trend */}
-      <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-          <View>
-            <Txt w="eb" size={16} ls={-0.3}>
-              Score Trend
-            </Txt>
-            <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
-              {trendCaption}
-            </Txt>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Txt w="eb" size={26} ls={-0.5}>
-              {d.athleteScore}
-            </Txt>
-            {d.isDay0 ? (
-              <Txt w="b" size={12} color={c.textTertiary}>
-                Building your first week
-              </Txt>
-            ) : (
-              <Txt
-                w="b"
-                size={12}
-                color={trend.dir === 'down' ? c.alert : trend.dir === 'flat' ? c.textTertiary : c.success}
-              >
-                {trend.label}
-              </Txt>
-            )}
-          </View>
-        </Row>
-        <TrendChart series={series} />
-        <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
-          {dayLabels.map((dn, i) => (
-            <Txt key={`${dn}-${i}`} w="sb" size={11} color={c.textTertiary}>
-              {dn}
-            </Txt>
-          ))}
-        </Row>
-      </Card>
-
-      {/* today's progress */}
-      <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 22 }}>
-        <Txt w="eb" size={16} ls={-0.3} style={{ marginBottom: 18 }}>
-          Today's Progress
-        </Txt>
-        <ProgressRow label="Protein" meta={`${d.proteinToday} / ${d.proteinTarget}g`} pct={d.proteinPct} color={c.accent} />
-        <ProgressRow label="Hydration" meta={`${s.hydrationL} / ${HYDRATION_TARGET} L  +`} metaColor={c.accent} onMeta={s.addWater} pct={d.hydrationPct} color={c.hydration} />
-        <ProgressRow label="Tasks" meta={`${d.tasksDone} / ${d.tasksTotal} done`} pct={d.tasksScore} color={c.accent} />
-        <ProgressRow
-          label="Recovery"
-          meta={d.recoveryScoreIsReal ? `${d.recoveryScore} / 100` : 'Check-in not submitted'}
-          pct={d.recoveryScoreIsReal ? d.recoveryScore : 0}
-          color={c.success}
-          last
-        />
-      </Card>
-
-      {/* nutrition entry */}
-      {/* performance entry (Nutrition + Check-In now live in the tab bar / their banners) */}
-      <Pressable accessibilityRole="button" accessibilityLabel="Performance: log a PR and see your trends" onPress={s.goPerformance} style={[{ marginTop: 12, backgroundColor: c.card, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }, shadow.card]}>
-        <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="trophy" size={22} color={c.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="b" size={15}>
-            Performance
-          </Txt>
-          <Txt w="m" size={13} color={c.textSecondary}>
-            Log a PR and see your trends
-          </Txt>
-        </View>
-        <Icon name="chevronRight" size={22} color={c.slate300} />
-      </Pressable>
-
-
-      {/* coach guidance — hidden for a solo real athlete (no coach to quote) */}
-      {guidance.show ? (
-        <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 20, flexDirection: 'row', gap: 14 }}>
-          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.text, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt w="b" size={13} color={c.white}>
-              {guidance.monogram}
-            </Txt>
+      {/* ===== 4 · Trust Pass (only while active) — routes to the trust detail (proto data-go="trust") ===== */}
+      {tpStatus?.phase === 'active' ? (
+        <PressScale accessibilityLabel="Trust Pass details" onPress={s.goTrustDetail} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, borderRadius: 18, marginTop: 14, backgroundColor: c.trainer + '22', borderWidth: 1, borderColor: c.trainer + '55' }}>
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.trainer + '22', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="shield" size={20} color={c.trainerLight} />
           </View>
           <View style={{ flex: 1 }}>
-            <Row style={{ gap: 7, flexWrap: 'wrap' }}>
-              <Txt w="eb" size={12} ls={0.4}>
-                COACH GUIDANCE
-              </Txt>
-              {guidance.pending ? null : (
-                <View style={{ backgroundColor: c.accentSurface, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                  <Txt w="b" size={10} color={c.accent}>
-                    {aiMemoryTag}
-                  </Txt>
-                </View>
-              )}
-            </Row>
-            <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 6, lineHeight: 20 }}>
-              {guidance.note ?? 'Your coach can leave a standing note here, and it stays in front of you every day until it sticks.'}
+            <Txt w="eb" size={14}>Trust Pass · day {tpStatus.dayIndex + 1} of {s.trustPass?.lengthDays ?? 0}</Txt>
+            <Txt w="sb" size={12} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>
+              {tpStatus.isCheckDay
+                ? 'Spot-check today — log your meals with a photo.'
+                : 'On standard, camera-free today. Credited from your proven baseline.'}
             </Txt>
           </View>
-        </Card>
-      ) : s.supportTeam.length === 0 ? (
-        <ConnectCoachCard />
+          <Icon name="chevronRight" size={18} color={c.textTertiary} />
+        </PressScale>
       ) : null}
 
+      {/* ===== 5 · Today's Requirements ===== */}
+      <Card variant="low" style={{ marginTop: 14, borderRadius: 22, padding: 0, overflow: 'hidden' }}>
+        <Txt w="eb" size={12} color={c.textSecondary} ls={1.1} upper style={{ paddingHorizontal: 18, paddingTop: 16, paddingBottom: 4 }}>
+          Today’s Requirements
+        </Txt>
+        {reqs.map((r, i) => (
+          <ReqRow key={r.id} req={r} first={i === 0} />
+        ))}
+        <View style={{ height: 8 }} />
+      </Card>
+
+      {/* ===== 6 · Recent Activity ===== */}
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 26, marginBottom: 12, paddingHorizontal: 2 }}>
+        <Txt w="eb" size={11} color={c.textTertiary} ls={1.5} upper>
+          Recent Activity
+        </Txt>
+        <Pressable accessibilityRole="button" accessibilityLabel="View all activity" hitSlop={6} onPress={() => s.setTab('progress')}>
+          <Txt w="b" size={13} color={c.accentLight}>View all</Txt>
+        </Pressable>
+      </Row>
+      {activity.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginHorizontal: -20 }}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 4 }}
+        >
+          {activity.map((a) => (
+            <ActCard key={a.key} act={a} onPress={a.onPress} />
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={{ borderWidth: 1, borderColor: c.hairline, borderStyle: 'dashed', borderRadius: 22, padding: 22, alignItems: 'center' }}>
+          <View style={{ width: 52, height: 52, borderRadius: 17, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <Icon name="camera" size={24} color={c.textTertiary} />
+          </View>
+          <Txt w="eb" size={15}>No logs yet</Txt>
+          <Txt w="sb" size={12.5} color={c.textSecondary} style={{ marginTop: 5, textAlign: 'center', lineHeight: 18 }}>
+            Your proof trail builds here as you log. Take a photo to begin today’s standard.
+          </Txt>
+        </View>
+      )}
+
+      {/* ===== 7 · Finish Today ===== */}
+      <Card variant="low" style={{ marginTop: 20, borderRadius: 22, padding: 16 }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <Row style={{ gap: 9, alignItems: 'center' }}>
+            <Icon name="trophy" size={17} color={c.textSecondary} />
+            <Txt w="eb" size={12} color={c.textSecondary} ls={1.3} upper>Finish Today</Txt>
+          </Row>
+          <Txt w="eb" size={12} color={c.textSecondary}>{metCount} of {reqTotal} in</Txt>
+        </Row>
+
+        {/* segment bars — filled = met */}
+        <Row style={{ gap: 6, marginBottom: 14 }}>
+          {reqs.map((r) => (
+            <View
+              key={r.id}
+              style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: r.done ? c.success : c.surface3 }}
+            />
+          ))}
+        </Row>
+
+        {/* score bridge: current → possible with a fill + note */}
+        <Row style={{ gap: 12, alignItems: 'center' }}>
+          <Txt w="eb" num size={30} ls={-0.9}>{projection.current}</Txt>
+          <View style={{ flex: 1 }}>
+            <View style={{ height: 7, borderRadius: 4, backgroundColor: c.surface3, overflow: 'hidden' }}>
+              <View style={{ width: `${Math.round((projection.current / Math.max(1, possible)) * 100)}%`, height: '100%', borderRadius: 4, backgroundColor: c.success }} />
+            </View>
+            <Txt w="b" size={10.5} color={c.textTertiary} style={{ marginTop: 6, textAlign: 'center' }}>
+              {remaining === 0 ? 'everything is in' : `+${Math.max(0, possible - projection.current)} still on the table`}
+            </Txt>
+          </View>
+          <Txt w="eb" num size={30} ls={-0.9} color={c.success}>{possible}</Txt>
+        </Row>
+
+        {/* next biggest move(s) */}
+        {!na.done ? (
+          <View style={{ marginTop: 14, gap: 8 }}>
+            <FinishMove
+              icon={na.cta === 'checkin' ? 'checkin' : na.cta === 'water' ? 'drop' : 'utensils'}
+              accent={na.cta === 'checkin' ? 'p' : na.cta === 'water' ? 'b' : 'g'}
+              title={na.title}
+              sub="next biggest move"
+              value={ctaGain(na.key, projection) != null ? `+${ctaGain(na.key, projection)}` : 'now'}
+              onPress={
+                na.cta === 'meal' ? s.openMeal
+                : na.cta === 'water' ? s.addWater
+                : na.cta === 'checkin' ? s.goRecovery
+                : na.cta === 'plan' ? s.goTasks
+                : undefined
+              }
+            />
+            {/* Recovery is the highest-risk night habit — surface it while it's still open. */}
+            {!d.recoveryScoreIsReal && na.cta !== 'checkin' ? (
+              <FinishMove
+                icon="checkin"
+                accent="a"
+                title="Recovery check-in"
+                sub="highest risk · keeps the streak"
+                value="tonight"
+                valueColor={c.warningDeep}
+                onPress={s.goRecovery}
+              />
+            ) : null}
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 14, padding: 14, borderRadius: 16, backgroundColor: c.successTint, borderWidth: 1, borderColor: c.successBorderSoft }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.successSurface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="check" size={19} color={c.successDeep} />
+            </View>
+            <Txt w="eb" size={15}>Done at {d.athleteScore}. That’s the standard.</Txt>
+          </View>
+        )}
+      </Card>
     </ScrollView>
   );
 }
 
-/** Shown on Home when a real athlete has no one connected yet: enter a coach/trainer team code
- *  so the accountability has someone watching. Restores the connect step the lean onboarding
- *  moved off the critical path; sits where the coach-guidance card goes once a coach exists. */
-/** First-run nudge to link a coach. Opens the two-door Connect overlay (enter a code, or
- *  find your coach by school and request to join). Its caller already gates it to athletes
- *  with no support connection; this also self-hides once dismissed ("Not now"). */
-function ConnectCoachCard() {
+/* ============================================================================
+   Data builders — every row/card resolved from REAL state (no fabrication).
+   ============================================================================ */
+
+/** Build Today's Requirements from real logging state. Meals/weight/recovery/weekly each
+ *  carry a done/pending/meta derived from what the athlete has actually done today. */
+function buildRequirements(
+  s: ReturnType<typeof useStore.getState>,
+  d: ReturnType<typeof useDerived>,
+): Req[] {
+  const mealRow = (key: MealKey, title: string, dueHint: string): Req => {
+    const done = s.meals[key];
+    return {
+      id: key,
+      title,
+      icon: key === 'breakfast' ? 'utensils' : 'utensils',
+      accent: done ? 'g' : 'a',
+      status: done ? 'Logged' : 'Open',
+      statusColor: done ? 'g' : 'a',
+      sub: done ? 'Photo logged' : dueHint,
+      subColor: done ? 'g' : 'a',
+      meta: done ? 'Logged' : '+ pts',
+      done,
+      onPress: s.openMeal,
+    };
+  };
+
+  const weightDone = s.weighInStamp === todayStamp();
+  const recoveryDone = d.recoveryScoreIsReal;
+  const weeklyDone = s.ciSubmitted || (s.ciLast != null && withinTrailingWeek(s.ciLast.date, s.dateStamp));
+
+  return [
+    mealRow('breakfast', 'Breakfast', 'Photo proof'),
+    mealRow('lunch', 'Lunch', 'Photo proof'),
+    mealRow('dinner', 'Dinner', 'Photo proof'),
+    {
+      id: 'weight',
+      title: 'Morning Weight',
+      icon: 'trophy',
+      accent: weightDone ? 'g' : 'a',
+      status: weightDone ? 'Logged' : 'Optional',
+      statusColor: weightDone ? 'g' : 'a',
+      sub: weightDone ? 'Logged today' : 'Tracks your season trend',
+      subColor: weightDone ? 'g' : 'a',
+      // Weight is deliberately OUT of the daily score (season-goal arc) — say so honestly.
+      meta: weightDone ? 'Trend only' : 'Not scored',
+      done: weightDone,
+      onPress: s.goWeight,
+    },
+    {
+      id: 'recovery',
+      title: 'Recovery Check-In',
+      icon: 'checkin',
+      accent: recoveryDone ? 'g' : 'p',
+      status: recoveryDone ? 'Done' : 'Before bed',
+      statusColor: recoveryDone ? 'g' : 'p',
+      sub: recoveryDone ? 'Submitted tonight' : 'Sleep, soreness, energy',
+      subColor: recoveryDone ? 'g' : 'p',
+      // Recovery IS scored, and its number is real — show it when submitted (no fake score).
+      meta: recoveryDone ? `Scored ${d.recoveryScore}` : '+ pts',
+      done: recoveryDone,
+      onPress: s.goRecovery,
+    },
+    {
+      id: 'weekly',
+      title: 'Weekly Check-In',
+      icon: 'checkin',
+      accent: weeklyDone ? 'g' : 'b',
+      status: weeklyDone ? 'Done' : 'This week',
+      statusColor: weeklyDone ? 'g' : 'b',
+      sub: weeklyDone ? 'Submitted this week' : 'Form + weight, ~2 min',
+      subColor: weeklyDone ? 'g' : 'b',
+      meta: weeklyDone ? 'Complete' : '+ pts',
+      done: weeklyDone,
+      missed: false,
+      onPress: s.goCheckin,
+    },
+  ];
+}
+
+interface Act {
+  key: string;
+  time: string;
+  type: string;
+  value: string;
+  vClass: Accent | 'muted';
+  icon: IconName;
+  dim?: boolean;
+  onPress?: () => void;
+}
+
+/** Recent Activity from real logged meals + hydration + recovery. RN has no meal photos,
+ *  so each card uses an icon/gradient media tile (honest — nothing fabricated). */
+function buildActivity(
+  s: ReturnType<typeof useStore.getState>,
+  d: ReturnType<typeof useDerived>,
+): Act[] {
+  const out: Act[] = [];
+  const mealTypes: { key: MealKey; label: string }[] = [
+    { key: 'breakfast', label: 'Breakfast' },
+    { key: 'lunch', label: 'Lunch' },
+    { key: 'dinner', label: 'Dinner' },
+  ];
+  for (const m of mealTypes) {
+    if (s.meals[m.key]) {
+      out.push({ key: m.key, time: 'Today', type: m.label, value: 'Logged', vClass: 'g', icon: 'utensils', onPress: () => s.openMealDetail(m.key) });
+    }
+  }
+  if (s.hydrationL > 0) {
+    out.push({ key: 'hydration', time: 'Today', type: 'Hydration', value: `${s.hydrationL} L`, vClass: 'b', icon: 'drop' });
+  }
+  out.push(
+    d.recoveryScoreIsReal
+      ? { key: 'recovery', time: 'Tonight', type: 'Recovery Check-In', value: `${d.recoveryScore}`, vClass: 'g', icon: 'checkin', onPress: s.goRecovery }
+      : { key: 'recovery', time: 'Tonight', type: 'Recovery Check-In', value: 'Upcoming', vClass: 'muted', icon: 'checkin', dim: true, onPress: s.goRecovery },
+  );
+  return out;
+}
+
+/** The point gain to show on the next-action CTA / finish move, read off the projection. */
+function ctaGain(key: string, projection: ReturnType<typeof projectedScore>): number | null {
+  // The projection's total gain is the honest upside for finishing the day; show it on the
+  // single next action so the "+N pts" is real (never a fabricated per-item number).
+  return projection.gain > 0 ? projection.gain : null;
+}
+
+/* ============================================================================
+   Presentational pieces (proto markup → RN).
+   ============================================================================ */
+
+const ACCENT_SURFACE: Record<Accent, (c: ReturnType<typeof useColors>) => string> = {
+  g: (c) => c.successSurface,
+  a: (c) => c.warnTint,
+  b: (c) => c.accentSurface,
+  p: (c) => c.trainer + '22',
+};
+const ACCENT_FG: Record<Accent, (c: ReturnType<typeof useColors>) => string> = {
+  g: (c) => c.success,
+  a: (c) => c.warningDeep,
+  b: (c) => c.accentLight,
+  p: (c) => c.trainerLight,
+};
+
+/** The green next-action button (proto `.btn.green` in `.next-cta`). Near-black text on green. */
+function GreenCta({ label, gain, icon, onPress }: { label: string; gain: number | null; icon: IconName; onPress?: () => void }) {
   const c = useColors();
-  const openConnect = useStore((st) => st.openConnect);
-  const dismiss = useStore((st) => st.dismissConnectCard);
-  const dismissed = useStore((st) => st.connectCardDismissed);
-  if (dismissed) return null;
   return (
-    <Card variant="low" style={{ marginTop: 12, borderRadius: 24, padding: 20 }}>
-      <Row style={{ gap: 11 }}>
-        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="squad" size={20} color={c.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt w="eb" size={12} color={c.accent} ls={0.4}>CONNECT YOUR COACH</Txt>
-          <Txt w="sb" size={14} color={c.slate700} style={{ marginTop: 4, lineHeight: 20 }}>
-            Link up so your work counts and they’ve got your back. Enter their code, or find them by school.
-          </Txt>
-        </View>
-      </Row>
-      <Row style={{ gap: 10, marginTop: 14 }}>
-        <Btn label="Connect" onPress={() => { haptics.tap(); openConnect(); }} style={{ flex: 1 }} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Not now" hitSlop={6} onPress={() => { haptics.tap(); dismiss(); }} style={{ paddingHorizontal: 16, justifyContent: 'center' }}>
-          <Txt w="b" size={14} color={c.textSecondary}>Not now</Txt>
-        </Pressable>
-      </Row>
-    </Card>
+    <PressScale
+      accessibilityLabel={`${label}${gain ? `, plus ${gain} points` : ''}`}
+      haptic="success"
+      onPress={onPress}
+      style={[{ height: 58, borderRadius: 17, backgroundColor: c.success, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 18 }, shadow.ctaGreen]}
+    >
+      <Icon name={icon} size={20} color={c.onGreen} />
+      <Txt w="eb" size={16.5} color={c.onGreen} ls={-0.2} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+        {label}{gain ? ` · +${gain} pts` : ''}
+      </Txt>
+    </PressScale>
   );
 }
 
-/** YOUR NEXT MOVE — the single highest-impact action right now (a coach, not a scorekeeper),
- *  derived from real logged data + the hour. Promoted to the top of Daily HQ so Home opens by
- *  telling you what to do, not by showing you numbers. */
-function NextMoveCard() {
+/** One Today's-Requirements row: icon tile (with corner status badge) · title + sub ·
+ *  status pill + meta · chevron. Done rows read green. */
+function ReqRow({ req, first }: { req: Req; first: boolean }) {
   const c = useColors();
-  const s = useStore();
-  const d = useDerived();
-  const na = nextBestAction(s, d);
-  const onPress =
-    na.cta === 'meal' ? s.openMeal
-    : na.cta === 'water' ? s.addWater
-    : na.cta === 'checkin' ? s.goCheckin
-    : na.cta === 'plan' ? s.goTasks
-    : undefined;
-  const accent = na.done ? c.successDeep : c.accent;
-  const tileBg = na.done ? c.successSurface : c.accentSurface;
+  const tileBg = ACCENT_SURFACE[req.accent](c);
+  const fg = ACCENT_FG[req.accent](c);
+  const statusFg = ACCENT_FG[req.statusColor](c);
+  const subFg = req.subColor === 'g' ? c.success : req.subColor === 'a' ? c.warningDeep : req.subColor === 'b' ? c.accentLight : c.trainerLight;
+  const metaColor = req.done ? c.success : req.missed ? c.textTertiary : fg;
+
   const body = (
     <>
-      <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: tileBg, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name={na.done ? 'check' : 'sparkle'} size={22} color={accent} />
+      {/* icon tile with corner status badge */}
+      <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: tileBg, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={req.icon} size={20} color={fg} />
+        <View style={{ position: 'absolute', top: -5, left: -5, width: 18, height: 18, borderRadius: 9, backgroundColor: req.done ? c.success : c.card, borderWidth: 2, borderColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={req.done ? 'check' : 'checkin'} size={req.done ? 10 : 9} color={req.done ? c.onGreen : fg} strokeWidth={2.6} />
+        </View>
       </View>
-      <View style={{ flex: 1 }}>
-        <Txt w="eb" size={11} color={accent} ls={0.5}>
-          {na.done ? "TODAY'S MISSION · DONE" : "TODAY'S MISSION"}
-        </Txt>
-        <Txt w="eb" size={17} ls={-0.3} style={{ marginTop: 3 }}>
-          {na.title}
-        </Txt>
-        <Txt w="m" size={13} color={c.textSecondary} style={{ marginTop: 4, lineHeight: 19 }}>
-          {na.detail}
-        </Txt>
-        <Txt w="m" size={11} color={c.textTertiary} style={{ marginTop: 8, lineHeight: 15 }}>
-          {medicalDisclaimer()}
-        </Txt>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Txt w="eb" size={15} ls={-0.2} numberOfLines={1}>{req.title}</Txt>
+        <Txt w="sb" size={12.5} color={subFg} numberOfLines={1} style={{ marginTop: 2 }}>{req.sub}</Txt>
       </View>
-      {onPress ? <Icon name="chevronRight" size={22} color={c.slate300} /> : null}
+      <View style={{ alignItems: 'flex-end', gap: 5 }}>
+        <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1.5, borderColor: statusFg + '66', backgroundColor: req.statusColor === 'g' ? c.successSurface : 'transparent' }}>
+          <Txt w="eb" size={11} color={statusFg} ls={0.2}>{req.status}</Txt>
+        </View>
+        <Txt w="eb" size={13} color={metaColor}>{req.meta}</Txt>
+      </View>
+      <Icon name="chevronRight" size={18} color={c.textTertiary} />
     </>
   );
-  // The mission leads the screen, so give it the elevated card weight (not the plain tile the
-  // old bottom-of-page version used) — it is the primary thing on Daily HQ.
-  const boxStyle = [{ marginTop: 14, backgroundColor: c.card, borderRadius: 22, padding: 18, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14 }, shadow.card];
-  return onPress ? (
-    <PressScale accessibilityLabel={na.title} onPress={onPress} style={boxStyle}>
-      {body}
-    </PressScale>
-  ) : (
-    <View style={boxStyle}>{body}</View>
-  );
-}
 
-/** The weekly check-in is an action, so it rides with the top act-now stack rather than the
- *  look-back cards. Due state is a CTA; completed state is a calm confirmation. */
-function CheckinBanner() {
-  const c = useColors();
-  const s = useStore();
-  const isReal = s.athleteName.trim().length > 0;
-  const checkinAudience = supportAudience({ isReal, supportTeam: s.supportTeam, demo: 'Coach Davis' });
-  if (!s.ciSubmitted) {
+  const rowInner = { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12 };
+  if (req.done) {
+    // Done row: green wash + border, its own inset (proto `.req-row.done`).
     return (
-      <Pressable accessibilityRole="button" accessibilityLabel="Weekly check-in due: 6 questions, about 2 minutes" onPress={s.goCheckin} style={[{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, shadow.cta]}>
-        <View>
-          <Txt w="eb" size={11} color="rgba(255,255,255,0.85)" ls={0.7}>
-            WEEKLY CHECK-IN DUE
-          </Txt>
-          <Txt w="b" size={15} color={c.white} style={{ marginTop: 5 }}>
-            6 questions · 2 min
-          </Txt>
-        </View>
-        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="chevronRight" size={18} color={c.white} />
-        </View>
-      </Pressable>
+      <PressScale accessibilityLabel={`${req.title}, ${req.status}`} onPress={req.onPress} style={[rowInner, { marginHorizontal: 6, marginVertical: 2, paddingVertical: 13, paddingLeft: 11, paddingRight: 13, borderRadius: 16, backgroundColor: c.successSurface, borderWidth: 1, borderColor: c.successBorderSoft }]}>
+        {body}
+      </PressScale>
     );
   }
   return (
-    <View style={{ marginTop: 14, borderRadius: 20, padding: 18, backgroundColor: c.successTint, borderWidth: 1, borderColor: c.successBorderSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <View>
-        <Txt w="eb" size={11} color={c.successDeep} ls={0.7}>
-          WEEKLY CHECK-IN
-        </Txt>
-        <Txt w="b" size={15} color={c.successText} style={{ marginTop: 5 }}>
-          {checkinAudience ? `Completed · sent to ${checkinAudience}` : 'Completed'}
-        </Txt>
-      </View>
-      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="check" size={17} color={c.white} />
-      </View>
+    <View>
+      {/* hairline divider between consecutive pending rows */}
+      {!first ? <View style={{ height: 1, backgroundColor: c.hairline, marginLeft: 66, marginRight: 12 }} /> : null}
+      <PressScale accessibilityLabel={`${req.title}, ${req.status}`} onPress={req.onPress} style={[rowInner, { marginHorizontal: 6, paddingVertical: 14, paddingLeft: 12, paddingRight: 14, borderRadius: 16 }]}>
+        {body}
+      </PressScale>
     </View>
   );
 }
 
-function ScoreBreakdownPanel() {
+/** One Recent Activity card (proto `.act-card`): time · media tile · type · value. */
+function ActCard({ act, onPress }: { act: Act; onPress?: () => void }) {
   const c = useColors();
-  const [open, setOpen] = React.useState(false);
-  return (
-    <Card variant="low" style={{ marginTop: 12, borderRadius: 20, padding: 18 }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="What's in this score?"
-        accessibilityState={{ expanded: open }}
-        onPress={() => { haptics.tap(); setOpen((v) => !v); }}
-        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
-      >
-        <Row style={{ gap: 9, flex: 1 }}>
-          <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: c.accentSurface, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="sparkle" size={16} color={c.accent} />
-          </View>
-          <Txt w="eb" size={15} ls={-0.3}>
-            What's in this score?
-          </Txt>
-        </Row>
-        <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
-          <Icon name="chevronRight" size={20} color={c.slate300} />
-        </View>
-      </Pressable>
-      {open ? (
-        <View style={{ marginTop: 16, gap: 13 }}>
-          {SCORE_WEIGHTS.map((w) => (
-            <View key={w.key}>
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Txt w="b" size={14}>
-                  {w.label}
-                </Txt>
-                <Txt w="eb" size={14} color={c.accent}>
-                  {w.pct}%
-                </Txt>
-              </Row>
-              <Txt w="m" size={12} color={c.textSecondary} style={{ marginTop: 2, lineHeight: 17 }}>
-                {w.desc}
-              </Txt>
-            </View>
-          ))}
-          <Txt w="m" size={12} color={c.textTertiary} style={{ lineHeight: 17 }}>
-            Nutrition counts the most. Recovery and check-in are answers you give yourself. Your weight progress is tracked separately, not folded into this daily score.
-          </Txt>
-        </View>
-      ) : null}
-    </Card>
-  );
-}
-
-function ProgressRow({ label, meta, pct, color, metaColor, onMeta, last }: { label: string; meta: string; pct: number; color: string; metaColor?: string; onMeta?: () => void; last?: boolean }) {
-  const c = useColors();
-  // Semantic color: a met target (>=100%) turns the bar + a check green, so "done" reads
-  // at a glance instead of only from the numbers.
-  const met = pct >= 100;
-  return (
-    <View style={{ marginBottom: last ? 0 : 17 }}>
-      <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-        <Row style={{ gap: 5, alignItems: 'center' }}>
-          <Txt w="b" size={14}>
-            {label}
-          </Txt>
-          {met ? <Icon name="check" size={13} color={c.successDeep} /> : null}
-        </Row>
-        <Pressable onPress={onMeta} disabled={!onMeta}>
-          <Txt w={onMeta ? 'b' : 'sb'} size={13} color={metaColor ?? c.textSecondary}>
-            {meta}
-          </Txt>
-        </Pressable>
-      </Row>
-      <ProgressBar pct={pct} height={9} color={met ? c.successDeep : color} />
+  const valueColor = act.vClass === 'g' ? c.success : act.vClass === 'b' ? c.accentLight : c.textTertiary;
+  const mediaFg = act.icon === 'drop' ? c.cyan : act.dim ? c.trainerLight : c.success;
+  const body = (
+    <View style={{ width: 158, borderRadius: 20, overflow: 'hidden', backgroundColor: c.card, borderWidth: 1, borderColor: c.hairline }}>
+      <Txt w="b" size={11.5} color={c.textTertiary} style={{ paddingHorizontal: 14, paddingTop: 12 }}>{act.time}</Txt>
+      <View style={{ height: 104, marginHorizontal: 10, marginTop: 10, borderRadius: 14, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <Icon name={act.icon} size={34} color={mediaFg} />
+        {act.dim ? <View style={{ position: 'absolute', inset: 0, backgroundColor: '#070B1488' }} /> : null}
+      </View>
+      <View style={{ padding: 14, paddingTop: 11 }}>
+        <Txt w="b" size={13} color={c.textSecondary} numberOfLines={1}>{act.type}</Txt>
+        <Txt w="eb" size={act.vClass === 'muted' ? 14 : 20} ls={-0.3} color={valueColor} style={{ marginTop: 2 }} numberOfLines={1}>
+          {act.value}
+        </Txt>
+      </View>
     </View>
   );
+  return onPress ? (
+    <PressScale accessibilityLabel={`${act.type}: ${act.value}`} onPress={onPress}>{body}</PressScale>
+  ) : (
+    body
+  );
 }
 
-/** Animate a number toward `target` in small steps (no Animated/Date — resume-safe and
- *  cheap). Snaps on first mount; counts up only when the value actually changes, so the
- *  hero score "moves" right after a log instead of jumping. */
+/** One Finish-Today "next move" row (proto `.fmove`). */
+function FinishMove({ icon, accent, title, sub, value, valueColor, onPress }: { icon: IconName; accent: Accent; title: string; sub: string; value: string; valueColor?: string; onPress?: () => void }) {
+  const c = useColors();
+  const tileBg = ACCENT_SURFACE[accent](c);
+  const fg = ACCENT_FG[accent](c);
+  return (
+    <PressScale
+      accessibilityLabel={`${title}, ${sub}`}
+      onPress={onPress}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 11, borderRadius: 15, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.hairline }}
+    >
+      <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: tileBg, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} size={17} color={fg} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Txt w="eb" size={14.5} numberOfLines={1}>{title}</Txt>
+        <Txt w="sb" size={11.5} color={c.textTertiary} style={{ marginTop: 1 }}>{sub}</Txt>
+      </View>
+      <Txt w="eb" size={15} color={valueColor ?? c.success}>{value}</Txt>
+    </PressScale>
+  );
+}
+
+/* ============================================================================
+   Count-up: animate a number toward `target` (snaps on mount; counts on change).
+   ============================================================================ */
 function useCountUp(target: number, steps = 18, intervalMs = 28): number {
   const [val, setVal] = React.useState(target);
   const prev = React.useRef(target);
@@ -720,23 +674,4 @@ function useCountUp(target: number, steps = 18, intervalMs = 28): number {
     return () => clearInterval(id);
   }, [target, steps, intervalMs]);
   return val;
-}
-
-function TrendChart({ series }: { series: number[] }) {
-  const c = useColors();
-  const box = DEFAULT_CHART_BOX;
-  const { linePath, areaPath, last } = trendGeometry(series, box);
-  return (
-    <Svg viewBox={`0 0 ${box.width} ${box.height}`} width="100%" height={100} preserveAspectRatio="none" style={{ marginTop: 6 }}>
-      <Defs>
-        <LinearGradient id="trend" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#22C55E" stopOpacity="0.18" />
-          <Stop offset="1" stopColor="#22C55E" stopOpacity="0" />
-        </LinearGradient>
-      </Defs>
-      <Path d={areaPath} fill="url(#trend)" />
-      <Path d={linePath} fill="none" stroke="#22C55E" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <Circle cx={last.x} cy={last.y} r={5.5} fill="#22C55E" stroke={c.card} strokeWidth={2.5} />
-    </Svg>
-  );
 }

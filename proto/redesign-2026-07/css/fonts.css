@@ -1,0 +1,15 @@
+/* Local Plus Jakarta Sans so typography is identical offline (in the native app) and
+   at :8124. Weights match the Google set the proto used: 400/500/600/700/800. */
+@font-face{font-family:"Plus Jakarta Sans";font-style:normal;font-weight:400;font-display:block;src:url("../fonts/PlusJakartaSans-400Regular.ttf") format("truetype")}
+@font-face{font-family:"Plus Jakarta Sans";font-style:normal;font-weight:500;font-display:block;src:url("../fonts/PlusJakartaSans-500Medium.ttf") format("truetype")}
+@font-face{font-family:"Plus Jakarta Sans";font-style:normal;font-weight:600;font-display:block;src:url("../fonts/PlusJakartaSans-600SemiBold.ttf") format("truetype")}
+@font-face{font-family:"Plus Jakarta Sans";font-style:normal;font-weight:700;font-display:block;src:url("../fonts/PlusJakartaSans-700Bold.ttf") format("truetype")}
+@font-face{font-family:"Plus Jakarta Sans";font-style:normal;font-weight:800;font-display:block;src:url("../fonts/PlusJakartaSans-800ExtraBold.ttf") format("truetype")}
+
+/* Native-shell polish (harmless at :8124): no grey tap-flash in WKWebView, and don't let
+   the webview rubber-band the whole page or select text like a document. */
+*{-webkit-tap-highlight-color:transparent}
+html,body{-webkit-user-select:none;user-select:none;overscroll-behavior:none}
+/* ...but real form fields MUST stay selectable/editable, or iOS WKWebView breaks the caret,
+   text selection, and copy/paste inside them (name, food search, profile, chat composers). */
+input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
