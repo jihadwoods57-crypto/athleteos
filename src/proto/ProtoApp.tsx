@@ -21,7 +21,17 @@ const CONSOLE_BRIDGE = `
 })();
 true;
 `;
-const PRELUDE = CONSOLE_BRIDGE + BRIDGE_SHIM;
+// Inject the Supabase config from the app's environment (Metro inlines EXPO_PUBLIC_* at build)
+// so production is the source of truth. If absent, the proto's index.html fallback provides it.
+// Only overrides when BOTH are present, so we never blank out the fallback with empty strings.
+const SB_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SB_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const SUPABASE_CONFIG =
+  SB_URL && SB_KEY
+    ? `window.__SUPABASE = { url: ${JSON.stringify(SB_URL)}, anonKey: ${JSON.stringify(SB_KEY)} }; true;`
+    : `true;`;
+
+const PRELUDE = SUPABASE_CONFIG + CONSOLE_BRIDGE + BRIDGE_SHIM;
 
 function Center({ children }: { children: React.ReactNode }) {
   return <View style={styles.center}>{children}</View>;
