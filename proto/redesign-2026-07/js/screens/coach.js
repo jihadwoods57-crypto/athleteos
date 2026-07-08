@@ -1,92 +1,77 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead } from '../components.js';
+import { backHead, esc } from '../components.js';
+import * as roles from '../roles.js';
 
-/* ---------- Coach Dashboard (role view; mirrors the RN coach side + Copilot) ---------- */
+/* Coach roster cache: null = not loaded (show loading), else { teams, rows } from real data.
+   Fetched once on mount, repainted via window.__render; the athletes' scores are their own real
+   numbers (days.score), and a member with no day row today is honestly "No logs today". */
+let ROSTER = null;
+let rosterLoading = false;
+export async function loadCoachRoster(force) {
+  if (rosterLoading) return;
+  if (ROSTER && !force) return;
+  rosterLoading = true;
+  ROSTER = await roles.loadCoachRoster();
+  rosterLoading = false;
+  if (location.hash === '#coach' || location.hash === '#copilot') window.__render();
+}
+const scoreColor = (s) => s == null ? 'var(--text-3)' : s >= 80 ? 'var(--green-bright)' : s >= 60 ? 'var(--amber-bright)' : 'var(--red)';
+
+function rosterRow(r) {
+  return `
+  <div class="roster-row" data-go="coach-athlete/${esc(r.athleteId)}">
+    <div class="flagdot ${r.flag}"></div>
+    <div class="rn">
+      <div class="t">${esc(r.name)}${r.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(r.unit)}</small>` : ''}</div>
+      <div class="s">${esc(r.note)}</div>
+    </div>
+    <span class="rl">${esc(r.logs)}</span>
+    <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>
+  </div>`;
+}
+
+/* ---------- Coach Dashboard — real roster scoped by RLS to the coach's teams ---------- */
 export const coach = {
   nav: 'coach', tab: 'team',
   render() {
-    const avg = Math.round(S.roster.reduce((a, r) => a + r.score, 0) / S.roster.length);
-    const attention = S.roster.filter(r => r.flag === 'r');
-    const jihadScore = S.score;
+    const teamName = ROSTER && ROSTER.teams[0] ? ROSTER.teams[0].name : (S.athlete.school || 'Your team');
+    const rows = ROSTER ? ROSTER.rows : null;
+    const scored = rows ? rows.filter(r => r.score != null) : [];
+    const avg = scored.length ? Math.round(scored.reduce((a, r) => a + r.score, 0) / scored.length) : null;
+    const onStd = rows ? rows.filter(r => r.score != null && r.score >= 80).length : 0;
+    const attention = rows ? rows.filter(r => r.flag === 'r') : [];
     return `
-    ${backHead('Coach view', `${S.coach.team} · today`, 'profile')}
+    ${backHead('Coach view', `${esc(teamName)} · today`, 'profile')}
 
     <div class="coach-stats">
-      <div class="coach-stat"><div class="v">${avg}</div><div class="k">Team avg</div></div>
-      <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${S.roster.filter(r => r.score >= 80).length}</div><div class="k">On standard</div></div>
+      <div class="coach-stat"><div class="v">${avg != null ? avg : '—'}</div><div class="k">Team avg</div></div>
+      <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${onStd}</div><div class="k">On standard</div></div>
       <div class="coach-stat"><div class="v" style="color:var(--red)">${attention.length}</div><div class="k">Need attention</div></div>
     </div>
 
-    <div style="height:14px"></div>
-    <div class="ai-note" style="border-color:rgba(245,165,36,0.35);background:linear-gradient(120deg, rgba(245,165,36,0.10), rgba(59,130,246,0.04))">
-      <div class="av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${icon('sparkle', 18)}</div>
-      <div>
-        <div class="who" style="color:var(--amber-bright)">Morning Briefing · 6:00 AM · pushed before practice</div>
-        <p><b>K. Bell</b> is your conversation today: no logs since Tuesday, trending down two weeks. <b>Reyes</b> is hydration-short three days running. <b>Woods</b> is at ${jihadScore} with ${S.remainingCount === 0 ? 'a finished day' : S.remainingCount + ' still open tonight'}. Everyone else held the standard.</p>
-      </div>
-    </div>
-
-    ${attention.length ? `
-    <div class="eyebrow">Needs attention</div>
-    ${attention.map(r => `
-    <div class="notif critical" data-go="copilot" style="cursor:pointer">
+    ${rows === null ? `
+    <div class="eyebrow">Roster</div>
+    <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+    <div><div class="tt">Loading your roster…</div><div class="ts">Pulling today's real scores for your team.</div></div></div>`
+    : rows.length === 0 ? `
+    <div class="eyebrow">Roster</div>
+    <div class="state-demo"><div class="sd-ic">${icon('users', 24)}</div>
+    <div class="sd-t">No athletes yet</div>
+    <div class="sd-s">Share your team code so athletes can join. Their live scores show up here — nothing is invented until they log.</div></div>`
+    : `
+    ${attention.length ? `<div class="eyebrow">Needs attention</div>${attention.map(r => `
+    <div class="notif critical" data-go="coach-athlete/${esc(r.athleteId)}" style="cursor:pointer">
       <div class="nic">${icon('bell', 19)}</div>
-      <div style="flex:1">
-        <div class="nt">${r.name} · ${r.unit}</div>
-        <div class="nb">${r.note}</div>
-      </div>
-      <span class="nw">${r.score}</span>
+      <div style="flex:1"><div class="nt">${esc(r.name)}${r.unit ? ` · ${esc(r.unit)}` : ''}</div><div class="nb">${esc(r.note)}</div></div>
+      <span class="nw">${r.score != null ? r.score : '—'}</span>
     </div>`).join('')}` : ''}
 
     <div class="eyebrow">Roster · live scores</div>
-    <section class="card" style="padding:2px 0">
-      ${S.roster.map(r => {
-        // J. Woods' row is LIVE: score, logs, and note derive from his actual state
-        const score = r.you ? jihadScore : r.score;
-        const logs = r.you ? `${S.metCount}/${S.reqTotal}` : r.logs;
-        const note = r.you
-          ? (S.remainingCount === 0 ? `Finished day · ${S.tier.name}` : `${S.remainingCount} still open tonight`)
-          : r.note;
-        const flag = r.you ? (score >= 80 ? (S.remainingCount === 0 ? 'g' : 'y') : 'y') : r.flag;
-        return `
-        <div class="roster-row" ${r.you ? 'data-go="coach-athlete"' : 'style="cursor:default"'}>
-          <div class="flagdot ${flag}"></div>
-          <div class="rn">
-            <div class="t">${r.name} <small style="color:var(--text-3);font-weight:700">· ${r.unit}</small>${r.you ? ' <span class="status-pill b" style="font-size:9.5px;padding:2px 8px">REVIEW</span>' : ''}</div>
-            <div class="s">${note}</div>
-          </div>
-          <span class="rl">${logs}</span>
-          <span class="rs" style="color:${score >= 80 ? 'var(--green-bright)' : score >= 60 ? 'var(--amber-bright)' : 'var(--red)'}">${score}</span>
-        </div>`;
-      }).join('')}
-    </section>
-
-    <div class="eyebrow">Leaderboard · what the athletes see</div>
-    <section class="card pad" style="display:flex;align-items:center;gap:14px">
-      <div style="flex:1">
-        <div style="font-size:14.5px;font-weight:800">Board scope</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px">Changes their Squad view the moment you pick.</div>
-      </div>
-      <div class="seg" style="width:190px">
-        <button class="${RT.squadScope === 'team' ? 'on' : ''}" data-act="setSquadScope:team" data-then="coach">Team</button>
-        <button class="${RT.squadScope === 'position' ? 'on' : ''}" data-act="setSquadScope:position" data-then="coach">Room</button>
-        <button class="${RT.squadScope === 'off' ? 'on' : ''}" data-act="setSquadScope:off" data-then="coach">Off</button>
-      </div>
-    </section>
+    <section class="card" style="padding:2px 0">${rows.map(rosterRow).join('')}</section>`}
 
     <div class="eyebrow">Coach tools</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="coach-assign">
-        <div class="lic" style="background:rgba(52,211,153,0.16);color:var(--green-bright)">${icon('plus', 18)}</div>
-        <div class="lm"><div class="lt">Assign a requirement</div><div class="ls">Post-workout meal, supplements, body photo, sleep, custom</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-go="coach-plan">
-        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('clipboard', 17)}</div>
-        <div class="lm"><div class="lt">Edit the game plan</div><div class="ls">Targets, weekly focus · publishing notifies him</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
       <div class="lrow" data-go="copilot">
         <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 18)}</div>
         <div class="lm"><div class="lt">Copilot</div><div class="ls">Who needs attention? Who's improving? Team summary.</div></div>
@@ -94,18 +79,8 @@ export const coach = {
       </div>
       <div class="lrow" data-go="team-diet">
         <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Team dietary sheet</div><div class="ls">Allergies & restrictions · 2 severe on roster</div></div>
+        <div class="lm"><div class="lt">Team dietary sheet</div><div class="ls">Allergies & restrictions across the roster</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-go="safety">
-        <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('heart', 17)}</div>
-        <div class="lm"><div class="lt">Wellness flags</div><div class="ls">Protective patterns · no flags this week</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" style="cursor:default">
-        <div class="lic">${icon('bars', 17)}</div>
-        <div class="lm"><div class="lt">Log game stats</div><div class="ls">Feeds the execution ↔ performance card</div></div>
-        <span class="status-pill b">Fri</span>
       </div>
       <div class="lrow" data-go="coach-profile">
         <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204;font-weight:800;font-size:13px">M</div>
@@ -113,9 +88,12 @@ export const coach = {
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
     </section>
+    <div style="height:6px"></div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);padding:0 2px">Tap an athlete to review their day and comment. Assignments and leaderboard controls are coming with the next backend slice.</div>
     <div style="height:10px"></div>
     `;
   },
+  mount() { loadCoachRoster(); },
 };
 
 /* ---------- Coach assign flow: template -> lands on the athlete's Home ---------- */
@@ -220,39 +198,48 @@ export const coachPlan = {
   },
 };
 
-/* ---------- Copilot: deterministic roster reads, AI-narrated (mirrors RN assist fn) ---------- */
+/* ---------- Copilot: deterministic reads over the REAL roster (honest, not narrated fiction) ---------- */
 export const copilot = {
   nav: 'coach', tab: 'copilot',
   render() {
+    const rows = ROSTER ? ROSTER.rows : null;
+    if (rows === null) {
+      return `${backHead('Copilot', 'Deterministic roster reads', 'coach')}
+      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('sparkle', 17)}</div>
+      <div><div class="tt">Loading the roster…</div><div class="ts">Copilot reads your real team data — no numbers until it loads.</div></div></div>`;
+    }
+    const attention = rows.filter(r => r.flag === 'r');
+    const belowBar = rows.filter(r => r.score != null && r.score < 80);
+    const notLogged = rows.filter(r => !r.loggedToday);
+    const summary = rows.length === 0
+      ? 'No athletes on your roster yet. Share your team code to get started.'
+      : `${rows.length} athlete${rows.length > 1 ? 's' : ''} on your roster. `
+        + (attention.length ? `${attention.length} need attention (no logs or off standard). ` : 'Everyone who logged is on standard. ')
+        + (notLogged.length ? `${notLogged.length} haven't logged today.` : 'Everyone has logged today.');
     return `
-    ${backHead('Copilot', 'Deterministic roster reads, narrated', 'coach')}
+    ${backHead('Copilot', 'Deterministic reads over your real roster', 'coach')}
 
-    <div class="eyebrow">Ask</div>
-    <div class="chip-row">
-      <span class="chp on">Who needs attention?</span>
-      <span class="chp" data-go="copilot">Who's improving?</span>
-      <span class="chp" data-go="copilot">Team summary</span>
-    </div>
-
-    <div style="height:16px"></div>
     <div class="ai-note">
       <div class="av">${icon('sparkle', 18)}</div>
-      <div><div class="who">Copilot</div>
-      <p><b>K. Bell</b> is the outlier: no logs since Tuesday, score 58, trending down two weeks straight. Text him tonight, not Friday. <b>M. Reyes</b> is a smaller fix: hydration short 3 days running, everything else holds. Everyone else is on standard or one habit away.</p></div>
+      <div><div class="who">Copilot</div><p>${esc(summary)}</p></div>
     </div>
 
+    ${belowBar.length ? `
     <div class="eyebrow">The numbers behind it</div>
     <section class="card" style="padding:2px 0">
-      ${S.roster.filter(r => r.flag !== 'g').map(r => `
-        <div class="roster-row" style="cursor:default">
+      ${belowBar.map(r => `
+        <div class="roster-row" data-go="coach-athlete/${esc(r.athleteId)}">
           <div class="flagdot ${r.flag}"></div>
-          <div class="rn"><div class="t">${r.name}</div><div class="s">${r.note}</div></div>
-          <span class="rs" style="color:${r.score >= 60 ? 'var(--amber-bright)' : 'var(--red)'}">${r.score}</span>
+          <div class="rn"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.note)}</div></div>
+          <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>
         </div>`).join('')}
-    </section>
+    </section>` : `
+    <div class="sidebox"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 17)}</div>
+    <div><div class="tt">Nobody below the bar</div><div class="ts">Every logged athlete is at 80+. Check back after tonight's logs.</div></div></div>`}
     <div style="height:10px"></div>
     `;
   },
+  mount() { loadCoachRoster(); },
 };
 
 /* ---------- Coach → athlete detail (review Jihad's day, comment on a log) ---------- */
