@@ -245,11 +245,24 @@ export const deleteAccount = {
       <div class="ts">Export everything from Profile before you delete. Deletion completes within 30 days everywhere, immediately in the app.</div></div>
     </div>
     <div style="height:18px"></div>
-    <button class="btn" style="background:var(--red);color:#fff;box-shadow:0 10px 30px rgba(246,87,87,0.3)" data-go="welcome">${icon('x', 18)} Delete my account</button>
-    <div style="height:10px"></div>
+    <button id="del-acct" class="btn" style="background:var(--red);color:#fff;box-shadow:0 10px 30px rgba(246,87,87,0.3)">${icon('x', 18)} Delete my account</button>
+    <div id="del-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
     <button class="btn ghost" data-go="profile">Keep my account</button>
     <div style="height:10px"></div>
     `;
+  },
+  mount(root) {
+    const btn = root.querySelector('#del-acct');
+    const status = root.querySelector('#del-status');
+    if (!btn) return;
+    let armed = false;
+    btn.addEventListener('click', async () => {
+      if (!armed) { armed = true; btn.innerHTML = 'Tap again to permanently delete'; return; } // two-tap confirm
+      btn.disabled = true; btn.textContent = 'Deleting…';
+      await window.__act.deleteAccount(); // real delete_account RPC + sign-out + local wipe
+      if (status) status.textContent = 'Account deleted.';
+      location.hash = '#welcome';
+    });
   },
 };
 

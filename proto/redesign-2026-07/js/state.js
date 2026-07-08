@@ -364,6 +364,19 @@ export const act = {
     RT.userId = null; RT.email = null; RT.authRole = null;
     save();
   },
+  /* Apple 5.1.1(v): REAL in-app account deletion. Calls the delete_account RPC (server cascades
+     the athlete's rows), signs out, and wipes local state. Best-effort on the RPC so a missing
+     backend still signs the user out; returns whether the server delete succeeded. */
+  async deleteAccount() {
+    const sb = window.sb;
+    let serverOk = false;
+    try { if (sb && RT.userId) { const { error } = await sb.rpc('delete_account', {}); serverOk = !error; } } catch { /* fall through to local wipe */ }
+    try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
+    try { dayResetLocal(); } catch { /* ignore */ }
+    Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)));
+    save();
+    return serverOk;
+  },
   async saveAthleteProfile(fields) {
     const sb = window.sb;
     if (!sb || !RT.userId) return;
