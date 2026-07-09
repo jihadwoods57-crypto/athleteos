@@ -17,6 +17,21 @@ the loop converge instead of thrashing.
 
 ## Entries
 
+### 2026-07-10 · founder-directed features · deploy + push + wire orphans
+- Founder greenlit the "biggest wins" (built-but-unrendered features), authorized deploying
+  analyze-meal (done — live, version 27) and pushing to origin (done — master + tags pushed).
+- Shipped i6: comeback re-entry card (computeDerived.comeback → athlete Home). Clean win, conflicted
+  with nothing.
+- IMPORTANT design note: Discipline Record + Deep Dive were NOT accidental orphans — Profile.tsx:132
+  documents they were DELIBERATELY cut on 2026-07-07 ("the 8124 prototype is the master, Profile is
+  5 sections only"). Surfaced this to the founder; decision = build a NEW dedicated surface, not re-add
+  to Profile. Shipped i7: new Record overlay (recordOpen) with both cards, reached by ONE Profile
+  settings row (keeps the slim Profile intact). Deep Dive uses the deployed deep-analysis edge fn.
+- Lesson: a scout calling something "orphaned" may be wrong — check for a deliberate-removal comment
+  before re-adding. Both analyze-meal AND deep-analysis + assist edge fns ARE deployed on prod
+  (ftwrvylzoyznhbzhgism / AthleteOS). RN UI can't be driven live here (no simulator) — bundle+tsc+jest
+  is the only oracle for screen wiring.
+
 ### 2026-07-10 · founder-directed continuation · merge + fix-all
 - Founder authorized merge to master and "fix all, don't stop to validate". Merged i1-i5 to master
   (local, not pushed). Shipped i4 (roster ORDER BY determinism) + i5 (shared confirmSignOut helper —
