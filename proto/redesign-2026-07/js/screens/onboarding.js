@@ -197,20 +197,21 @@ export default {
         btn.textContent = 'Creating your account…';
         const r = await act.signUp(email, password, name, 'athlete');
         if (r.ok) {
-          act.startDay0();
-          // Reflect the athlete's REAL identity locally so Home shows who they are immediately.
-          act.saveProfile({ name, sport: ob.sport || '', position: ob.position || '', level: ob.level || '' });
-          act.saveAllergies(ob.allergies || []);
-          // Best-effort server profile — real columns only (0001_schema.sql athlete_profiles).
-          const fields = {};
-          if (ob.sport) fields.sport = ob.sport;
-          if (ob.position) fields.position = ob.position;
-          if (ob.level) fields.level = ob.level;
-          if (ob.goal) fields.base_goal = ob.goal;
-          if (ob.currentWeight) fields.base_weight = Math.round(ob.currentWeight);
-          if (ob.currentWeight || ob.targetWeight) fields.season_goal = { start: ob.currentWeight || null, target: ob.targetWeight || null };
-          act.saveAthleteProfile(fields);
-          window.__go('home');
+          // Persist the athlete's real identity locally + to the server (awaited). RT.ob is kept,
+          // so if this signup had no session yet (email confirmation on), the server write is
+          // re-attempted automatically on the next sign-in.
+          await act.persistOnboarding();
+          if (r.session) {
+            act.startDay0();
+            window.__go('home');
+          } else {
+            // No session (email confirmation required): don't drop the athlete on an empty Home
+            // where nothing they do can save. Send them to confirm + sign in; their onboarding is
+            // safe in RT.ob and back-fills on sign-in.
+            err.style.color = 'var(--text-2)';
+            err.textContent = 'Account created — confirm your email, then sign in to start.';
+            btn.textContent = 'Confirm your email to continue';
+          }
         } else {
           err.textContent = r.error || 'Could not create your account.';
           btn.disabled = false;
