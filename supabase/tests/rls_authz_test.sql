@@ -351,6 +351,25 @@ select _ok((select count(*) from meals where athlete_id = 'dddddddd-0000-0000-00
 select _as(null);  -- authenticated role but auth.uid() is NULL (broken/expired token)
 select _ok((select count(*) from meals) = 0, 'authenticated with no uid sees nothing');
 
+-- ================================================================ 0048: onboarding columns
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok(_try($$update profiles set tos_accepted_at = now(), tos_version = '2026-07-09', committed_at = now()
+                 where id = 'aaaaaaaa-0000-0000-0000-000000000001'$$) = 'ok',
+           '0048: athlete records own ToS acceptance + commitment');
+select _ok(_try($$update athlete_profiles set dob = '2008-01-15', standard = '{"mealsPerDay":3}'::jsonb
+                 where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001'$$) = 'ok',
+           '0048: athlete writes own dob + standard knobs');
+-- cross-writes: RLS silently matches zero rows — assert the value did not change
+select _try($$update profiles set tos_version = 'evil' where id = 'bbbbbbbb-0000-0000-0000-000000000002'$$);
+select _try($$update athlete_profiles set dob = '1990-01-01' where athlete_id = 'bbbbbbbb-0000-0000-0000-000000000002'$$);
+select _superuser();
+select _ok((select tos_version is distinct from 'evil' from profiles
+            where id = 'bbbbbbbb-0000-0000-0000-000000000002'),
+           '0048: stranger cannot stamp another profile''s ToS fields');
+select _ok((select dob is distinct from '1990-01-01'::date from athlete_profiles
+            where athlete_id = 'bbbbbbbb-0000-0000-0000-000000000002'),
+           '0048: stranger cannot set another athlete''s dob');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
