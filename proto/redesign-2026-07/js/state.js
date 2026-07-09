@@ -335,16 +335,24 @@ export const act = {
     } catch { /* fall back to athlete */ }
     RT.authRole = role;
     save();
-    await this._loadProfileIntoRt(RT.userId);
+    const hadServerProfile = await this._loadProfileIntoRt(RT.userId);
+    // Back-fill: if onboarding was captured locally but never reached the server (a signup that
+    // had no session at the time — e.g. email confirmation was required), persist it now that we
+    // hold a real session. Only when the server row is genuinely absent, so a later profile edit
+    // is never clobbered by stale onboarding scratch.
+    if (!hadServerProfile && role === 'athlete' && RT.ob) {
+      try { await this.persistOnboarding(); } catch { /* best-effort */ }
+    }
     await loadDay(RT.userId);
     syncRtFromDay();
     return { ok: true, role };
   },
   /* Read the athlete's REAL identity from the server into RT.profile so the UI shows who they
-     actually are — never the Jihad Woods placeholder. Best-effort; keeps whatever we already have. */
+     actually are — never the Jihad Woods placeholder. Returns true iff a server athlete_profiles
+     row exists. Best-effort; keeps whatever we already have. */
   async _loadProfileIntoRt(userId) {
     const sb = window.sb;
-    if (!sb || !userId) return;
+    if (!sb || !userId) return false;
     try {
       const { data: prof } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
       const { data: ap } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets').eq('athlete_id', userId).maybeSingle();
@@ -358,13 +366,27 @@ export const act = {
         if (ap.targets && typeof ap.targets === 'object') patch.targets = ap.targets;
       }
       if (Object.keys(patch).length) { RT.profile = { ...(RT.profile || {}), ...patch }; save(); }
-    } catch { /* offline / RLS — keep whatever identity we have */ }
+      return !!ap;
+    } catch { /* offline / RLS — keep whatever identity we have */ return false; }
   },
   async signOut() {
     const sb = window.sb;
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
     RT.userId = null; RT.email = null; RT.authRole = null;
     save();
+  },
+  /* Send a password-reset email. Neutral by design — we never reveal whether an account exists,
+     so the same confirmation shows regardless (anti account-enumeration). The link lands on the
+     configured recovery target; completing the reset (setting the new password) is handled there. */
+  async requestPasswordReset(email) {
+    const sb = window.sb;
+    const addr = (email || '').trim();
+    if (!addr) return { ok: false, error: 'Enter your email.' };
+    if (sb) {
+      try { await sb.auth.resetPasswordForEmail(addr, { redirectTo: 'https://onstandard.app/reset' }); }
+      catch { /* neutral: never leak whether the address is registered */ }
+    }
+    return { ok: true };
   },
   /* Apple 5.1.1(v): REAL in-app account deletion. Calls the delete_account RPC (server cascades
      the athlete's rows), signs out, and wipes local state. Best-effort on the RPC so a missing
@@ -381,8 +403,28 @@ export const act = {
   },
   async saveAthleteProfile(fields) {
     const sb = window.sb;
-    if (!sb || !RT.userId) return;
-    try { await sb.from('athlete_profiles').upsert({ athlete_id: RT.userId, ...fields }); } catch { /* best-effort; full capture is Phase 6 */ }
+    if (!sb || !RT.userId) return false;
+    try { const { error } = await sb.from('athlete_profiles').upsert({ athlete_id: RT.userId, ...fields }); return !error; }
+    catch { return false; }
+  },
+  /* Persist the athlete's captured onboarding (RT.ob) to the server athlete_profiles + local RT.
+     Awaitable; returns true iff the server row was written. Idempotent (upsert), so it is safe to
+     call again on a later sign-in to back-fill a signup that had no session yet (email confirm). */
+  async persistOnboarding() {
+    const ob = RT.ob || {};
+    const name = ob.name || (RT.profile && RT.profile.name) || '';
+    // local identity first (real values only — never fabricated) so Home reflects the athlete now
+    this.saveProfile({ name, sport: ob.sport || '', position: ob.position || '', level: ob.level || '' });
+    this.saveAllergies(ob.allergies || RT.allergies || []);
+    const fields = {};
+    if (ob.sport) fields.sport = ob.sport;
+    if (ob.position) fields.position = ob.position;
+    if (ob.level) fields.level = ob.level;
+    if (ob.goal) fields.base_goal = ob.goal;
+    if (ob.currentWeight) fields.base_weight = Math.round(ob.currentWeight);
+    if (ob.currentWeight || ob.targetWeight) fields.season_goal = { start: ob.currentWeight || null, target: ob.targetWeight || null };
+    if (!Object.keys(fields).length) return false;
+    return await this.saveAthleteProfile(fields);
   },
   // Called by the router boot gate to sync RT from a restored Keychain session.
   _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },
