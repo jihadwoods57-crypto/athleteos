@@ -42,6 +42,7 @@ export function wireAccount(root, { role, onSession }) {
   [p1, p2, email].forEach((el) => el.addEventListener('input', gate));
   gate();
   const submit = async () => {
+    if (btn.disabled) return;
     err.textContent = '';
     const ob = RT.ob || {};
     const name = (ob.name || '').trim();
@@ -56,5 +57,5 @@ export function wireAccount(root, { role, onSession }) {
     btn.textContent = was;
   };
   btn.addEventListener('click', submit);
-  p2.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  p2.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !btn.disabled) submit(); });
 }
