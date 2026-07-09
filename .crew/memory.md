@@ -17,6 +17,28 @@ the loop converge instead of thrashing.
 
 ## Entries
 
+### 2026-07-10 · CRITICAL ARCHITECTURE · the shipped app is the PROTO, not the RN screens
+- **The crew has been editing dormant code.** `app/index.tsx` renders `<ProtoApp/>` — a WebView that
+  loads the `:8124` HTML/CSS/JS prototype (`proto/redesign-2026-07/`, bundled to `assets/proto.zip`).
+  Founder-approved 2026-07-07 (`docs/proto-native-app/PLAN.md`): "the proto is the master."
+  `src/Root.tsx`/`AthleteApp` (the RN screens) is imported NOWHERE. So EVERYTHING under `src/screens/*`
+  and `src/core/*` is DORMANT in production — the proto has its own JS logic + talks to Supabase directly;
+  the native bridge (`src/proto/bridge.ts`) carries ONLY camera/push/haptics/share/secure-store, no business logic.
+- **The `.crew` oracle (tsc+jest+expo-bundle) tests the RN code, which does not ship.** That is why every
+  crew cycle passed green while changing code users never run. FIX THE ORACLE before the next run: point the
+  crew at the proto (`proto/redesign-2026-07/js/`) with a browser-based check (serve the dir, drive with
+  Playwright — it IS a runnable web app), OR explicitly scope the crew to `src/core` engine reuse only.
+- **Audit of the proto vs. this session's RN "fixes":** the shipped proto is MORE honest and does NOT have
+  the bugs I fixed in RN — parent compliance (i1): proto uses `scoreHistory:[]` + honest empty states
+  ("we won't invent it", coach.js:612); score delta (i2): proto hides the delta when yesterday has no real
+  row (state.js:472); sign-out data-loss (i5): proto signOut is a session sign-out, not a local wipe, and
+  DELETE has a two-tap confirm (settings.js:260). The recruiting Discipline Record (i7) ALREADY EXISTS in
+  the proto (features.js `recruiting` + profile.js:92 row). Only genuine gaps: the comeback churn card and
+  Deep Dive (neither in the proto). ONLY the deployed analyze-meal edge-fn spend-ceiling fix was a real,
+  live win this session (edge fns are shared by any client).
+- Lesson: for THIS repo, "run the app" means serve `proto/redesign-2026-07/` and drive it in a browser —
+  never trust the RN gate as evidence a change reaches users.
+
 ### 2026-07-10 · founder-directed features · deploy + push + wire orphans
 - Founder greenlit the "biggest wins" (built-but-unrendered features), authorized deploying
   analyze-meal (done — live, version 27) and pushing to origin (done — master + tags pushed).
