@@ -1,0 +1,51 @@
+{
+  "repo": "onstandard (athleteos)",
+  "branch": "crew/2026-07-09",
+  "tagPrefix": "crew/2026-07-09-i",
+  "gates": {
+    "cheap": "npm run typecheck && npm run test",
+    "full": "npm run verify",
+    "security": "npm run test:rls",
+    "design": "npm run test:design"
+  },
+  "gateTriggers": {
+    "securityWhenPathMatches": ["supabase/", "auth", "rls", "consent", "guardian", "notify"],
+    "designWhenPathMatches": ["app/", "components/", ".tsx"]
+  },
+  "prioritization": {
+    "formula": "impact * confidence / risk",
+    "scale": "each of impact/confidence/risk is 1-5",
+    "valueFloor": { "minPriority": 4.0, "minSeverity": "medium" },
+    "severityOrder": ["low", "medium", "high", "blocker"]
+  },
+  "cycle": {
+    "opportunitiesPerCycle": 3,
+    "dryRoundsToStop": 2,
+    "adversarialVerifiersPerChange": 2,
+    "verifierMajorityToKill": 2
+  },
+  "budget": {
+    "outputTokenCeiling": null,
+    "note": "null = use the founder's +Nk directive or the run arg; calibrate after the first supervised run"
+  },
+  "roles": {
+    "orchestrator":      { "model": "fable", "effort": "high"  },
+    "lens.security":     { "model": "opus",  "effort": "high"  },
+    "lens.scoring":      { "model": "opus",  "effort": "high"  },
+    "lens.architecture": { "model": "opus",  "effort": "high"  },
+    "lens.design":       { "model": "opus",  "effort": "high"  },
+    "lens.performance":  { "model": "opus",  "effort": "high"  },
+    "lens.business":     { "model": "opus",  "effort": "high"  },
+    "synthesizer":       { "model": "opus",  "effort": "high"  },
+    "implementer":       { "model": "opus",  "effort": "xhigh" },
+    "verifier":          { "model": "opus",  "effort": "high"  }
+  },
+  "guardrails": {
+    "neverApplyLiveMigrations": true,
+    "neverDeployEdgeFunctions": true,
+    "neverRunEasOrShip": true,
+    "neverTouchSecrets": true,
+    "neverMergeToMaster": true,
+    "neverWeakenTestsOrConstitution": true
+  }
+}
