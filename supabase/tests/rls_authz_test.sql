@@ -121,6 +121,16 @@ insert into practice_clients (practice_id, client_id, status) values
 insert into guardianships (athlete_id, guardian_id, relationship, status) values
   ('dddddddd-0000-0000-0000-000000000004','33333333-0000-0000-0000-000000000003','parent','active');
 
+-- an ORGANIZATION-scoped admin of O1 (the org auto-created for T1/T1B). Unlike a team coach
+-- (group scope), an org admin is meant to see every athlete across every team in their org.
+insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000005','admin@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('55555555-0000-0000-0000-000000000005','Org Admin','admin@x.io','coach')
+  on conflict (id) do update set full_name = excluded.full_name, email = excluded.email, primary_role = excluded.primary_role;
+insert into org_memberships (organization_id, member_id, role, scope_kind, scope_id, status)
+  select org_id, '55555555-0000-0000-0000-000000000005','admin','organization', null, 'active'
+  from teams where id = '77777777-1111-0000-0000-000000000001';
+
 -- private data
 insert into meals (id, athlete_id, day_date, name, protein, kcal) values
   ('e0000000-0000-0000-0000-00000000000a','aaaaaaaa-0000-0000-0000-000000000001', current_date, 'A breakfast', 40, 600),
@@ -232,10 +242,18 @@ select _ok(_try($q$select coach_set_goals('aaaaaaaa-0000-0000-0000-000000000001'
 select _ok(_try($q$select team_roster('77777777-1111-0000-0000-000000000001'::uuid)$q$) <> 'ok',
            'stranger coach_2 cannot pull T1''s roster');
 
--- same-org, different-team boundary (documents actual behavior either way)
+-- scope model (INTENDED, per 0034: team staff get GROUP scope; org admins get ORG scope):
+-- a team coach is confined to their team; an org-scoped admin sees the whole org, but not other orgs.
 select _as('11111111-0000-0000-0000-000000000001');
 select _ok((select count(*) from meals where athlete_id = 'cccccccc-0000-0000-0000-000000000003') = 0,
-           'coach_1 (team T1) cannot read athlete C on sibling team T1B of the SAME org');
+           'coach_1 (group-scoped, team T1) cannot read athlete C on sibling team T1B of the same org');
+select _as('55555555-0000-0000-0000-000000000005');  -- org-scoped admin of O1
+select _ok((select count(*) from meals where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') >= 1,
+           'org admin CAN read athlete A on team T1 (org-scoped visibility)');
+select _ok(can_view('cccccccc-0000-0000-0000-000000000003'),
+           'org admin CAN see athlete C on sibling team T1B (org scope spans all teams)');
+select _ok((select count(*) from meals where athlete_id = 'bbbbbbbb-0000-0000-0000-000000000002') = 0,
+           'org admin of O1 CANNOT read athlete B in a DIFFERENT org (O2)');
 
 -- ================================================================ 5. PARENT / GUARDIAN SCOPE
 select _as('33333333-0000-0000-0000-000000000003');
