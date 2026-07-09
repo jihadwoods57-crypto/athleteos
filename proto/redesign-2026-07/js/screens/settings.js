@@ -110,10 +110,15 @@ export const settings = {
   mount(root) { wireToggles(root); },
 };
 
+/* Terms/Privacy detours land here from any onboarding flow; OB_BACK sends "Done" back to the
+   right in-progress step (by role) instead of always dropping the athlete on Profile. */
+const OB_BACK = { ob: 'onboarding/7', cob: 'coach-ob/5', tob: 'trainer-ob/3', clob: 'client-ob/6' };
+
 /* ---------- Privacy (role-scoped visibility, honest) ---------- */
 export const privacy = {
   tab: 'profile',
-  render() {
+  render({ sub } = {}) {
+    const back = OB_BACK[sub] || 'profile';
     const rows = [
       ['users', 'Coach Mark', 'Score, logs, meal photos, check-ins, weight trend'],
       ['heart', 'Parents', 'Score, streaks, completion only — no photos, no weight'],
@@ -121,7 +126,7 @@ export const privacy = {
       ['grid', 'Teammates', 'Leaderboard score only'],
     ];
     return `
-    ${backHead('Privacy', 'Who sees what — by role, nothing public', 'profile')}
+    ${backHead('Privacy', 'Who sees what — by role, nothing public', back)}
 
     <section class="card" style="padding:6px 16px">
       ${rows.map(([ic, t, s]) => `
@@ -269,9 +274,10 @@ export const deleteAccount = {
 /* ---------- Terms (compliance surface) ---------- */
 export const terms = {
   hideTabs: true,
-  render() {
+  render({ sub } = {}) {
+    const back = OB_BACK[sub] || 'profile';
     return `
-    ${backHead('Terms & Privacy', 'The short, honest version', 'profile')}
+    ${backHead('Terms & Privacy', 'The short, honest version', back)}
     <section class="card" style="padding:6px 16px">
       ${[
         ['Your photos are yours', 'Meal photos go to your coach connection only. Never public, never sold, never used to train anything without asking.'],

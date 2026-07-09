@@ -3,6 +3,7 @@ import { icon } from '../icons.js';
 import { dobFromParts, ageOn, standardForGoal } from '../ob-helpers.js';
 import { esc } from '../components.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
+import { accountBody, wireAccount } from './ob-account.js';
 
 /* 7-step onboarding: identity → belonging → sport → goal → baseline → the contract → account.
    Back arrow + segmented progress on every step. Every selection is captured into RT.ob as
@@ -180,12 +181,9 @@ const steps = {
       <div class="ob-sub" style="padding:0 10px">Create your account to save it — your score, meals, and coach connection sync across devices.</div>
     </div>
     <div style="height:16px"></div>
-    <input id="su-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Email" />
-    <div style="height:12px"></div>
-    <input id="su-pass" class="ob-input" type="password" placeholder="Create a password (6+ characters)" />
-    <div id="su-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
+    ${accountBody({ terms: 'ob' })}
     <div class="ob-foot" style="margin-top:auto">
-      <button id="su-go" class="btn green">Create account &amp; Start</button>
+      <button id="su-go" class="btn green" disabled>Create account &amp; Start</button>
     </div>
   </div>`,
 };
@@ -389,48 +387,20 @@ export default {
       window.__render();
     });
 
-    // ---- Step 7: real account creation from the captured Standard ----
-    const btn = root.querySelector('#su-go');
-    if (btn) {
-      const err = root.querySelector('#su-err');
-      const emailEl = root.querySelector('#su-email');
-      const passEl = root.querySelector('#su-pass');
-      const submit = async () => {
-        err.textContent = '';
-        const ob = RT.ob || {};
-        const name = (ob.name || '').trim();
-        const email = (emailEl.value || '').trim();
-        const password = passEl.value || '';
-        if (!name) { err.textContent = 'Add your name in step 1 before creating your account.'; return; }
-        if (!email || !password) { err.textContent = 'Enter an email and a password.'; return; }
-        if (password.length < 6) { err.textContent = 'Password must be at least 6 characters.'; return; }
-        btn.disabled = true;
-        btn.textContent = 'Creating your account…';
-        const r = await act.signUp(email, password, name, 'athlete');
-        if (r.ok) {
-          // Persist the athlete's real identity locally + to the server (awaited). RT.ob is kept,
-          // so if this signup had no session yet (email confirmation on), the server write is
-          // re-attempted automatically on the next sign-in.
+    // ---- Step 7: shared account component; connection + stamps persist post-signup ----
+    if (root.querySelector('#su-go')) {
+      wireAccount(root, {
+        role: 'athlete',
+        onSession: async (live) => {
           await act.persistOnboarding();
-          if (r.session) {
-            act.startDay0();
-            window.__go('home');
-          } else {
-            // No session (email confirmation required): don't drop the athlete on an empty Home
-            // where nothing they do can save. Send them to confirm + sign in; their onboarding is
-            // safe in RT.ob and back-fills on sign-in.
-            err.style.color = 'var(--text-2)';
-            err.textContent = 'Account created — confirm your email, then sign in to start.';
-            btn.textContent = 'Confirm your email to continue';
-          }
-        } else {
-          err.textContent = r.error || 'Could not create your account.';
-          btn.disabled = false;
-          btn.textContent = 'Create account & Start';
-        }
-      };
-      btn.addEventListener('click', submit);
-      passEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+          if (live) { act.startDay0(); window.__go('home'); return; }
+          const err = root.querySelector('#su-err'), btn = root.querySelector('#su-go');
+          err.style.color = 'var(--text-2)';
+          err.textContent = 'Account created — confirm your email, then sign in to start.';
+          btn.textContent = 'Confirm your email to continue';
+          btn.disabled = true;
+        },
+      });
     }
   },
 };

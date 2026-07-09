@@ -8,6 +8,7 @@
 */
 
 import { CATALOG, runsToday, derive, deriveAssigned } from './requirements.js';
+import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor,
   streakDays as dayStreak, loadDay, pushDay, uploadMealPhoto,
@@ -111,7 +112,7 @@ function friendlyAuth(msg) {
   if (m.includes('invalid login')) return 'That email or password is incorrect.';
   if (m.includes('already registered') || m.includes('already been registered') || m.includes('user already')) return 'That email already has an account — try signing in.';
   if (m.includes('rate limit') || m.includes('too many')) return 'Too many attempts. Wait a minute and try again.';
-  if (m.includes('password')) return 'Password must be at least 6 characters.';
+  if (m.includes('password')) return 'Password must be at least 8 characters.';
   if (m.includes('valid email') || m.includes('email address')) return 'Enter a valid email address.';
   if (m.includes('network') || m.includes('fetch') || m.includes('failed to')) return 'Network problem — check your connection.';
   return msg || 'Something went wrong. Try again.';
@@ -408,13 +409,14 @@ export const act = {
     try { const { error } = await sb.from('athlete_profiles').upsert({ athlete_id: RT.userId, ...fields }); return !error; }
     catch { return false; }
   },
-  /* Persist the athlete's captured onboarding (RT.ob) to the server athlete_profiles + local RT.
-     Awaitable; returns true iff the server row was written. Idempotent (upsert), so it is safe to
-     call again on a later sign-in to back-fill a signup that had no session yet (email confirm). */
+  /* Persist the athlete's captured onboarding (RT.ob) to the server + local RT. Awaitable;
+     idempotent (upserts + on-conflict RPCs), so it back-fills a confirmation-delayed signup
+     on the next sign-in. New-column writes (dob/standard, ToS stamps) are SEPARATE
+     best-effort calls so they fail cleanly until migration 0048 is applied at go-live. */
   async persistOnboarding() {
+    const sb = window.sb;
     const ob = RT.ob || {};
     const name = ob.name || (RT.profile && RT.profile.name) || '';
-    // local identity first (real values only — never fabricated) so Home reflects the athlete now
     this.saveProfile({ name, sport: ob.sport || '', position: ob.position || '', level: ob.level || '' });
     this.saveAllergies(ob.allergies || RT.allergies || []);
     const fields = {};
@@ -424,8 +426,37 @@ export const act = {
     if (ob.goal) fields.base_goal = ob.goal;
     if (ob.currentWeight) fields.base_weight = Math.round(ob.currentWeight);
     if (ob.currentWeight || ob.targetWeight) fields.season_goal = { start: ob.currentWeight || null, target: ob.targetWeight || null };
-    if (!Object.keys(fields).length) return false;
-    return await this.saveAthleteProfile(fields);
+    let wrote = false;
+    if (Object.keys(fields).length) wrote = await this.saveAthleteProfile(fields);
+    // 0048 columns — separate upsert so a pre-migration DB rejects only this call
+    if (ob.dob || ob.standard) {
+      const extra = {};
+      if (ob.dob) extra.dob = ob.dob;
+      if (ob.standard) extra.standard = ob.standard;
+      await this.saveAthleteProfile(extra);
+    }
+    // consent + commitment stamps (profiles_self_write; 0048 columns, best-effort)
+    if (sb && RT.userId) {
+      try {
+        await sb.from('profiles').update({
+          tos_accepted_at: new Date().toISOString(),
+          tos_version: TOS_VERSION,
+          ...(ob.committedAt ? { committed_at: ob.committedAt } : {}),
+        }).eq('id', RT.userId);
+      } catch { /* re-attempted on next sign-in back-fill */ }
+    }
+    // redeem the validated join code now that a session exists (server re-validates; idempotent)
+    if (sb && RT.userId && ob.join && ob.join.code) {
+      try {
+        const rpc = ob.join.kind === 'practice' ? 'join_practice' : 'join_team';
+        const args = ob.join.kind === 'practice'
+          ? { code: ob.join.code }
+          : { code: ob.join.code, athlete_position: ob.position || null };
+        const { error } = await sb.rpc(rpc, args);
+        if (!error && ob.join.school) this.saveProfile({ school: ob.join.school });
+      } catch { /* re-attempted on next sign-in back-fill */ }
+    }
+    return wrote;
   },
   // Called by the router boot gate to sync RT from a restored Keychain session.
   _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },
