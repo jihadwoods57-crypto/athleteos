@@ -26,6 +26,7 @@ import { MealDetail } from '@/screens/overlays/MealDetail';
 import { MealHistory } from '@/screens/overlays/MealHistory';
 import { MealReview } from '@/screens/overlays/MealReview';
 import { Account } from '@/screens/overlays/Account';
+import { Record } from '@/screens/overlays/Record';
 import { Plans } from '@/screens/overlays/Plans';
 import { Messages } from '@/screens/overlays/Messages';
 import { Notifications } from '@/screens/overlays/Notifications';
@@ -48,6 +49,7 @@ export function AthleteApp() {
   const mealOpen = useStore((s) => s.mealOpen);
   const mealDetailOpen = useStore((s) => s.mealDetailOpen);
   const accountOpen = useStore((s) => s.accountOpen);
+  const recordOpen = useStore((s) => s.recordOpen);
   const plansOpen = useStore((s) => s.plansOpen);
   const msgOpen = useStore((s) => s.msgOpen);
   const notifOpen = useStore((s) => s.notifOpen);
@@ -99,6 +101,7 @@ export function AthleteApp() {
       {mealHistoryOpen && <MealHistory />}
       {mealReview && <MealReview />}
       {accountOpen && <Account />}
+      {recordOpen && <Record />}
       {connectOpen && <Connect />}
       {plansOpen && <Plans />}
       {msgOpen && <Messages />}

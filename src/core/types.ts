@@ -407,6 +407,8 @@ export interface AppState {
   notifOpen: boolean;
   personDetail: PersonDetail | null;
   accountOpen: boolean;
+  /** The athlete's "Record" overlay — the Discipline Record recruiting card + Deep Dive. */
+  recordOpen: boolean;
   msgOpen: boolean;
   /** The athlete's "Connect your coach" overlay (two doors: code / find-my-coach). */
   connectOpen: boolean;

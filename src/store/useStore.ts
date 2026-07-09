@@ -341,6 +341,8 @@ export interface Actions {
   closeMealReview: () => void;
   openAccount: () => void;
   closeAccount: () => void;
+  openRecord: () => void;
+  closeRecord: () => void;
   openMsg: () => void;
   closeMsg: () => void;
   setMsgDraft: (v: string) => void;
@@ -1372,6 +1374,8 @@ export const useStore = create<Store>()(
       closeMealReview: () => set({ mealReview: null }),
       openAccount: () => set({ accountOpen: true }),
       closeAccount: () => set({ accountOpen: false }),
+      openRecord: () => set({ recordOpen: true }),
+      closeRecord: () => set({ recordOpen: false }),
       openMsg: () => set({ msgOpen: true }),
       closeMsg: () => set({ msgOpen: false }),
       setMsgDraft: (v) => set({ msgDraft: v }),

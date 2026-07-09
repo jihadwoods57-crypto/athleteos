@@ -137,6 +137,7 @@ export function createInitialState(): AppState {
     notifOpen: false,
     personDetail: null,
     accountOpen: false,
+    recordOpen: false,
     msgOpen: false,
     connectOpen: false,
     connectPrefillCode: null,
