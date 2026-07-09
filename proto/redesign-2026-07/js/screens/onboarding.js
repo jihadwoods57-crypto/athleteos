@@ -1,25 +1,26 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
+import { dobFromParts, ageOn } from '../ob-helpers.js';
 
-/* 6-step onboarding: builds the athlete's Standard, not a survey.
-   Steps: 1 about-you · 2 goal · 3 weights · 4 coach connect · 5 your standard · 6 set.
-   Every selection is the REAL user's — captured into RT.ob as they go (DOM is wiped between
-   routes) and written to the account on step 6. Nothing here fabricates an identity. */
+/* 7-step onboarding: identity → belonging → sport → goal → baseline → the contract → account.
+   Back arrow + segmented progress on every step. Every selection is captured into RT.ob as
+   they go (DOM is wiped between routes) and written to the account on step 7. */
 
-const STEPS = 6;
-function dots(n) {
-  return `<div class="ob-dots">${Array.from({ length: STEPS }, (_, i) =>
-    `<div class="d ${i + 1 <= n ? 'on' : ''}"></div>`).join('')}</div>`;
+const STEPS = 7;
+function progress(n) {
+  return `<div class="ob-prog" role="progressbar" aria-label="Step ${n} of ${STEPS}" aria-valuenow="${n}" aria-valuemax="${STEPS}">${
+    Array.from({ length: STEPS }, (_, i) => `<i class="${i + 1 <= n ? 'on' : ''}"></i>`).join('')}</div>`;
 }
 function frame(n, title, sub, body, cta, next, opts = {}) {
+  const back = opts.back || (n === 1 ? 'role' : `onboarding/${n - 1}`);
   return `
   <div class="ob">
-    ${dots(n)}
+    <div class="ob-nav"><div class="ob-back" data-go="${back}" aria-label="Back">${icon('chevron', 18)}</div>${progress(n)}</div>
     <div class="ob-title">${title}</div>
     <div class="ob-sub">${sub}</div>
     <div class="ob-body">${body}</div>
     <div class="ob-foot">
-      <button class="btn ${opts.green ? 'green' : 'primary'}" ${opts.act ? `data-act="${opts.act}"` : ''} data-${opts.act ? 'then' : 'go'}="${next}">${cta}</button>
+      ${cta ? `<button class="btn ${opts.green ? 'green' : 'primary'}" ${opts.disabled ? 'disabled' : ''} ${opts.act ? `data-act="${opts.act}"` : ''} data-${opts.act ? 'then' : 'go'}="${next}">${cta}</button>` : ''}
       ${opts.skip ? `<div style="text-align:center;padding-top:14px;font-size:14px;font-weight:700;color:var(--text-3);cursor:pointer" data-go="${opts.skip}">Skip for now</div>` : ''}
     </div>
   </div>`;
@@ -28,8 +29,43 @@ const numInput = 'width:100%;background:transparent;border:none;outline:none;tex
 
 const steps = {
   1: () => frame(1, 'Who are you?', 'Your coach sees this next to every log.', `
-    <input id="ob-name" class="ob-input" placeholder="Your name" autocapitalize="words" autocorrect="off" spellcheck="false" />
+    <input id="ob-first" class="ob-input" placeholder="First name" autocapitalize="words" autocorrect="off" spellcheck="false" />
+    <div style="height:12px"></div>
+    <input id="ob-last" class="ob-input" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" />
+    <div style="height:16px"></div>
+    <div class="eyebrow" style="margin:8px 2px 10px">Date of birth</div>
+    <div class="dob-row">
+      <input id="ob-dob-m" class="ob-input" type="number" inputmode="numeric" placeholder="MM" />
+      <input id="ob-dob-d" class="ob-input" type="number" inputmode="numeric" placeholder="DD" />
+      <input id="ob-dob-y" class="ob-input" type="number" inputmode="numeric" placeholder="YYYY" style="flex:1.4" />
+    </div>
+    <div id="ob-age-err" style="color:var(--amber-bright);font-size:13px;font-weight:700;min-height:18px;margin-top:10px"></div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.5">You must be 13 or older to use OnStandard.</div>`,
+    'Next', 'onboarding/2'),
+
+  blocked: () => `
+  <div class="ob">
+    <div class="ob-nav"><div class="ob-back" data-go="onboarding/1" aria-label="Back">${icon('chevron', 18)}</div></div>
+    <div class="standard-set" style="padding-bottom:6px">
+      <div class="halo"><div class="core" style="background:var(--surface-2);color:var(--text-2)">${icon('lock', 32)}</div></div>
+      <div class="ob-title" style="margin-top:18px">Not yet — but soon.</div>
+      <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older — that's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
+    </div>
+    <div class="ob-foot" style="margin-top:auto">
+      <button class="btn ghost" data-go="welcome">Back to start</button>
+    </div>
+  </div>`,
+
+  2: () => frame(2, 'Connect your coach', 'A coach code links your logs to someone who holds you accountable.', `
+    <input id="ob-code" class="ob-input" placeholder="Coach code (optional)" autocapitalize="characters" autocorrect="off" spellcheck="false" />
     <div style="height:14px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 18)}</div>
+      <div><div class="tt">No code yet? Skip it.</div>
+      <div class="ts">Your Standard works solo from day one. When a coach shares a code, add it any time from Profile → Enter coach code.</div></div>
+    </div>`, 'Continue', 'onboarding/3', { skip: 'onboarding/3' }),
+
+  3: () => frame(3, 'Your sport', 'Position and level shape your plan.', `
     <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
     <div class="chip-row" id="ob-sport">
       <span class="chp on">Football</span><span class="chp">Basketball</span><span class="chp">Baseball</span>
@@ -46,9 +82,9 @@ const steps = {
     <div class="chip-row" id="ob-level">
       <span class="chp">Youth</span><span class="chp on">High School</span><span class="chp">College</span><span class="chp">Pro</span>
     </div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:16px;line-height:1.5">You must be 13 or older. Under 13 requires a parent or guardian on the account, and parents of minors can request data access or deletion anytime.</div>`, 'Next', 'onboarding/2'),
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:16px;line-height:1.5">You must be 13 or older. Under 13 requires a parent or guardian on the account, and parents of minors can request data access or deletion anytime.</div>`, 'Next', 'onboarding/4'),
 
-  2: () => frame(2, 'What are we building?', 'This decides how your nutrition gets scored. Your coach can adjust it.', `
+  4: () => frame(4, 'What are we building?', 'This decides how your nutrition gets scored. Your coach can adjust it.', `
     <div class="choice-grid" id="ob-goal">
       <div class="choice on" data-val="gain"><div class="cic" style="background:rgba(52,211,153,0.18);color:var(--green-bright)">${icon('arrowUp', 19)}</div>
         <div class="ct">Gain weight</div><div class="cs">Calorie floor · protein heavy</div></div>
@@ -58,9 +94,9 @@ const steps = {
         <div class="ct">Maintain</div><div class="cs">Consistency over everything</div></div>
       <div class="choice" data-val="perform"><div class="cic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('bolt', 19)}</div>
         <div class="ct">Perform</div><div class="cs">Fuel training · recover hard</div></div>
-    </div>`, 'Next', 'onboarding/3'),
+    </div>`, 'Next', 'onboarding/5'),
 
-  3: () => frame(3, 'Where are you now?', 'Weight is a season trend here, never a daily judgment.', `
+  5: () => frame(5, 'Where are you now?', 'Weight is a season trend here, never a daily judgment.', `
     <div class="bignum-pair">
       <div class="bignum"><input id="ob-cur" type="number" inputmode="decimal" placeholder="—" style="${numInput}" /><div class="bk">Current lb</div></div>
       <div class="bignum" style="border-color:var(--green-border)"><input id="ob-tgt" type="number" inputmode="decimal" placeholder="—" style="${numInput};color:var(--green-bright)" /><div class="bk">Target lb</div></div>
@@ -76,18 +112,9 @@ const steps = {
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
       <div><div class="tt">How weight works in OnStandard</div>
       <div class="ts">You log it on your coach's schedule. It never moves your daily score, so one heavy morning can't wreck a perfect day.</div></div>
-    </div>`, 'Next', 'onboarding/4'),
+    </div>`, 'Next', 'onboarding/6'),
 
-  4: () => frame(4, 'Connect your coach', 'A coach code links your logs to someone who holds you accountable.', `
-    <input id="ob-code" class="ob-input" placeholder="Coach code (optional)" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-    <div style="height:14px"></div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 18)}</div>
-      <div><div class="tt">No code yet? Skip it.</div>
-      <div class="ts">Your Standard works solo from day one. When a coach shares a code, add it any time from Profile → Enter coach code.</div></div>
-    </div>`, 'Continue', 'onboarding/5', { skip: 'onboarding/5' }),
-
-  5: () => frame(5, 'Your Standard', 'These are the daily requirements your score is built on. Coach Mark can add more.', `
+  6: () => frame(6, 'Your Standard', 'These are the daily requirements your score is built on. Coach Mark can add more.', `
     <section class="card" style="padding:6px 16px">
       ${[
         ['utensils', 'g', 'Three meals, photo proof', 'Nutrition · 50% of your score'],
@@ -104,11 +131,11 @@ const steps = {
     <div style="height:12px"></div>
     <div class="chip-row" id="ob-pressure" style="justify-content:center">
       <span class="chp">Remind me gently</span><span class="chp on">Hold me accountable</span><span class="chp">Max pressure</span>
-    </div>`, 'Set My Standard', 'onboarding/6'),
+    </div>`, 'Set My Standard', 'onboarding/7'),
 
-  6: () => `
+  7: () => `
   <div class="ob">
-    ${dots(6)}
+    <div class="ob-nav"><div class="ob-back" data-go="onboarding/6" aria-label="Back">${icon('chevron', 18)}</div>${progress(7)}</div>
     <div class="standard-set" style="padding-bottom:6px">
       <div class="halo"><div class="core">${icon('check', 38)}</div></div>
       <div class="ob-title" style="margin-top:18px">Your Standard is set.</div>
@@ -128,7 +155,8 @@ const steps = {
 export default {
   hideTabs: true,
   render({ sub }) {
-    const n = Math.min(6, Math.max(1, +(sub || 1)));
+    if (sub === 'blocked') return steps.blocked();
+    const n = Math.min(STEPS, Math.max(1, +(sub || 1)));
     return steps[n]();
   },
   async mount(root) {
@@ -151,34 +179,65 @@ export default {
       sync();
     };
 
-    // ---- Step 1: name is REQUIRED (gates Next) + sport / position / level ----
-    const nameEl = grab('#ob-name');
-    if (nameEl) {
+    // ---- Step 1: first + last name REQUIRED, DOB validated, under-13 → block screen ----
+    const first = grab('#ob-first');
+    if (first) {
+      const last = grab('#ob-last'), dm = grab('#ob-dob-m'), dd = grab('#ob-dob-d'), dy = grab('#ob-dob-y');
+      const errEl = grab('#ob-age-err');
       const nextBtn = root.querySelector('.ob-foot .btn');
-      const sync = () => { cap({ name: nameEl.value.trim() }); if (nextBtn) nextBtn.disabled = !nameEl.value.trim(); };
-      nameEl.addEventListener('input', sync);
-      sync(); // starts empty → Next disabled until a real name is typed
+      // restore captured values so Back never loses work
+      const ob = RT.ob || {};
+      if (ob.firstName) first.value = ob.firstName;
+      if (ob.lastName) last.value = ob.lastName;
+      if (ob.dob) { const [y, m, d] = ob.dob.split('-'); dm.value = +m; dd.value = +d; dy.value = y; }
+      const todayISO = () => {
+        const t = new Date();
+        return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+      };
+      const sync = () => {
+        const f = first.value.trim(), l = last.value.trim();
+        const dob = dobFromParts(dm.value, dd.value, dy.value);
+        cap({ firstName: f, lastName: l, name: `${f} ${l}`.trim(), dob });
+        const under13 = dob != null && ageOn(dob, todayISO()) < 13;
+        if (under13) {
+          errEl.textContent = 'OnStandard is for ages 13 and up.';
+          nextBtn.setAttribute('data-go', 'onboarding/blocked');
+          nextBtn.disabled = false;
+        } else {
+          errEl.textContent = '';
+          nextBtn.setAttribute('data-go', 'onboarding/2');
+          nextBtn.disabled = !(f && l && dob);
+        }
+      };
+      [first, last, dm, dd, dy].forEach(el => el.addEventListener('input', sync));
+      dm.addEventListener('input', () => { if (dm.value.length >= 2) dd.focus(); });
+      dd.addEventListener('input', () => { if (dd.value.length >= 2) dy.focus(); });
+      sync();
     }
+
+    // ---- Step 2: coach code (captured for the later real-join phase; no fabricated "match") ----
+    const code = grab('#ob-code'); if (code) code.addEventListener('input', () => cap({ coachCode: code.value.trim() }));
+
+    // ---- Step 3: sport / position / level ----
     wireGroup('#ob-sport', 'sport');
     wireGroup('#ob-pos', 'position');
     wireGroup('#ob-level', 'level');
 
-    // ---- Step 2: goal (slug from data-val) ----
+    // ---- Step 4: goal (slug from data-val) ----
     wireGroup('#ob-goal', 'goal', () => { const on = grab('#ob-goal .on'); return on ? on.getAttribute('data-val') : null; });
 
-    // ---- Step 3: weights + allergies (none selected by default) ----
+    // ---- Step 5: weights + allergies (none selected by default) ----
     const cur = grab('#ob-cur'); if (cur) cur.addEventListener('input', () => cap({ currentWeight: parseFloat(cur.value) || null }));
     const tgt = grab('#ob-tgt'); if (tgt) tgt.addEventListener('input', () => cap({ targetWeight: parseFloat(tgt.value) || null }));
+    if (cur && RT.ob && RT.ob.currentWeight) cur.value = RT.ob.currentWeight;
+    if (tgt && RT.ob && RT.ob.targetWeight) tgt.value = RT.ob.targetWeight;
     const alg = grab('[data-multi]');
     if (alg) { const readA = () => cap({ allergies: [...alg.querySelectorAll('.chp.on')].map(c => c.textContent.trim()) }); alg.addEventListener('click', readA); readA(); }
 
-    // ---- Step 4: coach code (captured for the later real-join phase; no fabricated "match") ----
-    const code = grab('#ob-code'); if (code) code.addEventListener('input', () => cap({ coachCode: code.value.trim() }));
-
-    // ---- Step 5: reminder pressure ----
+    // ---- Step 6: reminder pressure ----
     wireGroup('#ob-pressure', 'pressure');
 
-    // ---- Step 6: real account creation from the captured Standard ----
+    // ---- Step 7: real account creation from the captured Standard ----
     const btn = root.querySelector('#su-go');
     if (btn) {
       const err = root.querySelector('#su-err');
