@@ -14,6 +14,7 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { athleteSubtitle, buildLeaderboard, computeDerived, firstName, GOAL_LABELS, initials, medalColor, passEligibility, passStatus, squadView, supportVisibilityRows, tierFor, trendInfo, trendSeries, trendSummary } from '@/core';
 import { isTrustPassEnabled } from '@/lib/features';
+import { confirmSignOut } from '@/lib/confirmSignOut';
 import { isBackendLive } from '@/lib/supabase';
 import { useStore } from '@/store';
 import { MAX_FONT_SCALE, shadow, tierChip } from '@/ui/tokens';
@@ -444,7 +445,7 @@ export function Profile() {
       </Card>
       </Reveal>
 
-      <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={s.signOut} style={({ pressed }) => [{ marginTop: 14, height: 54, borderRadius: 16, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.alertBorder, opacity: pressed ? 0.7 : 1 }, shadow.card]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => confirmSignOut(s)} style={({ pressed }) => [{ marginTop: 14, height: 54, borderRadius: 16, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.alertBorder, opacity: pressed ? 0.7 : 1 }, shadow.card]}>
         <Txt w="b" size={15} color={c.alert}>
           Sign out
         </Txt>

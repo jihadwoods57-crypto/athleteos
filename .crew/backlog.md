@@ -50,3 +50,17 @@ them; you decide. Seeded by cycle i1 (2026-07-09).
   is reported as success. `supabase/functions/send-push/index.ts:73`.
 - **quick-add + bare meal toggles vs "photo-only ≥80"** — `addMeal` sets `meals[key]=true` even with a
   null analysis; assert `addMeal` is unreachable without photo evidence. `useStore.ts:1071-1095`.
+
+## Deferred by the 2026-07-10 fix-all run (sound reasons — not shipped)
+- **Role hydration drops the granular role on a fresh device** — `hydrateProfile` can only restore the
+  coarse DB enum (`profiles.primary_role`), so a nutritionist/trainer-subtype loses personalization on a
+  new device. Real fix needs a **migration**: persist the granular Role server-side (new `profiles`
+  column or metadata), then hydrate from it. `useStore.ts:1187-1189`, `constants.ts:107-114`.
+- **`base_age` immutability (P1 above) + `days.score` photo-evidence (P2 above)** — security migrations
+  I could not author safely because **`test:rls` can't run here** (needs `supabase start`/docker on
+  54322). Author + test these in a local Supabase before applying. COPPA-adjacent — do not skip.
+- **Meal-thumbnail N+1 signed URLs** — `MealCardItem`'s `MealThumb` signs one URL per card in a per-card
+  effect. Fix: add `db.signedMealPhotoUrls(paths[])` (storage `createSignedUrls` plural), have
+  `MealCardItem` accept an optional pre-resolved `photoUrl`, and prefetch a path→url map in the 3 list
+  parents (`MealHistory` DaySection, `PersonDetail`, `MealReview`). 5 files, perf-only, un-unit-tested
+  surfaces — do it deliberately, not at the tail of a session. `MealCardItem.tsx:16-30`, `queries.ts:101`.

@@ -527,21 +527,26 @@ Deno.serve(async (request) => {
     return new Response(JSON.stringify({ error: 'mealType required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 
-  // Per-athlete daily cap on the paid photo calls (meal + label). Memory/order are cheap text
-  // rewrites and don't count. Enforced only for signed-in athletes; anonymous/preview traffic
-  // stays covered by the per-minute IP limit above. Checked after the input guards so a
-  // malformed request never burns a slot.
-  // Meal 'finalize' is the second call of ONE two-call analysis; the slot was already claimed on
-  // 'analyze', so it must not claim again (a meal stays 1 of the daily cap even with a follow-up).
+  // Spend ceilings, in two independent tiers. Checked after the input guards so a malformed
+  // request never burns a slot.
+  //
+  // (1) GLOBAL daily bill backstop — applies to EVERY paid model call, no exceptions. `phase` is
+  // client-controlled, so a caller can send `phase:'finalize'` (a full paid VISION call) WITHOUT
+  // ever sending 'analyze' — previously that skipped every ceiling and let the public anon key
+  // drive unbounded vision spend. memory/order are cheaper (Haiku) but still paid, so they count
+  // too. A legitimate two-call meal (analyze + finalize) counts twice here, which is correct: it
+  // really is two paid calls against the day's bill. This is the hard backstop the constitution
+  // requires ("AI spend caps and the daily cap stay in force").
+  if (!(await withinKeyCap('global', GLOBAL_CAP))) {
+    return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
+  // (2) PER-CALLER daily cap — fairness/anti-spam, on the meal ESTIMATE + label only. 'finalize'
+  // reuses the slot 'analyze' already claimed (a meal stays 1 of the per-caller cap even with a
+  // follow-up); memory/order are exempt. A signed-in athlete gets the per-athlete daily cap; an
+  // anonymous (anon-key-only) caller gets a per-IP daily cap so the public anon key can't be
+  // abused without signing in (audit Finding #2). Both fail open.
   const countsAgainstDailyCap = !isMemory && !isOrder && !isFinalize;
   if (countsAgainstDailyCap) {
-    // (1) Global daily ceiling across every caller — the hard backstop on a day's Anthropic bill.
-    if (!(await withinKeyCap('global', GLOBAL_CAP))) {
-      return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
-    }
-    // (2) Per-caller cap: a signed-in athlete gets the per-athlete daily cap; an anonymous
-    // (anon-key-only) caller gets a per-IP daily cap so the public anon key can't be abused
-    // without signing in (audit Finding #2). Both fail open.
     const userId = await resolveUserId(request);
     const ok = userId
       ? await withinDailyCap(userId)

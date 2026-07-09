@@ -329,6 +329,10 @@ export async function fetchLinkedDays(date: string): Promise<RosterDayRow[]> {
     .from('days')
     .select('athlete_id, date, score, grade, tasks')
     .eq('date', date)
+    // Deterministic order so the .limit backstop can never silently drop an ARBITRARY
+    // athlete: without an ORDER BY, PostgREST's row order is undefined, so a roster at
+    // the cap would truncate to a different set of athletes on each read.
+    .order('athlete_id')
     .limit(1000);
   if (error) throw error;
   return (data ?? []) as RosterDayRow[];
@@ -343,6 +347,11 @@ export async function fetchLinkedDaysSince(since: string): Promise<RosterDayRow[
     .from('days')
     .select('athlete_id, date, score, grade, tasks')
     .gte('date', since)
+    // Deterministic order (most-recent first) so the .limit backstop keeps the newest
+    // days rather than an undefined slice — the roster/trend/weekly report all read the
+    // recent end, so truncation must be predictable, not PostgREST's arbitrary order.
+    .order('date', { ascending: false })
+    .order('athlete_id')
     .limit(2000);
   if (error) throw error;
   return (data ?? []) as RosterDayRow[];

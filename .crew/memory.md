@@ -17,6 +17,20 @@ the loop converge instead of thrashing.
 
 ## Entries
 
+### 2026-07-10 · founder-directed continuation · merge + fix-all
+- Founder authorized merge to master and "fix all, don't stop to validate". Merged i1-i5 to master
+  (local, not pushed). Shipped i4 (roster ORDER BY determinism) + i5 (shared confirmSignOut helper —
+  Profile had a bare onPress={signOut} that erased local-only data with no confirm). Committed an
+  UNGATED edge-function security fix (analyze-meal finalize/memory/order bypassed GLOBAL_CAP — phase
+  is client-controlled) flagged for deploy.
+- Deferred with reasons (record so a later cycle doesn't retry blindly): [11] role-hydration granular
+  loss needs a schema migration to persist the granular role (server only stores coarse enum); base_age
+  + days.score security migrations CANNOT be tested here (no docker/local supabase for test:rls) so
+  blind-authoring auth SQL was refused; [4] meal-thumbnail N+1 is a 5-file refactor across un-unit-tested
+  list surfaces (MealHistory/PersonDetail/MealReview) — backlog, don't rush.
+- Lesson: test:rls needs `supabase start` (docker, port 54322) which isn't available in this env — any
+  RLS/migration work is founder-side only until that's runnable.
+
 ### 2026-07-10 · cycle i3 · ai/honesty
 - Tried: number-preservation guard (`rephraseIsSafe`) split decimals — `/\d+/g` made "2.3" -> {2,3},
   so a model rephrase flipping 2.3 -> 3.2 passed. `mealFrequencyInsight` emits `toFixed(1)` decimals.
