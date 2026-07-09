@@ -8,6 +8,7 @@ import type { MealResult } from './content';
 import type { EditableFood } from './mealEdit';
 import type { LabelFacts } from './nutritionLabel';
 import type { RosterRow } from './constants';
+import type { ComebackInfo } from './comeback';
 import type { GuardianStatus } from './guardianConsent';
 import type { NudgeRecord } from './nudge';
 import type { CommitmentAnswer } from './commitment';
@@ -571,6 +572,9 @@ export interface Derived {
   hydrationPct: number;
   tasksDone: number;
   tasksTotal: number;
+  /** Returning-athlete welcome (the churn re-entry moment). isComeback is false unless the athlete
+   *  has real history, was away >= COMEBACK_THRESHOLD days, and hasn't acted yet today. */
+  comeback: ComebackInfo;
 }
 
 export interface LeaderRow {
