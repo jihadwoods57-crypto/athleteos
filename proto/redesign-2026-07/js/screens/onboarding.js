@@ -58,18 +58,26 @@ const steps = {
 
   2: () => {
     const j = (RT.ob || {}).join;
-    if (j) return frame(2, 'Coach connected', 'Your logs will count toward their board from day one.', `
+    if (j) {
+      // Kind-agnostic display: a team join carries coachName/teamName, a practice (trainer)
+      // join carries trainerName/practiceName — never render a literal "undefined".
+      const title = j.coachName || j.trainerName || j.teamName || j.practiceName || 'Connected';
+      const subLine = j.kind === 'practice'
+        ? (j.practiceName || 'Trainer connection')
+        : `${j.teamName || ''}${j.school ? ' · ' + j.school : ''}`;
+      return frame(2, j.kind === 'practice' ? 'Trainer connected' : 'Coach connected', 'Your logs will count toward their board from day one.', `
       <section class="card team-preview">
-        <div class="tp-av" style="background:linear-gradient(150deg,var(--green-bright),#0d9459);color:#04150c">${(j.coachName || j.teamName || '?')[0]}</div>
+        <div class="tp-av" style="background:linear-gradient(150deg,var(--green-bright),#0d9459);color:#04150c">${title[0]}</div>
         <div style="flex:1">
-          <div style="font-size:16px;font-weight:800">${j.coachName || j.teamName}</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${j.teamName || ''}${j.school ? ' · ' + j.school : ''}</div>
+          <div style="font-size:16px;font-weight:800">${title}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${subLine}</div>
         </div>
         <span class="status-pill g">Connected</span>
       </section>
       <div style="height:12px"></div>
       <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text-3);cursor:pointer" data-act="clearJoin">Remove connection</div>`,
       'Continue', 'onboarding/3');
+    }
     return frame(2, 'Your school', 'Find your school, then your coach. Their code is the handshake.', `
       <input id="sc-q" class="ob-input" placeholder="Search your school" autocorrect="off" spellcheck="false" />
       <div id="sc-out" style="margin-top:14px"></div>
