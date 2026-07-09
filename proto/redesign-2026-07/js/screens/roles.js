@@ -2,6 +2,8 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, logoMark, esc } from '../components.js';
 import { accountBody, wireAccount } from './ob-account.js';
+import { standardForGoal } from '../ob-helpers.js';
+import { commitButton, wireCommit } from '../ob-commit.js';
 
 /* ============================================================
    Role picker + onboarding for every role, not just athletes.
@@ -10,10 +12,6 @@ import { accountBody, wireAccount } from './ob-account.js';
    inside Nutrition) — the client flow states that, truthfully.
    ============================================================ */
 
-function dots(n, total) {
-  return `<div class="ob-dots">${Array.from({ length: total }, (_, i) =>
-    `<div class="d ${i + 1 <= n ? 'on' : ''}"></div>`).join('')}</div>`;
-}
 function progressOf(n, total) {
   return `<div class="ob-prog" role="progressbar" aria-label="Step ${n} of ${total}" aria-valuenow="${n}" aria-valuemax="${total}">${
     Array.from({ length: total }, (_, i) => `<i class="${i + 1 <= n ? 'on' : ''}"></i>`).join('')}</div>`;
@@ -26,7 +24,7 @@ function frame(n, total, title, sub, body, cta, next, opts = {}) {
     <div class="ob-sub">${sub}</div>
     <div class="ob-body">${body}</div>
     <div class="ob-foot">
-      <button class="btn ${opts.green ? 'green' : 'primary'}" ${opts.id ? `id="${opts.id}"` : ''} data-go="${next}">${cta}</button>
+      <button class="btn ${opts.green ? 'green' : 'primary'}" ${opts.id ? `id="${opts.id}"` : ''} ${opts.disabled ? 'disabled' : ''} data-go="${next}">${cta}</button>
       ${opts.skip ? `<div style="text-align:center;padding-top:14px;font-size:14px;font-weight:700;color:var(--text-3);cursor:pointer" data-go="${opts.skip}">Skip for now</div>` : ''}
     </div>
   </div>`;
@@ -449,17 +447,22 @@ export const trainerOb = {
   },
 };
 
-/* ============ CLIENT (non-athlete) ONBOARDING (5 steps) ============ */
+/* ============ CLIENT (non-athlete) ONBOARDING (6 steps) ============
+   Clients sign up as role 'athlete' (general scoring profile) — same RT.ob shape as the
+   athlete flow (goal, firstName/lastName/name, currentWeight/targetWeight/allergies, join,
+   committedAt, standard), so act.persistOnboarding() needs no client-specific branch. */
+const numInputCl = 'width:100%;background:transparent;border:none;outline:none;text-align:center;font-size:34px;font-weight:800;color:inherit;font-family:inherit;padding:0';
+
 const clientSteps = {
-  1: () => frame(1, 5, 'What are we fixing?', 'This picks how your nutrition gets scored. Honest either way.', `
-    <div class="choice-grid">
-      <div class="choice on"><div class="cic" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('target', 19)}</div>
+  1: () => frame(1, 6, 'What are we fixing?', 'This picks how your nutrition gets scored. Honest either way.', `
+    <div class="choice-grid" id="cl-goal">
+      <div class="choice on" data-val="lose"><div class="cic" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('target', 19)}</div>
         <div class="ct">Lose fat</div><div class="cs">Calorie window · protein held high</div></div>
-      <div class="choice"><div class="cic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('shield', 19)}</div>
+      <div class="choice" data-val="maintain"><div class="cic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('shield', 19)}</div>
         <div class="ct">Maintain</div><div class="cs">Consistency over everything</div></div>
-      <div class="choice"><div class="cic" style="background:rgba(52,211,153,0.18);color:var(--green-bright)">${icon('arrowUp', 19)}</div>
+      <div class="choice" data-val="build"><div class="cic" style="background:rgba(52,211,153,0.18);color:var(--green-bright)">${icon('arrowUp', 19)}</div>
         <div class="ct">Build</div><div class="cs">Calorie floor · never under-fueled</div></div>
-      <div class="choice"><div class="cic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('heart', 19)}</div>
+      <div class="choice" data-val="health"><div class="cic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('heart', 19)}</div>
         <div class="ct">Health</div><div class="cs">Energy, sleep, habits that hold</div></div>
     </div>
     <div style="height:14px"></div>
@@ -469,28 +472,30 @@ const clientSteps = {
       <div class="ts">Same four components as athletes. Inside Nutrition, your goal changes the mix: for fat loss it's calorie window 45, protein 25, meals logged 30.</div></div>
     </div>`, 'Next', 'client-ob/2'),
 
-  2: () => frame(2, 5, 'Who are you?', 'Your trainer sees this next to every log.', `
-    <input class="ob-input" value="Sam Carter" />
+  2: () => frame(2, 6, 'Who are you?', 'Your trainer sees this next to every log.', `
+    <input id="cl-first" class="ob-input" placeholder="First name" autocapitalize="words" autocorrect="off" spellcheck="false" />
+    <div style="height:12px"></div>
+    <input id="cl-last" class="ob-input" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Life, honestly</div>
-    <div class="chip-row">
+    <div class="chip-row" id="cl-life">
       <span class="chp">Desk job</span><span class="chp on">On my feet</span><span class="chp">Shift work</span><span class="chp">Travel a lot</span>
     </div>
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Training days per week</div>
-    <div class="chip-row">
+    <div class="chip-row" id="cl-days">
       <span class="chp">2</span><span class="chp on">3</span><span class="chp">4</span><span class="chp">5+</span>
     </div>`, 'Next', 'client-ob/3', { back: 'client-ob/1' }),
 
-  3: () => frame(3, 5, 'Where are you now?', 'Weight is a weekly trend here. One heavy morning proves nothing.', `
+  3: () => frame(3, 6, 'Where are you now?', 'Weight is a weekly trend here. One heavy morning proves nothing.', `
     <div class="bignum-pair">
-      <div class="bignum"><div class="bv">198.5</div><div class="bk">Current lb</div></div>
-      <div class="bignum" style="border-color:var(--amber-border)"><div class="bv" style="color:var(--amber-bright)">185</div><div class="bk">Target lb</div></div>
+      <div class="bignum"><input id="cl-cur" type="number" inputmode="decimal" placeholder="—" style="${numInputCl}" /><div class="bk">Current lb</div></div>
+      <div class="bignum" style="border-color:var(--green-border)"><input id="cl-tgt" type="number" inputmode="decimal" placeholder="—" style="${numInputCl};color:var(--green-bright)" /><div class="bk">Target lb</div></div>
     </div>
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Allergies & restrictions · checked on every scan</div>
     <div class="chip-row" data-multi>
-      <span class="chp">Peanuts</span><span class="chp">Tree nuts</span><span class="chp on">Dairy</span>
+      <span class="chp">Peanuts</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
       <span class="chp">Gluten</span><span class="chp">Shellfish</span><span class="chp">Vegetarian</span>
     </div>
     <div style="height:14px"></div>
@@ -500,44 +505,233 @@ const clientSteps = {
       <div class="ts">The daily score measures what you did today: meals, recovery, honesty. The scale is tracked weekly and never moves the daily number.</div></div>
     </div>`, 'Next', 'client-ob/4', { back: 'client-ob/2' }),
 
-  4: () => frame(4, 5, 'Connect your trainer.', 'Accountability needs a witness. Enter the code they gave you.', `
-    <div class="code-boxes">
-      <div class="cb filled">T</div><div class="cb filled">R</div><div class="cb filled">4</div>
-      <div class="cb filled">C</div><div class="cb filled">3</div><div class="cb cursor"></div>
-    </div>
-    <div style="height:14px"></div>
-    <section class="card team-preview">
-      <div class="tp-av" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce);color:#fff">T</div>
-      <div style="flex:1">
-        <div style="font-size:16px;font-weight:800">Tracy Boone Performance</div>
-        <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">Trainer · 14 clients</div>
-      </div>
-      <span class="status-pill p">Match</span>
-    </section>`, 'Join', 'client-ob/5', { back: 'client-ob/3', skip: 'client-ob/5' }),
+  4: () => {
+    const j = (RT.ob || {}).join;
+    if (j && j.kind === 'practice') {
+      const title = j.trainerName || j.practiceName || 'Connected';
+      return frame(4, 6, 'Trainer connected', 'Your logs will count toward their board from day one.', `
+      <section class="card team-preview">
+        <div class="tp-av" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce);color:#fff">${esc(title[0])}</div>
+        <div style="flex:1">
+          <div style="font-size:16px;font-weight:800">${esc(title)}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(j.practiceName || 'Trainer connection')}</div>
+        </div>
+        <span class="status-pill g">Connected</span>
+      </section>
+      <div style="height:12px"></div>
+      <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text-3);cursor:pointer" data-act="clearJoin">Remove connection</div>`,
+      'Continue', 'client-ob/5', { back: 'client-ob/3' });
+    }
+    return frame(4, 6, 'Connect your trainer.', 'Accountability needs a witness. Search for them, then enter the code they gave you.', `
+      <input id="cl-q" class="ob-input" placeholder="Search your trainer" autocorrect="off" spellcheck="false" />
+      <div id="cl-out" style="margin-top:14px"></div>
+      <div style="height:10px"></div>
+      <div id="cl-alt" style="text-align:center;font-size:14px;font-weight:700;color:var(--purple-bright);cursor:pointer">My gym isn't listed</div>`,
+      'Continue', 'client-ob/5', { back: 'client-ob/3', skip: 'client-ob/5' });
+  },
 
-  5: () => `
-  <div class="ob">
-    ${dots(5, 5)}
-    <div class="standard-set">
-      <div class="halo"><div class="core">${icon('check', 38)}</div></div>
-      <div class="ob-title" style="margin-top:22px">Your Standard is set.</div>
-      <div class="ob-sub" style="padding:0 10px">Three meals with photos, a nightly recovery check-in, weight once a week, one honest weekly form. Tracy sees whether you show up.</div>
-      <div style="height:26px"></div>
-      <div class="tiles2" style="text-align:left">
-        <div class="tile"><div class="k">Score to beat</div><div class="v">80</div></div>
-        <div class="tile"><div class="k">That tier</div><div class="v" style="color:var(--green-bright)">OnStandard</div></div>
+  5: () => {
+    const ob = RT.ob || {};
+    const join = ob.join && ob.join.kind === 'practice' ? ob.join : null;
+    const std = standardForGoal(ob.goal, ob.standard && ob.standard.mealsPerDay, 'general');
+    const committed = !!ob.committedAt;
+    const trainerFirst = join && join.trainerName ? esc(join.trainerName.trim().split(/\s+/)[0]) : null;
+    const title = join ? `${trainerFirst || 'Your trainer'}’s Standard` : 'Your Standard';
+    const sub = join
+      ? `The deal with ${esc(join.practiceName || 'your trainer')}. Your score is built on it — hold to commit.`
+      : 'Built from your goal. When you connect a trainer, their standard takes over.';
+    const rows = std.rows.map(([ic, t, s]) => `
+        <div class="lrow" style="cursor:default">
+          <div class="lic" style="background:var(--surface-2)">${icon(ic, 17)}</div>
+          <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
+        </div>`).join('');
+    const knobs = join ? '' : `
+      <div class="eyebrow" style="margin:14px 2px 10px">Meals per day</div>
+      <div class="chip-row" id="cl-meals">${[2, 3, 4].map((m) => `<span class="chp ${m === std.meals ? 'on' : ''}">${m}</span>`).join('')}</div>`;
+    return frame(5, 6, title, sub, `
+      <section class="card" style="padding:6px 16px">${rows}</section>
+      <div style="height:10px"></div>
+      <div class="sidebox">
+        <div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div>
+        <div><div class="tt">Your edge</div><div class="ts">${std.focus}</div></div>
       </div>
+      ${knobs}
+      <div style="height:16px"></div>
+      ${commitButton(committed)}`,
+      'Next', 'client-ob/6', { back: 'client-ob/4', disabled: !committed });
+  },
+
+  6: () => `
+  <div class="ob">
+    <div class="ob-nav"><div class="ob-back" data-go="client-ob/5" aria-label="Back">${icon('chevron', 18)}</div>${progressOf(6, 6)}</div>
+    <div class="standard-set" style="padding-bottom:6px">
+      <div class="halo"><div class="core">${icon('check', 38)}</div></div>
+      <div class="ob-title" style="margin-top:18px">Your Standard is set.</div>
+      <div class="ob-sub" style="padding:0 10px">Create your account to save it — your score, meals, and trainer connection sync across devices.</div>
     </div>
+    <div style="height:16px"></div>
+    ${accountBody({ terms: 'clob' })}
     <div class="ob-foot" style="margin-top:auto">
-      <button class="btn green" data-act="startDay0" data-then="home">Start Day 1</button>
+      <button id="su-go" class="btn green" disabled>Create account &amp; Start</button>
     </div>
   </div>`,
 };
 
 export const clientOb = {
   hideTabs: true,
-  render({ sub }) { return clientSteps[Math.min(5, Math.max(1, +(sub || 1)))](); },
-  async mount(root) { await toggles(root); },
+  render({ sub }) { return clientSteps[Math.min(6, Math.max(1, +(sub || 1)))](); },
+  async mount(root) {
+    await toggles(root);
+    const $ = (s) => root.querySelector(s);
+    const cap = (patch) => act.captureOb(patch);
+    // Restore a saved single-select into the DOM BEFORE the initial sync (same pattern as
+    // onboarding.js's wireGroup / coachOb's restore), then bind capture directly to each
+    // option element rather than the group ancestor: wireToggles' per-chip click handler
+    // calls e.stopPropagation(), so a group-level listener would never see the click.
+    const captureGroup = (sel, key, read) => {
+      const g = $(sel); if (!g) return;
+      const saved = (RT.ob || {})[key];
+      if (saved != null) {
+        const items = [...g.querySelectorAll('.chp, .choice')];
+        const match = items.find((el) => (el.getAttribute('data-val') || el.textContent.trim()) === saved);
+        if (match) { items.forEach((el) => el.classList.remove('on')); match.classList.add('on'); }
+      }
+      const val = read || (() => { const on = g.querySelector('.on'); return on ? on.textContent.trim() : null; });
+      const sync = () => { const v = val(); if (v != null) cap({ [key]: v }); };
+      g.querySelectorAll('.chp, .choice').forEach((el) => el.addEventListener('click', sync));
+      sync();
+    };
+
+    // ---- Step 1: goal (slug from data-val) ----
+    captureGroup('#cl-goal', 'goal', () => { const on = $('#cl-goal .on'); return on ? on.getAttribute('data-val') : null; });
+
+    // ---- Step 2: first + last name REQUIRED, restore; life / training-days chips ----
+    const first = $('#cl-first');
+    if (first) {
+      const last = $('#cl-last');
+      const nextBtn = root.querySelector('.ob-foot .btn');
+      const ob = RT.ob || {};
+      if (ob.firstName) first.value = ob.firstName;
+      if (ob.lastName) last.value = ob.lastName;
+      const syncName = () => {
+        const f = first.value.trim(), l = last.value.trim();
+        cap({ firstName: f, lastName: l, name: `${f} ${l}`.trim() });
+        nextBtn.disabled = !(f && l);
+      };
+      [first, last].forEach((el) => el.addEventListener('input', syncName));
+      syncName();
+    }
+    captureGroup('#cl-life', 'life');
+    captureGroup('#cl-days', 'trainingDays');
+
+    // ---- Step 3: weights + allergies (restore; none selected by default) ----
+    const cur = $('#cl-cur'); if (cur) cur.addEventListener('input', () => cap({ currentWeight: parseFloat(cur.value) || null }));
+    const tgt = $('#cl-tgt'); if (tgt) tgt.addEventListener('input', () => cap({ targetWeight: parseFloat(tgt.value) || null }));
+    if (cur && RT.ob && RT.ob.currentWeight) cur.value = RT.ob.currentWeight;
+    if (tgt && RT.ob && RT.ob.targetWeight) tgt.value = RT.ob.targetWeight;
+    const alg = $('[data-multi]');
+    if (alg) {
+      const savedA = (RT.ob && RT.ob.allergies) || [];
+      if (savedA.length) [...alg.querySelectorAll('.chp')].forEach((c) => c.classList.toggle('on', savedA.includes(c.textContent.trim())));
+      const readA = () => cap({ allergies: [...alg.querySelectorAll('.chp.on')].map((c) => c.textContent.trim()) });
+      alg.addEventListener('click', readA);
+      readA();
+    }
+
+    // ---- Step 4: connect trainer — practice search / code entry (anon directory, no session yet) ----
+    const q = $('#cl-q');
+    if (q) {
+      const { dir, debounce, CODE_RE } = await import('../ob-directory.js');
+      const out = $('#cl-out'), alt = $('#cl-alt');
+      let gen = 0; // bumped whenever `out` is repainted; async responses bail if stale
+      const codeEntry = (ctx) => {
+        gen++; // repainting out — invalidate any in-flight search/code responses
+        out.innerHTML = `
+          ${ctx ? `<div class="sidebox" style="margin-bottom:12px"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
+            <div><div class="tt">${esc(ctx.title)}</div><div class="ts">${esc(ctx.sub)}</div></div></div>` : ''}
+          <input id="cl-code" class="ob-input" placeholder="Client code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" />
+          <div id="cl-code-err" style="color:var(--amber-bright);font-size:13px;font-weight:700;min-height:18px;margin-top:10px"></div>`;
+        const codeEl = out.querySelector('#cl-code'), codeErr = out.querySelector('#cl-code-err');
+        codeEl.addEventListener('input', debounce(async () => {
+          const code = codeEl.value.trim().toUpperCase();
+          codeErr.textContent = '';
+          if (!CODE_RE.test(code)) return;
+          const myGen = gen; // capture before await; bail below if repainted or edited since
+          try {
+            const { match } = await dir.previewCode(code);
+            if (myGen !== gen || codeEl.value.trim().toUpperCase() !== code) return; // stale
+            if (!match || match.kind !== 'practice') { codeErr.textContent = "That code didn't match. Check with your trainer."; return; }
+            cap({ join: { kind: 'practice', code, practiceId: match.id, practiceName: match.name, trainerName: match.trainer_name } });
+            window.__render();
+          } catch {
+            if (myGen !== gen) return; // stale
+            codeErr.textContent = 'Could not check that code — you can also skip and connect later.';
+          }
+        }, 350));
+        codeEl.focus();
+      };
+      q.addEventListener('input', debounce(async () => {
+        gen++; // repainting out on every debounced keystroke — invalidate prior in-flight lookups
+        const myGen = gen;
+        const v = q.value.trim();
+        if (v.length < 2) { out.innerHTML = ''; return; }
+        out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Searching…</div>`;
+        try {
+          const { practices } = await dir.practices(v);
+          if (myGen !== gen || q.value.trim() !== v) return; // stale
+          if (!practices.length) {
+            out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
+              <div><div class="tt">Not listed yet</div><div class="ts">No trainer by that name is on OnStandard yet. Enter your client code below, or skip — you can connect anytime from Profile.</div></div></div>`;
+            return;
+          }
+          out.innerHTML = `<section class="card" style="padding:6px 16px">${practices.map((p, i) => `
+            <div class="lrow" data-prac="${i}">
+              <div class="lic">${icon('heart', 17)}</div>
+              <div class="lm"><div class="lt">${esc(p.name)}</div><div class="ls">${esc(p.trainer_name || '—')}${p.handle ? ` · @${esc(p.handle)}` : ''}</div></div>
+              ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+            </div>`).join('')}</section>`;
+          out.querySelectorAll('[data-prac]').forEach((el) => el.addEventListener('click', () => {
+            const p = practices[+el.getAttribute('data-prac')];
+            codeEntry({ title: `Ask ${p.trainer_name || 'your trainer'} for your client code`, sub: `${p.name} · the code is the handshake — only your trainer hands it out.` });
+          }));
+        } catch {
+          if (myGen !== gen) return; // stale
+          out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
+            <div><div class="tt">Can't reach the directory</div><div class="ts">Check your connection, enter a client code directly, or skip for now.</div></div></div>`;
+        }
+      }, 300));
+      alt.addEventListener('click', () => codeEntry(null));
+    }
+
+    // ---- Step 5: meals/day knob re-renders the rows; hold-to-commit stamps the contract ----
+    const mealsRow = $('#cl-meals');
+    if (mealsRow) mealsRow.querySelectorAll('.chp').forEach((chp) => chp.addEventListener('click', () => {
+      cap({ standard: { ...((RT.ob || {}).standard || {}), mealsPerDay: +chp.textContent.trim() } });
+      window.__render();
+    }));
+    if ($('#ob-commit')) wireCommit(root, () => {
+      const ob = RT.ob || {};
+      cap({
+        committedAt: new Date().toISOString(),
+        standard: { ...(ob.standard || {}), mealsPerDay: (ob.standard && ob.standard.mealsPerDay) || 3 },
+      });
+      window.__render();
+    });
+
+    // ---- Step 6: shared account component; role 'athlete' (general-profile client) ----
+    if ($('#su-go')) {
+      wireAccount(root, {
+        role: 'athlete',
+        onSession: async (live) => {
+          await act.persistOnboarding(); // writes profile + redeems join_practice + stamps
+          if (live) { act.startDay0(); window.__go('home'); return; }
+          const err = $('#su-err');
+          err.style.color = 'var(--text-2)';
+          err.textContent = 'Account created — confirm your email, then sign in to start.';
+        },
+      });
+    }
+  },
 };
 
 /* ============ COACH & TRAINER PROFILES ============ */
