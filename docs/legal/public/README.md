@@ -4,10 +4,25 @@ This folder is your whole public site, ready to host:
 - **`index.html`** — the OnStandard landing page (homepage at `onstandard.app`)
 - **`privacy.html`** — Privacy Policy (`onstandard.app/privacy`)
 - **`terms.html`** — Terms of Service (`onstandard.app/terms`)
+- **`reset.html`** — Password-reset completion page (`onstandard.app/reset`) — **finished, no edits needed**
 
 Host the **whole folder** and you get the homepage plus both legal pages at the URLs the app links to
 (and the ones Apple requires for App Store submission). The landing page is finished and needs no
 edits. The two legal pages need a few blanks filled first — see Step 1.
+
+## Password reset (`reset.html`) — one Supabase setting to flip
+
+The app's "Forgot password?" sends an email whose link lands on **`https://onstandard.app/reset`**.
+That page (in this folder) lets the user set a new password and is done — it uses the same public
+Supabase URL + anon key the app uses. **One prerequisite** so Supabase will actually redirect there:
+
+> Supabase dashboard → **Authentication → URL Configuration → Redirect URLs** → add
+> `https://onstandard.app/reset` (and, if you host on a preview domain first, that URL too).
+> Also confirm **Site URL** is `https://onstandard.app`.
+
+Without that allowlist entry Supabase ignores the redirect and sends users to the Site URL instead.
+Nothing else to configure — once this folder is hosted and that URL is allowlisted, forgot-password
+works end to end.
 
 ## Step 1 — Fill the highlighted blanks (10 minutes)
 
