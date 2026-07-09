@@ -10,8 +10,10 @@
 // engine's — the model cannot drift, drop, or invent a figure and have it reach the athlete.
 //
 // "Strict" by founder ruling (2026-06-29): the multiset of numeric tokens must match EXACTLY.
-// Any add, change, drop, or reorder of a number rejects the rephrase. The engine rounds every
-// figure to an integer, so token matching on whole numbers is sufficient and unambiguous.
+// Any add, change, drop, or reorder of a number rejects the rephrase. Tokens are matched as full
+// numbers INCLUDING decimals: mealFrequencyInsight emits "2.3 meals a day", so a digit-run guard
+// would split 2.3 into {2,3} and let a flipped 3.2 pass with the same multiset — the decimal must
+// be one token so the value the athlete reads can't drift.
 import type { MemoryInsight } from './nutritionMemory';
 
 /** The model's proposed rewrite of a single insight: prose only, keyed back by id. */
@@ -26,9 +28,9 @@ export interface RephrasedInsight {
 const HEADLINE_MAX = 80;
 const DETAIL_MAX = 320;
 
-/** Every run of digits in a string, as integers, in ascending order (order-independent compare). */
+/** Every number in a string (decimals kept whole, e.g. "2.3"), in ascending order (order-independent compare). */
 function numericTokens(s: string): number[] {
-  const m = s.match(/\d+/g);
+  const m = s.match(/\d+(?:\.\d+)?/g);
   return (m ? m.map((t) => Number(t)) : []).sort((a, b) => a - b);
 }
 
