@@ -1,7 +1,8 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { dobFromParts, ageOn } from '../ob-helpers.js';
+import { dobFromParts, ageOn, standardForGoal } from '../ob-helpers.js';
 import { esc } from '../components.js';
+import { commitButton, wireCommit } from '../ob-commit.js';
 
 /* 7-step onboarding: identity → belonging → sport → goal → baseline → the contract → account.
    Back arrow + segmented progress on every step. Every selection is captured into RT.ob as
@@ -135,24 +136,40 @@ const steps = {
       <div class="ts">You log it on your coach's schedule. It never moves your daily score, so one heavy morning can't wreck a perfect day.</div></div>
     </div>`, 'Next', 'onboarding/6'),
 
-  6: () => frame(6, 'Your Standard', 'These are the daily requirements your score is built on. Coach Mark can add more.', `
-    <section class="card" style="padding:6px 16px">
-      ${[
-        ['utensils', 'g', 'Three meals, photo proof', 'Nutrition · 50% of your score'],
-        ['moon', 'p', 'Recovery check-in before bed', 'Recovery · 25%'],
-        ['check', 'b', 'One honest commitment tap', 'Commitment · 15%'],
-        ['clipboard', 'g', 'Weekly check-in on Sundays', 'Check-in · 10%'],
-        ['scale', 'a', 'Weight Mon / Wed / Fri', 'Season trend · not scored'],
-      ].map(([ic, cl, t, s]) => `
+  6: () => {
+    const ob = RT.ob || {};
+    const join = ob.join && ob.join.kind === 'team' ? ob.join : null;
+    const std = standardForGoal(ob.goal, ob.standard && ob.standard.mealsPerDay);
+    const committed = !!ob.committedAt;
+    const coachLast = join && join.coachName ? esc(join.coachName.trim().split(/\s+/).slice(-1)[0]) : null;
+    const title = join ? `Coach ${coachLast || ''}’s Standard`.replace(/\s+’/, '’') : 'Your Standard';
+    const sub = join
+      ? `The deal on ${esc(join.teamName || 'the team')}. Your score is built on it — hold to commit.`
+      : 'Built from your goal. When you connect a coach, their standard takes over.';
+    const rows = std.rows.map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
           <div class="lic" style="background:var(--surface-2)">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
-        </div>`).join('')}
-    </section>
-    <div style="height:12px"></div>
-    <div class="chip-row" id="ob-pressure" style="justify-content:center">
-      <span class="chp">Remind me gently</span><span class="chp on">Hold me accountable</span><span class="chp">Max pressure</span>
-    </div>`, 'Set My Standard', 'onboarding/7'),
+        </div>`).join('');
+    const knobs = join ? '' : `
+      <div class="eyebrow" style="margin:14px 2px 10px">Meals per day</div>
+      <div class="chip-row" id="ob-meals">${[2, 3, 4].map((m) => `<span class="chp ${m === std.meals ? 'on' : ''}">${m}</span>`).join('')}</div>`;
+    return frame(6, title, sub, `
+      <section class="card" style="padding:6px 16px">${rows}</section>
+      <div style="height:10px"></div>
+      <div class="sidebox">
+        <div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div>
+        <div><div class="tt">Your edge</div><div class="ts">${std.focus}</div></div>
+      </div>
+      ${knobs}
+      <div class="eyebrow" style="margin:14px 2px 10px">Reminder pressure</div>
+      <div class="chip-row" id="ob-pressure" style="justify-content:center">
+        <span class="chp ${ob.pressure === 'Remind me gently' ? 'on' : ''}">Remind me gently</span><span class="chp ${!ob.pressure || ob.pressure === 'Hold me accountable' ? 'on' : ''}">Hold me accountable</span><span class="chp ${ob.pressure === 'Max pressure' ? 'on' : ''}">Max pressure</span>
+      </div>
+      <div style="height:16px"></div>
+      ${commitButton(committed)}`,
+      'Next', 'onboarding/7', { disabled: !committed });
+  },
 
   7: () => `
   <div class="ob">
@@ -355,6 +372,22 @@ export default {
 
     // ---- Step 6: reminder pressure ----
     wireGroup('#ob-pressure', 'pressure');
+
+    // ---- Step 6: meals/day knob re-renders the rows; hold-to-commit stamps the contract ----
+    const mealsRow = grab('#ob-meals');
+    if (mealsRow) mealsRow.addEventListener('click', (e) => {
+      const chp = e.target.closest('.chp'); if (!chp) return;
+      cap({ standard: { ...((RT.ob || {}).standard || {}), mealsPerDay: +chp.textContent.trim() } });
+      window.__render();
+    });
+    if (grab('#ob-commit')) wireCommit(root, () => {
+      const ob = RT.ob || {};
+      cap({
+        committedAt: new Date().toISOString(),
+        standard: { mealsPerDay: (ob.standard && ob.standard.mealsPerDay) || 3, pressure: ob.pressure || 'Hold me accountable' },
+      });
+      window.__render();
+    });
 
     // ---- Step 7: real account creation from the captured Standard ----
     const btn = root.querySelector('#su-go');
