@@ -185,7 +185,7 @@ export function Home() {
                     +{d.scoreDelta} pts
                   </Txt>
                   <Txt w="sb" size={13} color={c.textSecondary}>
-                    vs yesterday
+                    vs last week
                   </Txt>
                 </Row>
               ) : d.isDay0 ? (

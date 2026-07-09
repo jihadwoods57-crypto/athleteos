@@ -30,6 +30,7 @@ import {
   MIN_SIGNUP_AGE,
   PROTEIN_TARGET,
   QUICK_FOODS,
+  SCORING_PROFILE_OPTIONS,
   recordDayNutrition,
   recordDayScore,
   recordDayWeight,
@@ -288,6 +289,7 @@ export interface Actions {
    *  after sign-in, so a fresh device shows their real identity, not the seeded demo.
    *  Gated; soft-fails to the local cache. */
   hydrateProfile: () => Promise<void>;
+  hydrateAthletePlan: () => Promise<void>;
   hydrateRecord: () => Promise<void>;
   /** Read the athlete's guardian-consent status back from the backend after sign-in, so a
    *  server-VERIFIED guardian actually unblocks the minor (the client only ever wrote
@@ -1215,6 +1217,34 @@ export const useStore = create<Store>()(
           /* keep the local identity on error */
         }
       },
+      hydrateAthletePlan: async () => {
+        // A managed client's coach-set plan (nutrition targets + scoring profile) lived only in
+        // athlete_profiles — read by the COACH's editor and never by the client themselves. So on a
+        // fresh sign-in / new device a lose-fat client fell back to the gain-oriented defaults
+        // (+13 lb target, 3200 kcal, 180 g) and was shown AND scored on them, tripping the
+        // constitution's "a lose-fat athlete is never told to gain". RLS (can_view = is_self OR ...)
+        // already lets the client read its own row; the app just never did. Symmetric hydration of
+        // exactly what pushAthleteGoals writes. Soft-fail: no row / offline / not-permitted keeps
+        // the local plan.
+        if (!isBackendLive) return;
+        const uid = get().userId;
+        if (!uid) return;
+        try {
+          const row = await db.fetchAthleteProfile(uid);
+          const t = (row?.targets ?? null) as { protein?: unknown; calories?: unknown; weight?: unknown; profile?: unknown } | null;
+          if (!t || typeof t.protein !== 'number' || typeof t.calories !== 'number' || typeof t.weight !== 'number') return;
+          const known = SCORING_PROFILE_OPTIONS.find((o) => o.key === t.profile)?.key;
+          set({
+            proteinTarget: t.protein,
+            calTarget: t.calories,
+            weightTarget: t.weight,
+            weightTargetTouched: true,
+            ...(known ? { scoringProfile: known } : {}),
+          });
+        } catch {
+          /* keep the local plan on error */
+        }
+      },
       hydrateRecord: async () => {
         // Rebuild the athlete's full score + weight record from the server (audit item 14) so a new
         // device / returning athlete sees their season, not just the local 14-day cache. Gated +
@@ -1519,6 +1549,7 @@ export const useStore = create<Store>()(
         // Read the real identity (name/org/email) + entitlement back from the backend
         // so a fresh device isn't stuck on the seeded demo identity. Both gated + soft-fail.
         void get().hydrateProfile();
+        void get().hydrateAthletePlan();
         void get().hydrateRecord();
         void get().refreshEntitlement();
         void get().hydrateGuardianConsent();
@@ -1548,6 +1579,7 @@ export const useStore = create<Store>()(
         // Read the real identity (name/org/email) + entitlement back from the backend
         // so a fresh device isn't stuck on the seeded demo identity. Both gated + soft-fail.
         void get().hydrateProfile();
+        void get().hydrateAthletePlan();
         void get().hydrateRecord();
         void get().refreshEntitlement();
         void get().hydrateGuardianConsent();

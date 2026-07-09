@@ -89,6 +89,12 @@ export function mapStateToDayRow(
       // Postgres (offline / pre-consent). The row self-describes its carry instead of the
       // server trying to reconstruct cross-day history it can't reliably see.
       ciLast: s.ciLast?.date ?? null,
+      // The carry's recovery MAGNITUDE rides alongside as its own key so a second device can
+      // rebuild the weekly recovery carry (0.25 recovery + 0.10 check-in) instead of dropping it
+      // and re-scoring the same lived day ~25-35 low, which then pushes the lower score back over
+      // the server row. Kept separate from `ciLast` so the 0041 SQL trigger still reads that as a
+      // plain date string.
+      ciLastRecovery: s.ciLast?.recovery ?? null,
       // The one-tap plan commitment rides in the same jsonb (no schema change) so a
       // second device can rebuild the full score instead of dropping the 0.15 slot.
       commitment: s.dailyCommitment,
@@ -143,6 +149,13 @@ export function dayRowToState(row: DayRow): Partial<AppState> {
   }
   if (ci && (ci.commitment === 'yes' || ci.commitment === 'partial' || ci.commitment === 'no')) {
     slice.dailyCommitment = ci.commitment;
+  }
+  // Restore the weekly recovery-carry marker. Dropping it collapsed the same lived day by
+  // ~25-35 points on a second device (recovery + check-in slots fall to 0), which then pushed
+  // the lower score over the server row. Needs both the date and the magnitude; a legacy row
+  // (date-only string, or absent) restores nothing extra.
+  if (ci && typeof ci.ciLast === 'string' && typeof ci.ciLastRecovery === 'number' && Number.isFinite(ci.ciLastRecovery)) {
+    slice.ciLast = { date: ci.ciLast, recovery: ci.ciLastRecovery };
   }
   // Rebuild each slot's REAL macro evidence as a synthetic one-item plate ("Logged
   // meal" — an honest generic name, never a fabricated dish). Without this, the

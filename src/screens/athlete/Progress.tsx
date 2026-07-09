@@ -48,9 +48,12 @@ function accentFg(c: ReturnType<typeof useColors>, a: Accent): string {
   return a === 'g' ? c.success : a === 'a' ? c.warningDeep : a === 'b' ? c.accentLight : c.trainerLight;
 }
 
-/** How many real days (persisted completed days + today) we need before a weekly trend is
- *  honest rather than mostly-seeded padding. Below this we show the "building history" state. */
-const MIN_TREND_DAYS = 3;
+/** How many real days (persisted completed days + today) we need before the weekly card is
+ *  honest. Set to the full trend window (TREND_WINDOW = 7): below a complete real week,
+ *  trendSeries left-pads with the seeded lead (all >= 80), so weeklyCompliance would count
+ *  fabricated "on standard" days in the card and bars. Until a real week exists we show the
+ *  honest "building history" state instead. */
+const MIN_TREND_DAYS = 7;
 
 /** One Requirements-Consistency row: a labelled % track, colored by the requirement's accent. */
 interface ConsRow {

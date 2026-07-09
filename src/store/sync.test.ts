@@ -127,6 +127,33 @@ describe('cross-device day roundtrip — the score survives hydration', () => {
     expect(computeDerived(restored).athleteScore).toBe(computeDerived(lived).athleteScore);
   });
 
+  it('roundtrip preserves the weekly recovery carry (ciLast date + magnitude)', () => {
+    // ciLast backs the recovery (0.25) + check-in (0.10) slots on a carry day. The write used
+    // to store only the DATE and hydration restored nothing, so on a second device ciLast came
+    // back null and the same lived day re-scored ~25-35 low, then overwrote the server row.
+    // Both halves must survive the round-trip.
+    const { mapStateToDayRow, dayRowToState } = loadSync(true);
+    const lived: AppState = {
+      ...adultConsenting(),
+      dateStamp: '2026-07-03',
+      ciSubmitted: false,
+      ciLast: { date: '2026-07-01', recovery: 90 },
+    };
+    const row = mapStateToDayRow(lived, 'a-1', '2026-07-03');
+    const restored: AppState = { ...adultConsenting(), dateStamp: '2026-07-03', ...dayRowToState(row as DayRow) };
+    expect(restored.ciLast).toEqual({ date: '2026-07-01', recovery: 90 });
+  });
+
+  it('a legacy row carrying only the ciLast date (no magnitude) restores no carry', () => {
+    // Back-compat: a pre-fix row stored ciLast as a bare date string with no ciLastRecovery.
+    // Restoring a { date, recovery: NaN } carry would be worse than none, so we restore nothing.
+    const { dayRowToState } = loadSync(true);
+    const row = dayRow('2026-07-03', 80, 180);
+    (row.checkin as Record<string, unknown>).ciLast = '2026-07-01';
+    const slice = dayRowToState(row);
+    expect(slice.ciLast).toBeUndefined();
+  });
+
   it('a legacy row without the new checkin keys hydrates without inventing a check-in', () => {
     const { dayRowToState } = loadSync(true);
     const slice = dayRowToState(dayRow('2026-07-01', 70, 180));
