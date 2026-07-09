@@ -56,14 +56,27 @@ const steps = {
     </div>
   </div>`,
 
-  2: () => frame(2, 'Connect your coach', 'A coach code links your logs to someone who holds you accountable.', `
-    <input id="ob-code" class="ob-input" placeholder="Coach code (optional)" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-    <div style="height:14px"></div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 18)}</div>
-      <div><div class="tt">No code yet? Skip it.</div>
-      <div class="ts">Your Standard works solo from day one. When a coach shares a code, add it any time from Profile → Enter coach code.</div></div>
-    </div>`, 'Continue', 'onboarding/3', { skip: 'onboarding/3' }),
+  2: () => {
+    const j = (RT.ob || {}).join;
+    if (j) return frame(2, 'Coach connected', 'Your logs will count toward their board from day one.', `
+      <section class="card team-preview">
+        <div class="tp-av" style="background:linear-gradient(150deg,var(--green-bright),#0d9459);color:#04150c">${(j.coachName || j.teamName || '?')[0]}</div>
+        <div style="flex:1">
+          <div style="font-size:16px;font-weight:800">${j.coachName || j.teamName}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${j.teamName || ''}${j.school ? ' · ' + j.school : ''}</div>
+        </div>
+        <span class="status-pill g">Connected</span>
+      </section>
+      <div style="height:12px"></div>
+      <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text-3);cursor:pointer" data-act="clearJoin">Remove connection</div>`,
+      'Continue', 'onboarding/3');
+    return frame(2, 'Your school', 'Find your school, then your coach. Their code is the handshake.', `
+      <input id="sc-q" class="ob-input" placeholder="Search your school" autocorrect="off" spellcheck="false" />
+      <div id="sc-out" style="margin-top:14px"></div>
+      <div style="height:10px"></div>
+      <div id="sc-alt" style="text-align:center;font-size:14px;font-weight:700;color:var(--green-bright);cursor:pointer">I have a coach code</div>`,
+      'Continue', 'onboarding/3', { skip: 'onboarding/3' });
+  },
 
   3: () => frame(3, 'Your sport', 'Position and level shape your plan.', `
     <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
@@ -222,8 +235,76 @@ export default {
       sync();
     }
 
-    // ---- Step 2: coach code (captured for the later real-join phase; no fabricated "match") ----
-    const code = grab('#ob-code'); if (code) code.addEventListener('input', () => cap({ coachCode: code.value.trim() }));
+    // ---- Step 2: school → coach → code (validated preview; real join happens post-signup) ----
+    const scQ = grab('#sc-q');
+    if (scQ) {
+      const { dir, debounce, CODE_RE } = await import('../ob-directory.js');
+      const out = grab('#sc-out'), alt = grab('#sc-alt');
+      const esc = (s) => String(s == null ? '' : s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+      const codeEntry = (ctx) => {
+        out.innerHTML = `
+          ${ctx ? `<div class="sidebox" style="margin-bottom:12px"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+            <div><div class="tt">${esc(ctx.title)}</div><div class="ts">${esc(ctx.sub)}</div></div></div>` : ''}
+          <input id="sc-code" class="ob-input" placeholder="Coach code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" />
+          <div id="sc-code-err" style="color:var(--amber-bright);font-size:13px;font-weight:700;min-height:18px;margin-top:10px"></div>`;
+        const codeEl = out.querySelector('#sc-code'), codeErr = out.querySelector('#sc-code-err');
+        codeEl.addEventListener('input', debounce(async () => {
+          const code = codeEl.value.trim().toUpperCase();
+          codeErr.textContent = '';
+          if (!CODE_RE.test(code)) return;
+          try {
+            const { match } = await dir.previewCode(code);
+            if (!match) { codeErr.textContent = "That code didn't match. Check with your coach."; return; }
+            cap({ join: match.kind === 'team'
+              ? { kind: 'team', code, teamId: match.id, teamName: match.name, coachName: match.coach_name, school: match.school }
+              : { kind: 'practice', code, practiceId: match.id, practiceName: match.name, trainerName: match.trainer_name } });
+            window.__render();
+          } catch { codeErr.textContent = 'Could not check that code — you can also skip and connect later.'; }
+        }, 350));
+        codeEl.focus();
+      };
+      const showTeams = async (org) => {
+        out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Loading coaches…</div>`;
+        try {
+          const { teams } = await dir.teams(org.id);
+          if (!teams.length) { codeEntry({ title: `${org.name}`, sub: 'No coaches listed here yet. Have a code? Enter it below.' }); return; }
+          out.innerHTML = `<section class="card" style="padding:6px 16px">${teams.map((t, i) => `
+            <div class="lrow" data-team="${i}">
+              <div class="lic">${icon('users', 17)}</div>
+              <div class="lm"><div class="lt">${esc(t.coach_name || t.name)}</div><div class="ls">${esc(t.name)}${t.sport ? ' · ' + esc(t.sport) : ''}</div></div>
+              ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+            </div>`).join('')}</section>`;
+          out.querySelectorAll('[data-team]').forEach((el) => el.addEventListener('click', () => {
+            const t = teams[+el.getAttribute('data-team')];
+            codeEntry({ title: `Ask ${t.coach_name || 'your coach'} for the team code`, sub: `${t.name} · the code is the handshake — only your coach hands it out.` });
+          }));
+        } catch { codeEntry({ title: 'Directory unavailable', sub: 'Enter your coach code directly, or skip and connect later.' }); }
+      };
+      scQ.addEventListener('input', debounce(async () => {
+        const q = scQ.value.trim();
+        if (q.length < 2) { out.innerHTML = ''; return; }
+        out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Searching…</div>`;
+        try {
+          const { orgs } = await dir.search(q);
+          if (!orgs.length) {
+            out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+              <div><div class="tt">Not listed yet</div><div class="ts">No school by that name is on OnStandard yet. Enter your coach's code below, or skip — you can connect anytime from Profile.</div></div></div>`;
+            return;
+          }
+          out.innerHTML = `<section class="card" style="padding:6px 16px">${orgs.map((o, i) => `
+            <div class="lrow" data-org="${i}">
+              <div class="lic">${icon('shield', 17)}</div>
+              <div class="lm"><div class="lt">${esc(o.name)}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}${o.teams ? ` · ${o.teams} coach${o.teams > 1 ? 'es' : ''}` : ''}</div></div>
+              ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+            </div>`).join('')}</section>`;
+          out.querySelectorAll('[data-org]').forEach((el) => el.addEventListener('click', () => showTeams(orgs[+el.getAttribute('data-org')])));
+        } catch {
+          out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+            <div><div class="tt">Can't reach the directory</div><div class="ts">Check your connection, enter a coach code directly, or skip for now.</div></div></div>`;
+        }
+      }, 300));
+      alt.addEventListener('click', () => codeEntry(null));
+    }
 
     // ---- Step 3: sport / position / level ----
     wireGroup('#ob-sport', 'sport');

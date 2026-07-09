@@ -292,6 +292,7 @@ export const act = {
   /* Onboarding scratch: the athlete's real selections captured step-by-step (DOM is wiped
      between routes, so each interaction persists here rather than being read at the end). */
   captureOb(patch) { RT.ob = { ...(RT.ob || {}), ...patch }; save(); },
+  clearJoin() { if (RT.ob) { delete RT.ob.join; save(); } },
   saveAllergies(list) { RT.allergies = list.slice(0, 8); save(); },
   nudgePartner() { RT.partnerNudged = true; save(); },
   toggleInjury() {
