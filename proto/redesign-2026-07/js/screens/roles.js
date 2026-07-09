@@ -350,7 +350,7 @@ const trainerSteps = {
           <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
           <div class="seg" style="width:104px"><button class="${on ? 'on' : ''}">On</button><button class="${on ? '' : 'on'}">Off</button></div>
         </div>`).join('')}
-    </section>`, 'Next', 'trainer-ob/3'),
+    </section>`, 'Next', 'trainer-ob/3', { back: 'trainer-ob/1' }),
 
   3: () => `
   <div class="ob">
@@ -416,7 +416,7 @@ const clientSteps = {
     <div class="eyebrow" style="margin:8px 2px 10px">Training days per week</div>
     <div class="chip-row">
       <span class="chp">2</span><span class="chp on">3</span><span class="chp">4</span><span class="chp">5+</span>
-    </div>`, 'Next', 'client-ob/3'),
+    </div>`, 'Next', 'client-ob/3', { back: 'client-ob/1' }),
 
   3: () => frame(3, 5, 'Where are you now?', 'Weight is a weekly trend here. One heavy morning proves nothing.', `
     <div class="bignum-pair">
@@ -434,7 +434,7 @@ const clientSteps = {
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
       <div><div class="tt">No shame mechanics</div>
       <div class="ts">The daily score measures what you did today: meals, recovery, honesty. The scale is tracked weekly and never moves the daily number.</div></div>
-    </div>`, 'Next', 'client-ob/4'),
+    </div>`, 'Next', 'client-ob/4', { back: 'client-ob/2' }),
 
   4: () => frame(4, 5, 'Connect your trainer.', 'Accountability needs a witness. Enter the code they gave you.', `
     <div class="code-boxes">
@@ -449,7 +449,7 @@ const clientSteps = {
         <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">Trainer · 14 clients</div>
       </div>
       <span class="status-pill p">Match</span>
-    </section>`, 'Join', 'client-ob/5', { skip: 'client-ob/5' }),
+    </section>`, 'Join', 'client-ob/5', { back: 'client-ob/3', skip: 'client-ob/5' }),
 
   5: () => `
   <div class="ob">
