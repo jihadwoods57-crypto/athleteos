@@ -19,6 +19,8 @@ export default {
       <div class="spacer"></div>
       <button id="si-go" class="btn green">Sign In</button>
       <div style="height:10px"></div>
+      <button class="btn ghost" data-go="reset">Forgot password?</button>
+      <div style="height:2px"></div>
       <button class="btn ghost" data-go="role">Create an account</button>
       <div style="height:14px"></div>
     </div>`;

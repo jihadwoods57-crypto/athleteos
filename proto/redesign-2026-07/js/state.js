@@ -375,6 +375,19 @@ export const act = {
     RT.userId = null; RT.email = null; RT.authRole = null;
     save();
   },
+  /* Send a password-reset email. Neutral by design — we never reveal whether an account exists,
+     so the same confirmation shows regardless (anti account-enumeration). The link lands on the
+     configured recovery target; completing the reset (setting the new password) is handled there. */
+  async requestPasswordReset(email) {
+    const sb = window.sb;
+    const addr = (email || '').trim();
+    if (!addr) return { ok: false, error: 'Enter your email.' };
+    if (sb) {
+      try { await sb.auth.resetPasswordForEmail(addr, { redirectTo: 'https://onstandard.app/reset' }); }
+      catch { /* neutral: never leak whether the address is registered */ }
+    }
+    return { ok: true };
+  },
   /* Apple 5.1.1(v): REAL in-app account deletion. Calls the delete_account RPC (server cascades
      the athlete's rows), signs out, and wipes local state. Best-effort on the RPC so a missing
      backend still signs the user out; returns whether the server delete succeeded. */

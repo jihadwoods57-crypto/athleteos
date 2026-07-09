@@ -105,7 +105,7 @@ window.__render = render;
 
 // Boot gate: restore a Keychain session and gate app screens behind auth. Auth screens are
 // always reachable; fresh (signed-out) users land on Welcome. Runs once on load.
-const AUTH_ROUTES = ['welcome', 'role', 'signin', 'onboarding', 'coach-ob', 'trainer-ob', 'client-ob'];
+const AUTH_ROUTES = ['welcome', 'role', 'signin', 'reset', 'onboarding', 'coach-ob', 'trainer-ob', 'client-ob'];
 async function boot() {
   let authed = false;
   try {

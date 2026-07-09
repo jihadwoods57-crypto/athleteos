@@ -21,6 +21,7 @@ import { foodSearch, labelScan } from './foodsearch.js';
 import { trust, streak, history } from './trust.js';
 import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
 import signin from './signin.js';
+import reset from './reset.js';
 import { devices, recruiting, restrictions, teamDiet, injury, partner, coachVoice, safety } from './features.js';
 
 export const screens = {
@@ -65,6 +66,7 @@ export const screens = {
   history,
   role,
   signin,
+  reset,
   'coach-ob': coachOb,
   'trainer-ob': trainerOb,
   'client-ob': clientOb,
