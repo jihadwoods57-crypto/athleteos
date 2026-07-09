@@ -1,6 +1,7 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { dobFromParts, ageOn } from '../ob-helpers.js';
+import { esc } from '../components.js';
 
 /* 7-step onboarding: identity → belonging → sport → goal → baseline → the contract → account.
    Back arrow + segmented progress on every step. Every selection is captured into RT.ob as
@@ -67,10 +68,10 @@ const steps = {
         : `${j.teamName || ''}${j.school ? ' · ' + j.school : ''}`;
       return frame(2, j.kind === 'practice' ? 'Trainer connected' : 'Coach connected', 'Your logs will count toward their board from day one.', `
       <section class="card team-preview">
-        <div class="tp-av" style="background:linear-gradient(150deg,var(--green-bright),#0d9459);color:#04150c">${title[0]}</div>
+        <div class="tp-av" style="background:linear-gradient(150deg,var(--green-bright),#0d9459);color:#04150c">${esc(title[0])}</div>
         <div style="flex:1">
-          <div style="font-size:16px;font-weight:800">${title}</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${subLine}</div>
+          <div style="font-size:16px;font-weight:800">${esc(title)}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(subLine)}</div>
         </div>
         <span class="status-pill g">Connected</span>
       </section>
@@ -248,8 +249,9 @@ export default {
     if (scQ) {
       const { dir, debounce, CODE_RE } = await import('../ob-directory.js');
       const out = grab('#sc-out'), alt = grab('#sc-alt');
-      const esc = (s) => String(s == null ? '' : s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+      let gen = 0; // bumped whenever `out` is repainted; async callbacks bail if stale
       const codeEntry = (ctx) => {
+        gen++; // repainting out — invalidate any in-flight search/teams/code responses
         out.innerHTML = `
           ${ctx ? `<div class="sidebox" style="margin-bottom:12px"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
             <div><div class="tt">${esc(ctx.title)}</div><div class="ts">${esc(ctx.sub)}</div></div></div>` : ''}
@@ -260,21 +262,29 @@ export default {
           const code = codeEl.value.trim().toUpperCase();
           codeErr.textContent = '';
           if (!CODE_RE.test(code)) return;
+          const myGen = gen; // capture before await; bail below if repainted or edited since
           try {
             const { match } = await dir.previewCode(code);
+            if (myGen !== gen || codeEl.value.trim().toUpperCase() !== code) return; // stale: repainted or user typed on
             if (!match) { codeErr.textContent = "That code didn't match. Check with your coach."; return; }
             cap({ join: match.kind === 'team'
               ? { kind: 'team', code, teamId: match.id, teamName: match.name, coachName: match.coach_name, school: match.school }
               : { kind: 'practice', code, practiceId: match.id, practiceName: match.name, trainerName: match.trainer_name } });
             window.__render();
-          } catch { codeErr.textContent = 'Could not check that code — you can also skip and connect later.'; }
+          } catch {
+            if (myGen !== gen) return; // stale: don't clobber whatever's on screen now
+            codeErr.textContent = 'Could not check that code — you can also skip and connect later.';
+          }
         }, 350));
         codeEl.focus();
       };
       const showTeams = async (org) => {
+        gen++; // repainting out — invalidate any in-flight search/code responses
+        const myGen = gen;
         out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Loading coaches…</div>`;
         try {
           const { teams } = await dir.teams(org.id);
+          if (myGen !== gen) return; // stale: user navigated away before this resolved
           if (!teams.length) { codeEntry({ title: `${org.name}`, sub: 'No coaches listed here yet. Have a code? Enter it below.' }); return; }
           out.innerHTML = `<section class="card" style="padding:6px 16px">${teams.map((t, i) => `
             <div class="lrow" data-team="${i}">
@@ -286,14 +296,20 @@ export default {
             const t = teams[+el.getAttribute('data-team')];
             codeEntry({ title: `Ask ${t.coach_name || 'your coach'} for the team code`, sub: `${t.name} · the code is the handshake — only your coach hands it out.` });
           }));
-        } catch { codeEntry({ title: 'Directory unavailable', sub: 'Enter your coach code directly, or skip and connect later.' }); }
+        } catch {
+          if (myGen !== gen) return; // stale
+          codeEntry({ title: 'Directory unavailable', sub: 'Enter your coach code directly, or skip and connect later.' });
+        }
       };
       scQ.addEventListener('input', debounce(async () => {
+        gen++; // repainting out on every debounced keystroke — invalidate prior in-flight lookups
+        const myGen = gen;
         const q = scQ.value.trim();
         if (q.length < 2) { out.innerHTML = ''; return; }
         out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Searching…</div>`;
         try {
           const { orgs } = await dir.search(q);
+          if (myGen !== gen || scQ.value.trim() !== q) return; // stale: repainted or query changed since
           if (!orgs.length) {
             out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
               <div><div class="tt">Not listed yet</div><div class="ts">No school by that name is on OnStandard yet. Enter your coach's code below, or skip — you can connect anytime from Profile.</div></div></div>`;
@@ -307,6 +323,7 @@ export default {
             </div>`).join('')}</section>`;
           out.querySelectorAll('[data-org]').forEach((el) => el.addEventListener('click', () => showTeams(orgs[+el.getAttribute('data-org')])));
         } catch {
+          if (myGen !== gen) return; // stale
           out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
             <div><div class="tt">Can't reach the directory</div><div class="ts">Check your connection, enter a coach code directly, or skip for now.</div></div></div>`;
         }
