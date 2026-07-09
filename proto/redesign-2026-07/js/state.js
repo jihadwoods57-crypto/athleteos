@@ -357,6 +357,9 @@ export const act = {
         try { await this.persistOnboarding(); } catch { /* best-effort */ }
       }
     }
+    if (role === 'coach' && RT.ob && RT.ob.coach && obMine && !RT.ob.teamCode) {
+      try { await this.persistCoachOnboarding(); } catch { /* best-effort */ }
+    }
     await loadDay(RT.userId);
     syncRtFromDay();
     return { ok: true, role };
@@ -487,6 +490,37 @@ export const act = {
     }
     this.captureOb({ _synced: synced });
     return synced.legacy;
+  },
+  /* Mint the coach's real org + team + join code from RT.ob.coach. Idempotent: a minted
+     code short-circuits. Org insert must set created_by = auth.uid() (orgs_write policy). */
+  async persistCoachOnboarding() {
+    const sb = window.sb;
+    const ob = RT.ob || {};
+    const c = ob.coach || {};
+    if (!sb || !RT.userId) return false;
+    if (ob.teamCode) return true;
+    let orgId = c.orgId || null;
+    if (!orgId && c.schoolName) {
+      try {
+        const { data: found } = await sb.rpc('find_org', { p_name: c.schoolName, p_state: c.state || null });
+        if (found && found.length) orgId = found[0].id;
+        else {
+          const { data: ins } = await sb.from('orgs')
+            .insert({ name: c.schoolName, type: 'school', city: c.city || null, state: c.state || null, created_by: RT.userId })
+            .select('id').maybeSingle();
+          if (ins) orgId = ins.id;
+        }
+      } catch { /* org optional — a code-only team still works */ }
+    }
+    try {
+      const { data: code, error } = await sb.rpc('create_team', {
+        team_name: c.teamName || 'My Team', team_sport: c.sport || null,
+        team_org: orgId, team_discoverable: c.discoverable !== false,
+      });
+      if (error || !code) return false;
+      this.captureOb({ teamCode: code });
+      return true;
+    } catch { return false; }
   },
   // Called by the router boot gate to sync RT from a restored Keychain session.
   _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },

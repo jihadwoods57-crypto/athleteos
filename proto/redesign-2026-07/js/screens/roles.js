@@ -1,6 +1,7 @@
-import { S } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, logoMark } from '../components.js';
+import { backHead, logoMark, esc } from '../components.js';
+import { accountBody, wireAccount } from './ob-account.js';
 
 /* ============================================================
    Role picker + onboarding for every role, not just athletes.
@@ -13,10 +14,14 @@ function dots(n, total) {
   return `<div class="ob-dots">${Array.from({ length: total }, (_, i) =>
     `<div class="d ${i + 1 <= n ? 'on' : ''}"></div>`).join('')}</div>`;
 }
+function progressOf(n, total) {
+  return `<div class="ob-prog" role="progressbar" aria-label="Step ${n} of ${total}" aria-valuenow="${n}" aria-valuemax="${total}">${
+    Array.from({ length: total }, (_, i) => `<i class="${i + 1 <= n ? 'on' : ''}"></i>`).join('')}</div>`;
+}
 function frame(n, total, title, sub, body, cta, next, opts = {}) {
   return `
   <div class="ob">
-    ${dots(n, total)}
+    <div class="ob-nav"><div class="ob-back" data-go="${opts.back || 'role'}" aria-label="Back">${icon('chevron', 18)}</div>${progressOf(n, total)}</div>
     <div class="ob-title">${title}</div>
     <div class="ob-sub">${sub}</div>
     <div class="ob-body">${body}</div>
@@ -96,33 +101,55 @@ export const role = {
   },
 };
 
-/* ============ COACH ONBOARDING (4 steps) ============ */
+/* ============ COACH ONBOARDING (5 steps + code screen) ============ */
 const coachSteps = {
-  1: () => frame(1, 4, 'You, coach.', 'Your athletes see this name on every standard you set.', `
-    <input class="ob-input" value="Mark Reyes" />
-    <div style="height:14px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Your role</div>
-    <div class="chip-row">
-      <span class="chp on">Head Coach</span><span class="chp">Assistant</span><span class="chp">S&C</span><span class="chp">Nutrition</span>
-    </div>
+  1: () => frame(1, 5, 'You, coach.', 'Your athletes see this name on every standard you set.', `
+    <input id="co-first" class="ob-input" placeholder="First name" autocapitalize="words" />
+    <div style="height:12px"></div>
+    <input id="co-last" class="ob-input" placeholder="Last name" autocapitalize="words" />
     <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">School / organization</div>
-    <input class="ob-input" value="Central Catholic" />`, 'Next', 'coach-ob/2'),
+    <div class="eyebrow" style="margin:8px 2px 10px">Your role</div>
+    <div class="chip-row" id="co-role">
+      <span class="chp on">Head Coach</span><span class="chp">Assistant</span><span class="chp">S&amp;C</span><span class="chp">Nutrition</span>
+    </div>`, 'Next', 'coach-ob/2', { back: 'role' }),
 
-  2: () => frame(2, 4, 'Build the team.', 'Athletes join it with one code. You can run more than one group.', `
-    <input class="ob-input" value="Varsity Football" />
+  2: () => {
+    const c = (RT.ob || {}).coach || {};
+    return frame(2, 5, 'Your school.', 'Athletes find you by school. Same-name schools split by city.', c.schoolName ? `
+      <section class="card team-preview">
+        <div class="tp-av">${esc(c.schoolName[0])}</div>
+        <div style="flex:1"><div style="font-size:16px;font-weight:800">${esc(c.schoolName)}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${esc([c.city, c.state].filter(Boolean).join(', ') || '—')}</div></div>
+        <span class="status-pill g">Set</span>
+      </section>
+      <div style="height:12px"></div>
+      <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text-3);cursor:pointer" id="co-school-clear">Change school</div>` : `
+      <input id="co-q" class="ob-input" placeholder="Search your school" autocorrect="off" spellcheck="false" />
+      <div id="co-out" style="margin-top:14px"></div>
+      <div style="height:10px"></div>
+      <div id="co-add" style="text-align:center;font-size:14px;font-weight:700;color:var(--amber-bright);cursor:pointer">My school isn't listed — add it</div>`,
+      'Next', 'coach-ob/3', { back: 'coach-ob/1' });
+  },
+
+  3: () => frame(3, 5, 'Build the team.', 'Athletes join it with one code. You can run more than one group.', `
+    <input id="co-team" class="ob-input" placeholder="Team name (e.g. Varsity Football)" />
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
-    <div class="chip-row">
+    <div class="chip-row" id="co-sport">
       <span class="chp on">Football</span><span class="chp">Basketball</span><span class="chp">Baseball</span><span class="chp">Track</span><span class="chp">Other</span>
     </div>
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Level</div>
-    <div class="chip-row">
+    <div class="chip-row" id="co-level">
       <span class="chp">Youth</span><span class="chp on">High School</span><span class="chp">College</span><span class="chp">Pro</span>
-    </div>`, 'Next', 'coach-ob/3'),
+    </div>
+    <div style="height:16px"></div>
+    <div class="lrow" style="cursor:default;padding:0 2px">
+      <div class="lm"><div class="lt">Listed in school search</div><div class="ls">Athletes at your school can find this team. The code is still required to join.</div></div>
+      <div class="seg" style="width:104px" id="co-disc"><button class="on">On</button><button>Off</button></div>
+    </div>`, 'Next', 'coach-ob/4', { back: 'coach-ob/2' }),
 
-  3: () => frame(3, 4, 'Set the team standard.', 'Every athlete starts with these. Adjust per athlete anytime.', `
+  4: () => frame(4, 5, 'Set the team standard.', 'Every athlete starts with these. Adjust per athlete anytime.', `
     <section class="card" style="padding:6px 16px">
       ${[
         ['utensils', 'g', 'Three meals · photo proof', 'Nutrition · 50% of score', true],
@@ -140,36 +167,147 @@ const coachSteps = {
         </div>`).join('')}
     </section>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px">The score model itself doesn't bend: four honest components, weight never scored daily.</div>`,
-    'Next', 'coach-ob/4'),
+    'Next', 'coach-ob/5', { back: 'coach-ob/3' }),
 
-  4: () => `
+  5: () => `
   <div class="ob">
-    ${dots(4, 4)}
+    <div class="ob-nav"><div class="ob-back" data-go="coach-ob/4">${icon('chevron', 18)}</div>${progressOf(5, 5)}</div>
+    <div class="ob-title">Create your account.</div>
+    <div class="ob-sub">Your team, code, and roster live on it.</div>
+    <div style="height:8px"></div>
+    ${accountBody({ terms: 'cob' })}
+    <div class="ob-foot" style="margin-top:auto"><button id="su-go" class="btn primary" disabled>Create account &amp; Get my code</button></div>
+  </div>`,
+
+  6: () => {
+    const code = (RT.ob || {}).teamCode || '';
+    return `
+  <div class="ob">
     <div class="standard-set">
       <div class="halo"><div class="core" style="background:linear-gradient(155deg,#f59e0b,#d97706)">${icon('users', 34)}</div></div>
       <div class="ob-title" style="margin-top:22px">Your team code.</div>
       <div class="ob-sub" style="padding:0 8px">Send it to the group chat. Athletes enter it once and their work starts counting toward your board.</div>
       <div style="height:22px"></div>
-      <div class="code-boxes">
-        ${['M', '4', 'R', 'K', '7'].map(c => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(245,165,36,0.08)">${c}</div>`).join('')}
-      </div>
+      ${code ? `<div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(245,165,36,0.08)">${c}</div>`).join('')}</div>
       <div style="height:12px"></div>
-      <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:0 auto">${icon('clipboard', 16)} Copy code</button>
+      <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:0 auto">${icon('clipboard', 16)} Copy code</button>` :
+      `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+        <div><div class="tt">Code pending</div><div class="ts">We couldn't mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in — check Profile → Team code.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
       <button class="btn primary" data-go="coach">Open Coach Dashboard</button>
     </div>
-  </div>`,
+  </div>`;
+  },
 };
 
 export const coachOb = {
   hideTabs: true,
-  render({ sub }) { return coachSteps[Math.min(4, Math.max(1, +(sub || 1)))](); },
+  render({ sub }) {
+    const n = Math.min(6, Math.max(1, +(sub || 1)));
+    return coachSteps[n]();
+  },
   async mount(root) {
     await toggles(root);
-    const copy = root.querySelector('#copy-code');
+    const cap = (patch) => act.captureOb({ coach: { ...((RT.ob || {}).coach || {}), ...patch } });
+    const $ = (s) => root.querySelector(s);
+    // step 1: names + role chips
+    const f = $('#co-first');
+    if (f) {
+      const l = $('#co-last'), roleRow = $('#co-role');
+      const nextBtn = root.querySelector('.ob-foot .btn');
+      const c = (RT.ob || {}).coach || {};
+      if (c.name) { const [cf, ...cl] = c.name.split(' '); f.value = cf; l.value = cl.join(' '); }
+      const sync = () => {
+        const name = `${f.value.trim()} ${l.value.trim()}`.trim();
+        const on = roleRow.querySelector('.on');
+        cap({ name, staffRole: on ? on.textContent.trim() : 'Head Coach' });
+        act.captureOb({ name }); // account step + profiles.full_name read RT.ob.name
+        nextBtn.disabled = !(f.value.trim() && l.value.trim());
+      };
+      [f, l].forEach((el) => el.addEventListener('input', sync));
+      roleRow.addEventListener('click', sync);
+      sync();
+    }
+    // step 2: school search / add-your-school (anon directory — no session yet)
+    const q = $('#co-q');
+    if (q) {
+      const { dir, debounce } = await import('../ob-directory.js');
+      const out = $('#co-out');
+      let gen = 0; // bumped whenever `out` is repainted; async search responses bail if stale
+      q.addEventListener('input', debounce(async () => {
+        gen++;
+        const myGen = gen;
+        const v = q.value.trim();
+        if (v.length < 2) { out.innerHTML = ''; return; }
+        try {
+          const { orgs } = await dir.search(v);
+          if (myGen !== gen || q.value.trim() !== v) return; // stale: repainted or query changed since
+          out.innerHTML = orgs.length ? `<section class="card" style="padding:6px 16px">${orgs.map((o, i) => `
+            <div class="lrow" data-org="${i}"><div class="lic">${icon('shield', 17)}</div>
+            <div class="lm"><div class="lt">${esc(o.name)}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}</div></div></div>`).join('')}</section>`
+            : `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Nothing yet — add your school below.</div>`;
+          out.querySelectorAll('[data-org]').forEach((el) => el.addEventListener('click', () => {
+            const o = orgs[+el.getAttribute('data-org')];
+            cap({ orgId: o.id, schoolName: o.name, city: o.city, state: o.state });
+            window.__render();
+          }));
+        } catch {
+          if (myGen !== gen) return; // stale: don't clobber whatever's on screen now
+          out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Directory unreachable — add your school below.</div>`;
+        }
+      }, 300));
+      $('#co-add').addEventListener('click', () => {
+        gen++; // repainting out — invalidate any in-flight search
+        out.innerHTML = `
+          <input id="co-add-name" class="ob-input" placeholder="School / organization name" />
+          <div style="height:10px"></div>
+          <div class="dob-row">
+            <input id="co-add-city" class="ob-input" placeholder="City" style="flex:2" />
+            <input id="co-add-state" class="ob-input" placeholder="ST" maxlength="2" autocapitalize="characters" />
+          </div>
+          <div style="height:10px"></div>
+          <button class="btn ghost sm" id="co-add-go" style="width:auto;padding:0 22px;margin:0 auto;display:block">Use this school</button>`;
+        out.querySelector('#co-add-go').addEventListener('click', () => {
+          const name = out.querySelector('#co-add-name').value.trim();
+          if (!name) return;
+          cap({ orgId: null, schoolName: name, city: out.querySelector('#co-add-city').value.trim(), state: out.querySelector('#co-add-state').value.trim().toUpperCase() });
+          window.__render();
+        });
+      });
+    }
+    const clear = $('#co-school-clear');
+    if (clear) clear.addEventListener('click', () => { cap({ orgId: null, schoolName: '', city: '', state: '' }); window.__render(); });
+    // step 3: team fields (restore + capture; discoverable defaults On)
+    const team = $('#co-team');
+    if (team) {
+      const c = (RT.ob || {}).coach || {};
+      if (c.teamName) team.value = c.teamName;
+      const sync = () => {
+        const sp = $('#co-sport .on'), lv = $('#co-level .on'), disc = $('#co-disc .on');
+        cap({ teamName: team.value.trim(), sport: sp ? sp.textContent.trim() : null,
+              level: lv ? lv.textContent.trim() : null, discoverable: !disc || disc.textContent.trim() === 'On' });
+      };
+      team.addEventListener('input', sync);
+      ['#co-sport', '#co-level', '#co-disc'].forEach((sel) => { const el = $(sel); if (el) el.addEventListener('click', sync); });
+      sync();
+    }
+    // step 5: shared account → mint org/team → code screen
+    if ($('#su-go')) {
+      wireAccount(root, {
+        role: 'coach',
+        onSession: async (live) => {
+          if (live) { await act.persistCoachOnboarding(); window.__go('coach-ob/6'); return; }
+          const err = $('#su-err');
+          err.style.color = 'var(--text-2)';
+          err.textContent = 'Account created — confirm your email, then sign in. Your team and code mint automatically.';
+        },
+      });
+    }
+    // step 6: copy the REAL code
+    const copy = $('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText('M4RK7'); } catch { /* clipboard blocked; label still confirms intent */ }
+      try { await navigator.clipboard.writeText((RT.ob || {}).teamCode || ''); } catch { /* label still confirms intent */ }
       copy.innerHTML = `${icon('check', 16)} Copied`;
     });
   },
