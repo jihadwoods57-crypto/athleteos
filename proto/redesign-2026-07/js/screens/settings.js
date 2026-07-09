@@ -145,7 +145,7 @@ export const privacy = {
     </div>
 
     <div style="height:18px"></div>
-    <button class="btn ghost" data-go="profile">Done</button>
+    <button class="btn ghost" data-go="${back}">Done</button>
     <div style="height:10px"></div>
     `;
   },
