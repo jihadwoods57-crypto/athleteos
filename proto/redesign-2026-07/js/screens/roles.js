@@ -235,7 +235,9 @@ export const coachOb = {
         nextBtn.disabled = !(f.value.trim() && l.value.trim());
       };
       [f, l].forEach((el) => el.addEventListener('input', sync));
-      roleRow.addEventListener('click', sync);
+      // Per-chip binding: wireToggles' chip handler stopPropagation()s, so a group-level
+      // listener never fires. Attach order guarantees sync reads the fresh .on state.
+      roleRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', sync));
       sync();
     }
     // step 2: school search / add-your-school (anon directory — no session yet)
@@ -301,7 +303,11 @@ export const coachOb = {
               level: lv ? lv.textContent.trim() : null, discoverable: !disc || disc.textContent.trim() === 'On' });
       };
       team.addEventListener('input', sync);
-      ['#co-sport', '#co-level', '#co-disc'].forEach((sel) => { const el = $(sel); if (el) el.addEventListener('click', sync); });
+      // Per-option binding (chips AND seg buttons stopPropagation via wireToggles).
+      ['#co-sport', '#co-level', '#co-disc'].forEach((sel) => {
+        const el = $(sel);
+        if (el) el.querySelectorAll('.chp, button').forEach((it) => it.addEventListener('click', sync));
+      });
       sync();
     }
     // step 5: shared account → mint org/team → code screen
@@ -423,7 +429,9 @@ export const trainerOb = {
         nextBtn.disabled = !(f.value.trim() && l.value.trim());
       };
       [f, l, practice].forEach((el) => el.addEventListener('input', sync));
-      audRow.addEventListener('click', sync);
+      // Per-chip binding: wireToggles' chip handler stopPropagation()s, so a group-level
+      // listener never fires. Attach order guarantees sync reads the fresh .on state.
+      audRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', sync));
       sync();
     }
     // step 3: shared account → mint practice → code screen

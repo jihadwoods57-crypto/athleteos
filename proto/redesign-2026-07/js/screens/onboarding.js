@@ -219,7 +219,10 @@ export default {
       }
       const val = read || (() => { const on = g.querySelector('.on'); return on ? on.textContent.trim() : null; });
       const sync = () => { const v = val(); if (v != null) cap({ [key]: v }); };
-      g.addEventListener('click', sync);
+      // Bind per option, not on the group: wireToggles' per-chip handler stopPropagation()s,
+      // so a group-level listener never sees the click. Same-element listeners run in attach
+      // order — wireToggles ran first, so sync always reads the fresh .on state.
+      g.querySelectorAll('.chp, .choice, button').forEach(el => el.addEventListener('click', sync));
       sync();
     };
 
@@ -373,11 +376,12 @@ export default {
 
     // ---- Step 6: meals/day knob re-renders the rows; hold-to-commit stamps the contract ----
     const mealsRow = grab('#ob-meals');
-    if (mealsRow) mealsRow.addEventListener('click', (e) => {
-      const chp = e.target.closest('.chp'); if (!chp) return;
+    // Per-chip binding (not a row-level delegate): #ob-meals is a data-toggle-group, and
+    // wireToggles' chip handler stopPropagation()s — a row-level listener never fires.
+    if (mealsRow) mealsRow.querySelectorAll('.chp').forEach((chp) => chp.addEventListener('click', () => {
       cap({ standard: { ...((RT.ob || {}).standard || {}), mealsPerDay: +chp.textContent.trim() } });
       window.__render();
-    });
+    }));
     if (grab('#ob-commit')) wireCommit(root, () => {
       const ob = RT.ob || {};
       cap({
