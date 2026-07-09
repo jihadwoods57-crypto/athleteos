@@ -327,17 +327,21 @@ export const coachOb = {
   },
 };
 
-/* ============ TRAINER ONBOARDING (3 steps) ============ */
+/* ============ TRAINER ONBOARDING (4 steps + code screen) ============ */
 const trainerSteps = {
-  1: () => frame(1, 3, 'Your practice.', 'Clients see this on every note you send.', `
-    <input class="ob-input" value="Tracy Boone Performance" />
+  1: () => frame(1, 4, 'You, trainer.', 'Clients see this name on every note you send.', `
+    <input id="tr-first" class="ob-input" placeholder="First name" autocapitalize="words" />
+    <div style="height:12px"></div>
+    <input id="tr-last" class="ob-input" placeholder="Last name" autocapitalize="words" />
+    <div style="height:16px"></div>
+    <input id="tr-practice" class="ob-input" placeholder="Practice name (e.g. Boone Performance)" />
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Who you train</div>
-    <div class="chip-row">
+    <div class="chip-row" id="tr-audience">
       <span class="chp">Athletes</span><span class="chp">General clients</span><span class="chp on">Both</span>
-    </div>`, 'Next', 'trainer-ob/2'),
+    </div>`, 'Next', 'trainer-ob/2', { back: 'role' }),
 
-  2: () => frame(2, 3, 'Default client standard.', 'What every new client starts with. Tune it per client after.', `
+  2: () => frame(2, 4, 'Default client standard.', 'What every new client starts with. Tune it per client after.', `
     <section class="card" style="padding:6px 16px">
       ${[
         ['utensils', 'Three meals · photo proof', 'Nutrition, scored to their goal', true],
@@ -354,32 +358,92 @@ const trainerSteps = {
 
   3: () => `
   <div class="ob">
-    ${dots(3, 3)}
+    <div class="ob-nav"><div class="ob-back" data-go="trainer-ob/2">${icon('chevron', 18)}</div>${progressOf(3, 4)}</div>
+    <div class="ob-title">Create your account.</div>
+    <div class="ob-sub">Your practice and client code live on it.</div>
+    <div style="height:8px"></div>
+    ${accountBody({ terms: 'tob' })}
+    <div class="ob-foot" style="margin-top:auto"><button id="su-go" class="btn primary" disabled>Create account &amp; Get my code</button></div>
+  </div>`,
+
+  4: () => {
+    const code = (RT.ob || {}).practiceCode || '';
+    return `
+  <div class="ob">
     <div class="standard-set">
-      <div class="halo"><div class="core" style="background:linear-gradient(155deg,var(--purple-bright),#7e22ce);color:#fff">${icon('heart', 32)}</div></div>
+      <div class="halo"><div class="core" style="background:linear-gradient(155deg,var(--purple-bright),#7e22ce);color:#fff">${icon('heart', 34)}</div></div>
       <div class="ob-title" style="margin-top:22px">Your client code.</div>
-      <div class="ob-sub" style="padding:0 8px">Clients enter it once. You see recovery, readiness, and consistency — scoped to your lane.</div>
+      <div class="ob-sub" style="padding:0 8px">Send it to your clients. They enter it once and their work starts counting toward your view.</div>
       <div style="height:22px"></div>
-      <div class="code-boxes">
-        ${['T', 'R', '4', 'C', '3'].map(c => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(168,85,247,0.08)">${c}</div>`).join('')}
-      </div>
+      ${code ? `<div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(168,85,247,0.08)">${c}</div>`).join('')}</div>
       <div style="height:12px"></div>
-      <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:0 auto">${icon('clipboard', 16)} Copy code</button>
+      <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:0 auto">${icon('clipboard', 16)} Copy code</button>` :
+      `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+        <div><div class="tt">Code pending</div><div class="ts">We couldn't mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in — check Profile → Client code.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
       <button class="btn primary" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce);box-shadow:0 10px 30px rgba(168,85,247,0.35)" data-go="trainer">Open Trainer View</button>
     </div>
-  </div>`,
+  </div>`;
+  },
 };
 
 export const trainerOb = {
   hideTabs: true,
-  render({ sub }) { return trainerSteps[Math.min(3, Math.max(1, +(sub || 1)))](); },
+  render({ sub }) {
+    const n = Math.min(4, Math.max(1, +(sub || 1)));
+    return trainerSteps[n]();
+  },
   async mount(root) {
     await toggles(root);
-    const copy = root.querySelector('#copy-code');
+    const cap = (patch) => act.captureOb({ trainer: { ...((RT.ob || {}).trainer || {}), ...patch } });
+    const $ = (s) => root.querySelector(s);
+    // Restore a saved single-select into the DOM BEFORE the initial sync, so re-entering a
+    // step reflects the trainer's real choice instead of re-capturing (and clobbering it with)
+    // the template default — same match-by-trimmed-text pattern as coach onboarding.
+    const restore = (sel, saved) => {
+      const g = $(sel);
+      if (!g || saved == null) return;
+      const items = [...g.querySelectorAll('.chp, button')];
+      const match = items.find((el) => el.textContent.trim() === String(saved));
+      if (match) { items.forEach((el) => el.classList.remove('on')); match.classList.add('on'); }
+    };
+    // step 1: names + practice name + audience chips
+    const f = $('#tr-first');
+    if (f) {
+      const l = $('#tr-last'), practice = $('#tr-practice'), audRow = $('#tr-audience');
+      const nextBtn = root.querySelector('.ob-foot .btn');
+      const t = (RT.ob || {}).trainer || {};
+      if (RT.ob && RT.ob.name) { const [tf, ...tl] = RT.ob.name.split(' '); f.value = tf; l.value = tl.join(' '); }
+      if (t.practiceName) practice.value = t.practiceName;
+      restore('#tr-audience', t.audience);
+      const sync = () => {
+        const name = `${f.value.trim()} ${l.value.trim()}`.trim();
+        const on = audRow.querySelector('.on');
+        cap({ practiceName: practice.value.trim(), audience: on ? on.textContent.trim() : 'Both' });
+        act.captureOb({ name }); // account step + profiles.full_name read RT.ob.name
+        nextBtn.disabled = !(f.value.trim() && l.value.trim());
+      };
+      [f, l, practice].forEach((el) => el.addEventListener('input', sync));
+      audRow.addEventListener('click', sync);
+      sync();
+    }
+    // step 3: shared account → mint practice → code screen
+    if ($('#su-go')) {
+      wireAccount(root, {
+        role: 'trainer',
+        onSession: async (live) => {
+          if (live) { await act.persistTrainerOnboarding(); window.__go('trainer-ob/4'); return; }
+          const err = $('#su-err');
+          err.style.color = 'var(--text-2)';
+          err.textContent = 'Account created — confirm your email, then sign in. Your code mints automatically.';
+        },
+      });
+    }
+    // step 4: copy the REAL code
+    const copy = $('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText('TR4C3'); } catch { /* no-op */ }
+      try { await navigator.clipboard.writeText((RT.ob || {}).practiceCode || ''); } catch { /* label still confirms intent */ }
       copy.innerHTML = `${icon('check', 16)} Copied`;
     });
   },

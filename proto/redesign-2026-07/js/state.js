@@ -360,6 +360,9 @@ export const act = {
     if (role === 'coach' && RT.ob && RT.ob.coach && obMine && !RT.ob.teamCode) {
       try { await this.persistCoachOnboarding(); } catch { /* best-effort */ }
     }
+    if (role === 'trainer' && RT.ob && RT.ob.trainer && obMine && !RT.ob.practiceCode) {
+      try { await this.persistTrainerOnboarding(); } catch { /* best-effort */ }
+    }
     await loadDay(RT.userId);
     syncRtFromDay();
     return { ok: true, role };
@@ -519,6 +522,22 @@ export const act = {
       });
       if (error || !code) return false;
       this.captureOb({ teamCode: code });
+      return true;
+    } catch { return false; }
+  },
+  /* Mint the trainer's real practice + client code. Idempotent via RT.ob.practiceCode. */
+  async persistTrainerOnboarding() {
+    const sb = window.sb;
+    const ob = RT.ob || {};
+    const t = ob.trainer || {};
+    if (!sb || !RT.userId) return false;
+    if (ob.practiceCode) return true;
+    try {
+      const { data: code, error } = await sb.rpc('create_practice', {
+        practice_name: t.practiceName || 'My Practice', practice_handle: null, is_discoverable: true,
+      });
+      if (error || !code) return false;
+      this.captureOb({ practiceCode: code });
       return true;
     } catch { return false; }
   },
