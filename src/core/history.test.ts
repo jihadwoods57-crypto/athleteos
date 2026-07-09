@@ -216,18 +216,34 @@ describe('weeklyCompliance', () => {
     expect(last.label).toBe('Tue');
   });
 
-  it('flags completed days below the threshold as off-plan', () => {
+  it('never fabricates a headline from the seeded lead when there is no real history', () => {
+    // A brand-new athlete: the ONLY real point is today. The seeded pre-history
+    // padding (which the chart draws for shape) must NOT be counted as on-plan days.
+    // Constitution: demo data is never the default state; engagement is earned.
+    const wc = weeklyCompliance([], 99, COMPLIANCE_THRESHOLD, TREND_WINDOW, tue);
+    expect(wc.total).toBe(0);
+    expect(wc.onPlan).toBe(0);
+    expect(wc.pct).toBe(0);
+    // every non-today dot is flagged seeded and can never read as "on plan".
+    const seeded = wc.days.filter((d) => !d.today);
+    expect(seeded.every((d) => d.seeded && !d.ok)).toBe(true);
+  });
+
+  it('counts only real completed days — seeded pre-history padding is excluded', () => {
     const hist = [
       { date: 'a', score: 90 },
       { date: 'b', score: 70 }, // below 80 -> off plan
       { date: 'c', score: 85 },
     ];
     const wc = weeklyCompliance(hist, 88, COMPLIANCE_THRESHOLD, TREND_WINDOW, tue);
-    const completed = wc.days.filter((d) => !d.today);
-    expect(wc.total).toBe(TREND_WINDOW - 1);
-    // every completed day at/above 80 is on plan; the single 70 is not.
-    expect(completed.filter((d) => !d.ok)).toHaveLength(1);
-    expect(wc.onPlan).toBe(wc.total - 1);
+    // 3 real completed days (today live=88 excluded); the seeded lead does NOT count.
+    expect(wc.total).toBe(3);
+    expect(wc.onPlan).toBe(2); // 90 and 85 on plan; the 70 is not
+    const seeded = wc.days.filter((d) => d.seeded);
+    expect(seeded).toHaveLength(3); // 7 - (3 real + today)
+    expect(seeded.every((d) => !d.ok)).toBe(true);
+    // padding is kept in the series so the day dots still match the trend line.
+    expect(wc.days.map((d) => d.score)).toEqual(trendSeries(hist, 88));
   });
 
   it('reports the mean completed score as the headline percent (excludes today)', () => {
@@ -252,6 +268,16 @@ describe('nutritionTrend', () => {
     const nt = nutritionTrend([], 77);
     expect(nt.bars).toHaveLength(TREND_WINDOW);
     expect(nt.bars[nt.bars.length - 1]).toBe(77);
+    // no real completed days -> honest 0, never the ~84 seeded-lead mean.
+    expect(nt.avg).toBe(0);
+    expect(nt.seededBefore).toBe(TREND_WINDOW - 1);
+  });
+
+  it('excludes seeded pre-history bars from the weekly avg', () => {
+    const hist = [{ date: 'a', score: 40 }]; // one real completed day
+    const nt = nutritionTrend(hist, 90);
+    expect(nt.seededBefore).toBe(5); // 7 bars - (1 real + today)
+    expect(nt.avg).toBe(40); // only the real completed day counts, not the seed
   });
 
   it('averages only the completed bars, never today', () => {

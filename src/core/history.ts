@@ -104,8 +104,12 @@ export function trendSummary(scores: number[]): TrendSummary {
 export interface NutritionTrend {
   /** Padded daily nutrition scores, oldest -> newest; the last is today (live). */
   bars: number[];
-  /** Mean nutrition score across the completed days (excludes today), 0..100. */
+  /** Mean nutrition score across the REAL completed days (excludes today AND the
+   *  seeded pre-history padding), 0..100. 0 when there are no real completed days. */
   avg: number;
+  /** How many leading `bars` are seeded pre-history padding rather than real
+   *  logged days. The UI renders these as neutral placeholders, not real bars. */
+  seededBefore: number;
 }
 
 /**
@@ -120,11 +124,13 @@ export function nutritionTrend(
   window: number = TREND_WINDOW,
 ): NutritionTrend {
   const bars = trendSeries(history, liveScore, window);
-  const completed = bars.slice(0, -1);
+  const seededBefore = bars.length - realTrendDays(history, window);
+  // Average only REAL completed bars: drop the leading seeded padding and today.
+  const completed = bars.slice(seededBefore, -1);
   const avg = completed.length
     ? Math.round(completed.reduce((a, b) => a + b, 0) / completed.length)
     : 0;
-  return { bars, avg };
+  return { bars, avg, seededBefore };
 }
 
 /** A completed day at or above this accountability score counts as "on plan".
@@ -140,6 +146,11 @@ export interface ComplianceDay {
   /** The live, in-progress day (the last point) — rendered as an indicator,
    *  not counted in the weekly summary. */
   today: boolean;
+  /** True when this point is seeded pre-history padding (the chart's lead-in),
+   *  not a real logged day. Seeded days are never "on plan" and are excluded from
+   *  the onPlan / total / pct headline — a real family is never shown a compliance
+   *  figure manufactured from demo data. The UI renders them as neutral placeholders. */
+  seeded: boolean;
 }
 
 export interface WeeklyCompliance {
@@ -171,13 +182,18 @@ export function weeklyCompliance(
   const scores = trendSeries(history, liveScore, window);
   const labels = recentDayLabels(scores.length, today);
   const lastIdx = scores.length - 1;
+  // The last `realTrendDays` points are real (persisted days + today); anything
+  // before that is the seeded lead-in the chart draws only for shape.
+  const seededBefore = scores.length - realTrendDays(history, window);
   const days: ComplianceDay[] = scores.map((score, i) => ({
     label: labels[i],
     score,
-    ok: i !== lastIdx && score >= threshold,
+    seeded: i < seededBefore,
+    // A seeded padding day never happened, so it can never be "on plan".
+    ok: i !== lastIdx && i >= seededBefore && score >= threshold,
     today: i === lastIdx,
   }));
-  const completed = days.filter((d) => !d.today);
+  const completed = days.filter((d) => !d.today && !d.seeded);
   const onPlan = completed.filter((d) => d.ok).length;
   const total = completed.length;
   const pct = total
