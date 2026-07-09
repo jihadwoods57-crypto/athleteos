@@ -13,7 +13,7 @@ import {
 } from './constants';
 import { withinTrailingWeek } from './clock';
 import { derivedMacroTargets } from './fuelTarget';
-import { trendSeries } from './history';
+import { trendSeries, realTrendDays } from './history';
 import { mealMacros, type MacroSet } from './mealEdit';
 import { DEFAULT_PLAN } from './coachPlan';
 import { profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
@@ -382,7 +382,13 @@ export function computeDerived(s: AppState): Derived {
   // showcase trend — so require a non-empty, all-today history, which excludes the demo.
   const hist = s.scoreHistory ?? [];
   const isDay0 = hist.length > 0 && hist.every((h) => h.date === s.dateStamp);
-  const scoreDelta = isDay0 ? 0 : series[series.length - 1] - series[0];
+  // Baseline for the "this week" delta:
+  //  - A REAL athlete measures from the earliest REAL day in the window, NEVER the seeded pad.
+  //    On days 2-6 series[0] is still SEEDED_LEAD, so the old series[0] baseline invented a trend
+  //    vs demo data the athlete never lived (e.g. "↓23" measured from a seed of 88).
+  //  - The seeded showcase demo has EMPTY history and keeps its showcase slope (baseline series[0]).
+  const baseIdx = hist.length === 0 ? 0 : series.length - realTrendDays(hist);
+  const scoreDelta = isDay0 ? 0 : series[series.length - 1] - series[baseIdx];
   const deltaStr = (scoreDelta >= 0 ? '↑ +' : '↓ ') + Math.abs(scoreDelta);
   const deltaColor = scoreDelta >= 0 ? '#22C55E' : '#EF4444';
 

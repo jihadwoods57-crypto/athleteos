@@ -180,11 +180,11 @@ export function ParentView() {
                   Weekly Compliance
                 </Txt>
                 <Txt w="sb" size={13} color={c.textSecondary} style={{ marginTop: 3 }}>
-                  {week.onPlan} of {week.total} days on plan
+                  {week.total > 0 ? `${week.onPlan} of ${week.total} days on plan` : 'Building this week — no completed days yet'}
                 </Txt>
               </View>
-              <Txt w="eb" num size={30} color={c.success} ls={-0.5} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-                {week.pct}%
+              <Txt w="eb" num size={30} color={week.total > 0 ? c.success : c.textTertiary} ls={-0.5} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                {week.total > 0 ? `${week.pct}%` : '—'}
               </Txt>
             </Row>
             <Row style={{ justifyContent: 'space-between' }}>
@@ -195,22 +195,31 @@ export function ParentView() {
                       width: 36,
                       height: 36,
                       borderRadius: 12,
-                      backgroundColor: w.today ? c.accentSurface : w.ok ? c.successSurface : c.alertSurface,
+                      backgroundColor: w.today
+                        ? c.accentSurface
+                        : w.seeded
+                        ? c.track
+                        : w.ok
+                        ? c.successSurface
+                        : c.alertSurface,
                       borderWidth: w.today ? 2 : 1,
-                      borderColor: w.today ? c.accent : w.ok ? c.successBorderSoft : c.alertBorder,
+                      borderColor: w.today ? c.accent : w.seeded ? c.border : w.ok ? c.successBorderSoft : c.alertBorder,
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
                     {w.today ? (
                       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.accent }} />
+                    ) : w.seeded ? (
+                      // pre-history day the athlete hasn't lived yet — neutral, no verdict
+                      <View style={{ width: 6, height: 2, borderRadius: 1, backgroundColor: c.textTertiary, opacity: 0.5 }} />
                     ) : w.ok ? (
                       <Icon name="check" size={15} color={c.successDeep} />
                     ) : (
                       <Icon name="close" size={13} color={c.alertDeep} />
                     )}
                   </View>
-                  <Txt w="b" size={11} color={w.today ? c.accent : c.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                  <Txt w="b" size={11} color={w.today ? c.accent : c.textTertiary} maxFontSizeMultiplier={MAX_FONT_SCALE} style={w.seeded ? { opacity: 0.5 } : undefined}>
                     {w.label}
                   </Txt>
                 </View>

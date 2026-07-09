@@ -55,6 +55,28 @@ describe('rephraseIsSafe (strict number preservation)', () => {
     expect(rephraseIsSafe(base, warm({ detail: '18g to 37g. ' + 'x'.repeat(400) }))).toBe(false);
   });
 
+  it('treats a decimal as one number — a flipped decimal (2.3 -> 3.2) is rejected', () => {
+    // mealFrequencyInsight emits `${perDay.toFixed(1)} meals a day` (nutritionMemory.ts) — a real
+    // decimal in the guarded detail. A digit-run guard would split "2.3" into {2,3}, so "3.2" would
+    // pass with the same multiset and silently flip the figure the athlete reads.
+    const dec: MemoryInsight = {
+      ...base,
+      headline: 'Some meals are going unlogged',
+      detail: 'About 2.3 meals a day logged over the last 14. Getting all three plus a snack in gives the full picture.',
+    };
+    const flipped = warm({
+      headline: 'A few meals are slipping through',
+      detail: 'You logged about 3.2 meals a day across the last 14 days — get all three plus a snack for the full picture.',
+    });
+    expect(rephraseIsSafe(dec, flipped)).toBe(false);
+    // an honest rewrite that keeps 2.3 and 14 is still accepted
+    const honest = warm({
+      headline: 'A few meals are slipping through',
+      detail: 'You logged about 2.3 meals a day across the last 14 days — add a snack to round it out.',
+    });
+    expect(rephraseIsSafe(dec, honest)).toBe(true);
+  });
+
   it('handles a numberless insight (any wording with no numbers is fine)', () => {
     const noNum: MemoryInsight = { ...base, headline: 'Your go-to meal', detail: 'You keep coming back to the same dinner. The OnStandard knows your kitchen.', metric: undefined };
     const r = warm({ headline: 'This is your signature meal', detail: 'You lean on the same dinner again and again, and we know it well.' });
