@@ -2,6 +2,7 @@
 // "this week" trend, and that the recovery number is flagged unreal until a check-in actually backs it.
 import { computeDerived } from './scoring';
 import { createInitialState } from './defaultState';
+import { trendSeries } from './history';
 
 describe('day-0 honesty', () => {
   const base = createInitialState();
@@ -22,6 +23,26 @@ describe('day-0 honesty', () => {
     expect(d.isDay0).toBe(false);
     // delta is today's live score minus the window start — a real number, not forced to 0
     expect(typeof d.scoreDelta).toBe('number');
+  });
+
+  it('measures the "this week" delta from the first REAL day, never the seeded pad (days 2-6)', () => {
+    // Two real prior days, both well below the seeded lead (82-88). If the delta were measured
+    // from series[0] (a SEED value ~83), it would read a large fabricated drop the athlete never
+    // lived. The honest baseline is the earliest REAL day in the window.
+    const d = computeDerived({
+      ...base,
+      scoreHistory: [
+        { date: '2026-06-01', score: 60 },
+        { date: '2026-06-02', score: 62 },
+      ],
+    });
+    expect(d.scoreDelta).toBe(d.athleteScore - 60); // vs first real day, not the seed
+  });
+
+  it('leaves the seeded showcase demo trend intact (empty history keeps its slope)', () => {
+    const demo = computeDerived({ ...base, scoreHistory: [] });
+    const series = trendSeries([], demo.athleteScore);
+    expect(demo.scoreDelta).toBe(series[series.length - 1] - series[0]);
   });
 
   it('flags recovery as NOT real until a check-in is submitted (the fake 86 fix)', () => {
