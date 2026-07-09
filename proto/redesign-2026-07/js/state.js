@@ -343,7 +343,12 @@ export const act = {
     // pre-migration-0048 DB rejecting phases 2–4 after phase 1 already created the row), persist
     // the remaining phases now that we hold a real session. Per-phase _synced flags make this
     // retryable on every sign-in without redoing work that already succeeded.
-    if (role === 'athlete' && RT.ob) {
+    // Backfill only when the scratch belongs to THIS user: scratch with a captured email is
+    // trusted only for that email (shared-device safety); legacy scratch without one is
+    // trusted only for the original no-server-row case.
+    const obEmail = ((RT.ob && RT.ob.email) || '').toLowerCase();
+    const obMine = obEmail ? obEmail === (email || '').trim().toLowerCase() : !hadServerProfile;
+    if (role === 'athlete' && RT.ob && obMine) {
       if (hadServerProfile && !RT.ob._synced) {
         // Grandfather: onboarding predates the phase flags — nothing to backfill, and
         // re-running could clobber later profile edits with stale scratch.
