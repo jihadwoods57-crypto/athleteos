@@ -211,6 +211,16 @@ export const coachOb = {
     await toggles(root);
     const cap = (patch) => act.captureOb({ coach: { ...((RT.ob || {}).coach || {}), ...patch } });
     const $ = (s) => root.querySelector(s);
+    // Restore a saved single-select into the DOM BEFORE the initial sync, so re-entering a
+    // step reflects the coach's real choice instead of re-capturing (and clobbering it with)
+    // the template default — same match-by-trimmed-text pattern as onboarding.js wireGroup.
+    const restore = (sel, saved) => {
+      const g = $(sel);
+      if (!g || saved == null) return;
+      const items = [...g.querySelectorAll('.chp, button')];
+      const match = items.find((el) => el.textContent.trim() === String(saved));
+      if (match) { items.forEach((el) => el.classList.remove('on')); match.classList.add('on'); }
+    };
     // step 1: names + role chips
     const f = $('#co-first');
     if (f) {
@@ -218,6 +228,7 @@ export const coachOb = {
       const nextBtn = root.querySelector('.ob-foot .btn');
       const c = (RT.ob || {}).coach || {};
       if (c.name) { const [cf, ...cl] = c.name.split(' '); f.value = cf; l.value = cl.join(' '); }
+      restore('#co-role', c.staffRole);
       const sync = () => {
         const name = `${f.value.trim()} ${l.value.trim()}`.trim();
         const on = roleRow.querySelector('.on');
@@ -283,6 +294,9 @@ export const coachOb = {
     if (team) {
       const c = (RT.ob || {}).coach || {};
       if (c.teamName) team.value = c.teamName;
+      restore('#co-sport', c.sport);
+      restore('#co-level', c.level);
+      if (c.discoverable != null) restore('#co-disc', c.discoverable !== false ? 'On' : 'Off');
       const sync = () => {
         const sp = $('#co-sport .on'), lv = $('#co-level .on'), disc = $('#co-disc .on');
         cap({ teamName: team.value.trim(), sport: sp ? sp.textContent.trim() : null,
