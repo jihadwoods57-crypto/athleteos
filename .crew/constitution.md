@@ -21,6 +21,14 @@ whether the tests pass. These are as binding as a red gate. Every crew agent rea
 - Error and empty states tell the truth; no feel-good mush that hides a real state.
 - The coach's live roster shows silent athletes; demo data is never the default state.
 - AI never fabricates meal metadata; only real analysis is persisted.
+- **Engagement is earned, never manufactured.** Increase *real* habit and earned reward; never add fake
+  dopamine, vanity metrics, artificial streak pressure, or dishonest mechanics to juice engagement. Honesty
+  beats stickiness — this is why the score multiplier and demo-as-default were killed; do not reintroduce that
+  class of thing.
+
+## Measurement
+- A shipped change that alters user-facing behavior must also emit the analytics event that will prove it
+  worked. "We can't tell if it helped" means it is not done.
 
 ## Roles
 - Athlete, coach, trainer, parent surfaces stay coherent; a change to one must not silently break

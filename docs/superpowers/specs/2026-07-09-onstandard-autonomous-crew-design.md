@@ -20,6 +20,11 @@
 The crew prompts itself. It does **not** trust itself — trust comes from a deterministic oracle and a
 founder gate, not from an LLM grading an LLM.
 
+**Reframed (2026-07-09, v2):** the mission is not "fix bugs" but **the single highest-impact change to
+OnStandard tomorrow** — across six pillars. The crew is now two engines: an **autonomous fixer** that ships
+only *provable* improvements (oracle-gated) and a **founder-gated product backlog** of *judgment* improvements
+it never ships on its own. See §6.2.
+
 ---
 
 ## 2. Why this shape (the reasoning)
@@ -67,6 +72,7 @@ npm run preflight   →  node scripts/preflight.mjs           (launch checks; in
 - **Full gate** (run once per cycle on the integrated branch): `npm run verify`.
 - **Security gate** (added when a change touches `supabase/`, auth, or RLS): `npm run test:rls`.
 - **Design gate** (built by the crew — see §6.1): `npm run test:design` (automated a11y + contrast on the web build). Applies to *objective* design fixes only; design **taste** has no oracle and is founder-gated, never auto-shipped.
+- **AI gate** (built by the crew): `npm run test:ai` — replay known meals, flag hallucination + scoring drift. Makes meal-analysis quality provable (the AI pillar's core).
 
 A change is only allowed to survive if the relevant gate is **green** and no constitution rule is
 violated. No agent opinion overrides a red gate; no agent opinion is required when the gate is green.
@@ -186,6 +192,43 @@ and taste is a founder call. So this role is wired differently from the bug-fixe
   from unprovable to provable. Until it exists, *all* design findings are advisory (report-only).
 - **Model/effort:** the design lens and any design-judge run on Opus 4.8 at high (vision + rubric, not
   Fable's long-horizon specialty).
+
+---
+
+### 6.2 Final architecture (v2) — two engines, six pillars
+
+The crew is **two engines in one**, split by whether a finding has a machine oracle:
+- **Autonomous fixer** — ships only *provable* improvements (a test can settle them), oracle-gated, tagged,
+  founder-gated at merge. The provable scouts run every cycle.
+- **Founder product backlog** — *judgment* improvements (taste, product, psychology, growth) it ranks and hands
+  you every morning but **never ships itself**. The judgment scouts run once per run (refresh at the end).
+
+Every finding is tagged `provable: true|false`; provable + above-floor → ships, everything else → backlog.
+When unsure, it's judgment. Mission: **the single highest-impact change tomorrow** — a design or product move
+counts equally with a bug fix, ranked on one impact scale.
+
+**Six pillars** (a design finding ranks head-to-head with a security finding):
+
+| Pillar | Scouts | Ships (provable) | Proposes (judgment) |
+|---|---|---|---|
+| **Reliability** | security, correctness/scoring, performance | bugs, RLS, perf | — |
+| **Architecture** | code quality, scale, tech debt | refactors that keep tests green | — |
+| **AI** | meal-analysis quality, prompts, cost | via crew-built `test:ai` | model/prompt direction |
+| **Product** | UX friction, psychology (leashed), coach, parent, education, simplify | broken flows | taps, empty states, delete-features, coach/parent value |
+| **Design** | critic, design-systems, navigation, motion+states, visual+delight, a11y | a11y, missing structural states, behavior-preserving component refactors (via `test:design`) | premium feel, motion, polish, delight |
+| **Business** | growth / referral / conversion / retention | broken referral/invite links | growth ideas |
+
+**Design is first-class, veto in the right hands:** within-domain veto is the crew's and automatic (the Design
+Critic kills cheap design; the oracle kills broken code); **cross-domain veto is the founder's** — an AI never
+blocks a working feature on taste and never auto-ships taste. Design proposes → you approve → the crew builds
+your approved direction, oracle-gated.
+
+**Two new provable oracles the crew builds first:** `test:design` (a11y + contrast) and `test:ai` (replay
+meals, flag hallucination + scoring drift). **Analytics-as-done:** a shipped behavior change must emit the
+metric that proves it worked. **Psychology leash:** increase real habit / earned reward, never fake dopamine.
+
+**Deferred — written down, revisit after the first supervised run:** the full 11-role design studio, weekly
+Apple/Oura/Linear inspiration browsing, and an Innovation Lab (bold new-feature ideation, proposal-only).
 
 ---
 

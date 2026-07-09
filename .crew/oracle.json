@@ -2,16 +2,25 @@
   "repo": "onstandard (athleteos)",
   "branch": "crew/2026-07-09",
   "tagPrefix": "crew/2026-07-09-i",
+  "mission": "Each run, ship the highest-impact PROVABLE improvements and hand the founder a ranked backlog of the highest-impact JUDGMENT improvements. Ask: what single change would most improve OnStandard tomorrow?",
   "gates": {
     "cheap": "npm run typecheck && npm run test",
     "full": "npm run verify",
     "security": "npm run test:rls",
-    "design": "npm run test:design"
+    "design": "npm run test:design",
+    "ai": "npm run test:ai"
+  },
+  "builtOracles": {
+    "note": "test:design (a11y+contrast) and test:ai (meal-analysis eval) do not exist yet. The crew BUILDS them as high-value early work; until each exists its gate skips gracefully and that pillar is advisory.",
+    "design": "not-yet-built",
+    "ai": "not-yet-built"
   },
   "gateTriggers": {
     "securityWhenPathMatches": ["supabase/", "auth", "rls", "consent", "guardian", "notify"],
-    "designWhenPathMatches": ["app/", "components/", ".tsx"]
+    "designWhenPathMatches": ["app/", "components/", ".tsx"],
+    "aiWhenPathMatches": ["analyze-meal", "prompt", "ai/", "meal"]
   },
+  "analyticsShippingRule": true,
   "prioritization": {
     "formula": "impact * confidence / risk",
     "scale": "each of impact/confidence/risk is 1-5",
@@ -24,21 +33,39 @@
     "adversarialVerifiersPerChange": 2,
     "verifierMajorityToKill": 2
   },
+  "cadence": {
+    "everyCycleProvable": ["reliability", "architecture", "ai", "design: a11y + structural states"],
+    "oncePerRunJudgment": ["product", "business", "design: critic, systems, navigation, motion, visual"],
+    "note": "Provable scouts run every cycle (they gate real, shippable fixes). Judgment scouts run once at the start and refresh at the end; their output is the founder backlog, never shipped. Design is a first-class pillar spanning both: its a11y/structural slice ships, its taste slice proposes."
+  },
   "budget": {
     "outputTokenCeiling": null,
     "note": "null = use the founder's +Nk directive or the run arg; calibrate after the first supervised run"
   },
   "roles": {
-    "orchestrator":      { "model": "fable", "effort": "high"  },
-    "lens.security":     { "model": "opus",  "effort": "high"  },
-    "lens.scoring":      { "model": "opus",  "effort": "high"  },
-    "lens.architecture": { "model": "opus",  "effort": "high"  },
-    "lens.design":       { "model": "opus",  "effort": "high"  },
-    "lens.performance":  { "model": "opus",  "effort": "high"  },
-    "lens.business":     { "model": "opus",  "effort": "high"  },
-    "synthesizer":       { "model": "opus",  "effort": "high"  },
-    "implementer":       { "model": "opus",  "effort": "xhigh" },
-    "verifier":          { "model": "opus",  "effort": "high"  }
+    "foreman":            { "model": "fable", "effort": "high"  },
+    "orchestrator":       { "model": "fable", "effort": "high"  },
+    "synthesizer":        { "model": "opus",  "effort": "high"  },
+    "implementer":        { "model": "opus",  "effort": "xhigh" },
+    "verifier":           { "model": "opus",  "effort": "high"  },
+    "scout.security":     { "model": "opus",  "effort": "high"  },
+    "scout.correctness":  { "model": "opus",  "effort": "high"  },
+    "scout.performance":  { "model": "opus",  "effort": "high"  },
+    "scout.accessibility":{ "model": "opus",  "effort": "high"  },
+    "scout.architecture": { "model": "opus",  "effort": "high"  },
+    "scout.ai":           { "model": "opus",  "effort": "high"  },
+    "scout.ux":           { "model": "opus",  "effort": "high"  },
+    "scout.psychology":   { "model": "opus",  "effort": "high"  },
+    "scout.coach":        { "model": "opus",  "effort": "high"  },
+    "scout.parent":       { "model": "opus",  "effort": "high"  },
+    "scout.education":    { "model": "opus",  "effort": "high"  },
+    "scout.simplify":     { "model": "opus",  "effort": "high"  },
+    "scout.growth":       { "model": "opus",  "effort": "high"  },
+    "scout.design.critic":     { "model": "opus", "effort": "high" },
+    "scout.design.systems":    { "model": "opus", "effort": "high" },
+    "scout.design.navigation": { "model": "opus", "effort": "high" },
+    "scout.design.motion":     { "model": "opus", "effort": "high" },
+    "scout.design.visual":     { "model": "opus", "effort": "high" }
   },
   "guardrails": {
     "neverApplyLiveMigrations": true,
@@ -46,6 +73,8 @@
     "neverRunEasOrShip": true,
     "neverTouchSecrets": true,
     "neverMergeToMaster": true,
-    "neverWeakenTestsOrConstitution": true
+    "neverWeakenTestsOrConstitution": true,
+    "neverAutoShipJudgment": true,
+    "founderHoldsCrossDomainVeto": true
   }
 }
