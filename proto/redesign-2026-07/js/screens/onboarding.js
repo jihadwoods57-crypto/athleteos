@@ -81,8 +81,7 @@ const steps = {
     <div class="eyebrow" style="margin:8px 2px 10px">Level</div>
     <div class="chip-row" id="ob-level">
       <span class="chp">Youth</span><span class="chp on">High School</span><span class="chp">College</span><span class="chp">Pro</span>
-    </div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:16px;line-height:1.5">You must be 13 or older. Under 13 requires a parent or guardian on the account, and parents of minors can request data access or deletion anytime.</div>`, 'Next', 'onboarding/4'),
+    </div>`, 'Next', 'onboarding/4'),
 
   4: () => frame(4, 'What are we building?', 'This decides how your nutrition gets scored. Your coach can adjust it.', `
     <div class="choice-grid" id="ob-goal">
@@ -173,6 +172,14 @@ export default {
     // and once up front so the accepted default is captured even if the user never taps.
     const wireGroup = (sel, key, read) => {
       const g = grab(sel); if (!g) return;
+      // Restore the saved selection BEFORE the initial sync, so re-entering a step
+      // reflects the athlete's real choice instead of re-capturing the template default.
+      const saved = (RT.ob || {})[key];
+      if (saved != null) {
+        const items = [...g.querySelectorAll('.chp, .choice')];
+        const match = items.find(el => (el.getAttribute('data-val') || el.textContent.trim()) === saved);
+        if (match) { items.forEach(el => el.classList.remove('on')); match.classList.add('on'); }
+      }
       const val = read || (() => { const on = g.querySelector('.on'); return on ? on.textContent.trim() : null; });
       const sync = () => { const v = val(); if (v != null) cap({ [key]: v }); };
       g.addEventListener('click', sync);
@@ -232,7 +239,13 @@ export default {
     if (cur && RT.ob && RT.ob.currentWeight) cur.value = RT.ob.currentWeight;
     if (tgt && RT.ob && RT.ob.targetWeight) tgt.value = RT.ob.targetWeight;
     const alg = grab('[data-multi]');
-    if (alg) { const readA = () => cap({ allergies: [...alg.querySelectorAll('.chp.on')].map(c => c.textContent.trim()) }); alg.addEventListener('click', readA); readA(); }
+    if (alg) {
+      const savedA = (RT.ob && RT.ob.allergies) || [];
+      if (savedA.length) [...alg.querySelectorAll('.chp')].forEach(c => c.classList.toggle('on', savedA.includes(c.textContent.trim())));
+      const readA = () => cap({ allergies: [...alg.querySelectorAll('.chp.on')].map(c => c.textContent.trim()) });
+      alg.addEventListener('click', readA);
+      readA();
+    }
 
     // ---- Step 6: reminder pressure ----
     wireGroup('#ob-pressure', 'pressure');
