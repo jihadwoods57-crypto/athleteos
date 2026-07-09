@@ -14,6 +14,7 @@ import {
 import { withinTrailingWeek } from './clock';
 import { derivedMacroTargets } from './fuelTarget';
 import { trendSeries, realTrendDays } from './history';
+import { comebackInfo } from './comeback';
 import { mealMacros, type MacroSet } from './mealEdit';
 import { DEFAULT_PLAN } from './coachPlan';
 import { profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
@@ -427,5 +428,13 @@ export function computeDerived(s: AppState): Derived {
     hydrationPct,
     tasksDone,
     tasksTotal,
+    // The returning-athlete welcome: fires only on a real lapse, and is killed the moment the
+    // athlete does anything today (a meal, a quick-add, a check-in, or logging water) — by ACTION,
+    // not by being seen. History stays honest; only the re-entry framing changes.
+    comeback: comebackInfo(
+      s.scoreHistory ?? [],
+      s.dateStamp,
+      mealsLoggedCount > 0 || s.ciSubmitted || s.quickAdded.some(Boolean) || (s.hydrationL ?? 0) > 0,
+    ),
   };
 }

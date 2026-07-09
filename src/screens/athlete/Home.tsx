@@ -147,6 +147,25 @@ export function Home() {
         </Row>
       ) : null}
 
+      {/* ===== Comeback — the returning-athlete welcome. Fires only on a real lapse (>= 3 days
+           away, nothing logged yet today) and is killed by the first action. Honest streak/score
+           stay as they are below; this just meets the athlete with a door, not a graveyard. ===== */}
+      {d.comeback.isComeback ? (
+        <Reveal index={0}>
+          <Card variant="low" style={{ marginBottom: 16, borderRadius: 22, padding: 20, backgroundColor: c.accentSurface, borderWidth: 1, borderColor: c.accent }}>
+            <Txt w="eb" size={18} ls={-0.3} color={c.accent}>
+              {d.comeback.headline}
+            </Txt>
+            <Txt w="sb" size={13.5} color={c.textSecondary} style={{ marginTop: 6, lineHeight: 19 }}>
+              {d.comeback.detail}
+            </Txt>
+            <View style={{ marginTop: 16 }}>
+              <GreenCta label={d.comeback.cta} gain={null} icon="camera" onPress={s.openMeal} />
+            </View>
+          </Card>
+        </Reveal>
+      ) : null}
+
       {/* ===== 2 · Hero — the uncontained score ring, tap → breakdown ===== */}
       <Reveal index={0}>
         <PressScale

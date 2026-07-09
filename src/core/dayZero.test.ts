@@ -45,6 +45,30 @@ describe('day-0 honesty', () => {
     expect(demo.scoreDelta).toBe(series[series.length - 1] - series[0]);
   });
 
+  it('surfaces the comeback welcome after a real lapse — and only when nothing is logged today', () => {
+    // 4 days away (last log well before today), fresh clean day => comeback fires.
+    const away = computeDerived({
+      ...base,
+      dateStamp: '2026-06-20',
+      scoreHistory: [{ date: '2026-06-15', score: 72 }],
+      meals: { breakfast: false, lunch: false, dinner: false } as typeof base.meals,
+      quickAdded: [false, false, false],
+      ciSubmitted: false,
+      hydrationL: 0,
+    });
+    expect(away.comeback.isComeback).toBe(true);
+    expect(away.comeback.cta).toBeTruthy();
+
+    // The moment the athlete logs anything today, the card is gone (killed by action, not time).
+    const acted = computeDerived({
+      ...base,
+      dateStamp: '2026-06-20',
+      scoreHistory: [{ date: '2026-06-15', score: 72 }],
+      meals: { ...base.meals, breakfast: true },
+    });
+    expect(acted.comeback.isComeback).toBe(false);
+  });
+
   it('flags recovery as NOT real until a check-in is submitted (the fake 86 fix)', () => {
     const d0 = computeDerived({ ...base, ciSubmitted: false });
     expect(d0.recoveryScore).toBe(86); // fallback still computes (so the score is defined)

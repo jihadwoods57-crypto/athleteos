@@ -419,6 +419,31 @@ export function Profile() {
           </Row>
         </View>
 
+        {/* Your Record — the recruiting Discipline Record + weekly Deep Dive. Deliberately a
+            single entry row (not a card) so the 2026-07-07 slim Profile stays 5 sections; the
+            cards themselves live on their own Record surface. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Your Record: recruiting Discipline Record and weekly Deep Dive"
+          onPress={s.openRecord}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          <Row style={{ justifyContent: 'space-between', paddingVertical: 14, paddingRight: 2 }}>
+            <Row style={{ gap: 13, alignItems: 'center', flex: 1 }}>
+              <SettingIcon name="trophy" />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Txt w="b" size={15}>
+                  Your Record
+                </Txt>
+                <Txt w="m" size={12.5} color={c.textTertiary} style={{ marginTop: 1 }}>
+                  Recruiting card & weekly Deep Dive
+                </Txt>
+              </View>
+            </Row>
+            <Icon name="chevronRight" size={20} color={c.slate300} />
+          </Row>
+        </Pressable>
+
         {/* Plan & billing / Privacy / Terms / Export / Delete all live in the Account
             overlay — one entry, honest subtitle. */}
         <Pressable
