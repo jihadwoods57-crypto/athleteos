@@ -146,6 +146,13 @@ insert into threads (id, athlete_id, counterpart_id) values
 insert into messages (thread_id, sender_id, text) values
   ('f0000000-0000-0000-0000-000000000001','11111111-0000-0000-0000-000000000001','keep it up');
 
+-- meal photos live in the private `meal-photos` bucket at <athlete_uid>/<date>/<file>.
+-- (Harness note: real Supabase ships storage.objects with RLS enabled + grants to authenticated;
+-- this suite's runner ensures the same so the policies are actually enforced here.)
+insert into storage.objects (bucket_id, name, owner) values
+  ('meal-photos','aaaaaaaa-0000-0000-0000-000000000001/2026-07-09/a.jpg','aaaaaaaa-0000-0000-0000-000000000001'),
+  ('meal-photos','dddddddd-0000-0000-0000-000000000004/2026-07-09/m.jpg','dddddddd-0000-0000-0000-000000000004');
+
 -- ================================================================ 1. OWNER ACCESS
 select _as('aaaaaaaa-0000-0000-0000-000000000001');
 select _ok((select count(*) from meals) = 1 and (select min(name) from meals) = 'A breakfast',
@@ -256,6 +263,48 @@ select _as('11111111-0000-0000-0000-000000000001');
 select _ok(_try($q$insert into messages (thread_id, sender_id, text) values ('f0000000-0000-0000-0000-000000000003','11111111-0000-0000-0000-000000000001','great week')$q$) = 'ok',
            'the minor''s own coach CAN message them');
 
+-- ================================================================ 7b. STORAGE: MEAL PHOTOS
+-- read: owner + can_view links; write/update/delete: owner-only (their own <uid>/ folder).
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok((select count(*) from storage.objects where bucket_id='meal-photos' and name like 'aaaaaaaa%') = 1,
+           'athlete A can read their own meal photo');
+select _ok(_try($q$insert into storage.objects (bucket_id, name) values ('meal-photos','aaaaaaaa-0000-0000-0000-000000000001/2026-07-09/new.jpg')$q$) = 'ok',
+           'athlete A can upload into their own folder');
+select _ok(_try($q$insert into storage.objects (bucket_id, name) values ('meal-photos','bbbbbbbb-0000-0000-0000-000000000002/2026-07-09/planted.jpg')$q$) <> 'ok',
+           'athlete A CANNOT upload into athlete B''s folder');
+
+select _as('bbbbbbbb-0000-0000-0000-000000000002');
+select _ok((select count(*) from storage.objects where name like 'aaaaaaaa%') = 0,
+           'stranger athlete B CANNOT read A''s meal photos');
+select _ok(_try($q$insert into storage.objects (bucket_id, name) values ('meal-photos','aaaaaaaa-0000-0000-0000-000000000001/2026-07-09/planted.jpg')$q$) <> 'ok',
+           'stranger athlete B CANNOT upload into A''s folder');
+
+select _as('11111111-0000-0000-0000-000000000001');  -- A's coach
+select _ok((select count(*) from storage.objects where name like 'aaaaaaaa%') >= 1,
+           'coach_1 CAN read his athlete A''s meal photo');
+select _ok(_try($q$insert into storage.objects (bucket_id, name) values ('meal-photos','aaaaaaaa-0000-0000-0000-000000000001/2026-07-09/coach.jpg')$q$) <> 'ok',
+           'coach_1 CANNOT upload into A''s folder (read-only on athlete photos)');
+select _try($q$delete from storage.objects where name like 'aaaaaaaa%'$q$);
+select _superuser();
+select _ok((select count(*) from storage.objects where name like 'aaaaaaaa%') >= 1,
+           'coach_1 CANNOT delete A''s meal photo (owner-only delete)');
+
+select _as('22222222-0000-0000-0000-000000000002');  -- stranger coach
+select _ok((select count(*) from storage.objects where name like 'aaaaaaaa%') = 0,
+           'stranger coach_2 CANNOT read A''s meal photos');
+
+select _as('33333333-0000-0000-0000-000000000003');  -- parent of minor M
+select _ok((select count(*) from storage.objects where name like 'dddddddd%') = 1,
+           'parent P CAN read their minor''s meal photo');
+select _ok((select count(*) from storage.objects where name like 'aaaaaaaa%') = 0,
+           'parent P CANNOT read unrelated athlete A''s meal photo');
+
+select _as('44444444-0000-0000-0000-000000000004');  -- trainer of A
+select _ok((select count(*) from storage.objects where name like 'aaaaaaaa%') >= 1,
+           'trainer T CAN read client A''s meal photo');
+select _ok((select count(*) from storage.objects where name like 'dddddddd%') = 0,
+           'trainer T CANNOT read non-client minor M''s meal photo');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'
@@ -265,6 +314,8 @@ select _ok((select count(*) from meals where athlete_id = 'aaaaaaaa-0000-0000-00
            'REVOKED: after A leaves the team, coach_1 loses A''s meals immediately');
 select _ok((select count(*) from trust_passes where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') = 0,
            'REVOKED: after A leaves the team, coach_1 loses A''s trust passes');
+select _ok((select count(*) from storage.objects where name like 'aaaaaaaa%') = 0,
+           'REVOKED: after A leaves the team, coach_1 loses A''s meal photos');
 
 select _superuser();
 update practice_clients set status = 'removed' where client_id = 'aaaaaaaa-0000-0000-0000-000000000001';
