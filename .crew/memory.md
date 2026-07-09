@@ -17,6 +17,21 @@ the loop converge instead of thrashing.
 
 ## Entries
 
+### 2026-07-10 · cycle i3 · ai/honesty
+- Tried: number-preservation guard (`rephraseIsSafe`) split decimals — `/\d+/g` made "2.3" -> {2,3},
+  so a model rephrase flipping 2.3 -> 3.2 passed. `mealFrequencyInsight` emits `toFixed(1)` decimals.
+- Result: shipped (`crew/2026-07-10-i3`). `numericTokens` now `/\d+(?:\.\d+)?/g`; decimal-flip test added.
+- Lesson: the file's comment "the engine rounds every figure to an integer" was FALSE — meal-frequency
+  emits a decimal. Any future numeric-guard work: assume decimals can reach the guarded prose.
+
+### 2026-07-10 · cycle i2 · reliability/honesty
+- Tried: athlete Home "this week" score delta baselined on `series[0]` = seed on days 2-6.
+- Result: shipped (`crew/2026-07-10-i2`). Baseline now first REAL day (`series.length - realTrendDays`);
+  seeded showcase demo (empty history) keeps `series[0]` slope. Existing "real delta" test only checked
+  `typeof number` so it never caught the seed baseline — strengthened it.
+- Lesson: `isDay0` only guarded literal day 0; days 2-6 were the unguarded window. The demo is
+  distinguished by EMPTY scoreHistory — preserve its showcase slope, fix only real athletes.
+
 ### 2026-07-10 · cycle i1 · reliability/honesty
 - Tried: kill the seeded-demo-data leak into the parent Weekly-Compliance headline (`SEEDED_LEAD`
   padded into `weeklyCompliance`/`nutritionTrend` aggregates).
