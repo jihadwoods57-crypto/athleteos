@@ -1,7 +1,7 @@
 {
   "repo": "onstandard (athleteos)",
-  "branch": "crew/2026-07-09",
-  "tagPrefix": "crew/2026-07-09-i",
+  "branch": "crew/2026-07-10",
+  "tagPrefix": "crew/2026-07-10-i",
   "mission": "Each run, ship the highest-impact PROVABLE improvements and hand the founder a ranked backlog of the highest-impact JUDGMENT improvements. Ask: what single change would most improve OnStandard tomorrow?",
   "gates": {
     "cheap": "npm run typecheck && npm run test",

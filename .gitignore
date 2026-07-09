@@ -55,3 +55,7 @@ aos-dev-qr*.png
 credentials.json
 ios-certs/
 .digest-cron-key.local
+
+# Local OnStandard media + loose secrets (organization only — not part of the shipped app)
+_media/
+_secrets/
