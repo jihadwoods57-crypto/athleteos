@@ -63,7 +63,7 @@ New Deno function, modeled on the established guard stack:
 
 - **Contract:** POST `{ context: { meal, plan, exec, recentMeals, thread }, question }` → `{ reply: string }` (or `{ error }`). Forced single tool `reply` returning prose only, ≤ ~150 words, coach voice, no em dashes; the prompt forbids inventing or altering numbers — it may only reference figures present in the provided context.
 - **Authority boundary (binding):** the function never reads the database and never computes nutrition/score numbers. All context arrives from the client and is already user-visible data.
-- **Guards:** per-athlete daily chat cap via `claim_ai_usage` (separate key from analysis, default 20/day), global cap via `claim_ai_usage_key`, per-IP/min rate limit, CORS allowlist, prompt caching, 8KB context cap (client truncates first), model `claude-sonnet-5` (env-overridable). Fail behavior: structured error the client renders as the quiet retry line — logging and the thread never break.
+- **Guards:** per-athlete daily chat cap via `claim_ai_usage` (separate key from analysis, **default 10/day**, env-tunable without a deploy; the free opening message never counts against it), global cap via `claim_ai_usage_key`, per-IP/min rate limit, CORS allowlist, prompt caching, 8KB context cap (client truncates first), model `claude-sonnet-5` (env-overridable). Fail behavior: structured error the client renders as the quiet retry line — logging and the thread never break.
 
 ## 7. Adaptivity & tone
 
