@@ -1,7 +1,7 @@
 # Onboarding Overhaul — Design
 
 **Date:** 2026-07-09
-**Status:** Approved in brainstorm (all sections), pending founder spec review
+**Status:** Implemented 2026-07-09 (this plan); migrations 0048 + org-directory function await go-live apply/deploy.
 **Surface:** `proto/redesign-2026-07/` (the live WebView app) + authored Supabase migrations + minimal native bridge additions
 **Sub-project 1 of the 2026-07-09 product feedback dump.** Later sub-projects (separate specs): Execution loop (Home + Action Hub + state-driven notifications), AI meal logging experience, Plan page.
 

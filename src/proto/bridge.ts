@@ -11,6 +11,8 @@ import { Share } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as SecureStore from 'expo-secure-store';
 import type WebView from 'react-native-webview';
+import { isAppleAuthAvailable, requestAppleIdentityToken } from '../lib/auth/apple';
+import { biometricsUsable } from '../lib/auth/biometrics';
 
 type Ref = React.RefObject<WebView | null>;
 
@@ -20,6 +22,9 @@ export type BridgeMessage =
   | { type: 'SECURE_GET'; id: number; key: string }
   | { type: 'SECURE_SET'; id: number; key: string; value: string }
   | { type: 'SECURE_DELETE'; id: number; key: string }
+  | { type: 'APPLE_AVAILABLE'; id: number }
+  | { type: 'APPLE_SIGNIN'; id: number }
+  | { type: 'BIO_AVAILABLE'; id: number }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -101,6 +106,19 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
       }
       return true;
+    case 'APPLE_AVAILABLE':
+      resolve(ref, msg.id, isAppleAuthAvailable);
+      return true;
+    case 'APPLE_SIGNIN':
+      try {
+        resolve(ref, msg.id, await requestAppleIdentityToken());
+      } catch (e) {
+        resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'BIO_AVAILABLE':
+      resolve(ref, msg.id, await biometricsUsable());
+      return true;
     default:
       return false;
   }
@@ -136,7 +154,14 @@ export const BRIDGE_SHIM = `
       getItem: function(key){ return call('SECURE_GET', { key: key }); },
       setItem: function(key, value){ return call('SECURE_SET', { key: key, value: String(value) }); },
       removeItem: function(key){ return call('SECURE_DELETE', { key: key }); }
-    }
+    },
+    apple: {
+      available: function(){ return call('APPLE_AVAILABLE', {}); },
+      signIn: function(){ return call('APPLE_SIGNIN', {}); }
+    },
+    biometrics: {
+      available: function(){ return call('BIO_AVAILABLE', {}); }
+    },
   };
 
   // navigator.vibrate does not exist in WKWebView; route it (and navigator.share) to native.

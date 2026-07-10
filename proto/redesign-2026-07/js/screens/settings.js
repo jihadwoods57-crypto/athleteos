@@ -102,18 +102,53 @@ export const settings = {
       <span class="chp">Gentle</span><span class="chp on">Accountable</span><span class="chp">Max pressure</span>
     </div>
 
+    <div id="set-bio-wrap" style="display:none">
+      <div class="eyebrow">Security</div>
+      <section class="card" style="padding:6px 16px">
+        <div class="lrow" id="set-bio">
+          <div class="lic">${icon('lock', 17)}</div>
+          <div class="lm"><div class="lt">Unlock with Face ID</div><div class="ls">Required on app open</div></div>
+          <div class="seg" style="width:104px" id="set-bio-seg"><button>On</button><button class="on">Off</button></div>
+        </div>
+      </section>
+    </div>
+
     <div style="height:18px"></div>
     <button class="btn ghost" data-go="profile">Done</button>
     <div style="height:10px"></div>
     `;
   },
-  mount(root) { wireToggles(root); },
+  mount(root) {
+    wireToggles(root);
+    (async () => {
+      const N = window.OnStandardNative;
+      if (!N || !N.biometrics) return;
+      let ok = false;
+      try { ok = await N.biometrics.available(); } catch { /* hidden */ }
+      if (!ok) return;
+      const wrap = root.querySelector('#set-bio-wrap');
+      wrap.style.display = '';
+      const row = root.querySelector('#set-bio');
+      const seg = row.querySelector('#set-bio-seg');
+      const [onBtn, offBtn] = seg.querySelectorAll('button');
+      const paint = (on) => { onBtn.classList.toggle('on', on); offBtn.classList.toggle('on', !on); };
+      try { paint((await N.secureStore.getItem('onstd-biolock')) === '1'); } catch { /* default Off */ }
+      onBtn.addEventListener('click', () => { N.secureStore.setItem('onstd-biolock', '1'); paint(true); });
+      offBtn.addEventListener('click', () => { N.secureStore.removeItem('onstd-biolock'); paint(false); });
+    })();
+  },
 };
+
+/* Terms/Privacy detours land here from any onboarding flow; OB_BACK sends "Done" back to the
+   right in-progress step (by role) instead of always dropping the athlete on Profile. */
+const OB_BACK = { ob: 'onboarding/7', cob: 'coach-ob/5', tob: 'trainer-ob/3', clob: 'client-ob/6' };
 
 /* ---------- Privacy (role-scoped visibility, honest) ---------- */
 export const privacy = {
   tab: 'profile',
-  render() {
+  hideTabs: true,
+  render({ sub } = {}) {
+    const back = OB_BACK[sub] || 'profile';
     const rows = [
       ['users', 'Coach Mark', 'Score, logs, meal photos, check-ins, weight trend'],
       ['heart', 'Parents', 'Score, streaks, completion only — no photos, no weight'],
@@ -121,7 +156,7 @@ export const privacy = {
       ['grid', 'Teammates', 'Leaderboard score only'],
     ];
     return `
-    ${backHead('Privacy', 'Who sees what — by role, nothing public', 'profile')}
+    ${backHead('Privacy', 'Who sees what — by role, nothing public', back)}
 
     <section class="card" style="padding:6px 16px">
       ${rows.map(([ic, t, s]) => `
@@ -140,7 +175,7 @@ export const privacy = {
     </div>
 
     <div style="height:18px"></div>
-    <button class="btn ghost" data-go="profile">Done</button>
+    <button class="btn ghost" data-go="${back}">Done</button>
     <div style="height:10px"></div>
     `;
   },
@@ -269,9 +304,10 @@ export const deleteAccount = {
 /* ---------- Terms (compliance surface) ---------- */
 export const terms = {
   hideTabs: true,
-  render() {
+  render({ sub } = {}) {
+    const back = OB_BACK[sub] || 'profile';
     return `
-    ${backHead('Terms & Privacy', 'The short, honest version', 'profile')}
+    ${backHead('Terms & Privacy', 'The short, honest version', back)}
     <section class="card" style="padding:6px 16px">
       ${[
         ['Your photos are yours', 'Meal photos go to your coach connection only. Never public, never sold, never used to train anything without asking.'],

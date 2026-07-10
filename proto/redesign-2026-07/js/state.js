@@ -8,6 +8,7 @@
 */
 
 import { CATALOG, runsToday, derive, deriveAssigned } from './requirements.js';
+import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor,
   streakDays as dayStreak, loadDay, pushDay, uploadMealPhoto,
@@ -111,7 +112,7 @@ function friendlyAuth(msg) {
   if (m.includes('invalid login')) return 'That email or password is incorrect.';
   if (m.includes('already registered') || m.includes('already been registered') || m.includes('user already')) return 'That email already has an account — try signing in.';
   if (m.includes('rate limit') || m.includes('too many')) return 'Too many attempts. Wait a minute and try again.';
-  if (m.includes('password')) return 'Password must be at least 6 characters.';
+  if (m.includes('password')) return 'Password must be at least 8 characters.';
   if (m.includes('valid email') || m.includes('email address')) return 'Enter a valid email address.';
   if (m.includes('network') || m.includes('fetch') || m.includes('failed to')) return 'Network problem — check your connection.';
   return msg || 'Something went wrong. Try again.';
@@ -292,7 +293,9 @@ export const act = {
   /* Onboarding scratch: the athlete's real selections captured step-by-step (DOM is wiped
      between routes, so each interaction persists here rather than being read at the end). */
   captureOb(patch) { RT.ob = { ...(RT.ob || {}), ...patch }; save(); },
+  clearJoin() { if (RT.ob) { delete RT.ob.join; save(); } },
   saveAllergies(list) { RT.allergies = list.slice(0, 8); save(); },
+  setAuthRole(role) { RT.authRole = role; save(); },
   nudgePartner() { RT.partnerNudged = true; save(); },
   toggleInjury() {
     RT.injured = !RT.injured;
@@ -336,12 +339,30 @@ export const act = {
     RT.authRole = role;
     save();
     const hadServerProfile = await this._loadProfileIntoRt(RT.userId);
-    // Back-fill: if onboarding was captured locally but never reached the server (a signup that
-    // had no session at the time — e.g. email confirmation was required), persist it now that we
-    // hold a real session. Only when the server row is genuinely absent, so a later profile edit
-    // is never clobbered by stale onboarding scratch.
-    if (!hadServerProfile && role === 'athlete' && RT.ob) {
-      try { await this.persistOnboarding(); } catch { /* best-effort */ }
+    // Back-fill: if onboarding was captured locally but never fully reached the server (a signup
+    // that had no session at the time, or a partial persistOnboarding failure — e.g. a
+    // pre-migration-0048 DB rejecting phases 2–4 after phase 1 already created the row), persist
+    // the remaining phases now that we hold a real session. Per-phase _synced flags make this
+    // retryable on every sign-in without redoing work that already succeeded.
+    // Backfill only when the scratch belongs to THIS user: scratch with a captured email is
+    // trusted only for that email (shared-device safety); legacy scratch without one is
+    // trusted only for the original no-server-row case.
+    const obEmail = ((RT.ob && RT.ob.email) || '').toLowerCase();
+    const obMine = obEmail ? obEmail === (email || '').trim().toLowerCase() : !hadServerProfile;
+    if (role === 'athlete' && RT.ob && obMine) {
+      if (hadServerProfile && !RT.ob._synced) {
+        // Grandfather: onboarding predates the phase flags — nothing to backfill, and
+        // re-running could clobber later profile edits with stale scratch.
+        this.captureOb({ _synced: { legacy: true, extra: true, stamps: true, join: true } });
+      } else if (!hadServerProfile || !RT.ob._synced || Object.values(RT.ob._synced).some((v) => !v)) {
+        try { await this.persistOnboarding(); } catch { /* best-effort */ }
+      }
+    }
+    if (role === 'coach' && RT.ob && RT.ob.coach && obMine && !RT.ob.teamCode) {
+      try { await this.persistCoachOnboarding(); } catch { /* best-effort */ }
+    }
+    if (role === 'trainer' && RT.ob && RT.ob.trainer && obMine && !RT.ob.practiceCode) {
+      try { await this.persistTrainerOnboarding(); } catch { /* best-effort */ }
     }
     await loadDay(RT.userId);
     syncRtFromDay();
@@ -407,24 +428,128 @@ export const act = {
     try { const { error } = await sb.from('athlete_profiles').upsert({ athlete_id: RT.userId, ...fields }); return !error; }
     catch { return false; }
   },
-  /* Persist the athlete's captured onboarding (RT.ob) to the server athlete_profiles + local RT.
-     Awaitable; returns true iff the server row was written. Idempotent (upsert), so it is safe to
-     call again on a later sign-in to back-fill a signup that had no session yet (email confirm). */
+  /* Consent receipt — every role accepts the same terms line at account creation.
+     Best-effort (0048 columns); idempotent enough: re-stamping only refreshes the receipt. */
+  async _stampConsent(committedAt) {
+    const sb = window.sb;
+    if (!sb || !RT.userId) return false;
+    try {
+      const { error } = await sb.from('profiles').update({
+        tos_accepted_at: new Date().toISOString(),
+        tos_version: TOS_VERSION,
+        ...(committedAt ? { committed_at: committedAt } : {}),
+      }).eq('id', RT.userId);
+      return !error;
+    } catch { return false; }
+  },
+  /* Persist the athlete's captured onboarding (RT.ob) to the server + local RT. Awaitable;
+     idempotent (upserts + on-conflict RPCs), so it back-fills a confirmation-delayed signup
+     on the next sign-in. Each phase is tracked in RT.ob._synced ({legacy, extra, stamps, join})
+     and skipped once it has succeeded, EXCEPT that a synced phase is never re-run — this is what
+     makes a later profile edit safe from being clobbered by stale onboarding scratch. Unsynced
+     phases retry on every sign-in, so a partial failure (e.g. phases 2–4 rejected by a
+     pre-migration-0048 DB while phase 1 already created the row) is never permanently lost. */
   async persistOnboarding() {
+    const sb = window.sb;
     const ob = RT.ob || {};
+    const synced = { legacy: false, extra: false, stamps: false, join: false, ...(ob._synced || {}) };
     const name = ob.name || (RT.profile && RT.profile.name) || '';
-    // local identity first (real values only — never fabricated) so Home reflects the athlete now
+    // local identity first (always — cheap, idempotent)
     this.saveProfile({ name, sport: ob.sport || '', position: ob.position || '', level: ob.level || '' });
     this.saveAllergies(ob.allergies || RT.allergies || []);
-    const fields = {};
-    if (ob.sport) fields.sport = ob.sport;
-    if (ob.position) fields.position = ob.position;
-    if (ob.level) fields.level = ob.level;
-    if (ob.goal) fields.base_goal = ob.goal;
-    if (ob.currentWeight) fields.base_weight = Math.round(ob.currentWeight);
-    if (ob.currentWeight || ob.targetWeight) fields.season_goal = { start: ob.currentWeight || null, target: ob.targetWeight || null };
-    if (!Object.keys(fields).length) return false;
-    return await this.saveAthleteProfile(fields);
+    // phase 1: legacy athlete_profiles fields (skip once written so a later profile edit is never clobbered)
+    if (!synced.legacy) {
+      const fields = {};
+      if (ob.sport) fields.sport = ob.sport;
+      if (ob.position) fields.position = ob.position;
+      if (ob.level) fields.level = ob.level;
+      if (ob.goal) fields.base_goal = ob.goal;
+      if (ob.currentWeight) fields.base_weight = Math.round(ob.currentWeight);
+      if (ob.currentWeight || ob.targetWeight) fields.season_goal = { start: ob.currentWeight || null, target: ob.targetWeight || null };
+      synced.legacy = Object.keys(fields).length ? await this.saveAthleteProfile(fields) : true;
+    }
+    // phase 2: 0048 columns — separate upsert so a pre-migration DB rejects only this call
+    if (!synced.extra) {
+      if (!ob.dob && !ob.standard) synced.extra = true;
+      else {
+        const extra = {};
+        if (ob.dob) extra.dob = ob.dob;
+        if (ob.standard) extra.standard = ob.standard;
+        synced.extra = await this.saveAthleteProfile(extra);
+      }
+    }
+    // phase 3: consent + commitment stamps (profiles_self_write; 0048 columns, best-effort)
+    if (!synced.stamps && sb && RT.userId) {
+      synced.stamps = await this._stampConsent(ob.committedAt);
+    }
+    // phase 4: redeem the validated join code (server re-validates; idempotent)
+    if (!synced.join) {
+      if (!(ob.join && ob.join.code)) synced.join = true;
+      else if (sb && RT.userId) {
+        try {
+          const rpc = ob.join.kind === 'practice' ? 'join_practice' : 'join_team';
+          const args = ob.join.kind === 'practice'
+            ? { code: ob.join.code }
+            : { code: ob.join.code, athlete_position: ob.position || null };
+          const { error } = await sb.rpc(rpc, args);
+          if (!error) {
+            synced.join = true;
+            if (ob.join.school) this.saveProfile({ school: ob.join.school });
+          }
+        } catch { /* retried on next sign-in */ }
+      }
+    }
+    this.captureOb({ _synced: synced });
+    return synced.legacy;
+  },
+  /* Mint the coach's real org + team + join code from RT.ob.coach. Idempotent: a minted
+     code short-circuits. Org insert must set created_by = auth.uid() (orgs_write policy). */
+  async persistCoachOnboarding() {
+    const sb = window.sb;
+    const ob = RT.ob || {};
+    const c = ob.coach || {};
+    if (!sb || !RT.userId) return false;
+    await this._stampConsent(null); // best-effort; never gates team/org creation
+    if (ob.teamCode) return true;
+    let orgId = c.orgId || null;
+    if (!orgId && c.schoolName) {
+      try {
+        const { data: found } = await sb.rpc('find_org', { p_name: c.schoolName, p_state: c.state || null });
+        if (found && found.length) orgId = found[0].id;
+        else {
+          const { data: ins } = await sb.from('orgs')
+            .insert({ name: c.schoolName, type: 'school', city: c.city || null, state: c.state || null, created_by: RT.userId })
+            .select('id').maybeSingle();
+          if (ins) orgId = ins.id;
+        }
+      } catch { /* org optional — a code-only team still works */ }
+    }
+    try {
+      const { data: code, error } = await sb.rpc('create_team', {
+        team_name: c.teamName || 'My Team', team_sport: c.sport || null,
+        team_org: orgId, team_discoverable: c.discoverable !== false,
+      });
+      if (error || !code) return false;
+      this.captureOb({ teamCode: code });
+      return true;
+    } catch { return false; }
+  },
+  /* Mint the trainer's real practice + client code. Idempotent via RT.ob.practiceCode. */
+  async persistTrainerOnboarding() {
+    const sb = window.sb;
+    const ob = RT.ob || {};
+    const t = ob.trainer || {};
+    if (!sb || !RT.userId) return false;
+    await this._stampConsent(null); // best-effort; never gates practice creation
+    if (ob.practiceCode) return true;
+    try {
+      const { data: code, error } = await sb.rpc('create_practice', {
+        practice_name: t.practiceName || 'My Practice', practice_handle: null, is_discoverable: true,
+      });
+      if (error || !code) return false;
+      this.captureOb({ practiceCode: code });
+      return true;
+    } catch { return false; }
   },
   // Called by the router boot gate to sync RT from a restored Keychain session.
   _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },

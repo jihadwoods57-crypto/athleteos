@@ -79,3 +79,19 @@ Roles: coach, coach-athlete, coach-assign, coach-plan, copilot, trainer, trainer
 - Screens map 1:1 onto existing RN screens (see traceability table in the plan file);
   net-new RN screens: Score Breakdown, Plan tabs, daily Recovery, quick-log sheet,
   generic requirements engine.
+
+## 2026-07-09 — Onboarding overhaul (spec: docs/superpowers/specs/2026-07-09-onboarding-overhaul-design.md)
+Athlete onboarding rebuilt as an adaptive 7-step wizard (identity + DOB with under-13
+block → school/coach discovery → sport → goal → baseline → adaptive standard with
+hold-to-commit → hardened account), coach/trainer onboarding made real (org + team +
+join code), and a light client flow on the same pattern. New modules:
+- `js/ob-helpers.js` — pure helpers (DOB/age validation, password strength, goal→standard), unit-tested from `src/core`.
+- `js/ob-directory.js` — anonymous directory client for the `org-directory` edge function (search/teams/practices/preview_code), always degrades to code-entry/skip.
+- `js/ob-commit.js` — hold-to-commit button (1200ms press with fill sweep; reduced-motion falls back to tap).
+- `js/screens/ob-account.js` — shared account-creation step (email + password + confirm + strength meter + terms line) reused by all four flows.
+- `js/screens/bio-optin.js` — post-signup Face ID opt-in sheet.
+Two gated seams stay inert until the native shell reports availability: **Sign in with
+Apple** (`OnStandardNative.apple`) and **biometric app-unlock** (`OnStandardNative.biometrics`).
+Verified 2026-07-09: full flow QA in-browser (back/forward retention, under-13 block,
+skip paths, code vs solo step 6, hold-to-commit gating, password gate, terms detour);
+directory-offline fallbacks and "Code pending" states confirmed — never a dead end.

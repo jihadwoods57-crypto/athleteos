@@ -230,3 +230,25 @@
 .ptabs .pt { padding: 10px 2px 12px; font-size: 14.5px; font-weight: 700; color: var(--text-3); cursor: pointer; position: relative; }
 .ptabs .pt.on { color: var(--text); }
 .ptabs .pt.on::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height: 2.5px; border-radius: 2px; background: linear-gradient(90deg, var(--green-bright), var(--blue-bright)); }
+
+/* ---- onboarding v2: back nav + segmented progress (replaces dots) ---- */
+.ob-nav{display:flex;align-items:center;gap:12px;padding:2px 0 16px}
+.ob-back{width:34px;height:34px;min-width:34px;border-radius:12px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2)}
+.ob-back svg{transform:rotate(180deg)}
+.ob-prog{flex:1;display:flex;gap:5px}
+.ob-prog i{flex:1;height:4px;border-radius:2px;background:var(--surface-2)}
+.ob-prog i.on{background:var(--green-bright)}
+.dob-row{display:flex;gap:10px}
+.dob-row .ob-input{text-align:center}
+/* hold-to-commit (used by Task 5) */
+.hold-btn{position:relative;overflow:hidden}
+.hold-fill{position:absolute;inset:0;width:0;background:rgba(255,255,255,0.22);pointer-events:none}
+.hold-label{position:relative}
+/* password meter (used by Task 6) */
+.pw-meter{display:flex;gap:5px;margin:10px 2px 4px}
+.pw-meter i{flex:1;height:4px;border-radius:2px;background:var(--surface-2)}
+.pw-meter i.on{background:var(--amber-bright)}
+.pw-meter i.on.s3{background:var(--green-bright)}
+.pw-row{position:relative}
+.pw-row .pw-eye{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:800;color:var(--text-3);cursor:pointer}
+.lnk{color:var(--green-bright);font-weight:800;cursor:pointer}
