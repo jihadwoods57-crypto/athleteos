@@ -104,7 +104,9 @@ export function groundMealMacros(
  * hallucinated macro never reaches the score.
  */
 export function groundMealResult(mr: MealResult): MealResult {
-  const g = groundMealMacros(mr, mr.detected ?? []);
+  // detected may be legacy strings or rich {name, confidence} objects — ground on names either way
+  const names = (mr.detected ?? []).map((d: unknown) => (typeof d === 'string' ? d : (d as { name?: string })?.name ?? '')).filter(Boolean);
+  const g = groundMealMacros(mr, names);
   // Surface the grounder's confidence; keep any model reconcile/descriptionSignal (spread from mr).
   return { ...mr, protein: g.protein, kcal: g.kcal, carbs: g.carbs, fat: g.fat, confidence: g.confidence };
 }
