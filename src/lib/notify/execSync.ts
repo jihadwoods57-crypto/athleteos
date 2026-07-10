@@ -18,14 +18,19 @@ export async function syncExecNotifications(plan: ExecPlanItem[]): Promise<void>
     if (!granted) return;
     for (const p of plan) {
       const at = p.atISO ? new Date(p.atISO) : null;
-      if (at && at.getTime() <= Date.now()) continue; // stale by transit time — skip
-      await Notifications.scheduleNotificationAsync({
-        identifier: `exec-${p.id}-${p.atISO ?? 'now'}`,
-        content: { title: p.title, body: p.body },
-        trigger: at
-          ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: Platform.OS === 'android' ? 'reminders' : undefined }
-          : null,
-      });
+      // Skip malformed dates (Invalid Date → NaN) and items already stale by transit time.
+      if (at && (Number.isNaN(at.getTime()) || at.getTime() <= Date.now())) continue;
+      try {
+        await Notifications.scheduleNotificationAsync({
+          identifier: `exec-${p.id}-${p.atISO ?? 'now'}`,
+          content: { title: p.title, body: p.body },
+          trigger: at
+            ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: Platform.OS === 'android' ? 'reminders' : undefined }
+            : null,
+        });
+      } catch {
+        // one bad item must never suppress the rest of the plan — skip and continue
+      }
     }
   } catch {
     // best-effort — a scheduler hiccup never surfaces to the athlete

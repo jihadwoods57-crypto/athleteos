@@ -41,3 +41,25 @@ test('immediate items (atISO null) schedule with a null trigger', async () => {
   expect(mockScheduled).toHaveLength(1);
   expect((mockScheduled[0] as { trigger: unknown }).trigger).toBeNull();
 });
+
+test('an invalid atISO is skipped, not scheduled', async () => {
+  await syncExecNotifications([
+    { id: 'bad', atISO: 'not-a-date', title: 'x', body: 'y' },
+    { id: 'good', atISO: new Date(Date.now() + 3600e3).toISOString(), title: 'a', body: 'b' },
+  ]);
+  expect(mockScheduled).toHaveLength(1);
+  expect((mockScheduled[0] as { identifier: string }).identifier).toContain('exec-good');
+});
+
+test('one scheduling failure does not drop the remaining items', async () => {
+  const future = new Date(Date.now() + 3600e3).toISOString();
+  // First schedule call throws; subsequent calls fall back to the factory impl (which pushes).
+  (require('expo-notifications').scheduleNotificationAsync as jest.Mock)
+    .mockImplementationOnce(async () => { throw new Error('boom'); });
+  await syncExecNotifications([
+    { id: 'first', atISO: future, title: 'x', body: 'y' },
+    { id: 'second', atISO: future, title: 'a', body: 'b' },
+  ]);
+  expect(mockScheduled).toHaveLength(1);
+  expect((mockScheduled[0] as { identifier: string }).identifier).toContain('exec-second');
+});
