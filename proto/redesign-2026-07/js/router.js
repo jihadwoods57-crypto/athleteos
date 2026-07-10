@@ -51,6 +51,8 @@ export function go(route) { location.hash = '#' + route; }
 window.__go = go;
 
 function render() {
+  // Screens with live countdowns register a tick; every route change clears it.
+  if (window.__execTick) { clearInterval(window.__execTick); window.__execTick = null; }
   const { route, sub } = parse();
   const mod = screens[route] || screens.home;
   const activeTab = mod.tab || route;
