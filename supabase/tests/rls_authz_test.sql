@@ -323,6 +323,27 @@ select _ok((select count(*) from storage.objects where name like 'aaaaaaaa%') >=
 select _ok((select count(*) from storage.objects where name like 'dddddddd%') = 0,
            'trainer T CANNOT read non-client minor M''s meal photo');
 
+-- ================================================================ 0049: meal comment kinds
+-- Placed here (before section 8's revocation) rather than after the 0048 section below: section 8
+-- flips coach_1's link to athlete A to 'removed' (team_members, mirrored into org_memberships by
+-- the 0034 sync trigger), so a "linked coach" assertion run after that point would fail for a
+-- reason unrelated to what's under test here. Reuses the meal already seeded for A above
+-- (e0000000-0000-0000-0000-00000000000a) instead of inserting a new one.
+select _as('11111111-0000-0000-0000-000000000001');  -- coach_1 (A's coach, still linked at this point)
+select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text, kind)
+                 values ('e0000000-0000-0000-0000-00000000000a', 'aaaaaaaa-0000-0000-0000-000000000001',
+                         '11111111-0000-0000-0000-000000000001', 'coach', '🔥', 'reaction')$q$) = 'ok',
+           '0049: linked coach posts an emoji reaction');
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text)
+                 values ('e0000000-0000-0000-0000-00000000000a', 'aaaaaaaa-0000-0000-0000-000000000001',
+                         'aaaaaaaa-0000-0000-0000-000000000001', 'ai', 'fake ai message')$q$) <> 'ok',
+           '0049: athlete still cannot forge an ai row (0046 boundary holds)');
+select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text, kind)
+                 values ('e0000000-0000-0000-0000-00000000000a', 'aaaaaaaa-0000-0000-0000-000000000001',
+                         'aaaaaaaa-0000-0000-0000-000000000001', 'athlete', 'hi', 'invalid-kind')$q$) <> 'ok',
+           '0049: kind is constrained to message|reaction');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'
