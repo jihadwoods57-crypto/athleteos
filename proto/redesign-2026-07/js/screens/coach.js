@@ -422,7 +422,12 @@ export const coachMeal = {
     ${(() => {
       const rx = reactionGroups(MC.comments);
       const msgs = threadMessages(MC.comments);
-      const opening = meal ? openingMessage({ name: title, quality: meal.quality, note: meal.note, goal: null, coachTargets: null, late: false }) : '';
+      // `late` was hardcoded false here, so a late-logged meal showed "Captured on time" under
+      // "what the athlete was told" — affirmatively wrong. The coach client has no reliable way
+      // to compare this meal row's UTC `logged_at` against the athlete's LOCAL-time DEADLINE
+      // window (different device/timezone), so rather than guess, pass late: null — openingMessage
+      // omits the timing sentence entirely when timing is unknown.
+      const opening = meal ? openingMessage({ name: title, quality: meal.quality, note: meal.note, goal: null, coachTargets: null, late: null }) : '';
       return `
       ${rx.length ? `<div class="rx-strip">${rx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>` : ''}
       <div class="thread">

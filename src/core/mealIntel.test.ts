@@ -99,6 +99,17 @@ describe('openingMessage', () => {
     expect(openingMessage({ ...base, coachTargets: { protein: 180 } })).toContain('180'));
   test('caps at 600 chars', () =>
     expect(openingMessage({ ...base, note: 'x'.repeat(700) }).length).toBeLessThanOrEqual(600));
+  test('late: null omits the timing sentence entirely (timing unknown, not guessed)', () => {
+    const m = openingMessage({ ...base, late: null });
+    expect(m).not.toMatch(/on time/i);
+    expect(m).not.toMatch(/counts/i);
+    // the rest of the message (note, goal tie, quality praise) still renders
+    expect(m).toContain('Solid protein anchor.');
+  });
+  test('late true/false athlete-side behavior is unchanged by the null branch', () => {
+    expect(openingMessage(base)).toMatch(/on time/i);
+    expect(openingMessage({ ...base, late: true })).toMatch(/counts/i);
+  });
 });
 
 describe('reaction split', () => {
@@ -129,5 +140,20 @@ describe('contextForChat', () => {
     expect(JSON.stringify(c).length).toBeLessThanOrEqual(8192);
     // newest entries survive
     expect(JSON.stringify(c)).toContain('q39');
+  });
+  // Documents the caller-must-pass-ascending contract: contextForChat drops from the FRONT of
+  // recentMeals when clamping, so callers (e.g. meal.js's askAI) must reverse a newest-first
+  // DB result into ascending order first, or the newest meals get dropped instead of the oldest.
+  test('recentMeals clamp drops from the front — surviving entries are the ones at the END of the input array', () => {
+    const input = big(200); // ascending by construction: 'Meal 0' oldest .. 'Meal 199' newest
+    const c = contextForChat({ meal: { name: 'Dinner' }, plan: {}, exec: {}, recentMeals: input, thread: [] });
+    expect(JSON.stringify(c).length).toBeLessThanOrEqual(8192);
+    expect(c.recentMeals.length).toBeGreaterThan(0);
+    expect(c.recentMeals.length).toBeLessThan(input.length);
+    // the surviving slice must be a contiguous tail of the input, ending at the last element
+    const survivingNames = c.recentMeals.map((m: any) => m.name);
+    const expectedTail = input.slice(input.length - survivingNames.length).map((m) => m.name);
+    expect(survivingNames).toEqual(expectedTail);
+    expect(survivingNames[survivingNames.length - 1]).toBe('Meal 199');
   });
 });

@@ -70,7 +70,7 @@ export const analysis = {
     <div class="eyebrow">Detected <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· estimated from photo</span> <span class="link" id="edit-foods">Edit</span></div>
     <div class="foodchips" id="foods">
       ${(MEAL.result && MEAL.result.detectedRich ? MEAL.result.detectedRich : L.foods.map((f) => ({ name: f, confidence: 'high' }))).map((d) => `
-        <span class="foodchip"><span class="conf-dot ${d.confidence}"></span>${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI is unsure — confirm or remove">?</span>' : ''}</span>`).join('')}
+        <span class="foodchip" data-name="${esc(d.name)}"><span class="conf-dot ${d.confidence}"></span>${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI is unsure — confirm or remove">?</span>' : ''}</span>`).join('')}
     </div>
 
     <div class="eyebrow">What the AI sees</div>
@@ -128,7 +128,29 @@ export const analysis = {
       box.querySelectorAll('.foodchip').forEach(ch => {
         if (editing && !ch.querySelector('.rm')) {
           ch.insertAdjacentHTML('beforeend', '<span class="rm" style="margin-left:6px;color:var(--red);font-weight:800;cursor:pointer">✕</span>');
-          ch.querySelector('.rm').addEventListener('click', (e) => { e.stopPropagation(); ch.remove(); });
+          ch.querySelector('.rm').addEventListener('click', (e) => {
+            e.stopPropagation();
+            // DOM removal alone is cosmetic — act.logMeal reads MEAL.result.detected /
+            // detectedRich, not the rendered chips, so a removed low-confidence food would
+            // otherwise still persist to the logged meta and the thread page. Splice the
+            // matching entry (by name — chip order can drift from array order after earlier
+            // removals) out of both arrays; macros are deliberately left untouched, no
+            // re-estimation.
+            const name = ch.getAttribute('data-name');
+            if (MEAL.result && name) {
+              const rich = MEAL.result.detectedRich;
+              if (Array.isArray(rich)) {
+                const i = rich.findIndex((d) => d && d.name === name);
+                if (i !== -1) rich.splice(i, 1);
+              }
+              const flat = MEAL.result.detected;
+              if (Array.isArray(flat)) {
+                const j = flat.indexOf(name);
+                if (j !== -1) flat.splice(j, 1);
+              }
+            }
+            ch.remove();
+          });
         } else if (!editing) { const x = ch.querySelector('.rm'); if (x) x.remove(); }
       });
     });
@@ -293,6 +315,9 @@ export const thread = {
     const paint = () => {
       if (!threadEl) return;
       const msgs = threadMessages(comments);
+      // The FIRST `.msg` in threadEl is assumed to be the derived AI opening message (rendered
+      // once, above, and never stored) — it's captured here and re-prepended on every repaint.
+      // Do not prepend/insert any other row above it, or the opening line stops being first.
       const openingHtml = threadEl.querySelector('.msg') ? threadEl.querySelector('.msg').outerHTML : '';
       threadEl.innerHTML = openingHtml + (msgs.length ? msgs.map((c) => `
         <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
@@ -325,16 +350,30 @@ export const thread = {
       try {
         const recent = await roles.fetchRecentMeals(RT.userId, roles.daysAgoISO(7)).catch(() => []);
         const ex = S.exec;
+        // roles.fetchRecentMeals returns newest-first (day_date descending); contextForChat's
+        // 8KB clamp drops from the FRONT of recentMeals, so the caller must hand it oldest→newest
+        // or the clamp discards the newest meals instead of the oldest. Reverse to ascending here.
+        const recentAscending = (recent || []).slice().reverse();
         const context = contextForChat({
           meal: { name: M.name, slot: M.slot, foods: M.detectedRich, macros: M.macros, fiber: M.fiber, quality: M.score, late: M.late, note: M.note },
           plan: { goal: RT.profile && RT.profile.baseGoal, targets: S.planTargets, allergies: RT.allergies },
           exec: { met: ex.met, total: ex.total, score: ex.score, possible: ex.possible, next: ex.now && ex.now.title },
-          recentMeals: (recent || []).map((m) => ({ type: m.type, protein: m.protein, kcal: m.kcal, quality: m.quality, date: m.day_date })),
+          recentMeals: recentAscending.map((m) => ({ type: m.type, protein: m.protein, kcal: m.kcal, quality: m.quality, date: m.day_date })),
           thread: threadMessages(comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
         });
         const { data, error } = await window.sb.functions.invoke('meal-chat', { body: { mealId: M.mealId, question: text, context } });
         if (error || !data || data.error) {
-          if (data && data.error === 'limit') setNote("You've hit today's AI coaching limit — back tomorrow. Your coach still sees this.");
+          // The vendored supabase-js (js/vendor/supabase.js) throws FunctionsHttpError on any
+          // non-2xx response, so `data` is always null and the function's JSON error body never
+          // reaches it — `data.error === 'limit'` above can never fire. FunctionsHttpError
+          // extends FunctionsError, which stores the raw Response as `.context`; parse the
+          // structured error off that instead. `data.error` is kept as a fallback in case a
+          // future vendor version ever returns a 2xx with an inline error field.
+          let parsed = data && data.error ? data : null;
+          if (!parsed && error && error.context && typeof error.context.json === 'function') {
+            parsed = await error.context.json().catch(() => null);
+          }
+          if (parsed && parsed.error === 'limit') setNote("You've hit today's AI coaching limit — back tomorrow. Your coach still sees this.");
           else setNote("Couldn't reach your AI coach — tap to try again.", true);
         } else {
           await refresh();
