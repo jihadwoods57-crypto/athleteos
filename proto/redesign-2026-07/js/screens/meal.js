@@ -1,5 +1,5 @@
 import { S, RT, tier, act, MEAL, mealDetail } from '../state.js';
-import { DAY } from '../day.js';
+import { DAY, DEADLINE } from '../day.js';
 import { icon, checkFill } from '../icons.js';
 import { backHead, esc, safeImg } from '../components.js';
 
@@ -142,11 +142,15 @@ export const confirm = {
     const fromTier = tier(mv.from), toTier = tier(mv.to);
     const promoted = fromTier.name !== toTier.name;
     const next = S.nextMove;
+    // Honest timing line: derive late/on-time from the just-logged slot's REAL logged time.
+    const slot = (mv.what || '').toLowerCase();
+    const late = DEADLINE[slot] != null && DAY.mealLoggedAt[slot] != null && DAY.mealLoggedAt[slot] > DEADLINE[slot];
+    const timing = late ? 'Logged late · still counts' : "Captured on time · Added to today's score";
     return `
     <div class="confirm-wrap">
       <div class="big-check"><div class="core">${icon('check', 36)}</div></div>
       <div class="confirm-title">${mv.what} Logged</div>
-      <div class="confirm-sub">Captured on time · Added to today's score · Coach can see it</div>
+      <div class="confirm-sub">${timing} · Coach can see it</div>
 
       <div class="score-move">
         <span class="from" data-anim-from>${mv.from}</span>

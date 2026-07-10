@@ -35,7 +35,18 @@ function statusbar() {
 function tabbar(activeTab, nav = 'athlete') {
   const tabs = NAVS[nav] || NAVS.athlete;
   return `<nav class="tabbar" style="grid-template-columns: repeat(${tabs.length}, 1fr)">${tabs.map(t => {
-    if (t.fab) return `<div class="tab"><div class="fab" data-go="${t.route}">${icon(t.icon, 26)}</div></div>`;
+    if (t.fab) {
+      // Athlete camera FAB carries the exec status dot (gold = actionable, red = overdue,
+      // none = day complete). Other roles' FABs are plain. Glyph never changes.
+      let dot = '';
+      if (nav === 'athlete') {
+        try {
+          const e = S.exec;
+          dot = e.celebration ? '' : `<span class="fab-dot ${e.overdue.length ? 'red' : 'gold'}"></span>`;
+        } catch { /* pre-auth render — no dot */ }
+      }
+      return `<div class="tab"><div class="fab" data-go="${t.route}" style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
+    }
     const on = t.id === activeTab ? `active ${t.id === 'home' || t.id === 'team' || t.id === 'clients' ? 'home' : ''}` : '';
     return `<div class="tab ${on}" data-go="${t.route}">${icon(t.icon, 23)}<span>${t.label}</span></div>`;
   }).join('')}</nav>`;
@@ -51,6 +62,8 @@ export function go(route) { location.hash = '#' + route; }
 window.__go = go;
 
 function render() {
+  // Screens with live countdowns register a tick; every route change clears it.
+  if (window.__execTick) { clearInterval(window.__execTick); window.__execTick = null; }
   const { route, sub } = parse();
   const mod = screens[route] || screens.home;
   const activeTab = mod.tab || route;

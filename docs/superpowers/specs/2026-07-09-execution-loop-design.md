@@ -1,7 +1,7 @@
 # Execution Loop — Design (Home · Action Hub · State-Driven Notifications)
 
 **Date:** 2026-07-09
-**Status:** Approved in brainstorm (all sections), pending founder spec review
+**Status:** Implemented 2026-07-09 (plan docs/superpowers/plans/2026-07-09-execution-loop.md); notification learning, NOW-card progressive disclosure, celebration haptic, and the tomorrow preview deferred.
 **Surface:** `proto/redesign-2026-07/` (the live WebView app) + native bridge/notification additions in `src/`
 **Sub-project 2 of the 2026-07-09 product feedback dump.** Predecessor: onboarding overhaul (merged, `91eb861`). Remaining later: AI meal logging experience, Plan page.
 

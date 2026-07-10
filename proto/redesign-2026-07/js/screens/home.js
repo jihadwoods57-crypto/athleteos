@@ -1,28 +1,7 @@
-import { S, RT } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { appHead, scoreRing, animateRing, esc, safeImg } from '../components.js';
-
-/* status badge glyph per row state (mini-dot on the icon tile corner) */
-function badgeFor(r) {
-  if (r.done) return `<div class="req-badge g">${icon('check', 11)}</div>`;
-  const glyph = r.id === 'recovery' ? 'moon' : 'clock';
-  return `<div class="req-badge ${r.accent}">${icon(glyph, 10)}</div>`;
-}
-
-function reqRow(r) {
-  return `<div class="req-row ${r.done ? 'done' : ''}" data-go="${r.route}">
-    <div class="req-icon ${r.accent}">${icon(r.icon, 20)}${badgeFor(r)}</div>
-    <div class="req-main">
-      <div class="req-title">${esc(r.title)}</div>
-      <div class="req-sub ${r.subColor}">${r.sub}</div>
-    </div>
-    <div class="req-right">
-      <span class="status-pill ${r.statusColor}">${r.status}</span>
-      <span class="req-meta ${r.done ? 'g' : r.missed ? 'dim' : r.accent}">${r.meta}</span>
-    </div>
-    ${icon('chevron', 18, 'class="req-chev"')}
-  </div>`;
-}
+import { DAY } from '../day.js';
 
 function actCard(a) {
   let media;
@@ -41,134 +20,147 @@ function actCard(a) {
   </div>`;
 }
 
-function nextActionBlock() {
-  const next = S.nextMove;
-  if (!next) {
-    return `<div class="day-done">
-      <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
-      <div><div class="tt">You're OnStandard. Nothing left today.</div>
-      <div class="ts">Every requirement is in. Day ${S.streakDays + 1} of your streak locks at midnight.</div></div>
-    </div>`;
-  }
-  const cls = next.accent === 'p' ? 'p-accent' : 'green';
-  return `<div class="next-cta">
-    <button class="btn ${cls}" data-go="${next.route}">
-      ${icon(next.accent === 'p' ? 'moon' : 'camera', 20)} ${next.label}${next.gain ? ` · +${next.gain} pts` : ''}
-    </button>
+const whyHtml = (why) => esc(why).replace(/\*\*(.+?)\*\*/, '<b>$1</b>');
+
+function nowCard(e) {
+  const n = e.now;
+  const od = n.state === 'overdue';
+  const VERB = { form: 'Complete', scale: 'Log', photo: 'Log', counter: 'Add' };
+  const CTA_ICON = { form: 'moon', scale: 'scale', photo: 'camera', counter: 'droplet' };
+  // check-type / assigned items (no proof) read "Mark ⟨title⟩ done"
+  const isCheck = !n.proof || n.proof === 'check';
+  const label = isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}${od ? ' late' : ''}`;
+  const ctaIcon = isCheck ? 'check' : CTA_ICON[n.proof];
+  return `<section class="xnow ${od ? 'red' : ''}">
+    <div class="xlab"><span class="xl">${od ? 'OVERDUE' : 'NOW'}</span><span class="xpill ${n.color}">${n.pill}</span></div>
+    <div class="xmain">
+      <div class="xico ${n.color}">${icon(n.icon, 21)}</div>
+      <div><div class="xt">${esc(n.title)}</div><div class="xwhy">${whyHtml(n.why)}</div></div>
+    </div>
+    <div class="xcount">
+      ${od ? `<span class="xcd">Late</span><span class="xdl">${esc(n.sub)}</span>`
+           : `<span class="xcd" data-cd>${esc(n.countdown)}</span><span class="xdl">${esc(n.dueLabel)}</span>`}
+    </div>
+    <button class="xcta" data-go="${n.route}">${icon(ctaIcon, 18)} ${label}</button>
+  </section>`;
+}
+
+const row = (i) => `<div class="xrow-item ${i.color === 'green' ? 'green' : i.color === 'red' ? 'red' : ''}" data-go="${i.route}">
+    <div class="xico sm ${i.color}">${icon(i.icon, 17)}</div>
+    <div class="xr"><div class="xa">${esc(i.title)}</div><div class="xb">${esc(i.sub)}</div></div>
+    <span class="xpill ${i.color}">${i.pill}</span>
+  </div>`;
+
+function strip(e) {
+  return `<section class="xstrip" data-go="score-breakdown">
+    ${scoreRing({ score: e.score, size: 52, stroke: 6, glow: false, showCenter: false, uid: 'strip' })}
+    <span class="xsc">${e.score}</span>
+    <div class="xmid">
+      <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${S.streakDays > 0 ? `<span style="font-size:11px;font-weight:700;color:var(--text-2)">🔥 ${S.streakDays} day streak</span>` : ''}</div>
+      <div class="xsegs">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>
+    </div>
+    <div class="xmeta">${e.met} of ${e.total} in<br>${e.score} → ${e.possible}</div>
+  </section>`;
+}
+
+function celebration(e) {
+  return `<div class="xcelebwrap">
+    <section class="hero" style="padding-bottom:8px">
+      ${scoreRing({ score: e.score, delta: (S.scoreYesterday != null && e.score > S.scoreYesterday) ? `+${e.score - S.scoreYesterday} pts` : null, streak: S.streakDays > 0 ? `${S.streakDays} day streak` : null, tierName: S.tier.name, tierCls: S.tier.cls })}
+    </section>
+    <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
+    <div style="font-size:12.5px;color:var(--text-2);line-height:1.55;max-width:34ch;margin-top:5px">Every requirement is in. Day <b>${S.streakDays + 1}</b> of your streak locks at midnight.</div>
+    <div style="height:14px"></div>
+    <div class="eyebrow" style="align-self:flex-start">Today's record</div>
+    <div class="xrecord" style="width:100%;box-sizing:border-box">
+      ${e.doneItems.map((d) => `<div class="xrec"><span class="xtk">${icon('check', 12)}</span>${esc(d.title)}<span class="xtm">${esc((d.sub || '').replace('Logged ', ''))}</span></div>`).join('')}
+    </div>
+    ${RT.hydrationOz < 120 ? `<div style="width:100%;margin-top:10px"><div class="xrow-item" data-go="log"><div class="xico sm gray">${icon('droplet', 16)}</div><div class="xr"><div class="xa">Add water</div><div class="xb">${RT.hydrationOz} of 120 oz — optional, still counts with coach</div></div><span class="xpill gray">Open</span></div></div>` : ''}
   </div>`;
 }
 
 export default {
   tab: 'home',
   render() {
-    const t = S.trustPass;
-    const remaining = S.remainingCount;
-    const foot = remaining === 0
-      ? `Day complete at <b>${S.score}</b>. That's the standard.`
-      : `<b>${remaining} requirement${remaining > 1 ? 's' : ''}</b> remaining to reach <b>${S.possible}</b>.`;
+    const e = S.exec;
 
-    // Day-0 (fresh athlete) empty-state variant
     if (RT.day0 && !RT.day0Breakfast) {
       return `
       ${appHead()}
-      <section class="hero" data-go="score-breakdown">
-        ${scoreRing({ score: S.score, tierName: 'Day one', tierCls: 'b' })}
-        <div class="hero-foot">Your score starts moving with your <b>first log</b>.</div>
+      ${strip(e)}
+      <section class="xnow">
+        <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>
+        <div class="xmain"><div class="xico gold">${icon('camera', 21)}</div>
+        <div><div class="xt">Log First Meal</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · 50% of score.</b></div></div></div>
+        <div style="height:10px"></div>
+        <button class="xcta" data-go="camera">${icon('camera', 18)} Log First Meal</button>
       </section>
-      <div class="next-cta"><button class="btn green" data-go="camera">${icon('camera', 20)} Log First Meal</button></div>
-
-      <div class="eyebrow">Today's Requirements</div>
-      <section class="reqcard"><div class="rc-title">Your Standard · set in onboarding</div>
-        ${S.requirements.map(reqRow).join('')}<div style="height:6px"></div>
-      </section>
-
+      <div class="xgrp">Later</div>
+      ${e.items.filter((i) => i.id !== 'breakfast').map(row).join('')}
       <div class="eyebrow">Recent Activity</div>
-      <div class="state-demo">
-        <div class="sd-ic">${icon('camera', 24)}</div>
-        <div class="sd-t">No logs yet</div>
-        <div class="sd-s">Your proof trail builds here as you log. Take a photo to begin today's standard.</div>
-      </div>
-      <div style="height:8px"></div>
-      `;
+      <div class="state-demo"><div class="sd-ic">${icon('camera', 24)}</div><div class="sd-t">No logs yet</div>
+      <div class="sd-s">Your proof trail builds here as you log. Take a photo to begin today's standard.</div></div>
+      <div style="height:8px"></div>`;
     }
 
+    if (e.celebration) {
+      const t = S.trustPass;
+      return `
+      ${appHead()}
+      ${celebration(e)}
+      ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${t.note}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
+      <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
+      <div class="hscroll">${S.activity.map(actCard).join('')}</div>
+      <div style="height:20px"></div>`;
+    }
+
+    const t = S.trustPass;
+    const nextRows = e.next ? [e.next] : [];
     return `
     ${appHead()}
-
-    <section class="hero" data-go="score-breakdown">
-      ${scoreRing({ score: S.score, delta: (S.scoreYesterday != null && S.score > S.scoreYesterday) ? `+${S.score - S.scoreYesterday} pts` : null, streak: (!RT.day0 && S.streakDays > 0) ? `${S.streakDays} day streak` : null, tierName: S.tier.name, tierCls: S.tier.cls })}
-      <div class="hero-foot">${foot}</div>
-    </section>
-
-    ${nextActionBlock()}
-
-    ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px">
-      <div class="ic">${icon('shield', 20)}</div>
-      <div style="flex:1">
-        <div class="tt">Trust Pass · day ${t.day} of ${t.length}</div>
-        <div class="ts">${t.note}</div>
-      </div>
-      ${icon('chevron', 18, 'style="color:var(--text-3)"')}
-    </div>` : ''}
-
-    <div style="height:10px"></div>
-    <section class="reqcard">
-      <div class="rc-title">Today's Requirements</div>
-      ${S.requirements.map(reqRow).join('')}
-      <div style="height:6px"></div>
-    </section>
-
+    ${strip(e)}
+    ${e.overdue.filter((o) => !e.now || o.id !== e.now.id).map(row).join('')}
+    ${e.now ? nowCard(e) : ''}
+    ${nextRows.length ? `<div class="xgrp">Next</div>${nextRows.map(row).join('')}` : ''}
+    ${e.later.length ? `<div class="xgrp">Later · ${e.later.length}</div>${e.later.map(row).join('')}` : ''}
+    ${e.doneItems.length ? `<div class="xgrp">Done · ${e.doneItems.length}</div>${e.doneItems.map(row).join('')}` : ''}
+    ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${t.note}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
     ${RT.injured ? `
     <div style="height:12px"></div>
     <div class="trust" data-go="injury" style="cursor:pointer;background:linear-gradient(100deg, rgba(245,165,36,0.14), rgba(59,130,246,0.05));border-color:var(--amber-border)">
       <div class="ic" style="background:rgba(245,165,36,0.2);color:var(--amber-bright)">${icon('bolt', 20)}</div>
-      <div style="flex:1">
-        <div class="tt">Injury mode · hamstring, week 2 of 4</div>
-        <div class="ts">Your Standard adapted. Rehab is on the list; coach and AT see the same bar.</div>
-      </div>
+      <div style="flex:1"><div class="tt">Injury mode · hamstring, week 2 of 4</div>
+      <div class="ts">Your Standard adapted. Rehab is on the list; coach and AT see the same bar.</div></div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : ''}
-
     <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
     <div class="hscroll">${S.activity.map(actCard).join('')}</div>
-
-    <div style="height:20px"></div>
-    <section class="card finish">
-      <div class="finish-head" style="justify-content:space-between">
-        <span style="display:flex;align-items:center;gap:9px">${icon('target', 17)}<span class="t">Finish Today</span></span>
-        <span style="font-size:12px;font-weight:800;color:var(--text-2)">${S.metCount} of ${S.reqTotal} in</span>
-      </div>
-      <div class="finish-segs">
-        ${Array.from({ length: S.reqTotal }, (_, i) => `<div class="fseg ${i < S.metCount ? 'on' : ''}"></div>`).join('')}
-      </div>
-      <div class="finish-score-line">
-        <span class="fs-now">${S.finish.current}</span>
-        <div class="fs-bridge">
-          <div class="fs-track"><div class="fs-fill" style="width:${Math.round((S.finish.current / S.finish.possible) * 100)}%"></div></div>
-          <span class="fs-note">${S.remainingCount === 0 ? 'everything is in' : `+${S.finish.possible - S.finish.current} still on the table`}</span>
-        </div>
-        <span class="fs-goal">${S.finish.possible}</span>
-      </div>
-      ${S.nextMove ? `
-      <div class="finish-moves">
-        <div class="fmove" data-go="${S.nextMove.route}">
-          <div class="req-icon ${S.nextMove.accent}" style="width:36px;height:36px">${icon(S.nextMove.accent === 'p' ? 'moon' : 'bowl', 17)}</div>
-          <div style="flex:1"><div class="fm-t">${S.finish.nextMove}</div><div class="fm-s">next biggest move</div></div>
-          ${S.finish.nextGain ? `<span class="fm-v">+${S.finish.nextGain}</span>` : ''}
-        </div>
-        ${RT.recoveryDone ? '' : `
-        <div class="fmove" data-go="recovery">
-          <div class="req-icon a" style="width:36px;height:36px">${icon('clock', 17)}</div>
-          <div style="flex:1"><div class="fm-t">${S.finish.risk}</div><div class="fm-s">highest risk · keeps the streak</div></div>
-          <span class="fm-v" style="color:var(--purple-bright)">tonight</span>
-        </div>`}
-      </div>` : `
-      <div class="day-done" style="margin-top:14px">
-        <div class="req-icon g" style="width:40px;height:40px">${icon('check', 19)}</div>
-        <div><div class="tt">Done at ${S.score}. That's the standard.</div></div>
-      </div>`}
-    </section>
-    `;
+    <div style="height:20px"></div>`;
   },
-  mount(root) { animateRing(root); },
+  mount(root) {
+    animateRing(root);
+    act.syncNotifications();
+    // Live loop: re-render when the derived state changes (minute ticks, state
+    // transitions, day rollover). Cheap: derive → compare → maybe render. The router
+    // clears window.__execTick on every route change.
+    const key = () => {
+      const e = S.exec;
+      return JSON.stringify([e.now && e.now.id, e.now && e.now.countdown, e.met, e.celebration, e.overdue.map((o) => o.id), e.items.map((i) => i.id + ':' + i.state)]);
+    };
+    let last = key();
+    let rolling = false;
+    window.__execTick = setInterval(() => {
+      const t = new Date();
+      const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+      if (iso !== String(DAY.date)) {
+        // Day rolled over while the app was open: reload the real day, then repaint.
+        if (rolling) return; // hydrate already in flight — the re-render resets this closure
+        rolling = true;
+        act.hydrateDay().then(() => window.__render()).catch(() => { rolling = false; });
+        return;
+      }
+      const k = key();
+      if (k !== last) { last = k; window.__render(); }
+    }, 30000);
+  },
 };
