@@ -2,6 +2,7 @@ import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import * as roles from '../roles.js';
+import { openingMessage, reactionGroups, threadMessages } from '../meal-intel.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -415,17 +416,34 @@ export const coachMeal = {
       ${meal.quality != null ? `<div class="scorechip"><span class="v">${meal.quality}</span><span class="k">Meal</span></div>` : ''}</div>
     </div>` : ''}
 
-    ${foods.length ? `<div class="eyebrow">Detected</div><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(f)}</span>`).join('')}</div>` : ''}
+    ${foods.length ? `<div class="eyebrow">Detected</div><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(typeof f === 'string' ? f : f.name)}</span>`).join('')}</div>` : ''}
 
     <div class="eyebrow">Conversation</div>
-    ${MC.comments.length ? `<div class="thread">
-      ${MC.comments.map(c => `
-        <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
-          ${c.role !== 'athlete' ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : 'M'}</div>` : ''}
-          <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'OnStandard AI' : 'Coach'}</div>` : ''}
-          <div class="bubble">${esc(c.text)}</div></div>
-        </div>`).join('')}
-    </div>` : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet. Say something — the athlete sees it on the log.</div>`}
+    ${(() => {
+      const rx = reactionGroups(MC.comments);
+      const msgs = threadMessages(MC.comments);
+      const opening = meal ? openingMessage({ name: title, quality: meal.quality, note: meal.note, goal: null, coachTargets: null, late: false }) : '';
+      return `
+      ${rx.length ? `<div class="rx-strip">${rx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>` : ''}
+      <div class="thread">
+        ${opening ? `
+        <div class="msg">
+          <div class="av">${icon('sparkle', 15)}</div>
+          <div><div class="who">OnStandard AI · what the athlete was told</div>
+          <div class="bubble">${esc(opening)}</div></div>
+        </div>` : ''}
+        ${msgs.map((c) => `
+          <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
+            ${c.role !== 'athlete' ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : 'M'}</div>` : ''}
+            <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'OnStandard AI' : 'Coach'}</div>` : ''}
+            <div class="bubble">${esc(c.text)}</div></div>
+          </div>`).join('')}
+        ${!msgs.length ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet. React or say something — the athlete sees it on the log.</div>` : ''}
+      </div>`;
+    })()}
+    <div class="rx-strip" id="rx-bar" style="margin-top:4px">
+      ${['🔥', '💪', '👏', '👍'].map((e2) => `<span class="rx" data-rx="${e2}" style="cursor:pointer;font-size:16px;padding:6px 14px">${e2}</span>`).join('')}
+    </div>
     <div class="composer">
       <input id="cm-input" placeholder="Comment on this meal…" />
       <div class="send" id="cm-send">${icon('arrowUp', 19)}</div>
@@ -450,6 +468,14 @@ export const coachMeal = {
     };
     if (send) send.addEventListener('click', submit);
     if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    root.querySelectorAll('#rx-bar [data-rx]').forEach((btn) => btn.addEventListener('click', async () => {
+      const meal = mealById(sub);
+      const athleteId = meal ? meal.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
+      if (!athleteId) return;
+      const ok = await roles.postMealComment(sub, athleteId, RT.userId, 'coach', btn.getAttribute('data-rx'), 'reaction');
+      if (ok) roles.nudgePush(athleteId, `Coach reacted to your ${meal ? cap(meal.type) : 'meal'}`, btn.getAttribute('data-rx'));
+      await loadMealComments(sub, true);
+    }));
   },
 };
 

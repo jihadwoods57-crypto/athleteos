@@ -64,9 +64,18 @@ export async function fetchMealComments(mealId) {
   const c = sb(); if (!c || !mealId) return [];
   try { const { data } = await c.from('meal_comments').select('*').eq('meal_id', mealId).order('created_at', { ascending: true }).limit(200); return data || []; } catch { return []; }
 }
-export async function postMealComment(mealId, athleteId, authorId, role, text) {
+export async function postMealComment(mealId, athleteId, authorId, role, text, kind = 'message') {
   const c = sb(); if (!c || !mealId || !authorId) return false;
-  try { const { error } = await c.from('meal_comments').insert({ meal_id: mealId, athlete_id: athleteId, author_id: authorId, role, text }); return !error; } catch { return false; }
+  try {
+    const row = { meal_id: mealId, athlete_id: athleteId, author_id: authorId, role, text };
+    if (kind !== 'message') row.kind = kind;
+    const { error } = await c.from('meal_comments').insert(row);
+    if (!error) return true;
+    // pre-0049 DB: retry without kind so plain messages still post
+    if (kind === 'message') return false;
+    const { error: e2 } = await c.from('meal_comments').insert({ meal_id: mealId, athlete_id: athleteId, author_id: authorId, role, text });
+    return !e2;
+  } catch { return false; }
 }
 
 /* ---------------- coach: targets / trust pass (RPCs) ---------------- */
