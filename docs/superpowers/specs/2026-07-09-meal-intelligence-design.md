@@ -1,7 +1,7 @@
 # AI Meal Logging — Conversation + Meal Intelligence — Design
 
 **Date:** 2026-07-09
-**Status:** Approved in brainstorm (all sections), pending founder spec review
+**Status:** Implemented 2026-07-09 (plan docs/superpowers/plans/2026-07-09-meal-intelligence.md); meal-chat function + 0049 await go-live deploy/apply; voice notes, participants, long-term memory deferred.
 **Surface:** `proto/redesign-2026-07/` (live WebView app) + one new edge function + authored-only migration touch-ups
 **Sub-project 3 of the 2026-07-09 product feedback dump.** Predecessors merged: onboarding overhaul (`91eb861`), execution loop (`542fdca` — the exec engine powers the Execution Summary). Remaining: Plan page.
 
@@ -63,7 +63,7 @@ New Deno function, modeled on the established guard stack:
 
 - **Contract:** POST `{ mealId, context: { meal, plan, exec, recentMeals, thread }, question }` → `{ reply: string }` (or `{ error: 'limit'|'unauthorized'|'bad_request'|'unavailable' }`). Forced single tool `reply` returning prose only, ≤ ~150 words, coach voice, no em dashes; the prompt forbids inventing or altering numbers — it may only reference figures present in the provided context. On success the function writes the reply into `meal_comments` (service role, `role='ai'`) so the coach sees it.
 - **Authority boundary (binding):** the AI never computes nutrition/score numbers, and all coaching context arrives from the client (already user-visible data). The function's only reads are authorization: it verifies with the caller's JWT (RLS-scoped select on `meals`) that `mealId` belongs to the caller before generating or persisting anything.
-- **Guards:** per-athlete daily chat cap via `claim_ai_usage` (separate key from analysis, **default 10/day**, env-tunable without a deploy; the free opening message never counts against it), global cap via `claim_ai_usage_key`, per-IP/min rate limit, CORS allowlist, prompt caching, 8KB context cap (client truncates first), model `claude-sonnet-5` (env-overridable). Fail behavior: structured error the client renders as the quiet retry line — logging and the thread never break.
+- **Guards:** per-athlete daily chat cap via `claim_ai_usage_key` with key `meal_chat:<athlete_id>` (**default 10/day**, env-tunable without a deploy; the free opening message never counts against it) — the deployed `claim_ai_usage(p_user, p_limit)` RPC has no feature key, so the keyed counter is what gives meal-chat a budget independent of `analyze-meal`'s own daily cap (decided during Task 3); global bill backstop via the same `claim_ai_usage_key` RPC under key `meal_chat_global`; plus per-IP/min rate limit, CORS allowlist, prompt caching, 8KB context cap (client truncates first), model `claude-sonnet-5` (env-overridable). Fail behavior: structured error the client renders as the quiet retry line — logging and the thread never break.
 
 ## 7. Adaptivity & tone
 
