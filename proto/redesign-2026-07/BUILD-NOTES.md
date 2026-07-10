@@ -95,3 +95,47 @@ Apple** (`OnStandardNative.apple`) and **biometric app-unlock** (`OnStandardNati
 Verified 2026-07-09: full flow QA in-browser (back/forward retention, under-13 block,
 skip paths, code vs solo step 6, hold-to-commit gating, password gate, terms detour);
 directory-offline fallbacks and "Code pending" states confirmed — never a dead end.
+
+## 2026-07-09 — Execution loop (spec: docs/superpowers/specs/2026-07-09-execution-loop-design.md)
+Daily execution rebuilt around one pure state machine so Home, the Action Hub, the FAB
+badge, and native notifications can never disagree:
+- `js/exec.js` — new pure execution engine (`deriveExec`), no DOM/state/Date calls (the
+  clock is an argument). Per-item 4-state machine (locked → ready → due_soon → overdue →
+  done/done_late), NOW/NEXT/LATER/DONE grouping (overdue-first, optional items never NOW
+  while a required item is open), day progress + celebration flag, and a pressure-scaled
+  notification plan (`gentle` / `accountable` / `max`).
+- **Home** (`js/screens/home.js`) redesigned execution-first: compact score strip, red
+  overdue pins ("still counts, log it late"), a dominant NOW card with live countdown and
+  a proof-aware CTA verb (photo→Log, form→Complete, scale→Log, counter→Add), collapsed
+  Next/Later/Done groups, and a celebration flip (full ring hero + "Today's record") when
+  every required item is in. A 30s tick re-derives `S.exec` and repaints only on change,
+  covering live countdowns, state transitions, and day rollover.
+- **Action Hub** (`js/screens/log.js`) rebuilt as an execution dashboard reading the same
+  `S.exec`: progress header, NOW hero (red when overdue), Quick Logs (water +8/+16,
+  weight trend-only), Recovery Check-In, Weekly Check-In (Sunday-only), a folded Done
+  line, and its own celebration panel.
+- **FAB dot** (`js/router.js` tabbar): status dot on the camera FAB — gold when anything
+  is actionable, red when anything is overdue, absent once the day is complete. Reads the
+  same `S.exec` at render time; the camera glyph itself never changes.
+- **State-driven notifications**: `NOTIFY_SYNC` bridge message (`src/proto/bridge.ts`) +
+  native scheduling seam (`src/lib/notify/execSync.ts`) — cancel-then-schedule against the
+  engine's plan, fired on boot, every completion action, pressure changes, and day
+  rollover; skipped when the plan is unchanged (`samePlan`) so completions auto-cancel
+  their own reminders with zero redundant churn. The legacy static path (`initReminders()`
+  in `src/store/useStore.ts` / `src/screens/athlete/AthleteApp.tsx`) no longer schedules
+  for athlete sessions, so the two systems can never double-fire.
+- `S.notifications` (`js/state.js`) now reads the same `S.exec` (overdue/now/next +
+  celebration), so the in-app bell always agrees with Home/Hub/OS notifications.
+
+Verified 2026-07-09: browser QA via Playwright MCP against `proto/redesign-2026-07`
+served locally — overdue pins + red NOW card + red FAB dot (real evening clock made every
+meal overdue, exercising that path for free), logging via `__act.logMeal` promotes
+NEXT → NOW on re-render, Action Hub progress header / NOW hero / water +8+16 / weekly
+Sunday-only gating (verified both ways by stubbing `Date.prototype.getDay`), celebration
+flip on both Home and the Hub once all required items are in (meals + recovery; weight
+correctly excluded on a non-M/W/F day), CTA verb mapping confirmed for `photo` ("Log
+Breakfast late") and `form` ("Complete Recovery Check-In"), in-app bell matches
+`S.exec`-driven state. **Fixed one real defect found in QA**: `scoreRing()`'s inner echo
+ring radius (`r - stroke/2 - 8`) went negative for the new compact 52px strip ring,
+emitting an invalid SVG `r="-2"` and a console error on every Home render; clamped to
+`Math.max(0, …)` in `js/components.js`.
