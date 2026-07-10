@@ -32,6 +32,7 @@ export function safeImg(v) {
    ring → comet tip + lens sparkle → center stack (label / N / /100 / delta / streak). */
 export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b' } = {}) {
   const r = (size - stroke) / 2 - 14;
+  const rEcho = Math.max(0, r - stroke/2 - 8);
   const cx = size / 2, cy = size / 2;
   const C = 2 * Math.PI * r;
   const off = C * (1 - score / 100);
@@ -75,12 +76,13 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
         stroke-width="${stroke}" stroke-linecap="round"
         stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${C.toFixed(1)}" data-off="${off.toFixed(1)}"
         transform="rotate(-90 ${cx} ${cy})"/>
-      <!-- inner echo ring -->
-      <circle class="ring-arc ring-echo" cx="${cx}" cy="${cy}" r="${r - stroke/2 - 8}" fill="none" stroke="url(#g${uid})"
+      <!-- inner echo ring (clamped ≥0: compact rings, e.g. the 52px score strip, would
+           otherwise compute a negative radius and emit an invalid SVG r attribute) -->
+      <circle class="ring-arc ring-echo" cx="${cx}" cy="${cy}" r="${rEcho}" fill="none" stroke="url(#g${uid})"
         stroke-width="1.5" opacity="0.35"
-        stroke-dasharray="${(2*Math.PI*(r - stroke/2 - 8)).toFixed(1)}"
-        stroke-dashoffset="${(2*Math.PI*(r - stroke/2 - 8)).toFixed(1)}"
-        data-off="${((2*Math.PI*(r - stroke/2 - 8)) * (1 - score/100)).toFixed(1)}"
+        stroke-dasharray="${(2*Math.PI*rEcho).toFixed(1)}"
+        stroke-dashoffset="${(2*Math.PI*rEcho).toFixed(1)}"
+        data-off="${((2*Math.PI*rEcho) * (1 - score/100)).toFixed(1)}"
         transform="rotate(-90 ${cx} ${cy})"/>
       ${sparkle}
     </svg>
