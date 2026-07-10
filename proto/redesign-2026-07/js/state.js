@@ -71,6 +71,7 @@ const DEFAULT_RT = {
   dinnerLogged: false,
   recoveryDone: false,
   weightLogged: false,   // late log (window was 9 AM) — trend only, never scored
+  weightLoggedAt: null,  // minutes-from-midnight of the real weight log — drives honest "late"
   hydrationOz: 0,        // real: 0 until the athlete logs water (syncRtFromDay reflects DAY.hydrationL)
   notifsRead: false,
   day0: false,           // fresh-athlete empty-state mode (set by finishing onboarding)
@@ -191,6 +192,7 @@ export function syncRtFromDay() {
   RT.recoveryDone = !!DAY.ciSubmitted;
   RT.day0Breakfast = !!DAY.meals.breakfast;
   RT.weightLogged = DAY.currentWeight != null;
+  if (!RT.weightLogged) RT.weightLoggedAt = null;
   RT.hydrationOz = Math.round(DAY.hydrationL / 0.0295735);
   // "day 0" (fresh empty state) until the athlete logs anything real today
   RT.day0 = !DAY.meals.breakfast && !DAY.meals.lunch && !DAY.meals.snack && !DAY.meals.dinner && !DAY.ciSubmitted && !DAY.dailyCommitment;
@@ -239,7 +241,7 @@ export const act = {
     save();
     this.syncNotifications();
   },
-  logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; dayLogWeight(RT.userId, v); save(); this.syncNotifications(); },
+  logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); this.syncNotifications(); },
   addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); this.syncNotifications(); },
   readNotifs() { RT.notifsRead = true; save(); },
   /* Post the engine's notification plan to native (schedule/cancel). Idempotent: skipped
@@ -249,16 +251,16 @@ export const act = {
     try {
       const plan = S.exec.plan;
       if (samePlan(plan, RT._lastPlan)) return;
-      RT._lastPlan = plan; save();
       const N = window.OnStandardNative;
-      if (!N || !N.notify) return;
+      if (!N || !N.notify) return; // bridge not injected yet — retry on the next trigger
       const [y, mo, d] = String(DAY.date).split('-').map(Number);
       N.notify.sync(plan.map((p) => ({
         id: p.id,
         atISO: p.immediate ? null : new Date(y, mo - 1, d, Math.floor(p.fireAtMin / 60), p.fireAtMin % 60).toISOString(),
         title: p.title, body: p.body,
       })));
-    } catch { /* notifications are best-effort */ }
+      RT._lastPlan = plan; save(); // recorded only once the post was handed to native
+    } catch { /* delivery failed — leave _lastPlan unset so the next trigger retries */ }
   },
   setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); },
 
@@ -818,7 +820,8 @@ export const S = {
       dow: new Date().getDay(),
       status: {
         breakfast: mstat('breakfast'), lunch: mstat('lunch'), dinner: mstat('dinner'),
-        weight: { done: RT.weightLogged, late: RT.weightLogged },
+        // weight due is 9:00 AM (540, from the catalog); late only when we actually know the log time
+        weight: { done: RT.weightLogged, late: RT.weightLogged && RT.weightLoggedAt != null && RT.weightLoggedAt > 540 },
         hydration: { oz: RT.hydrationOz },
         recovery: { done: DAY.ciSubmitted },
       },
