@@ -1,6 +1,8 @@
 // Proto is plain ESM JS (allowJs) — same import pattern as obHelpers/exec tests.
 // @ts-ignore
 import { normalizeDetected, groundExtras, openingMessage, reactionGroups, threadMessages, contextForChat } from '../../proto/redesign-2026-07/js/meal-intel.js';
+// @ts-ignore
+import { DAY, dayLogMeal } from '../../proto/redesign-2026-07/js/day.js';
 
 describe('normalizeDetected', () => {
   test('legacy strings become high-confidence entries', () =>
@@ -37,6 +39,39 @@ describe('groundExtras', () => {
   });
   test('missing fields yield safe defaults', () =>
     expect(groundExtras({})).toEqual({ fiber: 0, highlights: [], detectedRich: [], detectedNames: [] }));
+});
+
+describe('dayLogMeal meta persistence (slotMacros jsonb round-trip)', () => {
+  const D: any = DAY; // proto JS state — untyped through allowJs
+  // day.js guards its Supabase/localStorage I/O on window.sb / try-catch; give node a bare
+  // window so pushDay's debounced push no-ops cleanly instead of throwing off-thread.
+  beforeAll(() => { (globalThis as any).window = (globalThis as any).window ?? {}; });
+  beforeEach(() => { jest.useFakeTimers(); });
+  afterEach(() => { jest.runOnlyPendingTimers(); jest.useRealTimers(); });
+
+  test('fiber/highlights/detectedRich land in DAY.slotMacros next to quality/foods/note', () => {
+    D.meals.lunch = false; delete D.slotMacros.lunch;
+    dayLogMeal(null, 'lunch', { protein: 40, kcal: 700, carbs: 60, fat: 20 }, {
+      quality: 80, foods: ['Chicken', 'Rice'], note: 'Solid plate.', name: 'Lunch',
+      fiber: 9, highlights: ['Strong iron source'], detectedRich: [{ name: 'Chicken', confidence: 'high' }, { name: 'Rice', confidence: 'medium' }],
+    });
+    expect(D.slotMacros.lunch).toMatchObject({
+      protein: 40, quality: 80, foods: ['Chicken', 'Rice'], note: 'Solid plate.',
+      fiber: 9, highlights: ['Strong iron source'],
+      detectedRich: [{ name: 'Chicken', confidence: 'high' }, { name: 'Rice', confidence: 'medium' }],
+    });
+  });
+
+  test('fiber 0 persists (not dropped as falsy); absent extras leave no keys behind', () => {
+    D.meals.snack = false; delete D.slotMacros.snack;
+    dayLogMeal(null, 'snack', { protein: 20, kcal: 240, carbs: 22, fat: 6 }, { quality: 88, foods: ['Yogurt'], note: '', fiber: 0, highlights: [], detectedRich: [] });
+    expect(D.slotMacros.snack.fiber).toBe(0);
+    expect(D.slotMacros.snack.highlights).toEqual([]);
+    D.meals.dinner = false; delete D.slotMacros.dinner;
+    dayLogMeal(null, 'dinner', { protein: 30, kcal: 500, carbs: 40, fat: 15 }, { quality: 70, foods: ['Steak'], note: 'n' });
+    expect(D.slotMacros.dinner).not.toHaveProperty('fiber');
+    expect(D.slotMacros.dinner).not.toHaveProperty('detectedRich');
+  });
 });
 
 describe('openingMessage', () => {
