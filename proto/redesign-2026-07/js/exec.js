@@ -100,15 +100,16 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
   }));
 
   const all = [...items, ...assignedItems];
+  const byDue = (arr) => arr.slice().sort((a, b) => (a.window ? a.window.due : 1e9) - (b.window ? b.window.due : 1e9));
   const doneItems = all.filter((i) => i.state === 'done' || i.state === 'done_late');
-  const overdue = all.filter((i) => i.required && i.state === 'overdue')
-    .sort((a, b) => (a.window ? a.window.due : 1e9) - (b.window ? b.window.due : 1e9));
+  const overdue = byDue(all.filter((i) => i.required && i.state === 'overdue'));
   const met = all.filter((i) => i.required && (i.state === 'done' || i.state === 'done_late')).length;
   const total = all.filter((i) => i.required).length;
   const celebration = met === total && total > 0;
 
   // NOW: overdue (earliest due) → due_soon (nearest due) → ready required (earliest due) → assigned.
-  const byDue = (arr) => arr.slice().sort((a, b) => (a.window ? a.window.due : 1e9) - (b.window ? b.window.due : 1e9));
+  // LOCKED items never enter the ladder — the NOW card must always be actionable. When everything
+  // actionable is exhausted but locked required items remain, now/next are null and it is NOT celebration.
   const openRequired = all.filter((i) => i.required && !['done', 'done_late'].includes(i.state));
   let ordered = [];
   if (!celebration) {
@@ -117,13 +118,13 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
       ...byDue(openRequired.filter((i) => i.state === 'due_soon')),
       ...byDue(openRequired.filter((i) => i.state === 'ready' && !i.assigned)),
       ...openRequired.filter((i) => i.assigned && i.state !== 'overdue'),
-      ...byDue(openRequired.filter((i) => i.state === 'locked')),
     ];
   }
   const now = ordered[0] || null;
   const next = ordered[1] || null;
   const later = [
     ...ordered.slice(2),
+    ...byDue(all.filter((i) => i.required && i.state === 'locked')),
     ...all.filter((i) => !i.required && !['done', 'done_late'].includes(i.state)),
   ];
 

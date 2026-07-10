@@ -53,6 +53,14 @@ describe('NOW selection priority', () => {
     expect(e.now.id).toBe('dinner');
     expect([e.next.id, ...e.later.map((l: any) => l.id)]).toContain('rehab');
   });
+  test('locked items never become NOW — pre-window morning has no NOW', () => {
+    // Tuesday 1:40 AM: recovery already done, all meals still locked (weight not a Tuesday item)
+    const e = deriveExec({ nowMin: 100, dow: 2, status: { ...FRESH, recovery: { done: true } } });
+    expect(e.now).toBeNull();
+    expect(e.next).toBeNull();
+    expect(e.celebration).toBe(false);
+    expect(e.later.map((l: any) => l.id)).toEqual(expect.arrayContaining(['breakfast', 'lunch', 'dinner']));
+  });
 });
 
 describe('groups + progress + celebration', () => {
