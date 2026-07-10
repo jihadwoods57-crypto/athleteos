@@ -15,6 +15,7 @@ import {
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow,
 } from './day.js';
+import { deriveExec, mapPressure, samePlan } from './exec.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
 function fmtClock(min) {
@@ -223,6 +224,7 @@ export const act = {
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: cap(slot) };
     save();
+    this.syncNotifications();
   },
   // Back-compat aliases (camera/search buttons and older routes) → the single logMeal impl.
   logDinner() { this.logMeal('dinner'); },
@@ -235,10 +237,29 @@ export const act = {
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: 'Recovery Check-In' };
     save();
+    this.syncNotifications();
   },
-  logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; dayLogWeight(RT.userId, v); save(); },
-  addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); },
+  logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; dayLogWeight(RT.userId, v); save(); this.syncNotifications(); },
+  addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); this.syncNotifications(); },
   readNotifs() { RT.notifsRead = true; save(); },
+  /* Post the engine's notification plan to native (schedule/cancel). Idempotent: skipped
+     when the plan is unchanged since the last post, so completions auto-cancel their
+     reminders and untouched state causes zero churn. Best-effort — UI never blocks. */
+  syncNotifications() {
+    try {
+      const plan = S.exec.plan;
+      if (samePlan(plan, RT._lastPlan)) return;
+      RT._lastPlan = plan; save();
+      const N = window.OnStandardNative;
+      if (!N || !N.notify) return;
+      const [y, mo, d] = String(DAY.date).split('-').map(Number);
+      N.notify.sync(plan.map((p) => ({
+        id: p.id,
+        atISO: p.immediate ? null : new Date(y, mo - 1, d, Math.floor(p.fireAtMin / 60), p.fireAtMin % 60).toISOString(),
+        title: p.title, body: p.body,
+      })));
+    } catch { /* notifications are best-effort */ }
+  },
   setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); },
 
   /* ---- Phase 5: real meal capture → AI → real macros ---- */
@@ -280,12 +301,12 @@ export const act = {
     };
   },
 
-  startDay0() { RT.lastMove = null; dayResetLocal(); syncRtFromDay(); pushDay(RT.userId, true); save(); },
+  startDay0() { RT.lastMove = null; dayResetLocal(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
   // Coach→athlete assignments have no backend table (P4 scope) — the assign flow is an honest
   // coming-soon. Only the injury-mode rehab item still populates RT.assigned locally.
   completeAssigned(id) {
     const a = RT.assigned.find(x => x.id === id);
-    if (a && !a.done) { a.done = true; a.seen = true; save(); }
+    if (a && !a.done) { a.done = true; a.seen = true; save(); this.syncNotifications(); }
   },
   seeAssigned() { RT.assigned.forEach(a => { a.seen = true; }); save(); },
   primeCamera() { RT.camPrimed = true; save(); },
@@ -554,7 +575,7 @@ export const act = {
   // Called by the router boot gate to sync RT from a restored Keychain session.
   _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },
   // Load today's real day from Supabase and reflect it into the UI flags.
-  async hydrateDay() { if (RT.userId) await this._loadProfileIntoRt(RT.userId); await loadDay(RT.userId); syncRtFromDay(); },
+  async hydrateDay() { if (RT.userId) await this._loadProfileIntoRt(RT.userId); await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications(); },
 };
 window.__act = act;
 
@@ -786,6 +807,27 @@ export const S = {
     return { active: true, day, length: len, note: 'Camera-free today, credited from your real logging history.' };
   },
 
+  /* ---------- EXECUTION ENGINE (one derivation for Home / Hub / FAB / notifications) ---------- */
+  get exec() {
+    const mstat = (k) => {
+      const at = DAY.mealLoggedAt[k];
+      return { done: !!DAY.meals[k], late: at != null && at > DEADLINE[k], at: at != null ? fmtClock(at) : null };
+    };
+    return deriveExec({
+      nowMin: minutesNow(),
+      dow: new Date().getDay(),
+      status: {
+        breakfast: mstat('breakfast'), lunch: mstat('lunch'), dinner: mstat('dinner'),
+        weight: { done: RT.weightLogged, late: RT.weightLogged },
+        hydration: { oz: RT.hydrationOz },
+        recovery: { done: DAY.ciSubmitted },
+      },
+      assigned: RT.assigned,
+      pressure: mapPressure(RT.ob && RT.ob.standard && RT.ob.standard.pressure),
+      score: this.score, possible: this.possible, streak: this.streakDays,
+    });
+  },
+
   get unreadNotifs() { return RT.notifsRead ? 0 : this.notifications.new.length; },
 
   // ---------- PLAN ----------
@@ -973,18 +1015,26 @@ export const S = {
 
   // ---------- NOTIFICATIONS (live) ----------
   get notifications() {
+    const e = this.exec;
     const fresh = [];
-    RT.assigned.filter(a => !a.done).forEach(a => fresh.push({
-      level: 'medium', title: `${a.from || 'Coach'} added: ${a.title}`, body: `${a.note} Due: ${a.dueLabel.toLowerCase()}.`, when: 'now', icon: 'clipboard', route: `requirement/${a.id}`,
+    for (const o of e.overdue) fresh.push({
+      level: 'high', title: `${o.title} is overdue`, body: `${o.sub}.`, when: 'now', icon: o.icon, route: o.route,
+    });
+    if (e.now && e.now.state !== 'overdue') fresh.push({
+      level: 'medium', title: `Next up: ${e.now.title}`,
+      body: e.now.countdown ? `${e.now.countdown} left · ${e.now.dueLabel}.` : `${e.now.dueLabel}.`,
+      when: 'now', icon: e.now.icon, route: e.now.route,
+    });
+    RT.assigned.filter((a) => !a.done).forEach((a) => fresh.push({
+      level: 'medium', title: `${a.from || 'Coach'} added: ${a.title}`,
+      body: `${a.note} Due: ${(a.dueLabel || '').toLowerCase()}.`, when: 'now', icon: 'clipboard', route: `requirement/${a.id}`,
     }));
     if (RT.injured) fresh.push({ level: 'medium', title: 'Your Standard adapted', body: 'Hamstring rehab is on your list; nutrition tilts anti-inflammatory. Coach and your AT both see progress.', when: 'now', icon: 'bolt', route: 'injury' });
-    if (RT.hydrationOz >= 120) fresh.push({ level: 'positive', title: 'Hydration standard hit', body: `120 oz in. This week's focus, handled. Coach sees it.`, when: 'now', icon: 'droplet', route: 'log' });
-    if (!DAY.ciSubmitted) fresh.push({ level: 'high', title: 'Recovery check-in before bed', body: 'Submit it tonight before bed to lock in your recovery score.', when: 'now', icon: 'moon', route: 'recovery' });
-    // Meal nudge / confirmation — from REAL logged state, never a canned "liked your lunch".
-    const openMeals = ['breakfast', 'lunch', 'dinner'].filter(k => !DAY.meals[k]).length;
-    if (openMeals === 0) fresh.push({ level: 'positive', title: 'All meals logged', body: `Every meal in today. You’re at ${computeScore(componentsNow())}.`, when: 'now', icon: 'check', route: 'progress' });
-    else fresh.push({ level: 'medium', title: 'Meals still open', body: `${openMeals} meal${openMeals > 1 ? 's' : ''} left today. Log each with a photo to build Nutrition.`, when: 'now', icon: 'bowl', route: 'camera' });
-    // "Earlier" only carries REAL past events. Nothing fabricated lives here until history is wired.
+    if (RT.hydrationOz >= 120) fresh.push({ level: 'positive', title: 'Hydration standard hit', body: `${RT.hydrationOz} oz in. This week's focus, handled. Coach sees it.`, when: 'now', icon: 'droplet', route: 'log' });
+    if (e.celebration) fresh.push({
+      level: 'positive', title: "You're OnStandard", body: `Every requirement is in at ${e.score}. Day ${this.streakDays + 1} locks at midnight.`,
+      when: 'now', icon: 'check', route: 'home',
+    });
     return { new: fresh, earlier: [] };
   },
 };
