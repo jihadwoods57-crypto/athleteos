@@ -1,7 +1,7 @@
 /* Shared account-creation step for every onboarding flow (athlete/coach/trainer/client).
    Email + password + confirm + strength meter + implicit ToS line. Passwords are never
    persisted; the email is captured to RT.ob so a Terms detour doesn't lose it. */
-import { RT, act } from '../state.js';
+import { RT, act, routeForRole } from '../state.js';
 import { passwordStrength } from '../ob-helpers.js';
 
 export function accountBody(opts = {}) {
@@ -67,23 +67,35 @@ export function wireAccount(root, { role, onSession }) {
     try { ok = await native.available(); } catch { /* treat as unavailable */ }
     if (!ok) return;
     const wrap = $('#ap-wrap');
+    if (!wrap) return;
     wrap.innerHTML = `<button class="btn ghost" id="su-apple" style="margin-bottom:14px"> Continue with Apple</button>`;
     wrap.querySelector('#su-apple').addEventListener('click', async () => {
       err.textContent = '';
+      let proceed = false;
       try {
         const token = await native.signIn();
         if (!token) return; // user cancelled
         const { data, error } = await window.sb.auth.signInWithIdToken({ provider: 'apple', token });
         if (error || !data || !data.user) { err.textContent = 'Apple sign-in failed. Use email instead.'; return; }
         act._syncSession(data.user);
+        // This Apple identity may already belong to an existing account (any role) — never let
+        // onboarding silently demote/rename it. Only a fresh (no primary_role) account proceeds
+        // through this onboarding's role + name.
+        const { data: prof } = await window.sb.from('profiles').select('primary_role').eq('id', data.user.id).maybeSingle();
+        if (prof && prof.primary_role) {
+          act.setAuthRole(prof.primary_role);
+          window.__go(routeForRole(prof.primary_role));
+          return;
+        }
         act.setAuthRole(role);
         try {
           await window.sb.from('profiles').update({
             primary_role: role, ...(RT.ob && RT.ob.name ? { full_name: RT.ob.name } : {}),
           }).eq('id', data.user.id);
         } catch { /* best-effort */ }
-        await onSession(true);
+        proceed = true;
       } catch { err.textContent = 'Apple sign-in failed. Use email instead.'; }
+      if (proceed) await onSession(true);
     });
   })();
 }

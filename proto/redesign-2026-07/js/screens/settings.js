@@ -146,6 +146,7 @@ const OB_BACK = { ob: 'onboarding/7', cob: 'coach-ob/5', tob: 'trainer-ob/3', cl
 /* ---------- Privacy (role-scoped visibility, honest) ---------- */
 export const privacy = {
   tab: 'profile',
+  hideTabs: true,
   render({ sub } = {}) {
     const back = OB_BACK[sub] || 'profile';
     const rows = [

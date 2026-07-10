@@ -428,6 +428,20 @@ export const act = {
     try { const { error } = await sb.from('athlete_profiles').upsert({ athlete_id: RT.userId, ...fields }); return !error; }
     catch { return false; }
   },
+  /* Consent receipt — every role accepts the same terms line at account creation.
+     Best-effort (0048 columns); idempotent enough: re-stamping only refreshes the receipt. */
+  async _stampConsent(committedAt) {
+    const sb = window.sb;
+    if (!sb || !RT.userId) return false;
+    try {
+      const { error } = await sb.from('profiles').update({
+        tos_accepted_at: new Date().toISOString(),
+        tos_version: TOS_VERSION,
+        ...(committedAt ? { committed_at: committedAt } : {}),
+      }).eq('id', RT.userId);
+      return !error;
+    } catch { return false; }
+  },
   /* Persist the athlete's captured onboarding (RT.ob) to the server + local RT. Awaitable;
      idempotent (upserts + on-conflict RPCs), so it back-fills a confirmation-delayed signup
      on the next sign-in. Each phase is tracked in RT.ob._synced ({legacy, extra, stamps, join})
@@ -466,14 +480,7 @@ export const act = {
     }
     // phase 3: consent + commitment stamps (profiles_self_write; 0048 columns, best-effort)
     if (!synced.stamps && sb && RT.userId) {
-      try {
-        const { error } = await sb.from('profiles').update({
-          tos_accepted_at: new Date().toISOString(),
-          tos_version: TOS_VERSION,
-          ...(ob.committedAt ? { committed_at: ob.committedAt } : {}),
-        }).eq('id', RT.userId);
-        synced.stamps = !error;
-      } catch { /* retried on next sign-in */ }
+      synced.stamps = await this._stampConsent(ob.committedAt);
     }
     // phase 4: redeem the validated join code (server re-validates; idempotent)
     if (!synced.join) {
@@ -502,6 +509,7 @@ export const act = {
     const ob = RT.ob || {};
     const c = ob.coach || {};
     if (!sb || !RT.userId) return false;
+    await this._stampConsent(null); // best-effort; never gates team/org creation
     if (ob.teamCode) return true;
     let orgId = c.orgId || null;
     if (!orgId && c.schoolName) {
@@ -532,6 +540,7 @@ export const act = {
     const ob = RT.ob || {};
     const t = ob.trainer || {};
     if (!sb || !RT.userId) return false;
+    await this._stampConsent(null); // best-effort; never gates practice creation
     if (ob.practiceCode) return true;
     try {
       const { data: code, error } = await sb.rpc('create_practice', {

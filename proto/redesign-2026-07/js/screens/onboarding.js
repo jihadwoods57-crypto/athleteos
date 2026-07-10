@@ -244,8 +244,11 @@ export default {
       const sync = () => {
         const f = first.value.trim(), l = last.value.trim();
         const dob = dobFromParts(dm.value, dd.value, dy.value);
-        cap({ firstName: f, lastName: l, name: `${f} ${l}`.trim(), dob });
         const under13 = dob != null && ageOn(dob, todayISO()) < 13;
+        // COPPA: never persist a blocked minor's identity to localStorage — capture nulls
+        // instead. A corrected DOB re-captures on the next keystroke.
+        if (under13) cap({ firstName: '', lastName: '', name: '', dob: null });
+        else cap({ firstName: f, lastName: l, name: `${f} ${l}`.trim(), dob });
         if (under13) {
           errEl.textContent = 'OnStandard is for ages 13 and up.';
           nextBtn.setAttribute('data-go', 'onboarding/blocked');

@@ -752,25 +752,35 @@ export const clientOb = {
 export const coachProfile = {
   nav: 'coach', tab: 'profile',
   render() {
+    const c = (RT.ob && RT.ob.coach) || {};
+    const code = (RT.ob || {}).teamCode || '';
+    const name = (RT.ob && RT.ob.coach && RT.ob.coach.name) || S.coach.name;
+    const metaLine = c.schoolName || c.teamName
+      ? [c.teamName, c.schoolName].filter(Boolean).map(esc).join(' · ')
+      : `${esc(S.coach.role)} · ${esc(S.coach.team)}`;
     return `
     ${backHead('Coach Profile', 'You, your team, your code', 'coach')}
 
     <section class="card id-card">
-      <div class="big-av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">M</div>
+      <div class="big-av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${esc((name[0] || 'C').toUpperCase())}</div>
       <div style="flex:1">
-        <div class="nm">${S.coach.name}</div>
-        <div class="meta">${S.coach.role} · ${S.coach.team}</div>
-        <div class="meta" style="margin-top:1px">24 athletes · 2 groups</div>
+        <div class="nm">${esc(name)}</div>
+        <div class="meta">${metaLine}</div>
       </div>
     </section>
 
     <div class="eyebrow">Team code · share it</div>
+    ${code ? `
     <section class="card pad" style="text-align:center">
       <div class="code-boxes" style="padding:0 0 4px">
-        ${['M', '4', 'R', 'K', '7'].map(c => `<div class="cb filled" style="border-color:var(--amber-border)">${c}</div>`).join('')}
+        ${code.split('').map(ch => `<div class="cb filled" style="border-color:var(--amber-border)">${esc(ch)}</div>`).join('')}
       </div>
       <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:8px auto 0">${icon('clipboard', 16)} Copy code</button>
-    </section>
+    </section>` : `
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">No code yet</div><div class="ts">It mints when your team is created, automatically on your next sign-in.</div></div>
+    </div>`}
 
     <div class="eyebrow">Team settings</div>
     <section class="card" style="padding:6px 16px">
@@ -787,7 +797,7 @@ export const coachProfile = {
   mount(root) {
     const copy = root.querySelector('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText('M4RK7'); } catch { /* no-op */ }
+      try { await navigator.clipboard.writeText((RT.ob || {}).teamCode || ''); } catch { /* no-op */ }
       copy.innerHTML = `${icon('check', 16)} Copied`;
     });
   },
@@ -796,25 +806,33 @@ export const coachProfile = {
 export const trainerProfile = {
   nav: 'trainer', tab: 'profile',
   render() {
+    const t = (RT.ob && RT.ob.trainer) || {};
+    const code = (RT.ob || {}).practiceCode || '';
+    const name = (RT.ob && RT.ob.name) || 'Tracy Boone';
+    const metaLine = t.practiceName ? esc(t.practiceName) : 'Tracy Boone Performance';
     return `
     ${backHead('Trainer Profile', 'Your practice and client code', 'trainer')}
 
     <section class="card id-card">
-      <div class="big-av" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce)">T</div>
+      <div class="big-av" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce)">${esc((name[0] || 'T').toUpperCase())}</div>
       <div style="flex:1">
-        <div class="nm">Tracy Boone</div>
-        <div class="meta">Tracy Boone Performance</div>
-        <div class="meta" style="margin-top:1px">14 clients · athletes + general</div>
+        <div class="nm">${esc(name)}</div>
+        <div class="meta">${metaLine}</div>
       </div>
     </section>
 
     <div class="eyebrow">Client code · share it</div>
+    ${code ? `
     <section class="card pad" style="text-align:center">
       <div class="code-boxes" style="padding:0 0 4px">
-        ${['T', 'R', '4', 'C', '3'].map(c => `<div class="cb filled" style="border-color:var(--purple-border)">${c}</div>`).join('')}
+        ${code.split('').map(ch => `<div class="cb filled" style="border-color:var(--purple-border)">${esc(ch)}</div>`).join('')}
       </div>
       <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:8px auto 0">${icon('clipboard', 16)} Copy code</button>
-    </section>
+    </section>` : `
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">No code yet</div><div class="ts">It mints when your practice is created, automatically on your next sign-in.</div></div>
+    </div>`}
 
     <div class="eyebrow">Practice settings</div>
     <section class="card" style="padding:6px 16px">
@@ -829,7 +847,7 @@ export const trainerProfile = {
   mount(root) {
     const copy = root.querySelector('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText('TR4C3'); } catch { /* no-op */ }
+      try { await navigator.clipboard.writeText((RT.ob || {}).practiceCode || ''); } catch { /* no-op */ }
       copy.innerHTML = `${icon('check', 16)} Copied`;
     });
   },
