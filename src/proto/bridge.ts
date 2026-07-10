@@ -13,6 +13,7 @@ import * as SecureStore from 'expo-secure-store';
 import type WebView from 'react-native-webview';
 import { isAppleAuthAvailable, requestAppleIdentityToken } from '../lib/auth/apple';
 import { biometricsUsable } from '../lib/auth/biometrics';
+import { syncExecNotifications } from '../lib/notify/execSync';
 
 type Ref = React.RefObject<WebView | null>;
 
@@ -25,6 +26,7 @@ export type BridgeMessage =
   | { type: 'APPLE_AVAILABLE'; id: number }
   | { type: 'APPLE_SIGNIN'; id: number }
   | { type: 'BIO_AVAILABLE'; id: number }
+  | { type: 'NOTIFY_SYNC'; plan: import('../lib/notify/execSync').ExecPlanItem[] }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -119,6 +121,9 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
     case 'BIO_AVAILABLE':
       resolve(ref, msg.id, await biometricsUsable());
       return true;
+    case 'NOTIFY_SYNC':
+      void syncExecNotifications(msg.plan ?? []);
+      return true;
     default:
       return false;
   }
@@ -162,6 +167,7 @@ export const BRIDGE_SHIM = `
     biometrics: {
       available: function(){ return call('BIO_AVAILABLE', {}); }
     },
+    notify: { sync: function(plan){ post({ type: 'NOTIFY_SYNC', plan: plan || [] }); } },
   };
 
   // navigator.vibrate does not exist in WKWebView; route it (and navigator.share) to native.

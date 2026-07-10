@@ -43,10 +43,7 @@ export default function RootLayout() {
   const isOversight = flow === 'coach' || flow === 'trainer' || flow === 'parent';
   const frameMaxWidth = isOversight && width >= 900 ? 760 : DEVICE_MAX_WIDTH;
 
-  // Schedule the athlete's local reminders + request permission once, on launch (no-op on web).
-  React.useEffect(() => {
-    useStore.getState().initReminders();
-  }, []);
+  // Local reminders are exec-driven now: the proto posts NOTIFY_SYNC via the bridge.
 
   if (!loaded) {
     return <View style={{ flex: 1, backgroundColor: palette.bg }} />;

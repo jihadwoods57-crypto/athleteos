@@ -7,8 +7,10 @@ jest.mock('expo-haptics', () => ({
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn(), deleteItemAsync: jest.fn(),
 }));
+jest.mock('../lib/notify/execSync', () => ({ syncExecNotifications: jest.fn(async () => undefined) }));
 
 import { handleBridgeMessage, BRIDGE_SHIM } from './bridge';
+import { syncExecNotifications } from '../lib/notify/execSync';
 
 function fakeRef() {
   const injected: string[] = [];
@@ -37,4 +39,16 @@ test('BIO_AVAILABLE resolves false while the native module is absent', async () 
   const { injected, ref } = fakeRef();
   await handleBridgeMessage(ref, { type: 'BIO_AVAILABLE', id: 3 } as never);
   expect(injected[0]).toContain('__onNativeResult(3, false');
+});
+
+test('NOTIFY_SYNC hands the plan to the exec seam (fire-and-forget)', async () => {
+  const { ref } = fakeRef();
+  const plan = [{ id: 'dinner', atISO: '2026-07-09T19:15:00.000Z', title: 't', body: 'b' }];
+  const handled = await handleBridgeMessage(ref, { type: 'NOTIFY_SYNC', plan } as never);
+  expect(handled).toBe(true);
+  expect(syncExecNotifications).toHaveBeenCalledWith(plan);
+});
+
+test('shim exposes notify.sync', () => {
+  expect(BRIDGE_SHIM).toContain('NOTIFY_SYNC');
 });
