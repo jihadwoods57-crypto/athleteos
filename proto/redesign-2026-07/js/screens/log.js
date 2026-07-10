@@ -35,9 +35,12 @@ export default {
     }
 
     const n = e.now;
+    // Proof-aware hero icon (matches Home's nowCard): assigned/check items get a check, not a camera.
+    const CTA_ICON = { form: 'moon', scale: 'scale', photo: 'camera', counter: 'droplet' };
+    const heroIcon = n ? ((!n.proof || n.proof === 'check') ? 'check' : CTA_ICON[n.proof]) : '';
     const hero = n ? `
       <div class="hub-hero ${n.state === 'overdue' ? 'red' : ''}" data-go="${n.route}">
-        <div class="xico ${n.color}" style="width:44px;height:44px">${icon(n.proof === 'form' ? 'moon' : n.proof === 'scale' ? 'scale' : 'camera', 20)}</div>
+        <div class="xico ${n.color}" style="width:44px;height:44px">${icon(heroIcon, 20)}</div>
         <div class="ht">
           <div class="a">${n.state === 'overdue' ? `Log ${esc(n.title)} late` : `Log ${esc(n.title)}`}</div>
           <div class="b">${n.state === 'overdue' ? esc(n.sub) : `⏱ ${n.countdown || '—'} · ${esc(n.dueLabel)}`}</div>
