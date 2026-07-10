@@ -239,7 +239,8 @@
 .ob-prog i{flex:1;height:4px;border-radius:2px;background:var(--surface-2)}
 .ob-prog i.on{background:var(--green-bright)}
 .dob-row{display:flex;gap:10px}
-.dob-row .ob-input{text-align:center}
+.dob-row .ob-input{flex:1 1 0;min-width:0;padding:0 8px;text-align:center}
+.dob-row #ob-dob-y{flex:1.5 1 0}
 /* hold-to-commit (used by Task 5) */
 .hold-btn{position:relative;overflow:hidden}
 .hold-fill{position:absolute;inset:0;width:0;background:rgba(255,255,255,0.22);pointer-events:none}

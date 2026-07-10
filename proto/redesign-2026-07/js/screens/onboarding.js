@@ -40,7 +40,7 @@ const steps = {
     <div class="dob-row">
       <input id="ob-dob-m" class="ob-input" type="number" inputmode="numeric" placeholder="MM" />
       <input id="ob-dob-d" class="ob-input" type="number" inputmode="numeric" placeholder="DD" />
-      <input id="ob-dob-y" class="ob-input" type="number" inputmode="numeric" placeholder="YYYY" style="flex:1.4" />
+      <input id="ob-dob-y" class="ob-input" type="number" inputmode="numeric" placeholder="YYYY" />
     </div>
     <div id="ob-age-err" style="color:var(--amber-bright);font-size:13px;font-weight:700;min-height:18px;margin-top:10px"></div>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.5">You must be 13 or older to use OnStandard.</div>`,
