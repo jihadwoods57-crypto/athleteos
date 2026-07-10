@@ -1,6 +1,24 @@
-import { S, RT } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
+import { mapPressure } from '../exec.js';
 import { backHead, esc } from '../components.js';
+
+/* Reminder-pressure chips: restore the athlete's REAL saved pressure and persist taps into
+   RT.ob.standard.pressure (the same field onboarding writes, which drives the exec engine's
+   notification plan), then resync native reminders. Per-chip listeners — wireToggles'
+   chip handler stopPropagation()s, so a row-level delegate would never fire. */
+function wirePressure(root, sel) {
+  const row = root.querySelector(sel);
+  if (!row) return;
+  const saved = (RT.ob && RT.ob.standard && RT.ob.standard.pressure) || 'Hold me accountable';
+  const chips = [...row.querySelectorAll('.chp')];
+  const match = chips.find((c) => mapPressure(c.textContent.trim()) === mapPressure(saved));
+  if (match) { chips.forEach((c) => c.classList.remove('on')); match.classList.add('on'); }
+  chips.forEach((c) => c.addEventListener('click', () => {
+    act.captureOb({ standard: { ...((RT.ob || {}).standard || {}), pressure: c.textContent.trim() } });
+    act.syncNotifications();
+  }));
+}
 
 /* Context-aware AI replies: keyword-routed, plan-grounded. Any specifics come from REAL state
    (hydration, live score) — never a fabricated "122g of 190g" / "88 oz" / "that's 94". */
@@ -98,7 +116,7 @@ export const settings = {
     </section>
 
     <div class="eyebrow">Reminders</div>
-    <div class="chip-row" data-toggle-group>
+    <div class="chip-row" id="set-pressure" data-toggle-group>
       <span class="chp">Gentle</span><span class="chp on">Accountable</span><span class="chp">Max pressure</span>
     </div>
 
@@ -120,6 +138,7 @@ export const settings = {
   },
   mount(root) {
     wireToggles(root);
+    wirePressure(root, '#set-pressure');
     (async () => {
       const N = window.OnStandardNative;
       if (!N || !N.biometrics) return;
@@ -229,7 +248,7 @@ export const notifSettings = {
     ${backHead('Notification Settings', 'Coach sets urgency. You set the quiet.', 'notifications')}
 
     <div class="eyebrow">Reminder pressure</div>
-    <div class="chip-row" data-toggle-group>
+    <div class="chip-row" id="ns-pressure" data-toggle-group>
       <span class="chp">Gentle</span><span class="chp on">Accountable</span><span class="chp">Max pressure</span>
     </div>
 
@@ -260,7 +279,7 @@ export const notifSettings = {
     <div style="height:10px"></div>
     `;
   },
-  async mount(root) { const { wireToggles } = await import('./settings.js'); wireToggles(root); },
+  async mount(root) { wireToggles(root); wirePressure(root, '#ns-pressure'); },
 };
 
 /* ---------- Delete account (Apple requires in-app deletion) ---------- */

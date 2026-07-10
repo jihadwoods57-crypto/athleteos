@@ -34,13 +34,13 @@ const HOOK = {
   recovery: '20 seconds locks your Recovery 25%.',
   weight: 'Same time, same conditions — the trend is what we read.',
 };
-function copyFor(req, kind) {
+function copyFor(req, kind, mins) {
   const t = req.title;
   if (req.id === 'weight') {
     return { title: `${t} — this morning`, body: HOOK.weight };
   }
   if (kind === 'open') return { title: `${t} window is open`, body: `Due ${fmtMin(req.window.due)}. ${HOOK[req.id] || ''}`.trim() };
-  if (kind === 'soon') return { title: `${t} closes in 45`, body: HOOK[req.id] || `Due ${fmtMin(req.window.due)}.` };
+  if (kind === 'soon') return { title: `${t} closes in ${mins}`, body: HOOK[req.id] || `Due ${fmtMin(req.window.due)}.` };
   return { title: `${t} is due now`, body: HOOK[req.id] || 'Log it before the window closes.' };
 }
 
@@ -73,7 +73,10 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     const isHydro = req.id === 'hydration';
     const hydroDone = isHydro && (st.oz || 0) >= 120;
     const done = isHydro ? hydroDone : !!st.done;
-    const state = itemState(req, { done, late: !!st.late }, nowMin);
+    let state = itemState(req, { done, late: !!st.late }, nowMin);
+    // Optional items are never late in a way that matters — cap overdue/due_soon to
+    // 'ready' so hydration (etc.) never renders the red "still counts" treatment.
+    if (!req.required && (state === 'overdue' || state === 'due_soon')) state = 'ready';
     const minsLeft = !done && nowMin <= req.window.due ? req.window.due - nowMin : null;
     const dueLabel = req.window.label || `due ${fmtMin(req.window.due)}`;
     const impact = IMPACT_LABEL[req.impact.comp || req.impact.kind] || '';
@@ -149,7 +152,7 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
       }
       for (const [t, kind] of slots) {
         if (t <= nowMin) continue;
-        const c = copyFor(req, kind);
+        const c = copyFor(req, kind, due - t);
         plan.push({ id: i.id, fireAtMin: t, immediate: false, title: c.title, body: c.body });
       }
     }

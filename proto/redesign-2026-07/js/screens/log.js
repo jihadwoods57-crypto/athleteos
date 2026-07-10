@@ -35,14 +35,18 @@ export default {
     }
 
     const n = e.now;
-    // Proof-aware hero icon (matches Home's nowCard): assigned/check items get a check, not a camera.
+    // Proof-aware hero icon + verb (matches Home's nowCard): assigned/check items get a
+    // check + "Mark ⟨title⟩ done"; forms "Complete", scale/photo "Log", counter "Add".
     const CTA_ICON = { form: 'moon', scale: 'scale', photo: 'camera', counter: 'droplet' };
-    const heroIcon = n ? ((!n.proof || n.proof === 'check') ? 'check' : CTA_ICON[n.proof]) : '';
+    const VERB = { form: 'Complete', scale: 'Log', photo: 'Log', counter: 'Add' };
+    const isCheck = n ? (!n.proof || n.proof === 'check') : false;
+    const heroIcon = n ? (isCheck ? 'check' : CTA_ICON[n.proof]) : '';
+    const heroTitle = n ? (isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}${n.state === 'overdue' ? ' late' : ''}`) : '';
     const hero = n ? `
       <div class="hub-hero ${n.state === 'overdue' ? 'red' : ''}" data-go="${n.route}">
         <div class="xico ${n.color}" style="width:44px;height:44px">${icon(heroIcon, 20)}</div>
         <div class="ht">
-          <div class="a">${n.state === 'overdue' ? `Log ${esc(n.title)} late` : `Log ${esc(n.title)}`}</div>
+          <div class="a">${heroTitle}</div>
           <div class="b">${n.state === 'overdue' ? esc(n.sub) : `⏱ ${n.countdown || '—'} · ${esc(n.dueLabel)}`}</div>
         </div>
         ${icon('chevron', 16, 'style="color:var(--text-3)"')}

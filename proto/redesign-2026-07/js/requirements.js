@@ -33,9 +33,9 @@ export const TODAY_DOW = 5; // Friday — Morning Weight runs Mon/Wed/Fri
 
 export const CATALOG = [
   { id: 'breakfast', title: 'Breakfast', icon: 'utensils', accent: 'g', proof: 'photo',
-    freq: { type: 'daily' }, window: { open: 7 * 60, due: 10 * 60 }, required: true,
+    freq: { type: 'daily' }, window: { open: 7 * 60, due: 570 }, required: true,
     impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
-    note: 'Protein first. Coach Mark wants 40g+ before 10 AM.' },
+    note: 'Protein first. Coach Mark wants 40g+ before 9:30 AM.' },
   { id: 'lunch', title: 'Lunch', icon: 'bowl', accent: 'g', proof: 'photo',
     freq: { type: 'daily' }, window: { open: 12 * 60, due: 14 * 60 }, required: true,
     impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
@@ -45,7 +45,7 @@ export const CATALOG = [
     impact: { kind: 'trend' }, reminder: 'high',
     note: 'Same time, same conditions. We read the trend, never one morning.' },
   { id: 'dinner', title: 'Dinner', icon: 'bowl', accent: 'b', proof: 'photo',
-    freq: { type: 'daily' }, window: { open: 18 * 60, due: 20 * 60 }, required: true,
+    freq: { type: 'daily' }, window: { open: 18 * 60, due: 1230 }, required: true,
     impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
     note: 'Protein + slow carb + a vegetable. Close the day right.' },
   { id: 'hydration', title: 'Hydration · 120 oz', icon: 'droplet', accent: 'b', proof: 'counter',

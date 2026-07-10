@@ -13,16 +13,20 @@ const at = (nowMin: number, over: object = {}, extra: object = {}) =>
 describe('item state boundaries', () => {
   const get = (e: any, id: string) => e.items.find((i: any) => i.id === id);
   test('locked before window opens', () => expect(get(at(6 * 60), 'breakfast').state).toBe('locked'));
-  test('due_soon exactly 90 min out', () => expect(get(at(10 * 60 - 90), 'breakfast').state).toBe('due_soon'));
-  test('ready at 91 min out', () => expect(get(at(10 * 60 - 91), 'breakfast').state).toBe('ready'));
-  test('overdue one minute past due', () => expect(get(at(10 * 60 + 1), 'breakfast').state).toBe('overdue'));
+  test('due_soon exactly 90 min out', () => expect(get(at(570 - 90), 'breakfast').state).toBe('due_soon'));
+  test('ready at 91 min out', () => expect(get(at(570 - 91), 'breakfast').state).toBe('ready'));
+  test('overdue one minute past due', () => expect(get(at(570 + 1), 'breakfast').state).toBe('overdue'));
   test('done beats time', () =>
     expect(get(at(11 * 60, { breakfast: { done: true, late: true } }), 'breakfast').state).toBe('done_late'));
   test('colors follow the 4-state mapping', () => {
-    const e = at(10 * 60 + 1, { lunch: { done: true, late: false } });
+    const e = at(570 + 1, { lunch: { done: true, late: false } });
     expect(get(e, 'breakfast').color).toBe('red');
     expect(get(e, 'lunch').color).toBe('green');
     expect(get(e, 'dinner').color).toBe('gray');
+  });
+  test('optional hydration never renders overdue', () => {
+    const e = at(22 * 60); // past hydration's 21:30 target — optional items cap at 'ready'
+    expect(e.items.find((i: any) => i.id === 'hydration')!.state).toBe('ready');
   });
   test('countdown formats', () => {
     expect(fmtCountdown(47)).toBe('47 min');
@@ -32,13 +36,13 @@ describe('item state boundaries', () => {
 
 describe('NOW selection priority', () => {
   test('overdue beats due_soon; earliest due wins across overdue', () => {
-    const e = at(14 * 60 + 30); // weight (9:00), breakfast (10:00), lunch (2:00) all overdue
+    const e = at(14 * 60 + 30); // weight (9:00), breakfast (9:30), lunch (2:00) all overdue
     expect(e.overdue.map((o: any) => o.id)).toEqual(['weight', 'breakfast', 'lunch']);
     expect(e.now.id).toBe('weight');
   });
   test('due_soon beats ready', () => {
     const done = { breakfast: { done: true, late: false }, lunch: { done: true, late: false }, weight: { done: true } };
-    const e = at(19 * 60, done); // dinner due 20:00 (due_soon), recovery due 23:30 (ready)
+    const e = at(19 * 60, done); // dinner due 20:30 (due_soon), recovery due 23:30 (ready)
     expect(e.now.id).toBe('dinner');
     expect(e.next.id).toBe('recovery');
   });
@@ -92,17 +96,19 @@ describe('groups + progress + celebration', () => {
 
 describe('notification plan', () => {
   test('accountable: due−45 and at-due per incomplete item, future only', () => {
-    const e = at(9 * 60 + 30); // breakfast due 10:00 → only at-due (600) remains; 9:15 already past
+    const e = at(9 * 60); // breakfast due 9:30 → only at-due (570) remains; 8:45 already past
     const b = e.plan.filter((p: any) => p.id === 'breakfast');
-    expect(b.map((p: any) => p.fireAtMin)).toEqual([600]);
+    expect(b.map((p: any) => p.fireAtMin)).toEqual([570]);
   });
-  test('gentle: single nudge at due−30', () => {
+  test('gentle: single nudge at due−30, with an honest lead time in the copy', () => {
     const e = at(8 * 60, {}, { pressure: 'gentle' });
-    expect(e.plan.filter((p: any) => p.id === 'breakfast').map((p: any) => p.fireAtMin)).toEqual([570]);
+    const b = e.plan.filter((p: any) => p.id === 'breakfast');
+    expect(b.map((p: any) => p.fireAtMin)).toEqual([540]);
+    expect(b[0]!.title).toContain('closes in 30');
   });
   test('max adds a window-open nudge', () => {
     const e = at(6 * 60, {}, { pressure: 'max' });
-    expect(e.plan.filter((p: any) => p.id === 'breakfast').map((p: any) => p.fireAtMin)).toEqual([420, 555, 600]);
+    expect(e.plan.filter((p: any) => p.id === 'breakfast').map((p: any) => p.fireAtMin)).toEqual([420, 525, 570]);
   });
   test('done items produce no reminders (auto-cancel by omission)', () => {
     const e = at(8 * 60, { breakfast: { done: true } });
@@ -123,6 +129,20 @@ describe('notification plan', () => {
     expect(c.body).toContain('92');
     expect(c.body).toContain('8'); // day streak+1 locks tonight
     expect(at(22 * 60, ALL, { score: 92, streak: 7, pressure: 'gentle' }).plan).toEqual([]);
+  });
+});
+
+describe('catalog/deadline consistency', () => {
+  test('meal window.due matches the scoring DEADLINE', () => {
+    // requirements.js stays import-free by design — this test is the enforcement seam
+    // between the display catalog and the scoring truth (day.js DEADLINE, D3 anchor).
+    // @ts-ignore
+    const { CATALOG } = require('../../proto/redesign-2026-07/js/requirements.js');
+    // @ts-ignore
+    const { DEADLINE } = require('../../proto/redesign-2026-07/js/day.js');
+    for (const id of ['breakfast', 'lunch', 'dinner']) {
+      expect(CATALOG.find((r: any) => r.id === id).window.due).toBe(DEADLINE[id]);
+    }
   });
 });
 

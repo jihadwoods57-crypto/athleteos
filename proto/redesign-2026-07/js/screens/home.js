@@ -145,7 +145,7 @@ export default {
     // clears window.__execTick on every route change.
     const key = () => {
       const e = S.exec;
-      return JSON.stringify([e.now && e.now.id, e.now && e.now.countdown, e.met, e.celebration, e.overdue.map((o) => o.id)]);
+      return JSON.stringify([e.now && e.now.id, e.now && e.now.countdown, e.met, e.celebration, e.overdue.map((o) => o.id), e.items.map((i) => i.id + ':' + i.state)]);
     };
     let last = key();
     let rolling = false;
@@ -156,7 +156,7 @@ export default {
         // Day rolled over while the app was open: reload the real day, then repaint.
         if (rolling) return; // hydrate already in flight — the re-render resets this closure
         rolling = true;
-        act.hydrateDay().then(() => window.__render());
+        act.hydrateDay().then(() => window.__render()).catch(() => { rolling = false; });
         return;
       }
       const k = key();

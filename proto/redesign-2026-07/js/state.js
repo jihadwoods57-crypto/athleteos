@@ -48,6 +48,9 @@ function groundResult(d) {
 
 export const WEIGHTS = { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
 
+/* Weight's due time — read from the one catalog truth, never a second hardcoded copy. */
+const WEIGHT_DUE = CATALOG.find((r) => r.id === 'weight').window.due;
+
 export function computeScore(c) {
   return Math.round(
     WEIGHTS.nutrition * c.nutrition +
@@ -249,8 +252,16 @@ export const act = {
      reminders and untouched state causes zero churn. Best-effort — UI never blocks. */
   syncNotifications() {
     try {
-      const plan = S.exec.plan;
-      if (samePlan(plan, RT._lastPlan)) return;
+      let plan = S.exec.plan;
+      // Celebration already posted today: strip it so a post-celebration score change (snack
+      // slot, commitment) can't re-post the "You're OnStandard" banner a second time.
+      if (plan.some((p) => p.id === 'celebrate') && RT._celebratedOn === String(DAY.date)) {
+        plan = plan.filter((p) => p.id !== 'celebrate');
+      }
+      // Dedupe by DAY too: a bare plan-equality check is date-blind, so two different days
+      // with identical state would otherwise skip the sync and the new day gets zero reminders.
+      const last = RT._lastPlan;
+      if (last && last.date === String(DAY.date) && samePlan(plan, last.plan)) return;
       const N = window.OnStandardNative;
       if (!N || !N.notify) return; // bridge not injected yet — retry on the next trigger
       const [y, mo, d] = String(DAY.date).split('-').map(Number);
@@ -259,7 +270,8 @@ export const act = {
         atISO: p.immediate ? null : new Date(y, mo - 1, d, Math.floor(p.fireAtMin / 60), p.fireAtMin % 60).toISOString(),
         title: p.title, body: p.body,
       })));
-      RT._lastPlan = plan; save(); // recorded only once the post was handed to native
+      RT._lastPlan = { date: String(DAY.date), plan }; save(); // recorded only once the post was handed to native
+      if (plan.some((p) => p.id === 'celebrate')) RT._celebratedOn = String(DAY.date);
     } catch { /* delivery failed — leave _lastPlan unset so the next trigger retries */ }
   },
   setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); },
@@ -820,8 +832,8 @@ export const S = {
       dow: new Date().getDay(),
       status: {
         breakfast: mstat('breakfast'), lunch: mstat('lunch'), dinner: mstat('dinner'),
-        // weight due is 9:00 AM (540, from the catalog); late only when we actually know the log time
-        weight: { done: RT.weightLogged, late: RT.weightLogged && RT.weightLoggedAt != null && RT.weightLoggedAt > 540 },
+        // weight due comes from the catalog; late only when we actually know the log time
+        weight: { done: RT.weightLogged, late: RT.weightLogged && RT.weightLoggedAt != null && RT.weightLoggedAt > WEIGHT_DUE },
         hydration: { oz: RT.hydrationOz },
         recovery: { done: DAY.ciSubmitted },
       },
@@ -1028,7 +1040,9 @@ export const S = {
       body: e.now.countdown ? `${e.now.countdown} left · ${e.now.dueLabel}.` : `${e.now.dueLabel}.`,
       when: 'now', icon: e.now.icon, route: e.now.route,
     });
-    RT.assigned.filter((a) => !a.done).forEach((a) => fresh.push({
+    // Skip assigned items the engine already surfaced (as NOW or overdue) — no double-listing.
+    const surfaced = new Set([...(e.now ? [e.now.id] : []), ...e.overdue.map((o) => o.id)]);
+    RT.assigned.filter((a) => !a.done && !surfaced.has(a.id)).forEach((a) => fresh.push({
       level: 'medium', title: `${a.from || 'Coach'} added: ${a.title}`,
       body: `${a.note} Due: ${(a.dueLabel || '').toLowerCase()}.`, when: 'now', icon: 'clipboard', route: `requirement/${a.id}`,
     }));
