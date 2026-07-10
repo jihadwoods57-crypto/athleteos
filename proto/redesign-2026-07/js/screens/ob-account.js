@@ -58,4 +58,32 @@ export function wireAccount(root, { role, onSession }) {
   };
   btn.addEventListener('click', submit);
   p2.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !btn.disabled) submit(); });
+
+  // Sign in with Apple — renders only when the native seam reports availability (go-live).
+  (async () => {
+    const native = window.OnStandardNative && window.OnStandardNative.apple;
+    if (!native) return;
+    let ok = false;
+    try { ok = await native.available(); } catch { /* treat as unavailable */ }
+    if (!ok) return;
+    const wrap = $('#ap-wrap');
+    wrap.innerHTML = `<button class="btn ghost" id="su-apple" style="margin-bottom:14px"> Continue with Apple</button>`;
+    wrap.querySelector('#su-apple').addEventListener('click', async () => {
+      err.textContent = '';
+      try {
+        const token = await native.signIn();
+        if (!token) return; // user cancelled
+        const { data, error } = await window.sb.auth.signInWithIdToken({ provider: 'apple', token });
+        if (error || !data || !data.user) { err.textContent = 'Apple sign-in failed. Use email instead.'; return; }
+        act._syncSession(data.user);
+        act.setAuthRole(role);
+        try {
+          await window.sb.from('profiles').update({
+            primary_role: role, ...(RT.ob && RT.ob.name ? { full_name: RT.ob.name } : {}),
+          }).eq('id', data.user.id);
+        } catch { /* best-effort */ }
+        await onSession(true);
+      } catch { err.textContent = 'Apple sign-in failed. Use email instead.'; }
+    });
+  })();
 }

@@ -295,6 +295,7 @@ export const act = {
   captureOb(patch) { RT.ob = { ...(RT.ob || {}), ...patch }; save(); },
   clearJoin() { if (RT.ob) { delete RT.ob.join; save(); } },
   saveAllergies(list) { RT.allergies = list.slice(0, 8); save(); },
+  setAuthRole(role) { RT.authRole = role; save(); },
   nudgePartner() { RT.partnerNudged = true; save(); },
   toggleInjury() {
     RT.injured = !RT.injured;

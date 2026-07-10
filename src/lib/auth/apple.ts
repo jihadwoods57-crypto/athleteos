@@ -16,7 +16,7 @@ import { Platform } from 'react-native';
 /** True only when the native Apple-auth module is present and the platform supports
  *  it (iOS). False here (module not installed), so the button is hidden until go-live. */
 export const isAppleAuthAvailable: boolean = (() => {
-  if (Platform.OS !== 'ios') return false;
+  if (Platform?.OS !== 'ios') return false;
   try {
     // Present only once `expo-apple-authentication` is added to the project.
     require.resolve('expo-apple-authentication');
