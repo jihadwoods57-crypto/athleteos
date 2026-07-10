@@ -139,3 +139,74 @@ Breakfast late") and `form` ("Complete Recovery Check-In"), in-app bell matches
 ring radius (`r - stroke/2 - 8`) went negative for the new compact 52px strip ring,
 emitting an invalid SVG `r="-2"` and a console error on every Home render; clamped to
 `Math.max(0, …)` in `js/components.js`.
+
+## 2026-07-10 — Meal intelligence (spec: docs/superpowers/specs/2026-07-09-meal-intelligence-design.md)
+The meal surface grew a real Team Discussion on top of the existing honest breakdown:
+- `js/meal-intel.js` — new pure helpers: confidence-chip normalization (legacy string
+  arrays and rich `{name, confidence}` arrays both settle to rich, unknown confidence
+  defaults `high`), the derived AI opening line (`openingMessage`, never stored — built
+  fresh from the meal/exec/goal each render so it can't drift from what's on screen),
+  reaction-emoji grouping (`reactionGroups`), thread-message shaping (`threadMessages`),
+  and the 8KB-safe chat context builder (`contextForChat`).
+- **`analyze-meal`** → `groundResult` now threads confidence, fiber, and highlights out of
+  the AI response into `DAY.slotMacros[slot]` meta, so a meal logged from a photo carries
+  real per-food confidence (not just a flat "detected" list) all the way to the thread.
+- **The unified `#meal-thread/<slot>` page** (`js/screens/meal.js`) replaces the old
+  split confirm/detail screens with one immutable four-section surface: Execution
+  Summary (celebrates the log, never shames — late meals get "Logged late · still
+  counts" in the same green, no red anywhere in this section), Meal Breakdown (photo,
+  confidence-dot food chips with a "?" on low-confidence ones, macros + fiber bars
+  against real coach targets when set, an honest "No coach targets set yet" line when
+  not, the Guardian allergen check), Team Discussion (the derived AI opening + the real
+  coach↔athlete `meal_comments` thread + reaction strip + composer), and Next Action
+  (reads `S.exec.now` directly — never its own copy of the execution state). `#meal-confirm`
+  and `#meal-detail` are now aliases onto the same `thread` module (legacy routes still
+  show the tab bar — intentional, unchanged chrome). The score count-up plays once per
+  log via an in-memory `RT.lastMove._played` flag; because it's in-memory only, a hard
+  page reload can replay it once — accepted as harmless.
+- **`meal-chat` edge function** (`supabase/functions/meal-chat/`) — the Team Discussion's
+  AI half. Same authority-boundary discipline as `assist`: the model only discusses the
+  deterministic context the client already renders, never fetches or computes a number.
+  Guarded by `claim_ai_usage_key` under two independent keys — `meal_chat:<athlete_id>`
+  for the per-athlete daily budget (default 10/day, env-tunable) and `meal_chat_global`
+  for the bill backstop — plus per-IP rate limiting and a CORS allowlist. **Undeployed**
+  as of this closeout; the composer's "Couldn't reach your AI coach — tap to try again."
+  is the correct, graceful shape of that gap, not a bug.
+- **Coach reactions** — one-tap emoji reactions on the athlete's meal log, persisted as
+  `meal_comments.kind='reaction'` rows (migration 0049, authored-only / unapplied),
+  busy-locked so a double-tap can't double-post.
+- **Migration 0049** — adds `meal_comments.kind` (`'message'` default, `'reaction'`
+  allowed) with RLS re-verified including an AI-forgery negative test (a client can never
+  insert a `role='ai'` row itself). Authored only; awaits founder apply at go-live
+  alongside the `meal-chat` function deploy.
+
+Verified 2026-07-10: `npm run verify` green (typecheck clean, 133 suites / 1653 tests,
+bundle exports). Browser QA via Playwright MCP against `proto/redesign-2026-07` served on
+`:8124` — no `__act`-adjacent dev route was needed beyond the documented `window.__act`
+handle already exposed by `js/state.js`; the app's hash router only auth-gates on a true
+full page load (`boot()`), so once past the initial `#welcome` bounce, driving screens via
+`location.hash` + `window.__render()` is the correct console-QA pattern (confirmed by
+forcing a real reload via `about:blank` round-trip, which does correctly bounce an
+unauthenticated session to `#welcome`, proving the gate itself is sound). Confirmed: the
+four thread sections render in fixed order for both an on-time and a real late log (clock
+patched past `DEADLINE.dinner`), with "Logged late · still counts" carried in the same
+green styling and zero red/shame anywhere in Execution Summary; confidence dots + the "?"
+low-confidence marker render correctly (verified `high`/`medium`/`low` side by side) and
+Edit mode makes chips removable and a tap-removal actually drops the chip; the fiber row
+and "estimated from photo" label render; the honest "No coach targets set yet" line shows
+with no targets, and with real coach targets set the protein×4 coachLine icon correctly
+flips clock → check at the threshold (presentation-only, verified both states); the
+derived AI opening differs correctly for on-time ("Captured on time. That's the standard.")
+vs. late ("Logged. Late still beats missing, and it counts.") and picks up the coach's
+protein bar in its copy when targets exist; `#meal-confirm` and `#meal-detail` alias onto
+the identical rendered page (tab bar visible on both, as documented/intentional); Next
+Action reflects `S.exec.now` exactly. **Composer/`meal-chat` round trip**: `insertMeal()`
+requires a real signed-in `userId` before it will even attempt the network call, so an
+anonymous console session can never acquire a real `mealId` and the composer correctly
+never renders without one (verified: forcing a fake `userId` produced clean 401 RLS
+rejections with no data written and no crash) — this is the expected, safe shape of
+"undeployed edge function" in an unauthenticated QA pass, not a gap in this pass.
+**Fixed one real defect found in QA** (an approved review finding from earlier review):
+the daily-AI-limit note in `askAI()` was wired with a tappable retry even though its own
+copy says "back tomorrow"; the `data.error === 'limit'` branch now omits the retry
+affordance (`js/screens/meal.js`).

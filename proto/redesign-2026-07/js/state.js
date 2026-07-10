@@ -16,6 +16,7 @@ import {
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
+import { groundExtras } from './meal-intel.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
 function fmtClock(min) {
@@ -38,10 +39,14 @@ function groundResult(d) {
   const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
   const protein = clampN(d.protein, 120), carbs = clampN(d.carbs, 250), fat = clampN(d.fat, 150);
   const kcal = clampN(d.kcal || (4 * protein + 4 * carbs + 9 * fat), 2200);
+  const extras = groundExtras(d);
   return {
     name: clean(d.name) || 'Meal', quality: clampN(d.quality, 100),
     protein, carbs, fat, kcal,
-    detected: Array.isArray(d.detected) ? d.detected.slice(0, 8).map(clean).filter(Boolean) : [],
+    fiber: extras.fiber,
+    highlights: extras.highlights,
+    detected: extras.detectedNames,      // legacy consumers keep plain names
+    detectedRich: extras.detectedRich,   // confidence-aware renderers use this
     note: clean(d.note),
   };
 }
@@ -176,6 +181,11 @@ export function mealDetail(slot) {
     img: (MEAL.key === k && MEAL.photoDataUrl) ? MEAL.photoDataUrl : null,
     note: meta.note || '',
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
+    fiber: meta.fiber || 0,
+    highlights: Array.isArray(meta.highlights) ? meta.highlights : [],
+    detectedRich: Array.isArray(meta.detectedRich) && meta.detectedRich.length
+      ? meta.detectedRich
+      : (foods || []).map((f) => ({ name: f, confidence: 'high' })),
   };
 }
 
@@ -212,7 +222,8 @@ export const act = {
     if (!slot || !MEAL_KEYS.includes(slot) || DAY.meals[slot]) return;
     const from = computeScore(componentsNow());
     const meta = MEAL.result
-      ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note, name: MEAL.result.name || MEAL.mealType }
+      ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note, name: MEAL.result.name || MEAL.mealType,
+          fiber: MEAL.result.fiber || 0, highlights: MEAL.result.highlights || [], detectedRich: MEAL.result.detectedRich || [] }
       : { name: MEAL.mealType || cap(slot) };
     const macros = loggingMacros();
     dayLogMeal(RT.userId, slot, macros, meta);

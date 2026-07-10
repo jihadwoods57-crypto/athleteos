@@ -94,3 +94,9 @@ describe('groundMealResult — Slice 1 signal pass-through', () => {
     expect(out.descriptionSignal).toBe('photo_heavier');
   });
 });
+
+test('groundMealResult tolerates rich detected objects', () => {
+  const mr = { name: 'Bowl', quality: 70, protein: 40, kcal: 700, carbs: 60, fat: 20,
+    detected: [{ name: 'chicken breast', confidence: 'high' }] as never, note: '' } as never;
+  expect(() => groundMealResult(mr)).not.toThrow();
+});

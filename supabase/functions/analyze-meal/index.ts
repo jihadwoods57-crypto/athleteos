@@ -210,7 +210,23 @@ const MEAL_TOOL = {
       kcal: { type: 'integer', description: 'Estimated calories.' },
       carbs: { type: 'integer', description: 'Estimated grams of carbohydrate.' },
       fat: { type: 'integer', description: 'Estimated grams of fat.' },
-      detected: { type: 'array', items: { type: 'string' }, description: 'Foods identified in the photo.' },
+      detected: {
+        type: 'array',
+        description: 'Foods identified in the photo, each with your confidence in the identification.',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'The food, e.g. "Grilled chicken".' },
+            confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'high = clearly visible; medium = probable; low = uncertain, the athlete should confirm.' },
+          },
+          required: ['name', 'confidence'],
+        },
+      },
+      fiber: { type: 'integer', description: 'Estimated grams of dietary fiber. 0 when negligible.' },
+      highlights: {
+        type: 'array', items: { type: 'string' },
+        description: 'Up to 3 short micronutrient highlights ONLY when clearly present (e.g. "Strong iron source, supports oxygen delivery"). Empty when nothing stands out. Never fabricate.',
+      },
       note: { type: 'string', description: 'One coach-voiced sentence tying this meal to the athlete goal. No hype, no em dashes.' },
       reconcile: { type: 'string', description: 'Only when the athlete note CONTRADICTS what is plainly visible (e.g. says grilled but it is clearly fried, or "no sauce" when it is drowning): one short, non-accusatory coach sentence saying what you are counting and why, leaving them an out. Omit entirely when the note agrees with or merely adds hidden food. No em dashes.' },
       descriptionSignal: { type: 'string', enum: ['match', 'photo_heavier', 'photo_lighter', 'no_photo'], description: 'Relationship of the athlete note to the photo. "match": the note agrees with the photo or only adds plausible hidden/off-frame food (trust it). "photo_heavier": the plate visibly holds MORE than the note claims (the note underrated it). "photo_lighter": the plate visibly holds LESS than the note claims. "no_photo": no photo was provided.' },
@@ -225,7 +241,7 @@ const MEAL_TOOL = {
         },
       },
     },
-    required: ['name', 'quality', 'protein', 'kcal', 'carbs', 'fat', 'detected', 'note', 'descriptionSignal'],
+    required: ['name', 'quality', 'protein', 'kcal', 'carbs', 'fat', 'detected', 'fiber', 'note', 'descriptionSignal'],
   },
 } as const;
 
@@ -282,7 +298,11 @@ bad; omit substitution entirely when the plate is on target or no slotTarget was
 
 Voice: direct, motivating, precise, never hype, never cutesy. Safety: never give extreme or
 restrictive advice, never frame food as good/bad in a way that could fuel disordered eating; coach
-toward fueling performance. Numbers are estimates; be reasonable. No em dashes in any text.`;
+toward fueling performance. Numbers are estimates; be reasonable. No em dashes in any text.
+
+Confidence honesty: mark a detected food "low" whenever the photo alone cannot confirm it (obscured,
+ambiguous, or inferred from the athlete note). Fiber and highlights are estimates from what is
+visible; when nothing is clearly notable, return highlights as an empty array.`;
 
 // The exact shape src/core LabelFacts expects. The model transcribes the printed panel PER
 // SERVING; it does not estimate. Required fields are the four macros + ingredients; the rest

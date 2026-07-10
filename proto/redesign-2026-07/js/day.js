@@ -241,12 +241,16 @@ export function dayLogMeal(userId, key, macros, meta) {
   DAY.mealLoggedAt[key] = minutesNow();
   const m = { ...(DAY.slotMacros[key] || {}) };
   if (macros && typeof macros.protein === 'number') { m.protein = macros.protein || 0; m.kcal = macros.kcal || 0; m.carbs = macros.carbs || 0; m.fat = macros.fat || 0; }
-  // Persist the AI plate meta (quality/foods/note) so meal-detail survives reload — it rides
-  // through the checkin.slotMacros jsonb (pushDay/projectRowToDay). Scoring reads only .protein.
+  // Persist the AI plate meta (quality/foods/note + fiber/highlights/detectedRich) so meal-detail
+  // survives reload — it rides through the checkin.slotMacros jsonb (pushDay/projectRowToDay).
+  // Scoring reads only .protein.
   if (meta) {
     if (meta.quality != null) m.quality = meta.quality;
     if (Array.isArray(meta.foods)) m.foods = meta.foods.slice(0, 8);
     if (meta.note) m.note = meta.note;
+    if (meta.fiber != null) m.fiber = meta.fiber;
+    if (Array.isArray(meta.highlights)) m.highlights = meta.highlights.slice(0, 3);
+    if (Array.isArray(meta.detectedRich)) m.detectedRich = meta.detectedRich.slice(0, 8);
   }
   if (Object.keys(m).length) DAY.slotMacros[key] = m;
   pushDay(userId);
