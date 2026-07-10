@@ -302,3 +302,20 @@
 .xrec .xtm{margin-left:auto;font-size:11px;color:var(--text-3);font-weight:700;font-variant-numeric:tabular-nums}
 .xcelebwrap{display:flex;flex-direction:column;align-items:center;text-align:center}
 @media (prefers-reduced-motion: reduce){ .xnow,.xcelebwrap{animation:none !important;transition:none !important} }
+
+/* ---- action hub ---- */
+.hub-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 8px}
+.hub-head .a{font-size:15px;font-weight:800;letter-spacing:-.01em}
+.hub-head .b{font-size:11.5px;font-weight:800;color:var(--text-2);font-variant-numeric:tabular-nums}
+.hub-head .b em{font-style:normal;color:var(--green-bright)}
+.hub-hero{display:flex;align-items:center;gap:12px;background:linear-gradient(140deg,rgba(245,165,36,0.18),rgba(245,165,36,0.05)),var(--surface-2);border:1px solid var(--amber-border);border-radius:18px;padding:13px 14px;margin:12px 0;cursor:pointer}
+.hub-hero.red{background:linear-gradient(140deg,rgba(246,87,87,0.18),rgba(246,87,87,0.05)),var(--surface-2);border-color:var(--red-border)}
+.hub-hero .ht{flex:1}
+.hub-hero .ht .a{font-size:16px;font-weight:800;letter-spacing:-.015em}
+.hub-hero .ht .b{font-size:11.5px;color:var(--text-2);margin-top:2px;font-variant-numeric:tabular-nums}
+.hub-fold{display:flex;align-items:center;gap:8px;justify-content:center;font-size:11.5px;font-weight:800;color:var(--green-bright);padding:10px 0 2px;cursor:pointer}
+.fab-dot{position:absolute;top:-3px;right:-3px;width:15px;height:15px;border-radius:50%;border:3px solid var(--bg)}
+.fab-dot.gold{background:var(--amber-bright)}
+.fab-dot.red{background:var(--red)}
+.hub-celeb{text-align:center;padding:10px 6px 4px}
+.hub-celeb .n{font-size:38px;font-weight:800;letter-spacing:var(--num-tight)}
