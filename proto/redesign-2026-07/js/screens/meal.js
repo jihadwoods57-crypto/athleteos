@@ -319,13 +319,9 @@ export const thread = {
     const note = root.querySelector('#chat-note');
     const setNote = (t, retry) => { if (note) note.innerHTML = t ? `<div class="mt-retry" ${retry ? 'id="chat-retry"' : ''}>${esc(t)}</div>` : ''; };
     let busy = false;
-    const submit = async () => {
-      const text = (input.value || '').trim();
-      if (!text || busy) return;
-      busy = true; setNote('');
-      input.value = '';
-      await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', text);
-      await refresh();
+    // Reaches the AI for an ALREADY-POSTED question. Retry re-runs only this — the athlete's
+    // comment lands in meal_comments exactly once per question, never duplicated by a retry.
+    const askAI = async (text) => {
       try {
         const recent = await roles.fetchRecentMeals(RT.userId, roles.daysAgoISO(7)).catch(() => []);
         const ex = S.exec;
@@ -343,9 +339,32 @@ export const thread = {
           await refresh();
         }
       } catch { setNote("Couldn't reach your AI coach — tap to try again.", true); }
-      busy = false;
+      // The question is already in the thread — retry only re-reaches the AI (no input refill).
       const retry = root.querySelector('#chat-retry');
-      if (retry) retry.addEventListener('click', () => { input.value = text; setNote(''); submit(); });
+      if (retry) retry.addEventListener('click', async () => {
+        if (busy) return;
+        busy = true; setNote('');
+        await askAI(text);
+        busy = false;
+      });
+    };
+    const submit = async () => {
+      const text = (input.value || '').trim();
+      if (!text || busy) return;
+      busy = true; setNote('');
+      input.value = '';
+      const posted = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', text);
+      if (!posted) {
+        // Post failed (returns false, never throws): give the text back — re-submitting IS the
+        // retry — and don't reach the AI for a question that never landed.
+        input.value = text;
+        setNote("Couldn't send — try again.");
+        busy = false;
+        return;
+      }
+      await refresh();
+      await askAI(text);
+      busy = false;
     };
     if (send) send.addEventListener('click', submit);
     if (input) input.addEventListener('keydown', (e2) => { if (e2.key === 'Enter') submit(); });
