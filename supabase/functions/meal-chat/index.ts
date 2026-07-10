@@ -7,6 +7,13 @@
 // (caller's JWT) proving the meal belongs to the caller. On success the reply is
 // persisted into meal_comments as role 'ai' via the service role — 0046 deliberately
 // forbids clients from writing 'ai' rows, so AI messages can never be forged.
+//
+// Spend caps: BOTH ceilings are keyed counters on claim_ai_usage_key (0030) — a per-athlete
+// daily budget (`meal_chat:<uid>`, MEAL_CHAT_DAILY_CAP, default 10) and a global daily bill
+// backstop ('meal_chat_global', MEAL_CHAT_GLOBAL_CAP, default 2000). The per-athlete budget
+// is deliberately NOT the shared analyze-meal claim_ai_usage counter: chat questions and
+// photo analyses are metered independently. Both fail open, per the assist/analyze-meal
+// discipline (an un-applied migration never blocks a legit question).
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 
@@ -19,31 +26,21 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-// [COPIED VERBATIM from assist/index.ts] Audit Finding #2: a global daily ceiling on paid
-// calls, as a hard backstop on the bill since the anon key is public. Backed by
-// claim_ai_usage_key (0030); fails OPEN so an un-applied migration never blocks.
-async function withinGlobalCap(): Promise<boolean> {
+// Keyed daily claim against ai_usage_key_daily (migration 0030: claim_ai_usage_key(p_key text,
+// p_limit int) returns (allowed, used); security definer, execute granted to service_role only,
+// so both calls go through the service-role client). Same invocation shape and fail-OPEN
+// semantics as assist's withinGlobalCap / analyze-meal's withinKeyCap: an un-applied migration
+// or infra hiccup never blocks a legit question. Both meal-chat ceilings ride this one helper:
+//   * per-athlete: key `meal_chat:<uid>`, limit DAILY_CAP — deliberately an INDEPENDENT keyed
+//     counter, NOT the shared analyze-meal claim_ai_usage (ai_usage_daily) counter, so chat
+//     questions and photo analyses are separate per-athlete budgets;
+//   * global:      key 'meal_chat_global', limit GLOBAL_CAP — the hard backstop on the bill,
+//     since the anon key is public (audit Finding #2 pattern).
+async function withinKeyCap(key: string, limit: number): Promise<boolean> {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data, error } = await sb.rpc('claim_ai_usage_key', { p_key: 'meal_chat_global', p_limit: GLOBAL_CAP });
-    if (error) return true;
-    const row = Array.isArray(data) ? data[0] : data;
-    return row?.allowed !== false;
-  } catch {
-    return true;
-  }
-}
-
-// Mirrors analyze-meal's withinDailyCap EXACTLY (same RPC, same args, same fail-open
-// handling) — claim_ai_usage(p_user, p_limit) has no per-feature key, so this claims
-// against the same per-athlete daily counter (ai_usage_daily) analyze-meal uses, sized
-// here to meal-chat's own DAILY_CAP.
-async function withinDailyCap(userId: string): Promise<boolean> {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
-  try {
-    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data, error } = await sb.rpc('claim_ai_usage', { p_user: userId, p_limit: DAILY_CAP });
+    const { data, error } = await sb.rpc('claim_ai_usage_key', { p_key: key, p_limit: limit });
     if (error) return true;
     const row = Array.isArray(data) ? data[0] : data;
     return row?.allowed !== false;
@@ -131,9 +128,9 @@ Deno.serve(async (req) => {
     const { data: mealRow } = await userClient.from('meals').select('id, athlete_id').eq('id', mealId).maybeSingle();
     if (!mealRow || mealRow.athlete_id !== callerId) return bad(403, 'unauthorized', cors);
 
-    // ---- caps: per-athlete daily (fail-open) + global ceiling ----
-    if (!(await withinDailyCap(callerId))) return bad(429, 'limit', cors);
-    if (!(await withinGlobalCap())) return bad(429, 'limit', cors);
+    // ---- caps: per-athlete daily (own keyed budget) + global ceiling; both fail open ----
+    if (!(await withinKeyCap(`meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
+    if (!(await withinKeyCap('meal_chat_global', GLOBAL_CAP))) return bad(429, 'limit', cors);
 
     // ---- the model call: prose only, forced tool ----
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
