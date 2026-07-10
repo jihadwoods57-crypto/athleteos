@@ -1,0 +1,169 @@
+// OnStandard — meal-chat Edge Function. The Team Discussion's AI half.
+//
+// Authority boundary (doc-05 discipline, same as assist): the model DISCUSSES the
+// deterministic context the client hands it — it never fetches coaching data, never
+// computes or alters a number, and may only repeat figures already present in the
+// provided context. The function's only reads are AUTHORIZATION: an RLS-scoped select
+// (caller's JWT) proving the meal belongs to the caller. On success the reply is
+// persisted into meal_comments as role 'ai' via the service role — 0046 deliberately
+// forbids clients from writing 'ai' rows, so AI messages can never be forged.
+import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
+import { createClient } from 'npm:@supabase/supabase-js@^2';
+
+const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
+const DAILY_CAP = Math.max(1, Math.floor(Number(Deno.env.get('MEAL_CHAT_DAILY_CAP') ?? '10')) || 10);
+const GLOBAL_CAP = Math.max(1, Math.floor(Number(Deno.env.get('MEAL_CHAT_GLOBAL_CAP') ?? '2000')) || 2000);
+const CONTEXT_MAX = 8192;
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+// [COPIED VERBATIM from assist/index.ts] Audit Finding #2: a global daily ceiling on paid
+// calls, as a hard backstop on the bill since the anon key is public. Backed by
+// claim_ai_usage_key (0030); fails OPEN so an un-applied migration never blocks.
+async function withinGlobalCap(): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data, error } = await sb.rpc('claim_ai_usage_key', { p_key: 'meal_chat_global', p_limit: GLOBAL_CAP });
+    if (error) return true;
+    const row = Array.isArray(data) ? data[0] : data;
+    return row?.allowed !== false;
+  } catch {
+    return true;
+  }
+}
+
+// Mirrors analyze-meal's withinDailyCap EXACTLY (same RPC, same args, same fail-open
+// handling) — claim_ai_usage(p_user, p_limit) has no per-feature key, so this claims
+// against the same per-athlete daily counter (ai_usage_daily) analyze-meal uses, sized
+// here to meal-chat's own DAILY_CAP.
+async function withinDailyCap(userId: string): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data, error } = await sb.rpc('claim_ai_usage', { p_user: userId, p_limit: DAILY_CAP });
+    if (error) return true;
+    const row = Array.isArray(data) ? data[0] : data;
+    return row?.allowed !== false;
+  } catch {
+    return true;
+  }
+}
+
+// [COPIED VERBATIM from assist/index.ts] CORS allowlist: reflect the request Origin ONLY
+// if it's on the allowlist. A native app sends no Origin header, so it's allowed; a
+// browser Origin that isn't on the list gets no Access-Control-Allow-Origin.
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
+const BASE_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  Vary: 'Origin',
+};
+function corsFor(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin');
+  if (!origin) return BASE_HEADERS;
+  if (ALLOWED_ORIGINS.includes(origin)) return { ...BASE_HEADERS, 'Access-Control-Allow-Origin': origin };
+  return BASE_HEADERS;
+}
+
+// [COPIED VERBATIM from assist/index.ts] Best-effort per-IP rate limit (mirrors
+// analyze-meal), so the paid endpoint can't be hammered.
+const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '30');
+const RL_WINDOW_MS = 60_000;
+const rlHits = new Map<string, { count: number; resetAt: number }>();
+function rateLimited(req: Request): boolean {
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const now = Date.now();
+  const e = rlHits.get(ip);
+  if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS }); return false; }
+  e.count++;
+  return e.count > RL_MAX;
+}
+
+const REPLY_TOOL = {
+  name: 'reply',
+  description: 'Reply to the athlete inside their meal thread.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string', description: 'Coach-voiced reply, 150 words max, plain prose, no em dashes. Reference only numbers present in the provided context. Encourage consistency first; educate, never shame.' },
+    },
+    required: ['message'],
+  },
+} as const;
+
+const SYSTEM = `You are the OnStandard AI Nutritionist inside an athlete's meal thread.
+Rules that bind you:
+1. Use ONLY the provided context (this meal, their plan and goal, today's summary, recent meals, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
+2. Coach voice: specific, encouraging, practical. Consistency is praised before choices are critiqued. Never shame food, weight, or a late log.
+3. When coach guidance appears in the context, defer to it explicitly.
+4. Answer the athlete's question for THEIR goal and plan, not generic nutrition advice.
+5. 150 words maximum. No em dashes. No markdown headers.`;
+
+function bad(status: number, error: string, cors: Record<string, string>) {
+  return new Response(JSON.stringify({ error }), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+}
+
+Deno.serve(async (req) => {
+  const cors = corsFor(req);
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method !== 'POST') return bad(405, 'bad_request', cors);
+  try {
+    if (rateLimited(req)) return bad(429, 'limit', cors);
+
+    const body = await req.json().catch(() => null);
+    const mealId = body?.mealId;
+    const question = String(body?.question ?? '').trim().slice(0, 500);
+    const context = body?.context;
+    if (!mealId || !question || !context) return bad(400, 'bad_request', cors);
+    if (JSON.stringify(context).length > CONTEXT_MAX) return bad(400, 'bad_request', cors);
+
+    // ---- authorization: the caller must own this meal (RLS does the work) ----
+    const auth = req.headers.get('authorization') ?? '';
+    const userClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+      global: { headers: { Authorization: auth } },
+    });
+    const { data: userData } = await userClient.auth.getUser();
+    const callerId = userData?.user?.id;
+    if (!callerId) return bad(401, 'unauthorized', cors);
+    const { data: mealRow } = await userClient.from('meals').select('id, athlete_id').eq('id', mealId).maybeSingle();
+    if (!mealRow || mealRow.athlete_id !== callerId) return bad(403, 'unauthorized', cors);
+
+    // ---- caps: per-athlete daily (fail-open) + global ceiling ----
+    if (!(await withinDailyCap(callerId))) return bad(429, 'limit', cors);
+    if (!(await withinGlobalCap())) return bad(429, 'limit', cors);
+
+    // ---- the model call: prose only, forced tool ----
+    const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+    const msg = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 400,
+      system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
+      tools: [REPLY_TOOL],
+      tool_choice: { type: 'tool', name: 'reply' },
+      messages: [{
+        role: 'user',
+        content: `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}`,
+      }],
+    });
+    const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: { message?: string } } | undefined;
+    const reply = String(tool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
+    if (!reply) return bad(502, 'unavailable', cors);
+
+    // ---- persist as the unforgeable 'ai' row (service role) ----
+    // `kind` ships in a later migration (post-0048); insert WITH it first and on error retry
+    // once WITHOUT it, so replies still persist against a pre-migration database.
+    const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+    const row = { meal_id: mealId, athlete_id: callerId, author_id: callerId, role: 'ai', text: reply };
+    const { error: insertErr } = await service.from('meal_comments').insert({ ...row, kind: 'message' });
+    if (insertErr) {
+      await service.from('meal_comments').insert(row);
+    }
+
+    return new Response(JSON.stringify({ reply }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+  } catch {
+    return bad(503, 'unavailable', cors);
+  }
+});
