@@ -25,6 +25,12 @@ const whyHtml = (why) => esc(why).replace(/\*\*(.+?)\*\*/, '<b>$1</b>');
 function nowCard(e) {
   const n = e.now;
   const od = n.state === 'overdue';
+  const VERB = { form: 'Complete', scale: 'Log', photo: 'Log', counter: 'Add' };
+  const CTA_ICON = { form: 'moon', scale: 'scale', photo: 'camera', counter: 'droplet' };
+  // check-type / assigned items (no proof) read "Mark ⟨title⟩ done"
+  const isCheck = !n.proof || n.proof === 'check';
+  const label = isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}${od ? ' late' : ''}`;
+  const ctaIcon = isCheck ? 'check' : CTA_ICON[n.proof];
   return `<section class="xnow ${od ? 'red' : ''}">
     <div class="xlab"><span class="xl">${od ? 'OVERDUE' : 'NOW'}</span><span class="xpill ${n.color}">${n.pill}</span></div>
     <div class="xmain">
@@ -33,9 +39,9 @@ function nowCard(e) {
     </div>
     <div class="xcount">
       ${od ? `<span class="xcd">Late</span><span class="xdl">${esc(n.sub)}</span>`
-           : `<span class="xcd" data-cd>${n.countdown}</span><span class="xdl">${esc(n.dueLabel)}</span>`}
+           : `<span class="xcd" data-cd>${esc(n.countdown)}</span><span class="xdl">${esc(n.dueLabel)}</span>`}
     </div>
-    <button class="xcta" data-go="${n.route}">${icon(n.proof === 'form' ? 'moon' : n.proof === 'scale' ? 'scale' : 'camera', 18)} ${od ? `Log ${esc(n.title)} late` : `Log ${esc(n.title)}`}</button>
+    <button class="xcta" data-go="${n.route}">${icon(ctaIcon, 18)} ${label}</button>
   </section>`;
 }
 
@@ -142,16 +148,19 @@ export default {
       return JSON.stringify([e.now && e.now.id, e.now && e.now.countdown, e.met, e.celebration, e.overdue.map((o) => o.id)]);
     };
     let last = key();
+    let rolling = false;
     window.__execTick = setInterval(() => {
       const t = new Date();
       const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
       if (iso !== String(DAY.date)) {
         // Day rolled over while the app was open: reload the real day, then repaint.
+        if (rolling) return; // hydrate already in flight — the re-render resets this closure
+        rolling = true;
         act.hydrateDay().then(() => window.__render());
         return;
       }
       const k = key();
-      if (k !== last) { last = k; act.syncNotifications(); window.__render(); }
+      if (k !== last) { last = k; window.__render(); }
     }, 30000);
   },
 };
