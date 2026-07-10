@@ -27,14 +27,9 @@ const NAVS = {
 };
 
 function statusbar() {
-  return `<div class="statusbar">
-    <span>${S.now}</span>
-    <span class="sb-right">
-      <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="5" width="3" height="7" rx="1"/><rect x="9" y="2.5" width="3" height="9.5" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1" opacity=".4"/></svg>
-      <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><path d="M8.5 2.5c2.3 0 4.4.9 6 2.4l-1.4 1.5A6.6 6.6 0 0 0 8.5 4.6 6.6 6.6 0 0 0 3.9 6.4L2.5 4.9A8.6 8.6 0 0 1 8.5 2.5z"/><path d="M8.5 6.3c1.2 0 2.4.5 3.2 1.4L8.5 11 5.3 7.7A4.6 4.6 0 0 1 8.5 6.3z"/></svg>
-      <svg width="26" height="13" viewBox="0 0 26 13" fill="none"><rect x="1" y="1" width="21" height="11" rx="3" stroke="currentColor" stroke-opacity=".5"/><rect x="3" y="3" width="16" height="7" rx="1.4" fill="currentColor"/><rect x="23" y="4.5" width="2" height="4" rx="1" fill="currentColor" fill-opacity=".5"/></svg>
-    </span>
-  </div>`;
+  // The phone's own status bar (real clock, real battery) renders above the WebView —
+  // drawing a second one reads as fake. This strip only reserves the safe-area height.
+  return `<div class="statusbar" aria-hidden="true"></div>`;
 }
 
 function tabbar(activeTab, nav = 'athlete') {
