@@ -444,6 +444,7 @@ export const coachMeal = {
     <div class="rx-strip" id="rx-bar" style="margin-top:4px">
       ${['🔥', '💪', '👏', '👍'].map((e2) => `<span class="rx" data-rx="${e2}" style="cursor:pointer;font-size:16px;padding:6px 14px">${e2}</span>`).join('')}
     </div>
+    <div id="rx-note" style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px"></div>
     <div class="composer">
       <input id="cm-input" placeholder="Comment on this meal…" />
       <div class="send" id="cm-send">${icon('arrowUp', 19)}</div>
@@ -468,13 +469,26 @@ export const coachMeal = {
     };
     if (send) send.addEventListener('click', submit);
     if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    // One shared lock across all four emoji: a burst of taps lands exactly one reaction.
+    const rxNote = root.querySelector('#rx-note');
+    let rxBusy = false;
     root.querySelectorAll('#rx-bar [data-rx]').forEach((btn) => btn.addEventListener('click', async () => {
+      if (rxBusy) return;
+      rxBusy = true;
+      if (rxNote) rxNote.textContent = '';
       const meal = mealById(sub);
       const athleteId = meal ? meal.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
-      if (!athleteId) return;
+      if (!athleteId) { rxBusy = false; return; }
       const ok = await roles.postMealComment(sub, athleteId, RT.userId, 'coach', btn.getAttribute('data-rx'), 'reaction');
-      if (ok) roles.nudgePush(athleteId, `Coach reacted to your ${meal ? cap(meal.type) : 'meal'}`, btn.getAttribute('data-rx'));
+      if (!ok) {
+        // Post failed (returns false, never throws): quiet note, no push, no reload — tapping again IS the retry.
+        if (rxNote) rxNote.textContent = "Couldn't send — try again.";
+        rxBusy = false;
+        return;
+      }
+      roles.nudgePush(athleteId, `Coach reacted to your ${meal ? cap(meal.type) : 'meal'}`, btn.getAttribute('data-rx'));
       await loadMealComments(sub, true);
+      rxBusy = false;
     }));
   },
 };
