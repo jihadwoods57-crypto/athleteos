@@ -181,6 +181,11 @@ export function mealDetail(slot) {
     img: (MEAL.key === k && MEAL.photoDataUrl) ? MEAL.photoDataUrl : null,
     note: meta.note || '',
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
+    fiber: meta.fiber || 0,
+    highlights: Array.isArray(meta.highlights) ? meta.highlights : [],
+    detectedRich: Array.isArray(meta.detectedRich) && meta.detectedRich.length
+      ? meta.detectedRich
+      : (foods || []).map((f) => ({ name: f, confidence: 'high' })),
   };
 }
 

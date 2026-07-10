@@ -2,7 +2,7 @@ import home from './home.js';
 import breakdown from './breakdown.js';
 import plan from './plan.js';
 import camera from './camera.js';
-import { analyzing, analysis, confirm, detail } from './meal.js';
+import { analyzing, analysis, confirm, detail, thread } from './meal.js';
 import weight from './weight.js';
 import recovery, { recoveryConfirm } from './recovery.js';
 import progress from './progress.js';
@@ -32,6 +32,7 @@ export const screens = {
   camera,
   analyzing,
   'meal-analysis': analysis,
+  'meal-thread': thread,
   'meal-confirm': confirm,
   'meal-detail': detail,
   weight,

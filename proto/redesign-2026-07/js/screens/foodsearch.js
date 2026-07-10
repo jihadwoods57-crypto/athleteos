@@ -112,7 +112,7 @@ export const foodSearch = {
       const sum = plate.reduce((a, x) => ({ p: a.p + x.p * x.q, c: a.c + x.c * x.q, f: a.f + x.f * x.q, kc: a.kc + x.kc * x.q }), { p: 0, c: 0, f: 0, kc: 0 });
       window.__act.captureManual({ protein: sum.p, carbs: sum.c, fat: sum.f, kcal: sum.kc }, plate.map(x => x.n), SLOT);
       window.__act.logMeal(SLOT);
-      location.hash = '#meal-confirm';
+      location.hash = `#meal-thread/${SLOT}`;
     });
 
     input.addEventListener('input', () => renderResults(input.value));
@@ -211,7 +211,7 @@ export const labelScan = {
         { protein: 25 * mult, carbs: 5 * mult, fat: 2 * mult, kcal: 140 * mult },
         ['Protein bar'], SLOT);
       window.__act.logMeal(SLOT);
-      location.hash = '#meal-confirm';
+      location.hash = `#meal-thread/${SLOT}`;
     });
   },
 };
