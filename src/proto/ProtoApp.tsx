@@ -4,8 +4,10 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import * as SecureStore from 'expo-secure-store';
 import { ensureProtoExtracted, PROTO_ROOT_DIR } from './protoBundle';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
+import { authenticateBiometric } from '../lib/auth/biometrics';
 
 const BG = '#080B0A';
 
@@ -40,7 +42,20 @@ function Center({ children }: { children: React.ReactNode }) {
 export function ProtoApp() {
   const [uri, setUri] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
+  const [locked, setLocked] = React.useState<boolean | null>(null);
   const webviewRef = React.useRef<WebView>(null);
+
+  const tryUnlock = React.useCallback(async () => {
+    try {
+      const flag = await SecureStore.getItemAsync('onstd-biolock');
+      if (flag !== '1') { setLocked(false); return; }
+      setLocked(!(await authenticateBiometric()));
+    } catch {
+      setLocked(false); // fail-open: never brick the app on a storage error
+    }
+  }, []);
+
+  React.useEffect(() => { void tryUnlock(); }, [tryUnlock]);
 
   React.useEffect(() => {
     let alive = true;
@@ -63,6 +78,23 @@ export function ProtoApp() {
     void handleBridgeMessage(webviewRef, msg);
   }, []);
 
+  if (locked === null) {
+    return (
+      <Center>
+        <ActivityIndicator color="#37D586" />
+      </Center>
+    );
+  }
+  if (locked) {
+    return (
+      <Center>
+        <Text style={styles.errTitle}>OnStandard is locked</Text>
+        <Text style={styles.errBody} onPress={() => void tryUnlock()}>
+          Tap to unlock with Face ID
+        </Text>
+      </Center>
+    );
+  }
   if (err) {
     return (
       <Center>

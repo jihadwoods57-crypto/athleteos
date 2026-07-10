@@ -32,3 +32,9 @@ test('shim exposes the apple API', () => {
   expect(BRIDGE_SHIM).toContain('APPLE_AVAILABLE');
   expect(BRIDGE_SHIM).toContain('APPLE_SIGNIN');
 });
+
+test('BIO_AVAILABLE resolves false while the native module is absent', async () => {
+  const { injected, ref } = fakeRef();
+  await handleBridgeMessage(ref, { type: 'BIO_AVAILABLE', id: 3 } as never);
+  expect(injected[0]).toContain('__onNativeResult(3, false');
+});

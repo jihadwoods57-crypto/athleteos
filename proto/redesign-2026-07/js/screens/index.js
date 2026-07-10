@@ -23,6 +23,7 @@ import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from
 import signin from './signin.js';
 import reset from './reset.js';
 import { devices, recruiting, restrictions, teamDiet, injury, partner, coachVoice, safety } from './features.js';
+import bioOptin from './bio-optin.js';
 
 export const screens = {
   home,
@@ -85,4 +86,5 @@ export const screens = {
   partner,
   'coach-voice': coachVoice,
   safety,
+  'bio-optin': bioOptin,
 };

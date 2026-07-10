@@ -732,7 +732,13 @@ export const clientOb = {
         role: 'athlete',
         onSession: async (live) => {
           await act.persistOnboarding(); // writes profile + redeems join_practice + stamps
-          if (live) { act.startDay0(); window.__go('home'); return; }
+          if (live) {
+            act.startDay0();
+            let bio = false;
+            try { bio = window.OnStandardNative && window.OnStandardNative.biometrics ? await window.OnStandardNative.biometrics.available() : false; } catch { /* unavailable */ }
+            window.__go(bio ? 'bio-optin' : 'home');
+            return;
+          }
           const err = $('#su-err');
           err.style.color = 'var(--text-2)';
           err.textContent = 'Account created — confirm your email, then sign in to start.';
