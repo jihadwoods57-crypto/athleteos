@@ -334,7 +334,8 @@ export const thread = {
         });
         const { data, error } = await window.sb.functions.invoke('meal-chat', { body: { mealId: M.mealId, question: text, context } });
         if (error || !data || data.error) {
-          setNote(data && data.error === 'limit' ? "You've hit today's AI coaching limit — back tomorrow. Your coach still sees this." : "Couldn't reach your AI coach — tap to try again.", true);
+          if (data && data.error === 'limit') setNote("You've hit today's AI coaching limit — back tomorrow. Your coach still sees this.");
+          else setNote("Couldn't reach your AI coach — tap to try again.", true);
         } else {
           await refresh();
         }
