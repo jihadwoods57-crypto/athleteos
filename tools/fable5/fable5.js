@@ -368,3 +368,31 @@ Do not expand scope. If you cannot make it green, say so plainly.`,
   )
 }
 log(`Verify: ${gate && gate.green ? 'GREEN' : 'RED — QA will flag it'}`)
+
+// ---------------------------------------------------------------- QA (U1 adversarial refute)
+phase('QA')
+const qaSkills = skillsForPhase('qa', cfg, `${audit.buildTarget} ${audit.fileHints || ''}`)
+const qa = await track('QA', () => agent(
+  `You are Fable 5's QA / Audit & Security phase (Opus). ${CREED}
+FIRST invoke these skills for domain correctness: ${JSON.stringify(qaSkills)} (Skill tool).
+The build is on this fable5/* branch (gate was ${gate && gate.green ? 'GREEN' : 'RED: ' + (gate ? gate.summary : 'unknown')}).
+Read the REAL diff (git diff master...HEAD) and the changed files. Find bugs, security issues, perf problems,
+accessibility gaps, and inconsistencies. Grade each severity low/medium/high/blocker. Only surface findings you can
+back with evidence from the actual diff.`,
+  { label: 'qa', phase: 'QA', model: R('qa').model, effort: R('qa').effort, schema: QA_SCHEMA },
+))
+const rawFindings = (qa && qa.findings) || []
+
+// refute each finding once (an LLM never grades an LLM's work unrefuted)
+const verdicts = await parallel(rawFindings.map((f) => () =>
+  agent(
+    `You are an adversarial verifier for a QA finding on the current branch. ${CREED}
+Finding: ${JSON.stringify(f)}
+REFUTE it: read the real code at ${f.file} and the diff. Is this actually a real, reproducible problem in THIS diff,
+or a false positive / pre-existing / out-of-scope? Default refuted=true unless you can confirm it's real and caused
+by this change.`,
+    { label: `refute:${(f.file || 'x').split('/').pop()}`, phase: 'QA', model: R('refuter').model, effort: R('refuter').effort, schema: REFUTE_SCHEMA },
+  ).then((v) => ({ f, v })),
+))
+const confirmedBugs = verdicts.filter(Boolean).filter((x) => x.v && !x.v.refuted).map((x) => ({ ...x.f, refuteReason: x.v.reason }))
+log(`QA: ${confirmedBugs.length}/${rawFindings.length} findings survived refutation.`)
