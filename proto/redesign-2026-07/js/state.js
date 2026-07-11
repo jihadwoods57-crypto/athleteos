@@ -11,7 +11,7 @@ import { CATALOG, runsToday, derive, deriveAssigned } from './requirements.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor,
-  streakDays as dayStreak, loadDay, pushDay, uploadMealPhoto, flushDayPush,
+  streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow,
 } from './day.js';
@@ -863,7 +863,20 @@ export const S = {
     return y ? y.score : null;
   },
   get streakDays() { return dayStreak(); },
-  streakGraceUsed: false,
+  // Grace-aware streak state for the label surfaces. The grace "recharges": a graced miss
+  // older than the trailing 7 days reads as intact again (one miss per rolling week).
+  get streak() {
+    const info = streakInfo();
+    let graceUsedRecently = false;
+    if (info.graceDate) {
+      const diff = Math.round((new Date(DAY.date + 'T12:00:00') - new Date(info.graceDate + 'T12:00:00')) / 86400000);
+      graceUsedRecently = diff >= 0 && diff < 7;
+    }
+    const label = graceUsedRecently
+      ? `grace used ${new Date(info.graceDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' })}`
+      : 'grace intact';
+    return { ...info, graceUsedRecently, label };
+  },
   // The slot a manual/camera log should fill right now (next open by time of day), or null if
   // every meal is already logged. Drives the food-search / label-scan log buttons.
   get currentSlot() { return nextOpenSlot(); },
@@ -1272,10 +1285,10 @@ export const S = {
       level: 'medium', title: `${a.from || 'Coach'} added: ${a.title}`,
       body: `${a.note} Due: ${(a.dueLabel || '').toLowerCase()}.`, when: 'now', icon: 'clipboard', route: `requirement/${a.id}`,
     }));
-    if (RT.injured) fresh.push({ level: 'medium', title: 'Your Standard adapted', body: 'Hamstring rehab is on your list; nutrition tilts anti-inflammatory. Coach and your AT both see progress.', when: 'now', icon: 'bolt', route: 'injury' });
+    if (RT.injured) fresh.push({ level: 'medium', title: 'Your Standard adapted', body: 'Rehab is on your list; nutrition tilts anti-inflammatory while you heal.', when: 'now', icon: 'bolt', route: 'injury' });
     if (RT.hydrationOz >= 120) fresh.push({ level: 'positive', title: 'Hydration standard hit', body: `${RT.hydrationOz} oz in. This week's focus, handled. Coach sees it.`, when: 'now', icon: 'droplet', route: 'log' });
     if (e.celebration) fresh.push({
-      level: 'positive', title: "You're OnStandard", body: `Every requirement is in at ${e.score}. Day ${this.streakDays + 1} locks at midnight.`,
+      level: 'positive', title: "You're OnStandard", body: `Every requirement is in at ${e.score}. Day ${this.streakDays} of your streak locks at midnight.`,
       when: 'now', icon: 'check', route: 'home',
     });
     return { new: fresh, earlier: [] };

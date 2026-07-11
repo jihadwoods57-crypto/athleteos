@@ -267,7 +267,7 @@ export const thread = {
     <div class="day-done" style="margin-top:16px">
       <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
       <div><div class="tt">That's everything. You're OnStandard at ${e.score}.</div>
-      <div class="ts">All requirements in. Day ${S.streakDays + 1} locks at midnight.</div></div>
+      <div class="ts">All requirements in. Day ${S.streakDays} locks at midnight.</div></div>
     </div>` : n ? `
     <div class="eyebrow" style="margin-top:16px">Next Action</div>
     <div class="xrow-item" data-go="${n.route}">

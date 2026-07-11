@@ -151,19 +151,56 @@ export function projectedDay() {
 export function dayComponents() { return computeComponents(DAY); }
 export function tierFor(s) { return s >= 90 ? { name: 'OnStandard', cls: 'g' } : s >= 75 ? { name: 'Locked In', cls: 'b' } : s >= 60 ? { name: 'Building', cls: 'a' } : { name: 'Off Standard', cls: 'r' }; }
 
-/** Simple honest streak: consecutive days >= 80 ending today (today must be live-on-standard). */
-export function streakDays() {
+/** Honest streak with the council-ruled grace (roadmap #11).
+ *
+ *  - The run is consecutive qualifying (>= 80) HISTORY days ending yesterday, plus today
+ *    once today's live score qualifies. An INCOMPLETE today never zeroes the run — the
+ *    morning after a 10-day run reads "10", not "0" (the old behavior punished the exact
+ *    moment retention is decided).
+ *  - ONE sub-80 / missed day per rolling 7 is GRACED: the chain survives it but the graced
+ *    day itself doesn't count. A second miss within 7 days of the last graced one ends the
+ *    run — grace is a bridge, not a discount.
+ *  - Days before the earliest history row are UNKNOWN, not misses: the walk stops there
+ *    without burning grace (history hydrates ~60 days; an older run just reads as its
+ *    visible tail — honest, never inflated).
+ *
+ *  Returns { days, todayCounted, graceDate } — graceDate is the most recent graced miss
+ *  inside the run (null when the grace is intact). */
+export function streakInfo() {
   const THRESH = 80;
-  if (dayScore() < THRESH) return 0;
-  let days = 1;
-  let expect = addDaysISO(DAY.date, -1);
-  const hist = (DAY.scoreHistory || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
-  for (const h of hist) {
-    if (h.date === expect && h.score >= THRESH) { days++; expect = addDaysISO(expect, -1); }
-    else if (h.date <= expect) break; // a below-threshold day or a gap ends the run
+  const byDate = {};
+  let earliest = null;
+  for (const h of DAY.scoreHistory || []) {
+    byDate[h.date] = h.score;
+    if (earliest === null || h.date < earliest) earliest = h.date;
   }
-  return days;
+  const diffDays = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
+  const todayCounted = dayScore() >= THRESH;
+  let days = todayCounted ? 1 : 0;
+  let graceDate = null;   // most recent graced miss (first one met walking backward)
+  let lastGrace = null;   // for the rolling-7 rule
+  let cursor = addDaysISO(DAY.date, -1);
+  while (earliest !== null && cursor >= earliest) {
+    const s = byDate[cursor];
+    if (typeof s === 'number' && s >= THRESH) {
+      days++;
+      cursor = addDaysISO(cursor, -1);
+      continue;
+    }
+    // a miss (below the bar, or a day with no row inside known history)
+    if (lastGrace === null || diffDays(cursor, lastGrace) >= 7) {
+      lastGrace = cursor;
+      if (graceDate === null) graceDate = cursor;
+      cursor = addDaysISO(cursor, -1);
+      continue; // graced: chain survives, day doesn't count
+    }
+    break; // second miss inside the rolling week — the run honestly ends
+  }
+  return { days, todayCounted, graceDate };
 }
+
+/** Back-compat: the plain day count (now grace-aware and morning-safe). */
+export function streakDays() { return streakInfo().days; }
 
 /* ---- offline cache (per user) ---- */
 function cacheKey(userId) { return `onstd-day-${userId}-${DAY.date}`; }

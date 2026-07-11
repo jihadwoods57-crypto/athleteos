@@ -22,7 +22,7 @@ export default {
         <div class="hub-celeb">
           <div class="n">${e.score}</div>
           <div style="font-size:15px;font-weight:800;margin-top:2px">You're OnStandard.</div>
-          <div style="font-size:12px;color:var(--text-2);margin-top:4px;line-height:1.5">Every requirement is in. Day ${S.streakDays + 1} locks at midnight.</div>
+          <div style="font-size:12px;color:var(--text-2);margin-top:4px;line-height:1.5">Every requirement is in. Day ${S.streakDays} locks at midnight.</div>
         </div>
         ${RT.hydrationOz < 120 ? `
         <div class="sheet-row">
