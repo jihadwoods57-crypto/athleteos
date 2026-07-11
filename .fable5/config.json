@@ -12,5 +12,7 @@
     "qa":           { "model": "opus",   "effort": "high" },
     "refuter":      { "model": "opus",   "effort": "low"  }
   },
-  "phaseSkills": null
+  "phaseSkills": {
+    "design": ["impeccable", "frontend-design", "ui-ux-pro-max"]
+  }
 }
