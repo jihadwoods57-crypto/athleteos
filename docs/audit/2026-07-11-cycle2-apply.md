@@ -1,8 +1,19 @@
 # Apply-to-Live Runbook — Cycle 2 security batch (2026-07-11)
 
-Branch: `fix/cycle1-release-blockers`. Everything here is **authored + statically reviewed +
-suite-green, NOT applied to live** (standing guardrail: the crew never runs `supabase db push`
-or deploys functions). Two artifacts need your hands; both are small.
+> **STATUS 2026-07-11: MIGRATIONS APPLIED.** 0048–0051 pushed to live and confirmed in
+> `supabase migration list --linked` (Local and Remote match through 0051). A post-apply anon
+> probe caught that 0050's `revoke ... from anon, authenticated` was a no-op (Postgres grants
+> EXECUTE to PUBLIC by default, which anon inherits) — the minor-status helpers were briefly
+> anon-callable. **0051 closes that**: revoked EXECUTE from PUBLIC on `is_provable_minor`,
+> `has_verified_guardian_consent`, `is_minor`, `is_registered_minor`, re-granting only
+> `authenticated` (the role the meal-photo storage policies invoke them as). Re-probed: all four
+> now return `42501 permission denied` to anon. **Edge-function redeploys below still pending**
+> (they need `supabase functions deploy`, which wants Docker — do them when convenient; until
+> then the fail-closed spend caps and preview_code throttle aren't live, but 0030 being applied
+> means normal operation is unaffected).
+
+Branch: originally authored on `fix/cycle1-release-blockers` (now merged to master). Two
+artifacts needed hands; the migrations are **done**, the function redeploys remain.
 
 ## 1. Migration `0050_minor_consent_enforcement.sql` — the P1 from the 2026-07-11 audit
 
