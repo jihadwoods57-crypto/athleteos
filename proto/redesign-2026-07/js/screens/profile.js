@@ -222,6 +222,7 @@ export const squad = {
       <div class="sd-ic">${icon('users', 24)}</div>
       <div class="sd-t">No leaderboard yet</div>
       <div class="sd-s">Rankings turn on when your coach's board is wired. There's no real roster to rank against yet, so nothing is shown — we won't fill it with made-up teammates.</div>
+      <div class="sd-cta"><button class="btn ghost sm" data-go="connect">Enter coach code</button></div>
     </div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>

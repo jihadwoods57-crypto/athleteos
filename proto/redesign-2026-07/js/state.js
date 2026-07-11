@@ -548,6 +548,31 @@ export const act = {
     RT.myCoach = res || null;
     save();
   },
+  /* Athlete: redeem a coach team code (or a trainer practice code) from the Connect screen.
+     The server re-validates the code and creates the membership (SECURITY DEFINER RPCs from
+     0002; direct code joins are immediately active — having the code IS the consent step,
+     per the 0038 linking design). On success the real link is re-hydrated so the UI flips
+     to the connected state without a restart. */
+  async joinByCode(rawCode) {
+    const sb = window.sb;
+    const code = String(rawCode || '').trim().toUpperCase();
+    if (!code) return { ok: false, error: 'Enter the code first.' };
+    if (!sb || !RT.userId) return { ok: false, error: 'You need a connection for this — try again when you’re online.' };
+    let kind = null;
+    try {
+      const { error } = await sb.rpc('join_team', { code, athlete_position: (RT.profile && RT.profile.position) || null });
+      if (!error) kind = 'team';
+    } catch { /* not a team code — try practice below */ }
+    if (!kind) {
+      try {
+        const { error } = await sb.rpc('join_practice', { code });
+        if (!error) kind = 'practice';
+      } catch { /* neither */ }
+    }
+    if (!kind) return { ok: false, error: 'That code didn’t match a team or practice. Check it with your coach and try again.' };
+    if (kind === 'team') await this._loadCoachIntoRt(RT.userId);
+    return { ok: true, kind };
+  },
   async signOut() {
     const sb = window.sb;
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
