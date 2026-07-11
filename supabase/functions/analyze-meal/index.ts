@@ -102,18 +102,22 @@ async function withinDailyCap(userId: string): Promise<boolean> {
 }
 
 // Claim one slot against a TEXT-keyed day counter (global ceiling / per-IP anon cap; migration
-// 0030). Fail-OPEN on any error, exactly like withinDailyCap, so an un-applied migration or infra
-// hiccup never blocks a legit log.
-async function withinKeyCap(key: string, limit: number): Promise<boolean> {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
+// 0030). `failOpen` decides what an unreachable counter means:
+//   * per-user fairness caps pass failOpen=true — an infra hiccup must never block a legit log
+//     (withinDailyCap keeps the same semantics);
+//   * the GLOBAL bill backstop and the anon per-IP cap pass failOpen=false — if the counter is
+//     down (un-applied migration, RPC error), the LAST line of defense on paid spend must hold,
+//     not silently disable (audit 2026-07-11 P2; deep-analysis set this precedent).
+async function withinKeyCap(key: string, limit: number, failOpen = true): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return failOpen;
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data, error } = await sb.rpc('claim_ai_usage_key', { p_key: key, p_limit: limit });
-    if (error) return true;
+    if (error) return failOpen;
     const row = Array.isArray(data) ? data[0] : data;
     return row?.allowed !== false;
   } catch {
-    return true;
+    return failOpen;
   }
 }
 
@@ -557,20 +561,22 @@ Deno.serve(async (request) => {
   // too. A legitimate two-call meal (analyze + finalize) counts twice here, which is correct: it
   // really is two paid calls against the day's bill. This is the hard backstop the constitution
   // requires ("AI spend caps and the daily cap stay in force").
-  if (!(await withinKeyCap('global', GLOBAL_CAP))) {
+  if (!(await withinKeyCap('global', GLOBAL_CAP, /* failOpen */ false))) {
     return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
   // (2) PER-CALLER daily cap — fairness/anti-spam, on the meal ESTIMATE + label only. 'finalize'
   // reuses the slot 'analyze' already claimed (a meal stays 1 of the per-caller cap even with a
   // follow-up); memory/order are exempt. A signed-in athlete gets the per-athlete daily cap; an
   // anonymous (anon-key-only) caller gets a per-IP daily cap so the public anon key can't be
-  // abused without signing in (audit Finding #2). Both fail open.
+  // abused without signing in (audit Finding #2). The signed-in cap fails open (never block a
+  // legit athlete's log on an infra hiccup); the anon-IP cap fails CLOSED — it's the only
+  // ceiling an anonymous caller has, so it must hold even when the counter is unreachable.
   const countsAgainstDailyCap = !isMemory && !isOrder && !isFinalize;
   if (countsAgainstDailyCap) {
     const userId = await resolveUserId(request);
     const ok = userId
       ? await withinDailyCap(userId)
-      : await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP);
+      : await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP, /* failOpen */ false);
     if (!ok) {
       return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
     }

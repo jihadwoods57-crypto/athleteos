@@ -36,8 +36,8 @@ function frame(n, total, title, sub, body, cta, next, opts = {}) {
   return `
   <div class="ob">
     <div class="ob-nav"><div class="ob-back" data-go="${opts.back || 'role'}" aria-label="Back">${icon('chevron', 18)}</div>${progressOf(n, total)}</div>
-    <div class="ob-title">${title}</div>
-    <div class="ob-sub">${sub}</div>
+    <div class="ob-title">${esc(title)}</div>
+    <div class="ob-sub">${esc(sub)}</div>
     <div class="ob-body">${body}</div>
     <div class="ob-foot">
       <button class="btn ${opts.green ? 'green' : 'primary'}" ${opts.id ? `id="${opts.id}"` : ''} ${opts.disabled ? 'disabled' : ''} data-go="${next}">${cta}</button>
@@ -52,33 +52,6 @@ async function toggles(root) {
   root.querySelectorAll('[data-multi] .chp').forEach(ch =>
     ch.addEventListener('click', () => ch.classList.toggle('on')));
 }
-
-/* ---------- Sign-in role select: every role lands on ITS dashboard ---------- */
-export const signin = {
-  hideTabs: true,
-  render() {
-    const row = (go, ic, cls, t, s) => `
-      <div class="lrow" data-go="${go}">
-        <div class="lic" style="${cls}">${icon(ic, 18)}</div>
-        <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>`;
-    return `
-    ${backHead('Sign in as', 'Every role gets its own dashboard', 'welcome')}
-    <section class="card" style="padding:6px 16px">
-      ${row('home', 'bolt', 'background:rgba(52,211,153,0.18);color:var(--green-bright)', 'Jihad Woods · Athlete', 'Home, plan, camera, progress')}
-      ${row('coach', 'users', 'background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204', 'Coach Mark · Coach', 'Team board, assign, plan, Copilot')}
-      ${row('trainer', 'heart', 'background:rgba(168,85,247,0.18);color:var(--purple-bright)', 'Tracy Boone · Trainer', 'Clients, readiness, notes')}
-      ${row('parent', 'lock', 'background:var(--blue-surface);color:var(--blue-bright)', 'Parent of Jihad', 'Score and streaks, privacy-scoped')}
-    </section>
-    <div style="height:14px"></div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
-      <div><div class="tt">One account, one role</div>
-      <div class="ts">In the real app your login knows who you are. This picker stands in for that.</div></div>
-    </div>`;
-  },
-};
 
 /* ---------- Role picker ---------- */
 export const role = {
@@ -559,10 +532,11 @@ const clientSteps = {
     const join = ob.join && ob.join.kind === 'practice' ? ob.join : null;
     const std = standardForGoal(ob.goal, ob.standard && ob.standard.mealsPerDay, 'general');
     const committed = !!ob.committedAt;
-    const trainerFirst = join && join.trainerName ? esc(join.trainerName.trim().split(/\s+/)[0]) : null;
+    // Plain text here — frame() escapes title/sub wholesale (no inner esc, or it double-escapes).
+    const trainerFirst = join && join.trainerName ? join.trainerName.trim().split(/\s+/)[0] : null;
     const title = join ? `${trainerFirst || 'Your trainer'}’s Standard` : 'Your Standard';
     const sub = join
-      ? `The deal with ${esc(join.practiceName || 'your trainer')}. Your score is built on it — hold to commit.`
+      ? `The deal with ${join.practiceName || 'your trainer'}. Your score is built on it — hold to commit.`
       : 'Built from your goal. When you connect a trainer, their standard takes over.';
     const rows = std.rows.map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
@@ -768,12 +742,17 @@ export const clientOb = {
 export const coachProfile = {
   nav: 'coach', tab: 'profile',
   render() {
-    const c = (RT.ob && RT.ob.coach) || {};
-    const code = (RT.ob || {}).teamCode || '';
-    const name = (RT.ob && RT.ob.coach && RT.ob.coach.name) || S.coach.name;
-    const metaLine = c.schoolName || c.teamName
-      ? [c.teamName, c.schoolName].filter(Boolean).map(esc).join(' · ')
-      : `${esc(S.coach.role)} · ${esc(S.coach.team)}`;
+    // Server-confirmed identity first (S.coachIdentity: profiles.full_name + the real team row
+    // with its real join code) — the onboarding scratch is only a fallback for a just-onboarded
+    // coach whose team fetch hasn't landed yet. Never a fabricated persona.
+    const ci = S.coachIdentity;
+    const ob = (RT.ob && RT.ob.coach) || {};
+    const name = ci.name !== 'Coach' ? ci.name : (ob.name || 'Coach');
+    const teamBits = ci.hasIdentity
+      ? [ci.teamName]
+      : [ob.teamName, ob.schoolName].filter(Boolean);
+    const metaLine = teamBits.filter(Boolean).map(esc).join(' · ') || 'Your team';
+    const code = ci.code || (RT.ob || {}).teamCode || '';
     return `
     ${backHead('Coach Profile', 'You, your team, your code', 'coach')}
 
@@ -792,7 +771,15 @@ export const coachProfile = {
         ${code.split('').map(ch => `<div class="cb filled" style="border-color:var(--amber-border)">${esc(ch)}</div>`).join('')}
       </div>
       <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:8px auto 0">${icon('clipboard', 16)} Copy code</button>
-    </section>` : `
+    </section>` : ci.state === 'loading' ? `
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">Loading your team…</div><div class="ts">Checking your team and code.</div></div>
+    </div>` : ci.state === 'offline' ? `
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">Can't reach the server</div><div class="ts">Your code is safe — reconnect and it shows right here.</div></div>
+    </div>` : `
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
       <div><div class="tt">No code yet</div><div class="ts">It mints when your team is created, automatically on your next sign-in.</div></div>

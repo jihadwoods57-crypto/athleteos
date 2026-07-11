@@ -121,6 +121,13 @@ insert into practice_clients (practice_id, client_id, status) values
 insert into guardianships (athlete_id, guardian_id, relationship, status) values
   ('dddddddd-0000-0000-0000-000000000004','33333333-0000-0000-0000-000000000003','parent','active');
 
+-- 0050: minor M's guardian consent is VERIFIED at seed — required BEFORE M's days/meals/
+-- checkins/photos below (the minor write-block trigger fires even for superuser inserts),
+-- and it keeps the link-scope probes above testing LINK semantics, not consent. The
+-- unconsented paths are probed in section 10 with a second minor (N).
+insert into guardian_consent_requests (athlete_id, guardian_email, status, verified_at) values
+  ('dddddddd-0000-0000-0000-000000000004','p@x.io','verified', now());
+
 -- an ORGANIZATION-scoped admin of O1 (the org auto-created for T1/T1B). Unlike a team coach
 -- (group scope), an org admin is meant to see every athlete across every team in their org.
 insert into auth.users (id, email) values ('55555555-0000-0000-0000-000000000005','admin@x.io');
@@ -377,7 +384,9 @@ select _as('aaaaaaaa-0000-0000-0000-000000000001');
 select _ok(_try($$update profiles set tos_accepted_at = now(), tos_version = '2026-07-09', committed_at = now()
                  where id = 'aaaaaaaa-0000-0000-0000-000000000001'$$) = 'ok',
            '0048: athlete records own ToS acceptance + commitment');
-select _ok(_try($$update athlete_profiles set dob = '2008-01-15', standard = '{"mealsPerDay":3}'::jsonb
+-- (adult dob on purpose: a minor dob here would make A a provable minor and trip the 0050
+-- consent gates in any later probe that touches A's data — this probe only tests self-write)
+select _ok(_try($$update athlete_profiles set dob = '1990-01-15', standard = '{"mealsPerDay":3}'::jsonb
                  where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001'$$) = 'ok',
            '0048: athlete writes own dob + standard knobs');
 -- cross-writes: RLS silently matches zero rows — assert the value did not change
@@ -390,6 +399,66 @@ select _ok((select tos_version is distinct from 'evil' from profiles
 select _ok((select dob is distinct from '1990-01-01'::date from athlete_profiles
             where athlete_id = 'bbbbbbbb-0000-0000-0000-000000000002'),
            '0048: stranger cannot set another athlete''s dob');
+
+-- ================================================================ 10. MINOR CONSENT ENFORCEMENT (0050)
+-- Minor N: 16 years old via dob only (no base_age — exercises the dob branch of
+-- is_provable_minor), ACTIVE member of coach_1's team T1, NO verified consent yet.
+select _superuser();
+insert into auth.users (id, email) values ('eeeeeeee-0000-0000-0000-000000000006','n@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('eeeeeeee-0000-0000-0000-000000000006','Minor N','n@x.io','athlete')
+  on conflict (id) do update set full_name = excluded.full_name, email = excluded.email, primary_role = excluded.primary_role;
+insert into athlete_profiles (athlete_id, sport, dob) values
+  ('eeeeeeee-0000-0000-0000-000000000006','football',(current_date - interval '16 years')::date);
+insert into team_members (team_id, athlete_id, status) values
+  ('77777777-1111-0000-0000-000000000001','eeeeeeee-0000-0000-0000-000000000006','active');
+
+-- WRITE-BLOCK: the unconsented minor's sync writes are rejected server-side.
+select _as('eeeeeeee-0000-0000-0000-000000000006');
+select _ok(_try($q$insert into days (athlete_id, date, score) values ('eeeeeeee-0000-0000-0000-000000000006', current_date, 80)$q$) <> 'ok',
+           '0050: unconsented minor CANNOT sync a day row');
+select _ok(_try($q$insert into meals (athlete_id, day_date, name) values ('eeeeeeee-0000-0000-0000-000000000006', current_date, 'N lunch')$q$) <> 'ok',
+           '0050: unconsented minor CANNOT sync a meal row');
+select _ok(_try($q$insert into storage.objects (bucket_id, name) values ('meal-photos','eeeeeeee-0000-0000-0000-000000000006/2026-07-11/n.jpg')$q$) <> 'ok',
+           '0050: unconsented minor CANNOT upload a meal photo');
+
+-- READ-BLOCK covers LEGACY rows (simulate pre-0050 data: superuser insert with the trigger
+-- disabled): the ACTIVE linked coach sees nothing; the minor still sees their own data.
+select _superuser();
+alter table days disable trigger trg_minor_consent_days;
+insert into days (athlete_id, date, score) values ('eeeeeeee-0000-0000-0000-000000000006', current_date - 1, 70);
+alter table days enable trigger trg_minor_consent_days;
+select _as('11111111-0000-0000-0000-000000000001');  -- coach_1: N's active team coach
+select _ok(not can_view('eeeeeeee-0000-0000-0000-000000000006'),
+           '0050: linked coach can_view = false for an unconsented minor');
+select _ok((select count(*) from days where athlete_id = 'eeeeeeee-0000-0000-0000-000000000006') = 0,
+           '0050: linked coach reads NONE of an unconsented minor''s legacy days');
+select _as('eeeeeeee-0000-0000-0000-000000000006');
+select _ok((select count(*) from days where athlete_id = 'eeeeeeee-0000-0000-0000-000000000006') = 1,
+           '0050: the minor still reads their OWN data (self-access is never gated)');
+
+-- VERIFIED CONSENT flips both gates open.
+select _superuser();
+insert into guardian_consent_requests (athlete_id, guardian_email, status, verified_at) values
+  ('eeeeeeee-0000-0000-0000-000000000006','guardian-n@x.io','verified', now());
+select _as('eeeeeeee-0000-0000-0000-000000000006');
+select _ok(_try($q$insert into meals (athlete_id, day_date, name) values ('eeeeeeee-0000-0000-0000-000000000006', current_date, 'N lunch')$q$) = 'ok',
+           '0050: verified consent unlocks the minor''s meal sync');
+select _ok(_try($q$insert into storage.objects (bucket_id, name) values ('meal-photos','eeeeeeee-0000-0000-0000-000000000006/2026-07-11/n.jpg')$q$) = 'ok',
+           '0050: verified consent unlocks the minor''s photo upload');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(can_view('eeeeeeee-0000-0000-0000-000000000006'),
+           '0050: verified consent restores the linked coach''s visibility');
+select _ok((select count(*) from days where athlete_id = 'eeeeeeee-0000-0000-0000-000000000006') >= 1,
+           '0050: linked coach reads the consented minor''s days');
+
+-- THE AGE RULING HOLDS: unknown age (no base_age, no dob — every pre-0048 adult) is treated
+-- as ADULT for sync. This is the probe that guarantees 0050 can't sever the live beta.
+select _superuser();
+insert into athlete_profiles (athlete_id, sport) values ('99999999-0000-0000-0000-000000000009','football');
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($q$insert into days (athlete_id, date, score) values ('99999999-0000-0000-0000-000000000009', current_date, 75)$q$) = 'ok',
+           '0050: unknown-age profile (pre-dob-era adult) is NOT blocked from syncing');
 
 -- ================================================================ scoreboard
 select _superuser();

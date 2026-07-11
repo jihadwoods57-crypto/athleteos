@@ -150,7 +150,7 @@ export const labelScan = {
         <div class="sd-ic" style="width:42px;height:42px;margin:0;border-radius:13px">${icon('bell', 20)}</div>
         <div>
           <div class="sd-t" style="font-size:15px">Guardian: contains peanuts</div>
-          <div class="sd-s" style="margin-top:4px">Your restriction list flags this as <b style="color:var(--red)">severe</b>. If you log it as eaten, ${S.coach.name} and your parent are notified immediately.</div>
+          <div class="sd-s" style="margin-top:4px">Your restriction list flags this as <b style="color:var(--red)">severe</b>. Don't log it as eaten unless you're certain it's safe for you.</div>
         </div>
       </div>
     </div>` : ''}

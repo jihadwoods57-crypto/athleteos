@@ -110,7 +110,7 @@ export default {
       </div>
       <div class="lrow" data-go="injury">
         <div class="lic" style="background:rgba(245,165,36,0.16);color:var(--amber-bright)">${icon('bolt', 17)}</div>
-        <div class="lm"><div class="lt">Injury mode</div><div class="ls">${RT.injured ? 'Active · hamstring week 2 of 4' : 'The Standard adapts when you’re hurt'}</div></div>
+        <div class="lm"><div class="lt">Injury mode</div><div class="ls">${RT.injured ? 'Active · your Standard is adapted' : 'The Standard adapts when you’re hurt'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
     </section>
@@ -121,28 +121,11 @@ export default {
       <div class="lrow" data-go="billing"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan & billing</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & preferences</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms & privacy policy</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" style="cursor:default"><div class="lic">${icon('grid', 17)}</div><div class="lm"><div class="lt">Export my data</div><div class="ls">Everything, in a file you own</div></div><span class="status-pill b">Ready</span></div>
+      <div class="lrow" style="cursor:default"><div class="lic">${icon('grid', 17)}</div><div class="lm"><div class="lt">Export my data</div><div class="ls">Everything, in a file you own · coming soon</div></div></div>
       <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="welcome"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div></div></div>
     </section>
 
-    <div class="eyebrow">Prototype controls</div>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="welcome">
-        <div class="lic">${icon('sparkle', 17)}</div>
-        <div class="lm"><div class="lt">View onboarding</div><div class="ls">All four roles, from Welcome</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-go="states">
-        <div class="lic">${icon('grid', 17)}</div>
-        <div class="lm"><div class="lt">Design states gallery</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-act="reset" data-then="home">
-        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('flip', 17)}</div>
-        <div class="lm"><div class="lt">Reset the demo day</div><div class="ls">Back to 7:12 PM, 82, dinner + recovery open</div></div>
-      </div>
-    </section>
     <div style="height:10px"></div>
     `;
   },
@@ -239,6 +222,7 @@ export const squad = {
       <div class="sd-ic">${icon('users', 24)}</div>
       <div class="sd-t">No leaderboard yet</div>
       <div class="sd-s">Rankings turn on when your coach's board is wired. There's no real roster to rank against yet, so nothing is shown — we won't fill it with made-up teammates.</div>
+      <div class="sd-cta"><button class="btn ghost sm" data-go="connect">Enter coach code</button></div>
     </div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>

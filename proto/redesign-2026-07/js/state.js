@@ -17,7 +17,7 @@ import {
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { groundExtras } from './meal-intel.js';
-import { fetchMyPracticeIdentity } from './roles.js';
+import { fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach } from './roles.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
 function fmtClock(min) {
@@ -106,6 +106,12 @@ const DEFAULT_RT = {
   practice: null,        // last server-confirmed {id,name,code}, or null — never a fabricated persona
   practiceLoading: true, // true until the first hydrate attempt (success or failure) completes
   practiceOffline: false,// true when the last hydrate attempt failed while a cached identity exists
+  // --- coach's real team identity (same honest model as practice) ---
+  team: null,            // last server-confirmed {id,name,code}, or null — never "Coach Mark"
+  teamLoading: true,
+  teamOffline: false,
+  // --- athlete's real linked coach ({teamId,teamName,name}) — null until a real team link exists ---
+  myCoach: null,
 };
 function load() {
   try {
@@ -353,15 +359,14 @@ export const act = {
     const rehabIdx = RT.assigned.findIndex(a => a.id === 'rehab');
     if (RT.injured && rehabIdx === -1) {
       RT.assigned.push({ id: 'rehab', title: 'Rehab · band work 2×15', icon: 'bolt',
-        note: 'Right hamstring, week 2 of 4. From your athletic trainer; coach sees completion.',
-        from: 'Athletic Trainer', dueLabel: 'Before practice', done: false, seen: false });
+        note: 'Rehab replaces intensity while you heal. Completion counts like any requirement.',
+        from: 'Injury Mode', dueLabel: 'Before practice', done: false, seen: false });
       RT.notifsRead = false;
     } else if (!RT.injured && rehabIdx !== -1) {
       RT.assigned.splice(rehabIdx, 1);
     }
     save();
   },
-  reset() { Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { lastMove: null }); save(); },
 
   /* ---------------- Real auth (Supabase, in the WebView) ---------------- */
   async signUp(email, password, name, role) {
@@ -369,6 +374,10 @@ export const act = {
     if (!sb) return { ok: false, error: 'Auth is not ready yet. Try again in a moment.' };
     const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: name, role } } });
     if (error) return { ok: false, error: friendlyAuth(error.message) };
+    // Shared-device safety: creating a NEW account on top of a stale previous identity wipes
+    // the old user's local state; the fresh onboarding scratch (this person's own, keyed by
+    // the email they just typed) survives via keepPendingOb.
+    if (RT.userId && data.user && RT.userId !== data.user.id) this._wipeUserScopedState({ keepPendingOb: true });
     RT.userId = data.user ? data.user.id : null;
     RT.email = email;
     RT.authRole = role;
@@ -380,9 +389,9 @@ export const act = {
     if (!sb) return { ok: false, error: 'Auth is not ready yet. Try again in a moment.' };
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) return { ok: false, error: friendlyAuth(error.message) };
-    // Shared-device safety: a different real user signing in must never inherit the previous
-    // trainer's cached practice identity (name/business/code) from localStorage.
-    if (RT.userId && RT.userId !== data.user.id) { RT.practice = null; RT.practiceLoading = true; RT.practiceOffline = false; }
+    // Shared-device safety: a different real user signing in must never inherit ANY of the
+    // previous user's local state — day, profile identity, practice identity, assignments.
+    if (RT.userId && RT.userId !== data.user.id) this._wipeUserScopedState({ keepPendingOb: true });
     RT.userId = data.user.id;
     RT.email = email;
     let role = 'athlete';
@@ -403,6 +412,10 @@ export const act = {
     // trusted only for the original no-server-row case.
     const obEmail = ((RT.ob && RT.ob.email) || '').toLowerCase();
     const obMine = obEmail ? obEmail === (email || '').trim().toLowerCase() : !hadServerProfile;
+    // A scratch that provably belongs to a DIFFERENT email must not linger into this user's
+    // authenticated session (coachProfile and the backfill both read RT.ob). Legacy scratch
+    // without an email keeps the historical behavior above.
+    if (RT.ob && obEmail && !obMine) { RT.ob = null; RT.allergies = []; save(); }
     if (role === 'athlete' && RT.ob && obMine) {
       if (hadServerProfile && !RT.ob._synced) {
         // Grandfather: onboarding predates the phase flags — nothing to backfill, and
@@ -419,6 +432,8 @@ export const act = {
       try { await this.persistTrainerOnboarding(); } catch { /* best-effort */ }
     }
     if (role === 'trainer') await this._loadPracticeIntoRt(RT.userId);
+    if (role === 'coach') await this._loadTeamIntoRt(RT.userId);
+    if (role === 'athlete') await this._loadCoachIntoRt(RT.userId);
     await loadDay(RT.userId);
     syncRtFromDay();
     return { ok: true, role };
@@ -481,12 +496,87 @@ export const act = {
     RT.practiceLoading = false;
     save();
   },
+  /* Shared-device safety: wipe EVERY user-scoped bit of local state (the in-memory DAY plus
+     the persisted runtime) so the next account on this device can never inherit the previous
+     user's meals, score, identity, assignments, or onboarding scratch. Also deletes dynamic
+     keys that aren't in DEFAULT_RT (e.g. _lastPlan/_celebratedOn) — Object.assign alone
+     leaves them behind. `keepPendingOb` preserves a not-yet-synced onboarding scratch that
+     carries its owner's email (the email-confirm flow routes through Welcome, which signs
+     out, before the first real sign-in) — signIn's obMine guard ensures only that same email
+     can ever consume or render it. */
+  _wipeUserScopedState(opts) {
+    const keep = opts && opts.keepPendingOb && RT.ob && RT.ob.email
+      ? { ob: RT.ob, allergies: RT.allergies } : null;
+    const camPrimed = RT.camPrimed; // device-level (camera permission priming), not user data
+    try { dayResetLocal(); } catch { /* never block a wipe */ }
+    for (const k of Object.keys(RT)) { if (!(k in DEFAULT_RT)) delete RT[k]; }
+    Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { camPrimed });
+    if (keep) { RT.ob = keep.ob; RT.allergies = keep.allergies; }
+    save();
+  },
+  /* Read the coach's REAL team identity (team name + join code) into RT — the exact honest
+     four-state model as _loadPracticeIntoRt (loading | offline | minting | live), so the
+     coach profile never shows a fabricated persona or a dead "No code yet" on an outage. */
+  async _loadTeamIntoRt(userId) {
+    if (!userId) return;
+    const hadCache = !!(RT.team && RT.team.code);
+    RT.teamLoading = true; save();
+    const identity = await fetchMyTeamIdentity();
+    const fetchFailed = !!(identity && identity.error);
+    if (identity && identity.code) {
+      RT.team = { id: identity.id, name: identity.name, code: identity.code };
+      RT.teamOffline = false;
+    } else if (hadCache) {
+      RT.teamOffline = true; // keep RT.team as-is (last-known real identity)
+    } else if (fetchFailed) {
+      RT.team = null;
+      RT.teamOffline = true; // honest offline — never "minting" on a real fetch error
+    } else {
+      RT.team = null;
+      RT.teamOffline = false;
+    }
+    RT.teamLoading = false;
+    save();
+  },
+  /* Read the athlete's REAL linked coach (their team + the head coach's display name) into
+     RT.myCoach. Confirmed "no team link" clears it (an athlete who left a team must not keep
+     a stale coach); a fetch failure keeps the last-known link rather than wiping it. */
+  async _loadCoachIntoRt(userId) {
+    if (!userId) return;
+    const res = await fetchMyCoach();
+    if (res && res.error) return; // network/RLS hiccup — keep last-known
+    RT.myCoach = res || null;
+    save();
+  },
+  /* Athlete: redeem a coach team code (or a trainer practice code) from the Connect screen.
+     The server re-validates the code and creates the membership (SECURITY DEFINER RPCs from
+     0002; direct code joins are immediately active — having the code IS the consent step,
+     per the 0038 linking design). On success the real link is re-hydrated so the UI flips
+     to the connected state without a restart. */
+  async joinByCode(rawCode) {
+    const sb = window.sb;
+    const code = String(rawCode || '').trim().toUpperCase();
+    if (!code) return { ok: false, error: 'Enter the code first.' };
+    if (!sb || !RT.userId) return { ok: false, error: 'You need a connection for this — try again when you’re online.' };
+    let kind = null;
+    try {
+      const { error } = await sb.rpc('join_team', { code, athlete_position: (RT.profile && RT.profile.position) || null });
+      if (!error) kind = 'team';
+    } catch { /* not a team code — try practice below */ }
+    if (!kind) {
+      try {
+        const { error } = await sb.rpc('join_practice', { code });
+        if (!error) kind = 'practice';
+      } catch { /* neither */ }
+    }
+    if (!kind) return { ok: false, error: 'That code didn’t match a team or practice. Check it with your coach and try again.' };
+    if (kind === 'team') await this._loadCoachIntoRt(RT.userId);
+    return { ok: true, kind };
+  },
   async signOut() {
     const sb = window.sb;
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
-    RT.userId = null; RT.email = null; RT.authRole = null;
-    RT.practice = null; RT.practiceLoading = true; RT.practiceOffline = false;
-    save();
+    this._wipeUserScopedState({ keepPendingOb: true });
   },
   /* Send a password-reset email. Neutral by design — we never reveal whether an account exists,
      so the same confirmation shows regardless (anti account-enumeration). The link lands on the
@@ -509,9 +599,7 @@ export const act = {
     let serverOk = false;
     try { if (sb && RT.userId) { const { error } = await sb.rpc('delete_account', {}); serverOk = !error; } } catch { /* fall through to local wipe */ }
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
-    try { dayResetLocal(); } catch { /* ignore */ }
-    Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)));
-    save();
+    this._wipeUserScopedState(); // no keepPendingOb: the account is gone, the scratch dies too
     return serverOk;
   },
   async saveAthleteProfile(fields) {
@@ -643,13 +731,21 @@ export const act = {
       return true;
     } catch { return false; }
   },
-  // Called by the router boot gate to sync RT from a restored Keychain session.
-  _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },
+  // Called by the router boot gate to sync RT from a restored Keychain session. If the
+  // restored session belongs to a different user than the persisted runtime (Keychain and
+  // localStorage can diverge — e.g. app data cleared but not the Keychain), wipe first.
+  _syncSession(user) {
+    if (!user) return;
+    if (RT.userId && RT.userId !== user.id) this._wipeUserScopedState({ keepPendingOb: true });
+    RT.userId = user.id; RT.email = user.email || RT.email; save();
+  },
   // Load today's real day from Supabase and reflect it into the UI flags.
   async hydrateDay() {
     if (RT.userId) {
       await this._loadProfileIntoRt(RT.userId);
       if (RT.authRole === 'trainer') await this._loadPracticeIntoRt(RT.userId);
+      if (RT.authRole === 'coach') await this._loadTeamIntoRt(RT.userId);
+      if (!RT.authRole || RT.authRole === 'athlete') await this._loadCoachIntoRt(RT.userId);
     }
     await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications();
   },
@@ -674,7 +770,44 @@ export const S = {
       avatar: p.avatar || null,
     };
   },
-  coach: { name: 'Coach Mark', initials: 'M', role: 'Head Coach', team: 'Central Catholic · Varsity' },
+  // The athlete's REAL linked coach — from their active team membership + the head coach's
+  // display name. NEVER a fabricated persona: with no link, hasCoach is false and every
+  // coach-specific surface must gate on it; `name`/`nameMid` degrade to honest generic copy.
+  get coach() {
+    const c = RT.myCoach || null;
+    const name = ((c && c.name) || '').trim();
+    const team = ((c && c.teamName) || '').trim();
+    const parts = name.split(/\s+/).filter(Boolean);
+    return {
+      hasCoach: !!c,                    // a real team link exists
+      isNamed: !!name,                  // the head coach's real display name is known
+      name: name || 'Your coach',       // sentence-start display
+      nameMid: name || 'your coach',    // mid-sentence display
+      initials: parts.length ? parts.slice(0, 2).map((w) => w[0].toUpperCase()).join('') : 'C',
+      role: name ? 'Head Coach' : '',
+      team,
+    };
+  },
+
+  // The coach's OWN identity for their profile — server-confirmed name/team/join-code with
+  // the same four honest states as trainerIdentity: loading | offline | minting | live.
+  get coachIdentity() {
+    const realName = ((RT.profile && RT.profile.name) || '').trim();
+    const realTeam = ((RT.team && RT.team.name) || '').trim();
+    const code = (RT.team && RT.team.code) || '';
+    const initials = realName
+      ? realName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
+      : 'C';
+    const state = RT.teamLoading ? 'loading' : RT.teamOffline ? 'offline' : !code ? 'minting' : 'live';
+    return {
+      name: realName || 'Coach',
+      initials,
+      teamName: realTeam || 'Your team',
+      code,
+      hasIdentity: !!realName && !!realTeam,
+      state,
+    };
+  },
 
   // Trainer's real identity for Practice HQ: server-confirmed name/business/code, or an honest
   // neutral fallback — never a fabricated persona (no "Tracy Boone", no dead "No code yet").

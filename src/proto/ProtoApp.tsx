@@ -2,7 +2,7 @@
 // Pixel-perfect by construction (it IS the proto's HTML/CSS). Native bridges (camera, push,
 // haptics, secure store, auth) layer on in later phases via the postMessage router.
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as SecureStore from 'expo-secure-store';
 import { ensureProtoExtracted, PROTO_ROOT_DIR } from './protoBundle';
@@ -74,8 +74,32 @@ export function ProtoApp() {
     } catch {
       return;
     }
+    // Android hardware back at a role root: the proto asked us to let the OS take it (exit).
+    if ((msg as { type?: string }).type === 'BACK_EXIT') {
+      BackHandler.exitApp();
+      return;
+    }
     // Native bridge: haptics, share, secure-store (Phase 2); camera/meal loop lands here later.
     void handleBridgeMessage(webviewRef, msg);
+  }, []);
+
+  // Android hardware back: pop the proto's in-app hash stack instead of exiting the app from
+  // any depth. Role roots (and auth screens) are the only places back may exit — the injected
+  // check posts BACK_EXIT for those, which the onMessage handler above turns into exitApp().
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      const ref = webviewRef.current;
+      if (!ref) return false; // no WebView yet — let the OS handle it
+      ref.injectJavaScript(`(function(){
+        var r = (location.hash || '#').slice(1).split('/')[0];
+        var roots = ['', 'welcome', 'signin', 'home', 'coach', 'trainer', 'parent'];
+        if (roots.indexOf(r) === -1 && window.history.length > 1) { history.back(); }
+        else if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'BACK_EXIT' })); }
+      })(); true;`);
+      return true; // consumed — exit only happens via the explicit BACK_EXIT round-trip
+    });
+    return () => sub.remove();
   }, []);
 
   if (locked === null) {

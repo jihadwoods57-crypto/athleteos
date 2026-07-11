@@ -186,6 +186,12 @@ function projectRowToDay(row) {
 }
 
 export async function loadDay(userId) {
+  // Reset to a fresh day FIRST — never merge the fetch onto a previous session's (or a
+  // previous calendar day's) in-memory residue. Without this, a user with no server row
+  // for today inherits whatever DAY held before (another account's meals/score on a shared
+  // device, or yesterday's meals after midnight). The per-user+date cache below restores
+  // this user's own state, and projectRowToDay layers the server row on top.
+  dayResetLocal();
   DAY.date = todayISO();
   loadCache(userId); // instant offline paint
   const sb = window.sb;

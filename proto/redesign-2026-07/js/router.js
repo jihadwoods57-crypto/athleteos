@@ -65,6 +65,9 @@ function render() {
   // Screens with live countdowns register a tick; every route change clears it.
   if (window.__execTick) { clearInterval(window.__execTick); window.__execTick = null; }
   const { route, sub } = parse();
+  // Auth gate on EVERY render, not just boot: a signed-out runtime (expired/cleared session)
+  // must never keep rendering app screens on a hash change.
+  if (!RT.userId && !AUTH_ROUTES.includes(route)) { location.hash = '#welcome'; return; }
   const mod = screens[route] || screens.home;
   const activeTab = mod.tab || route;
   const device = document.getElementById('device');

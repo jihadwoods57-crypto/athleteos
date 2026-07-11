@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead } from '../components.js';
+import { backHead, esc } from '../components.js';
 
 /* ---------- Trust Pass detail: the earned camera-free reward, rules visible ---------- */
 export const trust = {
@@ -31,7 +31,7 @@ export const trust = {
         <div class="req-icon p" style="width:52px;height:52px;border-radius:16px">${icon('shield', 26)}</div>
         <div style="flex:1">
           <div style="font-size:17px;font-weight:800">Active · earned, not given</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Granted by ${S.coach.name} after 7 on-standard days with photo proof.</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Granted by ${esc(S.coach.nameMid)} after 7 on-standard days with photo proof.</div>
         </div>
       </div>
       <div class="pass-days">
@@ -79,12 +79,6 @@ export const trust = {
       </svg>
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:8px">Full credit through day 10, then it bleeds about 4 points a day. Fresh photos reset the baseline.</div>
     </section>
-
-    <div style="height:14px"></div>
-    <div class="coachnote">
-      <div class="who"><div class="av">M</div><div><div class="nm">${S.coach.name}</div><div class="rl">On granting it</div></div></div>
-      <p>“You showed me the pattern. I don't need a photo of every plate to know who you are. Don't make me take it back.”</p>
-    </div>
 
     <div style="height:18px"></div>
     <button class="btn ghost" data-go="home">Back Home</button>

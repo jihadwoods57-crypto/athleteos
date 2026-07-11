@@ -1,6 +1,6 @@
 import { S, RT, act, tier, checkinProjection } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead } from '../components.js';
+import { backHead, esc } from '../components.js';
 
 export const recoveryConfirm = {
   tab: 'home',
@@ -13,7 +13,7 @@ export const recoveryConfirm = {
     <div class="confirm-wrap">
       <div class="big-check"><div class="core" style="background:linear-gradient(155deg, var(--purple-bright), #7e22ce); color:#fff; box-shadow: 0 0 44px rgba(168,85,247,0.55), 0 10px 34px rgba(0,0,0,0.4)">${icon('moon', 32)}</div></div>
       <div class="confirm-title">Check-In Submitted</div>
-      <div class="confirm-sub">Recovery refreshed · ${S.coach.name} can see your readiness</div>
+      <div class="confirm-sub">Recovery refreshed · ${S.coach.hasCoach ? `${esc(S.coach.nameMid)} can see your readiness` : 'counted toward tomorrow'}</div>
 
       <div class="score-move">
         <span class="from" data-anim-from>${mv.from}</span>
@@ -62,7 +62,7 @@ export default {
       <div class="state-demo" style="border-style:solid; border-color:var(--green-border)">
         <div class="sd-ic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 24)}</div>
         <div class="sd-t">Submitted tonight</div>
-        <div class="sd-s">Recovery counted · scored ${S.components.now.recovery}. ${S.coach.name} can see your readiness before tomorrow's practice.</div>
+        <div class="sd-s">Recovery counted · scored ${S.components.now.recovery}. ${S.coach.hasCoach ? `${esc(S.coach.name)} can see your readiness before tomorrow's practice.` : `It feeds tomorrow's readiness.`}</div>
         <div class="sd-cta"><button class="btn ghost sm" data-go="home">Back Home</button></div>
       </div>`;
     }
@@ -89,7 +89,7 @@ export default {
     <div class="sidebox">
       <div class="req-icon p" style="width:38px;height:38px">${icon('moon', 18)}</div>
       <div><div class="tt" id="rec-gain">${P.gain > 0 ? `Worth +${P.gain} tonight → ${P.to}` : 'Refreshes Recovery (25% of your score)'}</div>
-      <div class="ts">Takes 20 seconds. ${S.coach.name} sees your readiness before tomorrow's practice.</div></div>
+      <div class="ts">Takes 20 seconds. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'It keeps Recovery — 25% of your score — honest.'}</div></div>
     </div>
 
     <div style="height:18px"></div>

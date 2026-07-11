@@ -35,7 +35,7 @@ export const CATALOG = [
   { id: 'breakfast', title: 'Breakfast', icon: 'utensils', accent: 'g', proof: 'photo',
     freq: { type: 'daily' }, window: { open: 7 * 60, due: 570 }, required: true,
     impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
-    note: 'Protein first. Coach Mark wants 40g+ before 9:30 AM.' },
+    note: 'Protein first — 40g+ before 9:30 AM sets up the whole day.' },
   { id: 'lunch', title: 'Lunch', icon: 'bowl', accent: 'g', proof: 'photo',
     freq: { type: 'daily' }, window: { open: 12 * 60, due: 14 * 60 }, required: true,
     impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
