@@ -262,3 +262,19 @@ ${JSON.stringify(audit).slice(0, 6000)}`,
   return { stopped: 'not-worth-building', audit }
 }
 log(`Audit: buildTarget = ${audit.buildTarget}`)
+
+// ---------------------------------------------------------------- Design (U3 + U4)
+phase('Design')
+const designSkills = skillsForPhase('design', cfg, `${audit.buildTarget} ${audit.fileHints || ''}`)
+const design = await track('Design', () => agent(
+  `You are Fable 5's UX/UI Design phase (Opus). ${CREED}
+FIRST invoke these skills so your design meets the bar: ${JSON.stringify(designSkills)} (use the Skill tool).
+Build target (from the audit): ${JSON.stringify({ buildTarget: audit.buildTarget, uxIssues: audit.uxIssues, touchesUIHint: audit.touchesUIHint })}
+Design every screen, flow, and state (empty / loading / error / success). Set touchesUI honestly.
+IF touchesUI is true: build a real, self-contained HTML mockup of the primary screen(s) and PUBLISH it with the
+Artifact tool (favicon "🎛️"); put the returned artifact URL in prototypeUrl so the founder can click it BEFORE any
+code is written. If touchesUI is false, leave prototypeUrl empty.`,
+  { label: 'design', phase: 'Design', model: R('design').model, effort: R('design').effort, schema: DESIGN_SCHEMA },
+))
+if (!design) { log('Design failed — stopping.'); return { stopped: 'design', audit } }
+log(`Design: ${design.screens.length} screen(s)${design.prototypeUrl ? ` — prototype ${design.prototypeUrl}` : ''}`)
