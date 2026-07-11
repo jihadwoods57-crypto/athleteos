@@ -73,4 +73,109 @@ export const tokensByPhase = (entries) => {
   for (const e of (entries || [])) out[e.phase] = (out[e.phase] || 0) + (e.tokens || 0)
   return out
 }
+
+export const isPlainSchema = (s) => !!s && s.type === 'object' && typeof s.properties === 'object'
 /* ===== HELPERS:END ===== */
+
+// -------------------------------------------------------------------- schemas
+const PREFLIGHT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['onFable5Branch', 'cleanTree', 'config'],
+  properties: {
+    onFable5Branch: { type: 'boolean' }, cleanTree: { type: 'boolean' },
+    reason: { type: 'string' }, config: { type: 'object', additionalProperties: true },
+  },
+}
+const AUDIT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['worthBuilding', 'buildTarget', 'rationale', 'gaps'],
+  properties: {
+    worthBuilding: { type: 'boolean' },
+    buildTarget: { type: 'string' },
+    rationale: { type: 'string' },
+    gaps: { type: 'array', items: { type: 'string' } },
+    uxIssues: { type: 'array', items: { type: 'string' } },
+    opportunities: { type: 'array', items: { type: 'string' } },
+    touchesUIHint: { type: 'boolean' },
+    fileHints: { type: 'string' },
+  },
+}
+const DESIGN_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['summary', 'touchesUI', 'screens'],
+  properties: {
+    summary: { type: 'string' }, touchesUI: { type: 'boolean' },
+    screens: { type: 'array', items: {
+      type: 'object', additionalProperties: false,
+      required: ['name', 'purpose', 'states'],
+      properties: {
+        name: { type: 'string' }, purpose: { type: 'string' },
+        states: { type: 'array', items: { type: 'string' } }, // empty/loading/error/success
+      },
+    } },
+    flows: { type: 'array', items: { type: 'string' } },
+    prototypeUrl: { type: 'string' },
+  },
+}
+const PLAN_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['designFeasible', 'files', 'steps'],
+  properties: {
+    designFeasible: { type: 'boolean' },
+    infeasibleReason: { type: 'string' },
+    files: { type: 'array', items: { type: 'string' } },
+    dataChanges: { type: 'array', items: { type: 'string' } },
+    apis: { type: 'array', items: { type: 'string' } },
+    migrations: { type: 'array', items: { type: 'string' } },
+    risks: { type: 'array', items: { type: 'string' } },
+    steps: { type: 'array', items: { type: 'string' } },
+  },
+}
+const BUILD_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['status', 'summary', 'filesTouched'],
+  properties: {
+    status: { type: 'string', enum: ['implemented', 'blocked', 'proposal'] },
+    summary: { type: 'string' },
+    filesTouched: { type: 'array', items: { type: 'string' } },
+    planInfeasible: { type: 'boolean' },
+    blockedReason: { type: 'string' },
+    committed: { type: 'boolean' },
+  },
+}
+const GATE_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['green', 'summary'],
+  properties: { green: { type: 'boolean' }, summary: { type: 'string' } },
+}
+const QA_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['findings'],
+  properties: { findings: { type: 'array', items: {
+    type: 'object', additionalProperties: false,
+    required: ['title', 'severity', 'evidence', 'file', 'proposedFix'],
+    properties: {
+      title: { type: 'string' },
+      severity: { type: 'string', enum: ['low', 'medium', 'high', 'blocker'] },
+      category: { type: 'string' }, // bug/security/perf/a11y/consistency
+      evidence: { type: 'string' }, file: { type: 'string' }, line: { type: 'integer' },
+      proposedFix: { type: 'string' },
+    },
+  } } },
+}
+const REFUTE_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['refuted', 'reason'],
+  properties: { refuted: { type: 'boolean' }, reason: { type: 'string' } },
+}
+const SEAL_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['tag', 'committed'],
+  properties: { tag: { type: 'string' }, committed: { type: 'boolean' }, summary: { type: 'string' } },
+}
+
+// -------------------------------------------------------------------- shared preamble
+const CREED = `
+FIRST read .fable5/memory.md and .fable5/config.json in the current repo. Memory is the product's living brain —
+honor decisions already settled there; do not re-litigate them.
+SAFETY (binding): build works ONLY on the current fable5/* branch and is NEVER merged to master — integration is
+the founder's call. NEVER apply live DB migrations, deploy/ship (eas, npm run ship), touch secrets, or weaken a
+test/RLS to make a gate pass. Anything like that becomes a FOUNDER-GATED PROPOSAL in the report, not an action.
+GROUND EVERY CLAIM in a tool result you actually ran (a real file, a passing test, a real diff). Never report work
+you cannot point to evidence for.`

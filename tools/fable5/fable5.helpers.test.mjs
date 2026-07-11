@@ -75,3 +75,9 @@ test('tokensByPhase sums per phase', () => {
     { Audit: 12, Build: 5 },
   )
 })
+
+test('isPlainSchema recognizes object schemas', () => {
+  assert.equal(H.isPlainSchema({ type: 'object', properties: {} }), true)
+  assert.equal(H.isPlainSchema({ type: 'array' }), false)
+  assert.equal(H.isPlainSchema(null), false)
+})
