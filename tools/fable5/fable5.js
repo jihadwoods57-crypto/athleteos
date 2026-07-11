@@ -1,6 +1,6 @@
 export const meta = {
   name: 'fable5',
-  description: 'Drive a vision through five model-specialized phases — Audit → Design → Plan → Build → QA — with a persistent Project Memory and a branch-only safety model. You launch it; it never merges to master.',
+  description: 'Drive a vision through five model-specialized phases - Audit -> Design -> Plan -> Build -> QA - with a persistent Project Memory and a branch-only safety model. You launch it; it never merges to master.',
   phases: [
     { title: 'Bootstrap', detail: 'read .fable5 config + memory, confirm clean tree on a fable5/* branch' },
     { title: 'Audit', detail: 'Opus audits the vision against memory + repo (parallel lenses for app scope)' },
@@ -180,9 +180,9 @@ const SEAL_SCHEMA = {
 
 // -------------------------------------------------------------------- shared preamble
 const CREED = `
-FIRST read .fable5/memory.md and .fable5/config.json in the current repo. Memory is the product's living brain —
+FIRST read .fable5/memory.md and .fable5/config.json in the current repo. Memory is the product's living brain -
 honor decisions already settled there; do not re-litigate them.
-SAFETY (binding): build works ONLY on the current fable5/* branch and is NEVER merged to master — integration is
+SAFETY (binding): build works ONLY on the current fable5/* branch and is NEVER merged to master - integration is
 the founder's call. NEVER apply live DB migrations, deploy/ship (eas, npm run ship), touch secrets, or weaken a
 test/RLS to make a gate pass. Anything like that becomes a FOUNDER-GATED PROPOSAL in the report, not an action.
 GROUND EVERY CLAIM in a tool result you actually ran (a real file, a passing test, a real diff). Never report work
@@ -210,7 +210,7 @@ Change no code. If anything is off, set the flag false and explain in 'reason'.`
   { label: 'bootstrap', phase: 'Bootstrap', model: 'opus', effort: 'low', schema: PREFLIGHT_SCHEMA },
 )
 if (!boot || !boot.onFable5Branch || !boot.cleanTree) {
-  log(`Bootstrap failed — not on a clean fable5/* branch. ${boot ? boot.reason || '' : 'no result'}`)
+  log(`Bootstrap failed - not on a clean fable5/* branch. ${boot ? boot.reason || '' : 'no result'}`)
   return { stopped: 'bootstrap', boot }
 }
 const cfg = mergeConfig(DEFAULT_CONFIG, boot.config || {})
@@ -219,7 +219,7 @@ const slug = slugify(vision)
 const R = (role) => resolveRole(cfg, role)
 const tokenLog = []
 const track = async (name, fn) => { const t0 = budget.spent(); const r = await fn(); tokenLog.push({ phase: name, tokens: budget.spent() - t0 }); return r }
-log(`Fable 5 — vision="${vision}" scope=${scope} slug=${slug}`)
+log(`Fable 5 - vision="${vision}" scope=${scope} slug=${slug}`)
 
 // ---------------------------------------------------------------- Audit (U5 + U6)
 phase('Audit')
@@ -228,7 +228,7 @@ const auditBase = `You are Fable 5's Product Audit (Opus). ${CREED}
 The founder's vision: "${vision}". Scope: ${scope}.
 Audit the CURRENT repo against this vision and .fable5/memory.md. Find the real gaps, UX issues, and the single
 highest-value thing to build now. Be honest: if this vision is already met, or not worth building right now, say so
-(worthBuilding=false) — do NOT manufacture work. Set touchesUIHint if the build will touch UI, and put concrete
+(worthBuilding=false) - do NOT manufacture work. Set touchesUIHint if the build will touch UI, and put concrete
 path hints (files/dirs likely involved) in fileHints. Ground every claim in a file you actually read.`
 
 let audit
@@ -267,7 +267,7 @@ terms, cite the evidence from the audit, and suggest what WOULD be worth doing. 
 ${JSON.stringify(audit).slice(0, 6000)}`,
     { label: 'report:early-exit', phase: 'Report', model: R('foreman').model, effort: R('foreman').effort },
   )
-  log('Audit: nothing worth building — early exit.')
+  log('Audit: nothing worth building - early exit.')
   return { stopped: 'not-worth-building', audit }
 }
 log(`Audit: buildTarget = ${audit.buildTarget}`)
@@ -281,19 +281,19 @@ FIRST invoke these skills so your design meets the bar: ${JSON.stringify(designS
 Build target (from the audit): ${JSON.stringify({ buildTarget: audit.buildTarget, uxIssues: audit.uxIssues, touchesUIHint: audit.touchesUIHint })}
 Design every screen, flow, and state (empty / loading / error / success). Set touchesUI honestly.
 IF touchesUI is true: build a real, self-contained HTML mockup of the primary screen(s) and PUBLISH it with the
-Artifact tool (favicon "🎛️"); put the returned artifact URL in prototypeUrl so the founder can click it BEFORE any
+Artifact tool (favicon: a fitting dial or gauge emoji); put the returned artifact URL in prototypeUrl so the founder can click it BEFORE any
 code is written. If touchesUI is false, leave prototypeUrl empty.`,
   { label: 'design', phase: 'Design', model: R('design').model, effort: R('design').effort, schema: DESIGN_SCHEMA },
 ))
-if (!design) { log('Design failed — stopping.'); return { stopped: 'design', audit } }
-log(`Design: ${design.screens.length} screen(s)${design.prototypeUrl ? ` — prototype ${design.prototypeUrl}` : ''}`)
+if (!design) { log('Design failed - stopping.'); return { stopped: 'design', audit } }
+log(`Design: ${design.screens.length} screen(s)${design.prototypeUrl ? ` - prototype ${design.prototypeUrl}` : ''}`)
 
 // ---------------------------------------------------------------- Plan (+ U2 kickback)
 const kb = makeKickbacks()
 const planPrompt = () => `You are Fable 5's Engineering Plan phase (Opus). ${CREED}
 Design spec (JSON): ${JSON.stringify(design).slice(0, 12000)}
 Write the concrete implementation plan for THIS repo: exact files to create/modify, data changes, APIs, migrations
-(as PROPOSALS — never applied here), risks, and an ordered step list a builder can follow. If the design cannot be
+(as PROPOSALS - never applied here), risks, and an ordered step list a builder can follow. If the design cannot be
 built as specified, set designFeasible=false and put the precise reason in infeasibleReason.`
 
 phase('Plan')
@@ -316,14 +316,14 @@ Produce a revised, buildable DesignSpec. Re-publish the prototype Artifact if to
     label: 'plan:re', phase: 'Plan', model: R('plan').model, effort: R('plan').effort, schema: PLAN_SCHEMA,
   }))
 }
-if (!plan) { log('Plan failed — stopping.'); return { stopped: 'plan', audit, design } }
+if (!plan) { log('Plan failed - stopping.'); return { stopped: 'plan', audit, design } }
 log(`Plan: ${plan.files.length} file(s), ${plan.steps.length} step(s)`)
 
 // ---------------------------------------------------------------- Build (Sonnet) + kickback + gate
 const buildSkills = skillsForPhase('build', cfg, `${audit.buildTarget} ${audit.fileHints || ''} ${plan.files.join(' ')}`)
 const buildPrompt = () => `You are Fable 5's Build phase (Sonnet). ${CREED}
 FIRST invoke these skills for repo conventions + domain correctness: ${JSON.stringify(buildSkills)} (Skill tool).
-Implement EXACTLY this plan on the CURRENT fable5/* branch — nothing more, no unrequested refactors:
+Implement EXACTLY this plan on the CURRENT fable5/* branch - nothing more, no unrequested refactors:
 ${JSON.stringify(plan).slice(0, 12000)}
 Do NOT apply live DB migrations, deploy, or touch secrets; if the plan needs one, implement the code and leave the
 migration as a PROPOSAL (status stays 'implemented', note it in summary). When done, 'git add -A && git commit' your
@@ -364,7 +364,7 @@ Report green=true ONLY if it exits 0; name the failing command in summary. Do no
   { label: 'gate', phase: 'Verify', model: 'opus', effort: 'low', schema: GATE_SCHEMA },
 )
 if (gate && !gate.green) {
-  log(`Verify red — one repair pass. ${gate.summary}`)
+  log(`Verify red - one repair pass. ${gate.summary}`)
   await track('Verify', () => agent(
     `You are Fable 5's Build phase (Sonnet), REPAIRING a red gate. ${CREED}
 The gate '${gateCmd}' failed: ${gate.summary}. Fix ONLY what's needed to make it pass, on this branch, then commit.
@@ -376,7 +376,7 @@ Do not expand scope. If you cannot make it green, say so plainly.`,
     { label: 'gate:re', phase: 'Verify', model: 'opus', effort: 'low', schema: GATE_SCHEMA },
   )
 }
-log(`Verify: ${gate && gate.green ? 'GREEN' : 'RED — QA will flag it'}`)
+log(`Verify: ${gate && gate.green ? 'GREEN' : 'RED - QA will flag it'}`)
 
 // ---------------------------------------------------------------- QA (U1 adversarial refute)
 phase('QA')
@@ -423,12 +423,12 @@ Structure it for the founder:
 - WHAT THE AUDIT DECIDED: ${JSON.stringify({ buildTarget: audit.buildTarget, rationale: audit.rationale }).slice(0, 2000)}
 - THE DESIGN${design.prototypeUrl ? ` (clickable prototype: ${design.prototypeUrl})` : ''}: ${JSON.stringify(design.summary).slice(0, 1500)}
 - THE PLAN: ${JSON.stringify(plan.steps).slice(0, 2000)}
-- WHAT GOT BUILT: ${JSON.stringify(build.summary).slice(0, 1500)} — verify gate: ${gate && gate.green ? 'GREEN' : 'RED'}.
+- WHAT GOT BUILT: ${JSON.stringify(build.summary).slice(0, 1500)} - verify gate: ${gate && gate.green ? 'GREEN' : 'RED'}.
 - VERIFIED BUGS/FIXES (refute-survivors only): ${JSON.stringify(confirmedBugs).slice(0, 4000)}
 - FOUNDER-GATED PROPOSALS: any migrations/guarded actions the build left as proposals, plus design taste calls.
 - TOKENS PER PHASE: ${JSON.stringify(costTable)}.
 Then append to .fable5/memory.md: what was built (decision + rationale), any new tech debt, open bugs from QA, and
-what the next sprint should tackle — so the next run builds on this instead of re-auditing from zero.
+what the next sprint should tackle - so the next run builds on this instead of re-auditing from zero.
 Remind the founder: master is untouched; merging the branch is their call (git reset --hard ${seal ? seal.tag : '<tag>'} to discard).`,
   { label: 'report', phase: 'Report', model: R('foreman').model, effort: R('foreman').effort },
 )
