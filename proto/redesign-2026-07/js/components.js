@@ -97,8 +97,19 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
   </div>`;
 }
 
-/* animate ring draw (all arc layers) + number count-up + comet tip fade. Call in mount(). */
+/* animate ring draw (all arc layers) + number count-up + comet tip fade. Call in mount().
+   Respects prefers-reduced-motion: CSS kills the arc/tip transitions via !important, but the
+   JS number tween runs outside CSS — so it snaps to the final value here. */
 export function animateRing(root) {
+  const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) {
+    root.querySelectorAll('.ring-arc').forEach(arc => { arc.style.strokeDashoffset = arc.dataset.off; });
+    const tip = root.querySelector('.ring-tip');
+    if (tip) tip.style.opacity = '1';
+    const num = root.querySelector('[data-count]');
+    if (num) num.textContent = String(Math.round(+num.dataset.count));
+    return;
+  }
   root.querySelectorAll('.ring-arc').forEach(arc => {
     arc.style.transition = 'stroke-dashoffset var(--dur-ring) var(--ease-out)';
     requestAnimationFrame(() => requestAnimationFrame(() => { arc.style.strokeDashoffset = arc.dataset.off; }));

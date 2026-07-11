@@ -36,8 +36,8 @@ function frame(n, total, title, sub, body, cta, next, opts = {}) {
   return `
   <div class="ob">
     <div class="ob-nav"><div class="ob-back" data-go="${opts.back || 'role'}" aria-label="Back">${icon('chevron', 18)}</div>${progressOf(n, total)}</div>
-    <div class="ob-title">${title}</div>
-    <div class="ob-sub">${sub}</div>
+    <div class="ob-title">${esc(title)}</div>
+    <div class="ob-sub">${esc(sub)}</div>
     <div class="ob-body">${body}</div>
     <div class="ob-foot">
       <button class="btn ${opts.green ? 'green' : 'primary'}" ${opts.id ? `id="${opts.id}"` : ''} ${opts.disabled ? 'disabled' : ''} data-go="${next}">${cta}</button>
@@ -532,10 +532,11 @@ const clientSteps = {
     const join = ob.join && ob.join.kind === 'practice' ? ob.join : null;
     const std = standardForGoal(ob.goal, ob.standard && ob.standard.mealsPerDay, 'general');
     const committed = !!ob.committedAt;
-    const trainerFirst = join && join.trainerName ? esc(join.trainerName.trim().split(/\s+/)[0]) : null;
+    // Plain text here — frame() escapes title/sub wholesale (no inner esc, or it double-escapes).
+    const trainerFirst = join && join.trainerName ? join.trainerName.trim().split(/\s+/)[0] : null;
     const title = join ? `${trainerFirst || 'Your trainer'}’s Standard` : 'Your Standard';
     const sub = join
-      ? `The deal with ${esc(join.practiceName || 'your trainer')}. Your score is built on it — hold to commit.`
+      ? `The deal with ${join.practiceName || 'your trainer'}. Your score is built on it — hold to commit.`
       : 'Built from your goal. When you connect a trainer, their standard takes over.';
     const rows = std.rows.map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">

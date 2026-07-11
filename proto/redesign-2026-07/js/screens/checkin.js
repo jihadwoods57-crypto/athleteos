@@ -2,8 +2,8 @@ import { S } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead } from '../components.js';
 
-/* Weekly Check-In — the 10% weekly ritual (mirrors CheckIn.tsx). Already submitted
-   this week in the seeded story; the form is shown as the living design. */
+/* Weekly Check-In — the 10% weekly ritual (mirrors CheckIn.tsx). Renders the real
+   weekly state (S.weekly); the form honestly labels itself a preview until submitted. */
 export default {
   tab: 'home',
   render() {
