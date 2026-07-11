@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { dobFromParts, ageOn, standardForGoal } from '../ob-helpers.js';
+import { dobFromParts, ageOn, standardForGoal, weightDirection, weightContradictsGoal } from '../ob-helpers.js';
 import { esc } from '../components.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { accountBody, wireAccount } from './ob-account.js';
@@ -124,7 +124,8 @@ const steps = {
       <div class="bignum"><input id="ob-cur" type="number" inputmode="decimal" placeholder="—" style="${numInput}" /><div class="bk">Current lb</div></div>
       <div class="bignum" style="border-color:var(--green-border)"><input id="ob-tgt" type="number" inputmode="decimal" placeholder="—" style="${numInput};color:var(--green-bright)" /><div class="bk">Target lb</div></div>
     </div>
-    <div style="height:16px"></div>
+    <div id="ob-wt-hint" style="font-size:12.5px;font-weight:700;margin:10px 2px 0;min-height:17px;line-height:1.4"></div>
+    <div style="height:8px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Allergies & restrictions · enforced on every scan</div>
     <div class="chip-row" data-multi>
       <span class="chp">Peanuts · severe</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
@@ -361,10 +362,35 @@ export default {
     wireGroup('#ob-goal', 'goal', () => { const on = grab('#ob-goal .on'); return on ? on.getAttribute('data-val') : null; });
 
     // ---- Step 5: weights + allergies (none selected by default) ----
-    const cur = grab('#ob-cur'); if (cur) cur.addEventListener('input', () => cap({ currentWeight: parseFloat(cur.value) || null }));
-    const tgt = grab('#ob-tgt'); if (tgt) tgt.addEventListener('input', () => cap({ targetWeight: parseFloat(tgt.value) || null }));
+    const cur = grab('#ob-cur');
+    const tgt = grab('#ob-tgt');
+    const hint = grab('#ob-wt-hint');
+    // Direction check: a target that contradicts the chosen goal (e.g. Lose fat with a target
+    // ABOVE current) silently feeds a nonsensical plan. Warn honestly and confirm intent rather
+    // than accept it blind. Weight is aspirational (not required, coaches adjust), so we surface
+    // the contradiction loudly but don't hard-block — the athlete stays in control.
+    const checkDir = () => {
+      if (!hint) return;
+      const g = (RT.ob && RT.ob.goal) || null;
+      const c = parseFloat(cur && cur.value), t = parseFloat(tgt && tgt.value);
+      const dir = weightDirection(g);
+      if (!dir || !isFinite(c) || !isFinite(t) || c <= 0 || t <= 0) { hint.textContent = ''; return; }
+      if (weightContradictsGoal(g, c, t)) {
+        const verb = dir === 'down' ? 'lose fat' : 'gain weight';
+        const dirWord = dir === 'down' ? 'below' : 'above';
+        hint.style.color = 'var(--amber-bright)';
+        hint.textContent = `You picked ${verb}, but your target is ${dir === 'down' ? 'at or above' : 'at or below'} your current weight. Set a target ${dirWord} ${Math.round(c)} lb — or change your goal.`;
+      } else {
+        const delta = Math.abs(Math.round(c - t));
+        hint.style.color = 'var(--green-bright)';
+        hint.textContent = delta ? `${delta} lb to ${dir === 'down' ? 'lose' : 'gain'} — a season trend, not a deadline.` : '';
+      }
+    };
+    if (cur) cur.addEventListener('input', () => { cap({ currentWeight: parseFloat(cur.value) || null }); checkDir(); });
+    if (tgt) tgt.addEventListener('input', () => { cap({ targetWeight: parseFloat(tgt.value) || null }); checkDir(); });
     if (cur && RT.ob && RT.ob.currentWeight) cur.value = RT.ob.currentWeight;
     if (tgt && RT.ob && RT.ob.targetWeight) tgt.value = RT.ob.targetWeight;
+    checkDir();
     const alg = grab('[data-multi]');
     if (alg) {
       const savedA = (RT.ob && RT.ob.allergies) || [];

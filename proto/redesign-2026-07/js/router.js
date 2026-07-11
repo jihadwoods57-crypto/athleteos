@@ -69,6 +69,15 @@ function render() {
   // must never keep rendering app screens on a hash change.
   if (!RT.userId && !AUTH_ROUTES.includes(route)) { location.hash = '#welcome'; return; }
   const mod = screens[route] || screens.home;
+  // Role-route guard: a screen declaring a coach/trainer nav belongs to that role's dashboard.
+  // A signed-in user of another role must not render its chrome (RLS still scopes the data, but
+  // the shell is wrong — a role-integrity leak). Redirect to their own home. Only fires when the
+  // role is KNOWN (authRole set) so a pre-hydrate session is never bounced off its own dashboard;
+  // shared/auth/athlete screens (no coach/trainer nav) are unaffected.
+  if (RT.userId && RT.authRole && (mod.nav === 'coach' || mod.nav === 'trainer') && RT.authRole !== mod.nav) {
+    location.hash = '#' + routeForRole(RT.authRole);
+    return;
+  }
   const activeTab = mod.tab || route;
   const device = document.getElementById('device');
 
