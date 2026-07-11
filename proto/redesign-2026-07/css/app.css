@@ -356,6 +356,8 @@ body {
 .btn.green { background: linear-gradient(150deg, var(--green-bright), #16a34a); color: #04140b; box-shadow: var(--sh-green); }
 .btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--hairline); box-shadow: none; }
 .btn.sm { height: 48px; font-size: 15px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.btn:disabled:active { transform: none; }
 .btn-row { display: flex; gap: 12px; }
 
 /* ===== Generic bits reused across screens ===== */
