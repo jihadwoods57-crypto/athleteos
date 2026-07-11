@@ -369,6 +369,10 @@ export const act = {
     if (!sb) return { ok: false, error: 'Auth is not ready yet. Try again in a moment.' };
     const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: name, role } } });
     if (error) return { ok: false, error: friendlyAuth(error.message) };
+    // Shared-device safety: creating a NEW account on top of a stale previous identity wipes
+    // the old user's local state; the fresh onboarding scratch (this person's own, keyed by
+    // the email they just typed) survives via keepPendingOb.
+    if (RT.userId && data.user && RT.userId !== data.user.id) this._wipeUserScopedState({ keepPendingOb: true });
     RT.userId = data.user ? data.user.id : null;
     RT.email = email;
     RT.authRole = role;
@@ -380,9 +384,9 @@ export const act = {
     if (!sb) return { ok: false, error: 'Auth is not ready yet. Try again in a moment.' };
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) return { ok: false, error: friendlyAuth(error.message) };
-    // Shared-device safety: a different real user signing in must never inherit the previous
-    // trainer's cached practice identity (name/business/code) from localStorage.
-    if (RT.userId && RT.userId !== data.user.id) { RT.practice = null; RT.practiceLoading = true; RT.practiceOffline = false; }
+    // Shared-device safety: a different real user signing in must never inherit ANY of the
+    // previous user's local state — day, profile identity, practice identity, assignments.
+    if (RT.userId && RT.userId !== data.user.id) this._wipeUserScopedState({ keepPendingOb: true });
     RT.userId = data.user.id;
     RT.email = email;
     let role = 'athlete';
@@ -403,6 +407,10 @@ export const act = {
     // trusted only for the original no-server-row case.
     const obEmail = ((RT.ob && RT.ob.email) || '').toLowerCase();
     const obMine = obEmail ? obEmail === (email || '').trim().toLowerCase() : !hadServerProfile;
+    // A scratch that provably belongs to a DIFFERENT email must not linger into this user's
+    // authenticated session (coachProfile and the backfill both read RT.ob). Legacy scratch
+    // without an email keeps the historical behavior above.
+    if (RT.ob && obEmail && !obMine) { RT.ob = null; RT.allergies = []; save(); }
     if (role === 'athlete' && RT.ob && obMine) {
       if (hadServerProfile && !RT.ob._synced) {
         // Grandfather: onboarding predates the phase flags — nothing to backfill, and
@@ -481,12 +489,28 @@ export const act = {
     RT.practiceLoading = false;
     save();
   },
+  /* Shared-device safety: wipe EVERY user-scoped bit of local state (the in-memory DAY plus
+     the persisted runtime) so the next account on this device can never inherit the previous
+     user's meals, score, identity, assignments, or onboarding scratch. Also deletes dynamic
+     keys that aren't in DEFAULT_RT (e.g. _lastPlan/_celebratedOn) — Object.assign alone
+     leaves them behind. `keepPendingOb` preserves a not-yet-synced onboarding scratch that
+     carries its owner's email (the email-confirm flow routes through Welcome, which signs
+     out, before the first real sign-in) — signIn's obMine guard ensures only that same email
+     can ever consume or render it. */
+  _wipeUserScopedState(opts) {
+    const keep = opts && opts.keepPendingOb && RT.ob && RT.ob.email
+      ? { ob: RT.ob, allergies: RT.allergies } : null;
+    const camPrimed = RT.camPrimed; // device-level (camera permission priming), not user data
+    try { dayResetLocal(); } catch { /* never block a wipe */ }
+    for (const k of Object.keys(RT)) { if (!(k in DEFAULT_RT)) delete RT[k]; }
+    Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { camPrimed });
+    if (keep) { RT.ob = keep.ob; RT.allergies = keep.allergies; }
+    save();
+  },
   async signOut() {
     const sb = window.sb;
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
-    RT.userId = null; RT.email = null; RT.authRole = null;
-    RT.practice = null; RT.practiceLoading = true; RT.practiceOffline = false;
-    save();
+    this._wipeUserScopedState({ keepPendingOb: true });
   },
   /* Send a password-reset email. Neutral by design — we never reveal whether an account exists,
      so the same confirmation shows regardless (anti account-enumeration). The link lands on the
@@ -509,9 +533,7 @@ export const act = {
     let serverOk = false;
     try { if (sb && RT.userId) { const { error } = await sb.rpc('delete_account', {}); serverOk = !error; } } catch { /* fall through to local wipe */ }
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
-    try { dayResetLocal(); } catch { /* ignore */ }
-    Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)));
-    save();
+    this._wipeUserScopedState(); // no keepPendingOb: the account is gone, the scratch dies too
     return serverOk;
   },
   async saveAthleteProfile(fields) {
@@ -643,8 +665,14 @@ export const act = {
       return true;
     } catch { return false; }
   },
-  // Called by the router boot gate to sync RT from a restored Keychain session.
-  _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },
+  // Called by the router boot gate to sync RT from a restored Keychain session. If the
+  // restored session belongs to a different user than the persisted runtime (Keychain and
+  // localStorage can diverge — e.g. app data cleared but not the Keychain), wipe first.
+  _syncSession(user) {
+    if (!user) return;
+    if (RT.userId && RT.userId !== user.id) this._wipeUserScopedState({ keepPendingOb: true });
+    RT.userId = user.id; RT.email = user.email || RT.email; save();
+  },
   // Load today's real day from Supabase and reflect it into the UI flags.
   async hydrateDay() {
     if (RT.userId) {
