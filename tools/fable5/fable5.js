@@ -211,3 +211,54 @@ const R = (role) => resolveRole(cfg, role)
 const tokenLog = []
 const track = async (name, fn) => { const t0 = budget.spent(); const r = await fn(); tokenLog.push({ phase: name, tokens: budget.spent() - t0 }); return r }
 log(`Fable 5 — vision="${vision}" scope=${scope} slug=${slug}`)
+
+// ---------------------------------------------------------------- Audit (U5 + U6)
+phase('Audit')
+const auditMode = auditModeForScope(scope)
+const auditBase = `You are Fable 5's Product Audit (Opus). ${CREED}
+The founder's vision: "${vision}". Scope: ${scope}.
+Audit the CURRENT repo against this vision and .fable5/memory.md. Find the real gaps, UX issues, and the single
+highest-value thing to build now. Be honest: if this vision is already met, or not worth building right now, say so
+(worthBuilding=false) — do NOT manufacture work. Set touchesUIHint if the build will touch UI, and put concrete
+path hints (files/dirs likely involved) in fileHints. Ground every claim in a file you actually read.`
+
+let audit
+if (auditMode === 'lenses') {
+  const LENSES = [
+    { key: 'retention', focus: 'will athletes come back tomorrow? habit loops, streaks, notifications, empty states.' },
+    { key: 'monetization', focus: 'coach/parent value that justifies paying; conversion + upgrade friction.' },
+    { key: 'ux', focus: 'friction: tap counts, confusing flows, weak information density, missing states.' },
+    { key: 'techdebt', focus: 'architecture risk, scaling limits, fragile seams that will block the roadmap.' },
+  ]
+  const lensResults = (await parallel(LENSES.map((l) => () =>
+    agent(`${auditBase}\nYOUR LENS ONLY: ${l.focus}`, {
+      label: `audit:${l.key}`, phase: 'Audit', model: R('audit.lens').model, effort: R('audit.lens').effort, schema: AUDIT_SCHEMA,
+    }),
+  ))).filter(Boolean)
+  audit = await track('Audit', () => agent(
+    `You are Fable 5's audit synthesizer (Opus). ${CREED}
+Fold these ${lensResults.length} lens audits (JSON) into ONE AuditReport for the whole app. Pick the single
+buildTarget with the best impact-per-effort; set worthBuilding honestly. Lenses:
+${JSON.stringify(lensResults).slice(0, 14000)}`,
+    { label: 'audit:synth', phase: 'Audit', model: R('audit').model, effort: R('audit').effort, schema: AUDIT_SCHEMA },
+  ))
+} else {
+  audit = await track('Audit', () => agent(auditBase, {
+    label: 'audit', phase: 'Audit', model: R('audit').model, effort: R('audit').effort, schema: AUDIT_SCHEMA,
+  }))
+}
+
+if (shouldEarlyExit(audit)) {
+  phase('Report')
+  await agent(
+    `You are Fable 5. Write a SHORT report to .fable5/reports/<today>-${slug}.md (get today's date via bash).
+${CREED}
+The audit concluded there is nothing worth building for vision "${vision}" right now. Explain why in the founder's
+terms, cite the evidence from the audit, and suggest what WOULD be worth doing. Audit JSON:
+${JSON.stringify(audit).slice(0, 6000)}`,
+    { label: 'report:early-exit', phase: 'Report', model: R('foreman').model, effort: R('foreman').effort },
+  )
+  log('Audit: nothing worth building — early exit.')
+  return { stopped: 'not-worth-building', audit }
+}
+log(`Audit: buildTarget = ${audit.buildTarget}`)
