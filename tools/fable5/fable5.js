@@ -179,3 +179,35 @@ the founder's call. NEVER apply live DB migrations, deploy/ship (eas, npm run sh
 test/RLS to make a gate pass. Anything like that becomes a FOUNDER-GATED PROPOSAL in the report, not an action.
 GROUND EVERY CLAIM in a tool result you actually ran (a real file, a passing test, a real diff). Never report work
 you cannot point to evidence for.`
+
+// -------------------------------------------------------------------- run
+const DEFAULT_CONFIG = {
+  defaultScope: 'feature',
+  verify: 'npm run verify',
+  roles: DEFAULT_ROLES,
+  phaseSkills: null, // null => heuristic (skillsForPhase)
+}
+const vision = (args && args.vision) || ''
+if (!vision) { log('No vision provided (args.vision is required). Stopping.'); return { stopped: 'no-vision' } }
+
+phase('Bootstrap')
+const boot = await agent(
+  `You are the Fable 5 bootstrap in the current repo.
+${CREED}
+1) Read .fable5/config.json and return it verbatim as 'config' (return {} if the file does not exist).
+2) Confirm HEAD is on a fable5/* branch that is NOT master/main (onFable5Branch), and the tree is clean (cleanTree),
+   using real git commands.
+Change no code. If anything is off, set the flag false and explain in 'reason'.`,
+  { label: 'bootstrap', phase: 'Bootstrap', model: 'opus', effort: 'low', schema: PREFLIGHT_SCHEMA },
+)
+if (!boot || !boot.onFable5Branch || !boot.cleanTree) {
+  log(`Bootstrap failed — not on a clean fable5/* branch. ${boot ? boot.reason || '' : 'no result'}`)
+  return { stopped: 'bootstrap', boot }
+}
+const cfg = mergeConfig(DEFAULT_CONFIG, boot.config || {})
+const scope = (args && args.scope) || cfg.defaultScope || 'feature'
+const slug = slugify(vision)
+const R = (role) => resolveRole(cfg, role)
+const tokenLog = []
+const track = async (name, fn) => { const t0 = budget.spent(); const r = await fn(); tokenLog.push({ phase: name, tokens: budget.spent() - t0 }); return r }
+log(`Fable 5 — vision="${vision}" scope=${scope} slug=${slug}`)
