@@ -109,7 +109,21 @@ export async function nudgePush(athleteId, title, body) {
 /* ---------------- trainer mirror (practices) ---------------- */
 export async function fetchMyPractices() {
   const c = sb(); if (!c) return [];
-  try { const { data } = await c.from('practices').select('id,name'); return data || []; } catch { return []; }
+  try { const { data } = await c.from('practices').select('id,name,join_code,owner_id,handle'); return data || []; } catch { return []; }
+}
+
+/** The signed-in trainer's own practice identity: real business name + real client join code.
+    Owner-scoped by practices_read RLS (owner_id = auth.uid()) — no explicit filter needed, same
+    pattern as every other trainer/coach read in this file. Returns null on no practice yet
+    (still minting) or any error (offline) — callers must render an honest state either way,
+    never a fabricated name or code. */
+export async function fetchMyPracticeIdentity() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data } = await c.from('practices').select('id,name,join_code,owner_id,handle').limit(1).maybeSingle();
+    if (!data) return null;
+    return { id: data.id, name: data.name || '', code: data.join_code || '', handle: data.handle || null };
+  } catch { return null; }
 }
 export async function fetchPracticeRoster(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];

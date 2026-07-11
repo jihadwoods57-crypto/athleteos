@@ -4,6 +4,22 @@ import { backHead, logoMark, esc } from '../components.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { standardForGoal } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
+import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
+
+/* Practice HQ invite link + share text — mirrors src/core/practiceIdentity.ts (the tested
+   oracle) inline, the same way state.js mirrors src/core logic in plain JS rather than
+   importing compiled TS into the WebView. Empty code -> empty string: never link/share a
+   dead code before it's real. */
+function inviteLink(code) {
+  const c = (code || '').trim().toUpperCase();
+  return c ? `https://onstandard.app/join?code=${c}` : '';
+}
+function inviteShareText(code, practiceName) {
+  const c = (code || '').trim().toUpperCase();
+  if (!c) return '';
+  const name = (practiceName && practiceName.trim()) || 'my practice';
+  return `Join ${name} on OnStandard. Use code ${c} or open ${inviteLink(c)}`;
+}
 
 /* ============================================================
    Role picker + onboarding for every role, not just athletes.
@@ -803,52 +819,143 @@ export const coachProfile = {
   },
 };
 
+/* Practice HQ — the trainer's real business identity + invite loop. Replaces the old static
+   settings page (fabricated "Tracy Boone" persona, dead "No code yet" copy, a "Set" pill with
+   no destination). Driven entirely by S.trainerIdentity (state.js), which is honest about four
+   real states: loading (RT hydrating), minting (practice exists server-side but no code has
+   landed yet — never shown as broken), offline (last-known real identity, Share disabled),
+   live (real name + real business + real code, QR, Copy, Share). */
 export const trainerProfile = {
   nav: 'trainer', tab: 'profile',
   render() {
-    const t = (RT.ob && RT.ob.trainer) || {};
-    const code = (RT.ob || {}).practiceCode || '';
-    const name = (RT.ob && RT.ob.name) || 'Tracy Boone';
-    const metaLine = t.practiceName ? esc(t.practiceName) : 'Tracy Boone Performance';
-    return `
-    ${backHead('Trainer Profile', 'Your practice and client code', 'trainer')}
+    const ti = S.trainerIdentity;
+    const loading = ti.state === 'loading';
+    const minting = ti.state === 'minting';
+    const offline = ti.state === 'offline';
+    const sub = offline ? 'Offline · showing your saved details' : 'Manage your practice';
 
+    const header = loading ? `
     <section class="card id-card">
-      <div class="big-av" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce)">${esc((name[0] || 'T').toUpperCase())}</div>
+      <div class="sk" style="width:62px;height:62px;border-radius:50%"></div>
       <div style="flex:1">
-        <div class="nm">${esc(name)}</div>
-        <div class="meta">${metaLine}</div>
+        <div class="sk" style="height:19px;width:65%"></div>
+        <div class="sk" style="height:12px;width:45%;margin-top:9px"></div>
       </div>
-    </section>
-
-    <div class="eyebrow">Client code · share it</div>
-    ${code ? `
-    <section class="card pad" style="text-align:center">
-      <div class="code-boxes" style="padding:0 0 4px">
-        ${code.split('').map(ch => `<div class="cb filled" style="border-color:var(--purple-border)">${esc(ch)}</div>`).join('')}
-      </div>
-      <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:8px auto 0">${icon('clipboard', 16)} Copy code</button>
     </section>` : `
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-      <div><div class="tt">No code yet</div><div class="ts">It mints when your practice is created, automatically on your next sign-in.</div></div>
-    </div>`}
+    <section class="card id-card">
+      <div class="big-av" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce)">${esc(ti.initials || 'T')}</div>
+      <div style="flex:1">
+        <div class="nm">${esc(ti.name)}</div>
+        <div class="meta">${esc(ti.practiceName)}</div>
+        <div style="margin-top:9px">${offline ? `<span class="status-pill a">Reconnecting</span>` : minting ? `<span class="status-pill p">Setting up</span>` : `<span class="status-pill g">Live</span>`}</div>
+      </div>
+    </section>`;
+
+    let invite;
+    if (loading) {
+      invite = `
+      <div class="eyebrow">Invite a client</div>
+      <section class="card" style="padding:18px">
+        <div class="hq-invite-top">
+          <div style="flex:1">
+            <div class="sk" style="height:11px;width:40%"></div>
+            <div class="sk" style="height:56px;width:100%;margin-top:10px;border-radius:13px"></div>
+          </div>
+          <div class="sk" style="width:104px;height:104px;border-radius:14px"></div>
+        </div>
+      </section>`;
+    } else if (minting) {
+      invite = `
+      <div class="eyebrow">Invite a client</div>
+      <div class="sidebox">
+        <div class="req-icon p" style="width:38px;height:38px"><span class="hq-spin"></span></div>
+        <div><div class="tt">Your client code is being created</div>
+        <div class="ts">It mints the moment your practice is set up on the server, usually a few seconds. Nothing shows until it's real, so a client never gets a dead code.</div></div>
+      </div>`;
+    } else {
+      const link = inviteLink(ti.code);
+      const svg = qrSvg(addQuietZone(encodeQR(link, 'M')), 96, '#0B0D12', `QR code to join ${ti.practiceName}`);
+      invite = `
+      <div class="eyebrow">Invite a client</div>
+      <section class="card" style="padding:18px">
+        <div class="hq-invite-top">
+          <div style="flex:1;min-width:0">
+            <div class="eyebrow" style="margin:0 0 8px">Client code</div>
+            <div class="code-boxes" style="justify-content:flex-start;padding:0">
+              ${ti.code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(168,85,247,0.08)">${esc(ch)}</div>`).join('')}
+            </div>
+            <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.4">
+              ${offline ? 'Showing your saved code. Reconnect to share a fresh invite.' : 'They scan the code or enter it to request to join your practice.'}
+            </div>
+          </div>
+          <div>
+            <div class="hq-qr">${svg}</div>
+            <div class="hq-qcap">SCAN TO JOIN</div>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn ghost sm" id="copy-code">${icon('clipboard', 16)} Copy code</button>
+          <button class="btn sm" id="share-invite" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce);color:#fff"${offline ? ' disabled' : ''}>${icon('share', 16)} Share invite</button>
+        </div>
+      </section>`;
+    }
+
+    return `
+    ${backHead('Practice HQ', sub, 'trainer')}
+    ${header}
+    ${invite}
 
     <div class="eyebrow">Practice settings</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" style="cursor:default"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals, recovery, weekly weight</div></div><span class="status-pill g">Set</span></div>
+      <div class="lrow" id="manage-standard">
+        <div class="lic">${icon('clipboard', 17)}</div>
+        <div class="lm"><div class="lt">Default client standard</div><div class="ls">3 meals · nightly recovery check-in · weekly weigh-in — applied to every client</div></div>
+        <span class="status-pill p" id="manage-pill" style="cursor:pointer">Manage</span>
+      </div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="billing"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Trainer plan & billing</div><div class="ls">Priced per client</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
+    </section>
+
+    <div class="eyebrow">Coming to Practice HQ</div>
+    <section class="card" style="padding:16px 18px">
+      <div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px">${icon('lock', 15)} Founder-gated sections</div>
+      <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:5px 0 13px;line-height:1.45">Built and reviewed one slice at a time. Shown honestly as locked until they're real.</div>
+      <div class="hq-roadmap-grid">
+        ${['Business health', 'Client health', 'AI assistant', 'Analytics', 'Branding', 'Integrations'].map((t) => `<div class="hq-ritem">${icon('lock', 14)}<span>${t}</span></div>`).join('')}
+      </div>
     </section>
     <div style="height:10px"></div>
     `;
   },
   mount(root) {
+    const ti = S.trainerIdentity;
     const copy = root.querySelector('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText((RT.ob || {}).practiceCode || ''); } catch { /* no-op */ }
+      try { await navigator.clipboard.writeText(ti.code || ''); } catch { /* no-op */ }
       copy.innerHTML = `${icon('check', 16)} Copied`;
+      setTimeout(() => { copy.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
+    });
+    const share = root.querySelector('#share-invite');
+    if (share && !share.disabled) share.addEventListener('click', async () => {
+      const url = inviteLink(ti.code);
+      const text = inviteShareText(ti.code, ti.practiceName);
+      try {
+        if (window.OnStandardNative && window.OnStandardNative.share) {
+          window.OnStandardNative.share({ title: `Join ${ti.practiceName}`, message: text, url });
+        } else if (navigator.share) {
+          await navigator.share({ title: `Join ${ti.practiceName}`, text, url });
+        } else {
+          await navigator.clipboard.writeText(text);
+          share.innerHTML = `${icon('check', 16)} Copied invite`;
+          setTimeout(() => { share.innerHTML = `${icon('share', 16)} Share invite`; }, 1600);
+        }
+      } catch { /* share sheet dismissed — no-op */ }
+    });
+    const managePill = root.querySelector('#manage-pill');
+    if (managePill) managePill.addEventListener('click', () => {
+      managePill.textContent = 'Coming soon';
+      setTimeout(() => { managePill.textContent = 'Manage'; }, 1600);
     });
   },
 };

@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, titleHead, esc } from '../components.js';
 import * as roles from '../roles.js';
 import { openingMessage, reactionGroups, threadMessages } from '../meal-intel.js';
 
@@ -53,7 +53,7 @@ export const coach = {
     const onStd = rows ? rows.filter(r => r.score != null && r.score >= 80).length : 0;
     const attention = rows ? rows.filter(r => r.flag === 'r') : [];
     return `
-    ${backHead('Coach view', `${esc(teamName)} · today`, 'profile')}
+    ${titleHead('Coach view', `${esc(teamName)} · today`)}
 
     <div class="coach-stats">
       <div class="coach-stat"><div class="v">${avg != null ? avg : '—'}</div><div class="k">Team avg</div></div>
@@ -525,7 +525,7 @@ export const trainer = {
   render() {
     const rows = BOOK ? BOOK.rows : null;
     return `
-    ${backHead('Trainer view', 'Your clients · recovery & nutrition consistency', 'profile')}
+    ${titleHead('Trainer view', 'Your clients · recovery & nutrition consistency')}
 
     ${BOOK && BOOK.pending && BOOK.pending.length ? `
     <div class="eyebrow">Client requests</div>

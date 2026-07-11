@@ -161,6 +161,17 @@ export function backHead(title, sub, to = 'home') {
   </div>`;
 }
 
+/* A tab-root header: same title/sub layout as backHead, but NO back chevron and no data-go —
+   there is nowhere "back" to go from a role's own dashboard tab. Using backHead(...,'profile')
+   on a tab root was the cross-role back-nav bug (coach/trainer dashboards' chevron landing in
+   the ATHLETE profile screen, since 'profile' is the athlete tab route). Tab roots use this
+   instead; sub-screens keep backHead pointed at their own role's home. */
+export function titleHead(title, sub) {
+  return `<div class="back-head">
+    <div><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
+  </div>`;
+}
+
 /* a stylized "plate of food" thumbnail (no photo dependency, reads premium) */
 export function mealMedia(hue = '20', h = 96) {
   return `<div class="act-media" style="height:${h}px;background:

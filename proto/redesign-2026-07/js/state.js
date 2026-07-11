@@ -17,6 +17,7 @@ import {
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { groundExtras } from './meal-intel.js';
+import { fetchMyPracticeIdentity } from './roles.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
 function fmtClock(min) {
@@ -101,6 +102,10 @@ const DEFAULT_RT = {
   userId: null,
   email: null,
   authRole: null,        // 'athlete' | 'coach' | 'trainer' | 'parent' (from profile)
+  // --- trainer's real practice identity (Practice HQ) ---
+  practice: null,        // last server-confirmed {id,name,code}, or null — never a fabricated persona
+  practiceLoading: true, // true until the first hydrate attempt (success or failure) completes
+  practiceOffline: false,// true when the last hydrate attempt failed while a cached identity exists
 };
 function load() {
   try {
@@ -375,6 +380,9 @@ export const act = {
     if (!sb) return { ok: false, error: 'Auth is not ready yet. Try again in a moment.' };
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) return { ok: false, error: friendlyAuth(error.message) };
+    // Shared-device safety: a different real user signing in must never inherit the previous
+    // trainer's cached practice identity (name/business/code) from localStorage.
+    if (RT.userId && RT.userId !== data.user.id) { RT.practice = null; RT.practiceLoading = true; RT.practiceOffline = false; }
     RT.userId = data.user.id;
     RT.email = email;
     let role = 'athlete';
@@ -410,6 +418,7 @@ export const act = {
     if (role === 'trainer' && RT.ob && RT.ob.trainer && obMine && !RT.ob.practiceCode) {
       try { await this.persistTrainerOnboarding(); } catch { /* best-effort */ }
     }
+    if (role === 'trainer') await this._loadPracticeIntoRt(RT.userId);
     await loadDay(RT.userId);
     syncRtFromDay();
     return { ok: true, role };
@@ -436,10 +445,36 @@ export const act = {
       return !!ap;
     } catch { /* offline / RLS — keep whatever identity we have */ return false; }
   },
+  /* Read the trainer's REAL practice identity (business name + client join code) into RT —
+     mirrors _loadProfileIntoRt for athletes. Distinguishes three honest outcomes so Practice HQ
+     never shows a broken/fabricated state:
+       - a real practice was found -> RT.practice set, offline cleared (live)
+       - nothing found but we already had a cached identity -> keep the cache, flag offline
+         (reconnecting; navigator.onLine is coarse in WKWebView, so this also catches a
+         same-tick RLS/network hiccup rather than wiping a real business identity)
+       - nothing found and no cache -> honestly still minting (no practice row exists yet) */
+  async _loadPracticeIntoRt(userId) {
+    if (!userId) return;
+    const hadCache = !!(RT.practice && RT.practice.code);
+    RT.practiceLoading = true; save();
+    const identity = await fetchMyPracticeIdentity();
+    if (identity && identity.code) {
+      RT.practice = { id: identity.id, name: identity.name, code: identity.code };
+      RT.practiceOffline = false;
+    } else if (hadCache) {
+      RT.practiceOffline = true; // keep RT.practice as-is (last-known real identity)
+    } else {
+      RT.practice = null;
+      RT.practiceOffline = false;
+    }
+    RT.practiceLoading = false;
+    save();
+  },
   async signOut() {
     const sb = window.sb;
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
     RT.userId = null; RT.email = null; RT.authRole = null;
+    RT.practice = null; RT.practiceLoading = true; RT.practiceOffline = false;
     save();
   },
   /* Send a password-reset email. Neutral by design — we never reveal whether an account exists,
@@ -600,7 +635,13 @@ export const act = {
   // Called by the router boot gate to sync RT from a restored Keychain session.
   _syncSession(user) { if (user) { RT.userId = user.id; RT.email = user.email || RT.email; save(); } },
   // Load today's real day from Supabase and reflect it into the UI flags.
-  async hydrateDay() { if (RT.userId) await this._loadProfileIntoRt(RT.userId); await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications(); },
+  async hydrateDay() {
+    if (RT.userId) {
+      await this._loadProfileIntoRt(RT.userId);
+      if (RT.authRole === 'trainer') await this._loadPracticeIntoRt(RT.userId);
+    }
+    await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications();
+  },
 };
 window.__act = act;
 
@@ -623,6 +664,27 @@ export const S = {
     };
   },
   coach: { name: 'Coach Mark', initials: 'M', role: 'Head Coach', team: 'Central Catholic · Varsity' },
+
+  // Trainer's real identity for Practice HQ: server-confirmed name/business/code, or an honest
+  // neutral fallback — never a fabricated persona (no "Tracy Boone", no dead "No code yet").
+  // `state` names the render mode roles.js drives off of: loading | offline | minting | live.
+  get trainerIdentity() {
+    const realName = (RT.profile && RT.profile.name || '').trim();
+    const realPractice = (RT.practice && RT.practice.name || '').trim();
+    const code = (RT.practice && RT.practice.code) || '';
+    const initials = realName
+      ? realName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
+      : 'T';
+    const state = RT.practiceLoading ? 'loading' : RT.practiceOffline ? 'offline' : !code ? 'minting' : 'live';
+    return {
+      name: realName || 'Trainer',
+      initials,
+      practiceName: realPractice || 'Your practice',
+      code,
+      hasIdentity: !!realName && !!realPractice,
+      state,
+    };
+  },
 
   // Real on-device clock + greeting (the status bar renders S.now; on iOS this is the system
   // clock — here it's the browser's, never a frozen 7:12).

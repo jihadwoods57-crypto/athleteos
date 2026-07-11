@@ -1,0 +1,360 @@
+<title>Practice HQ — OnStandard Trainer</title>
+<style>
+  :root{
+    --bg:#070B14; --bg-grad-top:#0A1120; --surface-1:#0E1421; --surface-2:#131C2D; --surface-3:#1A2436;
+    --hairline:rgba(148,176,224,.10); --hairline-soft:rgba(148,176,224,.055);
+    --text:#EEF3FB; --text-2:#9AA9C2; --text-3:#64748B;
+    --blue:#3B82F6; --blue-bright:#60A5FA; --blue-deep:#2563EB; --blue-surface:rgba(59,130,246,.14); --blue-border:rgba(59,130,246,.34);
+    --green:#34D399; --green-bright:#4ADE80; --green-surface:rgba(52,211,153,.13); --green-border:rgba(52,211,153,.30);
+    --amber:#F5A524; --amber-bright:#FBBF24; --amber-surface:rgba(245,165,36,.13); --amber-border:rgba(245,165,36,.32);
+    --purple:#A855F7; --purple-bright:#C084FC; --purple-surface:rgba(168,85,247,.13); --purple-border:rgba(168,85,247,.30);
+    --red:#F65757; --red-surface:rgba(246,87,87,.13); --red-border:rgba(246,87,87,.30);
+    --font:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --r-card:22px; --r-tile:15px; --r-pill:999px; --r-chip:11px; --r-btn:17px;
+    --sh-card:0 1px 0 rgba(255,255,255,.02) inset,0 8px 24px rgba(0,0,0,.36);
+    --sh-purple:0 10px 30px rgba(168,85,247,.34);
+    --ease:cubic-bezier(.16,1,.3,1);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font);color:var(--text);
+    background:
+      radial-gradient(120% 80% at 82% -8%,rgba(168,85,247,.12),transparent 46%),
+      radial-gradient(120% 80% at 12% 4%,rgba(37,99,235,.10),transparent 44%),
+      var(--bg);
+    -webkit-font-smoothing:antialiased;min-height:100vh;}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 24px 72px;}
+  .lede{max-width:640px}
+  .kicker{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--purple-bright)}
+  h1{font-size:clamp(26px,4vw,40px);font-weight:800;letter-spacing:-.03em;margin:12px 0 10px;line-height:1.04}
+  .sub{color:var(--text-2);font-size:15px;line-height:1.6;font-weight:500}
+  .sub b{color:var(--text);font-weight:700}
+  .stage{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:40px;align-items:start;margin-top:36px}
+  @media(max-width:920px){.stage{grid-template-columns:1fr;gap:32px}.phonecol{order:-1}}
+
+  /* ---- segmented state control ---- */
+  .seg{display:inline-flex;gap:4px;padding:5px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:var(--r-pill);flex-wrap:wrap}
+  .seg button{appearance:none;border:0;background:transparent;color:var(--text-2);font-family:inherit;font-weight:700;font-size:12.5px;
+    padding:9px 16px;border-radius:var(--r-pill);cursor:pointer;transition:color .2s,background .2s;min-height:38px}
+  .seg button[aria-selected="true"]{background:var(--purple-surface);color:var(--purple-bright);box-shadow:inset 0 0 0 1px var(--purple-border)}
+  .seg button:focus-visible{outline:2px solid var(--purple-bright);outline-offset:2px}
+
+  /* ---- annotation column ---- */
+  .notes{margin-top:26px;display:grid;gap:14px}
+  .note{background:var(--surface-1);border:1px solid var(--hairline);border-radius:18px;padding:16px 18px}
+  .note h3{margin:0 0 6px;font-size:13.5px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+  .note p{margin:0;font-size:12.8px;line-height:1.55;color:var(--text-2);font-weight:500}
+  .tag{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:3px 8px;border-radius:7px}
+  .tag.fix{color:var(--green-bright);background:var(--green-surface);border:1px solid var(--green-border)}
+  .tag.new{color:var(--purple-bright);background:var(--purple-surface);border:1px solid var(--purple-border)}
+  .tag.road{color:var(--text-3);background:var(--surface-2);border:1px solid var(--hairline)}
+  .navfix{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .navfix figure{margin:0;background:var(--surface-2);border:1px solid var(--hairline);border-radius:12px;padding:11px 12px}
+  .navfix .h{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;margin-bottom:7px}
+  .navfix .bar{height:26px;border-radius:8px;background:var(--surface-3);display:flex;align-items:center;gap:7px;padding:0 9px;font-size:10.5px;font-weight:700;color:var(--text-2)}
+  .navfix figcaption{font-size:11px;line-height:1.4;color:var(--text-3);margin-top:8px;font-weight:600}
+  .x{color:var(--red)} .ok{color:var(--green-bright)}
+
+  /* ---- phone ---- */
+  .phonecol{position:sticky;top:28px}
+  .phone{width:390px;max-width:100%;margin:0 auto;background:var(--bg);border:1px solid var(--hairline);
+    border-radius:44px;padding:12px;box-shadow:0 40px 90px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.02) inset;position:relative}
+  .screen{background:linear-gradient(180deg,var(--bg-grad-top),var(--bg) 30%);border-radius:33px;overflow:hidden;position:relative;height:812px}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:14px 26px 6px;font-size:14px;font-weight:700}
+  .statusbar .glyphs{display:flex;gap:6px;align-items:center;color:var(--text)}
+  .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:26px;background:#000;border-radius:0 0 16px 16px;z-index:5}
+  .body{padding:6px 20px 26px;height:calc(812px - 44px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .body::-webkit-scrollbar{width:0}
+
+  .backhead{display:flex;align-items:center;gap:12px;padding:8px 0 16px}
+  .bk{width:38px;height:38px;border-radius:12px;background:var(--surface-2);border:1px solid var(--hairline);display:grid;place-items:center;color:var(--text-2);cursor:pointer;flex:none}
+  .backhead .ht{font-size:19px;font-weight:800;letter-spacing:-.02em}
+  .backhead .hs{font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:1px}
+
+  .card{background:var(--surface-1);border:1px solid var(--hairline);border-radius:var(--r-card);box-shadow:var(--sh-card)}
+  .eyebrow{font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--text-3);margin:22px 2px 11px}
+
+  /* business header */
+  .biz{padding:20px;display:flex;gap:15px;align-items:center;position:relative;overflow:hidden}
+  .biz::before{content:"";position:absolute;inset:0;background:radial-gradient(80% 120% at 100% 0,rgba(168,85,247,.16),transparent 60%);pointer-events:none}
+  .biz .mono{width:60px;height:60px;border-radius:19px;background:linear-gradient(150deg,var(--purple-bright),#7e22ce);
+    display:grid;place-items:center;font-size:22px;font-weight:800;color:#fff;box-shadow:var(--sh-purple);flex:none;letter-spacing:-.02em}
+  .biz .bn{font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+  .biz .who{font-size:13px;font-weight:600;color:var(--text-2);margin-top:4px}
+  .chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+  .chip{font-size:11px;font-weight:700;padding:5px 10px;border-radius:var(--r-pill);border:1px solid var(--hairline);color:var(--text-2);display:flex;align-items:center;gap:5px}
+  .chip.live{color:var(--green-bright);border-color:var(--green-border);background:var(--green-surface)}
+  .chip.live .dot{width:6px;height:6px;border-radius:50%;background:var(--green-bright);box-shadow:0 0 8px var(--green-bright)}
+  .chip.plan{color:var(--purple-bright);border-color:var(--purple-border)}
+  .chip.warn{color:var(--amber-bright);border-color:var(--amber-border);background:var(--amber-surface)}
+
+  /* invite signature card */
+  .invite{padding:18px}
+  .invite .top{display:flex;gap:18px;align-items:center}
+  .invite .codewrap{flex:1;min-width:0}
+  .clabel{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);margin-bottom:9px}
+  .codeboxes{display:flex;gap:7px}
+  .cb{flex:1;aspect-ratio:.82;min-width:0;border-radius:11px;background:rgba(168,85,247,.07);border:1.5px solid var(--purple-border);
+    display:grid;place-items:center;font-size:clamp(16px,4.5vw,21px);font-weight:800;color:var(--text)}
+  .invite .cap{font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.4}
+  .qr{width:118px;height:118px;flex:none;background:#fff;border-radius:14px;padding:9px;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+  .qr svg{width:100%;height:100%;display:block}
+  .qcap{font-size:10px;font-weight:700;text-align:center;color:var(--text-3);margin-top:6px;letter-spacing:.02em}
+  .actions{display:flex;gap:9px;margin-top:16px}
+  .btn{flex:1;height:50px;border-radius:var(--r-btn);font-family:inherit;font-weight:800;font-size:14px;cursor:pointer;border:1px solid var(--hairline);
+    display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .12s var(--ease),filter .2s;background:var(--surface-2);color:var(--text)}
+  .btn:active{transform:scale(.97)}
+  .btn.primary{background:linear-gradient(150deg,var(--purple-bright),#7e22ce);color:#fff;border:0;box-shadow:var(--sh-purple)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn:focus-visible{outline:2px solid var(--purple-bright);outline-offset:2px}
+
+  /* settings rows */
+  .list{padding:5px 16px}
+  .lrow{display:flex;align-items:center;gap:13px;padding:14px 0;border-bottom:1px solid var(--hairline-soft);cursor:pointer}
+  .lrow:last-child{border-bottom:0}
+  .lic{width:38px;height:38px;border-radius:12px;background:var(--surface-2);border:1px solid var(--hairline);display:grid;place-items:center;color:var(--text-2);flex:none}
+  .lm{flex:1;min-width:0}
+  .lt{font-size:14.5px;font-weight:700}
+  .ls{font-size:12px;font-weight:600;color:var(--text-3);margin-top:2px}
+  .lrow .chev{color:var(--text-3);flex:none}
+  .manage{font-size:12px;font-weight:800;color:var(--purple-bright);padding:6px 12px;border-radius:var(--r-pill);border:1px solid var(--purple-border);background:var(--purple-surface);flex:none}
+  .signout .lt{color:var(--red)} .signout .lic{color:var(--red);border-color:var(--red-border);background:var(--red-surface)}
+
+  /* roadmap */
+  .roadmap{padding:16px 18px}
+  .roadmap .rt{font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .roadmap .rs{font-size:11.5px;font-weight:600;color:var(--text-3);margin:5px 0 13px;line-height:1.45}
+  .rgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .ritem{display:flex;align-items:center;gap:9px;padding:11px 12px;background:var(--surface-2);border:1px solid var(--hairline-soft);border-radius:12px;color:var(--text-3);opacity:.72}
+  .ritem span{font-size:12px;font-weight:700}
+  .ritem .lk{flex:none;color:var(--text-3)}
+
+  /* honest states */
+  .sidebox{display:flex;gap:13px;padding:16px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:18px;align-items:flex-start}
+  .sidebox .si{width:38px;height:38px;border-radius:12px;background:var(--purple-surface);border:1px solid var(--purple-border);color:var(--purple-bright);display:grid;place-items:center;flex:none}
+  .sidebox .tt{font-size:14px;font-weight:800}
+  .sidebox .ts{font-size:12px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5}
+  .spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--purple-border);border-top-color:var(--purple-bright);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* skeleton */
+  .sk{background:linear-gradient(90deg,var(--surface-2) 25%,var(--surface-3) 37%,var(--surface-2) 63%);background-size:400% 100%;animation:sh 1.4s ease infinite;border-radius:10px}
+  @keyframes sh{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+  /* toast */
+  .toast{position:absolute;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--surface-3);border:1px solid var(--hairline);
+    color:var(--text);font-size:13px;font-weight:700;padding:12px 18px;border-radius:14px;box-shadow:var(--sh-card);opacity:0;pointer-events:none;
+    transition:opacity .25s var(--ease),transform .25s var(--ease);display:flex;align-items:center;gap:9px;z-index:20;max-width:80%}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .toast .ck{color:var(--green-bright)}
+
+  .foot{margin-top:44px;color:var(--text-3);font-size:12px;line-height:1.6;max-width:680px;border-top:1px solid var(--hairline);padding-top:20px}
+  .foot b{color:var(--text-2)}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <div class="lede">
+    <div class="kicker">Fable 5 · Design Prototype · Trainer lane</div>
+    <h1>Practice HQ</h1>
+    <p class="sub">The bare Trainer Profile settings page becomes a real business command center. It shows the trainer's <b>true server identity</b> (survives a reinstall, never another persona), turns the client code into a one-tap <b>invite loop</b> with QR + native share, and fixes the back button that dropped trainers into a random athlete profile. Tap the states below.</p>
+  </div>
+
+  <div class="stage">
+    <div class="left">
+      <div class="seg" role="tablist" aria-label="Screen state">
+        <button role="tab" aria-selected="true" data-state="live">Live</button>
+        <button role="tab" aria-selected="false" data-state="loading">Loading</button>
+        <button role="tab" aria-selected="false" data-state="minting">Minting code</button>
+        <button role="tab" aria-selected="false" data-state="offline">Offline</button>
+      </div>
+
+      <div class="notes">
+        <div class="note">
+          <h3><span class="tag fix">Fix 1</span> Back button no longer lands in a stranger's profile</h3>
+          <p>The coach, trainer and parent dashboards are tab roots that passed <b>'profile'</b> to the back chevron, sending the user into the athlete profile. Tab roots get no back chevron; sub-screens like Practice HQ point back to the trainer dashboard.</p>
+          <div class="navfix">
+            <figure>
+              <div class="h"><span class="x">&#10005;</span> Before</div>
+              <div class="bar"><span class="x">&#8592;</span> Athlete profile</div>
+              <figcaption>Back on your own dashboard opened a random athlete's identity + athlete-only actions.</figcaption>
+            </figure>
+            <figure>
+              <div class="h"><span class="ok">&#10003;</span> After</div>
+              <div class="bar">Trainer &nbsp; <span style="margin-left:auto;opacity:.5">no&nbsp;back</span></div>
+              <figcaption>Dashboard is a root: no back chevron. Practice HQ backs to the trainer home only.</figcaption>
+            </figure>
+          </div>
+        </div>
+        <div class="note">
+          <h3><span class="tag fix">Fix 2</span> Real, persistent trainer identity</h3>
+          <p>Identity and code hydrate from the server on sign-in, <b>full_name</b> from profiles plus practice id / name / client-code, into RT. On a fresh device the profile shows the real business, never the hardcoded "Tracy Boone" fallback, and never "No code yet" when a code exists.</p>
+        </div>
+        <div class="note">
+          <h3><span class="tag new">New</span> The invitation loop</h3>
+          <p>Real client code, a scannable QR of the join link, Copy, and native Share, built on the existing <b>SHARE</b> bridge and clipboard. Onboarding a client is one tap. <i>Production inlines a dependency-free QR generator; this prototype renders the exact layout with a seeded matrix.</i></p>
+        </div>
+        <div class="note">
+          <h3><span class="tag road">Roadmap</span> The rest of Practice HQ</h3>
+          <p>Business health, client health, AI assistant, analytics, default-standard editor, branding, integrations and business tools ship as founder-gated slices. Shown as honest locked rows, never faked as working.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="phonecol">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="glyphs">
+              <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+              <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M1 4.2C4.8 1 11.2 1 15 4.2M3.4 6.8C6 4.6 10 4.6 12.6 6.8M6 9.4c1.2-1 3.8-1 5 0"/></svg>
+              <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="1" y="1" width="21" height="10" rx="2.6" stroke="currentColor" stroke-opacity=".5"/><rect x="3" y="3" width="15" height="6" rx="1.2" fill="currentColor"/><rect x="23" y="4" width="2" height="4" rx="1" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+          <div class="body" id="body"></div>
+          <div class="toast" id="toast"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Grounded in the real codebase: dark tokens from <b>proto/redesign-2026-07/css/tokens.css</b>, the invite loop reuses <b>src/proto/bridge.ts</b> case 'SHARE' and clipboard, and the identity + code hydrate the same <b>RT</b> that <b>state.js _loadProfileIntoRt</b> populates for athletes. Design prototype only, no app code changed. Trainer purple is the lane accent; Athlete Blue stays the athlete spine.</p>
+</div>
+
+<script>
+(function(){
+  var CODE="TB4K9Q", JOIN="https://onstandard.app/join/"+CODE;
+  var ic={
+    back:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+    chev:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
+    copy:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.4"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>',
+    share:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/></svg>',
+    lock:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    clip:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2.4"/><path d="M9 4a3 3 0 0 1 6 0"/></svg>',
+    eye:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="2.6"/></svg>',
+    bolt:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>',
+    x:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>'
+  };
+
+  /* ---- seeded QR-anatomy matrix (finders + timing + alignment + data). Production swaps in a real generator. ---- */
+  function qr(seed){
+    var N=25, m=[], r,c;
+    for(r=0;r<N;r++){m.push([]);for(c=0;c<N;c++)m[r].push(null);}
+    function finder(or,oc){for(var r=-1;r<=7;r++)for(var c=-1;c<=7;c++){var rr=or+r,cc=oc+c;if(rr<0||rr>=N||cc<0||cc>=N)continue;
+      var d=(r>=0&&r<=6&&(c===0||c===6))||(c>=0&&c<=6&&(r===0||r===6))||(r>=2&&r<=4&&c>=2&&c<=4);m[rr][cc]=d;}}
+    finder(0,0);finder(0,18);finder(18,0);
+    for(var i=8;i<17;i++){if(m[i][6]===null)m[i][6]=(i%2===0);if(m[6][i]===null)m[6][i]=(i%2===0);}
+    var ar=18,ac=18;for(r=-2;r<=2;r++)for(c=-2;c<=2;c++)m[ar+r][ac+c]=(Math.abs(r)===2||Math.abs(c)===2||(r===0&&c===0));
+    // deterministic hash for data cells
+    var h=2166136261;for(i=0;i<seed.length;i++){h^=seed.charCodeAt(i);h=(h*16777619)>>>0;}
+    function rnd(r,c){var v=(h^((r+1)*73856093)^((c+1)*19349663))>>>0;v=(v*2654435761)>>>0;return (v&255);}
+    for(r=0;r<N;r++)for(c=0;c<N;c++)if(m[r][c]===null)m[r][c]=rnd(r,c)>128;
+    // svg
+    var q=2, S=N+q*2, px=100/S, sv='<svg viewBox="0 0 100 100" shape-rendering="crispEdges" role="img" aria-label="QR code to join the practice">';
+    sv+='<rect width="100" height="100" fill="#fff"/>';
+    for(r=0;r<N;r++)for(c=0;c<N;c++)if(m[r][c])sv+='<rect x="'+((c+q)*px).toFixed(3)+'" y="'+((r+q)*px).toFixed(3)+'" width="'+(px+0.05).toFixed(3)+'" height="'+(px+0.05).toFixed(3)+'" fill="#0B1220"/>';
+    return sv+'</svg>';
+  }
+
+  var codeboxes='<div class="codeboxes">'+CODE.split('').map(function(ch){return '<div class="cb">'+ch+'</div>';}).join('')+'</div>';
+
+  var settings=
+    '<div class="eyebrow">Practice settings</div>'+
+    '<section class="card list">'+
+      '<div class="lrow" data-toast="Opening the default-client-standard editor (next slice)"><div class="lic">'+ic.clip+'</div><div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals &middot; Macros &middot; Hydration &middot; Weigh-in cadence</div></div><span class="manage">Manage</span></div>'+
+      '<div class="lrow" data-toast="Visibility scope"><div class="lic">'+ic.eye+'</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness &amp; consistency only</div></div><span class="chev">'+ic.chev+'</span></div>'+
+      '<div class="lrow" data-toast="Trainer plan &amp; billing"><div class="lic">'+ic.bolt+'</div><div class="lm"><div class="lt">Trainer plan &amp; billing</div><div class="ls">Pro &middot; priced per client</div></div><span class="chev">'+ic.chev+'</span></div>'+
+      '<div class="lrow signout" data-toast="Sign out"><div class="lic">'+ic.x+'</div><div class="lm"><div class="lt">Sign out</div></div></div>'+
+    '</section>';
+
+  var roadmap=
+    '<div class="eyebrow">Coming to Practice HQ</div>'+
+    '<section class="card roadmap">'+
+      '<div class="rt">'+ic.lock+' Founder-gated sections</div>'+
+      '<div class="rs">Built and reviewed one slice at a time. Shown honestly as locked until they are real.</div>'+
+      '<div class="rgrid">'+
+        ['Business health','Client health','AI assistant','Analytics','Branding','Integrations'].map(function(t){
+          return '<div class="ritem"><span class="lk">'+ic.lock+'</span><span>'+t+'</span></div>';}).join('')+
+      '</div>'+
+    '</section>';
+
+  function head(sub){return '<div class="backhead"><div class="bk" data-toast="Back to trainer dashboard">'+ic.back+'</div><div><div class="ht">Practice HQ</div><div class="hs">'+sub+'</div></div></div>';}
+
+  function bizHeader(state){
+    if(state==='loading'){
+      return '<section class="card biz"><div class="sk" style="width:60px;height:60px;border-radius:19px"></div><div style="flex:1"><div class="sk" style="height:19px;width:70%"></div><div class="sk" style="height:12px;width:45%;margin-top:9px"></div><div class="sk" style="height:22px;width:60%;margin-top:12px;border-radius:999px"></div></div></section>';
+    }
+    var chips;
+    if(state==='offline'){
+      chips='<span class="chip warn"><span class="dot" style="background:var(--amber-bright);box-shadow:none"></span>Reconnecting</span><span class="chip">8 clients</span><span class="chip plan">Pro</span>';
+    } else {
+      chips='<span class="chip live"><span class="dot"></span>Live</span><span class="chip">8 active clients</span><span class="chip plan">Pro</span>';
+    }
+    return '<section class="card biz"><div class="mono">TB</div><div style="flex:1;position:relative"><div class="bn">Tracy Boone Performance</div><div class="who">Tracy Boone &middot; Owner &middot; S&amp;C</div><div class="chips">'+chips+'</div></div></section>';
+  }
+
+  function inviteCard(state){
+    if(state==='loading'){
+      return '<div class="eyebrow">Invite a client</div><section class="card invite"><div class="top"><div style="flex:1"><div class="sk" style="height:11px;width:40%"></div><div class="sk" style="height:44px;width:100%;margin-top:10px"></div></div><div class="sk" style="width:118px;height:118px;border-radius:14px"></div></div><div class="sk" style="height:50px;width:100%;margin-top:16px;border-radius:17px"></div></section>';
+    }
+    if(state==='minting'){
+      return '<div class="eyebrow">Invite a client</div><div class="sidebox"><div class="si"><div class="spin"></div></div><div><div class="tt">Your client code is being created</div><div class="ts">It mints the moment your practice is set up on the server, usually a few seconds. Nothing is shown until it is real, so a client never gets a dead code.</div></div></div>';
+    }
+    var off = state==='offline';
+    return '<div class="eyebrow">Invite a client</div>'+
+      '<section class="card invite">'+
+        '<div class="top">'+
+          '<div class="codewrap"><div class="clabel">Client code</div>'+codeboxes+
+            '<div class="cap">'+(off?'Showing your saved code. Reconnect to share a fresh invite.':'They scan the code or enter it to request to join your practice.')+'</div></div>'+
+          '<div><div class="qr">'+qr(JOIN)+'</div><div class="qcap">SCAN TO JOIN</div></div>'+
+        '</div>'+
+        '<div class="actions">'+
+          '<button class="btn" id="copyBtn">'+ic.copy+' Copy code</button>'+
+          '<button class="btn primary" id="shareBtn"'+(off?' disabled':'')+'>'+ic.share+' Share invite</button>'+
+        '</div>'+
+      '</section>';
+  }
+
+  function render(state){
+    var sub = state==='offline' ? 'Offline &middot; showing saved details' : 'Manage your practice';
+    var html = head(sub) + bizHeader(state) + inviteCard(state) + settings + roadmap + '<div style="height:16px"></div>';
+    var body=document.getElementById('body');
+    body.innerHTML=html; body.scrollTop=0;
+    bind();
+  }
+
+  var toastT;
+  function toast(msg,check){
+    var t=document.getElementById('toast');
+    t.innerHTML=(check?'<span class="ck">'+ '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'+'</span>':'')+'<span>'+msg+'</span>';
+    t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(function(){t.classList.remove('show');},2200);
+  }
+
+  function bind(){
+    var copy=document.getElementById('copyBtn');
+    if(copy)copy.addEventListener('click',function(){
+      copy.innerHTML=ic.copy+' Copied';
+      try{navigator.clipboard&&navigator.clipboard.writeText(CODE);}catch(e){}
+      toast('Code '+CODE+' copied',true);
+      setTimeout(function(){copy.innerHTML=ic.copy+' Copy code';},1600);
+    });
+    var share=document.getElementById('shareBtn');
+    if(share&&!share.disabled)share.addEventListener('click',function(){
+      toast('Sharing invite &middot; '+JOIN.replace('https://',''),true);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-toast]'),function(el){
+      el.addEventListener('click',function(){toast(el.getAttribute('data-toast'));});
+    });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.seg button'),function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('.seg button').forEach(function(x){x.setAttribute('aria-selected','false');});
+      b.setAttribute('aria-selected','true');
+      render(b.getAttribute('data-state'));
+    });
+  });
+  render('live');
+})();
+</script>
