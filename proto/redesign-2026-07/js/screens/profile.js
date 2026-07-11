@@ -110,7 +110,7 @@ export default {
       </div>
       <div class="lrow" data-go="injury">
         <div class="lic" style="background:rgba(245,165,36,0.16);color:var(--amber-bright)">${icon('bolt', 17)}</div>
-        <div class="lm"><div class="lt">Injury mode</div><div class="ls">${RT.injured ? 'Active · hamstring week 2 of 4' : 'The Standard adapts when you’re hurt'}</div></div>
+        <div class="lm"><div class="lt">Injury mode</div><div class="ls">${RT.injured ? 'Active · your Standard is adapted' : 'The Standard adapts when you’re hurt'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
     </section>
@@ -121,7 +121,7 @@ export default {
       <div class="lrow" data-go="billing"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan & billing</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & preferences</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms & privacy policy</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" style="cursor:default"><div class="lic">${icon('grid', 17)}</div><div class="lm"><div class="lt">Export my data</div><div class="ls">Everything, in a file you own</div></div><span class="status-pill b">Ready</span></div>
+      <div class="lrow" style="cursor:default"><div class="lic">${icon('grid', 17)}</div><div class="lm"><div class="lt">Export my data</div><div class="ls">Everything, in a file you own · coming soon</div></div></div>
       <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="welcome"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div></div></div>
     </section>

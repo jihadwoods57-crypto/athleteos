@@ -41,4 +41,13 @@ if (sb) {
     if (document.visibilityState === 'visible') sb.auth.startAutoRefresh();
     else sb.auth.stopAutoRefresh();
   });
+  // A session that dies mid-run (refresh failure, server-side revocation) must not leave the
+  // app rendering authenticated screens against a signed-out client. Wipe the user-scoped
+  // runtime (state.js exposes act as window.__act) and land on Welcome. act.signOut() also
+  // triggers this event — the wipe is idempotent, so the double-run is harmless.
+  sb.auth.onAuthStateChange((event) => {
+    if (event !== 'SIGNED_OUT') return;
+    try { if (window.__act) window.__act._wipeUserScopedState({ keepPendingOb: true }); } catch { /* never block */ }
+    if ((location.hash || '') !== '#welcome') location.hash = '#welcome';
+  });
 }

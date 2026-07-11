@@ -359,8 +359,8 @@ export const act = {
     const rehabIdx = RT.assigned.findIndex(a => a.id === 'rehab');
     if (RT.injured && rehabIdx === -1) {
       RT.assigned.push({ id: 'rehab', title: 'Rehab · band work 2×15', icon: 'bolt',
-        note: 'Right hamstring, week 2 of 4. From your athletic trainer; coach sees completion.',
-        from: 'Athletic Trainer', dueLabel: 'Before practice', done: false, seen: false });
+        note: 'Rehab replaces intensity while you heal. Completion counts like any requirement.',
+        from: 'Injury Mode', dueLabel: 'Before practice', done: false, seen: false });
       RT.notifsRead = false;
     } else if (!RT.injured && rehabIdx !== -1) {
       RT.assigned.splice(rehabIdx, 1);

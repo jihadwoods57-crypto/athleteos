@@ -123,35 +123,20 @@ export const restrictions = {
   },
 };
 
-/* ---------- #team-diet · Coach's team dietary sheet ---------- */
+/* ---------- #team-diet · Coach's team dietary sheet ----------
+   HONEST: athletes' restriction declarations don't sync to the server yet, so a coach has no
+   real data to show here. This is a safety surface — a coach could order team meals off it —
+   so it must NEVER render invented allergies. Coming-soon until the sync exists. */
 export const teamDiet = {
   nav: 'coach', tab: 'team',
   render() {
-    const rows = [
-      { n: 'J. Woods', r: RT.allergies.length ? RT.allergies : ['None declared'], sev: RT.allergies.some(a => a.includes('severe')) },
-      { n: 'D. Okafor', r: ['Shellfish · severe'], sev: true },
-      { n: 'M. Reyes', r: ['Vegetarian'], sev: false },
-      { n: 'T. Boone', r: ['None declared'], sev: false },
-      { n: 'K. Bell', r: ['Dairy'], sev: false },
-      { n: 'A. Grant', r: ['Gluten', 'Eggs'], sev: false },
-    ];
     return `
     ${backHead('Team Dietary Sheet', 'Every restriction, one screen. Travel-ready.', 'coach')}
 
-    <section class="card" style="padding:6px 16px">
-      ${rows.map(x => `
-        <div class="lrow" style="cursor:default">
-          <div class="lic" style="${x.sev ? 'background:var(--red-surface);color:var(--red)' : ''}">${icon(x.sev ? 'bell' : 'check', 16)}</div>
-          <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.r.join(' · '))}</div></div>
-          ${x.sev ? '<span class="status-pill" style="color:var(--red);border-color:var(--red-border)">Severe</span>' : ''}
-        </div>`).join('')}
-    </section>
-
-    <div style="height:14px"></div>
-    <div class="sidebox">
-      <div class="req-icon a" style="width:38px;height:38px">${icon('bell', 17)}</div>
-      <div><div class="tt">Two severe allergies on this roster</div>
-      <div class="ts">Okafor (shellfish) and Woods (peanuts). Anyone ordering for the bus needs this screen, not a group-chat memory test.</div></div>
+    <div class="state-demo">
+      <div class="sd-ic">${icon('bell', 24)}</div>
+      <div class="sd-t">Declarations are coming</div>
+      <div class="sd-s">When your athletes declare restrictions and allergies in their profile, every one of them lands here — severity-flagged, one screen, travel-ready. Nothing shows until it's their real declaration; a dietary sheet is the last place for placeholder data.</div>
     </div>
     <div style="height:10px"></div>
     `;
@@ -164,26 +149,15 @@ export const injury = {
   render() {
     const on = RT.injured;
     return `
-    ${backHead('Injury Mode', on ? 'Right hamstring · week 2 of 4' : 'The Standard adapts when you are hurt', 'home')}
+    ${backHead('Injury Mode', on ? 'Your Standard adapts while you heal' : 'The Standard adapts when you are hurt', 'home')}
 
     ${on ? `
-    <section class="card pad" style="border-color:var(--amber-border)">
-      <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div style="font-size:15px;font-weight:800">Return to play</div>
-        <span class="status-pill a">Week 2 of 4</span>
-      </div>
-      <div class="finish-segs" style="margin-top:12px">
-        <div class="fseg on"></div><div class="fseg on"></div><div class="fseg"></div><div class="fseg"></div>
-      </div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:10px">Cleared for non-contact. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees the same progress; nobody gets surprised on Friday.` : 'Anyone you connect sees the same progress; nobody gets surprised on Friday.'}</div>
-    </section>
-
     <div class="eyebrow">What changed in your Standard</div>
     <section class="card" style="padding:6px 16px">
       ${[
         ['bolt', 'Rehab replaces intensity', 'Band work 2×15 before practice, on your requirements list now.'],
-        ['utensils', 'Nutrition tilts anti-inflammatory', 'Protein holds at 190g; add color, cut the fried stuff for two weeks.'],
-        ['moon', 'Recovery counts double attention', 'Sleep is when tissue heals. Same +6, more coaching eyes on it.'],
+        ['utensils', 'Nutrition tilts anti-inflammatory', 'Protein stays on target; add color, cut the fried stuff while you heal.'],
+        ['moon', 'Recovery counts double attention', 'Sleep is when tissue heals — Recovery stays 25% of your score, with more eyes on it.'],
       ].map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
