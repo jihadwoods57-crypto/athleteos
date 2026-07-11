@@ -171,18 +171,47 @@ function saveCache(userId) { try { localStorage.setItem(cacheKey(userId), JSON.s
 function loadCache(userId) { try { const j = JSON.parse(localStorage.getItem(cacheKey(userId)) || 'null'); if (j && j.date === DAY.date) Object.assign(DAY, j); } catch { /* ignore */ } }
 
 /* ---- Supabase read/write ---- */
+/* Merge the server row into DAY without ever ERASING same-day local progress. Within one
+   day the logged facts are monotonic — a meal, a submitted check-in, a commitment, sipped
+   water don't un-happen — so booleans merge with OR and hydration with max. This is what
+   makes an offline-logged day survive reconnect: without it, an older server row (meals all
+   false) would overwrite the cache-restored local day and the logs would vanish. Returns
+   true when the LOCAL day carries anything the server row doesn't (the caller then pushes
+   the reconciled day back up). */
 function projectRowToDay(row) {
-  if (!row) return;
-  DAY.meals = { ...DAY.meals, ...(row.meals || {}) };
-  DAY.hydrationL = Number(row.hydration_l) || 0;
-  if (Array.isArray(row.quick_added) && row.quick_added.length) DAY.quickAdded = row.quick_added;
-  DAY.currentWeight = row.current_weight ?? null;
+  if (!row) return false;
+  let localAhead = false;
+  const rowMeals = row.meals || {};
+  for (const k of MEAL_KEYS) {
+    if (DAY.meals[k] && !rowMeals[k]) localAhead = true;
+    DAY.meals[k] = !!(DAY.meals[k] || rowMeals[k]);
+  }
+  const rowHydration = Number(row.hydration_l) || 0;
+  if (DAY.hydrationL > rowHydration) localAhead = true;
+  DAY.hydrationL = Math.max(DAY.hydrationL, rowHydration);
+  if (Array.isArray(row.quick_added) && row.quick_added.length) {
+    for (let i = 0; i < DAY.quickAdded.length; i++) {
+      if (DAY.quickAdded[i] && !row.quick_added[i]) localAhead = true;
+      DAY.quickAdded[i] = !!(DAY.quickAdded[i] || row.quick_added[i]);
+    }
+  } else if (DAY.quickAdded.some(Boolean)) localAhead = true;
+  if (DAY.currentWeight != null && row.current_weight == null) localAhead = true;
+  DAY.currentWeight = DAY.currentWeight ?? row.current_weight ?? null;
   const ck = row.checkin || {};
-  DAY.ci = { energy: ck.energy ?? DAY.ci.energy, recovery: ck.recovery ?? DAY.ci.recovery, sleep: ck.sleep ?? DAY.ci.sleep, confidence: ck.confidence ?? DAY.ci.confidence, soreness: ck.soreness ?? DAY.ci.soreness, motivation: ck.motivation ?? DAY.ci.motivation };
-  DAY.ciSubmitted = !!ck.submitted;
+  // Check-in answers: a locally SUBMITTED check-in outranks unsubmitted server answers.
+  if (DAY.ciSubmitted && !ck.submitted) {
+    localAhead = true;
+  } else {
+    DAY.ci = { energy: ck.energy ?? DAY.ci.energy, recovery: ck.recovery ?? DAY.ci.recovery, sleep: ck.sleep ?? DAY.ci.sleep, confidence: ck.confidence ?? DAY.ci.confidence, soreness: ck.soreness ?? DAY.ci.soreness, motivation: ck.motivation ?? DAY.ci.motivation };
+  }
+  DAY.ciSubmitted = !!(DAY.ciSubmitted || ck.submitted);
   DAY.ciLast = ck.ciLast && ck.ciLast.date ? ck.ciLast : (typeof ck.ciLast === 'string' ? { date: ck.ciLast, recovery: ck.recovery ?? 0 } : DAY.ciLast);
-  DAY.dailyCommitment = ck.commitment ?? DAY.dailyCommitment;
-  if (ck.slotMacros) DAY.slotMacros = ck.slotMacros;
+  if (DAY.dailyCommitment && ck.commitment == null) localAhead = true;
+  DAY.dailyCommitment = DAY.dailyCommitment ?? ck.commitment ?? null;
+  // Plate meta merges per-slot: local slots win (they carry the freshest AI meta), server
+  // fills the slots this device doesn't have.
+  DAY.slotMacros = { ...(ck.slotMacros || {}), ...DAY.slotMacros };
+  return localAhead;
 }
 
 export async function loadDay(userId) {
@@ -198,7 +227,7 @@ export async function loadDay(userId) {
   if (!sb || !userId) return;
   try {
     const { data } = await sb.from('days').select('*').eq('athlete_id', userId).eq('date', DAY.date).maybeSingle();
-    projectRowToDay(data);
+    const localAhead = projectRowToDay(data) || (!data && hasLoggedAnything());
     const since = addDaysISO(DAY.date, -60);
     const { data: hist } = await sb.from('days').select('date,score,current_weight').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date');
     if (Array.isArray(hist)) DAY.scoreHistory = hist.map((r) => ({ date: r.date, score: r.score ?? 0, weight: r.current_weight ?? null }));
@@ -208,7 +237,27 @@ export async function loadDay(userId) {
       DAY.trustPass = tp || null;
     } catch { DAY.trustPass = null; }
     saveCache(userId);
+    // Reconnect healing: if this device's cached day carries progress the server row lacks
+    // (offline logs, a push that never flushed before the app was killed), push the merged
+    // day back up NOW — otherwise it would sit local-only until the next tap, and the coach
+    // would read "not logged" for a day that was honestly logged.
+    if (localAhead) await pushDay(userId, true);
   } catch (e) { console.warn('[day] loadDay failed', e && e.message); }
+}
+
+/** True when the in-memory day carries any real logged progress. */
+function hasLoggedAnything() {
+  return MEAL_KEYS.some((k) => DAY.meals[k]) || DAY.quickAdded.some(Boolean)
+    || DAY.hydrationL > 0 || DAY.ciSubmitted || DAY.dailyCommitment != null || DAY.currentWeight != null;
+}
+
+/** Flush a pending debounced push immediately (app going to background / being killed —
+ *  the 1s debounce window must not lose the last action). No-op when nothing is pending. */
+export function flushDayPush(userId) {
+  if (!pushTimer || !userId) return;
+  clearTimeout(pushTimer);
+  pushTimer = null;
+  void pushDay(userId, true);
 }
 
 let pushTimer = null;

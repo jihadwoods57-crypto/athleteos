@@ -11,7 +11,7 @@ import { CATALOG, runsToday, derive, deriveAssigned } from './requirements.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor,
-  streakDays as dayStreak, loadDay, pushDay, uploadMealPhoto,
+  streakDays as dayStreak, loadDay, pushDay, uploadMealPhoto, flushDayPush,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow,
 } from './day.js';
@@ -751,6 +751,15 @@ export const act = {
   },
 };
 window.__act = act;
+
+// The day push is debounced (~1s of tap-coalescing) — an app backgrounded or killed inside
+// that window would lose its last action until the next open. Flush the pending push the
+// moment the WebView goes hidden.
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' && RT.userId) flushDayPush(RT.userId);
+  });
+}
 
 /* ---------------- The app state (live getters) ---------------- */
 export const S = {

@@ -110,7 +110,7 @@ const schedule = () => `
         <div style="display:flex;align-items:center;gap:12px">
           <div class="req-icon ${r.accent}" style="width:40px;height:40px">${icon(r.icon, 19)}</div>
           <div style="flex:1">
-            <div style="font-size:15px;font-weight:800">${r.title}${r.required ? '' : ' <small style="color:var(--text-3);font-weight:700">· optional</small>'}</div>
+            <div style="font-size:15px;font-weight:800">${esc(r.title)}${r.required ? '' : ' <small style="color:var(--text-3);font-weight:700">· optional</small>'}</div>
             <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${freqLabel(r.freq)} · ${due}</div>
           </div>
           ${icon('chevron', 16, 'style="color:var(--text-3)"')}

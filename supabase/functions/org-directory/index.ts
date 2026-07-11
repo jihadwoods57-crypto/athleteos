@@ -26,6 +26,9 @@ function limited(ip: string, max = 30, windowMs = 60_000): boolean {
 // strip characters that would let user input escape a PostgREST or() filter
 const clean = (s: unknown) => String(s ?? "").replace(/[,()]/g, " ").trim();
 
+// Durable per-IP/day ceiling on code previews (enumeration guard; see preview_code below).
+const PREVIEW_IP_DAY_CAP = Math.max(1, Math.floor(Number(Deno.env.get("PREVIEW_CODE_IP_DAY_CAP") ?? "150")) || 150);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -83,6 +86,19 @@ Deno.serve(async (req) => {
     if (body.op === "preview_code") {
       const code = String(body.code ?? "").trim().toUpperCase();
       if (!/^[A-Z0-9]{4,12}$/.test(code)) return json({ match: null });
+      // Enumeration guard (audit 2026-07-11): the per-minute limiter above is per-isolate and
+      // trusts x-forwarded-for, so sustained code-guessing (which harvests coach names + school
+      // affiliations) needs a DURABLE ceiling. Reuse the DB-backed keyed day counter (0030,
+      // service-role-only). The cap is ~30x what a legitimate onboarding ever previews.
+      // Fail-open on a counter hiccup — the per-minute limiter still applies, and a real
+      // athlete's join must never break on an infra blip.
+      try {
+        const { data: claim, error: claimErr } = await sb.rpc("claim_ai_usage_key", {
+          p_key: `preview:${ip}`, p_limit: PREVIEW_IP_DAY_CAP,
+        });
+        const row = Array.isArray(claim) ? claim[0] : claim;
+        if (!claimErr && row?.allowed === false) return json({ error: "rate_limited" }, 429);
+      } catch { /* fail-open — see above */ }
       const { data: team, error: teamErr } = await sb.rpc("resolve_team_code", { code });
       if (teamErr) return json({ error: "unavailable" }, 503);
       if (team && team.length) {

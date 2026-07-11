@@ -50,13 +50,30 @@ Since 0030 is applied on live and the env vars are set in deployed functions, fa
 changes nothing in normal operation — it only changes what a counter outage means.
 
 ```bash
-supabase functions deploy analyze-meal assist meal-chat
+supabase functions deploy analyze-meal assist meal-chat org-directory
 ```
 
-## Known-open (cycle 3 candidates, no action needed from you yet)
-- `org-directory` `preview_code`: anon enumeration of coach/school names behind a weak
-  per-isolate rate limit — needs a shared throttle or reduced pre-join payload.
+## 3. Cycle 3 additions (same branch, same deploy)
+
+- **`org-directory` `preview_code` enumeration guard**: on top of the per-minute in-memory
+  limiter, code previews now claim against the durable DB day-counter (`preview:<ip>`,
+  default 150/day/IP, tune via `PREVIEW_CODE_IP_DAY_CAP`). Sustained code-guessing — which
+  harvests coach names and school affiliations — now hits a wall that survives isolate
+  recycling. Included in the deploy line above.
+- **App-side (ships with the next build, no live action)**: reconnect-safe day merge (an
+  offline-logged day can no longer be erased by an older server row, and is pushed back up
+  on reconnect — the "coach sees 'not logged' for an honestly-logged day" gap); flush of the
+  debounced day push when the app is backgrounded; invite deep links
+  (`onstandard://join?code=X`) now open Connect prefilled; the WebView's secure-store bridge
+  is key-allowlisted (`sb-*`/`onstd-*` only) so a hypothetical XSS can't use it as an
+  arbitrary Keychain oracle; latent XSS sinks (food names, plan titles, notes) escaped
+  before the real food database lands.
+
+## Known-open (no action needed from you yet)
 - Per-IP rate limits across functions are per-isolate and `x-forwarded-for`-spoofable —
   DB-backed counters remain the real control (by design, but worth a shared store later).
 - In-range score self-reporting (evidence ceiling holds; full server recompute is the
   long-term fix — roadmap #15).
+- `meals` table has no unique key per (athlete, day, slot) — cross-device re-logs can
+  duplicate rows. A dedup-then-constraint migration needs a look at live data first
+  (multiple snacks/day may be legitimate); flagged for a future cycle, not authored blind.

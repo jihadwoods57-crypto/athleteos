@@ -2,12 +2,13 @@
 // Pixel-perfect by construction (it IS the proto's HTML/CSS). Native bridges (camera, push,
 // haptics, secure store, auth) layer on in later phases via the postMessage router.
 import React from 'react';
-import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as SecureStore from 'expo-secure-store';
 import { ensureProtoExtracted, PROTO_ROOT_DIR } from './protoBundle';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
+import { parseInviteCode } from '../lib/inviteLink';
 
 const BG = '#080B0A';
 
@@ -83,6 +84,36 @@ export function ProtoApp() {
     void handleBridgeMessage(webviewRef, msg);
   }, []);
 
+  // Invite deep links (onstandard://join?code=X / https://onstandard.app/join?code=X): route
+  // the WebView to #connect/<code> so the Connect screen opens with the code prefilled —
+  // the coach's shared link becomes a one-tap join. Links that arrive before the WebView
+  // finishes loading are held and flushed on load; a signed-out user lands on Welcome (the
+  // router's auth gate) and can enter the code after signing in.
+  const pendingCode = React.useRef<string | null>(null);
+  const webLoaded = React.useRef(false);
+  const deliverCode = React.useCallback((code: string | null) => {
+    if (!code) return;
+    if (!webLoaded.current || !webviewRef.current) {
+      pendingCode.current = code;
+      return;
+    }
+    // parseInviteCode guarantees [A-Z0-9]+ — safe to embed in the injected string.
+    webviewRef.current.injectJavaScript(`location.hash = '#connect/${code}'; true;`);
+  }, []);
+  React.useEffect(() => {
+    Linking.getInitialURL()
+      .then((url) => deliverCode(url ? parseInviteCode(url) : null))
+      .catch(() => undefined);
+    const sub = Linking.addEventListener('url', ({ url }) => deliverCode(parseInviteCode(url)));
+    return () => sub.remove();
+  }, [deliverCode]);
+  const onWebLoadEnd = React.useCallback(() => {
+    webLoaded.current = true;
+    const code = pendingCode.current;
+    pendingCode.current = null;
+    deliverCode(code);
+  }, [deliverCode]);
+
   // Android hardware back: pop the proto's in-app hash stack instead of exiting the app from
   // any depth. Role roots (and auth screens) are the only places back may exit — the injected
   // check posts BACK_EXIT for those, which the onMessage handler above turns into exitApp().
@@ -153,6 +184,7 @@ export function ProtoApp() {
       allowsBackForwardNavigationGestures={false}
       injectedJavaScriptBeforeContentLoaded={PRELUDE}
       onMessage={onMessage}
+      onLoadEnd={onWebLoadEnd}
       onError={(e) => setErr(`WebView error: ${e.nativeEvent.description}`)}
       onRenderProcessGone={() => setErr('WebView crashed (render process gone)')}
       javaScriptEnabled
