@@ -48,6 +48,25 @@ const GOAL_EMPHASIS = {
 };
 const MEAL_WORD = { 2: 'Two', 3: 'Three', 4: 'Four' };
 
+/* The intended weight direction for a goal: 'down' (lose), 'up' (gain/build), or null
+   (maintain/perform — no strong direction). Pure + tested. */
+export function weightDirection(goal) {
+  if (goal === 'lose') return 'down';
+  if (goal === 'gain' || goal === 'build') return 'up';
+  return null;
+}
+
+/* True when a target weight CONTRADICTS the goal (e.g. Lose fat with a target at or above
+   current). Returns false when either value is missing/invalid or the goal has no strong
+   direction — validation only fires on a genuine, complete contradiction. Pure + tested. */
+export function weightContradictsGoal(goal, current, target) {
+  const d = weightDirection(goal);
+  if (!d) return false;
+  const c = Number(current), t = Number(target);
+  if (!isFinite(c) || !isFinite(t) || c <= 0 || t <= 0) return false;
+  return (d === 'down' && t >= c) || (d === 'up' && t <= c);
+}
+
 /** The solo standard for a goal: requirement rows + focus line. `profile` relabels the
     component weights ('athlete' 50/25/15/10 · 'general' 55/20/15/10) — labels only; the
     scoring engine itself is untouched (DECISION-MEMO D3). */
