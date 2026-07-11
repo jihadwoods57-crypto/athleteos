@@ -1,0 +1,16 @@
+{
+  "defaultScope": "feature",
+  "verify": "npm run verify",
+  "roles": {
+    "orchestrator": { "model": "fable",  "effort": "high" },
+    "foreman":      { "model": "fable",  "effort": "high" },
+    "audit":        { "model": "opus",   "effort": "high" },
+    "audit.lens":   { "model": "opus",   "effort": "high" },
+    "design":       { "model": "opus",   "effort": "high" },
+    "plan":         { "model": "opus",   "effort": "high" },
+    "build":        { "model": "sonnet", "effort": "high" },
+    "qa":           { "model": "opus",   "effort": "high" },
+    "refuter":      { "model": "opus",   "effort": "low"  }
+  },
+  "phaseSkills": null
+}
