@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead } from '../components.js';
+import { backHead, esc } from '../components.js';
 
 /* Food database (proto-local; the real app notes "fuller database lands with backend"). */
 const DB = [
@@ -78,7 +78,7 @@ export const foodSearch = {
     const renderPlate = () => {
       items.innerHTML = plate.map((x, i) => `
         <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)">
-          <span style="flex:1;font-size:14px;font-weight:700">${x.n} <small style="color:var(--text-3)">· ${x.unit}</small></span>
+          <span style="flex:1;font-size:14px;font-weight:700">${esc(x.n)} <small style="color:var(--text-3)">· ${esc(x.unit)}</small></span>
           <span class="wb2" data-i="${i}" data-d="-1" style="padding:5px 11px">−</span>
           <span style="font-size:14px;font-weight:800;width:26px;text-align:center">${x.q}</span>
           <span class="wb2" data-i="${i}" data-d="1" style="padding:5px 11px">+</span>
@@ -96,7 +96,7 @@ export const foodSearch = {
       results.innerHTML = hits.length ? hits.map((x, i) => `
         <div class="lrow" data-add="${DB.indexOf(x)}" style="padding:12px 16px">
           <div class="lic">${icon('plus', 16)}</div>
-          <div class="lm"><div class="lt">${x.n}</div><div class="ls">${x.unit} · ${x.p}g protein · ${x.kc} cal</div></div>
+          <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.unit)} · ${x.p}g protein · ${x.kc} cal</div></div>
         </div>`).join('')
         : `<div style="padding:16px;font-size:13px;font-weight:600;color:var(--text-3)">No match. The full database lands with the backend; photo logging always works.</div>`;
       results.querySelectorAll('[data-add]').forEach(r => r.addEventListener('click', () => {

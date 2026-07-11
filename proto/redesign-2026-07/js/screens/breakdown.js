@@ -1,6 +1,6 @@
 import { S, pct } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, scoreRing, animateRing } from '../components.js';
+import { backHead, scoreRing, animateRing, esc } from '../components.js';
 
 export default {
   tab: 'home',
@@ -20,7 +20,7 @@ export default {
             <span class="bd-val">${b.earned}<small>/${b.possible}</small></span>
           </div>
           <div class="bd-bar"><div class="bd-fill ${b.accent}" style="width:${pct(b.earned, b.possible)}%"></div></div>
-          <div class="bd-note">${b.note}</div>
+          <div class="bd-note">${esc(b.note)}</div>
         </div>`).join('')}
     </section>
 
@@ -29,7 +29,7 @@ export default {
       <div class="req-icon a" style="width:38px;height:38px">${icon('scale', 19)}</div>
       <div>
         <div class="tt">${S.weightLine.label}</div>
-        <div class="ts">${S.weightLine.note} Weight tracks your <b>season goal</b>, so one busy morning never sinks a good day.</div>
+        <div class="ts">${esc(S.weightLine.note)} Weight tracks your <b>season goal</b>, so one busy morning never sinks a good day.</div>
       </div>
     </div>
 

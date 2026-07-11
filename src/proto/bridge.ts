@@ -47,6 +47,20 @@ function resolve(ref: Ref, id: number, value: unknown, error?: string) {
   ref.current?.injectJavaScript(js);
 }
 
+// Capability boundary (audit 2026-07-11 B1): the secure-store bridge is reachable by ANY
+// script that ends up running in the WebView, so it must never be an arbitrary-Keychain
+// read/write oracle — that would turn a single DOM-XSS into full session theft. Only the
+// keys the proto legitimately owns are served: the supabase session (`sb-<ref>-auth-token`
+// + its chunk suffixes) and the app's own `onstd-*` flags (biolock). Everything else is
+// refused with an explicit error.
+function secureKeyAllowed(key: unknown): key is string {
+  return typeof key === 'string' && (key.startsWith('sb-') || key.startsWith('onstd-'));
+}
+function denySecureKey(ref: Ref, id: number): true {
+  resolve(ref, id, null, 'secure-store key not allowed');
+  return true;
+}
+
 const IMPACT: Record<string, Haptics.ImpactFeedbackStyle> = {
   light: Haptics.ImpactFeedbackStyle.Light,
   medium: Haptics.ImpactFeedbackStyle.Medium,
@@ -86,6 +100,7 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       return true;
     }
     case 'SECURE_GET':
+      if (!secureKeyAllowed(msg.key)) return denySecureKey(ref, msg.id);
       try {
         resolve(ref, msg.id, await SecureStore.getItemAsync(msg.key));
       } catch (e) {
@@ -93,6 +108,7 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       }
       return true;
     case 'SECURE_SET':
+      if (!secureKeyAllowed(msg.key)) return denySecureKey(ref, msg.id);
       try {
         await SecureStore.setItemAsync(msg.key, msg.value);
         resolve(ref, msg.id, true);
@@ -101,6 +117,7 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       }
       return true;
     case 'SECURE_DELETE':
+      if (!secureKeyAllowed(msg.key)) return denySecureKey(ref, msg.id);
       try {
         await SecureStore.deleteItemAsync(msg.key);
         resolve(ref, msg.id, true);
