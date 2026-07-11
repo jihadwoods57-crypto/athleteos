@@ -93,7 +93,7 @@ export const streak = {
   render() {
     const days = S.streakWeek; // real: last logged days + today, honest scores
     return `
-    ${backHead('Streak', `${S.streakDays} days on standard · grace intact`)}
+    ${backHead('Streak', `${S.streakDays} days on standard · ${S.streak.label}`)}
 
     <section class="card pad" style="text-align:center">
       <div style="display:inline-flex;align-items:center;gap:10px">
@@ -102,8 +102,10 @@ export const streak = {
       </div>
       <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-top:4px">days at 80 or better</div>
       ${S.score >= 80
-        ? `<div style="font-size:12.5px;font-weight:600;color:var(--green-bright);margin-top:10px">Today is above the bar. Day ${S.streakDays + 1} locks at midnight.</div>`
-        : `<div style="font-size:12.5px;font-weight:600;color:var(--amber-bright);margin-top:10px">Today is below 80. Finish tonight's requirements or this ends honestly.</div>`}
+        ? `<div style="font-size:12.5px;font-weight:600;color:var(--green-bright);margin-top:10px">Today is above the bar. Day ${S.streakDays} locks at midnight.</div>`
+        : `<div style="font-size:12.5px;font-weight:600;color:var(--amber-bright);margin-top:10px">${S.streak.graceUsedRecently
+            ? 'Today is below 80 and this week’s grace is spent. Finish tonight’s requirements or the run ends honestly.'
+            : 'Today is below 80. Finish tonight’s requirements — or your weekly grace covers this one miss.'}</div>`}
     </section>
 
     <div class="eyebrow">This week</div>
