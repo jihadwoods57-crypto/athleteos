@@ -126,23 +126,6 @@ export default {
       <div class="lrow" data-go="welcome"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div></div></div>
     </section>
 
-    <div class="eyebrow">Prototype controls</div>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="welcome">
-        <div class="lic">${icon('sparkle', 17)}</div>
-        <div class="lm"><div class="lt">View onboarding</div><div class="ls">All four roles, from Welcome</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-go="states">
-        <div class="lic">${icon('grid', 17)}</div>
-        <div class="lm"><div class="lt">Design states gallery</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-act="reset" data-then="home">
-        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('flip', 17)}</div>
-        <div class="lm"><div class="lt">Reset the demo day</div><div class="ls">Back to 7:12 PM, 82, dinner + recovery open</div></div>
-      </div>
-    </section>
     <div style="height:10px"></div>
     `;
   },

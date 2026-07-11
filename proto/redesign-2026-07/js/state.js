@@ -361,7 +361,6 @@ export const act = {
     }
     save();
   },
-  reset() { Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { lastMove: null }); save(); },
 
   /* ---------------- Real auth (Supabase, in the WebView) ---------------- */
   async signUp(email, password, name, role) {
