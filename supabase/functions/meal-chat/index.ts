@@ -28,24 +28,24 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // Keyed daily claim against ai_usage_key_daily (migration 0030: claim_ai_usage_key(p_key text,
 // p_limit int) returns (allowed, used); security definer, execute granted to service_role only,
-// so both calls go through the service-role client). Same invocation shape and fail-OPEN
-// semantics as assist's withinGlobalCap / analyze-meal's withinKeyCap: an un-applied migration
-// or infra hiccup never blocks a legit question. Both meal-chat ceilings ride this one helper:
-//   * per-athlete: key `meal_chat:<uid>`, limit DAILY_CAP — deliberately an INDEPENDENT keyed
-//     counter, NOT the shared analyze-meal claim_ai_usage (ai_usage_daily) counter, so chat
-//     questions and photo analyses are separate per-athlete budgets;
-//   * global:      key 'meal_chat_global', limit GLOBAL_CAP — the hard backstop on the bill,
-//     since the anon key is public (audit Finding #2 pattern).
-async function withinKeyCap(key: string, limit: number): Promise<boolean> {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
+// so both calls go through the service-role client). Both meal-chat ceilings ride this helper,
+// with `failOpen` deciding what an unreachable counter means (audit 2026-07-11 P2):
+//   * per-athlete: key `meal_chat:<uid>`, limit DAILY_CAP, failOpen=true — an infra hiccup
+//     never blocks a legit question. Deliberately an INDEPENDENT keyed counter, NOT the shared
+//     analyze-meal claim_ai_usage (ai_usage_daily) counter, so chat questions and photo
+//     analyses are separate per-athlete budgets;
+//   * global: key 'meal_chat_global', limit GLOBAL_CAP, failOpen=false — the hard backstop on
+//     the bill (the anon key is public) must hold even when the counter is down.
+async function withinKeyCap(key: string, limit: number, failOpen = true): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return failOpen;
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data, error } = await sb.rpc('claim_ai_usage_key', { p_key: key, p_limit: limit });
-    if (error) return true;
+    if (error) return failOpen;
     const row = Array.isArray(data) ? data[0] : data;
     return row?.allowed !== false;
   } catch {
-    return true;
+    return failOpen;
   }
 }
 
@@ -128,9 +128,9 @@ Deno.serve(async (req) => {
     const { data: mealRow } = await userClient.from('meals').select('id, athlete_id').eq('id', mealId).maybeSingle();
     if (!mealRow || mealRow.athlete_id !== callerId) return bad(403, 'unauthorized', cors);
 
-    // ---- caps: per-athlete daily (own keyed budget) + global ceiling; both fail open ----
+    // ---- caps: per-athlete daily fails open; the global bill backstop fails CLOSED ----
     if (!(await withinKeyCap(`meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
-    if (!(await withinKeyCap('meal_chat_global', GLOBAL_CAP))) return bad(429, 'limit', cors);
+    if (!(await withinKeyCap('meal_chat_global', GLOBAL_CAP, /* failOpen */ false))) return bad(429, 'limit', cors);
 
     // ---- the model call: prose only, forced tool ----
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
