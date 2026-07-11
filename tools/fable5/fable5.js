@@ -266,7 +266,7 @@ log(`Audit: buildTarget = ${audit.buildTarget}`)
 // ---------------------------------------------------------------- Design (U3 + U4)
 phase('Design')
 const designSkills = skillsForPhase('design', cfg, `${audit.buildTarget} ${audit.fileHints || ''}`)
-const design = await track('Design', () => agent(
+let design = await track('Design', () => agent(
   `You are Fable 5's UX/UI Design phase (Opus). ${CREED}
 FIRST invoke these skills so your design meets the bar: ${JSON.stringify(designSkills)} (use the Skill tool).
 Build target (from the audit): ${JSON.stringify({ buildTarget: audit.buildTarget, uxIssues: audit.uxIssues, touchesUIHint: audit.touchesUIHint })}
@@ -278,3 +278,34 @@ code is written. If touchesUI is false, leave prototypeUrl empty.`,
 ))
 if (!design) { log('Design failed — stopping.'); return { stopped: 'design', audit } }
 log(`Design: ${design.screens.length} screen(s)${design.prototypeUrl ? ` — prototype ${design.prototypeUrl}` : ''}`)
+
+// ---------------------------------------------------------------- Plan (+ U2 kickback)
+const kb = makeKickbacks()
+const planPrompt = () => `You are Fable 5's Engineering Plan phase (Opus). ${CREED}
+Design spec (JSON): ${JSON.stringify(design).slice(0, 12000)}
+Write the concrete implementation plan for THIS repo: exact files to create/modify, data changes, APIs, migrations
+(as PROPOSALS — never applied here), risks, and an ordered step list a builder can follow. If the design cannot be
+built as specified, set designFeasible=false and put the precise reason in infeasibleReason.`
+
+phase('Plan')
+let plan = await track('Plan', () => agent(planPrompt(), {
+  label: 'plan', phase: 'Plan', model: R('plan').model, effort: R('plan').effort, schema: PLAN_SCHEMA,
+}))
+
+if (plan && plan.designFeasible === false && kickbackAllowed(kb, 'plan->design')) {
+  log(`Plan kicked Design back once: ${plan.infeasibleReason}`)
+  phase('Design')
+  design = await track('Design', () => agent(
+    `You are Fable 5's UX/UI Design phase (Opus), REVISING after the engineering plan found the design infeasible.
+${CREED}
+Reason it was infeasible: "${plan.infeasibleReason}". Previous design (JSON): ${JSON.stringify(design).slice(0, 8000)}
+Produce a revised, buildable DesignSpec. Re-publish the prototype Artifact if touchesUI (put the URL in prototypeUrl).`,
+    { label: 'design:revise', phase: 'Design', model: R('design').model, effort: R('design').effort, schema: DESIGN_SCHEMA },
+  )) || design
+  phase('Plan')
+  plan = await track('Plan', () => agent(planPrompt(), {
+    label: 'plan:re', phase: 'Plan', model: R('plan').model, effort: R('plan').effort, schema: PLAN_SCHEMA,
+  }))
+}
+if (!plan) { log('Plan failed — stopping.'); return { stopped: 'plan', audit, design } }
+log(`Plan: ${plan.files.length} file(s), ${plan.steps.length} step(s)`)
