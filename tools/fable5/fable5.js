@@ -115,7 +115,7 @@ const DESIGN_SCHEMA = {
     summary: { type: 'string' }, touchesUI: { type: 'boolean' },
     screens: { type: 'array', items: {
       type: 'object', additionalProperties: false,
-      required: ['name', 'purpose', 'states'],
+      required: ['name'],
       properties: {
         name: { type: 'string' }, purpose: { type: 'string' },
         states: { type: 'array', items: { type: 'string' } }, // empty/loading/error/success
@@ -219,6 +219,13 @@ const slug = slugify(vision)
 const R = (role) => resolveRole(cfg, role)
 const tokenLog = []
 const track = async (name, fn) => { const t0 = budget.spent(); const r = await fn(); tokenLog.push({ phase: name, tokens: budget.spent() - t0 }); return r }
+// Degrade a schema agent that exhausts its StructuredOutput retry cap to null (the phase's
+// own null-guard then stops cleanly) instead of crashing the whole run.
+const safeAgent = async (prompt, opts) => {
+  try { return await agent(prompt, opts) }
+  catch (e) { log(`[${(opts && opts.label) || 'agent'}] failed (${String((e && e.message) || e).slice(0, 140)}) - degrading to null`); return null }
+}
+const LEAN = `STRUCTURED-OUTPUT DISCIPLINE (critical): your StructuredOutput MUST be compact or it gets truncated and rejected. NEVER paste HTML, code, or long prose into any field; keep each string field to a few sentences. Put full detail in files/artifacts, not in the structured object - it is a short INDEX, not the deliverable.`
 log(`Fable 5 - vision="${vision}" scope=${scope} slug=${slug}`)
 
 // ---------------------------------------------------------------- Audit (U5 + U6)
@@ -275,14 +282,15 @@ log(`Audit: buildTarget = ${audit.buildTarget}`)
 // ---------------------------------------------------------------- Design (U3 + U4)
 phase('Design')
 const designSkills = skillsForPhase('design', cfg, `${audit.buildTarget} ${audit.fileHints || ''}`)
-let design = await track('Design', () => agent(
+let design = await track('Design', () => safeAgent(
   `You are Fable 5's UX/UI Design phase (Opus). ${CREED}
 FIRST invoke these skills so your design meets the bar: ${JSON.stringify(designSkills)} (use the Skill tool).
 Build target (from the audit): ${JSON.stringify({ buildTarget: audit.buildTarget, uxIssues: audit.uxIssues, touchesUIHint: audit.touchesUIHint })}
 Design every screen, flow, and state (empty / loading / error / success). Set touchesUI honestly.
 IF touchesUI is true: build a real, self-contained HTML mockup of the primary screen(s) and PUBLISH it with the
 Artifact tool (favicon: a fitting dial or gauge emoji); put the returned artifact URL in prototypeUrl so the founder can click it BEFORE any
-code is written. If touchesUI is false, leave prototypeUrl empty.`,
+code is written. If touchesUI is false, leave prototypeUrl empty.
+${LEAN} Concretely: summary <= 600 chars; screens <= 6 items, each name <= 40 chars and purpose <= 120 chars; states is just the label list (e.g. ["empty","loading","error"]). The full design belongs in the published prototype - you MAY also append a longer write-up to .fable5/reports/ via bash - but the StructuredOutput stays lean.`,
   { label: 'design', phase: 'Design', model: R('design').model, effort: R('design').effort, schema: DESIGN_SCHEMA },
 ))
 if (!design) { log('Design failed - stopping.'); return { stopped: 'design', audit } }
@@ -294,25 +302,27 @@ const planPrompt = () => `You are Fable 5's Engineering Plan phase (Opus). ${CRE
 Design spec (JSON): ${JSON.stringify(design).slice(0, 12000)}
 Write the concrete implementation plan for THIS repo: exact files to create/modify, data changes, APIs, migrations
 (as PROPOSALS - never applied here), risks, and an ordered step list a builder can follow. If the design cannot be
-built as specified, set designFeasible=false and put the precise reason in infeasibleReason.`
+built as specified, set designFeasible=false and put the precise reason in infeasibleReason.
+${LEAN} Keep each step/file entry to one line; no code blocks in the structured fields.`
 
 phase('Plan')
-let plan = await track('Plan', () => agent(planPrompt(), {
+let plan = await track('Plan', () => safeAgent(planPrompt(), {
   label: 'plan', phase: 'Plan', model: R('plan').model, effort: R('plan').effort, schema: PLAN_SCHEMA,
 }))
 
 if (plan && plan.designFeasible === false && kickbackAllowed(kb, 'plan->design')) {
   log(`Plan kicked Design back once: ${plan.infeasibleReason}`)
   phase('Design')
-  design = await track('Design', () => agent(
+  design = await track('Design', () => safeAgent(
     `You are Fable 5's UX/UI Design phase (Opus), REVISING after the engineering plan found the design infeasible.
 ${CREED}
 Reason it was infeasible: "${plan.infeasibleReason}". Previous design (JSON): ${JSON.stringify(design).slice(0, 8000)}
-Produce a revised, buildable DesignSpec. Re-publish the prototype Artifact if touchesUI (put the URL in prototypeUrl).`,
+Produce a revised, buildable DesignSpec. Re-publish the prototype Artifact if touchesUI (put the URL in prototypeUrl).
+${LEAN} summary <= 600 chars; screens <= 6 items (name <= 40, purpose <= 120); states is just the label list.`,
     { label: 'design:revise', phase: 'Design', model: R('design').model, effort: R('design').effort, schema: DESIGN_SCHEMA },
   )) || design
   phase('Plan')
-  plan = await track('Plan', () => agent(planPrompt(), {
+  plan = await track('Plan', () => safeAgent(planPrompt(), {
     label: 'plan:re', phase: 'Plan', model: R('plan').model, effort: R('plan').effort, schema: PLAN_SCHEMA,
   }))
 }
@@ -328,10 +338,11 @@ ${JSON.stringify(plan).slice(0, 12000)}
 Do NOT apply live DB migrations, deploy, or touch secrets; if the plan needs one, implement the code and leave the
 migration as a PROPOSAL (status stays 'implemented', note it in summary). When done, 'git add -A && git commit' your
 work on this branch and set committed=true. If the plan cannot be implemented as written, set status='blocked' and
-planInfeasible=true with blockedReason.`
+planInfeasible=true with blockedReason.
+${LEAN} summary is a few sentences; filesTouched is a path list. The code lives in your commits, not in the output.`
 
 phase('Build')
-let build = await track('Build', () => agent(buildPrompt(), {
+let build = await track('Build', () => safeAgent(buildPrompt(), {
   label: 'build', phase: 'Build', model: R('build').model, effort: R('build').effort, schema: BUILD_SCHEMA,
 }))
 
@@ -346,7 +357,7 @@ Design (JSON): ${JSON.stringify(design).slice(0, 6000)}. Produce a corrected, bu
     { label: 'plan:re2', phase: 'Plan', model: R('plan').model, effort: R('plan').effort, schema: PLAN_SCHEMA },
   )) || plan
   phase('Build')
-  build = await track('Build', () => agent(buildPrompt(), {
+  build = await track('Build', () => safeAgent(buildPrompt(), {
     label: 'build:re', phase: 'Build', model: R('build').model, effort: R('build').effort, schema: BUILD_SCHEMA,
   }))
 }
@@ -381,13 +392,14 @@ log(`Verify: ${gate && gate.green ? 'GREEN' : 'RED - QA will flag it'}`)
 // ---------------------------------------------------------------- QA (U1 adversarial refute)
 phase('QA')
 const qaSkills = skillsForPhase('qa', cfg, `${audit.buildTarget} ${audit.fileHints || ''}`)
-const qa = await track('QA', () => agent(
+const qa = await track('QA', () => safeAgent(
   `You are Fable 5's QA / Audit & Security phase (Opus). ${CREED}
 FIRST invoke these skills for domain correctness: ${JSON.stringify(qaSkills)} (Skill tool).
 The build is on this fable5/* branch (gate was ${gate && gate.green ? 'GREEN' : 'RED: ' + (gate ? gate.summary : 'unknown')}).
 Read the REAL diff (git diff master...HEAD) and the changed files. Find bugs, security issues, perf problems,
 accessibility gaps, and inconsistencies. Grade each severity low/medium/high/blocker. Only surface findings you can
-back with evidence from the actual diff.`,
+back with evidence from the actual diff.
+${LEAN} Keep each finding's evidence/proposedFix to a couple of sentences; cite file:line rather than pasting code.`,
   { label: 'qa', phase: 'QA', model: R('qa').model, effort: R('qa').effort, schema: QA_SCHEMA },
 ))
 const rawFindings = (qa && qa.findings) || []
