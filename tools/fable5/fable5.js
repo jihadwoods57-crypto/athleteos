@@ -13,11 +13,11 @@ export const meta = {
   ],
 }
 
-/* ===== HELPERS:START (test-mirrored, keep exports) ===== */
-export const slugify = (s) =>
+/* ===== HELPERS:START (test-mirrored; plain const, test re-exports) ===== */
+const slugify = (s) =>
   (String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)) || 'run'
 
-export const DEFAULT_ROLES = {
+const DEFAULT_ROLES = {
   orchestrator: { model: 'fable',  effort: 'high' },
   foreman:      { model: 'fable',  effort: 'high' },
   audit:        { model: 'opus',   effort: 'high' },
@@ -29,10 +29,10 @@ export const DEFAULT_ROLES = {
   refuter:      { model: 'opus',   effort: 'low'  },
 }
 
-export const resolveRole = (config, role) =>
+const resolveRole = (config, role) =>
   (config && config.roles && config.roles[role]) || DEFAULT_ROLES[role] || { model: 'opus', effort: 'high' }
 
-export const mergeConfig = (defaults, user) => {
+const mergeConfig = (defaults, user) => {
   const out = { ...defaults, ...(user || {}) }
   for (const k of Object.keys(defaults || {})) {
     const dv = defaults[k]
@@ -43,18 +43,18 @@ export const mergeConfig = (defaults, user) => {
   return out
 }
 
-export const auditModeForScope = (scope) => (scope === 'app' ? 'lenses' : 'single')
+const auditModeForScope = (scope) => (scope === 'app' ? 'lenses' : 'single')
 
-export const shouldEarlyExit = (audit) => !audit || audit.worthBuilding === false
+const shouldEarlyExit = (audit) => !audit || audit.worthBuilding === false
 
-export const makeKickbacks = () => ({ used: {} })
-export const kickbackAllowed = (state, seam) => {
+const makeKickbacks = () => ({ used: {} })
+const kickbackAllowed = (state, seam) => {
   if (state.used[seam]) return false
   state.used[seam] = true
   return true
 }
 
-export const skillsForPhase = (phase, config, hints = '') => {
+const skillsForPhase = (phase, config, hints = '') => {
   const override = config && config.phaseSkills && config.phaseSkills[phase]
   if (override) return override
   const base = { design: ['impeccable', 'frontend-design'], build: [], qa: [] }[phase] || []
@@ -66,15 +66,15 @@ export const skillsForPhase = (phase, config, hints = '') => {
   return [...base, ...domain]
 }
 
-export const gateCommand = (config) => (config && config.verify) || 'npm run verify'
+const gateCommand = (config) => (config && config.verify) || 'npm run verify'
 
-export const tokensByPhase = (entries) => {
+const tokensByPhase = (entries) => {
   const out = {}
   for (const e of (entries || [])) out[e.phase] = (out[e.phase] || 0) + (e.tokens || 0)
   return out
 }
 
-export const isPlainSchema = (s) => !!s && s.type === 'object' && typeof s.properties === 'object'
+const isPlainSchema = (s) => !!s && s.type === 'object' && typeof s.properties === 'object'
 /* ===== HELPERS:END ===== */
 
 // -------------------------------------------------------------------- schemas

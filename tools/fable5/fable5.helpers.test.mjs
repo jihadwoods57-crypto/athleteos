@@ -6,14 +6,33 @@ import { dirname, join } from 'node:path'
 
 // Extract the delimited HELPERS region from fable5.js and import it as a module.
 // Single source of truth: the test runs the REAL runtime code, not a copy.
+// The region uses plain `const` (NOT `export`) so the Workflow runtime — which
+// only tolerates the leading `export const meta` — can execute fable5.js as an
+// async function body. The test re-exports the helpers here to import them.
 const here = dirname(fileURLToPath(import.meta.url))
 const src = await readFile(join(here, 'fable5.js'), 'utf8')
-const START = '/* ===== HELPERS:START (test-mirrored, keep exports) ===== */'
+const START = '/* ===== HELPERS:START (test-mirrored; plain const, test re-exports) ===== */'
 const END = '/* ===== HELPERS:END ===== */'
 const i = src.indexOf(START), j = src.indexOf(END)
 assert.ok(i !== -1 && j !== -1 && j > i, 'HELPERS sentinels must exist in fable5.js')
 const block = src.slice(i + START.length, j)
-const H = await import('data:text/javascript,' + encodeURIComponent(block))
+const EXPORTS = `\nexport { slugify, DEFAULT_ROLES, resolveRole, mergeConfig, auditModeForScope, shouldEarlyExit, makeKickbacks, kickbackAllowed, skillsForPhase, gateCommand, tokensByPhase, isPlainSchema };\n`
+const H = await import('data:text/javascript,' + encodeURIComponent(block + EXPORTS))
+
+test('fable5.js obeys the Workflow runtime model (only `export const meta`, body wraps as async fn)', () => {
+  // The runtime special-cases the leading `export const meta` and executes the
+  // rest of the file as an async function body — where `export` and top-level
+  // `return` are... return is fine, but a stray `export` throws "Unexpected
+  // keyword 'export'" at launch (node --check does NOT catch this). Guard it.
+  const exportLines = src.split('\n').filter((l) => /^export\b/.test(l))
+  assert.deepEqual(exportLines.length, 1, 'exactly one top-level export (const meta) is allowed')
+  assert.match(exportLines[0], /^export const meta\b/)
+  const body = src.replace(/^export const meta/, 'const meta')
+  assert.doesNotThrow(
+    () => new Function('agent', 'parallel', 'pipeline', 'phase', 'log', 'budget', 'args', `return (async () => {\n${body}\n})()`),
+    'fable5.js must wrap as an async function body with no illegal syntax',
+  )
+})
 
 test('slugify normalizes to a safe, capped slug', () => {
   assert.equal(H.slugify('Meal-Streak Leaderboard!'), 'meal-streak-leaderboard')
