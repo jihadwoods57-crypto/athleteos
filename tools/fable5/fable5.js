@@ -396,3 +396,40 @@ by this change.`,
 ))
 const confirmedBugs = verdicts.filter(Boolean).filter((x) => x.v && !x.v.refuted).map((x) => ({ ...x.f, refuteReason: x.v.reason }))
 log(`QA: ${confirmedBugs.length}/${rawFindings.length} findings survived refutation.`)
+
+// ---------------------------------------------------------------- Seal + Report + Memory
+phase('Report')
+const seal = await agent(
+  `You are Fable 5 sealing the run on the current fable5/* branch. ${CREED}
+Get today's date via bash. Commit any uncommitted build output, then create an annotated git tag
+'fable5/<today>-${slug}' pointing at HEAD. Do NOT merge to master. Return the tag and committed=true.`,
+  { label: 'seal', phase: 'Report', model: R('orchestrator').model, effort: 'low', schema: SEAL_SCHEMA },
+)
+
+const costTable = tokensByPhase(tokenLog)
+await agent(
+  `You are Fable 5 writing the run REPORT to .fable5/reports/<today>-${slug}.md (date via bash). ${CREED}
+Structure it for the founder:
+- One-line outcome + the branch/tag: ${seal ? seal.tag : '(seal failed)'}.
+- WHAT THE AUDIT DECIDED: ${JSON.stringify({ buildTarget: audit.buildTarget, rationale: audit.rationale }).slice(0, 2000)}
+- THE DESIGN${design.prototypeUrl ? ` (clickable prototype: ${design.prototypeUrl})` : ''}: ${JSON.stringify(design.summary).slice(0, 1500)}
+- THE PLAN: ${JSON.stringify(plan.steps).slice(0, 2000)}
+- WHAT GOT BUILT: ${JSON.stringify(build.summary).slice(0, 1500)} — verify gate: ${gate && gate.green ? 'GREEN' : 'RED'}.
+- VERIFIED BUGS/FIXES (refute-survivors only): ${JSON.stringify(confirmedBugs).slice(0, 4000)}
+- FOUNDER-GATED PROPOSALS: any migrations/guarded actions the build left as proposals, plus design taste calls.
+- TOKENS PER PHASE: ${JSON.stringify(costTable)}.
+Then append to .fable5/memory.md: what was built (decision + rationale), any new tech debt, open bugs from QA, and
+what the next sprint should tackle — so the next run builds on this instead of re-auditing from zero.
+Remind the founder: master is untouched; merging the branch is their call (git reset --hard ${seal ? seal.tag : '<tag>'} to discard).`,
+  { label: 'report', phase: 'Report', model: R('foreman').model, effort: R('foreman').effort },
+)
+
+return {
+  vision, scope, slug,
+  branchTag: seal ? seal.tag : null,
+  buildTarget: audit.buildTarget,
+  prototypeUrl: design.prototypeUrl || null,
+  verifyGreen: !!(gate && gate.green),
+  confirmedBugs: confirmedBugs.length,
+  tokensByPhase: costTable,
+}
