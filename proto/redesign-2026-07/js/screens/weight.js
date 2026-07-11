@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead } from '../components.js';
+import { backHead, esc } from '../components.js';
 
 function sparkline(hist, w = 300, h = 70) {
   const min = Math.min(...hist), max = Math.max(...hist);
@@ -69,7 +69,7 @@ export default {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
       <div><div class="tt">Doesn't touch today's score</div>
-      <div class="ts">Weight tracks your season goal, not your daily execution. Logging it keeps your streak and gives ${S.coach.name} the real trend.</div></div>
+      <div class="ts">Weight tracks your season goal, not your daily execution. Logging it keeps your streak and ${S.coach.hasCoach ? `gives ${esc(S.coach.nameMid)} the real trend.` : 'keeps your trend real.'}</div></div>
     </div>
 
     <div style="height:16px"></div>

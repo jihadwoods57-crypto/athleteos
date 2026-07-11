@@ -17,7 +17,7 @@ import {
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { groundExtras } from './meal-intel.js';
-import { fetchMyPracticeIdentity } from './roles.js';
+import { fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach } from './roles.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
 function fmtClock(min) {
@@ -106,6 +106,12 @@ const DEFAULT_RT = {
   practice: null,        // last server-confirmed {id,name,code}, or null — never a fabricated persona
   practiceLoading: true, // true until the first hydrate attempt (success or failure) completes
   practiceOffline: false,// true when the last hydrate attempt failed while a cached identity exists
+  // --- coach's real team identity (same honest model as practice) ---
+  team: null,            // last server-confirmed {id,name,code}, or null — never "Coach Mark"
+  teamLoading: true,
+  teamOffline: false,
+  // --- athlete's real linked coach ({teamId,teamName,name}) — null until a real team link exists ---
+  myCoach: null,
 };
 function load() {
   try {
@@ -426,6 +432,8 @@ export const act = {
       try { await this.persistTrainerOnboarding(); } catch { /* best-effort */ }
     }
     if (role === 'trainer') await this._loadPracticeIntoRt(RT.userId);
+    if (role === 'coach') await this._loadTeamIntoRt(RT.userId);
+    if (role === 'athlete') await this._loadCoachIntoRt(RT.userId);
     await loadDay(RT.userId);
     syncRtFromDay();
     return { ok: true, role };
@@ -504,6 +512,40 @@ export const act = {
     for (const k of Object.keys(RT)) { if (!(k in DEFAULT_RT)) delete RT[k]; }
     Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { camPrimed });
     if (keep) { RT.ob = keep.ob; RT.allergies = keep.allergies; }
+    save();
+  },
+  /* Read the coach's REAL team identity (team name + join code) into RT — the exact honest
+     four-state model as _loadPracticeIntoRt (loading | offline | minting | live), so the
+     coach profile never shows a fabricated persona or a dead "No code yet" on an outage. */
+  async _loadTeamIntoRt(userId) {
+    if (!userId) return;
+    const hadCache = !!(RT.team && RT.team.code);
+    RT.teamLoading = true; save();
+    const identity = await fetchMyTeamIdentity();
+    const fetchFailed = !!(identity && identity.error);
+    if (identity && identity.code) {
+      RT.team = { id: identity.id, name: identity.name, code: identity.code };
+      RT.teamOffline = false;
+    } else if (hadCache) {
+      RT.teamOffline = true; // keep RT.team as-is (last-known real identity)
+    } else if (fetchFailed) {
+      RT.team = null;
+      RT.teamOffline = true; // honest offline — never "minting" on a real fetch error
+    } else {
+      RT.team = null;
+      RT.teamOffline = false;
+    }
+    RT.teamLoading = false;
+    save();
+  },
+  /* Read the athlete's REAL linked coach (their team + the head coach's display name) into
+     RT.myCoach. Confirmed "no team link" clears it (an athlete who left a team must not keep
+     a stale coach); a fetch failure keeps the last-known link rather than wiping it. */
+  async _loadCoachIntoRt(userId) {
+    if (!userId) return;
+    const res = await fetchMyCoach();
+    if (res && res.error) return; // network/RLS hiccup — keep last-known
+    RT.myCoach = res || null;
     save();
   },
   async signOut() {
@@ -677,6 +719,8 @@ export const act = {
     if (RT.userId) {
       await this._loadProfileIntoRt(RT.userId);
       if (RT.authRole === 'trainer') await this._loadPracticeIntoRt(RT.userId);
+      if (RT.authRole === 'coach') await this._loadTeamIntoRt(RT.userId);
+      if (!RT.authRole || RT.authRole === 'athlete') await this._loadCoachIntoRt(RT.userId);
     }
     await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications();
   },
@@ -701,7 +745,44 @@ export const S = {
       avatar: p.avatar || null,
     };
   },
-  coach: { name: 'Coach Mark', initials: 'M', role: 'Head Coach', team: 'Central Catholic · Varsity' },
+  // The athlete's REAL linked coach — from their active team membership + the head coach's
+  // display name. NEVER a fabricated persona: with no link, hasCoach is false and every
+  // coach-specific surface must gate on it; `name`/`nameMid` degrade to honest generic copy.
+  get coach() {
+    const c = RT.myCoach || null;
+    const name = ((c && c.name) || '').trim();
+    const team = ((c && c.teamName) || '').trim();
+    const parts = name.split(/\s+/).filter(Boolean);
+    return {
+      hasCoach: !!c,                    // a real team link exists
+      isNamed: !!name,                  // the head coach's real display name is known
+      name: name || 'Your coach',       // sentence-start display
+      nameMid: name || 'your coach',    // mid-sentence display
+      initials: parts.length ? parts.slice(0, 2).map((w) => w[0].toUpperCase()).join('') : 'C',
+      role: name ? 'Head Coach' : '',
+      team,
+    };
+  },
+
+  // The coach's OWN identity for their profile — server-confirmed name/team/join-code with
+  // the same four honest states as trainerIdentity: loading | offline | minting | live.
+  get coachIdentity() {
+    const realName = ((RT.profile && RT.profile.name) || '').trim();
+    const realTeam = ((RT.team && RT.team.name) || '').trim();
+    const code = (RT.team && RT.team.code) || '';
+    const initials = realName
+      ? realName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
+      : 'C';
+    const state = RT.teamLoading ? 'loading' : RT.teamOffline ? 'offline' : !code ? 'minting' : 'live';
+    return {
+      name: realName || 'Coach',
+      initials,
+      teamName: realTeam || 'Your team',
+      code,
+      hasIdentity: !!realName && !!realTeam,
+      state,
+    };
+  },
 
   // Trainer's real identity for Practice HQ: server-confirmed name/business/code, or an honest
   // neutral fallback — never a fabricated persona (no "Tracy Boone", no dead "No code yet").

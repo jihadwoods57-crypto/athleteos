@@ -39,7 +39,7 @@ export default {
     <div class="sidebox" data-go="notif-settings" style="cursor:pointer">
       <div class="req-icon b" style="width:38px;height:38px">${icon('gear', 17)}</div>
       <div style="flex:1"><div class="tt">Notification settings</div>
-      <div class="ts">${S.coach.name} sets urgency per requirement. You set pressure level and quiet hours.</div></div>
+      <div class="ts">${S.coach.hasCoach ? `${esc(S.coach.name)} sets urgency per requirement.` : 'Urgency comes with each requirement.'} You set pressure level and quiet hours.</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>
     <div style="height:10px"></div>

@@ -106,7 +106,7 @@ export const coach = {
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="coach-profile">
-        <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204;font-weight:800;font-size:13px">M</div>
+        <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204;font-weight:800;font-size:13px">${esc(S.coachIdentity.initials[0] || 'C')}</div>
         <div class="lm"><div class="lt">Coach profile & team code</div><div class="ls">Identity, share code, team settings</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>

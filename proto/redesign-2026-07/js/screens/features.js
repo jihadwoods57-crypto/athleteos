@@ -98,8 +98,8 @@ export const restrictions = {
     <section class="card" style="padding:6px 16px">
       ${[
         ['camera', 'Every scan is checked', 'Meal photos and label scans are cross-checked against this list before anything logs.'],
-        ['bell', 'Severe means loud', 'A severe conflict alerts you immediately and notifies your coach and parent. Preferences just warn you.'],
-        ['users', 'Your coach carries it', `${S.coach.name}'s team sheet shows every athlete's restrictions for travel and team meals.`],
+        ['bell', 'Severe means loud', 'A severe conflict warns you immediately, before the meal logs. Preferences just note it.'],
+        ['users', 'Your coach carries it', `${S.coach.hasCoach ? esc(S.coach.name) + '’s' : 'Your coach’s'} team sheet shows every athlete's restrictions for travel and team meals.`],
       ].map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
@@ -175,7 +175,7 @@ export const injury = {
       <div class="finish-segs" style="margin-top:12px">
         <div class="fseg on"></div><div class="fseg on"></div><div class="fseg"></div><div class="fseg"></div>
       </div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:10px">Cleared for non-contact. ${S.coach.name} and your athletic trainer see the same progress; nobody gets surprised on Friday.</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:10px">Cleared for non-contact. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees the same progress; nobody gets surprised on Friday.` : 'Anyone you connect sees the same progress; nobody gets surprised on Friday.'}</div>
     </section>
 
     <div class="eyebrow">What changed in your Standard</div>
@@ -244,7 +244,7 @@ export const coachVoice = {
 
     <section class="card pad" style="display:flex;align-items:center;gap:14px">
       <div style="flex:1">
-        <div style="font-size:15px;font-weight:800">Speak as Coach Mark</div>
+        <div style="font-size:15px;font-weight:800">Speak as ${esc(S.coachIdentity.name)}</div>
         <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px">AI replies to your athletes borrow your phrasing.</div>
       </div>
       <div class="seg" style="width:104px" data-toggle-group><button class="on">On</button><button>Off</button></div>

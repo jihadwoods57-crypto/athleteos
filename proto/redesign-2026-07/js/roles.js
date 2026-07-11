@@ -38,6 +38,38 @@ export async function declineMember(teamId, athleteId) {
   try { const { error } = await c.from('team_members').delete().eq('team_id', teamId).eq('athlete_id', athleteId); return !error; } catch { return false; }
 }
 
+/** The signed-in coach's own team identity: real team name + real join code — mirrors
+    fetchMyPracticeIdentity for trainers. teams_read RLS scopes the select to teams the caller
+    staffs/created, so no explicit filter is needed. Returns null on a CONFIRMED "no team row
+    yet" (still minting); { error: true } on a fetch failure (network/RLS) so callers never
+    misreport a real outage as still-minting. */
+export async function fetchMyTeamIdentity() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data } = await c.from('teams').select('id,name,join_code').limit(1).maybeSingle();
+    if (!data) return null;
+    return { id: data.id, name: data.name || '', code: data.join_code || '' };
+  } catch { return { error: true }; }
+}
+
+/** The ATHLETE's real linked coach: their active team (teams_read grants members the row) +
+    the head coach's display name (team_head_coach_name — the safe definer helper from 0024).
+    Returns null on a confirmed "no team link"; { error: true } on a fetch failure. Never a
+    fabricated persona — an unknown coach name comes back as ''. */
+export async function fetchMyCoach() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data: team } = await c.from('teams').select('id,name').limit(1).maybeSingle();
+    if (!team) return null;
+    let coachName = '';
+    try {
+      const { data: n } = await c.rpc('team_head_coach_name', { team: team.id });
+      coachName = (typeof n === 'string' && n) || '';
+    } catch { /* name is optional — the team link alone is real */ }
+    return { teamId: team.id, teamName: team.name || '', name: coachName };
+  } catch { return { error: true }; }
+}
+
 /* ---------------- coach → athlete review ---------------- */
 export async function fetchDay(athleteId, date) {
   const c = sb(); if (!c || !athleteId) return null;

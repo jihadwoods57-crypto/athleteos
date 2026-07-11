@@ -24,8 +24,8 @@ function wirePressure(root, sel) {
    (hydration, live score) — never a fabricated "122g of 190g" / "88 oz" / "that's 94". */
 export function smartReply(text, fallback) {
   const t = text.toLowerCase();
-  if (/(swap|instead|replace|substitute)/.test(t)) return 'Yes, swap it. Based on Coach Mark’s plan: any protein for protein, any slow carb for slow carb, keep the portion the same. Rice, potatoes, oats, and tortillas are all interchangeable for you.';
-  if (/(water|hydrat|drink)/.test(t)) return `Hydration is this week’s focus: 120 oz. You’re at ${RT.hydrationOz} oz — top it up before bed. It doesn’t move today’s score, but Coach Mark is watching it.`;
+  if (/(swap|instead|replace|substitute)/.test(t)) return 'Yes, swap it. Based on your plan: any protein for protein, any slow carb for slow carb, keep the portion the same. Rice, potatoes, oats, and tortillas are all interchangeable for you.';
+  if (/(water|hydrat|drink)/.test(t)) return `You’re at ${RT.hydrationOz} oz today — top it up before bed. It doesn’t move today’s score, but it shows in your trend.`;
   if (/(late|miss|forgot|skip)/.test(t)) return 'Honest answer: a late meal counts at half weight for punctuality, and a missed one just stays missed. Log it anyway — the trend matters more than one slot, and your coach respects a truthful log over a blank.';
   if (/(protein|macro)/.test(t)) return 'Aim protein-forward at every meal — a solid protein source plus a slow carb hits your plan. If a meal slot is still open, that’s where to close any gap.';
   if (/(eat out|restaurant|chipotle|fast food|on the go)/.test(t)) return 'From your plan’s approved list: Chipotle bowl (double chicken, rice, beans), a grilled sandwich, or a rice bowl. Order protein first, add the carb, skip nothing green.';
@@ -63,24 +63,38 @@ export function wireComposer(root, replyWho = 'ai', replyName = 'OnStandard AI',
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
 }
 
-/* ---------- Messages: athlete <-> coach thread ---------- */
+/* ---------- Messages: athlete <-> coach thread ----------
+   HONEST: there is no direct-message backend yet — the real coach<->athlete channel today is
+   the per-meal comment thread. This screen says exactly that (no fake composer that claims
+   "Delivered" into the void), and shows an honest connect state when no coach is linked. */
 export const messages = {
   tab: 'plan',
   render() {
+    const c = S.coach;
+    if (!c.hasCoach) {
+      return `
+      ${backHead('Your Coach', 'No coach connected yet', 'plan')}
+      <div class="state-demo">
+        <div class="sd-ic">${icon('users', 24)}</div>
+        <div class="sd-t">No coach connected</div>
+        <div class="sd-s">When you join a team, your coach shows up here — and sees your day.</div>
+        <div class="sd-cta"><button class="btn ghost sm" data-go="connect">Connect a coach</button></div>
+      </div>
+      <div style="height:10px"></div>
+      `;
+    }
+    const sub = [c.role, c.team].filter(Boolean).join(' · ') || 'Your coach';
     return `
-    ${backHead(S.coach.name, `${S.coach.role} · ${S.coach.team}`, 'plan')}
+    ${backHead(c.name, sub, 'plan')}
 
     <div class="thread">
-      <div class="msg-status">No messages yet. Anything ${esc(S.coach.name)} sends will land here — and your messages reach him.</div>
+      <div class="msg-status">Direct messages are coming soon. Today, ${esc(c.nameMid)} comments straight on your logged meals — open a meal to see and reply in its thread.</div>
     </div>
-    <div class="composer">
-      <input placeholder="Message ${S.coach.name}…" />
-      <div class="send">${icon('arrowUp', 19)}</div>
-    </div>
+    <div style="height:14px"></div>
+    <button class="btn ghost" data-go="history">Open meal history</button>
     <div style="height:10px"></div>
     `;
   },
-  mount(root) { wireComposer(root, 'delivery', '', `Delivered · ${S.coach.name} sees it on his side`); },
 };
 
 /* ---------- Units & preferences (working toggles) ---------- */
@@ -169,7 +183,7 @@ export const privacy = {
   render({ sub } = {}) {
     const back = OB_BACK[sub] || 'profile';
     const rows = [
-      ['users', 'Coach Mark', 'Score, logs, meal photos, check-ins, weight trend'],
+      ['users', S.coach.hasCoach ? esc(S.coach.name) : 'Coach (when connected)', 'Score, logs, meal photos, check-ins, weight trend'],
       ['heart', 'Parents', 'Score, streaks, completion only — no photos, no weight'],
       ['bolt', 'Trainer', 'Recovery, readiness, nutrition consistency'],
       ['grid', 'Teammates', 'Leaderboard score only'],
@@ -266,7 +280,7 @@ export const notifSettings = {
       </div>
     </section>
 
-    <div class="eyebrow">Per requirement · set by ${S.coach.name}</div>
+    <div class="eyebrow">Per requirement${S.coach.hasCoach ? ` · set by ${esc(S.coach.nameMid)}` : ' · from your plan'}</div>
     <section class="card" style="padding:6px 16px">
       ${[['utensils', 'Meals', 'Medium'], ['scale', 'Morning Weight', 'High'], ['moon', 'Recovery Check-In', 'High'], ['droplet', 'Hydration', 'Low']].map(([ic, t, lv]) => `
         <div class="lrow" style="cursor:default">

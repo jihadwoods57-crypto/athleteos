@@ -50,7 +50,14 @@ export default {
 
     <div class="eyebrow">Why it's on your standard</div>
     <div class="coachnote">
-      <div class="who"><div class="av">M</div><div><div class="nm">${S.coach.name}</div><div class="rl">${assigned ? 'On this task' : 'On this requirement'}</div></div></div>
+      ${(() => {
+        // Real attribution only: an assigned task credits its real assigner; a catalog rule
+        // credits the athlete's real linked coach — never a fabricated persona.
+        const who = assigned ? (assigned.from || '') : (S.coach.hasCoach && S.coach.isNamed ? S.coach.name : '');
+        if (!who) return '';
+        const init = who.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+        return `<div class="who"><div class="av">${esc(init)}</div><div><div class="nm">${esc(who)}</div><div class="rl">${assigned ? 'On this task' : 'On this requirement'}</div></div></div>`;
+      })()}
       <p>“${esc(req.note)}”</p>
     </div>
 

@@ -100,7 +100,7 @@ const nutrition = () => `
   <div style="height:10px"></div>`;
 
 const schedule = () => `
-  <div class="eyebrow">The rules, set by ${S.coach.name} · tap one for the why</div>
+  <div class="eyebrow">${S.coach.hasCoach ? `The rules, set by ${esc(S.coach.nameMid)}` : 'The rules of your Standard'} · tap one for the why</div>
   <section class="card" style="padding:6px 16px">
     ${CATALOG.map(r => {
       const impact = IMPACT_LABEL[r.impact.kind === 'component' ? r.impact.comp : r.impact.kind];
@@ -170,7 +170,7 @@ export default {
   async mount(root, { sub }) {
     if ((sub || 'overview') === 'notes') {
       const { wireComposer } = await import('./settings.js');
-      wireComposer(root, 'ai', 'OnStandard AI', 'Based on Coach Mark’s plan: yes, that fits. Keep protein at 190 and get the water in before practice.');
+      wireComposer(root, 'ai', 'OnStandard AI', 'Based on your plan: yes, that fits — keep protein on target and get your water in before practice.');
     }
   },
 };
