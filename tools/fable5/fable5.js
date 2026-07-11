@@ -309,3 +309,62 @@ Produce a revised, buildable DesignSpec. Re-publish the prototype Artifact if to
 }
 if (!plan) { log('Plan failed — stopping.'); return { stopped: 'plan', audit, design } }
 log(`Plan: ${plan.files.length} file(s), ${plan.steps.length} step(s)`)
+
+// ---------------------------------------------------------------- Build (Sonnet) + kickback + gate
+const buildSkills = skillsForPhase('build', cfg, `${audit.buildTarget} ${audit.fileHints || ''} ${plan.files.join(' ')}`)
+const buildPrompt = () => `You are Fable 5's Build phase (Sonnet). ${CREED}
+FIRST invoke these skills for repo conventions + domain correctness: ${JSON.stringify(buildSkills)} (Skill tool).
+Implement EXACTLY this plan on the CURRENT fable5/* branch — nothing more, no unrequested refactors:
+${JSON.stringify(plan).slice(0, 12000)}
+Do NOT apply live DB migrations, deploy, or touch secrets; if the plan needs one, implement the code and leave the
+migration as a PROPOSAL (status stays 'implemented', note it in summary). When done, 'git add -A && git commit' your
+work on this branch and set committed=true. If the plan cannot be implemented as written, set status='blocked' and
+planInfeasible=true with blockedReason.`
+
+phase('Build')
+let build = await track('Build', () => agent(buildPrompt(), {
+  label: 'build', phase: 'Build', model: R('build').model, effort: R('build').effort, schema: BUILD_SCHEMA,
+}))
+
+if (build && build.planInfeasible && kickbackAllowed(kb, 'build->plan')) {
+  log(`Build kicked Plan back once: ${build.blockedReason}`)
+  phase('Plan')
+  plan = await track('Plan', () => agent(
+    `You are Fable 5's Engineering Plan phase (Opus), REVISING after the builder hit a wall.
+${CREED}
+Builder's blocker: "${build.blockedReason}". Previous plan (JSON): ${JSON.stringify(plan).slice(0, 8000)}
+Design (JSON): ${JSON.stringify(design).slice(0, 6000)}. Produce a corrected, buildable plan.`,
+    { label: 'plan:re2', phase: 'Plan', model: R('plan').model, effort: R('plan').effort, schema: PLAN_SCHEMA },
+  )) || plan
+  phase('Build')
+  build = await track('Build', () => agent(buildPrompt(), {
+    label: 'build:re', phase: 'Build', model: R('build').model, effort: R('build').effort, schema: BUILD_SCHEMA,
+  }))
+}
+if (!build || build.status !== 'implemented') {
+  log(`Build did not implement (status=${build ? build.status : 'none'}). Stopping before QA.`)
+  return { stopped: 'build', audit, design, plan, build }
+}
+
+// verify-gate + one repair pass
+phase('Verify')
+const gateCmd = gateCommand(cfg)
+let gate = await agent(
+  `You are Fable 5's gate runner. Run: ${gateCmd}
+Report green=true ONLY if it exits 0; name the failing command in summary. Do not edit code.`,
+  { label: 'gate', phase: 'Verify', model: 'opus', effort: 'low', schema: GATE_SCHEMA },
+)
+if (gate && !gate.green) {
+  log(`Verify red — one repair pass. ${gate.summary}`)
+  await track('Verify', () => agent(
+    `You are Fable 5's Build phase (Sonnet), REPAIRING a red gate. ${CREED}
+The gate '${gateCmd}' failed: ${gate.summary}. Fix ONLY what's needed to make it pass, on this branch, then commit.
+Do not expand scope. If you cannot make it green, say so plainly.`,
+    { label: 'build:repair', phase: 'Verify', model: R('build').model, effort: R('build').effort },
+  ))
+  gate = await agent(
+    `You are Fable 5's gate runner. Re-run: ${gateCmd}. green=true only on exit 0; name the failing command. Do not edit code.`,
+    { label: 'gate:re', phase: 'Verify', model: 'opus', effort: 'low', schema: GATE_SCHEMA },
+  )
+}
+log(`Verify: ${gate && gate.green ? 'GREEN' : 'RED — QA will flag it'}`)
