@@ -16,7 +16,7 @@ const END = '/* ===== HELPERS:END ===== */'
 const i = src.indexOf(START), j = src.indexOf(END)
 assert.ok(i !== -1 && j !== -1 && j > i, 'HELPERS sentinels must exist in fable5.js')
 const block = src.slice(i + START.length, j)
-const EXPORTS = `\nexport { slugify, DEFAULT_ROLES, resolveRole, mergeConfig, auditModeForScope, shouldEarlyExit, makeKickbacks, kickbackAllowed, skillsForPhase, gateCommand, tokensByPhase, isPlainSchema };\n`
+const EXPORTS = `\nexport { slugify, DEFAULT_ROLES, resolveRole, mergeConfig, auditModeForScope, shouldEarlyExit, makeKickbacks, kickbackAllowed, skillsForPhase, gateCommand, tokensByPhase, isPlainSchema, normalizeArgs };\n`
 const H = await import('data:text/javascript,' + encodeURIComponent(block + EXPORTS))
 
 test('fable5.js obeys the Workflow runtime model (only `export const meta`, body wraps as async fn)', () => {
@@ -32,6 +32,14 @@ test('fable5.js obeys the Workflow runtime model (only `export const meta`, body
     () => new Function('agent', 'parallel', 'pipeline', 'phase', 'log', 'budget', 'args', `return (async () => {\n${body}\n})()`),
     'fable5.js must wrap as an async function body with no illegal syntax',
   )
+})
+
+test('normalizeArgs accepts an object, a JSON string, or garbage', () => {
+  assert.deepEqual(H.normalizeArgs({ vision: 'x', scope: 'app' }), { vision: 'x', scope: 'app' })
+  assert.deepEqual(H.normalizeArgs('{"vision":"x","scope":"app"}'), { vision: 'x', scope: 'app' })
+  assert.deepEqual(H.normalizeArgs('not json'), {})
+  assert.deepEqual(H.normalizeArgs(undefined), {})
+  assert.deepEqual(H.normalizeArgs(null), {})
 })
 
 test('slugify normalizes to a safe, capped slug', () => {

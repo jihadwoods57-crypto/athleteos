@@ -75,6 +75,14 @@ const tokensByPhase = (entries) => {
 }
 
 const isPlainSchema = (s) => !!s && s.type === 'object' && typeof s.properties === 'object'
+
+// The Workflow runtime may deliver `args` as an object OR as a JSON-encoded string.
+// Normalize to a plain object so downstream reads (A.vision, A.scope) work either way.
+const normalizeArgs = (a) => {
+  if (a && typeof a === 'object') return a
+  if (typeof a === 'string') { try { return JSON.parse(a) } catch { return {} } }
+  return {}
+}
 /* ===== HELPERS:END ===== */
 
 // -------------------------------------------------------------------- schemas
@@ -187,7 +195,8 @@ const DEFAULT_CONFIG = {
   roles: DEFAULT_ROLES,
   phaseSkills: null, // null => heuristic (skillsForPhase)
 }
-const vision = (args && args.vision) || ''
+const A = normalizeArgs(args)
+const vision = A.vision || ''
 if (!vision) { log('No vision provided (args.vision is required). Stopping.'); return { stopped: 'no-vision' } }
 
 phase('Bootstrap')
@@ -205,7 +214,7 @@ if (!boot || !boot.onFable5Branch || !boot.cleanTree) {
   return { stopped: 'bootstrap', boot }
 }
 const cfg = mergeConfig(DEFAULT_CONFIG, boot.config || {})
-const scope = (args && args.scope) || cfg.defaultScope || 'feature'
+const scope = A.scope || cfg.defaultScope || 'feature'
 const slug = slugify(vision)
 const R = (role) => resolveRole(cfg, role)
 const tokenLog = []
