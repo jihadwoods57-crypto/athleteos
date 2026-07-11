@@ -86,6 +86,20 @@ export async function signedMealPhotoUrl(path) {
   const c = sb(); if (!c || !path) return null;
   try { const { data } = await c.storage.from('meal-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
 }
+/** The ATHLETE side of the 0043 receipt loop: who actually opened MY day. RLS
+    (coach_views_read) scopes rows to athlete_id = auth.uid() or the viewer's own receipts;
+    the explicit athlete_id filter keeps a coach's client from pulling receipts they wrote
+    about other athletes through this athlete-facing helper. Best-effort []. */
+export async function fetchMyDayReceipts(athleteId, date) {
+  const c = sb(); if (!c || !athleteId || !date) return [];
+  try {
+    const { data } = await c.from('coach_views')
+      .select('viewer_name,seen_at').eq('athlete_id', athleteId).eq('date', date)
+      .order('seen_at', { ascending: false }).limit(8);
+    return data || [];
+  } catch { return []; }
+}
+
 export async function markDayViewed(athleteId, date, viewerId, viewerName) {
   const c = sb(); if (!c || !athleteId || !viewerId) return;
   try { await c.from('coach_views').upsert({ athlete_id: athleteId, viewer_id: viewerId, date, viewer_name: viewerName || null, seen_at: new Date().toISOString() }, { onConflict: 'athlete_id,viewer_id,date' }); } catch { /* best-effort receipt */ }

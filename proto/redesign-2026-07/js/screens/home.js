@@ -2,6 +2,7 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { appHead, scoreRing, animateRing, esc, safeImg } from '../components.js';
 import { DAY } from '../day.js';
+import { fetchMyDayReceipts } from '../roles.js';
 
 function actCard(a) {
   let media;
@@ -108,6 +109,7 @@ export default {
       return `
       ${appHead()}
       ${celebration(e)}
+      <div id="seen-row" style="width:100%"></div>
       ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${t.note}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
       <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
       <div class="hscroll">${S.activity.map(actCard).join('')}</div>
@@ -119,6 +121,7 @@ export default {
     return `
     ${appHead()}
     ${strip(e)}
+    <div id="seen-row"></div>
     ${e.overdue.filter((o) => !e.now || o.id !== e.now.id).map(row).join('')}
     ${e.now ? nowCard(e) : ''}
     ${nextRows.length ? `<div class="xgrp">Next</div>${nextRows.map(row).join('')}` : ''}
@@ -129,8 +132,8 @@ export default {
     <div style="height:12px"></div>
     <div class="trust" data-go="injury" style="cursor:pointer;background:linear-gradient(100deg, rgba(245,165,36,0.14), rgba(59,130,246,0.05));border-color:var(--amber-border)">
       <div class="ic" style="background:rgba(245,165,36,0.2);color:var(--amber-bright)">${icon('bolt', 20)}</div>
-      <div style="flex:1"><div class="tt">Injury mode · hamstring, week 2 of 4</div>
-      <div class="ts">Your Standard adapted. Rehab is on the list; coach and AT see the same bar.</div></div>
+      <div style="flex:1"><div class="tt">Injury mode · active</div>
+      <div class="ts">Your Standard adapted. Rehab is on the list while you heal.</div></div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : ''}
     <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
@@ -140,6 +143,28 @@ export default {
   mount(root) {
     animateRing(root);
     act.syncNotifications();
+    // Coach-seen receipt (0043, athlete side): "something visibly came back" — the row shows
+    // ONLY when a real linked human actually opened this day. Nothing is ever fabricated;
+    // no receipts → no row. Fetched per-mount (cheap indexed read), injected async.
+    const seenRow = root.querySelector('#seen-row');
+    if (seenRow && RT.userId) {
+      fetchMyDayReceipts(RT.userId, String(DAY.date)).then((rows) => {
+        if (!rows.length || !seenRow.isConnected) return;
+        const fmt = (iso) => {
+          const d = new Date(iso);
+          let h = d.getHours() % 12; if (h === 0) h = 12;
+          return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
+        };
+        const first = rows[0];
+        const who = (first.viewer_name || 'Your coach').trim() || 'Your coach';
+        const extra = rows.length > 1 ? ` + ${rows.length - 1} more` : '';
+        seenRow.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 4px 2px;font-size:12px;font-weight:700;color:var(--text-2)">
+            <span style="color:var(--green-bright);display:inline-flex">${icon('users', 14)}</span>
+            <span>Seen by ${esc(who)}${esc(extra)} · ${fmt(first.seen_at)}</span>
+          </div>`;
+      }).catch(() => { /* best-effort — the row simply doesn't render */ });
+    }
     // Live loop: re-render when the derived state changes (minute ticks, state
     // transitions, day rollover). Cheap: derive → compare → maybe render. The router
     // clears window.__execTick on every route change.
