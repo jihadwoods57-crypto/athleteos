@@ -446,23 +446,34 @@ export const act = {
     } catch { /* offline / RLS — keep whatever identity we have */ return false; }
   },
   /* Read the trainer's REAL practice identity (business name + client join code) into RT —
-     mirrors _loadProfileIntoRt for athletes. Distinguishes three honest outcomes so Practice HQ
-     never shows a broken/fabricated state:
+     mirrors _loadProfileIntoRt for athletes, and mirrors practiceLoadDecision in
+     src/core/practiceIdentity.ts (the tested oracle) inline, the same way roles.js mirrors
+     inviteLink/inviteShareText rather than importing compiled TS into the WebView.
+     Distinguishes FOUR honest outcomes so Practice HQ never shows a broken/fabricated state,
+     and a real outage is never misreported as still-minting:
        - a real practice was found -> RT.practice set, offline cleared (live)
-       - nothing found but we already had a cached identity -> keep the cache, flag offline
-         (reconnecting; navigator.onLine is coarse in WKWebView, so this also catches a
+       - nothing usable came back but we already had a cached identity -> keep the cache, flag
+         offline (reconnecting; navigator.onLine is coarse in WKWebView, so this also catches a
          same-tick RLS/network hiccup rather than wiping a real business identity)
-       - nothing found and no cache -> honestly still minting (no practice row exists yet) */
+       - the fetch itself failed (network/RLS error) and there is no cache -> flag offline with
+         no identity to show — never "minting" on a real error (minting means we CONFIRMED no
+         row exists yet, which a failed fetch never does)
+       - the fetch succeeded and confirmed no practice row exists, and there is no cache ->
+         honestly still minting */
   async _loadPracticeIntoRt(userId) {
     if (!userId) return;
     const hadCache = !!(RT.practice && RT.practice.code);
     RT.practiceLoading = true; save();
     const identity = await fetchMyPracticeIdentity();
+    const fetchFailed = !!(identity && identity.error);
     if (identity && identity.code) {
       RT.practice = { id: identity.id, name: identity.name, code: identity.code };
       RT.practiceOffline = false;
     } else if (hadCache) {
       RT.practiceOffline = true; // keep RT.practice as-is (last-known real identity)
+    } else if (fetchFailed) {
+      RT.practice = null;
+      RT.practiceOffline = true; // honest offline — never "minting" on a real fetch error
     } else {
       RT.practice = null;
       RT.practiceOffline = false;

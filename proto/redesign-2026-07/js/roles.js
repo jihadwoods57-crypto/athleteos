@@ -114,16 +114,18 @@ export async function fetchMyPractices() {
 
 /** The signed-in trainer's own practice identity: real business name + real client join code.
     Owner-scoped by practices_read RLS (owner_id = auth.uid()) — no explicit filter needed, same
-    pattern as every other trainer/coach read in this file. Returns null on no practice yet
-    (still minting) or any error (offline) — callers must render an honest state either way,
-    never a fabricated name or code. */
+    pattern as every other trainer/coach read in this file. Returns null on a CONFIRMED "no
+    practice row yet" (still minting) — but on a fetch failure (network/RLS error) returns
+    { error: true } instead of null, so a caller can tell "nothing to show yet" apart from
+    "we don't actually know" and never misreports a real outage as still-minting (mirrors
+    PracticeFetchResult in src/core/practiceIdentity.ts). */
 export async function fetchMyPracticeIdentity() {
   const c = sb(); if (!c) return null;
   try {
     const { data } = await c.from('practices').select('id,name,join_code,owner_id,handle').limit(1).maybeSingle();
     if (!data) return null;
     return { id: data.id, name: data.name || '', code: data.join_code || '', handle: data.handle || null };
-  } catch { return null; }
+  } catch { return { error: true }; }
 }
 export async function fetchPracticeRoster(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];

@@ -823,8 +823,9 @@ export const coachProfile = {
    settings page (fabricated "Tracy Boone" persona, dead "No code yet" copy, a "Set" pill with
    no destination). Driven entirely by S.trainerIdentity (state.js), which is honest about four
    real states: loading (RT hydrating), minting (practice exists server-side but no code has
-   landed yet — never shown as broken), offline (last-known real identity, Share disabled),
-   live (real name + real business + real code, QR, Copy, Share). */
+   landed yet — never shown as broken), offline (either a last-known cached identity with Share
+   disabled, or — on a fetch failure with nothing cached — no identity to show at all, never
+   misreported as still-minting), live (real name + real business + real code, QR, Copy, Share). */
 export const trainerProfile = {
   nav: 'trainer', tab: 'profile',
   render() {
@@ -832,7 +833,8 @@ export const trainerProfile = {
     const loading = ti.state === 'loading';
     const minting = ti.state === 'minting';
     const offline = ti.state === 'offline';
-    const sub = offline ? 'Offline · showing your saved details' : 'Manage your practice';
+    const offlineNoCode = offline && !ti.code; // fetch failed, nothing cached — no invite card to show
+    const sub = offline ? (ti.code ? 'Offline · showing your saved details' : 'Offline · reconnecting') : 'Manage your practice';
 
     const header = loading ? `
     <section class="card id-card">
@@ -872,9 +874,19 @@ export const trainerProfile = {
         <div><div class="tt">Your client code is being created</div>
         <div class="ts">It mints the moment your practice is set up on the server, usually a few seconds. Nothing shows until it's real, so a client never gets a dead code.</div></div>
       </div>`;
+    } else if (offlineNoCode) {
+      // Fetch failed (network/RLS) and nothing is cached yet — honestly offline, not minting.
+      // No code exists to show, so there's no invite card to render here.
+      invite = `
+      <div class="eyebrow">Invite a client</div>
+      <div class="sidebox">
+        <div class="req-icon a" style="width:38px;height:38px">${icon('wifiOff', 17)}</div>
+        <div><div class="tt">Can't reach the server</div>
+        <div class="ts">We couldn't load your client code. Check your connection — this picks back up on its own once you're back online.</div></div>
+      </div>`;
     } else {
       const link = inviteLink(ti.code);
-      const svg = qrSvg(addQuietZone(encodeQR(link, 'M')), 96, '#0B0D12', `QR code to join ${ti.practiceName}`);
+      const svg = qrSvg(addQuietZone(encodeQR(link, 'M')), 96, '#0B0D12', `QR code to join ${esc(ti.practiceName)}`);
       invite = `
       <div class="eyebrow">Invite a client</div>
       <section class="card" style="padding:18px">

@@ -1,4 +1,4 @@
-import { practiceHeader, inviteLink, inviteShareText } from './practiceIdentity';
+import { practiceHeader, inviteLink, inviteShareText, practiceLoadDecision } from './practiceIdentity';
 
 describe('practiceHeader', () => {
   it('shows the real trainer name + real practice name once both have hydrated', () => {
@@ -71,5 +71,38 @@ describe('inviteShareText', () => {
 
   it('keeps copy free of em dashes (design ban)', () => {
     expect(inviteShareText('ABCD12', 'Reyes Performance')).not.toContain('—');
+  });
+});
+
+describe('practiceLoadDecision', () => {
+  const cached = { id: 'p0', name: 'Reyes Performance', code: 'ABCD12' };
+
+  it('goes live when the fetch found a real practice row', () => {
+    const d = practiceLoadDecision({ id: 'p1', name: 'Reyes Performance', code: 'ABCD12' }, null);
+    expect(d).toEqual({ practice: { id: 'p1', name: 'Reyes Performance', code: 'ABCD12' }, offline: false });
+  });
+
+  it('is honestly still minting when the fetch succeeded but found no row, and there is no cache', () => {
+    const d = practiceLoadDecision(null, null);
+    expect(d).toEqual({ practice: null, offline: false });
+  });
+
+  // This is the QA-found bug: a fetch failure (network/RLS error) with no cache must flag
+  // offline, never fall back to "minting" — minting means we confirmed no row exists yet,
+  // which a failed fetch never confirms.
+  it('flags offline (not minting) when the fetch itself failed and there is no cache', () => {
+    const d = practiceLoadDecision({ error: true }, null);
+    expect(d.offline).toBe(true);
+    expect(d.practice).toBe(null);
+  });
+
+  it('keeps the cached identity and flags offline when the fetch found nothing but a cache exists', () => {
+    const d = practiceLoadDecision(null, cached);
+    expect(d).toEqual({ practice: cached, offline: true });
+  });
+
+  it('keeps the cached identity and flags offline when the fetch fails and a cache exists', () => {
+    const d = practiceLoadDecision({ error: true }, cached);
+    expect(d).toEqual({ practice: cached, offline: true });
   });
 });

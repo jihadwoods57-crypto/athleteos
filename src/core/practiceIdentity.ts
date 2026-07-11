@@ -71,3 +71,39 @@ export function inviteShareText(code: string | null | undefined, practiceName: s
   const name = (practiceName && practiceName.trim()) || 'my practice';
   return `Join ${name} on OnStandard. Use code ${c} or open ${inviteLink(c)}`;
 }
+
+/** Outcome of one fetchMyPracticeIdentity() attempt (see proto/redesign-2026-07/js/roles.js
+ *  and src/lib/supabase/queries.ts). `error: true` means the fetch itself failed (network/RLS)
+ *  — distinct from a confirmed "no practice row yet" (a plain null/empty result). Without this
+ *  distinction a real outage looks identical to "still minting". */
+export interface PracticeFetchResult extends PracticeLike {
+  error?: boolean;
+}
+
+export interface PracticeLoadDecision {
+  /** Next value for RT.practice — null means "nothing to show", not "still loading". */
+  practice: PracticeLike | null;
+  /** Whether to render the offline/reconnecting state instead of live or minting. */
+  offline: boolean;
+}
+
+/** Decide the next trainer-practice state from one fetch attempt plus whatever identity was
+ *  already cached. Pure mirror of _loadPracticeIntoRt's branching (state.js) — four honest
+ *  outcomes, so a real outage is never misreported as still-minting:
+ *    - the fetch found a real practice row -> live, use it
+ *    - nothing usable came back but we had a cached identity -> offline, keep the cache
+ *      (covers both a confirmed empty row and a same-tick RLS/network hiccup)
+ *    - the fetch itself failed and there is no cache -> offline, no identity to fabricate
+ *    - the fetch succeeded and confirmed no row exists, and there is no cache -> still minting */
+export function practiceLoadDecision(
+  identity: PracticeFetchResult | null | undefined,
+  cachedPractice: PracticeLike | null | undefined,
+): PracticeLoadDecision {
+  if (identity && identity.code) {
+    return { practice: { id: identity.id ?? null, name: identity.name || '', code: identity.code }, offline: false };
+  }
+  const hadCache = !!(cachedPractice && cachedPractice.code);
+  if (hadCache) return { practice: cachedPractice as PracticeLike, offline: true };
+  const fetchFailed = !!(identity && identity.error);
+  return { practice: null, offline: fetchFailed };
+}

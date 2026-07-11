@@ -649,7 +649,7 @@ export const parent = {
     // A real guardian has NO server data path in v1 (guardianship + minor-consent verification
     // aren't wired). So we show an honest pending state — never a fabricated child's score/digest.
     return `
-    ${backHead('Parent view', 'Setting up access', 'profile')}
+    ${titleHead('Parent view', 'Setting up access')}
 
     <div class="state-demo">
       <div class="sd-ic">${icon('users', 24)}</div>
