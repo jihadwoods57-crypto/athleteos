@@ -18,6 +18,7 @@ import {
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { groundExtras } from './meal-intel.js';
 import { fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach } from './roles.js';
+import { track, EVENTS } from './analytics.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
 function fmtClock(min) {
@@ -251,6 +252,7 @@ export const act = {
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: cap(slot) };
     save();
+    track(EVENTS.MEAL_LOGGED, { slot, source: hasPhoto ? 'photo' : 'manual' });
     this.syncNotifications();
   },
   // Back-compat aliases (camera/search buttons and older routes) → the single logMeal impl.
@@ -264,9 +266,10 @@ export const act = {
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: 'Recovery Check-In' };
     save();
+    track(EVENTS.RECOVERY_SUBMITTED);
     this.syncNotifications();
   },
-  logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); this.syncNotifications(); },
+  logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); track(EVENTS.WEIGHT_LOGGED); this.syncNotifications(); },
   addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); this.syncNotifications(); },
   readNotifs() { RT.notifsRead = true; save(); },
   /* Post the engine's notification plan to native (schedule/cancel). Idempotent: skipped
@@ -296,7 +299,7 @@ export const act = {
       if (plan.some((p) => p.id === 'celebrate')) RT._celebratedOn = String(DAY.date);
     } catch { /* delivery failed — leave _lastPlan unset so the next trigger retries */ }
   },
-  setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); },
+  setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); track(EVENTS.COMMITMENT_SET, { answer: ans }); },
 
   /* ---- Phase 5: real meal capture → AI → real macros ---- */
   captureMeal(base64, dataUrl, slot) {
@@ -317,10 +320,11 @@ export const act = {
         const fin = await sb.functions.invoke('analyze-meal', { body: { ...body, phase: 'finalize', clarifications: [] } });
         data = fin.data; error = fin.error;
       }
-      if (error) return { ok: false, error: 'Analysis failed. Check your connection and retake.' };
+      if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
       if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); return { ok: true }; }
+      track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
-    } catch (e) { return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
+    } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
   },
   clearMeal() { MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null; MEAL.result = null; },
   /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
@@ -382,6 +386,7 @@ export const act = {
     RT.email = email;
     RT.authRole = role;
     save();
+    track(EVENTS.ONBOARDING_COMPLETED, { role });
     return { ok: true, session: !!data.session };
   },
   async signIn(email, password) {
@@ -569,8 +574,9 @@ export const act = {
         if (!error) kind = 'practice';
       } catch { /* neither */ }
     }
-    if (!kind) return { ok: false, error: 'That code didn’t match a team or practice. Check it with your coach and try again.' };
+    if (!kind) { track(EVENTS.CODE_JOIN_FAILED); return { ok: false, error: 'That code didn’t match a team or practice. Check it with your coach and try again.' }; }
     if (kind === 'team') await this._loadCoachIntoRt(RT.userId);
+    track(EVENTS.COACH_CONNECTED, { kind });
     return { ok: true, kind };
   },
   async signOut() {

@@ -34,7 +34,14 @@ const SUPABASE_CONFIG =
     ? `window.__SUPABASE = { url: ${JSON.stringify(SB_URL)}, anonKey: ${JSON.stringify(SB_KEY)} }; true;`
     : `true;`;
 
-const PRELUDE = SUPABASE_CONFIG + CONSOLE_BRIDGE + BRIDGE_SHIM;
+// Analytics sink — INERT until the founder deploys analytics-ingest and sets this env var. Absent
+// → the proto buffers events locally and never sends (guardrail: no external send until wired).
+const ANALYTICS_URL = process.env.EXPO_PUBLIC_ANALYTICS_URL;
+const ANALYTICS_CONFIG = ANALYTICS_URL
+  ? `window.__ANALYTICS_SINK = { url: ${JSON.stringify(ANALYTICS_URL)} }; true;`
+  : `true;`;
+
+const PRELUDE = SUPABASE_CONFIG + ANALYTICS_CONFIG + CONSOLE_BRIDGE + BRIDGE_SHIM;
 
 function Center({ children }: { children: React.ReactNode }) {
   return <View style={styles.center}>{children}</View>;

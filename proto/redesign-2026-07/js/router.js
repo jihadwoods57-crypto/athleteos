@@ -2,6 +2,7 @@
 import { S, act, RT, routeForRole } from './state.js';
 import { icon } from './icons.js';
 import { screens } from './screens/index.js';
+import { initAnalytics, track, EVENTS } from './analytics.js';
 
 /* Each role gets its own dashboard shell — not a modal off someone else's app. */
 const NAVS = {
@@ -127,6 +128,8 @@ window.__render = render;
 // always reachable; fresh (signed-out) users land on Welcome. Runs once on load.
 const AUTH_ROUTES = ['welcome', 'role', 'signin', 'reset', 'onboarding', 'coach-ob', 'trainer-ob', 'client-ob', 'terms', 'privacy'];
 async function boot() {
+  initAnalytics(); // wire crash capture + visibility-flush (inert until a sink is configured)
+  track(EVENTS.APP_OPEN, { role: RT.authRole || 'anon' });
   let authed = false;
   try {
     const sb = window.sb;
