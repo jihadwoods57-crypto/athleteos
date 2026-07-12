@@ -10,7 +10,7 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 
 | # | Screen (file) | Why this rank | Status |
 |---|---|---|---|
-| 1 | home.js | Daily-return surface every athlete sees first | **shipping** — teardown v1 done; improvement 1 (streak-at-risk) SHIPPED `90e1105`; at calibration gate |
+| 1 | home.js | Daily-return surface every athlete sees first | **done** (pass 1) — 3 shipped: streak-at-risk `90e1105`, SECURED pill `0485fea`, CTA route fix `2444ce5`; calibration gate PASSED 2026-07-12 |
 | 2 | camera.js | Primary log action (photo proof) — the core loop's verb | pending |
 | 3 | meal.js | Meal detail/log — nutrition is 50% of score | pending |
 | 4 | log.js | Manual log path — fallback for the core verb | pending |
@@ -43,10 +43,12 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 
 ## Shipped improvements
 - 2026-07-11 · **home** · add: tiered streak-at-risk pill + ribbon + notifications mirror (`90e1105`, tag `fable5/2026-07-11-systematic-screen-by-screen-frontend-imp`) — verify gate GREEN 143/143 · 1745/1745.
+- 2026-07-12 · **home** · add: green SECURED pill once today counts — completes the risk/covered/secured tier system (`0485fea`, tag `fable5/2026-07-12-home-secured-pill`) — verify GREEN; 4 pill states verified live at 390px; founder approved.
+- 2026-07-12 · **home** · upgrade: streak CTA route fix — locked-window fallback routes to score-breakdown as "View standard" (never a no-op "Log …"), notification rows mirror the ribbon's actionable route (`2444ce5`, tag `fable5/2026-07-12-home-streak-route-fix`) — closes QA #1+#2; verify GREEN; both cases verified live.
 
-## Home — teardown v1 (cycle 1, feeds next cycles)
-- **ADD (shipped):** streak-at-risk state — passive 🔥 pill was identical on safe days and the day the streak dies.
-- **ADD (open):** green "secured" pill once todayCounted (QA #3, founder taste call); actionable fallback when all requirements are time-locked (QA #1).
-- **UPGRADE (open):** notification mirror rows route to `home` instead of the log action (QA #2); evening all-overdue state renders "NEXT/LATER" group labels over rows that all carry OVERDUE pills — hierarchy reads contradictory (observed in 390px smoke, needs teardown).
-- **REARRANGE (shipped):** ribbon placed as sibling directly under strip — urgency above the task list, tap targets independent.
-- **DELETE:** nothing clearly dead found in cycle 1.
+## Home — teardown v1 (pass 1 complete)
+- **ADD (shipped):** streak-at-risk state `90e1105`; green SECURED pill `0485fea`.
+- **UPGRADE (shipped):** CTA route fix + notification mirror consistency `2444ce5`.
+- **REARRANGE (shipped):** ribbon as sibling directly under strip.
+- **DELETE:** nothing clearly dead found.
+- **Open observation (pass 2 candidate):** evening all-overdue state renders "NEXT/LATER" group labels over rows that all carry OVERDUE pills — hierarchy reads contradictory (seen in 390px smoke 2026-07-11).
