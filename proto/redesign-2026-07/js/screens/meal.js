@@ -198,8 +198,10 @@ export const thread = {
 
     // ---- 1. EXECUTION SUMMARY (celebrates the act of logging; never shames) ----
     const justLogged = RT.lastMove && !RT.lastMove._played && (RT.lastMove.what || '').toLowerCase() === M.slot;
-    const timing = M.late ? 'Logged late · still counts' : 'Captured on time';
     const nonLiveLogged = M.live === false;
+    const timing = nonLiveLogged
+      ? (M.late ? 'Logged late' : 'Logged from gallery')
+      : (M.late ? 'Logged late · still counts' : 'Captured on time');
     const toTier = justLogged ? tier(RT.lastMove.to) : null;
     const scoreStatus = nonLiveLogged ? "Won't count toward your score" : 'Counted toward Nutrition (50%)';
     const execTop = `
