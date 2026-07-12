@@ -9,14 +9,16 @@
       "distribution": "internal",
       "credentialsSource": "local",
       "env": {
-        "EXPO_PUBLIC_BACKEND_LIVE": "true"
+        "EXPO_PUBLIC_BACKEND_LIVE": "true",
+        "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest"
       },
       "channel": "development"
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_BACKEND_LIVE": "true"
+        "EXPO_PUBLIC_BACKEND_LIVE": "true",
+        "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest"
       },
       "channel": "preview"
     },
@@ -24,7 +26,8 @@
       "autoIncrement": true,
       "credentialsSource": "local",
       "env": {
-        "EXPO_PUBLIC_BACKEND_LIVE": "true"
+        "EXPO_PUBLIC_BACKEND_LIVE": "true",
+        "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest"
       },
       "channel": "production"
     }

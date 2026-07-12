@@ -420,3 +420,10 @@ enabled = true
 # Stripe webhook and freeze all subscription updates. (billing audit, 2026-07-03)
 [functions.stripe-webhook]
 verify_jwt = false
+
+# analytics-ingest is an ANONYMOUS telemetry endpoint — the most valuable events (onboarding
+# drop-off) happen before an account/JWT exists, and the app posts events without an auth header.
+# It does its own validation (fixed event vocabulary + PII redaction), batch cap, and per-IP rate
+# limit, so it's safe to accept anonymous POSTs. Pinned so a redeploy can't silently 401 it.
+[functions.analytics-ingest]
+verify_jwt = false

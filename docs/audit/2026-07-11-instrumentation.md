@@ -23,7 +23,25 @@ select * from admin_daily_activity(30);  -- per-day active / scored / meal-loggi
 Counts only, no PII, gated to the `platform_admins` allowlist. To add another admin later:
 `insert into platform_admins (user_id) values ('<their-uuid>');`
 
-## Layer 2 — anonymous funnel/activation events (AUTHORED, INERT until you deploy)
+## Layer 2 — anonymous funnel/activation events (LIVE as of 2026-07-11)
+
+> **STATUS: DEPLOYED + VERIFIED.** `0052_analytics_events.sql` applied to live; the
+> `analytics-ingest` edge function deployed (`--use-api`, `verify_jwt=false` pinned in
+> config.toml); `EXPO_PUBLIC_ANALYTICS_URL` wired into all three `eas.json` build profiles + local
+> `.env`. Verified end-to-end on live: a POST of `{app_open, meal_logged(+a planted PII prop),
+> exfiltrate}` returned `accepted:2` — the bad name was **dropped** (not in the vocabulary), and the
+> `meal_logged` row stored `{slot, source}` only (the planted `name` prop was **stripped
+> server-side**). Test rows deleted. Read the funnel with `admin_onboarding_funnel(14)` /
+> `admin_event_counts(14)`.
+>
+> **ONE step remains, and it's yours (it's your existing launch step anyway):** the app only starts
+> *sending* once a build/bundle carries `EXPO_PUBLIC_ANALYTICS_URL`. That variable is now in
+> `eas.json`, so your **next `eas build`** (the same one that puts the app on TestFlight) includes
+> it automatically — no separate analytics step. For an OTA `eas update` instead, also set it as an
+> EAS environment variable (`eas env:create`) since Update resolves env separately from build. Until
+> a build ships with it, the seam stays inert and the function simply receives nothing.
+
+### (original authoring notes below)
 
 Captures what Layer 1 structurally can't see: **onboarding drop-off** (opened → picked a role →
 chose a goal → created an account), the **age-gate turn-aways**, **meal-analysis failures**, and
