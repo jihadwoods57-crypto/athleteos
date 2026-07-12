@@ -1380,6 +1380,22 @@ export const S = {
       level: 'positive', title: "You're OnStandard", body: `Every requirement is in at ${e.score}. Day ${this.streakDays} of your streak locks at midnight.`,
       when: 'now', icon: 'check', route: 'home',
     });
+    // Tiered streak-at-risk row: only while a 2+ day streak hasn't been counted today and the
+    // day isn't already a celebration (which has its own positive row above — no double-count).
+    // Amber/flame when this week's grace is already used (stronger loss-aversion signal); blue/
+    // shield when grace is still intact (mild reminder). Leads the feed either way.
+    const st = this.streak;
+    if (st.days >= 2 && !st.todayCounted && !e.celebration) {
+      fresh.unshift(st.graceUsedRecently ? {
+        level: 'high', icon: 'flame', when: 'now', route: 'home',
+        title: `Your ${st.days}-day streak ends tonight`,
+        body: `This week’s grace day is already used — hit 80 before midnight or the streak resets.`,
+      } : {
+        level: 'medium', icon: 'shield', when: 'now', route: 'home',
+        title: `Keep your ${st.days}-day run alive`,
+        body: `Finish today to extend your ${st.days}-day run. 80 before midnight locks it in.`,
+      });
+    }
     return { new: fresh, earlier: [] };
   },
 };

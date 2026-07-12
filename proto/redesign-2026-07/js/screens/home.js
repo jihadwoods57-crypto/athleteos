@@ -77,16 +77,52 @@ function syncBanner() {
   return '';
 }
 
+// Tiered streak pill: while today isn't locked in yet, a 2+ day streak reads as "at risk"
+// (amber, this week's grace already used) or "covered" (blue, grace still intact) instead of
+// the flat passive 🔥-N-day badge — the badge should feel different the day it's actually on
+// the line. Once today counts (or the streak hasn't started), the old passive pill returns.
+function streakPill() {
+  const st = S.streak;
+  if (st.days >= 2 && !st.todayCounted) {
+    return st.graceUsedRecently
+      ? `<span class="stk-pill risk">${icon('flame', 11)} ${st.days}-DAY · AT RISK</span>`
+      : `<span class="stk-pill safe">${icon('shield', 11)} ${st.days}-DAY · COVERED</span>`;
+  }
+  return S.streakDays > 0 ? `<span style="font-size:11px;font-weight:700;color:var(--text-2)">🔥 ${S.streakDays} day streak</span>` : '';
+}
+
 function strip(e) {
   return `<section class="xstrip" data-go="score-breakdown">
     ${scoreRing({ score: e.score, size: 52, stroke: 6, glow: false, showCenter: false, uid: 'strip' })}
     <span class="xsc">${e.score}</span>
     <div class="xmid">
-      <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${S.streakDays > 0 ? `<span style="font-size:11px;font-weight:700;color:var(--text-2)">🔥 ${S.streakDays} day streak</span>` : ''}</div>
+      <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${streakPill()}</div>
       <div class="xsegs">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>
     </div>
     <div class="xmeta">${e.met} of ${e.total} in<br>${e.score} → ${e.possible}</div>
   </section>`;
+}
+
+// Streak-at-risk ribbon: a sibling of strip() (never a child — strip() owns
+// data-go="score-breakdown" and a nested data-go would fight it, though the router's
+// per-element stopPropagation would keep them independent regardless). Self-retires once
+// today counts, the streak hasn't reached day 2, or the day is already a celebration (that
+// path has its own "locks at midnight" copy — no double message).
+function streakPrompt(e) {
+  const st = S.streak;
+  if (!(st.days >= 2 && !st.todayCounted) || e.celebration) return '';
+  const strong = st.graceUsedRecently;
+  const target = (e.now && e.now.route) || (e.overdue[0] && e.overdue[0].route) || 'home';
+  const actionTitle = e.now ? e.now.title : (e.overdue[0] ? e.overdue[0].title : 'today’s standard');
+  const title = strong ? `Your ${st.days}-day streak ends tonight` : `Keep your ${st.days}-day run alive`;
+  const body = strong
+    ? `This week’s grace day is already used — hit 80 before midnight or the streak resets.`
+    : `Hit 80 before midnight to extend your ${st.days}-day run.`;
+  return `<div class="streak-ribbon ${strong ? 'strong' : 'mild'}" data-go="${target}">
+    <div class="sr-ic">${icon(strong ? 'flame' : 'shield', 18)}</div>
+    <div class="sr-body"><div class="sr-t">${esc(title)}</div><div class="sr-s">${esc(body)}</div></div>
+    <span class="sr-cta">Log ${esc(actionTitle)}</span>
+  </div>`;
 }
 
 function celebration(e) {
@@ -147,6 +183,7 @@ export default {
     return `
     ${appHead()}
     ${strip(e)}
+    ${streakPrompt(e)}
     ${syncBanner()}
     <div id="seen-row"></div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
