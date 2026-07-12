@@ -1,7 +1,7 @@
 import { S, RT, tier, act, MEAL, mealDetail } from '../state.js';
 import { DAY } from '../day.js';
 import { icon, checkFill } from '../icons.js';
-import { backHead, esc, safeImg, nonLiveBadge } from '../components.js';
+import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
 import { openingMessage, reactionGroups, threadMessages, contextForChat } from '../meal-intel.js';
 
 function macroRow(m) {
@@ -276,10 +276,7 @@ export const thread = {
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : 'Syncs when connected — your coach sees this log either way.'}</div>
     </div>
     ${M.mealId ? `
-    <div class="composer">
-      <input id="meal-msg" placeholder="Ask about this meal…" />
-      <div class="send" id="meal-send">${icon('arrowUp', 19)}</div>
-    </div>
+    ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send' })}
     <div id="chat-note" style="min-height:18px"></div>` : ''}`;
 
     // ---- 4. NEXT ACTION (the exec engine's NOW) ----

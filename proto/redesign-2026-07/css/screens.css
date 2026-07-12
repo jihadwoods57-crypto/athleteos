@@ -145,7 +145,12 @@
   flex: 1; height: 48px; border-radius: var(--r-pill); border: 1px solid var(--hairline);
   background: var(--surface-1); color: var(--text); padding: 0 18px; font-family: var(--font); font-size: 14px; font-weight: 600; outline: none;
 }
-.composer .send { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); display:grid; place-items:center; color:#fff; cursor:pointer; flex:none; box-shadow: var(--sh-blue); }
+.composer .send {
+  width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep));
+  display:grid; place-items:center; color:#fff; cursor:pointer; flex:none; box-shadow: var(--sh-blue);
+  border: 0; padding: 0; margin: 0; font-family: var(--font); -webkit-appearance: none; appearance: none;
+}
+.composer .send:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 
 /* ----- Weight ----- */
 .weight-display { text-align: center; padding: 22px 0 8px; }

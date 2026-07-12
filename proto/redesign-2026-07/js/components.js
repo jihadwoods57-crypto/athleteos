@@ -193,6 +193,29 @@ export function titleHead(title, sub) {
   </div>`;
 }
 
+/* Shared composer (text input + send) markup — the single source for every "ask/comment/note"
+   bar in the app. A real native <button> gives free keyboard operability (Tab focus, Enter AND
+   Space activation) with zero extra JS — a bare <div class="send"> had neither. Both the input
+   and the send control carry an accessible name so a screen reader announces something other
+   than a silent icon. esc() runs INSIDE this helper: callers must pass RAW placeholder/label/
+   sendLabel text, never pre-escaped, or it double-encodes. When a caller has no click handler
+   for send (e.g. foodsearch, which searches live on input), pass decorativeSend so it renders
+   an aria-hidden <span> instead of an inert, falsely-actionable button. */
+export function composer({
+  inputId = '', sendId = '', placeholder = '', inputLabel = placeholder, sendLabel = 'Send',
+  sendIcon = 'arrowUp', sendIconSize = 19, sendStyle = '', wrapStyle = '',
+  autocompleteOff = true, decorativeSend = false,
+} = {}) {
+  const sendAttrs = `class="send"${sendId ? ` id="${sendId}"` : ''}${sendStyle ? ` style="${sendStyle}"` : ''}`;
+  const sendEl = decorativeSend
+    ? `<span ${sendAttrs} aria-hidden="true">${icon(sendIcon, sendIconSize)}</span>`
+    : `<button type="button" ${sendAttrs} aria-label="${esc(sendLabel)}">${icon(sendIcon, sendIconSize)}</button>`;
+  return `<div class="composer"${wrapStyle ? ` style="${wrapStyle}"` : ''}>
+    <input${inputId ? ` id="${inputId}"` : ''} placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''} />
+    ${sendEl}
+  </div>`;
+}
+
 /* a stylized "plate of food" thumbnail (no photo dependency, reads premium) */
 export function mealMedia(hue = '20', h = 96) {
   return `<div class="act-media" style="height:${h}px;background:

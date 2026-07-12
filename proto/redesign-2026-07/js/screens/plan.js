@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { esc } from '../components.js';
+import { esc, composer } from '../components.js';
 import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, fmtMin } from '../requirements.js';
 
 const P = S.plan;
@@ -204,10 +204,7 @@ const notes = () => `
         </div>
       </div>`).join('')}
   </div>
-  <div class="composer">
-    <input placeholder="Ask about the plan…" />
-    <div class="send">${icon('arrowUp', 19)}</div>
-  </div>
+  ${composer({ inputId: '', placeholder: 'Ask about the plan…', sendLabel: 'Send' })}
   <div style="height:10px"></div>`;
 
 export default {
