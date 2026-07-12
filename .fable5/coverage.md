@@ -32,14 +32,14 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 | 20 | guardian.js | Guardian consent — minor-athlete gate | **done** (pass 1) — pending state can remind the same parent (prefilled email + inline confirmation) |
 | 21 | connect.js | Coach/practice linking | **done** (pass 1) — offline preflight (valid code no longer reads "didn't match") + alert/aria |
 | 22 | onboarding.js | First-run flow — one-shot but sets tone | **done** (pass 1) — 44px chrome: .ob-back 34→44, text links get .ob-textlink floor |
-| 23 | ob-account.js | Account creation step | pending |
-| 24 | signin.js | Sign-in | pending |
-| 25 | auth.js | Auth shell/welcome | pending |
-| 26 | bio-optin.js | Bio opt-in step | pending |
-| 27 | features.js | Feature tour/marketing | pending |
-| 28 | settings.js | Settings | pending |
-| 29 | reset.js | Password reset | pending |
-| 30 | states.js | State showcase — verify whether user-reachable or dev-only before teardown | pending |
+| 23 | ob-account.js | Account creation step | **done** (pass 1) — aria labels ×3, pw-eye is a keyboard-operable 44px button |
+| 24 | signin.js | Sign-in | **done** (pass 1) — aria labels ×2, Enter submits from email field too |
+| 25 | auth.js | Auth shell/welcome | **done** (pass 1) — audited: genuinely simple and correct, no defects; nothing shipped by design |
+| 26 | bio-optin.js | Bio opt-in step | **done** (pass 1) — "Not now" gets the 44px .ob-textlink floor |
+| 27 | features.js | Feature tour/marketing | **done** (pass 1) — coachVoice fake On/Off toggle → honest Preview pill; fabricated "learned phrases / In use" → "will reinforce / Example" |
+| 28 | settings.js | Settings + notifSettings | **done** (pass 1) — quiet-hours copy no longer invites input that doesn't save; .seg buttons 38→44px |
+| 29 | reset.js | Password reset | **done** (pass 1) — aria label; post-send button re-enables as "Send again" (was stuck disabled while Enter silently re-fired) |
+| 30 | states.js | Dev-only design gallery — NOT user-reachable (no data-go anywhere; registered but unlinked) | **done** — audited reachability, correctly skipped |
 
 ## Shipped improvements
 - 2026-07-11 · **home** · add: tiered streak-at-risk pill + ribbon + notifications mirror (`90e1105`, tag `fable5/2026-07-11-systematic-screen-by-screen-frontend-imp`) — verify gate GREEN 143/143 · 1745/1745.
@@ -65,6 +65,12 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 - 2026-07-12 · **roles (coachProfile)** · fix (functionality): Copy-code copied RT.ob.teamCode (onboarding scratch — empty on fresh-device sign-in) while displaying the server code: silent empty clipboard. Now copies S.coachIdentity.code first (trainerProfile pattern) + "Copied" label reverts after 1.6s. QA: clipboard spy captured the displayed code with RT.ob empty.
 - 2026-07-12 · **guardian** · upgrade: pending state could not remind the SAME parent (empty input + "wrong address?" framing forced a retype) — now prefills the stored guardian email, button reads "Send reminder", success shows green inline confirmation instead of an invisible identical repaint. Consent logic untouched. QA: prefill + confirmation verified with stubbed action.
 - 2026-07-12 · **onboarding (+ob flows in roles.js)** · upgrade (a11y): .ob-back 34→44px and the three ~18-32px text links (Skip for now / Remove connection / I have a coach code) get a shared .ob-textlink 44px floor. QA: 44/44/44 measured at 390px.
+- 2026-07-12 · **signin + reset + ob-account** · upgrade (a11y+interaction): 6 placeholder-only inputs gain accessible names; Enter submits from signin's email field; reset's post-send button re-enables as "Send again" (was permanently disabled while Enter could silently re-fire — now guarded); pw-eye is a keyboard-operable 44px role=button with live aria-pressed. QA: all verified live incl. Enter/Space toggle.
+- 2026-07-12 · **features (coachVoice)** · delete (deceptive interactivity): the "Speak as {coach}" On/Off toggle persisted nothing, defaulted On, with zero disclosure — now an honest amber Preview pill; fabricated "Phrases it learned from you"/"In use" reframed to "Phrases it will reinforce"/"Example". QA: toggle gone, 4 Example pills, no console errors.
+- 2026-07-12 · **settings (notifSettings)** · upgrade (honesty): quiet-hours copy invited "set your preference here now" over controls that persist nothing — now says the controls are a preview and don't save yet; shared .seg buttons 38→44px. QA: copy + 44px verified.
+- 2026-07-12 · **bio-optin** · upgrade (a11y): "Not now" escape was a bare ~32px div — now .ob-textlink 44px. QA: 44px measured.
+- 2026-07-12 · **auth.js** · audited, nothing shipped: static welcome with two correctly-wired CTAs — genuinely simple and correct.
+- 2026-07-12 · **states.js** · audited: dev-only gallery, no data-go link anywhere in the codebase — not a shipping surface.
 
 ## Home — teardown v1 (pass 1 complete)
 - **ADD (shipped):** streak-at-risk state `90e1105`; green SECURED pill `0485fea`.
