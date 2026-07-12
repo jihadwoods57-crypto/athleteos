@@ -263,6 +263,9 @@ body {
 .status-pill.a { color: var(--amber-bright); border-color: var(--amber-border); background: transparent; }
 .status-pill.b { color: var(--blue-bright);  border-color: var(--blue-border);  background: transparent; }
 .status-pill.p { color: var(--purple-bright);border-color: var(--purple-border);background: transparent; }
+/* Honest treatment for the starting tier ("Off Standard") — was unstyled (falls through to
+   the base .status-pill's transparent border/bg), reading as plain white text with no signal. */
+.status-pill.r { color: #FF9B9B; border-color: var(--red-border); background: var(--red-surface); }
 .req-meta { font-size: 13px; font-weight: 800; }
 .req-meta.g { color: var(--green-bright); } .req-meta.a { color: var(--amber-bright); }
 .req-meta.b { color: var(--blue-bright); }  .req-meta.p { color: var(--purple-bright); }

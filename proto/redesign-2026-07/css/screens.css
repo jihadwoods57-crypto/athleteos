@@ -278,14 +278,16 @@
 .lnk{color:var(--green-bright);font-weight:800;cursor:pointer}
 
 /* ---- execution loop: score strip, NOW card, groups ---- */
-.xstrip{display:flex;align-items:center;gap:12px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:20px;padding:11px 14px;cursor:pointer}
-.xstrip .xsc{font-size:24px;font-weight:800;letter-spacing:var(--num-tight);font-variant-numeric:tabular-nums}
-.xstrip .xmid{flex:1;display:flex;flex-direction:column;gap:4px}
+.xstrip{display:flex;align-items:center;gap:14px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:20px;padding:13px 15px;cursor:pointer}
+.xstrip .xmid{flex:1;display:flex;flex-direction:column;gap:7px}
 .xstrip .xrow{display:flex;align-items:center;gap:8px}
-.xstrip .xmeta{font-size:10.5px;color:var(--text-3);font-weight:700;text-align:right;line-height:1.4;white-space:nowrap}
-.xsegs{display:flex;gap:4px}
-.xsegs i{height:4px;flex:1;border-radius:2px;background:var(--surface-3)}
-.xsegs i.on{background:var(--green)}
+/* score-in-ring: the 96px hero .score rule must not leak into the compact 64px strip dial */
+.xstrip .ring-center.num .score{font-size:22px;letter-spacing:var(--num-tight);color:var(--text);text-shadow:none}
+.xsegs{display:flex;gap:5px}
+.xsegs i{height:5px;flex:1;border-radius:3px;background:var(--surface-3)}
+.xsegs i.on{background:linear-gradient(90deg,var(--green),var(--green-bright))}
+.seglabel{font-size:11.5px;font-weight:700;color:var(--text-2)}
+.seglabel b{color:var(--text);font-variant-numeric:tabular-nums}
 /* Tiered streak pill (strip) — passive-🔥 stays for a counted/short streak; once a 2+ day
    streak is on the line for TODAY it flips to amber "at risk" or blue "covered". */
 .stk-pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-pill)}
