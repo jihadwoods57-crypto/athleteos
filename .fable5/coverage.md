@@ -19,10 +19,10 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 | 7 | plan.js | Plan tab — coach-set targets, daily reference | **done** (pass 1) — sub-tabs raised to 44px+ |
 | 8 | progress.js | Progress tab — retention surface, streak/trend story | **done** (pass 1) — grace-aware current-streak ribbon leads the populated view |
 | 9 | notifications.js | Accountability feed — leads with streak row | **done** (pass 1) — pills humanized (urgent/reminder/nice work) + chevrons on routed rows |
-| 10 | foodsearch.js | Food search — logging friction lives here | pending |
-| 11 | profile.js | Athlete profile root — settings/identity hub | pending |
-| 12 | weight.js | Weight log — trend-only surface | pending |
-| 13 | recovery.js | Recovery detail | pending |
+| 10 | foodsearch.js | Food search — no-camera path + capture-failure recovery | **done** (pass 1) — 44px pill steppers + dead Clear link wired |
+| 11 | profile.js | Athlete profile root — identity hub | **done** (pass 1) — avatar upload: error feedback, no-reload repaint, 44px badge/Edit |
+| 12 | weight.js | Weight log — trend-only surface | **done** (pass 1) — "late" label is time-honest (exec window state, not hardcoded) |
+| 13 | recovery.js | DAILY recovery check-in — 25% of score | **done** (pass 1) — chips to 44px + radiogroup semantics |
 | 14 | requirement.js | Single-requirement detail view | pending |
 | 15 | trust.js | Trust Pass — coach-granted state, low frequency high meaning | pending |
 | 16 | coach.js (coach root) | Coach dashboard — buyer-facing | pending |
@@ -53,6 +53,10 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 - 2026-07-12 · **plan** · upgrade: sub-tab strip raised from ~39px to 46px (min-height 44px + flex centering) — the screen's core interaction now clears the tap floor. QA: all 4 tabs measure 46px; underline intact.
 - 2026-07-12 · **progress** · add: grace-aware current-streak ribbon leads the populated view (same S.streak getter + grace-calibrated urgency rule as Home; secured state = green check + "locks at midnight"; <2 days renders nothing). QA: all 3 states verified live; evidence `shots/2026-07-12-screens-batch1/after-progress-streak.png`.
 - 2026-07-12 · **notifications** · upgrade ×2: severity pills humanized (high→URGENT, medium→REMINDER; no more raw enum jargon, colour-independent meaning) and routed rows get a trailing chevron so the streak-save tap is visible. QA: no raw "high"/"medium" text; 2/2 routed rows show chevrons.
+- 2026-07-12 · **recovery** · upgrade: nightly chips raised 42→44px (shared .c5 rule; only interactive consumer) + role=radiogroup/radio with live aria-checked. QA: 44px measured, aria flips on tap, projection line still updates.
+- 2026-07-12 · **foodsearch** · fix ×2: plate ± steppers were bare ~21px text (`.wb2` needs a `.water-btns` ancestor it didn't have) — now `.chip-row .chp` 44px pills; dead "Clear" link wired (3rd instance of the render-time-wiring bug class). QA: 44px, one line, qty/remove/clear all verified live. NOTE for future audits: `.chp` is scoped `.chip-row .chp` (flows.css:111) — bare `.chp` gets nothing.
+- 2026-07-12 · **weight** · upgrade (honesty): button hardcoded "Log Weight (late · trend only)" at all times — now derives late from the exec engine's real window state (overdue/done_late), honest on non-weigh-in days and before 9 AM. QA: Sunday renders no "late".
+- 2026-07-12 · **profile** · upgrade: avatar upload — corrupt file now shows inline error (was silent no-op), success repaints in place via window.__render (was a full location.reload white-flash reboot), busy state blocks re-taps, camera badge 22→44px, Edit 40→44px. QA: both paths verified live.
 
 ## Home — teardown v1 (pass 1 complete)
 - **ADD (shipped):** streak-at-risk state `90e1105`; green SECURED pill `0485fea`.
