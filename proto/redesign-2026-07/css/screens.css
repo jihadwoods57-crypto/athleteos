@@ -156,7 +156,7 @@
 .rec-ends { font-size: 11px; font-weight: 700; color: var(--text-3); }
 .chips5 { display: flex; gap: 8px; margin-top: 11px; }
 .chips5 .c5 {
-  flex: 1; height: 42px; border-radius: 12px; display: grid; place-items: center;
+  flex: 1; height: 44px; border-radius: 12px; display: grid; place-items: center;
   background: var(--surface-2); border: 1px solid var(--hairline-soft);
   font-size: 14px; font-weight: 800; color: var(--text-3); cursor: pointer;
   transition: all var(--dur-1) var(--ease-out);
