@@ -13,12 +13,26 @@ export default {
     const segs = `<div class="xsegs" style="margin:0 2px 12px">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>`;
     const head = `<div class="hub-head"><span class="a">${e.met} of ${e.total} in</span><span class="b">${e.score} → <em>${e.possible} possible</em></span></div>`;
 
+    // Mirrors Home's syncBanner honesty (home.js syncBanner): the sheet is the primary write
+    // surface, so a sync-blocked minor or a failed push needs the same feedback here, not silence.
+    const issue = S.syncIssue;
+    const syncRow = issue === 'blocked' ? `
+      <div class="sheet-row" data-go="guardian">
+        <div class="si" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('lock', 20)}</div>
+        <div class="st"><div class="t">${S.consent.guardianEmail ? 'Waiting on your parent' : 'One step before your day syncs'}</div><div class="s">${S.consent.guardianEmail ? 'Everything you log is safe on this phone until they approve.' : 'You’re under 18 — a parent approves before your day reaches your coach. Tap to send it.'}</div></div>
+        ${icon('chevron', 16, 'style="color:var(--text-3)"')}
+      </div>` : issue === 'error' ? `
+      <div class="sheet-row" style="cursor:default">
+        <div class="si" style="background:var(--surface-2);color:var(--text-3)">${icon('wifiOff', 20)}</div>
+        <div class="st"><div class="t">Saved on your phone</div><div class="s">Not synced yet — we’ll keep trying. Your logs are safe and count locally.</div></div>
+      </div>` : '';
+
     if (e.celebration) {
       return `
       <div class="sheet-scrim" data-go="home"></div>
       <div class="sheet">
         <div class="grab"></div>
-        ${head}${segs}
+        ${head}${segs}${syncRow}
         <div class="hub-celeb">
           <div class="n">${e.score}</div>
           <div style="font-size:15px;font-weight:800;margin-top:2px">You're OnStandard.</div>
@@ -61,7 +75,7 @@ export default {
     <div class="sheet-scrim" data-go="home"></div>
     <div class="sheet">
       <div class="grab"></div>
-      ${head}${segs}
+      ${head}${segs}${syncRow}
       ${hero}
       <div class="xgrp" style="margin:0 2px 7px">Quick logs</div>
       ${hydro && hydro.state !== 'done' ? `
