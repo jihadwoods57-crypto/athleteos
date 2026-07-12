@@ -28,6 +28,24 @@ describe('item state boundaries', () => {
     const e = at(22 * 60); // past hydration's 21:30 target — optional items cap at 'ready'
     expect(e.items.find((i: any) => i.id === 'hydration')!.state).toBe('ready');
   });
+
+  // Home-screen dedup regression: in the evening, breakfast AND lunch are both overdue, so `now`
+  // and `next` are drawn from the FRONT of the overdue list — meaning `overdue` legitimately
+  // CONTAINS both. The home render must therefore exclude BOTH now and next from the overdue
+  // strip (it previously excluded only `now`, so lunch rendered twice — overdue strip + Next).
+  test('two overdue items: now and next are BOTH inside the overdue array (render must dedup both)', () => {
+    // Tuesday (dow 2) so weight — a Mon/Wed/Fri item — doesn't run and confound the scenario.
+    const e = deriveExec({ nowMin: 20 * 60, dow: 2, status: FRESH }); // 8 PM: breakfast + lunch overdue
+    const overdueIds = e.overdue.map((i: any) => i.id);
+    expect(overdueIds).toEqual(expect.arrayContaining(['breakfast', 'lunch']));
+    expect(e.now.id).toBe('breakfast');   // earliest-due overdue leads
+    expect(e.next.id).toBe('lunch');
+    // the invariant the home dedup relies on: next is itself an overdue item here
+    expect(overdueIds).toContain(e.next.id);
+    // after excluding both cards, nothing overdue is left for the strip → no duplicate row
+    const strip = e.overdue.filter((o: any) => o.id !== e.now.id && o.id !== e.next.id);
+    expect(strip).toHaveLength(0);
+  });
   test('countdown formats', () => {
     expect(fmtCountdown(47)).toBe('47 min');
     expect(fmtCountdown(132)).toBe('2:12');

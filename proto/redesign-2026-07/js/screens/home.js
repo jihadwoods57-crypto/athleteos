@@ -122,7 +122,7 @@ export default {
     ${appHead()}
     ${strip(e)}
     <div id="seen-row"></div>
-    ${e.overdue.filter((o) => !e.now || o.id !== e.now.id).map(row).join('')}
+    ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
     ${e.now ? nowCard(e) : ''}
     ${nextRows.length ? `<div class="xgrp">Next</div>${nextRows.map(row).join('')}` : ''}
     ${e.later.length ? `<div class="xgrp">Later · ${e.later.length}</div>${e.later.map(row).join('')}` : ''}
