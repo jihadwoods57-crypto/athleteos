@@ -32,9 +32,9 @@ export default {
     ${backHead('Connect a Coach', 'Enter the code your coach gave you', 'profile')}
 
     <div style="height:14px"></div>
-    <input id="cc-code" class="ob-input" placeholder="Coach code" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.2em;font-weight:800" />
+    <input id="cc-code" class="ob-input" placeholder="Coach code" aria-label="Coach or trainer code" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.2em;font-weight:800" />
     <div style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:10px">Ask your coach or team group chat for the code. Trainer codes work here too.</div>
-    <div id="cc-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
+    <div id="cc-err" role="alert" aria-live="assertive" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
 
     <div style="height:6px"></div>
     <button class="btn" id="cc-join">Connect</button>
@@ -61,6 +61,10 @@ export default {
       err.textContent = '';
       const code = (input.value || '').trim();
       if (!code) { err.textContent = 'Enter the code first.'; return; }
+      // Definitive-offline preflight: joinByCode's RPC failure copy reads "code didn't match",
+      // which is a lie when the real problem is the connection. navigator.onLine only ever
+      // under-reports offline (never blocks a live connection), so this adds no false blocking.
+      if (!navigator.onLine) { err.textContent = 'You need a connection for this — try again when you\'re online.'; return; }
       btn.disabled = true;
       const was = btn.textContent;
       btn.textContent = 'Connecting…';

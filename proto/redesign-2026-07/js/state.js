@@ -31,7 +31,7 @@ function fmtClock(min) {
 
 /* The meal currently being captured (Phase 5 AI loop). When MEAL.result is set, S.logging and
    the score use the REAL analyzed macros instead of the demo placeholders. */
-export const MEAL = { key: null, mealType: null, photoBase64: null, photoDataUrl: null, result: null };
+export const MEAL = { key: null, mealType: null, photoBase64: null, photoDataUrl: null, result: null, live: true };
 
 /** Bound the AI's macros to sane per-meal ranges (Atwater fallback for calories) so a mis-read
    can never spike the score — a lightweight port of macroGrounding for v1. */
@@ -197,6 +197,7 @@ export function mealDetail(slot) {
     macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
     img: (MEAL.key === k && MEAL.photoDataUrl) ? MEAL.photoDataUrl : null,
     note: meta.note || '',
+    live: meta.live !== false,
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
     fiber: meta.fiber || 0,
     highlights: Array.isArray(meta.highlights) ? meta.highlights : [],
@@ -240,8 +241,9 @@ export const act = {
     const from = computeScore(componentsNow());
     const meta = MEAL.result
       ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note, name: MEAL.result.name || MEAL.mealType,
-          fiber: MEAL.result.fiber || 0, highlights: MEAL.result.highlights || [], detectedRich: MEAL.result.detectedRich || [] }
-      : { name: MEAL.mealType || cap(slot) };
+          fiber: MEAL.result.fiber || 0, highlights: MEAL.result.highlights || [], detectedRich: MEAL.result.detectedRich || [],
+          live: MEAL.live !== false }
+      : { name: MEAL.mealType || cap(slot), live: MEAL.live !== false };
     const macros = loggingMacros();
     dayLogMeal(RT.userId, slot, macros, meta);
     const hasPhoto = MEAL.photoBase64 && MEAL.key === slot;
@@ -307,8 +309,9 @@ export const act = {
   setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); track(EVENTS.COMMITMENT_SET, { answer: ans }); },
 
   /* ---- Phase 5: real meal capture → AI → real macros ---- */
-  captureMeal(base64, dataUrl, slot) {
+  captureMeal(base64, dataUrl, slot, live = true) {
     MEAL.photoBase64 = base64; MEAL.photoDataUrl = dataUrl; MEAL.result = null;
+    MEAL.live = live !== false;
     // Real slot: the requirement row's slot if it passed one, else the next open slot by time.
     const key = nextOpenSlot(slot) || slot || 'dinner';
     MEAL.key = key;
@@ -331,7 +334,7 @@ export const act = {
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
   },
-  clearMeal() { MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null; MEAL.result = null; },
+  clearMeal() { MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null; MEAL.result = null; MEAL.live = true; },
   /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
      the actual macros the athlete assembled, not a demo constant. No AI "quality" is invented. */
   captureManual(macros, foods, slot) {
@@ -1211,7 +1214,7 @@ export const S = {
           { k: 'Foods', v: (r.detected.slice(0, 3).join(', ')) || 'read from your photo', ok: true },
         ],
         planMatch: { verdict: r.quality >= 75 ? 'Strong meal' : 'Logged', detail: r.note || 'Analyzed from your photo.', level: r.quality >= 75 ? 'g' : 'b' },
-        ai: r.note || 'Logged from your photo.', empty: false,
+        ai: r.note || 'Logged from your photo.', empty: false, live: MEAL.live !== false,
       };
     }
     // Already-logged slot being revisited: show its REAL persisted plate, not a demo meal.
@@ -1380,6 +1383,26 @@ export const S = {
       level: 'positive', title: "You're OnStandard", body: `Every requirement is in at ${e.score}. Day ${this.streakDays} of your streak locks at midnight.`,
       when: 'now', icon: 'check', route: 'home',
     });
+    // Tiered streak-at-risk row: only while a 2+ day streak hasn't been counted today and the
+    // day isn't already a celebration (which has its own positive row above — no double-count).
+    // Amber/flame when this week's grace is already used (stronger loss-aversion signal); blue/
+    // shield when grace is still intact (mild reminder). Leads the feed either way.
+    const st = this.streak;
+    if (st.days >= 2 && !st.todayCounted && !e.celebration) {
+      // Same actionable route the home ribbon uses (log the next open item); falls back to the
+      // score breakdown when everything left is time-locked — never a no-op 'home' tap.
+      const stNext = e.now || e.overdue[0] || null;
+      const stRoute = stNext ? stNext.route : 'score-breakdown';
+      fresh.unshift(st.graceUsedRecently ? {
+        level: 'high', icon: 'flame', when: 'now', route: stRoute,
+        title: `Your ${st.days}-day streak ends tonight`,
+        body: `This week’s grace day is already used — hit 80 before midnight or the streak resets.`,
+      } : {
+        level: 'medium', icon: 'shield', when: 'now', route: stRoute,
+        title: `Keep your ${st.days}-day run alive`,
+        body: `Finish today to extend your ${st.days}-day run. 80 before midnight locks it in.`,
+      });
+    }
     return { new: fresh, earlier: [] };
   },
 };

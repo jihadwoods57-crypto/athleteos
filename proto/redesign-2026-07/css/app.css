@@ -371,7 +371,7 @@ body {
 
 /* segmented tabs (Plan, Progress filter) */
 .seg { display: flex; gap: 4px; padding: 4px; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-pill); }
-.seg button { flex: 1; height: 38px; border: none; background: transparent; color: var(--text-2); font-family: var(--font); font-weight: 700; font-size: 13px; border-radius: var(--r-pill); cursor: pointer; transition: all var(--dur-1) var(--ease-out); }
+.seg button { flex: 1; height: 44px; border: none; background: transparent; color: var(--text-2); font-family: var(--font); font-weight: 700; font-size: 13px; border-radius: var(--r-pill); cursor: pointer; transition: all var(--dur-1) var(--ease-out); }
 .seg button.on { background: var(--surface-3); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 
 /* stat tiles (2x2 in plan summary) */

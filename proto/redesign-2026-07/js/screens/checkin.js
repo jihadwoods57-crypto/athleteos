@@ -17,8 +17,8 @@ export default {
       <div class="ts">The weekly check-in is worth 10 of your 100. It isn't submitted yet — the form below is a preview of Sunday's questions.</div></div>
     </div>
 
-    <div class="eyebrow">How the week felt</div>
-    <section class="card" style="padding:4px 18px 8px; opacity:0.92">
+    <div class="eyebrow">How the week felt <span style="color:var(--text-3);font-weight:700;display:inline-flex;align-items:center;gap:4px">${icon('lock', 12)} preview</span></div>
+    <section class="card" style="padding:4px 18px 8px; opacity:0.92; pointer-events:none" aria-hidden="true">
       ${W.fields.map(f => `
         <div class="rec-field">
           <div class="rec-top"><span class="rec-name">${f.k}</span><span class="rec-ends">1 → 5</span></div>
@@ -43,9 +43,7 @@ export default {
     <div style="height:10px"></div>
     `;
   },
-  async mount(root) {
-    const { wireToggles } = await import('./settings.js');
-    root.querySelectorAll('.chips5').forEach(g => g.setAttribute('data-toggle-group', ''));
-    wireToggles(root);
-  },
+  // No mount wiring: the weekly form is an honest preview until the Sunday flow is wired.
+  // The old wireToggles made chips light up on tap and silently discard the answer —
+  // manufactured "did that save?" doubt on a trust-first product.
 };

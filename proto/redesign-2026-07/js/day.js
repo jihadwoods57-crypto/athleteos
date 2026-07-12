@@ -360,6 +360,7 @@ export function dayLogMeal(userId, key, macros, meta) {
     if (meta.fiber != null) m.fiber = meta.fiber;
     if (Array.isArray(meta.highlights)) m.highlights = meta.highlights.slice(0, 3);
     if (Array.isArray(meta.detectedRich)) m.detectedRich = meta.detectedRich.slice(0, 8);
+    if (meta.live === false) m.live = false;
   }
   if (Object.keys(m).length) DAY.slotMacros[key] = m;
   pushDay(userId);

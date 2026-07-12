@@ -3,6 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- Content-Security-Policy (security audit 2026-07-12): a conservative second net beneath the
+       esc()/safeImg() output-encoding discipline. It hard-blocks plugin/embed injection, <base>-tag
+       hijacking, and framing, while staying permissive for the patterns the local bundle actually
+       uses (inline config script + inline style= attributes, data:/blob: images, https Supabase
+       REST/Functions/Storage + analytics). Tighten later by moving the inline config to a file and
+       dropping 'unsafe-inline'. Smoke-test on device after any change to the connect/img origins. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: https:; img-src 'self' data: blob: https:; connect-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" />
   <title>OnStandard — Athlete App Redesign</title>
   <link rel="stylesheet" href="./css/fonts.css" />
   <link rel="stylesheet" href="./css/tokens.css" />

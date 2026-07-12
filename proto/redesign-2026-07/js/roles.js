@@ -15,7 +15,10 @@ const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 /* ---------------- coach: teams + roster ---------------- */
 export async function fetchMyTeams() {
   const c = sb(); if (!c) return [];
-  try { const { data } = await c.from('teams').select('id,name'); return data || []; } catch { return []; }
+  // supabase-js resolves network failures into { error } without throwing — surface it as the
+  // { error: true } sentinel (same pattern as fetchMyPracticeIdentity) so an outage is never
+  // read as "no teams".
+  try { const { data, error } = await c.from('teams').select('id,name'); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
 export async function fetchTeamRoster(teamId) {
   const c = sb(); if (!c || !teamId) return [];
@@ -181,7 +184,9 @@ export async function nudgePush(athleteId, title, body) {
 /* ---------------- trainer mirror (practices) ---------------- */
 export async function fetchMyPractices() {
   const c = sb(); if (!c) return [];
-  try { const { data } = await c.from('practices').select('id,name,join_code,owner_id,handle'); return data || []; } catch { return []; }
+  // { error: true } sentinel on failure (see fetchMyTeams) — an outage must not read as
+  // "no practices".
+  try { const { data, error } = await c.from('practices').select('id,name,join_code,owner_id,handle'); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
 
 /** The signed-in trainer's own practice identity: real business name + real client join code.
@@ -244,6 +249,7 @@ export function buildRosterRow(member, dayRow) {
 /** Full coach roster: teams → members (RPC) → merged with today's linked day rows. */
 export async function loadCoachRoster() {
   const teams = await fetchMyTeams();
+  if (teams.error) throw new Error('roster-fetch-failed'); // caller renders honest offline
   if (!teams.length) return { teams: [], rows: [] };
   const [perTeam, days] = await Promise.all([
     Promise.all(teams.map(t => fetchTeamRoster(t.id))),
@@ -266,6 +272,7 @@ export async function loadCoachRoster() {
 /** Trainer book: practices → clients (RPC) → merged with today's linked day rows. */
 export async function loadTrainerBook() {
   const practices = await fetchMyPractices();
+  if (practices.error) throw new Error('book-fetch-failed'); // caller renders honest offline
   if (!practices.length) return { practices: [], rows: [] };
   const [perPractice, days] = await Promise.all([
     Promise.all(practices.map(p => fetchPracticeRoster(p.id))),

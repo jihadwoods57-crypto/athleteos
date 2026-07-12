@@ -77,16 +77,57 @@ function syncBanner() {
   return '';
 }
 
+// Tiered streak pill: while today isn't locked in yet, a 2+ day streak reads as "at risk"
+// (amber, this week's grace already used) or "covered" (blue, grace still intact) instead of
+// the flat passive 🔥-N-day badge — the badge should feel different the day it's actually on
+// the line. Once today counts (or the streak hasn't started), the old passive pill returns.
+function streakPill() {
+  const st = S.streak;
+  if (st.days >= 2 && !st.todayCounted) {
+    return st.graceUsedRecently
+      ? `<span class="stk-pill risk">${icon('flame', 11)} ${st.days}-DAY · AT RISK</span>`
+      : `<span class="stk-pill safe">${icon('shield', 11)} ${st.days}-DAY · COVERED</span>`;
+  }
+  if (st.days >= 2 && st.todayCounted) {
+    return `<span class="stk-pill secured">${icon('check', 11)} ${st.days}-DAY · SECURED</span>`;
+  }
+  return S.streakDays > 0 ? `<span style="font-size:11px;font-weight:700;color:var(--text-2)">🔥 ${S.streakDays} day streak</span>` : '';
+}
+
 function strip(e) {
   return `<section class="xstrip" data-go="score-breakdown">
     ${scoreRing({ score: e.score, size: 52, stroke: 6, glow: false, showCenter: false, uid: 'strip' })}
     <span class="xsc">${e.score}</span>
     <div class="xmid">
-      <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${S.streakDays > 0 ? `<span style="font-size:11px;font-weight:700;color:var(--text-2)">🔥 ${S.streakDays} day streak</span>` : ''}</div>
+      <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${streakPill()}</div>
       <div class="xsegs">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>
     </div>
     <div class="xmeta">${e.met} of ${e.total} in<br>${e.score} → ${e.possible}</div>
   </section>`;
+}
+
+// Streak-at-risk ribbon: a sibling of strip() (never a child — strip() owns
+// data-go="score-breakdown" and a nested data-go would fight it, though the router's
+// per-element stopPropagation would keep them independent regardless). Self-retires once
+// today counts, the streak hasn't reached day 2, or the day is already a celebration (that
+// path has its own "locks at midnight" copy — no double message).
+function streakPrompt(e) {
+  const st = S.streak;
+  if (!(st.days >= 2 && !st.todayCounted) || e.celebration) return '';
+  const strong = st.graceUsedRecently;
+  // When every remaining requirement is time-locked (no now/overdue), a "Log …" CTA would be a
+  // no-op promise — route to the score breakdown as "View standard" instead.
+  const next = e.now || e.overdue[0] || null;
+  const target = next ? next.route : 'score-breakdown';
+  const title = strong ? `Your ${st.days}-day streak ends tonight` : `Keep your ${st.days}-day run alive`;
+  const body = strong
+    ? `This week’s grace day is already used — hit 80 before midnight or the streak resets.`
+    : `Hit 80 before midnight to extend your ${st.days}-day run.`;
+  return `<div class="streak-ribbon ${strong ? 'strong' : 'mild'}" data-go="${target}">
+    <div class="sr-ic">${icon(strong ? 'flame' : 'shield', 18)}</div>
+    <div class="sr-body"><div class="sr-t">${esc(title)}</div><div class="sr-s">${esc(body)}</div></div>
+    <span class="sr-cta">${next ? `Log ${esc(next.title)}` : 'View standard'}</span>
+  </div>`;
 }
 
 function celebration(e) {
@@ -136,7 +177,7 @@ export default {
       ${appHead()}
       ${celebration(e)}
       <div id="seen-row" style="width:100%"></div>
-      ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${t.note}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
+      ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
       <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
       <div class="hscroll">${S.activity.map(actCard).join('')}</div>
       <div style="height:20px"></div>`;
@@ -147,6 +188,7 @@ export default {
     return `
     ${appHead()}
     ${strip(e)}
+    ${streakPrompt(e)}
     ${syncBanner()}
     <div id="seen-row"></div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
@@ -154,7 +196,7 @@ export default {
     ${nextRows.length ? `<div class="xgrp">Next</div>${nextRows.map(row).join('')}` : ''}
     ${e.later.length ? `<div class="xgrp">Later · ${e.later.length}</div>${e.later.map(row).join('')}` : ''}
     ${e.doneItems.length ? `<div class="xgrp">Done · ${e.doneItems.length}</div>${e.doneItems.map(row).join('')}` : ''}
-    ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${t.note}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
+    ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
     ${RT.injured ? `
     <div style="height:12px"></div>
     <div class="trust" data-go="injury" style="cursor:pointer;background:linear-gradient(100deg, rgba(245,165,36,0.14), rgba(59,130,246,0.05));border-color:var(--amber-border)">

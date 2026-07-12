@@ -126,6 +126,20 @@ function clientIp(req: Request): string {
   return (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
 }
 
+// Magic-byte sniff of a base64 image: return the real MIME, or null for anything we don't accept.
+// (base64 encodes 3 bytes -> 4 chars, so a fixed leading-byte signature maps to a fixed base64
+// prefix.) media_type was previously assumed 'image/jpeg'; a non-image just burned a paid call that
+// Anthropic then rejected, and random bytes/text could be dressed as a "photo" — reject junk up
+// front and pass the model the REAL type (audit 2026-07-12). Anthropic accepts jpeg/png/gif/webp.
+function detectImageMime(b64: string): string | null {
+  const s = b64.slice(0, 24);
+  if (s.startsWith('/9j/')) return 'image/jpeg';        // FF D8 FF
+  if (s.startsWith('iVBORw0KGgo')) return 'image/png';  // 89 50 4E 47 0D 0A 1A 0A
+  if (s.startsWith('R0lGOD')) return 'image/gif';       // "GIF8"
+  if (s.startsWith('UklGR')) return 'image/webp';       // "RIFF" container (WebP)
+  return null;
+}
+
 // Security hardening (audit G4). CORS: reflect the request Origin ONLY if it's on the allowlist.
 // A native app sends no Origin header (and there's no browser to enforce CORS for it), so it's
 // allowed; a browser Origin that isn't on the list gets no Access-Control-Allow-Origin, so the
@@ -423,12 +437,12 @@ function orderContent(req: AnalyzeReq): unknown[] {
   }];
 }
 
-function userContent(req: AnalyzeReq): unknown[] {
+function userContent(req: AnalyzeReq, photoMime: string): unknown[] {
   const blocks: unknown[] = [];
   if (req.photoBase64) {
     blocks.push({
       type: 'image',
-      source: { type: 'base64', media_type: 'image/jpeg', data: req.photoBase64 },
+      source: { type: 'base64', media_type: photoMime, data: req.photoBase64 },
     });
   }
   const goal = req.goal ? `Athlete goal: ${req.goal}.` : 'Athlete goal: general athletic development.';
@@ -473,12 +487,12 @@ function userContent(req: AnalyzeReq): unknown[] {
   return blocks;
 }
 
-function labelContent(req: AnalyzeReq): unknown[] {
+function labelContent(req: AnalyzeReq, photoMime: string): unknown[] {
   const blocks: unknown[] = [];
   if (req.photoBase64) {
     blocks.push({
       type: 'image',
-      source: { type: 'base64', media_type: 'image/jpeg', data: req.photoBase64 },
+      source: { type: 'base64', media_type: photoMime, data: req.photoBase64 },
     });
   }
   blocks.push({
@@ -525,6 +539,16 @@ Deno.serve(async (request) => {
   if (typeof req.photoBase64 === 'string' && req.photoBase64.length > 8_000_000) {
     return new Response(JSON.stringify({ error: 'photo too large' }), { status: 413, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
+  // Validate that a supplied photo really is a supported image (magic bytes), not arbitrary bytes
+  // dressed as a photo, and capture its REAL media type instead of assuming JPEG (audit 2026-07-12).
+  let photoMime = 'image/jpeg';
+  if (typeof req.photoBase64 === 'string' && req.photoBase64) {
+    const detected = detectImageMime(req.photoBase64);
+    if (!detected) {
+      return new Response(JSON.stringify({ error: 'unsupported image format' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+    photoMime = detected;
+  }
   if (isMemory) {
     // Rewording needs at least one insight, and no more than a sane cap (memory shows ~6).
     if (!Array.isArray(req.insights) || req.insights.length === 0) {
@@ -564,14 +588,17 @@ Deno.serve(async (request) => {
   if (!(await withinKeyCap('global', GLOBAL_CAP, /* failOpen */ false))) {
     return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
-  // (2) PER-CALLER daily cap — fairness/anti-spam, on the meal ESTIMATE + label only. 'finalize'
-  // reuses the slot 'analyze' already claimed (a meal stays 1 of the per-caller cap even with a
-  // follow-up); memory/order are exempt. A signed-in athlete gets the per-athlete daily cap; an
-  // anonymous (anon-key-only) caller gets a per-IP daily cap so the public anon key can't be
-  // abused without signing in (audit Finding #2). The signed-in cap fails open (never block a
-  // legit athlete's log on an infra hiccup); the anon-IP cap fails CLOSED — it's the only
-  // ceiling an anonymous caller has, so it must hold even when the counter is unreachable.
-  const countsAgainstDailyCap = !isMemory && !isOrder && !isFinalize;
+  // (2) PER-CALLER daily cap — fairness/anti-spam. memory/order are exempt (cheap Haiku prose); every
+  // paid meal/label VISION call counts, INCLUDING meal 'finalize'. finalize used to be exempt, on the
+  // assumption it only ever follows an 'analyze' that already claimed the slot — but `phase` is
+  // client-controlled, so an anon-key caller could send ONLY 'finalize' in a loop and skip the
+  // per-caller ceiling entirely, draining the shared daily budget behind the global cap (audit
+  // 2026-07-12 Finding 1). Counting finalize closes that: a two-call meal (analyze + finalize) now
+  // costs 2 of the per-caller cap — honest, it is two paid calls — and the cap is env-tunable
+  // (DAILY_ANALYSIS_CAP) for a heavy logger. A signed-in athlete gets the per-athlete daily cap (fails
+  // OPEN — never block a legit log on an infra hiccup); an anonymous caller gets a per-IP daily cap
+  // that fails CLOSED — the only ceiling an anon caller has, so it must hold when the counter is down.
+  const countsAgainstDailyCap = !isMemory && !isOrder;
   if (countsAgainstDailyCap) {
     const userId = await resolveUserId(request);
     const ok = userId
@@ -583,7 +610,7 @@ Deno.serve(async (request) => {
   }
 
   const system = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
-  const content = isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req) : userContent(req);
+  const content = isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req, photoMime) : userContent(req, photoMime);
 
   // Tool set + choice. Meal phase 'analyze' may EITHER finalize or ask a clarifying question, so it
   // offers both tools and lets the model choose. Every other path (label/memory/order, and meal

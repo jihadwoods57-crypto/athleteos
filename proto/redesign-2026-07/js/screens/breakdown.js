@@ -9,7 +9,7 @@ export default {
     ${backHead('Score Breakdown', 'Why you have this score, and how to climb')}
 
     <div class="bd-hero">
-      ${scoreRing({ score: S.score, size: 210, stroke: 14, uid: 'bd' })}
+      ${scoreRing({ score: S.score, size: 210, stroke: 14, uid: 'bd', tierName: S.tier.name, tierCls: S.tier.cls })}
     </div>
 
     <section class="card bd-comp">

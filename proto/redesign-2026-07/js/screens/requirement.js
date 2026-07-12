@@ -12,7 +12,15 @@ export default {
     const id = sub || 'dinner';
     const assigned = RT.assigned.find(a => a.id === id);
     const req = assigned ? deriveAssigned(assigned) : CATALOG.find(r => r.id === id);
-    if (!req) return `${backHead('Requirement', 'Not found')}<div class="state-demo"><div class="sd-t">Nothing here</div></div>`;
+    // Unknown id (stale deep-link, removed assigned task): a legible empty state with a
+    // forward path, not a bare "Nothing here" dead end.
+    if (!req) return `${backHead('Requirement', 'Not found', 'plan')}
+    <div class="state-demo">
+      <div class="sd-ic">${icon('clipboard', 26)}</div>
+      <div class="sd-t">This requirement isn't on your Standard</div>
+      <div class="sd-s">It may have been removed by your coach or already wrapped up. Your current rules and tasks live on your Plan.</div>
+      <div class="sd-cta"><button class="btn primary" data-go="plan">${icon('clipboard', 18)} Go to your Plan</button></div>
+    </div>`;
 
     const proof = PROOF[req.proof] || PROOF.check;
     const impact = IMPACT_LABEL[req.impact.kind === 'component' ? req.impact.comp : req.impact.kind];

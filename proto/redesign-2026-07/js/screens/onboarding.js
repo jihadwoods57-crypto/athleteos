@@ -25,7 +25,7 @@ function frame(n, title, sub, body, cta, next, opts = {}) {
     <div class="ob-body">${body}</div>
     <div class="ob-foot">
       ${cta ? `<button class="btn ${opts.green ? 'green' : 'primary'}" ${opts.disabled ? 'disabled' : ''} ${opts.act ? `data-act="${opts.act}"` : ''} data-${opts.act ? 'then' : 'go'}="${next}">${cta}</button>` : ''}
-      ${opts.skip ? `<div style="text-align:center;padding-top:14px;font-size:14px;font-weight:700;color:var(--text-3);cursor:pointer" data-go="${opts.skip}">Skip for now</div>` : ''}
+      ${opts.skip ? `<div class="ob-textlink" style="padding-top:14px" data-go="${opts.skip}">Skip for now</div>` : ''}
     </div>
   </div>`;
 }
@@ -79,14 +79,14 @@ const steps = {
         <span class="status-pill g">Connected</span>
       </section>
       <div style="height:12px"></div>
-      <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text-3);cursor:pointer" data-act="clearJoin">Remove connection</div>`,
+      <div class="ob-textlink" style="font-size:13px" data-act="clearJoin">Remove connection</div>`,
       'Continue', 'onboarding/3');
     }
     return frame(2, 'Your school', 'Find your school, then your coach. Their code is the handshake.', `
       <input id="sc-q" class="ob-input" placeholder="Search your school" autocorrect="off" spellcheck="false" />
       <div id="sc-out" style="margin-top:14px"></div>
       <div style="height:10px"></div>
-      <div id="sc-alt" style="text-align:center;font-size:14px;font-weight:700;color:var(--green-bright);cursor:pointer">I have a coach code</div>`,
+      <div id="sc-alt" class="ob-textlink g">I have a coach code</div>`,
       'Continue', 'onboarding/3', { skip: 'onboarding/3' });
   },
 

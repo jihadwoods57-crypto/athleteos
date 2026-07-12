@@ -38,9 +38,31 @@ export default {
       </section>
       <div style="height:10px"></div>`;
     }
+    // Current grace-aware streak leads the retention surface (same S.streak getter and the
+    // same grace-calibrated urgency rule as Home: amber ONLY when the grace day is spent).
+    const st = S.streak;
+    let streakRow = '';
+    if (st.days >= 2) {
+      if (!st.todayCounted) {
+        const strong = st.graceUsedRecently;
+        streakRow = `<div class="streak-ribbon ${strong ? 'strong' : 'mild'}" data-go="home" style="margin-top:2px">
+          <div class="sr-ic">${icon(strong ? 'flame' : 'shield', 18)}</div>
+          <div class="sr-body"><div class="sr-t">${st.days}-day streak${strong ? ' · at risk' : ''}</div>
+          <div class="sr-s">${strong ? 'This week’s grace day is already used — hit 80 before midnight or the streak resets.' : 'Hit 80 before midnight to extend your run.'}</div></div>
+          <span class="sr-cta">Today</span>
+        </div>`;
+      } else {
+        streakRow = `<div class="streak-ribbon mild" data-go="score-breakdown" style="margin-top:2px">
+          <div class="sr-ic" style="background:rgba(52,211,153,0.10);color:var(--green-bright)">${icon('check', 18)}</div>
+          <div class="sr-body"><div class="sr-t">${st.days}-day streak · secured</div>
+          <div class="sr-s">Today counts. Day ${st.days} locks at midnight.</div></div>
+          <span class="sr-cta">Score</span>
+        </div>`;
+      }
+    }
     return `
     <div class="screen-title">Progress</div>
-
+    ${streakRow}
     <div class="eyebrow">Recent OnStandard Score</div>
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d">${P.weekDelta} vs prior week</span>` : ''}</div>

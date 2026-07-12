@@ -268,7 +268,7 @@ export const notifSettings = {
     </div>
 
     <div class="eyebrow">Quiet hours · coming with reminders</div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Your pressure level above is live. Quiet-hours scheduling turns on when device reminders ship — set your preference here now.</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Your pressure level above is live. Quiet-hours scheduling turns on when device reminders ship — the controls below are a preview and don't save yet.</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('moon', 17)}</div>

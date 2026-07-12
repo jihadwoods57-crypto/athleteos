@@ -41,10 +41,10 @@ export default {
         <div class="sd-s">We asked ${c.guardianEmail ? esc(c.guardianEmail) : 'your parent'} to approve. Until they do, everything you log stays on this phone — nothing is lost, and it all syncs the moment they say yes.</div>
       </div>
       <div style="height:14px"></div>
-      <div class="eyebrow">Sent it to the wrong address?</div>
-      <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" placeholder="Parent or guardian email" />
+      <div class="eyebrow">Haven't heard back? Send a reminder — or fix the email.</div>
+      <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
       <div id="gd-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
-      <button class="btn ghost" id="gd-send">Re-send to a different email</button>
+      <button class="btn ghost" id="gd-send">Send reminder</button>
       <div style="height:10px"></div>`;
     }
     return `
@@ -82,7 +82,16 @@ export default {
       const was = btn.textContent;
       btn.textContent = 'Sending…';
       const r = await act.requestGuardianConsent(input.value);
-      if (r.ok) { window.__render(); return; }
+      if (r.ok) {
+        // Pending → pending repaints an identical view, so a successful reminder read as a
+        // no-op. Show inline confirmation instead; the default → pending flip still repaints.
+        if ((S.consent && S.consent.status) === 'pending') {
+          err.style.color = 'var(--green-bright)';
+          err.textContent = `Reminder sent${input.value ? ' to ' + input.value : ''}.`;
+          btn.disabled = false; btn.textContent = was;
+        } else { window.__render(); }
+        return;
+      }
       err.textContent = r.error || 'Could not send. Try again.';
       btn.disabled = false;
       btn.textContent = was;

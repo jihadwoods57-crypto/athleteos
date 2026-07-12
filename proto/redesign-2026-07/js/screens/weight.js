@@ -30,6 +30,13 @@ export default {
     // a claim about the past.
     const seed = W.current != null ? parseFloat(W.current) : (W.start != null ? W.start : 150);
     const hasTrend = W.history.length >= 2;
+    // Time-honest "late": derived from the exec engine's real window state, never asserted.
+    // On a non-weigh-in day weight isn't in exec items → not late. If exec throws → not late.
+    let isLate = false;
+    try {
+      const wItem = (S.exec.items || []).find(i => i.id === 'weight');
+      isLate = !!wItem && (wItem.state === 'overdue' || wItem.state === 'done_late');
+    } catch { /* honest default: no late claim */ }
     return `
     ${backHead('Morning Weight', 'Required Mon / Wed / Fri · Due by 9:00 AM')}
 
@@ -80,7 +87,7 @@ export default {
     </div>
 
     <div style="height:18px"></div>
-    <button class="btn primary" id="log-weight-btn">${icon('check', 19)} Log Weight (late · trend only)</button>
+    <button class="btn primary" id="log-weight-btn">${icon('check', 19)} ${isLate ? 'Log Weight (late · trend only)' : 'Log Weight · trend only'}</button>
     <div style="height:10px"></div>
     `;
   },

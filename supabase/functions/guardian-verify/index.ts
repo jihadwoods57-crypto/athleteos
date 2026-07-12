@@ -60,6 +60,21 @@ function page(status: number, title: string, body: string, button?: { token: str
   return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
 
+// Best-effort per-IP rate limit on the write path (audit 2026-07-12). The 128-bit opaque token
+// already makes brute force infeasible; this is defense in depth so the approval POST can't be
+// hammered. In-memory + per-isolate (resets on cold start), matching the other functions. Tunable.
+const RL_MAX = Number(Deno.env.get('GUARDIAN_VERIFY_RATE_PER_MIN') ?? '10');
+const RL_WINDOW_MS = 60_000;
+const rlHits = new Map<string, { count: number; resetAt: number }>();
+function rateLimited(req: Request): boolean {
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const now = Date.now();
+  const e = rlHits.get(ip);
+  if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS }); return false; }
+  e.count++;
+  return e.count > RL_MAX;
+}
+
 Deno.serve(async (request) => {
   if (!SUPABASE_URL || !SERVICE_ROLE) return page(500, 'Not configured', 'This approval endpoint is not set up yet.');
 
@@ -79,7 +94,9 @@ Deno.serve(async (request) => {
     return page(200, 'Approve this account?', 'Press Approve to confirm you are this athlete’s parent or guardian and consent to their nutrition data being shared with their coach.', { token });
   }
 
-  // POST: do the verification with the service role (bypasses RLS to set 'verified').
+  // POST: rate-limit the write path (brute-force blunt), then verify with the service role.
+  if (rateLimited(request)) return page(429, 'Too many attempts', 'Please wait a moment and try again.');
+  // (bypasses RLS to set 'verified'.)
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
   const { data, error } = await supabase
     .from('guardian_consent_requests')

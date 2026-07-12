@@ -23,6 +23,18 @@ const CRON_KEY = Deno.env.get('DIGEST_CRON_KEY') ?? '';
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
 
+// Constant-time compare of the shared cron key so the check leaks no timing signal about how many
+// leading bytes matched (audit 2026-07-12; belt-and-suspenders given the key is long + random).
+function safeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 /** Local ISO date N days ago (UTC-based; the digest is a weekly summary, not a clock). */
 function daysAgo(n: number): string {
   const d = new Date(Date.now() - n * 86_400_000);
@@ -79,7 +91,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
   // The shared-key gate is the endpoint's ONLY caller auth (deployed with JWT off so the
   // scheduler can call it). No key configured = fail closed, never open.
-  if (!CRON_KEY || req.headers.get('x-digest-key') !== CRON_KEY) return json({ error: 'unauthorized' }, 401);
+  if (!CRON_KEY || !safeEqual(req.headers.get('x-digest-key') ?? '', CRON_KEY)) return json({ error: 'unauthorized' }, 401);
   if (!SUPABASE_URL || !SERVICE_ROLE) return json({ error: 'server not configured' }, 500);
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);

@@ -78,8 +78,8 @@ export default {
             <span class="rec-name">${f.k}</span>
             <span class="rec-ends">${f.lo} → ${f.hi}</span>
           </div>
-          <div class="chips5" data-toggle-group>
-            ${[1,2,3,4,5].map(n => `<div class="c5 ${n === f.val ? 'on' : ''}" data-n="${n}">${n}</div>`).join('')}
+          <div class="chips5" data-toggle-group role="radiogroup" aria-label="${f.k}">
+            ${[1,2,3,4,5].map(n => `<div class="c5 ${n === f.val ? 'on' : ''}" data-n="${n}" role="radio" aria-checked="${n === f.val}" aria-label="${f.k}: ${n} of 5">${n}</div>`).join('')}
           </div>
         </div>`).join('')}
     </section>
@@ -111,8 +111,9 @@ export default {
         const n = +ch.getAttribute('data-n');
         if (ch.classList.contains('on')) answers[key] = n * 2;
         ch.addEventListener('click', () => {
-          chips.forEach(x => x.classList.remove('on'));
+          chips.forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
           ch.classList.add('on');
+          ch.setAttribute('aria-checked', 'true');
           answers[key] = n * 2;
           const g = root.querySelector('#rec-gain');
           if (g) {

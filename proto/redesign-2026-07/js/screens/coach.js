@@ -64,9 +64,13 @@ export const coach = {
     ${titleHead('Coach view', `${esc(teamName)} · today`)}
 
     <div class="coach-stats">
+      ${rows === null || (ROSTER && ROSTER.offline) ? `
+      <div class="coach-stat"><div class="v" style="color:var(--text-3)">—</div><div class="k">Team avg</div></div>
+      <div class="coach-stat"><div class="v" style="color:var(--text-3)">—</div><div class="k">On standard</div></div>
+      <div class="coach-stat"><div class="v" style="color:var(--text-3)">—</div><div class="k">Need attention</div></div>` : `
       <div class="coach-stat"><div class="v">${avg != null ? avg : '—'}</div><div class="k">Team avg</div></div>
       <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${onStd}</div><div class="k">On standard</div></div>
-      <div class="coach-stat"><div class="v" style="color:var(--red)">${attention.length}</div><div class="k">Need attention</div></div>
+      <div class="coach-stat"><div class="v" style="color:var(--red)">${attention.length}</div><div class="k">Need attention</div></div>`}
     </div>
 
     ${ROSTER && ROSTER.pending && ROSTER.pending.length ? `
@@ -532,15 +536,23 @@ export async function loadTrainerBook(force) {
   if (bookLoading) return;
   if (BOOK && !force) return;
   bookLoading = true;
-  const r = await roles.loadTrainerBook();
-  const pending = [];
-  for (const p of r.practices) {
-    const reqs = await roles.pendingPracticeRequests(p.id);
-    for (const q of reqs) pending.push({ practiceId: p.id, clientId: q.client_id, clientName: q.client_name });
+  try {
+    const r = await roles.loadTrainerBook();
+    const pending = [];
+    for (const p of r.practices) {
+      const reqs = await roles.pendingPracticeRequests(p.id);
+      for (const q of reqs) pending.push({ practiceId: p.id, clientId: q.client_id, clientName: q.client_name });
+    }
+    r.pending = pending;
+    r.offline = false;
+    BOOK = r;
+  } catch {
+    // Same honest-offline pattern as loadCoachRoster: a thrown fetch must never read as
+    // "No clients yet" — a trainer with a full book, merely offline, was told they had zero.
+    BOOK = { practices: [], rows: [], pending: [], offline: true };
+  } finally {
+    bookLoading = false; // always clear so a retry can re-run
   }
-  r.pending = pending;
-  BOOK = r;
-  bookLoading = false;
   if (location.hash === '#trainer') window.__render();
 }
 function bookName(athleteId) {
@@ -569,6 +581,10 @@ export const trainer = {
     ${rows === null ? `
     <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
     <div><div class="tt">Loading your clients…</div></div></div>`
+    : (BOOK && BOOK.offline) ? `
+    <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+    <div class="sd-t">Can't reach your clients</div>
+    <div class="sd-s">We couldn't load today's scores — check your connection. Reopen this tab to retry; nothing is lost.</div></div>`
     : rows.length === 0 ? `
     <div class="state-demo"><div class="sd-ic">${icon('heart', 24)}</div>
     <div class="sd-t">No clients yet</div><div class="sd-s">Share your practice code so athletes can connect. Their real scores show up here.</div></div>`
@@ -689,6 +705,11 @@ export const parent = {
       <div><div class="tt">What parents will see</div>
       <div class="ts">Scores, streaks, and completion only. Meal photos, weight, and check-in answers stay between your athlete and their coach by default.</div></div>
     </div>
+
+    <div style="height:14px"></div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
+    </section>
     <div style="height:10px"></div>
     `;
   },

@@ -19,7 +19,7 @@ export default {
     <section class="card id-card">
       <div style="position:relative" id="avatar-wrap">
         ${avatarEl()}
-        <div class="req-badge b" style="top:auto;bottom:-4px;left:auto;right:-4px;width:22px;height:22px;cursor:pointer" id="avatar-btn" title="Upload photo">${icon('camera', 12)}</div>
+        <div id="avatar-btn" style="position:absolute;bottom:-6px;right:-6px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer" title="Upload photo" aria-label="Upload photo"><span class="req-badge b" style="position:static;width:28px;height:28px;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${icon('camera', 14)}</span></div>
         <input type="file" id="avatar-file" accept="image/*" style="display:none" />
       </div>
       <div style="flex:1">
@@ -27,7 +27,7 @@ export default {
         <div class="meta">${esc([S.athlete.sport, S.athlete.position].filter(Boolean).join(' · ') || 'Add your sport')}</div>
         <div class="meta" style="margin-top:1px">${esc(S.athlete.school || 'Add your school')}</div>
       </div>
-      <button class="btn ghost sm" style="width:auto;padding:0 16px;height:40px" data-go="edit-profile">Edit</button>
+      <button class="btn ghost sm" style="width:auto;padding:0 16px;height:44px" data-go="edit-profile">Edit</button>
     </section>
 
     ${t.active ? `
@@ -133,14 +133,43 @@ export default {
     const btn = root.querySelector('#avatar-btn');
     const file = root.querySelector('#avatar-file');
     if (btn && file) {
-      btn.addEventListener('click', (e) => { e.stopPropagation(); file.click(); });
+      // Injected fresh on every mount, so it needs no data-go/data-act wiring — the
+      // router only wires those at render time, but this element never touches render().
+      const idCard = root.querySelector('.id-card');
+      const err = document.createElement('div');
+      err.id = 'avatar-err';
+      err.style.cssText = 'color:#f87171;font-size:13px;font-weight:600;min-height:18px;text-align:center;margin-top:8px';
+      idCard?.insertAdjacentElement('afterend', err);
+
+      let busy = false;
+      const setBusy = (on) => {
+        busy = on;
+        btn.style.opacity = on ? '0.5' : '';
+        btn.title = on ? 'Uploading photo…' : 'Upload photo';
+      };
+
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (busy) return;
+        file.click();
+      });
       file.addEventListener('change', () => {
         const f = file.files && file.files[0];
         if (!f) return;
+        err.textContent = '';
+        setBusy(true);
         const reader = new FileReader();
+        reader.onerror = () => {
+          setBusy(false);
+          err.textContent = "Couldn't read that photo — try a JPG or PNG.";
+        };
         reader.onload = () => {
           // downscale via canvas so localStorage stays small
           const img = new Image();
+          img.onerror = () => {
+            setBusy(false);
+            err.textContent = "Couldn't read that photo — try a JPG or PNG.";
+          };
           img.onload = () => {
             const c = document.createElement('canvas');
             const s = Math.min(img.width, img.height);
@@ -148,7 +177,7 @@ export default {
             const ctx = c.getContext('2d');
             ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 128, 128);
             window.__act.saveProfile({ avatar: c.toDataURL('image/jpeg', 0.82) });
-            location.reload();
+            window.__render();
           };
           img.src = reader.result;
         };
