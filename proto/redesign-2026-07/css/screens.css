@@ -285,6 +285,7 @@
 .stk-pill svg{width:11px;height:11px}
 .stk-pill.risk{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}
 .stk-pill.safe{background:var(--blue-surface);color:var(--blue-bright);border:1px solid var(--blue-border)}
+.stk-pill.secured{background:rgba(52,211,153,0.10);color:var(--green-bright);border:1px solid var(--green-border)}
 /* Streak-at-risk ribbon — sibling of .xstrip, own tap target (44px+), reuses the amber/blue
    pair the rest of the app already uses for urgency vs. mild-reminder framing. */
 .streak-ribbon{display:flex;align-items:center;gap:11px;min-height:44px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:16px;padding:10px 12px;margin:2px 0 10px;cursor:pointer}
