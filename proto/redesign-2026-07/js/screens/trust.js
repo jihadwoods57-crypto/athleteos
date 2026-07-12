@@ -23,6 +23,10 @@ export const trust = {
     });
     const path = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
     const youX = 16 + ((t.day - 1) / 13) * 268;
+    // Where the athlete's credit actually sits on the decay slope (same formula as pts).
+    const youY = 74 - (t.day <= 10 ? 1 : Math.max(0, 1 - (t.day - 10) * 0.05)) * 54;
+    // Next camera spot-check derived from the real current day — never a frozen "day 5".
+    const nextCheck = t.day < 5 ? 5 : t.day < 10 ? 10 : null;
     return `
     ${backHead('Trust Pass', `Day ${t.day} of ${t.length} · camera-free, honestly`)}
 
@@ -59,7 +63,7 @@ export const trust = {
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('camera', 17)}</div>
-        <div class="lm"><div class="lt">Spot-check every 5th day</div><div class="ls">Day 5 and day 10 the camera comes back. Next check: day 5.</div></div>
+        <div class="lm"><div class="lt">Spot-check every 5th day</div><div class="ls">${nextCheck ? `Day 5 and day 10 the camera comes back. Next check: day ${nextCheck}.` : 'Day 5 and day 10 the camera came back — both checks cleared. Coast on your real logging.'}</div></div>
       </div>
     </section>
 
@@ -71,7 +75,7 @@ export const trust = {
           <stop offset="0%" stop-color="#A855F7"/><stop offset="70%" stop-color="#A855F7"/><stop offset="100%" stop-color="#F5A524"/>
         </linearGradient></defs>
         <line x1="${youX}" y1="14" x2="${youX}" y2="76" stroke="rgba(168,85,247,0.4)" stroke-width="1.5" stroke-dasharray="3 3"/>
-        <circle cx="${youX}" cy="${(16 + ((t.day - 1) / 13) * 268) <= 220 ? 20 : 20}" r="0"/>
+        <circle cx="${youX}" cy="${youY.toFixed(1)}" r="4" fill="#C084FC" stroke="#0B0F1A" stroke-width="1.5"/>
         <text x="${youX}" y="10" fill="#C084FC" font-size="9" font-weight="800" text-anchor="middle" font-family="Plus Jakarta Sans">YOU · DAY ${t.day}</text>
         <text x="16" y="82" fill="#64748B" font-size="8.5" font-weight="700" font-family="Plus Jakarta Sans">DAY 1</text>
         <text x="220" y="82" fill="#64748B" font-size="8.5" font-weight="700" font-family="Plus Jakarta Sans">DAY 10</text>
