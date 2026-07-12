@@ -232,6 +232,19 @@
 @media (prefers-reduced-motion: reduce) { .hq-spin { animation: none; } }
 
 /* ----- Notifications ----- */
+.nhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 2px 10px; }
+.nsummary { font-size: 13px; font-weight: 700; color: var(--text-2); display: flex; align-items: center; gap: 8px; }
+.nsummary .cnt { color: var(--text); font-weight: 800; }
+.nsummary.allclear { color: var(--green-bright); display: inline-flex; align-items: center; gap: 6px; }
+.markread {
+  appearance: none; border: 0; background: transparent; color: var(--blue-bright); font-family: var(--font);
+  font-size: 13px; font-weight: 800; letter-spacing: 0.01em; cursor: pointer; min-height: 44px; padding: 0 6px;
+  border-radius: 10px; display: inline-flex; align-items: center;
+  transition: color var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out);
+}
+.markread:active { transform: scale(0.97); }
+.markread[disabled] { color: var(--text-3); opacity: 0.5; cursor: default; pointer-events: none; }
+
 .notif { display: flex; gap: 13px; padding: 15px 16px; border-radius: 18px; background: var(--surface-1); border: 1px solid var(--hairline); margin-bottom: 10px; }
 .notif .nic { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; flex: none; }
 .notif.high .nic { background: rgba(245,165,36,0.18); color: var(--amber-bright); }
@@ -247,6 +260,42 @@
 .level-tag.critical { background: var(--red-surface); color: var(--red); }
 .level-tag.medium { background: var(--blue-surface); color: var(--blue-bright); }
 .level-tag.positive { background: var(--green-surface); color: var(--green-bright); }
+
+/* meta column: timestamp + unread dot (read swaps the dot for a chevron in JS) */
+.nmeta { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; flex: none; padding-top: 2px; }
+.udot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 0 3px var(--surface-1); background: var(--text-3); }
+.notif.unread.high .udot { background: var(--amber-bright); }
+.notif.unread.medium .udot { background: var(--blue-bright); }
+.notif.unread.positive .udot { background: var(--green-bright); }
+.notif.unread.critical .udot { background: var(--red); }
+
+/* UNREAD emphasis: full border in level color + faint inset wash — never a side-stripe */
+.notif.unread.high { border-color: var(--amber-border); background: linear-gradient(180deg, rgba(245,165,36,0.05), transparent 60%), var(--surface-1); }
+.notif.unread.critical { border-color: var(--red-border); background: linear-gradient(180deg, rgba(246,87,87,0.06), transparent 60%), var(--surface-1); }
+.notif.unread.medium { border-color: var(--blue-border); background: linear-gradient(180deg, rgba(59,130,246,0.05), transparent 60%), var(--surface-1); }
+.notif.unread.positive { border-color: var(--green-border); background: linear-gradient(180deg, rgba(52,211,153,0.05), transparent 60%), var(--surface-1); }
+
+/* READ state: dimmed, chevron replaces dot — placed after .notif.critical/.notif.unread.* so its
+   equal-specificity --hairline border wins on read rows. */
+.notif.read { background: var(--surface-1); border-color: var(--hairline); }
+.notif.read .nic { opacity: 0.5; }
+.notif.read .nt { color: var(--text-2); font-weight: 700; }
+.notif.read .nb { color: var(--text-3); }
+.notif.read .udot { display: none; }
+
+/* empty state (upgraded; scoped to notifications — .state-demo stays the shared default elsewhere) */
+.ne-empty {
+  margin: 26px 0 8px; padding: 34px 22px; text-align: center; border-radius: var(--r-card);
+  background: radial-gradient(120% 70% at 50% 0%, rgba(52,211,153,0.06), transparent 60%), var(--surface-1);
+  border: 1px solid var(--hairline);
+}
+.ne-ring { width: 74px; height: 74px; margin: 0 auto 16px; border-radius: 50%; display: grid; place-items: center; background: var(--green-surface); color: var(--green-bright); position: relative; }
+.ne-ring::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid var(--green-border); opacity: 0.5; }
+.ne-t { font-size: 17px; font-weight: 800; letter-spacing: var(--title-tight); }
+.ne-s { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top: 7px; line-height: 1.5; max-width: 34ch; margin-left: auto; margin-right: auto; }
+.ne-list { margin: 18px auto 2px; max-width: 250px; display: flex; flex-direction: column; gap: 9px; text-align: left; }
+.ne-item { display: flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
+.ne-d { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex: none; background: var(--surface-2); color: var(--text-3); }
 
 /* ----- Plan tabs (underline style) ----- */
 .ptabs { display: flex; gap: 22px; border-bottom: 1px solid var(--hairline); padding: 0 2px; margin-top: 6px; }

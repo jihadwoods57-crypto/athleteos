@@ -165,7 +165,7 @@ export function appHead() {
       <div class="name">${esc(S.athlete.first)}</div>
     </div>
     <div class="actions">
-      <div class="iconbtn" data-go="notifications">${icon('bell', 20)}${n ? `<span class="dot">${n}</span>` : ''}</div>
+      <div class="iconbtn" data-go="notifications" role="button" aria-label="${n ? `Notifications, ${n} unread` : 'Notifications'}">${icon('bell', 20)}${n ? `<span class="dot">${n > 9 ? '9+' : n}</span>` : ''}</div>
       ${S.athlete.avatar && safeImg(S.athlete.avatar)
         ? `<div class="avatar" data-go="profile" style="background-image:url('${safeImg(S.athlete.avatar)}');background-size:cover;background-position:center"></div>`
         : `<div class="avatar" data-go="profile">${esc(S.athlete.initials)}</div>`}
