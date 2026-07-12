@@ -34,8 +34,8 @@ buyers, parents pay, athletes are taught (not just scored).
 - Trainer identity needs two table reads (practices + profiles); an optional `practice_identity()` RPC would make it one round-trip — FOUNDER-GATED (requires migration; author-only, never apply).
 - Practice HQ roadmap sections (business health, client health, AI assistant, analytics, default-standard mgmt, branding, integrations, business tools) exist only as LOCKED rows.
 - Surfaces reading `e.now||e.overdue[0]` must handle the "everything time-locked" case (both null while score <80) — streakPrompt/notifications now fall back to score-breakdown (`2444ce5`); a shared `S.exec.nextActionable` helper is still worth it if a third surface appears.
-- 2026-07-12 (T1 QA, confirmed, OPEN): `.vf-hint` uses `--text-3` over the viewfinder gradient = 4.13:1, below AA 4.5:1 for 12.5px/600 text (`css/screens.css:56`). One-line fix: `var(--text-2)` (~5.2:1, existing token).
-- 2026-07-12 (T1 QA, confirmed, OPEN): `.vf-deadline` pill duplicates the new "Take a photo to analyze" prompt in the only reachable pre-capture state (`camera.js:62`, `state.js:1233`) and the clock affordance conveys no time. Fix: hide when `L.empty` or fall back to `L.due`; never alter `L.remaining` data.
+- ~~2026-07-12 (T1 QA) `.vf-hint` 4.13:1 sub-AA contrast~~ FIXED 2026-07-12 in `156123a` (tag `fable5/2026-07-12-worklist-qa-followups`): `--text-3` → `--text-2`, browser-measured rgb(154,169,194) live.
+- ~~2026-07-12 (T1 QA) `.vf-deadline` duplicates the capture prompt~~ FIXED 2026-07-12 in `156123a`: pill renders only when `!L.empty`; header keeps the real `L.due`; `L.remaining` data untouched. Prompt occurs exactly once (browser-probed).
 - 2026-07-12 (T5 audit): header bell + back are 42px, 2px under the 44px floor (`components.js` appHead) — bundled into the gated T5 build.
 
 ## Open Bugs
@@ -43,7 +43,7 @@ buyers, parents pay, athletes are taught (not just scored).
 - ~~Offline trainer shown "minting"~~ FIXED in-tree (verified 2026-07-11): `fetchMyPracticeIdentity` returns `{error:true}` on fetch failure (roles.js:78) and `_loadPracticeIntoRt` sets `RT.practiceOffline` distinct from minting (state.js:489–505, surfaced at :902). Memory was stale.
 - ~~Streak-run QA #1 (locked-window no-op CTA)~~ + ~~#2 (notif rows route:'home')~~ FIXED 2026-07-12 in `2444ce5`: shared root fix — `e.now || e.overdue[0] || score-breakdown` fallback with "View standard" CTA, notification rows compute the same route.
 - ~~Streak-run QA #3 (green secured pill)~~ BUILT 2026-07-12 in `0485fea` — founder approved green over quiet.
-- 2026-07-12 (T2 QA, confirmed, OPEN): `MEAL.live` leaks into manual entries — `captureManual` (`state.js:340`) never resets the flag and `clearMeal` has zero call sites, so Gallery pick → back → food-search log stamps NON-LIVE on a manual entry. Fix: `MEAL.live = true;` at the top of `captureManual` (presentation-only, no score impact).
+- ~~2026-07-12 (T2 QA) `MEAL.live` leaks into manual entries~~ FIXED 2026-07-12 in `156123a`: `captureManual` now sets `MEAL.live = true` (manual entries have no photo provenance; presentation-only, no score impact).
 - 2026-07-12 (sweep #1, plan.js A1): `S.planTargets` returns `null` identically for coach-set-nothing / hydrating / offline (`state.js:976–982`) and plan.js asserts "coach hasn't set targets yet" — an offline athlete with real targets is told their coach set none. Resolve into 3 honest states via the SETTLED `{error:true}`/loading sentinel. Top pass-2 item.
 
 ## Roadmap
