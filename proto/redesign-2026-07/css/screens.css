@@ -44,14 +44,21 @@
     var(--surface-2);
   border: 1px solid var(--hairline);
 }
-.viewfinder .vf-img { position:absolute; inset:0; background-size: cover; background-position: center; opacity: 0.92; }
+.vf-empty {
+  position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 0 28px;
+}
+.vf-empty .vf-lens {
+  width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(7,11,20,0.45); border: 1px solid var(--hairline); color: var(--text-3); margin-bottom: 4px;
+}
+.vf-empty .vf-prompt { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: var(--title-tight); }
+.vf-empty .vf-hint { font-size: 12.5px; font-weight: 600; color: var(--text-3); }
 .vf-corner { position: absolute; width: 34px; height: 34px; border: 3px solid rgba(255,255,255,0.85); z-index: 3; }
 .vf-corner.tl { top: 16px; left: 16px; border-right: none; border-bottom: none; border-radius: 10px 0 0 0; }
 .vf-corner.tr { top: 16px; right: 16px; border-left: none; border-bottom: none; border-radius: 0 10px 0 0; }
 .vf-corner.bl { bottom: 16px; left: 16px; border-right: none; border-top: none; border-radius: 0 0 0 10px; }
 .vf-corner.br { bottom: 16px; right: 16px; border-left: none; border-top: none; border-radius: 0 0 10px 0; }
-.vf-tools { position: absolute; top: 14px; right: 14px; display: flex; flex-direction: column; gap: 10px; z-index: 4; }
-.vf-tool { width: 40px; height: 40px; border-radius: 50%; background: rgba(7,11,20,0.55); backdrop-filter: blur(8px); display:grid; place-items:center; color:#fff; cursor:pointer; }
 .vf-deadline {
   position:absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 4;
   background: rgba(7,11,20,0.6); backdrop-filter: blur(8px); border: 1px solid rgba(245,165,36,0.4);

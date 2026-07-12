@@ -54,17 +54,14 @@ export default {
       </div>
 
       <div class="viewfinder">
-        <div class="vf-img" style="background-image:url('assets/meal-lunch.jpg'); filter: blur(1.5px) brightness(0.85); transform: scale(1.06)"></div>
-        <div class="vf-deadline">${icon('clock', 13)} ${L.remaining}</div>
-        <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:6px;background:rgba(7,11,20,0.6);backdrop-filter:blur(8px);border:1px solid var(--green-border);color:var(--green-bright);font-size:11px;font-weight:800;padding:5px 12px;border-radius:999px">
-          <span style="width:7px;height:7px;border-radius:50%;background:var(--green-bright);box-shadow:0 0 8px var(--green-bright)"></span> LIVE
+        <div class="vf-empty">
+          <div class="vf-lens">${icon('camera', 30)}</div>
+          <div class="vf-prompt">Take a photo to analyze</div>
+          <div class="vf-hint">Tap the shutter — your camera opens</div>
         </div>
+        <div class="vf-deadline">${icon('clock', 13)} ${L.remaining}</div>
         <div class="vf-corner tl"></div><div class="vf-corner tr"></div>
         <div class="vf-corner bl"></div><div class="vf-corner br"></div>
-        <div class="vf-tools">
-          <div class="vf-tool">${icon('flash', 18)}</div>
-          <div class="vf-tool">${icon('flip', 18)}</div>
-        </div>
       </div>
 
       <div class="cam-note">Hidden foods, portion, drink, how you're feeling…</div>
@@ -85,10 +82,6 @@ export default {
     </div>`;
   },
   mount(root, { sub } = {}) {
-    root.querySelectorAll('.vf-tool').forEach(t => t.addEventListener('click', (e) => {
-      e.stopPropagation();
-      t.style.color = t.style.color === 'var(--amber-bright)' ? '#fff' : 'var(--amber-bright)';
-    }));
     // Real capture: shutter opens the native camera/photo picker; the photo is downscaled,
     // handed to state, and the analyzing screen runs the AI on it.
     const file = root.querySelector('#cam-file');
