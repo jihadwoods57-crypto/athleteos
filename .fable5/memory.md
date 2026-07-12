@@ -38,6 +38,7 @@ buyers, parents pay, athletes are taught (not just scored).
 - ~~2026-07-12 (T1 QA) `.vf-hint` 4.13:1 sub-AA contrast~~ FIXED 2026-07-12 in `156123a` (tag `fable5/2026-07-12-worklist-qa-followups`): `--text-3` → `--text-2`, browser-measured rgb(154,169,194) live.
 - ~~2026-07-12 (T1 QA) `.vf-deadline` duplicates the capture prompt~~ FIXED 2026-07-12 in `156123a`: pill renders only when `!L.empty`; header keeps the real `L.due`; `L.remaining` data untouched. Prompt occurs exactly once (browser-probed).
 - 2026-07-12 (T5 audit): header bell + back are 42px, 2px under the 44px floor (`components.js` appHead) — bundled into the gated T5 build.
+- ~~2026-07-12 (T2A QA) non-live meal timing self-contradicted scoreStatus~~ FIXED 2026-07-12 in `89a7538`: `meal.js` `timing` now branches on `M.live===false` ("Logged late" / "Logged from gallery", no "still counts" claim) instead of reusing the live-capture string that collided with "Won't count toward your score" at the exec summary + thread header. Presentation-only; browser-verified all 4 late/on-time × live/non-live permutations at 390×844.
 
 ## Open Bugs
 - ~~Parent tab root back-nav~~ FIXED in-tree (verified 2026-07-11 by screen-run audit + grep): parent root uses `titleHead('Parent view','Setting up access')` at coach.js:679. Memory was stale.
