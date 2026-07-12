@@ -1,0 +1,400 @@
+<title>OnStandard &middot; Home Score Box (T3)</title>
+<style>
+  :root{
+    /* App tokens (from proto/redesign-2026-07/css/tokens.css) */
+    --bg:#070B14; --bg2:#0A1120; --surface-1:#0E1421; --surface-2:#131C2D; --surface-3:#1A2436;
+    --hairline:rgba(148,176,224,0.10); --hairline-soft:rgba(148,176,224,0.055);
+    --text:#EEF3FB; --text-2:#9AA9C2; --text-3:#7C8BA6;
+    --blue:#3B82F6; --blue-bright:#60A5FA; --blue-surface:rgba(59,130,246,0.14); --blue-border:rgba(59,130,246,0.34);
+    --green:#34D399; --green-bright:#4ADE80; --green-surface:rgba(52,211,153,0.13); --green-border:rgba(52,211,153,0.30);
+    --amber:#F5A524; --amber-bright:#FBBF24; --amber-surface:rgba(245,165,36,0.13); --amber-border:rgba(245,165,36,0.32);
+    --red:#F65757; --red-surface:rgba(246,87,87,0.13); --red-border:rgba(246,87,87,0.30);
+    --num-tight:-0.03em; --title-tight:-0.02em;
+    --font:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --r-pill:999px; --sh-card:0 1px 0 rgba(255,255,255,0.02) inset,0 8px 24px rgba(0,0,0,0.36);
+    --ease-out:cubic-bezier(0.16,1,0.3,1);
+    /* Studio chrome (this page, not the app) */
+    --studio-ink:#EAF0FB; --studio-dim:#8A96AD; --studio-line:rgba(150,175,220,0.14);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:var(--font); color:var(--studio-ink);
+    background:
+      radial-gradient(120% 90% at 50% -10%, #0C1424 0%, #070B14 55%, #05070E 100%);
+    min-height:100vh; -webkit-font-smoothing:antialiased;
+    padding:28px 16px 64px;
+  }
+  .wrap{max-width:840px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:22px}
+
+  /* ---- studio header ---- */
+  .head{width:100%;max-width:560px;text-align:center;display:flex;flex-direction:column;gap:8px}
+  .kicker{font-size:11px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-bright)}
+  .head h1{margin:0;font-size:26px;font-weight:800;letter-spacing:var(--title-tight);line-height:1.12;text-wrap:balance}
+  .head p{margin:0;font-size:13.5px;line-height:1.55;color:var(--studio-dim);max-width:52ch;margin-inline:auto}
+
+  /* ---- control rows ---- */
+  .controls{width:100%;max-width:560px;display:flex;flex-direction:column;gap:12px}
+  .ctl-label{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);margin-bottom:2px}
+  .seg{display:flex;gap:6px;flex-wrap:wrap;background:rgba(13,20,34,0.7);border:1px solid var(--studio-line);border-radius:16px;padding:6px}
+  .seg button{
+    flex:1 1 auto;min-height:44px;min-width:64px;padding:8px 10px;border:0;border-radius:11px;cursor:pointer;
+    background:transparent;color:var(--text-2);font-family:inherit;font-size:12.5px;font-weight:700;letter-spacing:.01em;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    transition:background .18s var(--ease-out),color .18s var(--ease-out);
+  }
+  .seg button small{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.02em}
+  .seg button[aria-pressed="true"]{background:var(--surface-2);color:var(--text);box-shadow:var(--sh-card)}
+  .seg button[aria-pressed="true"] small{color:var(--text-2)}
+  .seg button:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
+  .vseg{max-width:280px;margin-inline:auto}
+  .vseg button{flex:1 1 0}
+
+  /* ---- phone frame ---- */
+  .phone{
+    width:390px;max-width:100%;border-radius:44px;padding:12px;
+    background:linear-gradient(180deg,#141C2C,#0B111C);
+    border:1px solid rgba(150,175,220,0.16);
+    box-shadow:0 40px 90px -30px rgba(0,0,0,0.85),0 0 0 1px rgba(0,0,0,0.5);
+  }
+  .screen{
+    position:relative;border-radius:34px;overflow:hidden;background:
+      radial-gradient(120% 60% at 50% 0%, var(--bg2) 0%, var(--bg) 60%);
+    padding:0 20px 22px;min-height:560px;
+  }
+  .notch{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:120px;height:26px;border-radius:0 0 16px 16px;background:#05070E;z-index:5}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:14px 4px 18px;font-size:12px;font-weight:700;color:var(--text-2)}
+
+  /* app header */
+  .apphead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+  .greeting{font-size:13px;font-weight:600;color:var(--text-2)}
+  .name{font-size:22px;font-weight:800;letter-spacing:var(--title-tight)}
+  .apphead .actions{display:flex;gap:10px;align-items:center}
+  .iconbtn,.avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--hairline)}
+  .avatar{background:var(--blue);color:#fff;font-weight:800;font-size:13px;border:0}
+  .iconbtn{color:var(--text-2)}
+
+  /* ===================== THE SCORE BOX (redesign) ===================== */
+  .xstrip{
+    display:flex;align-items:center;gap:14px;background:var(--surface-1);
+    border:1px solid var(--hairline);border-radius:20px;padding:13px 15px;cursor:pointer;
+    box-shadow:var(--sh-card);position:relative;overflow:hidden;
+    transition:border-color .2s var(--ease-out);
+  }
+  .xstrip:hover{border-color:rgba(148,176,224,0.2)}
+  .xstrip:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
+  /* tier-tinted wash bleeding from the ring side &mdash; subtle, ties the box to its state */
+  .xstrip .wash{position:absolute;inset:0;pointer-events:none;opacity:.6;
+    background:radial-gradient(70% 120% at 0% 50%, var(--tint-wash), transparent 62%)}
+
+  .dial{position:relative;flex:0 0 auto;display:grid;place-items:center}
+  .dial svg{display:block;transform:rotate(-90deg)}
+  .dial .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+  .dial .num b{font-size:22px;font-weight:800;letter-spacing:var(--num-tight);font-variant-numeric:tabular-nums;color:var(--text)}
+  .dial .num i{font-style:normal;font-size:8px;font-weight:800;letter-spacing:.08em;color:var(--text-3);margin-top:1px}
+
+  .xmid{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+  .xmid .toprow{display:flex;align-items:center;gap:7px}
+  .status-pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;letter-spacing:.02em;padding:3px 9px;border-radius:var(--r-pill);border:1.5px solid transparent;white-space:nowrap}
+  .status-pill.g{color:var(--green-bright);border-color:var(--green-border);background:var(--green-surface)}
+  .status-pill.a{color:var(--amber-bright);border-color:var(--amber-border);background:var(--amber-surface)}
+  .status-pill.b{color:var(--blue-bright);border-color:var(--blue-border);background:var(--blue-surface)}
+  /* NEW: honest treatment for the starting tier (live app renders this unstyled) */
+  .status-pill.r{color:#FF9B9B;border-color:var(--red-border);background:var(--red-surface)}
+
+  .stk-pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:800;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-pill)}
+  .stk-pill.safe{background:var(--blue-surface);color:var(--blue-bright);border:1px solid var(--blue-border)}
+  .stk-pill.secured{background:var(--green-surface);color:var(--green-bright);border:1px solid var(--green-border)}
+
+  .segwrap{display:flex;flex-direction:column;gap:5px}
+  .xsegs{display:flex;gap:5px}
+  .xsegs i{height:5px;flex:1;border-radius:3px;background:var(--surface-3);transition:background .3s var(--ease-out)}
+  .xsegs i.on{background:linear-gradient(90deg,var(--green),var(--green-bright))}
+  .seglabel{font-size:11.5px;font-weight:700;color:var(--text-2);white-space:nowrap}
+  .seglabel b{color:var(--text);font-variant-numeric:tabular-nums}
+  .seglabel .dot{color:var(--text-3);margin:0 1px}
+
+  .xmeta{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right}
+  .xmeta .cap{font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+  .xmeta .head-stat{display:inline-flex;align-items:baseline;gap:3px;font-weight:800;letter-spacing:var(--num-tight)}
+  .xmeta .head-stat .to{font-size:12px;color:var(--text-3);font-weight:700}
+  .xmeta .head-stat b{font-size:18px;font-variant-numeric:tabular-nums;color:var(--text)}
+
+  /* ---- Variant B: progress-first ---- */
+  .xstrip.vB{align-items:stretch;gap:13px}
+  .xstrip.vB .dial{align-self:center}
+  .xstrip.vB .dial .num b{font-size:16px}
+  .xstrip.vB .dial .num i{display:none}
+  .xstrip.vB .bmid{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:8px}
+  .xstrip.vB .bmid .toprow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .xstrip.vB .meter{display:flex;gap:5px}
+  .xstrip.vB .meter i{height:8px;flex:1;border-radius:4px;background:var(--surface-3);transition:background .3s var(--ease-out)}
+  .xstrip.vB .meter i.on{background:linear-gradient(90deg,var(--green),var(--green-bright))}
+  .xstrip.vB .brow{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;font-weight:700;color:var(--text-2)}
+  .xstrip.vB .brow b{color:var(--text);font-variant-numeric:tabular-nums}
+  .xstrip.vB .headroom{color:var(--text-2)}
+  .xstrip.vB .headroom b{color:var(--text)}
+
+  /* ---- celebration hero state (dial scales up; strip is replaced) ---- */
+  .hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:8px 0 4px;gap:2px}
+  .hero .dial .num b{font-size:44px}
+  .hero .dial .num i{font-size:11px;margin-top:3px}
+  .hero .htitle{font-size:22px;font-weight:800;letter-spacing:var(--title-tight);margin-top:8px}
+  .hero .hsub{font-size:12.5px;color:var(--text-2);line-height:1.55;max-width:32ch;margin-top:4px}
+  .hero .status-pill{margin-top:10px}
+
+  /* context below the strip (dimmed, for realism) */
+  .ctx{margin-top:14px;opacity:.5;filter:saturate(.9);pointer-events:none}
+  .now{background:linear-gradient(160deg,rgba(245,165,36,0.16),rgba(245,165,36,0.05) 55%),var(--surface-1);border:1px solid var(--amber-border);border-radius:22px;padding:15px}
+  .now .lab{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .now .l{font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--amber-bright)}
+  .now .pill{font-size:10px;font-weight:800;color:var(--amber-bright);border:1px solid var(--amber-border);border-radius:999px;padding:3px 9px}
+  .now .t{font-size:18px;font-weight:800;letter-spacing:var(--title-tight)}
+  .now .w{font-size:12.5px;color:var(--text-2);margin-top:3px;line-height:1.4}
+
+  /* ---- annotation ---- */
+  .notes{width:100%;max-width:560px;background:rgba(13,20,34,0.55);border:1px solid var(--studio-line);border-radius:18px;padding:18px 20px}
+  .notes h2{margin:0 0 4px;font-size:13px;font-weight:800;letter-spacing:.02em}
+  .notes .vtag{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--blue-bright);margin-bottom:12px}
+  .notes ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
+  .notes li{display:flex;gap:11px;font-size:13px;line-height:1.5;color:var(--text-2)}
+  .notes li .n{flex:0 0 auto;width:20px;height:20px;border-radius:6px;background:var(--blue-surface);color:var(--blue-bright);font-size:11px;font-weight:800;display:grid;place-items:center;margin-top:1px}
+  .notes li b{color:var(--text);font-weight:700}
+  .rec{margin-top:14px;padding-top:14px;border-top:1px solid var(--studio-line);font-size:12.5px;color:var(--text-2);line-height:1.55}
+  .rec b{color:var(--green-bright)}
+
+  .foot{font-size:11.5px;color:var(--text-3);text-align:center;max-width:52ch;line-height:1.5}
+
+  @media (max-width:440px){
+    .phone{border-radius:36px;padding:8px}
+    .screen{border-radius:28px;padding:0 16px 18px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important}
+  }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div class="kicker">Fable 5 &middot; Design Ticket T3</div>
+    <h1>Home score box, redesigned</h1>
+    <p>The daily-return focal point every athlete opens on. Flip through real score states and the two layout variants. Numbers, requirement counts, and the projection are passed straight through, only the treatment changes.</p>
+  </header>
+
+  <div class="controls">
+    <div>
+      <div class="ctl-label">Score state</div>
+      <div class="seg" id="stateSeg" role="group" aria-label="Score state"></div>
+    </div>
+    <div>
+      <div class="ctl-label">Layout variant</div>
+      <div class="seg vseg" id="variantSeg" role="group" aria-label="Layout variant">
+        <button data-v="A" aria-pressed="true">Dial-first<small>recommended</small></button>
+        <button data-v="B" aria-pressed="false">Progress-first<small>alternative</small></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>OnStandard</span></div>
+      <div class="apphead">
+        <div><div class="greeting">Good morning,</div><div class="name">Marcus</div></div>
+        <div class="actions">
+          <div class="iconbtn" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </div>
+          <div class="avatar">MB</div>
+        </div>
+      </div>
+
+      <div id="box"></div>
+
+      <div class="ctx" id="ctx">
+        <div class="now">
+          <div class="lab"><span class="l">NOW</span><span class="pill">OPEN</span></div>
+          <div class="t">Breakfast</div>
+          <div class="w">Protein first, 40g+ before 9:30 AM. Nutrition &middot; 50% of score.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes" id="notes"></div>
+
+  <p class="foot">Presentation only. The score, the requirement count, and the projected ceiling render from the same live values the app already computes. The whole box stays one tap target routing to the score breakdown.</p>
+</div>
+
+<script>
+(function(){
+  // ---- sample states (illustrative; the live app passes real values) ----
+  var STATES = [
+    {id:'zero', label:'0', sub:'fresh',   score:0,  met:0, total:4, possible:63, tier:'Off Standard', cls:'r', streak:0, streakState:null,     celebration:false},
+    {id:'low',  label:'42', sub:'started',score:42, met:1, total:4, possible:71, tier:'Off Standard', cls:'r', streak:2, streakState:'safe',   celebration:false},
+    {id:'mid',  label:'68', sub:'building',score:68, met:2, total:4, possible:88, tier:'Building',     cls:'a', streak:3, streakState:'safe',   celebration:false},
+    {id:'high', label:'82', sub:'locked in',score:82,met:3, total:4, possible:95, tier:'Locked In',    cls:'b', streak:3, streakState:'safe',   celebration:false},
+    {id:'cele', label:'100',sub:'complete',score:100,met:4, total:4, possible:100,tier:'OnStandard',   cls:'g', streak:6, streakState:'secured',celebration:true}
+  ];
+  var TINT={r:'rgba(246,87,87,0.10)',a:'rgba(245,165,36,0.10)',b:'rgba(59,130,246,0.10)',g:'rgba(52,211,153,0.12)'};
+
+  var state = STATES[0];
+  var variant = 'A';
+  var reduce = matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  // ---- SVG dial. Number lives inside. Comet spark only rides the arc once there's
+  //      progress to lead, so it is never orphaned on an empty ring at score 0. ----
+  function dial(score, size, stroke, showOutOf){
+    var r=(size-stroke)/2-3, cx=size/2, cy=size/2, C=2*Math.PI*r;
+    var off=C*(1-score/100);
+    var tipA=-Math.PI/2 + (score/100)*2*Math.PI;
+    var tipX=cx+Math.cos(tipA)*r, tipY=cy+Math.sin(tipA)*r;
+    var showTip=score>=6;
+    var trackDash = score<6 ? 'stroke-dasharray="1.4 5"' : '';  // dotted "ready" track when empty
+    var uid='u'+Math.random().toString(36).slice(2,7);
+    var svg=''
+      +'<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
+      +'<defs><linearGradient id="g'+uid+'" x1="0.05" y1="0.15" x2="0.95" y2="0.75">'
+      +'<stop offset="0%" stop-color="#A3E635"/><stop offset="30%" stop-color="#34D399"/>'
+      +'<stop offset="60%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#3B82F6"/></linearGradient>'
+      +'<filter id="t'+uid+'" x="-160%" y="-160%" width="420%" height="420%"><feGaussianBlur stdDeviation="'+(stroke*0.18)+'" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>'
+      +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="rgba(148,176,224,0.12)" stroke-width="'+stroke+'" '+trackDash+'/>'
+      +'<circle class="arc" cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="url(#g'+uid+')" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+(reduce?off:C).toFixed(1)+'" data-off="'+off.toFixed(1)+'"/>';
+    if(showTip){
+      svg+='<circle class="tip" cx="'+tipX.toFixed(1)+'" cy="'+tipY.toFixed(1)+'" r="'+(stroke/2+1).toFixed(1)+'" fill="#F2FDF8" filter="url(#t'+uid+')" opacity="'+(reduce?1:0)+'"/>';
+    }
+    svg+='</svg>';
+    var inner='<div class="num"><b data-count="'+score+'">'+(reduce?score:0)+'</b>'+(showOutOf?'<i>OF 100</i>':'')+'</div>';
+    return '<div class="dial" style="width:'+size+'px;height:'+size+'px">'+svg+inner+'</div>';
+  }
+
+  function streakPill(s){
+    if(!s.streak || s.streak<2) return '';
+    if(s.streakState==='secured') return '<span class="stk-pill secured">'+flame()+' '+s.streak+'-DAY &middot; SECURED</span>';
+    return '<span class="stk-pill safe">'+shield()+' '+s.streak+'-DAY &middot; COVERED</span>';
+  }
+  function flame(){return '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4 4 5 4 9a4 4 0 0 1-8 0c0-1 .5-2 1-3-2 1-4 3-4 6a7 7 0 0 0 14 0c0-6-5-8-7-12z"/></svg>';}
+  function shield(){return '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6z"/></svg>';}
+
+  function render(){
+    var ctx=document.getElementById('ctx');
+    var box=document.getElementById('box');
+    if(state.celebration){
+      ctx.style.display='none';
+      box.innerHTML=''
+        +'<div class="hero">'
+        +  dial(state.score,150,14,true)
+        +  '<div class="htitle">You&rsquo;re OnStandard.</div>'
+        +  '<div class="hsub">Every requirement is in. Day <b>'+state.streak+'</b> of your streak locks at midnight.</div>'
+        +  '<span class="status-pill g">'+state.tier+'</span>'
+        +'</div>';
+      animate(box);
+      return;
+    }
+    ctx.style.display='';
+    var html;
+    if(variant==='A'){
+      var d=dial(state.score,64,7,false);
+      html=''
+       +'<section class="xstrip" tabindex="0" role="button" aria-label="OnStandard score '+state.score+', '+state.tier+', '+state.met+' of '+state.total+' requirements in. Open score breakdown." style="--tint-wash:'+TINT[state.cls]+'">'
+       +'<div class="wash"></div>'
+       + d
+       +'<div class="xmid">'
+       +  '<div class="toprow"><span class="status-pill '+state.cls+'">'+state.tier+'</span>'+streakPill(state)+'</div>'
+       +  '<div class="segwrap">'
+       +    '<div class="xsegs">'+segs(state)+'</div>'
+       +    '<div class="seglabel"><b>'+state.met+'</b> of '+state.total+' in <span class="dot">&middot;</span> reach <b>'+state.possible+'</b> today</div>'
+       +  '</div>'
+       +'</div>'
+       +'</section>';
+    } else {
+      var dB=dial(state.score,48,6,false);
+      html=''
+       +'<section class="xstrip vB" tabindex="0" role="button" aria-label="OnStandard score '+state.score+', '+state.tier+', '+state.met+' of '+state.total+' requirements in. Open score breakdown." style="--tint-wash:'+TINT[state.cls]+'">'
+       +'<div class="wash"></div>'
+       + dB
+       +'<div class="bmid">'
+       +  '<div class="toprow"><span class="status-pill '+state.cls+'">'+state.tier+'</span>'+streakPill(state)+'</div>'
+       +  '<div class="meter">'+segsB(state)+'</div>'
+       +  '<div class="brow"><span><b>'+state.met+'</b> of '+state.total+' requirements in</span><span class="headroom">reach <b>'+state.possible+'</b> today</span></div>'
+       +'</div>'
+       +'</section>';
+    }
+    box.innerHTML=html;
+    animate(box);
+  }
+  function segs(s){var o='';for(var i=0;i<s.total;i++)o+='<i class="'+(i<s.met?'on':'')+'"></i>';return o;}
+  function segsB(s){var o='';for(var i=0;i<s.total;i++)o+='<i class="'+(i<s.met?'on':'')+'"></i>';return o;}
+
+  function animate(root){
+    if(reduce) return;
+    root.querySelectorAll('.arc').forEach(function(a){
+      a.style.transition='stroke-dashoffset 1100ms var(--ease-out)';
+      requestAnimationFrame(function(){requestAnimationFrame(function(){a.style.strokeDashoffset=a.dataset.off;});});
+    });
+    var tip=root.querySelector('.tip');
+    if(tip){tip.style.transition='opacity 500ms ease';setTimeout(function(){tip.style.opacity='1';},900);}
+    var num=root.querySelector('[data-count]');
+    if(num){var target=+num.dataset.count,dur=1000,t0=performance.now();
+      (function step(t){var p=Math.min(1,(t-t0)/dur);var e=1-Math.pow(1-p,3);num.textContent=Math.round(target*e);if(p<1)requestAnimationFrame(step);})(t0);}
+  }
+
+  // ---- annotations ----
+  var NOTES={
+    A:{tag:'Variant A &middot; Dial-first (recommended)',
+       items:[
+        ['1','<b>The score moves inside the ring.</b> One focal point instead of a ring plus a redundant number beside it. The dial is the same language as the celebration hero, just compact.'],
+        ['2','<b>The empty ring at 0 is fixed.</b> A dotted &ldquo;ready&rdquo; track reads as an unstarted day, and the leading spark only rides the arc once there&rsquo;s progress to lead, so it is never orphaned at the top.'],
+        ['3','<b>Every tier gets an honest pill.</b> &ldquo;Off Standard&rdquo; now carries a muted-red treatment (the live app renders it unstyled because <code>.status-pill.r</code> has no CSS). Building amber, Locked In blue, OnStandard green.'],
+        ['4','<b>Requirements are labeled, not just dotted.</b> &ldquo;2 of 4 requirements in&rdquo; spells out the segment bars, which are thicker and rounded.'],
+        ['5','<b>The projection is legible.</b> The cryptic &ldquo;0 &rarr; 63&rdquo; is folded into the requirement line as &ldquo;&hellip; &middot; reach 63 today&rdquo;: same number, framed as honest headroom, and it clears the right edge so the streak pill never collides with it.']
+       ]},
+    B:{tag:'Variant B &middot; Progress-first (alternative)',
+       items:[
+        ['1','<b>The day&rsquo;s requirements lead.</b> A prominent segmented meter is the centerpiece, teaching &ldquo;what&rsquo;s left today&rdquo; before the number, which fits &ldquo;athletes are taught, not just scored.&rdquo;'],
+        ['2','<b>The dial supports, not dominates.</b> Same number-in-ring treatment and the same no-orphan-spark fix, sized as a companion to the meter.'],
+        ['3','<b>Same honest tier pill</b> and the same clarified projection (&ldquo;reach 63 today&rdquo;), inline with the count so the whole story reads in one line.'],
+        ['4','<b>Trade-off.</b> Puts tasks first at the cost of a slightly smaller score. Pick this if the daily strip should coach the day rather than headline the number.']
+       ]}
+  };
+  function renderNotes(){
+    var n=state.celebration?{tag:'Celebration &middot; the dial becomes the hero',items:[
+      ['1','<b>One system, two sizes.</b> At 100 the strip is replaced by the full-screen hero, the exact same dial scaled up with &ldquo;OF 100&rdquo; shown. Compact strip and hero read as one component, not two designs.'],
+      ['2','<b>The spark lands at the top.</b> At a full ring the leading spark completes the loop, the reward the empty-state fix was protecting.']
+    ]}:NOTES[variant];
+    var h='<div class="vtag">'+n.tag+'</div><ul>';
+    n.items.forEach(function(it){h+='<li><span class="n">'+it[0]+'</span><span>'+it[1]+'</span></li>';});
+    h+='</ul>';
+    if(!state.celebration){
+      h+='<div class="rec">Recommendation: <b>Variant A, Dial-first.</b> The box&rsquo;s tap target routes to the score breakdown and the tab is the score home, so leading with the dial keeps one mental model from strip to hero. Variant B is the right call only if the daily surface should coach tasks over score.</div>';
+    }
+    document.getElementById('notes').innerHTML=h;
+  }
+
+  // ---- build controls ----
+  var seg=document.getElementById('stateSeg');
+  STATES.forEach(function(s,i){
+    var b=document.createElement('button');
+    b.setAttribute('aria-pressed',i===0?'true':'false');
+    b.innerHTML=s.label+'<small>'+s.sub+'</small>';
+    b.addEventListener('click',function(){
+      state=s;
+      [].forEach.call(seg.children,function(c){c.setAttribute('aria-pressed','false');});
+      b.setAttribute('aria-pressed','true');
+      render();renderNotes();
+    });
+    seg.appendChild(b);
+  });
+  var vseg=document.getElementById('variantSeg');
+  [].forEach.call(vseg.children,function(b){
+    b.addEventListener('click',function(){
+      variant=b.dataset.v;
+      [].forEach.call(vseg.children,function(c){c.setAttribute('aria-pressed','false');});
+      b.setAttribute('aria-pressed','true');
+      render();renderNotes();
+    });
+  });
+
+  render();renderNotes();
+})();
+</script>

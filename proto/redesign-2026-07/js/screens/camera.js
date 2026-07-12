@@ -59,7 +59,7 @@ export default {
           <div class="vf-prompt">Take a photo to analyze</div>
           <div class="vf-hint">Tap the shutter — your camera opens</div>
         </div>
-        <div class="vf-deadline">${icon('clock', 13)} ${L.remaining}</div>
+        ${L.empty ? '' : `<div class="vf-deadline">${icon('clock', 13)} ${L.remaining}</div>`}
         <div class="vf-corner tl"></div><div class="vf-corner tr"></div>
         <div class="vf-corner bl"></div><div class="vf-corner br"></div>
       </div>

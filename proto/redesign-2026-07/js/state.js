@@ -341,6 +341,7 @@ export const act = {
     MEAL.key = nextOpenSlot(slot) || slot || 'dinner';
     MEAL.mealType = cap(MEAL.key);
     MEAL.photoBase64 = null; MEAL.photoDataUrl = null;
+    MEAL.live = true; // manual entries have no photo provenance — never inherit a prior gallery pick's non-live flag
     MEAL.result = {
       quality: null,
       protein: Math.round(macros.protein || 0), carbs: Math.round(macros.carbs || 0),
