@@ -23,11 +23,11 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 | 11 | profile.js | Athlete profile root — identity hub | **done** (pass 1) — avatar upload: error feedback, no-reload repaint, 44px badge/Edit |
 | 12 | weight.js | Weight log — trend-only surface | **done** (pass 1) — "late" label is time-honest (exec window state, not hardcoded) |
 | 13 | recovery.js | DAILY recovery check-in — 25% of score | **done** (pass 1) — chips to 44px + radiogroup semantics |
-| 14 | requirement.js | Single-requirement detail view | pending |
-| 15 | trust.js | Trust Pass — coach-granted state, low frequency high meaning | pending |
-| 16 | coach.js (coach root) | Coach dashboard — buyer-facing | pending |
-| 17 | coach.js (trainer root) | Trainer view — Practice HQ adjacency | pending |
-| 18 | coach.js (parent root) | Parent view — payer-facing; back-nav bug fixed in-tree | pending |
+| 14 | requirement.js | Single-requirement detail view | **done** (pass 1) — unknown-id dead end → full empty state with Plan CTA |
+| 15 | trust.js | Trust Pass — coach-granted state, low frequency high meaning | **done** (pass 1) — dynamic next-check line + real YOU dot on decay curve |
+| 16 | coach.js (coach root) | Coach dashboard — buyer-facing | **done** (pass 1) — stat tiles no longer fabricate zeros while loading/offline |
+| 17 | coach.js (trainer root) | Trainer view — Practice HQ adjacency | **done** (pass 1) — honest offline state (outage no longer reads "No clients yet") |
+| 18 | coach.js (parent root) | Parent view — payer-facing | **done** (pass 1) — sign-out row added (was a total dead end: hideTabs + no exit) |
 | 19 | roles.js | Role screens (trainer HQ etc.) — Practice HQ shipped last run | pending |
 | 20 | guardian.js | Guardian consent — minor-athlete gate | pending |
 | 21 | connect.js | Coach/practice linking | pending |
@@ -57,6 +57,10 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 - 2026-07-12 · **foodsearch** · fix ×2: plate ± steppers were bare ~21px text (`.wb2` needs a `.water-btns` ancestor it didn't have) — now `.chip-row .chp` 44px pills; dead "Clear" link wired (3rd instance of the render-time-wiring bug class). QA: 44px, one line, qty/remove/clear all verified live. NOTE for future audits: `.chp` is scoped `.chip-row .chp` (flows.css:111) — bare `.chp` gets nothing.
 - 2026-07-12 · **weight** · upgrade (honesty): button hardcoded "Log Weight (late · trend only)" at all times — now derives late from the exec engine's real window state (overdue/done_late), honest on non-weigh-in days and before 9 AM. QA: Sunday renders no "late".
 - 2026-07-12 · **profile** · upgrade: avatar upload — corrupt file now shows inline error (was silent no-op), success repaints in place via window.__render (was a full location.reload white-flash reboot), busy state blocks re-taps, camera badge 22→44px, Edit 40→44px. QA: both paths verified live.
+- 2026-07-12 · **requirement** · add: unknown-id case (stale deep-links, removed assigned tasks) now renders a full empty state with icon/sub/56px "Go to your Plan" CTA — was a bare "Nothing here" dead end. QA: CTA lands on #plan; valid ids byte-identical.
+- 2026-07-12 · **trust** · fix ×2 (honesty): "Next check: day 5" was a frozen literal — now derived from real t.day (5 → 10 → "both checks cleared"); the decay curve's YOU marker was an invisible r="0" circle with a `? 20 : 20` no-op ternary — now a real dot sitting on the curve at the athlete's actual credit level. QA: all 3 day-bands + dot y-position verified.
+- 2026-07-12 · **coach root + trainer root + data layer** · fix (honesty): supabase-js resolves network failures into {error} WITHOUT throwing, so the coach's offline catch was mostly dead and trainer had none — a full client book read as "No clients yet" during an outage. fetchMyTeams/fetchMyPractices now return the {error:true} sentinel (settled fetchMyPracticeIdentity pattern), loaders throw on it, trainer gets the same "Can't reach your clients" state-demo as coach, and coach stat tiles show "—" instead of fabricated green-0/red-0 while loading/offline. QA: real fetch-rejection drill verified both roots + tiles; genuine empty still reads "No clients yet".
+- 2026-07-12 · **parent root** · add: sign-out row (same .lrow pattern as coach/trainer profiles) — the parent pending screen was a total dead end (hideTabs, no exit affordance). QA: 68px row routes to welcome.
 
 ## Home — teardown v1 (pass 1 complete)
 - **ADD (shipped):** streak-at-risk state `90e1105`; green SECURED pill `0485fea`.
