@@ -4,6 +4,7 @@ import { backHead, logoMark, esc } from '../components.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { standardForGoal } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
+import { track, EVENTS } from '../analytics.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 
 /* Practice HQ invite link + share text — mirrors src/core/practiceIdentity.ts (the tested
@@ -85,6 +86,14 @@ export const role = {
         <div style="text-align:center;font-size:14px;font-weight:700;color:var(--text-3);cursor:pointer" data-go="welcome">Back</div>
       </div>
     </div>`;
+  },
+  mount(root) {
+    // Funnel: which role a fresh user picks (the choice, not yet an account). Anonymous.
+    const ROLE_BY_GO = { 'onboarding/1': 'athlete', 'client-ob/1': 'client', 'coach-ob/1': 'coach', 'trainer-ob/1': 'trainer' };
+    root.querySelectorAll('.choice[data-go]').forEach((c) => c.addEventListener('click', () => {
+      const r = ROLE_BY_GO[c.getAttribute('data-go')];
+      if (r) track(EVENTS.ONBOARDING_ROLE, { role: r });
+    }));
   },
 };
 

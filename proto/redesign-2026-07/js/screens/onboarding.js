@@ -4,6 +4,7 @@ import { dobFromParts, ageOn, standardForGoal, weightDirection, weightContradict
 import { esc } from '../components.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { accountBody, wireAccount } from './ob-account.js';
+import { track, EVENTS } from '../analytics.js';
 
 /* 7-step onboarding: identity → belonging → sport → goal → baseline → the contract → account.
    Back arrow + segmented progress on every step. Every selection is captured into RT.ob as
@@ -192,7 +193,7 @@ const steps = {
 export default {
   hideTabs: true,
   render({ sub }) {
-    if (sub === 'blocked') return steps.blocked();
+    if (sub === 'blocked') { track(EVENTS.AGE_BLOCKED); return steps.blocked(); }
     const n = Math.min(STEPS, Math.max(1, +(sub || 1)));
     return steps[n]();
   },
@@ -359,7 +360,12 @@ export default {
     wireGroup('#ob-level', 'level');
 
     // ---- Step 4: goal (slug from data-val) ----
+    const goalGrid = grab('#ob-goal');
     wireGroup('#ob-goal', 'goal', () => { const on = grab('#ob-goal .on'); return on ? on.getAttribute('data-val') : null; });
+    if (goalGrid) goalGrid.addEventListener('click', (e) => {
+      const c = e.target && e.target.closest ? e.target.closest('.choice[data-val]') : null;
+      if (c) track(EVENTS.GOAL_SELECTED, { goal: c.getAttribute('data-val') });
+    });
 
     // ---- Step 5: weights + allergies (none selected by default) ----
     const cur = grab('#ob-cur');
