@@ -19,7 +19,7 @@ export default {
     <section class="card id-card">
       <div style="position:relative" id="avatar-wrap">
         ${avatarEl()}
-        <div class="req-badge b" style="top:auto;bottom:-6px;left:auto;right:-6px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer" id="avatar-btn" title="Upload photo">${icon('camera', 12)}</div>
+        <div id="avatar-btn" style="position:absolute;bottom:-6px;right:-6px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer" title="Upload photo" aria-label="Upload photo"><span class="req-badge b" style="position:static;width:28px;height:28px;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${icon('camera', 14)}</span></div>
         <input type="file" id="avatar-file" accept="image/*" style="display:none" />
       </div>
       <div style="flex:1">
