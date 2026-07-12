@@ -52,6 +52,31 @@ const row = (i) => `<div class="xrow-item ${i.color === 'green' ? 'green' : i.co
     <span class="xpill ${i.color}">${i.pill}</span>
   </div>`;
 
+/* Honest sync/consent banner. A provable minor awaiting guardian approval sees a "stays on this
+   phone" prompt that routes to the guardian screen; a failed push (offline/RLS) shows "saved on
+   your phone, not synced yet." Both replace the OLD silent console.warn — an athlete can no
+   longer log all week into a void without knowing. Nothing renders when sync is fine. */
+function syncBanner() {
+  const issue = S.syncIssue;
+  if (issue === 'blocked') {
+    const em = S.consent.guardianEmail;
+    return `<div class="lrow" data-go="guardian" style="margin:2px 0 10px;background:rgba(245,165,36,0.10);border:1px solid var(--amber-border);border-radius:14px;padding:12px 13px">
+      <div class="xico sm" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('lock', 16)}</div>
+      <div class="xr"><div class="xa">${em ? 'Waiting on your parent' : 'One step before your day syncs'}</div>
+      <div class="xb">${em ? 'Everything you log is safe on this phone until they approve.' : 'You’re under 18 — a parent approves before your day reaches your coach. Tap to send it.'}</div></div>
+      ${icon('chevron', 16, 'style="color:var(--text-3)"')}
+    </div>`;
+  }
+  if (issue === 'error') {
+    return `<div class="lrow" style="margin:2px 0 10px;background:rgba(59,130,246,0.08);border:1px solid var(--hairline);border-radius:14px;padding:12px 13px;cursor:default">
+      <div class="xico sm gray">${icon('wifiOff', 16)}</div>
+      <div class="xr"><div class="xa">Saved on your phone</div>
+      <div class="xb">Not synced yet — we’ll keep trying. Your logs are safe and count locally.</div></div>
+    </div>`;
+  }
+  return '';
+}
+
 function strip(e) {
   return `<section class="xstrip" data-go="score-breakdown">
     ${scoreRing({ score: e.score, size: 52, stroke: 6, glow: false, showCenter: false, uid: 'strip' })}
@@ -89,6 +114,7 @@ export default {
       return `
       ${appHead()}
       ${strip(e)}
+      ${syncBanner()}
       <section class="xnow">
         <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>
         <div class="xmain"><div class="xico gold">${icon('camera', 21)}</div>
@@ -121,6 +147,7 @@ export default {
     return `
     ${appHead()}
     ${strip(e)}
+    ${syncBanner()}
     <div id="seen-row"></div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
     ${e.now ? nowCard(e) : ''}

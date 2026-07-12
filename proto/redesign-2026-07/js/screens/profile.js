@@ -192,6 +192,7 @@ export const editProfile = {
     </div>
 
     <div style="height:16px"></div>
+    <div id="ep-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;text-align:center"></div>
     <button class="btn primary" id="ep-save">${icon('check', 19)} Save</button>
     <div style="height:10px"></div>
     `;
@@ -199,14 +200,24 @@ export const editProfile = {
   async mount(root) {
     const { wireToggles } = await import('./settings.js');
     wireToggles(root);
-    root.querySelector('#ep-save').addEventListener('click', () => {
-      // Save the athlete's REAL edits — a blank field stays blank, never a fabricated default.
-      window.__act.saveProfile({
-        name: root.querySelector('#ep-name').value.trim(),
-        school: root.querySelector('#ep-school').value.trim(),
-        sport: root.querySelector('#ep-sport .on')?.textContent || '',
-        position: root.querySelector('#ep-pos .on')?.textContent || '',
-      });
+    const btn = root.querySelector('#ep-save');
+    const err = root.querySelector('#ep-err');
+    btn.addEventListener('click', async () => {
+      const name = root.querySelector('#ep-name').value.trim();
+      const school = root.querySelector('#ep-school').value.trim();
+      const sport = root.querySelector('#ep-sport .on')?.textContent || '';
+      const position = root.querySelector('#ep-pos .on')?.textContent || '';
+      // Never let a blank name wipe the athlete's identity (the coach reads it).
+      if (!name) { err.textContent = 'Add your name — your coach sees it on every log.'; return; }
+      err.textContent = '';
+      btn.disabled = true;
+      const was = btn.textContent;
+      btn.textContent = 'Saving…';
+      // Local first (instant), then the SERVER write the coach actually reads — the old code
+      // saved only locally, so post-onboarding edits were invisible to the coach.
+      window.__act.saveProfile({ name, school, sport, position });
+      const ok = await window.__act.saveIdentity({ full_name: name, sport, position });
+      if (ok === false) { err.textContent = 'Saved on this phone — couldn’t reach the server. It’ll sync when you’re back online.'; btn.disabled = false; btn.textContent = was; return; }
       location.hash = '#profile';
     });
   },

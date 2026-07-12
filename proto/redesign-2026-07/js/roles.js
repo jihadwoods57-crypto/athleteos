@@ -38,6 +38,32 @@ export async function declineMember(teamId, athleteId) {
   try { const { error } = await c.from('team_members').delete().eq('team_id', teamId).eq('athlete_id', athleteId); return !error; } catch { return false; }
 }
 
+/* ---------------- guardian consent (athlete side of 0008/0050) ---------------- */
+/** The athlete's own consent state: newest guardian_consent_requests row (status is column-
+    granted to the athlete post-0035; the token never is). Returns
+    { status:'verified'|'pending'|'revoked'|'none', guardianEmail } — or { error:true } on a
+    fetch failure so callers can keep last-known instead of misreporting. */
+export async function fetchMyConsent(athleteId) {
+  const c = sb(); if (!c || !athleteId) return null;
+  try {
+    const { data } = await c.from('guardian_consent_requests')
+      .select('status,guardian_email,requested_at').eq('athlete_id', athleteId)
+      .order('requested_at', { ascending: false }).limit(1).maybeSingle();
+    if (!data) return { status: 'none', guardianEmail: null };
+    return { status: data.status || 'pending', guardianEmail: data.guardian_email || null };
+  } catch { return { error: true }; }
+}
+
+/** Ask a parent/guardian for consent (0008 RPC: creates/refreshes the request row + token;
+    the service-role verify endpoint flips it to verified). Returns { ok, error? }. */
+export async function requestGuardianConsent(email) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { error } = await c.rpc('request_guardian_consent', { guardian_email: email });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not send the request.' }; }
+}
+
 /** The signed-in coach's own team identity: real team name + real join code — mirrors
     fetchMyPracticeIdentity for trainers. teams_read RLS scopes the select to teams the caller
     staffs/created, so no explicit filter is needed. Returns null on a CONFIRMED "no team row

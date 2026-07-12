@@ -15,16 +15,24 @@ export async function loadCoachRoster(force) {
   if (rosterLoading) return;
   if (ROSTER && !force) return;
   rosterLoading = true;
-  const r = await roles.loadCoachRoster();
-  // Pending join requests per team (athlete names before their link is active).
-  const pending = [];
-  for (const t of r.teams) {
-    const reqs = await roles.pendingTeamRequests(t.id);
-    for (const q of reqs) pending.push({ teamId: t.id, ...q });
+  try {
+    const r = await roles.loadCoachRoster();
+    // Pending join requests per team (athlete names before their link is active).
+    const pending = [];
+    for (const t of r.teams) {
+      const reqs = await roles.pendingTeamRequests(t.id);
+      for (const q of reqs) pending.push({ teamId: t.id, ...q });
+    }
+    r.pending = pending;
+    r.offline = false;
+    ROSTER = r;
+  } catch {
+    // A fetch that actually threw (vs the lower layers' swallow-to-[]) must NOT leave the screen
+    // stuck on "Loading…" forever — mark offline so the render shows a distinct, retryable state.
+    ROSTER = { teams: [], rows: [], pending: [], offline: true };
+  } finally {
+    rosterLoading = false; // always clear so a retry can re-run
   }
-  r.pending = pending;
-  ROSTER = r;
-  rosterLoading = false;
   if (location.hash === '#coach' || location.hash === '#copilot') window.__render();
 }
 const scoreColor = (s) => s == null ? 'var(--text-3)' : s >= 80 ? 'var(--green-bright)' : s >= 60 ? 'var(--amber-bright)' : 'var(--red)';
@@ -77,6 +85,11 @@ export const coach = {
     <div class="eyebrow">Roster</div>
     <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
     <div><div class="tt">Loading your roster…</div><div class="ts">Pulling today's real scores for your team.</div></div></div>`
+    : (ROSTER && ROSTER.offline) ? `
+    <div class="eyebrow">Roster</div>
+    <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+    <div class="sd-t">Can't reach your roster</div>
+    <div class="sd-s">We couldn't load today's scores — check your connection. Pull down or reopen to retry; nothing is lost.</div></div>`
     : rows.length === 0 ? `
     <div class="eyebrow">Roster</div>
     <div class="state-demo"><div class="sd-ic">${icon('users', 24)}</div>
@@ -174,11 +187,15 @@ export const coachPlan = {
       <div><div class="tt">Loading their targets…</div></div></div>`;
     }
     const t = TGT.targets || {};
+    // Distinguish "no targets set yet" (starter defaults shown as a starting point) from real
+    // saved values — a coach shouldn't think targets already exist when they're just placeholders.
+    const unset = t.protein == null && t.calories == null && t.weight == null;
     const rows = [['Protein', 'tg-protein', t.protein != null ? t.protein : 180, 'g', 5], ['Calories', 'tg-calories', t.calories != null ? t.calories : 2400, '', 50], ['Target weight', 'tg-weight', t.weight != null ? t.weight : 180, ' lb', 1]];
     return `
     ${head}
 
-    <div class="eyebrow">Targets</div>
+    <div class="eyebrow">Targets${unset ? ' · not set yet' : ''}</div>
+    ${unset ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Starting points, not saved. Adjust and Save to set ${esc(who.name.split(' ')[0])}'s real targets.</div>` : ''}
     <section class="card" style="padding:6px 16px">
       ${rows.map(([k, id, v, u, step]) => `
         <div class="lrow" style="cursor:default">
@@ -454,6 +471,7 @@ export const coachMeal = {
       <input id="cm-input" placeholder="Comment on this meal…" />
       <div class="send" id="cm-send">${icon('arrowUp', 19)}</div>
     </div>
+    <div id="cm-note" style="font-size:12.5px;font-weight:600;color:#f87171;margin:6px 2px 0;min-height:16px"></div>
     <div style="height:10px"></div>
     `;
   },
@@ -461,15 +479,24 @@ export const coachMeal = {
     loadMealComments(sub);
     const input = root.querySelector('#cm-input');
     const send = root.querySelector('#cm-send');
+    const cmNote = root.querySelector('#cm-note');
     const submit = async () => {
       const text = (input.value || '').trim();
       if (!text) return;
       const meal = mealById(sub);
       const athleteId = meal ? meal.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
       if (!athleteId) return;
-      input.value = '';
+      if (cmNote) cmNote.textContent = '';
       const ok = await roles.postMealComment(sub, athleteId, RT.userId, 'coach', text);
-      if (ok) roles.nudgePush(athleteId, `${S.athlete.name} commented on your ${meal ? cap(meal.type) : 'meal'}`, text);
+      if (!ok) {
+        // Post failed (returns false, never throws): keep the typed text so it isn't lost, tell
+        // the coach, let them retry. The old code cleared the input BEFORE the await — a failed
+        // send silently ate the comment. Mirrors the reaction handler's honest failure path.
+        if (cmNote) cmNote.textContent = "Couldn't send — try again.";
+        return;
+      }
+      input.value = '';
+      roles.nudgePush(athleteId, `${S.athlete.name} commented on your ${meal ? cap(meal.type) : 'meal'}`, text);
       await loadMealComments(sub, true);
     };
     if (send) send.addEventListener('click', submit);

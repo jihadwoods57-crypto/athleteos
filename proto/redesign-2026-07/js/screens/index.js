@@ -8,6 +8,7 @@ import recovery, { recoveryConfirm } from './recovery.js';
 import progress from './progress.js';
 import profile, { editProfile, squad } from './profile.js';
 import connect from './connect.js';
+import guardian from './guardian.js';
 import notifications from './notifications.js';
 import log from './log.js';
 import auth from './auth.js';
@@ -41,6 +42,7 @@ export const screens = {
   progress,
   profile,
   connect,
+  guardian,
   notifications,
   log,
   welcome: auth,
