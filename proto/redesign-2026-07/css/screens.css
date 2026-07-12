@@ -249,7 +249,7 @@
 
 /* ---- onboarding v2: back nav + segmented progress (replaces dots) ---- */
 .ob-nav{display:flex;align-items:center;gap:12px;padding:2px 0 16px}
-.ob-back{width:34px;height:34px;min-width:34px;border-radius:12px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2)}
+.ob-back{width:44px;height:44px;min-width:44px;border-radius:14px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2)}
 .ob-back svg{transform:rotate(180deg)}
 .ob-prog{flex:1;display:flex;gap:5px}
 .ob-prog i{flex:1;height:4px;border-radius:2px;background:var(--surface-2)}

@@ -42,7 +42,7 @@ function frame(n, total, title, sub, body, cta, next, opts = {}) {
     <div class="ob-body">${body}</div>
     <div class="ob-foot">
       <button class="btn ${opts.green ? 'green' : 'primary'}" ${opts.id ? `id="${opts.id}"` : ''} ${opts.disabled ? 'disabled' : ''} data-go="${next}">${cta}</button>
-      ${opts.skip ? `<div style="text-align:center;padding-top:14px;font-size:14px;font-weight:700;color:var(--text-3);cursor:pointer" data-go="${opts.skip}">Skip for now</div>` : ''}
+      ${opts.skip ? `<div class="ob-textlink" style="padding-top:14px" data-go="${opts.skip}">Skip for now</div>` : ''}
     </div>
   </div>`;
 }
@@ -525,7 +525,7 @@ const clientSteps = {
         <span class="status-pill g">Connected</span>
       </section>
       <div style="height:12px"></div>
-      <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text-3);cursor:pointer" data-act="clearJoin">Remove connection</div>`,
+      <div class="ob-textlink" style="font-size:13px" data-act="clearJoin">Remove connection</div>`,
       'Continue', 'client-ob/5', { back: 'client-ob/3' });
     }
     return frame(4, 6, 'Connect your trainer.', 'Accountability needs a witness. Search for them, then enter the code they gave you.', `
@@ -809,8 +809,12 @@ export const coachProfile = {
   mount(root) {
     const copy = root.querySelector('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText((RT.ob || {}).teamCode || ''); } catch { /* no-op */ }
+      // Copy the code the screen DISPLAYS (server identity first) — RT.ob is onboarding
+      // scratch and is empty on a fresh-device sign-in, which silently copied ''.
+      // Same source order as render and the trainerProfile pattern.
+      try { await navigator.clipboard.writeText(S.coachIdentity.code || (RT.ob || {}).teamCode || ''); } catch { /* no-op */ }
       copy.innerHTML = `${icon('check', 16)} Copied`;
+      setTimeout(() => { copy.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
     });
   },
 };

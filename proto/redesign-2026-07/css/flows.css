@@ -98,6 +98,9 @@
 .ob-sub { font-size: 14.5px; font-weight: 600; color: var(--text-2); margin-top: 8px; line-height: 1.5; }
 .ob-body { flex: 1; padding-top: 22px; }
 .ob-foot { padding: 18px 0 6px; }
+/* Text links in ob flows — same 44px tap floor pattern as .chp/.tab */
+.ob-textlink{display:flex;align-items:center;justify-content:center;min-height:44px;font-size:14px;font-weight:700;cursor:pointer;color:var(--text-3)}
+.ob-textlink.g{color:var(--green-bright)}
 .choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .choice {
   padding: 17px 15px; border-radius: 18px; background: var(--surface-1); border: 1.5px solid var(--hairline);
