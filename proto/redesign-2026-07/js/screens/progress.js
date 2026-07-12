@@ -60,12 +60,14 @@ export default {
         </div>`;
       }
     }
+    const wd = parseFloat(P.weekDelta);
+    const ddir = wd > 0 ? ' up' : wd < 0 ? ' down' : '';
     return `
     <div class="screen-title">Progress</div>
     ${streakRow}
     <div class="eyebrow">Recent OnStandard Score</div>
     <section class="card pad">
-      <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d">${P.weekDelta} vs prior week</span>` : ''}</div>
+      <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
       <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} days on standard (≥80)</div>
       <div class="weekbars">
         ${P.weekScores.map((v, i) => `
@@ -94,6 +96,8 @@ export default {
     <section class="card pad" data-go="weight" style="cursor:pointer">
       ${S.weight.current != null ? `
       <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <!-- weight direction is goal-dependent (a gain can be good or bad depending on the athlete's
+             target) — the honest signal is the S.weight.pace pill below, never color this by sign -->
         <div class="bigstat"><span class="n" style="font-size:32px">${S.weight.current}</span>${S.weight.deltaMonth ? `<span class="d">${S.weight.deltaMonth}</span>` : ''}</div>
         ${S.weight.pace ? `<span class="status-pill ${S.weight.pace === 'On pace' ? 'g' : 'a'}">${S.weight.pace}</span>` : ''}
       </div>
