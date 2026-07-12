@@ -14,7 +14,7 @@ import {
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
-  insertMeal, MEAL_KEYS, DEADLINE, minutesNow,
+  insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { groundExtras } from './meal-intel.js';
@@ -988,7 +988,7 @@ export const S = {
 
   get remainingCount() {
     if (RT.day0) return RT.day0Breakfast ? 3 : 4;
-    const openMeals = REQ_MEAL_SLOTS.filter(k => !DAY.meals[k]).length;
+    const openMeals = REQ_MEAL_SLOTS.filter(k => !mealScored(DAY, k)).length;
     return openMeals + (DAY.ciSubmitted ? 0 : 1);
   },
 
@@ -1023,7 +1023,7 @@ export const S = {
   },
   get reachPlan() {
     const plan = [];
-    REQ_MEAL_SLOTS.forEach(k => { if (!DAY.meals[k]) plan.push({ label: `Log ${cap(k)}`, gain: null, accent: 'g' }); });
+    REQ_MEAL_SLOTS.forEach(k => { if (!mealScored(DAY, k)) plan.push({ label: `Log ${cap(k)}`, gain: null, accent: 'g' }); });
     if (!DAY.ciSubmitted) { const g = checkinProjection().gain; plan.push({ label: 'Submit recovery check-in', gain: g || null, accent: 'p' }); }
     return plan;
   },
@@ -1042,9 +1042,9 @@ export const S = {
     const lateMeal = (k) => DAY.mealLoggedAt[k] != null && DAY.mealLoggedAt[k] > DEADLINE[k];
     const resolve = (id) => {
       switch (id) {
-        case 'breakfast': return { done: !!DAY.meals.breakfast, late: lateMeal('breakfast') };
-        case 'lunch':     return { done: !!DAY.meals.lunch, late: lateMeal('lunch') };
-        case 'dinner':    return { done: !!DAY.meals.dinner, late: lateMeal('dinner') };
+        case 'breakfast': return { done: mealScored(DAY, 'breakfast'), late: lateMeal('breakfast') };
+        case 'lunch':     return { done: mealScored(DAY, 'lunch'), late: lateMeal('lunch') };
+        case 'dinner':    return { done: mealScored(DAY, 'dinner'), late: lateMeal('dinner') };
         case 'weight':    return { done: RT.weightLogged, late: RT.weightLogged };
         case 'hydration': return { done: RT.hydrationOz >= 120, progress: `${RT.hydrationOz} of 120 oz` };
         case 'recovery':  return { done: DAY.ciSubmitted };
@@ -1055,13 +1055,21 @@ export const S = {
       const isMeal = REQ_MEAL_SLOTS.includes(d.id);
       let meta, route, sub = d.sub, subColor = d.subColor;
       if (isMeal) {
-        const q = DAY.slotMacros[d.id] && DAY.slotMacros[d.id].quality;
-        meta = d.done ? (q != null ? `Scored ${q}` : 'Logged') : 'Photo proof';
+        const slotMeta = DAY.slotMacros[d.id];
+        const q = slotMeta && slotMeta.quality;
+        // d.done is now mealScored (Rule A) — a gallery pick that hasn't been recaptured live
+        // reads !done here even though a photo was logged. Say so honestly instead of the bare
+        // "Photo proof" a truly-empty slot shows.
+        const nonLiveOpen = !d.done && slotMeta && slotMeta.live === false;
+        meta = d.done ? (q != null ? `Scored ${q}` : 'Logged') : (nonLiveOpen ? 'Gallery photo saved' : 'Photo proof');
         route = d.done ? `meal-detail/${d.id}` : `camera/${d.id}`;
         if (d.done) {
           const at = DAY.mealLoggedAt[d.id];
           sub = at != null ? `Logged ${fmtClock(at)}${d.late ? ' · late' : ''}` : 'Logged';
           subColor = d.late ? 'a' : 'g';
+        } else if (nonLiveOpen) {
+          sub = 'Gallery photo saved — capture live to count';
+          subColor = 'a';
         }
       } else if (d.id === 'weight') {
         meta = d.done ? 'Trend only' : 'Not scored'; route = 'weight';
@@ -1085,7 +1093,7 @@ export const S = {
   },
   get metCount() {
     if (RT.day0) return RT.day0Breakfast ? 1 : 0;
-    const meals = REQ_MEAL_SLOTS.filter(k => DAY.meals[k]).length;
+    const meals = REQ_MEAL_SLOTS.filter(k => mealScored(DAY, k)).length;
     return meals + (DAY.ciSubmitted ? 1 : 0) + RT.assigned.filter(a => a.done).length;
   },
   get reqTotal() { return 4 + RT.assigned.length; }, // 3 meals + recovery + coach-assigned
@@ -1121,7 +1129,7 @@ export const S = {
     if (RT.day0) return RT.day0Breakfast
       ? { label: 'Log Lunch', gain: null, route: 'camera/lunch', accent: 'g' }
       : { label: 'Log First Meal', gain: null, route: 'camera', accent: 'g' };
-    const openReq = REQ_MEAL_SLOTS.filter(k => !DAY.meals[k]);
+    const openReq = REQ_MEAL_SLOTS.filter(k => !mealScored(DAY, k));
     const openSlot = openReq.find(k => minutesNow() <= DEADLINE[k]) || openReq[0];
     // Meal gain depends on the plate, unknown until analyzed → no fabricated "+6".
     if (openSlot) return { label: `Log ${cap(openSlot)}`, gain: null, route: `camera/${openSlot}`, accent: 'g' };
@@ -1157,7 +1165,7 @@ export const S = {
   get exec() {
     const mstat = (k) => {
       const at = DAY.mealLoggedAt[k];
-      return { done: !!DAY.meals[k], late: at != null && at > DEADLINE[k], at: at != null ? fmtClock(at) : null };
+      return { done: mealScored(DAY, k), late: at != null && at > DEADLINE[k], at: at != null ? fmtClock(at) : null };
     };
     return deriveExec({
       nowMin: minutesNow(),

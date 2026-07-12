@@ -28,10 +28,19 @@ function withinTrailingWeek(dateStr, todayStr) {
   return diff >= 0 && diff <= 6;
 }
 
+/** Rule A (founder-approved T2A exception, 2026-07-12): a logged slot only counts toward
+ *  score/streak when it was captured live. A gallery pick (`slotMacros[k].live === false`) is
+ *  logged and analyzed normally but never scores. Pure + Node-importable, like the other
+ *  compute fns below, so the parity test can exercise it too. Fixtures that never set `.live`
+ *  (RN engine has no such concept) are unaffected — `undefined !== false` keeps them scored. */
+export function mealScored(day, k) {
+  return !!(day.meals && day.meals[k]) && !(day.slotMacros && day.slotMacros[k] && day.slotMacros[k].live === false);
+}
+
 function effectiveMeals(day) {
   let n = 0;
   for (const k of MEAL_KEYS) {
-    if (!day.meals || !day.meals[k]) continue;
+    if (!mealScored(day, k)) continue;
     const at = day.mealLoggedAt && day.mealLoggedAt[k];
     n += (at == null || at <= DEADLINE[k]) ? 1 : 0.5; // late meal earns half (matches effectiveMealsLogged)
   }
@@ -42,7 +51,8 @@ function proteinToday(day) {
   let p = 0;
   for (const k of MEAL_KEYS) {
     // Evidence rule: a logged slot with no saved plate earns 0 protein (matches mealSlotMacros).
-    if (day.meals && day.meals[k] && day.slotMacros && day.slotMacros[k]) p += day.slotMacros[k].protein || 0;
+    // Rule A: a non-live (gallery) slot earns 0 protein too, whether or not it has a plate.
+    if (mealScored(day, k) && day.slotMacros && day.slotMacros[k]) p += day.slotMacros[k].protein || 0;
   }
   const q = day.quickAdded || [];
   for (let i = 0; i < q.length; i++) if (q[i]) p += QUICK_G[i] || 0;
@@ -144,6 +154,11 @@ export function dayScore() { return scoreFor(DAY); }
 export function projectedDay() {
   const p = JSON.parse(JSON.stringify(DAY));
   p.meals = { breakfast: true, lunch: true, snack: true, dinner: true };
+  // Rule A: the reach/possible projection assumes every slot gets a LIVE capture — clear any
+  // non-live flag so a gallery-picked plate counts toward the "if you finish today" number.
+  // No-op for all-live days (live is only ever stored as false), so `possible` stays
+  // byte-identical for the common case.
+  for (const k of MEAL_KEYS) { if (p.slotMacros && p.slotMacros[k]) delete p.slotMacros[k].live; }
   p.ciSubmitted = true;
   p.dailyCommitment = 'yes';
   return p;
