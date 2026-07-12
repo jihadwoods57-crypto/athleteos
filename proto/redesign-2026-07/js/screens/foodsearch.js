@@ -78,13 +78,13 @@ export const foodSearch = {
     };
     const renderPlate = () => {
       items.innerHTML = plate.map((x, i) => `
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)">
+        <div class="chip-row" style="display:flex;flex-wrap:nowrap;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)">
           <span style="flex:1;font-size:14px;font-weight:700">${esc(x.n)} <small style="color:var(--text-3)">· ${esc(x.unit)}</small></span>
-          <span class="wb2" data-i="${i}" data-d="-1" style="padding:5px 11px">−</span>
+          <span class="chp" data-i="${i}" data-d="-1" role="button" aria-label="One less ${esc(x.n)}">−</span>
           <span style="font-size:14px;font-weight:800;width:26px;text-align:center">${x.q}</span>
-          <span class="wb2" data-i="${i}" data-d="1" style="padding:5px 11px">+</span>
+          <span class="chp" data-i="${i}" data-d="1" role="button" aria-label="One more ${esc(x.n)}">+</span>
         </div>`).join('');
-      items.querySelectorAll('.wb2').forEach(b => b.addEventListener('click', () => {
+      items.querySelectorAll('.chp').forEach(b => b.addEventListener('click', () => {
         const i = +b.dataset.i, d = +b.dataset.d;
         plate[i].q = Math.max(0, plate[i].q + d);
         if (plate[i].q === 0) plate.splice(i, 1);
@@ -115,6 +115,11 @@ export const foodSearch = {
       window.__act.logMeal(SLOT);
       location.hash = `#meal-thread/${SLOT}`;
     });
+
+    // "Clear" was rendered but never wired (router only wires data-go/data-act at render
+    // time) — the third instance of this bug class. Plate is local UI state only.
+    const clear = root.querySelector('#fs-clear');
+    if (clear) clear.addEventListener('click', () => { plate.length = 0; renderPlate(); });
 
     input.addEventListener('input', () => renderResults(input.value));
     renderResults('');
