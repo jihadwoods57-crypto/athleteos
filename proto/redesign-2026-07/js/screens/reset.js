@@ -14,7 +14,7 @@ export default {
       <div class="ob-title" style="margin-top:30px;text-align:center">Reset your password</div>
       <div class="ob-sub" style="text-align:center">Enter your email and we'll send a reset link.</div>
       <div style="height:22px"></div>
-      <input id="rs-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Email" />
+      <input id="rs-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Email" aria-label="Email" />
       <div id="rs-msg" style="font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center;color:#f87171"></div>
       <div class="spacer"></div>
       <button id="rs-go" class="btn green">Send reset link</button>
@@ -28,6 +28,7 @@ export default {
     const msg = root.querySelector('#rs-msg');
     const btn = root.querySelector('#rs-go');
     const submit = async () => {
+      if (btn.disabled) return; // Enter on the email field must not silently re-fire mid-send
       msg.style.color = '#f87171';
       const email = (emailEl.value || '').trim();
       if (!email) { msg.textContent = 'Enter your email.'; return; }
@@ -37,7 +38,10 @@ export default {
       // Neutral confirmation regardless of whether the account exists.
       msg.style.color = 'var(--text-2)';
       msg.textContent = 'If an account exists for that email, a reset link is on its way. Open it on this device.';
-      btn.textContent = 'Reset link sent';
+      // Typo'd address / spam filter is common — leave a real resend path instead of a
+      // permanently disabled button.
+      btn.disabled = false;
+      btn.textContent = 'Send again';
     };
     btn.addEventListener('click', submit);
     emailEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });

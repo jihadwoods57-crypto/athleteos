@@ -267,7 +267,7 @@
 .pw-meter i.on{background:var(--amber-bright)}
 .pw-meter i.on.s3{background:var(--green-bright)}
 .pw-row{position:relative}
-.pw-row .pw-eye{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:800;color:var(--text-3);cursor:pointer}
+.pw-row .pw-eye{position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:12px;font-weight:800;color:var(--text-3);cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding-right:6px}
 .lnk{color:var(--green-bright);font-weight:800;cursor:pointer}
 
 /* ---- execution loop: score strip, NOW card, groups ---- */
