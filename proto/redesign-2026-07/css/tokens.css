@@ -16,7 +16,10 @@
   /* ---- Text ---- */
   --text:   #EEF3FB;   /* near-white, tinted cool */
   --text-2: #9AA9C2;   /* slate secondary */
-  --text-3: #64748B;   /* tertiary / meta */
+  /* tertiary / meta. #64748B was calibrated for a white ground (4.76:1) but only hits 4.14:1 on
+     this dark canvas (#070B14) — a WCAG-AA fail for the 10-12px meta text + tab labels it drives.
+     #7C8BA6 clears AA (5.72:1) while staying clearly dimmer than text-2 (8.27:1). */
+  --text-3: #7C8BA6;   /* tertiary / meta (AA on dark) */
   --text-on-accent: #FFFFFF;
 
   /* ---- Athlete Blue (brand spine) ---- */
