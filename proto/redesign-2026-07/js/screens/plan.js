@@ -11,6 +11,12 @@ function tabs(active) {
     `<div class="pt ${k === active ? 'on' : ''}" data-go="plan/${k}">${l}</div>`).join('')}</div>`;
 }
 
+const HEAD_SUBTITLE = {
+  set: 'Targets set by your coach',
+  loading: 'Loading your targets…',
+  offline: 'Targets will show when you reconnect',
+  unset: 'Log meals — your coach can set targets any time',
+};
 function head() {
   const goal = S.planGoalLabel;
   return `
@@ -18,14 +24,26 @@ function head() {
   <div style="display:flex;align-items:center;justify-content:space-between">
     <div>
       <div style="font-size:16px;font-weight:800">Your nutrition plan</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">${S.planTargets ? 'Targets set by your coach' : 'Log meals — your coach can set targets any time'}</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">${HEAD_SUBTITLE[S.planTargetsState]}</div>
     </div>
     ${goal ? `<span class="status-pill b">${esc(goal)}</span>` : ''}
   </div>`;
 }
 
-// Real coach-set targets when present; honest dashes when the coach hasn't set them.
+// Real coach-set targets when present; a loading card while hydrating; an honest offline card
+// with retry when the fetch failed and nothing is cached; honest dashes when genuinely unset.
 function targetsRow() {
+  const state = S.planTargetsState;
+  if (state === 'loading') {
+    return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+    <div><div class="tt">Loading your targets…</div><div class="ts">Reading what your coach set.</div></div></div>`;
+  }
+  if (state === 'offline') {
+    return `<div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+    <div class="sd-t">Can't reach your plan</div>
+    <div class="sd-s">Your targets will show when you reconnect — nothing is lost.</div>
+    <div class="sd-cta"><button class="btn ghost sm" data-act="retryProfile">Retry</button></div></div>`;
+  }
   const T = S.planTargets || {};
   return `<div class="macro-row">
     <div class="macro"><div class="mv">${T.protein != null ? esc(T.protein) + 'g' : '—'}</div><div class="mk">Protein</div></div>
@@ -34,17 +52,45 @@ function targetsRow() {
   </div>`;
 }
 
+// Objective-card copy per honest state — loading/offline never assert the coach set nothing.
+const OBJECTIVE_COPY = {
+  set: (T) => ({
+    title: 'Hit your targets, log every meal',
+    body: `Your coach set ${T.protein != null ? T.protein + 'g protein' : 'your targets'}${T.calories != null ? ` and ${T.calories} calories` : ''}. Nutrition is 50% of your score — consistency is the win.`,
+  }),
+  loading: () => ({
+    title: 'Log every meal, on time',
+    body: 'Loading your targets… Consistency is the plan either way: three meals with photo proof and your recovery check-in each day.',
+  }),
+  offline: () => ({
+    title: 'Log every meal, on time',
+    body: 'Your targets will show when you reconnect. Consistency is the plan either way: three meals with photo proof and your recovery check-in each day.',
+  }),
+  unset: () => ({
+    title: 'Log every meal, on time',
+    body: 'Your coach hasn’t set targets yet. Consistency is the plan: three meals with photo proof and your recovery check-in each day.',
+  }),
+};
+// Footnote under the Coach Targets card — stays silent for loading/offline since targetsRow()
+// already renders the full loading/offline card there; never repeats the "not set" claim.
+const COACH_TARGETS_NOTE = {
+  set: 'Set by your coach. Live progress lives on Home.',
+  loading: '',
+  offline: '',
+  unset: 'No targets set yet — your coach can add them any time.',
+};
+
 const overview = () => {
+  const state = S.planTargetsState;
   const T = S.planTargets;
+  const obj = OBJECTIVE_COPY[state](T);
   return `
   <div class="eyebrow">Today's Objective</div>
   <section class="card pad" style="display:flex;gap:14px;align-items:flex-start">
     <div class="req-icon b" style="width:44px;height:44px;border-radius:14px">${icon('bolt', 21)}</div>
     <div>
-      <div style="font-size:17px;font-weight:800;letter-spacing:-0.01em">${T ? 'Hit your targets, log every meal' : 'Log every meal, on time'}</div>
-      <p style="font-size:14px;font-weight:600;color:var(--text-2);line-height:1.5;margin-top:6px">${T
-        ? `Your coach set ${T.protein != null ? T.protein + 'g protein' : 'your targets'}${T.calories != null ? ` and ${T.calories} calories` : ''}. Nutrition is 50% of your score — consistency is the win.`
-        : 'Your coach hasn’t set targets yet. Consistency is the plan: three meals with photo proof and your recovery check-in each day.'}</p>
+      <div style="font-size:17px;font-weight:800;letter-spacing:-0.01em">${obj.title}</div>
+      <p style="font-size:14px;font-weight:600;color:var(--text-2);line-height:1.5;margin-top:6px">${obj.body}</p>
     </div>
   </section>
 
@@ -59,7 +105,7 @@ const overview = () => {
   <div class="eyebrow">Coach Targets</div>
   <section class="card pad">
     ${targetsRow()}
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:8px">${T ? 'Set by your coach. Live progress lives on Home.' : 'No targets set yet — your coach can add them any time.'}</div>
+    ${COACH_TARGETS_NOTE[state] ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:8px">${COACH_TARGETS_NOTE[state]}</div>` : ''}
   </section>
 
   <div class="eyebrow">Need clarity?</div>
@@ -70,8 +116,12 @@ const overview = () => {
   <div style="height:10px"></div>`;
 };
 
+// Nutrition-tab eyebrow suffix per honest state — the false "not set yet" claim only ever
+// shows for a genuinely unset coach, never while loading or offline.
+const NUTRITION_EYEBROW_SUFFIX = { set: '', loading: ' · loading…', offline: ' · offline', unset: ' · not set yet' };
+
 const nutrition = () => `
-  <div class="eyebrow">Macro Targets ${S.planTargets ? '' : '· not set yet'}</div>
+  <div class="eyebrow">Macro Targets${NUTRITION_EYEBROW_SUFFIX[S.planTargetsState]}</div>
   ${targetsRow()}
 
   <div class="eyebrow">Build Your Plate</div>

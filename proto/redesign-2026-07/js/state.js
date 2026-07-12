@@ -108,6 +108,9 @@ const DEFAULT_RT = {
   practice: null,        // last server-confirmed {id,name,code}, or null — never a fabricated persona
   practiceLoading: true, // true until the first hydrate attempt (success or failure) completes
   practiceOffline: false,// true when the last hydrate attempt failed while a cached identity exists
+  // --- athlete's own profile/targets hydration state (same honest model as practice/team) ---
+  profileLoading: true,  // true until the first hydrate attempt (success or failure) completes
+  profileOffline: false, // true when the last hydrate attempt failed while no cached targets exist
   // --- coach's real team identity (same honest model as practice) ---
   team: null,            // last server-confirmed {id,name,code}, or null — never "Coach Mark"
   teamLoading: true,
@@ -458,9 +461,15 @@ export const act = {
   async _loadProfileIntoRt(userId) {
     const sb = window.sb;
     if (!sb || !userId) return false;
+    // Whether we already had real coach-set targets cached from a prior successful hydrate —
+    // an offline athlete who already has these must never be told their coach set none.
+    const hadTargets = !!(RT.profile && RT.profile.targets);
+    RT.profileLoading = true; save();
     try {
       const { data: prof } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-      const { data: ap } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob').eq('athlete_id', userId).maybeSingle();
+      // SETTLED sentinel: supabase-js resolves network/RLS failures into `{error}` without
+      // throwing — destructure it so a real fetch failure is never misread as "no targets".
+      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob').eq('athlete_id', userId).maybeSingle();
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
       if (ap) {
@@ -471,9 +480,20 @@ export const act = {
         if (ap.targets && typeof ap.targets === 'object') patch.targets = ap.targets;
         if (ap.dob) patch.dob = ap.dob; // drives the client-side minor gate (mirrors 0050's is_provable_minor)
       }
+      // The patch above only ever touches RT.profile.targets when `ap` actually came back, so a
+      // previously-cached target (hadTargets) survives an errored fetch untouched — the athlete
+      // keeps seeing their real numbers while `offline` still flags the connection is down.
+      RT.profileOffline = !!apErr;
       if (Object.keys(patch).length) { RT.profile = { ...(RT.profile || {}), ...patch }; save(); }
+      RT.profileLoading = false; save();
       return !!ap;
-    } catch { /* offline / RLS — keep whatever identity we have */ return false; }
+    } catch {
+      // threw instead of resolving — same honest treatment as a resolved {error}; any cached
+      // target (hadTargets) is untouched because nothing in this catch writes RT.profile.
+      RT.profileOffline = true;
+      RT.profileLoading = false; save();
+      return false;
+    }
   },
   /* Read the trainer's REAL practice identity (business name + client join code) into RT —
      mirrors _loadProfileIntoRt for athletes, and mirrors practiceLoadDecision in
@@ -824,6 +844,12 @@ export const act = {
     }
     await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications();
   },
+  // User-driven recovery from the Plan offline card (data-act="retryProfile") — re-attempts the
+  // same hydrate _loadProfileIntoRt already does at boot/signIn; the router awaits this then
+  // re-renders (router.js), so a success repaints real targets in place. No auto-retry/polling.
+  async retryProfile() {
+    if (RT.userId) await this._loadProfileIntoRt(RT.userId);
+  },
 };
 window.__act = act;
 
@@ -980,6 +1006,17 @@ export const S = {
     const v = (x) => (x != null && x !== '' ? x : null);
     const out = { protein: v(t.protein), calories: v(t.calories), weight: v(t.weight) };
     return (out.protein || out.calories || out.weight) ? out : null;
+  },
+  // Honest 4-state resolution for Plan surfaces: a coach-set target, a hydrate still in flight,
+  // an offline/failed fetch with nothing cached, or a genuinely-unset coach. 'set' takes
+  // precedence over everything — an offline athlete who already has cached real targets
+  // (S.planTargets survives an errored refetch, see _loadProfileIntoRt) must never see the
+  // offline card or the "not set" copy.
+  get planTargetsState() {
+    if (this.planTargets) return 'set';
+    if (RT.profileLoading) return 'loading';
+    if (RT.profileOffline) return 'offline';
+    return 'unset';
   },
   get planGoalLabel() {
     const g = RT.profile && RT.profile.baseGoal;
