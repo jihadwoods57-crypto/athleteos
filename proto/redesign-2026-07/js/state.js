@@ -12,12 +12,13 @@ import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor,
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
+  setSyncBlocked, isSyncBlocked, SYNC,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { groundExtras } from './meal-intel.js';
-import { fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach } from './roles.js';
+import { fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyConsent, requestGuardianConsent as rpcRequestConsent } from './roles.js';
 import { track, EVENTS } from './analytics.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
@@ -113,6 +114,9 @@ const DEFAULT_RT = {
   teamOffline: false,
   // --- athlete's real linked coach ({teamId,teamName,name}) — null until a real team link exists ---
   myCoach: null,
+  // --- guardian consent (athlete side of 0008/0050): last server-confirmed state, or null ---
+  // { status: 'verified'|'pending'|'revoked'|'none', guardianEmail } — only meaningful for minors.
+  consent: null,
 };
 function load() {
   try {
@@ -132,6 +136,7 @@ export function routeForRole(role) {
 function friendlyAuth(msg) {
   const m = String(msg || '').toLowerCase();
   if (m.includes('invalid login')) return 'That email or password is incorrect.';
+  if (m.includes('email not confirmed') || m.includes('not confirmed') || m.includes('confirm your email')) return 'Confirm your email first — check your inbox for the link, then sign in.';
   if (m.includes('already registered') || m.includes('already been registered') || m.includes('user already')) return 'That email already has an account — try signing in.';
   if (m.includes('rate limit') || m.includes('too many')) return 'Too many attempts. Wait a minute and try again.';
   if (m.includes('password')) return 'Password must be at least 8 characters.';
@@ -438,7 +443,7 @@ export const act = {
     }
     if (role === 'trainer') await this._loadPracticeIntoRt(RT.userId);
     if (role === 'coach') await this._loadTeamIntoRt(RT.userId);
-    if (role === 'athlete') await this._loadCoachIntoRt(RT.userId);
+    if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); }
     await loadDay(RT.userId);
     syncRtFromDay();
     return { ok: true, role };
@@ -451,7 +456,7 @@ export const act = {
     if (!sb || !userId) return false;
     try {
       const { data: prof } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-      const { data: ap } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets').eq('athlete_id', userId).maybeSingle();
+      const { data: ap } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob').eq('athlete_id', userId).maybeSingle();
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
       if (ap) {
@@ -460,6 +465,7 @@ export const act = {
         if (ap.base_goal) patch.baseGoal = ap.base_goal;
         if (ap.season_goal && typeof ap.season_goal === 'object') patch.seasonGoal = ap.season_goal;
         if (ap.targets && typeof ap.targets === 'object') patch.targets = ap.targets;
+        if (ap.dob) patch.dob = ap.dob; // drives the client-side minor gate (mirrors 0050's is_provable_minor)
       }
       if (Object.keys(patch).length) { RT.profile = { ...(RT.profile || {}), ...patch }; save(); }
       return !!ap;
@@ -543,6 +549,45 @@ export const act = {
     RT.teamLoading = false;
     save();
   },
+  /* Athlete guardian-consent state (the client half of 0050): hydrate the newest request's
+     status, then arm/disarm the day-sync gate. A PROVABLE minor (dob says <18 — the same rule
+     as the server's is_provable_minor) without verified consent must not push real data: the
+     server would reject it anyway (0050 write-block), so the client keeps the day on-device
+     and TELLS the athlete why instead of failing silently. Fetch failures keep last-known. */
+  async _loadConsentIntoRt(userId) {
+    if (!userId) return;
+    const res = await fetchMyConsent(userId);
+    if (res && !res.error) { RT.consent = res; save(); }
+    this._armSyncGate();
+  },
+  /* Is the signed-in athlete a provable minor? Mirrors 0050: dob (or base age) shows < 18;
+     unknown age = adult (the live-beta ruling documented in the migration). */
+  _isProvableMinor() {
+    const dob = RT.profile && RT.profile.dob;
+    if (!dob) return false;
+    const d = new Date(String(dob) + 'T12:00:00');
+    if (isNaN(d)) return false;
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    return age < 18;
+  },
+  _armSyncGate() {
+    const blocked = this._isProvableMinor() && !(RT.consent && RT.consent.status === 'verified');
+    setSyncBlocked(blocked);
+  },
+  /* Ask a parent/guardian for consent (0008 RPC), then re-hydrate so the UI shows pending. */
+  async requestGuardianConsent(email) {
+    const addr = String(email || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) return { ok: false, error: 'Enter your parent or guardian’s email.' };
+    const r = await rpcRequestConsent(addr);
+    if (!r.ok) return r;
+    RT.consent = { status: 'pending', guardianEmail: addr };
+    save();
+    this._armSyncGate();
+    return { ok: true };
+  },
   /* Read the athlete's REAL linked coach (their team + the head coach's display name) into
      RT.myCoach. Confirmed "no team link" clears it (an athlete who left a team must not keep
      a stale coach); a fetch failure keeps the last-known link rather than wiping it. */
@@ -613,6 +658,23 @@ export const act = {
     if (!sb || !RT.userId) return false;
     try { const { error } = await sb.from('athlete_profiles').upsert({ athlete_id: RT.userId, ...fields }); return !error; }
     catch { return false; }
+  },
+  /* Persist edited identity to the SERVER rows the coach actually reads: full_name → profiles,
+     sport/position → athlete_profiles. The old editProfile saved only to local RT, so a coach
+     never saw a post-onboarding name/sport change. Returns false if either write fails so the
+     UI can say "saved on this phone, not synced." */
+  async saveIdentity({ full_name, sport, position }) {
+    const sb = window.sb;
+    if (!sb || !RT.userId) return false;
+    let ok = true;
+    try {
+      if (full_name) { const { error } = await sb.from('profiles').update({ full_name }).eq('id', RT.userId); if (error) ok = false; }
+    } catch { ok = false; }
+    const ap = {};
+    if (sport) ap.sport = sport;
+    if (position) ap.position = position;
+    if (Object.keys(ap).length) { if (!(await this.saveAthleteProfile(ap))) ok = false; }
+    return ok;
   },
   /* Consent receipt — every role accepts the same terms line at account creation.
      Best-effort (0048 columns); idempotent enough: re-stamping only refreshes the receipt. */
@@ -751,7 +813,10 @@ export const act = {
       await this._loadProfileIntoRt(RT.userId);
       if (RT.authRole === 'trainer') await this._loadPracticeIntoRt(RT.userId);
       if (RT.authRole === 'coach') await this._loadTeamIntoRt(RT.userId);
-      if (!RT.authRole || RT.authRole === 'athlete') await this._loadCoachIntoRt(RT.userId);
+      if (!RT.authRole || RT.authRole === 'athlete') {
+        await this._loadCoachIntoRt(RT.userId);
+        await this._loadConsentIntoRt(RT.userId);
+      }
     }
     await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications();
   },
@@ -869,6 +934,24 @@ export const S = {
     return y ? y.score : null;
   },
   get streakDays() { return dayStreak(); },
+  // Guardian-consent surface (athlete side of 0050). `needed` gates the Home banner + the
+  // sync pill copy; a verified minor and every adult read as not-needed.
+  get consent() {
+    const minor = act._isProvableMinor();
+    const status = (RT.consent && RT.consent.status) || 'none';
+    return {
+      minor,
+      status,
+      guardianEmail: (RT.consent && RT.consent.guardianEmail) || null,
+      needed: minor && status !== 'verified',
+    };
+  },
+  // Honest sync surface for Home: 'blocked' (minor awaiting consent — on purpose),
+  // 'error' (last push failed — offline/rejected), or null (fine / nothing attempted).
+  get syncIssue() {
+    if (isSyncBlocked()) return 'blocked';
+    return SYNC.last === 'error' ? 'error' : null;
+  },
   // Grace-aware streak state for the label surfaces. The grace "recharges": a graced miss
   // older than the trailing 7 days reads as intact again (one miss per rolling week).
   get streak() {

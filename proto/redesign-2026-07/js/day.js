@@ -298,12 +298,24 @@ export function flushDayPush(userId) {
 }
 
 let pushTimer = null;
+/* Client half of the 0050 minor-consent gate: while blocked (a provable minor without verified
+   guardian consent), real data stays ON-DEVICE — the server would reject the writes anyway, so
+   we don't fire doomed requests. The cache still saves (nothing is lost; it syncs the moment
+   consent verifies). state.js arms/disarms this from the hydrated consent status. */
+let SYNC_BLOCKED = false;
+export function setSyncBlocked(blocked) { SYNC_BLOCKED = !!blocked; }
+export function isSyncBlocked() { return SYNC_BLOCKED; }
+/* Honest sync surface: the result of the LAST attempted day push — 'ok' | 'error' | null (none
+   attempted yet). Home renders a quiet "not synced" pill off this instead of the old silent
+   console.warn, so an athlete can't log all week into a void without knowing. */
+export const SYNC = { last: null };
+
 export function pushDay(userId, immediate) {
   saveCache(userId);
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
   const doPush = async () => {
     const sb = window.sb;
-    if (!sb || !userId) return;
+    if (!sb || !userId || SYNC_BLOCKED) return;
     const s = clampedScore(DAY);
     const row = {
       athlete_id: userId, date: DAY.date,
@@ -312,8 +324,13 @@ export function pushDay(userId, immediate) {
       checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, slotMacros: DAY.slotMacros },
       score: s, grade: gradeFor(s),
     };
-    try { await sb.from('days').upsert(row, { onConflict: 'athlete_id,date' }); }
-    catch (e) { console.warn('[day] pushDay failed', e && e.message); }
+    try {
+      // supabase-js reports failures via {error}, it doesn't throw — check both paths so the
+      // sync pill is honest for RLS/constraint rejections as well as network deaths.
+      const { error } = await sb.from('days').upsert(row, { onConflict: 'athlete_id,date' });
+      SYNC.last = error ? 'error' : 'ok';
+      if (error) console.warn('[day] pushDay failed', error.message);
+    } catch (e) { SYNC.last = 'error'; console.warn('[day] pushDay failed', e && e.message); }
   };
   if (immediate) return doPush();
   pushTimer = setTimeout(doPush, 1000); // debounce bursts of taps
@@ -365,7 +382,7 @@ export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[
  *  Returns the new meal id (or null) so callers can persist it for the comment thread. */
 export async function insertMeal(userId, key, macros, meta, photoPath) {
   const sb = window.sb;
-  if (!sb || !userId) return null;
+  if (!sb || !userId || SYNC_BLOCKED) return null;
   try {
     const m = meta || {};
     const row = {
@@ -389,7 +406,7 @@ export async function insertMeal(userId, key, macros, meta, photoPath) {
  *  the athlete's id (storage RLS). Best-effort — a failed upload never blocks logging the meal. */
 export async function uploadMealPhoto(userId, key, base64) {
   const sb = window.sb;
-  if (!sb || !userId || !base64) return;
+  if (!sb || !userId || !base64 || SYNC_BLOCKED) return;
   try {
     const bin = atob(base64);
     const bytes = new Uint8Array(bin.length);

@@ -104,7 +104,8 @@ export const settings = {
     return `
     ${backHead('Units & preferences', 'Kept clean, not a junk drawer', 'profile')}
 
-    <div class="eyebrow">Units</div>
+    <div class="eyebrow">Units · US default for now</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">The app shows lb / oz / 12-hour today. Metric and 24-hour display land in an update — this is a preview of what's coming.</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('scale', 17)}</div>
@@ -224,7 +225,7 @@ export const billing = {
     <section class="card pad" style="border-color:var(--blue-border)">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
         <div style="font-size:17px;font-weight:800">Athlete</div>
-        <span class="status-pill b">Current plan</span>
+        <span class="status-pill b">Plan · preview</span>
       </div>
       <div style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.5">
         Daily score · AI meal analysis · coach connection · full history</div>
@@ -266,7 +267,8 @@ export const notifSettings = {
       <span class="chp">Gentle</span><span class="chp on">Accountable</span><span class="chp">Max pressure</span>
     </div>
 
-    <div class="eyebrow">Quiet hours</div>
+    <div class="eyebrow">Quiet hours · coming with reminders</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Your pressure level above is live. Quiet-hours scheduling turns on when device reminders ship — set your preference here now.</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('moon', 17)}</div>
@@ -327,7 +329,14 @@ export const deleteAccount = {
     btn.addEventListener('click', async () => {
       if (!armed) { armed = true; btn.innerHTML = 'Tap again to permanently delete'; return; } // two-tap confirm
       btn.disabled = true; btn.textContent = 'Deleting…';
-      await window.__act.deleteAccount(); // real delete_account RPC + sign-out + local wipe
+      const serverOk = await window.__act.deleteAccount(); // real delete_account RPC + sign-out + local wipe
+      // Never claim the account is gone if the SERVER delete failed — that would tell the user
+      // their data is erased while it's intact server-side. Local session is always signed out.
+      if (serverOk === false) {
+        if (status) { status.style.color = '#f87171'; status.textContent = "Couldn't reach the server — you're signed out, but your account may still exist. Try again online."; }
+        btn.disabled = false; btn.textContent = 'Delete account'; armed = false;
+        return;
+      }
       if (status) status.textContent = 'Account deleted.';
       location.hash = '#welcome';
     });

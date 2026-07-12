@@ -147,3 +147,17 @@ async function boot() {
 window.addEventListener('hashchange', render);
 window.addEventListener('DOMContentLoaded', boot);
 if (document.readyState !== 'loading') boot();
+
+// Keyboard avoidance: a WebView doesn't auto-scroll a focused input above the soft keyboard, so
+// bottom-anchored fields (chat composer, weight/code entry, onboarding) can sit hidden under it.
+// On focus — and when visualViewport shrinks (keyboard opens) — scroll the active field into the
+// centre of the visible area. Cheap, self-contained, no layout impact when there's no keyboard.
+(function keyboardAvoidance() {
+  const isField = (el) => el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && el.type !== 'checkbox' && el.type !== 'radio';
+  const reveal = () => {
+    const el = document.activeElement;
+    if (isField(el)) { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch { /* older WebView */ } }
+  };
+  document.addEventListener('focusin', (e) => { if (isField(e.target)) setTimeout(reveal, 250); }); // wait for the keyboard to animate up
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', () => { setTimeout(reveal, 60); });
+})();

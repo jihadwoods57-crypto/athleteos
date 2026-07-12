@@ -33,7 +33,8 @@ export const foodSearch = {
       <div class="send" style="background:var(--surface-2);color:var(--text)">${icon('search', 18)}</div>
     </div>
 
-    <div class="eyebrow">Results</div>
+    <div class="eyebrow">Results · short list for now</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">A starter set of common foods. The full database lands with the backend — a photo or the label always works for anything not here.</div>
     <section class="card" style="padding:2px 0" id="fs-results"></section>
 
     <div class="eyebrow">Your plate <span class="link" id="fs-clear">Clear</span></div>
@@ -121,69 +122,55 @@ export const foodSearch = {
   },
 };
 
-/* ---------- Scan Label: exact transcription, serving multiplier ---------- */
+/* ---------- Enter Label: honest manual panel entry × servings (no fake OCR) ---------- */
 export const labelScan = {
   tab: 'camera',
   hideTabs: true,
   render() {
-    const rows = [['Serving size', '1 bar (50g)'], ['Calories', '140'], ['Protein', '25g'], ['Total carbs', '5g'], ['Total fat', '2g'], ['Sodium', '135mg']];
-    const peanutAllergy = RT.allergies.some(a => a.toLowerCase().includes('peanut'));
     const slot = S.currentSlot;
     const slotName = slot ? slot.charAt(0).toUpperCase() + slot.slice(1) : 'meal';
+    const allergies = (RT.allergies || []).filter(Boolean);
+    const numField = 'width:100%;height:52px;border-radius:14px;background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums';
     return `
-    ${backHead('Scan Label', 'Exact numbers off the panel, never estimates', 'camera')}
+    ${backHead('Enter the Label', 'Type the numbers straight off the panel — exact, never estimated', 'camera')}
 
-    <div class="scanbox" style="width:100%;height:150px;border-radius:20px">
-      <div class="img" style="background:linear-gradient(160deg,#e8e6df,#cfcdc6);display:grid;place-items:center">
-        <div style="text-align:center;color:#1a1a1a;font-family:Arial">
-          <div style="font-weight:800;font-size:13px;letter-spacing:0.02em;border:2px solid #1a1a1a;padding:6px 14px">NUTRITION FACTS</div>
-          <div style="font-size:9px;font-weight:700;margin-top:5px">PEANUT BUTTER PROTEIN BAR · CONTAINS: PEANUTS</div>
-        </div>
-      </div>
-      <div class="scanline"></div>
+    ${allergies.length ? `
+    <div class="sidebox" style="border-color:var(--amber-border);background:rgba(245,165,36,0.08)">
+      <div class="req-icon a" style="width:38px;height:38px;color:var(--amber-bright)">${icon('bell', 17)}</div>
+      <div><div class="tt">Check it against your restrictions</div>
+      <div class="ts">You flagged ${esc(allergies.join(', '))}. Read the ingredients before you log this.</div></div>
     </div>
+    <div style="height:14px"></div>` : ''}
 
-    ${peanutAllergy ? `
-    <div style="height:14px"></div>
-    <div class="state-demo err-box" style="text-align:left;margin-bottom:0;padding:15px 16px">
-      <div style="display:flex;gap:12px;align-items:flex-start">
-        <div class="sd-ic" style="width:42px;height:42px;margin:0;border-radius:13px">${icon('bell', 20)}</div>
-        <div>
-          <div class="sd-t" style="font-size:15px">Guardian: contains peanuts</div>
-          <div class="sd-s" style="margin-top:4px">Your restriction list flags this as <b style="color:var(--red)">severe</b>. Don't log it as eaten unless you're certain it's safe for you.</div>
-        </div>
+    <div class="eyebrow">Per serving, off the panel</div>
+    <section class="card pad">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="bk" style="margin-bottom:6px">Calories</div><input id="ls-kcal" type="number" inputmode="numeric" placeholder="0" style="${numField}" /></div>
+        <div><div class="bk" style="margin-bottom:6px">Protein (g)</div><input id="ls-p" type="number" inputmode="numeric" placeholder="0" style="${numField};color:var(--green-bright)" /></div>
+        <div><div class="bk" style="margin-bottom:6px">Carbs (g)</div><input id="ls-c" type="number" inputmode="numeric" placeholder="0" style="${numField}" /></div>
+        <div><div class="bk" style="margin-bottom:6px">Fat (g)</div><input id="ls-f" type="number" inputmode="numeric" placeholder="0" style="${numField}" /></div>
       </div>
-    </div>` : ''}
-
-    <div class="eyebrow">Transcribed panel</div>
-    <section class="card" style="padding:4px 18px">
-      ${rows.map(([k, v], i) => `
-        <div style="display:flex;justify-content:space-between;padding:11px 0;${i < rows.length - 1 ? 'border-bottom:1px solid var(--hairline-soft)' : ''}">
-          <span style="font-size:14px;font-weight:700;color:var(--text-2)">${k}</span>
-          <span style="font-size:14.5px;font-weight:800" data-base="${v}">${v}</span>
-        </div>`).join('')}
     </section>
 
-    <div class="eyebrow">Servings</div>
+    <div class="eyebrow">Servings you ate</div>
     <div class="chip-row" id="serv" data-toggle-group>
       <span class="chp on" data-m="1">1</span>
       <span class="chp" data-m="1.5">1.5</span>
       <span class="chp" data-m="2">2</span>
+      <span class="chp" data-m="3">3</span>
     </div>
 
-    <div style="height:16px"></div>
+    <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
-      <div><div class="tt">Panel numbers are locked</div>
-      <div class="ts">The AI transcribes exactly what the label says and only multiplies by your servings. It never guesses a packaged food.</div></div>
+      <div><div class="tt">Exact, because you read it</div>
+      <div class="ts">You copy the numbers off the real panel; we just multiply by your servings. No guessing a packaged food — and no fake scan.</div></div>
     </div>
 
-    <div style="height:16px"></div>
-    ${peanutAllergy
-      ? `<button class="btn ghost" style="border:1.5px solid var(--red-border);color:var(--red)" data-go="camera">${icon('x', 18)} Not for you · scan something else</button>`
-      : !slot
-        ? `<button class="btn ghost" data-go="home">All meals logged · Back Home</button>`
-        : `<button class="btn green" id="ls-log">${icon('check', 19)} Add to ${slotName}</button>`}
+    <div id="ls-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
+    ${!slot
+      ? `<button class="btn ghost" data-go="home">All meals logged · Back Home</button>`
+      : `<button class="btn green" id="ls-log">${icon('check', 19)} Add to ${slotName}</button>`}
     <div style="height:10px"></div>
     `;
   },
@@ -191,25 +178,20 @@ export const labelScan = {
     const { wireToggles } = await import('./settings.js');
     wireToggles(root);
     let mult = 1;
-    // serving multiplier really recomputes the numeric rows
-    root.querySelectorAll('#serv .chp').forEach(ch => ch.addEventListener('click', () => {
-      const m = +ch.dataset.m; mult = m;
-      root.querySelectorAll('[data-base]').forEach(el => {
-        const base = el.getAttribute('data-base');
-        const num = parseFloat(base);
-        if (!isNaN(num) && !base.startsWith('1 scoop')) {
-          const unit = base.replace(/^[\d.]+/, '');
-          el.textContent = (Math.round(num * m * 10) / 10) + unit;
-        }
-      });
-    }));
-    // Log the REAL transcribed panel (× servings) into the real open slot.
+    root.querySelectorAll('#serv .chp').forEach(ch => ch.addEventListener('click', () => { mult = +ch.dataset.m || 1; }));
     const lsBtn = root.querySelector('#ls-log');
+    const err = root.querySelector('#ls-err');
     const SLOT = S.currentSlot;
     if (lsBtn && SLOT) lsBtn.addEventListener('click', () => {
+      const val = (id) => Math.max(0, parseFloat(root.querySelector('#' + id).value) || 0);
+      const p = val('ls-p'), c = val('ls-c'), f = val('ls-f'), kcalIn = val('ls-kcal');
+      // At least protein or calories must be entered — logging an all-zero label is meaningless.
+      if (p <= 0 && kcalIn <= 0) { err.textContent = 'Enter at least the calories or protein from the label.'; return; }
+      // If calories were left blank, derive them (Atwater) so the plate still carries energy.
+      const kcal = kcalIn > 0 ? kcalIn : (4 * p + 4 * c + 9 * f);
       window.__act.captureManual(
-        { protein: 25 * mult, carbs: 5 * mult, fat: 2 * mult, kcal: 140 * mult },
-        ['Protein bar'], SLOT);
+        { protein: Math.round(p * mult), carbs: Math.round(c * mult), fat: Math.round(f * mult), kcal: Math.round(kcal * mult) },
+        ['Label entry'], SLOT);
       window.__act.logMeal(SLOT);
       location.hash = `#meal-thread/${SLOT}`;
     });

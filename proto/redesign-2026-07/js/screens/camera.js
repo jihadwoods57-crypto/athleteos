@@ -77,9 +77,10 @@ export default {
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding-bottom:10px">
         <div class="cam-side" data-go="label-scan" style="flex-direction:row;gap:8px;align-items:center">
-          <span style="color:var(--text-3)">${icon('barcode', 16)}</span> Scan Label
+          <span style="color:var(--text-3)">${icon('barcode', 16)}</span> Enter Label
         </div>
         <div style="font-size:11px;font-weight:600;color:var(--text-3)">Live capture only for scored meals. That's the integrity rule.</div>
+        <div id="cam-note" style="font-size:12.5px;font-weight:600;color:var(--amber-bright);text-align:center;min-height:16px;padding:0 20px"></div>
       </div>
     </div>`;
   },
@@ -102,7 +103,13 @@ export default {
           const { base64, dataUrl } = await downscaleToJpeg(f, 1000, 0.82);
           act.captureMeal(base64, dataUrl, sub || undefined);
           window.__go('analyzing');
-        } catch { shutter.style.opacity = '1'; }
+        } catch {
+          // Camera/gallery failed or was denied — say so honestly and offer the no-camera path,
+          // instead of the old silent opacity reset that left the athlete stuck on a dead shutter.
+          shutter.style.opacity = '1';
+          const note = root.querySelector('#cam-note');
+          if (note) note.innerHTML = `Couldn't get the photo — check camera access, or <span class="lnk" data-go="log">log without a camera</span>.`;
+        }
       });
     }
   },
