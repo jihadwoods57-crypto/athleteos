@@ -3,22 +3,25 @@
 The beta now has two complementary analytics layers. One is **already live and needs one insert
 from you**; the other is **authored and inert** until you deploy it.
 
-## Layer 1 — retroactive loop analytics (ALREADY LIVE, migration 0037)
+## Layer 1 — retroactive loop analytics (LIVE + DONE, migration 0037)
+
+> **STATUS 2026-07-11: DONE.** The founder (`jihadwoods57@gmail.com`, id
+> `36f2b2b9-7083-4fbd-8e91-a3e05681b07b`) is seeded into `platform_admins` on live, and both RPCs
+> were verified returning real numbers as that user. First read: 10 athletes / 2 coaches, but **0
+> active in the last 7 days** and 0 meal-loggers — i.e. the accounts are dev/test and there is no
+> live daily usage yet. The instrument works; the job now is getting real users in front of it.
 
 Answers "how many athletes logged today?" by aggregating the `days`/`meals` you already collect —
-no client events, works retroactively. It's applied to live already; it just needs you added to
-the admin allowlist once. In the Supabase SQL editor (as the project owner):
+no client events, works retroactively. Use it any time from the Supabase **SQL editor** (you're
+logged in as yourself there, so the admin gate passes automatically):
 
 ```sql
--- find your id: Supabase → Authentication → Users → copy your UUID
-insert into platform_admins (user_id) values ('<your-user-uuid>');
-
--- then, any time:
 select * from admin_overview();          -- totals, active today, active 7d, new athletes 7d, ...
 select * from admin_daily_activity(30);  -- per-day active / scored / meal-logging athletes + avg score
 ```
 
-That's the whole retention read. Counts only, no PII, gated to the allowlist.
+Counts only, no PII, gated to the `platform_admins` allowlist. To add another admin later:
+`insert into platform_admins (user_id) values ('<their-uuid>');`
 
 ## Layer 2 — anonymous funnel/activation events (AUTHORED, INERT until you deploy)
 
