@@ -32,15 +32,26 @@ export const analyzing = {
   async mount(root) {
     const phase = root.querySelector('#an-phase');
     const sub = root.querySelector('#an-sub');
-    setTimeout(() => { if (phase && location.hash === '#analyzing') { phase.innerHTML = 'Estimating macros<span class="dots"></span>'; if (sub) sub.textContent = 'Matching to your plan'; } }, 1000);
+    const phaseTimer = setTimeout(() => { if (phase && location.hash === '#analyzing') { phase.innerHTML = 'Estimating macros<span class="dots"></span>'; if (sub) sub.textContent = 'Matching to your plan'; } }, 1000);
 
     if (MEAL && MEAL.photoBase64 && !MEAL.result) {
       // REAL analysis via the analyze-meal edge function.
       const r = await act.runAnalysis();
       if (location.hash !== '#analyzing') return; // navigated away
       if (r.ok) { location.hash = '#meal-analysis'; return; }
+      // Failure state: stop the "still scanning" animation and give a real >=44px recovery
+      // button instead of a 13px gray text tap — the old sub-line was nearly invisible at the
+      // exact moment the athlete's core action broke. A fast failure can land before the 1s
+      // phase timer, which would overwrite this copy — cancel it.
+      clearTimeout(phaseTimer);
+      const sl = root.querySelector('.scanline');
+      if (sl) sl.style.display = 'none';
       if (phase) phase.textContent = r.error || 'Analysis failed.';
-      if (sub) { sub.textContent = 'Tap to retake'; sub.style.cursor = 'pointer'; sub.onclick = () => { location.hash = '#camera'; }; }
+      if (sub) { sub.textContent = 'Nothing was logged — your photo is still here.'; }
+      root.querySelector('.analyzing').insertAdjacentHTML('beforeend',
+        `<div style="height:18px"></div>
+         <button class="btn green sm" id="an-retry" style="width:100%">${icon('camera', 18)} Retake photo</button>`);
+      root.querySelector('#an-retry').addEventListener('click', () => { location.hash = '#camera'; });
       return;
     }
     // No photo → nothing to analyze. Send them back to capture instead of a fabricated analysis.
