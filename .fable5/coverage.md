@@ -15,10 +15,10 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 | 3 | meal.js | Meal detail/log — nutrition is 50% of score | **done** (pass 1) — analysis-failure gets real retry button; phase-timer race fixed |
 | 4 | log.js | Action Hub sheet — primary inline write surface | **done** (pass 1) — sync/consent honesty row (mirrors Home's syncBanner) |
 | 5 | breakdown.js | Score breakdown — the strip's tap target; where "why is my score X" gets answered | **done** (pass 1) — tier chip on hero ring |
-| 6 | checkin.js | Recovery check-in — second scored daily habit | pending |
-| 7 | plan.js | Plan tab — coach-set targets, daily reference | pending |
-| 8 | progress.js | Progress tab — retention surface, streak/trend story | pending |
-| 9 | notifications.js | Accountability feed — now leads with streak row (cycle 1 mirror) | pending |
+| 6 | checkin.js | Weekly check-in (NOT daily recovery — that's recovery.js) | **done** (pass 1) — preview form made honestly inert (was swallowing taps) |
+| 7 | plan.js | Plan tab — coach-set targets, daily reference | **done** (pass 1) — sub-tabs raised to 44px+ |
+| 8 | progress.js | Progress tab — retention surface, streak/trend story | **done** (pass 1) — grace-aware current-streak ribbon leads the populated view |
+| 9 | notifications.js | Accountability feed — leads with streak row | **done** (pass 1) — pills humanized (urgent/reminder/nice work) + chevrons on routed rows |
 | 10 | foodsearch.js | Food search — logging friction lives here | pending |
 | 11 | profile.js | Athlete profile root — settings/identity hub | pending |
 | 12 | weight.js | Weight log — trend-only surface | pending |
@@ -49,6 +49,10 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 - 2026-07-12 · **meal (analyzing)** · add: real failure state — scanline stops, honest error + "nothing was logged" reassurance, 48px green "Retake photo" button (was a 13px gray text tap under a still-animating scan). Also fixes a race: fast failures were overwritten by the 1s phase timer. QA: genuine edge-function failure verified live; evidence `shots/2026-07-12-screens-batch1/after-meal-analyze-fail.png`.
 - 2026-07-12 · **log (Action Hub)** · add: sync/consent honesty row mirroring Home's syncBanner — amber guardian-consent row (routes to guardian) or gray "Saved on your phone" offline row, in both sheet modes; healthy sheet byte-identical. QA: error row appears/disappears with SYNC.last, 76px tall, non-interactive; evidence `shots/2026-07-12-screens-batch1/after-log-sync-row.png`.
 - 2026-07-12 · **breakdown** · add: tier chip on the hero ring (`tierName`/`tierCls` from `S.tier`, same params Home's ring uses) — the score number now carries instant meaning. QA: chip text/class verified equal to `S.tier` live.
+- 2026-07-12 · **checkin (weekly)** · delete: removed deceptive wireToggles on the preview form — chips lit up purple then silently discarded the answer ("did that save?" doubt on a trust-first product). Card is now pointer-events:none + aria-hidden with a 🔒 preview label. QA: tap produces no .on state, 0 toggle groups.
+- 2026-07-12 · **plan** · upgrade: sub-tab strip raised from ~39px to 46px (min-height 44px + flex centering) — the screen's core interaction now clears the tap floor. QA: all 4 tabs measure 46px; underline intact.
+- 2026-07-12 · **progress** · add: grace-aware current-streak ribbon leads the populated view (same S.streak getter + grace-calibrated urgency rule as Home; secured state = green check + "locks at midnight"; <2 days renders nothing). QA: all 3 states verified live; evidence `shots/2026-07-12-screens-batch1/after-progress-streak.png`.
+- 2026-07-12 · **notifications** · upgrade ×2: severity pills humanized (high→URGENT, medium→REMINDER; no more raw enum jargon, colour-independent meaning) and routed rows get a trailing chevron so the streak-save tap is visible. QA: no raw "high"/"medium" text; 2/2 routed rows show chevrons.
 
 ## Home — teardown v1 (pass 1 complete)
 - **ADD (shipped):** streak-at-risk state `90e1105`; green SECURED pill `0485fea`.
@@ -56,3 +60,16 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 - **REARRANGE (shipped):** ribbon as sibling directly under strip.
 - **DELETE:** nothing clearly dead found.
 - **Open observation (pass 2 candidate):** evening all-overdue state renders "NEXT/LATER" group labels over rows that all carry OVERDUE pills — hierarchy reads contradictory (seen in 390px smoke 2026-07-11).
+
+## Pass 2 candidates (from batch teardowns, ranked)
+- **plan #1 (trust):** `S.planTargets===null` collapses "coach set nothing" / "still hydrating" / "offline fetch failed" into the definitive "Your coach hasn't set targets yet" (plan.js:47,62,74) — offline athletes with real targets are told their coach set nothing. Copy-level fix possible; a `profileLoading` flag would be cleaner (state.js change — keep in scope, it's presentation-supporting).
+- **progress (token bug):** `.bigstat .d` hardcodes green (screens.css:180) but weekDelta can be negative — a down week renders success-green. 1-line conditional class.
+- **camera #2 (a11y):** `.vf-tool` 40px and camera back button inline-shrunk to 40px — under the 44px floor.
+- **checkin #2 (rearrange):** real "Latest readiness" card renders below the dead preview form — real data should lead.
+- **meal #2:** thread comment load has no failure state (refresh() unguarded — "Loading the thread…" forever on a throw).
+- **camera #3 (honesty):** fake "LIVE" pill over a static blurred stock photo in the simulated viewfinder.
+- **log R2 (perceived speed):** every +8/+16 water tap replays the 320ms sheetUp entrance animation + scroll reset (data-then="log" re-render).
+- **breakdown (copy honesty):** "Missed today … your logging streak reset" shows all day before the weigh-in window has even passed (S.weightLine is boolean-driven, not time-aware).
+- **notifications (delete-flag):** "Earlier today" branch is dead (getter always returns earlier:[]) — placeholder contract, founder call.
+- **shared a11y:** `.c5` chips 42px (screens.css:159) and `.back-head .bk` 40px (app.css:365) — shared-component bumps, not per-screen forks.
+- **plan #4 (a11y):** Notes composer send control is an icon-only div with no accessible name (shared wireComposer pattern).
