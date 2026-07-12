@@ -1,7 +1,7 @@
 import { S, RT, tier, act, MEAL, mealDetail } from '../state.js';
 import { DAY } from '../day.js';
 import { icon, checkFill } from '../icons.js';
-import { backHead, esc, safeImg } from '../components.js';
+import { backHead, esc, safeImg, nonLiveBadge } from '../components.js';
 import { openingMessage, reactionGroups, threadMessages, contextForChat } from '../meal-intel.js';
 
 function macroRow(m) {
@@ -19,14 +19,16 @@ export const analyzing = {
   hideTabs: true,
   render() {
     const img = safeImg((MEAL && MEAL.photoDataUrl) || S.logging.img);
+    const nonLive = MEAL && MEAL.live === false;
     return `
     <div class="analyzing">
       <div class="scanbox">
         <div class="img" style="background-image:url('${img}')"></div>
         <div class="scanline"></div>
       </div>
+      ${nonLive ? `<div style="display:flex;justify-content:center;padding-top:10px">${nonLiveBadge()}</div>` : ''}
       <div class="phase" id="an-phase">Reading your meal<span class="dots"></span></div>
-      <div class="phase-sub" id="an-sub">Detecting foods and portions</div>
+      <div class="phase-sub" id="an-sub">${nonLive ? 'Live capture only for scored meals — this photo is flagged non-live' : 'Detecting foods and portions'}</div>
     </div>`;
   },
   async mount(root) {
@@ -67,13 +69,14 @@ export const analysis = {
     const L = S.logging;
     const slot = MEAL.key || 'dinner';
     const already = !!DAY.meals[slot];
+    const nonLive = MEAL.live === false;
     return `
     ${backHead(`${L.name} Analysis`, 'Check it before it counts', 'camera')}
 
     <div class="photo-hero" style="background-image:url('${safeImg(L.img)}')">
       <div class="ph-grad"></div>
       <div class="ph-meta">
-        <div><div class="ph-t">${esc(L.name)}</div><div class="ph-s">Captured just now · on time</div></div>
+        <div><div class="ph-t">${esc(L.name)}</div><div class="ph-s">${nonLive ? 'Live capture only for scored meals' : 'Captured just now · on time'}</div>${nonLive ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
         <div class="scorechip"><span class="v">${L.score}</span><span class="k">Meal</span></div>
       </div>
     </div>
@@ -226,9 +229,10 @@ export const thread = {
     <div class="photo-hero" id="meal-hero" style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))">
       <img id="meal-photo" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
       <div class="ph-grad"></div>
-      <div class="ph-meta"><div><div class="ph-t">${esc(M.name)}</div><div class="ph-s">Logged ${esc(M.loggedAt || 'today')}</div></div>
+      <div class="ph-meta"><div><div class="ph-t">${esc(M.name)}</div><div class="ph-s">Logged ${esc(M.loggedAt || 'today')}</div>${M.live === false ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
       ${M.score != null ? `<div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}</div>
     </div>
+    ${M.live === false ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:6px">Live capture only for scored meals — this photo was picked from your gallery.</div>` : ''}
     <div class="foodchips">
       ${M.detectedRich.map((d) => `<span class="foodchip"><span class="conf-dot ${esc(d.confidence)}"></span>${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI was unsure about this one">?</span>' : ''}</span>`).join('')}
     </div>

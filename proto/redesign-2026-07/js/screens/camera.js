@@ -67,8 +67,9 @@ export default {
       <div class="cam-note">Hidden foods, portion, drink, how you're feeling…</div>
 
       <input type="file" accept="image/*" capture="environment" id="cam-file" style="display:none" />
+      <input type="file" accept="image/*" id="cam-gallery" style="display:none" />
       <div class="cam-actions">
-        <div class="cam-side" style="cursor:default;opacity:0.45"><div class="cbtn">${icon('lock', 19)}</div>Gallery</div>
+        <div class="cam-side" id="gallery-btn"><div class="cbtn">${icon('image', 19)}</div>Gallery</div>
         <div class="shutter" id="shutter"><div class="inner">${icon('camera', 26)}</div></div>
         <div class="cam-side" data-go="food-search"><div class="cbtn">${icon('search', 20)}</div>Search</div>
       </div>
@@ -76,40 +77,50 @@ export default {
         <div class="cam-side" data-go="label-scan" style="flex-direction:row;gap:8px;align-items:center">
           <span style="color:var(--text-3)">${icon('barcode', 16)}</span> Enter Label
         </div>
-        <div style="font-size:11px;font-weight:600;color:var(--text-3)">Live capture only for scored meals. That's the integrity rule.</div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3)">Live capture only for scored meals. That's the integrity rule — Gallery photos are flagged non-live.</div>
         <div id="cam-note" style="font-size:12.5px;font-weight:600;color:var(--amber-bright);text-align:center;min-height:16px;padding:0 20px"></div>
       </div>
     </div>`;
   },
   mount(root, { sub } = {}) {
-    // Real capture: shutter opens the native camera/photo picker; the photo is downscaled,
-    // handed to state, and the analyzing screen runs the AI on it.
+    // Real capture: shutter opens the native camera; Gallery opens the plain photo picker
+    // (no `capture` attribute) and is marked non-live. Both funnel through the same
+    // downscale → captureMeal → analyzing path so failure handling stays identical.
     const file = root.querySelector('#cam-file');
+    const gallery = root.querySelector('#cam-gallery');
     const shutter = root.querySelector('#shutter');
+    const galleryBtn = root.querySelector('#gallery-btn');
+
+    const pick = (inputEl, live) => async () => {
+      const f = inputEl.files && inputEl.files[0];
+      if (!f) return;
+      shutter.style.opacity = '0.5';
+      try {
+        const { base64, dataUrl } = await downscaleToJpeg(f, 1000, 0.82);
+        act.captureMeal(base64, dataUrl, sub || undefined, live);
+        window.__go('analyzing');
+      } catch {
+        // Camera/gallery failed or was denied — say so honestly and offer the no-camera path,
+        // instead of the old silent opacity reset that left the athlete stuck on a dead shutter.
+        shutter.style.opacity = '1';
+        const note = root.querySelector('#cam-note');
+        // food-search, not 'log': the Action Hub's photo hero routes straight back to the
+        // camera that just failed — matching the primed screen's no-camera path. The router
+        // only wires [data-go] at render time, so this post-mount injection wires its own tap.
+        if (note) {
+          note.innerHTML = `Couldn't get the photo — check camera access, or <span class="lnk">log without a camera</span>.`;
+          note.querySelector('.lnk').addEventListener('click', () => window.__go('food-search'));
+        }
+      }
+    };
+
     if (file && shutter) {
       shutter.addEventListener('click', () => file.click());
-      file.addEventListener('change', async () => {
-        const f = file.files && file.files[0];
-        if (!f) return;
-        shutter.style.opacity = '0.5';
-        try {
-          const { base64, dataUrl } = await downscaleToJpeg(f, 1000, 0.82);
-          act.captureMeal(base64, dataUrl, sub || undefined);
-          window.__go('analyzing');
-        } catch {
-          // Camera/gallery failed or was denied — say so honestly and offer the no-camera path,
-          // instead of the old silent opacity reset that left the athlete stuck on a dead shutter.
-          shutter.style.opacity = '1';
-          const note = root.querySelector('#cam-note');
-          // food-search, not 'log': the Action Hub's photo hero routes straight back to the
-          // camera that just failed — matching the primed screen's no-camera path. The router
-          // only wires [data-go] at render time, so this post-mount injection wires its own tap.
-          if (note) {
-            note.innerHTML = `Couldn't get the photo — check camera access, or <span class="lnk">log without a camera</span>.`;
-            note.querySelector('.lnk').addEventListener('click', () => window.__go('food-search'));
-          }
-        }
-      });
+      file.addEventListener('change', pick(file, true));
+    }
+    if (gallery && galleryBtn) {
+      galleryBtn.addEventListener('click', () => gallery.click());
+      gallery.addEventListener('change', pick(gallery, false));
     }
   },
 };

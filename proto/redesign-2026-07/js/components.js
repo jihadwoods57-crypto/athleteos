@@ -27,6 +27,13 @@ export function safeImg(v) {
   return ok ? s : '';
 }
 
+/* Honest disclosure badge for a gallery-picked (non-live) meal photo. Reuses the existing
+   amber .status-pill.a token — no new per-screen color fork. Presentation only: never
+   changes scoring, only discloses that this photo wasn't captured live. */
+export function nonLiveBadge() {
+  return `<span class="status-pill a">${icon('image', 12)} NON-LIVE</span>`;
+}
+
 /* Signature score ring — cinematic, uncontained. Layers:
    rotating aurora (CSS) → under-glow arc → thick gradient band → inner echo
    ring → comet tip + lens sparkle → center stack (label / N / /100 / delta / streak). */
