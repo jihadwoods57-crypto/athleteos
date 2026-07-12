@@ -28,10 +28,10 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 | 16 | coach.js (coach root) | Coach dashboard — buyer-facing | **done** (pass 1) — stat tiles no longer fabricate zeros while loading/offline |
 | 17 | coach.js (trainer root) | Trainer view — Practice HQ adjacency | **done** (pass 1) — honest offline state (outage no longer reads "No clients yet") |
 | 18 | coach.js (parent root) | Parent view — payer-facing | **done** (pass 1) — sign-out row added (was a total dead end: hideTabs + no exit) |
-| 19 | roles.js | Role screens (trainer HQ etc.) — Practice HQ shipped last run | pending |
-| 20 | guardian.js | Guardian consent — minor-athlete gate | pending |
-| 21 | connect.js | Coach/practice linking | pending |
-| 22 | onboarding.js | First-run flow — one-shot but sets tone | pending |
+| 19 | roles.js | Role screens (6 exports; Practice HQ re-checked, no regressions) | **done** (pass 1) — coachProfile Copy-code copies the displayed server code (was silently copying '') |
+| 20 | guardian.js | Guardian consent — minor-athlete gate | **done** (pass 1) — pending state can remind the same parent (prefilled email + inline confirmation) |
+| 21 | connect.js | Coach/practice linking | **done** (pass 1) — offline preflight (valid code no longer reads "didn't match") + alert/aria |
+| 22 | onboarding.js | First-run flow — one-shot but sets tone | **done** (pass 1) — 44px chrome: .ob-back 34→44, text links get .ob-textlink floor |
 | 23 | ob-account.js | Account creation step | pending |
 | 24 | signin.js | Sign-in | pending |
 | 25 | auth.js | Auth shell/welcome | pending |
@@ -61,6 +61,10 @@ Status: `pending` → `teardown` → `shipping` → `done`. One improvement per 
 - 2026-07-12 · **trust** · fix ×2 (honesty): "Next check: day 5" was a frozen literal — now derived from real t.day (5 → 10 → "both checks cleared"); the decay curve's YOU marker was an invisible r="0" circle with a `? 20 : 20` no-op ternary — now a real dot sitting on the curve at the athlete's actual credit level. QA: all 3 day-bands + dot y-position verified.
 - 2026-07-12 · **coach root + trainer root + data layer** · fix (honesty): supabase-js resolves network failures into {error} WITHOUT throwing, so the coach's offline catch was mostly dead and trainer had none — a full client book read as "No clients yet" during an outage. fetchMyTeams/fetchMyPractices now return the {error:true} sentinel (settled fetchMyPracticeIdentity pattern), loaders throw on it, trainer gets the same "Can't reach your clients" state-demo as coach, and coach stat tiles show "—" instead of fabricated green-0/red-0 while loading/offline. QA: real fetch-rejection drill verified both roots + tiles; genuine empty still reads "No clients yet".
 - 2026-07-12 · **parent root** · add: sign-out row (same .lrow pattern as coach/trainer profiles) — the parent pending screen was a total dead end (hideTabs, no exit affordance). QA: 68px row routes to welcome.
+- 2026-07-12 · **connect** · fix (honesty+a11y): offline athlete typing a VALID code was told "that code didn't match" (joinByCode's RPC error conflation) — definitive-offline preflight now shows the honest connection message without calling the RPC; error node gains role=alert/aria-live; input gains an accessible name. QA: offline drill verified, button never enters "Connecting".
+- 2026-07-12 · **roles (coachProfile)** · fix (functionality): Copy-code copied RT.ob.teamCode (onboarding scratch — empty on fresh-device sign-in) while displaying the server code: silent empty clipboard. Now copies S.coachIdentity.code first (trainerProfile pattern) + "Copied" label reverts after 1.6s. QA: clipboard spy captured the displayed code with RT.ob empty.
+- 2026-07-12 · **guardian** · upgrade: pending state could not remind the SAME parent (empty input + "wrong address?" framing forced a retype) — now prefills the stored guardian email, button reads "Send reminder", success shows green inline confirmation instead of an invisible identical repaint. Consent logic untouched. QA: prefill + confirmation verified with stubbed action.
+- 2026-07-12 · **onboarding (+ob flows in roles.js)** · upgrade (a11y): .ob-back 34→44px and the three ~18-32px text links (Skip for now / Remove connection / I have a coach code) get a shared .ob-textlink 44px floor. QA: 44/44/44 measured at 390px.
 
 ## Home — teardown v1 (pass 1 complete)
 - **ADD (shipped):** streak-at-risk state `90e1105`; green SECURED pill `0485fea`.
