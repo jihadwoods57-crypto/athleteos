@@ -108,7 +108,13 @@ export default {
           // instead of the old silent opacity reset that left the athlete stuck on a dead shutter.
           shutter.style.opacity = '1';
           const note = root.querySelector('#cam-note');
-          if (note) note.innerHTML = `Couldn't get the photo — check camera access, or <span class="lnk" data-go="log">log without a camera</span>.`;
+          // food-search, not 'log': the Action Hub's photo hero routes straight back to the
+          // camera that just failed — matching the primed screen's no-camera path. The router
+          // only wires [data-go] at render time, so this post-mount injection wires its own tap.
+          if (note) {
+            note.innerHTML = `Couldn't get the photo — check camera access, or <span class="lnk">log without a camera</span>.`;
+            note.querySelector('.lnk').addEventListener('click', () => window.__go('food-search'));
+          }
         }
       });
     }
