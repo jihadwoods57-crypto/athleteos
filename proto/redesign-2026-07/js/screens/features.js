@@ -219,18 +219,18 @@ export const coachVoice = {
     <section class="card pad" style="display:flex;align-items:center;gap:14px">
       <div style="flex:1">
         <div style="font-size:15px;font-weight:800">Speak as ${esc(S.coachIdentity.name)}</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px">AI replies to your athletes borrow your phrasing.</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px">AI replies to your athletes will borrow your phrasing.</div>
       </div>
-      <div class="seg" style="width:104px" data-toggle-group><button class="on">On</button><button>Off</button></div>
+      <span class="status-pill a" style="flex:none">Preview</span>
     </section>
 
-    <div class="eyebrow">Phrases it learned from you</div>
+    <div class="eyebrow">Phrases it will reinforce</div>
     <section class="card" style="padding:6px 16px">
       ${['That’s the standard.', 'Don’t chase the scale, we’re building.', 'Hydration is the standard this week.', 'Keep this structure.'].map(p => `
         <div class="lrow" style="cursor:default">
           <div class="lic">${icon('message', 16)}</div>
           <div class="lm"><div class="lt" style="font-weight:700">“${p}”</div></div>
-          <span class="status-pill g">In use</span>
+          <span class="status-pill" style="color:var(--text-3);border-color:var(--hairline)">Example</span>
         </div>`).join('')}
     </section>
 
