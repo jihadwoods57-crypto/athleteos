@@ -37,7 +37,8 @@ function posIntCap(name: string, fallback: number): number {
 // and env caps so plan drafts and meal analyses draw down ONE unified daily Anthropic budget:
 //   * GLOBAL_CAP  — total paid calls/day across EVERY caller: the hard backstop on the bill.
 //   * ANON_IP_CAP — paid calls/day per IP for anonymous (anon-key-only) callers, who skip the
-//     per-user cap. Both are backed by claim_ai_usage_key (migration 0030) and fail OPEN.
+//     per-user cap. Both are backed by claim_ai_usage_key (migration 0030) and fail CLOSED — the
+//     bill backstop and an anon caller's only ceiling must hold even when the counter is down.
 const GLOBAL_CAP = posIntCap('GLOBAL_ANALYSIS_CAP', 5000);
 const ANON_IP_CAP = posIntCap('ANON_IP_ANALYSIS_CAP', 60);
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -79,18 +80,23 @@ async function withinDailyCap(userId: string): Promise<boolean> {
 }
 
 // Claim one slot against a TEXT-keyed day counter (global ceiling / per-IP anon cap; migration
-// 0030). Fail-OPEN on any error, exactly like withinDailyCap, so an un-applied migration or infra
-// hiccup never blocks a legit draft.
-async function withinKeyCap(key: string, limit: number): Promise<boolean> {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
+// 0030). `failOpen` decides what an unreachable counter means (mirrors analyze-meal):
+//   * per-user fairness caps pass failOpen=true — an infra hiccup must never block a legit draft
+//     (withinDailyCap keeps the same semantics);
+//   * the GLOBAL bill backstop and the anon per-IP cap pass failOpen=false — if the counter is down
+//     (un-applied migration, RPC error), the LAST line of defense on paid spend must HOLD, not
+//     silently disable (audit 2026-07-12: plan-generate was the lone function whose global backstop
+//     still failed open — analyze-meal set the fail-closed precedent).
+async function withinKeyCap(key: string, limit: number, failOpen = true): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return failOpen;
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data, error } = await sb.rpc('claim_ai_usage_key', { p_key: key, p_limit: limit });
-    if (error) return true;
+    if (error) return failOpen;
     const row = Array.isArray(data) ? data[0] : data;
     return row?.allowed !== false;
   } catch {
-    return true;
+    return failOpen;
   }
 }
 
@@ -273,16 +279,17 @@ Deno.serve(async (request) => {
   // Spend caps (audit item 4), checked after the input guards so a malformed request never burns a
   // slot. Same three layers as analyze-meal, sharing the same counters for one unified daily bill.
   // (1) Global daily ceiling across every caller — the hard backstop on a day's Anthropic bill.
-  if (!(await withinKeyCap('global', GLOBAL_CAP))) {
+  // Fails CLOSED: if the counter is unreachable the bill backstop must hold (audit 2026-07-12).
+  if (!(await withinKeyCap('global', GLOBAL_CAP, /* failOpen */ false))) {
     return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
-  // (2) Per-caller cap: a signed-in user gets the per-user daily cap; an anonymous (anon-key-only)
-  // caller gets a per-IP daily cap so the public anon key can't drive unbounded paid spend without
-  // signing in. Both fail open.
+  // (2) Per-caller cap: a signed-in user gets the per-user daily cap (fails OPEN — never block a
+  // legit coach's draft on an infra hiccup); an anonymous (anon-key-only) caller gets a per-IP daily
+  // cap that fails CLOSED, since the public anon key's only ceiling must hold when the counter is down.
   const userId = await resolveUserId(request);
   const withinCallerCap = userId
     ? await withinDailyCap(userId)
-    : await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP);
+    : await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP, /* failOpen */ false);
   if (!withinCallerCap) {
     return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }

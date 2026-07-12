@@ -19,6 +19,7 @@ import { createClient } from 'npm:@supabase/supabase-js@^2';
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 // Audit Finding #2: a global daily ceiling on paid assist calls (the deep path runs Opus), as a
 // hard backstop on the bill since the anon key is public. Backed by claim_ai_usage_key (0030);
@@ -40,6 +41,53 @@ async function withinGlobalCap(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// Per-caller fairness cap (audit 2026-07-12). assist previously had ONLY the global bill backstop
+// and the per-minute in-memory limit — no durable per-caller ceiling — so one anon-key actor could
+// drain the whole global assist budget and deny narration to everyone. Mirror analyze-meal: a
+// signed-in coach gets a generous per-user daily cap (fails OPEN — never block a legit call); an
+// anonymous (anon-key-only) caller gets a per-IP daily cap that fails CLOSED (its only ceiling).
+function posIntCap(name: string, fallback: number): number {
+  const n = Math.floor(Number(Deno.env.get(name) ?? String(fallback)));
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+const USER_CAP = posIntCap('ASSIST_USER_CAP', 300);
+const ANON_IP_CAP = posIntCap('ASSIST_ANON_IP_CAP', 60);
+
+// Resolve the signed-in user from the caller's bearer token, or null (anon-key-only / preview).
+// auth.getUser() validates the JWT against the auth server, so a forged `sub` can't buy calls.
+async function resolveUserId(req: Request): Promise<string | null> {
+  const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+  if (!token || token === SUPABASE_ANON_KEY) return null;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await sb.auth.getUser(token);
+    if (error || !data.user) return null;
+    return data.user.id;
+  } catch {
+    return null; // an auth hiccup must never block a legit narration
+  }
+}
+
+// Claim one slot against a TEXT-keyed day counter (per-user / per-IP; migration 0030). `failOpen`
+// decides an unreachable counter: per-user fairness fails OPEN, the anon per-IP cap fails CLOSED.
+async function withinKeyCap(key: string, limit: number, failOpen: boolean): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return failOpen;
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data, error } = await sb.rpc('claim_ai_usage_key', { p_key: key, p_limit: limit });
+    if (error) return failOpen;
+    const row = Array.isArray(data) ? data[0] : data;
+    return row?.allowed !== false;
+  } catch {
+    return failOpen;
+  }
+}
+
+function clientIp(req: Request): string {
+  return (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
 }
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
@@ -150,6 +198,16 @@ Deno.serve(async (request) => {
   // Global daily ceiling — hard backstop on the bill. Over the cap -> graceful null narration.
   if (!(await withinGlobalCap())) {
     return new Response(JSON.stringify({ narration: null, error: 'service at capacity' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
+  // Per-caller cap (fairness/anti-spam), after the global backstop. A signed-in coach draws down a
+  // per-user daily slot (fails open); an anonymous caller a per-IP slot that fails closed, so the
+  // public anon key can't drain the global assist budget without signing in.
+  const uid = await resolveUserId(request);
+  const withinCallerCap = uid
+    ? await withinKeyCap(`assist_user:${uid}`, USER_CAP, /* failOpen */ true)
+    : await withinKeyCap(`assist_ip:${clientIp(request)}`, ANON_IP_CAP, /* failOpen */ false);
+  if (!withinCallerCap) {
+    return new Response(JSON.stringify({ narration: null, error: 'daily limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 
   try {

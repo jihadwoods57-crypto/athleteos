@@ -177,7 +177,7 @@ export default {
       ${appHead()}
       ${celebration(e)}
       <div id="seen-row" style="width:100%"></div>
-      ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${t.note}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
+      ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
       <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
       <div class="hscroll">${S.activity.map(actCard).join('')}</div>
       <div style="height:20px"></div>`;
@@ -196,7 +196,7 @@ export default {
     ${nextRows.length ? `<div class="xgrp">Next</div>${nextRows.map(row).join('')}` : ''}
     ${e.later.length ? `<div class="xgrp">Later · ${e.later.length}</div>${e.later.map(row).join('')}` : ''}
     ${e.doneItems.length ? `<div class="xgrp">Done · ${e.doneItems.length}</div>${e.doneItems.map(row).join('')}` : ''}
-    ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${t.note}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
+    ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
     ${RT.injured ? `
     <div style="height:12px"></div>
     <div class="trust" data-go="injury" style="cursor:pointer;background:linear-gradient(100deg, rgba(245,165,36,0.14), rgba(59,130,246,0.05));border-color:var(--amber-border)">

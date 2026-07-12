@@ -224,6 +224,35 @@ select _superuser();
 select _ok((select count(*) from meal_comments) = 1,
            'B cannot delete someone else''s comment (0 rows)');
 
+-- ================================================================ 3b. LINK / PLAN SELF-GRANT DENIED (0053)
+-- guardianships (audit 2026-07-12 CRITICAL): before 0053, `g_manage FOR ALL` let any user name
+-- themselves guardian of any athlete — reading an adult's data AND opening a messaging channel to a
+-- minor. 0053 removes the self-insert (creation is service_role/RPC only).
+select _as('bbbbbbbb-0000-0000-0000-000000000002');  -- stranger B
+select _ok(_try($q$insert into guardianships (athlete_id, guardian_id, status) values ('aaaaaaaa-0000-0000-0000-000000000001','bbbbbbbb-0000-0000-0000-000000000002','active')$q$) <> 'ok',
+           '0053: B cannot self-appoint as guardian of adult A');
+select _ok(_try($q$insert into guardianships (athlete_id, guardian_id, status) values ('dddddddd-0000-0000-0000-000000000004','bbbbbbbb-0000-0000-0000-000000000002','active')$q$) <> 'ok',
+           '0053: B cannot self-appoint as guardian of minor M (child-safety)');
+select _ok((select count(*) from guardianships where guardian_id = 'bbbbbbbb-0000-0000-0000-000000000002') = 0,
+           '0053: no guardianship row was created by B (messaging-gate bypass stays shut)');
+
+-- plan_assignments (audit 2026-07-12 HIGH): before 0053, WITH CHECK only proved assigned_by=self, so
+-- a user could self-assign another author's plan (then read its plan_json) or dump a plan on a
+-- stranger. 0053 requires the caller to OWN the plan AND can_view the athlete. Seed a plan owned by
+-- coach_1 (as superuser) first.
+select _superuser();
+insert into meal_plans (id, author_id, name) values
+  ('a1a1a1a1-0000-0000-0000-000000000001','11111111-0000-0000-0000-000000000001','Coach1 Plan');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');  -- stranger B
+select _ok(_try($q$insert into plan_assignments (plan_id, athlete_id, assigned_by, status) values ('a1a1a1a1-0000-0000-0000-000000000001','bbbbbbbb-0000-0000-0000-000000000002','bbbbbbbb-0000-0000-0000-000000000002','active')$q$) <> 'ok',
+           '0053: B cannot self-assign coach_1''s plan');
+select _ok((select count(*) from meal_plans where id = 'a1a1a1a1-0000-0000-0000-000000000001') = 0,
+           '0053: with no valid assignment, B cannot read coach_1''s plan');
+-- the legitimate flow still works: the plan author assigns it to an athlete they coach.
+select _as('11111111-0000-0000-0000-000000000001');  -- coach_1 owns the plan AND coaches A
+select _ok(_try($q$insert into plan_assignments (plan_id, athlete_id, assigned_by, status) values ('a1a1a1a1-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','11111111-0000-0000-0000-000000000001','active')$q$) = 'ok',
+           '0053: the plan author CAN assign their own plan to an athlete they coach');
+
 -- ================================================================ 4. COACH SCOPE
 select _as('11111111-0000-0000-0000-000000000001');  -- coach_1 (A's coach)
 select _ok((select count(*) from meals where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') >= 1,
