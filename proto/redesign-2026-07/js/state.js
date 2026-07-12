@@ -1386,12 +1386,16 @@ export const S = {
     // shield when grace is still intact (mild reminder). Leads the feed either way.
     const st = this.streak;
     if (st.days >= 2 && !st.todayCounted && !e.celebration) {
+      // Same actionable route the home ribbon uses (log the next open item); falls back to the
+      // score breakdown when everything left is time-locked — never a no-op 'home' tap.
+      const stNext = e.now || e.overdue[0] || null;
+      const stRoute = stNext ? stNext.route : 'score-breakdown';
       fresh.unshift(st.graceUsedRecently ? {
-        level: 'high', icon: 'flame', when: 'now', route: 'home',
+        level: 'high', icon: 'flame', when: 'now', route: stRoute,
         title: `Your ${st.days}-day streak ends tonight`,
         body: `This week’s grace day is already used — hit 80 before midnight or the streak resets.`,
       } : {
-        level: 'medium', icon: 'shield', when: 'now', route: 'home',
+        level: 'medium', icon: 'shield', when: 'now', route: stRoute,
         title: `Keep your ${st.days}-day run alive`,
         body: `Finish today to extend your ${st.days}-day run. 80 before midnight locks it in.`,
       });

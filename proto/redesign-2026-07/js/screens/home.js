@@ -115,8 +115,10 @@ function streakPrompt(e) {
   const st = S.streak;
   if (!(st.days >= 2 && !st.todayCounted) || e.celebration) return '';
   const strong = st.graceUsedRecently;
-  const target = (e.now && e.now.route) || (e.overdue[0] && e.overdue[0].route) || 'home';
-  const actionTitle = e.now ? e.now.title : (e.overdue[0] ? e.overdue[0].title : 'today’s standard');
+  // When every remaining requirement is time-locked (no now/overdue), a "Log …" CTA would be a
+  // no-op promise — route to the score breakdown as "View standard" instead.
+  const next = e.now || e.overdue[0] || null;
+  const target = next ? next.route : 'score-breakdown';
   const title = strong ? `Your ${st.days}-day streak ends tonight` : `Keep your ${st.days}-day run alive`;
   const body = strong
     ? `This week’s grace day is already used — hit 80 before midnight or the streak resets.`
@@ -124,7 +126,7 @@ function streakPrompt(e) {
   return `<div class="streak-ribbon ${strong ? 'strong' : 'mild'}" data-go="${target}">
     <div class="sr-ic">${icon(strong ? 'flame' : 'shield', 18)}</div>
     <div class="sr-body"><div class="sr-t">${esc(title)}</div><div class="sr-s">${esc(body)}</div></div>
-    <span class="sr-cta">Log ${esc(actionTitle)}</span>
+    <span class="sr-cta">${next ? `Log ${esc(next.title)}` : 'View standard'}</span>
   </div>`;
 }
 
