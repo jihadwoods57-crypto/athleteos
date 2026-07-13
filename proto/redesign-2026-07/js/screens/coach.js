@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, titleHead, esc } from '../components.js';
+import { backHead, titleHead, esc, composer } from '../components.js';
 import * as roles from '../roles.js';
 import { openingMessage, reactionGroups, threadMessages } from '../meal-intel.js';
 
@@ -471,10 +471,7 @@ export const coachMeal = {
       ${['🔥', '💪', '👏', '👍'].map((e2) => `<span class="rx" data-rx="${e2}" style="cursor:pointer;font-size:16px;padding:6px 14px">${e2}</span>`).join('')}
     </div>
     <div id="rx-note" style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px"></div>
-    <div class="composer">
-      <input id="cm-input" placeholder="Comment on this meal…" />
-      <div class="send" id="cm-send">${icon('arrowUp', 19)}</div>
-    </div>
+    ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment' })}
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:#f87171;margin:6px 2px 0;min-height:16px"></div>
     <div style="height:10px"></div>
     `;
@@ -659,10 +656,7 @@ export const trainerClient = {
 
     <div class="eyebrow">Note to client</div>
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sends a real push to their notifications.</div>
-    <div class="composer">
-      <input id="tn-input" placeholder="Note for ${esc(name)}…" />
-      <div class="send" id="tn-send">${icon('arrowUp', 19)}</div>
-    </div>
+    ${composer({ inputId: 'tn-input', sendId: 'tn-send', placeholder: `Note for ${name}…`, sendLabel: 'Send note' })}
     <div id="tn-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     <div style="height:10px"></div>
     `;

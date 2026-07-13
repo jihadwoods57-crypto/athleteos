@@ -14,7 +14,7 @@ import {
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
-  insertMeal, MEAL_KEYS, DEADLINE, minutesNow,
+  insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { groundExtras } from './meal-intel.js';
@@ -108,6 +108,9 @@ const DEFAULT_RT = {
   practice: null,        // last server-confirmed {id,name,code}, or null — never a fabricated persona
   practiceLoading: true, // true until the first hydrate attempt (success or failure) completes
   practiceOffline: false,// true when the last hydrate attempt failed while a cached identity exists
+  // --- athlete's own profile/targets hydration state (same honest model as practice/team) ---
+  profileLoading: true,  // true until the first hydrate attempt (success or failure) completes
+  profileOffline: false, // true when the last hydrate attempt failed while no cached targets exist
   // --- coach's real team identity (same honest model as practice) ---
   team: null,            // last server-confirmed {id,name,code}, or null — never "Coach Mark"
   teamLoading: true,
@@ -341,6 +344,7 @@ export const act = {
     MEAL.key = nextOpenSlot(slot) || slot || 'dinner';
     MEAL.mealType = cap(MEAL.key);
     MEAL.photoBase64 = null; MEAL.photoDataUrl = null;
+    MEAL.live = true; // manual entries have no photo provenance — never inherit a prior gallery pick's non-live flag
     MEAL.result = {
       quality: null,
       protein: Math.round(macros.protein || 0), carbs: Math.round(macros.carbs || 0),
@@ -457,9 +461,15 @@ export const act = {
   async _loadProfileIntoRt(userId) {
     const sb = window.sb;
     if (!sb || !userId) return false;
+    // Whether we already had real coach-set targets cached from a prior successful hydrate —
+    // an offline athlete who already has these must never be told their coach set none.
+    const hadTargets = !!(RT.profile && RT.profile.targets);
+    RT.profileLoading = true; save();
     try {
       const { data: prof } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-      const { data: ap } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob').eq('athlete_id', userId).maybeSingle();
+      // SETTLED sentinel: supabase-js resolves network/RLS failures into `{error}` without
+      // throwing — destructure it so a real fetch failure is never misread as "no targets".
+      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob').eq('athlete_id', userId).maybeSingle();
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
       if (ap) {
@@ -470,9 +480,20 @@ export const act = {
         if (ap.targets && typeof ap.targets === 'object') patch.targets = ap.targets;
         if (ap.dob) patch.dob = ap.dob; // drives the client-side minor gate (mirrors 0050's is_provable_minor)
       }
+      // The patch above only ever touches RT.profile.targets when `ap` actually came back, so a
+      // previously-cached target (hadTargets) survives an errored fetch untouched — the athlete
+      // keeps seeing their real numbers while `offline` still flags the connection is down.
+      RT.profileOffline = !!apErr;
       if (Object.keys(patch).length) { RT.profile = { ...(RT.profile || {}), ...patch }; save(); }
+      RT.profileLoading = false; save();
       return !!ap;
-    } catch { /* offline / RLS — keep whatever identity we have */ return false; }
+    } catch {
+      // threw instead of resolving — same honest treatment as a resolved {error}; any cached
+      // target (hadTargets) is untouched because nothing in this catch writes RT.profile.
+      RT.profileOffline = true;
+      RT.profileLoading = false; save();
+      return false;
+    }
   },
   /* Read the trainer's REAL practice identity (business name + client join code) into RT —
      mirrors _loadProfileIntoRt for athletes, and mirrors practiceLoadDecision in
@@ -823,6 +844,12 @@ export const act = {
     }
     await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications();
   },
+  // User-driven recovery from the Plan offline card (data-act="retryProfile") — re-attempts the
+  // same hydrate _loadProfileIntoRt already does at boot/signIn; the router awaits this then
+  // re-renders (router.js), so a success repaints real targets in place. No auto-retry/polling.
+  async retryProfile() {
+    if (RT.userId) await this._loadProfileIntoRt(RT.userId);
+  },
 };
 window.__act = act;
 
@@ -980,6 +1007,17 @@ export const S = {
     const out = { protein: v(t.protein), calories: v(t.calories), weight: v(t.weight) };
     return (out.protein || out.calories || out.weight) ? out : null;
   },
+  // Honest 4-state resolution for Plan surfaces: a coach-set target, a hydrate still in flight,
+  // an offline/failed fetch with nothing cached, or a genuinely-unset coach. 'set' takes
+  // precedence over everything — an offline athlete who already has cached real targets
+  // (S.planTargets survives an errored refetch, see _loadProfileIntoRt) must never see the
+  // offline card or the "not set" copy.
+  get planTargetsState() {
+    if (this.planTargets) return 'set';
+    if (RT.profileLoading) return 'loading';
+    if (RT.profileOffline) return 'offline';
+    return 'unset';
+  },
   get planGoalLabel() {
     const g = RT.profile && RT.profile.baseGoal;
     return g === 'gain' ? 'Gain weight' : g === 'lose' ? 'Lose fat' : g === 'maintain' ? 'Maintain' : g === 'perform' ? 'Perform' : null;
@@ -987,7 +1025,7 @@ export const S = {
 
   get remainingCount() {
     if (RT.day0) return RT.day0Breakfast ? 3 : 4;
-    const openMeals = REQ_MEAL_SLOTS.filter(k => !DAY.meals[k]).length;
+    const openMeals = REQ_MEAL_SLOTS.filter(k => !mealScored(DAY, k)).length;
     return openMeals + (DAY.ciSubmitted ? 0 : 1);
   },
 
@@ -1022,7 +1060,7 @@ export const S = {
   },
   get reachPlan() {
     const plan = [];
-    REQ_MEAL_SLOTS.forEach(k => { if (!DAY.meals[k]) plan.push({ label: `Log ${cap(k)}`, gain: null, accent: 'g' }); });
+    REQ_MEAL_SLOTS.forEach(k => { if (!mealScored(DAY, k)) plan.push({ label: `Log ${cap(k)}`, gain: null, accent: 'g' }); });
     if (!DAY.ciSubmitted) { const g = checkinProjection().gain; plan.push({ label: 'Submit recovery check-in', gain: g || null, accent: 'p' }); }
     return plan;
   },
@@ -1041,9 +1079,9 @@ export const S = {
     const lateMeal = (k) => DAY.mealLoggedAt[k] != null && DAY.mealLoggedAt[k] > DEADLINE[k];
     const resolve = (id) => {
       switch (id) {
-        case 'breakfast': return { done: !!DAY.meals.breakfast, late: lateMeal('breakfast') };
-        case 'lunch':     return { done: !!DAY.meals.lunch, late: lateMeal('lunch') };
-        case 'dinner':    return { done: !!DAY.meals.dinner, late: lateMeal('dinner') };
+        case 'breakfast': return { done: mealScored(DAY, 'breakfast'), late: lateMeal('breakfast') };
+        case 'lunch':     return { done: mealScored(DAY, 'lunch'), late: lateMeal('lunch') };
+        case 'dinner':    return { done: mealScored(DAY, 'dinner'), late: lateMeal('dinner') };
         case 'weight':    return { done: RT.weightLogged, late: RT.weightLogged };
         case 'hydration': return { done: RT.hydrationOz >= 120, progress: `${RT.hydrationOz} of 120 oz` };
         case 'recovery':  return { done: DAY.ciSubmitted };
@@ -1054,13 +1092,21 @@ export const S = {
       const isMeal = REQ_MEAL_SLOTS.includes(d.id);
       let meta, route, sub = d.sub, subColor = d.subColor;
       if (isMeal) {
-        const q = DAY.slotMacros[d.id] && DAY.slotMacros[d.id].quality;
-        meta = d.done ? (q != null ? `Scored ${q}` : 'Logged') : 'Photo proof';
+        const slotMeta = DAY.slotMacros[d.id];
+        const q = slotMeta && slotMeta.quality;
+        // d.done is now mealScored (Rule A) — a gallery pick that hasn't been recaptured live
+        // reads !done here even though a photo was logged. Say so honestly instead of the bare
+        // "Photo proof" a truly-empty slot shows.
+        const nonLiveOpen = !d.done && slotMeta && slotMeta.live === false;
+        meta = d.done ? (q != null ? `Scored ${q}` : 'Logged') : (nonLiveOpen ? 'Gallery photo saved' : 'Photo proof');
         route = d.done ? `meal-detail/${d.id}` : `camera/${d.id}`;
         if (d.done) {
           const at = DAY.mealLoggedAt[d.id];
           sub = at != null ? `Logged ${fmtClock(at)}${d.late ? ' · late' : ''}` : 'Logged';
           subColor = d.late ? 'a' : 'g';
+        } else if (nonLiveOpen) {
+          sub = 'Gallery photo saved — capture live to count';
+          subColor = 'a';
         }
       } else if (d.id === 'weight') {
         meta = d.done ? 'Trend only' : 'Not scored'; route = 'weight';
@@ -1084,7 +1130,7 @@ export const S = {
   },
   get metCount() {
     if (RT.day0) return RT.day0Breakfast ? 1 : 0;
-    const meals = REQ_MEAL_SLOTS.filter(k => DAY.meals[k]).length;
+    const meals = REQ_MEAL_SLOTS.filter(k => mealScored(DAY, k)).length;
     return meals + (DAY.ciSubmitted ? 1 : 0) + RT.assigned.filter(a => a.done).length;
   },
   get reqTotal() { return 4 + RT.assigned.length; }, // 3 meals + recovery + coach-assigned
@@ -1120,7 +1166,7 @@ export const S = {
     if (RT.day0) return RT.day0Breakfast
       ? { label: 'Log Lunch', gain: null, route: 'camera/lunch', accent: 'g' }
       : { label: 'Log First Meal', gain: null, route: 'camera', accent: 'g' };
-    const openReq = REQ_MEAL_SLOTS.filter(k => !DAY.meals[k]);
+    const openReq = REQ_MEAL_SLOTS.filter(k => !mealScored(DAY, k));
     const openSlot = openReq.find(k => minutesNow() <= DEADLINE[k]) || openReq[0];
     // Meal gain depends on the plate, unknown until analyzed → no fabricated "+6".
     if (openSlot) return { label: `Log ${cap(openSlot)}`, gain: null, route: `camera/${openSlot}`, accent: 'g' };
@@ -1156,7 +1202,7 @@ export const S = {
   get exec() {
     const mstat = (k) => {
       const at = DAY.mealLoggedAt[k];
-      return { done: !!DAY.meals[k], late: at != null && at > DEADLINE[k], at: at != null ? fmtClock(at) : null };
+      return { done: mealScored(DAY, k), late: at != null && at > DEADLINE[k], at: at != null ? fmtClock(at) : null };
     };
     return deriveExec({
       nowMin: minutesNow(),

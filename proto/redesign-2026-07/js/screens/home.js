@@ -96,13 +96,12 @@ function streakPill() {
 
 function strip(e) {
   return `<section class="xstrip" data-go="score-breakdown">
-    ${scoreRing({ score: e.score, size: 52, stroke: 6, glow: false, showCenter: false, uid: 'strip' })}
-    <span class="xsc">${e.score}</span>
+    ${scoreRing({ score: e.score, size: 64, stroke: 7, glow: false, showCenter: false, centerNum: true, uid: 'strip' })}
     <div class="xmid">
       <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${streakPill()}</div>
       <div class="xsegs">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="seglabel"><b>${e.met}</b> of ${e.total} in · reach <b>${e.possible}</b> today</div>
     </div>
-    <div class="xmeta">${e.met} of ${e.total} in<br>${e.score} → ${e.possible}</div>
   </section>`;
 }
 

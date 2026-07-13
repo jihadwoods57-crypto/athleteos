@@ -1,7 +1,7 @@
 import { S, RT, tier, act, MEAL, mealDetail } from '../state.js';
 import { DAY } from '../day.js';
 import { icon, checkFill } from '../icons.js';
-import { backHead, esc, safeImg, nonLiveBadge } from '../components.js';
+import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
 import { openingMessage, reactionGroups, threadMessages, contextForChat } from '../meal-intel.js';
 
 function macroRow(m) {
@@ -28,7 +28,7 @@ export const analyzing = {
       </div>
       ${nonLive ? `<div style="display:flex;justify-content:center;padding-top:10px">${nonLiveBadge()}</div>` : ''}
       <div class="phase" id="an-phase">Reading your meal<span class="dots"></span></div>
-      <div class="phase-sub" id="an-sub">${nonLive ? 'Live capture only for scored meals — this photo is flagged non-live' : 'Detecting foods and portions'}</div>
+      <div class="phase-sub" id="an-sub">${nonLive ? "Won't count toward your score — live capture only. Logged for your record." : 'Detecting foods and portions'}</div>
     </div>`;
   },
   async mount(root) {
@@ -76,7 +76,7 @@ export const analysis = {
     <div class="photo-hero" style="background-image:url('${safeImg(L.img)}')">
       <div class="ph-grad"></div>
       <div class="ph-meta">
-        <div><div class="ph-t">${esc(L.name)}</div><div class="ph-s">${nonLive ? 'Live capture only for scored meals' : 'Captured just now · on time'}</div>${nonLive ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
+        <div><div class="ph-t">${esc(L.name)}</div><div class="ph-s">${nonLive ? "Won't count toward your score — live capture only" : 'Captured just now · on time'}</div>${nonLive ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
         <div class="scorechip"><span class="v">${L.score}</span><span class="k">Meal</span></div>
       </div>
     </div>
@@ -118,7 +118,9 @@ export const analysis = {
       <div><div class="who">AI Feedback</div><p>${esc(L.ai)}</p></div>
     </div>
 
-    ${already ? '' : `<div class="score-change">${icon('arrowUp', 16)} Logging this counts toward Nutrition (50%) and closes 1 of ${S.remainingCount} remaining tonight.</div>`}
+    ${already ? '' : nonLive
+      ? `<div class="score-change">${icon('image', 16)} Logged for your record — won't change your score. Capture live to make it count.</div>`
+      : `<div class="score-change">${icon('arrowUp', 16)} Logging this counts toward Nutrition (50%) and closes 1 of ${S.remainingCount} remaining tonight.</div>`}
 
     <div style="height:20px"></div>
     <div class="btn-row">
@@ -196,14 +198,18 @@ export const thread = {
 
     // ---- 1. EXECUTION SUMMARY (celebrates the act of logging; never shames) ----
     const justLogged = RT.lastMove && !RT.lastMove._played && (RT.lastMove.what || '').toLowerCase() === M.slot;
-    const timing = M.late ? 'Logged late · still counts' : 'Captured on time';
+    const nonLiveLogged = M.live === false;
+    const timing = nonLiveLogged
+      ? (M.late ? 'Logged late' : 'Logged from gallery')
+      : (M.late ? 'Logged late · still counts' : 'Captured on time');
     const toTier = justLogged ? tier(RT.lastMove.to) : null;
+    const scoreStatus = nonLiveLogged ? "Won't count toward your score" : 'Counted toward Nutrition (50%)';
     const execTop = `
     <section class="mt-exec">
       <div class="bigcheck">${icon('check', 26)}</div>
       <div class="t">${esc(M.name)} Logged</div>
-      <div class="s">${timing} · Counted toward Nutrition (50%) · Coach can see it</div>
-      ${justLogged ? `
+      <div class="s">${timing} · ${scoreStatus} · Coach can see it</div>
+      ${justLogged && !nonLiveLogged ? `
       <div class="mt-move"><span class="from" data-anim-from>${RT.lastMove.from}</span><span style="color:var(--text-3)">${icon('arrowRight', 20)}</span><span class="to" data-anim-to>${RT.lastMove.to}</span></div>
       <div class="s">OnStandard Score · +${RT.lastMove.gain} pts</div>
       ${toTier.name !== tier(RT.lastMove.from).name ? `<span class="tier-chip ${toTier.cls}">▲ ${esc(toTier.name)}</span>` : ''}` : ''}
@@ -232,7 +238,7 @@ export const thread = {
       <div class="ph-meta"><div><div class="ph-t">${esc(M.name)}</div><div class="ph-s">Logged ${esc(M.loggedAt || 'today')}</div>${M.live === false ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
       ${M.score != null ? `<div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}</div>
     </div>
-    ${M.live === false ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:6px">Live capture only for scored meals — this photo was picked from your gallery.</div>` : ''}
+    ${M.live === false ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:6px">Picked from your gallery — logged for your record, but won't count toward your score.</div>` : ''}
     <div class="foodchips">
       ${M.detectedRich.map((d) => `<span class="foodchip"><span class="conf-dot ${esc(d.confidence)}"></span>${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI was unsure about this one">?</span>' : ''}</span>`).join('')}
     </div>
@@ -270,10 +276,7 @@ export const thread = {
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : 'Syncs when connected — your coach sees this log either way.'}</div>
     </div>
     ${M.mealId ? `
-    <div class="composer">
-      <input id="meal-msg" placeholder="Ask about this meal…" />
-      <div class="send" id="meal-send">${icon('arrowUp', 19)}</div>
-    </div>
+    ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send' })}
     <div id="chat-note" style="min-height:18px"></div>` : ''}`;
 
     // ---- 4. NEXT ACTION (the exec engine's NOW) ----

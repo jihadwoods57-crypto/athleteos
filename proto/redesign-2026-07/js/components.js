@@ -37,7 +37,7 @@ export function nonLiveBadge() {
 /* Signature score ring — cinematic, uncontained. Layers:
    rotating aurora (CSS) → under-glow arc → thick gradient band → inner echo
    ring → comet tip + lens sparkle → center stack (label / N / /100 / delta / streak). */
-export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b' } = {}) {
+export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false } = {}) {
   const r = (size - stroke) / 2 - 14;
   const rEcho = Math.max(0, r - stroke/2 - 8);
   const cx = size / 2, cy = size / 2;
@@ -46,12 +46,14 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
   // comet tip position (start at top, clockwise)
   const tipA = -Math.PI / 2 + (score / 100) * 2 * Math.PI;
   const tipX = cx + Math.cos(tipA) * r, tipY = cy + Math.sin(tipA) * r;
-  const sparkle = `
+  // No spark until there's arc to lead — at score 0 the tip would sit orphaned at the
+  // top of an empty ring, so the comet only renders once score >= 6.
+  const sparkle = score >= 6 ? `
       <g class="ring-tip" opacity="0">
         <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${(stroke/2+2).toFixed(1)}" fill="#F2FDF8" filter="url(#tip${uid})"/>
         <path d="M ${tipX.toFixed(1)} ${(tipY-16).toFixed(1)} L ${(tipX+2.4).toFixed(1)} ${(tipY-2.4).toFixed(1)} L ${(tipX+16).toFixed(1)} ${tipY.toFixed(1)} L ${(tipX+2.4).toFixed(1)} ${(tipY+2.4).toFixed(1)} L ${tipX.toFixed(1)} ${(tipY+16).toFixed(1)} L ${(tipX-2.4).toFixed(1)} ${(tipY+2.4).toFixed(1)} L ${(tipX-16).toFixed(1)} ${tipY.toFixed(1)} L ${(tipX-2.4).toFixed(1)} ${(tipY-2.4).toFixed(1)} Z"
           fill="#FFFFFF" opacity="0.9" filter="url(#tip${uid})"/>
-      </g>`;
+      </g>` : '';
 
   return `
   <div class="ring-wrap" style="width:${size}px;height:${size}px">
@@ -76,8 +78,8 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
         stroke-width="${stroke + 14}" stroke-linecap="round" opacity="0.55" filter="url(#soft${uid})"
         stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${C.toFixed(1)}" data-off="${off.toFixed(1)}"
         transform="rotate(-90 ${cx} ${cy})"/>
-      <!-- track -->
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(148,176,224,0.10)" stroke-width="${stroke}"/>
+      <!-- track: dotted "ready" style below score 6 so an empty day reads as unstarted, not broken -->
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(148,176,224,0.10)" stroke-width="${stroke}"${score < 6 ? ' stroke-dasharray="1.4 5"' : ''}/>
       <!-- main band -->
       <circle class="ring-arc" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke}" stroke-linecap="round"
@@ -101,6 +103,7 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
       ${delta ? `<span class="delta"><span class="up">${icon('arrowUp', 15)} ${delta}</span><span class="muted">vs yesterday</span></span>` : ''}
       ${streak ? `<span class="streak-pill">${icon('flame', 15, 'class="flame"')} ${streak}</span>` : ''}
     </div>` : ''}
+    ${centerNum ? `<div class="ring-center num"><span class="score" data-count="${score}">0</span></div>` : ''}
   </div>`;
 }
 
@@ -162,7 +165,7 @@ export function appHead() {
       <div class="name">${esc(S.athlete.first)}</div>
     </div>
     <div class="actions">
-      <div class="iconbtn" data-go="notifications">${icon('bell', 20)}${n ? `<span class="dot">${n}</span>` : ''}</div>
+      <div class="iconbtn" data-go="notifications" role="button" aria-label="${n ? `Notifications, ${n} unread` : 'Notifications'}">${icon('bell', 20)}${n ? `<span class="dot">${n > 9 ? '9+' : n}</span>` : ''}</div>
       ${S.athlete.avatar && safeImg(S.athlete.avatar)
         ? `<div class="avatar" data-go="profile" style="background-image:url('${safeImg(S.athlete.avatar)}');background-size:cover;background-position:center"></div>`
         : `<div class="avatar" data-go="profile">${esc(S.athlete.initials)}</div>`}
@@ -187,6 +190,29 @@ export function backHead(title, sub, to = 'home') {
 export function titleHead(title, sub) {
   return `<div class="back-head">
     <div><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
+  </div>`;
+}
+
+/* Shared composer (text input + send) markup — the single source for every "ask/comment/note"
+   bar in the app. A real native <button> gives free keyboard operability (Tab focus, Enter AND
+   Space activation) with zero extra JS — a bare <div class="send"> had neither. Both the input
+   and the send control carry an accessible name so a screen reader announces something other
+   than a silent icon. esc() runs INSIDE this helper: callers must pass RAW placeholder/label/
+   sendLabel text, never pre-escaped, or it double-encodes. When a caller has no click handler
+   for send (e.g. foodsearch, which searches live on input), pass decorativeSend so it renders
+   an aria-hidden <span> instead of an inert, falsely-actionable button. */
+export function composer({
+  inputId = '', sendId = '', placeholder = '', inputLabel = placeholder, sendLabel = 'Send',
+  sendIcon = 'arrowUp', sendIconSize = 19, sendStyle = '', wrapStyle = '',
+  autocompleteOff = true, decorativeSend = false,
+} = {}) {
+  const sendAttrs = `class="send"${sendId ? ` id="${sendId}"` : ''}${sendStyle ? ` style="${sendStyle}"` : ''}`;
+  const sendEl = decorativeSend
+    ? `<span ${sendAttrs} aria-hidden="true">${icon(sendIcon, sendIconSize)}</span>`
+    : `<button type="button" ${sendAttrs} aria-label="${esc(sendLabel)}">${icon(sendIcon, sendIconSize)}</button>`;
+  return `<div class="composer"${wrapStyle ? ` style="${wrapStyle}"` : ''}>
+    <input${inputId ? ` id="${inputId}"` : ''} placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''} />
+    ${sendEl}
   </div>`;
 }
 

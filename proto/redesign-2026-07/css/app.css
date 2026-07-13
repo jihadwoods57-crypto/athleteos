@@ -108,17 +108,17 @@ body {
 .apphead .name { font-size: 27px; font-weight: 800; letter-spacing: var(--title-tight); margin-top: 2px; }
 .apphead .actions { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 .iconbtn {
-  width: 42px; height: 42px; border-radius: var(--r-pill);
+  width: 44px; height: 44px; border-radius: var(--r-pill);
   background: var(--surface-1); border: 1px solid var(--hairline);
   display: grid; place-items: center; color: var(--text); position: relative;
   cursor: pointer; transition: background var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
 .iconbtn:active { transform: scale(0.94); background: var(--surface-2); }
 .iconbtn .dot {
-  position: absolute; top: 8px; right: 9px; min-width: 16px; height: 16px; padding: 0 4px;
+  position: absolute; top: 6px; right: 7px; min-width: 18px; height: 18px; padding: 0 4px;
   border-radius: var(--r-pill); background: var(--red); color: #fff;
-  font-size: 10px; font-weight: 800; display: grid; place-items: center;
-  border: 2px solid var(--surface-1);
+  font-size: 10.5px; font-weight: 800; display: grid; place-items: center;
+  border: 2px solid var(--surface-1); font-variant-numeric: tabular-nums;
 }
 .avatar {
   width: 42px; height: 42px; border-radius: var(--r-pill);
@@ -126,6 +126,8 @@ body {
   color: #fff; font-weight: 800; font-size: 15px; display: grid; place-items: center;
   box-shadow: var(--sh-blue); cursor: pointer; letter-spacing: -0.02em;
 }
+/* Header avatar holds the row's alignment against the now-44px bell and keeps the 44px floor. */
+.apphead .avatar { width: 44px; height: 44px; }
 
 /* ===== Section label ===== */
 .eyebrow {
@@ -263,6 +265,9 @@ body {
 .status-pill.a { color: var(--amber-bright); border-color: var(--amber-border); background: transparent; }
 .status-pill.b { color: var(--blue-bright);  border-color: var(--blue-border);  background: transparent; }
 .status-pill.p { color: var(--purple-bright);border-color: var(--purple-border);background: transparent; }
+/* Honest treatment for the starting tier ("Off Standard") — was unstyled (falls through to
+   the base .status-pill's transparent border/bg), reading as plain white text with no signal. */
+.status-pill.r { color: #FF9B9B; border-color: var(--red-border); background: var(--red-surface); }
 .req-meta { font-size: 13px; font-weight: 800; }
 .req-meta.g { color: var(--green-bright); } .req-meta.a { color: var(--amber-bright); }
 .req-meta.b { color: var(--blue-bright); }  .req-meta.p { color: var(--purple-bright); }

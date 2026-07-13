@@ -53,7 +53,7 @@
   background: rgba(7,11,20,0.45); border: 1px solid var(--hairline); color: var(--text-3); margin-bottom: 4px;
 }
 .vf-empty .vf-prompt { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: var(--title-tight); }
-.vf-empty .vf-hint { font-size: 12.5px; font-weight: 600; color: var(--text-3); }
+.vf-empty .vf-hint { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .vf-corner { position: absolute; width: 34px; height: 34px; border: 3px solid rgba(255,255,255,0.85); z-index: 3; }
 .vf-corner.tl { top: 16px; left: 16px; border-right: none; border-bottom: none; border-radius: 10px 0 0 0; }
 .vf-corner.tr { top: 16px; right: 16px; border-left: none; border-bottom: none; border-radius: 0 10px 0 0; }
@@ -145,7 +145,12 @@
   flex: 1; height: 48px; border-radius: var(--r-pill); border: 1px solid var(--hairline);
   background: var(--surface-1); color: var(--text); padding: 0 18px; font-family: var(--font); font-size: 14px; font-weight: 600; outline: none;
 }
-.composer .send { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); display:grid; place-items:center; color:#fff; cursor:pointer; flex:none; box-shadow: var(--sh-blue); }
+.composer .send {
+  width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep));
+  display:grid; place-items:center; color:#fff; cursor:pointer; flex:none; box-shadow: var(--sh-blue);
+  border: 0; padding: 0; margin: 0; font-family: var(--font); -webkit-appearance: none; appearance: none;
+}
+.composer .send:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 
 /* ----- Weight ----- */
 .weight-display { text-align: center; padding: 22px 0 8px; }
@@ -184,7 +189,9 @@
 .cons-row .v { width: 42px; text-align: right; font-size: 13.5px; font-weight: 800; flex: none; }
 .bigstat { display: flex; align-items: baseline; gap: 10px; }
 .bigstat .n { font-size: 44px; font-weight: 800; letter-spacing: -0.04em; }
-.bigstat .d { font-size: 13.5px; font-weight: 700; color: var(--green-bright); }
+.bigstat .d { font-size: 13.5px; font-weight: 700; color: var(--text-2); }
+.bigstat .d.up { color: var(--green-bright); }
+.bigstat .d.down { color: var(--red); }
 .insight { display: flex; gap: 12px; padding: 15px 16px; border-radius: var(--r-card); background: linear-gradient(120deg, rgba(52,211,153,0.10), rgba(34,211,238,0.04)); border: 1px solid var(--green-border); }
 .insight p { font-size: 14.5px; font-weight: 700; line-height: 1.5; }
 .losttable .lrow2 { display:flex; justify-content:space-between; padding: 11px 2px; border-bottom: 1px solid var(--hairline-soft); font-size: 14px; font-weight: 700; }
@@ -232,6 +239,19 @@
 @media (prefers-reduced-motion: reduce) { .hq-spin { animation: none; } }
 
 /* ----- Notifications ----- */
+.nhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 2px 10px; }
+.nsummary { font-size: 13px; font-weight: 700; color: var(--text-2); display: flex; align-items: center; gap: 8px; }
+.nsummary .cnt { color: var(--text); font-weight: 800; }
+.nsummary.allclear { color: var(--green-bright); display: inline-flex; align-items: center; gap: 6px; }
+.markread {
+  appearance: none; border: 0; background: transparent; color: var(--blue-bright); font-family: var(--font);
+  font-size: 13px; font-weight: 800; letter-spacing: 0.01em; cursor: pointer; min-height: 44px; padding: 0 6px;
+  border-radius: 10px; display: inline-flex; align-items: center;
+  transition: color var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out);
+}
+.markread:active { transform: scale(0.97); }
+.markread[disabled] { color: var(--text-3); opacity: 0.5; cursor: default; pointer-events: none; }
+
 .notif { display: flex; gap: 13px; padding: 15px 16px; border-radius: 18px; background: var(--surface-1); border: 1px solid var(--hairline); margin-bottom: 10px; }
 .notif .nic { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; flex: none; }
 .notif.high .nic { background: rgba(245,165,36,0.18); color: var(--amber-bright); }
@@ -247,6 +267,42 @@
 .level-tag.critical { background: var(--red-surface); color: var(--red); }
 .level-tag.medium { background: var(--blue-surface); color: var(--blue-bright); }
 .level-tag.positive { background: var(--green-surface); color: var(--green-bright); }
+
+/* meta column: timestamp + unread dot (read swaps the dot for a chevron in JS) */
+.nmeta { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; flex: none; padding-top: 2px; }
+.udot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 0 3px var(--surface-1); background: var(--text-3); }
+.notif.unread.high .udot { background: var(--amber-bright); }
+.notif.unread.medium .udot { background: var(--blue-bright); }
+.notif.unread.positive .udot { background: var(--green-bright); }
+.notif.unread.critical .udot { background: var(--red); }
+
+/* UNREAD emphasis: full border in level color + faint inset wash — never a side-stripe */
+.notif.unread.high { border-color: var(--amber-border); background: linear-gradient(180deg, rgba(245,165,36,0.05), transparent 60%), var(--surface-1); }
+.notif.unread.critical { border-color: var(--red-border); background: linear-gradient(180deg, rgba(246,87,87,0.06), transparent 60%), var(--surface-1); }
+.notif.unread.medium { border-color: var(--blue-border); background: linear-gradient(180deg, rgba(59,130,246,0.05), transparent 60%), var(--surface-1); }
+.notif.unread.positive { border-color: var(--green-border); background: linear-gradient(180deg, rgba(52,211,153,0.05), transparent 60%), var(--surface-1); }
+
+/* READ state: dimmed, chevron replaces dot — placed after .notif.critical/.notif.unread.* so its
+   equal-specificity --hairline border wins on read rows. */
+.notif.read { background: var(--surface-1); border-color: var(--hairline); }
+.notif.read .nic { opacity: 0.5; }
+.notif.read .nt { color: var(--text-2); font-weight: 700; }
+.notif.read .nb { color: var(--text-3); }
+.notif.read .udot { display: none; }
+
+/* empty state (upgraded; scoped to notifications — .state-demo stays the shared default elsewhere) */
+.ne-empty {
+  margin: 26px 0 8px; padding: 34px 22px; text-align: center; border-radius: var(--r-card);
+  background: radial-gradient(120% 70% at 50% 0%, rgba(52,211,153,0.06), transparent 60%), var(--surface-1);
+  border: 1px solid var(--hairline);
+}
+.ne-ring { width: 74px; height: 74px; margin: 0 auto 16px; border-radius: 50%; display: grid; place-items: center; background: var(--green-surface); color: var(--green-bright); position: relative; }
+.ne-ring::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid var(--green-border); opacity: 0.5; }
+.ne-t { font-size: 17px; font-weight: 800; letter-spacing: var(--title-tight); }
+.ne-s { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top: 7px; line-height: 1.5; max-width: 34ch; margin-left: auto; margin-right: auto; }
+.ne-list { margin: 18px auto 2px; max-width: 250px; display: flex; flex-direction: column; gap: 9px; text-align: left; }
+.ne-item { display: flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
+.ne-d { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex: none; background: var(--surface-2); color: var(--text-3); }
 
 /* ----- Plan tabs (underline style) ----- */
 .ptabs { display: flex; gap: 22px; border-bottom: 1px solid var(--hairline); padding: 0 2px; margin-top: 6px; }
@@ -278,14 +334,16 @@
 .lnk{color:var(--green-bright);font-weight:800;cursor:pointer}
 
 /* ---- execution loop: score strip, NOW card, groups ---- */
-.xstrip{display:flex;align-items:center;gap:12px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:20px;padding:11px 14px;cursor:pointer}
-.xstrip .xsc{font-size:24px;font-weight:800;letter-spacing:var(--num-tight);font-variant-numeric:tabular-nums}
-.xstrip .xmid{flex:1;display:flex;flex-direction:column;gap:4px}
+.xstrip{display:flex;align-items:center;gap:14px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:20px;padding:13px 15px;cursor:pointer}
+.xstrip .xmid{flex:1;display:flex;flex-direction:column;gap:7px}
 .xstrip .xrow{display:flex;align-items:center;gap:8px}
-.xstrip .xmeta{font-size:10.5px;color:var(--text-3);font-weight:700;text-align:right;line-height:1.4;white-space:nowrap}
-.xsegs{display:flex;gap:4px}
-.xsegs i{height:4px;flex:1;border-radius:2px;background:var(--surface-3)}
-.xsegs i.on{background:var(--green)}
+/* score-in-ring: the 96px hero .score rule must not leak into the compact 64px strip dial */
+.xstrip .ring-center.num .score{font-size:22px;letter-spacing:var(--num-tight);color:var(--text);text-shadow:none}
+.xsegs{display:flex;gap:5px}
+.xsegs i{height:5px;flex:1;border-radius:3px;background:var(--surface-3)}
+.xsegs i.on{background:linear-gradient(90deg,var(--green),var(--green-bright))}
+.seglabel{font-size:11.5px;font-weight:700;color:var(--text-2)}
+.seglabel b{color:var(--text);font-variant-numeric:tabular-nums}
 /* Tiered streak pill (strip) — passive-🔥 stays for a counted/short streak; once a 2+ day
    streak is on the line for TODAY it flips to amber "at risk" or blue "covered". */
 .stk-pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-pill)}

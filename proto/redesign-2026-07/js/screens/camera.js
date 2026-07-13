@@ -59,7 +59,7 @@ export default {
           <div class="vf-prompt">Take a photo to analyze</div>
           <div class="vf-hint">Tap the shutter — your camera opens</div>
         </div>
-        <div class="vf-deadline">${icon('clock', 13)} ${L.remaining}</div>
+        ${L.empty ? '' : `<div class="vf-deadline">${icon('clock', 13)} ${L.remaining}</div>`}
         <div class="vf-corner tl"></div><div class="vf-corner tr"></div>
         <div class="vf-corner bl"></div><div class="vf-corner br"></div>
       </div>
@@ -77,7 +77,7 @@ export default {
         <div class="cam-side" data-go="label-scan" style="flex-direction:row;gap:8px;align-items:center">
           <span style="color:var(--text-3)">${icon('barcode', 16)}</span> Enter Label
         </div>
-        <div style="font-size:11px;font-weight:600;color:var(--text-3)">Live capture only for scored meals. That's the integrity rule — Gallery photos are flagged non-live.</div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3)">Gallery photos are logged for your record but won't count toward your score — live capture only.</div>
         <div id="cam-note" style="font-size:12.5px;font-weight:600;color:var(--amber-bright);text-align:center;min-height:16px;padding:0 20px"></div>
       </div>
     </div>`;

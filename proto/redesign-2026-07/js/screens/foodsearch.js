@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, composer } from '../components.js';
 
 /* Food database (proto-local; the real app notes "fuller database lands with backend"). */
 const DB = [
@@ -28,10 +28,7 @@ export const foodSearch = {
     return `
     ${backHead(`Search Food · ${slotName}`, 'When a photo isn’t possible. Same score rules.', 'camera')}
 
-    <div class="composer" style="margin-top:2px">
-      <input id="fs-input" placeholder="Search foods…" autocomplete="off" />
-      <div class="send" style="background:var(--surface-2);color:var(--text)">${icon('search', 18)}</div>
-    </div>
+    ${composer({ inputId: 'fs-input', placeholder: 'Search foods…', inputLabel: 'Search foods', decorativeSend: true, sendIcon: 'search', sendIconSize: 18, sendStyle: 'background:var(--surface-2);color:var(--text)', wrapStyle: 'margin-top:2px' })}
 
     <div class="eyebrow">Results · short list for now</div>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">A starter set of common foods. The full database lands with the backend — a photo or the label always works for anything not here.</div>
