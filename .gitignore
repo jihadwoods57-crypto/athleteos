@@ -33,10 +33,12 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files (keep .env.example tracked; ignore real secrets)
-.env
-.env*.local
+# local env files (keep .env.example tracked; ignore real secrets, incl. backups like .env.prod.bak)
+.env*
 !.env.example
+
+# Playwright MCP browser-session output (screenshots/logs from QA agents)
+.playwright-mcp/
 
 # typescript
 *.tsbuildinfo
