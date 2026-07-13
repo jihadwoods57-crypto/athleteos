@@ -1,4 +1,4 @@
-import { S, RT } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 
@@ -42,7 +42,7 @@ export default {
         <div class="sheet-row">
           <div class="si" style="background:var(--cyan-surface);color:var(--cyan)">${icon('droplet', 20)}</div>
           <div class="st"><div class="t">Log Water</div><div class="s">${RT.hydrationOz} of 120 oz · optional</div></div>
-          <div class="water-btns"><span class="wb2" data-act="addWater:8" data-then="log">+8</span><span class="wb2" data-act="addWater:16" data-then="log">+16</span></div>
+          <div class="water-btns"><span class="wb2" data-water="8">+8</span><span class="wb2" data-water="16">+16</span></div>
         </div>` : ''}
         <div class="cancel" data-go="home">Close</div>
       </div>`;
@@ -82,7 +82,7 @@ export default {
       <div class="sheet-row">
         <div class="si" style="background:var(--cyan-surface);color:var(--cyan)">${icon('droplet', 20)}</div>
         <div class="st"><div class="t">Log Water</div><div class="s">${RT.hydrationOz} of 120 oz today</div></div>
-        <div class="water-btns"><span class="wb2" data-act="addWater:8" data-then="log">+8</span><span class="wb2" data-act="addWater:16" data-then="log">+16</span></div>
+        <div class="water-btns"><span class="wb2" data-water="8">+8</span><span class="wb2" data-water="16">+16</span></div>
       </div>` : `
       <div class="sheet-row" style="background:linear-gradient(90deg, rgba(52,211,153,0.14), transparent 85%);border-radius:16px">
         <div class="si" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 20)}</div>
@@ -109,5 +109,24 @@ export default {
       ${e.doneItems.length ? `<div class="hub-fold" data-go="home">${icon('check', 13)} ${e.doneItems.length} in — view on Home</div>` : ''}
       <div class="cancel" data-go="home">Cancel</div>
     </div>`;
+  },
+  // Water taps are the highest-frequency action on this sheet — patch the counter in place
+  // instead of going through the router's [data-act] auto-wire+re-render, which replayed the
+  // 320ms sheet entrance and reset scroll on every +8/+16 (SETTLED mount()-self-wire pattern).
+  mount(root) {
+    root.querySelectorAll('.water-btns [data-water]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
+        const oz = +btn.getAttribute('data-water');
+        act.addWater(oz);
+        // Crossing the goal is a genuine state change (hydration row flips to done) — the one
+        // case where a real re-render is correct, not the high-frequency in-place path below.
+        if (RT.hydrationOz >= 120) { window.__render(); return; }
+        const s = btn.closest('.sheet-row').querySelector('.st .s');
+        const i = s.textContent.indexOf(' of ');
+        if (i >= 0) s.textContent = RT.hydrationOz + s.textContent.slice(i);
+      });
+    });
   },
 };
