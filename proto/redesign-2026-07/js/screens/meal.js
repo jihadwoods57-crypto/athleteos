@@ -327,6 +327,21 @@ export const thread = {
     const threadEl = root.querySelector('#meal-thread');
     const strip = root.querySelector('#rx-strip');
     const statusEl = root.querySelector('#thread-status');
+    let threadBusy = false;
+    // Rewrites #thread-status in place into an honest failure block + Retry. Reuses statusEl so
+    // the existing success-path statusEl.remove() still cleans it up once a load succeeds.
+    const showThreadError = () => {
+      if (!statusEl) return;
+      statusEl.style.cssText = 'align-self:stretch;text-align:center;padding:14px 12px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline);margin-top:2px';
+      statusEl.innerHTML = `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4">Couldn't load the discussion — your log is safe, coach can still see it.</div>
+        <button class="btn ghost sm" id="thread-retry" style="margin-top:10px">${icon('wifiOff', 15)} Retry</button>`;
+      const retryBtn = statusEl.querySelector('#thread-retry');
+      if (retryBtn) retryBtn.addEventListener('click', () => {
+        if (threadBusy) return;
+        threadBusy = true;
+        refresh().finally(() => { threadBusy = false; });
+      });
+    };
     let gen = 0; // stale-response guard: only the newest refresh paints
     let comments = [];
 
@@ -350,6 +365,7 @@ export const thread = {
       const myGen = ++gen;
       const fetched = await roles.fetchMealComments(M.mealId);
       if (myGen !== gen) return;
+      if (fetched && fetched.error) { showThreadError(); return; }
       comments = fetched; if (statusEl) statusEl.remove(); paint();
     };
     await refresh();
