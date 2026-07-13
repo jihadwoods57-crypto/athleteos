@@ -1054,8 +1054,11 @@ export const S = {
     ];
   },
   get weightLine() {
-    return RT.weightLogged
-      ? { label: 'Morning Weight', state: 'late', note: 'Logged late tonight. Counts for your season trend; never for the daily score.' }
+    if (RT.weightLogged) {
+      return { label: 'Morning Weight', state: 'late', note: 'Logged late tonight. Counts for your season trend; never for the daily score.' };
+    }
+    return minutesNow() <= WEIGHT_DUE
+      ? { label: 'Morning Weight', state: 'open', note: `Weigh in by ${fmtClock(WEIGHT_DUE)} to keep your logging streak.` }
       : { label: 'Morning Weight', state: 'missed', note: "Missed today. It doesn't affect your score, but your logging streak reset." };
   },
   get reachPlan() {
