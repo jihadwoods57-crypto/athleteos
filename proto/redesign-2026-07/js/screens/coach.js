@@ -408,6 +408,10 @@ let MC = null;            // { mealId, comments }
 let mcLoadingId = null;
 async function loadMealComments(mealId, force) {
   if (!mealId || (mcLoadingId === mealId && !force)) return;
+  // Router mount() re-runs on every render (router.js:121); without this guard a re-render of an
+  // already-loaded meal silently refetches every time — and would let the offline {error}
+  // sentinel loop on repaint. Force (post-comment / retry) always bypasses it.
+  if (!force && MC && MC.mealId === mealId) return;
   mcLoadingId = mealId;
   MC = { mealId, comments: await roles.fetchMealComments(mealId) };
   mcLoadingId = null;
@@ -440,7 +444,11 @@ export const coachMeal = {
     ${foods.length ? `<div class="eyebrow">Detected</div><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(typeof f === 'string' ? f : f.name)}</span>`).join('')}</div>` : ''}
 
     <div class="eyebrow">Conversation</div>
-    ${(() => {
+    ${MC.comments && MC.comments.error ? `
+    <div style="text-align:center;padding:14px 12px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline)">
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4">Couldn't load the discussion — try again.</div>
+      <button class="btn ghost sm" id="coach-thread-retry" style="margin-top:10px">${icon('wifiOff', 15)} Retry</button>
+    </div>` : (() => {
       const rx = reactionGroups(MC.comments);
       const msgs = threadMessages(MC.comments);
       // `late` was hardcoded false here, so a late-logged meal showed "Captured on time" under
@@ -478,6 +486,8 @@ export const coachMeal = {
   },
   mount(root, { sub }) {
     loadMealComments(sub);
+    const threadRetry = root.querySelector('#coach-thread-retry');
+    if (threadRetry) threadRetry.addEventListener('click', () => loadMealComments(sub, true));
     const input = root.querySelector('#cm-input');
     const send = root.querySelector('#cm-send');
     const cmNote = root.querySelector('#cm-note');

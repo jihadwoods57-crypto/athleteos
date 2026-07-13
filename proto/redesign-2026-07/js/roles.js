@@ -135,9 +135,12 @@ export async function markDayViewed(athleteId, date, viewerId, viewerName) {
 }
 
 /* ---------------- meal comments (the real coach↔athlete thread) ---------------- */
+/** Returns the meal's comment thread, oldest→newest — or the {error:true} sentinel (same
+    pattern as fetchMyTeams) on a supabase {error} or thrown fetch, so an outage is never
+    mistaken for "no replies yet". */
 export async function fetchMealComments(mealId) {
   const c = sb(); if (!c || !mealId) return [];
-  try { const { data } = await c.from('meal_comments').select('*').eq('meal_id', mealId).order('created_at', { ascending: true }).limit(200); return data || []; } catch { return []; }
+  try { const { data, error } = await c.from('meal_comments').select('*').eq('meal_id', mealId).order('created_at', { ascending: true }).limit(200); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
 export async function postMealComment(mealId, athleteId, authorId, role, text, kind = 'message') {
   const c = sb(); if (!c || !mealId || !authorId) return false;
