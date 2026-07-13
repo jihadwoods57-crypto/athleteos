@@ -61,3 +61,5 @@ ios-certs/
 # Local OnStandard media + loose secrets (organization only — not part of the shipped app)
 _media/
 _secrets/
+sim/
+.fable5/shots/persona-sim/
