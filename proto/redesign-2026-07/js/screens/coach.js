@@ -33,7 +33,8 @@ export async function loadCoachRoster(force) {
   } finally {
     rosterLoading = false; // always clear so a retry can re-run
   }
-  if (location.hash === '#coach' || location.hash === '#copilot') window.__render();
+  // coach-athlete also depends on the roster (name + membership guard for a stale/dead link).
+  if (location.hash === '#coach' || location.hash === '#copilot' || location.hash.startsWith('#coach-athlete')) window.__render();
 }
 const scoreColor = (s) => s == null ? 'var(--text-3)' : s >= 80 ? 'var(--green-bright)' : s >= 60 ? 'var(--amber-bright)' : 'var(--red)';
 
@@ -249,6 +250,15 @@ export const copilot = {
   nav: 'coach', tab: 'copilot',
   render() {
     const rows = ROSTER ? ROSTER.rows : null;
+    // Offline must read as offline, not as a stuck "loading" (F-C1) or a false "no athletes":
+    // when the roster fetch failed, ROSTER.rows is [] with offline=true, which would otherwise
+    // fall through to the empty-roster summary. Mirror the Coach/Trainer tabs' honest offline card.
+    if (ROSTER && ROSTER.offline) {
+      return `${backHead('Copilot', 'Deterministic roster reads', 'coach')}
+      <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+      <div class="sd-t">Can't reach your roster</div>
+      <div class="sd-s">Copilot reads your real team data, and we couldn't load today's scores. Reopen this tab to retry — no numbers are invented while it's down.</div></div>`;
+    }
     if (rows === null) {
       return `${backHead('Copilot', 'Deterministic roster reads', 'coach')}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('sparkle', 17)}</div>
@@ -321,6 +331,19 @@ export const coachAthlete = {
     if (!ATH || ATH.athleteId !== athleteId) {
       return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('user', 17)}</div>
       <div><div class="tt">Loading their day…</div><div class="ts">Pulling today's real score and logged meals.</div></div></div>`;
+    }
+    // Dead/stale-link guard: once the roster is loaded, an id that isn't a member and has no data
+    // is a bad link, not a real athlete with an empty day — say so instead of a blank review. Only
+    // fires when the roster is definitively loaded, so a real athlete is never misflagged mid-load.
+    const rosterLoaded = !!(ROSTER && ROSTER.rows);
+    const onRoster = rosterLoaded && ROSTER.rows.some(r => r.athleteId === athleteId);
+    if (rosterLoaded && !onRoster && !ATH.day && !ATH.meals.length) {
+      return `${head}
+      <div class="state-demo"><div class="sd-ic">${icon('user', 24)}</div>
+      <div class="sd-t">Athlete not found</div>
+      <div class="sd-s">This athlete isn't on your roster — the link may be old, or they left your team. Head back and pick someone from your roster.</div>
+      <div class="sd-cta"><button class="btn ghost sm" data-go="coach">Back to roster</button></div></div>
+      <div style="height:10px"></div>`;
     }
     const day = ATH.day;
     const today = roles.todayISO();

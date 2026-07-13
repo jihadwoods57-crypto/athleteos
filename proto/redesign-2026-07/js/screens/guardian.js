@@ -47,6 +47,23 @@ export default {
       <button class="btn ghost" id="gd-send">Send reminder</button>
       <div style="height:10px"></div>`;
     }
+    if (c.status === 'revoked') {
+      return `
+      ${backHead('Parent Approval', 'Approval was removed', 'home')}
+
+      <div class="sidebox">
+        <div class="req-icon" style="width:38px;height:38px;background:rgba(248,113,113,0.16);color:#f87171">${icon('lock', 17)}</div>
+        <div><div class="tt">Your guardian removed approval</div>
+        <div class="ts">${c.guardianEmail ? esc(c.guardianEmail) : 'Your parent or guardian'} revoked consent, so your day stopped syncing and your coach can no longer see it. Everything you log now stays on this phone — nothing you've already logged is lost. Ask them to approve again to reconnect.</div></div>
+      </div>
+
+      <div style="height:16px"></div>
+      <div class="eyebrow">Send a new approval request</div>
+      <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
+      <div id="gd-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
+      <button class="btn" id="gd-send">Ask for approval again</button>
+      <div style="height:10px"></div>`;
+    }
     return `
     ${backHead('Parent Approval', 'One step before your day can sync', 'home')}
 
@@ -81,11 +98,16 @@ export default {
       btn.disabled = true;
       const was = btn.textContent;
       btn.textContent = 'Sending…';
+      // Capture the status BEFORE the request: only a genuine pending → pending reminder should
+      // show the inline confirmation. A none → pending or revoked → pending flip must repaint to
+      // the new (pending) view — the request itself sets status to 'pending', so checking after
+      // the call would wrongly treat every request as a "reminder".
+      const wasPending = (S.consent && S.consent.status) === 'pending';
       const r = await act.requestGuardianConsent(input.value);
       if (r.ok) {
         // Pending → pending repaints an identical view, so a successful reminder read as a
-        // no-op. Show inline confirmation instead; the default → pending flip still repaints.
-        if ((S.consent && S.consent.status) === 'pending') {
+        // no-op. Show inline confirmation instead; the none/revoked → pending flip still repaints.
+        if (wasPending) {
           err.style.color = 'var(--green-bright)';
           err.textContent = `Reminder sent${input.value ? ' to ' + input.value : ''}.`;
           btn.disabled = false; btn.textContent = was;
