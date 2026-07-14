@@ -11,6 +11,66 @@
   src: url('../fonts/pjs.woff2') format('woff2');
 }
 
+/* ---------- waitlist dialog ---------- */
+.wl {
+  border: none; padding: 0; margin: auto;
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  background: transparent; color: inherit; overflow: visible;
+}
+.wl::backdrop { background: rgba(4, 7, 13, 0.72); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.wl[open] { animation: wl-in .4s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes wl-in { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: none; } }
+.wl-panel {
+  position: relative;
+  background: linear-gradient(180deg, #0E1421, #0A1120);
+  border: 1px solid rgba(148, 176, 224, 0.16);
+  border-radius: 22px;
+  padding: clamp(24px, 4vw, 34px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  max-height: calc(100dvh - 40px); overflow-y: auto;
+}
+.wl-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--hairline); background: rgba(148, 176, 224, 0.05);
+  color: var(--text-2); transition: color .2s, border-color .2s, background .2s;
+}
+.wl-close:hover { color: var(--text); border-color: rgba(148, 176, 224, 0.3); background: rgba(148, 176, 224, 0.1); }
+.wl-h { font-size: clamp(24px, 4vw, 30px); font-weight: 800; letter-spacing: -0.03em; margin-top: 12px; }
+.wl-sub { color: var(--text-2); font-size: 14.5px; line-height: 1.55; margin-top: 10px; max-width: 42ch; }
+.wl-form { margin-top: 22px; display: grid; gap: 14px; }
+.wl-field { display: grid; gap: 6px; }
+.wl-field label { font-size: 12.5px; font-weight: 700; color: var(--text-2); letter-spacing: 0.01em; }
+.wl-field .req { color: var(--blue-bright); }
+.wl-field .opt { color: var(--text-3); font-weight: 600; text-transform: none; }
+.wl-field input, .wl-field select, .wl-field textarea {
+  width: 100%; box-sizing: border-box;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--hairline); border-radius: 12px;
+  padding: 13px 14px; font: inherit; font-size: 15px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.wl-field textarea { resize: vertical; min-height: 46px; }
+.wl-field input:focus, .wl-field select:focus, .wl-field textarea:focus {
+  outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.22);
+}
+.wl-field select { appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%237C8BA6' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center; padding-right: 38px; }
+.wl-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.wl-submit { width: 100%; margin-top: 4px; }
+.wl-submit[disabled] { opacity: .6; cursor: default; }
+.wl-msg { font-size: 13.5px; font-weight: 600; min-height: 18px; margin: 0; }
+.wl-msg.err { color: var(--red); }
+.wl-done { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 14px 0 6px; }
+.wl-done .wl-check { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--green-surface); border: 1px solid var(--green-border); color: var(--green); }
+.wl-done h3 { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
+.wl-done p { color: var(--text-2); font-size: 14.5px; max-width: 34ch; }
+@media (prefers-reduced-motion: reduce) { .wl[open] { animation: none; } }
+
 /* ---------- tokens ---------- */
 :root {
   --bg: #070B14;

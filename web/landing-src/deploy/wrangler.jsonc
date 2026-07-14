@@ -1,5 +1,9 @@
 {
   "name": "onstandard-site",
   "compatibility_date": "2026-07-01",
-  "assets": { "directory": "../../landing" }
+  "main": "worker.js",
+  "assets": { "directory": "../../landing", "binding": "ASSETS" },
+  "kv_namespaces": [
+    { "binding": "WAITLIST", "id": "1a6ae4b935524317ae4e8a7e576d92f2" }
+  ]
 }

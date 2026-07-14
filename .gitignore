@@ -63,3 +63,6 @@ _media/
 _secrets/
 sim/
 .fable5/shots/persona-sim/
+
+# wrangler local state/cache
+web/landing-src/deploy/.wrangler/

@@ -120,4 +120,69 @@
     if ('requestIdleCallback' in window) requestIdleCallback(boot, { timeout: 1800 });
     else setTimeout(boot, 600);
   }
+
+  /* ---------- waitlist dialog ---------- */
+  const dlg = document.getElementById('wl');
+  if (dlg && typeof dlg.showModal === 'function') {
+    const form = document.getElementById('wl-form');
+    const emailEl = document.getElementById('wl-email');
+    const roleEl = document.getElementById('wl-role');
+    const msg = document.getElementById('wl-msg');
+    const submit = document.getElementById('wl-submit');
+    let opener = null;
+
+    const open = (role) => {
+      msg.textContent = ''; msg.classList.remove('err');
+      if (role && roleEl) {
+        const opt = [...roleEl.options].find((o) => o.value === role);
+        if (opt) roleEl.value = role;
+      }
+      dlg.showModal();
+      setTimeout(() => (document.getElementById('wl-name') || emailEl).focus(), 60);
+    };
+
+    // Intercept every early-access CTA; the mailto href is the no-JS fallback.
+    document.querySelectorAll('a.js-wl').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        opener = a;
+        open(a.getAttribute('data-role'));
+      });
+    });
+
+    const closeBtn = document.getElementById('wl-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => dlg.close());
+    // click on the backdrop closes
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener('close', () => { if (opener) { try { opener.focus(); } catch (_) {} opener = null; } });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = ''; msg.classList.remove('err');
+      const email = (emailEl.value || '').trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        msg.textContent = 'Please enter a valid email.'; msg.classList.add('err'); emailEl.focus(); return;
+      }
+      submit.disabled = true; submit.textContent = 'Sending…';
+      try {
+        const data = Object.fromEntries(new FormData(form));
+        const res = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.ok) throw new Error(out.error || 'failed');
+        const panel = dlg.querySelector('.wl-panel');
+        panel.innerHTML = '<button type="button" class="wl-close" id="wl-close2" aria-label="Close"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
+          + '<div class="wl-done"><div class="wl-check"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>'
+          + '<h3>You’re on the list.</h3><p>We’ll reach out as early access opens. Keep proving the work.</p></div>';
+        document.getElementById('wl-close2').addEventListener('click', () => dlg.close());
+      } catch (err) {
+        submit.disabled = false; submit.textContent = 'Request early access';
+        msg.textContent = 'Couldn’t send just now, please try again, or email support@onstandard.app.';
+        msg.classList.add('err');
+      }
+    });
+  }
 })();

@@ -55,7 +55,7 @@
       <a href="#era">Why now</a>
       <a href="#pricing">Pricing</a>
     </nav>
-    <a class="btn btn-nav" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access&body=%0A%0AWho%20I%20am%20(athlete%2C%20parent%2C%20coach%2C%20trainer%2C%20facility)%3A%0ASport%20or%20goal%3A%0A">Get early access</a>
+    <a class="btn btn-nav js-wl" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access&body=%0A%0AWho%20I%20am%20(athlete%2C%20parent%2C%20coach%2C%20trainer%2C%20facility)%3A%0ASport%20or%20goal%3A%0A">Get early access</a>
   </div>
 </header>
 
@@ -70,7 +70,7 @@
         <h1 id="hero-h" class="reveal d1">Prove<br>the work<span class="dot">.</span></h1>
         <p class="hero-sub reveal d2">A coach, trainer, or dietitian sets your standard. You prove it every day: meals, recovery, check&#8209;ins. One honest score, live to the people invested in you.</p>
         <div class="hero-cta reveal d3">
-          <a class="btn btn-primary" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access&body=%0A%0AWho%20I%20am%20(athlete%2C%20parent%2C%20coach%2C%20trainer%2C%20facility)%3A%0ASport%20or%20goal%3A%0A">Get early access</a>
+          <a class="btn btn-primary js-wl" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access&body=%0A%0AWho%20I%20am%20(athlete%2C%20parent%2C%20coach%2C%20trainer%2C%20facility)%3A%0ASport%20or%20goal%3A%0A">Get early access</a>
           <a class="btn btn-ghost" href="#loop">See how it works</a>
         </div>
         <p class="hero-fine reveal d4">Free for athletes and clients. A coach, trainer, or program brings you on.</p>
@@ -453,7 +453,7 @@
             <li>AI meal reads and the team thread</li>
             <li>Your history, portable for life</li>
           </ul>
-          <a class="btn btn-ghost plan-cta" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access%20%E2%80%94%20athlete%20or%20client">Get early access</a>
+          <a class="btn btn-ghost plan-cta js-wl" data-role="Athlete" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access%20%E2%80%94%20athlete%20or%20client">Get early access</a>
         </article>
         <article class="plan featured reveal d1">
           <p class="plan-flag">For trainers, RDs &amp; private coaches</p>
@@ -465,7 +465,7 @@
             <li>Live book with needs&#8209;attention flags</li>
             <li>Copilot summaries &amp; meal threads</li>
           </ul>
-          <a class="btn btn-primary plan-cta" href="mailto:support@onstandard.app?subject=Professional%20trial%20%E2%80%94%20trainer%20%2F%20RD%20%2F%20private%20coach">Request your trial</a>
+          <a class="btn btn-primary plan-cta js-wl" data-role="Trainer or dietitian" href="mailto:support@onstandard.app?subject=Professional%20trial%20%E2%80%94%20trainer%20%2F%20RD%20%2F%20private%20coach">Request your trial</a>
         </article>
         <article class="plan reveal d2">
           <h3>Programs &amp; facilities</h3>
@@ -476,7 +476,7 @@
             <li>Consent&#8209;first guardian visibility</li>
             <li>A premium tier your gym can resell</li>
           </ul>
-          <a class="btn btn-ghost plan-cta" href="mailto:support@onstandard.app?subject=OnStandard%20for%20our%20program">Talk to us</a>
+          <a class="btn btn-ghost plan-cta js-wl" data-role="Gym or program" href="mailto:support@onstandard.app?subject=OnStandard%20for%20our%20program">Talk to us</a>
         </article>
       </div>
       <p class="plan-fine reveal d3">Opening pricing. Founding partners: the first 50 coaches and facilities lock 50% off for 12 months, grandfathered so a later price rise never touches them.</p>
@@ -537,12 +537,51 @@
     <div class="wrap fin-in">
       <h2 id="fin-h" class="h2 fin-h reveal">The work is yours.<br>Now it counts.</h2>
       <div class="fin-cta reveal d1">
-        <a class="btn btn-primary btn-big" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access&body=%0A%0AWho%20I%20am%20(athlete%2C%20parent%2C%20coach%2C%20trainer%2C%20facility)%3A%0ASport%20or%20goal%3A%0A">Get early access</a>
-        <a class="btn btn-ghost" href="mailto:support@onstandard.app?subject=OnStandard%20for%20my%20team">Bring your team</a>
+        <a class="btn btn-primary btn-big js-wl" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access&body=%0A%0AWho%20I%20am%20(athlete%2C%20parent%2C%20coach%2C%20trainer%2C%20facility)%3A%0ASport%20or%20goal%3A%0A">Get early access</a>
+        <a class="btn btn-ghost js-wl" data-role="Coach" href="mailto:support@onstandard.app?subject=OnStandard%20for%20my%20team">Bring your team</a>
       </div>
       <p class="hero-fine reveal d2">Coaches, trainers, and facilities: set your first standard tonight. Your roster lights up as they log.</p>
     </div>
   </section>
+  <!-- ============ WAITLIST DIALOG ============ -->
+  <dialog id="wl" class="wl" aria-labelledby="wl-h">
+    <button type="button" class="wl-close" id="wl-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="wl-panel">
+      <p class="kicker">Early access</p>
+      <h2 id="wl-h" class="wl-h">Get on the standard.</h2>
+      <p class="wl-sub">Tell us who you are and we'll reach out as spots open, whether you're an athlete, a parent, or the coach setting the bar.</p>
+      <form id="wl-form" class="wl-form" novalidate>
+        <div class="wl-field">
+          <label for="wl-name">Name</label>
+          <input id="wl-name" name="name" autocomplete="name" placeholder="Your name">
+        </div>
+        <div class="wl-field">
+          <label for="wl-email">Email <span class="req">*</span></label>
+          <input id="wl-email" name="email" type="email" required autocomplete="email" placeholder="you@email.com">
+        </div>
+        <div class="wl-field">
+          <label for="wl-role">I'm a</label>
+          <select id="wl-role" name="role">
+            <option>Athlete</option>
+            <option>Parent</option>
+            <option>Coach</option>
+            <option>Trainer or dietitian</option>
+            <option>Gym or program</option>
+            <option>Just curious</option>
+          </select>
+        </div>
+        <div class="wl-field">
+          <label for="wl-note">Anything else? <span class="opt">optional</span></label>
+          <textarea id="wl-note" name="note" rows="2" placeholder="Sport, team, or what you're chasing"></textarea>
+        </div>
+        <input type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true" class="wl-hp">
+        <button type="submit" class="btn btn-primary wl-submit" id="wl-submit">Request early access</button>
+        <p class="wl-msg" id="wl-msg" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </dialog>
 </main>
 
 <footer class="foot">
