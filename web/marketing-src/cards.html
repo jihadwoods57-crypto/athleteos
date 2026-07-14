@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OnStandard — marketing card set</title>
+<style>
+/* ============================================================
+   OnStandard marketing cards — 1080×1350 (4:5), one per section.
+   Same token system as onstandard.app (web/landing).
+   ============================================================ */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 200 800;
+  src: url('../landing/fonts/pjs.woff2') format('woff2');
+}
+:root {
+  --bg: #070B14;
+  --bg-2: #0A1120;
+  --surface-1: #0E1421;
+  --surface-2: #131C2D;
+  --hairline: rgba(148, 176, 224, 0.10);
+  --hairline-soft: rgba(148, 176, 224, 0.055);
+  --text: #EEF3FB;
+  --text-2: #9AA9C2;
+  --text-3: #7C8BA6;
+  --blue: #3B82F6;
+  --blue-bright: #60A5FA;
+  --blue-deep: #2563EB;
+  --green: #34D399;
+  --amber: #F5A524;
+  --red: #F65757;
+  --cyan: #22D3EE;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: #02040a; }
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+ul { list-style: none; }
+img { display: block; }
+
+/* ---------- card frame ---------- */
+.card {
+  position: relative;
+  width: 1080px;
+  height: 1350px;
+  background: var(--bg);
+  overflow: hidden;
+  margin: 40px auto;
+}
+/* film grain */
+.card::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 40; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.05;
+}
+
+/* ---------- shared header / footer ---------- */
+.head {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 56px 72px 0;
+}
+.brand { display: flex; align-items: center; gap: 16px; }
+.brand-name { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+.index {
+  font-size: 19px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--text-3); font-variant-numeric: tabular-nums;
+}
+.index b { color: var(--blue-bright); font-weight: 800; }
+.foot {
+  position: absolute; left: 72px; right: 72px; bottom: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 30px 0 44px;
+  border-top: 1px solid var(--hairline);
+}
+.foot-site { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
+.foot-site i { font-style: normal; color: var(--blue-bright); }
+.foot-cta { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; color: var(--text-2); }
+.foot-cta::before {
+  content: ''; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 12px rgba(52,211,153,.8);
+}
+
+/* ---------- shared type ---------- */
+.kicker {
+  font-size: 21px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--blue-bright);
+}
+.h {
+  font-weight: 800; letter-spacing: -0.035em; line-height: 1.03;
+  margin-top: 22px; text-wrap: balance;
+}
+.h .dot { color: var(--blue); }
+.sub { color: var(--text-2); font-size: 29px; line-height: 1.5; margin-top: 26px; font-weight: 500; }
+.sub b, .close b { color: var(--text); font-weight: 700; }
+
+/* checked list */
+.ticks { display: grid; gap: 22px; }
+.ticks li {
+  position: relative; padding-left: 52px;
+  font-size: 27px; line-height: 1.42; font-weight: 600; color: var(--text-2);
+}
+.ticks li b { color: var(--text); font-weight: 700; }
+.ticks li::before {
+  content: ''; position: absolute; left: 0; top: 3px;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(59, 130, 246, 0.16);
+  border: 1.5px solid rgba(96, 165, 250, 0.45);
+}
+.ticks li::after {
+  content: ''; position: absolute; left: 9px; top: 12px;
+  width: 13px; height: 7px;
+  border-left: 3px solid var(--blue-bright); border-bottom: 3px solid var(--blue-bright);
+  transform: rotate(-45deg);
+}
+
+/* photo top treatment */
+.photo { position: absolute; top: 0; left: 0; right: 0; z-index: 0; }
+.photo img { width: 1080px; height: 640px; object-fit: cover; }
+.photo::before {
+  content: ''; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(180deg, rgba(7,11,20,.62) 0%, rgba(7,11,20,.18) 34%, rgba(7,11,20,.55) 66%, var(--bg) 96%);
+}
+.photo::after {
+  content: ''; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(90deg, rgba(7,11,20,.35), rgba(7,11,20,0) 40%);
+}
+.body { position: absolute; left: 72px; right: 72px; z-index: 10; }
+
+.close { font-size: 27px; line-height: 1.5; font-weight: 600; color: var(--text-2); }
+.close em { font-style: normal; color: var(--text); font-weight: 800; }
+
+/* ============ 01 · COVER ============ */
+#c01 .hero-field {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(860px 620px at 78% 66%, rgba(37, 99, 235, 0.16), transparent 65%),
+    radial-gradient(700px 500px at 12% 10%, rgba(34, 211, 238, 0.05), transparent 60%);
+}
+#c01 .photo { top: auto; bottom: 0; }
+#c01 .photo img { height: 700px; opacity: .52; }
+#c01 .photo::before { background: linear-gradient(0deg, rgba(7,11,20,.55) 0%, rgba(7,11,20,.4) 55%, var(--bg) 100%); }
+#c01 .photo::after { display: none; }
+#c01 .body { top: 176px; }
+#c01 .h { font-size: 138px; }
+#c01 .sub { max-width: 850px; }
+#c01 .dial {
+  position: absolute; z-index: 10; left: 50%; top: 620px; transform: translateX(-50%);
+  width: 560px; height: 560px;
+}
+#c01 .dial svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dial-center {
+  position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 2px;
+}
+.dial-label { font-size: 20px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
+.dial-num { font-size: 168px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; font-variant-numeric: tabular-nums; }
+.dial-of { font-size: 26px; font-weight: 700; color: var(--text-3); }
+.dial-tier {
+  margin: 18px auto 0; padding: 10px 26px; border-radius: 100px;
+  font-size: 22px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--green); background: rgba(52, 211, 153, 0.12);
+  border: 1.5px solid rgba(52, 211, 153, 0.38);
+}
+
+/* ============ 02 · HOW IT WORKS ============ */
+#c02 .body { top: 190px; }
+#c02 .h { font-size: 84px; }
+.steps { margin-top: 58px; display: grid; gap: 0; }
+.step { position: relative; display: grid; grid-template-columns: 96px 1fr; gap: 30px; padding-bottom: 52px; }
+.step:last-child { padding-bottom: 0; }
+.step::before {
+  content: ''; position: absolute; left: 47px; top: 100px; bottom: 8px; width: 2px;
+  background: linear-gradient(180deg, rgba(96,165,250,.5), rgba(96,165,250,.08));
+}
+.step:last-child::before { display: none; }
+.step-n {
+  width: 96px; height: 96px; border-radius: 26px;
+  display: grid; place-content: center;
+  font-size: 34px; font-weight: 800; letter-spacing: 0.02em; color: var(--blue-bright);
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  font-variant-numeric: tabular-nums;
+}
+.step h3 { font-size: 37px; font-weight: 800; letter-spacing: -0.02em; padding-top: 4px; }
+.step p { margin-top: 12px; font-size: 26px; line-height: 1.48; color: var(--text-2); font-weight: 500; }
+.step p b { color: var(--text); font-weight: 700; }
+#c02 .close { margin-top: 54px; }
+
+/* ============ 03 · LOGGING ============ */
+#c03 .photo img { height: 520px; object-position: 50% 62%; }
+#c03 .body.over { top: 168px; }
+#c03 .body.main { top: 446px; }
+#c03 .h { font-size: 88px; max-width: 800px; }
+.flow { margin-top: 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.flow-item {
+  display: flex; align-items: center; gap: 20px;
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: 22px; padding: 24px 26px;
+}
+.flow-n {
+  flex: 0 0 52px; height: 52px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(59,130,246,.14); border: 1.5px solid rgba(96,165,250,.4);
+  font-size: 24px; font-weight: 800; color: var(--blue-bright);
+}
+.flow-item > div > b { display: block; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+.flow-item > div > span { display: block; font-size: 20.5px; font-weight: 600; color: var(--text-3); margin-top: 2px; }
+.rules { margin-top: 28px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.rule {
+  border: 1px solid var(--hairline-soft); border-radius: 18px; background: var(--bg-2);
+  padding: 22px 24px; display: grid; gap: 4px;
+}
+.rule b { font-size: 25px; font-weight: 800; letter-spacing: -0.01em; }
+.rule span { font-size: 19px; font-weight: 600; color: var(--text-3); line-height: 1.3; }
+.rule.g b { color: var(--green); }
+.rule.a b { color: var(--amber); }
+.rule.r b { color: var(--red); }
+.rule.n b { color: var(--text-2); }
+#c03 .close { margin-top: 30px; }
+
+/* ============ 04 · THE AI ============ */
+#c04 .body { top: 160px; }
+#c04 .h { font-size: 88px; }
+.thread { margin-top: 40px; display: grid; gap: 18px; max-width: 890px; }
+.msg { max-width: 780px; }
+.msg .who {
+  font-size: 19px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-3); margin: 0 0 8px 6px;
+}
+.msg .who i { font-style: normal; }
+.msg.ai .who i { color: var(--cyan); }
+.msg.coach .who i { color: var(--blue-bright); }
+.msg .bubble {
+  padding: 20px 28px; border-radius: 26px;
+  font-size: 24.5px; line-height: 1.42; font-weight: 600; color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  border-top-left-radius: 8px;
+}
+.msg .bubble b { color: var(--text); font-weight: 700; }
+.msg.you { justify-self: end; text-align: right; }
+.msg.you .who { margin: 0 6px 8px 0; }
+.msg.you .bubble {
+  background: linear-gradient(135deg, var(--blue-deep), var(--blue));
+  border: none; color: #fff; text-align: left;
+  border-radius: 26px; border-top-right-radius: 8px;
+}
+.never { margin-top: 34px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.never div {
+  border: 1px solid rgba(246, 87, 87, 0.22); background: rgba(246, 87, 87, 0.05);
+  border-radius: 18px; padding: 18px 22px;
+  font-size: 21.5px; font-weight: 700; line-height: 1.32; color: var(--text-2);
+}
+.never div b { display: block; color: var(--red); font-size: 18px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 5px; }
+
+/* ============ 05 · SCORE ANATOMY ============ */
+#c05 .ghost {
+  position: absolute; right: -40px; top: 96px; z-index: 0;
+  font-size: 460px; font-weight: 800; letter-spacing: -0.06em; line-height: 1;
+  color: rgba(96, 165, 250, 0.05); font-variant-numeric: tabular-nums;
+}
+#c05 .body { top: 190px; }
+#c05 .h { font-size: 88px; }
+.anatomy { margin-top: 48px; display: grid; gap: 26px; }
+.an-row { display: grid; grid-template-columns: 320px 1fr 110px; align-items: center; column-gap: 28px; row-gap: 8px; }
+.an-name { font-size: 30px; font-weight: 800; letter-spacing: -0.01em; }
+.an-d { grid-column: 1 / -1; font-size: 22px; color: var(--text-3); font-weight: 600; }
+.an-bar { height: 20px; border-radius: 100px; background: var(--surface-2); overflow: hidden; }
+.an-fill { display: block; height: 100%; border-radius: inherit; }
+.an-fill.n { width: 100%; background: linear-gradient(90deg, #2DD4A0, var(--green)); }
+.an-fill.r { width: 50%;  background: linear-gradient(90deg, #8B5CF6, #A855F7); }
+.an-fill.c { width: 30%;  background: linear-gradient(90deg, var(--blue-deep), var(--blue)); }
+.an-fill.k { width: 20%;  background: linear-gradient(90deg, #0EA5E9, var(--cyan)); }
+.an-w { text-align: right; font-weight: 800; font-size: 36px; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.tier-scale { margin-top: 44px; display: flex; gap: 12px; }
+.tseg {
+  flex-grow: var(--span); flex-basis: 0; min-width: 0;
+  padding: 20px 10px 18px 20px; border-radius: 16px;
+  border: 1px solid var(--hairline-soft); background: var(--surface-1);
+  display: grid; gap: 3px;
+}
+.tseg i { font-style: normal; font-size: 19px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.tseg b { font-size: 21px; font-weight: 800; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.t-off i { color: var(--red); }
+.t-build i { color: var(--amber); }
+.t-lock i { color: var(--blue-bright); }
+.t-on { background: rgba(52, 211, 153, 0.09); border-color: rgba(52, 211, 153, 0.3); }
+.t-on i { color: var(--green); }
+#c05 .close { margin-top: 44px; }
+
+/* ============ 06 · NUTRITION SCIENCE ============ */
+#c06 .photo img { height: 500px; object-position: 50% 58%; }
+#c06 .body.over { top: 150px; }
+#c06 .body.main { top: 420px; }
+#c06 .h { font-size: 78px; }
+.stats { margin-top: 36px; display: grid; gap: 22px; }
+.stat { display: grid; grid-template-columns: 218px 1fr; align-items: start; column-gap: 32px; }
+.stat-n {
+  font-size: 58px; font-weight: 800; letter-spacing: -0.04em; line-height: 1;
+  padding-top: 4px; font-variant-numeric: tabular-nums;
+  background: linear-gradient(120deg, var(--green), var(--cyan) 60%, var(--blue-bright));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.stat-n small { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+.stat p { font-size: 23.5px; line-height: 1.38; color: var(--text-2); font-weight: 600; }
+.stat p b { color: var(--text); font-weight: 700; }
+.stat cite {
+  display: block; font-style: normal; font-size: 18px; font-weight: 700;
+  color: var(--text-3); margin-top: 5px; letter-spacing: 0.01em;
+}
+#c06 .close { margin-top: 30px; }
+
+/* ============ 07 · THE ERA ============ */
+#c07 .photo img { height: 620px; object-position: 50% 40%; }
+#c07 .body.over { top: 160px; }
+#c07 .body.main { top: 536px; }
+#c07 .h { font-size: 76px; max-width: 900px; }
+.era-line { margin-top: 0; display: grid; gap: 24px; }
+.era-line li { display: grid; grid-template-columns: 170px 1fr; column-gap: 30px; align-items: start; }
+.ey {
+  font-size: 52px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1;
+  color: var(--blue-bright); font-variant-numeric: tabular-nums;
+}
+.era-line b { display: block; font-size: 29px; font-weight: 800; letter-spacing: -0.015em; }
+.era-line span { display: block; font-size: 23px; line-height: 1.4; color: var(--text-2); font-weight: 600; margin-top: 4px; }
+.era-turn {
+  margin-top: 32px; padding-left: 30px; border-left: 4px solid var(--blue);
+  font-size: 25px; line-height: 1.45; color: var(--text-2); font-weight: 600;
+}
+.era-turn b { color: var(--text); font-weight: 800; }
+.era-close { margin-top: 34px; font-size: 42px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.25; }
+.era-close em { font-style: normal; background: linear-gradient(120deg, var(--green), var(--cyan) 55%, var(--blue-bright)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ============ persona cards (08–12) shared ============ */
+.persona .photo img { height: 600px; }
+.persona .body.over { top: 150px; }
+.persona .body.main { top: 524px; }
+.persona .h { font-size: 72px; }
+.persona .ticks { margin-top: 36px; gap: 20px; }
+.persona .close { margin-top: 34px; font-size: 26px; }
+.persona .sub { font-size: 26px; margin-top: 20px; }
+.seat-line {
+  margin-top: 32px; font-size: 36px; font-weight: 800; letter-spacing: -0.02em;
+}
+.seat-line i { font-style: normal; color: var(--blue-bright); }
+
+/* ============ 09 · COACH roster mock ============ */
+#c09 .photo img { height: 560px; }
+#c09 .body.main { top: 470px; }
+#c09 .ticks { margin-top: 28px !important; }
+.roster { margin-top: 26px; border: 1px solid var(--hairline); border-radius: 24px; background: var(--surface-1); overflow: hidden; }
+.roster-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 30px; border-bottom: 1px solid var(--hairline-soft);
+  font-size: 22px; font-weight: 800; color: var(--text-2);
+}
+.roster-head b { color: var(--text); font-size: 24px; }
+.r-row { display: flex; align-items: center; gap: 20px; padding: 14px 30px; border-bottom: 1px solid var(--hairline-soft); }
+.r-row:last-child { border-bottom: none; }
+.r-ava {
+  width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 19px; font-weight: 800; color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--hairline);
+}
+.r-name { flex: 1; font-size: 25px; font-weight: 700; }
+.r-name span { display: block; font-size: 19px; font-weight: 600; color: var(--text-3); margin-top: 1px; }
+.r-score { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.r-pill {
+  font-size: 17px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 8px 16px; border-radius: 100px;
+}
+.r-on  { color: var(--green); } .p-on  { color: var(--green); background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.3); }
+.r-b   { color: var(--amber); } .p-b   { color: var(--amber); background: rgba(245,165,36,.1); border: 1px solid rgba(245,165,36,.3); }
+.r-off { color: var(--red); }   .p-off { color: var(--red);   background: rgba(246,87,87,.1);  border: 1px solid rgba(246,87,87,.3); }
+
+/* price line on trainer card */
+.price-chip {
+  margin-top: 40px; display: inline-flex; align-items: baseline; gap: 16px;
+  border: 1px solid var(--hairline); background: var(--surface-1);
+  border-radius: 20px; padding: 22px 30px;
+}
+.price-chip .pp { font-size: 46px; font-weight: 800; letter-spacing: -0.03em; }
+.price-chip .pk { font-size: 22px; font-weight: 700; color: var(--text-3); }
+</style>
+</head>
+<body>
+
+<!-- ============ 01 · COVER ============ -->
+<section class="card" id="c01">
+  <div class="hero-field"></div>
+  <div class="photo"><img src="../landing/assets/img/hero-stadium.webp" alt=""></div>
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>01</b> / 12 · The standard</span>
+  </header>
+  <div class="body">
+    <p class="kicker">For athletes, clients, and the people who hold them to it</p>
+    <h1 class="h">Prove<br>the work<span class="dot">.</span></h1>
+    <p class="sub">A coach, trainer, or dietitian sets your standard. You prove it every day — meals, recovery, check&#8209;ins. <b>One honest score,</b> live to the people invested in you.</p>
+  </div>
+  <div class="dial">
+    <svg viewBox="0 0 360 360">
+      <defs>
+        <linearGradient id="rg1" x1="40" y1="330" x2="270" y2="20" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#34D399"/><stop offset=".55" stop-color="#22D3EE"/><stop offset="1" stop-color="#3B82F6"/>
+        </linearGradient>
+        <filter id="rb1" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="14"/></filter>
+      </defs>
+      <g transform="rotate(117 180 180)">
+        <circle cx="180" cy="180" r="132" fill="none" stroke="rgba(148,176,224,.13)" stroke-width="17" stroke-linecap="round" stroke-dasharray="705.6 829"/>
+        <circle cx="180" cy="180" r="132" fill="none" stroke="url(#rg1)" stroke-width="26" stroke-linecap="round" filter="url(#rb1)" opacity=".55" stroke-dasharray="663 829"/>
+        <circle cx="180" cy="180" r="132" fill="none" stroke="url(#rg1)" stroke-width="17" stroke-linecap="round" stroke-dasharray="663 829"/>
+        <circle cx="220" cy="54.2" r="13" fill="#EEF3FB"/>
+      </g>
+    </svg>
+    <div class="dial-center">
+      <span class="dial-label">OnStandard Score</span>
+      <span class="dial-num">94</span>
+      <span class="dial-of">/100</span>
+      <span class="dial-tier">OnStandard</span>
+    </div>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 02 · HOW IT WORKS ============ -->
+<section class="card" id="c02">
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>02</b> / 12 · How it works</span>
+  </header>
+  <div class="body">
+    <p class="kicker">How it works</p>
+    <h1 class="h">The standard gets set.<br>The work gets proven.</h1>
+    <div class="steps">
+      <div class="step">
+        <span class="step-n">01</span>
+        <div>
+          <h3>One person you trust sets the bar</h3>
+          <p>A coach, trainer, or dietitian sets the plan — protein target, meal windows, check&#8209;ins. <b>The platform owns the scoring math:</b> no coach can inflate it, no athlete can lobby it.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">02</span>
+        <div>
+          <h3>You prove it, not promise it</h3>
+          <p>Point the camera at the plate. The meal is read, matched against the plan, and <b>counted while it's still warm.</b> No credit for opening the app. Ever.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">03</span>
+        <div>
+          <h3>The people invested in you see it live</h3>
+          <p>The coach scans the roster in three seconds. The trainer sees the client going quiet. Parents see the day — <b>never the DMs.</b></p>
+        </div>
+      </div>
+    </div>
+    <p class="close">Same 0–100 scale for everyone, everywhere. <em>That's what makes the number worth trusting.</em></p>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 03 · LOGGING ============ -->
+<section class="card" id="c03">
+  <div class="photo"><img src="../landing/assets/img/fuel.webp" alt=""></div>
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>03</b> / 12 · Logging</span>
+  </header>
+  <div class="body over">
+    <p class="kicker">Meal logging, step by step</p>
+  </div>
+  <div class="body main">
+    <h1 class="h" style="margin-top:0">Twenty seconds,<br>start to counted.</h1>
+    <div class="flow">
+      <div class="flow-item"><span class="flow-n">1</span><div><b>Point</b><span>Open the camera at the plate. Live capture only.</span></div></div>
+      <div class="flow-item"><span class="flow-n">2</span><div><b>Read</b><span>AI detects foods, portions, protein, calories.</span></div></div>
+      <div class="flow-item"><span class="flow-n">3</span><div><b>Counted</b><span>The score moves that second, against your plan.</span></div></div>
+      <div class="flow-item"><span class="flow-n">4</span><div><b>Discussed</b><span>A thread opens: AI first, then coach, then you.</span></div></div>
+    </div>
+    <div class="rules">
+      <div class="rule g"><b>On time</b><span>counts in full</span></div>
+      <div class="rule a"><b>Late</b><span>counts for half</span></div>
+      <div class="rule r"><b>Skipped</b><span>reads as skipped</span></div>
+      <div class="rule n"><b>Gallery pick</b><span>saved, never scored</span></div>
+    </div>
+    <p class="close">Four rules — that's the whole trust model. A plate you actually ate, photographed when you ate it. <em>That's why a coach believes the number.</em></p>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 04 · THE AI ============ -->
+<section class="card" id="c04">
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>04</b> / 12 · The AI</span>
+  </header>
+  <div class="body">
+    <p class="kicker">The intelligence</p>
+    <h1 class="h">An AI that knows<br>its lane<span class="dot">.</span></h1>
+    <p class="sub">Most fitness AI wants to be your coach. <b>Ours works for yours.</b> Every log opens a team thread — the AI's honest read first, then your coach, then you.</p>
+    <div class="thread">
+      <div class="msg ai">
+        <p class="who"><i>OnStandard AI</i> · dinner · 6:32 PM</p>
+        <div class="bubble">Captured on time — that's the standard. <b>Protein is covered.</b> Fries work post&#8209;practice, but a green would round this out.</div>
+      </div>
+      <div class="msg coach">
+        <p class="who"><i>Coach Reed</i></p>
+        <div class="bubble">Add a green tomorrow and this is a <b>90</b>.</div>
+      </div>
+      <div class="msg you">
+        <p class="who">You</p>
+        <div class="bubble">Broccoli tomorrow. Bet.</div>
+      </div>
+      <div class="msg ai">
+        <p class="who"><i>OnStandard AI</i></p>
+        <div class="bubble">Noted. <b>Holding you to it.</b></div>
+      </div>
+    </div>
+    <div class="never">
+      <div><b>Never</b>sets your targets — your coach does</div>
+      <div><b>Never</b>touches the score — fixed math does</div>
+      <div><b>Never</b>invents a number — unsure shows as “?”</div>
+    </div>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 05 · SCORE ANATOMY ============ -->
+<section class="card" id="c05">
+  <div class="ghost">84</div>
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>05</b> / 12 · The score</span>
+  </header>
+  <div class="body">
+    <p class="kicker">One number, protected</p>
+    <h1 class="h">Anatomy of<br>an honest score<span class="dot">.</span></h1>
+    <div class="anatomy">
+      <div class="an-row">
+        <span class="an-name">Nutrition</span>
+        <span class="an-bar"><span class="an-fill n"></span></span>
+        <span class="an-w">50%</span>
+        <p class="an-d">Protein hit and meals logged on time — read from photo proof.</p>
+      </div>
+      <div class="an-row">
+        <span class="an-name">Recovery</span>
+        <span class="an-bar"><span class="an-fill r"></span></span>
+        <span class="an-w">25%</span>
+        <p class="an-d">Sleep, energy, soreness. Counts only when a real check&#8209;in backs it.</p>
+      </div>
+      <div class="an-row">
+        <span class="an-name">Daily commitment</span>
+        <span class="an-bar"><span class="an-fill c"></span></span>
+        <span class="an-w">15%</span>
+        <p class="an-d">Did you do what you said this morning? One question, answered honestly.</p>
+      </div>
+      <div class="an-row">
+        <span class="an-name">Weekly check&#8209;in</span>
+        <span class="an-bar"><span class="an-fill k"></span></span>
+        <span class="an-w">10%</span>
+        <p class="an-d">The longer conversation: weight trend, how the week actually went.</p>
+      </div>
+    </div>
+    <div class="tier-scale">
+      <span class="tseg t-off" style="--span:59"><i>Off Standard</i><b>0–59</b></span>
+      <span class="tseg t-build" style="--span:16"><i>Building</i><b>60–74</b></span>
+      <span class="tseg t-lock" style="--span:16"><i>Locked In</i><b>75–89</b></span>
+      <span class="tseg t-on" style="--span:13"><i>OnStandard</i><b>90–100</b></span>
+    </div>
+    <p class="close">Fixed weights. Published math. No coach can tune it, no streak can pad it. <em>When it says 84, it means 84 — so the day it says 96, it means that too.</em></p>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 06 · NUTRITION SCIENCE ============ -->
+<section class="card" id="c06">
+  <div class="photo"><img src="src-png/training-table.png" alt=""></div>
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>06</b> / 12 · The science</span>
+  </header>
+  <div class="body over">
+    <p class="kicker">Why nutrition is half the score</p>
+  </div>
+  <div class="body main">
+    <h1 class="h" style="margin-top:0">You can't out&#8209;train<br>an empty tank<span class="dot">.</span></h1>
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-n">1.6<small> g/kg</small></span>
+        <p>Daily protein beyond which extra muscle&#8209;building benefit plateaued in trained lifters. <b>Few athletes track closely enough to know if they get there.</b><cite>Meta&#8209;analysis · 49 trials · 1,863 participants — Br J Sports Med, 2018</cite></p>
+      </div>
+      <div class="stat">
+        <span class="stat-n">2×</span>
+        <p>People who kept food records 6+ days a week lost <b>about twice the weight</b> of those who kept none.<cite>1,685 adults — Am J Prev Med, 2008</cite></p>
+      </div>
+      <div class="stat">
+        <span class="stat-n">#1</span>
+        <p><b>Adherence — not which diet — predicted results.</b> The plan you actually follow is the one that works.<cite>Randomized trial of 4 popular diets — JAMA, 2005</cite></p>
+      </div>
+      <div class="stat">
+        <span class="stat-n">REDs</span>
+        <p>Under&#8209;fueling drags performance, hormones, and bone health. <b>The IOC treats it as a syndrome.</b><cite>IOC consensus on Relative Energy Deficiency in Sport — Br J Sports Med, 2023</cite></p>
+      </div>
+    </div>
+    <p class="close">So OnStandard makes fuel provable: <em>nutrition is 50% of the score — verified by camera, not memory.</em></p>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 07 · THE ERA ============ -->
+<section class="card" id="c07">
+  <div class="photo"><img src="../landing/assets/img/era-tunnel.webp" alt=""></div>
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>07</b> / 12 · Why now</span>
+  </header>
+  <div class="body over">
+    <p class="kicker">Why now</p>
+    <h1 class="h">NIL changed the money.<br>The money changed the standard.</h1>
+  </div>
+  <div class="body main">
+    <ol class="era-line">
+      <li>
+        <span class="ey">2021</span>
+        <div><b>NIL made athletes brands.</b><span>College athletes can finally be paid for their name, image, and likeness.</span></div>
+      </li>
+      <li>
+        <span class="ey">2024</span>
+        <div><b>The portal made every season an audition.</b><span>Unlimited transfers, immediate eligibility. Every roster spot is contested, always.</span></div>
+      </li>
+      <li>
+        <span class="ey">2025</span>
+        <div><b>Revenue sharing made rosters payrolls.</b><span>Schools can now pay athletes directly — up to $20.5M per school in year one. An athlete is an investment, on paper.</span></div>
+      </li>
+    </ol>
+    <p class="era-turn"><b>Money follows proof.</b> Programs, collectives, and brands don't bet on talk — they bet on the athlete who can show the work behind the highlight tape. And the bar doesn't stop where the money starts: it reaches eighth grade.</p>
+    <p class="era-close">Talent gets you noticed.<br><em>A record gets you trusted.</em></p>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 08 · ATHLETE ============ -->
+<section class="card persona" id="c08">
+  <div class="photo"><img src="../landing/assets/img/volleyball-night.webp" alt=""></div>
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>08</b> / 12 · For athletes</span>
+  </header>
+  <div class="body over">
+    <p class="kicker">For athletes</p>
+  </div>
+  <div class="body main">
+    <h1 class="h" style="margin-top:0">Nobody sees the 5 AM.<br>Your record does<span class="dot">.</span></h1>
+    <ul class="ticks">
+      <li><b>Free while you're on a roster.</b> Full app, full AI — a coach, trainer, or program brings you on.</li>
+      <li>Every plate and check&#8209;in becomes <b>a track record no tryout can fake.</b></li>
+      <li>Transfer, graduate, go pro — <b>the record moves with you, for life.</b> Programs get access, never ownership.</li>
+      <li>One honest 0–100 that <b>a staff anywhere can trust,</b> because nobody — not even your coach — can inflate it.</li>
+    </ul>
+    <p class="close"><em>When the call comes, the receipts already exist.</em></p>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 09 · COACH ============ -->
+<section class="card persona" id="c09">
+  <div class="photo"><img src="../landing/assets/img/watchers.webp" alt=""></div>
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>09</b> / 12 · For coaches</span>
+  </header>
+  <div class="body over">
+    <p class="kicker">For coaches</p>
+  </div>
+  <div class="body main">
+    <h1 class="h" style="margin-top:0">Your whole roster,<br>in three seconds<span class="dot">.</span></h1>
+    <div class="roster">
+      <div class="roster-head"><b>Varsity roster</b><span>Team average <b class="r-on">78</b></span></div>
+      <div class="r-row">
+        <span class="r-ava">MC</span>
+        <span class="r-name">M. Carter<span>4/4 logged today · 12&#8209;day streak</span></span>
+        <span class="r-score r-on">94</span>
+        <span class="r-pill p-on">On standard</span>
+      </div>
+      <div class="r-row">
+        <span class="r-ava">JO</span>
+        <span class="r-name">J. Okafor<span>3/4 logged today · dinner due 8 PM</span></span>
+        <span class="r-score r-b">71</span>
+        <span class="r-pill p-b">Building</span>
+      </div>
+      <div class="r-row">
+        <span class="r-ava">DR</span>
+        <span class="r-name">D. Reyes<span>0/4 logged today · quiet 3 days</span></span>
+        <span class="r-score r-off">38</span>
+        <span class="r-pill p-off">Needs attention</span>
+      </div>
+    </div>
+    <ul class="ticks" style="margin-top:32px">
+      <li><b>Red, yellow, green truth.</b> Nothing is invented until athletes log — and the slide gets a conversation, not a discovery.</li>
+      <li>The platform owns the math, so <b>your 84 means 84 on every roster in the country.</b></li>
+    </ul>
+    <p class="seat-line">Your roster, <i>at a glance.</i></p>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 10 · TRAINER ============ -->
+<section class="card persona" id="c10">
+  <div class="photo"><img src="../landing/assets/img/trainer-client.webp" alt=""></div>
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>10</b> / 12 · For trainers</span>
+  </header>
+  <div class="body over">
+    <p class="kicker">For trainers, RDs &amp; private coaches</p>
+  </div>
+  <div class="body main">
+    <h1 class="h" style="margin-top:0">You coach the hour.<br>This holds the other 23<span class="dot">.</span></h1>
+    <ul class="ticks">
+      <li><b>Your whole book on one live roster</b> — the linebacker and the fat&#8209;loss client, each scored against their own plan.</li>
+      <li><b>The one going quiet gets a call before they become a cancellation.</b> Compliance between sessions, finally visible.</li>
+      <li>Photo&#8209;proof logging ends <b>“it was a good week, I swear.”</b> You see the plates, not the story.</li>
+      <li>Copilot answers what you'd actually ask: <b>who slipped, who's climbing, what changed this week.</b></li>
+    </ul>
+    <div class="price-chip"><span class="pp">$124.99<span style="font-size:24px;color:var(--text-3)">/mo</span></span><span class="pk">50 client seats included · 14&#8209;day free trial · your book, accountable</span></div>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 11 · CLIENT ============ -->
+<section class="card persona" id="c11">
+  <div class="photo"><img src="../landing/assets/img/road-dawn.webp" alt=""></div>
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>11</b> / 12 · For clients</span>
+  </header>
+  <div class="body over">
+    <p class="kicker">For everyday clients</p>
+  </div>
+  <div class="body main">
+    <h1 class="h" style="margin-top:0">The standard isn't<br>only for athletes<span class="dot">.</span></h1>
+    <p class="sub">A marathon PR at 41. Fat loss after physical therapy. Just being consistent, for once. <b>Same daily loop as the linebacker — different math underneath.</b></p>
+    <ul class="ticks">
+      <li>Your trainer sets targets that fit <b>your goal,</b> not a template — carb timing for the long run, protein for the rebuild.</li>
+      <li><b>The camera does the logging.</b> Twenty seconds, no forms, no barcode hunting.</li>
+      <li><b>Free while you're with a trainer or program.</b> They carry the cost because they get the value.</li>
+    </ul>
+    <p class="close">If someone you trust sets a standard, OnStandard can hold it — <em>even on a Tuesday&#8209;night treadmill.</em></p>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+<!-- ============ 12 · PARENTS ============ -->
+<section class="card persona" id="c12">
+  <div class="photo"><img src="src-png/bleachers-parents.png" alt=""></div>
+  <header class="head">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="46" height="46" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/><circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </div>
+    <span class="index"><b>12</b> / 12 · For parents</span>
+  </header>
+  <div class="body over">
+    <p class="kicker">For parents</p>
+  </div>
+  <div class="body main">
+    <h1 class="h" style="margin-top:0">See the day.<br>Not the DMs<span class="dot">.</span></h1>
+    <ul class="ticks">
+      <li><b>Score, streak, trend</b> — scoped to what actually helps, never their private threads.</li>
+      <li>For minors, access requires <b>verified guardian consent — denied by default</b> until it exists.</li>
+      <li><b>Data is never sold.</b> Not to recruiters, not to brands, not to anyone.</li>
+      <li>The record <b>belongs to your kid</b> and follows them — next school, next level, for life.</li>
+    </ul>
+    <p class="close">Real visibility without hovering. You'll know the standard held today. <em>Your kid, actually on track.</em></p>
+  </div>
+  <footer class="foot">
+    <span class="foot-site">onstandard<i>.app</i></span>
+    <span class="foot-cta">Early access open</span>
+  </footer>
+</section>
+
+</body>
+</html>
