@@ -34,7 +34,7 @@ export async function loadCoachRoster(force) {
     rosterLoading = false; // always clear so a retry can re-run
   }
   // coach-athlete also depends on the roster (name + membership guard for a stale/dead link).
-  if (location.hash === '#coach' || location.hash === '#copilot' || location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#coach-assign') || location.hash.startsWith('#coach-plan')) window.__render();
+  if (location.hash === '#coach' || location.hash === '#copilot' || location.hash === '#coach-inbox' || location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#coach-assign') || location.hash.startsWith('#coach-plan')) window.__render();
 }
 const scoreColor = (s) => s == null ? 'var(--text-3)' : s >= 80 ? 'var(--green-bright)' : s >= 60 ? 'var(--amber-bright)' : 'var(--red)';
 
@@ -57,7 +57,7 @@ async function loadActivity(force) {
     ACT = { rows, photos };
   } catch { ACT = { rows: [], photos: {} }; }
   finally { actLoading = false; actFetchedAt = Date.now(); }
-  if (location.hash === '#coach') window.__render();
+  if (location.hash === '#coach' || location.hash === '#coach-inbox') window.__render();
 }
 const actTime = (iso) => {
   const d = new Date(iso);
@@ -644,6 +644,94 @@ export const coachPlanSet = {
       await loadSets(true);
       location.hash = '#coach-plan';
     });
+  },
+};
+
+/* ---------- Inbox (WS5.2): what needs the coach right now ----------
+   Replaces the Copilot TAB (the copilot screen stays routable for deep links).
+   Briefing = deterministic reads over the real roster — never narrated fiction.
+   Then: join requests (act here), unopened logs (the feed's unseen dots as a list). */
+export const coachInbox = {
+  nav: 'coach', tab: 'inbox',
+  badge() {
+    const pending = ROSTER ? (ROSTER.pending || []).length : 0;
+    const seen = new Set(RT.coachSeenMealIds || []);
+    const unseen = ACT && ACT.rows ? ACT.rows.filter(m => !seen.has(m.id)).length : 0;
+    return pending + unseen;
+  },
+  render() {
+    const rows = ROSTER ? ROSTER.rows : null;
+    const pending = ROSTER ? (ROSTER.pending || []) : [];
+    const act = ACT && ACT.rows ? ACT.rows : [];
+    const seen = new Set(RT.coachSeenMealIds || []);
+    const unseen = act.filter(m => !seen.has(m.id));
+    const names = {}; (rows || []).forEach(r => { names[r.athleteId] = r; });
+    const needsMe = pending.length + unseen.length;
+
+    let briefing = '';
+    if (rows === null) briefing = 'Reading your roster…';
+    else if (ROSTER && ROSTER.offline) briefing = "Can't reach your roster — reopen to retry. Nothing is invented while it's down.";
+    else if (!rows.length) briefing = 'No athletes yet. Share your team code and this becomes your morning read.';
+    else {
+      const notLogged = rows.filter(r => !r.loggedToday);
+      const below = rows.filter(r => r.score != null && r.score < 80);
+      const top = rows.filter(r => r.score != null && r.score >= 80).sort((a, b) => b.score - a.score)[0];
+      const lines = [];
+      if (notLogged.length) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);flex:none;margin-top:5px"></span><span><b>${notLogged.length} not logged yet</b> — ${esc(notLogged.slice(0, 3).map(r => r.name.split(' ')[0]).join(', '))}${notLogged.length > 3 ? '…' : ''}.</span></div>`);
+      if (below.length) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--amber-bright);flex:none;margin-top:5px"></span><span><b>${below.length} below the bar</b> today (under 80).</span></div>`);
+      if (top) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--green-bright);flex:none;margin-top:5px"></span><span><b>${esc(top.name)}</b> leads the day at ${top.score}.</span></div>`);
+      briefing = lines.join('<div style="height:7px"></div>') || 'Quiet so far — logs land here as they come in.';
+    }
+
+    return `
+    ${titleHead('Inbox', needsMe ? `${needsMe} need${needsMe === 1 ? 's' : ''} you` : 'All caught up')}
+
+    <div class="eyebrow">Daily briefing · from your real roster</div>
+    <section class="card pad" style="background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
+      <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
+      <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
+    </section>
+
+    ${pending.length ? `
+    <div class="eyebrow">Join requests · ${pending.length}</div>
+    <section class="card" style="padding:6px 16px">
+      ${pending.map(q => `
+        <div class="lrow" style="cursor:default">
+          <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
+          <div class="lm"><div class="lt">${esc(q.athlete_name || 'Athlete')}${q.position ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(q.position)}</small>` : ''}</div><div class="ls">Wants to join</div></div>
+          <button class="btn ghost sm" data-jr="decline" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="width:auto;padding:0 12px;height:32px">Decline</button>
+          <button class="btn green sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="width:auto;padding:0 12px;height:32px;margin-left:6px">Approve</button>
+        </div>`).join('')}
+    </section>` : ''}
+
+    <div class="eyebrow">Unopened logs${unseen.length ? ` · ${unseen.length}` : ''}</div>
+    ${unseen.length ? `
+    <section class="card" style="padding:6px 16px">
+      ${unseen.slice(0, 10).map(m => {
+        const who = names[m.athlete_id] || {};
+        return `
+        <div class="lrow" data-go="coach-meal/${esc(m.id)}">
+          <div class="lic" style="position:relative">${icon('utensils', 17)}<span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--blue-bright)"></span></div>
+          <div class="lm"><div class="lt">${esc((who.name || 'Athlete'))}${who.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(who.unit)}</small>` : ''}</div>
+          <div class="ls">${esc(cap(m.type || 'Meal'))} · ${esc(actTime(m.logged_at))}${m.protein != null ? ` · ${Math.round(m.protein)}g` : ''}</div></div>
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>`;
+      }).join('')}
+    </section>` : `
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">You've opened everything the roster has logged. New meals land here with a dot.</div>`}
+
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root) {
+    loadCoachRoster().then(() => loadActivity());
+    root.querySelectorAll('[data-jr]').forEach(b => b.addEventListener('click', async () => {
+      const team = b.getAttribute('data-team'), ath = b.getAttribute('data-ath');
+      b.disabled = true; b.textContent = '…';
+      if (b.getAttribute('data-jr') === 'approve') await roles.approveMember(team, ath);
+      else await roles.declineMember(team, ath);
+      await loadCoachRoster(true);
+    }));
   },
 };
 

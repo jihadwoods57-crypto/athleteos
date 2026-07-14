@@ -14,7 +14,7 @@ import log from './log.js';
 import auth from './auth.js';
 import onboarding from './onboarding.js';
 import checkin from './checkin.js';
-import { coach, coachAthlete, coachMeal, coachAssign, coachPlan, coachPlanSet, copilot, trainer, trainerClient, parent } from './coach.js';
+import { coach, coachAthlete, coachMeal, coachAssign, coachPlan, coachPlanSet, coachInbox, copilot, trainer, trainerClient, parent } from './coach.js';
 import states from './states.js';
 import requirement from './requirement.js';
 import { messages, settings as prefs, privacy, billing, notifSettings, deleteAccount, terms } from './settings.js';
@@ -54,6 +54,7 @@ export const screens = {
   'coach-assign': coachAssign,
   'coach-plan': coachPlan,
   'coach-plan-set': coachPlanSet,
+  'coach-inbox': coachInbox,
   copilot,
   trainer,
   'trainer-client': trainerClient,
