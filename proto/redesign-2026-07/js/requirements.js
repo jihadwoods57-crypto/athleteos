@@ -108,11 +108,78 @@ export function derive(req, { done = false, late = false, progress = null } = {}
   return { ...req, status, statusColor, sub, subColor, accent, done, late, missed, next, dueLabel };
 }
 
+/* ---------------- Requirements engine (0055) — pure helpers ----------------
+   The server holds standing requirement_sets scoped team / position / athlete.
+   Resolution precedence: athlete > position > team > built-in CATALOG. A set
+   REPLACES the standard wholesale (no merging) — the coach's word is the whole
+   contract, and partial merges would make "what am I on?" unanswerable. */
+
+/** Pick the governing set for one athlete out of their team's sets. Pure. */
+export function resolveRequirementSet(sets, athleteId, position) {
+  if (!Array.isArray(sets) || !sets.length) return null;
+  const pos = String(position || '').trim().toUpperCase();
+  const mine = sets.find(s => s.scope_kind === 'athlete' && String(s.scope_value) === String(athleteId));
+  if (mine) return mine;
+  const room = pos && sets.find(s => s.scope_kind === 'position' && String(s.scope_value || '').trim().toUpperCase() === pos);
+  if (room) return room;
+  return sets.find(s => s.scope_kind === 'team') || null;
+}
+
+/* Defaults per item kind, so a server set only has to carry what the coach chose.
+   Every value here mirrors a CATALOG entry — one visual/behavioral language. */
+const KIND_DEFAULTS = {
+  meal:      { icon: 'utensils', accent: 'g', proof: 'photo', required: true, impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', freq: { type: 'daily' } },
+  lift:      { icon: 'bolt', accent: 'b', proof: 'check', required: true, impact: { kind: 'plan' }, reminder: 'medium', freq: { type: 'daily' } },
+  hydration: { icon: 'droplet', accent: 'b', proof: 'counter', required: false, impact: { kind: 'focus' }, reminder: 'low', freq: { type: 'daily' } },
+  recovery:  { icon: 'moon', accent: 'p', proof: 'form', required: true, impact: { kind: 'component', comp: 'recovery' }, reminder: 'high', freq: { type: 'daily' } },
+  weigh:     { icon: 'scale', accent: 'a', proof: 'scale', required: true, impact: { kind: 'trend' }, reminder: 'high', freq: { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' } },
+  checkin:   { icon: 'clipboard', accent: 'g', proof: 'form', required: true, impact: { kind: 'component', comp: 'checkin' }, reminder: 'high', freq: { type: 'weekly', day: 0, label: 'Sundays' }, route: 'checkin' },
+  custom:    { icon: 'clipboard', accent: 'b', proof: 'check', required: true, impact: { kind: 'plan' }, reminder: 'medium', freq: { type: 'daily' } },
+};
+
+/** Map a server set's items (validated jsonb) into CATALOG-shaped requirements. Pure.
+    Unknown kinds fall back to 'custom'; a malformed item is dropped, never invented. */
+export function catalogFromItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items.map((it) => {
+    if (!it || typeof it !== 'object' || !it.id || !it.title) return null;
+    const d = KIND_DEFAULTS[it.kind] || KIND_DEFAULTS.custom;
+    return {
+      id: String(it.id), title: String(it.title),
+      icon: it.icon || d.icon, accent: d.accent,
+      proof: PROOF[it.proof] ? it.proof : d.proof,
+      freq: it.freq && it.freq.type ? it.freq : d.freq,
+      window: it.window && typeof it.window === 'object' ? it.window : { due: 23 * 60 + 30, label: 'Before bed' },
+      required: it.required !== false && d.required,
+      impact: d.impact, reminder: d.reminder,
+      note: typeof it.note === 'string' ? it.note : '',
+      ...(d.route ? { route: d.route } : {}),
+    };
+  }).filter(Boolean);
+}
+
+/** Map a requirement_assignments row into the RT.assigned runtime shape. Pure.
+    `real: true` marks rows that must sync completion back to the server. */
+export function assignedFromRow(row, coachName) {
+  if (!row || !row.id || !row.title) return null;
+  let dueLabel = row.due_label || '';
+  if (!dueLabel && row.due_at) {
+    const d = new Date(row.due_at);
+    if (!isNaN(d)) dueLabel = `Due ${fmtMin(d.getHours() * 60 + d.getMinutes())}`;
+  }
+  return {
+    id: String(row.id), title: String(row.title), icon: 'clipboard',
+    note: row.note || '', from: coachName || 'Coach',
+    dueLabel: dueLabel || 'On your list', proof: row.proof || 'check',
+    done: row.status === 'done', seen: false, real: true,
+  };
+}
+
 /* Coach-assigned tasks (runtime objects) get the same treatment. */
 export function deriveAssigned(a) {
   return {
     id: a.id, title: a.title, icon: a.icon || 'clipboard', accent: a.done ? 'g' : 'b',
-    proof: 'check', required: true, impact: { kind: 'plan' }, reminder: a.reminder || 'medium',
+    proof: a.proof || 'check', required: true, impact: { kind: 'plan' }, reminder: a.reminder || 'medium',
     note: a.note, isAssigned: true, fresh: !a.seen && !a.done,
     status: a.done ? 'Done' : 'New', statusColor: a.done ? 'g' : 'b',
     sub: a.done ? 'Completed tonight' : `From ${a.from} · ${a.dueLabel}`, subColor: a.done ? 'g' : 'b',

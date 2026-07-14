@@ -34,7 +34,7 @@ export async function loadCoachRoster(force) {
     rosterLoading = false; // always clear so a retry can re-run
   }
   // coach-athlete also depends on the roster (name + membership guard for a stale/dead link).
-  if (location.hash === '#coach' || location.hash === '#copilot' || location.hash.startsWith('#coach-athlete')) window.__render();
+  if (location.hash === '#coach' || location.hash === '#copilot' || location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#coach-assign')) window.__render();
 }
 const scoreColor = (s) => s == null ? 'var(--text-3)' : s >= 80 ? 'var(--green-bright)' : s >= 60 ? 'var(--amber-bright)' : 'var(--red)';
 
@@ -151,26 +151,112 @@ export const coach = {
   },
 };
 
-/* ---------- Coach assign flow — no backend table yet, so honestly a coming-soon ---------- */
+/* ---------- Coach assign flow — the + button (0055 requirements engine) ----------
+   Who (team / position room / one athlete) → what (title) → proof → due → note → send.
+   The assign_requirement RPC fans out one row per athlete and notifies each; failures
+   (offline, migration not yet applied to live) surface the server's message honestly. */
+const ASSIGN = { scopeKind: 'team', scopeValue: null, proof: 'check', due: 'tonight' };
+const DUE_CHOICES = {
+  tonight:  { label: 'Tonight · 9 PM',   at: () => { const d = new Date(); d.setHours(21, 0, 0, 0); return d; } },
+  tomorrow: { label: 'Tomorrow · 9 PM',  at: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(21, 0, 0, 0); return d; } },
+  none:     { label: 'No deadline',      at: () => null },
+};
+const PROOF_CHOICES = [
+  ['photo', 'camera', 'Photo'], ['check', 'check', 'Check'], ['scale', 'scale', 'Scale'], ['form', 'clipboard', 'Form'],
+];
+
 export const coachAssign = {
   nav: 'coach', tab: 'assign',
-  render() {
+  render({ sub } = {}) {
+    // deep-link: coach-assign/<athleteId> pre-targets one athlete (from the athlete screen)
+    const rows = ROSTER ? ROSTER.rows : [];
+    if (sub && ASSIGN.scopeKind !== 'athlete') { ASSIGN.scopeKind = 'athlete'; ASSIGN.scopeValue = sub; }
+    const positions = [...new Set(rows.map(r => (r.unit || '').trim().toUpperCase()).filter(Boolean))];
+    const target = ASSIGN.scopeKind === 'athlete' ? rows.find(r => r.athleteId === ASSIGN.scopeValue) : null;
+    const chip = (on, label, act, arg) =>
+      `<span class="chp ${on ? 'on' : ''}" data-assign="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
     return `
-    ${backHead('Assign a requirement', 'Coming soon', 'coach')}
-    <div class="state-demo">
-      <div class="sd-ic">${icon('plus', 24)}</div>
-      <div class="sd-t">Custom assignments are coming</div>
-      <div class="sd-s">There's no requirement-assignment backend yet, so this stays a real coming-soon instead of a task that never reaches the athlete. Today your levers are real: set their nutrition targets and comment on their meals.</div>
+    ${backHead('Assign', 'Put something on someone’s plate', 'coach')}
+
+    <div class="eyebrow">Who</div>
+    <div class="chip-row" id="as-who">
+      ${chip(ASSIGN.scopeKind === 'team', `Whole team${rows.length ? ` · ${rows.length}` : ''}`, 'team')}
+      ${positions.map(p => {
+        const n = rows.filter(r => (r.unit || '').trim().toUpperCase() === p).length;
+        return chip(ASSIGN.scopeKind === 'position' && ASSIGN.scopeValue === p, `${esc(p)} room · ${n}`, 'position', p);
+      }).join('')}
     </div>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="coach">
-        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('users', 17)}</div>
-        <div class="lm"><div class="lt">Back to the roster</div><div class="ls">Review an athlete, set targets, comment on a meal</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-    </section>
+    ${rows.length ? `
+    <div class="chip-row" id="as-ath" style="margin-top:6px">
+      ${rows.slice(0, 12).map(r => chip(ASSIGN.scopeKind === 'athlete' && ASSIGN.scopeValue === r.athleteId, esc(r.name.split(' ')[0] || r.name), 'athlete', r.athleteId)).join('')}
+    </div>` : `
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:2px 2px 0">Roster loading… team-wide works right away.</div>`}
+
+    <div class="eyebrow">What</div>
+    <input id="as-title" class="ob-input" maxlength="80" placeholder="e.g. Extra shake after lift" value="${esc(ASSIGN.title || '')}" />
+
+    <div class="eyebrow">Proof</div>
+    <div class="chip-row" id="as-proof">
+      ${PROOF_CHOICES.map(([id, ic, label]) => chip(ASSIGN.proof === id, `${icon(ic, 13)} ${label}`, 'proof', id)).join('')}
+    </div>
+
+    <div class="eyebrow">Due</div>
+    <div class="chip-row" id="as-due">
+      ${Object.entries(DUE_CHOICES).map(([id, d]) => chip(ASSIGN.due === id, d.label, 'due', id)).join('')}
+    </div>
+
+    <div class="eyebrow">Note · optional</div>
+    <input id="as-note" class="ob-input" maxlength="280" placeholder="Why it matters (they see this)" value="${esc(ASSIGN.note || '')}" />
+
+    <div style="height:16px"></div>
+    <button class="btn" id="as-send">${icon('plus', 18)} ${target ? `Send to ${esc(target.name)}` : ASSIGN.scopeKind === 'position' ? `Send to the ${esc(ASSIGN.scopeValue || '')} room` : 'Send to the whole team'}</button>
+    <div id="as-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:8px"></div>
     <div style="height:10px"></div>
     `;
+  },
+  mount(root) {
+    loadCoachRoster();
+    const say = (msg, isErr) => {
+      const el = root.querySelector('#as-status');
+      if (el) { el.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; el.textContent = msg; }
+    };
+    const keep = () => {
+      ASSIGN.title = (root.querySelector('#as-title') || {}).value || '';
+      ASSIGN.note = (root.querySelector('#as-note') || {}).value || '';
+    };
+    root.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => {
+      keep();
+      const [act, arg] = el.getAttribute('data-assign').split(':');
+      if (act === 'team') { ASSIGN.scopeKind = 'team'; ASSIGN.scopeValue = null; }
+      if (act === 'position') { ASSIGN.scopeKind = 'position'; ASSIGN.scopeValue = arg; }
+      if (act === 'athlete') { ASSIGN.scopeKind = 'athlete'; ASSIGN.scopeValue = arg; }
+      if (act === 'proof') ASSIGN.proof = arg;
+      if (act === 'due') ASSIGN.due = arg;
+      window.__render();
+    }));
+    const send = root.querySelector('#as-send');
+    if (send) send.addEventListener('click', async () => {
+      keep();
+      const title = ASSIGN.title.trim();
+      if (title.length < 2) { say('Give it a name first — what are they doing?', true); return; }
+      const teamId = ROSTER && ROSTER.teams[0] && ROSTER.teams[0].id;
+      if (!teamId) { say('Your roster hasn’t loaded yet — give it a second and try again.', true); return; }
+      const due = DUE_CHOICES[ASSIGN.due];
+      const dueAt = due.at();
+      send.disabled = true; say('Sending…');
+      const r = await roles.assignRequirement({
+        teamId, scopeKind: ASSIGN.scopeKind, scopeValue: ASSIGN.scopeValue,
+        title, proof: ASSIGN.proof,
+        dueAt: dueAt ? dueAt.toISOString() : null,
+        dueLabel: dueAt ? due.label.replace(' · ', ' ') : null,
+        note: ASSIGN.note.trim() || null,
+      });
+      send.disabled = false;
+      if (!r.ok) { say(r.error || 'Could not send — try again.', true); return; }
+      if (!r.count) { say('No athletes matched — check who you picked.', true); return; }
+      ASSIGN.title = ''; ASSIGN.note = '';
+      say(r.count === 1 ? 'Sent — it’s on their list now.' : `Sent — it’s on ${r.count} lists now.`);
+    });
   },
 };
 

@@ -7,7 +7,7 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned } from './requirements.js';
+import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow } from './requirements.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor,
@@ -18,7 +18,11 @@ import {
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { groundExtras } from './meal-intel.js';
-import { fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyConsent, requestGuardianConsent as rpcRequestConsent } from './roles.js';
+import {
+  fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyConsent,
+  requestGuardianConsent as rpcRequestConsent,
+  fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
+} from './roles.js';
 import { track, EVENTS } from './analytics.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
@@ -88,7 +92,8 @@ const DEFAULT_RT = {
   day0: false,           // fresh-athlete empty-state mode (set by finishing onboarding)
   day0Breakfast: false,  // day-0 first meal logged
   lastMove: null,        // {from, to, gain, what} — powers confirmation screens
-  assigned: [],          // coach-assigned requirements: {id,title,icon,note,from,dueLabel,done,seen}
+  assigned: [],          // coach-assigned requirements: {id,title,icon,note,from,dueLabel,done,seen,real?}
+  reqSets: null,         // team's standing requirement_sets (0055) — cached for resolution surfaces
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
   planUpdate: null,      // coach-published plan update; REALLY lands in Plan·Notes + notifications
   squadScope: 'position',// coach-controlled leaderboard scope: 'team' | 'position' | 'off'
@@ -363,11 +368,14 @@ export const act = {
   },
 
   startDay0() { RT.lastMove = null; dayResetLocal(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
-  // Coach→athlete assignments have no backend table (P4 scope) — the assign flow is an honest
-  // coming-soon. Only the injury-mode rehab item still populates RT.assigned locally.
+  // Coach→athlete assignments: real rows (0055) sync completion to the server; local-only
+  // items (injury-mode rehab) stay local. Optimistic — server truth reasserts on next hydrate.
   completeAssigned(id) {
     const a = RT.assigned.find(x => x.id === id);
-    if (a && !a.done) { a.done = true; a.seen = true; save(); this.syncNotifications(); }
+    if (a && !a.done) {
+      a.done = true; a.seen = true; save(); this.syncNotifications();
+      if (a.real) completeAssignmentRemote(a.id); // best-effort; _loadAssignmentsIntoRt self-heals
+    }
   },
   seeAssigned() { RT.assigned.forEach(a => { a.seen = true; }); save(); },
   primeCamera() { RT.camPrimed = true; save(); },
@@ -459,7 +467,7 @@ export const act = {
     }
     if (role === 'trainer') await this._loadPracticeIntoRt(RT.userId);
     if (role === 'coach') await this._loadTeamIntoRt(RT.userId);
-    if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); }
+    if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); await this._loadAssignmentsIntoRt(); }
     await loadDay(RT.userId);
     syncRtFromDay();
     return { ok: true, role };
@@ -629,6 +637,24 @@ export const act = {
     const res = await fetchMyCoach();
     if (res && res.error) return; // network/RLS hiccup — keep last-known
     RT.myCoach = res || null;
+    save();
+  },
+  /* Real coach assignments (0055) → RT.assigned. Server truth WINS for real rows (an
+     optimistic local "done" that never reached the server flips back on next hydrate —
+     self-healing, never silently out of sync with what the coach sees). Local `seen`
+     flags and non-real items (injury-mode rehab) are preserved. Best-effort: with the
+     table not yet applied / offline, the fetch returns [] and we keep what we have. */
+  async _loadAssignmentsIntoRt() {
+    if (!RT.userId) return;
+    const rows = await fetchMyAssignments();
+    if (!rows.length && !RT.assigned.some(a => a.real)) return; // nothing server-side yet — keep local
+    const coachName = (RT.myCoach && RT.myCoach.name) || 'Coach';
+    const prevSeen = new Set(RT.assigned.filter(a => a.seen).map(a => a.id));
+    const real = rows.map(r => assignedFromRow(r, coachName)).filter(Boolean)
+      .map(a => ({ ...a, seen: prevSeen.has(a.id) || a.done }));
+    RT.assigned = [...RT.assigned.filter(a => !a.real), ...real];
+    // the team's standing requirement sets ride along (resolution surfaces land next slice)
+    if (RT.myCoach && RT.myCoach.teamId) RT.reqSets = await fetchRequirementSets(RT.myCoach.teamId);
     save();
   },
   /* Athlete: redeem a coach team code (or a trainer practice code) from the Connect screen.
@@ -849,6 +875,7 @@ export const act = {
       if (!RT.authRole || RT.authRole === 'athlete') {
         await this._loadCoachIntoRt(RT.userId);
         await this._loadConsentIntoRt(RT.userId);
+        await this._loadAssignmentsIntoRt();
       }
     }
     await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications();

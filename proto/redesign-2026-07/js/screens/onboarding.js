@@ -145,9 +145,14 @@ const steps = {
     const std = standardForGoal(ob.goal, ob.standard && ob.standard.mealsPerDay);
     const committed = !!ob.committedAt;
     const coachLast = join && join.coachName ? esc(join.coachName.trim().split(/\s+/).slice(-1)[0]) : null;
-    const title = join ? `Coach ${coachLast || ''}’s Standard`.replace(/\s+’/, '’') : 'Your Standard';
+    // Position-room framing (0055): a coach-joined athlete commits to THEIR room's standard —
+    // the coach's position-room set governs once they're on the roster (athlete > room > team).
+    const pos = join && ob.position ? esc(String(ob.position).trim().toUpperCase()) : null;
+    const title = join
+      ? (pos ? `The ${pos} room standard` : `Coach ${coachLast || ''}’s Standard`.replace(/\s+’/, '’'))
+      : 'Your Standard';
     const sub = join
-      ? `The deal on ${esc(join.teamName || 'the team')}. Your score is built on it — hold to commit.`
+      ? `${pos && coachLast ? `Coach ${coachLast} sets it for your room. ` : ''}The deal on ${esc(join.teamName || 'the team')}. Your score is built on it — hold to commit.`
       : 'Built from your goal. When you connect a coach, their standard takes over.';
     const rows = std.rows.map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">

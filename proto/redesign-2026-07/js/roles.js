@@ -200,6 +200,44 @@ export async function endTrustPass(athleteId) {
   try { const { error } = await c.rpc('end_trust_pass', { p_athlete: athleteId }); return !error; } catch { return false; }
 }
 
+/* ---------------- requirements engine (0055) ---------------- */
+/** The team's standing requirement sets (RLS: staff + active members). Best-effort []. */
+export async function fetchRequirementSets(teamId) {
+  const c = sb(); if (!c || !teamId) return [];
+  try { const { data } = await c.from('requirement_sets').select('*').eq('team_id', teamId); return data || []; } catch { return []; }
+}
+/** The signed-in ATHLETE's assignments: everything open plus anything closed recently
+    (so a just-completed task still shows Done tonight). Best-effort []. */
+export async function fetchMyAssignments() {
+  const c = sb(); if (!c) return [];
+  try {
+    const since = daysAgoISO(7);
+    const { data } = await c.from('requirement_assignments').select('*')
+      .neq('status', 'cancelled').gte('created_at', since)
+      .order('created_at', { ascending: false }).limit(60);
+    return data || [];
+  } catch { return []; }
+}
+/** Coach + button → assign_requirement RPC (fans out one row per athlete + push row each).
+    Returns { ok, count?, error? } with the server's message surfaced verbatim. */
+export async function assignRequirement({ teamId, scopeKind, scopeValue, title, proof, dueAt, dueLabel, note }) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.rpc('assign_requirement', {
+      p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null,
+      p_title: title, p_proof: proof || 'check', p_due_at: dueAt || null,
+      p_due_label: dueLabel || null, p_note: note || null,
+    });
+    if (error) return { ok: false, error: error.message || 'Could not send the assignment.' };
+    return { ok: true, count: typeof data === 'number' ? data : 0 };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not send the assignment.' }; }
+}
+/** Athlete marks their own open assignment done (server-verified). Best-effort false. */
+export async function completeAssignmentRemote(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { data, error } = await c.rpc('complete_assignment', { p_id: id }); return !error && data === true; } catch { return false; }
+}
+
 /* ---------------- notify (edge fn; must allowlist file:// null origin) ---------------- */
 export async function nudgePush(athleteId, title, body) {
   const c = sb(); if (!c || !athleteId) return false;
