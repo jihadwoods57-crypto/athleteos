@@ -53,6 +53,7 @@ async function submit(prompt, aspect) {
     if (res.ok) return res.json();
     const txt = (await res.text()).slice(0, 300);
     console.error(`  submit ${JSON.stringify(params)} -> ${res.status}: ${txt}`);
+    if (txt.includes('not_enough_credits')) throw new Error('no API credits on the Higgsfield cloud account — top up at cloud.higgsfield.ai (Billing/Credits)');
     if (res.status === 401 || res.status === 403) throw new Error('auth failed — check key/secret');
   }
   throw new Error('all parameter attempts rejected');
