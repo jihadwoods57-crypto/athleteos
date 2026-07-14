@@ -238,6 +238,27 @@ export async function fetchMyAssignments() {
     return data || [];
   } catch { return []; }
 }
+/** Coach saves a standing requirement set (team / position / athlete scope). */
+export async function setTeamRequirements(teamId, scopeKind, scopeValue, items) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { error } = await c.rpc('set_team_requirements', {
+      p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null, p_items: items,
+    });
+    return error ? { ok: false, error: error.message || 'Could not save the standard.' } : { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the standard.' }; }
+}
+/** Remove a scope override so it falls back to the team default (0058). */
+export async function clearTeamRequirements(teamId, scopeKind, scopeValue) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { error } = await c.rpc('clear_team_requirements', {
+      p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null,
+    });
+    return error ? { ok: false, error: error.message || 'Could not reset it.' } : { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not reset it.' }; }
+}
+
 /** Coach + button → assign_requirement RPC (fans out one row per athlete + push row each).
     Returns { ok, count?, error? } with the server's message surfaced verbatim. */
 export async function assignRequirement({ teamId, scopeKind, scopeValue, title, proof, dueAt, dueLabel, note }) {

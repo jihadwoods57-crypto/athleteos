@@ -34,7 +34,7 @@ export async function loadCoachRoster(force) {
     rosterLoading = false; // always clear so a retry can re-run
   }
   // coach-athlete also depends on the roster (name + membership guard for a stale/dead link).
-  if (location.hash === '#coach' || location.hash === '#copilot' || location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#coach-assign')) window.__render();
+  if (location.hash === '#coach' || location.hash === '#copilot' || location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#coach-assign') || location.hash.startsWith('#coach-plan')) window.__render();
 }
 const scoreColor = (s) => s == null ? 'var(--text-3)' : s >= 80 ? 'var(--green-bright)' : s >= 60 ? 'var(--amber-bright)' : 'var(--red)';
 
@@ -267,13 +267,102 @@ async function loadTargets(athleteId) {
   tgtLoadingId = null;
   if (location.hash.startsWith('#coach-plan')) window.__render();
 }
+/* ---------- Plan tab = Coach Control Center (WS5.1) ----------
+   No athlete id → the program home: per-room standing standards (0055 requirement_sets)
+   + targets entry points. With an athlete id → the existing per-athlete targets editor. */
+let SETS = null;            // team's requirement_sets, or null (loading) / {offline:true}
+let setsLoading = false;
+async function loadSets(force) {
+  const teamId = ROSTER && ROSTER.teams[0] && ROSTER.teams[0].id;
+  if (!teamId || setsLoading) return;
+  if (SETS && !force) return;
+  setsLoading = true;
+  try { SETS = { rows: await roles.fetchRequirementSets(teamId) }; }
+  catch { SETS = { rows: [] }; }
+  finally { setsLoading = false; }
+  if (location.hash.startsWith('#coach-plan')) window.__render();
+}
+const setSummary = (items) => {
+  const meals = items.filter(i => i.kind === 'meal').length;
+  const lift = items.find(i => i.kind === 'lift');
+  const weigh = items.find(i => i.kind === 'weigh');
+  const bits = [`${meals} meal${meals === 1 ? '' : 's'}`];
+  if (lift) bits.push((lift.freq && lift.freq.label) ? `lifts ${lift.freq.label}` : 'lifts');
+  if (weigh) bits.push(weigh.freq && weigh.freq.type === 'daily' ? 'weigh daily' : 'weigh MWF');
+  return bits.join(' · ');
+};
+
 export const coachPlan = {
   nav: 'coach', tab: 'plan',
   render({ sub }) {
     const athleteId = sub;
     const who = rosterName(athleteId);
-    const head = backHead('Nutrition targets', `${esc(who.name)} · coach owns the plan`, athleteId ? `coach-athlete/${esc(athleteId)}` : 'coach');
-    if (!athleteId) return `${head}<div class="state-demo"><div class="sd-t">Open from an athlete</div><div class="sd-s">Review an athlete, then set their targets.</div></div>`;
+    const head = backHead('Nutrition targets', `${esc(who.name)} · coach owns the plan`, athleteId ? `coach-athlete/${esc(athleteId)}` : 'coach-plan');
+    if (!athleteId) {
+      const rows = ROSTER ? ROSTER.rows : null;
+      const positions = rows ? [...new Set(rows.map(r => (r.unit || '').trim().toUpperCase()).filter(Boolean))] : [];
+      const sets = SETS && SETS.rows ? SETS.rows : null;
+      const teamSet = sets && sets.find(s => s.scope_kind === 'team');
+      const roomCard = (pos) => {
+        const s = sets && sets.find(x => x.scope_kind === 'position' && String(x.scope_value || '').trim().toUpperCase() === pos);
+        const n = rows ? rows.filter(r => (r.unit || '').trim().toUpperCase() === pos).length : 0;
+        return `
+        <div class="lrow" data-go="coach-plan-set/position/${esc(pos)}">
+          <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright);font-weight:800;font-size:12px">${esc(pos.slice(0, 2))}</div>
+          <div class="lm"><div class="lt">${esc(pos)} room <small style="color:var(--text-3);font-weight:700">· ${n}</small></div>
+          <div class="ls">${s ? esc(setSummary(s.items)) : 'Team default'}</div></div>
+          ${s ? '<span class="status-pill b">Custom</span>' : ''}
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>`;
+      };
+      return `
+      ${titleHead('Plan', 'Your program, room by room')}
+
+      <div class="eyebrow">Standards · what every day asks</div>
+      ${sets === null && rows === null ? `
+      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">Loading your program…</div><div class="ts">Pulling your rooms and standards.</div></div></div>` : `
+      <section class="card" style="padding:6px 16px">
+        <div class="lrow" data-go="coach-plan-set/team">
+          <div class="lic" style="background:var(--surface-3);color:var(--text-2);font-weight:800;font-size:12px">TM</div>
+          <div class="lm"><div class="lt">Team default</div>
+          <div class="ls">${teamSet ? esc(setSummary(teamSet.items)) : 'Built-in · 3 meals, recovery, weekly check-in'}</div></div>
+          ${teamSet ? '<span class="status-pill b">Custom</span>' : ''}
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>
+        ${positions.map(roomCard).join('')}
+      </section>
+      ${positions.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Rooms appear as athletes with positions join. The team default covers everyone until then.</div>` : ''}`}
+
+      <div class="eyebrow">Targets · per athlete</div>
+      ${rows && rows.length ? `
+      <section class="card" style="padding:6px 16px">
+        ${rows.slice(0, 6).map(r => `
+        <div class="lrow" data-go="coach-plan/${esc(r.athleteId)}">
+          <div class="lic">${icon('target', 17)}</div>
+          <div class="lm"><div class="lt">${esc(r.name)}${r.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(r.unit)}</small>` : ''}</div>
+          <div class="ls">Protein · calories · target weight</div></div>
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>`).join('')}
+      </section>` : `
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.4">Athlete targets open from the roster once your team joins.</div>`}
+
+      <div class="eyebrow">Program controls</div>
+      <section class="card" style="padding:6px 16px">
+        <div class="lrow" data-go="coach-voice">
+          <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
+          <div class="lm"><div class="lt">AI in your voice</div><div class="ls">It reinforces your rulings, never invents</div></div>
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>
+        <div class="lrow" data-go="team-diet">
+          <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
+          <div class="lm"><div class="lt">Team dietary sheet</div><div class="ls">Allergies &amp; restrictions across the roster</div></div>
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>
+      </section>
+      <div style="height:10px"></div>
+      `;
+    }
     if (!TGT || TGT.athleteId !== athleteId) {
       return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
       <div><div class="tt">Loading their targets…</div></div></div>`;
@@ -312,7 +401,8 @@ export const coachPlan = {
     `;
   },
   mount(root, { sub }) {
-    loadCoachRoster();
+    loadCoachRoster().then(() => loadSets());
+    if (!sub) return;
     loadTargets(sub);
     root.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
       const el = root.querySelector('#' + b.getAttribute('data-step'));
@@ -328,6 +418,149 @@ export const coachPlan = {
       const ok = await roles.coachSetGoals(sub, { protein: num('tg-protein'), calories: num('tg-calories'), weight: num('tg-weight') });
       if (ok) { if (status) status.textContent = 'Saved to their plan.'; TGT = null; setTimeout(() => { location.hash = `#coach-athlete/${sub}`; }, 600); }
       else { save.disabled = false; if (status) status.textContent = 'Could not save — check the connection.'; }
+    });
+  },
+};
+
+/* ---------- Standards editor (WS5.1): one scope's standing requirement set ----------
+   Knobs → catalog-shaped items (0055-validated rails: meals 1–6, lifts 0–7) →
+   set_team_requirements. A position room can reset to the team default (0058). */
+const LIFT_DAYS = { 1: [2], 2: [2, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 4, 5], 6: [1, 2, 3, 4, 5, 6], 7: [0, 1, 2, 3, 4, 5, 6] };
+const MEAL_NAMES = ['Breakfast', 'Lunch', 'Dinner', 'Meal 4', 'Meal 5', 'Meal 6'];
+const MEAL_WINDOWS = [{ open: 420, due: 570 }, { open: 720, due: 840 }, { open: 1080, due: 1230 }, { due: 1290 }, { due: 1320 }, { due: 1350 }];
+let KNOB = null; // { key, meals, lifts, weigh, hydration, recovery, checkin }
+
+function knobsFromItems(items) {
+  const lift = items.find(i => i.kind === 'lift');
+  const weigh = items.find(i => i.kind === 'weigh');
+  return {
+    meals: Math.min(6, Math.max(1, items.filter(i => i.kind === 'meal').length)),
+    lifts: lift ? Math.min(7, (lift.freq && lift.freq.days && lift.freq.days.length) || 3) : 0,
+    weigh: weigh ? ((weigh.freq && weigh.freq.type === 'daily') ? 'daily' : 'mwf') : 'off',
+    hydration: items.some(i => i.kind === 'hydration'),
+    recovery: items.some(i => i.kind === 'recovery'),
+    checkin: items.some(i => i.kind === 'checkin'),
+  };
+}
+function itemsFromKnobs(k) {
+  const items = [];
+  let names, wins;
+  if (k.meals === 1) { names = ['Daily meal']; wins = [{ open: 720, due: 1230 }]; }
+  else if (k.meals === 2) { names = ['Breakfast', 'Dinner']; wins = [MEAL_WINDOWS[0], MEAL_WINDOWS[2]]; }
+  else { names = MEAL_NAMES.slice(0, k.meals); wins = MEAL_WINDOWS.slice(0, k.meals); }
+  names.forEach((t, i) => items.push({ id: `meal-${i + 1}`, title: t, kind: 'meal', proof: 'photo', freq: { type: 'daily' }, window: wins[i] }));
+  if (k.lifts > 0) items.push({
+    id: 'lift', title: `Lift session`, kind: 'lift', proof: 'check',
+    freq: { type: 'days', days: LIFT_DAYS[k.lifts], label: `${k.lifts}× / week` }, window: { due: 1230, label: 'After training' },
+  });
+  if (k.weigh !== 'off') items.push({
+    id: 'weight', title: 'Morning Weight', kind: 'weigh', proof: 'scale',
+    freq: k.weigh === 'daily' ? { type: 'daily' } : { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' }, window: { due: 540 },
+  });
+  if (k.hydration) items.push({ id: 'hydration', title: 'Hydration · 120 oz', kind: 'hydration', proof: 'counter', freq: { type: 'daily' }, window: { due: 1290 }, required: false });
+  if (k.recovery) items.push({ id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } });
+  if (k.checkin) items.push({ id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', proof: 'form', freq: { type: 'weekly', day: 0, label: 'Sundays' }, window: { due: 1260 } });
+  return items;
+}
+
+export const coachPlanSet = {
+  nav: 'coach', tab: 'plan',
+  render({ sub }) {
+    const [kind, rawVal] = (sub || 'team').split('/');
+    const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
+    const key = `${kind}:${value || ''}`;
+    const scopeName = kind === 'team' ? 'Team default' : `${value} room`;
+    const sets = SETS && SETS.rows ? SETS.rows : [];
+    const existing = sets.find(s => s.scope_kind === kind && String(s.scope_value || '').trim().toUpperCase() === (value || '').toUpperCase())
+      || (kind === 'team' ? sets.find(s => s.scope_kind === 'team') : null);
+    if (!KNOB || KNOB.key !== key) {
+      KNOB = existing
+        ? { key, ...knobsFromItems(existing.items) }
+        : { key, meals: 3, lifts: 0, weigh: 'mwf', hydration: true, recovery: true, checkin: true };
+    }
+    const chip = (on, label, act, arg) => `<span class="chp ${on ? 'on' : ''}" data-knob="${act}:${arg}">${label}</span>`;
+    const seg = (label, subLabel, act, on) => `
+      <div class="lrow" style="cursor:default">
+        <div class="lm"><div class="lt">${label}</div><div class="ls">${subLabel}</div></div>
+        <div class="seg" style="width:104px">
+          <button class="${on ? 'on' : ''}" data-knob="${act}:1">On</button><button class="${on ? '' : 'on'}" data-knob="${act}:0">Off</button>
+        </div>
+      </div>`;
+    return `
+    ${backHead(scopeName, kind === 'team' ? 'Every athlete starts here' : 'Overrides the team default for this room', 'coach-plan')}
+
+    <div class="eyebrow">Meals per day · photo proof</div>
+    <div class="chip-row">${[1, 2, 3, 4, 5, 6].map(n => chip(KNOB.meals === n, String(n), 'meals', n)).join('')}</div>
+
+    <div class="eyebrow">Lift sessions per week</div>
+    <div class="chip-row">${[0, 1, 2, 3, 4, 5, 6, 7].map(n => chip(KNOB.lifts === n, n === 0 ? 'Off' : String(n), 'lifts', n)).join('')}</div>
+
+    <div class="eyebrow">Weigh-ins · season trend, never scored</div>
+    <div class="chip-row">
+      ${chip(KNOB.weigh === 'off', 'Off', 'weigh', 'off')}${chip(KNOB.weigh === 'mwf', 'Mon / Wed / Fri', 'weigh', 'mwf')}${chip(KNOB.weigh === 'daily', 'Daily', 'weigh', 'daily')}
+    </div>
+
+    <div class="eyebrow">Always-on pieces</div>
+    <section class="card" style="padding:6px 16px">
+      ${seg('Recovery check-in', 'Nightly · 25% of the score', 'recovery', KNOB.recovery)}
+      ${seg('Weekly check-in', 'Sundays · 10% of the score', 'checkin', KNOB.checkin)}
+      ${seg('Hydration focus', 'Visible, never scored', 'hydration', KNOB.hydration)}
+    </section>
+
+    <div style="height:14px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div><div class="tt">Stored live, rails enforced server-side</div>
+      <div class="ts">Meals 1–6, lifts 0–7 — the database rejects anything outside the rails. Athlete day lists switch onto room standards with the dynamic-day update; assignments and this standard are live now.</div></div>
+    </div>
+
+    <div style="height:16px"></div>
+    <button class="btn primary" id="set-save">${icon('check', 19)} Save the ${kind === 'team' ? 'team standard' : `${esc(value)} room standard`}</button>
+    ${kind !== 'team' && existing ? `<div style="height:8px"></div><button class="btn ghost" id="set-clear">Use team default instead</button>` : ''}
+    <div id="set-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root, { sub }) {
+    loadCoachRoster().then(() => loadSets());
+    const [kind, rawVal] = (sub || 'team').split('/');
+    const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
+    const say = (msg, isErr) => {
+      const el = root.querySelector('#set-status');
+      if (el) { el.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; el.textContent = msg; }
+    };
+    root.querySelectorAll('[data-knob]').forEach(el => el.addEventListener('click', () => {
+      const [k, arg] = el.getAttribute('data-knob').split(':');
+      if (k === 'meals') KNOB.meals = +arg;
+      if (k === 'lifts') KNOB.lifts = +arg;
+      if (k === 'weigh') KNOB.weigh = arg;
+      if (k === 'recovery') KNOB.recovery = arg === '1';
+      if (k === 'checkin') KNOB.checkin = arg === '1';
+      if (k === 'hydration') KNOB.hydration = arg === '1';
+      window.__render();
+    }));
+    const save = root.querySelector('#set-save');
+    if (save) save.addEventListener('click', async () => {
+      const teamId = ROSTER && ROSTER.teams[0] && ROSTER.teams[0].id;
+      if (!teamId) { say('Your team hasn’t loaded yet — give it a second.', true); return; }
+      save.disabled = true; say('Saving…');
+      const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB));
+      save.disabled = false;
+      if (!r.ok) { say(r.error || 'Could not save — try again.', true); return; }
+      say('Saved. This is the standard now.');
+      await loadSets(true);
+    });
+    const clear = root.querySelector('#set-clear');
+    if (clear) clear.addEventListener('click', async () => {
+      const teamId = ROSTER && ROSTER.teams[0] && ROSTER.teams[0].id;
+      if (!teamId) return;
+      clear.disabled = true; say('Resetting…');
+      const r = await roles.clearTeamRequirements(teamId, kind, value);
+      clear.disabled = false;
+      if (!r.ok) { say(r.error || 'Could not reset — try again.', true); return; }
+      KNOB = null;
+      await loadSets(true);
+      location.hash = '#coach-plan';
     });
   },
 };
