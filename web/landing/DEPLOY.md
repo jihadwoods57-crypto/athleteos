@@ -13,12 +13,29 @@ css/ js/ fonts/ assets/
 
 `web/landing-src/` is not part of the deploy (image-gen sources + QA artifacts).
 
-## Current reality (checked 2026-07-13)
+## LIVE NOW (temporary, claimable) — checked 2026-07-14
 
-- `onstandard.app` and `app.onstandard.app` both resolve to **Porkbun parking**
+The site is deployed and serving on the public internet via a Cloudflare
+**temporary account** (credential-free deploy):
+
+- Live URL: **https://onstandard-site.sun-velvet.workers.dev**
+  (/, /privacy, /terms, /reset, /assets/og.png all verified 200; dial animates)
+- To OWN it, claim the account within 60 min of the last deploy. Claim links
+  expire fast; if it's lapsed, re-run `npx wrangler deploy --temporary` from
+  `web/landing-src/deploy/` and grab the fresh "Claim URL" it prints.
+- This temp URL is only for proving-it-works. The real home is onstandard.app
+  once DNS points there (below).
+
+## Current reality (checked 2026-07-14)
+
+- `onstandard.app` and `app.onstandard.app` resolve to **Porkbun parking**
   (`pixie.porkbun.com`) — DNS is managed at Porkbun.
-- No Cloudflare / Netlify / Vercel / Porkbun credentials exist on this machine,
-  so the DNS flip and host creation are founder steps (~10 minutes, free).
+- No Porkbun credentials on this machine, so the DNS flip and email forwarding
+  are founder steps.
+- **Supabase auth is ALREADY configured** (verified live via Management API):
+  Site URL `https://onstandard.app` and redirect allow-list already includes
+  `https://onstandard.app/reset`. No action needed — password reset will work
+  the moment DNS is live.
 
 ## Founder to-dos BEFORE flipping DNS (5 minutes)
 
@@ -63,13 +80,11 @@ Apple's required URLs work with no config.
    `CNAME www` exactly as Netlify displays them (delete the parking records).
 4. Same verification list as above. Netlify's "pretty URLs" serve `/privacy` etc.
 
-## After DNS is live (2 minutes, makes forgot-password work)
+## After DNS is live — Supabase (ALREADY DONE ✅)
 
-Supabase dashboard → **Authentication → URL Configuration**:
-- **Site URL** = `https://onstandard.app`
-- **Redirect URLs** += `https://onstandard.app/reset`
-
-Without that allowlist entry, password-reset emails ignore the redirect.
+Verified 2026-07-14 via the Management API: Site URL is `https://onstandard.app`
+and the redirect allow-list already contains `https://onstandard.app/reset`.
+Nothing to change — forgot-password will work as soon as the domain resolves.
 
 ## Post-deploy checklist
 
