@@ -352,10 +352,30 @@ let TGT = null;           // { athleteId, targets } loaded from athlete_profiles
 let tgtLoadingId = null;
 async function loadTargets(athleteId) {
   if (!athleteId || tgtLoadingId === athleteId) return;
+  if (TGT && TGT.athleteId === athleteId) return; // loaded — repaints must not refetch-loop
   tgtLoadingId = athleteId;
-  TGT = { athleteId, targets: (await roles.fetchAthleteTargets(athleteId)) || {} };
+  const [targets, basics] = await Promise.all([
+    roles.fetchAthleteTargets(athleteId),
+    roles.fetchAthleteBasics(athleteId),
+  ]);
+  TGT = { athleteId, targets: targets || {}, basics: basics || null };
   tgtLoadingId = null;
   if (location.hash.startsWith('#coach-plan')) window.__render();
+}
+/* Deterministic target suggestion — sports-nutrition rules of thumb, computed in the open
+   (never an AI black box; the coach's Save is the only thing that writes). Direction comes
+   from target vs current weight: bulk / cut / hold. */
+function suggestTargets(targetWeight, baseWeight) {
+  const tw = +targetWeight || 0;
+  if (tw < 80 || tw > 450) return null;
+  const bw = +baseWeight || tw;
+  const mode = tw > bw + 5 ? 'bulk' : tw < bw - 5 ? 'cut' : 'hold';
+  const protein = Math.round((tw * (mode === 'cut' ? 1.2 : mode === 'bulk' ? 1.1 : 0.9)) / 5) * 5;
+  const calories = Math.round((tw * (mode === 'bulk' ? 17 : mode === 'cut' ? 13 : 15)) / 50) * 50;
+  const why = mode === 'bulk' ? `building to ${tw} lb — surplus + 1.1g/lb protein`
+    : mode === 'cut' ? `cutting to ${tw} lb — deficit + 1.2g/lb to hold muscle`
+    : `holding ${tw} lb — maintenance + 0.9g/lb`;
+  return { protein, calories, mode, why };
 }
 /* ---------- Plan tab = Coach Control Center (WS5.1) ----------
    No athlete id → the program home: per-room standing standards (0055 requirement_sets)
@@ -372,6 +392,23 @@ async function loadSets(force) {
   finally { setsLoading = false; }
   if (location.hash.startsWith('#coach-plan')) window.__render();
 }
+/* Trust passes across the roster (0033/0039 — earned camera-free reward, server-enforced). */
+let TP = null;
+let tpLoading = false;
+async function loadTrust(force) {
+  if (tpLoading) return;
+  if (TP && !force) return;
+  const rows = ROSTER ? ROSTER.rows.slice(0, 12) : [];
+  tpLoading = true;
+  try {
+    const map = {};
+    await Promise.all(rows.map(async (r) => { map[r.athleteId] = await roles.fetchActiveTrustPass(r.athleteId); }));
+    TP = { map };
+  } catch { TP = { map: {} }; }
+  finally { tpLoading = false; }
+  if (location.hash.startsWith('#coach-plan')) window.__render();
+}
+
 const setSummary = (items) => {
   const meals = items.filter(i => i.kind === 'meal').length;
   const lift = items.find(i => i.kind === 'lift');
@@ -437,6 +474,24 @@ export const coachPlan = {
       </section>` : `
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.4">Athlete targets open from the roster once your team joins.</div>`}
 
+      <div class="eyebrow">Trust passes · earned camera-free days</div>
+      ${rows && rows.length ? `
+      <section class="card" style="padding:6px 16px">
+        ${rows.slice(0, 6).map(r => {
+          const pass = TP && TP.map ? TP.map[r.athleteId] : undefined;
+          const active = pass && pass.granted_date;
+          return `
+        <div class="lrow" style="cursor:default">
+          <div class="lic" style="${active ? 'background:var(--green-surface);color:var(--green-bright)' : ''}">${icon('shield', 17)}</div>
+          <div class="lm"><div class="lt">${esc(r.name)}</div>
+          <div class="ls">${TP === null ? 'Checking…' : active ? `Active · started ${esc(pass.granted_date)} · ${pass.length_days || 10} days` : 'No pass · needs 7 photo-logged days on standard'}</div></div>
+          <button class="btn ghost sm" data-tp="${active ? 'end' : 'grant'}:${esc(r.athleteId)}" style="width:auto;padding:0 12px;height:30px;font-size:11px;${active ? 'color:var(--red)' : ''}">${active ? 'End' : 'Grant'}</button>
+        </div>`;
+        }).join('')}
+        <div id="tp-plan-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;padding:2px 2px 8px"></div>
+      </section>` : `
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.4">Trust passes unlock once athletes are on the roster — earned with 7 straight photo-logged days on standard.</div>`}
+
       <div class="eyebrow">Program controls</div>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-voice">
@@ -477,6 +532,24 @@ export const coachPlan = {
         </div>`).join('')}
     </section>
 
+    <div style="height:12px"></div>
+    <section class="card" style="padding:12px 16px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="req-icon b" style="width:34px;height:34px;flex:none">${icon('target', 16)}</div>
+        <div style="flex:1"><div style="font-size:13.5px;font-weight:800">Suggested from the target weight</div>
+        <div id="sg-why" style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:1px">Set the target weight above, then tap Suggest.</div></div>
+        <button class="btn ghost sm" id="sg-btn" style="width:auto;padding:0 14px;height:32px">Suggest</button>
+      </div>
+      <div id="sg-out" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline-soft)">
+        <div style="display:flex;align-items:baseline;gap:14px">
+          <div><span id="sg-protein" style="font-size:19px;font-weight:800;font-variant-numeric:tabular-nums">—</span><span style="font-size:11px;font-weight:700;color:var(--text-3)"> g protein</span></div>
+          <div><span id="sg-calories" style="font-size:19px;font-weight:800;font-variant-numeric:tabular-nums">—</span><span style="font-size:11px;font-weight:700;color:var(--text-3)"> kcal</span></div>
+          <button class="btn green sm" id="sg-use" style="width:auto;padding:0 16px;height:32px;margin-left:auto">Use these</button>
+        </div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:6px">Open math, not a black box — you approve, then Save writes it.</div>
+      </div>
+    </section>
+
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
@@ -491,7 +564,24 @@ export const coachPlan = {
     `;
   },
   mount(root, { sub }) {
-    loadCoachRoster().then(() => loadSets());
+    loadCoachRoster().then(() => { loadSets(); if (!sub) loadTrust(); });
+    // Trust pass grant/end on the Plan home (server-enforced eligibility, honest errors)
+    root.querySelectorAll('[data-tp]').forEach(b => b.addEventListener('click', async () => {
+      const [what, id] = b.getAttribute('data-tp').split(':');
+      const status = root.querySelector('#tp-plan-status');
+      const say = (msg, isErr) => { if (status) { status.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; status.textContent = msg; } };
+      b.disabled = true; say(what === 'grant' ? 'Granting…' : 'Ending…');
+      if (what === 'grant') {
+        const r = await roles.grantTrustPass(id, 10);
+        if (!r.ok) { b.disabled = false; say(r.error && /standard|photo|eligib/i.test(r.error) ? 'Not eligible yet — needs 7 photo-logged days on standard.' : (r.error || 'Could not grant it.'), true); return; }
+        say('Granted — camera-free days start now.');
+      } else {
+        const ok = await roles.endTrustPass(id);
+        if (!ok) { b.disabled = false; say('Could not end it — try again.', true); return; }
+        say('Ended.');
+      }
+      await loadTrust(true);
+    }));
     if (!sub) return;
     loadTargets(sub);
     root.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
@@ -500,6 +590,29 @@ export const coachPlan = {
       const step = +b.getAttribute('data-s') || 1;
       el.textContent = Math.max(0, parseInt(el.textContent) + step * +b.dataset.d) + u;
     }));
+    // Suggested targets: reads the CURRENT target-weight stepper, fills protein/calories.
+    const sgBtn = root.querySelector('#sg-btn');
+    if (sgBtn) {
+      let sg = null;
+      sgBtn.addEventListener('click', () => {
+        const tw = parseInt((root.querySelector('#tg-weight') || {}).textContent) || 0;
+        const bw = TGT && TGT.basics && TGT.basics.base_weight;
+        sg = suggestTargets(tw, bw);
+        const why = root.querySelector('#sg-why'), out = root.querySelector('#sg-out');
+        if (!sg) { if (why) why.textContent = 'Set a real target weight first (80–450 lb).'; return; }
+        if (why) why.textContent = `${sg.why}${bw ? ` · current ${Math.round(bw)} lb` : ''}`;
+        if (out) out.style.display = '';
+        const p = root.querySelector('#sg-protein'), k = root.querySelector('#sg-calories');
+        if (p) p.textContent = sg.protein; if (k) k.textContent = sg.calories;
+      });
+      const use = root.querySelector('#sg-use');
+      if (use) use.addEventListener('click', () => {
+        if (!sg) return;
+        const pEl = root.querySelector('#tg-protein'), kEl = root.querySelector('#tg-calories');
+        if (pEl) pEl.textContent = `${sg.protein}${pEl.getAttribute('data-u') || ''}`;
+        if (kEl) kEl.textContent = `${sg.calories}${kEl.getAttribute('data-u') || ''}`;
+      });
+    }
     const save = root.querySelector('#save-targets');
     const status = root.querySelector('#tg-status');
     if (save) save.addEventListener('click', async () => {

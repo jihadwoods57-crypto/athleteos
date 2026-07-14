@@ -195,6 +195,15 @@ export async function fetchAthleteTargets(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
   try { const { data } = await c.from('athlete_profiles').select('targets').eq('athlete_id', athleteId).maybeSingle(); return (data && data.targets) || null; } catch { return null; }
 }
+/** Coach-visible athlete basics for target suggestions (can_view-scoped). Best-effort null. */
+export async function fetchAthleteBasics(athleteId) {
+  const c = sb(); if (!c || !athleteId) return null;
+  try {
+    const { data } = await c.from('athlete_profiles')
+      .select('base_weight,position,sport,targets').eq('athlete_id', athleteId).maybeSingle();
+    return data || null;
+  } catch { return null; }
+}
 export async function coachSetGoals(athleteId, targets) {
   const c = sb(); if (!c || !athleteId) return false;
   try { const { error } = await c.rpc('coach_set_goals', { athlete: athleteId, new_targets: targets, new_season_goal: null }); return !error; } catch { return false; }
