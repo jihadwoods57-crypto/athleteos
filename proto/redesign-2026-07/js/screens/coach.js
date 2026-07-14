@@ -93,15 +93,23 @@ export const coach = {
     return `
     ${titleHead(`${S.greeting}, ${S.coachIdentity.handle}`, `${esc(teamName)} · today`)}
 
+    ${rows === null || (ROSTER && ROSTER.offline) ? `
     <div class="coach-stats">
-      ${rows === null || (ROSTER && ROSTER.offline) ? `
       <div class="coach-stat"><div class="v" style="color:var(--text-3)">—</div><div class="k">Team avg</div></div>
       <div class="coach-stat"><div class="v" style="color:var(--text-3)">—</div><div class="k">On standard</div></div>
-      <div class="coach-stat"><div class="v" style="color:var(--text-3)">—</div><div class="k">Need attention</div></div>` : `
-      <div class="coach-stat"><div class="v">${avg != null ? avg : '—'}</div><div class="k">Team avg</div></div>
-      <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${onStd}</div><div class="k">On standard</div></div>
-      <div class="coach-stat"><div class="v" style="color:var(--red)">${attention.length}</div><div class="k">Need attention</div></div>`}
-    </div>
+      <div class="coach-stat"><div class="v" style="color:var(--text-3)">—</div><div class="k">Need attention</div></div>
+    </div>` : `
+    <section class="card" style="display:flex;align-items:center;gap:16px;padding:15px 18px">
+      <div style="flex:none">
+        <div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px">Team score</div>
+        <div style="font-size:42px;font-weight:800;letter-spacing:-0.04em;line-height:1;font-variant-numeric:tabular-nums;background:linear-gradient(105deg,var(--ring-a),var(--ring-b) 45%,var(--ring-c));-webkit-background-clip:text;background-clip:text;color:transparent">${avg != null ? avg : '—'}</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:7px;border-left:1px solid var(--hairline-soft);padding-left:16px;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text-2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--green-bright);flex:none"></span><b style="color:var(--text);font-variant-numeric:tabular-nums">${onStd}</b>&nbsp;on standard</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text-2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);flex:none;box-shadow:0 0 8px rgba(246,87,87,0.5)"></span><b style="color:var(--text);font-variant-numeric:tabular-nums">${attention.length}</b>&nbsp;need attention</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text-2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--blue-bright);flex:none"></span><b style="color:var(--text);font-variant-numeric:tabular-nums">${rows.filter(r => r.loggedToday).length} of ${rows.length}</b>&nbsp;logged today</div>
+      </div>
+    </section>`}
 
     ${ROSTER && ROSTER.pending && ROSTER.pending.length ? `
     <div class="eyebrow">Join requests</div>
@@ -795,19 +803,33 @@ function rosterName(athleteId) {
   const r = ROSTER && ROSTER.rows.find(x => x.athleteId === athleteId);
   return r ? { name: r.name, unit: r.unit } : { name: 'Athlete', unit: '' };
 }
+let athGen = 0;            // navigation generation: a stale fetch must never clobber the screen
 async function loadAthlete(athleteId, viewerId, viewerName) {
-  if (!athleteId || athLoadingId === athleteId) return;
+  if (!athleteId) return;
+  // Already showing this athlete: do nothing. Without this guard every repaint re-fetched,
+  // which re-rendered, which re-fetched — an infinite refetch/repaint loop (photos re-signing,
+  // flicker, scroll jumps). This WAS the "super buggy" athlete page.
+  if (ATH && ATH.athleteId === athleteId) return;
+  if (athLoadingId === athleteId) return; // this athlete's fetch is already in flight
+  const myGen = ++athGen;
   athLoadingId = athleteId;
-  const today = roles.todayISO();
-  const [day, meals] = await Promise.all([
-    roles.fetchDay(athleteId, today),
-    roles.fetchRecentMeals(athleteId, roles.daysAgoISO(14)),
-  ]);
-  for (const m of meals) { if (m.photo_path) m._url = await roles.signedMealPhotoUrl(m.photo_path); }
-  const pass = await roles.fetchActiveTrustPass(athleteId);
-  ATH = { athleteId, day, meals, pass };
-  athLoadingId = null;
-  roles.markDayViewed(athleteId, today, viewerId, viewerName); // fire-and-forget "coach saw your day"
+  try {
+    const today = roles.todayISO();
+    const [day, meals, pass] = await Promise.all([
+      roles.fetchDay(athleteId, today),
+      roles.fetchRecentMeals(athleteId, roles.daysAgoISO(14)),
+      roles.fetchActiveTrustPass(athleteId),
+    ]);
+    // Sign photo URLs in PARALLEL, and only the most recent handful the screen shows —
+    // the old serial loop signed every meal in 14 days one round-trip at a time.
+    await Promise.all(meals.filter(m => m.photo_path).slice(0, 10)
+      .map(async (m) => { m._url = await roles.signedMealPhotoUrl(m.photo_path); }));
+    if (myGen !== athGen) return; // coach tapped another athlete mid-flight — drop this result
+    ATH = { athleteId, day, meals, pass };
+    roles.markDayViewed(athleteId, today, viewerId, viewerName); // fire-and-forget "coach saw your day"
+  } finally {
+    if (myGen === athGen) athLoadingId = null;
+  }
   if (location.hash.startsWith('#coach-athlete')) window.__render();
 }
 const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
@@ -1033,6 +1055,14 @@ export const coachMeal = {
       }
       input.value = '';
       roles.nudgePush(athleteId, `${S.athlete.name} commented on your ${meal ? cap(meal.type) : 'meal'}`, text);
+      // AI's one supporting message (2/3/1): best-effort, selective server-side — it only
+      // fires on a substantive coach point, at most once per meal, and never blocks the post.
+      try {
+        await window.sb.functions.invoke('meal-chat', { body: {
+          mealId: sub, coachSupport: true, coachText: text,
+          context: meal ? { meal: { type: meal.type, protein: meal.protein, kcal: meal.kcal, quality: meal.quality } } : { meal: {} },
+        } });
+      } catch { /* skipped or unavailable — the coach's message already landed */ }
       await loadMealComments(sub, true);
     };
     if (send) send.addEventListener('click', submit);

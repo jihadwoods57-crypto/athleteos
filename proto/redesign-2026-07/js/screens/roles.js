@@ -6,7 +6,21 @@ import { standardForGoal } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { track, EVENTS } from '../analytics.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
-import { setMyTeamCode, regenerateMyTeamCode } from '../roles.js';
+import { setMyTeamCode, regenerateMyTeamCode, fetchTeamStaff, createStaffInvite, revokeStaff } from '../roles.js';
+
+/* Staff & collaborators (0061): cached per profile visit. */
+let STAFF = null;
+let staffLoadingFor = null;
+async function loadStaff(teamId, force) {
+  if (!teamId || staffLoadingFor === teamId) return;
+  if (STAFF && STAFF.teamId === teamId && !force) return;
+  staffLoadingFor = teamId;
+  try { STAFF = { teamId, rows: await fetchTeamStaff(teamId) }; }
+  catch { STAFF = { teamId, rows: [] }; }
+  finally { staffLoadingFor = null; }
+  if (location.hash === '#coach-profile') window.__render();
+}
+const STAFF_ROLE_LABEL = { head_coach: 'Head Coach', assistant: 'Assistant', nutritionist: 'Nutritionist / RD' };
 
 /* Practice HQ invite link + share text — mirrors src/core/practiceIdentity.ts (the tested
    oracle) inline, the same way state.js mirrors src/core logic in plain JS rather than
@@ -148,7 +162,11 @@ const coachSteps = {
     <div class="lrow" style="cursor:default;padding:0 2px">
       <div class="lm"><div class="lt">Listed in school search</div><div class="ls">Athletes at your school can find this team. The code is still required to join.</div></div>
       <div class="seg" style="width:104px" id="co-disc"><button class="on">On</button><button>Off</button></div>
-    </div>`, 'Next', 'coach-ob/4', { back: 'coach-ob/2' }),
+    </div>
+    <div style="height:14px"></div>
+    <div class="eyebrow" style="margin:8px 2px 8px">Joining an existing staff instead?</div>
+    <input id="co-staff-code" class="ob-input" maxlength="8" placeholder="Staff code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.4">With a staff code you skip team creation and land on that team's staff.</div>`, 'Next', 'coach-ob/4', { back: 'coach-ob/2' }),
 
   4: () => frame(4, 5, 'Set the team standard.', 'Every athlete starts with these. Adjust per athlete anytime.', `
     <section class="card" style="padding:6px 16px">
@@ -181,6 +199,20 @@ const coachSteps = {
   </div>`,
 
   6: () => {
+    const joined = (RT.ob || {}).joinedStaff;
+    if (joined) {
+      return `
+  <div class="ob">
+    <div class="standard-set">
+      <div class="halo"><div class="core" style="background:linear-gradient(155deg,#f59e0b,#d97706)">${icon('users', 34)}</div></div>
+      <div class="ob-title" style="margin-top:22px">You're on staff.</div>
+      <div class="ob-sub" style="padding:0 8px">${esc(joined.teamName || 'The team')} · ${esc(STAFF_ROLE_LABEL[joined.role] || joined.role || 'Staff')}. The roster, standards, and activity feed are yours to work.</div>
+    </div>
+    <div class="ob-foot" style="margin-top:auto">
+      <button class="btn primary" data-go="coach">Open Coach Dashboard</button>
+    </div>
+  </div>`;
+    }
     const code = (RT.ob || {}).teamCode || '';
     return `
   <div class="ob">
@@ -342,6 +374,13 @@ export const coachOb = {
         if (el) el.querySelectorAll('.chp, button').forEach((it) => it.addEventListener('click', sync));
       });
       sync();
+      // Staff-code alternative (0061): joining an existing staff skips team creation.
+      const staffCode = $('#co-staff-code');
+      if (staffCode) {
+        const c2 = (RT.ob || {}).coach || {};
+        if (c2.staffCode) staffCode.value = c2.staffCode;
+        staffCode.addEventListener('input', () => cap({ staffCode: staffCode.value.trim().toUpperCase() }));
+      }
     }
     // step 5: shared account → mint org/team → code screen
     if ($('#su-go')) {
@@ -851,6 +890,34 @@ export const coachProfile = {
       <div><div class="tt">No code yet</div><div class="ts">It mints when your team is created, automatically on your next sign-in.</div></div>
     </div>`}
 
+    <div class="eyebrow">Staff &amp; collaborators</div>
+    ${(() => {
+      const staff = STAFF && STAFF.teamId === (RT.team && RT.team.id) ? STAFF.rows : null;
+      return `
+    <section class="card" style="padding:6px 16px">
+      ${staff === null ? `
+      <div class="lrow" style="cursor:default"><div class="lic">${icon('users', 17)}</div>
+      <div class="lm"><div class="lt">Loading your staff…</div></div></div>` : `
+      ${staff.map(s => `
+      <div class="lrow" style="cursor:default">
+        <div class="lic" style="${s.role === 'nutritionist' ? 'background:rgba(168,85,247,0.16);color:var(--purple-bright)' : ''}">${icon(s.role === 'nutritionist' ? 'heart' : 'user', 17)}</div>
+        <div class="lm"><div class="lt">${esc(s.name)}</div><div class="ls">${STAFF_ROLE_LABEL[s.role] || esc(s.role)}</div></div>
+        ${s.role !== 'head_coach' && s.staff_id !== RT.userId ? `<button class="btn ghost sm" data-staff-rm="${esc(s.staff_id)}" style="width:auto;padding:0 12px;height:30px;font-size:11px;color:var(--red)">Remove</button>` : ''}
+      </div>`).join('')}
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('plus', 17)}</div>
+        <div class="lm"><div class="lt">Invite to your staff</div><div class="ls">Single-use code · they enter it at coach sign-up</div></div>
+        <button class="btn ghost sm" data-staff-invite="assistant" style="width:auto;padding:0 10px;height:30px;font-size:11px">Assistant</button>
+        <button class="btn ghost sm" data-staff-invite="nutritionist" style="width:auto;padding:0 10px;height:30px;font-size:11px;margin-left:6px">Dietitian</button>
+      </div>`}
+      <div id="staff-code-out" style="display:none;padding:4px 2px 10px">
+        <div class="code-boxes" id="staff-code-boxes" style="padding:0 0 6px"></div>
+        <div style="font-size:11.5px;font-weight:600;color:var(--text-3);text-align:center">One use only. Text it to them — they pick "Coach" at sign-up and enter it as a staff code.</div>
+      </div>
+      <div id="staff-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;padding:0 2px 8px"></div>
+    </section>`;
+    })()}
+
     <div class="eyebrow">Team settings</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Game plan defaults</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
@@ -865,6 +932,32 @@ export const coachProfile = {
     `;
   },
   mount(root) {
+    // Staff & collaborators (0061)
+    loadStaff(RT.team && RT.team.id);
+    const sStatus = root.querySelector('#staff-status');
+    const sSay = (msg, isErr) => { if (sStatus) { sStatus.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; sStatus.textContent = msg; } };
+    root.querySelectorAll('[data-staff-invite]').forEach(b => b.addEventListener('click', async () => {
+      const teamId = RT.team && RT.team.id;
+      if (!teamId) { sSay('Your team hasn’t loaded yet.', true); return; }
+      b.disabled = true; sSay('Minting a code…');
+      const r = await createStaffInvite(teamId, b.getAttribute('data-staff-invite'));
+      b.disabled = false;
+      if (!r.ok) { sSay(r.error || 'Could not mint the code.', true); return; }
+      const out = root.querySelector('#staff-code-out'), boxes = root.querySelector('#staff-code-boxes');
+      if (out && boxes) {
+        boxes.innerHTML = r.code.split('').map(ch => `<div class="cb filled" style="border-color:var(--blue-border)">${esc(ch)}</div>`).join('');
+        out.style.display = '';
+      }
+      sSay('');
+      try { await navigator.clipboard.writeText(r.code); sSay('Copied to clipboard.'); } catch { /* shown above */ }
+    }));
+    root.querySelectorAll('[data-staff-rm]').forEach(b => b.addEventListener('click', async () => {
+      if (b.getAttribute('data-armed') !== '1') { b.setAttribute('data-armed', '1'); b.textContent = 'Sure?'; return; }
+      b.disabled = true;
+      const ok = await revokeStaff(RT.team && RT.team.id, b.getAttribute('data-staff-rm'));
+      if (ok) await loadStaff(RT.team && RT.team.id, true);
+      else { b.disabled = false; b.textContent = 'Remove'; b.removeAttribute('data-armed'); sSay('Could not remove them — try again.', true); }
+    }));
     // "Goes by" editor → set_my_coach_name (0056); repaints so every surface updates at once.
     const hEdit = root.querySelector('#handle-edit'), hBox = root.querySelector('#handle-editor');
     if (hEdit && hBox) {

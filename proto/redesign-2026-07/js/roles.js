@@ -212,6 +212,33 @@ export async function endTrustPass(athleteId) {
   try { const { error } = await c.rpc('end_trust_pass', { p_athlete: athleteId }); return !error; } catch { return false; }
 }
 
+/* ---------------- staff & collaborators (0061) ---------------- */
+export async function fetchTeamStaff(teamId) {
+  const c = sb(); if (!c || !teamId) return [];
+  try { const { data } = await c.rpc('team_staff_list', { p_team: teamId }); return data || []; } catch { return []; }
+}
+export async function createStaffInvite(teamId, role) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.rpc('create_staff_invite', { p_team: teamId, p_role: role });
+    if (error) return { ok: false, error: error.message || 'Could not mint the code.' };
+    return { ok: true, code: (typeof data === 'string' && data) || '' };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not mint the code.' }; }
+}
+export async function joinStaff(code) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.rpc('join_staff', { p_code: code });
+    if (error) return { ok: false, error: error.message || 'That code did not work.' };
+    const row = Array.isArray(data) ? data[0] : data;
+    return row ? { ok: true, teamId: row.team_id, teamName: row.team_name, role: row.staff_role } : { ok: false, error: 'That code did not work.' };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'That code did not work.' }; }
+}
+export async function revokeStaff(teamId, staffId) {
+  const c = sb(); if (!c) return false;
+  try { const { data, error } = await c.rpc('revoke_staff', { p_team: teamId, p_staff: staffId }); return !error && data === true; } catch { return false; }
+}
+
 /* ---------------- preferred coach name (0056) ---------------- */
 /** The signed-in user's own coach handle ("Coach JB"). null = none set; {error:true} on failure. */
 export async function fetchMyCoachHandle() {

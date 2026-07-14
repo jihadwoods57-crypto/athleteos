@@ -875,6 +875,18 @@ export const act = {
     if (!sb || !RT.userId) return false;
     await this._stampConsent(null); // best-effort; never gates team/org creation
     if (ob.teamCode) return true;
+    // Staff-code path (0061): joining an existing staff replaces team creation entirely.
+    if (c.staffCode) {
+      try {
+        const { data, error } = await sb.rpc('join_staff', { p_code: c.staffCode });
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!error && row) {
+          this.captureOb({ teamCode: null, joinedStaff: { teamName: row.team_name, role: row.staff_role } });
+          return true;
+        }
+        return false;
+      } catch { return false; }
+    }
     let orgId = c.orgId || null;
     if (!orgId && c.schoolName) {
       try {

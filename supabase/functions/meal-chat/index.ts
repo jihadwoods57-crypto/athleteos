@@ -112,12 +112,18 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => null);
     const mealId = body?.mealId;
-    const question = String(body?.question ?? '').trim().slice(0, 500);
+    // Coach-support mode (WS4d, founder-ratified 2/3/1): after the coach comments, the AI may
+    // add AT MOST ONE short supporting message per meal — and only when the coach's message is
+    // substantive (a question or a nutrition point), never on every post.
+    const coachSupport = body?.coachSupport === true;
+    const question = String((coachSupport ? body?.coachText : body?.question) ?? '').trim().slice(0, 500);
     const context = body?.context;
     if (!mealId || !question || !context) return bad(400, 'bad_request', cors);
     if (JSON.stringify(context).length > CONTEXT_MAX) return bad(400, 'bad_request', cors);
 
-    // ---- authorization: the caller must own this meal (RLS does the work) ----
+    // ---- authorization (RLS does the work) ----
+    // Athlete mode: the caller must OWN the meal. Coach mode: the RLS-scoped select succeeding
+    // for a non-owner proves can_view (linked coach/staff); the athlete row id comes from the DB.
     const auth = req.headers.get('authorization') ?? '';
     const userClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
       global: { headers: { Authorization: auth } },
@@ -126,10 +132,23 @@ Deno.serve(async (req) => {
     const callerId = userData?.user?.id;
     if (!callerId) return bad(401, 'unauthorized', cors);
     const { data: mealRow } = await userClient.from('meals').select('id, athlete_id').eq('id', mealId).maybeSingle();
-    if (!mealRow || mealRow.athlete_id !== callerId) return bad(403, 'unauthorized', cors);
+    if (!mealRow) return bad(403, 'unauthorized', cors);
+    if (coachSupport ? mealRow.athlete_id === callerId : mealRow.athlete_id !== callerId) return bad(403, 'unauthorized', cors);
 
-    // ---- caps: per-athlete daily fails open; the global bill backstop fails CLOSED ----
-    if (!(await withinKeyCap(`meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
+    const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    if (coachSupport) {
+      // Selective: only back a substantive coach message; and only once per meal, ever.
+      const hot = /\?|protein|carb|kcal|calorie|macro|weight|hydrat|late|window|goal|target|shake|recover|portion/i.test(question);
+      if (!hot) return new Response(JSON.stringify({ skipped: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      const { count } = await service.from('meal_comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('meal_id', mealId).eq('role', 'ai').eq('author_id', callerId);
+      if ((count ?? 0) >= 1) return new Response(JSON.stringify({ skipped: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+
+    // ---- caps: per-user daily fails open; the global bill backstop fails CLOSED ----
+    if (!(await withinKeyCap(coachSupport ? `meal_chat_support:${callerId}` : `meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
     if (!(await withinKeyCap('meal_chat_global', GLOBAL_CAP, /* failOpen */ false))) return bad(429, 'limit', cors);
 
     // ---- the model call: prose only, forced tool ----
@@ -142,7 +161,9 @@ Deno.serve(async (req) => {
       tool_choice: { type: 'tool', name: 'reply' },
       messages: [{
         role: 'user',
-        content: `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}`,
+        content: coachSupport
+          ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH just said this on the athlete's meal: "${question}"\n\nIn 60 words or less, speaking to the athlete, back the coach's point using ONLY figures already in the context. Do not add new requirements, do not soften the coach, do not contradict them. If the context has nothing relevant, one steady sentence reinforcing the coach is enough.`
+          : `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}`,
       }],
     });
     const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: { message?: string } } | undefined;
@@ -152,8 +173,9 @@ Deno.serve(async (req) => {
     // ---- persist as the unforgeable 'ai' row (service role) ----
     // `kind` ships in a later migration (post-0048); insert WITH it first and on error retry
     // once WITHOUT it, so replies still persist against a pre-migration database.
-    const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
-    const row = { meal_id: mealId, athlete_id: callerId, author_id: callerId, role: 'ai', text: reply };
+    // athlete_id is always the meal OWNER (RLS thread scoping); author_id records who
+    // triggered the AI (the athlete's ask, or the coach whose point is being supported).
+    const row = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text: reply };
     const { error: insertErr } = await service.from('meal_comments').insert({ ...row, kind: 'message' });
     if (insertErr) {
       await service.from('meal_comments').insert(row);
