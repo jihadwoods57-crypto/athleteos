@@ -131,6 +131,11 @@ export const settings = {
       </div>
     </section>
 
+    <div class="eyebrow">Appearance</div>
+    <div class="chip-row" id="set-theme">
+      ${['dark', 'light', 'system'].map((m) => `<span class="chp ${(RT.theme || 'dark') === m ? 'on' : ''}" data-theme-pick="${m}">${m === 'dark' ? 'Dark' : m === 'light' ? 'Light' : 'System'}</span>`).join('')}
+    </div>
+
     <div class="eyebrow">Reminders</div>
     <div class="chip-row" id="set-pressure" data-toggle-group>
       <span class="chp">Gentle</span><span class="chp on">Accountable</span><span class="chp">Max pressure</span>
@@ -154,6 +159,11 @@ export const settings = {
   },
   mount(root) {
     wireToggles(root);
+    // Appearance: applies instantly (data-theme on the root), persists in RT.theme.
+    root.querySelectorAll('[data-theme-pick]').forEach((el) => el.addEventListener('click', () => {
+      act.setTheme(el.getAttribute('data-theme-pick'));
+      root.querySelectorAll('[data-theme-pick]').forEach((x) => x.classList.toggle('on', x === el));
+    }));
     wirePressure(root, '#set-pressure');
     (async () => {
       const N = window.OnStandardNative;

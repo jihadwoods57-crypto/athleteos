@@ -97,6 +97,7 @@ const DEFAULT_RT = {
   reqSets: null,         // team's standing requirement_sets (0055) — cached for resolution surfaces
   coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots)
   coachNudged: {},       // coach device: athleteId -> ISO date of last nudge (one per athlete per day)
+  theme: 'dark',         // 'dark' | 'light' | 'system' — dark is the shipped default (WS2b)
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
   planUpdate: null,      // coach-published plan update; REALLY lands in Plan·Notes + notifications
   squadScope: 'position',// coach-controlled leaderboard scope: 'team' | 'position' | 'off'
@@ -139,6 +140,20 @@ function load() {
 }
 export const RT = load();
 function save() { localStorage.setItem(KEY, JSON.stringify(RT)); }
+
+/* ---------------- Theme (WS2b: light / dark / system) ---------------- */
+export function applyTheme() {
+  if (typeof document === 'undefined') return;
+  const mode = RT.theme || 'dark';
+  const sysDark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
+  const eff = mode === 'system' ? (sysDark ? 'dark' : 'light') : mode;
+  document.documentElement.setAttribute('data-theme', eff);
+}
+applyTheme(); // stamp before first paint — no flash of the wrong theme
+if (typeof matchMedia === 'function') {
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if ((RT.theme || 'dark') === 'system') applyTheme(); }); }
+  catch { /* older WebView — system mode simply resolves at boot */ }
+}
 
 /* ---------------- Auth helpers ---------------- */
 export function routeForRole(role) {
@@ -670,6 +685,10 @@ export const act = {
   markNudged(athleteId) {
     RT.coachNudged = { ...(RT.coachNudged || {}), [athleteId]: new Date().toISOString().slice(0, 10) };
     save();
+  },
+  setTheme(mode) {
+    RT.theme = ['dark', 'light', 'system'].includes(mode) ? mode : 'dark';
+    save(); applyTheme();
   },
   /** Coach edits their handle from the profile card. */
   async saveCoachHandle(name) {
