@@ -141,11 +141,19 @@ export function animateRing(root) {
 
 /* Brand mark: the "Performance Dial" (docs/brand/LOGO.md — the founder's hi-fi handoff,
    the same mark as the app icon and onstandard.app) — a score gauge reading at the very
-   top of its scale whose silhouette reads as the letter "O". On-dark variant colors. */
-export function logoMark(size = 96) {
+   top of its scale whose silhouette reads as the letter "O". The progress arc carries the
+   signature green→teal→blue sweep (founder-ratified 2026-07-14); on-dark track/marker. */
+export function logoMark(size = 96, uid = 'lm') {
   return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none">
+    <defs>
+      <linearGradient id="dial${uid}" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#34D399"/>
+        <stop offset="50%" stop-color="#22D3EE"/>
+        <stop offset="100%" stop-color="#60A5FA"/>
+      </linearGradient>
+    </defs>
     <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.16)" stroke-width="12" stroke-linecap="round"/>
-    <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#60A5FA" stroke-width="12" stroke-linecap="round"/>
+    <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#dial${uid})" stroke-width="12" stroke-linecap="round"/>
     <circle cx="50" cy="18" r="10.5" fill="#0F172A"/>
     <circle cx="50" cy="18" r="6" fill="#FFFFFF"/>
   </svg>`;

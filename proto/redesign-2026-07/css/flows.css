@@ -142,7 +142,8 @@
 .welcome { display: flex; flex-direction: column; min-height: 100%; text-align: center; padding-top: 54px; }
 .logo-wrap {
   width: 104px; height: 104px; margin: 0 auto 24px;
-  filter: drop-shadow(0 0 34px rgba(96,165,250,0.35)) drop-shadow(0 0 60px rgba(59,130,246,0.2));
+  /* dual glow matches the arc's green→teal→blue sweep (founder-ratified in the mark) */
+  filter: drop-shadow(0 0 34px rgba(52,211,153,0.28)) drop-shadow(0 0 60px rgba(59,130,246,0.24));
   animation: logoIn 800ms var(--ease-out) both;
 }
 @keyframes logoIn { from { transform: scale(0.7) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }

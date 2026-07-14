@@ -20,12 +20,17 @@ Dial center `(50,52)`, radius `34`, stroke width `12` (bump to 13–15 at favico
 
 | Variant | Track | Progress | Marker outer | Marker inner |
 |---|---|---|---|---|
-| Primary (on light) | `#DCE7FB` | blue gradient\* | `#FFFFFF` | blue gradient\* |
+| Primary (on light) | `#DCE7FB` | signature sweep\* | `#FFFFFF` | `#2563EB` |
 | App icon (white on gradient tile) | `rgba(255,255,255,0.34)` | `#FFFFFF` | `#2563EB` | `#FFFFFF` |
-| On dark | `rgba(255,255,255,0.16)` | `#60A5FA` | `#0F172A` | `#FFFFFF` |
+| On dark | `rgba(255,255,255,0.16)` | signature sweep\* | `#0F172A` | `#FFFFFF` |
 | Monochrome | `#E2E8F0` | `#0F172A` | `#FFFFFF` | `#0F172A` |
 
-\* Blue gradient `#3B82F6 → #2563EB`, directional `x1=26 y1=82 x2=58 y2=18` (userSpaceOnUse).
+\* **Signature sweep** (founder-ratified 2026-07-14): the progress arc carries the score-ring
+gradient `#34D399 → #22D3EE → #60A5FA` (green → teal → blue), directional
+`x1=26 y1=82 x2=58 y2=18` (userSpaceOnUse) — green at the arc's base, blue at the marker.
+On light surfaces end the sweep at `#3B82F6` instead of `#60A5FA` for contrast. The app-icon
+tile keeps its white arc on the blue gradient tile (legibility at small sizes); monochrome
+unchanged. This supersedes the earlier blue-only gradient `#3B82F6 → #2563EB`.
 
 ## Wordmark
 
