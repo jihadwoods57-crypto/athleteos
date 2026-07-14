@@ -22,17 +22,20 @@ css/ js/ fonts/ assets/
 
 ## Founder to-dos BEFORE flipping DNS (5 minutes)
 
-1. **Fill the legal blanks.** Open `privacy.html` and `terms.html`, search for `[`
-   and fill: `[LEGAL ENTITY NAME]`, `[ADDRESS]`, the publish date, and confirm the
-   defaults (30-day deletion window, governing state). Nothing else is required
-   pre-launch; a lawyer pass can come later. (Full blank-by-blank table:
-   `docs/legal/public/README.md`.)
-2. **Decide app.onstandard.app.** The homepage's primary CTA points there. Until
-   the app is publicly reachable, clicks land on Porkbun parking. Options:
-   - point `app` at a TestFlight invite redirect for now,
-   - or temporarily change the CTA in `index.html` to `mailto:support@onstandard.app`
-     / an intake form,
-   - or ship the web app to that subdomain when ready.
+1. ~~Fill the legal blanks~~ **DONE (2026-07-14).** Both pages are complete:
+   operator "Jihad Woods, doing business as OnStandard", Orlando FL address,
+   Florida governing law (Orange County venue), $50-or-12-months liability cap,
+   30-day deletion window, auto-renewal/cancellation billing terms. Have a
+   lawyer review before scaling; if you form an LLC later, the entity name is a
+   find-and-replace in `privacy.html` + `terms.html`.
+2. ~~Decide app.onstandard.app~~ **RESOLVED for launch.** Every CTA now goes to
+   `mailto:support@onstandard.app` as a "Get early access" / "Request your
+   trial" action, so nothing points at the parked `app` subdomain. When the app
+   goes public, restoring the app CTAs is a small one-commit change — ask.
+3. **REQUIRED — make the CTA mailbox real.** Every button on the site emails
+   `support@onstandard.app`. At **Porkbun → onstandard.app → Email Forwarding**,
+   add `support@onstandard.app` → your inbox (free, ~2 minutes). Until this
+   exists, CTA emails bounce and the launch is silently broken.
 
 ## Option A — Cloudflare Pages (recommended, ~10 min)
 
@@ -73,7 +76,8 @@ Without that allowlist entry, password-reset emails ignore the redirect.
 - [ ] Homepage loads over TLS, dial animates, console clean
 - [ ] `/privacy`, `/terms`, `/reset` answer (Apple submission needs the first two)
 - [ ] `assets/og.png` resolves; paste the URL into a Slack/iMessage to see the card
-- [ ] `app.onstandard.app` goes somewhere intentional (see founder to-do #2)
+- [ ] Send yourself a test email via the hero "Get early access" button and
+      confirm it arrives (proves Porkbun forwarding works)
 - [ ] Supabase redirect URL added
 
 ## Measured bars (Lighthouse 12, throttled mobile, final pass)
