@@ -400,6 +400,53 @@ h1 .dot { color: var(--blue); }
   max-width: 58ch;
 }
 
+/* ---------- the era (NIL) ---------- */
+.era { position: relative; padding: clamp(110px, 16vh, 190px) 0; overflow: hidden; }
+.era-media { position: absolute; inset: 0; z-index: -1; }
+.era-media img { width: 100%; height: 100%; object-fit: cover; opacity: 0.55; }
+.era-media::after {
+  content: ''; position: absolute; inset: 0;
+  background:
+    linear-gradient(90deg, rgba(7,11,20,0.86) 0%, rgba(7,11,20,0.55) 52%, rgba(7,11,20,0.30) 100%),
+    linear-gradient(180deg, var(--bg) 2%, transparent 30%, transparent 70%, var(--bg) 98%);
+}
+@media (max-width: 700px) {
+  .era-media img { opacity: 0.4; }
+  .era-media::after {
+    background:
+      rgba(7, 11, 20, 0.5),
+      linear-gradient(180deg, var(--bg) 2%, transparent 30%, transparent 70%, var(--bg) 98%);
+  }
+}
+.era-line {
+  margin: clamp(40px, 7vh, 64px) 0 0; padding: 0; list-style: none;
+  max-width: 700px; display: grid;
+}
+.era-line li {
+  display: flex; align-items: flex-start; gap: clamp(20px, 3vw, 40px);
+  padding: clamp(18px, 2.8vh, 26px) 0;
+  border-top: 1px solid rgba(148, 176, 224, 0.14);
+}
+.era-line li:last-child { border-bottom: 1px solid rgba(148, 176, 224, 0.14); }
+.ey {
+  font-size: clamp(28px, 3.4vw, 42px); font-weight: 800; letter-spacing: -0.03em;
+  line-height: 1.1; color: var(--blue-bright); font-variant-numeric: tabular-nums;
+  min-width: clamp(84px, 8vw, 108px);
+}
+.era-line b { display: block; font-size: clamp(16px, 1.7vw, 19px); font-weight: 800; letter-spacing: -0.01em; }
+.era-line span:not(.ey) { display: block; color: var(--text-2); font-size: 14px; margin-top: 4px; max-width: 48ch; }
+.era-turn {
+  margin-top: clamp(30px, 5vh, 46px);
+  color: var(--text-2); font-size: clamp(15px, 1.6vw, 17.5px); line-height: 1.65;
+  max-width: 58ch;
+}
+.era-close {
+  margin-top: clamp(40px, 7vh, 68px);
+  font-size: clamp(30px, 4.6vw, 54px); font-weight: 800;
+  letter-spacing: -0.03em; line-height: 1.08;
+}
+.era-close em { font-style: normal; color: var(--blue-bright); }
+
 /* ---------- manifesto ---------- */
 .manifesto { position: relative; padding: clamp(110px, 16vh, 190px) 0; overflow: hidden; }
 .man-media, .fin-media { position: absolute; inset: 0; z-index: -1; }
