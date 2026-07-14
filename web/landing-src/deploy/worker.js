@@ -8,8 +8,43 @@ const json = (o, status = 200) => new Response(JSON.stringify(o), {
   status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
 });
 
+// Best-effort signup alert via Cloudflare Email Routing's send_email binding.
+// Sends only to the verified NOTIFY_EMAIL. Any failure is swallowed by the caller
+// so a signup is never lost or blocked by a mail hiccup.
+async function notifySignup(env, rec) {
+  if (!env.NOTIFY || !env.NOTIFY_EMAIL || !env.NOTIFY_FROM) return;
+  const { EmailMessage } = await import('cloudflare:email');
+  const to = env.NOTIFY_EMAIL;
+  const from = env.NOTIFY_FROM;
+  const leads = env.ADMIN_KEY ? `https://onstandard.app/api/leads?key=${encodeURIComponent(env.ADMIN_KEY)}` : 'https://onstandard.app/';
+  const body = [
+    'New early-access signup on onstandard.app',
+    '',
+    `Email:   ${rec.email}`,
+    `Name:    ${rec.name || '(none)'}`,
+    `Role:    ${rec.role || '(none)'}`,
+    `Note:    ${rec.note || '(none)'}`,
+    `Country: ${rec.country || '(unknown)'}`,
+    `Time:    ${rec.ts}`,
+    '',
+    `All signups: ${leads}`,
+  ].join('\r\n');
+  const raw = [
+    `From: OnStandard <${from}>`,
+    `To: ${to}`,
+    `Reply-To: ${rec.email}`,
+    `Subject: New early-access signup: ${rec.email}`,
+    `Message-ID: <${rec.id}@onstandard.app>`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=utf-8',
+    '',
+    body,
+  ].join('\r\n');
+  await env.NOTIFY.send(new EmailMessage(from, to, raw));
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     // --- capture an early-access signup ---
@@ -39,9 +74,25 @@ export default {
         await env.WAITLIST.put(`signup:${ts}:${id}`, JSON.stringify(rec), {
           metadata: { email, role },
         });
+        // Fire the alert after responding; never let it block or fail the signup.
+        ctx.waitUntil(notifySignup(env, rec).catch(() => {}));
         return json({ ok: true });
       } catch (e) {
         return json({ ok: false, error: 'Something went wrong. Please try again.' }, 500);
+      }
+    }
+
+    // --- temporary: diagnose the email-send path (admin-gated) ---
+    if (url.pathname === '/api/testmail') {
+      if (!env.ADMIN_KEY || url.searchParams.get('key') !== env.ADMIN_KEY) return new Response('Not found', { status: 404 });
+      try {
+        await notifySignup(env, {
+          id: 'diag-' + Date.now(), email: 'diagnostic@onstandard.app', name: 'Diagnostic',
+          role: 'test', note: 'send path check', country: '', ts: new Date().toISOString(),
+        });
+        return json({ ok: true, sent: true });
+      } catch (e) {
+        return json({ ok: false, error: String(e && e.message || e), stack: String(e && e.stack || '').slice(0, 400) });
       }
     }
 

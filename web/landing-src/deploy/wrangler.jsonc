@@ -5,5 +5,12 @@
   "assets": { "directory": "../../landing", "binding": "ASSETS" },
   "kv_namespaces": [
     { "binding": "WAITLIST", "id": "1a6ae4b935524317ae4e8a7e576d92f2" }
-  ]
+  ],
+  "send_email": [
+    { "name": "NOTIFY", "destination_address": "jihadwoods57@gmail.com" }
+  ],
+  "vars": {
+    "NOTIFY_EMAIL": "jihadwoods57@gmail.com",
+    "NOTIFY_FROM": "notify@onstandard.app"
+  }
 }
