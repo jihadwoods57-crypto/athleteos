@@ -72,10 +72,10 @@ or shorten the cache.
 - Primary CTA points at `https://app.onstandard.app` — confirm that host serves the
   app (or temporarily redirect it to TestFlight/the waitlist until it does).
 
-## Performance / a11y bars (measured 2026-07-13, Lighthouse 12, throttled mobile)
+## Performance / a11y bars (measured 2026-07-13 after the v2 expansion, Lighthouse 12, throttled mobile)
 
-Performance 100 · Accessibility 100 · Best Practices 100 · SEO 100
-LCP 1.6 s · TBT 50 ms · CLS 0
+Performance 95 · Accessibility 100 · Best Practices 100 · SEO 100
+LCP 1.7 s · TBT 150 ms · CLS 0
 
 If you change hero content, re-run:
 
