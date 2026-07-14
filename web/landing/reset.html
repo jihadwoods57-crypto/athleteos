@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Reset your password · OnStandard</title>
+<style>
+  :root{
+    --bg:#080B0A; --panel:#0F1512; --panel2:#0C110E; --hair:#1E2A22;
+    --text:#F3F7F4; --text2:#9FB2A6; --text3:#6C8175;
+    --green:#37D586; --green-deep:#16A34A; --green-border:rgba(55,213,134,.35);
+    --red:#F87171;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(120% 80% at 50% -10%, #0d1a13 0%, var(--bg) 60%);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    display:flex;align-items:flex-start;justify-content:center;
+    padding:max(24px,env(safe-area-inset-top)) 20px 40px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .card{
+    width:100%;max-width:420px;margin-top:8vh;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--hair);border-radius:22px;
+    padding:30px 24px 26px;box-shadow:0 24px 60px rgba(0,0,0,.5);
+  }
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:26px}
+  .mark{
+    width:38px;height:38px;border-radius:12px;flex:none;
+    background:linear-gradient(155deg,var(--green),var(--green-deep));
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 18px rgba(55,213,134,.35);
+  }
+  .mark svg{width:20px;height:20px}
+  .word{font-size:19px;font-weight:800;letter-spacing:-.3px}
+  .word .on{color:var(--green)}
+  h1{font-size:23px;font-weight:800;letter-spacing:-.4px;margin:0 0 8px}
+  p.sub{font-size:14.5px;line-height:1.55;color:var(--text2);margin:0 0 22px}
+  label{display:block;font-size:12px;font-weight:700;letter-spacing:.02em;
+    text-transform:uppercase;color:var(--text3);margin:0 0 8px}
+  .field{position:relative;margin-bottom:16px}
+  input[type=password],input[type=text]{
+    width:100%;height:54px;border-radius:14px;border:1px solid var(--hair);
+    background:#0A0F0C;color:var(--text);font-size:16px;font-weight:600;
+    padding:0 52px 0 16px;outline:none;transition:border-color .15s;
+  }
+  input:focus{border-color:var(--green-border)}
+  .peek{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    width:40px;height:40px;border:0;background:transparent;color:var(--text3);
+    cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:10px}
+  .peek:hover{color:var(--text2)}
+  button.primary{
+    width:100%;height:56px;border:0;border-radius:16px;margin-top:6px;
+    background:linear-gradient(150deg,var(--green),var(--green-deep));
+    color:#05130B;font-size:16.5px;font-weight:800;letter-spacing:-.2px;cursor:pointer;
+    box-shadow:0 12px 30px rgba(55,213,134,.28);transition:opacity .15s,transform .06s;
+  }
+  button.primary:active{transform:scale(.99)}
+  button.primary:disabled{opacity:.5;cursor:default;box-shadow:none}
+  .msg{font-size:13.5px;font-weight:600;line-height:1.5;min-height:18px;margin:14px 2px 0;text-align:center}
+  .msg.err{color:var(--red)}
+  .msg.ok{color:var(--green)}
+  .hint{font-size:12.5px;color:var(--text3);margin-top:10px;text-align:center;line-height:1.5}
+  .center{text-align:center}
+  .bigcheck{width:76px;height:76px;border-radius:50%;margin:6px auto 18px;
+    background:rgba(55,213,134,.14);display:flex;align-items:center;justify-content:center}
+  .bigcheck .core{width:52px;height:52px;border-radius:50%;
+    background:linear-gradient(155deg,var(--green),var(--green-deep));
+    display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(55,213,134,.4)}
+  .hidden{display:none}
+  a.link{color:var(--green);font-weight:700;text-decoration:none}
+  a.link:hover{text-decoration:underline}
+  .strength{height:5px;border-radius:3px;background:#0A0F0C;margin:2px 2px 16px;overflow:hidden}
+  .strength > i{display:block;height:100%;width:0;border-radius:3px;transition:width .2s,background .2s}
+</style>
+</head>
+<body>
+  <main class="card" role="main">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#05130B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      </span>
+      <span class="word"><span class="on">On</span>Standard</span>
+    </div>
+
+    <!-- STATE: validating the link -->
+    <section id="s-loading">
+      <h1>Checking your link…</h1>
+      <p class="sub">One moment while we verify your reset link.</p>
+    </section>
+
+    <!-- STATE: set a new password -->
+    <section id="s-form" class="hidden">
+      <h1>Set a new password</h1>
+      <p class="sub">Choose a new password for your OnStandard account. You'll use it to sign in on your phone.</p>
+
+      <label for="pw">New password</label>
+      <div class="field">
+        <input id="pw" type="password" autocomplete="new-password" placeholder="At least 8 characters" />
+        <button class="peek" id="peek1" type="button" aria-label="Show password">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <div class="strength" aria-hidden="true"><i id="bar"></i></div>
+
+      <label for="pw2">Confirm password</label>
+      <div class="field">
+        <input id="pw2" type="password" autocomplete="new-password" placeholder="Re-enter your password" />
+      </div>
+
+      <button class="primary" id="go">Update password</button>
+      <div class="msg err" id="ferr"></div>
+    </section>
+
+    <!-- STATE: done -->
+    <section id="s-done" class="hidden center">
+      <div class="bigcheck"><div class="core">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#05130B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      </div></div>
+      <h1>Password updated</h1>
+      <p class="sub">You're all set. Open the OnStandard app and sign in with your new password.</p>
+      <div class="hint">You can close this page.</div>
+    </section>
+
+    <!-- STATE: bad / expired link -->
+    <section id="s-bad" class="hidden center">
+      <h1>This link didn't work</h1>
+      <p class="sub" id="badmsg">Your reset link is invalid or has expired. Reset links are single-use and time out after a while.</p>
+      <div class="hint">Open the OnStandard app, tap <strong>Forgot password?</strong> on the sign-in screen, and request a fresh link.</div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script>
+  (function () {
+    var SUPABASE_URL = 'https://ftwrvylzoyznhbzhgism.supabase.co';
+    var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0d3J2eWx6b3l6bmhiemhnaXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyODYyNDYsImV4cCI6MjA5Nzg2MjI0Nn0.mJBl-Esn2YRB_jaUv_SQXT8wGfbx06dx7Ss9xyGRoH0';
+
+    var $ = function (id) { return document.getElementById(id); };
+    function show(id) {
+      ['s-loading', 's-form', 's-done', 's-bad'].forEach(function (s) {
+        $(s).classList.toggle('hidden', s !== id);
+      });
+    }
+    function bad(reason) {
+      if (reason) $('badmsg').textContent = reason;
+      show('s-bad');
+    }
+
+    if (!window.supabase || !window.supabase.createClient) { bad('We couldn’t load the reset tool. Check your connection and reopen the link.'); return; }
+
+    // detectSessionInUrl parses the recovery token from the URL hash and establishes a
+    // short-lived recovery session; flowType 'implicit' matches how the app requests the reset.
+    var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: { detectSessionInUrl: true, flowType: 'implicit', persistSession: false, autoRefreshToken: false }
+    });
+
+    var ready = false;
+    function armForm() { if (ready) return; ready = true; show('s-form'); $('pw').focus(); }
+
+    // The recovery session can arrive via the auth event OR already be present on load.
+    sb.auth.onAuthStateChange(function (event, session) {
+      if (event === 'PASSWORD_RECOVERY' || (session && event === 'SIGNED_IN')) armForm();
+    });
+
+    (async function detect() {
+      // PKCE fallback: some links carry ?code=... instead of a hash token.
+      try {
+        var qs = new URLSearchParams(window.location.search);
+        if (qs.get('code') && sb.auth.exchangeCodeForSession) {
+          await sb.auth.exchangeCodeForSession(window.location.href);
+        }
+      } catch (e) { /* fall through to session check */ }
+
+      var hasRecoveryHash = /type=recovery/.test(window.location.hash || '');
+      // Give detectSessionInUrl a beat to process the hash, then confirm we have a session.
+      setTimeout(async function () {
+        try {
+          var res = await sb.auth.getSession();
+          if (res && res.data && res.data.session) { armForm(); return; }
+        } catch (e) { /* ignore */ }
+        if (!ready) {
+          bad(hasRecoveryHash
+            ? 'This reset link has expired or was already used. Request a fresh one from the app.'
+            : 'Open this page from the reset link in your email — it carries the secure token needed to set a new password.');
+        }
+      }, 600);
+    })();
+
+    // ---- password strength meter (guidance only; server enforces its own minimum) ----
+    function score(pw) {
+      var s = 0;
+      if (pw.length >= 8) s++;
+      if (pw.length >= 12) s++;
+      if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) s++;
+      if (/\d/.test(pw)) s++;
+      if (/[^A-Za-z0-9]/.test(pw)) s++;
+      return Math.min(4, s);
+    }
+    $('pw').addEventListener('input', function () {
+      var s = score($('pw').value);
+      var w = [0, 25, 50, 75, 100][s];
+      var col = ['#F87171', '#F87171', '#F5A524', '#37D586', '#37D586'][s];
+      var bar = $('bar');
+      bar.style.width = w + '%';
+      bar.style.background = col;
+    });
+
+    // ---- show/hide ----
+    $('peek1').addEventListener('click', function () {
+      var f = $('pw');
+      f.type = f.type === 'password' ? 'text' : 'password';
+    });
+
+    // ---- submit ----
+    async function submit() {
+      var pw = $('pw').value;
+      var pw2 = $('pw2').value;
+      var err = $('ferr');
+      err.textContent = '';
+      if (pw.length < 8) { err.textContent = 'Use at least 8 characters.'; return; }
+      if (pw !== pw2) { err.textContent = 'Those passwords don’t match.'; return; }
+      var btn = $('go');
+      btn.disabled = true; btn.textContent = 'Updating…';
+      try {
+        var out = await sb.auth.updateUser({ password: pw });
+        if (out && out.error) {
+          err.textContent = /same/i.test(out.error.message || '')
+            ? 'That’s already your password — choose a different one.'
+            : (out.error.message || 'Couldn’t update your password. Request a fresh link and try again.');
+          btn.disabled = false; btn.textContent = 'Update password';
+          return;
+        }
+        try { await sb.auth.signOut(); } catch (e) { /* recovery session is single-use anyway */ }
+        show('s-done');
+      } catch (e) {
+        err.textContent = 'Something went wrong. Request a fresh link and try again.';
+        btn.disabled = false; btn.textContent = 'Update password';
+      }
+    }
+    $('go').addEventListener('click', submit);
+    $('pw2').addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+  })();
+  </script>
+</body>
+</html>
