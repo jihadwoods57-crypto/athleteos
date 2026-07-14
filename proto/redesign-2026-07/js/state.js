@@ -7,7 +7,7 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow } from './requirements.js';
+import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet } from './requirements.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor,
@@ -15,6 +15,7 @@ import {
   setSyncBlocked, isSyncBlocked, SYNC,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
+  setDayStandard, slotDeadline,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { groundExtras } from './meal-intel.js';
@@ -95,6 +96,7 @@ const DEFAULT_RT = {
   lastMove: null,        // {from, to, gain, what} — powers confirmation screens
   assigned: [],          // coach-assigned requirements: {id,title,icon,note,from,dueLabel,done,seen,real?}
   reqSets: null,         // team's standing requirement_sets (0055) — cached for resolution surfaces
+  stdMeals: null,        // resolved governing standard {mealsRequired, slots, deadlines, titles} — drives the scored day
   coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots)
   coachNudged: {},       // coach device: athleteId -> ISO date of last nudge (one per athlete per day)
   theme: 'dark',         // 'dark' | 'light' | 'system' — dark is the shipped default (WS2b)
@@ -150,6 +152,9 @@ export function applyTheme() {
   document.documentElement.setAttribute('data-theme', eff);
 }
 applyTheme(); // stamp before first paint — no flash of the wrong theme
+// Re-arm the cached coach standard (WS3 slice 2) before the first score computes, so a
+// 6-meal room's day never flashes as a classic 3-meal day between boot and hydrate.
+if (RT.stdMeals) setDayStandard(RT.stdMeals);
 if (typeof matchMedia === 'function') {
   try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if ((RT.theme || 'dark') === 'system') applyTheme(); }); }
   catch { /* older WebView — system mode simply resolves at boot */ }
@@ -201,6 +206,22 @@ function loggingMacros() {
 
 /* Meal slots surfaced as required rows (snack is an optional bonus slot, still loggable). */
 const REQ_MEAL_SLOTS = ['breakfast', 'lunch', 'dinner'];
+/* The athlete's REQUIRED meal slots: the governing coach standard's slots (0055) when one
+   is active, else the classic three. Every "how many meals" surface reads this one place. */
+function reqMealSlots() {
+  return (RT.stdMeals && Array.isArray(RT.stdMeals.slots) && RT.stdMeals.slots.length)
+    ? RT.stdMeals.slots : REQ_MEAL_SLOTS;
+}
+/* Physical slot order for a standard of M meals — maps onto the classic keys first so the
+   camera, meal-detail, and server jsonb all keep working; 5th/6th are new slot keys. */
+const STD_SLOT_MAP = {
+  1: ['dinner'],
+  2: ['breakfast', 'dinner'],
+  3: ['breakfast', 'lunch', 'dinner'],
+  4: ['breakfast', 'lunch', 'snack', 'dinner'],
+  5: ['breakfast', 'lunch', 'snack', 'dinner', 'meal-5'],
+  6: ['breakfast', 'lunch', 'snack', 'dinner', 'meal-5', 'meal-6'],
+};
 const SLOT_DUE = { breakfast: 'Due by 10:00 AM', lunch: 'Due by 2:00 PM', snack: 'Optional', dinner: 'Due by 8:00 PM' };
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 /* The slot a new capture should fill: an explicit choice (from a requirement row), else the
@@ -710,9 +731,27 @@ export const act = {
     const real = rows.map(r => assignedFromRow(r, coachName)).filter(Boolean)
       .map(a => ({ ...a, seen: prevSeen.has(a.id) || a.done }));
     RT.assigned = [...RT.assigned.filter(a => !a.real), ...real];
-    // the team's standing requirement sets ride along (resolution surfaces land next slice)
+    // the team's standing requirement sets govern the athlete's scored day (WS3 slice 2)
     if (RT.myCoach && RT.myCoach.teamId) RT.reqSets = await fetchRequirementSets(RT.myCoach.teamId);
+    this._applyStandardFromSets();
     save();
+  },
+  /* Resolve the governing set (athlete > position room > team) into the DAY engine: slot
+     list, deadlines, titles, and the nutrition denominator. No set → the classic day. */
+  _applyStandardFromSets() {
+    const set = resolveRequirementSet(RT.reqSets || [], RT.userId, (RT.profile || {}).position);
+    const mealItems = set && Array.isArray(set.items) ? set.items.filter(i => i && i.kind === 'meal') : [];
+    if (!mealItems.length) { RT.stdMeals = null; setDayStandard(null); return; }
+    const m = Math.min(6, Math.max(1, mealItems.length));
+    const slots = STD_SLOT_MAP[m];
+    const deadlines = {}, titles = {};
+    slots.forEach((k, i) => {
+      const it = mealItems[i] || {};
+      if (it.window && it.window.due != null) deadlines[k] = it.window.due;
+      if (it.title) titles[k] = it.title;
+    });
+    RT.stdMeals = { mealsRequired: m, slots, deadlines, titles };
+    setDayStandard(RT.stdMeals);
   },
   /* Athlete: redeem a coach team code (or a trainer practice code) from the Connect screen.
      The server re-validates the code and creates the membership (SECURITY DEFINER RPCs from
@@ -1135,7 +1174,7 @@ export const S = {
 
   get remainingCount() {
     if (RT.day0) return RT.day0Breakfast ? 3 : 4;
-    const openMeals = REQ_MEAL_SLOTS.filter(k => !mealScored(DAY, k)).length;
+    const openMeals = reqMealSlots().filter(k => !mealScored(DAY, k)).length;
     return openMeals + (DAY.ciSubmitted ? 0 : 1);
   },
 
@@ -1173,7 +1212,7 @@ export const S = {
   },
   get reachPlan() {
     const plan = [];
-    REQ_MEAL_SLOTS.forEach(k => { if (!mealScored(DAY, k)) plan.push({ label: `Log ${cap(k)}`, gain: null, accent: 'g' }); });
+    reqMealSlots().forEach(k => { if (!mealScored(DAY, k)) plan.push({ label: `Log ${cap(k)}`, gain: null, accent: 'g' }); });
     if (!DAY.ciSubmitted) { const g = checkinProjection().gain; plan.push({ label: 'Submit recovery check-in', gain: g || null, accent: 'p' }); }
     return plan;
   },
@@ -1189,7 +1228,7 @@ export const S = {
       ];
     }
     /* ---- ENGINE-DERIVED: today's list from the catalog + REAL runtime (DAY) ---- */
-    const lateMeal = (k) => DAY.mealLoggedAt[k] != null && DAY.mealLoggedAt[k] > DEADLINE[k];
+    const lateMeal = (k) => DAY.mealLoggedAt[k] != null && DAY.mealLoggedAt[k] > slotDeadline(k);
     const resolve = (id) => {
       switch (id) {
         case 'breakfast': return { done: mealScored(DAY, 'breakfast'), late: lateMeal('breakfast') };
@@ -1198,11 +1237,14 @@ export const S = {
         case 'weight':    return { done: RT.weightLogged, late: RT.weightLogged };
         case 'hydration': return { done: RT.hydrationOz >= 120, progress: `${RT.hydrationOz} of 120 oz` };
         case 'recovery':  return { done: DAY.ciSubmitted };
-        default: return {};
+        default:
+          // standard-driven meal slots (snack promoted to required, meal-5/meal-6)
+          if (Object.prototype.hasOwnProperty.call(DAY.meals, id)) return { done: mealScored(DAY, id), late: lateMeal(id) };
+          return {};
       }
     };
     const decorate = (d) => {
-      const isMeal = REQ_MEAL_SLOTS.includes(d.id);
+      const isMeal = Object.prototype.hasOwnProperty.call(DAY.meals, d.id);
       let meta, route, sub = d.sub, subColor = d.subColor;
       if (isMeal) {
         const slotMeta = DAY.slotMacros[d.id];
@@ -1231,9 +1273,25 @@ export const S = {
       return { ...d, meta, route, sub, subColor };
     };
     const now = minutesNow();
-    const rows = CATALOG
-      .filter(r => runsToday(r) && r.id !== 'weekly' && r.id !== 'hydration')
-      .map(r => decorate(derive(r, resolve(r.id), now)));
+    // With no governing standard the classic catalog renders byte-identically. A coach
+    // standard (0055) swaps the meal rows for ITS slots — count, titles, and windows —
+    // while weight/recovery keep their catalog behavior.
+    const effCatalog = !RT.stdMeals
+      ? CATALOG.filter(r => runsToday(r) && r.id !== 'weekly' && r.id !== 'hydration')
+      : [
+        ...reqMealSlots().map((k) => {
+          const base = CATALOG.find(c => c.id === k);
+          const title = (RT.stdMeals.titles && RT.stdMeals.titles[k]) || (base ? base.title : cap(k.replace('-', ' ')));
+          return {
+            id: k, title, icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
+            freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) }, required: true,
+            impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
+            note: base ? base.note : 'Photo proof — part of your room standard.',
+          };
+        }),
+        ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id) && r.id !== 'weekly' && r.id !== 'hydration' && runsToday(r)),
+      ];
+    const rows = effCatalog.map(r => decorate(derive(r, resolve(r.id), now)));
     // hydration rides as the optional row after the required set
     const hydro = decorate(derive(CATALOG.find(r => r.id === 'hydration'), resolve('hydration'), now));
     const assigned = RT.assigned.map(a => ({ ...deriveAssigned(a), meta: a.done ? 'Coach sees it' : 'From coach', route: `requirement/${a.id}` }));
@@ -1243,10 +1301,10 @@ export const S = {
   },
   get metCount() {
     if (RT.day0) return RT.day0Breakfast ? 1 : 0;
-    const meals = REQ_MEAL_SLOTS.filter(k => mealScored(DAY, k)).length;
+    const meals = reqMealSlots().filter(k => mealScored(DAY, k)).length;
     return meals + (DAY.ciSubmitted ? 1 : 0) + RT.assigned.filter(a => a.done).length;
   },
-  get reqTotal() { return 4 + RT.assigned.length; }, // 3 meals + recovery + coach-assigned
+  get reqTotal() { return reqMealSlots().length + 1 + RT.assigned.length; }, // required meals + recovery + coach-assigned
 
   // Real proof trail: one card per actually-logged meal (real time + real meal score if the AI
   // saved one), plus hydration/weight/recovery from real state. No canned 8:14 AM / 95 / 183.8 lb.
@@ -1279,7 +1337,7 @@ export const S = {
     if (RT.day0) return RT.day0Breakfast
       ? { label: 'Log Lunch', gain: null, route: 'camera/lunch', accent: 'g' }
       : { label: 'Log First Meal', gain: null, route: 'camera', accent: 'g' };
-    const openReq = REQ_MEAL_SLOTS.filter(k => !mealScored(DAY, k));
+    const openReq = reqMealSlots().filter(k => !mealScored(DAY, k));
     const openSlot = openReq.find(k => minutesNow() <= DEADLINE[k]) || openReq[0];
     // Meal gain depends on the plate, unknown until analyzed → no fabricated "+6".
     if (openSlot) return { label: `Log ${cap(openSlot)}`, gain: null, route: `camera/${openSlot}`, accent: 'g' };
@@ -1315,21 +1373,39 @@ export const S = {
   get exec() {
     const mstat = (k) => {
       const at = DAY.mealLoggedAt[k];
-      return { done: mealScored(DAY, k), late: at != null && at > DEADLINE[k], at: at != null ? fmtClock(at) : null };
+      return { done: mealScored(DAY, k), late: at != null && at > slotDeadline(k), at: at != null ? fmtClock(at) : null };
     };
+    // A governing standard swaps the engine's meal items for ITS slots (count/titles/windows);
+    // no standard → the classic catalog, byte-identical.
+    const std = RT.stdMeals;
+    const mealItems = std ? reqMealSlots().map((k) => {
+      const base = CATALOG.find(c => c.id === k);
+      return {
+        id: k, title: (std.titles && std.titles[k]) || (base ? base.title : cap(k.replace('-', ' '))),
+        icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
+        freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) }, required: true,
+        impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: base ? base.note : '',
+      };
+    }) : null;
+    const catalog = std
+      ? [...mealItems, ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id))]
+      : CATALOG;
+    const status = {
+      breakfast: mstat('breakfast'), lunch: mstat('lunch'), dinner: mstat('dinner'),
+      // weight due comes from the catalog; late only when we actually know the log time
+      weight: { done: RT.weightLogged, late: RT.weightLogged && RT.weightLoggedAt != null && RT.weightLoggedAt > WEIGHT_DUE },
+      hydration: { oz: RT.hydrationOz },
+      recovery: { done: DAY.ciSubmitted },
+    };
+    if (std) for (const k of reqMealSlots()) status[k] = mstat(k);
     return deriveExec({
       nowMin: minutesNow(),
       dow: new Date().getDay(),
-      status: {
-        breakfast: mstat('breakfast'), lunch: mstat('lunch'), dinner: mstat('dinner'),
-        // weight due comes from the catalog; late only when we actually know the log time
-        weight: { done: RT.weightLogged, late: RT.weightLogged && RT.weightLoggedAt != null && RT.weightLoggedAt > WEIGHT_DUE },
-        hydration: { oz: RT.hydrationOz },
-        recovery: { done: DAY.ciSubmitted },
-      },
+      status,
       assigned: RT.assigned,
       pressure: mapPressure(RT.ob && RT.ob.standard && RT.ob.standard.pressure),
       score: this.score, possible: this.possible, streak: this.streakDays,
+      catalog,
     });
   },
 

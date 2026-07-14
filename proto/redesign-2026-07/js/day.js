@@ -37,19 +37,42 @@ export function mealScored(day, k) {
   return !!(day.meals && day.meals[k]) && !(day.slotMacros && day.slotMacros[k] && day.slotMacros[k].live === false);
 }
 
+/* ---- Coach standard (0055 requirement_sets → the SCORED day; WS3 slice 2) ----
+   A room standard reshapes the day: which meal slots exist, their deadlines, and the
+   nutrition denominator (meals 1–6). Null = the shipped classic day (byte-identical:
+   MEAL_KEYS slots, DEADLINE windows, denominator 4) — every existing test stays locked. */
+let STD = null; // { mealsRequired, slots: [key...], deadlines: {key: minutes}, titles: {key: label} }
+function seedStandardSlots() {
+  if (!STD || !Array.isArray(STD.slots)) return;
+  for (const k of STD.slots) {
+    if (!Object.prototype.hasOwnProperty.call(DAY.meals, k)) DAY.meals[k] = false;
+  }
+}
+export function setDayStandard(std) {
+  STD = std && std.mealsRequired > 0 && Array.isArray(std.slots) && std.slots.length ? std : null;
+  seedStandardSlots();
+}
+export function dayStandard() { return STD; }
+/** A slot's deadline: the standard's window when set, else the classic map, else end of day. */
+export function slotDeadline(k) {
+  if (STD && STD.deadlines && STD.deadlines[k] != null) return STD.deadlines[k];
+  return DEADLINE[k] != null ? DEADLINE[k] : 1440;
+}
+const scoredSlotKeys = () => (STD && STD.slots ? STD.slots : MEAL_KEYS);
+
 function effectiveMeals(day) {
   let n = 0;
-  for (const k of MEAL_KEYS) {
+  for (const k of scoredSlotKeys()) {
     if (!mealScored(day, k)) continue;
     const at = day.mealLoggedAt && day.mealLoggedAt[k];
-    n += (at == null || at <= DEADLINE[k]) ? 1 : 0.5; // late meal earns half (matches effectiveMealsLogged)
+    n += (at == null || at <= slotDeadline(k)) ? 1 : 0.5; // late meal earns half (matches effectiveMealsLogged)
   }
   return n;
 }
 
 function proteinToday(day) {
   let p = 0;
-  for (const k of MEAL_KEYS) {
+  for (const k of scoredSlotKeys()) {
     // Evidence rule: a logged slot with no saved plate earns 0 protein (matches mealSlotMacros).
     // Rule A: a non-live (gallery) slot earns 0 protein too, whether or not it has a plate.
     if (mealScored(day, k) && day.slotMacros && day.slotMacros[k]) p += day.slotMacros[k].protein || 0;
@@ -63,7 +86,8 @@ function nutritionScore(day) {
   // athlete profile branch of profileNutritionScore (general/gain add calorie adherence later).
   const pt = day.proteinTarget > 0 ? day.proteinTarget : PROTEIN_TARGET;
   const proteinFrac = pt > 0 ? Math.min(proteinToday(day), pt) / pt : 0;
-  const mealsFrac = clamp(effectiveMeals(day) / 4, 0, 1);
+  // Denominator = the coach standard's meal count (1–6) when one governs; classic 4 otherwise.
+  const mealsFrac = clamp(effectiveMeals(day) / ((STD && STD.mealsRequired) || 4), 0, 1);
   return Math.min(100, Math.round(proteinFrac * 65 + mealsFrac * 35));
 }
 
@@ -154,11 +178,14 @@ export function dayScore() { return scoreFor(DAY); }
 export function projectedDay() {
   const p = JSON.parse(JSON.stringify(DAY));
   p.meals = { breakfast: true, lunch: true, snack: true, dinner: true };
+  // A governing standard projects ITS slots complete (a 6-meal room's "possible" includes
+  // meal-5/meal-6; a 2-meal room's projection is just its two).
+  for (const k of scoredSlotKeys()) p.meals[k] = true;
   // Rule A: the reach/possible projection assumes every slot gets a LIVE capture — clear any
   // non-live flag so a gallery-picked plate counts toward the "if you finish today" number.
   // No-op for all-live days (live is only ever stored as false), so `possible` stays
   // byte-identical for the common case.
-  for (const k of MEAL_KEYS) { if (p.slotMacros && p.slotMacros[k]) delete p.slotMacros[k].live; }
+  for (const k of scoredSlotKeys()) { if (p.slotMacros && p.slotMacros[k]) delete p.slotMacros[k].live; }
   p.ciSubmitted = true;
   p.dailyCommitment = 'yes';
   return p;
@@ -234,7 +261,10 @@ function projectRowToDay(row) {
   if (!row) return false;
   let localAhead = false;
   const rowMeals = row.meals || {};
-  for (const k of MEAL_KEYS) {
+  // Reconcile the classic slots PLUS any standard slots and any extra keys the server row
+  // carries (a 6-meal room's meal-5/meal-6 ride the same jsonb).
+  const slotSet = new Set([...MEAL_KEYS, ...(STD && STD.slots ? STD.slots : []), ...Object.keys(rowMeals)]);
+  for (const k of slotSet) {
     if (DAY.meals[k] && !rowMeals[k]) localAhead = true;
     DAY.meals[k] = !!(DAY.meals[k] || rowMeals[k]);
   }
@@ -353,6 +383,7 @@ export function pushDay(userId, immediate) {
 
 export function dayResetLocal() {
   DAY.meals = { breakfast: false, lunch: false, snack: false, dinner: false };
+  seedStandardSlots(); // a governing standard's extra slots (meal-5/meal-6) survive the reset
   DAY.mealLoggedAt = {}; DAY.slotMacros = {}; DAY.quickAdded = [false, false, false];
   DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
   DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.trustPass = null;

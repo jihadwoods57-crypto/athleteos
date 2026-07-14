@@ -714,7 +714,7 @@ export const coachPlanSet = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
       <div><div class="tt">Stored live, rails enforced server-side</div>
-      <div class="ts">Meals 1–6, lifts 0–7 — the database rejects anything outside the rails. Athlete day lists switch onto room standards with the dynamic-day update; assignments and this standard are live now.</div></div>
+      <div class="ts">Meals 1–6, lifts 0–7 — the database rejects anything outside the rails. Athlete day lists AND scoring follow this standard on their next sync: the meal count is the denominator.</div></div>
     </div>
 
     <div style="height:16px"></div>

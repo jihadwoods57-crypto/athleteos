@@ -66,8 +66,8 @@ const ROUTE = {
  * Weekly Check-In is deliberately excluded (untracked in v1 — its completion isn't wired;
  * the Action Hub shows it as a navigational row on Sundays only, outside this engine).
  */
-export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'accountable', score = 0, possible = 0, streak = 0 }) {
-  const rows = CATALOG.filter((r) => r.id !== 'weekly' && runsToday(r, dow));
+export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'accountable', score = 0, possible = 0, streak = 0, catalog = CATALOG }) {
+  const rows = catalog.filter((r) => r.id !== 'weekly' && runsToday(r, dow));
   const items = rows.map((req) => {
     const st = status[req.id] || {};
     const isHydro = req.id === 'hydration';
@@ -89,7 +89,12 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     return {
       id: req.id, title: req.title, icon: req.icon, state, color: COLOR[state], pill: PILL[state],
       minsLeft, countdown: fmtCountdown(minsLeft), dueLabel, why: `${req.note} ${impact ? `**${impact}**` : ''}`.trim(),
-      sub, route: ROUTE[req.id] ? ROUTE[req.id](done) : 'home', required: !!req.required, tracked: true,
+      sub,
+      // Dynamic standard slots (snack-as-required, meal-5/meal-6) follow the photo-proof
+      // route convention even without a ROUTE entry.
+      route: ROUTE[req.id] ? ROUTE[req.id](done)
+        : req.proof === 'photo' ? (done ? `meal-detail/${req.id}` : `camera/${req.id}`) : 'home',
+      required: !!req.required, tracked: true,
       window: req.window, proof: req.proof, oz: isHydro ? (st.oz || 0) : undefined,
     };
   });

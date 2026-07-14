@@ -54,8 +54,11 @@ export interface NutritionInputs {
   proteinTarget: number;
   kcalToday: number;
   calTarget: number;
-  /** On-time-weighted meals logged today, 0..4 (from effectiveMealsLogged). */
+  /** On-time-weighted meals logged today, 0..N (from effectiveMealsLogged). */
   effectiveMeals: number;
+  /** The governing standard's meal count (0055 requirement_sets, rails 1–6).
+      Absent = the shipped classic denominator of 4 — every existing caller unchanged. */
+  mealsRequired?: number;
 }
 
 /**
@@ -93,7 +96,8 @@ export function calorieFloorAdherence(kcal: number, target: number): number {
  */
 export function profileNutritionScore(profile: ScoringProfile, n: NutritionInputs): number {
   const proteinFrac = n.proteinTarget > 0 ? Math.min(n.proteinToday, n.proteinTarget) / n.proteinTarget : 0;
-  const mealsFrac = Math.min(1, Math.max(0, n.effectiveMeals) / 4);
+  const denom = n.mealsRequired && n.mealsRequired > 0 ? Math.min(6, n.mealsRequired) : 4;
+  const mealsFrac = Math.min(1, Math.max(0, n.effectiveMeals) / denom);
   if (profile === 'general') {
     return Math.min(
       100,
