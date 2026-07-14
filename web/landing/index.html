@@ -4,23 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OnStandard — Prove the work.</title>
-<meta name="description" content="OnStandard is the accountability platform for serious athletes and coached clients. A coach or trainer sets the standard, you prove it daily with photo-proof meals and check-ins, and one honest score shows everyone invested whether it got done.">
+<meta name="description" content="OnStandard turns daily execution into credible proof. A coach, trainer, or dietitian sets the standard; the athlete proves it with photo-verified meals and check-ins; everyone invested sees the result, live.">
 <link rel="canonical" href="https://onstandard.app/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="OnStandard">
 <meta property="og:title" content="OnStandard — Prove the work.">
-<meta property="og:description" content="The accountability platform for serious athletes and coached clients. The standard gets set. The work gets proven. One honest score.">
+<meta property="og:description" content="The proof-of-work platform for serious athletes and coached clients. The standard gets set. The work gets proven. Everyone invested sees it.">
 <meta property="og:url" content="https://onstandard.app/">
 <meta property="og:image" content="https://onstandard.app/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#070B14">
+<meta name="theme-color" content="#0B0A08">
 <link rel="icon" href="assets/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preload" href="fonts/archivo-exp900.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/pjs.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/img/g-hero-athlete.webp" as="image" fetchpriority="high">
 <link rel="stylesheet" href="css/site.css">
-<noscript><style>.reveal, .an-row { opacity: 1 !important; transform: none !important; } .an-fill { transform: scaleX(1) !important; } .ticker-track { animation: none; flex-wrap: wrap; width: auto; row-gap: 12px; } .ticker-track span[aria-hidden="true"] { display: none; }</style></noscript>
+<noscript><style>.reveal, .an-row { opacity: 1 !important; transform: none !important; } .an-fill { transform: scaleX(1) !important; } .ticker-track { animation: none; flex-wrap: wrap; width: auto; row-gap: 12px; } .ticker-track span[aria-hidden="true"] { display: none; } .sys-stage { display: none !important; } .sys-static { display: grid !important; }</style></noscript>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -29,7 +31,7 @@
   "url": "https://onstandard.app/",
   "applicationCategory": "HealthApplication",
   "operatingSystem": "iOS, Android, Web",
-  "description": "The accountability platform for serious athletes and coached clients. A coach or trainer sets the standard, the athlete proves the work daily, and one honest score shows everyone invested whether it got done."
+  "description": "OnStandard turns daily execution into credible proof. A coach, trainer, or dietitian sets the standard; the athlete proves it daily; everyone invested sees the result."
 }
 </script>
 </head>
@@ -39,30 +41,27 @@
 <header class="nav" id="nav">
   <div class="nav-in">
     <a class="brand" href="#" aria-label="OnStandard home">
-      <svg class="brand-mark" viewBox="0 0 100 100" width="30" height="30" aria-hidden="true" fill="none">
+      <svg class="brand-mark" viewBox="0 0 100 100" width="28" height="28" aria-hidden="true" fill="none">
         <defs>
           <linearGradient id="brandDial" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#34D399"/>
-            <stop offset="50%" stop-color="#22D3EE"/>
-            <stop offset="100%" stop-color="#60A5FA"/>
+            <stop offset="0%" stop-color="#34D399"/><stop offset="50%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#60A5FA"/>
           </linearGradient>
         </defs>
-        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(216,190,140,.22)" stroke-width="12" stroke-linecap="round"/>
         <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#brandDial)" stroke-width="12" stroke-linecap="round"/>
-        <circle cx="50" cy="18" r="10.5" fill="#070B14"/>
-        <circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+        <circle cx="50" cy="18" r="10.5" fill="#0B0A08"/>
+        <circle cx="50" cy="18" r="6" fill="#F5F1E8"/>
       </svg>
-      <span class="brand-name">OnStandard</span>
+      <span class="brand-name">ONSTANDARD</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
-      <a href="#loop">How it works</a>
-      <a href="#logging">Logging</a>
-      <a href="#ai">The AI</a>
+      <a href="#system">How it works</a>
+      <a href="#roles">Who it's for</a>
       <a href="#score">The score</a>
-      <a href="#era">Why now</a>
+      <a href="#why">Why now</a>
       <a href="#pricing">Pricing</a>
     </nav>
-    <a class="btn btn-nav js-wl" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access&body=%0A%0AWho%20I%20am%20(athlete%2C%20parent%2C%20coach%2C%20trainer%2C%20facility)%3A%0ASport%20or%20goal%3A%0A">Get early access</a>
+    <a class="btn btn-nav js-wl" data-intent="trial" href="mailto:support@onstandard.app?subject=OnStandard%2014-day%20trial"><span class="cta-full">Start your 14&#8209;day trial</span><span class="cta-short">Start free trial</span></a>
   </div>
 </header>
 
@@ -70,43 +69,36 @@
 
   <!-- ============ HERO ============ -->
   <section class="hero" aria-labelledby="hero-h">
+    <canvas class="hero-dust" id="dust" aria-hidden="true"></canvas>
     <div class="hero-field" aria-hidden="true"></div>
     <div class="hero-in">
       <div class="hero-copy">
-        <p class="kicker reveal">For athletes, clients, and the people who hold them to it</p>
-        <h1 id="hero-h" class="reveal d1">Prove<br>the work<span class="dot">.</span></h1>
-        <p class="hero-sub reveal d2">A coach, trainer, or dietitian sets your standard. You prove it every day: meals, recovery, check&#8209;ins. One honest score, live to the people invested in you.</p>
-        <div class="hero-cta reveal d3">
-          <a class="btn btn-primary js-wl" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access&body=%0A%0AWho%20I%20am%20(athlete%2C%20parent%2C%20coach%2C%20trainer%2C%20facility)%3A%0ASport%20or%20goal%3A%0A">Get early access</a>
-          <a class="btn btn-ghost" href="#loop">See how it works</a>
+        <p class="kicker reveal">The standard has changed.</p>
+        <h1 id="hero-h" class="reveal d1">Prove<br>the&nbsp;work<span class="dot">.</span></h1>
+        <p class="hero-sub reveal d2">OnStandard turns daily execution into credible proof, visible to the people counting on you. A professional sets the standard. You prove it every day. Everyone invested sees the result.</p>
+        <div class="hero-props reveal d3" role="list">
+          <div class="hp" role="listitem"><b>The standard is set</b><span>by your coach, trainer, or dietitian</span></div>
+          <div class="hp" role="listitem"><b>The work is proven</b><span>photo&#8209;verified meals &amp; check&#8209;ins</span></div>
+          <div class="hp" role="listitem"><b>The right people see it</b><span>live, without chasing anyone</span></div>
         </div>
-        <p class="hero-fine reveal d4">Free for athletes and clients. A coach, trainer, or program brings you on.</p>
+        <div class="hero-cta reveal d4">
+          <a class="btn btn-primary js-wl" data-intent="trial" href="mailto:support@onstandard.app?subject=OnStandard%2014-day%20trial">Start your 14&#8209;day trial</a>
+          <a class="btn btn-ghost js-wl" data-intent="join" href="mailto:support@onstandard.app?subject=Join%20OnStandard%20through%20my%20coach">Join through my coach or trainer</a>
+        </div>
+        <p class="hero-fine reveal d5">Athletes &amp; clients are free with a paying professional.</p>
       </div>
-      <div class="hero-dial reveal d2" id="dial-stage" role="img" aria-label="Example OnStandard Score dial reading 94 out of 100, in the OnStandard tier.">
-        <canvas id="dial-gl" aria-hidden="true"></canvas>
-        <svg id="dial-svg" viewBox="0 0 360 360" aria-hidden="true">
-          <defs>
-            <linearGradient id="ringGrad" x1="40" y1="330" x2="270" y2="20" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stop-color="#34D399"/>
-              <stop offset=".55" stop-color="#22D3EE"/>
-              <stop offset="1" stop-color="#3B82F6"/>
-            </linearGradient>
-            <filter id="ringBlur" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur stdDeviation="14"/>
-            </filter>
-          </defs>
-          <g transform="rotate(117 180 180)">
-            <circle class="dial-track" cx="180" cy="180" r="132" fill="none" stroke="rgba(148,176,224,.13)" stroke-width="17" stroke-linecap="round" stroke-dasharray="705.6 829" />
-            <circle class="dial-glow" cx="180" cy="180" r="132" fill="none" stroke="url(#ringGrad)" stroke-width="26" stroke-linecap="round" filter="url(#ringBlur)" opacity=".55" stroke-dasharray="663 829"/>
-            <circle class="dial-arc" cx="180" cy="180" r="132" fill="none" stroke="url(#ringGrad)" stroke-width="17" stroke-linecap="round" stroke-dasharray="663 829"/>
-            <circle class="dial-head" cx="220" cy="54.2" r="13" fill="#EEF3FB"/>
-          </g>
-        </svg>
-        <div class="dial-center" aria-live="off">
-          <span class="dial-label">OnStandard Score</span>
-          <span class="dial-num"><span id="dial-count">94</span></span>
-          <span class="dial-of">/100</span>
-          <span class="dial-tier" id="dial-tier" data-tier="on">OnStandard</span>
+
+      <div class="hero-visual reveal d2" id="hero-visual" aria-hidden="true">
+        <div class="hv-photo">
+          <img src="assets/img/g-hero-athlete.webp" width="1024" height="1536" alt="" fetchpriority="high" decoding="async">
+        </div>
+        <div class="hv-phones" id="hv-phones">
+          <div class="p3d p3d-back">
+            <div class="p3d-screen"><img src="assets/product/v3-team.webp" width="390" height="700" loading="lazy" decoding="async" alt=""></div>
+          </div>
+          <div class="p3d p3d-front">
+            <div class="p3d-screen"><img src="assets/product/v3-home.webp" width="390" height="700" alt="" decoding="async"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -118,337 +110,220 @@
     </div>
   </section>
 
-  <!-- ============ THE LOOP ============ -->
-  <section class="loop" id="loop" aria-labelledby="loop-h">
+  <!-- ============ WHY NOW ============ -->
+  <section class="why" id="why" aria-labelledby="why-h">
     <div class="wrap">
-      <p class="kicker reveal">How it works</p>
-      <h2 id="loop-h" class="h2 reveal d1">The standard gets set.<br>The work gets proven.</h2>
-
-      <div class="beat" id="beat-1">
-        <div class="beat-copy reveal">
-          <span class="beat-n" aria-hidden="true">01</span>
-          <h3 class="h3">One person you trust sets the bar</h3>
-          <p>A coach, trainer, or dietitian sets the plan: protein target, meal windows, recovery check&#8209;ins, weigh&#8209;in days. The platform owns the scoring math, so a standard means the same thing on every roster. No coach can inflate it. No athlete can lobby it.</p>
-          <ul class="ticks">
-            <li>Coach owns the plan, platform owns the formula</li>
-            <li>Targets stay within evidence&#8209;based rails</li>
-            <li>Same 0&#8211;100 scale for everyone, everywhere</li>
-          </ul>
+      <div class="why-head">
+        <div>
+          <p class="kicker reveal">Why the standard has changed</p>
+          <h2 id="why-h" class="h2 reveal d1">The money changed.<br>The standard changed with&nbsp;it.</h2>
         </div>
-        <figure class="beat-shot reveal d2">
-          <div class="phone">
-            <img src="assets/product/shot-breakdown.webp" width="390" height="844" loading="lazy" decoding="async"
-                 alt="OnStandard Score Breakdown screen: 94 out of 100, with Nutrition 48 of 50, Recovery 21 of 25, Daily commitment 15 of 15 and Weekly check-in 10 of 10, each with its share of the score.">
-          </div>
-          <figcaption>The breakdown, exactly as the athlete sees it.</figcaption>
-        </figure>
+        <p class="why-lede reveal d2">NIL, revenue sharing, and the portal raised the financial stakes of athlete development at every level. The expectations are higher. The margin for error is smaller. The need for proof has never been greater.</p>
       </div>
-
-      <div class="beat flip" id="beat-2">
-        <div class="beat-copy reveal">
-          <span class="beat-n" aria-hidden="true">02</span>
-          <h3 class="h3">You prove it, not promise it</h3>
-          <p>Point the camera at the plate. The meal is read, matched against the plan, and counted while it's still warm. Recovery and commitment take one honest minute. Late still counts, for half. Skipped reads as skipped.</p>
-          <ul class="ticks">
-            <li>Photo&#8209;proof meal logging with instant analysis</li>
-            <li>Deadlines that match training life, not office life</li>
-            <li>No credit for opening the app. Ever.</li>
-          </ul>
+      <div class="why-grid">
+        <div class="wg reveal">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M6 21V10m6 11V4m6 17v-8"/></svg>
+          <h3>Athletes are investments.</h3>
+          <p>Schools, programs, and families now commit serious money, time, and resources. Execution determines who gets trusted with the opportunity.</p>
         </div>
-        <figure class="beat-shot reveal d2">
-          <img class="shot-photo" src="assets/img/fuel.webp" width="1536" height="1024" loading="lazy" decoding="async"
-               alt="An athlete's dinner on a dark table: grilled chicken, rice and broccoli beside a glass of water, phone face-down.">
-          <div class="phone">
-            <img src="assets/product/shot-meal.webp" width="390" height="844" loading="lazy" decoding="async"
-                 alt="OnStandard meal screen: dinner photo of steak and fries logged on time at 6:32 PM, meal quality 84, detected foods listed, and macros of 48 grams protein, 58 carbs, 32 fat.">
-          </div>
-          <figcaption>A real log: captured on time, counted, visible to coach.</figcaption>
-        </figure>
-      </div>
-
-      <div class="beat" id="beat-3">
-        <div class="beat-copy reveal">
-          <span class="beat-n" aria-hidden="true">03</span>
-          <h3 class="h3">The people invested in you see it live</h3>
-          <p>The coach scans the whole roster in three seconds: who's on standard, who's slipping, who needs a hand today. Trainers see their whole client book the same way, so the one going quiet gets a call before a cancellation. Parents see their kid's day without seeing their DMs.</p>
-          <ul class="ticks">
-            <li>Live roster with red, yellow, green truth</li>
-            <li>"Needs attention" surfaces before the slide does</li>
-            <li>Privacy&#8209;scoped views for parents</li>
-          </ul>
+        <div class="wg reveal d1">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="9.5"/></svg>
+          <h3>The margin keeps shrinking.</h3>
+          <p>At every level, talent is common. Consistency, discipline, and availability separate good players from the ones who get paid.</p>
         </div>
-        <figure class="beat-shot reveal d2">
-          <div class="phone">
-            <img src="assets/product/shot-coach.webp" width="390" height="844" loading="lazy" decoding="async"
-                 alt="OnStandard coach view: team average 75, three athletes on standard, one needing attention, and a live roster where each athlete shows logs completed today and their current score.">
-          </div>
-          <figcaption>The coach view. Nothing invented until athletes log.</figcaption>
-        </figure>
+        <div class="wg reveal d2">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 7v5l3.5 2"/></svg>
+          <h3>Coaches can't track it all.</h3>
+          <p>Large rosters. Multiple staff. Dozens of daily habits per athlete. Critical information gets missed without a better system.</p>
+        </div>
+        <div class="wg reveal d3">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4.5"/></svg>
+          <h3>Accountability is infrastructure.</h3>
+          <p>Championships are built on daily standards. OnStandard makes execution visible so everyone can act faster.</p>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ MEAL LOGGING, STEP BY STEP ============ -->
-  <section class="logging" id="logging" aria-labelledby="log-h">
-    <div class="wrap">
-      <p class="kicker reveal">Meal logging, step by step</p>
-      <h2 id="log-h" class="h2 reveal d1">Twenty seconds,<br>start to counted.</h2>
-      <p class="lede reveal d2">No barcode hunting, no 40&#8209;field forms, no guessing grams. The camera is the log, and honesty is enforced by design.</p>
+  <!-- ============ THE SYSTEM (sticky scroll) ============ -->
+  <section class="system" id="system" aria-labelledby="sys-h">
+    <div class="wrap sys-head">
+      <p class="kicker reveal">The system</p>
+      <h2 id="sys-h" class="h2 reveal d1">Simple to use.<br>Built for execution.</h2>
+      <p class="lede reveal d2">From meals to recovery to check&#8209;ins, OnStandard captures the daily actions that drive results. AI reads, verifies, and surfaces what matters, and the score moves the moment the work lands.</p>
+    </div>
 
-      <div class="steps reveal d2">
-        <figure class="step">
-          <div class="step-head"><span class="step-n">1</span><h3>Point</h3></div>
-          <div class="phone sm">
-            <img src="assets/product/shot-camera.webp" width="390" height="844" loading="lazy" decoding="async"
-                 alt="OnStandard camera screen for logging dinner: a framed viewfinder, the 8:00 PM deadline, and a note that nutrition is 50 percent of the score.">
+    <div class="sys-stage" id="sys-stage">
+      <div class="wrap sys-grid">
+        <ol class="sys-steps" id="sys-steps">
+          <li class="ss on" data-step="0">
+            <span class="ss-n">1</span>
+            <div><h3>Log your day</h3><p>Point the camera at the plate. Meals, recovery, and check&#8209;ins land in seconds. Live capture only: gallery photos never score.</p></div>
+          </li>
+          <li class="ss" data-step="1">
+            <span class="ss-n">2</span>
+            <div><h3>The AI reads &amp; verifies</h3><p>Foods, portions, and macros with a confidence level on every detection. When it isn't sure, it shows a "?", never a guess.</p></div>
+          </li>
+          <li class="ss" data-step="2">
+            <span class="ss-n">3</span>
+            <div><h3>The score moves</h3><p>The day lands against your standard and the score reflects what you actually did. On time counts full. Late counts half. Skipped reads as skipped.</p></div>
+          </li>
+          <li class="ss" data-step="3">
+            <span class="ss-n">4</span>
+            <div><h3>The right people see it</h3><p>Coaches and trainers get the whole roster in three seconds: who's on standard, who's slipping, every log as it lands.</p></div>
+          </li>
+        </ol>
+        <div class="sys-phone">
+          <div class="p3d p3d-sys">
+            <div class="p3d-screen">
+              <img class="sys-img on" src="assets/product/v3-camera.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard camera screen for logging dinner: framed viewfinder, the 8:00 PM deadline, and the note that gallery photos never score.">
+              <img class="sys-img" src="assets/product/v3-thread.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard meal thread: the AI's read of a dinner plate with detected foods and confidence, then the coach and athlete discussing it.">
+              <img class="sys-img" src="assets/product/v3-home.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard home screen: OnStandard Score 93 with the gradient ring, a 26-day streak, and today's record of completed requirements.">
+              <img class="sys-img" src="assets/product/v3-team.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard coach team page: team score 87, needs-attention card with message and nudge actions, live activity feed of meals, and the roster with live scores.">
+            </div>
           </div>
-          <figcaption>Open the camera at the plate. Live capture only: gallery photos save to your record, but they never score.</figcaption>
-        </figure>
-        <figure class="step">
-          <div class="step-head"><span class="step-n">2</span><h3>Read</h3></div>
-          <div class="phone sm">
-            <img src="assets/product/shot-analyzing.webp" width="390" height="844" loading="lazy" decoding="async"
-                 alt="OnStandard analyzing screen reading a dinner photo: 'Reading your meal. Detecting foods and portions.'">
-          </div>
-          <figcaption>The AI reads the plate: foods, portions, protein, calories. Every food carries a confidence read; when it isn't sure, it shows a "?", not a guess.</figcaption>
-        </figure>
-        <figure class="step">
-          <div class="step-head"><span class="step-n">3</span><h3>Counted</h3></div>
-          <div class="phone sm">
-            <img src="assets/product/shot-meal.webp" width="390" height="844" loading="lazy" decoding="async"
-                 alt="OnStandard dinner log counted toward the score: logged on time at 6:32 PM, meal quality 84, macros measured against the day's plan.">
-          </div>
-          <figcaption>The meal lands against your plan and moves the score that second, with a macro read your coach can trust.</figcaption>
-        </figure>
-        <figure class="step">
-          <div class="step-head"><span class="step-n">4</span><h3>Discussed</h3></div>
-          <div class="phone sm crop">
-            <img src="assets/product/shot-thread.webp" width="390" height="844" loading="lazy" decoding="async"
-                 alt="OnStandard Team Discussion on a dinner log: the AI opens with an honest read of the plate, the coach replies 'Add a green tomorrow and this is a 90', the athlete commits, and the AI says it will hold them to it.">
-          </div>
-          <figcaption>A thread opens on every log: the AI's read first, then your coach, then you. Receipts, not guesses.</figcaption>
-        </figure>
+        </div>
       </div>
+    </div>
 
-      <div class="log-rules reveal d3" role="list">
-        <div class="rule" role="listitem"><b>On time</b><span>counts in full</span></div>
-        <div class="rule" role="listitem"><b>Late</b><span>counts for half</span></div>
-        <div class="rule" role="listitem"><b>Skipped</b><span>reads as skipped</span></div>
-        <div class="rule" role="listitem"><b>Gallery pick</b><span>saved, never scored</span></div>
-      </div>
-      <p class="score-note reveal d4">Those four rules are the whole trust model. A plate you actually ate, photographed when you ate it, counted while it's warm. That's why a coach believes the number.</p>
+    <!-- static fallback (no-JS / reduced motion) -->
+    <div class="wrap sys-static" id="sys-static">
+      <figure><div class="phone sm"><img src="assets/product/v3-camera.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard camera screen for logging dinner."></div><figcaption><b>1 · Log your day</b> Camera-first logging in seconds; gallery photos never score.</figcaption></figure>
+      <figure><div class="phone sm"><img src="assets/product/v3-thread.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard meal thread with the AI read and coach discussion."></div><figcaption><b>2 · AI reads &amp; verifies</b> Foods and macros with per-food confidence; a "?" instead of a guess.</figcaption></figure>
+      <figure><div class="phone sm"><img src="assets/product/v3-home.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard home screen with the score ring at 93."></div><figcaption><b>3 · The score moves</b> The day lands against your standard the moment work is logged.</figcaption></figure>
+      <figure><div class="phone sm"><img src="assets/product/v3-team.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard coach team page with live roster."></div><figcaption><b>4 · The right people see it</b> The whole roster in three seconds, every log as it lands.</figcaption></figure>
     </div>
   </section>
 
-  <!-- ============ THE AI ============ -->
-  <section class="ai" id="ai" aria-labelledby="ai-h">
-    <div class="wrap ai-grid">
-      <div class="ai-copy">
-        <p class="kicker reveal">The intelligence</p>
-        <h2 id="ai-h" class="h2 reveal d1">An AI that knows<br>its lane</h2>
-        <p class="lede reveal d2">Most fitness AI wants to be your coach. Ours works for yours.</p>
-        <ul class="ai-points">
-          <li class="reveal">
-            <h3>It reads, honestly</h3>
-            <p>Meal photos become foods, portions, and macros in seconds. Every detection carries a confidence level, and low confidence is shown, not hidden. An allergen check runs on every plate.</p>
-          </li>
-          <li class="reveal d1">
-            <h3>It talks in the thread</h3>
-            <p>Every log opens a group chat: the AI's honest read first, then your coach or trainer, then you. Ask it anything; it answers from <em>your</em> plan, <em>your</em> day, <em>your</em> last week of plates, not from the internet.</p>
-          </li>
-          <li class="reveal d2">
-            <h3>It never decides</h3>
-            <p>The AI never sets your targets, never touches the score, and never invents a number for a person to act on. Fixed math scores the day. Your coach sets the bar. The AI phrases, explains, and holds you to it.</p>
-          </li>
-          <li class="reveal d3">
-            <h3>It briefs the coach</h3>
-            <p>Copilot answers the questions a coach actually asks: who needs attention, who's improving, what changed this week, without the coach opening fifteen profiles.</p>
-          </li>
-        </ul>
+  <!-- ============ ROLES ============ -->
+  <section class="roles" id="roles" aria-labelledby="roles-h">
+    <div class="wrap">
+      <p class="kicker reveal">Built for every standard</p>
+      <h2 id="roles-h" class="h2 reveal d1">Different roles. Same mission.</h2>
+      <div class="role-grid">
+        <article class="role reveal" id="coaches">
+          <div class="role-img"><img src="assets/img/g-role-coach.webp" width="640" height="960" loading="lazy" decoding="async" alt="A football coach on a dark sideline at night, arms crossed, lit by a warm floodlight."></div>
+          <div class="role-body">
+            <h3>Coaches</h3>
+            <p>See who's executing. Intervene early. Develop better players without chasing anyone.</p>
+            <button class="role-cta js-wl" data-intent="trial" data-role="Coach" type="button">Start free →</button>
+          </div>
+        </article>
+        <article class="role reveal d1" id="trainers">
+          <div class="role-img"><img src="assets/img/g-role-trainer.webp" width="640" height="960" loading="lazy" decoding="async" alt="A personal trainer holding a tablet in a dark gym, lit by warm overhead light."></div>
+          <div class="role-body">
+            <h3>Trainers &amp; RDs</h3>
+            <p>See adherence between sessions. Keep the clients you'd otherwise lose. Scale your coaching.</p>
+            <button class="role-cta js-wl" data-intent="trial" data-role="Trainer or dietitian" type="button">Start free →</button>
+          </div>
+        </article>
+        <article class="role reveal d2" id="programs">
+          <div class="role-img"><img src="assets/img/g-role-program.webp" width="960" height="640" loading="lazy" decoding="async" alt="A football team huddle at night under one warm stadium light, seen from behind."></div>
+          <div class="role-body">
+            <h3>Programs</h3>
+            <p>Align your staff. Protect your investment. Raise the standard across every roster.</p>
+            <button class="role-cta js-wl" data-intent="demo" data-role="Gym or program" type="button">Book a demo →</button>
+          </div>
+        </article>
+        <article class="role reveal d3" id="athletes">
+          <div class="role-img"><img src="assets/img/g-role-athlete.webp" width="640" height="960" loading="lazy" decoding="async" alt="A volleyball player on a bench in a dark gym, towel around her neck, looking up with determination."></div>
+          <div class="role-body">
+            <h3>Athletes</h3>
+            <p>Own your process. Build the habits. Walk into every room with receipts.</p>
+            <button class="role-cta js-wl" data-intent="join" data-role="Athlete" type="button">Join your team →</button>
+          </div>
+        </article>
+        <article class="role reveal d4" id="parents">
+          <div class="role-img"><img src="assets/img/g-role-parents.webp" width="640" height="960" loading="lazy" decoding="async" alt="Two parents at the edge of a dark field at night, watching practice under a warm stadium glow."></div>
+          <div class="role-body">
+            <h3>Parents</h3>
+            <p>Know the work is getting done. Support with confidence, not surveillance.</p>
+            <button class="role-cta js-wl" data-intent="join" data-role="Parent" type="button">Get visibility →</button>
+          </div>
+        </article>
       </div>
-      <figure class="ai-shot reveal d2">
-        <div class="phone">
-          <img src="assets/product/shot-thread.webp" width="390" height="844" loading="lazy" decoding="async"
-               alt="OnStandard Team Discussion: the AI opens with 'Captured on time. That's the standard. Protein is covered. Fries work post-practice, but a green would round this out.' The coach replies that a green makes it a 90, the athlete commits to broccoli tomorrow, and the AI says it will hold them to it.">
-        </div>
-        <figcaption>The team thread on a real dinner log: AI read, coach call, athlete answer.</figcaption>
-      </figure>
     </div>
   </section>
 
   <!-- ============ THE SCORE ============ -->
   <section class="score" id="score" aria-labelledby="score-h">
-    <div class="wrap">
-      <p class="kicker reveal">One number, protected</p>
-      <h2 id="score-h" class="h2 reveal d1">Anatomy of an honest score</h2>
-      <p class="lede reveal d2">Four inputs. Fixed weights. The score is the percentage of the plan that actually got done today, and it cannot be sweet&#8209;talked.</p>
+    <div class="wrap score-grid">
+      <div class="score-copy">
+        <p class="kicker reveal">One number, protected</p>
+        <h2 id="score-h" class="h2 reveal d1">One framework. Your standard.</h2>
+        <p class="lede reveal d2">Every user is scored on the same published categories and weights, so a 94 means the same thing on every roster in the country. What's individualized is the standard underneath: your professional sets the targets, windows, and requirements around your goal, within evidence&#8209;based rails the platform enforces. No coach can invent an easy formula. No athlete can sweet&#8209;talk the math.</p>
 
-      <div class="anatomy reveal d2">
-        <div class="an-row">
-          <div class="an-name">Nutrition</div>
-          <div class="an-bar"><span class="an-fill n" style="--w:50%"></span></div>
-          <div class="an-w">50%</div>
-          <p class="an-d">Protein hit and meals logged on time, read from photo proof.</p>
+        <div class="anatomy reveal d2">
+          <div class="an-row"><div class="an-name">Nutrition</div><div class="an-bar"><span class="an-fill n" style="--w:50%"></span></div><div class="an-w">50%</div></div>
+          <div class="an-row"><div class="an-name">Recovery</div><div class="an-bar"><span class="an-fill r" style="--w:25%"></span></div><div class="an-w">25%</div></div>
+          <div class="an-row"><div class="an-name">Daily commitment</div><div class="an-bar"><span class="an-fill c" style="--w:15%"></span></div><div class="an-w">15%</div></div>
+          <div class="an-row"><div class="an-name">Weekly check&#8209;in</div><div class="an-bar"><span class="an-fill k" style="--w:10%"></span></div><div class="an-w">10%</div></div>
         </div>
-        <div class="an-row">
-          <div class="an-name">Recovery</div>
-          <div class="an-bar"><span class="an-fill r" style="--w:25%"></span></div>
-          <div class="an-w">25%</div>
-          <p class="an-d">Sleep, energy, soreness. Counts only when a real check&#8209;in backs it.</p>
-        </div>
-        <div class="an-row">
-          <div class="an-name">Daily commitment</div>
-          <div class="an-bar"><span class="an-fill c" style="--w:15%"></span></div>
-          <div class="an-w">15%</div>
-          <p class="an-d">Did you do what you said this morning? One question, answered honestly.</p>
-        </div>
-        <div class="an-row">
-          <div class="an-name">Weekly check&#8209;in</div>
-          <div class="an-bar"><span class="an-fill k" style="--w:10%"></span></div>
-          <div class="an-w">10%</div>
-          <p class="an-d">The longer conversation: weight trend, how the week actually went.</p>
+
+        <div class="tiers reveal d3" role="img" aria-label="Score tiers: 0 to 59 Off Standard, 60 to 74 Building, 75 to 89 Locked In, 90 to 100 OnStandard.">
+          <div class="tier-scale">
+            <span class="tseg t-off" style="--span:59"><i>Off Standard</i><b>0&#8211;59</b></span>
+            <span class="tseg t-build" style="--span:15"><i>Building</i><b>60&#8211;74</b></span>
+            <span class="tseg t-lock" style="--span:15"><i>Locked In</i><b>75&#8211;89</b></span>
+            <span class="tseg t-on" style="--span:11"><i>OnStandard</i><b>90&#8211;100</b></span>
+          </div>
         </div>
       </div>
 
-      <div class="tiers reveal d3" role="img" aria-label="Score tiers: 0 to 59 Off Standard, 60 to 74 Building, 75 to 89 Locked In, 90 to 100 OnStandard.">
-        <div class="tier-scale">
-          <span class="tseg t-off" style="--span:59"><i>Off Standard</i><b>0&#8211;59</b></span>
-          <span class="tseg t-build" style="--span:15"><i>Building</i><b>60&#8211;74</b></span>
-          <span class="tseg t-lock" style="--span:15"><i>Locked In</i><b>75&#8211;89</b></span>
-          <span class="tseg t-on" style="--span:11"><i>OnStandard</i><b>90&#8211;100</b></span>
+      <div class="score-dial">
+        <div class="hero-dial reveal d2" id="dial-stage" role="img" aria-label="Example OnStandard Score dial reading 94 out of 100, in the OnStandard tier.">
+          <canvas id="dial-gl" aria-hidden="true"></canvas>
+          <svg id="dial-svg" viewBox="0 0 360 360" aria-hidden="true">
+            <defs>
+              <linearGradient id="ringGrad" x1="40" y1="330" x2="270" y2="20" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#34D399"/><stop offset=".55" stop-color="#22D3EE"/><stop offset="1" stop-color="#3B82F6"/>
+              </linearGradient>
+              <filter id="ringBlur" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="14"/></filter>
+            </defs>
+            <g transform="rotate(117 180 180)">
+              <circle class="dial-track" cx="180" cy="180" r="132" fill="none" stroke="rgba(216,190,140,.14)" stroke-width="17" stroke-linecap="round" stroke-dasharray="705.6 829" />
+              <circle class="dial-glow" cx="180" cy="180" r="132" fill="none" stroke="url(#ringGrad)" stroke-width="26" stroke-linecap="round" filter="url(#ringBlur)" opacity=".55" stroke-dasharray="663 829"/>
+              <circle class="dial-arc" cx="180" cy="180" r="132" fill="none" stroke="url(#ringGrad)" stroke-width="17" stroke-linecap="round" stroke-dasharray="663 829"/>
+              <circle class="dial-head" cx="220" cy="54.2" r="13" fill="#F5F1E8"/>
+            </g>
+          </svg>
+          <div class="dial-center" aria-live="off">
+            <span class="dial-label">OnStandard Score</span>
+            <span class="dial-num"><span id="dial-count">94</span></span>
+            <span class="dial-of">/100</span>
+            <span class="dial-tier" id="dial-tier" data-tier="on">OnStandard</span>
+          </div>
         </div>
+        <ul class="ai-mini reveal d3">
+          <li><b>The AI reads, honestly.</b> Per&#8209;food confidence on every plate; a "?" instead of a guess. It can flag possible allergens from what it detects and what you've declared, but it can never confirm a plate is allergen&#8209;free. Don't rely on it for that.</li>
+          <li><b>It talks in the thread.</b> Every log opens a discussion: the AI's read, then your coach, then you. It answers from your plan and your day, not the internet.</li>
+          <li><b>It never decides.</b> It doesn't set targets, doesn't touch the score, and never invents a number a person acts on. Fixed math scores the day. Your professional sets the bar.</li>
+        </ul>
       </div>
-
-      <p class="score-note reveal d4">An incomplete day reads as incomplete. That's the point: when a coach sees an 84, it means 84. So the one day it says 96, it means that too.</p>
     </div>
   </section>
 
-  <!-- ============ THE ERA ============ -->
-  <section class="era" id="era" aria-labelledby="era-h">
-    <div class="era-media" aria-hidden="true">
+  <!-- ============ STORY / CREDIBILITY ============ -->
+  <section class="story" id="story" aria-labelledby="story-h">
+    <div class="story-media" aria-hidden="true">
       <img src="assets/img/era-tunnel.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async">
     </div>
-    <div class="wrap era-in">
-      <p class="kicker reveal">Why now</p>
-      <h2 id="era-h" class="h2 reveal d1">NIL changed the money.<br>The money changed the standard.</h2>
-      <ol class="era-line">
-        <li class="reveal"><span class="ey">2021</span><div><b>NIL made athletes brands.</b><span>College athletes can finally be paid for their name, image, and likeness.</span></div></li>
-        <li class="reveal d1"><span class="ey">2024</span><div><b>The portal made every season an audition.</b><span>Unlimited transfers with immediate eligibility. Every roster spot is contested, always.</span></div></li>
-        <li class="reveal d2"><span class="ey">2025</span><div><b>Revenue sharing made rosters payrolls.</b><span>Schools can now pay athletes directly. An athlete is an investment, on paper.</span></div></li>
-      </ol>
-      <p class="era-turn reveal d3">Money follows proof. Programs, collectives, and brands don't bet on talk; they bet on the athlete who can show the work behind the highlight tape. And the bar doesn't stop where the money starts. It reaches every level:</p>
-
-      <div class="era-levels">
-        <div class="lvl reveal">
-          <span class="lvl-k">Youth &amp; club</span>
-          <p>No money yet, just the bar moving down. Habits that used to start in college now start in eighth grade, and the kid with a year of honest days walks into high school already trusted.</p>
-        </div>
-        <div class="lvl reveal d1">
-          <span class="lvl-k">High school</span>
-          <p>NIL is legal for high schoolers in most states, and college rosters got smaller under the settlement. Every offer is an investment decision now, and proof of daily work is the safest thing a recruit can show.</p>
-        </div>
-        <div class="lvl reveal d2">
-          <span class="lvl-k">College</span>
-          <p>The portal never closes and the money is on the table: NIL, rev share, retention. Staffs are deciding who's worth paying. The one part of that case an athlete fully controls is the daily work, provable.</p>
-        </div>
-        <div class="lvl reveal d3">
-          <span class="lvl-k">The next level</span>
-          <p>Pro organizations have always bet on bodies of work over workout warriors. Now a body of work can be literal: every plate, every check&#8209;in, every day the standard held.</p>
+    <div class="wrap story-in">
+      <div class="story-main">
+        <p class="kicker reveal">Built from inside the standard</p>
+        <h2 id="story-h" class="h2 reveal d1">Built by someone who lived&nbsp;it.</h2>
+        <p class="story-bio reveal d2">OnStandard was built by a former Division&nbsp;I athlete and college football coach who saw both sides of the same gap: coaches plan brilliantly, athletes promise sincerely, and nobody can prove what actually happened between sessions. Every rule in this product, the fixed formula, the photo proof, the honest late credit, comes from rooms where the standard was real and the receipts weren't.</p>
+        <p class="story-founding reveal d3"><b>Founding 50:</b> the first 50 coaches and facilities lock 50% off for 12 months, grandfathered so a later price rise never touches them. You're not buying software early; you're setting the standard with us.</p>
+        <div class="hero-cta reveal d3">
+          <a class="btn btn-primary js-wl" data-intent="trial" href="mailto:support@onstandard.app?subject=OnStandard%2014-day%20trial">Start your 14&#8209;day trial</a>
         </div>
       </div>
-
-      <p class="era-close reveal d4">Talent gets you noticed.<br><em>A record gets you trusted.</em></p>
-    </div>
-  </section>
-
-  <!-- ============ MANIFESTO ============ -->
-  <section class="manifesto" id="manifesto" aria-labelledby="man-h">
-    <div class="man-media" aria-hidden="true">
-      <img src="assets/img/hero-stadium.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async">
-    </div>
-    <div class="wrap man-in">
-      <p class="kicker reveal">Built to be believed</p>
-      <h2 id="man-h" class="h2 man-h reveal d1">Trust is the product.<br>So we refuse a lot.</h2>
-      <ul class="refusals">
-        <li class="reveal"><b>No confetti.</b><span>The reward is the number moving and your coach seeing it.</span></li>
-        <li class="reveal"><b>No badges for logging in.</b><span>We reward executing the plan, not opening an app.</span></li>
-        <li class="reveal"><b>No invented numbers.</b><span>If the AI isn't sure, it says so. It never sets your targets.</span></li>
-        <li class="reveal"><b>No leaderboard shame.</b><span>The score talks to the people invested in you, not the whole cafeteria.</span></li>
-        <li class="reveal"><b>No data hostages.</b><span>Your record is yours forever. Programs get access, never ownership.</span></li>
+      <ul class="refuse-mini reveal d2">
+        <li><b>No invented numbers.</b><span>If the AI isn't sure, it says so.</span></li>
+        <li><b>No badges for logging in.</b><span>We reward executing the plan, not opening an app.</span></li>
+        <li><b>No leaderboard shame.</b><span>The score talks to the people invested in you.</span></li>
+        <li><b>No data hostages.</b><span>Your record is yours forever. Programs get access, never ownership.</span></li>
       </ul>
-    </div>
-  </section>
-
-  <!-- ============ WHO IT'S FOR ============ -->
-  <section class="corner" id="who" aria-labelledby="who-h">
-    <div class="corner-media" aria-hidden="true">
-      <img src="assets/img/watchers.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async">
-    </div>
-    <div class="wrap">
-      <p class="kicker reveal">Who it's for</p>
-      <h2 id="who-h" class="h2 reveal d1">Same screens.<br>A different brain for every goal.</h2>
-      <p class="lede reveal d2">The interface never changes: Today, Log, Progress, Team. What changes is the intelligence underneath: the targets, the coaching language, and what counts toward the score adapt to who you are and what you're chasing.</p>
-
-      <div class="cast">
-        <figure class="cast-card reveal">
-          <img src="assets/img/volleyball-night.webp" width="1536" height="1024" loading="lazy" decoding="async"
-               alt="A volleyball player alone in a dark gym at night, frozen at the top of a jump serve under one ceiling light.">
-          <figcaption>
-            <b>The setter chasing a college roster spot</b>
-            <span>Gain phase. Protein target, four meal windows, recovery check&#8209;ins. Coach and parents watching the standard hold.</span>
-          </figcaption>
-        </figure>
-        <figure class="cast-card reveal d1">
-          <img src="assets/img/road-dawn.webp" width="1536" height="1024" loading="lazy" decoding="async"
-               alt="An everyday runner in a reflective vest on an empty suburban road before sunrise, lit by a single streetlight.">
-          <figcaption>
-            <b>The 41&#8209;year&#8209;old chasing a marathon PR</b>
-            <span>Fueling for volume. Same daily loop, different math: carb timing, hydration, the long&#8209;run week that actually got done.</span>
-          </figcaption>
-        </figure>
-        <figure class="cast-card reveal d2">
-          <img src="assets/img/trainer-client.webp" width="1536" height="1024" loading="lazy" decoding="async"
-               alt="A personal trainer and an adult client standing together in a dark gym, reviewing a phone screen by a whiteboard.">
-          <figcaption>
-            <b>The client rebuilding habits with a trainer</b>
-            <span>Fat loss, post&#8209;PT, or just consistency. The trainer's whole book on one roster: the linebacker and this client, each scored against their own plan.</span>
-          </figcaption>
-        </figure>
-      </div>
-
-      <div class="seats">
-        <article class="seat reveal">
-          <h3>Coach</h3>
-          <p>The whole roster in three seconds. Who's on standard, who's slipping, who needs attention before the week is lost.</p>
-          <p class="seat-line">Your roster, at a glance.</p>
-        </article>
-        <article class="seat reveal d1">
-          <h3>Trainer &amp; RD</h3>
-          <p>Every client's compliance between sessions, athlete or not. The one going quiet gets a call before they become a cancellation.</p>
-          <p class="seat-line">Your book, accountable.</p>
-        </article>
-        <article class="seat reveal d2">
-          <h3>Parent</h3>
-          <p>Real visibility without hovering: the score, the streak, the trend. Scoped to what helps, never their private threads.</p>
-          <p class="seat-line">Your kid, actually on track.</p>
-        </article>
-      </div>
-
-      <div class="portable reveal d2">
-        <svg viewBox="0 0 100 100" width="44" height="44" aria-hidden="true" fill="none">
-          <defs>
-            <linearGradient id="portableDial" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#34D399"/>
-              <stop offset="50%" stop-color="#22D3EE"/>
-              <stop offset="100%" stop-color="#60A5FA"/>
-            </linearGradient>
-          </defs>
-          <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.2)" stroke-width="12" stroke-linecap="round"/>
-          <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#portableDial)" stroke-width="12" stroke-linecap="round"/>
-          <circle cx="50" cy="18" r="9" fill="#EEF3FB"/>
-        </svg>
-        <p><b>The record follows the person, not the program.</b> Change schools, change trainers, graduate, go pro: every logged day of your history moves with you. It's a track record no tryout can fake, and no program can take. When the call comes, the receipts already exist.</p>
-      </div>
     </div>
   </section>
 
@@ -463,11 +338,11 @@
           <div class="plan-price"><span class="pp">$0</span><span class="pk">while you're on a roster</span></div>
           <p>Brought on by a coach, trainer, or program. Full app, full AI, full history. Your record stays yours forever, even after you leave.</p>
           <ul class="ticks">
-            <li>Photo&#8209;proof logging &amp; the daily score</li>
+            <li>Photo&#8209;verified logging &amp; the daily score</li>
             <li>AI meal reads and the team thread</li>
             <li>Your history, portable for life</li>
           </ul>
-          <a class="btn btn-ghost plan-cta js-wl" data-role="Athlete" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access%20%E2%80%94%20athlete%20or%20client">Get early access</a>
+          <button class="btn btn-ghost plan-cta js-wl" data-intent="join" data-role="Athlete" type="button">Join through my coach or trainer</button>
         </article>
         <article class="plan featured reveal d1">
           <p class="plan-flag">For trainers, RDs &amp; private coaches</p>
@@ -477,9 +352,9 @@
           <ul class="ticks">
             <li>50 client seats included</li>
             <li>Live book with needs&#8209;attention flags</li>
-            <li>Copilot summaries &amp; meal threads</li>
+            <li>Daily briefing, threads &amp; nudges</li>
           </ul>
-          <a class="btn btn-primary plan-cta js-wl" data-role="Trainer or dietitian" href="mailto:support@onstandard.app?subject=Professional%20trial%20%E2%80%94%20trainer%20%2F%20RD%20%2F%20private%20coach">Request your trial</a>
+          <button class="btn btn-primary plan-cta js-wl" data-intent="trial" data-role="Trainer or dietitian" type="button">Start your 14&#8209;day trial</button>
         </article>
         <article class="plan reveal d2">
           <h3>Programs &amp; facilities</h3>
@@ -490,7 +365,7 @@
             <li>Consent&#8209;first guardian visibility</li>
             <li>A premium tier your gym can resell</li>
           </ul>
-          <a class="btn btn-ghost plan-cta js-wl" data-role="Gym or program" href="mailto:support@onstandard.app?subject=OnStandard%20for%20our%20program">Talk to us</a>
+          <button class="btn btn-ghost plan-cta js-wl" data-intent="demo" data-role="Gym or program" type="button">Book a program demo</button>
         </article>
       </div>
       <p class="plan-fine reveal d3">Opening pricing. Founding partners: the first 50 coaches and facilities lock 50% off for 12 months, grandfathered so a later price rise never touches them.</p>
@@ -505,31 +380,27 @@
       <div class="faq-list reveal d2">
         <details>
           <summary>Is it really free for athletes and clients?<span class="fx" aria-hidden="true"></span></summary>
-          <p>Yes. You never pay while you're attached to a coach, trainer, or program; they carry the cost because they get the value. If you ever leave, your record doesn't vanish; it's yours, and you can keep it live.</p>
+          <p>Yes. You never pay while you're attached to a coach, trainer, or program; they carry the cost because they get the value. If you leave, your record doesn't vanish; it's yours.</p>
         </details>
         <details>
-          <summary>What does the AI actually do?<span class="fx" aria-hidden="true"></span></summary>
-          <p>Three jobs. It reads meal photos into foods, portions, and macros, with a confidence level on every detection. It opens every log with an honest read and answers your questions in the team thread, using your plan, your day, and your recent meals as context. And it briefs coaches: who needs attention, who's improving, what changed.</p>
+          <summary>Is the score really the same math for everyone?<span class="fx" aria-hidden="true"></span></summary>
+          <p>The framework is universal: the same categories and weights for every user, published right on this page. The requirements inside it are individualized: your professional sets targets, meal windows, and check&#8209;ins around your goal. So two athletes can have different standards, but their 84s are computed identically, and that's what makes the number comparable.</p>
         </details>
         <details>
-          <summary>What will the AI never do?<span class="fx" aria-hidden="true"></span></summary>
-          <p>It never sets your targets, never calculates the score (fixed, published math does that), never invents a number when it's unsure, and never stands in for your coach's judgment. It's the amplifier, not the authority.</p>
+          <summary>What stops a coach from setting an artificially easy plan?<span class="fx" aria-hidden="true"></span></summary>
+          <p>The rails. Weights are fixed platform&#8209;wide and targets must sit inside evidence&#8209;based ranges the platform enforces; a coach can tune the standard to the athlete, but can't hollow it out. And because photo proof and timing rules are universal, an easy plan still can't fake done work.</p>
         </details>
         <details>
-          <summary>Can a coach change how the score is calculated?<span class="fx" aria-hidden="true"></span></summary>
-          <p>No. A coach sets the plan: targets, windows, requirements, all within evidence&#8209;based rails. The formula is the platform's and it's the same for everyone, so an 84 means the same thing on every roster in the country. That's what makes the number worth citing.</p>
+          <summary>Can the AI tell me a meal is allergen-free?<span class="fx" aria-hidden="true"></span></summary>
+          <p>No, and it will never claim to. It can flag possible allergens based on the foods it detects and the restrictions you've declared, which is useful as a heads&#8209;up. But a photo can't reveal sauces, oils, cross&#8209;contact, or hidden ingredients, so never rely on it to confirm a plate is safe. People with serious allergies should treat it as one more set of eyes, not a guarantee.</p>
         </details>
         <details>
-          <summary>My clients aren't athletes. Does this still fit?<span class="fx" aria-hidden="true"></span></summary>
-          <p>Yes. The screens stay the same; the brain changes. A fat&#8209;loss client, a marathoner, and a linebacker each get targets, coaching language, and score inputs that match their goal, and you see your whole mixed book on one roster.</p>
+          <summary>What happens if I leave my coach, team, or trainer?<span class="fx" aria-hidden="true"></span></summary>
+          <p>Your history stays yours, free, and readable: every logged day, score, and thread. Your seat on that roster closes, so live scoring pauses until you connect with your next coach, trainer, or program, and the moment you do, they see your history from day one. A solo plan for keeping your score live between professionals is on the roadmap, and record access will never be held hostage to it.</p>
         </details>
         <details>
           <summary>Who can see an athlete's data?<span class="fx" aria-hidden="true"></span></summary>
           <p>Only the people the athlete (or their family) connects: a coach or trainer sees the day's execution; parents get a scoped view of the score and trends, never private threads. For minors, access requires verified guardian consent and is denied by default until it exists. Data is never sold.</p>
-        </details>
-        <details>
-          <summary>What happens when an athlete graduates or transfers?<span class="fx" aria-hidden="true"></span></summary>
-          <p>Nothing is lost. The record belongs to the athlete, so it moves with them: a new program sees the history from day one, and the athlete can keep their record live on their own. Organizations get access while the relationship lasts, never ownership.</p>
         </details>
         <details>
           <summary>Is this an NIL platform?<span class="fx" aria-hidden="true"></span></summary>
@@ -537,7 +408,7 @@
         </details>
         <details>
           <summary>Which sports does it work for?<span class="fx" aria-hidden="true"></span></summary>
-          <p>All of them. Nutrition, recovery, and commitment are universal; the plan adapts to the season and the training schedule. If someone you trust sets a standard, OnStandard can hold it, on a field, on a court, in a pool, or on a Tuesday&#8209;night treadmill.</p>
+          <p>All of them, and everyday clients too. Nutrition, recovery, and commitment are universal; the standard adapts to the season and the training schedule. If someone you trust sets a bar, OnStandard can hold it.</p>
         </details>
       </div>
     </div>
@@ -549,23 +420,29 @@
       <img src="assets/img/work-dawn.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async">
     </div>
     <div class="wrap fin-in">
-      <h2 id="fin-h" class="h2 fin-h reveal">The work is yours.<br>Now it counts.</h2>
-      <div class="fin-cta reveal d1">
-        <a class="btn btn-primary btn-big js-wl" href="mailto:support@onstandard.app?subject=OnStandard%20early%20access&body=%0A%0AWho%20I%20am%20(athlete%2C%20parent%2C%20coach%2C%20trainer%2C%20facility)%3A%0ASport%20or%20goal%3A%0A">Get early access</a>
-        <a class="btn btn-ghost js-wl" data-role="Coach" href="mailto:support@onstandard.app?subject=OnStandard%20for%20my%20team">Bring your team</a>
+      <p class="kicker reveal">The people who profit pay. The people who sweat don't.</p>
+      <h2 id="fin-h" class="h2 fin-h reveal d1">The work is yours.<br>Now it counts.</h2>
+      <div class="fin-cta reveal d2">
+        <button class="btn btn-primary btn-big js-wl" data-intent="trial" type="button">Start your 14&#8209;day trial</button>
+        <button class="btn btn-ghost js-wl" data-intent="join" data-role="Athlete" type="button">Join through my coach or trainer</button>
       </div>
-      <p class="hero-fine reveal d2">Coaches, trainers, and facilities: set your first standard tonight. Your roster lights up as they log.</p>
+      <ul class="fin-ticks reveal d3">
+        <li>Full access during the trial</li>
+        <li>No credit card to start</li>
+        <li>We onboard founding professionals personally</li>
+      </ul>
     </div>
   </section>
+
   <!-- ============ WAITLIST DIALOG ============ -->
   <dialog id="wl" class="wl" aria-labelledby="wl-h">
     <button type="button" class="wl-close" id="wl-close" aria-label="Close">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
     <div class="wl-panel">
-      <p class="kicker">Early access</p>
+      <p class="kicker" id="wl-k">Early access</p>
       <h2 id="wl-h" class="wl-h">Get on the standard.</h2>
-      <p class="wl-sub">Tell us who you are and we'll reach out as spots open, whether you're an athlete, a parent, or the coach setting the bar.</p>
+      <p class="wl-sub" id="wl-sub">Tell us who you are and we'll reach out as spots open.</p>
       <form id="wl-form" class="wl-form" novalidate>
         <div class="wl-field">
           <label for="wl-name">Name</label>
@@ -588,9 +465,10 @@
         </div>
         <div class="wl-field">
           <label for="wl-note">Anything else? <span class="opt">optional</span></label>
-          <textarea id="wl-note" name="note" rows="2" placeholder="Sport, team, or what you're chasing"></textarea>
+          <textarea id="wl-note" name="note" rows="2" placeholder="Sport, team, roster size, or what you're chasing"></textarea>
         </div>
         <input type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true" class="wl-hp">
+        <input type="hidden" name="intent" id="wl-intent" value="access">
         <button type="submit" class="btn btn-primary wl-submit" id="wl-submit">Request early access</button>
         <p class="wl-msg" id="wl-msg" role="status" aria-live="polite"></p>
       </form>
@@ -602,29 +480,21 @@
   <div class="wrap foot-in">
     <div class="foot-brand">
       <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden="true" fill="none">
-        <defs>
-          <linearGradient id="footDial" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#34D399"/>
-            <stop offset="50%" stop-color="#22D3EE"/>
-            <stop offset="100%" stop-color="#60A5FA"/>
-          </linearGradient>
-        </defs>
-        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
-        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#footDial)" stroke-width="12" stroke-linecap="round"/>
-        <circle cx="50" cy="18" r="8" fill="#EEF3FB"/>
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(216,190,140,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#brandDial)" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="8" fill="#F5F1E8"/>
       </svg>
       <div>
-        <span class="brand-name">OnStandard</span>
-        <p>The execution and accountability platform for serious athletes and coached clients. Starting with nutrition.</p>
+        <span class="brand-name">ONSTANDARD</span>
+        <p>Prove the work. Own your standard. The execution and accountability platform for serious athletes and coached clients.</p>
       </div>
     </div>
     <nav class="foot-nav" aria-label="Site">
-      <a href="#loop">How it works</a>
-      <a href="#logging">Meal logging</a>
-      <a href="#ai">The AI</a>
+      <a href="#system">How it works</a>
+      <a href="#roles">Who it's for</a>
       <a href="#score">The score</a>
-      <a href="#era">Why now</a>
-      <a href="#who">Who it's for</a>
+      <a href="#why">Why now</a>
+      <a href="#story">Our story</a>
       <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
     </nav>
@@ -642,13 +512,12 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "Is OnStandard free for athletes and clients?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Athletes and clients never pay while attached to a coach, trainer, or program. If they leave, their record remains theirs and can be kept live." } },
-    { "@type": "Question", "name": "What does the OnStandard AI do?", "acceptedAnswer": { "@type": "Answer", "text": "It reads meal photos into foods, portions and macros with per-food confidence, opens every log with an honest read, answers questions in the team thread using the athlete's own plan and recent history, and briefs coaches on who needs attention. It never sets targets, never calculates the score, and never invents numbers." } },
-    { "@type": "Question", "name": "Can a coach change how the score is calculated?", "acceptedAnswer": { "@type": "Answer", "text": "No. Coaches set the plan within evidence-based rails; the scoring formula is fixed platform-wide so a score means the same thing on every roster." } },
-    { "@type": "Question", "name": "Does OnStandard work for non-athlete clients?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The same screens adapt their targets, coaching language and score inputs to each goal, so trainers and dietitians can run athletes and everyday clients on one roster." } },
+    { "@type": "Question", "name": "Is OnStandard free for athletes and clients?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Athletes and clients never pay while attached to a coach, trainer, or program. If they leave, their record remains theirs." } },
+    { "@type": "Question", "name": "Is the OnStandard Score the same math for everyone?", "acceptedAnswer": { "@type": "Answer", "text": "The framework is universal: the same categories and weights for every user. The requirements are individualized: professionals set targets and windows around each person's goal, within evidence-based rails the platform enforces." } },
+    { "@type": "Question", "name": "Can the AI confirm a meal is allergen-free?", "acceptedAnswer": { "@type": "Answer", "text": "No. It can flag possible allergens based on detected foods and declared restrictions, but a photo cannot reveal sauces, oils, cross-contact, or hidden ingredients. It should never be relied on to confirm a meal is allergen-free." } },
+    { "@type": "Question", "name": "What happens if an athlete leaves their coach or team?", "acceptedAnswer": { "@type": "Answer", "text": "Their history stays theirs, free and readable. Live scoring pauses until they connect with a new professional, who then sees their history from day one. Record access is never held hostage." } },
     { "@type": "Question", "name": "Who can see an athlete's data?", "acceptedAnswer": { "@type": "Answer", "text": "Only connected people: coaches and trainers see daily execution, parents get a scoped view. Minor accounts require verified guardian consent, denied by default. Data is never sold." } },
-    { "@type": "Question", "name": "What happens when an athlete graduates or transfers?", "acceptedAnswer": { "@type": "Answer", "text": "The record belongs to the athlete and moves with them. Organizations have access while the relationship lasts, never ownership." } },
-    { "@type": "Question", "name": "Is OnStandard an NIL platform?", "acceptedAnswer": { "@type": "Answer", "text": "No. OnStandard does not broker deals or value athletes. It builds the athlete-owned record of daily execution that serious opportunities depend on; the athlete decides who sees it." } }
+    { "@type": "Question", "name": "Is OnStandard an NIL platform?", "acceptedAnswer": { "@type": "Answer", "text": "No. OnStandard does not broker deals or value athletes. It builds the athlete-owned record of daily execution that serious opportunities depend on." } }
   ]
 }
 </script>
