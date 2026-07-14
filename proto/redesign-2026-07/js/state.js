@@ -22,6 +22,7 @@ import {
   fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyConsent,
   requestGuardianConsent as rpcRequestConsent,
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
+  fetchMyCoachHandle, setMyCoachName,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
 
@@ -466,7 +467,7 @@ export const act = {
       try { await this.persistTrainerOnboarding(); } catch { /* best-effort */ }
     }
     if (role === 'trainer') await this._loadPracticeIntoRt(RT.userId);
-    if (role === 'coach') await this._loadTeamIntoRt(RT.userId);
+    if (role === 'coach') { await this._loadTeamIntoRt(RT.userId); await this._loadCoachHandleIntoRt(); }
     if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); await this._loadAssignmentsIntoRt(); }
     await loadDay(RT.userId);
     syncRtFromDay();
@@ -638,6 +639,27 @@ export const act = {
     if (res && res.error) return; // network/RLS hiccup — keep last-known
     RT.myCoach = res || null;
     save();
+  },
+  /* Preferred coach name (0056): server value → RT.profile.coachName; a handle chosen in
+     onboarding scratch (RT.ob.coach.coachName) is pushed on first authenticated hydrate,
+     then the server copy is canonical. Best-effort: offline keeps last-known. */
+  async _loadCoachHandleIntoRt() {
+    if (!RT.userId) return;
+    const pending = (RT.ob && RT.ob.coach && (RT.ob.coach.coachName || '').trim()) || '';
+    const server = await fetchMyCoachHandle();
+    if (server && server.error) return; // keep last-known
+    if (!server && pending) {
+      const r = await setMyCoachName(pending);
+      if (r.ok && r.name) { RT.profile = { ...(RT.profile || {}), coachName: r.name }; save(); return; }
+    }
+    RT.profile = { ...(RT.profile || {}), coachName: server || null };
+    save();
+  },
+  /** Coach edits their handle from the profile card. */
+  async saveCoachHandle(name) {
+    const r = await setMyCoachName(name);
+    if (r.ok) { RT.profile = { ...(RT.profile || {}), coachName: r.name }; save(); }
+    return r;
   },
   /* Real coach assignments (0055) → RT.assigned. Server truth WINS for real rows (an
      optimistic local "done" that never reached the server flips back on next hydrate —
@@ -871,7 +893,7 @@ export const act = {
     if (RT.userId) {
       await this._loadProfileIntoRt(RT.userId);
       if (RT.authRole === 'trainer') await this._loadPracticeIntoRt(RT.userId);
-      if (RT.authRole === 'coach') await this._loadTeamIntoRt(RT.userId);
+      if (RT.authRole === 'coach') { await this._loadTeamIntoRt(RT.userId); await this._loadCoachHandleIntoRt(); }
       if (!RT.authRole || RT.authRole === 'athlete') {
         await this._loadCoachIntoRt(RT.userId);
         await this._loadConsentIntoRt(RT.userId);
@@ -945,9 +967,14 @@ export const S = {
       ? realName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
       : 'C';
     const state = RT.teamLoading ? 'loading' : RT.teamOffline ? 'offline' : !code ? 'minting' : 'live';
+    // The handle the room uses ("Coach JB") — 0056 server value first, then a last-name
+    // derivation, never a bare fabricated persona.
+    const handle = ((RT.profile && RT.profile.coachName) || '').trim()
+      || (realName ? `Coach ${realName.split(/\s+/).pop()}` : 'Coach');
     return {
       name: realName || 'Coach',
       initials,
+      handle,
       teamName: realTeam || 'Your team',
       code,
       hasIdentity: !!realName && !!realTeam,

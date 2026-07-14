@@ -61,12 +61,9 @@ export const coach = {
     const avg = scored.length ? Math.round(scored.reduce((a, r) => a + r.score, 0) / scored.length) : null;
     const onStd = rows ? rows.filter(r => r.score != null && r.score >= 80).length : 0;
     const attention = rows ? rows.filter(r => r.flag === 'r') : [];
-    // A real account greeting, not a "view". "Coach {last name}" until the preferred
-    // coach name (Coach JB / Coach B…) ships with the identity slice.
-    const cn = S.coachIdentity.name;
-    const coachLast = cn && cn !== 'Coach' ? cn.trim().split(/\s+/).pop() : '';
+    // A real account greeting, not a "view" — the handle the room uses (0056), e.g. "Coach JB".
     return `
-    ${titleHead(`${S.greeting}, Coach${coachLast ? ` ${coachLast}` : ''}`, `${esc(teamName)} · today`)}
+    ${titleHead(`${S.greeting}, ${S.coachIdentity.handle}`, `${esc(teamName)} · today`)}
 
     <div class="coach-stats">
       ${rows === null || (ROSTER && ROSTER.offline) ? `

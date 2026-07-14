@@ -200,6 +200,26 @@ export async function endTrustPass(athleteId) {
   try { const { error } = await c.rpc('end_trust_pass', { p_athlete: athleteId }); return !error; } catch { return false; }
 }
 
+/* ---------------- preferred coach name (0056) ---------------- */
+/** The signed-in user's own coach handle ("Coach JB"). null = none set; {error:true} on failure. */
+export async function fetchMyCoachHandle() {
+  const c = sb(); if (!c) return { error: true };
+  try {
+    const { data, error } = await c.from('profiles').select('coach_display_name').eq('id', (await c.auth.getUser()).data.user.id).maybeSingle();
+    if (error) return { error: true };
+    return (data && data.coach_display_name) || null;
+  } catch { return { error: true }; }
+}
+/** Set (or clear with '') the handle via the 0056 definer RPC. */
+export async function setMyCoachName(name) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.rpc('set_my_coach_name', { new_name: name });
+    if (error) return { ok: false, error: error.message || 'Could not save that.' };
+    return { ok: true, name: (typeof data === 'string' && data) || null };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save that.' }; }
+}
+
 /* ---------------- requirements engine (0055) ---------------- */
 /** The team's standing requirement sets (RLS: staff + active members). Best-effort []. */
 export async function fetchRequirementSets(teamId) {

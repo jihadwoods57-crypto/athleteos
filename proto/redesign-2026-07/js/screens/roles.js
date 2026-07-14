@@ -108,7 +108,11 @@ const coachSteps = {
     <div class="eyebrow" style="margin:8px 2px 10px">Your role</div>
     <div class="chip-row" id="co-role">
       <span class="chp on">Head Coach</span><span class="chp">Assistant</span><span class="chp">S&amp;C</span><span class="chp">Nutrition</span>
-    </div>`, 'Next', 'coach-ob/2', { back: 'role' }),
+    </div>
+    <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
+    <div class="chip-row" id="co-handle"></div>
+    <input id="co-handle-custom" class="ob-input" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere — greetings, meal threads, your standard.</div>`, 'Next', 'coach-ob/2', { back: 'role' }),
 
   2: () => {
     const c = (RT.ob || {}).coach || {};
@@ -226,18 +230,48 @@ export const coachOb = {
       const c = (RT.ob || {}).coach || {};
       if (c.name) { const [cf, ...cl] = c.name.split(' '); f.value = cf; l.value = cl.join(' '); }
       restore('#co-role', c.staffRole);
+      // "What the room calls you" — suggestions derived live from the name (Coach Brown /
+      // Coach John / Coach JB) + a free-text override. Stored to ob scratch; pushed to
+      // profiles.coach_display_name (0056) on first authenticated hydrate.
+      const handleRow = $('#co-handle'), handleCustom = $('#co-handle-custom');
+      const paintHandles = () => {
+        if (!handleRow) return;
+        const first = f.value.trim(), last = l.value.trim();
+        const opts = [...new Set([
+          last && `Coach ${last}`, first && `Coach ${first}`,
+          first && last && `Coach ${first[0].toUpperCase()}${last[0].toUpperCase()}`,
+        ].filter(Boolean))];
+        const saved = (((RT.ob || {}).coach || {}).coachName || '').trim();
+        handleRow.innerHTML = opts.map((o) => `<span class="chp ${saved === o ? 'on' : ''}">${esc(o)}</span>`).join('')
+          || `<span style="font-size:12px;font-weight:600;color:var(--text-3)">Type your name above and options appear.</span>`;
+        handleRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', () => {
+          handleRow.querySelectorAll('.on').forEach((x) => x.classList.remove('on'));
+          el.classList.add('on');
+          if (handleCustom) handleCustom.value = '';
+          cap({ coachName: el.textContent.trim() });
+        }));
+      };
       const sync = () => {
         const name = `${f.value.trim()} ${l.value.trim()}`.trim();
         const on = roleRow.querySelector('.on');
         cap({ name, staffRole: on ? on.textContent.trim() : 'Head Coach' });
         act.captureOb({ name }); // account step + profiles.full_name read RT.ob.name
         nextBtn.disabled = !(f.value.trim() && l.value.trim());
+        paintHandles();
       };
       [f, l].forEach((el) => el.addEventListener('input', sync));
       // Per-chip binding: wireToggles' chip handler stopPropagation()s, so a group-level
       // listener never fires. Attach order guarantees sync reads the fresh .on state.
       roleRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', sync));
       sync();
+      if (handleCustom) {
+        const saved = (((RT.ob || {}).coach || {}).coachName || '').trim();
+        if (saved && !handleRow.querySelector('.on')) handleCustom.value = saved;
+        handleCustom.addEventListener('input', () => {
+          handleRow.querySelectorAll('.on').forEach((x) => x.classList.remove('on'));
+          cap({ coachName: handleCustom.value.trim() });
+        });
+      }
     }
     // step 2: school search / add-your-school (anon directory — no session yet)
     const q = $('#co-q');
@@ -771,8 +805,17 @@ export const coachProfile = {
       <div style="flex:1">
         <div class="nm">${esc(name)}</div>
         <div class="meta">${metaLine}</div>
+        <div class="meta" style="margin-top:3px">Goes by <b style="color:var(--text)">${esc(ci.handle)}</b> · <span id="handle-edit" style="color:var(--blue-bright);cursor:pointer;font-weight:800">Change</span></div>
       </div>
     </section>
+    <div id="handle-editor" style="display:none;margin:-6px 0 12px">
+      <input id="handle-input" class="ob-input" maxlength="40" placeholder="e.g. Coach JB" value="${esc(ci.handle)}" />
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn ghost sm" id="handle-cancel" style="width:auto;padding:0 18px">Cancel</button>
+        <button class="btn green sm" id="handle-save" style="width:auto;padding:0 22px">Save</button>
+      </div>
+      <div id="handle-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:6px">Athletes see this everywhere — greetings, meal threads, your standard.</div>
+    </div>
 
     <div class="eyebrow">Team code · share it</div>
     ${code ? `
@@ -821,6 +864,21 @@ export const coachProfile = {
     `;
   },
   mount(root) {
+    // "Goes by" editor → set_my_coach_name (0056); repaints so every surface updates at once.
+    const hEdit = root.querySelector('#handle-edit'), hBox = root.querySelector('#handle-editor');
+    if (hEdit && hBox) {
+      hEdit.addEventListener('click', () => { hBox.style.display = hBox.style.display === 'none' ? '' : 'none'; });
+      const hStatus = root.querySelector('#handle-status');
+      root.querySelector('#handle-cancel').addEventListener('click', () => { hBox.style.display = 'none'; });
+      root.querySelector('#handle-save').addEventListener('click', async () => {
+        const v = (root.querySelector('#handle-input').value || '').trim();
+        if (v.length < 2) { hStatus.style.color = 'var(--red)'; hStatus.textContent = 'Give it at least 2 characters.'; return; }
+        hStatus.style.color = 'var(--text-3)'; hStatus.textContent = 'Saving…';
+        const r = await act.saveCoachHandle(v);
+        if (!r.ok) { hStatus.style.color = 'var(--red)'; hStatus.textContent = r.error || 'Could not save that.'; return; }
+        window.__render();
+      });
+    }
     const copy = root.querySelector('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
       // Copy the code the screen DISPLAYS (server identity first) — RT.ob is onboarding
