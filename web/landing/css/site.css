@@ -208,28 +208,28 @@ h1 .dot { color: var(--gold); }
 .hero-cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
 .hero-fine { color: var(--text-3); font-size: 13px; font-weight: 600; margin-top: 16px; }
 
-/* hero visual: photo + 3D phones */
-.hero-visual { position: relative; height: clamp(480px, 58vw, 660px); perspective: 1300px; }
-.hv-photo {
-  position: absolute; top: 0; right: 4%;
-  height: 94%; aspect-ratio: 2 / 3; max-width: 92%;
-  border-radius: 26px; overflow: hidden;
-  border: 1px solid rgba(216, 190, 140, 0.14);
-  box-shadow: 0 40px 110px rgba(0, 0, 0, 0.6);
+/* hero visual: blended athlete + 3D phones (copy -> athlete -> product, left to right) */
+.hero-ath {
+  position: absolute; z-index: 1; pointer-events: none;
+  bottom: -1px; left: 50%; transform: translateX(-42%);
+  height: min(106%, 764px); aspect-ratio: 2 / 3;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 3%, #000 27%, #000 80%, transparent 99%),
+    linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, rgba(0, 0, 0, 0.55) 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 3%, #000 27%, #000 80%, transparent 99%),
+    linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, rgba(0, 0, 0, 0.55) 100%);
+  mask-composite: intersect;
 }
-.hv-photo::after {
-  content: ''; position: absolute; inset: 0; z-index: 2;
-  background: linear-gradient(200deg, transparent 40%, rgba(11, 10, 8, 0.55) 100%);
+.hero-ath img, .hero-ath .hv-video {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; object-fit: cover; object-position: 50% 16%;
 }
-.hv-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; }
-.hv-video {
-  position: absolute; inset: 0; z-index: 1;
-  width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%;
-  opacity: 0; transition: opacity 1.2s ease;
-  pointer-events: none;
-}
+.hero-ath img { position: absolute; }
+.hv-video { z-index: 1; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
 .hv-video.on { opacity: 1; }
-.hv-phones { position: absolute; inset: 0; transform-style: preserve-3d; }
+.hero-visual { position: relative; z-index: 3; height: clamp(480px, 58vw, 660px); perspective: 1300px; transform-style: preserve-3d; }
 .p3d {
   position: absolute;
   width: clamp(180px, 17vw, 236px);
@@ -251,27 +251,56 @@ h1 .dot { color: var(--gold); }
 .p3d-screen { width: 100%; height: 100%; border-radius: 29px; overflow: hidden; background: #070B14; }
 .p3d-screen img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
 .p3d-front {
-  left: -3%; bottom: -3%;
-  transform: rotateY(var(--ry, -13deg)) rotateX(var(--rx, 3deg)) translateZ(60px);
+  left: 24%; bottom: 4%;
+  width: clamp(188px, 16vw, 226px);
+  transform: rotateY(var(--ry, -12deg)) rotateX(var(--rx, 3deg)) translateZ(60px);
   animation: floatA 7s ease-in-out infinite;
+  box-shadow:
+    -30px 40px 90px rgba(0, 0, 0, 0.72),
+    0 6px 22px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .p3d-back {
-  right: -3.5%; bottom: 21%;
-  width: clamp(140px, 11.6vw, 172px);
-  transform: rotateY(var(--ry2, 14deg)) rotateX(var(--rx2, 2deg)) translateZ(46px);
-  filter: brightness(0.82);
+  right: -3%; bottom: 14%;
+  width: clamp(152px, 13.4vw, 190px);
+  transform: rotateY(var(--ry2, 15deg)) rotateX(var(--rx2, 2deg)) translateZ(18px);
+  filter: brightness(0.78);
   animation: floatB 8.5s ease-in-out infinite;
 }
 @keyframes floatA { 0%, 100% { margin-bottom: 0; } 50% { margin-bottom: 14px; } }
 @keyframes floatB { 0%, 100% { margin-bottom: 0; } 50% { margin-bottom: -12px; } }
 @media (prefers-reduced-motion: reduce) { .p3d-front, .p3d-back { animation: none; } }
 
+@media (max-width: 1180px) and (min-width: 961px) {
+  .hero-ath {
+    transform: translateX(-33%);
+    height: min(98%, 700px);
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 6%, #000 34%, #000 80%, transparent 99%),
+      linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, rgba(0, 0, 0, 0.55) 100%);
+    mask-image:
+      linear-gradient(to right, transparent 6%, #000 34%, #000 80%, transparent 99%),
+      linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, rgba(0, 0, 0, 0.55) 100%);
+  }
+}
+
 @media (max-width: 960px) {
   .hero-in { grid-template-columns: 1fr; }
-  .hero-visual { height: auto; margin-top: 34px; perspective: none; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: end; }
-  .hv-photo { position: relative; right: auto; width: 100%; max-width: none; aspect-ratio: auto; height: 100%; min-height: 320px; grid-row: 1; grid-column: 2; }
-  .hv-phones { position: relative; grid-column: 1; grid-row: 1; }
-  .p3d-front { position: relative; left: 0; width: min(76%, 220px); margin: 0 auto; transform: none; animation: none; }
+  .hero-ath {
+    position: relative; left: 0; transform: none; bottom: auto;
+    width: 100%; height: auto; aspect-ratio: 5 / 6; margin-top: 8px;
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 10%, #000 78%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 10%, #000 78%, transparent 100%);
+    mask-composite: intersect;
+  }
+  .hero-ath img { object-position: 50% 8%; }
+  .hero-visual { position: absolute; right: 2px; bottom: -26px; height: auto; perspective: none; }
+  .p3d-front { position: relative; left: 0; bottom: 0; width: min(41vw, 180px); transform: rotateY(-7deg) rotateX(2deg); animation: none; }
   .p3d-back { display: none; }
   .hero-props { max-width: none; }
 }
