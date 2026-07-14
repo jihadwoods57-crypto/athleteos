@@ -99,6 +99,28 @@ export async function fetchMyCoach() {
   } catch { return { error: true }; }
 }
 
+/* ---------------- coach: custom team code (0026 RPCs) ---------------- */
+/** Set a vanity join code (e.g. GATORS). Server validates ^[A-Z0-9]{4,12}$ + uniqueness and
+    resolves the team from auth.uid() — nothing is trusted from the client. Returns
+    { ok, code?, error? } with the server's message (e.g. "already taken") surfaced verbatim. */
+export async function setMyTeamCode(code) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.rpc('set_my_team_code', { new_code: code });
+    if (error) return { ok: false, error: error.message || 'Could not save that code.' };
+    return { ok: true, code: (typeof data === 'string' && data) || String(code || '').trim().toUpperCase() };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save that code.' }; }
+}
+/** Roll a fresh random code (the old one stops working immediately). */
+export async function regenerateMyTeamCode() {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.rpc('regenerate_my_team_code');
+    if (error) return { ok: false, error: error.message || 'Could not make a new code.' };
+    return { ok: true, code: (typeof data === 'string' && data) || '' };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not make a new code.' }; }
+}
+
 /* ---------------- coach → athlete review ---------------- */
 export async function fetchDay(athleteId, date) {
   const c = sb(); if (!c || !athleteId) return null;

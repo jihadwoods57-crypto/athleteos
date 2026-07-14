@@ -1,4 +1,4 @@
-import { S, RT, act } from '../state.js';
+import { S, RT, act, roleNav, roleProfileRoute } from '../state.js';
 import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { backHead, esc } from '../components.js';
@@ -100,9 +100,10 @@ export const messages = {
 /* ---------- Units & preferences (working toggles) ---------- */
 export const settings = {
   tab: 'profile',
+  get nav() { return roleNav(); },
   render() {
     return `
-    ${backHead('Units & preferences', 'Kept clean, not a junk drawer', 'profile')}
+    ${backHead('Units & preferences', 'Kept clean, not a junk drawer', roleProfileRoute())}
 
     <div class="eyebrow">Units · US default for now</div>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">The app shows lb / oz / 12-hour today. Metric and 24-hour display land in an update — this is a preview of what's coming.</div>
@@ -147,7 +148,7 @@ export const settings = {
     </div>
 
     <div style="height:18px"></div>
-    <button class="btn ghost" data-go="profile">Done</button>
+    <button class="btn ghost" data-go="${roleProfileRoute()}">Done</button>
     <div style="height:10px"></div>
     `;
   },
@@ -182,7 +183,7 @@ export const privacy = {
   tab: 'profile',
   hideTabs: true,
   render({ sub } = {}) {
-    const back = OB_BACK[sub] || 'profile';
+    const back = OB_BACK[sub] || roleProfileRoute();
     const rows = [
       ['users', S.coach.hasCoach ? esc(S.coach.name) : 'Coach (when connected)', 'Score, logs, meal photos, check-ins, weight trend'],
       ['heart', 'Parents', 'Score, streaks, completion only — no photos, no weight'],
@@ -215,32 +216,42 @@ export const privacy = {
   },
 };
 
-/* ---------- Plan & billing (Stripe seam, honest about status) ---------- */
+/* ---------- Plan & billing (Stripe seam, honest about status) ----------
+   Role-aware: a coach/trainer sees THEIR plan (the team/practice tier) first and stays inside
+   their own chrome; an athlete sees the athlete tier first. Same honest unwired-checkout note. */
 export const billing = {
   tab: 'profile',
+  get nav() { return roleNav(); },
   render() {
-    return `
-    ${backHead('Plan & billing', 'Simple plans, no tricks', 'profile')}
-
-    <section class="card pad" style="border-color:var(--blue-border)">
+    const back = roleProfileRoute();
+    const role = RT.authRole;
+    const staff = role === 'coach' || role === 'trainer';
+    const athleteCard = (mine) => `
+    <section class="card pad"${mine ? ' style="border-color:var(--blue-border)"' : ''}>
       <div style="display:flex;justify-content:space-between;align-items:baseline">
         <div style="font-size:17px;font-weight:800">Athlete</div>
-        <span class="status-pill b">Plan · preview</span>
+        <span class="status-pill ${mine ? 'b' : 'g'}">${mine ? 'Plan · preview' : 'Per athlete'}</span>
       </div>
       <div style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.5">
         Daily score · AI meal analysis · coach connection · full history</div>
       <div style="font-size:22px;font-weight:800;margin-top:12px">$9.99<small style="font-size:13px;color:var(--text-3)"> / month</small></div>
-    </section>
-    <div style="height:12px"></div>
-    <section class="card pad">
+    </section>`;
+    const teamCard = (mine) => `
+    <section class="card pad"${mine ? ' style="border-color:var(--blue-border)"' : ''}>
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div style="font-size:17px;font-weight:800">Team</div>
-        <span class="status-pill g">For coaches</span>
+        <div style="font-size:17px;font-weight:800">${role === 'trainer' ? 'Practice' : 'Team'}</div>
+        <span class="status-pill ${mine ? 'b' : 'g'}">${mine ? 'Your plan · preview' : 'For coaches'}</span>
       </div>
       <div style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.5">
-        Whole roster · coach dashboard · assignments · Copilot · team billing</div>
-      <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-top:12px">Priced per roster · coach starts it from the Team view</div>
-    </section>
+        Whole roster · coach dashboard · assignments · team billing</div>
+      <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-top:12px">Priced per roster${mine ? '' : ' · coach starts it from the Team view'}</div>
+    </section>`;
+    return `
+    ${backHead('Plan & billing', 'Simple plans, no tricks', back)}
+
+    ${staff ? teamCard(true) : athleteCard(true)}
+    <div style="height:12px"></div>
+    ${staff ? athleteCard(false) : teamCard(false)}
 
     <div style="height:14px"></div>
     <div class="sidebox">
@@ -249,7 +260,7 @@ export const billing = {
       <div class="ts">The Stripe seam exists in the app (plans seeded, portal stubbed). Only the charge is unwired, on purpose.</div></div>
     </div>
     <div style="height:18px"></div>
-    <button class="btn ghost" data-go="profile">Done</button>
+    <button class="btn ghost" data-go="${back}">Done</button>
     <div style="height:10px"></div>
     `;
   },
@@ -258,9 +269,13 @@ export const billing = {
 /* ---------- Notification settings (athlete-side quiet hours; coach sets urgency) ---------- */
 export const notifSettings = {
   tab: 'profile',
+  get nav() { return roleNav(); },
   render() {
+    // Athletes arrive from their Notifications screen; staff roles have no such screen — back
+    // goes to their own profile instead of stranding them in athlete chrome.
+    const back = roleNav() === 'athlete' ? 'notifications' : roleProfileRoute();
     return `
-    ${backHead('Notification Settings', 'Coach sets urgency. You set the quiet.', 'notifications')}
+    ${backHead('Notification Settings', 'Coach sets urgency. You set the quiet.', back)}
 
     <div class="eyebrow">Reminder pressure</div>
     <div class="chip-row" id="ns-pressure" data-toggle-group>
@@ -303,7 +318,7 @@ export const deleteAccount = {
   hideTabs: true,
   render() {
     return `
-    ${backHead('Delete Account', 'Permanent. We mean it.', 'profile')}
+    ${backHead('Delete Account', 'Permanent. We mean it.', roleProfileRoute())}
 
     <div class="state-demo err-box" style="text-align:left">
       <div class="sd-t">What gets deleted</div>
@@ -317,7 +332,7 @@ export const deleteAccount = {
     <div style="height:18px"></div>
     <button id="del-acct" class="btn" style="background:var(--red);color:#fff;box-shadow:0 10px 30px rgba(246,87,87,0.3)">${icon('x', 18)} Delete my account</button>
     <div id="del-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
-    <button class="btn ghost" data-go="profile">Keep my account</button>
+    <button class="btn ghost" data-go="${roleProfileRoute()}">Keep my account</button>
     <div style="height:10px"></div>
     `;
   },
@@ -347,7 +362,7 @@ export const deleteAccount = {
 export const terms = {
   hideTabs: true,
   render({ sub } = {}) {
-    const back = OB_BACK[sub] || 'profile';
+    const back = OB_BACK[sub] || roleProfileRoute();
     return `
     ${backHead('Terms & Privacy', 'The short, honest version', back)}
     <section class="card" style="padding:6px 16px">

@@ -44,5 +44,6 @@ meal scan-line `aos-scan` · spinner `aos-spin` · subtle `aos-pulse`. Ease out 
 `expo-haptics` is installed — use light haptics on key actions (log meal, complete task, submit).
 
 ## Iconography
-Inline SVG, 2px stroke, round caps/joins, currentColor-driven. No emoji. The logo mark
-(score-ring → rising check) doubles as the brand glyph.
+Inline SVG, 2px stroke, round caps/joins, currentColor-driven. No emoji. The logo mark is
+the **Performance Dial** (see `docs/brand/LOGO.md`) — one mark across app icon, in-app,
+and onstandard.app.

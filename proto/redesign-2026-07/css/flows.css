@@ -142,12 +142,14 @@
 .welcome { display: flex; flex-direction: column; min-height: 100%; text-align: center; padding-top: 54px; }
 .logo-wrap {
   width: 104px; height: 104px; margin: 0 auto 24px;
-  filter: drop-shadow(0 0 34px rgba(52,211,153,0.35)) drop-shadow(0 0 60px rgba(59,130,246,0.2));
+  filter: drop-shadow(0 0 34px rgba(96,165,250,0.35)) drop-shadow(0 0 60px rgba(59,130,246,0.2));
   animation: logoIn 800ms var(--ease-out) both;
 }
 @keyframes logoIn { from { transform: scale(0.7) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
-.wordmark { font-size: 38px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; }
-.wordmark .on { color: var(--green-bright); }
+/* Two-tone wordmark per docs/brand/LOGO.md: "On" in ink (near-white on dark), "Standard"
+   in the on-dark brand accent. Green is status-only — never the brand. */
+.wordmark { font-size: 38px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; color: var(--blue-bright); }
+.wordmark .on { color: var(--text); }
 .brandline {
   font-size: 11px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase;
   color: var(--text-3); margin-top: 10px;

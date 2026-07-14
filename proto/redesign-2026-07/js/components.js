@@ -139,21 +139,15 @@ export function animateRing(root) {
   }
 }
 
-/* Brand mark: the score ring broken open at the top-right, with the check's
-   long stroke rising through the gap — "clear the standard, then rise past it." */
-export function logoMark(size = 96, uid = 'lm') {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 64 64" fill="none">
-    <defs>
-      <linearGradient id="lg${uid}" x1="0.1" y1="0.85" x2="0.9" y2="0.15">
-        <stop offset="0%" stop-color="#34D399"/>
-        <stop offset="50%" stop-color="#22D3EE"/>
-        <stop offset="100%" stop-color="#3B82F6"/>
-      </linearGradient>
-    </defs>
-    <circle cx="32" cy="32" r="25" stroke="url(#lg${uid})" stroke-width="7" stroke-linecap="round"
-      stroke-dasharray="118 39" transform="rotate(76 32 32)"/>
-    <path d="M19 34 L29 44 L51 15" stroke="url(#lg${uid})" stroke-width="7.5"
-      stroke-linecap="round" stroke-linejoin="round"/>
+/* Brand mark: the "Performance Dial" (docs/brand/LOGO.md — the founder's hi-fi handoff,
+   the same mark as the app icon and onstandard.app) — a score gauge reading at the very
+   top of its scale whose silhouette reads as the letter "O". On-dark variant colors. */
+export function logoMark(size = 96) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none">
+    <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.16)" stroke-width="12" stroke-linecap="round"/>
+    <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#60A5FA" stroke-width="12" stroke-linecap="round"/>
+    <circle cx="50" cy="18" r="10.5" fill="#0F172A"/>
+    <circle cx="50" cy="18" r="6" fill="#FFFFFF"/>
   </svg>`;
 }
 

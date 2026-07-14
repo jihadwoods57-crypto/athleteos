@@ -6,6 +6,7 @@ import { standardForGoal } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { track, EVENTS } from '../analytics.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
+import { setMyTeamCode, regenerateMyTeamCode } from '../roles.js';
 
 /* Practice HQ invite link + share text — mirrors src/core/practiceIdentity.ts (the tested
    oracle) inline, the same way state.js mirrors src/core logic in plain JS rather than
@@ -779,7 +780,20 @@ export const coachProfile = {
       <div class="code-boxes" style="padding:0 0 4px">
         ${code.split('').map(ch => `<div class="cb filled" style="border-color:var(--amber-border)">${esc(ch)}</div>`).join('')}
       </div>
-      <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:8px auto 0">${icon('clipboard', 16)} Copy code</button>
+      <div style="display:flex;justify-content:center;gap:8px;margin-top:8px">
+        <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 18px">${icon('clipboard', 16)} Copy</button>
+        <button class="btn ghost sm" id="edit-code" style="width:auto;padding:0 18px">Customize</button>
+        <button class="btn ghost sm" id="regen-code" style="width:auto;padding:0 18px">New code</button>
+      </div>
+      <div id="code-editor" style="display:none;margin-top:12px">
+        <input id="code-input" class="ob-input" placeholder="YOUR CODE · 4–12 letters/numbers" maxlength="12"
+          autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
+        <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
+          <button class="btn ghost sm" id="code-cancel" style="width:auto;padding:0 18px">Cancel</button>
+          <button class="btn green sm" id="code-save" style="width:auto;padding:0 22px">Save code</button>
+        </div>
+      </div>
+      <div id="code-status" style="font-size:12.5px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     </section>` : ci.state === 'loading' ? `
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
@@ -814,8 +828,49 @@ export const coachProfile = {
       // Same source order as render and the trainerProfile pattern.
       try { await navigator.clipboard.writeText(S.coachIdentity.code || (RT.ob || {}).teamCode || ''); } catch { /* no-op */ }
       copy.innerHTML = `${icon('check', 16)} Copied`;
-      setTimeout(() => { copy.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
+      setTimeout(() => { copy.innerHTML = `${icon('clipboard', 16)} Copy`; }, 1600);
     });
+
+    // Custom / regenerated join code (0026 RPCs). On success the SERVER's returned code is
+    // written into RT.team so the whole app (share card, QR, athlete previews) repaints with
+    // the real value — never an optimistic guess. Old code stops working the moment it saves.
+    const editor = root.querySelector('#code-editor');
+    const input = root.querySelector('#code-input');
+    const status = root.querySelector('#code-status');
+    const say = (msg, isErr) => { if (status) { status.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; status.textContent = msg; } };
+    const applyCode = (newCode) => {
+      if (RT.team) RT.team = { ...RT.team, code: newCode };
+      window.__render();
+    };
+    const edit = root.querySelector('#edit-code');
+    if (edit && editor) edit.addEventListener('click', () => {
+      editor.style.display = editor.style.display === 'none' ? '' : 'none';
+      if (editor.style.display === '' && input) input.focus();
+    });
+    const cancel = root.querySelector('#code-cancel');
+    if (cancel && editor) cancel.addEventListener('click', () => { editor.style.display = 'none'; say(''); });
+    const save = root.querySelector('#code-save');
+    if (save) save.addEventListener('click', async () => {
+      const raw = ((input && input.value) || '').trim().toUpperCase();
+      if (!/^[A-Z0-9]{4,12}$/.test(raw)) { say('4–12 letters or numbers only (A–Z, 0–9).', true); return; }
+      save.disabled = true; say('Saving…');
+      const r = await setMyTeamCode(raw);
+      save.disabled = false;
+      if (!r.ok) { say(r.error || 'Could not save that code.', true); return; }
+      applyCode(r.code);
+    });
+    const regen = root.querySelector('#regen-code');
+    if (regen) {
+      let armed = false;
+      regen.addEventListener('click', async () => {
+        if (!armed) { armed = true; regen.textContent = 'Sure? Old code dies'; say('A new code replaces this one immediately — anyone holding the old code can no longer join.'); return; }
+        regen.disabled = true; say('Minting a new code…');
+        const r = await regenerateMyTeamCode();
+        regen.disabled = false; armed = false; regen.textContent = 'New code';
+        if (!r.ok || !r.code) { say(r.error || 'Could not make a new code.', true); return; }
+        applyCode(r.code);
+      });
+    }
   },
 };
 

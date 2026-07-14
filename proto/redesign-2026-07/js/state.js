@@ -136,6 +136,15 @@ function save() { localStorage.setItem(KEY, JSON.stringify(RT)); }
 export function routeForRole(role) {
   return role === 'coach' ? 'coach' : role === 'trainer' ? 'trainer' : role === 'parent' ? 'parent' : 'home';
 }
+/* Shared utility screens (billing, privacy, settings, terms, …) are reached by every role.
+   They must render inside the SIGNED-IN role's chrome and route "back"/"Done" to that role's
+   own profile — a hardcoded nav/'profile' put a coach inside the athlete tab bar. */
+export function roleNav() {
+  return RT.authRole === 'coach' ? 'coach' : RT.authRole === 'trainer' ? 'trainer' : 'athlete';
+}
+export function roleProfileRoute() {
+  return RT.authRole === 'coach' ? 'coach-profile' : RT.authRole === 'trainer' ? 'trainer-profile' : 'profile';
+}
 function friendlyAuth(msg) {
   const m = String(msg || '').toLowerCase();
   if (m.includes('invalid login')) return 'That email or password is incorrect.';
