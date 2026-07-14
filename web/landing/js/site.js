@@ -69,6 +69,26 @@
     }, { passive: true });
   }
 
+  /* ---------- hero: ambient video loop (desktop enhancement) ---------- */
+  const hvVideo = document.getElementById('hv-video');
+  if (hvVideo && !reduced && innerWidth > 960
+      && !(navigator.connection && navigator.connection.saveData)) {
+    const start = () => {
+      hvVideo.addEventListener('playing', () => hvVideo.classList.add('on'), { once: true });
+      hvVideo.preload = 'auto';
+      hvVideo.src = 'assets/video/hero-loop.mp4';
+      const p = hvVideo.play();
+      if (p) p.catch(() => {});
+    };
+    if (document.readyState === 'complete') setTimeout(start, 400);
+    else addEventListener('load', () => setTimeout(start, 400), { once: true });
+    document.addEventListener('visibilitychange', () => {
+      if (!hvVideo.src) return;
+      if (document.hidden) hvVideo.pause();
+      else if (hvVideo.classList.contains('on')) hvVideo.play().catch(() => {});
+    });
+  }
+
   /* ---------- hero: gold dust ---------- */
   const dust = document.getElementById('dust');
   if (dust && !reduced && matchMedia('(pointer: fine)').matches && innerWidth > 960) {

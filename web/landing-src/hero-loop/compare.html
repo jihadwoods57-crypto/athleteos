@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hero loop — model shootout</title>
+<style>
+  body { margin: 0; background: #0B0A08; color: #F5F1E8; font: 15px/1.5 system-ui, sans-serif; padding: 28px; }
+  h1 { font-size: 20px; letter-spacing: .02em; }
+  h1 span { color: #E8B44A; }
+  p.note { color: #B5AC9B; max-width: 720px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-top: 18px; }
+  figure { margin: 0; background: #14120E; border: 1px solid #2a2620; border-radius: 12px; padding: 12px; }
+  figure.reco { border-color: #E8B44A; }
+  video { width: 100%; border-radius: 8px; display: block; background: #000; }
+  figcaption { padding-top: 10px; font-weight: 600; }
+  figcaption small { display: block; font-weight: 400; color: #B5AC9B; }
+  .tag { display: inline-block; background: #E8B44A; color: #0B0A08; border-radius: 99px; padding: 1px 10px; font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+</style>
+<h1>Hero cinemagraph — <span>pick your take</span></h1>
+<p class="note">All four loop automatically and are muted, exactly as they'd behave on the site. Watch the face — the test is whether he still looks like the same person at the end of the loop, and whether the room stays pitch black.</p>
+<div class="grid">
+  <figure class="reco">
+    <video src="hero-kling-master.mp4" autoplay muted loop playsinline></video>
+    <figcaption>Kling v2.1 Master<span class="tag">my pick</span><small>Face rock-solid, subtle breath, light flicker restrained, blacks stay black.</small></figcaption>
+  </figure>
+  <figure>
+    <video src="hero-kling-25turbo.mp4" autoplay muted loop playsinline></video>
+    <figcaption>Kling v2.5-turbo Pro<small>Also strong — adds visible drifting dust and phone-glow pulse; slightly livelier, slightly less subtle.</small></figcaption>
+  </figure>
+  <figure>
+    <video src="hero-hailuo02-pro.mp4" autoplay muted loop playsinline></video>
+    <figcaption>Hailuo-02 Pro<small>Face holds, but the lamp blooms and floods the room yellow — loses the pitch-black brand look.</small></figcaption>
+  </figure>
+  <figure>
+    <video src="hero-loop.mp4" autoplay muted loop playsinline></video>
+    <figcaption>DoP standard (baseline)<small>Right motion idea, but his face subtly morphs by mid-clip.</small></figcaption>
+  </figure>
+</div>
