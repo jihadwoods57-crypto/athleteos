@@ -532,8 +532,12 @@ h1 .dot { color: var(--blue); }
 .foot-in { display: flex; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
 .foot-brand { display: flex; gap: 14px; align-items: flex-start; max-width: 420px; }
 .foot-brand p { color: var(--text-3); font-size: 13.5px; margin-top: 6px; line-height: 1.55; }
-.foot-links { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; }
-.foot-links a { color: var(--text-2); font-size: 14px; font-weight: 600; transition: color .25s; }
+.foot-nav { display: grid; grid-template-columns: repeat(2, auto); gap: 10px 36px; align-content: start; }
+.foot-nav a { color: var(--text-2); font-size: 13.5px; font-weight: 600; transition: color .25s; }
+.foot-nav a:hover { color: var(--text); }
+.foot-links { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.foot-links a { color: var(--text-2); font-size: 13.5px; font-weight: 600; transition: color .25s; }
+@media (max-width: 720px) { .foot-links { flex-direction: row; flex-wrap: wrap; gap: 18px; } }
 .foot-links a:hover { color: var(--text); }
 .foot-fine { color: var(--text-3); font-size: 12.5px; margin-top: 36px; }
 

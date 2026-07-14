@@ -81,6 +81,7 @@
     finish();
   } else {
     paintSVG(0);
+    paintNum(0); // markup ships the finished 94 for no-JS visitors; animation starts from 0
     let started = false;
     const start = () => {
       if (started) return; started = true;
