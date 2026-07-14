@@ -121,6 +121,18 @@ export async function regenerateMyTeamCode() {
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not make a new code.' }; }
 }
 
+/* ---------------- coach: roster-wide activity feed (WS4) ---------------- */
+/** Recent meals across every linked athlete (RLS can_view scopes rows). Best-effort []. */
+export async function fetchTeamActivity(sinceISO, limit = 24) {
+  const c = sb(); if (!c) return [];
+  try {
+    const { data } = await c.from('meals')
+      .select('id,athlete_id,day_date,type,photo_path,name,protein,kcal,quality,logged_at')
+      .gte('day_date', sinceISO).order('logged_at', { ascending: false }).limit(limit);
+    return data || [];
+  } catch { return []; }
+}
+
 /* ---------------- coach → athlete review ---------------- */
 export async function fetchDay(athleteId, date) {
   const c = sb(); if (!c || !athleteId) return null;

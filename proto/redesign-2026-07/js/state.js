@@ -95,6 +95,8 @@ const DEFAULT_RT = {
   lastMove: null,        // {from, to, gain, what} — powers confirmation screens
   assigned: [],          // coach-assigned requirements: {id,title,icon,note,from,dueLabel,done,seen,real?}
   reqSets: null,         // team's standing requirement_sets (0055) — cached for resolution surfaces
+  coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots)
+  coachNudged: {},       // coach device: athleteId -> ISO date of last nudge (one per athlete per day)
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
   planUpdate: null,      // coach-published plan update; REALLY lands in Plan·Notes + notifications
   squadScope: 'position',// coach-controlled leaderboard scope: 'team' | 'position' | 'off'
@@ -653,6 +655,20 @@ export const act = {
       if (r.ok && r.name) { RT.profile = { ...(RT.profile || {}), coachName: r.name }; save(); return; }
     }
     RT.profile = { ...(RT.profile || {}), coachName: server || null };
+    save();
+  },
+  /* Coach activity feed: per-device seen marks (which meals the coach has opened). */
+  markMealSeen(id) {
+    if (!id) return;
+    if (!Array.isArray(RT.coachSeenMealIds)) RT.coachSeenMealIds = [];
+    if (!RT.coachSeenMealIds.includes(id)) {
+      RT.coachSeenMealIds.push(id);
+      if (RT.coachSeenMealIds.length > 300) RT.coachSeenMealIds = RT.coachSeenMealIds.slice(-300);
+      save();
+    }
+  },
+  markNudged(athleteId) {
+    RT.coachNudged = { ...(RT.coachNudged || {}), [athleteId]: new Date().toISOString().slice(0, 10) };
     save();
   },
   /** Coach edits their handle from the profile card. */

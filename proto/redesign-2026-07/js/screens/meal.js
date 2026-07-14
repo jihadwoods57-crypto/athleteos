@@ -425,6 +425,10 @@ export const thread = {
     const submit = async () => {
       const text = (input.value || '').trim();
       if (!text || busy) return;
+      // Thread cap (0059, coach-ratified): 3 athlete messages per meal — the DB trigger is
+      // the wall; say so up front instead of letting the send bounce.
+      const mine = (Array.isArray(comments) ? comments : []).filter((c) => c.role === 'athlete' && (c.kind || 'message') === 'message').length;
+      if (mine >= 3) { setNote('Thread cap: 3 messages per meal. Your coach saw them.'); return; }
       busy = true; setNote('');
       input.value = '';
       const posted = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', text);

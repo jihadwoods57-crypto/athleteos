@@ -1,4 +1,4 @@
-import { S, RT } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, titleHead, esc, composer } from '../components.js';
 import * as roles from '../roles.js';
@@ -37,6 +37,34 @@ export async function loadCoachRoster(force) {
   if (location.hash === '#coach' || location.hash === '#copilot' || location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#coach-assign') || location.hash.startsWith('#coach-plan')) window.__render();
 }
 const scoreColor = (s) => s == null ? 'var(--text-3)' : s >= 80 ? 'var(--green-bright)' : s >= 60 ? 'var(--amber-bright)' : 'var(--red)';
+
+/* Roster-wide activity feed (WS4a): recent meals across the team, newest first, with
+   per-device unseen dots. Photos are real signed URLs (cached), never stock plates. */
+let ACT = null;            // null = loading; { rows, photos: {mealId: url} }
+let actLoading = false;
+let actFetchedAt = 0;      // freshness window: a tab visit refetches, a repaint doesn't loop
+async function loadActivity(force) {
+  if (actLoading) return;
+  if (ACT && !force && Date.now() - actFetchedAt < 30000) return;
+  actLoading = true;
+  try {
+    const rows = await roles.fetchTeamActivity(roles.daysAgoISO(1), 20);
+    const photos = {};
+    await Promise.all(rows.slice(0, 10).filter(m => m.photo_path).map(async (m) => {
+      const u = await roles.signedMealPhotoUrl(m.photo_path);
+      if (u) photos[m.id] = u;
+    }));
+    ACT = { rows, photos };
+  } catch { ACT = { rows: [], photos: {} }; }
+  finally { actLoading = false; actFetchedAt = Date.now(); }
+  if (location.hash === '#coach') window.__render();
+}
+const actTime = (iso) => {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  let h = d.getHours() % 12; if (h === 0) h = 12;
+  return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
+};
 
 function rosterRow(r) {
   return `
@@ -102,41 +130,95 @@ export const coach = {
     <div class="sd-t">No athletes yet</div>
     <div class="sd-s">Share your team code so athletes can join. Their live scores show up here — nothing is invented until they log.</div></div>`
     : `
-    ${attention.length ? `<div class="eyebrow">Needs attention</div>${attention.map(r => `
-    <div class="notif critical" data-go="coach-athlete/${esc(r.athleteId)}" style="cursor:pointer">
-      <div class="nic">${icon('bell', 19)}</div>
-      <div style="flex:1"><div class="nt">${esc(r.name)}${r.unit ? ` · ${esc(r.unit)}` : ''}</div><div class="nb">${esc(r.note)}</div></div>
-      <span class="nw">${r.score != null ? r.score : '—'}</span>
-    </div>`).join('')}` : ''}
+    ${attention.length ? `<div class="eyebrow">Needs attention</div>${attention.map(r => {
+      const nudgedToday = (RT.coachNudged || {})[r.athleteId] === new Date().toISOString().slice(0, 10);
+      return `
+    <div class="notif critical" style="display:block">
+      <div style="display:flex;align-items:center;gap:12px;cursor:pointer" data-go="coach-athlete/${esc(r.athleteId)}">
+        <div class="nic">${icon('bell', 19)}</div>
+        <div style="flex:1"><div class="nt">${esc(r.name)}${r.unit ? ` · ${esc(r.unit)}` : ''}</div><div class="nb">${esc(r.note)}</div></div>
+        <span class="nw">${r.score != null ? r.score : '—'}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:10px">
+        <button class="btn sm" data-msg="${esc(r.athleteId)}" style="height:34px;font-size:12px">${icon('message', 14)} Message</button>
+        <button class="btn ghost sm" data-nudge="${esc(r.athleteId)}" style="height:34px;font-size:12px" ${nudgedToday ? 'disabled' : ''}>${nudgedToday ? 'Nudged ✓' : 'Nudge'}</button>
+        <button class="btn ghost sm" data-go="coach-assign/${esc(r.athleteId)}" style="height:34px;font-size:12px">Assign</button>
+      </div>
+      <div class="msg-composer" id="msg-box-${esc(r.athleteId)}" style="display:none;margin-top:8px">
+        <input class="ob-input" id="msg-in-${esc(r.athleteId)}" maxlength="300" placeholder="Straight to their phone — as ${esc(S.coachIdentity.handle)}" />
+        <button class="btn green sm" data-msg-send="${esc(r.athleteId)}" style="height:34px;font-size:12px;margin-top:7px">Send it</button>
+      </div>
+      <div id="msg-status-${esc(r.athleteId)}" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:5px"></div>
+    </div>`;
+    }).join('')}` : ''}
+
+    ${(() => {
+      const act = ACT && ACT.rows ? ACT.rows : null;
+      const names = {}; rows.forEach(r => { names[r.athleteId] = r; });
+      const seen = new Set(RT.coachSeenMealIds || []);
+      const unseenCount = act ? act.filter(m => !seen.has(m.id)).length : 0;
+      const card = (m) => {
+        const who = names[m.athlete_id] || {};
+        const first = (who.name || 'Athlete').split(' ')[0];
+        const photo = ACT.photos[m.id];
+        const bits = [cap(m.type || 'Meal'), actTime(m.logged_at)].filter(Boolean);
+        if (m.protein != null) bits.push(`${Math.round(m.protein)}g`);
+        return `
+        <div class="act-card" data-go="coach-meal/${esc(m.id)}" style="position:relative;flex:0 0 47%">
+          ${photo ? `<div class="act-media" style="height:64px;background-image:url('${esc(photo)}');background-size:cover;background-position:center"></div>`
+                  : `<div class="act-media" style="height:64px;background:linear-gradient(150deg,var(--surface-2),var(--surface-3))"></div>`}
+          ${seen.has(m.id) ? '' : `<span style="position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:var(--blue-bright);box-shadow:0 0 9px rgba(96,165,250,0.7);border:2px solid rgba(5,8,15,0.8)"></span>`}
+          <div style="padding:8px 10px 9px">
+            <div style="font-size:11px;font-weight:800">${esc(first)}${who.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(who.unit)}</small>` : ''}</div>
+            <div style="font-size:9.5px;color:var(--text-3);font-weight:700;margin-top:2px">${esc(bits.join(' · '))}</div>
+          </div>
+        </div>`;
+      };
+      return `
+    <div class="eyebrow" style="display:flex;justify-content:space-between;align-items:baseline"><span>Activity · every log as it lands</span>${unseenCount ? `<span style="color:var(--blue-bright);letter-spacing:0.04em">${unseenCount} new</span>` : ''}</div>
+    ${act === null ? `
+    <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('utensils', 17)}</div>
+    <div><div class="tt">Loading the feed…</div><div class="ts">Every meal your roster logs shows up here.</div></div></div>`
+    : act.length === 0 ? `
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No logs yet today. Meals appear here the moment an athlete logs — with a dot on anything you haven't opened.</div>`
+    : `<div style="display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin:0 -2px">${act.slice(0, 12).map(card).join('')}</div>`}`;
+    })()}
 
     <div class="eyebrow">Roster · live scores</div>
     <section class="card" style="padding:2px 0">${rows.map(rosterRow).join('')}</section>`}
-
-    <div class="eyebrow">Coach tools</div>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="copilot">
-        <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 18)}</div>
-        <div class="lm"><div class="lt">Copilot</div><div class="ls">Who needs attention? Who's improving? Team summary.</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-go="team-diet">
-        <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Team dietary sheet</div><div class="ls">Allergies & restrictions across the roster</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-go="coach-profile">
-        <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204;font-weight:800;font-size:13px">${esc(S.coachIdentity.initials[0] || 'C')}</div>
-        <div class="lm"><div class="lt">Coach profile & team code</div><div class="ls">Identity, share code, team settings</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-    </section>
-    <div style="height:6px"></div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);padding:0 2px">Tap an athlete to review their day and comment. Assignments and leaderboard controls are coming with the next backend slice.</div>
     <div style="height:10px"></div>
     `;
   },
   mount(root) {
-    loadCoachRoster();
+    loadCoachRoster().then(() => loadActivity());
+    // Message / Nudge on the needs-attention cards (real send-push: in-app notification + device push)
+    root.querySelectorAll('[data-msg]').forEach(b => b.addEventListener('click', () => {
+      const id = b.getAttribute('data-msg');
+      const box = root.querySelector(`#msg-box-${id}`);
+      if (box) { box.style.display = box.style.display === 'none' ? '' : 'none'; const i = box.querySelector('input'); if (i && box.style.display === '') i.focus(); }
+    }));
+    root.querySelectorAll('[data-msg-send]').forEach(b => b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-msg-send');
+      const input = root.querySelector(`#msg-in-${id}`);
+      const status = root.querySelector(`#msg-status-${id}`);
+      const text = ((input && input.value) || '').trim();
+      if (text.length < 2) { if (status) { status.style.color = 'var(--red)'; status.textContent = 'Type the message first.'; } return; }
+      b.disabled = true; if (status) { status.style.color = 'var(--text-3)'; status.textContent = 'Sending…'; }
+      const ok = await roles.nudgePush(id, `${S.coachIdentity.handle}`, text);
+      b.disabled = false;
+      if (status) {
+        status.style.color = ok ? 'var(--green-bright)' : 'var(--red)';
+        status.textContent = ok ? 'Sent — lands on their phone.' : 'Could not send — check the connection.';
+      }
+      if (ok && input) { input.value = ''; const box = root.querySelector(`#msg-box-${id}`); if (box) box.style.display = 'none'; }
+    }));
+    root.querySelectorAll('[data-nudge]').forEach(b => b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-nudge');
+      b.disabled = true; b.textContent = '…';
+      const ok = await roles.nudgePush(id, `${S.coachIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
+      if (ok) { act.markNudged(id); window.__render(); }
+      else { b.disabled = false; b.textContent = 'Nudge'; }
+    }));
     // Approve/decline a join request → real team_members flip/delete, then refresh the roster.
     root.querySelectorAll('[data-jr]').forEach(b => b.addEventListener('click', async () => {
       const team = b.getAttribute('data-team'), ath = b.getAttribute('data-ath');
@@ -829,11 +911,23 @@ export const coachMeal = {
   },
   mount(root, { sub }) {
     loadMealComments(sub);
+    act.markMealSeen(sub); // clears this meal's unseen dot in the team activity feed
     const threadRetry = root.querySelector('#coach-thread-retry');
     if (threadRetry) threadRetry.addEventListener('click', () => loadMealComments(sub, true));
     const input = root.querySelector('#cm-input');
     const send = root.querySelector('#cm-send');
     const cmNote = root.querySelector('#cm-note');
+    // Thread caps (0059, founder-ratified): coach 2 / athlete 3 messages per meal. The DB
+    // trigger is the real wall; this is the honest UI for it.
+    const coachN = Array.isArray(MC && MC.comments)
+      ? MC.comments.filter(c => c.role === 'coach' && (c.kind || 'message') === 'message').length : 0;
+    if (coachN >= 2) {
+      if (input) { input.disabled = true; input.placeholder = 'Coach cap reached'; }
+      if (send) send.disabled = true;
+      if (cmNote) { cmNote.style.color = 'var(--text-3)'; cmNote.textContent = 'You’ve made your point — 2 coach messages per meal. Reactions are always open.'; }
+    } else if (coachN === 1 && cmNote) {
+      cmNote.style.color = 'var(--text-3)'; cmNote.textContent = '1 of 2 coach messages used on this meal.';
+    }
     const submit = async () => {
       const text = (input.value || '').trim();
       if (!text) return;
