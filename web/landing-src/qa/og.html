@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'Plus Jakarta Sans'; font-weight: 200 800; src: url('../fonts/pjs.woff2') format('woff2'); }
+  * { margin: 0; box-sizing: border-box; }
+  body { width: 1200px; height: 630px; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; }
+  .card {
+    width: 1200px; height: 630px; position: relative;
+    background:
+      radial-gradient(760px 520px at 82% 38%, rgba(37, 99, 235, 0.16), transparent 65%),
+      radial-gradient(600px 400px at 12% 90%, rgba(52, 211, 153, 0.06), transparent 60%),
+      linear-gradient(180deg, #0A1120 0%, #070B14 60%);
+    display: flex; align-items: center; padding: 0 84px;
+  }
+  .copy { flex: 1; }
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 46px; }
+  .brand span { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; color: #EEF3FB; }
+  h1 { font-size: 104px; font-weight: 800; letter-spacing: -0.045em; line-height: 0.98; color: #EEF3FB; }
+  h1 .dot { color: #3B82F6; }
+  p { margin-top: 30px; font-size: 25px; font-weight: 600; color: #9AA9C2; max-width: 21ch; line-height: 1.45; }
+  .dial { position: relative; width: 430px; height: 430px; flex-shrink: 0; }
+  .dial svg { position: absolute; inset: 0; }
+  .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .lbl { font-size: 14px; font-weight: 800; letter-spacing: 0.16em; color: #9AA9C2; }
+  .num { font-size: 132px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: #EEF3FB; text-shadow: 0 0 60px rgba(59,130,246,.35); }
+  .tier { margin-top: 14px; padding: 8px 20px; border-radius: 999px; font-size: 15px; font-weight: 800; letter-spacing: 0.1em;
+    color: #34D399; border: 1.5px solid rgba(52,211,153,.4); background: rgba(52,211,153,.1); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="copy">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" width="40" height="40" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/>
+        <circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span>OnStandard</span>
+    </div>
+    <h1>Prove<br>the work<span class="dot">.</span></h1>
+    <p>The accountability platform for serious athletes.</p>
+  </div>
+  <div class="dial">
+    <svg viewBox="0 0 360 360">
+      <defs>
+        <linearGradient id="g" x1="40" y1="330" x2="270" y2="20" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#34D399"/><stop offset=".55" stop-color="#22D3EE"/><stop offset="1" stop-color="#3B82F6"/>
+        </linearGradient>
+        <filter id="b" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="14"/></filter>
+      </defs>
+      <g transform="rotate(117 180 180)">
+        <circle cx="180" cy="180" r="132" fill="none" stroke="rgba(148,176,224,.13)" stroke-width="17" stroke-linecap="round" stroke-dasharray="705.6 829"/>
+        <circle cx="180" cy="180" r="132" fill="none" stroke="url(#g)" stroke-width="26" stroke-linecap="round" stroke-dasharray="663 829" filter="url(#b)" opacity=".55"/>
+        <circle cx="180" cy="180" r="132" fill="none" stroke="url(#g)" stroke-width="17" stroke-linecap="round" stroke-dasharray="663 829"/>
+        <circle cx="220" cy="54.2" r="13" fill="#EEF3FB"/>
+      </g>
+    </svg>
+    <div class="center">
+      <div class="lbl">ONSTANDARD SCORE</div>
+      <div class="num">94</div>
+      <div class="tier">ONSTANDARD</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

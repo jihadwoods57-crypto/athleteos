@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OnStandard — Prove the work.</title>
+<meta name="description" content="OnStandard is the accountability platform for serious athletes. A coach sets the standard, the athlete proves the work every day, and one honest score shows everyone invested whether it got done.">
+<link rel="canonical" href="https://onstandard.app/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OnStandard">
+<meta property="og:title" content="OnStandard — Prove the work.">
+<meta property="og:description" content="The accountability platform for serious athletes. The standard gets set. The work gets proven. One honest score.">
+<meta property="og:url" content="https://onstandard.app/">
+<meta property="og:image" content="https://onstandard.app/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#070B14">
+<link rel="icon" href="assets/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preload" href="fonts/pjs.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "OnStandard",
+  "url": "https://onstandard.app/",
+  "applicationCategory": "HealthApplication",
+  "operatingSystem": "iOS, Android, Web",
+  "description": "The accountability platform for serious athletes. A coach sets the standard, the athlete proves the work daily, and one honest score shows everyone invested whether it got done."
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav" id="nav">
+  <div class="nav-in">
+    <a class="brand" href="#" aria-label="OnStandard home">
+      <svg class="brand-mark" viewBox="0 0 100 100" width="30" height="30" aria-hidden="true" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#070B14"/>
+        <circle cx="50" cy="18" r="6" fill="#EEF3FB"/>
+      </svg>
+      <span class="brand-name">OnStandard</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#loop">How it works</a>
+      <a href="#score">The score</a>
+      <a href="#corner">Who sees it</a>
+    </nav>
+    <a class="btn btn-nav" href="https://app.onstandard.app">Open the app</a>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero" aria-labelledby="hero-h">
+    <div class="hero-field" aria-hidden="true"></div>
+    <div class="hero-in">
+      <div class="hero-copy">
+        <p class="kicker reveal">For serious athletes and the people who hold them to it</p>
+        <h1 id="hero-h" class="reveal d1">Prove<br>the work<span class="dot">.</span></h1>
+        <p class="hero-sub reveal d2">Your coach sets the standard. You prove it every day: meals, recovery, check&#8209;ins. It all lands in one honest score that your coach, your parents, and your trainer can see. Live.</p>
+        <div class="hero-cta reveal d3">
+          <a class="btn btn-primary" href="https://app.onstandard.app">Open OnStandard</a>
+          <a class="btn btn-ghost" href="#loop">See how it works</a>
+        </div>
+        <p class="hero-fine reveal d4">Free for athletes. A coach, trainer, or program brings you on.</p>
+      </div>
+      <div class="hero-dial reveal d2" id="dial-stage" role="img" aria-label="Example OnStandard Score dial reading 94 out of 100, in the OnStandard tier.">
+        <canvas id="dial-gl" aria-hidden="true"></canvas>
+        <svg id="dial-svg" viewBox="0 0 360 360" aria-hidden="true">
+          <defs>
+            <linearGradient id="ringGrad" x1="40" y1="330" x2="270" y2="20" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#34D399"/>
+              <stop offset=".55" stop-color="#22D3EE"/>
+              <stop offset="1" stop-color="#3B82F6"/>
+            </linearGradient>
+            <filter id="ringBlur" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="14"/>
+            </filter>
+          </defs>
+          <g transform="rotate(117 180 180)">
+            <circle class="dial-track" cx="180" cy="180" r="132" fill="none" stroke="rgba(148,176,224,.13)" stroke-width="17" stroke-linecap="round" stroke-dasharray="705.6 829" />
+            <circle class="dial-glow" cx="180" cy="180" r="132" fill="none" stroke="url(#ringGrad)" stroke-width="26" stroke-linecap="round" filter="url(#ringBlur)" opacity=".55"/>
+            <circle class="dial-arc" cx="180" cy="180" r="132" fill="none" stroke="url(#ringGrad)" stroke-width="17" stroke-linecap="round"/>
+            <circle class="dial-head" cx="312" cy="180" r="13" fill="#EEF3FB"/>
+          </g>
+        </svg>
+        <div class="dial-center" aria-live="off">
+          <span class="dial-label">OnStandard Score</span>
+          <span class="dial-num"><span id="dial-count">0</span></span>
+          <span class="dial-of">/100</span>
+          <span class="dial-tier" id="dial-tier" data-tier="off">Off Standard</span>
+        </div>
+      </div>
+    </div>
+    <p class="hero-truth reveal d5">A 94 means 94% of the plan got done. Nothing else moves the number.</p>
+  </section>
+
+  <!-- ============ THE LOOP ============ -->
+  <section class="loop" id="loop" aria-labelledby="loop-h">
+    <div class="wrap">
+      <p class="kicker reveal">How a day works</p>
+      <h2 id="loop-h" class="h2 reveal d1">The standard gets set.<br>The work gets proven.</h2>
+
+      <div class="beat" id="beat-1">
+        <div class="beat-copy reveal">
+          <span class="beat-n" aria-hidden="true">01</span>
+          <h3 class="h3">One person you trust sets the bar</h3>
+          <p>A coach, trainer, or dietitian sets the plan: protein target, meal windows, recovery check&#8209;ins, weigh&#8209;in days. The platform owns the scoring math, so a standard means the same thing on every roster. No coach can inflate it. No athlete can lobby it.</p>
+          <ul class="ticks">
+            <li>Coach owns the plan, platform owns the formula</li>
+            <li>Targets stay within evidence&#8209;based rails</li>
+            <li>Same 0&#8211;100 scale for everyone, everywhere</li>
+          </ul>
+        </div>
+        <figure class="beat-shot reveal d2">
+          <div class="phone">
+            <img src="assets/product/shot-breakdown.webp" width="390" height="844" loading="lazy" decoding="async"
+                 alt="OnStandard Score Breakdown screen: 94 out of 100, with Nutrition 48 of 50, Recovery 21 of 25, Daily commitment 15 of 15 and Weekly check-in 10 of 10, each with its share of the score.">
+          </div>
+          <figcaption>The breakdown, exactly as the athlete sees it.</figcaption>
+        </figure>
+      </div>
+
+      <div class="beat flip" id="beat-2">
+        <div class="beat-copy reveal">
+          <span class="beat-n" aria-hidden="true">02</span>
+          <h3 class="h3">The athlete proves it, not promises it</h3>
+          <p>Point the camera at the plate. The meal is read, matched against the plan, and counted while it's still warm. Recovery and commitment take one honest minute. Late still counts, for half. Skipped reads as skipped.</p>
+          <ul class="ticks">
+            <li>Photo&#8209;proof meal logging with instant analysis</li>
+            <li>Deadlines that match training life, not office life</li>
+            <li>No credit for opening the app. Ever.</li>
+          </ul>
+        </div>
+        <figure class="beat-shot reveal d2">
+          <img class="shot-photo" src="assets/img/fuel.webp" width="1536" height="1024" loading="lazy" decoding="async"
+               alt="An athlete's dinner on a dark table: grilled chicken, rice and broccoli beside a glass of water, phone face-down.">
+          <div class="phone">
+            <img src="assets/product/shot-meal.webp" width="390" height="844" loading="lazy" decoding="async"
+                 alt="OnStandard meal screen: dinner photo of steak and fries logged on time at 6:32 PM, meal quality 84, detected foods listed, and macros of 48 grams protein, 58 carbs, 32 fat.">
+          </div>
+          <figcaption>A real log: captured on time, counted, visible to coach.</figcaption>
+        </figure>
+      </div>
+
+      <div class="beat" id="beat-3">
+        <div class="beat-copy reveal">
+          <span class="beat-n" aria-hidden="true">03</span>
+          <h3 class="h3">The people invested in you see it live</h3>
+          <p>The coach scans the whole roster in three seconds: who's on standard, who's slipping, who needs a hand today. Parents see their kid's day without seeing their DMs. Nobody waits for a Sunday spreadsheet.</p>
+          <ul class="ticks">
+            <li>Live roster with red, yellow, green truth</li>
+            <li>"Needs attention" surfaces before the slide does</li>
+            <li>Privacy&#8209;scoped views for parents</li>
+          </ul>
+        </div>
+        <figure class="beat-shot reveal d2">
+          <div class="phone">
+            <img src="assets/product/shot-coach.webp" width="390" height="844" loading="lazy" decoding="async"
+                 alt="OnStandard coach view: team average 75, three athletes on standard, one needing attention, and a live roster where each athlete shows logs completed today and their current score.">
+          </div>
+          <figcaption>The coach view. Nothing invented until athletes log.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ THE SCORE ============ -->
+  <section class="score" id="score" aria-labelledby="score-h">
+    <div class="wrap">
+      <p class="kicker reveal">One number, protected</p>
+      <h2 id="score-h" class="h2 reveal d1">Anatomy of an honest score</h2>
+      <p class="lede reveal d2">Four inputs. Fixed weights. The score is the percentage of the plan that actually got done today, and it cannot be sweet&#8209;talked.</p>
+
+      <div class="anatomy reveal d2">
+        <div class="an-row">
+          <div class="an-name">Nutrition</div>
+          <div class="an-bar"><span class="an-fill n" style="--w:50%"></span></div>
+          <div class="an-w">50%</div>
+          <p class="an-d">Protein hit and meals logged on time, read from photo proof.</p>
+        </div>
+        <div class="an-row">
+          <div class="an-name">Recovery</div>
+          <div class="an-bar"><span class="an-fill r" style="--w:25%"></span></div>
+          <div class="an-w">25%</div>
+          <p class="an-d">Sleep, energy, soreness. Counts only when a real check&#8209;in backs it.</p>
+        </div>
+        <div class="an-row">
+          <div class="an-name">Daily commitment</div>
+          <div class="an-bar"><span class="an-fill c" style="--w:15%"></span></div>
+          <div class="an-w">15%</div>
+          <p class="an-d">Did you do what you said this morning? One question, answered honestly.</p>
+        </div>
+        <div class="an-row">
+          <div class="an-name">Weekly check&#8209;in</div>
+          <div class="an-bar"><span class="an-fill k" style="--w:10%"></span></div>
+          <div class="an-w">10%</div>
+          <p class="an-d">The longer conversation: weight trend, how the week actually went.</p>
+        </div>
+      </div>
+
+      <div class="tiers reveal d3" role="img" aria-label="Score tiers: 0 to 59 Off Standard, 60 to 74 Building, 75 to 89 Locked In, 90 to 100 OnStandard.">
+        <div class="tier-scale">
+          <span class="tseg t-off" style="--span:59"><i>Off Standard</i><b>0&#8211;59</b></span>
+          <span class="tseg t-build" style="--span:15"><i>Building</i><b>60&#8211;74</b></span>
+          <span class="tseg t-lock" style="--span:15"><i>Locked In</i><b>75&#8211;89</b></span>
+          <span class="tseg t-on" style="--span:11"><i>OnStandard</i><b>90&#8211;100</b></span>
+        </div>
+      </div>
+
+      <p class="score-note reveal d4">An incomplete day reads as incomplete. That's the point: when a coach sees an 84, it means 84. So the one day it says 96, it means that too.</p>
+    </div>
+  </section>
+
+  <!-- ============ MANIFESTO ============ -->
+  <section class="manifesto" id="manifesto" aria-labelledby="man-h">
+    <div class="man-media" aria-hidden="true">
+      <img src="assets/img/hero-stadium.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async">
+    </div>
+    <div class="wrap man-in">
+      <p class="kicker reveal">Built to be believed</p>
+      <h2 id="man-h" class="h2 man-h reveal d1">Trust is the product.<br>So we refuse a lot.</h2>
+      <ul class="refusals">
+        <li class="reveal"><b>No confetti.</b><span>The reward is the number moving and your coach seeing it.</span></li>
+        <li class="reveal"><b>No badges for logging in.</b><span>We reward executing the plan, not opening an app.</span></li>
+        <li class="reveal"><b>No invented numbers.</b><span>If the AI isn't sure, it says so. It never sets your targets.</span></li>
+        <li class="reveal"><b>No leaderboard shame.</b><span>The score talks to the people invested in you, not the whole cafeteria.</span></li>
+        <li class="reveal"><b>No data hostages.</b><span>Your record is yours forever. Programs get access, never ownership.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ WHO SEES IT ============ -->
+  <section class="corner" id="corner" aria-labelledby="corner-h">
+    <div class="corner-media" aria-hidden="true">
+      <img src="assets/img/watchers.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async">
+    </div>
+    <div class="wrap">
+      <p class="kicker reveal">Every seat in the athlete's corner</p>
+      <h2 id="corner-h" class="h2 reveal d1">One score, four vantage points</h2>
+      <div class="seats">
+        <article class="seat reveal">
+          <h3>Athlete</h3>
+          <p>One screen that answers "what do I do next," a score you can move today, and a streak that only counts real days.</p>
+          <p class="seat-line">Your day, provable.</p>
+        </article>
+        <article class="seat reveal d1">
+          <h3>Coach</h3>
+          <p>The whole roster in three seconds. Who's on standard, who's slipping, who needs attention before the week is lost.</p>
+          <p class="seat-line">Your roster, at a glance.</p>
+        </article>
+        <article class="seat reveal d2">
+          <h3>Parent</h3>
+          <p>Real visibility without hovering: the score, the streak, the trend. Scoped to what helps, never their private threads.</p>
+          <p class="seat-line">Your kid, actually on track.</p>
+        </article>
+        <article class="seat reveal d3">
+          <h3>Trainer</h3>
+          <p>Every client's compliance between sessions, so the ones going quiet get a call before they get a cancellation.</p>
+          <p class="seat-line">Your book, accountable.</p>
+        </article>
+      </div>
+      <div class="portable reveal d2">
+        <svg viewBox="0 0 100 100" width="44" height="44" aria-hidden="true" fill="none">
+          <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.2)" stroke-width="12" stroke-linecap="round"/>
+          <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+          <circle cx="50" cy="18" r="9" fill="#EEF3FB"/>
+        </svg>
+        <p><b>The record follows the athlete, not the team.</b> Change schools, graduate, go pro: every logged day of your history moves with you. It's a track record no tryout can fake, and no program can take.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FINAL CTA ============ -->
+  <section class="finale" aria-labelledby="fin-h">
+    <div class="fin-media" aria-hidden="true">
+      <img src="assets/img/work-dawn.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async">
+    </div>
+    <div class="wrap fin-in">
+      <h2 id="fin-h" class="h2 fin-h reveal">The work is yours.<br>Now it counts.</h2>
+      <div class="fin-cta reveal d1">
+        <a class="btn btn-primary btn-big" href="https://app.onstandard.app">Open OnStandard</a>
+        <a class="btn btn-ghost" href="mailto:support@onstandard.app?subject=OnStandard%20for%20my%20team">Bring your team</a>
+      </div>
+      <p class="hero-fine reveal d2">Coaches and facilities: set your first standard tonight. Your roster lights up as they log.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div class="foot-brand">
+      <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden="true" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(148,176,224,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="#3B82F6" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="8" fill="#EEF3FB"/>
+      </svg>
+      <div>
+        <span class="brand-name">OnStandard</span>
+        <p>The execution and accountability platform for serious athletes. Starting with nutrition.</p>
+      </div>
+    </div>
+    <nav class="foot-links" aria-label="Legal and support">
+      <a href="https://onstandard.app/privacy">Privacy</a>
+      <a href="https://onstandard.app/terms">Terms</a>
+      <a href="mailto:support@onstandard.app">support@onstandard.app</a>
+    </nav>
+  </div>
+  <p class="foot-fine wrap">&copy; 2026 OnStandard. The score reflects work actually done. So does everything else here.</p>
+</footer>
+
+<script src="js/site.js" defer></script>
+</body>
+</html>
