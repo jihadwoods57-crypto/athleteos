@@ -18,17 +18,18 @@ import {
   setDayStandard, slotDeadline,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
-import { groundExtras, buildClarifications } from './meal-intel.js';
+import { groundExtras, buildClarifications, analysisTiming } from './meal-intel.js';
+import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
   fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyConsent,
   requestGuardianConsent as rpcRequestConsent,
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
-  fetchMyCoachHandle, setMyCoachName,
+  fetchMyCoachHandle, setMyCoachName, checkPhotoReuse,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
-function fmtClock(min) {
+export function fmtClock(min) {
   if (min == null) return '';
   let h = Math.floor(min / 60) % 12; if (h === 0) h = 12;
   const ap = Math.floor(min / 60) < 12 ? 'AM' : 'PM';
@@ -36,8 +37,14 @@ function fmtClock(min) {
 }
 
 /* The meal currently being captured (Phase 5 AI loop). When MEAL.result is set, S.logging and
-   the score use the REAL analyzed macros instead of the demo placeholders. */
-export const MEAL = { key: null, mealType: null, photoBase64: null, photoDataUrl: null, result: null, live: true, questions: null };
+   the score use the REAL analyzed macros instead of the demo placeholders.
+   Integrity fields (0062): photoHash (sha256 of the downscaled JPEG — the duplicate wall),
+   source ('live'|'gallery'|'manual'|'label'), takenAt (EXIF capture time of a gallery pick),
+   capturedAtMin (when THIS capture happened, for the timing pill + minutes_late). */
+export const MEAL = {
+  key: null, mealType: null, photoBase64: null, photoDataUrl: null, result: null, live: true,
+  questions: null, photoHash: null, source: null, takenAt: null, capturedAtMin: null,
+};
 
 /** Bound the AI's macros to sane per-meal ranges (Atwater fallback for calories) so a mis-read
    can never spike the score — a lightweight port of macroGrounding for v1. */
@@ -55,8 +62,9 @@ function groundResult(d) {
     fiber: extras.fiber,
     highlights: extras.highlights,
     detected: extras.detectedNames,      // legacy consumers keep plain names
-    detectedRich: extras.detectedRich,   // confidence-aware renderers use this
+    detectedRich: extras.detectedRich,   // confidence-aware renderers use this (now with quantity)
     note: clean(d.note),
+    analysis: extras.analysis,           // detailed coach paragraph (0062); '' from an old edge fn
   };
 }
 
@@ -105,6 +113,7 @@ const DEFAULT_RT = {
   squadScope: 'position',// coach-controlled leaderboard scope: 'team' | 'position' | 'off'
   trainerNotes: [],      // trainer->client notes; REALLY land in the athlete's notifications
   camPrimed: false,      // Apple-style camera permission priming shown once
+  homeOpenSections: {},  // WS6: per-section open state for Home's collapsible groups (Later/Done)
   profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
   ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
   allergies: [],         // declared in onboarding, enforced everywhere (guardian). Empty until the athlete declares one.
@@ -224,6 +233,13 @@ const STD_SLOT_MAP = {
 };
 const SLOT_DUE = { breakfast: 'Due by 10:00 AM', lunch: 'Due by 2:00 PM', snack: 'Optional', dinner: 'Due by 8:00 PM' };
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Display title for a meal slot key: the coach standard's title when one governs
+ *  ("Post-practice fuel"), else a humanized key — never a raw "Meal-5" (WS7 audit fix). */
+export function slotTitle(k) {
+  if (!k) return '';
+  const t = RT.stdMeals && RT.stdMeals.titles && RT.stdMeals.titles[k];
+  return t || cap(String(k).replace('-', ' '));
+}
 /* The slot a new capture should fill: an explicit choice (from a requirement row), else the
    next OPEN slot by time of day — the earliest unlogged slot whose deadline is still ahead,
    or the latest open slot if every window has passed. Never a hardcoded breakfast/dinner. */
@@ -243,17 +259,25 @@ export function mealDetail(slot) {
   const logged = !!DAY.meals[k];
   const meta = DAY.slotMacros[k] || {};
   const at = DAY.mealLoggedAt[k];
-  const late = at != null && at > DEADLINE[k];
+  const deadline = slotDeadline(k); // coach-standard aware, falls back to the classic map
+  const late = at != null && at > deadline;
   const foods = Array.isArray(meta.foods) && meta.foods.length ? meta.foods : (logged ? ['Your logged meal'] : []);
   return {
     slot: k, logged, name: cap(k),
     loggedAt: at != null ? fmtClock(at) : null, late,
+    loggedAtMin: at != null ? at : null,
+    deadlineMin: deadline, deadlineLabel: fmtClock(deadline),
+    minutesLate: at != null ? Math.max(0, at - deadline) : null,
     score: meta.quality != null ? meta.quality : null,
     foods,
     macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
     img: (MEAL.key === k && MEAL.photoDataUrl) ? MEAL.photoDataUrl : null,
     note: meta.note || '',
     live: meta.live !== false,
+    source: meta.source || (meta.live === false ? 'gallery' : null),
+    flagged: meta.flagged || null,   // 'dup' → logged but doesn't score (photo reuse)
+    takenAt: meta.takenAt || null,   // EXIF capture time of a gallery pick
+    analysis: meta.analysis || '',   // the AI's detailed paragraph (0062), '' pre-migration
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
     fiber: meta.fiber || 0,
     highlights: Array.isArray(meta.highlights) ? meta.highlights : [],
@@ -295,19 +319,40 @@ export const act = {
     const slot = nextOpenSlot(slotArg) || slotArg || MEAL.key;
     if (!slot || !MEAL_KEYS.includes(slot) || DAY.meals[slot]) return;
     const from = computeScore(componentsNow());
+    const hasPhoto = MEAL.photoBase64 && MEAL.key === slot;
+    // Timing accountability (0062): minutes past this slot's deadline at log time, computed on
+    // the athlete's own clock (the only honest source) and persisted so the COACH side can
+    // render the same on-time/late sentence the athlete saw.
+    const minutesLate = Math.max(0, minutesNow() - slotDeadline(slot));
+    const source = MEAL.key === slot ? (MEAL.source || (hasPhoto ? 'live' : 'manual')) : 'manual';
+    const integrity = {
+      live: MEAL.live !== false, source, minutesLate,
+      photoHash: hasPhoto ? MEAL.photoHash : null,
+      takenAt: hasPhoto ? MEAL.takenAt : null,
+    };
     const meta = MEAL.result
       ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note, name: MEAL.result.name || MEAL.mealType,
           fiber: MEAL.result.fiber || 0, highlights: MEAL.result.highlights || [], detectedRich: MEAL.result.detectedRich || [],
-          live: MEAL.live !== false }
-      : { name: MEAL.mealType || cap(slot), live: MEAL.live !== false };
+          analysis: MEAL.result.analysis || '', ...integrity }
+      : { name: MEAL.mealType || cap(slot), ...integrity };
     const macros = loggingMacros();
     dayLogMeal(RT.userId, slot, macros, meta);
-    const hasPhoto = MEAL.photoBase64 && MEAL.key === slot;
     if (hasPhoto) uploadMealPhoto(RT.userId, slot, MEAL.photoBase64);
     // Insert a real `meals` row so a coach can review + comment; persist the id for the thread.
+    // A { dup: true } return means the 0062 photo-hash wall caught a reused photo that slipped
+    // past the pre-check: the slot stays logged (honest record) but is flagged so it never
+    // scores, and the flag is visible to athlete + coach.
     const photoPath = hasPhoto ? `${RT.userId}/${DAY.date}/${slot}.jpg` : null;
-    insertMeal(RT.userId, slot, macros, meta, photoPath).then((id) => {
-      if (id) { DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), mealId: id }; pushDay(RT.userId); }
+    insertMeal(RT.userId, slot, macros, meta, photoPath).then((res) => {
+      if (res && res.dup) {
+        DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), flagged: 'dup' };
+        pushDay(RT.userId);
+        track(EVENTS.MEAL_DUP_BLOCKED, { stage: 'insert' });
+        window.__render && window.__render();
+      } else if (res) {
+        DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), mealId: res };
+        pushDay(RT.userId);
+      }
     });
     // keep legacy flags in sync for any screen still reading them
     if (slot === 'dinner') RT.dinnerLogged = true;
@@ -316,6 +361,11 @@ export const act = {
     RT.lastMove = { from, to, gain: to - from, what: cap(slot) };
     save();
     track(EVENTS.MEAL_LOGGED, { slot, source: hasPhoto ? 'photo' : 'manual' });
+    if (source === 'gallery') {
+      track(EVENTS.MEAL_GALLERY_LOGGED, { slot });
+      const age = photoAgeMinutes(MEAL.takenAt, Date.now());
+      if (age != null && age >= 60) track(EVENTS.MEAL_STALE_PHOTO, { slot });
+    }
     this.syncNotifications();
   },
   // Back-compat aliases (camera/search buttons and older routes) → the single logMeal impl.
@@ -357,6 +407,7 @@ export const act = {
         id: p.id,
         atISO: p.immediate ? null : new Date(y, mo - 1, d, Math.floor(p.fireAtMin / 60), p.fireAtMin % 60).toISOString(),
         title: p.title, body: p.body,
+        route: p.route || null, // tap lands on the exact screen (e.g. camera/dinner), not Home
       })));
       RT._lastPlan = { date: String(DAY.date), plan }; save(); // recorded only once the post was handed to native
       if (plan.some((p) => p.id === 'celebrate')) RT._celebratedOn = String(DAY.date);
@@ -365,18 +416,53 @@ export const act = {
   setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); track(EVENTS.COMMITMENT_SET, { answer: ans }); },
 
   /* ---- Phase 5: real meal capture → AI → real macros ---- */
-  captureMeal(base64, dataUrl, slot, live = true) {
+  captureMeal(base64, dataUrl, slot, live = true, extra) {
     MEAL.photoBase64 = base64; MEAL.photoDataUrl = dataUrl; MEAL.result = null;
     MEAL.live = live !== false;
+    MEAL.source = MEAL.live ? 'live' : 'gallery';
+    MEAL.capturedAtMin = minutesNow();
+    MEAL.takenAt = (extra && extra.takenAt) || null; // EXIF time of a gallery pick (or null)
+    MEAL.photoHash = null;
+    // Hash the downscaled JPEG in the background (best-effort) so the reuse pre-check and the
+    // insert are ready by the time the athlete confirms. checkPhotoReuse() below awaits it.
+    void (async () => {
+      try {
+        const h = await sha256Hex(base64ToBytes(base64));
+        if (MEAL.photoBase64 === base64) MEAL.photoHash = h; // still the same capture
+      } catch { /* hashing unavailable — server wall still holds */ }
+    })();
     // Real slot: the requirement row's slot if it passed one, else the next open slot by time.
     const key = nextOpenSlot(slot) || slot || 'dinner';
     MEAL.key = key;
     MEAL.mealType = cap(key);
     save();
   },
-  /* The current meal's analyze-meal request body (mode 'meal'); phase is added per call. */
+  /* Duplicate-photo pre-check (0062): has THIS athlete already logged this exact photo?
+     Run before the paid analyze call so a reused gallery pick is caught for free. Fail-open —
+     offline or pre-migration the server unique index still backstops at insert time. */
+  async checkPhotoReuse() {
+    if (!MEAL.photoBase64) return { reused: false };
+    if (!MEAL.photoHash) {
+      try { MEAL.photoHash = await sha256Hex(base64ToBytes(MEAL.photoBase64)); } catch { /* no WebCrypto */ }
+    }
+    if (!MEAL.photoHash) return { reused: false };
+    const prior = await checkPhotoReuse(MEAL.photoHash);
+    if (Array.isArray(prior) && prior.length) {
+      track(EVENTS.MEAL_DUP_BLOCKED, { stage: 'precheck' });
+      return { reused: true, prior: prior[0] };
+    }
+    return { reused: false };
+  },
+  /* The current meal's analyze-meal request body (mode 'meal'); phase is added per call.
+     Timing rides along (0062) so the AI's analysis can hold the standard on on-time/late —
+     measured on the athlete's clock at CAPTURE time, respecting a coach standard's windows. */
   _analysisBody() {
-    return { mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null, photoBase64: MEAL.photoBase64 };
+    const capturedAt = MEAL.capturedAtMin != null ? MEAL.capturedAtMin : minutesNow();
+    const timing = analysisTiming(capturedAt, slotDeadline(MEAL.key || 'dinner'));
+    return {
+      mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null,
+      photoBase64: MEAL.photoBase64, ...(timing ? { timing } : {}),
+    };
   },
   /* Phase 'analyze'. THE CLARIFYING MOMENT: when the model is genuinely unsure about something
      that would move the macros, it returns questions — we surface them ({ok, kind:'questions'})
@@ -415,14 +501,23 @@ export const act = {
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
   },
-  clearMeal() { MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null; MEAL.result = null; MEAL.live = true; MEAL.questions = null; },
+  clearMeal() {
+    MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null;
+    MEAL.result = null; MEAL.live = true; MEAL.questions = null;
+    MEAL.photoHash = null; MEAL.source = null; MEAL.takenAt = null; MEAL.capturedAtMin = null;
+  },
   /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
-     the actual macros the athlete assembled, not a demo constant. No AI "quality" is invented. */
-  captureManual(macros, foods, slot) {
+     the actual macros the athlete assembled, not a demo constant. No AI "quality" is invented.
+     `source` distinguishes 'manual' (search-built plate) from 'label' (typed off the panel —
+     exact numbers, never estimated) so every downstream surface says the honest thing. */
+  captureManual(macros, foods, slot, source = 'manual') {
     MEAL.key = nextOpenSlot(slot) || slot || 'dinner';
     MEAL.mealType = cap(MEAL.key);
     MEAL.photoBase64 = null; MEAL.photoDataUrl = null;
     MEAL.live = true; // manual entries have no photo provenance — never inherit a prior gallery pick's non-live flag
+    MEAL.source = source === 'label' ? 'label' : 'manual';
+    MEAL.photoHash = null; MEAL.takenAt = null;
+    MEAL.capturedAtMin = minutesNow();
     MEAL.result = {
       quality: null,
       protein: Math.round(macros.protein || 0), carbs: Math.round(macros.carbs || 0),
@@ -443,6 +538,12 @@ export const act = {
   },
   seeAssigned() { RT.assigned.forEach(a => { a.seen = true; }); save(); },
   primeCamera() { RT.camPrimed = true; save(); },
+  /* WS6: persist a Home collapse-section's open state so re-renders don't reset it. */
+  setHomeSection(id, open) {
+    if (!id) return;
+    RT.homeOpenSections = { ...(RT.homeOpenSections || {}), [id]: !!open };
+    save();
+  },
   saveProfile(p) { RT.profile = { ...(RT.profile || {}), ...p }; save(); },
   /* Onboarding scratch: the athlete's real selections captured step-by-step (DOM is wiped
      between routes, so each interaction persists here rather than being read at the end). */
@@ -1197,8 +1298,37 @@ export const S = {
     return g === 'gain' ? 'Gain weight' : g === 'lose' ? 'Lose fat' : g === 'maintain' ? 'Maintain' : g === 'perform' ? 'Perform' : null;
   },
 
+  // How many meals today's standard requires (coach standard 1–6, classic 3) — the one number
+  // Plan copy should quote instead of a hardcoded "three" (WS7 audit fix).
+  get mealsRequiredCount() { return reqMealSlots().length; },
+
+  /* The rulebook rows Plan's Schedule tab renders: the classic CATALOG, or — when a coach
+     standard governs (WS3 slice 2) — ITS meal slots (count/titles/windows) plus the non-meal
+     catalog rows. Same mapping as the exec engine, so the rulebook can never contradict Home. */
+  get scheduleCatalog() {
+    if (!RT.stdMeals) return CATALOG;
+    return [
+      ...reqMealSlots().map((k) => {
+        const base = CATALOG.find(c => c.id === k);
+        return {
+          id: k, title: (RT.stdMeals.titles && RT.stdMeals.titles[k]) || (base ? base.title : cap(k.replace('-', ' '))),
+          icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
+          freq: { type: 'daily' },
+          // label dropped on purpose: the standard's deadline is the truth; a cached classic
+          // label ("Due by 8:00 PM") would lie about a moved window.
+          window: { ...(base ? base.window : {}), due: slotDeadline(k), label: null },
+          required: true, impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
+          note: base ? base.note : 'Photo proof — part of your room standard.',
+        };
+      }),
+      ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id)),
+    ];
+  },
+
   get remainingCount() {
-    if (RT.day0) return RT.day0Breakfast ? 3 : 4;
+    // Standard-aware even on day 0: a coach standard's meal count (1–6) drives the number,
+    // never a hardcoded 3/4 (WS7 audit fix).
+    if (RT.day0) return reqMealSlots().length + 1 - (RT.day0Breakfast ? 1 : 0);
     const openMeals = reqMealSlots().filter(k => !mealScored(DAY, k)).length;
     return openMeals + (DAY.ciSubmitted ? 0 : 1);
   },
@@ -1206,9 +1336,14 @@ export const S = {
   /* Human-readable breakdown that MAPS onto the real weights and sums to /100. */
   get breakdown() {
     const c = componentsNow();
-    const logged = MEAL_KEYS.filter(k => DAY.meals[k]);
+    // Standard-aware counting (WS7 audit fix): a coach standard's slots + denominator (1–6)
+    // drive this line; the classic day keeps its 4-slot count (MEAL_KEYS incl. snack).
+    const std = RT.stdMeals;
+    const bdSlots = (std && Array.isArray(std.slots) && std.slots.length) ? std.slots : MEAL_KEYS;
+    const bdDenom = (std && std.mealsRequired) || 4;
+    const logged = bdSlots.filter(k => DAY.meals[k]);
     const nutriNote = logged.length
-      ? `${logged.length} of 4 meals logged${logged.length < 4 ? ' — more to come' : ' · full day'}`
+      ? `${logged.length} of ${bdDenom} meals logged${logged.length < bdDenom ? ' — more to come' : ' · full day'}`
       : 'No meals logged yet — each one builds Nutrition';
     const commit = DAY.dailyCommitment;
     const commitNote = commit === 'yes' ? 'You confirmed you hit your plan today'
@@ -1274,18 +1409,18 @@ export const S = {
       if (isMeal) {
         const slotMeta = DAY.slotMacros[d.id];
         const q = slotMeta && slotMeta.quality;
-        // d.done is now mealScored (Rule A) — a gallery pick that hasn't been recaptured live
-        // reads !done here even though a photo was logged. Say so honestly instead of the bare
-        // "Photo proof" a truly-empty slot shows.
-        const nonLiveOpen = !d.done && slotMeta && slotMeta.live === false;
-        meta = d.done ? (q != null ? `Scored ${q}` : 'Logged') : (nonLiveOpen ? 'Gallery photo saved' : 'Photo proof');
-        route = d.done ? `meal-detail/${d.id}` : `camera/${d.id}`;
+        // d.done is mealScored — the only logged-but-not-done state left is a duplicate-flagged
+        // photo (0062 integrity wall). Say so honestly instead of the bare "Photo proof" a
+        // truly-empty slot shows. Gallery picks score now, so they read as plain done rows.
+        const dupFlagged = !d.done && slotMeta && slotMeta.flagged === 'dup';
+        meta = d.done ? (q != null ? `Scored ${q}` : 'Logged') : (dupFlagged ? 'Duplicate photo' : 'Photo proof');
+        route = d.done ? `meal-detail/${d.id}` : (dupFlagged ? `meal-detail/${d.id}` : `camera/${d.id}`);
         if (d.done) {
           const at = DAY.mealLoggedAt[d.id];
           sub = at != null ? `Logged ${fmtClock(at)}${d.late ? ' · late' : ''}` : 'Logged';
           subColor = d.late ? 'a' : 'g';
-        } else if (nonLiveOpen) {
-          sub = 'Gallery photo saved — capture live to count';
+        } else if (dupFlagged) {
+          sub = "Logged, but this photo was already used — it doesn't count";
           subColor = 'a';
         }
       } else if (d.id === 'weight') {
@@ -1468,13 +1603,13 @@ export const S = {
         img: MEAL.photoDataUrl || null, score: r.quality,
         foods: r.detected.length ? r.detected : ['Your meal'],
         macros: { protein: r.protein, carbs: r.carbs, fat: r.fat, cals: r.kcal },
-        componentsRead: [
-          { k: 'Protein', v: `${r.protein}g detected`, ok: r.protein >= 25 ? true : 'warn' },
-          { k: 'Calories', v: `${r.kcal} kcal estimated`, ok: true },
-          { k: 'Foods', v: (r.detected.slice(0, 3).join(', ')) || 'read from your photo', ok: true },
-        ],
         planMatch: { verdict: r.quality >= 75 ? 'Strong meal' : 'Logged', detail: r.note || 'Analyzed from your photo.', level: r.quality >= 75 ? 'g' : 'b' },
-        ai: r.note || 'Logged from your photo.', empty: false, live: MEAL.live !== false,
+        ai: r.note || (MEAL.source === 'label' ? 'Exact numbers off the panel — no estimate needed.'
+          : MEAL.source === 'manual' ? 'Entered by you — the plate you actually built.'
+          : 'Logged from your photo.'),
+        analysis: r.analysis || '',            // the ONE detailed AI read (0062); note is the fallback
+        capturedAtMin: MEAL.capturedAtMin,     // for the timing pill on the analysis hero
+        empty: false, live: MEAL.live !== false,
       };
     }
     // Already-logged slot being revisited: show its REAL persisted plate, not a demo meal.
@@ -1486,9 +1621,10 @@ export const S = {
         score: meta.quality != null ? meta.quality : null,
         foods: Array.isArray(meta.foods) && meta.foods.length ? meta.foods : ['Your logged meal'],
         macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
-        componentsRead: [],
         planMatch: { verdict: 'Logged', detail: meta.note || 'Analyzed from your photo.', level: 'b' },
-        ai: meta.note || 'Logged from your photo.', empty: false,
+        ai: meta.note || 'Logged from your photo.',
+        analysis: meta.analysis || '', capturedAtMin: null,
+        empty: false,
       };
     }
     // Nothing captured or analyzed yet — honest empty state, never steak-and-potatoes constants.
@@ -1496,9 +1632,10 @@ export const S = {
       name: cap(slot), due: SLOT_DUE[slot] || 'Log when ready', remaining: 'Take a photo to analyze',
       img: null, score: null, foods: [],
       macros: { protein: 0, carbs: 0, fat: 0, cals: 0 },
-      componentsRead: [],
       planMatch: { verdict: 'Not analyzed yet', detail: 'Capture your meal and the AI reads it — real macros from your photo, no guesses.', level: 'b' },
-      ai: 'Take a photo of your meal and I’ll analyze it for real.', empty: true,
+      ai: 'Take a photo of your meal and I’ll analyze it for real.',
+      analysis: '', capturedAtMin: null,
+      empty: true,
     };
   },
 

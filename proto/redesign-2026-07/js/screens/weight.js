@@ -87,7 +87,7 @@ export default {
     </div>
 
     <div style="height:18px"></div>
-    <button class="btn primary" id="log-weight-btn">${icon('check', 19)} ${isLate ? 'Log Weight (late · trend only)' : 'Log Weight · trend only'}</button>
+    <button class="btn primary" id="log-weight-btn">${icon('check', 19)} ${isLate ? 'Log Weight (late)' : 'Log Weight'}</button>
     <div style="height:10px"></div>
     `;
   },

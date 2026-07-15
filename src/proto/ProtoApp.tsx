@@ -114,12 +114,43 @@ export function ProtoApp() {
     const sub = Linking.addEventListener('url', ({ url }) => deliverCode(parseInviteCode(url)));
     return () => sub.remove();
   }, [deliverCode]);
+
+  // Reminder deep links: an exec reminder ("Dinner closes in 45") carries its in-app route in
+  // notification data — tapping it must land the WebView on that exact screen, not Home. The
+  // route strings are authored by our own exec engine, but validate the shape anyway before
+  // injecting. Held-and-flushed on load exactly like invite codes (cold-start taps included).
+  const pendingRoute = React.useRef<string | null>(null);
+  const deliverRoute = React.useCallback((route: unknown) => {
+    if (typeof route !== 'string' || !/^[a-z0-9/_-]{1,64}$/i.test(route)) return;
+    if (!webLoaded.current || !webviewRef.current) {
+      pendingRoute.current = route;
+      return;
+    }
+    webviewRef.current.injectJavaScript(`location.hash = '#${route}'; true;`);
+  }, []);
+  React.useEffect(() => {
+    if (Platform.OS === 'web') return;
+    // Lazy require so web/test environments never load the native notifications module.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Notifications = require('expo-notifications') as typeof import('expo-notifications');
+    Notifications.getLastNotificationResponseAsync()
+      .then((resp) => deliverRoute(resp?.notification?.request?.content?.data?.route))
+      .catch(() => undefined);
+    const sub = Notifications.addNotificationResponseReceivedListener((resp) =>
+      deliverRoute(resp?.notification?.request?.content?.data?.route),
+    );
+    return () => sub.remove();
+  }, [deliverRoute]);
+
   const onWebLoadEnd = React.useCallback(() => {
     webLoaded.current = true;
     const code = pendingCode.current;
     pendingCode.current = null;
     deliverCode(code);
-  }, [deliverCode]);
+    const route = pendingRoute.current;
+    pendingRoute.current = null;
+    deliverRoute(route);
+  }, [deliverCode, deliverRoute]);
 
   // Android hardware back: pop the proto's in-app hash stack instead of exiting the app from
   // any depth. Role roots (and auth screens) are the only places back may exit — the injected
@@ -196,6 +227,16 @@ export function ProtoApp() {
       onRenderProcessGone={() => setErr('WebView crashed (render process gone)')}
       javaScriptEnabled
       domStorageEnabled
+      // Live camera viewfinder (getUserMedia inside the WebView). mediaCapturePermissionGrantType
+      // 'grant' forwards the OS-level camera permission (NSCameraUsageDescription / CAMERA) to the
+      // page without a second in-page prompt, on both WKWebView (iOS 15+) and Android's
+      // onPermissionRequest. allowsInlineMediaPlayback keeps the <video> element inline on iOS
+      // (without it the stream tries to go fullscreen). If getUserMedia is still unavailable on a
+      // device (e.g. older iOS refusing file:// origins), camera.js silently falls back to the
+      // native <input type=file capture> path — never a dead shutter.
+      allowsInlineMediaPlayback
+      mediaPlaybackRequiresUserAction={false}
+      mediaCapturePermissionGrantType="grant"
       bounces={false}
       overScrollMode="never"
       setSupportMultipleWindows={false}

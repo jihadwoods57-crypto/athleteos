@@ -29,6 +29,9 @@ export const EVENTS = Object.freeze({
   ONBOARDING_COMPLETED: 'onboarding_completed', // account created  {role}
   MEAL_LOGGED: 'meal_logged',                 // {slot, source}
   MEAL_ANALYSIS_FAILED: 'meal_analysis_failed', // {reason}  — the client-only signal 0037 can't see
+  MEAL_GALLERY_LOGGED: 'meal_gallery_logged', // {slot} — gallery photos score now; measure usage
+  MEAL_DUP_BLOCKED: 'meal_dup_blocked',       // {stage:'precheck'|'insert'} — reuse attempt caught
+  MEAL_STALE_PHOTO: 'meal_stale_photo',       // {slot} — gallery pick with an old EXIF capture time
   COMMITMENT_SET: 'commitment_set',           // {answer}
   RECOVERY_SUBMITTED: 'recovery_submitted',
   CHECKIN_SUBMITTED: 'checkin_submitted',

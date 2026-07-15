@@ -27,11 +27,12 @@ export function safeImg(v) {
   return ok ? s : '';
 }
 
-/* Honest disclosure badge for a gallery-picked (non-live) meal photo. Reuses the existing
-   amber .status-pill.a token — no new per-screen color fork. Presentation only: never
-   changes scoring, only discloses that this photo wasn't captured live. */
+/* Honest disclosure badge for a gallery-picked meal photo. Gallery photos SCORE now (founder
+   reversal 2026-07-15; the integrity wall is the 0062 photo-hash duplicate check) — this badge
+   is pure transparency for athlete + coach, never a scoring signal. Reuses the existing amber
+   .status-pill.a token — no new per-screen color fork. */
 export function nonLiveBadge() {
-  return `<span class="status-pill a">${icon('image', 12)} NON-LIVE</span>`;
+  return `<span class="status-pill a">${icon('image', 12)} FROM GALLERY</span>`;
 }
 
 /* Signature score ring — cinematic, uncontained. Layers:
@@ -216,6 +217,18 @@ export function composer({
     <input${inputId ? ` id="${inputId}"` : ''} placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''} />
     ${sendEl}
   </div>`;
+}
+
+/* Collapsible section (WS6 — the proto's first collapse primitive). Native <details>/<summary>
+   so there is no JS state machine; the summary reuses the .xgrp group-header look. Callers
+   persist open-state per section id (Home uses RT.homeOpenSections via act.setHomeSection) so
+   the 30s exec-tick re-render never resets what the athlete opened. `inner` must be
+   pre-escaped HTML (the same strings the sections rendered before). */
+export function collapseSection(id, title, count, inner, open) {
+  return `<details class="xcollapse" data-sec="${esc(id)}"${open ? ' open' : ''}>
+    <summary class="xgrp xsum">${esc(title)}${count != null ? ` · ${count}` : ''}<span class="xchev">${icon('chevron', 14)}</span></summary>
+    <div class="xcollapse-body">${inner}</div>
+  </details>`;
 }
 
 /* a stylized "plate of food" thumbnail (no photo dependency, reads premium) */

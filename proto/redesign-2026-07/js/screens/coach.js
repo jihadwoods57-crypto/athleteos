@@ -1085,7 +1085,7 @@ export const coachMeal = {
     <div class="photo-hero" ${meal._url ? '' : 'style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))"'}>
       ${meal._url ? `<img src="${esc(meal._url)}" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0"/>` : ''}
       <div class="ph-grad"></div>
-      <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${meal.protein != null ? `${meal.protein}g protein` : 'Logged'}</div></div>
+      <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${meal.protein != null ? `${meal.protein}g protein` : 'Logged'}${meal.source === 'gallery' ? ' · from gallery' : ''}${meal.source === 'manual' || meal.source === 'label' ? ' · no photo' : ''}</div></div>
       ${meal.quality != null ? `<div class="scorechip"><span class="v">${meal.quality}</span><span class="k">Meal</span></div>` : ''}</div>
     </div>` : ''}
 
@@ -1099,12 +1099,16 @@ export const coachMeal = {
     </div>` : (() => {
       const rx = reactionGroups(MC.comments);
       const msgs = threadMessages(MC.comments);
-      // `late` was hardcoded false here, so a late-logged meal showed "Captured on time" under
-      // "what the athlete was told" — affirmatively wrong. The coach client has no reliable way
-      // to compare this meal row's UTC `logged_at` against the athlete's LOCAL-time DEADLINE
-      // window (different device/timezone), so rather than guess, pass late: null — openingMessage
-      // omits the timing sentence entirely when timing is unknown.
-      const opening = meal ? openingMessage({ name: title, quality: meal.quality, note: meal.note, goal: null, coachTargets: null, late: null }) : '';
+      // Timing parity (0062): the CLIENT wrote minutes_late on the meals row at log time (the
+      // athlete's own clock — the only honest source), so the coach now sees the exact same
+      // on-time/late accountability sentence the athlete saw. Pre-0062 rows carry no
+      // minutes_late → late: null keeps the honest omission (never guess from UTC logged_at).
+      const mlate = meal && typeof meal.minutes_late === 'number' ? meal.minutes_late : null;
+      const opening = meal ? openingMessage({
+        name: title, quality: meal.quality, note: meal.note, analysis: meal.analysis || '',
+        goal: null, coachTargets: null,
+        late: mlate == null ? null : mlate > 0, minutesLate: mlate,
+      }) : '';
       return `
       ${rx.length ? `<div class="rx-strip">${rx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>` : ''}
       <div class="thread">

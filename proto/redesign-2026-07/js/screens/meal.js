@@ -1,8 +1,8 @@
-import { S, RT, tier, act, MEAL, mealDetail } from '../state.js';
-import { DAY } from '../day.js';
-import { icon, checkFill } from '../icons.js';
+import { S, RT, tier, act, MEAL, mealDetail, fmtClock } from '../state.js';
+import { DAY, slotDeadline } from '../day.js';
+import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
-import { openingMessage, reactionGroups, threadMessages, contextForChat } from '../meal-intel.js';
+import { openingMessage, reactionGroups, threadMessages, contextForChat, applyFoodEdit, hasUserEdits } from '../meal-intel.js';
 
 function macroRow(m) {
   return `<div class="macro-row">
@@ -28,10 +28,11 @@ export const analyzing = {
       </div>
       ${nonLive ? `<div style="display:flex;justify-content:center;padding-top:10px">${nonLiveBadge()}</div>` : ''}
       <div class="phase" id="an-phase">Reading your meal<span class="dots"></span></div>
-      <div class="phase-sub" id="an-sub">${nonLive ? "Won't count toward your score — live capture only. Logged for your record." : 'Detecting foods and portions'}</div>
+      <div class="phase-sub" id="an-sub">Detecting foods and portions</div>
     </div>`;
   },
   async mount(root) {
+    analysis._editing = false; // a fresh analysis never opens in edit mode
     const phase = root.querySelector('#an-phase');
     const sub = root.querySelector('#an-sub');
     const phaseTimer = setTimeout(() => { if (phase && location.hash === '#analyzing') { phase.innerHTML = 'Estimating macros<span class="dots"></span>'; if (sub) sub.textContent = 'Matching to your plan'; } }, 1000);
@@ -136,7 +137,22 @@ export const mealQuestions = {
   },
 };
 
-/* ---------- Meal Analysis (AI, pre-log) ---------- */
+/* ---------- Meal Analysis (AI, pre-log) ----------
+   Founder structure (2026-07-15), each fact exactly once:
+     photo (with timing vs the slot deadline) → editable breakdown (what + how much) →
+     estimated macros → ONE detailed AI analysis → log.
+   The old page rendered the AI note three times (planMatch + AI Feedback + thread opener) and
+   macros/foods twice (componentsRead + chips/macroRow) — all of that is consolidated here. */
+
+/** "Captured 1:42 PM · 18 min before the 2:00 PM deadline" — real clock math, never canned. */
+function captureTimingLine(capturedAtMin, slot) {
+  if (capturedAtMin == null) return null;
+  const dl = slotDeadline(slot);
+  const when = fmtClock(capturedAtMin);
+  if (capturedAtMin > dl) return `Captured ${when} · ${capturedAtMin - dl} min past the ${fmtClock(dl)} deadline`;
+  return `Captured ${when} · ${dl - capturedAtMin} min before the ${fmtClock(dl)} deadline`;
+}
+
 export const analysis = {
   tab: 'camera',
   hideTabs: true,
@@ -145,42 +161,47 @@ export const analysis = {
     const slot = MEAL.key || 'dinner';
     const already = !!DAY.meals[slot];
     const nonLive = MEAL.live === false;
+    const timingLine = captureTimingLine(L.capturedAtMin, slot);
+    const rich = (MEAL.result && Array.isArray(MEAL.result.detectedRich) && MEAL.result.detectedRich.length)
+      ? MEAL.result.detectedRich
+      : L.foods.map((f) => ({ name: f, confidence: 'high' }));
+    const edited = hasUserEdits(MEAL.result);
+    // Source-honest labels (WS7): a typed nutrition label is EXACT, never "estimated from photo".
+    const src = MEAL.source;
+    const srcLabel = edited ? 'edited by you'
+      : src === 'label' ? 'exact, from the nutrition label'
+      : src === 'manual' ? 'entered by you'
+      : 'estimated from photo';
     return `
     ${backHead(`${L.name} Analysis`, 'Check it before it counts', 'camera')}
 
-    <div class="photo-hero" style="background-image:url('${safeImg(L.img)}')">
+    <div class="photo-hero" style="${safeImg(L.img) ? `background-image:url('${safeImg(L.img)}')` : 'background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))'}">
       <div class="ph-grad"></div>
       <div class="ph-meta">
-        <div><div class="ph-t">${esc(L.name)}</div><div class="ph-s">${nonLive ? "Won't count toward your score — live capture only" : 'Captured just now · on time'}</div>${nonLive ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
-        <div class="scorechip"><span class="v">${L.score}</span><span class="k">Meal</span></div>
+        <div><div class="ph-t">${esc(L.name)}</div><div class="ph-s">${esc(timingLine || (nonLive ? 'From your gallery' : 'Captured just now'))}</div>${nonLive ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
+        ${L.score != null ? `<div class="scorechip"><span class="v">${L.score}</span><span class="k">Meal</span></div>` : ''}
       </div>
     </div>
 
-    <div class="eyebrow">Detected <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· estimated from photo</span> <span class="link" id="edit-foods">Edit</span></div>
-    <div class="foodchips" id="foods">
-      ${(MEAL.result && MEAL.result.detectedRich ? MEAL.result.detectedRich : L.foods.map((f) => ({ name: f, confidence: 'high' }))).map((d) => `
-        <span class="foodchip" data-name="${esc(d.name)}"><span class="conf-dot ${d.confidence}"></span>${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI is unsure — confirm or remove">?</span>' : ''}</span>`).join('')}
-    </div>
-
-    <div class="eyebrow">What the AI sees</div>
-    <section class="card" style="padding:6px 16px">
-      <div class="comp-read">
-        ${L.componentsRead.map(c => `
-          <div class="cr">
-            <div class="ci ${c.ok === true ? 'ok' : 'warn'}">${icon(c.ok === true ? 'check' : 'clock', 13)}</div>
-            <span class="ck">${esc(c.k)}</span><span class="cv">${esc(c.v)}</span>
-          </div>`).join('')}
+    <div class="eyebrow">Breakdown <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${srcLabel}</span> <span class="link" id="edit-foods">${'Edit'}</span></div>
+    <section class="card" style="padding:4px 16px" id="foods">
+      ${rich.map((d) => `
+        <div class="food-row" data-name="${esc(d.name)}">
+          <span class="conf-dot ${esc(d.confidence)}"></span>
+          <span class="fr-name">${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI is unsure — confirm or remove">?</span>' : ''}</span>
+          <span class="fr-qty">${d.quantity ? esc(d.quantity) : ''}</span>
+        </div>`).join('')}
+      <div class="food-row fr-add" id="food-add" style="display:none">
+        <span class="conf-dot high"></span>
+        <input class="fr-in name" id="add-name" placeholder="Add item (e.g. 2 eggs off-frame)" aria-label="Food name" />
+        <input class="fr-in qty" id="add-qty" placeholder="Qty" aria-label="Quantity" />
+        <button class="fr-ok" id="add-ok" aria-label="Add">${icon('check', 15)}</button>
       </div>
+      ${edited ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);padding:4px 0 8px">Edited by you — macros stay the AI's estimate.</div>` : ''}
     </section>
 
     <div class="eyebrow">Estimated</div>
     ${macroRow(L.macros)}
-
-    <div style="height:16px"></div>
-    <div class="sidebox" style="border-color:var(--green-border)">
-      <div class="req-icon g" style="width:38px;height:38px">${checkFill(20)}</div>
-      <div><div class="tt">${esc(L.planMatch.verdict)}</div><div class="ts">${esc(L.planMatch.detail)}</div></div>
-    </div>
 
     <div style="height:14px"></div>
     <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--green-surface);border:1px solid var(--green-border)">
@@ -190,16 +211,16 @@ export const analysis = {
     <div style="height:12px"></div>
     <div class="ai-note">
       <div class="av">${icon('sparkle', 18)}</div>
-      <div><div class="who">AI Feedback</div><p>${esc(L.ai)}</p></div>
+      <div><div class="who">AI Analysis</div><p>${esc(L.analysis || L.ai)}</p></div>
     </div>
 
-    ${already ? '' : nonLive
-      ? `<div class="score-change">${icon('image', 16)} Logged for your record — won't change your score. Capture live to make it count.</div>`
-      : `<div class="score-change">${icon('arrowUp', 16)} Logging this counts toward Nutrition (50%) and closes 1 of ${S.remainingCount} remaining tonight.</div>`}
+    ${already ? '' : `<div class="score-change">${icon('arrowUp', 16)} Logging this counts toward Nutrition (50%) and closes 1 of ${S.remainingCount} remaining tonight.</div>`}
 
     <div style="height:20px"></div>
     <div class="btn-row">
-      <button class="btn ghost sm" style="flex:1" data-go="camera/${slot}">${icon('camera', 17)} Retake</button>
+      ${src === 'manual' ? `<button class="btn ghost sm" style="flex:1" data-go="food-search">${icon('search', 17)} Edit plate</button>`
+        : src === 'label' ? `<button class="btn ghost sm" style="flex:1" data-go="label-scan">${icon('barcode', 17)} Edit label</button>`
+        : `<button class="btn ghost sm" style="flex:1" data-go="camera/${slot}">${icon('camera', 17)} Retake</button>`}
       ${already
         ? `<button class="btn ghost sm" style="flex:1.6" data-go="home">Already logged · Back Home</button>`
         : `<button class="btn green sm" style="flex:1.6" data-act="logMeal:${slot}" data-then="meal-thread/${slot}">${icon('check', 18)} Log ${esc(L.name)}</button>`}
@@ -207,46 +228,59 @@ export const analysis = {
     <div style="height:10px"></div>
     `;
   },
-  async mount(root) {
-    const { wireToggles } = await import('./settings.js');
-    wireToggles(root);
-    // Edit mode: chips become removable — real editing, not a dead button
+  mount(root) {
+    // Edit mode (real editing, not a dead button): remove / rename / set quantity / add.
+    // Every mutation goes through applyFoodEdit so MEAL.result.detectedRich and .detected stay
+    // in lockstep — act.logMeal reads the arrays, not the DOM. Macros are deliberately never
+    // re-estimated; the "edited by you" hint keeps that honest. Repaint via __render so the
+    // rendered rows always mirror the arrays (no hand-synced DOM state).
     const btn = root.querySelector('#edit-foods');
     const box = root.querySelector('#foods');
-    if (btn && box) btn.addEventListener('click', () => {
-      const editing = box.classList.toggle('editing');
-      btn.textContent = editing ? 'Done' : 'Edit';
-      box.querySelectorAll('.foodchip').forEach(ch => {
-        if (editing && !ch.querySelector('.rm')) {
-          ch.insertAdjacentHTML('beforeend', '<span class="rm" style="margin-left:6px;color:var(--red);font-weight:800;cursor:pointer">✕</span>');
-          ch.querySelector('.rm').addEventListener('click', (e) => {
-            e.stopPropagation();
-            // DOM removal alone is cosmetic — act.logMeal reads MEAL.result.detected /
-            // detectedRich, not the rendered chips, so a removed low-confidence food would
-            // otherwise still persist to the logged meta and the thread page. Splice the
-            // matching entry (by name — chip order can drift from array order after earlier
-            // removals) out of both arrays; macros are deliberately left untouched, no
-            // re-estimation.
-            const name = ch.getAttribute('data-name');
-            if (MEAL.result && name) {
-              const rich = MEAL.result.detectedRich;
-              if (Array.isArray(rich)) {
-                const i = rich.findIndex((d) => d && d.name === name);
-                if (i !== -1) rich.splice(i, 1);
-              }
-              const flat = MEAL.result.detected;
-              if (Array.isArray(flat)) {
-                const j = flat.indexOf(name);
-                if (j !== -1) flat.splice(j, 1);
-              }
-            }
-            ch.remove();
+    if (!btn || !box) return;
+    const editing = analysis._editing;
+    if (editing) {
+      btn.textContent = 'Done';
+      box.classList.add('editing');
+      const addRow = root.querySelector('#food-add');
+      if (addRow) addRow.style.display = 'flex';
+      // Per-row edit affordances: name/qty become inputs, ✕ removes.
+      box.querySelectorAll('.food-row:not(.fr-add)').forEach((row) => {
+        const name = row.getAttribute('data-name');
+        const nameEl = row.querySelector('.fr-name');
+        const qtyEl = row.querySelector('.fr-qty');
+        const item = MEAL.result && (MEAL.result.detectedRich || []).find((d) => d && d.name === name);
+        row.insertAdjacentHTML('beforeend', '<span class="rm" role="button" aria-label="Remove" style="margin-left:8px;color:var(--red);font-weight:800;cursor:pointer">✕</span>');
+        row.querySelector('.rm').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (applyFoodEdit(MEAL.result, { kind: 'remove', name })) { analysis._editing = true; window.__render(); }
+        });
+        if (nameEl) {
+          nameEl.innerHTML = `<input class="fr-in name" value="${esc(name)}" aria-label="Food name" />`;
+          nameEl.querySelector('input').addEventListener('change', (e) => {
+            applyFoodEdit(MEAL.result, { kind: 'rename', name, newName: e.target.value });
+            analysis._editing = true; window.__render();
           });
-        } else if (!editing) { const x = ch.querySelector('.rm'); if (x) x.remove(); }
+        }
+        if (qtyEl) {
+          qtyEl.innerHTML = `<input class="fr-in qty" value="${esc((item && item.quantity) || '')}" placeholder="Qty" aria-label="Quantity" />`;
+          qtyEl.querySelector('input').addEventListener('change', (e) => {
+            applyFoodEdit(MEAL.result, { kind: 'quantity', name, quantity: e.target.value });
+            analysis._editing = true; window.__render();
+          });
+        }
       });
-    });
+      const addOk = root.querySelector('#add-ok');
+      if (addOk) addOk.addEventListener('click', () => {
+        const n = root.querySelector('#add-name'), q = root.querySelector('#add-qty');
+        if (applyFoodEdit(MEAL.result, { kind: 'add', name: n && n.value, quantity: q && q.value })) {
+          analysis._editing = true; window.__render();
+        }
+      });
+    }
+    btn.addEventListener('click', () => { analysis._editing = !analysis._editing; window.__render(); });
   },
 };
+analysis._editing = false;
 
 /* ---------- Meal Thread — the ONE post-log surface (execution summary + honest
    breakdown + team discussion + next action). Post-log data is immutable: this page
@@ -271,20 +305,21 @@ export const thread = {
       <div style="height:10px"></div>`;
     }
 
-    // ---- 1. EXECUTION SUMMARY (celebrates the act of logging; never shames) ----
+    // ---- 1. LOGGED CONFIRMATION (celebrates the act of logging; never shames) ----
+    // Timing appears here ONCE — "Logged 1:47 PM · 42 min late" — and nowhere else on the page.
     const justLogged = RT.lastMove && !RT.lastMove._played && (RT.lastMove.what || '').toLowerCase() === M.slot;
-    const nonLiveLogged = M.live === false;
-    const timing = nonLiveLogged
-      ? (M.late ? 'Logged late' : 'Logged from gallery')
-      : (M.late ? 'Logged late · still counts' : 'Captured on time');
+    const dupFlagged = M.flagged === 'dup';
+    const timing = M.loggedAt
+      ? `Logged ${M.loggedAt} · ${M.minutesLate > 0 ? `${M.minutesLate} min late` : 'on time'}`
+      : (M.late ? 'Logged late · still counts' : 'Logged on time');
     const toTier = justLogged ? tier(RT.lastMove.to) : null;
-    const scoreStatus = nonLiveLogged ? "Won't count toward your score" : 'Counted toward Nutrition (50%)';
+    const scoreStatus = dupFlagged ? "Duplicate photo — doesn't count" : 'Counted toward Nutrition (50%)';
     const execTop = `
     <section class="mt-exec">
       <div class="bigcheck">${icon('check', 26)}</div>
-      <div class="t">${esc(M.name)} Logged</div>
+      <div class="t">Logged.</div>
       <div class="s">${timing} · ${scoreStatus} · Coach can see it</div>
-      ${justLogged && !nonLiveLogged ? `
+      ${justLogged && !dupFlagged ? `
       <div class="mt-move"><span class="from" data-anim-from>${RT.lastMove.from}</span><span style="color:var(--text-3)">${icon('arrowRight', 20)}</span><span class="to" data-anim-to>${RT.lastMove.to}</span></div>
       <div class="s">OnStandard Score · +${RT.lastMove.gain} pts</div>
       ${toTier.name !== tier(RT.lastMove.from).name ? `<span class="tier-chip ${toTier.cls}">▲ ${esc(toTier.name)}</span>` : ''}` : ''}
@@ -293,7 +328,17 @@ export const thread = {
       <div class="s" style="margin-top:6px">${e.met} of ${e.total} in today${S.streakDays > 0 ? ` · ${S.streakDays} day streak` : ''}</div>
     </section>`;
 
-    // ---- 2. MEAL BREAKDOWN (objective, honest, estimated) ----
+    // ---- 2. PHOTO (provenance badges live here; name/timing are NOT repeated) ----
+    const photoBlock = `
+    <div class="photo-hero" id="meal-hero" style="margin-top:14px;background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))">
+      <img id="meal-photo" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
+      <div class="ph-grad"></div>
+      <div class="ph-meta"><div>${M.live === false ? `<div>${nonLiveBadge()}</div>` : '<div></div>'}</div>
+      ${M.score != null ? `<div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}</div>
+    </div>
+    ${dupFlagged ? `<div style="font-size:11px;font-weight:600;color:var(--amber-bright);margin-top:6px">This exact photo was already logged once — this meal is recorded but doesn't count. Your coach can see the flag.</div>` : ''}`;
+
+    // ---- 3. MEAL BREAKDOWN (one card: foods+quantities line + macro bars; nothing repeated) ----
     const T = S.planTargets || {};
     const bars = [
       ['Protein', M.macros.protein, T.protein, 'g'],
@@ -302,22 +347,12 @@ export const thread = {
       ['Fiber', M.fiber, null, 'g'],
       ['Calories', M.macros.cals, T.calories, ''],
     ];
-    const coachLine = T.protein
-      ? `<div class="hl-row"><span class="ic">${icon(M.macros.protein * 4 >= T.protein ? 'check' : 'clock', 14)}</span>Coach's day bar: ${esc(String(T.protein))}g protein — this plate carries ${M.macros.protein}g of it.</div>`
-      : '';
+    const foodsLine = M.detectedRich
+      .map((d) => `${d.name}${d.quantity ? ` (${d.quantity})` : ''}`).join(' · ');
     const breakdown = `
-    <div class="eyebrow" style="margin-top:16px">Meal Breakdown <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· estimated from photo</span></div>
-    <div class="photo-hero" id="meal-hero" style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))">
-      <img id="meal-photo" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
-      <div class="ph-grad"></div>
-      <div class="ph-meta"><div><div class="ph-t">${esc(M.name)}</div><div class="ph-s">Logged ${esc(M.loggedAt || 'today')}</div>${M.live === false ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
-      ${M.score != null ? `<div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}</div>
-    </div>
-    ${M.live === false ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:6px">Picked from your gallery — logged for your record, but won't count toward your score.</div>` : ''}
-    <div class="foodchips">
-      ${M.detectedRich.map((d) => `<span class="foodchip"><span class="conf-dot ${esc(d.confidence)}"></span>${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI was unsure about this one">?</span>' : ''}</span>`).join('')}
-    </div>
-    <section class="card pad" style="margin-top:10px">
+    <div class="eyebrow" style="margin-top:16px">Meal Breakdown <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${M.source === 'label' ? 'exact, from the nutrition label' : M.source === 'manual' ? 'entered by you' : 'estimated from photo'}</span></div>
+    <section class="card pad" style="margin-top:8px">
+      ${foodsLine ? `<div style="font-size:13px;font-weight:700;color:var(--text-2);margin-bottom:12px">${esc(foodsLine)}</div>` : ''}
       ${bars.map(([k, v, target, u]) => `
         <div class="cons-row" style="margin-bottom:10px">
           <span class="k" style="width:64px">${k}</span>
@@ -325,20 +360,11 @@ export const thread = {
           <span class="v" style="width:96px">${v}${u}${target ? ` <small style="color:var(--text-3)">/ ${esc(String(target))}${u} day</small>` : ''}</span>
         </div>`).join('')}
       ${T.protein ? '' : `<div style="font-size:12px;font-weight:600;color:var(--text-3)">No coach targets set yet — these are this meal's estimated totals.</div>`}
-    </section>
-    ${coachLine}
-    ${(() => { // goal-alignment verdict — presentation only, no new math
-      const g = RT.profile && RT.profile.baseGoal;
-      if (!g || M.score == null) return '';
-      const GOAL_LABEL = { gain: 'gaining', lose: 'leaning out', maintain: 'maintaining', perform: 'performing', build: 'building', health: 'your health goals' };
-      return `<div class="hl-row"><span class="ic">${icon(M.score >= 75 ? 'check' : 'target', 14)}</span>${M.score >= 75 ? `Aligned with ${GOAL_LABEL[g] || 'your goal'} — this is the kind of plate that gets you there.` : `Workable for ${GOAL_LABEL[g] || 'your goal'} — the thread below has the one upgrade that matters.`}</div>`;
-    })()}
-    ${M.highlights.length ? M.highlights.map((h) => `<div class="hl-row"><span class="ic">${icon('sparkle', 14)}</span>${esc(h)}</div>`).join('') : ''}
-    <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--green-surface);border:1px solid var(--green-border);margin-top:8px">
-      ${icon('shield', 15)} <span style="font-size:12.5px;font-weight:700;color:var(--green-bright)">Guardian: checked against your restrictions (${RT.allergies.length ? esc(RT.allergies.join(', ')) : 'none declared'})</span>
-    </div>`;
+    </section>`;
 
-    // ---- 3. TEAM DISCUSSION (opening message is DERIVED, never stored) ----
+    // ---- 4. GROUPCHAT — the SINGLE AI-insight surface (opening message is DERIVED, never
+    // stored; it now carries the timing accountability + the detailed analysis + highlights,
+    // which used to leak into separate cards above). Coach + athlete both see and respond. ----
     const discussion = `
     <div class="eyebrow" style="margin-top:18px">Team Discussion</div>
     <div class="rx-strip" id="rx-strip"></div>
@@ -346,7 +372,11 @@ export const thread = {
       <div class="msg ai">
         <div class="av">${icon('sparkle', 15)}</div>
         <div><div class="who">OnStandard AI</div>
-        <div class="bubble">${esc(openingMessage({ name: M.name, quality: M.score, note: M.note, goal: RT.profile && RT.profile.baseGoal, coachTargets: S.planTargets, late: M.late }))}</div></div>
+        <div class="bubble">${esc(openingMessage({
+          name: M.name, quality: M.score, note: M.note, analysis: M.analysis,
+          highlights: M.highlights, goal: RT.profile && RT.profile.baseGoal,
+          coachTargets: S.planTargets, late: M.late, minutesLate: M.minutesLate,
+        }))}</div></div>
       </div>
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : 'Syncs when connected — your coach sees this log either way.'}</div>
     </div>
@@ -369,7 +399,7 @@ export const thread = {
       <span class="xpill ${n.color}">${n.pill}</span>
     </div>` : '';
 
-    return `${backHead(M.name, timing, 'home')}${execTop}${breakdown}${discussion}${next}
+    return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
     <div style="height:12px"></div>
     <div class="btn-row"><button class="btn ghost sm" style="flex:1" data-go="home">Back Home</button></div>
     <div style="height:10px"></div>`;

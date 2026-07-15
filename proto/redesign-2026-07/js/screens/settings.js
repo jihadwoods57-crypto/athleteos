@@ -106,27 +106,30 @@ export const settings = {
     ${backHead('Units & preferences', 'Kept clean, not a junk drawer', roleProfileRoute())}
 
     <div class="eyebrow">Units · US default for now</div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">The app shows lb / oz / 12-hour today. Metric and 24-hour display land in an update — this is a preview of what's coming.</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">The app shows lb / oz / 12-hour today. Metric and 24-hour display land in an update.</div>
     <section class="card" style="padding:6px 16px">
+      ${/* No fake segmented controls (WS7 audit fix): the old kg/L/24h buttons highlighted on
+            tap but persisted nothing — a control that lies. Until metric ships, the alternates
+            render honestly disabled. */''}
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('scale', 17)}</div>
         <div class="lm"><div class="lt">Weight</div></div>
-        <div class="seg" style="width:130px" data-toggle-group>
-          <button class="on">lb</button><button>kg</button>
+        <div class="seg" style="width:130px">
+          <button class="on" disabled>lb</button><button disabled style="opacity:.4">kg · soon</button>
         </div>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('droplet', 17)}</div>
         <div class="lm"><div class="lt">Fluids</div></div>
-        <div class="seg" style="width:130px" data-toggle-group>
-          <button class="on">oz</button><button>L</button>
+        <div class="seg" style="width:130px">
+          <button class="on" disabled>oz</button><button disabled style="opacity:.4">L · soon</button>
         </div>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('clock', 17)}</div>
         <div class="lm"><div class="lt">Time</div></div>
-        <div class="seg" style="width:130px" data-toggle-group>
-          <button class="on">12h</button><button>24h</button>
+        <div class="seg" style="width:130px">
+          <button class="on" disabled>12h</button><button disabled style="opacity:.4">24h · soon</button>
         </div>
       </div>
     </section>

@@ -134,6 +134,16 @@ describe('notification plan', () => {
   });
   test('hydration never notifies', () =>
     expect(at(8 * 60).plan.filter((p: any) => p.id === 'hydration')).toEqual([]));
+  test('every reminder carries its deep-link route — tap lands on the screen, not Home (WS7)', () => {
+    const e = at(6 * 60);
+    const b = e.plan.find((p: any) => p.id === 'breakfast')!;
+    expect(b.route).toBe('camera/breakfast');
+    const w = e.plan.find((p: any) => p.id === 'weight')!;
+    expect(w.route).toBe('weight');
+    const r = e.plan.find((p: any) => p.id === 'recovery');
+    if (r) expect(r.route).toBe('recovery');
+    e.plan.forEach((p: any) => expect(typeof p.route).toBe('string'));
+  });
   test('weight copy is trend-only, never shame', () => {
     const w = at(7 * 60).plan.find((p: any) => p.id === 'weight')!;
     expect(w.body).toMatch(/trend/i);

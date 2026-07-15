@@ -38,7 +38,36 @@ describe('groundExtras', () => {
     expect(g.detectedNames).toEqual(['Oats', 'Banana']);
   });
   test('missing fields yield safe defaults', () =>
-    expect(groundExtras({})).toEqual({ fiber: 0, highlights: [], detectedRich: [], detectedNames: [] }));
+    expect(groundExtras({})).toEqual({ fiber: 0, highlights: [], detectedRich: [], detectedNames: [], analysis: '' }));
+  test('analysis clamps to 1200 chars and strips markup (0062)', () => {
+    const g = groundExtras({ analysis: '<b>Strong plate.</b> ' + 'x'.repeat(2000) });
+    expect(g.analysis.length).toBeLessThanOrEqual(1200);
+    expect(g.analysis).not.toContain('<');
+    expect(g.analysis).toContain('Strong plate.');
+  });
+  test('detected quantity rides through cleaned + capped; absent stays absent', () => {
+    const g: any = groundExtras({ detected: [{ name: 'Eggs', confidence: 'high', quantity: '<i>2 eggs</i>' }, { name: 'Rice', confidence: 'medium' }] });
+    expect(g.detectedRich[0].quantity).toBe('i2 eggs/i');
+    expect(g.detectedRich[0].quantity).not.toContain('<');
+    expect(g.detectedRich[1]).not.toHaveProperty('quantity');
+    const long: any = groundExtras({ detected: [{ name: 'Rice', confidence: 'high', quantity: 'y'.repeat(100) }] });
+    expect(long.detectedRich[0].quantity.length).toBeLessThanOrEqual(40);
+  });
+});
+
+describe('analysisTiming (0062 — client-measured, server only formats)', () => {
+  // @ts-ignore
+  const { analysisTiming } = require('../../proto/redesign-2026-07/js/meal-intel.js');
+  test('late capture yields minutesLate, zero minutesLeft', () =>
+    expect(analysisTiming(900, 840)).toEqual({ deadlineMin: 840, minutesLate: 60, minutesLeft: 0 }));
+  test('on-time capture yields minutesLeft, zero minutesLate', () =>
+    expect(analysisTiming(800, 840)).toEqual({ deadlineMin: 840, minutesLate: 0, minutesLeft: 40 }));
+  test('dishonest inputs yield null so the request just omits timing', () => {
+    expect(analysisTiming(NaN, 840)).toBeNull();
+    expect(analysisTiming(900, undefined)).toBeNull();
+    expect(analysisTiming(-5, 840)).toBeNull();
+    expect(analysisTiming(900, 9999)).toBeNull();
+  });
 });
 
 describe('dayLogMeal meta persistence (slotMacros jsonb round-trip)', () => {
@@ -97,8 +126,26 @@ describe('openingMessage', () => {
   });
   test('coach targets earn a deference line', () =>
     expect(openingMessage({ ...base, coachTargets: { protein: 180 } })).toContain('180'));
-  test('caps at 600 chars', () =>
-    expect(openingMessage({ ...base, note: 'x'.repeat(700) }).length).toBeLessThanOrEqual(600));
+  test('caps at 1200 chars (raised for the detailed analysis, WS5)', () =>
+    expect(openingMessage({ ...base, note: 'x'.repeat(1400) }).length).toBeLessThanOrEqual(1200));
+  test('analysis takes precedence over note + goal tie + quality praise (single AI surface)', () => {
+    const m = openingMessage({ ...base, analysis: 'A detailed coach paragraph about this plate.' });
+    expect(m).toContain('A detailed coach paragraph about this plate.');
+    expect(m).not.toContain('Solid protein anchor.'); // note is superseded
+    expect(m).not.toMatch(/keep .* in rotation/i);    // praise line is superseded
+  });
+  test('minutesLate sharpens the late sentence with the real number', () => {
+    const m = openingMessage({ ...base, late: true, minutesLate: 42 });
+    expect(m).toMatch(/42 min past the window/);
+    expect(m).toMatch(/isn't the standard/i);
+    expect(m).toMatch(/counts/i); // still credited, never shamed
+  });
+  test('on-time copy holds the standard in the founder voice', () =>
+    expect(openingMessage(base)).toMatch(/in on time\. That's the standard\./));
+  test('highlights fold into ONE sentence inside the message', () => {
+    const m = openingMessage({ ...base, highlights: ['Strong iron source', 'Good fiber'] });
+    expect(m).toContain('Worth knowing: Strong iron source. Good fiber.');
+  });
   test('late: null omits the timing sentence entirely (timing unknown, not guessed)', () => {
     const m = openingMessage({ ...base, late: null });
     expect(m).not.toMatch(/on time/i);

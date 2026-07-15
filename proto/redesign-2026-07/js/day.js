@@ -28,13 +28,15 @@ function withinTrailingWeek(dateStr, todayStr) {
   return diff >= 0 && diff <= 6;
 }
 
-/** Rule A (founder-approved T2A exception, 2026-07-12): a logged slot only counts toward
- *  score/streak when it was captured live. A gallery pick (`slotMacros[k].live === false`) is
- *  logged and analyzed normally but never scores. Pure + Node-importable, like the other
- *  compute fns below, so the parity test can exercise it too. Fixtures that never set `.live`
- *  (RN engine has no such concept) are unaffected — `undefined !== false` keeps them scored. */
+/** Gallery reversal (founder direction 2026-07-15, replacing Rule A): a logged slot counts
+ *  toward score/streak regardless of live-vs-gallery capture — the integrity wall is now the
+ *  photo-hash duplicate check (migration 0062), not a blanket live-only exclusion. The ONLY
+ *  slot that doesn't score is one whose photo was flagged as a duplicate
+ *  (`slotMacros[k].flagged === 'dup'`): it stays logged and visible (coach sees the flag) but
+ *  earns nothing. Pure + Node-importable, like the other compute fns below. Fixtures that
+ *  never set slotMacros meta are unaffected. */
 export function mealScored(day, k) {
-  return !!(day.meals && day.meals[k]) && !(day.slotMacros && day.slotMacros[k] && day.slotMacros[k].live === false);
+  return !!(day.meals && day.meals[k]) && !(day.slotMacros && day.slotMacros[k] && day.slotMacros[k].flagged === 'dup');
 }
 
 /* ---- Coach standard (0055 requirement_sets → the SCORED day; WS3 slice 2) ----
@@ -74,7 +76,7 @@ function proteinToday(day) {
   let p = 0;
   for (const k of scoredSlotKeys()) {
     // Evidence rule: a logged slot with no saved plate earns 0 protein (matches mealSlotMacros).
-    // Rule A: a non-live (gallery) slot earns 0 protein too, whether or not it has a plate.
+    // A duplicate-flagged slot earns 0 protein too (mealScored excludes it).
     if (mealScored(day, k) && day.slotMacros && day.slotMacros[k]) p += day.slotMacros[k].protein || 0;
   }
   const q = day.quickAdded || [];
@@ -181,11 +183,8 @@ export function projectedDay() {
   // A governing standard projects ITS slots complete (a 6-meal room's "possible" includes
   // meal-5/meal-6; a 2-meal room's projection is just its two).
   for (const k of scoredSlotKeys()) p.meals[k] = true;
-  // Rule A: the reach/possible projection assumes every slot gets a LIVE capture — clear any
-  // non-live flag so a gallery-picked plate counts toward the "if you finish today" number.
-  // No-op for all-live days (live is only ever stored as false), so `possible` stays
-  // byte-identical for the common case.
-  for (const k of scoredSlotKeys()) { if (p.slotMacros && p.slotMacros[k]) delete p.slotMacros[k].live; }
+  // Gallery slots score now (2026-07-15), so no flag-clearing is needed; a duplicate-flagged
+  // slot stays excluded even in the projection — that meal honestly can't count.
   p.ciSubmitted = true;
   p.dailyCommitment = 'yes';
   return p;
@@ -407,6 +406,9 @@ export function dayLogMeal(userId, key, macros, meta) {
     if (Array.isArray(meta.highlights)) m.highlights = meta.highlights.slice(0, 3);
     if (Array.isArray(meta.detectedRich)) m.detectedRich = meta.detectedRich.slice(0, 8);
     if (meta.live === false) m.live = false;
+    if (meta.source) m.source = meta.source;          // 'live' | 'gallery' | 'manual' | 'label'
+    if (meta.analysis) m.analysis = String(meta.analysis).slice(0, 1200);
+    if (meta.takenAt) m.takenAt = meta.takenAt;       // EXIF capture time of a gallery pick
   }
   if (Object.keys(m).length) DAY.slotMacros[key] = m;
   pushDay(userId);
@@ -426,13 +428,15 @@ export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[
 /** Insert a real row into the `meals` table (mirrors the RN insertMeal / mapMealToRow) so a coach
  *  can review and comment on the plate. The proto otherwise only writes `days`; coach review +
  *  meal_comments key on a real meal id. Best-effort — a failed insert never blocks logging.
- *  Returns the new meal id (or null) so callers can persist it for the comment thread. */
+ *  Returns the new meal id (string), the `{ dup: true }` sentinel when the 0062 photo-hash
+ *  unique index rejected a reused photo (the caller flags the slot so it doesn't score), or
+ *  null on any other failure. */
 export async function insertMeal(userId, key, macros, meta, photoPath) {
   const sb = window.sb;
   if (!sb || !userId || SYNC_BLOCKED) return null;
   try {
     const m = meta || {};
-    const row = {
+    const legacyRow = {
       athlete_id: userId, day_date: DAY.date, type: key,
       photo_path: photoPath || null,
       name: m.name || (key.charAt(0).toUpperCase() + key.slice(1)),
@@ -443,7 +447,24 @@ export async function insertMeal(userId, key, macros, meta, photoPath) {
       note: m.note || '',
       logged_at: new Date().toISOString(),
     };
-    const { data, error } = await sb.from('meals').insert(row).select('id').maybeSingle();
+    // 0062 integrity/analysis columns. photo_hash only rides with a real photo — the unique
+    // index is per-athlete, so a null hash never collides.
+    const row = {
+      ...legacyRow,
+      photo_hash: (typeof m.photoHash === 'string' && /^[0-9a-f]{64}$/.test(m.photoHash)) ? m.photoHash : null,
+      source: m.source || null,
+      analysis: m.analysis ? String(m.analysis).slice(0, 1200) : null,
+      minutes_late: (typeof m.minutesLate === 'number' && isFinite(m.minutesLate))
+        ? Math.max(0, Math.min(1440, Math.round(m.minutesLate))) : null,
+      photo_taken_at: m.takenAt || null,
+    };
+    let { data, error } = await sb.from('meals').insert(row).select('id').maybeSingle();
+    if (error && error.code === '23505') return { dup: true }; // photo reused — server wall held
+    if (error) {
+      // Pre-0062 DB (unknown column / stale schema cache): retry with the legacy shape so an
+      // un-applied migration can never block logging a meal.
+      ({ data, error } = await sb.from('meals').insert(legacyRow).select('id').maybeSingle());
+    }
     if (error) { console.warn('[day] insertMeal failed', error.message); return null; }
     return data ? data.id : null;
   } catch (e) { console.warn('[day] insertMeal failed', e && e.message); return null; }

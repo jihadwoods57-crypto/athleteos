@@ -7,7 +7,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { ensureNotifyPermission, isNotifyAvailable } from './index';
 
-export type ExecPlanItem = { id: string; atISO: string | null; title: string; body: string };
+export type ExecPlanItem = { id: string; atISO: string | null; title: string; body: string; route?: string | null };
 
 export async function syncExecNotifications(plan: ExecPlanItem[]): Promise<void> {
   if (!isNotifyAvailable) return;
@@ -23,7 +23,9 @@ export async function syncExecNotifications(plan: ExecPlanItem[]): Promise<void>
       try {
         await Notifications.scheduleNotificationAsync({
           identifier: `exec-${p.id}-${p.atISO ?? 'now'}`,
-          content: { title: p.title, body: p.body },
+          // route rides in data so the tap handler (ProtoApp) can land the WebView on the
+          // exact screen the reminder is about — camera/dinner, recovery, weight.
+          content: { title: p.title, body: p.body, data: { route: p.route ?? null } },
           trigger: at
             ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: Platform.OS === 'android' ? 'reminders' : undefined }
             : null,

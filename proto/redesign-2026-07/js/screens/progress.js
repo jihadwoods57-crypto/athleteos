@@ -82,14 +82,7 @@ export default {
     <div class="coach-stats">
       <div class="coach-stat"><div class="v" style="color:var(--amber-bright)">${P.bestStreak}d</div><div class="k">Best streak</div></div>
       ${P.monthConsistency != null ? `<div class="coach-stat"><div class="v">${P.monthConsistency}%</div><div class="k">Consistency (≥80)</div></div>` : ''}
-      <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${P.weekAvg}</div><div class="k">Avg score</div></div>
-    </div>
-
-    <div style="height:16px"></div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('sparkle', 17)}</div>
-      <div><div class="tt">More insight as you log</div>
-      <div class="ts">Per-requirement consistency, your biggest pattern, and coach + AI summaries turn on once there's enough real history to be honest about. <span class="link" data-go="history">See meal history</span></div></div>
+      <div class="coach-stat" data-go="history" style="cursor:pointer"><div class="v" style="color:var(--blue-bright)">${icon('clipboard', 18)}</div><div class="k">Meal history</div></div>
     </div>
 
     <div class="eyebrow">Weight Trend</div>
@@ -108,9 +101,5 @@ export default {
     <div style="height:10px"></div>
     `;
   },
-  async mount(root) {
-    const { wireToggles } = await import('./settings.js');
-    root.querySelectorAll('.seg').forEach(g => g.setAttribute('data-toggle-group', ''));
-    wireToggles(root);
-  },
+  // No mount: the old one wired .seg toggle groups this screen never renders (dead code, WS8).
 };

@@ -38,12 +38,35 @@
 .cam-head .s .dim { color: var(--text-2); font-weight: 600; }
 .viewfinder {
   position: relative; margin: 2px 20px 0; border-radius: 24px; overflow: hidden;
-  aspect-ratio: 3/3.6;
+  /* Bigger, live-first preview (founder ask): fills most of the screen but never crowds the
+     shutter row out of reach on short phones. */
+  aspect-ratio: 3/4.2; max-height: 62vh;
   background:
     radial-gradient(90% 70% at 50% 45%, #2b3548 0%, #141b29 70%),
     var(--surface-2);
   border: 1px solid var(--hairline);
 }
+/* The live getUserMedia stream fills the frame; corner ticks + deadline pill overlay it. */
+.viewfinder video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+/* Shutter flash: a white sheet that pops then fades — makes the frozen frame read as a capture. */
+.vf-flash { position: absolute; inset: 0; z-index: 5; background: #fff; opacity: 0; pointer-events: none; }
+.vf-flash.on { animation: vf-flash 260ms ease-out; }
+@keyframes vf-flash { 0% { opacity: 0.9; } 100% { opacity: 0; } }
+/* Capture confirm: the staged photo full-bleed, provenance badges top-left. */
+.cam-confirm { display: flex; flex-direction: column; min-height: 100%; }
+.cam-confirm .cc-photo { background-size: cover; background-position: center; aspect-ratio: 3/4.2; max-height: 64vh; }
+.cc-badges { position: absolute; top: 14px; left: 14px; z-index: 4; display: flex; gap: 6px; }
+/* Analysis breakdown rows (WS4): one editable list replaces chips + componentsRead. */
+.food-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.food-row:last-of-type { border-bottom: none; }
+.food-row .fr-name { flex: 1; font-size: 14px; font-weight: 700; color: var(--text); }
+.food-row .fr-qty { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.food-row .q { color: var(--amber-bright); font-weight: 800; margin-left: 4px; }
+.fr-in { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 10px; color: var(--text); font-size: 13.5px; font-weight: 600; padding: 7px 10px; min-width: 0; }
+.fr-in.name { flex: 1; width: 100%; }
+.fr-in.qty { width: 86px; }
+.food-row.fr-add { gap: 8px; }
+.fr-ok { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--green-border); background: var(--green-surface); color: var(--green-bright); display: grid; place-items: center; cursor: pointer; }
 .vf-empty {
   position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 0 28px;
@@ -405,6 +428,14 @@
 .xcta{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;box-sizing:border-box;padding:14px;border:none;border-radius:var(--r-btn);background:linear-gradient(150deg,var(--amber-bright),var(--amber));color:#1A1204;font-family:var(--font);font-size:15px;font-weight:800;box-shadow:0 12px 34px rgba(245,165,36,0.30);cursor:pointer}
 .xnow.red .xcta{background:linear-gradient(150deg,#F87171,var(--red));color:#1A0505;box-shadow:0 12px 34px rgba(246,87,87,0.28)}
 .xgrp{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);margin:6px 4px -4px}
+/* WS6 collapse primitive: a <details> whose summary reuses the .xgrp header look. Native
+   toggle, no JS state; chevron rotates on open; body keeps the ladder's row rhythm. */
+.xcollapse{margin:0}
+.xcollapse .xsum{display:flex;align-items:center;gap:6px;list-style:none;cursor:pointer;min-height:34px;margin:2px 4px -2px;user-select:none}
+.xcollapse .xsum::-webkit-details-marker{display:none}
+.xcollapse .xchev{display:inline-flex;color:var(--text-3);transform:rotate(90deg);transition:transform var(--dur-1) var(--ease-out)}
+.xcollapse[open] .xchev{transform:rotate(270deg)}
+.xcollapse-body{display:grid;gap:8px;padding-top:6px}
 .xrow-item{display:flex;align-items:center;gap:11px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:17px;padding:10px 12px;cursor:pointer}
 .xrow-item .xr{flex:1}
 .xrow-item .xa{font-size:14px;font-weight:700;letter-spacing:-.01em}

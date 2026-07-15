@@ -1,4 +1,4 @@
-import { S, RT } from '../state.js';
+import { S, RT, slotTitle } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, composer } from '../components.js';
 
@@ -24,7 +24,7 @@ export const foodSearch = {
   hideTabs: true,
   render() {
     const slot = S.currentSlot;
-    const slotName = slot ? slot.charAt(0).toUpperCase() + slot.slice(1) : 'meal';
+    const slotName = slot ? slotTitle(slot) : 'meal';
     return `
     ${backHead(`Search Food · ${slotName}`, 'When a photo isn’t possible. Same score rules.', 'camera')}
 
@@ -104,13 +104,14 @@ export const foodSearch = {
         renderPlate();
       }));
     };
-    // Log the REAL assembled plate into the real open slot — not a demo constant.
+    // Stage the REAL assembled plate and route through the SAME confirm gate the photo path
+    // gets (#meal-analysis) — an accidental tap no longer commits instantly (WS7). The
+    // athlete reviews the plate + totals, then "Log" commits.
     if (logBtn) logBtn.addEventListener('click', () => {
       if (!plate.length || !SLOT) return;
       const sum = plate.reduce((a, x) => ({ p: a.p + x.p * x.q, c: a.c + x.c * x.q, f: a.f + x.f * x.q, kc: a.kc + x.kc * x.q }), { p: 0, c: 0, f: 0, kc: 0 });
-      window.__act.captureManual({ protein: sum.p, carbs: sum.c, fat: sum.f, kcal: sum.kc }, plate.map(x => x.n), SLOT);
-      window.__act.logMeal(SLOT);
-      location.hash = `#meal-thread/${SLOT}`;
+      window.__act.captureManual({ protein: sum.p, carbs: sum.c, fat: sum.f, kcal: sum.kc }, plate.map(x => x.n), SLOT, 'manual');
+      location.hash = '#meal-analysis';
     });
 
     // "Clear" was rendered but never wired (router only wires data-go/data-act at render
@@ -130,7 +131,7 @@ export const labelScan = {
   hideTabs: true,
   render() {
     const slot = S.currentSlot;
-    const slotName = slot ? slot.charAt(0).toUpperCase() + slot.slice(1) : 'meal';
+    const slotName = slot ? slotTitle(slot) : 'meal';
     const allergies = (RT.allergies || []).filter(Boolean);
     const numField = 'width:100%;height:52px;border-radius:14px;background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums';
     return `
@@ -193,9 +194,9 @@ export const labelScan = {
       const kcal = kcalIn > 0 ? kcalIn : (4 * p + 4 * c + 9 * f);
       window.__act.captureManual(
         { protein: Math.round(p * mult), carbs: Math.round(c * mult), fat: Math.round(f * mult), kcal: Math.round(kcal * mult) },
-        ['Label entry'], SLOT);
-      window.__act.logMeal(SLOT);
-      location.hash = `#meal-thread/${SLOT}`;
+        ['Label entry'], SLOT, 'label');
+      // Same confirm gate as the photo path (WS7): review before it counts.
+      location.hash = '#meal-analysis';
     });
   },
 };

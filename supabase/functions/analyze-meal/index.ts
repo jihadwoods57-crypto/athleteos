@@ -229,6 +229,10 @@ interface AnalyzeReq {
    *  to identify a plate item as one of these unless unmistakable, nor suggest one as a substitution
    *  (audit item 13: the memory flywheel's read half). Sanitized before it reaches the prompt. */
   avoid?: string[];
+  /** Slot timing, CLIENT-computed (the athlete's local clock is the only honest source — the
+   *  server never derives timing). All values are minutes; sanitized/clamped before the prompt.
+   *  Lets the analysis acknowledge on-time/late; the timing math itself never comes from the model. */
+  timing?: { deadlineMin?: number; minutesLate?: number; minutesLeft?: number };
 }
 
 // The exact shape the app renders (src/core MealResult). The model fills this via a
@@ -253,6 +257,7 @@ const MEAL_TOOL = {
           properties: {
             name: { type: 'string', description: 'The food, e.g. "Grilled chicken".' },
             confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'high = clearly visible; medium = probable; low = uncertain, the athlete should confirm.' },
+            quantity: { type: 'string', description: 'Estimated quantity in plain kitchen units, e.g. "2 eggs", "1 cup rice", "6 oz". Omit when unguessable.' },
           },
           required: ['name', 'confidence'],
         },
@@ -263,6 +268,7 @@ const MEAL_TOOL = {
         description: 'Up to 3 short micronutrient highlights ONLY when clearly present (e.g. "Strong iron source, supports oxygen delivery"). Empty when nothing stands out. Never fabricate.',
       },
       note: { type: 'string', description: 'One coach-voiced sentence tying this meal to the athlete goal. No hype, no em dashes.' },
+      analysis: { type: 'string', description: 'The detailed athlete-facing read: one well-constructed paragraph of 3 to 6 sentences in the coach voice. Cover what the meal is and roughly how much, why the macros read the way they do, the single most valuable adjustment, and, when timing information was provided, acknowledge on-time or late plainly while holding the standard without shaming. No repetition of the raw numbers as a list, no hype, no em dashes.' },
       reconcile: { type: 'string', description: 'Only when the athlete note CONTRADICTS what is plainly visible (e.g. says grilled but it is clearly fried, or "no sauce" when it is drowning): one short, non-accusatory coach sentence saying what you are counting and why, leaving them an out. Omit entirely when the note agrees with or merely adds hidden food. No em dashes.' },
       descriptionSignal: { type: 'string', enum: ['match', 'photo_heavier', 'photo_lighter', 'no_photo'], description: 'Relationship of the athlete note to the photo. "match": the note agrees with the photo or only adds plausible hidden/off-frame food (trust it). "photo_heavier": the plate visibly holds MORE than the note claims (the note underrated it). "photo_lighter": the plate visibly holds LESS than the note claims. "no_photo": no photo was provided.' },
       substitution: {
@@ -276,7 +282,7 @@ const MEAL_TOOL = {
         },
       },
     },
-    required: ['name', 'quality', 'protein', 'kcal', 'carbs', 'fat', 'detected', 'fiber', 'note', 'descriptionSignal'],
+    required: ['name', 'quality', 'protein', 'kcal', 'carbs', 'fat', 'detected', 'fiber', 'note', 'analysis', 'descriptionSignal'],
   },
 } as const;
 
@@ -337,7 +343,13 @@ toward fueling performance. Numbers are estimates; be reasonable. No em dashes i
 
 Confidence honesty: mark a detected food "low" whenever the photo alone cannot confirm it (obscured,
 ambiguous, or inferred from the athlete note). Fiber and highlights are estimates from what is
-visible; when nothing is clearly notable, return highlights as an empty array.`;
+visible; when nothing is clearly notable, return highlights as an empty array.
+
+The analysis field is the athlete's main read: one paragraph, 3 to 6 sentences, coach voice. When
+the message includes timing (due time, minutes late or early), open the analysis by holding the
+standard on timing: late gets named plainly ("late on lunch is not the standard") while crediting
+the log; on time gets credited ("in on time, that is the standard"). Never shame, never moralize
+food. Then read the plate and give the single most valuable adjustment.`;
 
 // The exact shape src/core LabelFacts expects. The model transcribes the printed panel PER
 // SERVING; it does not estimate. Required fields are the four macros + ingredients; the rest
@@ -497,9 +509,27 @@ function userContent(req: AnalyzeReq, photoMime: string): unknown[] {
       avoid = ` The athlete has CONFIRMED they avoid these foods (allergy or strong dislike): ${list.join(', ')}. Do not identify a plate item as one of these unless it is unmistakably present, and never propose one as a substitution.`;
     }
   }
+  // Slot timing, client-computed and sanitized to pure clamped numbers (a string here could
+  // carry prompt injection; numbers can't). The server only FORMATS what the client measured.
+  let timing = '';
+  const t = req.timing;
+  if (t && typeof t === 'object') {
+    const dl = Math.round(Number(t.deadlineMin));
+    if (Number.isFinite(dl) && dl >= 0 && dl <= 1440) {
+      let h = Math.floor(dl / 60) % 12; if (h === 0) h = 12;
+      const clock = `${h}:${String(dl % 60).padStart(2, '0')} ${Math.floor(dl / 60) < 12 ? 'AM' : 'PM'}`;
+      const late = Math.round(Number(t.minutesLate));
+      const left = Math.round(Number(t.minutesLeft));
+      if (Number.isFinite(late) && late > 0) {
+        timing = ` Timing: this ${req.mealType.toLowerCase()} was due by ${clock} and is being logged ${Math.min(1440, late)} minutes late.`;
+      } else if (Number.isFinite(left) && left >= 0) {
+        timing = ` Timing: this ${req.mealType.toLowerCase()} is being logged on time, ${Math.min(1440, left)} minutes before its ${clock} deadline.`;
+      }
+    }
+  }
   blocks.push({
     type: 'text',
-    text: `${goal} Meal slot: ${req.mealType}.${desc} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}${avoid}`,
+    text: `${goal} Meal slot: ${req.mealType}.${desc}${timing} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}${avoid}`,
   });
   return blocks;
 }

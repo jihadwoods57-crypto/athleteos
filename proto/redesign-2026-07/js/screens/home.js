@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { appHead, scoreRing, animateRing, esc, safeImg } from '../components.js';
+import { appHead, scoreRing, animateRing, esc, safeImg, collapseSection } from '../components.js';
 import { DAY } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
 
@@ -141,7 +141,7 @@ function celebration(e) {
     <div class="xrecord" style="width:100%;box-sizing:border-box">
       ${e.doneItems.map((d) => `<div class="xrec"><span class="xtk">${icon('check', 12)}</span>${esc(d.title)}<span class="xtm">${esc((d.sub || '').replace('Logged ', ''))}</span></div>`).join('')}
     </div>
-    ${RT.hydrationOz < 120 ? `<div style="width:100%;margin-top:10px"><div class="xrow-item" data-go="log"><div class="xico sm gray">${icon('droplet', 16)}</div><div class="xr"><div class="xa">Add water</div><div class="xb">${RT.hydrationOz} of 120 oz — optional, still counts with coach</div></div><span class="xpill gray">Open</span></div></div>` : ''}
+    ${RT.hydrationOz < 120 ? `<div style="width:100%;margin-top:10px"><div class="xrow-item" style="cursor:default"><div class="xico sm gray">${icon('droplet', 16)}</div><div class="xr"><div class="xa">Add water</div><div class="xb" id="home-water-sub">${RT.hydrationOz} of 120 oz — optional, still counts with coach</div></div><div class="water-btns"><span class="wb2" data-water="8">+8</span><span class="wb2" data-water="16">+16</span></div></div></div>` : ''}
   </div>`;
 }
 
@@ -182,28 +182,52 @@ export default {
       <div style="height:20px"></div>`;
     }
 
+    // ---- WS6: four zones instead of a free-stack of 10+ blocks. ----
+    // Header (strip + at-risk ribbon) → ONE attention card (priority: sync > injury > trust;
+    // the losers demote to one-line rows below the fold) → action ladder (overdue/NOW/Next
+    // open; Later + Done collapsed by default) → below the fold (demoted rows + activity).
     const t = S.trustPass;
     const nextRows = e.next ? [e.next] : [];
-    return `
-    ${appHead()}
-    ${strip(e)}
-    ${streakPrompt(e)}
-    ${syncBanner()}
-    <div id="seen-row"></div>
-    ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
-    ${e.now ? nowCard(e) : ''}
-    ${nextRows.length ? `<div class="xgrp">Next</div>${nextRows.map(row).join('')}` : ''}
-    ${e.later.length ? `<div class="xgrp">Later · ${e.later.length}</div>${e.later.map(row).join('')}` : ''}
-    ${e.doneItems.length ? `<div class="xgrp">Done · ${e.doneItems.length}</div>${e.doneItems.map(row).join('')}` : ''}
-    ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
-    ${RT.injured ? `
-    <div style="height:12px"></div>
-    <div class="trust" data-go="injury" style="cursor:pointer;background:linear-gradient(100deg, rgba(245,165,36,0.14), rgba(59,130,246,0.05));border-color:var(--amber-border)">
+    const open = RT.homeOpenSections || {};
+
+    // Attention slot — exactly one card. syncBanner returns '' when sync is fine.
+    const sync = syncBanner();
+    const injuryCard = RT.injured ? `
+    <div class="trust" data-go="injury" style="cursor:pointer;margin:2px 0 10px;background:linear-gradient(100deg, rgba(245,165,36,0.14), rgba(59,130,246,0.05));border-color:var(--amber-border)">
       <div class="ic" style="background:rgba(245,165,36,0.2);color:var(--amber-bright)">${icon('bolt', 20)}</div>
       <div style="flex:1"><div class="tt">Injury mode · active</div>
       <div class="ts">Your Standard adapted. Rehab is on the list while you heal.</div></div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
-    </div>` : ''}
+    </div>` : '';
+    const trustCard = t.active ? `<div class="trust" data-go="trust" style="margin:2px 0 10px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : '';
+    const attention = sync || injuryCard || trustCard;
+    // Whatever lost the attention slot demotes to a quiet one-line row below the ladder.
+    const demoted = [
+      attention !== injuryCard && RT.injured
+        ? `<div class="xrow-item" data-go="injury"><div class="xico sm" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('bolt', 16)}</div><div class="xr"><div class="xa">Injury mode active</div><div class="xb">Your Standard adapted while you heal</div></div><span class="xpill gold">On</span></div>` : '',
+      attention !== trustCard && t.active
+        ? `<div class="xrow-item" data-go="trust"><div class="xico sm green">${icon('shield', 16)}</div><div class="xr"><div class="xa">Trust Pass · day ${t.day} of ${t.length}</div><div class="xb">Camera-free today</div></div><span class="xpill green">Active</span></div>` : '',
+    ].filter(Boolean).join('');
+
+    const laterHtml = e.later.length
+      ? collapseSection('later', 'Later', e.later.length, e.later.map(row).join(''), open.later === true)
+      : '';
+    const doneHtml = e.doneItems.length
+      ? collapseSection('done', 'Done', e.doneItems.length, e.doneItems.map(row).join(''), open.done === true)
+      : '';
+
+    return `
+    ${appHead()}
+    ${strip(e)}
+    <div id="seen-row"></div>
+    ${streakPrompt(e)}
+    ${attention}
+    ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
+    ${e.now ? nowCard(e) : ''}
+    ${nextRows.length ? `<div class="xgrp">Next</div>${nextRows.map(row).join('')}` : ''}
+    ${laterHtml}
+    ${doneHtml}
+    ${demoted}
     <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
     <div class="hscroll">${S.activity.map(actCard).join('')}</div>
     <div style="height:20px"></div>`;
@@ -211,6 +235,24 @@ export default {
   mount(root) {
     animateRing(root);
     act.syncNotifications();
+    // WS6: persist collapse state per section so the 30s exec-tick re-render (and tomorrow's
+    // fresh render) honors what the athlete left open. `toggle` only fires on user changes,
+    // never on the initial `open` attribute — no save loop.
+    root.querySelectorAll('details.xcollapse').forEach((d) => {
+      d.addEventListener('toggle', () => act.setHomeSection(d.getAttribute('data-sec'), d.open));
+    });
+    // One-tap water on Home (WS8): the highest-frequency micro-action used to cost two taps
+    // and a sheet animation. Same in-place patch pattern as the Action Hub — no re-render churn.
+    root.querySelectorAll('.water-btns [data-water]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
+        act.addWater(+btn.getAttribute('data-water'));
+        if (RT.hydrationOz >= 120) { window.__render(); return; }
+        const sub = root.querySelector('#home-water-sub');
+        if (sub) sub.textContent = `${RT.hydrationOz} of 120 oz — optional, still counts with coach`;
+      });
+    });
     // Coach-seen receipt (0043, athlete side): "something visibly came back" — the row shows
     // ONLY when a real linked human actually opened this day. Nothing is ever fabricated;
     // no receipts → no row. Fetched per-mount (cheap indexed read), injected async.

@@ -1,7 +1,7 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { esc, composer } from '../components.js';
-import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, fmtMin } from '../requirements.js';
+import { PROOF, IMPACT_LABEL, freqLabel, fmtMin } from '../requirements.js';
 
 const P = S.plan;
 
@@ -53,22 +53,29 @@ function targetsRow() {
 }
 
 // Objective-card copy per honest state — loading/offline never assert the coach set nothing.
+// Meal count is standard-aware (coach standards run 1–6 meals; classic is 3) — never a
+// hardcoded "three" (WS7 audit fix). Numbers live in the summary tiles, not repeated here.
+const MEAL_WORD = ['zero', 'one', 'two', 'three', 'four', 'five', 'six'];
+const mealsPhrase = () => {
+  const n = S.mealsRequiredCount;
+  return `${MEAL_WORD[n] || n} meal${n === 1 ? '' : 's'} with photo proof`;
+};
 const OBJECTIVE_COPY = {
-  set: (T) => ({
+  set: () => ({
     title: 'Hit your targets, log every meal',
-    body: `Your coach set ${T.protein != null ? T.protein + 'g protein' : 'your targets'}${T.calories != null ? ` and ${T.calories} calories` : ''}. Nutrition is 50% of your score — consistency is the win.`,
+    body: `Your coach set your targets — they're in the summary below. Nutrition is 50% of your score — consistency is the win.`,
   }),
   loading: () => ({
     title: 'Log every meal, on time',
-    body: 'Loading your targets… Consistency is the plan either way: three meals with photo proof and your recovery check-in each day.',
+    body: `Loading your targets… Consistency is the plan either way: ${mealsPhrase()} and your recovery check-in each day.`,
   }),
   offline: () => ({
     title: 'Log every meal, on time',
-    body: 'Your targets will show when you reconnect. Consistency is the plan either way: three meals with photo proof and your recovery check-in each day.',
+    body: `Your targets will show when you reconnect. Consistency is the plan either way: ${mealsPhrase()} and your recovery check-in each day.`,
   }),
   unset: () => ({
     title: 'Log every meal, on time',
-    body: 'Your coach hasn’t set targets yet. Consistency is the plan: three meals with photo proof and your recovery check-in each day.',
+    body: `Your coach hasn’t set targets yet. Consistency is the plan: ${mealsPhrase()} and your recovery check-in each day.`,
   }),
 };
 // Footnote under the Coach Targets card — stays silent for loading/offline since targetsRow()
@@ -84,6 +91,9 @@ const overview = () => {
   const state = S.planTargetsState;
   const T = S.planTargets;
   const obj = OBJECTIVE_COPY[state](T);
+  // ONE home per number (WS7/WS8 dedup): the summary tiles carry goal/weight/protein here;
+  // the full targets row lives on the Nutrition tab only (it used to render on BOTH tabs,
+  // and protein/goal appeared up to 3× on this screen).
   return `
   <div class="eyebrow">Today's Objective</div>
   <section class="card pad" style="display:flex;gap:14px;align-items:flex-start">
@@ -101,12 +111,7 @@ const overview = () => {
     <div class="tile"><div class="k">Current</div><div class="v">${S.weight.current != null ? S.weight.current + ' lb' : '—'}</div></div>
     <div class="tile"><div class="k">Protein target</div><div class="v">${T && T.protein != null ? T.protein + 'g' : '—'}</div></div>
   </div>
-
-  <div class="eyebrow">Coach Targets</div>
-  <section class="card pad">
-    ${targetsRow()}
-    ${COACH_TARGETS_NOTE[state] ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:8px">${COACH_TARGETS_NOTE[state]}</div>` : ''}
-  </section>
+  ${COACH_TARGETS_NOTE[state] ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0">${COACH_TARGETS_NOTE[state]}</div>` : ''}
 
   <div class="eyebrow">Need clarity?</div>
   <div class="btn-row">
@@ -145,14 +150,12 @@ const nutrition = () => `
     <div class="ts">Get some in before practice, drink with each meal, and finish before bed so sleep stays clean. General guidance — not a scored target.</div></div>
   </div>
 
-  <div style="height:16px"></div>
-  <button class="btn ghost sm" data-go="plan/notes">${icon('sparkle', 17)} Ask about this nutrition plan</button>
   <div style="height:10px"></div>`;
 
 const schedule = () => `
   <div class="eyebrow">${S.coach.hasCoach ? `The rules, set by ${esc(S.coach.nameMid)}` : 'The rules of your Standard'} · tap one for the why</div>
   <section class="card" style="padding:6px 16px">
-    ${CATALOG.map(r => {
+    ${S.scheduleCatalog.map(r => {
       const impact = IMPACT_LABEL[r.impact.kind === 'component' ? r.impact.comp : r.impact.kind];
       const due = r.window.label || `Due by ${fmtMin(r.window.due)}`;
       return `

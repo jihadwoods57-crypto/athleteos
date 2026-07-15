@@ -88,15 +88,14 @@ export default {
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon p" style="width:38px;height:38px">${icon('moon', 18)}</div>
-      <div><div class="tt" id="rec-gain">${P.gain > 0 ? `Worth +${P.gain} tonight → ${P.to}` : 'Refreshes Recovery (25% of your score)'}</div>
-      <div class="ts">Takes 20 seconds. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'It keeps Recovery — 25% of your score — honest.'}</div></div>
+      <div><div class="tt" id="rec-gain">${P.gain > 0 ? `Worth +${P.gain} tonight → ${P.to}` : 'Refreshes your Recovery score tonight'}</div>
+      <div class="ts">Takes 20 seconds. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'Honest answers are the whole point.'}</div></div>
     </div>
 
     <div style="height:18px"></div>
     <button class="btn primary" id="rec-submit" style="background:linear-gradient(150deg, var(--purple-bright), #7e22ce); box-shadow: 0 10px 30px rgba(168,85,247,0.35)">
       ${icon('check', 19)} Submit Check-In
     </button>
-    <div style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);margin-top:12px">Coach can see your update</div>
     <div style="height:8px"></div>
     `;
   },

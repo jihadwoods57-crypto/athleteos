@@ -73,6 +73,9 @@ window.__go = go;
 function render() {
   // Screens with live countdowns register a tick; every route change clears it.
   if (window.__execTick) { clearInterval(window.__execTick); window.__execTick = null; }
+  // Screens holding live resources (the camera's MediaStream) register a cleanup; every
+  // route change / re-render runs it exactly once so a stream never survives its screen.
+  if (window.__screenCleanup) { try { window.__screenCleanup(); } catch { /* best-effort */ } window.__screenCleanup = null; }
   const { route, sub } = parse();
   // Auth gate on EVERY render, not just boot: a signed-out runtime (expired/cleared session)
   // must never keep rendering app screens on a hash change.

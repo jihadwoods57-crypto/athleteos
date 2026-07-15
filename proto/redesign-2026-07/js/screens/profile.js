@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg } from '../components.js';
+import { backHead, esc, safeImg, collapseSection } from '../components.js';
 
 function avatarEl(size = 62) {
   const a = S.athlete;
@@ -55,13 +55,6 @@ export default {
       </div>
     </section>
 
-    <div class="eyebrow">Squad</div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
-      <div><div class="tt">Leaderboard coming soon</div>
-      <div class="ts">Team rankings turn on when your coach's board is wired — until then there's no roster to compare against, and we won't invent one.</div></div>
-    </div>
-
     <div class="eyebrow">Accountability</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="notif-settings">
@@ -71,7 +64,7 @@ export default {
       </div>
       <div class="lrow" data-go="streak">
         <div class="lic" style="color:var(--amber-bright)">${icon('flame', 18)}</div>
-        <div class="lm"><div class="lt">Streak</div><div class="ls">${S.streakDays} days on standard · 1 grace per 7 days</div></div>
+        <div class="lm"><div class="lt">Streak</div><div class="ls">Days on standard · 1 grace per rolling week</div></div>
         <span class="lv">${S.streakDays}d</span>
       </div>
       <div class="lrow" data-go="history">
@@ -82,11 +75,6 @@ export default {
       <div class="lrow" data-go="checkin">
         <div class="lic">${icon('check', 17)}</div>
         <div class="lm"><div class="lt">Weekly check-in</div><div class="ls">${S.weekly.status}</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-go="partner">
-        <div class="lic" style="background:rgba(52,211,153,0.16);color:var(--green-bright)">${icon('users', 17)}</div>
-        <div class="lm"><div class="lt">Accountability partner</div><div class="ls">Not paired yet · coming soon</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="recruiting">
@@ -103,11 +91,6 @@ export default {
         <div class="lm"><div class="lt">Food restrictions & allergies</div><div class="ls">${RT.allergies.length ? esc(RT.allergies.join(' · ')) : 'None declared'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      <div class="lrow" data-go="devices">
-        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
-        <div class="lm"><div class="lt">Connected devices</div><div class="ls">None connected · coming soon</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
       <div class="lrow" data-go="injury">
         <div class="lic" style="background:rgba(245,165,36,0.16);color:var(--amber-bright)">${icon('bolt', 17)}</div>
         <div class="lm"><div class="lt">Injury mode</div><div class="ls">${RT.injured ? 'Active · your Standard is adapted' : 'The Standard adapts when you’re hurt'}</div></div>
@@ -121,10 +104,29 @@ export default {
       <div class="lrow" data-go="billing"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan & billing</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & preferences</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms & privacy policy</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" style="cursor:default"><div class="lic">${icon('grid', 17)}</div><div class="lm"><div class="lt">Export my data</div><div class="ls">Everything, in a file you own · coming soon</div></div></div>
       <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="welcome"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div></div></div>
     </section>
+
+    ${collapseSection('coming-soon', 'Coming soon', 4, `
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="squad">
+        <div class="lic">${icon('users', 17)}</div>
+        <div class="lm"><div class="lt">Team leaderboard</div><div class="ls">Turns on when your coach's board is wired</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="partner">
+        <div class="lic" style="background:rgba(52,211,153,0.16);color:var(--green-bright)">${icon('users', 17)}</div>
+        <div class="lm"><div class="lt">Accountability partner</div><div class="ls">Not paired yet</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="devices">
+        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
+        <div class="lm"><div class="lt">Connected devices</div><div class="ls">None connected</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" style="cursor:default"><div class="lic">${icon('grid', 17)}</div><div class="lm"><div class="lt">Export my data</div><div class="ls">Everything, in a file you own</div></div></div>
+    </section>`, false)}
 
     <div style="height:10px"></div>
     `;

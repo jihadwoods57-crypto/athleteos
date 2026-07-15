@@ -327,6 +327,16 @@ export async function completeAssignmentRemote(id) {
   try { const { data, error } = await c.rpc('complete_assignment', { p_id: id }); return !error && data === true; } catch { return false; }
 }
 
+/* ---------------- photo integrity (0062) ---------------- */
+/** Prior logs of this EXACT photo by the signed-in athlete (sha256 of the downscaled JPEG),
+    newest first: [{ day_date, meal_type, logged_at }]. [] when clean OR when the check can't
+    run (offline / pre-0062 DB) — fail OPEN here; the server's unique index is the real wall
+    and insertMeal handles its 23505. */
+export async function checkPhotoReuse(hash) {
+  const c = sb(); if (!c || !hash) return [];
+  try { const { data, error } = await c.rpc('check_photo_reuse', { p_hash: hash }); if (error) return []; return data || []; } catch { return []; }
+}
+
 /* ---------------- notify (edge fn; must allowlist file:// null origin) ---------------- */
 export async function nudgePush(athleteId, title, body) {
   const c = sb(); if (!c || !athleteId) return false;

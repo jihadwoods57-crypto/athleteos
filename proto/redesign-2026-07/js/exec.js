@@ -137,10 +137,16 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
   ];
 
   // Notification plan: incomplete REQUIRED timed items only; future times only.
+  // Each entry carries the in-app `route` the tap should land on ("Dinner closes in 45" →
+  // the dinner camera, not Home) — the last inch of the accountability loop.
+  const routeFor = (req) => req.proof === 'photo' ? `camera/${req.id}`
+    : req.id === 'weight' ? 'weight'
+    : req.id === 'recovery' ? 'recovery'
+    : 'home';
   const plan = [];
   if (celebration) {
     if (pressure !== 'gentle') plan.push({
-      id: 'celebrate', fireAtMin: nowMin, immediate: true,
+      id: 'celebrate', fireAtMin: nowMin, immediate: true, route: 'home',
       title: "You're OnStandard.",
       body: `Day locked at ${score} — day ${streak + 1} of your streak.`,
     });
@@ -158,7 +164,7 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
       for (const [t, kind] of slots) {
         if (t <= nowMin) continue;
         const c = copyFor(req, kind, due - t);
-        plan.push({ id: i.id, fireAtMin: t, immediate: false, title: c.title, body: c.body });
+        plan.push({ id: i.id, fireAtMin: t, immediate: false, route: routeFor(req), title: c.title, body: c.body });
       }
     }
     plan.sort((a, b) => a.fireAtMin - b.fireAtMin);

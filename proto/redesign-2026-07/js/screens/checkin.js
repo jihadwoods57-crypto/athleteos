@@ -8,12 +8,21 @@ export default {
   tab: 'home',
   render() {
     const W = S.weekly;
+    // A scored weekly ritual deserves a real deadline anchor (WS8): name the date and the
+    // countdown, not a floating "Opens Sunday".
+    const now = new Date();
+    const daysToSunday = (7 - now.getDay()) % 7;
+    const sunday = new Date(now); sunday.setDate(now.getDate() + daysToSunday);
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const openLabel = daysToSunday === 0
+      ? 'Opens today'
+      : `Opens Sunday, ${MON[sunday.getMonth()]} ${sunday.getDate()} · in ${daysToSunday} day${daysToSunday === 1 ? '' : 's'}`;
     return `
     ${backHead('Weekly Check-In', W.status)}
 
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 18)}</div>
-      <div><div class="tt">Opens Sunday</div>
+      <div><div class="tt">${openLabel}</div>
       <div class="ts">The weekly check-in is worth 10 of your 100. It isn't submitted yet — the form below is a preview of Sunday's questions.</div></div>
     </div>
 
