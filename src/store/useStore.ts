@@ -48,6 +48,7 @@ import {
   appendMessage,
   loggedDayMacros,
   entitlementFromRow,
+  exportUserData,
   exportUserDataText,
   guardianStatusFromRequests,
   isValidGuardianEmail,
@@ -245,8 +246,9 @@ export interface Actions {
    *  install. Resolves `{ ok }` — ok=false means the device was wiped but the SERVER erasure
    *  could not be reached, so the caller must not present it as a completed deletion. */
   deleteAccount: () => Promise<{ ok: boolean }>;
-  /** GDPR/CCPA portability: a JSON snapshot of the user's own data, for a share/save. */
-  exportMyData: () => string;
+  /** GDPR/CCPA access + portability: a JSON copy of the user's own data — the local device
+   *  snapshot plus, when connected, the server-held records — for a share/save. */
+  exportMyData: () => Promise<string>;
 
   // overlays
   openMeal: () => void;
@@ -933,7 +935,18 @@ export const useStore = create<Store>()(
         set({ ...createInitialState() });
         return { ok: serverErased };
       },
-      exportMyData: () => exportUserDataText(get()),
+      exportMyData: async () => {
+        // GDPR Art. 15/20: return the user's own data. Offline / local-only, that is the device
+        // snapshot. When connected, ALSO pull the server-held records the snapshot cannot hold
+        // (messages, coach comments/feedback, memory facts, subscription, device tokens,
+        // notifications) so the export is genuinely complete. Best-effort: any error (e.g. the
+        // export RPC not yet applied) falls back to the local snapshot rather than failing.
+        if (!isBackendLive) return exportUserDataText(get());
+        const local = exportUserData(get());
+        let server: unknown = null;
+        try { server = await db.exportAccountData(); } catch { /* keep local-only on error */ }
+        return JSON.stringify({ ...local, server }, null, 2);
+      },
 
       // ---- overlays ----
       openMeal: () => {

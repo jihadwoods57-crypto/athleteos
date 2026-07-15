@@ -25,9 +25,9 @@ describe('deleteAccount', () => {
 });
 
 describe('exportMyData', () => {
-  it('returns a JSON snapshot of the user own data', () => {
+  it('returns a JSON snapshot of the user own data', async () => {
     useStore.setState({ athleteName: 'Jordan', sport: 'Soccer' });
-    const json = JSON.parse(state().exportMyData());
+    const json = JSON.parse(await state().exportMyData());
     expect(json.identity.name).toBe('Jordan');
     expect(json.identity.sport).toBe('Soccer');
     expect(json.app).toBe('OnStandard');

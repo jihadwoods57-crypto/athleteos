@@ -322,6 +322,11 @@ export interface Database {
         Args: Record<string, never>;
         Returns: undefined;
       };
+      // GDPR Art. 15/20 self-service export (author-only migration 0065); self-scoped to auth.uid().
+      export_account_data: {
+        Args: Record<string, never>;
+        Returns: Record<string, unknown>;
+      };
       request_guardian_consent: {
         Args: { guardian_email: string };
         Returns: undefined;

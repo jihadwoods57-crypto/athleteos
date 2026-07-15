@@ -568,6 +568,17 @@ export async function cancelBillingForDeletion(): Promise<void> {
   if (error) throw error;
 }
 
+/** GDPR Art. 15/20: the signed-in user's own server-held data as a JSON object, via the
+ *  SECURITY DEFINER export_account_data RPC (author-only migration 0065; applied at go-live).
+ *  Self-scoped to auth.uid(); null when no backend is configured. The store merges this with
+ *  the local snapshot so the export is complete. Throws on error so the store can fall back. */
+export async function exportAccountData(): Promise<Record<string, unknown> | null> {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await requireSupabase().rpc('export_account_data');
+  if (error) throw error;
+  return (data as Record<string, unknown> | null) ?? null;
+}
+
 /** Minor guardian consent: email a minor's guardian an approval request. Calls a
  *  `request_guardian_consent` RPC (authored at go-live) that records a pending
  *  guardianship and sends the verification link. Inert without a backend. */

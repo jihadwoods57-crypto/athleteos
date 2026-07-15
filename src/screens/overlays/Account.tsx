@@ -162,7 +162,7 @@ export function Account() {
               accessibilityLabel="Export my data"
               onPress={async () => {
                 haptics.tap();
-                try { await Share.share({ message: s.exportMyData() }); } catch { /* user cancelled the share sheet */ }
+                try { await Share.share({ message: await s.exportMyData() }); } catch { /* user cancelled the share sheet */ }
               }}
               style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
             >
@@ -174,7 +174,7 @@ export function Account() {
                       Export my data
                     </Txt>
                     <Txt w="sb" size={12} color={c.textTertiary} style={{ marginTop: 1 }}>
-                      Download a copy of everything in your account
+                      Download a JSON copy of your account data
                     </Txt>
                   </View>
                 </Row>
