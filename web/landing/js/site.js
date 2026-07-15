@@ -240,10 +240,10 @@
   /* ---------- waitlist dialog (intent-aware) ---------- */
   const INTENTS = {
     trial: {
-      k: 'Founding professionals',
-      h: 'Start your 14-day trial.',
-      sub: 'Full access for you and your roster or book. No card to start. We set up founding professionals personally, usually within a day.',
-      submit: 'Request my trial',
+      k: 'Founding access',
+      h: 'Claim a founding spot.',
+      sub: 'The first 50 coaches and facilities lock 50% off for 12 months. We reach out personally, usually within a day, and your free 14-day trial starts when we onboard you.',
+      submit: 'Request founding access',
       role: 'Coach',
     },
     join: {
