@@ -166,6 +166,13 @@ export type ProfileRow = {
    *  added in migration 0009. */
   org_name: string | null;
   primary_role: UserRole;
+  /** Consent receipts (GDPR Art. 7(1) — consent must be demonstrable + versioned).
+   *  tos_accepted_at/tos_version/committed_at added in migration 0048; data_consent_at
+   *  in 0064. Written best-effort by the client after sign-up (see useStore consent seam). */
+  tos_accepted_at: string | null;
+  tos_version: string | null;
+  committed_at: string | null;
+  data_consent_at: string | null;
   created_at: string;
   updated_at: string;
 }

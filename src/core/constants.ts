@@ -11,6 +11,13 @@ export const SUPPORT_EMAIL = 'support@onstandard.app';
 export const PRIVACY_POLICY_URL = 'https://onstandard.app/privacy';
 export const TERMS_URL = 'https://onstandard.app/terms';
 
+/** Version tag of the currently-published Terms + Privacy Policy (their effective date).
+ *  Stamped into the server-side consent receipt (profiles.tos_version) at acceptance so
+ *  consent is demonstrable AND versioned (GDPR Art. 7) — if the policy changes, bump this
+ *  and the app can detect a stale acceptance and re-prompt. Keep in lockstep with the
+ *  effective date on web/landing/privacy.html + terms.html. */
+export const TERMS_VERSION = '2026-07-14';
+
 /** Minimum age the app will sign up. Set to 13 so the product does not knowingly collect data
  *  from a child under 13, which keeps it out of COPPA's scope entirely (COPPA governs under-13).
  *  Users 13-17 are still minors and pass through the guardian-consent gate (see consent.ts); the

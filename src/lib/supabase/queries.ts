@@ -156,7 +156,16 @@ export async function fetchProfile(userId: string): Promise<ProfileRow | null> {
  *  added in migration 0009). */
 export async function updateProfile(
   userId: string,
-  fields: { full_name?: string | null; org_name?: string | null; primary_role?: 'athlete' | 'coach' | 'trainer' | 'parent' },
+  fields: {
+    full_name?: string | null;
+    org_name?: string | null;
+    primary_role?: 'athlete' | 'coach' | 'trainer' | 'parent';
+    // Consent receipts (GDPR Art. 7 — demonstrable, versioned). Columns from 0048/0064;
+    // written best-effort, so a not-yet-applied column just errors and is swallowed upstream.
+    tos_accepted_at?: string | null;
+    tos_version?: string | null;
+    data_consent_at?: string | null;
+  },
 ): Promise<void> {
   if (!isSupabaseConfigured) return;
   const { error } = await requireSupabase().from('profiles').update(fields).eq('id', userId);

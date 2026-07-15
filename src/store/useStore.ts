@@ -69,6 +69,7 @@ import {
   buildPlanDraft,
   applySlotPatch,
   toggleMode,
+  TERMS_VERSION,
 } from '@/core';
 import type {
   AppState,
@@ -1517,6 +1518,13 @@ export const useStore = create<Store>()(
         // the project actually requires confirmation, so the "check your email" panel is honest
         // (and silent when confirm is OFF â€” no false "we sent a link" claim).
         set({ userId: res.userId, athleteEmail: email.trim(), emailConfirmPending: res.needsConfirmation ?? false, authError: null });
+        // Now that a user id exists, flush the ToS/Privacy acceptance recorded before sign-up
+        // into a server-side, versioned consent receipt (GDPR Art. 7 accountability). Best-effort;
+        // we are already inside the isBackendLive branch.
+        const acceptedAt = get().termsAcceptedAt;
+        if (acceptedAt && res.userId) {
+          void db.updateProfile(res.userId, { tos_accepted_at: acceptedAt, tos_version: TERMS_VERSION }).catch(() => undefined);
+        }
         return true;
       },
       requestPasswordReset: async (email) => {
@@ -1653,8 +1661,26 @@ export const useStore = create<Store>()(
         set({ guardianStatus: 'pending', authError: null });
         return true;
       },
-      recordConsent: (given) => set({ realDataConsent: given }),
-      acceptTerms: (at) => set({ termsAcceptedAt: at }),
+      recordConsent: (given) => {
+        set({ realDataConsent: given });
+        // Persist a server-side, timestamped data-processing consent receipt so consent is
+        // DEMONSTRABLE (GDPR Art. 7(1)) — not just a device-local boolean. Best-effort + gated;
+        // inert offline. Column from 0064; a not-yet-applied column just errors and is swallowed.
+        const uid = get().userId;
+        if (given && isBackendLive && uid) {
+          void db.updateProfile(uid, { data_consent_at: new Date().toISOString() }).catch(() => undefined);
+        }
+      },
+      acceptTerms: (at) => {
+        set({ termsAcceptedAt: at });
+        // Persist a VERSIONED ToS/Privacy acceptance receipt server-side (GDPR Art. 7 — which
+        // policy version was accepted, and when), so a later policy change can detect a stale
+        // acceptance. Best-effort + gated; columns from 0048.
+        const uid = get().userId;
+        if (isBackendLive && uid) {
+          void db.updateProfile(uid, { tos_accepted_at: at, tos_version: TERMS_VERSION }).catch(() => undefined);
+        }
+      },
       setAuthError: (msg) => set({ authError: msg }),
       togglePauseSharing: () => {
         // Flipping OFF pause resumes syncing, so push the current day right away
