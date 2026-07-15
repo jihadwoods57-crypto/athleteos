@@ -556,6 +556,18 @@ export async function deleteAccount(): Promise<void> {
   if (error) throw error;
 }
 
+/** Best-effort teardown of the signed-in owner's paid billing as part of account deletion:
+ *  cancels their Stripe subscription and removes their Stripe customer, so erasure doesn't
+ *  leave a live subscription billing a deleted user or their payment PII at Stripe (GDPR
+ *  Art. 17 + ROSCA). Calls the `cancel-subscription` Edge Function (author-only; deployed at
+ *  go-live). No-op for athletes (no billing account). Throws on failure so the caller can log
+ *  it, but deleteAccount treats it as best-effort and proceeds regardless. */
+export async function cancelBillingForDeletion(): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await requireSupabase().functions.invoke('cancel-subscription', { body: {} });
+  if (error) throw error;
+}
+
 /** Minor guardian consent: email a minor's guardian an approval request. Calls a
  *  `request_guardian_consent` RPC (authored at go-live) that records a pending
  *  guardianship and sends the verification link. Inert without a backend. */

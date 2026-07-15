@@ -191,7 +191,23 @@ export function Account() {
                   'This permanently deletes your account and all of your data. This cannot be undone.',
                   [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => { void s.deleteAccount(); } },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => {
+                        // Surface an honest result: if the SERVER erasure could not be reached we
+                        // must not let the user believe their account is gone (GDPR Art. 17).
+                        void (async () => {
+                          const res = await s.deleteAccount();
+                          if (!res.ok) {
+                            Alert.alert(
+                              'Server deletion incomplete',
+                              'Your data was removed from this device and you were signed out, but we could not reach the server to erase your account. Please email support@onstandard.app so we can confirm your account is fully deleted.',
+                            );
+                          }
+                        })();
+                      },
+                    },
                   ],
                 );
               }}

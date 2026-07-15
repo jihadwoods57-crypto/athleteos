@@ -240,9 +240,11 @@ export interface Actions {
   adjustCalTarget: (d: number) => void;
   adjustWeightTarget: (d: number) => void;
   signOut: () => void;
-  /** Apple 5.1.1(v) + GDPR/CCPA erasure: permanently delete the account. Deletes
-   *  server-side when connected, then wipes ALL local data back to a fresh install. */
-  deleteAccount: () => Promise<void>;
+  /** Apple 5.1.1(v) + GDPR/CCPA erasure: permanently delete the account. Cancels paid
+   *  billing + deletes server-side when connected, then wipes ALL local data back to a fresh
+   *  install. Resolves `{ ok }` — ok=false means the device was wiped but the SERVER erasure
+   *  could not be reached, so the caller must not present it as a completed deletion. */
+  deleteAccount: () => Promise<{ ok: boolean }>;
   /** GDPR/CCPA portability: a JSON snapshot of the user's own data, for a share/save. */
   exportMyData: () => string;
 
@@ -908,14 +910,28 @@ export const useStore = create<Store>()(
       deleteAccount: async () => {
         // Delete server-side when connected; wipe local data either way so the in-app
         // deletion always completes (Apple requires it to actually work, not just sign out).
+        let serverErased = true;
         if (isBackendLive) {
-          try { await db.deleteAccount(); } catch { /* still wipe locally below */ }
+          // Tear down paid billing FIRST (best-effort): cancel the Stripe subscription + remove
+          // the Stripe customer, so erasing the account never leaves a live subscription billing
+          // a deleted user or their payment PII at Stripe (GDPR Art. 17 completeness + ROSCA).
+          // No-op for athletes; never blocks deletion if billing is unreachable/undeployed.
+          try { await db.cancelBillingForDeletion(); } catch { /* best effort */ }
+          try {
+            await db.deleteAccount();
+          } catch {
+            // Do NOT confirm an erasure we did not achieve (honest Art. 17). We still wipe the
+            // device + sign out below, but report the server-side failure so the UI can tell the
+            // user their account may still exist and how to confirm — never a false "deleted".
+            serverErased = false;
+          }
           // End the local Supabase session too, so the (now-deleted) account's refresh
           // token doesn't linger in AsyncStorage after erasure.
           try { await auth.signOut(); } catch { /* best effort */ }
         }
         try { await AsyncStorage.removeItem('aos_day'); } catch { /* best effort */ }
         set({ ...createInitialState() });
+        return { ok: serverErased };
       },
       exportMyData: () => exportUserDataText(get()),
 
