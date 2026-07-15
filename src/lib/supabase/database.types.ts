@@ -173,6 +173,8 @@ export type ProfileRow = {
   tos_version: string | null;
   committed_at: string | null;
   data_consent_at: string | null;
+  /** User turned in-app Notifications OFF; honored server-side (weekly-digest). Migration 0067. */
+  notifications_opt_out: boolean;
   created_at: string;
   updated_at: string;
 }

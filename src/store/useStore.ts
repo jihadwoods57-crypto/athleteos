@@ -842,7 +842,16 @@ export const useStore = create<Store>()(
       deletePr: (id) => set((s) => ({ perfEntries: removePerfEntry(s.perfEntries, id) })),
 
       setSquadMode: (m) => set({ squadMode: m }),
-      toggleNotif: () => { set((s) => ({ notif: !s.notif })); syncReminders(get()); },
+      toggleNotif: () => {
+        set((s) => ({ notif: !s.notif }));
+        syncReminders(get());
+        // Persist the preference server-side so automated engagement pushes (e.g. the weekly
+        // digest) honor it, not just local reminders. Best-effort + gated; inert offline.
+        const s = get();
+        if (isBackendLive && s.userId) {
+          void db.updateProfile(s.userId, { notifications_opt_out: !s.notif }).catch(() => undefined);
+        }
+      },
       // On launch, (re)schedule today's reminders â€” this also triggers the one-time permission
       // request inside refreshReminderSchedule. No-op on web / when the master flag is off.
       initReminders: () => { syncReminders(get()); },

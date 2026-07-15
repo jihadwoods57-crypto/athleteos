@@ -165,6 +165,7 @@ export async function updateProfile(
     tos_accepted_at?: string | null;
     tos_version?: string | null;
     data_consent_at?: string | null;
+    notifications_opt_out?: boolean;
   },
 ): Promise<void> {
   if (!isSupabaseConfigured) return;

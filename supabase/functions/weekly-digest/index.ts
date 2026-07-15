@@ -122,6 +122,18 @@ Deno.serve(async (req) => {
     }
     if (rosters.size === 0) return json({ ok: true, digests: 0 });
 
+    // Honor the notification preference server-side (GDPR/PECR: a coach who turned notifications
+    // OFF must not receive this automated engagement digest). Resilient / fail-open: if the
+    // notifications_opt_out column is not applied yet the filter errors and we send as before,
+    // so function-deploy vs migration-apply order is not load-bearing.
+    const ownerIds = [...rosters.keys()];
+    let optedOut = new Set<string>();
+    {
+      const { data: outs, error: outErr } = await svc.from('profiles')
+        .select('id').eq('notifications_opt_out', true).in('id', ownerIds);
+      if (!outErr && outs) optedOut = new Set(outs.map((r: { id: string }) => r.id));
+    }
+
     // 2) The week's day rows + names for every rostered athlete, in two bulk reads.
     const allAthletes = [...new Set([...rosters.values()].flatMap((s) => [...s]))];
     const [daysRes, profRes] = await Promise.all([
@@ -134,6 +146,7 @@ Deno.serve(async (req) => {
     // 3) One digest per owner: in-app feed row + best-effort push to their devices.
     let sent = 0;
     for (const [owner, athletes] of rosters) {
+      if (optedOut.has(owner)) continue; // respect the owner's notifications-off preference
       const { title, body } = digestBody([...athletes], days, names);
       await svc.from('notifications').insert({ user_id: owner, kind: 'digest', title, body });
       const { data: toks } = await svc.from('device_tokens').select('token').eq('user_id', owner);
