@@ -4,7 +4,7 @@
 // disclosures. The team-row detail derives from the real roster / client book
 // per role, so the numbers can never be invented or drift from the dashboards.
 import type { Role } from './types';
-import { APP_VERSION, PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL, flowForRole, ROSTER, TRAINER_CLIENTS } from './constants';
+import { APP_VERSION, SUPPORT_EMAIL, flowForRole, ROSTER, TRAINER_CLIENTS } from './constants';
 import { billingRowCopy, previewEntitlement, type Entitlement } from './subscription';
 
 export interface AccountRow {
@@ -39,7 +39,7 @@ export function accountRows(role: Role | null, entitlement: Entitlement = previe
       key: 'legal',
       label: 'Privacy & terms',
       hint: 'Required reading',
-      detail: `How we handle your data (and a minor's data) is described in our Privacy Policy at ${PRIVACY_POLICY_URL} and Terms at ${TERMS_URL}. You can request account deletion or a copy of your data any time from this screen.`,
+      detail: `How we handle your data (and a minor's data) is described in our Privacy Policy and Terms of Service, linked below. You can export a copy of your data or delete your account any time from this screen.`,
     },
   ];
 }

@@ -8,6 +8,7 @@ import {
 } from '@/core';
 import { db, isBackendLive } from '@/lib/supabase';
 import { confirmSignOut } from '@/lib/confirmSignOut';
+import { openPrivacyPolicy, openTerms } from '@/lib/legal';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Row, Toggle, Txt, Pressable, PressScale, Reveal } from '@/ui/primitives';
@@ -36,6 +37,24 @@ function SettingIcon({ name, tone = 'default' }: { name: IconName; tone?: 'defau
     <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
       <Icon name={name} size={17} color={fg} />
     </View>
+  );
+}
+
+/** Tappable legal link inside the Privacy & terms disclosure — opens the hosted policy/terms in
+ *  the browser. App Store + GDPR/CCPA transparency: the policy must be reachable from Settings,
+ *  not only at signup. openPrivacyPolicy/openTerms never throw (return false on failure). */
+function LegalLink({ label, onPress }: { label: string; onPress: () => Promise<boolean> }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={label}
+      onPress={() => { haptics.tap(); void onPress(); }}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 7, opacity: pressed ? 0.6 : 1 })}
+    >
+      <Icon name="shield" size={14} color={c.accent} />
+      <Txt w="b" size={13} color={c.accent}>{label}</Txt>
+    </Pressable>
   );
 }
 
@@ -124,6 +143,12 @@ export function Account() {
                 open={openKey === row.key}
                 onToggle={() => setOpenKey((k) => (k === row.key ? null : row.key))}
                 border={i < rows.length - 1}
+                footer={row.key === 'legal' ? (
+                  <View style={{ paddingLeft: 51, paddingRight: 8, paddingBottom: 12 }}>
+                    <LegalLink label="Open Privacy Policy" onPress={openPrivacyPolicy} />
+                    <LegalLink label="Open Terms of Service" onPress={openTerms} />
+                  </View>
+                ) : undefined}
               />
             ))}
           </Card>
@@ -264,12 +289,14 @@ function DisclosureRow({
   open,
   onToggle,
   border,
+  footer,
 }: {
   row: AccountRow;
   icon: IconName;
   open: boolean;
   onToggle: () => void;
   border?: boolean;
+  footer?: React.ReactNode;
 }) {
   const c = useColors();
   return (
@@ -302,9 +329,12 @@ function DisclosureRow({
         </Row>
       </Pressable>
       {open ? (
-        <Txt w="m" size={13} color={c.textSecondary} style={{ lineHeight: 19, paddingBottom: 15, paddingLeft: 51, paddingRight: 8 }}>
-          {row.detail}
-        </Txt>
+        <>
+          <Txt w="m" size={13} color={c.textSecondary} style={{ lineHeight: 19, paddingBottom: footer ? 6 : 15, paddingLeft: 51, paddingRight: 8 }}>
+            {row.detail}
+          </Txt>
+          {footer}
+        </>
       ) : null}
     </View>
   );
