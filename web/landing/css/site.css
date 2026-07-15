@@ -340,6 +340,25 @@ h1 .dot { color: var(--gold); }
 }
 
 /* ---------- why now ---------- */
+/* ---------- what is onstandard ---------- */
+.whatis { padding: var(--sect-y) 0; }
+.whatis-in {
+  display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: var(--gap-col); align-items: center;
+}
+.whatis-def {
+  color: var(--text-2); font-size: clamp(16px, 1.55vw, 19px); line-height: 1.68;
+  margin-top: 28px; max-width: 56ch;
+}
+.whatis-clar { display: grid; border-top: 1px solid var(--hairline); }
+.whatis-clar li { padding: clamp(18px, 2vw, 24px) 0; border-bottom: 1px solid var(--hairline); }
+.whatis-clar b { display: block; font-size: clamp(16px, 1.6vw, 18.5px); font-weight: 800; letter-spacing: -0.01em; }
+.whatis-clar span { display: block; color: var(--text-2); font-size: clamp(13.5px, 1vw, 15px); line-height: 1.56; margin-top: 6px; }
+@media (max-width: 860px) {
+  .whatis-in { grid-template-columns: 1fr; gap: clamp(30px, 7vw, 46px); align-items: start; }
+  .whatis-def { max-width: none; }
+}
+
 .why { padding: var(--sect-y) 0; background: var(--bg-2); }
 .why-head {
   display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
