@@ -188,7 +188,7 @@ h1 .dot { color: var(--gold); }
 .nav-links a { font-size: 14px; font-weight: 600; color: var(--text-2); transition: color .25s var(--ease); }
 .nav-links a:hover { color: var(--text); }
 .btn-nav {
-  height: 42px; padding: 0 18px; border-radius: 12px; font-size: 13.5px;
+  height: 44px; padding: 0 18px; border-radius: 12px; font-size: 13.5px;
   background: linear-gradient(165deg, var(--gold-bright), var(--gold-deep)); color: #161003;
   box-shadow: 0 6px 20px rgba(232, 180, 74, 0.26);
 }
@@ -513,6 +513,7 @@ h1 .dot { color: var(--gold); }
 .role:nth-child(n+4) .role-body p { min-height: 0; max-width: 34ch; }
 .role-cta {
   margin-top: 14px; font-size: 13.5px; font-weight: 800; color: var(--gold);
+  display: inline-flex; align-items: center; min-height: 44px;
   transition: color .25s var(--ease);
 }
 .role-cta:hover { color: var(--gold-bright); }
@@ -746,18 +747,18 @@ details[open] .fx::after { transform: scaleY(0); }
 .foot-social { display: flex; gap: 12px; margin-top: 20px; }
 .foot-social a {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 42px; height: 42px; border-radius: 12px;
+  width: 44px; height: 44px; border-radius: 12px;
   border: 1px solid var(--hairline); color: var(--text-2);
   transition: color .25s var(--ease), border-color .25s var(--ease), background .25s var(--ease), transform .25s var(--ease);
 }
 .foot-social a:hover { color: var(--gold-bright); border-color: var(--gold-border); background: var(--gold-surface); transform: translateY(-2px); }
-.foot-nav { display: grid; grid-template-columns: repeat(2, auto); gap: 14px 60px; align-content: start; }
-.foot-nav a { color: var(--text-2); font-size: 13.5px; font-weight: 600; transition: color .25s; }
+.foot-nav { display: grid; grid-template-columns: repeat(2, auto); gap: 0 48px; align-content: start; }
+.foot-nav a { display: inline-flex; align-items: center; min-height: 44px; color: var(--text-2); font-size: 13.5px; font-weight: 600; transition: color .25s; }
 .foot-nav a:hover { color: var(--text); }
-.foot-links { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-.foot-links a { color: var(--text-2); font-size: 13.5px; font-weight: 600; transition: color .25s; }
+.foot-links { display: flex; flex-direction: column; gap: 0; align-items: flex-start; }
+.foot-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--text-2); font-size: 13.5px; font-weight: 600; transition: color .25s; }
 .foot-links a:hover { color: var(--text); }
-@media (max-width: 720px) { .foot-links { flex-direction: row; flex-wrap: wrap; gap: 18px; } }
+@media (max-width: 720px) { .foot-links { flex-direction: row; flex-wrap: wrap; gap: 0 18px; } }
 .foot-fine { color: var(--text-3); font-size: 12.5px; margin-top: 36px; }
 
 /* ---------- waitlist dialog ---------- */
