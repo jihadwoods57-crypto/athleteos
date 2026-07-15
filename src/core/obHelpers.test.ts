@@ -35,7 +35,7 @@ describe('standardForGoal', () => {
   test('meal count appears in the first row title', () =>
     expect(standardForGoal('gain', 4).rows[0][1]).toContain('Four meals'));
   test('every goal key has focus copy; unknown falls back', () => {
-    for (const g of ['gain', 'lose', 'maintain', 'perform', 'build', 'health', 'nonsense']) {
+    for (const g of ['gain', 'lose', 'maintain', 'perform', 'performance', 'build', 'health', 'nonsense']) {
       expect(standardForGoal(g).focus.length).toBeGreaterThan(10);
     }
   });

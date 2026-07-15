@@ -1408,8 +1408,17 @@ export const S = {
     return 'unset';
   },
   get planGoalLabel() {
+    // Both base_goal spellings exist in real rows: the core writes 'performance'
+    // (goalMapping/BASE_GOAL_CHIPS), older proto onboarding wrote 'perform'. Same label.
     const g = RT.profile && RT.profile.baseGoal;
-    return g === 'gain' ? 'Gain weight' : g === 'lose' ? 'Lose fat' : g === 'maintain' ? 'Maintain' : g === 'perform' ? 'Perform' : null;
+    return g === 'gain' ? 'Gain weight' : g === 'lose' ? 'Lose fat' : g === 'maintain' ? 'Maintain' : (g === 'perform' || g === 'performance') ? 'Perform' : null;
+  },
+  // Experience voice (mirrors roleVoice.experienceKind: general profile = lose/maintain →
+  // the personal-client experience; athlete/gain keep the team frame). Gates recruiter/sport
+  // copy that reads wrong aimed at an adult on a personal goal.
+  get experience() {
+    const g = RT.profile && RT.profile.baseGoal;
+    return (g === 'lose' || g === 'maintain') ? 'client' : 'athlete';
   },
 
   // How many meals today's standard requires (coach standard 1–6, classic 3) — the one number
@@ -1785,9 +1794,12 @@ export const S = {
     const sg = p.seasonGoal || {};
     const rows = (DAY.scoreHistory || []).filter(h => h.weight != null).map(h => Number(h.weight));
     const history = DAY.currentWeight != null ? [...rows, Number(DAY.currentWeight)] : rows;
-    const current = history.length ? history[history.length - 1] : (p.baseWeight != null ? Number(p.baseWeight) : null);
-    const target = sg.target != null ? Number(sg.target) : null;
-    const start = sg.start != null ? Number(sg.start) : (p.baseWeight != null ? Number(p.baseWeight) : null);
+    // Number.isFinite guards: season_goal is a free-shape jsonb — a non-numeric target must
+    // degrade to the honest '—', never render as "NaN lb".
+    const num = (x) => (x != null && Number.isFinite(Number(x)) ? Number(x) : null);
+    const current = history.length ? history[history.length - 1] : num(p.baseWeight);
+    const target = num(sg.target);
+    const start = num(sg.start) != null ? num(sg.start) : num(p.baseWeight);
     let deltaMonth = null;
     if (history.length >= 2) {
       const d = history[history.length - 1] - history[0];

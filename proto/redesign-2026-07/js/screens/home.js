@@ -32,8 +32,11 @@ function nowCard(e) {
   const isCheck = !n.proof || n.proof === 'check';
   const label = isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}${od ? ' late' : ''}`;
   const ctaIcon = isCheck ? 'check' : CTA_ICON[n.proof];
+  // Overdue already announces itself three ways (label + pill + "Late") — the pill is the
+  // redundant one when it just repeats the label; keep it only when it says something new.
+  const pill = od && String(n.pill).toUpperCase() === 'OVERDUE' ? '' : `<span class="xpill ${n.color}">${n.pill}</span>`;
   return `<section class="xnow ${od ? 'red' : ''}">
-    <div class="xlab"><span class="xl">${od ? 'OVERDUE' : 'NOW'}</span><span class="xpill ${n.color}">${n.pill}</span></div>
+    <div class="xlab"><span class="xl">${od ? 'OVERDUE' : 'NOW'}</span>${pill}</div>
     <div class="xmain">
       <div class="xico ${n.color}">${icon(n.icon, 21)}</div>
       <div><div class="xt">${esc(n.title)}</div><div class="xwhy">${whyHtml(n.why)}</div></div>
@@ -224,7 +227,7 @@ export default {
     ${attention}
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
     ${e.now ? nowCard(e) : ''}
-    ${nextRows.length ? `<div class="xgrp">Next</div>${nextRows.map(row).join('')}` : ''}
+    ${nextRows.length ? `<div class="xgrp">${e.next.state === 'overdue' ? 'Also overdue' : 'Next'}</div>${nextRows.map(row).join('')}` : ''}
     ${laterHtml}
     ${doneHtml}
     ${demoted}

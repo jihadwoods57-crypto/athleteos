@@ -43,6 +43,8 @@ const GOAL_EMPHASIS = {
   lose:     'Hydration and honest portions carry this. Keep protein high.',
   maintain: 'Consistency over everything. Same standard, every day.',
   perform:  'Fuel training, then recover hard — the check-ins are where you win.',
+  // canonical spelling (core's BaseGoal); 'perform' stays for legacy saved onboarding state
+  performance: 'Fuel training, then recover hard — the check-ins are where you win.',
   build:    'Protein first — never under-fueled, every meal counts.',
   health:   'Small meals logged honestly. Consistency is the whole game.',
 };

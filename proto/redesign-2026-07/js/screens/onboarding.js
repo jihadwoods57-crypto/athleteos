@@ -116,7 +116,7 @@ const steps = {
         <div class="ct">Lose fat</div><div class="cs">Calorie window · keep protein</div></div>
       <div class="choice" data-val="maintain"><div class="cic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('shield', 19)}</div>
         <div class="ct">Maintain</div><div class="cs">Consistency over everything</div></div>
-      <div class="choice" data-val="perform"><div class="cic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('bolt', 19)}</div>
+      <div class="choice" data-val="performance"><div class="cic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('bolt', 19)}</div>
         <div class="ct">Perform</div><div class="cs">Fuel training · recover hard</div></div>
     </div>`, 'Next', 'onboarding/5'),
 

@@ -24,8 +24,11 @@ export default {
       </div>
       <div style="flex:1">
         <div class="nm">${esc(S.athlete.name)}</div>
+        ${S.experience === 'client' ? `
+        <div class="meta">${esc(S.planGoalLabel || 'Personal plan')}</div>
+        ${S.coach.kind === 'trainer' && S.coach.team ? `<div class="meta" style="margin-top:1px">${esc(S.coach.team)}</div>` : ''}` : `
         <div class="meta">${esc([S.athlete.sport, S.athlete.position].filter(Boolean).join(' · ') || 'Add your sport')}</div>
-        <div class="meta" style="margin-top:1px">${esc(S.athlete.school || 'Add your school')}</div>
+        <div class="meta" style="margin-top:1px">${esc(S.athlete.school || 'Add your school')}</div>`}
       </div>
       <button class="btn ghost sm" style="width:auto;padding:0 16px;height:44px" data-go="edit-profile">Edit</button>
     </section>
@@ -79,7 +82,7 @@ export default {
       </div>
       <div class="lrow" data-go="recruiting">
         <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div>
-        <div class="lm"><div class="lt">Discipline record</div><div class="ls">Coach-verified · share with recruiters</div></div>
+        <div class="lm"><div class="lt">Discipline record</div><div class="ls">${S.experience === 'client' ? `${S.coach.kind === 'trainer' ? 'Trainer' : 'Coach'}-verified · proof of the work` : 'Coach-verified · share with recruiters'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
     </section>

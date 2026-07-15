@@ -134,9 +134,11 @@ export const coach = {
     <div class="sd-s">We couldn't load today's scores — check your connection. Pull down or reopen to retry; nothing is lost.</div></div>`
     : rows.length === 0 ? `
     <div class="eyebrow">Roster</div>
-    <div class="state-demo"><div class="sd-ic">${icon('users', 24)}</div>
+    <div class="state-demo" data-go="coach-profile" style="cursor:pointer"><div class="sd-ic">${icon('users', 24)}</div>
     <div class="sd-t">No athletes yet</div>
-    <div class="sd-s">Share your team code so athletes can join. Their live scores show up here — nothing is invented until they log.</div></div>`
+    <div class="sd-s">Share your team code so athletes can join. Their live scores show up here — nothing is invented until they log.</div>
+    ${RT.team && RT.team.code ? `<div class="sd-cta" style="display:flex;gap:8px;justify-content:center;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>`
+      : `<div class="sd-cta"><button class="btn green sm" style="width:auto;padding:0 14px">Get your code</button></div>`}</div>`
     : `
     ${attention.length ? `<div class="eyebrow">Needs attention</div>${attention.map(r => {
       const nudgedToday = (RT.coachNudged || {})[r.athleteId] === new Date().toISOString().slice(0, 10);
@@ -808,9 +810,10 @@ export const coachInbox = {
     ${titleHead('Inbox', needsMe ? `${needsMe} need${needsMe === 1 ? 's' : ''} you` : 'All caught up')}
 
     <div class="eyebrow">Daily briefing · from your real roster</div>
-    <section class="card pad" style="background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
+    <section class="card pad" ${rows && !rows.length && !(ROSTER && ROSTER.offline) ? 'data-go="coach-profile" style="cursor:pointer;' : 'style="'}background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
       <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
       <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
+      ${rows && !rows.length && !(ROSTER && ROSTER.offline) && RT.team && RT.team.code ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
     </section>
 
     ${pending.length ? `
@@ -1270,8 +1273,10 @@ export const trainer = {
     <div class="sd-t">Can't reach your clients</div>
     <div class="sd-s">We couldn't load today's scores — check your connection. Reopen this tab to retry; nothing is lost.</div></div>`
     : rows.length === 0 ? `
-    <div class="state-demo"><div class="sd-ic">${icon('heart', 24)}</div>
-    <div class="sd-t">No clients yet</div><div class="sd-s">Share your practice code so athletes can connect. Their real scores show up here.</div></div>`
+    <div class="state-demo" data-go="trainer-profile" style="cursor:pointer"><div class="sd-ic">${icon('heart', 24)}</div>
+    <div class="sd-t">No clients yet</div><div class="sd-s">Share your practice code so athletes can connect. Their real scores show up here.</div>
+    ${RT.practice && RT.practice.code ? `<div class="sd-cta" style="display:flex;gap:8px;justify-content:center;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.practice.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>`
+      : `<div class="sd-cta"><button class="btn green sm" style="width:auto;padding:0 14px">Get your code</button></div>`}</div>`
     : `<section class="card" style="padding:2px 0">${rows.map(r => `
       <div class="roster-row" data-go="trainer-client/${esc(r.athleteId)}">
         <div class="flagdot ${r.flag}"></div>
@@ -1316,7 +1321,30 @@ export const trainerClient = {
     const athleteId = sub;
     const name = bookName(athleteId);
     const head = backHead(esc(name), 'Client · recovery & nutrition', 'trainer');
-    if (!athleteId) return `${head}<div class="state-demo"><div class="sd-t">Open a client</div></div>`;
+    if (!athleteId) {
+      // The tab-bar FAB lands here with no client — a picker, never a dead end (role
+      // walkthrough 2026-07-15). Same honest loading/offline/empty states as the client list.
+      const rows = BOOK ? BOOK.rows : null;
+      const body = rows === null ? `
+        <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
+        <div><div class="tt">Loading your clients…</div></div></div>`
+        : (BOOK && BOOK.offline) ? `
+        <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+        <div class="sd-t">Can't reach your clients</div>
+        <div class="sd-s">We couldn't load your book — check your connection. Reopen this tab to retry; nothing is lost.</div></div>`
+        : rows.length === 0 ? `
+        <div class="state-demo" data-go="trainer-profile" style="cursor:pointer"><div class="sd-ic">${icon('heart', 24)}</div>
+        <div class="sd-t">No clients yet</div><div class="sd-s">Share your practice code first — once a client joins, you can send them a note from here.</div>
+        ${RT.practice && RT.practice.code ? `<div class="sd-cta" style="display:flex;gap:8px;justify-content:center;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.practice.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>` : ''}</div>`
+        : `<div class="eyebrow">Pick a client</div>
+        <section class="card" style="padding:2px 0">${rows.map(r => `
+          <div class="roster-row" data-go="trainer-client/${esc(r.athleteId)}">
+            <div class="flagdot ${r.flag}"></div>
+            <div class="rn"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.note)}</div></div>
+            <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>
+          </div>`).join('')}</section>`;
+      return `${backHead('Send a note', 'Pick a client · it lands as a real push', 'trainer')}${body}`;
+    }
     if (!ATH || ATH.athleteId !== athleteId) {
       return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
       <div><div class="tt">Loading their day…</div></div></div>`;
@@ -1350,6 +1378,7 @@ export const trainerClient = {
   },
   mount(root, { sub }) {
     loadTrainerBook();
+    if (!sub) return; // picker mode — nothing below applies without a client
     loadAthlete(sub, RT.userId, S.athlete.name);
     const input = root.querySelector('#tn-input');
     const send = root.querySelector('#tn-send');
