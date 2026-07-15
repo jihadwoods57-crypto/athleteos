@@ -261,7 +261,9 @@ Deno.serve(async (request) => {
   if (rateLimited(request)) return new Response(JSON.stringify({ error: 'rate limited, slow down' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
 
   const key = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!key) return new Response(JSON.stringify({ error: 'server not configured' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+  // Missing key = AI backend unavailable, not a code fault. 503 (honest + retryable) matches the
+  // upstream-failure catch below; the client falls back to its local draft on any 5xx.
+  if (!key) return new Response(JSON.stringify({ error: 'plan drafting unavailable' }), { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } });
 
   let req: PlanReq;
   try {

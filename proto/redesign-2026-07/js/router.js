@@ -158,6 +158,10 @@ async function boot() {
       if (data && data.session) { authed = true; await act._syncSession(data.session.user); await act.hydrateDay(); }
     }
   } catch { /* offline / no client → treat as signed out */ }
+  // No live session on boot → drop any stale user-scoped state. A persisted RT.userId would
+  // otherwise let the render gate paint an authed shell against cached data until the next data
+  // call. Same cleanup SIGNED_OUT uses; keeps pending-onboarding scratch. (stress-test R1)
+  if (!authed && RT.userId) { try { act._wipeUserScopedState({ keepPendingOb: true }); } catch { /* never block boot */ } }
   const { route } = parse();
   if (!authed && !AUTH_ROUTES.includes(route)) { location.hash = '#welcome'; return; } // hashchange → render
   if (authed && (route === 'welcome' || !location.hash)) { location.hash = '#' + routeForRole(RT.authRole || 'athlete'); return; }

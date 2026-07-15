@@ -54,8 +54,9 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "jest",
+    "lint:xss": "node scripts/lint-innerhtml-esc.mjs",
     "bundle": "expo export -p ios --output-dir .aos-export",
-    "verify": "npm run typecheck && npm run test && npm run bundle",
+    "verify": "npm run lint:xss && npm run typecheck && npm run test && npm run bundle",
     "preflight": "node scripts/preflight.mjs",
     "ship": "node scripts/preflight.mjs && eas build --platform ios --profile production --non-interactive && eas submit --platform ios --profile production --latest --non-interactive",
     "test:rls": "bash supabase/tests/run.sh"

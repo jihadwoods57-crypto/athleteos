@@ -565,7 +565,9 @@ Deno.serve(async (request) => {
   if (rateLimited(request)) return new Response(JSON.stringify({ error: 'rate limited, slow down' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
 
   const key = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!key) return new Response(JSON.stringify({ error: 'server not configured' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+  // Missing key = the AI backend is unavailable, not a code fault. Return 503 (honest + retryable),
+  // matching the upstream-failure path below; the client falls back to manual entry on any 5xx.
+  if (!key) return new Response(JSON.stringify({ error: 'analysis unavailable' }), { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } });
 
   let req: AnalyzeReq;
   try {

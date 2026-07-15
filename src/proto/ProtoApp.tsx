@@ -12,13 +12,16 @@ import { parseInviteCode } from '../lib/inviteLink';
 
 const BG = '#080B0A';
 
-// Runs BEFORE any proto code: forwards console + errors to native so device issues are
-// diagnosable (not a silent blank screen). The native bridge shim (haptics/share/secure store)
-// is appended right after so both are live at document-start, before the proto's modules run.
+// Runs BEFORE any proto code: forwards errors to native so device issues are diagnosable (not a
+// silent blank screen). The native bridge shim (haptics/share/secure store) is appended right after
+// so both are live at document-start, before the proto's modules run.
+// Crash capture (error/unhandledrejection) runs in ALL builds. The broad console.log/warn/error
+// forwarder runs ONLY in __DEV__ — in release it would echo arbitrary app strings into device logs
+// (Console.app / logcat), a latent PII channel. (stress-test R3)
 const CONSOLE_BRIDGE = `
 (function(){
   function send(o){ try{ window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(o)); }catch(e){} }
-  ['log','warn','error'].forEach(function(l){ var orig=console[l]; console[l]=function(){ send({__log:{level:l,msg:Array.prototype.map.call(arguments,String).join(' ')}}); try{orig.apply(console,arguments);}catch(e){} }; });
+  ${__DEV__ ? `['log','warn','error'].forEach(function(l){ var orig=console[l]; console[l]=function(){ send({__log:{level:l,msg:Array.prototype.map.call(arguments,String).join(' ')}}); try{orig.apply(console,arguments);}catch(e){} }; });` : ''}
   window.addEventListener('error', function(e){ send({__log:{level:'error',msg:(e.error&&e.error.stack)||e.message||'error'}}); });
   window.addEventListener('unhandledrejection', function(e){ send({__log:{level:'error',msg:'unhandled: '+((e.reason&&e.reason.stack)||e.reason)}}); });
 })();

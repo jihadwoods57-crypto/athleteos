@@ -123,8 +123,10 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405, cors);
   if (rateLimited(req)) return json({ error: 'rate limited, slow down' }, 429, cors);
   const key = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!key) return json({ error: 'server not configured' }, 500, cors);
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'server not configured' }, 500, cors);
+  // Missing config = service unavailable, not a code fault. 503 (retryable) matches the cap/upstream
+  // paths below and the sibling AI functions; the client shows "try again" on 5xx.
+  if (!key) return json({ error: 'deep analysis unavailable' }, 503, cors);
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'deep analysis unavailable' }, 503, cors);
 
   // Deep dives are never anonymous: the weekly cap needs an identity, and the payload is
   // personal history.
