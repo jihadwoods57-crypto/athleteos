@@ -21,7 +21,7 @@
 <link rel="preload" href="fonts/archivo-exp900.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/pjs.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/img/g-hero-athlete.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="css/site.css">
+<link rel="stylesheet" href="css/site.css?v=4">
 <noscript><style>.reveal, .an-row { opacity: 1 !important; transform: none !important; } .an-fill { transform: scaleX(1) !important; } .ticker-track { animation: none; flex-wrap: wrap; width: auto; row-gap: 12px; } .ticker-track span[aria-hidden="true"] { display: none; } .sys-stage { display: none !important; } .sys-static { display: grid !important; }</style></noscript>
 <script type="application/ld+json">
 {
@@ -374,8 +374,11 @@
   <!-- ============ FAQ ============ -->
   <section class="faq" id="faq" aria-labelledby="faq-h">
     <div class="wrap faq-wrap">
-      <p class="kicker reveal">Straight answers</p>
-      <h2 id="faq-h" class="h2 reveal d1">Asked honestly, answered honestly</h2>
+      <div class="faq-head">
+        <p class="kicker reveal">Straight answers</p>
+        <h2 id="faq-h" class="h2 reveal d1">Asked honestly, answered honestly</h2>
+        <p class="faq-note reveal d2">Everything a coach, athlete, or parent asks before they trust the number. No hedging.</p>
+      </div>
       <div class="faq-list reveal d2">
         <details>
           <summary>Is it really free for athletes and clients?<span class="fx" aria-hidden="true"></span></summary>
@@ -520,6 +523,6 @@
   ]
 }
 </script>
-<script src="js/site.js" defer></script>
+<script src="js/site.js?v=4" defer></script>
 </body>
 </html>
