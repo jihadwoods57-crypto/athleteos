@@ -19,6 +19,11 @@
 //   supabase functions deploy analyze-meal
 // Then set EXPO_PUBLIC_SUPABASE_URL + ANON_KEY in the app (.env) and isAiConfigured flips on.
 //
+// Cost knobs (all env, all with safe defaults): DAILY_ANALYSIS_CAP (hard per-athlete ceiling on
+// paid calls/day, default 12), CLARIFY_DAILY_BUDGET (how many of those calls may use the 2-call
+// clarify path before meals are forced single-call, default 8), GLOBAL_ANALYSIS_CAP, and
+// ANON_IP_ANALYSIS_CAP. Tune DAILY_ANALYSIS_CAP + CLARIFY_DAILY_BUDGET down to widen margin.
+//
 // Model is configurable via the ANTHROPIC_MODEL secret; defaults to claude-sonnet-5
 // (best speed/intelligence tier for high-volume per-meal vision + the clarify/reconcile
 // reasoning; claude-opus-4-8 is the higher tier). MEAL macros from the model are ESTIMATES
@@ -63,6 +68,15 @@ function posIntCap(name: string, fallback: number): number {
 // Tune both up as real traffic grows; defaults are generous for an early-stage roster.
 const GLOBAL_CAP = posIntCap('GLOBAL_ANALYSIS_CAP', 5000);
 const ANON_IP_CAP = posIntCap('ANON_IP_ANALYSIS_CAP', 60);
+// MARGIN GUARDRAIL. The clarifying-questions flow (analyze -> ask -> finalize) is the only
+// path that spends TWO paid vision calls on one meal, so it is offered only for a signed-in
+// athlete's first CLARIFY_DAILY_BUDGET paid calls of the day; beyond that, the model is forced
+// to report in a single call (still honest — the same single-call read a confident meal gets).
+// This keeps average per-meal vision cost near one call for a heavy logger while preserving the
+// honest "ask what the camera can't see" moment for their real meals. The hard per-athlete
+// ceiling (DAILY_ANALYSIS_CAP) still backstops total spend; this only bounds the 2x path.
+// Default 8 (~4 clarifying meals) comfortably covers a real day; tune down for tighter margin.
+const CLARIFY_BUDGET = posIntCap('CLARIFY_DAILY_BUDGET', 8);
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -85,19 +99,22 @@ async function resolveUserId(req: Request): Promise<string | null> {
   }
 }
 
-// Atomically claim one slot for today. Returns true if allowed, false if the athlete is at
-// their daily cap. Fail-OPEN: if the counter is unreachable (infra gap / RPC error), allow
-// the call — logging must never break, and the per-minute IP limit still blunts abuse.
-async function withinDailyCap(userId: string): Promise<boolean> {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return true;
+// Atomically claim one slot for today. Returns { ok, used }: ok=false when the athlete is at
+// their daily cap; `used` is the running count of paid calls today (post-claim), which the
+// clarify budget reads to decide whether the 2-call ask path is still affordable this day.
+// Fail-OPEN: if the counter is unreachable (infra gap / RPC error), allow the call — logging
+// must never break, and the per-minute IP limit still blunts abuse. On fail-open `used` is 0
+// (unknown), so the clarify path stays enabled — an infra hiccup must not silently disable it.
+async function withinDailyCap(userId: string): Promise<{ ok: boolean; used: number }> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return { ok: true, used: 0 };
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data, error } = await sb.rpc('claim_ai_usage', { p_user: userId, p_limit: DAILY_CAP });
-    if (error) return true;
+    if (error) return { ok: true, used: 0 };
     const row = Array.isArray(data) ? data[0] : data;
-    return row?.allowed !== false;
+    return { ok: row?.allowed !== false, used: Number(row?.used ?? 0) };
   } catch {
-    return true;
+    return { ok: true, used: 0 };
   }
 }
 
@@ -599,12 +616,20 @@ Deno.serve(async (request) => {
   // OPEN — never block a legit log on an infra hiccup); an anonymous caller gets a per-IP daily cap
   // that fails CLOSED — the only ceiling an anon caller has, so it must hold when the counter is down.
   const countsAgainstDailyCap = !isMemory && !isOrder;
+  // Captured for the clarify budget below: whether this is a signed-in athlete and how many paid
+  // calls they've made today. Anonymous callers (userId null) never get the 2-call clarify path.
+  let signedIn = false;
+  let dailyUsed = 0;
   if (countsAgainstDailyCap) {
     const userId = await resolveUserId(request);
-    const ok = userId
-      ? await withinDailyCap(userId)
-      : await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP, /* failOpen */ false);
-    if (!ok) {
+    signedIn = userId != null;
+    if (userId) {
+      const cap = await withinDailyCap(userId);
+      if (!cap.ok) {
+        return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+      dailyUsed = cap.used;
+    } else if (!(await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP, /* failOpen */ false))) {
       return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
   }
@@ -616,7 +641,11 @@ Deno.serve(async (request) => {
   // offers both tools and lets the model choose. Every other path (label/memory/order, and meal
   // 'finalize') forces exactly one tool so the response shape is guaranteed.
   const singleTool = isMemory ? MEMORY_TOOL : isOrder ? ORDER_TOOL : isLabel ? LABEL_TOOL : MEAL_TOOL;
-  const askable = isMeal && !isFinalize;
+  // The ASK tool (which can trigger a second paid finalize call) is offered only on a meal
+  // 'analyze' phase, for a signed-in athlete, within their daily clarify budget (MARGIN
+  // GUARDRAIL). Over budget / anonymous: force the single report tool, so an unsure meal costs
+  // one call instead of two. A confident meal was always one call; this only bounds the 2x path.
+  const askable = isMeal && !isFinalize && signedIn && dailyUsed <= CLARIFY_BUDGET;
   const tools = askable ? [MEAL_TOOL, ASK_TOOL] : [singleTool];
   const toolChoice = askable ? { type: 'any' as const } : { type: 'tool' as const, name: singleTool.name };
 

@@ -64,8 +64,27 @@ paid for on every unsure meal, and hidden. This spec surfaces it. No backend cha
 - Minor-safe: this only refines what the athlete ate; no calorie *targets* are generated here
   (those stay deterministic elsewhere).
 
+## Margin guardrail (added 2026-07-15)
+The clarify flow is the ONLY path that spends two paid vision calls on one meal (`analyze`
+returns questions, then `finalize`). To protect revenue margin without gutting the honest
+moment, the `analyze-meal` edge function now gates the ASK tool server-side:
+
+- New env `CLARIFY_DAILY_BUDGET` (default 8). The ASK tool is offered only to a **signed-in**
+  athlete whose running daily paid-call count is within budget; over budget or anonymous, the
+  model is forced to report in a **single call** (the same one-call read a confident meal gets).
+- `withinDailyCap` now returns `{ ok, used }` (the running count from `claim_ai_usage`, which
+  already returns `used`), read at tool-set time.
+- **Server-authoritative and un-spoofable** (the client can't opt back in), tied to real spend,
+  and it fails OPEN (an infra hiccup leaves clarify enabled — never silently disabled).
+- **Zero client change:** when clarify is gated off, `analyze` returns `{kind:'result'}`, which
+  `runAnalysis` already routes straight to the analysis — no questions screen, no second call.
+- The hard per-athlete ceiling (`DAILY_ANALYSIS_CAP`, default 12, counts finalize) still
+  backstops total spend; this only bounds the 2x path so average per-meal cost stays near one
+  call for a heavy logger. Tune `DAILY_ANALYSIS_CAP` + `CLARIFY_DAILY_BUDGET` down for tighter
+  margin. Deploy: `supabase functions deploy analyze-meal` (authored here, applied by founder).
+
 ## Explicitly NOT in scope
-- No edge-function change. No new analysis modes. No re-grounding logic.
+- No new analysis modes. No re-grounding logic.
 - No quick-chip answer UI (free text v1; the model asks open questions).
 - No deterministic-fallback rework (when AI is unconfigured the existing error/retake path is
   untouched — a separate concern).
