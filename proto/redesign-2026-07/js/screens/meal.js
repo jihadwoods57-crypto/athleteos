@@ -40,7 +40,9 @@ export const analyzing = {
       // REAL analysis via the analyze-meal edge function.
       const r = await act.runAnalysis();
       if (location.hash !== '#analyzing') return; // navigated away
-      if (r.ok) { location.hash = '#meal-analysis'; return; }
+      // THE CLARIFYING MOMENT: the model asked what the photo can't show — collect answers
+      // before committing a number. A confident read goes straight to the analysis.
+      if (r.ok) { location.hash = r.kind === 'questions' ? '#meal-questions' : '#meal-analysis'; return; }
       // Failure state: stop the "still scanning" animation and give a real >=44px recovery
       // button instead of a 13px gray text tap — the old sub-line was nearly invisible at the
       // exact moment the athlete's core action broke. A fast failure can land before the 1s
@@ -58,6 +60,79 @@ export const analyzing = {
     }
     // No photo → nothing to analyze. Send them back to capture instead of a fabricated analysis.
     if (location.hash === '#analyzing') location.hash = '#camera';
+  },
+};
+
+/* ---------- The Clarifying Moment (Honest Vision) ----------
+   The model was genuinely unsure about something that moves the macros (hidden protein,
+   portion, prep), so instead of fabricating a number it asks the athlete. They answer what the
+   camera can't see, we finalize, and the number they get is one they can trust. Every other app
+   guesses silently; this is the honest difference. */
+export const mealQuestions = {
+  tab: 'camera',
+  hideTabs: true,
+  render() {
+    const qs = (MEAL && Array.isArray(MEAL.questions)) ? MEAL.questions : [];
+    // Deep-link / stale entry with nothing to ask: send them back to capture, never a blank screen.
+    if (!qs.length) { if (location.hash === '#meal-questions') location.hash = '#camera'; return ''; }
+    const img = safeImg((MEAL && MEAL.photoDataUrl) || S.logging.img);
+    return `
+    ${backHead('Two quick things', "So your numbers are exact", 'camera')}
+    ${img ? `<div class="mq-photo" style="background-image:url('${img}')"><div class="mq-grad"></div>
+      <div class="mq-badge">${icon('sparkle', 13)} The camera can't see everything</div></div>` : ''}
+    <div class="mq-lead">A photo can't show what's hidden under or off the plate. Answer these and your read is dead on.</div>
+    <div class="mq-list">
+      ${qs.map((q, i) => `
+        <label class="mq-item">
+          <div class="mq-q"><span class="mq-n">${i + 1}</span><span>${esc(q)}</span></div>
+          <input class="mq-input" data-qi="${i}" type="text" autocomplete="off" enterkeyhint="${i === qs.length - 1 ? 'done' : 'next'}"
+            placeholder="Your answer" aria-label="${esc(q)}" />
+        </label>`).join('')}
+    </div>
+    <div class="mq-actions">
+      <button class="btn green" id="mq-go">${icon('check', 18)} Get my result</button>
+      <button class="mq-skip" id="mq-skip">Skip, just estimate</button>
+    </div>
+    <div class="mq-note">${icon('lock', 12)} Your answers only sharpen this meal's numbers. Nothing else changes.</div>`;
+  },
+  mount(root) {
+    const inputs = () => Array.from(root.querySelectorAll('.mq-input'));
+    const answers = () => {
+      const a = [];
+      inputs().forEach((el) => { a[+el.dataset.qi] = el.value; });
+      return a;
+    };
+    let busy = false;
+    const finish = async (ans) => {
+      if (busy) return;
+      busy = true;
+      const go = root.querySelector('#mq-go');
+      const skip = root.querySelector('#mq-skip');
+      if (go) { go.disabled = true; go.innerHTML = `${icon('sparkle', 18)} Reading your meal...`; }
+      if (skip) skip.style.pointerEvents = 'none';
+      const r = await act.finalizeAnalysis(ans);
+      if (location.hash !== '#meal-questions') return; // navigated away mid-call
+      if (r.ok) { location.hash = '#meal-analysis'; return; }
+      // Failure: restore the controls and surface an honest, tappable recovery.
+      busy = false;
+      if (go) { go.disabled = false; go.innerHTML = `${icon('check', 18)} Get my result`; }
+      if (skip) skip.style.pointerEvents = '';
+      let err = root.querySelector('#mq-err');
+      if (!err) {
+        root.querySelector('.mq-actions').insertAdjacentHTML('afterend',
+          `<div id="mq-err" class="mq-err">${icon('x', 14)} <span></span></div>`);
+        err = root.querySelector('#mq-err');
+      }
+      err.querySelector('span').textContent = r.error || 'Analysis failed. Try again.';
+    };
+    root.querySelector('#mq-go').addEventListener('click', () => finish(answers()));
+    root.querySelector('#mq-skip').addEventListener('click', () => finish([]));
+    // Enter on the last field submits; Enter elsewhere advances to the next field.
+    inputs().forEach((el, i, arr) => el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (i < arr.length - 1) arr[i + 1].focus(); else finish(answers());
+    }));
   },
 };
 

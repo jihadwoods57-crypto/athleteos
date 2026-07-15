@@ -18,7 +18,7 @@ import {
   setDayStandard, slotDeadline,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
-import { groundExtras } from './meal-intel.js';
+import { groundExtras, buildClarifications } from './meal-intel.js';
 import {
   fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyConsent,
   requestGuardianConsent as rpcRequestConsent,
@@ -37,7 +37,7 @@ function fmtClock(min) {
 
 /* The meal currently being captured (Phase 5 AI loop). When MEAL.result is set, S.logging and
    the score use the REAL analyzed macros instead of the demo placeholders. */
-export const MEAL = { key: null, mealType: null, photoBase64: null, photoDataUrl: null, result: null, live: true };
+export const MEAL = { key: null, mealType: null, photoBase64: null, photoDataUrl: null, result: null, live: true, questions: null };
 
 /** Bound the AI's macros to sane per-meal ranges (Atwater fallback for calories) so a mis-read
    can never spike the score — a lightweight port of macroGrounding for v1. */
@@ -374,23 +374,48 @@ export const act = {
     MEAL.mealType = cap(key);
     save();
   },
+  /* The current meal's analyze-meal request body (mode 'meal'); phase is added per call. */
+  _analysisBody() {
+    return { mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null, photoBase64: MEAL.photoBase64 };
+  },
+  /* Phase 'analyze'. THE CLARIFYING MOMENT: when the model is genuinely unsure about something
+     that would move the macros, it returns questions — we surface them ({ok, kind:'questions'})
+     so the athlete answers what the camera can't see, rather than discarding them and forcing a
+     guess. A confident read returns the finished result directly. */
   async runAnalysis() {
     const sb = window.sb;
     if (!sb || !MEAL.photoBase64) return { ok: false, error: 'No photo to analyze.' };
-    const body = { mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null, photoBase64: MEAL.photoBase64 };
+    MEAL.questions = null;
     try {
-      let { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...body, phase: 'analyze' } });
-      if (!error && data && data.kind === 'questions') {
-        const fin = await sb.functions.invoke('analyze-meal', { body: { ...body, phase: 'finalize', clarifications: [] } });
-        data = fin.data; error = fin.error;
-      }
+      const { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...this._analysisBody(), phase: 'analyze' } });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); return { ok: true }; }
+      if (data && data.kind === 'questions') {
+        const qs = Array.isArray(data.questions) ? data.questions.filter((q) => typeof q === 'string' && q.trim()).slice(0, 3) : [];
+        if (qs.length) { MEAL.questions = qs; save(); return { ok: true, kind: 'questions' }; }
+        // Model asked but sent nothing usable — finalize straight through rather than dead-end.
+        return this.finalizeAnalysis([]);
+      }
+      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); return { ok: true, kind: 'result' }; }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
   },
-  clearMeal() { MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null; MEAL.result = null; MEAL.live = true; },
+  /* Phase 'finalize': fold the athlete's answers (parallel to MEAL.questions) in as truth for
+     what the photo can't show, then ground + store the result. `answers = []` is the honest
+     Skip path — the model estimates without them, exactly as the old auto-finalize did. */
+  async finalizeAnalysis(answers) {
+    const sb = window.sb;
+    if (!sb || !MEAL.photoBase64) return { ok: false, error: 'No photo to analyze.' };
+    const clarifications = buildClarifications(MEAL.questions || [], answers || []);
+    try {
+      const { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...this._analysisBody(), phase: 'finalize', clarifications } });
+      if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
+      if (data && data.kind === 'result') { MEAL.result = groundResult(data); MEAL.questions = null; save(); return { ok: true, kind: 'result' }; }
+      track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
+      return { ok: false, error: 'Could not read that meal. Try another angle.' };
+    } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
+  },
+  clearMeal() { MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null; MEAL.result = null; MEAL.live = true; MEAL.questions = null; },
   /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
      the actual macros the athlete assembled, not a demo constant. No AI "quality" is invented. */
   captureManual(macros, foods, slot) {

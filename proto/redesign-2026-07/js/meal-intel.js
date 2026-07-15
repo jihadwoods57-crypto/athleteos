@@ -86,6 +86,26 @@ const CONTEXT_MAX = 8192;
     Contract: `recentMeals` MUST be passed oldest→newest (ascending). This function drops
     from the front (index 0) of the array when clamping, so a caller that hands it
     newest-first data (e.g. raw DB order) will have its newest meals dropped instead. */
+/**
+ * THE CLARIFYING MOMENT (Honest Vision): pair the model's clarifying questions with the
+ * athlete's typed answers into the exact `clarifications` shape the analyze-meal edge function
+ * wants on phase 'finalize'. An UNANSWERED question is dropped (the model then estimates that
+ * part instead of being handed a blank), so "Skip" and "answer only some" both stay honest.
+ * Same caps as the edge function (question <=300, answer <=500), newlines collapsed, so a
+ * pasted answer can't inflate the finalize call. Pure — unit-tested in protoMealClarify.test.
+ */
+export function buildClarifications(questions, answers) {
+  const qs = Array.isArray(questions) ? questions : [];
+  const as = Array.isArray(answers) ? answers : [];
+  const out = [];
+  for (let i = 0; i < qs.length && i < 5; i++) {
+    const q = String(qs[i] == null ? '' : qs[i]).replace(/[\r\n]+/g, ' ').trim().slice(0, 300);
+    const a = String(as[i] == null ? '' : as[i]).replace(/[\r\n]+/g, ' ').trim().slice(0, 500);
+    if (q && a) out.push({ question: q, answer: a });
+  }
+  return out;
+}
+
 export function contextForChat({ meal, plan, exec, recentMeals, thread } = {}) {
   const ctx = {
     meal: meal || {},
