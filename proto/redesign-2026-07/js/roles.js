@@ -366,6 +366,29 @@ export async function fetchMyPracticeIdentity() {
     return { id: data.id, name: data.name || '', code: data.join_code || '', handle: data.handle || null };
   } catch { return { error: true }; }
 }
+
+/** The CLIENT's view of their linked trainer: the active practice they joined + the trainer's real
+    display name — the practice mirror of fetchMyCoach (teams) for the athlete side. Prefers the
+    my_trainer() definer RPC (0063 — the only client-readable source of the trainer's NAME); falls
+    OPEN to a direct practices select (practices_read RLS grants an active client the row) on a
+    pre-0063 DB, which yields the practice name only. Returns null on a confirmed "no trainer link";
+    { error: true } on a fetch failure. Never fabricates a persona — an unknown name is ''. */
+export async function fetchMyTrainer() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data, error } = await c.rpc('my_trainer');
+    if (!error) {
+      const r = Array.isArray(data) ? data[0] : data;
+      if (r && r.practice_id) return { practiceId: r.practice_id, practiceName: r.practice_name || '', name: r.trainer_name || '', handle: r.handle || null };
+      return null; // RPC ran and found no active link → confirmed no trainer
+    }
+    // RPC absent (pre-0063) or errored → fall open to the RLS-scoped practice row (name only).
+    const { data: p, error: pErr } = await c.from('practices').select('id,name,handle').limit(1).maybeSingle();
+    if (pErr) return { error: true };
+    if (!p) return null;
+    return { practiceId: p.id, practiceName: p.name || '', name: '', handle: p.handle || null };
+  } catch { return { error: true }; }
+}
 export async function fetchPracticeRoster(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
   try {

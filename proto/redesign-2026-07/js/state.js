@@ -15,13 +15,13 @@ import {
   setSyncBlocked, isSyncBlocked, SYNC,
   dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
-  setDayStandard, slotDeadline,
+  setDayStandard, slotDeadline, setDayGoalConfig,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { groundExtras, buildClarifications, analysisTiming } from './meal-intel.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
-  fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyConsent,
+  fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyTrainer, fetchMyConsent,
   requestGuardianConsent as rpcRequestConsent,
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse,
@@ -45,6 +45,29 @@ export const MEAL = {
   key: null, mealType: null, photoBase64: null, photoDataUrl: null, result: null, live: true,
   questions: null, photoHash: null, source: null, takenAt: null, capturedAtMin: null,
 };
+
+/* In-flight capture persistence (sessionStorage, NOT RT). The MEAL object holds the staged photo +
+   analysis, which live outside RT, so a hard WebView reload mid-capture (#analyzing /
+   #meal-questions / #meal-analysis) would otherwise lose the photo and any PAID analysis and
+   dead-end back to the camera. sessionStorage is the right scope: it survives an in-session reload
+   but a fresh app launch correctly starts clean. Best-effort — quota/absent-store degrades to
+   in-session-only, never blocks capture (and stays safe in a non-browser test env). */
+const MEAL_KEY = 'onstd-proto-meal-v1';
+function saveMeal() {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    if (!MEAL.photoBase64 && !MEAL.result && !MEAL.questions) { sessionStorage.removeItem(MEAL_KEY); return; }
+    sessionStorage.setItem(MEAL_KEY, JSON.stringify(MEAL));
+  } catch { /* quota / disabled — capture still works this session, just not across a reload */ }
+}
+function loadMeal() {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    const j = JSON.parse(sessionStorage.getItem(MEAL_KEY) || 'null');
+    if (j && typeof j === 'object') Object.assign(MEAL, j);
+  } catch { /* corrupt / blocked store — start clean */ }
+}
+loadMeal(); // restore an in-flight capture across a reload, before the first render
 
 /** Bound the AI's macros to sane per-meal ranges (Atwater fallback for calories) so a mis-read
    can never spike the score — a lightweight port of macroGrounding for v1. */
@@ -137,6 +160,8 @@ const DEFAULT_RT = {
   teamOffline: false,
   // --- athlete's real linked coach ({teamId,teamName,name}) — null until a real team link exists ---
   myCoach: null,
+  // --- a trainer's CLIENT: linked practice + trainer ({practiceId,practiceName,name,handle}) — null until a real practice link ---
+  myTrainer: null,
   // --- guardian consent (athlete side of 0008/0050): last server-confirmed state, or null ---
   // { status: 'verified'|'pending'|'revoked'|'none', guardianEmail } — only meaningful for minors.
   consent: null,
@@ -310,6 +335,50 @@ export function syncRtFromDay() {
   save();
 }
 
+/* ---------------- Goal → scoring profile + targets (proto mirror of src/core) ----------------
+   A solo client never gets a coach to set their scoring, so the goal they chose at signup drives
+   it: lose/maintain → the calorie-target `general` profile, build → the surplus `gain` profile,
+   performance (the default) → the shipped athlete formula. Mirrors profileForGoal (scoringProfiles)
+   + deriveTargetsFromGoal (goalMapping); tolerant of the client onboarding slugs AND the BaseGoal
+   enum. The platform owns the weights, the coach/trainer owns the targets (Scoring Contract). */
+const GOAL_CAL_DEFAULT = 3200, GOAL_PROTEIN_DEFAULT = 180, GOAL_BW_DEFAULT = 171;
+function scoringProfileForGoal(goal) {
+  switch (goal) {
+    case 'gain': case 'build': case 'gain_muscle': case 'gain_weight': return 'gain';
+    case 'lose': case 'lose_fat': case 'maintain': case 'health': return 'general';
+    default: return 'athlete'; // performance / perform / unknown → the shipped formula, unchanged
+  }
+}
+function goalDerivedTargets(goal, bodyweightLb) {
+  const bw = bodyweightLb > 0 ? bodyweightLb : GOAL_BW_DEFAULT;
+  const p = (n) => Math.max(80, Math.round(n / 5) * 5);      // protein floor 80 g (safety)
+  const c = (n) => Math.max(1500, Math.round(n / 50) * 50);  // calorie floor 1500 (safety)
+  switch (goal) {
+    case 'lose': case 'lose_fat':   return { proteinTarget: p(bw * 0.9), calTarget: c(bw * 12) };
+    case 'gain': case 'build': case 'gain_muscle': case 'gain_weight':
+                                    return { proteinTarget: p(bw * 1.0), calTarget: c(bw * 17) };
+    case 'maintain': case 'health': return { proteinTarget: p(bw * 0.8), calTarget: c(bw * 15) };
+    default:                        return { proteinTarget: GOAL_PROTEIN_DEFAULT, calTarget: GOAL_CAL_DEFAULT };
+  }
+}
+/* Derive the athlete's scoring profile + calorie/protein targets from their real goal (server
+   baseGoal, else the onboarding scratch) and body weight, and push them onto the live DAY so the
+   score honors what they signed up for. A coach/trainer-set target (athlete_profiles.targets)
+   always wins over the goal-derived default. Idempotent — safe on every profile hydrate. */
+function applyGoalToDay() {
+  const p = RT.profile || {};
+  const goal = p.baseGoal || (RT.ob && RT.ob.goal) || null;
+  if (!goal) { setDayGoalConfig('athlete', 0, 0); return; } // no goal yet → shipped athlete default
+  const bw = (p.baseWeight != null ? +p.baseWeight : 0)
+    || (RT.ob && RT.ob.currentWeight ? +RT.ob.currentWeight : 0)
+    || (DAY.currentWeight != null ? +DAY.currentWeight : 0) || GOAL_BW_DEFAULT;
+  const derived = goalDerivedTargets(goal, bw);
+  const t = p.targets || {};
+  const proteinTarget = (t.protein > 0 ? +t.protein : derived.proteinTarget);
+  const calTarget = (t.calories > 0 ? +t.calories : derived.calTarget);
+  setDayGoalConfig(scoringProfileForGoal(goal), proteinTarget, calTarget);
+}
+
 /* ---------------- Actions ---------------- */
 export const act = {
   /* Log a real meal into a real slot. One implementation for every meal (camera or search),
@@ -354,9 +423,12 @@ export const act = {
         pushDay(RT.userId);
       }
     });
-    // keep legacy flags in sync for any screen still reading them
-    if (slot === 'dinner') RT.dinnerLogged = true;
-    if (slot === 'breakfast') RT.day0Breakfast = true;
+    // Reflect the just-logged meal into every RT flag the UI reads. Beyond the legacy
+    // dinnerLogged/day0Breakfast flags, this recomputes RT.day0 — Progress gates on it, so it
+    // must clear the moment a real meal lands. logMeal used to hand-set only the two flags, so
+    // RT.day0 went stale-true and Progress showed the day-0 empty state for the rest of the
+    // session after the first log.
+    syncRtFromDay();
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: cap(slot) };
     save();
@@ -435,7 +507,7 @@ export const act = {
     const key = nextOpenSlot(slot) || slot || 'dinner';
     MEAL.key = key;
     MEAL.mealType = cap(key);
-    save();
+    save(); saveMeal();
   },
   /* Duplicate-photo pre-check (0062): has THIS athlete already logged this exact photo?
      Run before the paid analyze call so a reused gallery pick is caught for free. Fail-open —
@@ -477,11 +549,11 @@ export const act = {
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
       if (data && data.kind === 'questions') {
         const qs = Array.isArray(data.questions) ? data.questions.filter((q) => typeof q === 'string' && q.trim()).slice(0, 3) : [];
-        if (qs.length) { MEAL.questions = qs; save(); return { ok: true, kind: 'questions' }; }
+        if (qs.length) { MEAL.questions = qs; save(); saveMeal(); return { ok: true, kind: 'questions' }; }
         // Model asked but sent nothing usable — finalize straight through rather than dead-end.
         return this.finalizeAnalysis([]);
       }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); return { ok: true, kind: 'result' }; }
+      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); saveMeal(); return { ok: true, kind: 'result' }; }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
@@ -496,7 +568,7 @@ export const act = {
     try {
       const { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...this._analysisBody(), phase: 'finalize', clarifications } });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); MEAL.questions = null; save(); return { ok: true, kind: 'result' }; }
+      if (data && data.kind === 'result') { MEAL.result = groundResult(data); MEAL.questions = null; save(); saveMeal(); return { ok: true, kind: 'result' }; }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
@@ -505,6 +577,7 @@ export const act = {
     MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null;
     MEAL.result = null; MEAL.live = true; MEAL.questions = null;
     MEAL.photoHash = null; MEAL.source = null; MEAL.takenAt = null; MEAL.capturedAtMin = null;
+    saveMeal();
   },
   /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
      the actual macros the athlete assembled, not a demo constant. No AI "quality" is invented.
@@ -524,9 +597,10 @@ export const act = {
       fat: Math.round(macros.fat || 0), kcal: Math.round(macros.kcal || 0),
       detected: Array.isArray(foods) ? foods.slice(0, 8) : [], note: '',
     };
+    saveMeal();
   },
 
-  startDay0() { RT.lastMove = null; dayResetLocal(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
+  startDay0() { RT.lastMove = null; dayResetLocal(); applyGoalToDay(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
   // Coach→athlete assignments: real rows (0055) sync completion to the server; local-only
   // items (injury-mode rehab) stay local. Optimistic — server truth reasserts on next hydrate.
   completeAssigned(id) {
@@ -632,7 +706,7 @@ export const act = {
     }
     if (role === 'trainer') await this._loadPracticeIntoRt(RT.userId);
     if (role === 'coach') { await this._loadTeamIntoRt(RT.userId); await this._loadCoachHandleIntoRt(); }
-    if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); await this._loadAssignmentsIntoRt(); }
+    if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadTrainerIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); await this._loadAssignmentsIntoRt(); }
     await loadDay(RT.userId);
     syncRtFromDay();
     return { ok: true, role };
@@ -667,6 +741,10 @@ export const act = {
       // keeps seeing their real numbers while `offline` still flags the connection is down.
       RT.profileOffline = !!apErr;
       if (Object.keys(patch).length) { RT.profile = { ...(RT.profile || {}), ...patch }; save(); }
+      // Grade the day by the athlete's real goal (calorie-target for a lose/maintain client, a
+      // surplus floor for a gainer, the shipped formula for a performance athlete) now that
+      // baseGoal / baseWeight / coach-set targets are hydrated.
+      applyGoalToDay();
       RT.profileLoading = false; save();
       return !!ap;
     } catch {
@@ -726,6 +804,9 @@ export const act = {
       ? { ob: RT.ob, allergies: RT.allergies } : null;
     const camPrimed = RT.camPrimed; // device-level (camera permission priming), not user data
     try { dayResetLocal(); } catch { /* never block a wipe */ }
+    // A staged in-flight capture (photo + analysis) is user data now that it persists to
+    // sessionStorage — clear it too so the next account on this device never inherits it.
+    try { this.clearMeal(); } catch { /* never block a wipe */ }
     for (const k of Object.keys(RT)) { if (!(k in DEFAULT_RT)) delete RT[k]; }
     Object.assign(RT, JSON.parse(JSON.stringify(DEFAULT_RT)), { camPrimed });
     if (keep) { RT.ob = keep.ob; RT.allergies = keep.allergies; }
@@ -802,6 +883,17 @@ export const act = {
     const res = await fetchMyCoach();
     if (res && res.error) return; // network/RLS hiccup — keep last-known
     RT.myCoach = res || null;
+    save();
+  },
+  /* A trainer's CLIENT: read their linked practice + the trainer's real name into RT.myTrainer —
+     the practice mirror of _loadCoachIntoRt. A confirmed "no practice link" clears it (a client
+     who left keeps no stale trainer); a fetch failure keeps the last-known link rather than wiping
+     it. Fails open on a pre-0063 DB (fetchMyTrainer degrades to the practice name only). */
+  async _loadTrainerIntoRt(userId) {
+    if (!userId) return;
+    const res = await fetchMyTrainer();
+    if (res && res.error) return; // network/RLS hiccup — keep last-known
+    RT.myTrainer = res || null;
     save();
   },
   /* Preferred coach name (0056): server value → RT.profile.coachName; a handle chosen in
@@ -902,6 +994,7 @@ export const act = {
     }
     if (!kind) { track(EVENTS.CODE_JOIN_FAILED); return { ok: false, error: 'That code didn’t match a team or practice. Check it with your coach and try again.' }; }
     if (kind === 'team') await this._loadCoachIntoRt(RT.userId);
+    else if (kind === 'practice') await this._loadTrainerIntoRt(RT.userId);
     track(EVENTS.COACH_CONNECTED, { kind });
     return { ok: true, kind };
   },
@@ -1095,10 +1188,21 @@ export const act = {
   // Called by the router boot gate to sync RT from a restored Keychain session. If the
   // restored session belongs to a different user than the persisted runtime (Keychain and
   // localStorage can diverge — e.g. app data cleared but not the Keychain), wipe first.
-  _syncSession(user) {
+  // ROLE-INTEGRITY: when RT.authRole is unknown (fresh localStorage + restored session —
+  // reinstall keeping the Keychain, WebView storage eviction), fetch primary_role BEFORE the
+  // boot gate routes; otherwise routeForRole(null) dumps a coach/trainer on the ATHLETE home
+  // and hydrateDay hydrates athlete-side data for them. The interactive sign-in screen always
+  // fetched the role; this restored path was the gap (role walkthrough 2026-07-15).
+  async _syncSession(user) {
     if (!user) return;
     if (RT.userId && RT.userId !== user.id) this._wipeUserScopedState({ keepPendingOb: true });
     RT.userId = user.id; RT.email = user.email || RT.email; save();
+    if (!RT.authRole) {
+      try {
+        const { data: prof } = await window.sb.from('profiles').select('primary_role').eq('id', user.id).maybeSingle();
+        if (prof && prof.primary_role) { RT.authRole = prof.primary_role; save(); }
+      } catch { /* offline — routes as athlete until the next successful boot */ }
+    }
   },
   // Load today's real day from Supabase and reflect it into the UI flags.
   async hydrateDay() {
@@ -1108,6 +1212,7 @@ export const act = {
       if (RT.authRole === 'coach') { await this._loadTeamIntoRt(RT.userId); await this._loadCoachHandleIntoRt(); }
       if (!RT.authRole || RT.authRole === 'athlete') {
         await this._loadCoachIntoRt(RT.userId);
+        await this._loadTrainerIntoRt(RT.userId);
         await this._loadConsentIntoRt(RT.userId);
         await this._loadAssignmentsIntoRt();
       }
@@ -1154,18 +1259,27 @@ export const S = {
   // display name. NEVER a fabricated persona: with no link, hasCoach is false and every
   // coach-specific surface must gate on it; `name`/`nameMid` degrade to honest generic copy.
   get coach() {
+    // The athlete/client's mentor: their team coach (RT.myCoach) first, else — for a trainer's
+    // client with no team — their linked trainer (RT.myTrainer). ONE surface, so every coach-gated
+    // screen lights up for a client too, with the right NOUN (coach vs trainer) for copy. NEVER a
+    // fabricated persona: no link → hasCoach false and copy degrades to honest generic wording.
     const c = RT.myCoach || null;
-    const name = ((c && c.name) || '').trim();
-    const team = ((c && c.teamName) || '').trim();
+    const tr = !c && RT.myTrainer ? RT.myTrainer : null;
+    const src = c || tr;
+    const kind = c ? 'coach' : (tr ? 'trainer' : null);
+    const name = ((src && src.name) || '').trim();
+    const team = c ? ((c.teamName || '').trim()) : ((tr && tr.practiceName) || '').trim();
     const parts = name.split(/\s+/).filter(Boolean);
     return {
-      hasCoach: !!c,                    // a real team link exists
-      isNamed: !!name,                  // the head coach's real display name is known
-      name: name || 'Your coach',       // sentence-start display
-      nameMid: name || 'your coach',    // mid-sentence display
-      initials: parts.length ? parts.slice(0, 2).map((w) => w[0].toUpperCase()).join('') : 'C',
-      role: name ? 'Head Coach' : '',
-      team,
+      hasCoach: !!src,                  // a real coach (team) OR trainer (practice) link exists
+      kind,                             // 'coach' | 'trainer' | null — lets copy pick the noun
+      noun: kind === 'trainer' ? 'trainer' : 'coach',
+      isNamed: !!name,                  // the mentor's real display name is known
+      name: name || (kind === 'trainer' ? 'Your trainer' : 'Your coach'),   // sentence-start
+      nameMid: name || (kind === 'trainer' ? 'your trainer' : 'your coach'), // mid-sentence
+      initials: parts.length ? parts.slice(0, 2).map((w) => w[0].toUpperCase()).join('') : (kind === 'trainer' ? 'T' : 'C'),
+      role: name ? (kind === 'trainer' ? 'Trainer' : 'Head Coach') : '',
+      team,                             // team name (coach) or practice name (trainer)
     };
   },
 
@@ -1367,8 +1481,8 @@ export const S = {
       return { label: 'Morning Weight', state: 'late', note: 'Logged late tonight. Counts for your season trend; never for the daily score.' };
     }
     return minutesNow() <= WEIGHT_DUE
-      ? { label: 'Morning Weight', state: 'open', note: `Weigh in by ${fmtClock(WEIGHT_DUE)} to keep your logging streak.` }
-      : { label: 'Morning Weight', state: 'missed', note: "Missed today. It doesn't affect your score, but your logging streak reset." };
+      ? { label: 'Morning Weight', state: 'open', note: `Weigh in by ${fmtClock(WEIGHT_DUE)} to keep your season trend current.` }
+      : { label: 'Morning Weight', state: 'missed', note: "Missed today. It doesn't affect your score — weight only tracks your season trend." };
   },
   get reachPlan() {
     const plan = [];

@@ -266,7 +266,7 @@ export default {
           return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
         };
         const first = rows[0];
-        const who = (first.viewer_name || 'Your coach').trim() || 'Your coach';
+        const who = (first.viewer_name || S.coach.name).trim() || S.coach.name;
         const extra = rows.length > 1 ? ` + ${rows.length - 1} more` : '';
         seenRow.innerHTML = `
           <div style="display:flex;align-items:center;gap:8px;padding:8px 4px 2px;font-size:12px;font-weight:700;color:var(--text-2)">

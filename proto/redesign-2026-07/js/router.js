@@ -90,6 +90,15 @@ function render() {
     location.hash = '#' + routeForRole(RT.authRole);
     return;
   }
+  // The mirror guard (role walkthrough 2026-07-15): a KNOWN coach/trainer must not render
+  // ATHLETE-nav screens either — e.g. a stale #home hash surviving a reload used to leave a
+  // coach on the athlete dashboard. Shared utility screens (settings/privacy/billing/terms)
+  // resolve their nav per role via roleNav(), so they pass through untouched.
+  if (RT.userId && (RT.authRole === 'coach' || RT.authRole === 'trainer')
+    && (mod.nav || 'athlete') === 'athlete' && !AUTH_ROUTES.includes(route)) {
+    location.hash = '#' + routeForRole(RT.authRole);
+    return;
+  }
   const activeTab = mod.tab || route;
   const device = document.getElementById('device');
 
@@ -146,7 +155,7 @@ async function boot() {
     const sb = window.sb;
     if (sb) {
       const { data } = await sb.auth.getSession();
-      if (data && data.session) { authed = true; act._syncSession(data.session.user); await act.hydrateDay(); }
+      if (data && data.session) { authed = true; await act._syncSession(data.session.user); await act.hydrateDay(); }
     }
   } catch { /* offline / no client → treat as signed out */ }
   const { route } = parse();

@@ -14,15 +14,18 @@ export default {
     const c = S.coach;
     if (c.hasCoach || justJoined) {
       const wasPractice = justJoined === 'practice' && !c.hasCoach;
+      const isTrainer = wasPractice || c.kind === 'trainer';
       justJoined = null;
+      const title = c.isNamed ? esc(c.name) : (isTrainer ? 'Connected to your trainer' : esc(c.team || 'Connected'));
+      const sub = isTrainer
+        ? `${c.team ? esc(c.team) + ' now sees' : 'Your trainer now sees'} your recovery, readiness, and nutrition consistency.`
+        : `${esc(c.team || 'Your team')} now sees your daily score, requirement completion, meal logs, and check-ins.`;
       return `
-      ${backHead('Connect a Coach', 'Connected', 'profile')}
+      ${backHead(isTrainer ? 'Connect a Trainer' : 'Connect a Coach', 'Connected', 'profile')}
       <div class="state-demo" style="border-style:solid;border-color:var(--green-border)">
         <div class="sd-ic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 24)}</div>
-        <div class="sd-t">${wasPractice ? 'Connected to your trainer' : esc(c.isNamed ? c.name : (c.team || 'Connected'))}</div>
-        <div class="sd-s">${wasPractice
-          ? 'Your trainer now sees your recovery, readiness, and nutrition consistency.'
-          : `${esc(c.team || 'Your team')} now sees your daily score, requirement completion, meal logs, and check-ins.`}</div>
+        <div class="sd-t">${title}</div>
+        <div class="sd-s">${sub}</div>
         <div class="sd-cta"><button class="btn ghost sm" data-go="profile">Back to profile</button></div>
       </div>
       <div style="height:10px"></div>

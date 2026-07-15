@@ -14,8 +14,10 @@ export const PROFILE_WEIGHTS = {
 };
 export const MEAL_KEYS = ['breakfast', 'lunch', 'snack', 'dinner'];
 export const DEADLINE = { breakfast: 570, lunch: 840, snack: 1020, dinner: 1230 }; // minutes from midnight
-const QUICK_G = [18, 30, 22]; // Greek yogurt / protein shake / turkey roll-ups
+const QUICK_G = [18, 30, 22]; // Greek yogurt / protein shake / turkey roll-ups (protein g)
+const QUICK_K = [150, 160, 120]; // kcal, index-aligned with QUICK_G (mirrors constants.ts QUICK_FOODS)
 const PROTEIN_TARGET = 180;
+const CAL_TARGET = 3200;
 const CI_KEYS = ['energy', 'recovery', 'sleep', 'confidence', 'soreness', 'motivation'];
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -55,6 +57,16 @@ export function setDayStandard(std) {
   seedStandardSlots();
 }
 export function dayStandard() { return STD; }
+/** Apply the athlete's goal-derived scoring config to the live day: which profile grades them
+ *  (athlete / general / gain) and the calorie + protein targets the general/gain curves measure
+ *  against. Called from state.js once the profile hydrates; the classic athlete default stands
+ *  until a real goal says otherwise. Not persisted in the `days` row — always re-derived from the
+ *  profile, exactly like the coach standard. */
+export function setDayGoalConfig(profile, proteinTarget, calTarget) {
+  DAY.scoringProfile = (profile === 'general' || profile === 'gain') ? profile : 'athlete';
+  if (proteinTarget > 0) DAY.proteinTarget = Math.round(proteinTarget);
+  if (calTarget > 0) DAY.calTarget = Math.round(calTarget);
+}
 /** A slot's deadline: the standard's window when set, else the classic map, else end of day. */
 export function slotDeadline(k) {
   if (STD && STD.deadlines && STD.deadlines[k] != null) return STD.deadlines[k];
@@ -84,12 +96,58 @@ function proteinToday(day) {
   return p;
 }
 
+/** Calories logged today — the SAME evidence rule as protein (only a plated, non-duplicate,
+ *  scored slot counts), plus quick-add kcal. Feeds the calorie-target adherence the general/gain
+ *  profiles are graded on. */
+function kcalToday(day) {
+  let k = 0;
+  for (const key of scoredSlotKeys()) {
+    if (mealScored(day, key) && day.slotMacros && day.slotMacros[key]) k += day.slotMacros[key].kcal || 0;
+  }
+  const q = day.quickAdded || [];
+  for (let i = 0; i < q.length; i++) if (q[i]) k += QUICK_K[i] || 0;
+  return k;
+}
+
+/* Calorie-target adherence (0..1), two-sided: full within ±10% of target, linear falloff to 0 at
+   ±40%. Over- AND under-eating both lose credit, so `general` can never reward an unsafe deficit.
+   Byte-for-byte port of calorieAdherence in src/core/scoringProfiles.ts. */
+function calorieAdherence(kcal, target) {
+  if (!(target > 0)) return 0;
+  const dev = Math.abs(kcal - target) / target;
+  if (dev <= 0.1) return 1;
+  if (dev >= 0.4) return 0;
+  return (0.4 - dev) / 0.3;
+}
+/* One-sided calorie FLOOR (0..1) for a muscle-gain client: full at/above target, linear to 0 at
+   60% of it. Eating ABOVE target is the point of a bulk, so overage is never penalized. */
+function calorieFloorAdherence(kcal, target) {
+  if (!(target > 0)) return 0;
+  if (kcal >= target) return 1;
+  const ratio = kcal / target;
+  if (ratio <= 0.6) return 0;
+  return (ratio - 0.6) / 0.4;
+}
+
+/** Profile-aware nutrition sub-score (0..100) — a byte-for-byte port of profileNutritionScore:
+ *   - athlete: protein 65 + on-time meals 35 (the shipped formula, unchanged).
+ *   - general: calorie adherence 45 + protein 25 + meal consistency 30 (a lose/maintain client).
+ *   - gain:    calorie floor 40 + protein 35 + meal consistency 25 (surplus + protein led).
+ *  The platform owns these weights; the coach/trainer owns the targets (Scoring Contract). */
 function nutritionScore(day) {
-  // athlete profile branch of profileNutritionScore (general/gain add calorie adherence later).
   const pt = day.proteinTarget > 0 ? day.proteinTarget : PROTEIN_TARGET;
   const proteinFrac = pt > 0 ? Math.min(proteinToday(day), pt) / pt : 0;
   // Denominator = the coach standard's meal count (1–6) when one governs; classic 4 otherwise.
   const mealsFrac = clamp(effectiveMeals(day) / ((STD && STD.mealsRequired) || 4), 0, 1);
+  const profile = day.scoringProfile || 'athlete';
+  if (profile === 'general') {
+    const ct = day.calTarget > 0 ? day.calTarget : CAL_TARGET;
+    return Math.min(100, Math.round(calorieAdherence(kcalToday(day), ct) * 45 + proteinFrac * 25 + mealsFrac * 30));
+  }
+  if (profile === 'gain') {
+    const ct = day.calTarget > 0 ? day.calTarget : CAL_TARGET;
+    return Math.min(100, Math.round(calorieFloorAdherence(kcalToday(day), ct) * 40 + proteinFrac * 35 + mealsFrac * 25));
+  }
   return Math.min(100, Math.round(proteinFrac * 65 + mealsFrac * 35));
 }
 
@@ -169,6 +227,7 @@ export const DAY = {
   ciSubmitted: false,
   ciLast: null,          // { date, recovery }
   proteinTarget: 180,
+  calTarget: 3200,
   scoringProfile: 'athlete',
   currentWeight: null,
   scoreHistory: [],      // [{date, score}] past days, for streak/trend

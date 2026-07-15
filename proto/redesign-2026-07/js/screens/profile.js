@@ -41,11 +41,11 @@ export default {
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : ''}
 
-    <div class="eyebrow">Coach Connection</div>
+    <div class="eyebrow">${S.coach.kind === 'trainer' ? 'Trainer' : 'Coach'} Connection</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="messages">
         <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204;font-weight:800;font-size:14px">${icon('message', 17)}</div>
-        <div class="lm"><div class="lt">Messages</div><div class="ls">Your conversation with your coach</div></div>
+        <div class="lm"><div class="lt">Messages</div><div class="ls">Your conversation with ${esc(S.coach.nameMid)}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="connect">

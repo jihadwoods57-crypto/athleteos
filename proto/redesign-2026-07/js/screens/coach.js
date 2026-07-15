@@ -943,7 +943,10 @@ async function loadAthlete(athleteId, viewerId, viewerName) {
   } finally {
     if (myGen === athGen) athLoadingId = null;
   }
-  if (location.hash.startsWith('#coach-athlete')) window.__render();
+  // Repaint whichever detail screen is waiting on this fetch — trainer-client shares this
+  // loader, and matching only #coach-athlete left the trainer's client page stuck on
+  // "Loading their day…" forever (role walkthrough 2026-07-15).
+  if (location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#trainer-client')) window.__render();
 }
 const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
 export const coachAthlete = {
@@ -1232,7 +1235,9 @@ export async function loadTrainerBook(force) {
   } finally {
     bookLoading = false; // always clear so a retry can re-run
   }
-  if (location.hash === '#trainer') window.__render();
+  // trainer-client deep links resolve their header name from this book — repaint it too,
+  // or a cold open shows "Client" forever (role walkthrough 2026-07-15).
+  if (location.hash === '#trainer' || location.hash.startsWith('#trainer-client')) window.__render();
 }
 function bookName(athleteId) {
   const r = BOOK && BOOK.rows.find(x => x.athleteId === athleteId);

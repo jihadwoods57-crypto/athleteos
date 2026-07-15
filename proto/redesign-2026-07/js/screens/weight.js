@@ -69,14 +69,14 @@ export default {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('target', 18)}</div>
       <div><div class="tt">No season target set yet</div>
-      <div class="ts">Your coach sets your weight goal. Until then, logging still builds your trend and keeps your streak.</div></div>
+      <div class="ts">Your coach sets your weight goal. Until then, logging still builds your season trend.</div></div>
     </div>`}
 
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
       <div><div class="tt">Doesn't touch today's score</div>
-      <div class="ts">Weight tracks your season goal, not your daily execution. Logging it keeps your streak and ${S.coach.hasCoach ? `gives ${esc(S.coach.nameMid)} the real trend.` : 'keeps your trend real.'}</div></div>
+      <div class="ts">Weight tracks your season goal, not your daily execution. ${S.coach.hasCoach ? `Logging it gives ${esc(S.coach.nameMid)} the real trend.` : 'Logging it keeps your season trend honest.'}</div></div>
     </div>
 
     <div style="height:16px"></div>

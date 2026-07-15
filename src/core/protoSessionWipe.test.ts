@@ -171,6 +171,33 @@ test('_syncSession (Keychain restore) with a different user id wipes first', () 
   expect(DAY.meals.breakfast).toBe(false);
 });
 
+test('_syncSession with UNKNOWN authRole fetches primary_role before the boot gate routes (role-integrity, 2026-07-15)', async () => {
+  // Fresh localStorage + restored Keychain session (reinstall / storage eviction): without
+  // this fetch, routeForRole(null) dumps a coach on the ATHLETE home.
+  act._wipeUserScopedState();
+  RT.authRole = null;
+  const profChain: any = new Proxy(function () { /* callable */ }, {
+    get(_t, prop) {
+      if (prop === 'then') return (resolve: (v: unknown) => void) => resolve({ data: { primary_role: 'coach' }, error: null });
+      return () => profChain;
+    },
+    apply() { return profChain; },
+  });
+  (dom.window as any).sb = { ...sbStub('coach-user'), from: () => profChain };
+  await act._syncSession({ id: 'coach-user', email: 'coach@example.com' });
+  expect(RT.authRole).toBe('coach');
+});
+
+test('_syncSession keeps a KNOWN authRole without refetching', async () => {
+  act._wipeUserScopedState();
+  RT.userId = 'user-a'; RT.authRole = 'trainer';
+  let fetched = false;
+  (dom.window as any).sb = { ...sbStub('user-a'), from: () => { fetched = true; return chain(); } };
+  await act._syncSession({ id: 'user-a', email: 'a@example.com' });
+  expect(RT.authRole).toBe('trainer');
+  expect(fetched).toBe(false);
+});
+
 test('deleteAccount wipes everything including the pending scratch', async () => {
   seedUserA();
   RT.ob = { email: 'a@example.com', name: 'Alice Athlete' };
