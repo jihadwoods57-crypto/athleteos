@@ -70,6 +70,16 @@
     <li><strong>Messages</strong> you send to linked people through the app.</li>
     <li><strong>Authentication data:</strong> your sign-in is handled by our authentication provider; we store your
     account identifier and email. We never store your password in the app.</li>
+    <li><strong>Payment and subscription data (paid accounts only):</strong> for a coach, trainer, or organization
+    on a paid plan, we and our payment processor keep your billing email, the plan, your subscription status and
+    renewal date, and the processor's customer and subscription identifiers. <strong>Card numbers are entered
+    directly with our payment processor and never reach our servers.</strong> Athletes and clients attached to a
+    paying account pay nothing and provide no payment data.</li>
+    <li><strong>Notifications:</strong> if you enable reminders or digests, we store a device push token so we can
+    deliver them. You can turn notifications off at any time in the app or your device settings.</li>
+    <li><strong>Technical and security data:</strong> we process your IP address transiently to rate-limit and
+    protect the service from abuse (for example, to cap automated requests). We use it for security, not to build a
+    profile of you or track you across apps or sites.</li>
     <li><strong>We do NOT collect</strong> advertising identifiers, cross-app tracking data, location data, or
     analytics from third-party advertising/tracking SDKs. The app contains no third-party analytics, advertising,
     attribution, or crash-tracking SDKs.</li>
@@ -112,8 +122,10 @@
     consent is recorded. You can <strong>pause all sharing</strong> at any time from the Profile screen, which
     immediately stops data leaving the device, and you can remove a linked viewer's access.</li>
     <li><strong>Service providers (subprocessors):</strong> our hosting/database/storage and authentication
-    provider (<strong>Supabase</strong>), our email provider (<strong>Resend</strong>) for account emails, and
-    <strong>Anthropic</strong> for the AI analysis in §4. Each operates under contract.</li>
+    provider (<strong>Supabase</strong>), our email provider (<strong>Resend</strong>) for account emails,
+    <strong>Anthropic</strong> for the AI analysis in §4, <strong>Stripe</strong> for payment processing on paid
+    plans, and <strong>Expo</strong> for delivering the push notifications you enable. Each operates under contract
+    and may process data only to provide its service to us.</li>
     <li><strong>Legal disclosure:</strong> we may disclose data if required by law or to protect users (especially
     minors).</li>
   </ul>
