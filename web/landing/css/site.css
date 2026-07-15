@@ -398,20 +398,20 @@ h1 .dot { color: var(--gold); }
 .why-lede { color: var(--text-2); font-size: clamp(14.5px, 1.5vw, 16.5px); line-height: 1.65; padding-bottom: 6px; }
 .why-grid {
   margin-top: clamp(54px, 7vw, 92px);
-  display: grid; grid-template-columns: 1fr 1fr;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   border-top: 1px solid var(--hairline-soft);
 }
 .wg { padding: clamp(32px, 3.6vw, 52px) clamp(30px, 3.2vw, 64px); }
-.wg:nth-child(odd) { padding-left: 0; }
-.wg:nth-child(even) { padding-right: 0; border-left: 1px solid var(--hairline-soft); }
-.wg:nth-child(n+3) { border-top: 1px solid var(--hairline-soft); }
+.wg:first-child { padding-left: 0; }
+.wg:last-child { padding-right: 0; }
+.wg + .wg { border-left: 1px solid var(--hairline-soft); }
 .wg svg { color: var(--gold); width: 30px; height: 30px; }
 .wg h3 { font-size: clamp(18px, 1.75vw, 23px); font-weight: 800; letter-spacing: -0.01em; margin-top: 22px; }
 .wg p { color: var(--text-2); font-size: clamp(14px, 1.05vw, 15.5px); line-height: 1.64; margin-top: 13px; max-width: 48ch; }
 @media (max-width: 960px) {
   .why-head { grid-template-columns: 1fr; align-items: start; }
 }
-@media (max-width: 640px) {
+@media (max-width: 860px) {
   .why-grid { grid-template-columns: 1fr; }
   .wg { padding: clamp(26px, 6vw, 34px) 0; border-left: none !important; }
   .wg:nth-child(n+2) { border-top: 1px solid var(--hairline-soft); }
