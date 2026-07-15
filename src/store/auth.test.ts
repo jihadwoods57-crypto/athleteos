@@ -34,7 +34,7 @@ function loadStore(backendLive: boolean): LiveStore {
       isSupabaseConfigured: backendLive,
       auth: { signIn, signUp, signOut, resetPassword, signInWithAppleToken },
       // signInLive hydrates the day after auth; no remote row in these unit tests.
-      db: { fetchDay, upsertDay: jest.fn().mockResolvedValue(undefined), fetchActiveTrustPass: jest.fn().mockResolvedValue(null), createTeam, coachSetGoals, fetchEntitlement, fetchProfile, fetchGuardianRequests: jest.fn().mockResolvedValue([]), revokeViewer: jest.fn().mockResolvedValue(undefined), joinTeam, joinPractice },
+      db: { fetchDay, upsertDay: jest.fn().mockResolvedValue(undefined), fetchActiveTrustPass: jest.fn().mockResolvedValue(null), createTeam, coachSetGoals, fetchEntitlement, fetchProfile, fetchGuardianRequests: jest.fn().mockResolvedValue([]), revokeViewer: jest.fn().mockResolvedValue(undefined), updateProfile: jest.fn().mockResolvedValue(undefined), joinTeam, joinPractice },
     }));
     store = require('./useStore').useStore;
   });

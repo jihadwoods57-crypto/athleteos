@@ -44,8 +44,10 @@ describe('accountRows', () => {
   it('exposes a legal row with the privacy policy + terms', () => {
     const legal = accountRows('athlete')[3];
     expect(legal.key).toBe('legal');
-    expect(legal.detail).toContain('onstandard.app/privacy');
-    expect(legal.detail).toContain('onstandard.app/terms');
+    // The row names the Privacy Policy + Terms; the tappable links to the hosted docs live in
+    // the Account screen's legal disclosure (openPrivacyPolicy / openTerms), not in this copy.
+    expect(legal.detail).toContain('Privacy Policy');
+    expect(legal.detail).toContain('Terms of Service');
   });
 
   it('keeps copy free of em dashes (design ban)', () => {
