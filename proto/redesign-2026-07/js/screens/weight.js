@@ -55,7 +55,7 @@ export default {
     <div class="eyebrow">Season goal</div>
     <section class="card pad">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div style="font-size:14px;font-weight:700;color:var(--text-2)">Trend toward coach target</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-2)">Trend toward ${S.coach.hasCoach ? `your ${S.coach.noun}'s` : 'your'} target</div>
         ${W.pace ? `<span class="status-pill ${W.pace === 'On pace' ? 'g' : 'a'}">${W.pace}</span>` : ''}
       </div>
       ${hasTrend ? sparkline(W.history) : `<div style="font-size:13px;font-weight:600;color:var(--text-3);padding:14px 0 6px">Log a few days and your trend line shows up here.</div>`}
@@ -69,7 +69,7 @@ export default {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('target', 18)}</div>
       <div><div class="tt">No season target set yet</div>
-      <div class="ts">Your coach sets your weight goal. Until then, logging still builds your season trend.</div></div>
+      <div class="ts">Your ${S.coach.noun} sets your weight goal. Until then, logging still builds your season trend.</div></div>
     </div>`}
 
     <div style="height:14px"></div>

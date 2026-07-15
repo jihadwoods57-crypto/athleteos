@@ -11,12 +11,12 @@ function tabs(active) {
     `<div class="pt ${k === active ? 'on' : ''}" data-go="plan/${k}">${l}</div>`).join('')}</div>`;
 }
 
-const HEAD_SUBTITLE = {
-  set: 'Targets set by your coach',
+const HEAD_SUBTITLE = (who) => ({
+  set: `Targets set by your ${who}`,
   loading: 'Loading your targets…',
   offline: 'Targets will show when you reconnect',
-  unset: 'Log meals — your coach can set targets any time',
-};
+  unset: `Log meals — your ${who} can set targets any time`,
+});
 function head() {
   const goal = S.planGoalLabel;
   return `
@@ -24,7 +24,7 @@ function head() {
   <div style="display:flex;align-items:center;justify-content:space-between">
     <div>
       <div style="font-size:16px;font-weight:800">Your nutrition plan</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">${HEAD_SUBTITLE[S.planTargetsState]}</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">${HEAD_SUBTITLE(S.coach.noun)[S.planTargetsState]}</div>
     </div>
     ${goal ? `<span class="status-pill b">${esc(goal)}</span>` : ''}
   </div>`;
@@ -36,7 +36,7 @@ function targetsRow() {
   const state = S.planTargetsState;
   if (state === 'loading') {
     return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-    <div><div class="tt">Loading your targets…</div><div class="ts">Reading what your coach set.</div></div></div>`;
+    <div><div class="tt">Loading your targets…</div><div class="ts">Reading what your ${S.coach.noun} set.</div></div></div>`;
   }
   if (state === 'offline') {
     return `<div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
@@ -61,9 +61,9 @@ const mealsPhrase = () => {
   return `${MEAL_WORD[n] || n} meal${n === 1 ? '' : 's'} with photo proof`;
 };
 const OBJECTIVE_COPY = {
-  set: () => ({
+  set: (who) => ({
     title: 'Hit your targets, log every meal',
-    body: `Your coach set your targets — they're in the summary below. Nutrition is 50% of your score — consistency is the win.`,
+    body: `Your ${who} set your targets — they're in the summary below. Nutrition is 50% of your score — consistency is the win.`,
   }),
   loading: () => ({
     title: 'Log every meal, on time',
@@ -73,24 +73,25 @@ const OBJECTIVE_COPY = {
     title: 'Log every meal, on time',
     body: `Your targets will show when you reconnect. Consistency is the plan either way: ${mealsPhrase()} and your recovery check-in each day.`,
   }),
-  unset: () => ({
+  unset: (who) => ({
     title: 'Log every meal, on time',
-    body: `Your coach hasn’t set targets yet. Consistency is the plan: ${mealsPhrase()} and your recovery check-in each day.`,
+    body: `Your ${who} hasn’t set targets yet. Consistency is the plan: ${mealsPhrase()} and your recovery check-in each day.`,
   }),
 };
 // Footnote under the Coach Targets card — stays silent for loading/offline since targetsRow()
 // already renders the full loading/offline card there; never repeats the "not set" claim.
-const COACH_TARGETS_NOTE = {
-  set: 'Set by your coach. Live progress lives on Home.',
+const COACH_TARGETS_NOTE = (who) => ({
+  set: `Set by your ${who}. Live progress lives on Home.`,
   loading: '',
   offline: '',
-  unset: 'No targets set yet — your coach can add them any time.',
-};
+  unset: `No targets set yet — your ${who} can add them any time.`,
+});
 
 const overview = () => {
   const state = S.planTargetsState;
   const T = S.planTargets;
-  const obj = OBJECTIVE_COPY[state](T);
+  const obj = OBJECTIVE_COPY[state](S.coach.noun);
+  const note = COACH_TARGETS_NOTE(S.coach.noun)[state];
   // ONE home per number (WS7/WS8 dedup): the summary tiles carry goal/weight/protein here;
   // the full targets row lives on the Nutrition tab only (it used to render on BOTH tabs,
   // and protein/goal appeared up to 3× on this screen).
@@ -111,11 +112,11 @@ const overview = () => {
     <div class="tile"><div class="k">Current</div><div class="v">${S.weight.current != null ? S.weight.current + ' lb' : '—'}</div></div>
     <div class="tile"><div class="k">Protein target</div><div class="v">${T && T.protein != null ? T.protein + 'g' : '—'}</div></div>
   </div>
-  ${COACH_TARGETS_NOTE[state] ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0">${COACH_TARGETS_NOTE[state]}</div>` : ''}
+  ${note ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0">${note}</div>` : ''}
 
   <div class="eyebrow">Need clarity?</div>
   <div class="btn-row">
-    <button class="btn ghost sm" style="flex:1" data-go="messages">${icon('message', 17)} Ask Coach</button>
+    <button class="btn ghost sm" style="flex:1" data-go="messages">${icon('message', 17)} Ask ${S.coach.noun === 'trainer' ? 'Trainer' : 'Coach'}</button>
     <button class="btn primary sm" style="flex:1" data-go="plan/notes">${icon('sparkle', 17)} Ask AI</button>
   </div>
   <div style="height:10px"></div>`;
@@ -179,7 +180,7 @@ const schedule = () => `
         <div style="display:flex;align-items:center;gap:12px">
           <div class="req-icon ${a.done ? 'g' : 'b'}" style="width:40px;height:40px">${icon(a.icon || 'clipboard', 18)}</div>
           <div style="flex:1">
-            <div style="font-size:15px;font-weight:800">${esc(a.title)} <small style="color:var(--blue-bright);font-weight:700">· from coach</small></div>
+            <div style="font-size:15px;font-weight:800">${esc(a.title)} <small style="color:var(--blue-bright);font-weight:700">· from ${S.coach.noun}</small></div>
             <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">One-time · ${a.dueLabel}</div>
           </div>
           ${icon('chevron', 16, 'style="color:var(--text-3)"')}
@@ -196,7 +197,7 @@ const schedule = () => `
 const notes = () => `
   <div class="eyebrow">Plan history & updates</div>
   ${P.notes.length ? '' : `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-    <div><div class="tt">No plan updates yet</div><div class="ts">When your coach changes your targets, the update shows up here. You can still ask the AI about your plan below.</div></div></div>`}
+    <div><div class="tt">No plan updates yet</div><div class="ts">When your ${S.coach.noun} changes your targets, the update shows up here. You can still ask the AI about your plan below.</div></div></div>`}
   <div class="thread">
     ${P.notes.map(n => `
       <div class="msg ${n.who}">
