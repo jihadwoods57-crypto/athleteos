@@ -20,8 +20,8 @@
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="preload" href="fonts/archivo-exp900.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/pjs.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="assets/img/g-hero-athlete.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="css/site.css?v=6">
+<link rel="preload" as="image" href="assets/img/g-hero-athlete.webp" imagesrcset="assets/img/g-hero-athlete-780.webp 780w, assets/img/g-hero-athlete.webp 1024w" imagesizes="(max-width: 960px) 100vw, 46vw" fetchpriority="high">
+<link rel="stylesheet" href="css/site.css?v=7">
 <noscript><style>.reveal, .an-row { opacity: 1 !important; transform: none !important; } .an-fill { transform: scaleX(1) !important; } .ticker-track { animation: none; flex-wrap: wrap; width: auto; row-gap: 12px; } .ticker-track span[aria-hidden="true"] { display: none; } .sys-stage { display: none !important; } .sys-static { display: grid !important; }</style></noscript>
 <script type="application/ld+json">
 {
@@ -89,7 +89,7 @@
       </div>
 
       <div class="hero-ath" aria-hidden="true">
-        <img src="assets/img/g-hero-athlete.webp" width="1024" height="1536" alt="" fetchpriority="high" decoding="async">
+        <img src="assets/img/g-hero-athlete.webp" srcset="assets/img/g-hero-athlete-780.webp 780w, assets/img/g-hero-athlete.webp 1024w" sizes="(max-width: 960px) 100vw, 46vw" width="1024" height="1536" alt="" fetchpriority="high">
         <video class="hv-video" id="hv-video" muted loop playsinline preload="none" disablepictureinpicture tabindex="-1"></video>
       </div>
       <div class="hero-visual reveal d2" id="hero-visual" aria-hidden="true">
@@ -387,6 +387,12 @@
           <button class="btn btn-ghost plan-cta js-wl" data-intent="demo" data-role="Gym or program" type="button">Book a program demo</button>
         </article>
       </div>
+      <ul class="plan-assure reveal d2" aria-label="What starting looks like">
+        <li>14-day free trial</li>
+        <li>No card to start</li>
+        <li>Personal onboarding, usually within a day</li>
+        <li>Your record is portable forever</li>
+      </ul>
       <p class="plan-fine reveal d3">Opening pricing. Founding partners: the first 50 coaches and facilities lock 50% off for 12 months, grandfathered so a later price rise never touches them.</p>
     </div>
   </section>
@@ -551,6 +557,6 @@
   ]
 }
 </script>
-<script src="js/site.js?v=6" defer></script>
+<script src="js/site.js?v=7" defer></script>
 </body>
 </html>

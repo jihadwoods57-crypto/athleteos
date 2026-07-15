@@ -154,6 +154,27 @@ h1 .dot { color: var(--gold); }
   backdrop-filter: blur(14px);
   border-bottom-color: var(--hairline-soft);
 }
+
+/* ---------- long-page perf ----------
+   The page is ~13k px tall; without help the browser lays out every section at
+   load (styleLayout dominated mobile TBT). content-visibility lets it skip
+   layout+paint of off-screen sections until they're scrolled near. Mobile-only,
+   where the win matters and the sticky system stage isn't in play. */
+@media (max-width: 960px) {
+  .nav.scrolled { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(11, 10, 8, 0.94); }
+  .whatis, .why, .roles, .score, .story, .pricing, .faq, .finale, .foot {
+    content-visibility: auto;
+  }
+  .whatis  { contain-intrinsic-size: auto 940px; }
+  .why     { contain-intrinsic-size: auto 1160px; }
+  .roles   { contain-intrinsic-size: auto 3200px; }
+  .score   { contain-intrinsic-size: auto 1700px; }
+  .story   { contain-intrinsic-size: auto 1500px; }
+  .pricing { contain-intrinsic-size: auto 2400px; }
+  .faq     { contain-intrinsic-size: auto 1500px; }
+  .finale  { contain-intrinsic-size: auto 760px; }
+  .foot    { contain-intrinsic-size: auto 720px; }
+}
 .nav-in {
   width: min(92%, var(--wrap)); margin-inline: auto;
   height: 72px; display: flex; align-items: center; gap: 28px;
@@ -315,6 +336,14 @@ h1 .dot { color: var(--gold); }
   .pf-back { display: none; }
   .p3d-front { transform: rotateY(-7deg) rotateX(2deg); }
   .hero-props { max-width: none; }
+}
+
+/* smallest phones: stack the three hero props instead of cramming one row */
+@media (max-width: 380px) {
+  .hero-props { grid-template-columns: 1fr; }
+  .hp { padding: 12px 0; border-top: 1px solid var(--hairline-soft); }
+  .hp:first-child { border-top: none; padding-top: 2px; }
+  .hp + .hp { border-left: none; padding-left: 0; }
 }
 
 /* ---------- ticker ---------- */
@@ -646,7 +675,11 @@ h1 .dot { color: var(--gold); }
   transform: rotate(-45deg);
 }
 .plan-cta { margin-top: auto; width: 100%; }
-.plan-fine { margin-top: clamp(24px, 4vh, 38px); color: var(--text-3); font-size: 13px; font-weight: 600; max-width: 74ch; }
+.plan-assure { display: flex; flex-wrap: wrap; gap: 12px 30px; margin-top: clamp(30px, 3.6vw, 48px); padding-top: clamp(24px, 2.8vw, 32px); border-top: 1px solid var(--hairline-soft); }
+.plan-assure li { position: relative; padding-left: 27px; font-size: 14.5px; font-weight: 600; color: var(--text-2); }
+.plan-assure li::before { content: ''; position: absolute; left: 0; top: 2px; width: 17px; height: 17px; border-radius: 50%; background: var(--gold-surface); border: 1px solid var(--gold-border); }
+.plan-assure li::after { content: ''; position: absolute; left: 5px; top: 6.5px; width: 7px; height: 3.5px; border-left: 1.9px solid var(--gold); border-bottom: 1.9px solid var(--gold); transform: rotate(-45deg); }
+.plan-fine { margin-top: clamp(20px, 3vh, 30px); color: var(--text-3); font-size: 13px; font-weight: 600; max-width: 74ch; }
 @media (max-width: 920px) { .plans { grid-template-columns: 1fr; max-width: 440px; } .plan.featured { order: -1; } }
 
 /* ---------- FAQ ---------- */
