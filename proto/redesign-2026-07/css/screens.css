@@ -797,3 +797,9 @@
 .pv-row:last-child .pv-detail{border-bottom:none}
 .pv-line{font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;padding:3px 0}
 .pv-line b{display:block;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+
+/* ----- Restrictions custom-entry rows (spec §18.5) + unmistakable selected chips (§18.2) ----- */
+.rx-add{display:flex;gap:8px;margin-top:8px;align-items:center}
+.rx-add .input{flex:1;height:42px}
+.rx-add .rx-add-btn{width:auto;flex:none;padding:0 16px;height:42px}
+.chp.rx-chip.on{background:var(--green-surface);border-color:var(--green-border);color:var(--green-bright);font-weight:800}

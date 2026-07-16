@@ -7,35 +7,11 @@ import { backHead, esc } from '../components.js';
    honestly framed as preview where the backend must exist first.
    ============================================================ */
 
-/* ---------- #devices · Wearable-verified recovery ---------- */
+/* ---------- #devices · HIDDEN until wearable integrations are real (spec §1.6) ----------
+   No entry point renders; a stale deep link lands safely on Profile. */
 export const devices = {
   tab: 'profile',
-  render() {
-    return `
-    ${backHead('Connected Devices', 'Wearable recovery is coming', 'profile')}
-
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:var(--surface-2);color:var(--text-3)">${icon('moon', 17)}</div>
-        <div class="lm"><div class="lt">Apple Watch</div><div class="ls">Not connected · coming soon</div></div>
-        <span class="status-pill" style="color:var(--text-3)">Soon</span>
-      </div>
-      <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:var(--surface-2);color:var(--text-3)">${icon('target', 17)}</div>
-        <div class="lm"><div class="lt">Whoop</div><div class="ls">Not connected · coming soon</div></div>
-        <span class="status-pill" style="color:var(--text-3)">Soon</span>
-      </div>
-    </section>
-
-    <div style="height:14px"></div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
-      <div><div class="tt">Honest about what v1 measures</div>
-      <div class="ts">Recovery in v1 comes from your own check-in answers — nothing here reads your watch yet. When HealthKit and Whoop are wired, verified sleep/HRV will show up here. We won't fake hardware data until then.</div></div>
-    </div>
-    <div style="height:10px"></div>
-    `;
-  },
+  render() { location.hash = '#profile'; return ''; },
 };
 
 /* ---------- #recruiting · Discipline Record (spec §17) ---------- */
@@ -322,34 +298,10 @@ export const injury = {
   },
 };
 
-/* ---------- #partner · Peer accountability ---------- */
+/* ---------- #partner · HIDDEN until coach pairing is real (spec §1.6) ---------- */
 export const partner = {
   tab: 'home',
-  render() {
-    return `
-    ${backHead('Accountability Partner', 'Coming soon', 'home')}
-
-    <div class="state-demo">
-      <div class="sd-ic">${icon('users', 24)}</div>
-      <div class="sd-t">No partner yet</div>
-      <div class="sd-s">When your coach pairs you with a teammate, you'll see whether they finished today (never their meals, weight, or score) and can send one nudge a day. There's no partner to show until then — we won't invent one.</div>
-    </div>
-
-    <div class="eyebrow">How it will work</div>
-    <section class="card" style="padding:6px 16px">
-      ${[
-        ['check', 'You see one thing', 'Whether your partner finished today. Never their meals, weight, or score.'],
-        ['bell', 'One nudge a day', 'If they are behind by 8 PM, you can send exactly one push. Pressure, rationed.'],
-        ['users', 'Coach pairs, coach rotates', 'Pairs change monthly so it stays a push, not a clique.'],
-      ].map(([ic, t, s]) => `
-        <div class="lrow" style="cursor:default">
-          <div class="lic">${icon(ic, 17)}</div>
-          <div class="lm"><div class="lt">${t}</div><div class="ls" style="white-space:normal;line-height:1.4">${s}</div></div>
-        </div>`).join('')}
-    </section>
-    <div style="height:10px"></div>
-    `;
-  },
+  render() { location.hash = '#home'; return ''; },
 };
 
 /* ---------- #coach-voice · AI that sounds like YOUR coach ---------- */
