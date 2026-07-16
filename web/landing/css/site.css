@@ -984,3 +984,36 @@ details[open] .fx::after { transform: scaleY(0); }
   .role:hover, .plan:hover { transform: none; }
   .hero-dust { display: none; }
 }
+
+/* ---------- boot preloader ("The Number") ----------
+   Shown only when the head script sets html.pre (first page of a session,
+   no hash, motion OK). Hero entrances hold under the curtain and re-fire
+   when html.pre-up lifts it. Torn down entirely by site.js. */
+.pre {
+  position: fixed; inset: 0; z-index: 120;
+  display: none; place-items: center; align-content: center; gap: 18px;
+  background: var(--bg);
+  will-change: transform;
+}
+html.pre { overflow: hidden; }
+html.pre .pre { display: grid; }
+html.pre:not(.pre-up) .hero .reveal { animation-play-state: paused; }
+.pre-num {
+  font-family: var(--display); font-weight: 900;
+  font-size: clamp(96px, 17vw, 210px); line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(120deg, var(--ring-a), var(--ring-b) 55%, var(--ring-c));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.pre-label {
+  font-size: 12px; font-weight: 800; letter-spacing: 0.34em; text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0; transform: translateY(10px);
+  transition: opacity .3s var(--ease), transform .3s var(--ease);
+}
+.pre.done .pre-label { opacity: 1; transform: none; }
+html.pre-up .pre {
+  transform: translateY(-101%);
+  transition: transform .55s cubic-bezier(0.87, 0, 0.13, 1);
+}
+@media (prefers-reduced-motion: reduce) { .pre { display: none !important; } }

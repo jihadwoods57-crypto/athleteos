@@ -18,11 +18,23 @@
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="preload" href="fonts/archivo-exp900.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/pjs.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/site.css?v=10">
+<script>(function(){try{
+if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+if(location.hash)return;
+if(sessionStorage.getItem('os:preloaded'))return;
+sessionStorage.setItem('os:preloaded','1');
+document.documentElement.classList.add('pre');
+window.__preT=setTimeout(function(){document.documentElement.classList.remove('pre','pre-up');},3500);
+}catch(e){}})();</script>
+<link rel="stylesheet" href="css/site.css?v=11">
 <link rel="stylesheet" href="css/role.css?v=3">
 <noscript><style>.reveal, .an-row { opacity: 1 !important; transform: none !important; } .an-fill { transform: scaleX(1) !important; }</style></noscript>
 </head>
 <body>
+<div class="pre" id="pre" aria-hidden="true">
+  <div class="pre-num" id="pre-num">0</div>
+  <div class="pre-label">Standard</div>
+</div>
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="nav" id="nav">
@@ -538,6 +550,6 @@
   ]
 }
 </script>
-<script src="js/site.js?v=10" defer></script>
+<script src="js/site.js?v=11" defer></script>
 </body>
 </html>

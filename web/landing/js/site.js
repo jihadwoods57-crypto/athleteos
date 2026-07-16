@@ -9,6 +9,55 @@
   document.body.classList.add('js');
   if (reduced) document.body.classList.add('no-motion');
 
+  /* ---------- boot preloader ("The Number") ----------
+     The head script decides whether it plays (html.pre set pre-paint:
+     first page of the session, no hash, motion OK) and arms window.__preT
+     as a 3.5s failsafe in case this script never runs. Here: count 0→100
+     in 14 chunky ticks, tick in STANDARD, lift the curtain (html.pre-up —
+     which also releases the hero's paused entrance animations). The curtain
+     ALWAYS lifts: hard 3s timeout + try/catch + idempotent end(). */
+  const preEl = document.getElementById('pre');
+  if (preEl) {
+    const root = document.documentElement;
+    if (!root.classList.contains('pre')) {
+      preEl.remove();
+    } else {
+      clearTimeout(window.__preT);
+      const numEl = document.getElementById('pre-num');
+      let ended = false;
+      const gone = () => { root.classList.remove('pre', 'pre-up'); preEl.remove(); };
+      const end = () => {
+        if (ended) return;
+        ended = true;
+        clearTimeout(hard);
+        root.classList.add('pre-up');
+        preEl.addEventListener('transitionend', gone, { once: true });
+        setTimeout(gone, 800); /* transitionend can be swallowed in hidden tabs */
+      };
+      const hard = setTimeout(end, 3000);
+      try {
+        const run = () => {
+          const t0 = performance.now();
+          const DUR = 1150, STEPS = 14;
+          const ease = (t) => 1 - Math.pow(1 - t, 3);
+          const step = (now) => {
+            if (ended) return;
+            const t = Math.min(1, (now - t0) / DUR);
+            numEl.textContent = Math.round(Math.round(ease(t) * STEPS) / STEPS * 100);
+            if (t < 1) requestAnimationFrame(step);
+            else { preEl.classList.add('done'); setTimeout(end, 420); }
+          };
+          requestAnimationFrame(step);
+        };
+        /* start in the display face if it lands within 200ms; don't wait longer */
+        Promise.race([
+          document.fonts.load('900 1rem Archivo'),
+          new Promise((r) => setTimeout(r, 200)),
+        ]).then(run, run);
+      } catch (e) { end(); }
+    }
+  }
+
   /* ---------- nav ---------- */
   const nav = document.getElementById('nav');
   const onScroll = () => nav.classList.toggle('scrolled', scrollY > 8);
