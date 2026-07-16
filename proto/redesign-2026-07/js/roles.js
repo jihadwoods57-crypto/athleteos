@@ -286,6 +286,25 @@ export async function fetchMyAssignments() {
     return data || [];
   } catch { return []; }
 }
+/** The signed-in user's server notification feed (0027): coach nudges, join events, digests.
+    Recent first, bounded, best-effort []. RLS scopes the select to the caller's own rows. */
+export async function fetchMyNotifications(limit = 30) {
+  const c = sb(); if (!c) return [];
+  try {
+    const { data } = await c.from('notifications')
+      .select('id, kind, title, body, created_at, read_at')
+      .order('created_at', { ascending: false }).limit(limit);
+    return data || [];
+  } catch { return []; }
+}
+/** Mark the caller's unread server notifications read (bell opened). Best-effort; RLS
+    (notif_update, self-only) already scopes the update to the caller's own rows. */
+export async function markMyNotificationsRead() {
+  const c = sb(); if (!c) return;
+  try { await c.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null); }
+  catch { /* best-effort — unread state self-heals on the next fetch */ }
+}
+
 /** Coach saves a standing requirement set (team / position / athlete scope). */
 export async function setTeamRequirements(teamId, scopeKind, scopeValue, items) {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };

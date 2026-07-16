@@ -228,3 +228,13 @@ detail; and the proto registers the device push token via the new `PUSH_TOKEN`
 bridge message + `register_device_token` RPC so coach nudges actually deliver.
 Framework tests: `src/core/notifyPlan.test.ts`; exec contract updated in
 `src/core/exec.test.ts`.
+
+## 2026-07-16 — Server bell feed (closes the coach-nudge gap from the notification redesign)
+`js/notif-feed.js` (pure mapper) + `fetchMyNotifications`/`markMyNotificationsRead` in
+`js/roles.js`: the bell now merges the server `notifications` rows (0027 — coach nudges,
+join requests/approvals, weekly digests) into `S.notifications` — unread under New, read
+under Earlier with real per-row read state and honest "40m ago" timestamps. Opening the
+bell marks the rows read server-side (RLS-scoped self-only update) and clears the badge;
+unknown future kinds render as plain bell rows instead of vanishing. Cache in
+`RT.serverNotifs` (wiped with the account); fetch throttled to one per 15s.
+Tests: `src/core/notifFeed.test.ts`.

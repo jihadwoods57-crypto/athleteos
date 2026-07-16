@@ -18,14 +18,23 @@ function notif(n, read) {
 
 export default {
   tab: 'home',
-  mount() { window.__act.readNotifs(); },
+  async mount() {
+    // Pull the server feed (coach nudges, join events, digests) first so THIS visit shows
+    // fresh rows with their honest unread grouping, then ack everything as read (badge
+    // clears; the grouping updates on the next visit's fetch). Repaint at most once.
+    try {
+      const changed = await window.__act.loadNotifications();
+      if (changed && window.__render) window.__render();
+    } catch { /* offline — cached rows already rendered */ }
+    window.__act.readNotifs();
+  },
   render() {
     const N = S.notifications;
     const hasRows = N.new.length || N.earlier.length;
-    // Coarse all-or-nothing read model: rows are unread until readNotifs() marks everything
-    // read (RT.notifsRead). No per-row read persistence — that stays founder-gated.
+    // Derived rows keep the coarse all-or-nothing read model (RT.notifsRead); server rows
+    // (0027) carry REAL per-row read state (read_at) and render it honestly.
     const rowsRead = S.unreadNotifs === 0;
-    const row = (n) => notif(n, rowsRead);
+    const row = (n) => notif(n, n.server ? n.read : rowsRead);
     return `
     ${backHead('Notifications', 'Accountability moments, not spam')}
 
@@ -35,7 +44,7 @@ export default {
 
     ${N.new.length ? `<div class="eyebrow">New</div>${N.new.map(row).join('')}` : ''}
 
-    ${N.earlier.length ? `<div class="eyebrow">Earlier today</div>${N.earlier.map(row).join('')}` : ''}
+    ${N.earlier.length ? `<div class="eyebrow">Earlier</div>${N.earlier.map(row).join('')}` : ''}
 
     ${!hasRows ? `
     <div class="ne-empty">

@@ -19,12 +19,14 @@ import {
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { normalizePrefs } from './notify-plan.js';
+import { splitServerRows } from './notif-feed.js';
 import { groundExtras, buildClarifications, analysisTiming } from './meal-intel.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
   fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyTrainer, fetchMyConsent,
   requestGuardianConsent as rpcRequestConsent,
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
+  fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
@@ -124,6 +126,8 @@ const DEFAULT_RT = {
   hydrationOz: 0,        // real: 0 until the athlete logs water (syncRtFromDay reflects DAY.hydrationL)
   notifsRead: false,
   notifPrefs: null,      // reminder prefs {enabled,quietFrom,quietTo,allowDeadline}; null → framework defaults
+  serverNotifs: [],      // cached server notification rows (0027: nudges, join events, digests)
+  serverAckAt: null,     // when the bell was last opened — offline unread-badge ack for server rows
   day0: false,           // fresh-athlete empty-state mode (set by finishing onboarding)
   day0Breakfast: false,  // day-0 first meal logged
   lastMove: null,        // {from, to, gain, what} — powers confirmation screens
@@ -416,6 +420,10 @@ function dueAtMinToday(dueAtISO) {
 let PUSH_TOKEN_TRIED = false;
 let PUSH_TOKEN_VALUE = null;
 
+/* Server-notification fetch throttle (in-memory: refetch at most every 15s, resets on
+   reload) so the bell's mount → fetch → repaint cycle can never loop. */
+let NOTIF_FETCH_AT = 0;
+
 export const act = {
   /* Log a real meal into a real slot. One implementation for every meal (camera or search),
      any slot — not a hardcoded breakfast/dinner. Persists the AI plate (quality/foods/note)
@@ -492,7 +500,25 @@ export const act = {
   },
   logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); track(EVENTS.WEIGHT_LOGGED); this.syncNotifications(); },
   addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); this.syncNotifications(); },
-  readNotifs() { RT.notifsRead = true; save(); },
+  readNotifs() {
+    RT.notifsRead = true;
+    RT.serverAckAt = new Date().toISOString(); // offline badge-ack for server rows
+    save();
+    void markMyNotificationsRead(); // best-effort server truth; grouping updates on next fetch
+  },
+  /* Refresh the cached server notification rows (0027 feed: coach nudges, join events,
+     digests). Throttled — the bell mount calls this on every visit. Returns whether the
+     cache changed so the screen can repaint exactly once when new rows land. */
+  async loadNotifications() {
+    if (!RT.userId) return false;
+    const now = Date.now();
+    if (now - NOTIF_FETCH_AT < 15000) return false;
+    NOTIF_FETCH_AT = now;
+    const rows = await fetchMyNotifications();
+    const changed = JSON.stringify(rows) !== JSON.stringify(RT.serverNotifs || []);
+    if (changed) { RT.serverNotifs = rows; save(); }
+    return changed;
+  },
   /* Post the engine's notification plan to native (schedule/cancel). Idempotent: skipped
      when the plan is unchanged since the last post, so completions auto-cancel their
      reminders and untouched state causes zero churn. Also pre-schedules TOMORROW's plan
@@ -891,6 +917,7 @@ export const act = {
       if (N && N.notify) N.notify.sync([]);
     } catch { /* never block a wipe */ }
     PUSH_TOKEN_TRIED = false; PUSH_TOKEN_VALUE = null; // next sign-in re-registers its own token
+    NOTIF_FETCH_AT = 0; // next account's bell fetches its own feed immediately
     try { dayResetLocal(); } catch { /* never block a wipe */ }
     // A staged in-flight capture (photo + analysis) is user data now that it persists to
     // sessionStorage — clear it too so the next account on this device never inherits it.
@@ -1778,7 +1805,16 @@ export const S = {
     });
   },
 
-  get unreadNotifs() { return RT.notifsRead ? 0 : this.notifications.new.length; },
+  get unreadNotifs() {
+    // Derived rows keep the coarse all-read flag; server rows count as unread until the
+    // server says read OR the bell was opened after they arrived (offline ack).
+    const derived = RT.notifsRead ? 0 : this.notifications.new.filter((n) => !n.server).length;
+    const ack = RT.serverAckAt ? Date.parse(RT.serverAckAt) : 0;
+    const server = (RT.serverNotifs || []).filter(
+      (r) => r && !r.read_at && (!r.created_at || Date.parse(r.created_at) > ack),
+    ).length;
+    return derived + server;
+  },
 
   // ---------- PLAN ----------
   // Per-athlete plan claims are now real getters (planTargets/planGoalLabel + S.weight). This
@@ -2012,7 +2048,11 @@ export const S = {
         body: `Finish today to extend your ${st.days}-day run. 80 before midnight locks it in.`,
       });
     }
-    return { new: fresh, earlier: [] };
+    // Server rows (0027: coach nudges, join events, digests) join the feed here — the coach
+    // nudge that pushed to the phone finally shows in the bell too. Unread server rows land
+    // under New (after the live derived rows); read ones fill Earlier.
+    const srv = splitServerRows(RT.serverNotifs, Date.now());
+    return { new: [...fresh, ...srv.unread], earlier: srv.read };
   },
 };
 
