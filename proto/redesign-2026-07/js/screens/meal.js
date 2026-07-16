@@ -3,6 +3,7 @@ import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
 import { openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages, contextForChat, applyFoodEdit, hasUserEdits } from '../meal-intel.js';
+import { openImageViewer } from '../image-viewer.js';
 
 function macroRow(m) {
   return `<div class="macro-row">
@@ -17,6 +18,7 @@ function macroRow(m) {
 export const analyzing = {
   tab: 'camera',
   hideTabs: true,
+  transient: true,
   render() {
     const img = safeImg((MEAL && MEAL.photoDataUrl) || S.logging.img);
     const nonLive = MEAL && MEAL.live === false;
@@ -27,7 +29,7 @@ export const analyzing = {
         <div class="scanline"></div>
       </div>
       ${nonLive ? `<div style="display:flex;justify-content:center;padding-top:10px">${nonLiveBadge()}</div>` : ''}
-      <div class="phase" id="an-phase">Reading your meal<span class="dots"></span></div>
+      <div class="phase" id="an-phase">Analyzing meal<span class="dots"></span></div>
       <div class="phase-sub" id="an-sub">Detecting foods and portions</div>
     </div>`;
   },
@@ -72,6 +74,7 @@ export const analyzing = {
 export const mealQuestions = {
   tab: 'camera',
   hideTabs: true,
+  transient: true,
   render() {
     const qs = (MEAL && Array.isArray(MEAL.questions)) ? MEAL.questions : [];
     // Deep-link / stale entry with nothing to ask: send them back to capture, never a blank screen.
@@ -156,6 +159,7 @@ function captureTimingLine(capturedAtMin, slot) {
 export const analysis = {
   tab: 'camera',
   hideTabs: true,
+  transient: true,
   render() {
     const L = S.logging;
     const slot = MEAL.key || 'dinner';
@@ -222,13 +226,19 @@ export const analysis = {
         : src === 'label' ? `<button class="btn ghost sm" style="flex:1" data-go="label-scan">${icon('barcode', 17)} Edit label</button>`
         : `<button class="btn ghost sm" style="flex:1" data-go="camera/${slot}">${icon('camera', 17)} Retake</button>`}
       ${already
-        ? `<button class="btn ghost sm" style="flex:1.6" data-go="home">Already logged · Back Home</button>`
+        ? `<button class="btn ghost sm" style="flex:1.6" data-back="home">Already logged</button>`
         : `<button class="btn green sm" style="flex:1.6" data-act="logMeal:${slot}" data-then="meal-thread/${slot}">${icon('check', 18)} Log ${esc(L.name)}</button>`}
     </div>
     <div style="height:10px"></div>
     `;
   },
   mount(root) {
+    // Tapping the pre-log photo opens it full-screen too (§6.1) — same viewer as the thread.
+    const hero = root.querySelector('.photo-hero');
+    if (hero && MEAL.photoDataUrl) {
+      hero.style.cursor = 'zoom-in';
+      hero.addEventListener('click', () => openImageViewer(MEAL.photoDataUrl, 'Meal photo'));
+    }
     // Edit mode (real editing, not a dead button): remove / rename / set quantity / add.
     // Every mutation goes through applyFoodEdit so MEAL.result.detectedRich and .detected stay
     // in lockstep — act.logMeal reads the arrays, not the DOM. Macros are deliberately never
@@ -392,6 +402,7 @@ export const thread = {
           <span class="v" style="width:110px">${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u} day target</small></span>
         </div>`).join('')}
     </section>` : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
+    ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
     ${fromPhoto ? `<div class="est-note">Estimated from the photo · portions can be off.${M.mealId ? ` <span class="link" id="flag-food" role="button">Something wrong? Flag it for Coach</span>` : ''}</div>` : ''}`;
 
     // ---- 4. GROUPCHAT — the SINGLE AI-insight surface. Feedback 2026-07-16: the opening
@@ -446,9 +457,7 @@ export const thread = {
     </div>` : '';
 
     return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
-    <div style="height:12px"></div>
-    <div class="btn-row"><button class="btn ghost sm" style="flex:1" data-go="home">Back Home</button></div>
-    <div style="height:10px"></div>`;
+    <div style="height:16px"></div>`;
   },
 
   async mount(root, { sub }) {
@@ -471,7 +480,16 @@ export const thread = {
     if (photo) {
       let url = M.img;
       if (!url && RT.userId) url = await roles.signedMealPhotoUrl(`${RT.userId}/${DAY.date}/${M.slot}.jpg`);
-      if (url) { photo.src = url; photo.style.display = 'block'; }
+      if (url) {
+        photo.src = url; photo.style.display = 'block';
+        // Tapping the meal photo opens the original full-screen (§6.1) — a DOM overlay, so
+        // closing returns to this exact scroll position with zero navigation.
+        const hero = root.querySelector('#meal-hero');
+        if (hero) {
+          hero.style.cursor = 'zoom-in';
+          hero.addEventListener('click', () => openImageViewer(url, `${M.name} photo`));
+        }
+      }
     }
     // "View full analysis" expander — delegated on the screen root, so it survives paint()
     // rebuilding threadEl.innerHTML (the opening bubble is captured/re-prepended as HTML,

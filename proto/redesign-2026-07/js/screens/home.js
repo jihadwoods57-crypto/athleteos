@@ -1,8 +1,9 @@
-import { S, RT, act } from '../state.js';
+import { S, RT, act, slotHasPhoto } from '../state.js';
 import { icon } from '../icons.js';
 import { appHead, scoreRing, animateRing, esc, safeImg, collapseSection } from '../components.js';
-import { DAY } from '../day.js';
+import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
+import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 
 // Per-type icon media tints (a photo-less card shows its own icon — never someone else's).
 const ACT_MEDIA = {
@@ -21,7 +22,7 @@ function resCard(a) {
   const [c1, c2, fg] = ACT_MEDIA[a.icon] || ACT_MEDIA.droplet;
   const media = a.img && safeImg(a.img)
     ? `<div class="res-media" style="background-image:url('${safeImg(a.img)}')"></div>`
-    : `<div class="res-media icon" style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 30)}</div>`;
+    : `<div class="res-media icon" style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 30)}${a.noPhoto ? '<span class="res-nophoto">No photo submitted</span>' : ''}</div>`;
   const metrics = a.qualityLabel
     ? `<div class="res-m"><span class="k">Meal Quality</span><span class="v ${a.vClass}">${a.value}<small>${a.unit}</small></span></div>
       ${a.impact > 0 ? `<div class="res-m"><span class="k">Daily Score</span><span class="v g">+${a.impact}</span></div>` : ''}`
@@ -106,8 +107,8 @@ function syncBanner() {
   if (issue === 'error') {
     return `<div class="lrow" style="margin:12px 0 10px;background:rgba(59,130,246,0.08);border:1px solid var(--hairline);border-radius:14px;padding:12px 13px;cursor:default">
       <div class="xico sm gray">${icon('wifiOff', 16)}</div>
-      <div class="xr"><div class="xa">Saved on your phone</div>
-      <div class="xb">Not synced yet — we’ll keep trying. Your logs are safe and count locally.</div></div>
+      <div class="xr"><div class="xa">Waiting to sync</div>
+      <div class="xb">Your entry is saved and will upload automatically when you reconnect.</div></div>
     </div>`;
   }
   return '';
@@ -354,6 +355,12 @@ export default {
   mount(root) {
     animateRing(root);
     act.syncNotifications();
+    // Resolve today's stored meal photos (signed URLs) so Recent Results shows the real
+    // plates after a reload — repaints once when the batch lands (spec §7.1).
+    if (RT.userId) {
+      warmMealPhotos(MEAL_KEYS.filter((k) => DAY.meals[k] && slotHasPhoto(k))
+        .map((k) => todayMealPhotoPath(RT.userId, String(DAY.date), k)));
+    }
     // Trust Pass shield popup: tap toggles; any tap outside closes. Listeners live on
     // elements inside this render, so they die with the next innerHTML swap — no stacking.
     const tpBtn = root.querySelector('#tp-btn');

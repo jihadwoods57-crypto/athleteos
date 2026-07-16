@@ -17,22 +17,24 @@ export function esc(v) {
 }
 
 /* Image values that flow into url('${...}') / background-image / src. Only allow our own
-   bundled assets and self-produced data:image base64 (camera captures, downscaled avatars).
-   The strict pattern rejects anything containing quotes, parens or whitespace, so a crafted
-   value can never break out of the url() context. Returns '' (harmless) when disallowed. */
+   bundled assets, self-produced data:image base64 (camera captures, downscaled avatars), and
+   signed URLs from OUR storage host (meal photos resolved by photo-store.js). Every pattern
+   rejects quotes, parens and whitespace, so a crafted value can never break out of the url()
+   context. Returns '' (harmless) when disallowed. */
 export function safeImg(v) {
   const s = String(v == null ? '' : v);
   const ok = /^data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(s)
-    || /^assets\/[\w./-]+$/.test(s);
+    || /^assets\/[\w./-]+$/.test(s)
+    || /^https:\/\/[\w-]+\.supabase\.(?:co|in)\/storage\/v1\/[\w/.\-?=&%~]+$/.test(s);
   return ok ? s : '';
 }
 
 /* Honest disclosure badge for a gallery-picked meal photo. Gallery photos SCORE now (founder
    reversal 2026-07-15; the integrity wall is the 0062 photo-hash duplicate check) — this badge
-   is pure transparency for athlete + coach, never a scoring signal. Reuses the existing amber
-   .status-pill.a token — no new per-screen color fork. */
+   is pure transparency for athlete + coach, never a scoring signal. Neutral by design (spec
+   §5.7): gallery uploads aren't treated differently in scoring, so no warning color. */
 export function nonLiveBadge() {
-  return `<span class="status-pill a">${icon('image', 12)} FROM GALLERY</span>`;
+  return `<span class="status-pill muted">${icon('image', 12)} Gallery upload</span>`;
 }
 
 /* Signature score ring — cinematic, uncontained. Layers:
@@ -181,8 +183,10 @@ export function appHead(sub, extra) {
 export function backHead(title, sub, to = 'home') {
   // title/sub can carry cross-user text (e.g. a coach-assigned requirement title) — escape here
   // so every caller is safe. All current callers pass plain text, so this only hardens.
+  // `to` is the FALLBACK only: data-back pops the per-tab origin stack (exact screen + scroll,
+  // router.js), so back always returns where the user actually came from.
   return `<div class="back-head">
-    <div class="bk" data-go="${to}">${icon('back', 20)}</div>
+    <div class="bk" data-back="${to}" role="button" aria-label="Back">${icon('back', 20)}</div>
     <div><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
   </div>`;
 }

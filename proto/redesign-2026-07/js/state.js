@@ -13,7 +13,7 @@ import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor,
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC,
-  dayLogMeal, daySubmitCheckin, daySetCommitment, dayAddWaterOz, dayLogWeight, dayResetLocal,
+  dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
   setDayStandard, slotDeadline, setDayGoalConfig,
 } from './day.js';
@@ -21,6 +21,8 @@ import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { normalizePrefs } from './notify-plan.js';
 import { splitServerRows } from './notif-feed.js';
 import { groundExtras, buildClarifications, analysisTiming } from './meal-intel.js';
+import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
+import { cachedMealPhoto, todayMealPhotoPath } from './photo-store.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
   fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyTrainer, fetchMyConsent,
@@ -47,6 +49,7 @@ export function fmtClock(min) {
 export const MEAL = {
   key: null, mealType: null, photoBase64: null, photoDataUrl: null, result: null, live: true,
   questions: null, photoHash: null, source: null, takenAt: null, capturedAtMin: null,
+  userNote: null, // athlete-entered invisible details (oil, sauce, prep) from the review step (spec §5.5)
 };
 
 /* In-flight capture persistence (sessionStorage, NOT RT). The MEAL object holds the staged photo +
@@ -301,6 +304,22 @@ function nextOpenSlot(explicit) {
   return open.find(k => now <= DEADLINE[k]) || open[open.length - 1];
 }
 
+/** Does this logged slot have a photo behind it? Photo-sourced logs ('live'/'gallery' — or
+ *  legacy meta with no source recorded, where we try and degrade) get their stored image
+ *  resolved; 'manual'/'label' logs honestly have no photo (spec §7.2). */
+export function slotHasPhoto(k) {
+  const meta = DAY.slotMacros[k] || {};
+  if (meta.source) return meta.source === 'live' || meta.source === 'gallery';
+  return true; // legacy rows recorded no source: attempt the fetch, degrade to placeholder on miss
+}
+/** The slot's best available image RIGHT NOW: the in-session capture, else the cached signed
+ *  Storage URL (photo-store). Null means "not resolved yet" or "no photo submitted". */
+function slotImage(k) {
+  if (MEAL.key === k && MEAL.photoDataUrl) return MEAL.photoDataUrl;
+  if (!slotHasPhoto(k)) return null;
+  return cachedMealPhoto(todayMealPhotoPath(RT.userId, String(DAY.date), k));
+}
+
 /* Meal detail for one slot, built from the REAL persisted plate (slotMacros meta + logged time).
    No fabricated lunch, no canned coach thread. Photo is the in-session capture when available;
    across reloads there's no local photo, so the detail shows the data without a fake stock plate. */
@@ -321,8 +340,10 @@ export function mealDetail(slot) {
     score: meta.quality != null ? meta.quality : null,
     foods,
     macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
-    img: (MEAL.key === k && MEAL.photoDataUrl) ? MEAL.photoDataUrl : null,
+    img: slotImage(k),
     note: meta.note || '',
+    userNote: meta.userNote || '', // the athlete's own review-step details (§5.5)
+    hasPhoto: slotHasPhoto(k),
     live: meta.live !== false,
     source: meta.source || (meta.live === false ? 'gallery' : null),
     flagged: meta.flagged || null,   // 'dup' → logged but doesn't score (photo reuse)
@@ -462,11 +483,12 @@ export const act = {
       photoHash: hasPhoto ? MEAL.photoHash : null,
       takenAt: hasPhoto ? MEAL.takenAt : null,
     };
+    const userNote = MEAL.key === slot ? MEAL.userNote : null;
     const meta = MEAL.result
       ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note, name: MEAL.result.name || MEAL.mealType,
           fiber: MEAL.result.fiber || 0, highlights: MEAL.result.highlights || [], detectedRich: MEAL.result.detectedRich || [],
-          analysis: MEAL.result.analysis || '', ...integrity }
-      : { name: MEAL.mealType || cap(slot), ...integrity };
+          analysis: MEAL.result.analysis || '', ...(userNote ? { userNote } : {}), ...integrity }
+      : { name: MEAL.mealType || cap(slot), ...(userNote ? { userNote } : {}), ...integrity };
     const macros = loggingMacros();
     dayLogMeal(RT.userId, slot, macros, meta);
     if (hasPhoto) uploadMealPhoto(RT.userId, slot, MEAL.photoBase64);
@@ -611,7 +633,8 @@ export const act = {
       }
     } catch { /* best-effort — permission denied / no EAS project / offline */ }
   },
-  setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); track(EVENTS.COMMITMENT_SET, { answer: ans }); },
+  setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); track(EVENTS.COMMITMENT_SET, { answer: ans }); this.syncNotifications(); },
+  saveDayFocus(text) { daySetFocus(RT.userId, (text || '').trim().slice(0, 80) || null); },
 
   /* ---- Phase 5: real meal capture → AI → real macros ---- */
   captureMeal(base64, dataUrl, slot, live = true, extra) {
@@ -660,6 +683,9 @@ export const act = {
     return {
       mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null,
       photoBase64: MEAL.photoBase64, ...(timing ? { timing } : {}),
+      // The athlete's review-step note (§5.5): what the camera can't see. The edge fn treats
+      // it as context when present; an older deploy simply ignores the extra field.
+      ...(MEAL.userNote ? { athleteNote: MEAL.userNote } : {}),
     };
   },
   /* Phase 'analyze'. THE CLARIFYING MOMENT: when the model is genuinely unsure about something
@@ -703,6 +729,13 @@ export const act = {
     MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null;
     MEAL.result = null; MEAL.live = true; MEAL.questions = null;
     MEAL.photoHash = null; MEAL.source = null; MEAL.takenAt = null; MEAL.capturedAtMin = null;
+    MEAL.userNote = null;
+    saveMeal();
+  },
+  /** Review-step note (spec §5.5): what the photo can't show. Rides the analysis request and
+   *  persists with the logged meal so the thread and the coach see the athlete's own words. */
+  setMealNote(text) {
+    MEAL.userNote = String(text || '').trim().slice(0, 240) || null;
     saveMeal();
   },
   /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
@@ -1606,14 +1639,16 @@ export const S = {
     const bdSlots = (std && Array.isArray(std.slots) && std.slots.length) ? std.slots : MEAL_KEYS;
     const bdDenom = (std && std.mealsRequired) || 4;
     const logged = bdSlots.filter(k => DAY.meals[k]);
+    const openReq = bdSlots.filter(k => k !== 'snack' && !mealScored(DAY, k));
+    const nextDue = openReq.find(k => minutesNow() <= slotDeadline(k)) || openReq[0];
     const nutriNote = logged.length
-      ? `${logged.length} of ${bdDenom} meals logged${logged.length < bdDenom ? ' — more to come' : ' · full day'}`
-      : 'No meals logged yet — each one builds Nutrition';
+      ? `${logged.length} of ${bdDenom} meals completed${nextDue ? ` · ${slotTitle(nextDue)} ${minutesNow() > slotDeadline(nextDue) ? 'overdue' : `due ${fmtClock(slotDeadline(nextDue))}`}` : logged.length >= bdDenom ? ' · full day' : ''}`
+      : 'No meals completed yet — each one builds Nutrition';
     const commit = DAY.dailyCommitment;
-    const commitNote = commit === 'yes' ? 'You confirmed you hit your plan today'
-      : commit === 'partial' ? 'You logged a partial day — honest counts'
-      : commit === 'no' ? 'You logged an off day — the honest tap still counts'
-      : 'No commitment logged yet — one honest tap earns it';
+    const commitNote = commit === 'yes' ? 'Reflection complete — you executed your plan today'
+      : commit === 'partial' ? 'Reflection complete — a partial day, honestly logged'
+      : commit === 'no' ? 'Reflection complete — an off day, honestly logged'
+      : 'End-of-day reflection still open — your honest answer earns it';
     return [
       { key: 'Nutrition', earned: Math.round(WEIGHTS.nutrition * c.nutrition), possible: 50,
         note: nutriNote, accent: 'g', weightPct: 50 },
@@ -1623,8 +1658,31 @@ export const S = {
       { key: 'Daily commitment', earned: Math.round(WEIGHTS.commitment * c.commitment), possible: 15,
         note: commitNote, accent: 'b', weightPct: 15 },
       { key: 'Weekly check-in', earned: Math.round(WEIGHTS.checkin * c.checkin), possible: 10,
-        note: c.checkin ? 'This week’s check-in is in' : 'No weekly check-in yet — opens Sunday', accent: 'g', weightPct: 10 },
+        note: c.checkin ? 'Checked in this week — full points held' : 'No check-in in the last 7 days — tonight’s earns it', accent: 'g', weightPct: 10 },
     ];
+  },
+
+  /* ---------- SCORE EXPLANATION (spec §2) — the pure model over the live day ---------- */
+  // One options object for every breakdown-model call, so the explanation can never use a
+  // different slot list / denominator / clock than the engine that scored the day.
+  get _explainOpts() {
+    const std = RT.stdMeals;
+    const slots = (std && Array.isArray(std.slots) && std.slots.length) ? std.slots : MEAL_KEYS;
+    return {
+      slots,
+      denom: (std && std.mealsRequired) || 4,
+      titles: Object.fromEntries(slots.map(k => [k, slotTitle(k)])),
+      optional: std ? [] : ['snack'],
+      nowMin: minutesNow(),
+      fmtClock,
+    };
+  },
+  get explain() { return explainCategories(DAY, this._explainOpts); },
+  get reach() { return modelReachPlan(DAY, this._explainOpts); },
+  get maxPossible() { return maxPossibleScore(DAY, this._explainOpts); },
+  /** Best score movement one meal can cause right now — "up to +N" on the camera (§4.4). */
+  mealUpTo(slot) {
+    try { return mealMaxGain(DAY, slot, this._explainOpts); } catch { return 0; }
   },
   get weightLine() {
     if (RT.weightLogged) {
@@ -1739,9 +1797,11 @@ export const S = {
       const at = DAY.mealLoggedAt[k];
       const meta = DAY.slotMacros[k] || {};
       const late = at != null && at > DEADLINE[k];
-      // in-session photo for the just-captured slot; else no fake stock plate
-      const img = (MEAL.key === k && MEAL.photoDataUrl) ? MEAL.photoDataUrl : null;
+      // in-session photo for the just-captured slot, else the cached signed Storage URL
+      // (photo-store) — the actual submitted image, never a stock plate (spec §7.1).
+      const img = slotImage(k);
       a.push({
+        noPhoto: !slotHasPhoto(k), // manual/label log: placeholder is honest (§7.2)
         time: at != null ? `Today · ${fmtClock(at)}${late ? ' · late' : ''}` : 'Today',
         type: cap(k), icon: 'utensils',
         // Meal QUALITY is its own concept (the plate read) and never success-green at 58 —
@@ -1888,7 +1948,7 @@ export const S = {
     if (meta && DAY.meals[slot]) {
       return {
         name: cap(slot), due: SLOT_DUE[slot] || '', remaining: 'Logged',
-        img: (MEAL.key === slot && MEAL.photoDataUrl) || null,
+        img: slotImage(slot),
         score: meta.quality != null ? meta.quality : null,
         foods: Array.isArray(meta.foods) && meta.foods.length ? meta.foods : ['Your logged meal'],
         macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },

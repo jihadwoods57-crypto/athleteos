@@ -33,9 +33,12 @@ const hapticTap = (style) => { try { window.OnStandardNative && window.OnStandar
 export default {
   tab: 'camera',
   hideTabs: true,
+  transient: true, // flow interstitial: never a back-target — Done/Back from the flow returns to the pre-camera origin
   render({ sub } = {}) {
     const L = S.logging;
     const slotName = sub ? slotTitle(sub) : L.name; // coach-standard title, never raw "Meal-5"
+    const slotKey = sub || S.currentSlot;
+    const upTo = slotKey ? S.mealUpTo(slotKey) : 0;
     // Apple-style permission priming: explain BEFORE the OS ever asks
     if (!RT.camPrimed) {
       return `
@@ -57,11 +60,16 @@ export default {
     return `
     <div class="cam">
       <div class="cam-head">
-        <div class="bk iconbtn" data-go="home" style="width:40px;height:40px">${icon('back', 19)}</div>
+        <div class="bk iconbtn" data-back="home" style="width:40px;height:40px" role="button" aria-label="Back">${icon('back', 19)}</div>
         <div class="meta">
           <div class="t">Log ${slotName}</div>
-          <div class="s">${L.due} <span class="dim">· Nutrition is 50% of your score</span></div>
+          <div class="s">${L.due}${upTo > 0 ? ` <span class="dim">· earn up to ${upTo} points</span>` : ''}</div>
         </div>
+      </div>
+
+      <div class="cam-guide">
+        <b>Photograph everything you're having.</b>
+        <span>Full plate · Drink · Sides · Sauces · Supplements</span>
       </div>
 
       <div class="viewfinder" id="viewfinder">
@@ -77,20 +85,15 @@ export default {
         <div class="vf-corner bl"></div><div class="vf-corner br"></div>
       </div>
 
-      <div class="cam-note">Hidden foods, portion, drink, how you're feeling…</div>
-
       <input type="file" accept="image/*" capture="environment" id="cam-file" style="display:none" />
       <input type="file" accept="image/*" id="cam-gallery" style="display:none" />
       <div class="cam-actions">
         <div class="cam-side" id="gallery-btn"><div class="cbtn">${icon('image', 19)}</div>Gallery</div>
         <div class="shutter" id="shutter"><div class="inner">${icon('camera', 26)}</div></div>
-        <div class="cam-side" data-go="food-search"><div class="cbtn">${icon('search', 20)}</div>Search</div>
+        <div class="cam-side" data-go="food-search"><div class="cbtn">${icon('search', 20)}</div>No photo</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding-bottom:10px">
-        <div class="cam-side" data-go="label-scan" style="flex-direction:row;gap:8px;align-items:center">
-          <span style="color:var(--text-3)">${icon('barcode', 16)}</span> Enter Label
-        </div>
-        <div style="font-size:11px;font-weight:600;color:var(--text-3)">Gallery photos count — each photo can only be logged once.</div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3);padding:0 24px;text-align:center">Gallery uploads are allowed. The same photo can't be submitted twice.</div>
         <div id="cam-note" style="font-size:12.5px;font-weight:600;color:var(--amber-bright);text-align:center;min-height:16px;padding:0 20px"></div>
       </div>
     </div>`;
@@ -208,6 +211,7 @@ export default {
 export const cameraConfirm = {
   tab: 'camera',
   hideTabs: true,
+  transient: true,
   render() {
     if (!MEAL.photoDataUrl) {
       // Deep link / stale entry with nothing staged: back to capture, never a blank screen.
@@ -219,36 +223,76 @@ export const cameraConfirm = {
     return `
     <div class="cam cam-confirm">
       <div class="cam-head">
-        <div class="bk iconbtn" id="cc-back" style="width:40px;height:40px">${icon('back', 19)}</div>
+        <div class="bk iconbtn" id="cc-back" style="width:40px;height:40px" role="button" aria-label="Back">${icon('back', 19)}</div>
         <div class="meta">
           <div class="t">Use this photo?</div>
-          <div class="s"><span class="dim">${esc(MEAL.mealType || 'Meal')} · analyzed next, you confirm before it counts</span></div>
+          <div class="s"><span class="dim">${esc(MEAL.mealType || 'Meal')} · review your photo before analysis</span></div>
         </div>
       </div>
       <div class="viewfinder cc-photo" style="background-image:url('${safeImg(MEAL.photoDataUrl)}')">
-        ${gallery ? `<div class="cc-badges">${nonLiveBadge()}${age ? `<span class="status-pill a">${icon('clock', 12)} ${esc(age.toUpperCase())}</span>` : ''}</div>` : ''}
+        ${gallery ? `<div class="cc-badges">${nonLiveBadge()}${age ? `<span class="status-pill muted">${icon('clock', 12)} ${esc(age.toUpperCase())}</span>` : ''}</div>` : ''}
       </div>
-      <div id="cc-note" style="font-size:12.5px;font-weight:700;color:var(--amber-bright);text-align:center;min-height:18px;padding:10px 24px 0"></div>
-      <div class="btn-row" style="padding:14px 20px 10px;margin-top:auto">
-        <button class="btn ghost sm" id="cc-retake" style="flex:1">${icon('camera', 17)} Retake</button>
-        <button class="btn green sm" id="cc-analyze" style="flex:1.6">${icon('sparkle', 17)} Analyze</button>
+      <div class="cc-complete">
+        <b>Make sure everything you're having is visible.</b>
+        <div class="cc-chips">
+          <span class="cc-chip">Drink</span><span class="cc-chip">Sauce</span><span class="cc-chip">Side</span><span class="cc-chip">Supplement</span>
+        </div>
       </div>
+      <details class="cc-details">
+        <summary>${icon('edit', 15)} Add details AI may not know <span class="opt">Optional</span></summary>
+        <textarea id="cc-user-note" maxlength="240" rows="2"
+          placeholder="Sauce type, cooking method, oil used, portion changes, refills…">${esc(MEAL.userNote || '')}</textarea>
+        <div class="cc-details-hint">Notes improve the analysis, but everything consumed should still be shown in the photo.</div>
+      </details>
+      <div id="cc-note" style="font-size:12.5px;font-weight:700;color:var(--amber-bright);text-align:center;min-height:18px;padding:8px 24px 0"></div>
+      <div class="btn-row" style="padding:12px 20px 10px;margin-top:auto">
+        <button class="btn ghost sm" id="cc-retake" style="flex:1">${icon(gallery ? 'image' : 'camera', 17)} ${gallery ? 'Choose another' : 'Retake'}</button>
+        <button class="btn green sm" id="cc-analyze" style="flex:1.6">${icon('sparkle', 17)} Analyze meal</button>
+      </div>
+      <input type="file" accept="image/*" id="cc-repick" style="display:none" />
+      <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding-bottom:10px">You'll confirm the detected foods, portions, and nutrition estimate before it counts.</div>
     </div>`;
   },
   async mount(root) {
     if (!MEAL.photoDataUrl) return;
+    const gallery = MEAL.source === 'gallery';
+    const noteField = root.querySelector('#cc-user-note');
+    const saveNote = () => { if (noteField) act.setMealNote(noteField.value); };
+    if (noteField) noteField.addEventListener('change', saveNote);
     const retake = () => {
+      saveNote();
       const slot = MEAL.key;
       act.clearMeal();
       window.__go(slot ? `camera/${slot}` : 'camera');
     };
+    // Gallery source: "Choose another" re-picks in place — no round-trip through the camera.
+    const repick = root.querySelector('#cc-repick');
+    const rePickNow = async () => {
+      const f = repick.files && repick.files[0];
+      if (!f) return;
+      try {
+        let takenAt = null;
+        try {
+          const { exifDateTimeOriginal } = await import('../photo-hash.js');
+          takenAt = exifDateTimeOriginal(new Uint8Array(await f.arrayBuffer()));
+        } catch { /* EXIF absent — no badge */ }
+        const { base64, dataUrl } = await downscaleToJpeg(f, 1000, 0.82);
+        act.captureMeal(base64, dataUrl, MEAL.key || undefined, false, { takenAt });
+        window.__render && window.__render();
+      } catch { /* keep the current photo */ }
+    };
     const back = root.querySelector('#cc-back');
     const rt = root.querySelector('#cc-retake');
     if (back) back.addEventListener('click', retake);
-    if (rt) rt.addEventListener('click', retake);
+    if (rt) {
+      if (gallery && repick) {
+        rt.addEventListener('click', () => { saveNote(); repick.click(); });
+        repick.addEventListener('change', rePickNow);
+      } else rt.addEventListener('click', retake);
+    }
     const analyzeBtn = root.querySelector('#cc-analyze');
     const note = root.querySelector('#cc-note');
-    if (analyzeBtn) analyzeBtn.addEventListener('click', () => window.__go('analyzing'));
+    if (analyzeBtn) analyzeBtn.addEventListener('click', () => { saveNote(); window.__go('analyzing'); });
     // Duplicate pre-check (0062), free and before the paid analyze call. Fail-open: offline the
     // button stays enabled and the server's unique index still backstops at insert time.
     try {

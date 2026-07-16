@@ -21,18 +21,25 @@ const DB = [
 /* ---------- Search Food: type, tap to build the plate, log it ---------- */
 export const foodSearch = {
   tab: 'camera',
+  transient: true,
   hideTabs: true,
   render() {
     const slot = S.currentSlot;
     const slotName = slot ? slotTitle(slot) : 'meal';
     return `
-    ${backHead(`Search Food · ${slotName}`, 'When a photo isn’t possible. Same score rules.', 'camera')}
+    ${backHead(`Log without a photo · ${slotName}`, 'When a photo isn’t possible. Same score rules.', 'camera')}
 
     ${composer({ inputId: 'fs-input', placeholder: 'Search foods…', inputLabel: 'Search foods', decorativeSend: true, sendIcon: 'search', sendIconSize: 18, sendStyle: 'background:var(--surface-2);color:var(--text)', wrapStyle: 'margin-top:2px' })}
 
-    <div class="eyebrow">Results · short list for now</div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">A starter set of common foods. The full database lands with the backend — a photo or the label always works for anything not here.</div>
+    <div class="eyebrow">Results</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Common foods. For anything not listed, a photo or the nutrition label reads best.</div>
     <section class="card" style="padding:2px 0" id="fs-results"></section>
+
+    <div class="lrow" data-go="label-scan" style="border:1px solid var(--hairline);border-radius:15px;padding:12px 15px;margin-top:10px">
+      <div class="lic">${icon('barcode', 17)}</div>
+      <div class="lm"><div class="lt">Enter a nutrition label</div><div class="ls">Type the panel numbers — exact, never estimated</div></div>
+      ${icon('chevron', 16, 'style="color:var(--text-3)"')}
+    </div>
 
     <div class="eyebrow">Your plate <span class="link" id="fs-clear">Clear</span></div>
     <section class="card pad" id="fs-plate">
@@ -48,7 +55,7 @@ export const foodSearch = {
 
     <div style="height:16px"></div>
     ${!slot
-      ? `<button class="btn ghost" data-go="home">All meals logged · Back Home</button>`
+      ? `<button class="btn ghost" data-back="home">All meals logged · Done</button>`
       : `<button class="btn green" id="fs-log" style="opacity:.45;pointer-events:none">${icon('check', 19)} Log ${slotName}</button>`}
     <div style="height:10px"></div>
     `;
@@ -128,6 +135,7 @@ export const foodSearch = {
 /* ---------- Enter Label: honest manual panel entry × servings (no fake OCR) ---------- */
 export const labelScan = {
   tab: 'camera',
+  transient: true,
   hideTabs: true,
   render() {
     const slot = S.currentSlot;
@@ -172,7 +180,7 @@ export const labelScan = {
 
     <div id="ls-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
     ${!slot
-      ? `<button class="btn ghost" data-go="home">All meals logged · Back Home</button>`
+      ? `<button class="btn ghost" data-back="home">All meals logged · Done</button>`
       : `<button class="btn green" id="ls-log">${icon('check', 19)} Add to ${slotName}</button>`}
     <div style="height:10px"></div>
     `;

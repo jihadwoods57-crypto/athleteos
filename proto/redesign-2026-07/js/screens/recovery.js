@@ -5,6 +5,7 @@ import { backHead, esc } from '../components.js';
 export const recoveryConfirm = {
   tab: 'home',
   hideTabs: true,
+  transient: true, // post-submit interstitial — Done returns to the pre-check-in origin
   render() {
     const mv = RT.lastMove || { from: S.score, to: S.score, gain: 0 };
     const toTier = tier(mv.to);
@@ -33,7 +34,7 @@ export const recoveryConfirm = {
       </div>`}
     </div>
     <div style="height:22px"></div>
-    <button class="btn primary" data-go="home">Back Home</button>
+    <button class="btn primary" data-back="home">Done</button>
     <div style="height:10px"></div>
     <button class="btn ghost sm" data-go="progress">See the week</button>
     <div style="height:10px"></div>
@@ -55,6 +56,7 @@ export const recoveryConfirm = {
 
 export default {
   tab: 'home',
+  transient: true, // form screen: submitting hands off to the confirm — never a back-target
   render() {
     if (RT.recoveryDone) {
       return `
@@ -63,7 +65,6 @@ export default {
         <div class="sd-ic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 24)}</div>
         <div class="sd-t">Submitted tonight</div>
         <div class="sd-s">Recovery counted · scored ${S.components.now.recovery}. ${S.coach.hasCoach ? `${esc(S.coach.name)} can see your readiness before tomorrow's practice.` : `It feeds tomorrow's readiness.`}</div>
-        <div class="sd-cta"><button class="btn ghost sm" data-go="home">Back Home</button></div>
       </div>`;
     }
     const R = S.recovery;

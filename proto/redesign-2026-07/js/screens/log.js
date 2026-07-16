@@ -1,4 +1,5 @@
 import { S, RT, act } from '../state.js';
+import { DAY } from '../day.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 
@@ -8,10 +9,11 @@ export default {
   tab: 'camera',
   hideTabs: true,
   bleed: true,
+  transient: true, // overlay sheet — closing returns to the exact origin, never a back-target itself
   render() {
     const e = S.exec;
     const segs = `<div class="xsegs" style="margin:0 2px 12px">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>`;
-    const head = `<div class="hub-head"><span class="a">${e.met} of ${e.total} in</span><span class="b">${e.score} → <em>${e.possible} possible</em></span></div>`;
+    const head = `<div class="hub-head"><span class="a">${e.met} of ${e.total} completed</span><span class="b">${e.score} → <em>up to ${e.possible}</em></span></div>`;
 
     // Mirrors Home's syncBanner honesty (home.js syncBanner): the sheet is the primary write
     // surface, so a sync-blocked minor or a failed push needs the same feedback here, not silence.
@@ -24,12 +26,12 @@ export default {
       </div>` : issue === 'error' ? `
       <div class="sheet-row" style="cursor:default">
         <div class="si" style="background:var(--surface-2);color:var(--text-3)">${icon('wifiOff', 20)}</div>
-        <div class="st"><div class="t">Saved on your phone</div><div class="s">Not synced yet — we’ll keep trying. Your logs are safe and count locally.</div></div>
+        <div class="st"><div class="t">Waiting to sync</div><div class="s">Your entry is saved and will upload automatically when you reconnect.</div></div>
       </div>` : '';
 
     if (e.celebration) {
       return `
-      <div class="sheet-scrim" data-go="home"></div>
+      <div class="sheet-scrim" data-back="home"></div>
       <div class="sheet">
         <div class="grab"></div>
         ${head}${segs}${syncRow}
@@ -44,7 +46,7 @@ export default {
           <div class="st"><div class="t">Log Water</div><div class="s">${RT.hydrationOz} of 120 oz · optional</div></div>
           <div class="water-btns"><span class="wb2" data-water="8">+8</span><span class="wb2" data-water="16">+16</span></div>
         </div>` : ''}
-        <div class="cancel" data-go="home">Close</div>
+        <div class="cancel" data-back="home">Close</div>
       </div>`;
     }
 
@@ -72,7 +74,7 @@ export default {
     const weeklyToday = new Date().getDay() === 0;
 
     return `
-    <div class="sheet-scrim" data-go="home"></div>
+    <div class="sheet-scrim" data-back="home"></div>
     <div class="sheet">
       <div class="grab"></div>
       ${head}${segs}${syncRow}
@@ -94,6 +96,12 @@ export default {
         <div class="st"><div class="t">Log Weight</div><div class="s">${weight.state === 'done' ? 'In for today · trend only' : 'Trend only · never moves the daily score'}</div></div>
         <span class="sv" style="color:var(--text-3)">trend</span>
       </div>` : ''}
+      ${DAY.dailyCommitment == null ? `
+      <div class="sheet-row" data-go="commitment">
+        <div class="si" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('target', 19)}</div>
+        <div class="st"><div class="t">Daily Commitment</div><div class="s">End-of-day reflection · 15% of your score</div></div>
+        <span class="xpill gray">Open</span>
+      </div>` : ''}
       <div class="xgrp" style="margin:4px 2px 7px">Forms &amp; check-ins</div>
       ${recovery && !(e.now && e.now.id === 'recovery') ? `
       <div class="sheet-row" data-go="${recovery.route}">
@@ -106,8 +114,8 @@ export default {
         <div class="si" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('clipboard', 19)}</div>
         <div class="st"><div class="t">Weekly Check-In</div><div class="s">${S.weekly.status}</div></div>
       </div>` : ''}
-      ${e.doneItems.length ? `<div class="hub-fold" data-go="home">${icon('check', 13)} ${e.doneItems.length} in — view on Home</div>` : ''}
-      <div class="cancel" data-go="home">Cancel</div>
+      ${e.doneItems.length ? `<div class="hub-fold" data-go="home">${icon('check', 13)} ${e.doneItems.length} completed today — view on Home</div>` : ''}
+      <div class="cancel" data-back="home">Cancel</div>
     </div>`;
   },
   // Water taps are the highest-frequency action on this sheet — patch the counter in place

@@ -14,6 +14,7 @@ import log from './log.js';
 import auth from './auth.js';
 import onboarding from './onboarding.js';
 import checkin from './checkin.js';
+import commitment from './commitment.js';
 import { coach, coachAthlete, coachMeal, coachAssign, coachPlan, coachPlanSet, coachInbox, copilot, trainer, trainerClient, parent } from './coach.js';
 import states from './states.js';
 import requirement from './requirement.js';
@@ -50,6 +51,7 @@ export const screens = {
   welcome: auth,
   onboarding,
   checkin,
+  commitment,
   coach,
   'coach-athlete': coachAthlete,
   'coach-meal': coachMeal,

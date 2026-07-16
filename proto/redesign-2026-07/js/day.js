@@ -222,6 +222,7 @@ export const DAY = {
   quickAdded: [false, false, false],
   hydrationL: 0,
   dailyCommitment: null,
+  commitmentFocus: null, // the athlete's written intention for today (rides the checkin jsonb)
   ci: { ...DEFAULT_CI },
   ciConfig: { ...DEFAULT_CICFG },
   ciSubmitted: false,
@@ -348,6 +349,9 @@ function projectRowToDay(row) {
   DAY.ciLast = ck.ciLast && ck.ciLast.date ? ck.ciLast : (typeof ck.ciLast === 'string' ? { date: ck.ciLast, recovery: ck.recovery ?? 0 } : DAY.ciLast);
   if (DAY.dailyCommitment && ck.commitment == null) localAhead = true;
   DAY.dailyCommitment = DAY.dailyCommitment ?? ck.commitment ?? null;
+  DAY.commitmentFocus = DAY.commitmentFocus ?? ck.focus ?? null;
+  // Logged-at times ride the same jsonb (they power on-time history + category trends).
+  DAY.mealLoggedAt = { ...(ck.mealLoggedAt || {}), ...DAY.mealLoggedAt };
   // Plate meta merges per-slot: local slots win (they carry the freshest AI meta), server
   // fills the slots this device doesn't have.
   DAY.slotMacros = { ...(ck.slotMacros || {}), ...DAY.slotMacros };
@@ -424,7 +428,7 @@ export function pushDay(userId, immediate) {
       athlete_id: userId, date: DAY.date,
       meals: DAY.meals, hydration_l: DAY.hydrationL, quick_added: DAY.quickAdded,
       current_weight: DAY.currentWeight,
-      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, slotMacros: DAY.slotMacros },
+      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros },
       score: s, grade: gradeFor(s),
     };
     try {
@@ -443,7 +447,7 @@ export function dayResetLocal() {
   DAY.meals = { breakfast: false, lunch: false, snack: false, dinner: false };
   seedStandardSlots(); // a governing standard's extra slots (meal-5/meal-6) survive the reset
   DAY.mealLoggedAt = {}; DAY.slotMacros = {}; DAY.quickAdded = [false, false, false];
-  DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
+  DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.commitmentFocus = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
   DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.trustPass = null;
 }
 
@@ -461,6 +465,7 @@ export function dayLogMeal(userId, key, macros, meta) {
     if (meta.quality != null) m.quality = meta.quality;
     if (Array.isArray(meta.foods)) m.foods = meta.foods.slice(0, 8);
     if (meta.note) m.note = meta.note;
+    if (meta.userNote) m.userNote = String(meta.userNote).slice(0, 240); // athlete's review-step details (§5.5)
     if (meta.fiber != null) m.fiber = meta.fiber;
     if (Array.isArray(meta.highlights)) m.highlights = meta.highlights.slice(0, 3);
     if (Array.isArray(meta.detectedRich)) m.detectedRich = meta.detectedRich.slice(0, 8);
@@ -480,6 +485,7 @@ export function daySubmitCheckin(userId, ciValues) {
   pushDay(userId);
 }
 export function daySetCommitment(userId, ans) { DAY.dailyCommitment = ans; pushDay(userId); }
+export function daySetFocus(userId, text) { DAY.commitmentFocus = text || null; pushDay(userId); }
 export function dayAddWaterOz(userId, oz) { DAY.hydrationL = Math.min(6, DAY.hydrationL + oz * 0.0295735); pushDay(userId); }
 export function dayLogWeight(userId, lb) { if (lb) DAY.currentWeight = Math.round(lb); pushDay(userId); }
 export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[i]; pushDay(userId); }

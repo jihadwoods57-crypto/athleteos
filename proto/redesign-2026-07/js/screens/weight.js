@@ -79,13 +79,6 @@ export default {
       <div class="ts">Weight tracks your season goal, not your daily execution. ${S.coach.hasCoach ? `Logging it gives ${esc(S.coach.nameMid)} the real trend.` : 'Logging it keeps your season trend honest.'}</div></div>
     </div>
 
-    <div style="height:16px"></div>
-    <div class="lrow" id="photo-row" style="border:1px solid var(--hairline);border-radius:15px;padding:13px 15px">
-      <div class="lic">${icon('camera', 18)}</div>
-      <div class="lm"><div class="lt">Add photo proof</div><div class="ls">Optional for this requirement</div></div>
-      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-    </div>
-
     <div style="height:18px"></div>
     <button class="btn primary" id="log-weight-btn">${icon('check', 19)} ${isLate ? 'Log Weight (late)' : 'Log Weight'}</button>
     <div style="height:10px"></div>
@@ -103,14 +96,7 @@ export default {
     const btn = root.querySelector('#log-weight-btn');
     if (btn && wv) btn.addEventListener('click', async () => {
       await window.__act.logWeight(parseFloat(wv.textContent));
-      location.hash = '#home';
-    });
-    const row = root.querySelector('#photo-row');
-    if (row) row.addEventListener('click', () => {
-      row.style.borderColor = 'var(--green-border)';
-      row.querySelector('.lt').textContent = 'Photo attached';
-      row.querySelector('.ls').textContent = 'Scale photo added to this log';
-      row.querySelector('.lic').style.cssText = 'background:var(--green-surface);color:var(--green-bright)';
+      window.__back('home'); // return to the exact origin (Progress, the sheet's origin, or Home)
     });
   },
 };

@@ -3,6 +3,7 @@ import { S, act, RT, routeForRole } from './state.js';
 import { icon } from './icons.js';
 import { screens } from './screens/index.js';
 import { initAnalytics, track, EVENTS } from './analytics.js';
+import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-stack.js';
 
 /* Each role gets its own dashboard shell — not a modal off someone else's app. */
 const NAVS = {
@@ -70,6 +71,73 @@ function parse() {
 export function go(route) { location.hash = '#' + route; }
 window.__go = go;
 
+/* ---------------- Navigation stacks (spec §1.5/§10) ----------------
+   Each main tab keeps its own back-stack of {route, scroll} origins. Back (header chevron,
+   data-back buttons, swipe-back) returns to the EXACT screen + scroll position the user came
+   from; the highlighted bottom tab is the ORIGIN tab, not a per-screen guess. Persisted in
+   sessionStorage so an in-session WebView reload keeps its place; a fresh launch starts clean. */
+const NAV_KEY = 'onstd-nav-v1';
+// Every role's tab-root routes → their tab id (role guards elsewhere keep roles apart).
+const ROOT_TAB = {
+  home: 'home', plan: 'plan', progress: 'progress', profile: 'profile',
+  coach: 'team', 'coach-plan': 'plan', 'coach-inbox': 'inbox', 'coach-profile': 'profile',
+  trainer: 'clients', 'trainer-profile': 'profile',
+};
+let NAV = (() => {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const j = JSON.parse(sessionStorage.getItem(NAV_KEY) || 'null');
+      if (j && j.stacks && j.tab) return j;
+    }
+  } catch { /* corrupt/blocked store — start clean */ }
+  return emptyNav();
+})();
+function navSave() {
+  try { if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(NAV_KEY, JSON.stringify(NAV)); }
+  catch { /* quota — nav still works in-memory this session */ }
+}
+let NAV_INTENT = false;   // this hash change came from our own handlers (vs browser/swipe back)
+let RESTORE = null;       // {r, s} — scroll position to restore once that route paints
+
+function currentFull() { const { route, sub } = parse(); return sub ? `${route}/${sub}` : route; }
+function currentScroll() { const vp = document.getElementById('viewport'); return vp ? vp.scrollTop : 0; }
+
+/** Forward navigation with origin tracking. Tab roots reset their stack; detail screens push
+ *  the departing screen (unless it's a transient flow interstitial). Transient screens are
+ *  REPLACED in browser history so a hardware/edge swipe-back skips the flow, matching the
+ *  header back button. */
+function navigateTo(target) {
+  NAV_INTENT = true;
+  const { route: cur } = parse();
+  const curMod = screens[cur];
+  const transient = !!(curMod && curMod.transient);
+  const targetRoot = ROOT_TAB[target.split('/')[0]];
+  if (targetRoot && !target.includes('/')) {
+    resetTab(NAV, targetRoot); navSave();
+  } else if (curMod && !transient && !AUTH_ROUTES.includes(cur)) {
+    pushOrigin(NAV, currentFull(), currentScroll()); navSave();
+  }
+  if (transient) { try { location.replace('#' + target); return; } catch { /* fall through */ } }
+  go(target);
+}
+
+/** Back: pop the active tab's stack and return there (with scroll), else land on `fallback`.
+ *  Uses location.replace so browser history never grows from unwinding. */
+function goBack(fallback) {
+  NAV_INTENT = true;
+  const entry = popOrigin(NAV); navSave();
+  if (entry) {
+    RESTORE = entry;
+    try { location.replace('#' + entry.r); } catch { go(entry.r); }
+    return;
+  }
+  const fb = fallback || (RT.userId ? routeForRole(RT.authRole || 'athlete') : 'welcome');
+  const fbRoot = ROOT_TAB[fb.split('/')[0]];
+  if (fbRoot) { resetTab(NAV, fbRoot); navSave(); }
+  try { location.replace('#' + fb); } catch { go(fb); }
+}
+window.__back = goBack;
+
 function render() {
   // Screens with live countdowns register a tick; every route change clears it.
   if (window.__execTick) { clearInterval(window.__execTick); window.__execTick = null; }
@@ -77,9 +145,19 @@ function render() {
   // route change / re-render runs it exactly once so a stream never survives its screen.
   if (window.__screenCleanup) { try { window.__screenCleanup(); } catch { /* best-effort */ } window.__screenCleanup = null; }
   const { route, sub } = parse();
+  const full = sub ? `${route}/${sub}` : route;
+  // Browser/swipe back (no intent flag): if the new location matches the top of the active
+  // stack, consume it as a pop so header-back and edge-swipe stay perfectly consistent.
+  if (!NAV_INTENT) {
+    const top = peekOrigin(NAV);
+    if (top && top.r === full) { popOrigin(NAV); RESTORE = top; navSave(); }
+  }
+  NAV_INTENT = false;
   // Auth gate on EVERY render, not just boot: a signed-out runtime (expired/cleared session)
   // must never keep rendering app screens on a hash change.
   if (!RT.userId && !AUTH_ROUTES.includes(route)) { location.hash = '#welcome'; return; }
+  // Landing on Welcome (sign-out, fresh boot) drops every stack — the next account starts clean.
+  if (route === 'welcome' && (NAV.tab !== 'home' || Object.keys(NAV.stacks).length)) { NAV = emptyNav(); navSave(); }
   const mod = screens[route] || screens.home;
   // Role-route guard: a screen declaring a coach/trainer nav belongs to that role's dashboard.
   // A signed-in user of another role must not render its chrome (RLS still scopes the data, but
@@ -99,7 +177,13 @@ function render() {
     location.hash = '#' + routeForRole(RT.authRole);
     return;
   }
-  const activeTab = mod.tab || route;
+  // A tab ROOT stamps the active tab (covers boot deep-links and role switches); every other
+  // screen inherits the ORIGIN tab from the stack, so a detail opened from Profile keeps
+  // Profile lit (spec §10.4). mod.tab remains the fallback for direct/deep links.
+  if (ROOT_TAB[route] && !sub) NAV.tab = ROOT_TAB[route];
+  const navRole = mod.nav || 'athlete';
+  const roleTabs = (NAVS[navRole] || NAVS.athlete).map((t) => t.id);
+  const activeTab = roleTabs.includes(NAV.tab) ? NAV.tab : (mod.tab || route);
   const device = document.getElementById('device');
 
   const body = mod.render({ sub, S });
@@ -122,10 +206,19 @@ function render() {
       const target = el.getAttribute('data-go');
       // Any path back to Welcome from inside the app is a sign-out (no-op if not signed in).
       if (target === 'welcome') { try { await act.signOut(); } catch { /* ignore */ } }
-      go(target);
+      navigateTo(target);
     });
   });
-  // wire actions: data-act="name" or data-act="name:arg"; data-then="route" navigates after
+  // wire back: data-back="fallback" pops the origin stack (exact screen + scroll), landing on
+  // the fallback only when there is no recorded origin (deep link, fresh boot).
+  device.querySelectorAll('[data-back]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation(); buzz(6);
+      goBack(el.getAttribute('data-back') || undefined);
+    });
+  });
+  // wire actions: data-act="name" or data-act="name:arg"; data-then="route" navigates after;
+  // data-then="__back" (or data-then="__back:fallback") returns to the recorded origin.
   device.querySelectorAll('[data-act]').forEach(el => {
     el.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -133,11 +226,18 @@ function render() {
       const [name, arg] = el.getAttribute('data-act').split(':');
       if (act[name]) await act[name](arg !== undefined ? +arg || arg : undefined);
       const then = el.getAttribute('data-then');
-      if (then) { if (('#' + then) === location.hash) render(); else go(then); }
+      if (then && then.startsWith('__back')) { goBack(then.split(':')[1] || undefined); }
+      else if (then) { if (('#' + then) === location.hash) render(); else navigateTo(then); }
       else render();
     });
   });
-  document.getElementById('viewport').scrollTop = 0;
+  // Scroll: restore the exact origin position on a back-pop; fresh forward views start at top.
+  // scrollTo with behavior:'instant' overrides the viewport's smooth scroll-behavior — a
+  // restore must snap, never animate.
+  const vp = document.getElementById('viewport');
+  const targetScroll = (RESTORE && RESTORE.r === full) ? (RESTORE.s || 0) : 0;
+  RESTORE = null;
+  try { vp.scrollTo({ top: targetScroll, behavior: 'instant' }); } catch { vp.scrollTop = targetScroll; }
   if (mod.mount) mod.mount(device, { sub, S });
 }
 // Re-render the current route in place — used by async (data-driven) screens to repaint once a
