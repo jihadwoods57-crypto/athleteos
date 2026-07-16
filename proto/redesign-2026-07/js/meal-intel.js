@@ -300,11 +300,26 @@ export function restrictionConflicts(detectedNames, restrictions) {
   const r = restrictions && typeof restrictions === 'object' ? restrictions : {};
   const foods = (Array.isArray(detectedNames) ? detectedNames : [])
     .map((f) => String(f && f.name != null ? f.name : f).toLowerCase());
-  // Name → match terms: an allergen matches when any detected food contains it (or a
-  // simple stem, so "peanuts" matches "peanut butter" and "eggs" matches "egg").
+  // Common-ingredient synonyms so category restrictions catch their obvious members
+  // ("Dairy" hits milk/cheese; "Tree nuts" hits almonds). Deliberately modest — this is
+  // name-level matching, and the UI copy never claims it's complete.
+  const SYNONYMS = {
+    dairy: ['milk', 'cheese', 'yogurt', 'butter', 'cream', 'whey'],
+    gluten: ['bread', 'pasta', 'wheat', 'flour', 'toast', 'bun', 'tortilla', 'cracker'],
+    'tree nuts': ['almond', 'walnut', 'cashew', 'pecan', 'pistachio', 'hazelnut'],
+    shellfish: ['shrimp', 'crab', 'lobster', 'scallop', 'clam', 'oyster', 'mussel'],
+    fish: ['salmon', 'tuna', 'tilapia', 'cod', 'trout'],
+    eggs: ['egg', 'omelet', 'omelette', 'frittata'],
+    soy: ['tofu', 'edamame', 'soy'],
+    wheat: ['bread', 'pasta', 'flour', 'toast'],
+  };
+  // A restriction matches when any detected food contains its stem or a known synonym
+  // ("peanuts" → "peanut butter"; "Dairy" → "milk").
   const hit = (name) => {
-    const stem = String(name || '').toLowerCase().replace(/s$/, '');
-    return stem.length >= 3 && foods.some((f) => f.includes(stem));
+    const key = String(name || '').toLowerCase().trim();
+    const stem = key.replace(/s$/, '');
+    const terms = [stem, ...(SYNONYMS[key] || [])].filter((t) => t.length >= 3);
+    return terms.some((t) => foods.some((f) => f.includes(t)));
   };
   const severe = [], moderate = [], noted = [];
   for (const a of Array.isArray(r.allergies) ? r.allergies : []) {

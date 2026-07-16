@@ -91,7 +91,11 @@ describe('camera-confirm render gate', () => {
     act.captureMeal('YWJj', 'data:image/jpeg;base64,YWJj', 'lunch', false);
     const html = cameraConfirm.render({});
     expect(html).toContain('Use this photo?');
-    expect(html).toContain('FROM GALLERY');
+    // Neutral provenance badge (athlete-experience spec §5.7): gallery uploads score the
+    // same, so the badge is informational — never a warning-styled 'FROM GALLERY'.
+    expect(html).toContain('Gallery upload');
+    // Source-aware secondary action (§5.3): gallery picks re-choose, camera shots retake.
+    expect(html).toContain('Choose another');
     expect(html).toContain('cc-analyze');
     expect(html).toContain('cc-retake');
   });

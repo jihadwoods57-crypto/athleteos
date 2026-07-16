@@ -127,6 +127,7 @@ export function reachPlan(day, { slots, titles = {}, optional = [], nowMin, fmtC
 /** Best score movement one single meal can cause right now — everything else untouched.
  *  Powers "Log lunch on time to earn up to +N points" on the camera (spec §4.4). */
 export function mealMaxGain(day, slot, { slots, nowMin }) {
+  if (mealScored(day, slot)) return 0; // already scored — logging again earns nothing
   const before = dayScoreOf(day);
   const due = slotDeadline(slot);
   const at = nowMin > due ? nowMin : Math.min(Math.max(nowMin, 0), due);
