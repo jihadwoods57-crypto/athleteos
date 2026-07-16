@@ -2,7 +2,8 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, titleHead, esc, composer } from '../components.js';
 import * as roles from '../roles.js';
-import { openingMessage, qualityBand, reactionGroups, threadMessages } from '../meal-intel.js';
+import { openingMessage, qualityBand, reactionGroups, threadMessages, privateNotes } from '../meal-intel.js';
+import { openImageViewer } from '../image-viewer.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -1088,7 +1089,7 @@ export const coachMeal = {
     ${head}
 
     ${meal ? `
-    <div class="photo-hero" ${meal._url ? '' : 'style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))"'}>
+    <div class="photo-hero" id="cm-hero" ${meal._url ? 'style="cursor:zoom-in"' : 'style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))"'}>
       ${meal._url ? `<img src="${esc(meal._url)}" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0"/>` : ''}
       <div class="ph-grad"></div>
       <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${meal.protein != null ? `${meal.protein}g protein` : 'Logged'}${meal.source === 'gallery' ? ' · from gallery' : ''}${meal.source === 'manual' || meal.source === 'label' ? ' · no photo' : ''}</div></div>
@@ -1137,8 +1138,27 @@ export const coachMeal = {
       ${['🔥', '💪', '👏', '👍'].map((e2) => `<span class="rx" data-rx="${e2}" style="cursor:pointer;font-size:16px;padding:6px 14px">${e2}</span>`).join('')}
     </div>
     <div id="rx-note" style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px"></div>
+    <div class="qa-row" style="margin-top:8px">
+      <button class="qa" id="cm-ask-photo">Request another photo</button>
+      <button class="qa" id="cm-note-toggle">Private note</button>
+    </div>
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment' })}
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:#f87171;margin:6px 2px 0;min-height:16px"></div>
+
+    ${(() => {
+      // Private notes (0068): coach-only margin notes the athlete NEVER sees (RLS-enforced).
+      const notes = Array.isArray(MC.comments) ? privateNotes(MC.comments) : [];
+      return `
+      <div id="cm-notes-wrap"${notes.length ? '' : ' hidden'}>
+        <div class="eyebrow" style="margin-top:14px">Private notes <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· only you and staff see these</span></div>
+        <section class="card" style="padding:6px 16px" id="cm-notes">
+          ${notes.map((n2) => `<div class="lrow" style="cursor:default"><div class="lic" style="background:var(--purple-surface);color:var(--purple-bright)">${icon('lock', 15)}</div><div class="lm"><div class="ls" style="white-space:normal;line-height:1.45;color:var(--text-2)">${esc(n2.text)}</div></div></div>`).join('')}
+        </section>
+      </div>
+      <div id="cm-note-box" hidden style="margin-top:8px">
+        ${composer({ inputId: 'cm-note-input', sendId: 'cm-note-send', placeholder: 'Private note — the athlete never sees this…', sendLabel: 'Save note', sendIcon: 'lock', sendStyle: 'background:linear-gradient(150deg, var(--purple-bright), #7e22ce)' })}
+      </div>`;
+    })()}
     <div style="height:10px"></div>
     `;
   },
@@ -1147,6 +1167,42 @@ export const coachMeal = {
     act.markMealSeen(sub); // clears this meal's unseen dot in the team activity feed
     const threadRetry = root.querySelector('#coach-thread-retry');
     if (threadRetry) threadRetry.addEventListener('click', () => loadMealComments(sub, true));
+    // Full-screen zoom on the meal photo (same viewer as the athlete side).
+    const hero = root.querySelector('#cm-hero');
+    const heroImg = hero && hero.querySelector('img');
+    if (hero && heroImg && heroImg.src) hero.addEventListener('click', () => openImageViewer(heroImg.src, 'Meal photo'));
+    // Request another photo: a templated coach message (counts as one of the 2) + push.
+    const askPhoto = root.querySelector('#cm-ask-photo');
+    if (askPhoto) askPhoto.addEventListener('click', () => {
+      const input0 = root.querySelector('#cm-input');
+      if (input0) {
+        input0.value = 'Can you send another photo of this one? I want to see the whole plate.';
+        input0.focus();
+      }
+    });
+    // Private note composer (0068): kind='note' — never visible to the athlete, no push.
+    const noteToggle = root.querySelector('#cm-note-toggle');
+    const noteBox = root.querySelector('#cm-note-box');
+    if (noteToggle && noteBox) noteToggle.addEventListener('click', () => {
+      noteBox.hidden = !noteBox.hidden;
+      if (!noteBox.hidden) { const ni = root.querySelector('#cm-note-input'); if (ni) ni.focus(); }
+    });
+    const noteSend = root.querySelector('#cm-note-send');
+    const noteInput = root.querySelector('#cm-note-input');
+    let noteBusy = false;
+    const saveNote = async () => {
+      const text = (noteInput && noteInput.value || '').trim();
+      if (!text || noteBusy) return;
+      noteBusy = true;
+      const meal0 = mealById(sub);
+      const athleteId0 = meal0 ? meal0.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
+      if (!athleteId0) { noteBusy = false; return; }
+      const ok = await roles.postMealComment(sub, athleteId0, RT.userId, 'coach', text, 'note');
+      if (ok) { if (noteInput) noteInput.value = ''; await loadMealComments(sub, true); }
+      noteBusy = false;
+    };
+    if (noteSend) noteSend.addEventListener('click', saveNote);
+    if (noteInput) noteInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveNote(); });
     const input = root.querySelector('#cm-input');
     const send = root.querySelector('#cm-send');
     const cmNote = root.querySelector('#cm-note');

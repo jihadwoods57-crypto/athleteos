@@ -362,6 +362,20 @@ export async function nudgePush(athleteId, title, body) {
   try { const { error } = await c.functions.invoke('send-push', { body: { athlete_id: athleteId, title, body } }); return !error; } catch { return false; }
 }
 
+/** Athlete → coach notification (meal-conversation upgrade 2026-07-16): the server resolves
+ *  the caller's ACTIVE coach staff from the JWT, records a durable in-app notification for
+ *  each, and pushes by classification — kind 'meal_logged' stays quiet (record only),
+ *  'meal_review' pushes, 'meal_action' pushes with sound. `route` deep-links the tap. */
+export async function notifyMyCoach({ kind = 'meal_logged', title, body, urgent = false, route } = {}) {
+  const c = sb(); if (!c || !title) return false;
+  try {
+    const { error } = await c.functions.invoke('send-push', {
+      body: { to_coach: true, kind, title, body: body || '', urgent: !!urgent, ...(route ? { route } : {}) },
+    });
+    return !error;
+  } catch { return false; }
+}
+
 /* ---------------- trainer mirror (practices) ---------------- */
 export async function fetchMyPractices() {
   const c = sb(); if (!c) return [];

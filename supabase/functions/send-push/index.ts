@@ -52,12 +52,79 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('Authorization') ?? '';
   if (!authHeader) return json({ error: 'unauthorized' }, 401, cors);
 
-  let payload: { athlete_id?: string; title?: string; body?: string };
+  let payload: {
+    athlete_id?: string; title?: string; body?: string;
+    /** Reverse direction (meal-conversation upgrade 2026-07-16): the ATHLETE notifies their
+     *  linked coach staff about their own meal. Caller identity comes from the JWT; the link
+     *  is verified server-side (active team membership → active staff). */
+    to_coach?: boolean; kind?: string; urgent?: boolean; route?: string;
+  };
   try {
     payload = await req.json();
   } catch {
     return json({ error: 'bad request' }, 400, cors);
   }
+
+  // ---------- athlete → coach (to_coach mode) ----------
+  if (payload.to_coach === true) {
+    const caller = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
+    const { data: me, error: meErr } = await caller.auth.getUser();
+    const athleteId2 = me?.user?.id;
+    if (meErr || !athleteId2) return json({ error: 'unauthorized' }, 401, cors);
+    const title2 = (payload.title ?? 'Athlete update').slice(0, 120);
+    const body2 = (payload.body ?? '').slice(0, 300);
+    const kind = /^[a-z_]{3,32}$/.test(payload.kind ?? '') ? (payload.kind as string) : 'meal_logged';
+    const route = typeof payload.route === 'string' ? payload.route.slice(0, 120) : null;
+
+    // Resolve the athlete's ACTIVE coach staff via service role (RLS-free, link-verified).
+    const svc2 = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const { data: memberships } = await svc2.from('team_members')
+      .select('team_id').eq('athlete_id', athleteId2).eq('status', 'active');
+    const teamIds = (memberships ?? []).map((m: { team_id: string }) => m.team_id);
+    if (!teamIds.length) return json({ ok: true, pushed: 0, coaches: 0 }, 200, cors);
+    const { data: staff } = await svc2.from('team_staff')
+      .select('staff_id').in('team_id', teamIds).eq('status', 'active');
+    const coachIds = [...new Set((staff ?? []).map((s: { staff_id: string }) => s.staff_id))]
+      .filter((id) => id !== athleteId2).slice(0, 12);
+    if (!coachIds.length) return json({ ok: true, pushed: 0, coaches: 0 }, 200, cors);
+
+    // Durable in-app record for every coach (the unread item), regardless of push urgency.
+    await svc2.from('notifications').insert(coachIds.map((id) => ({
+      user_id: id, kind, title: title2, body: body2,
+    })));
+
+    // Device push: 'meal_logged' stays quiet (in-app record only); review/action classes
+    // push, action with sound. Each coach's notifications_opt_out suppresses their push.
+    let pushed = 0;
+    if (payload.urgent === true || kind !== 'meal_logged') {
+      const { data: prefs } = await svc2.from('profiles')
+        .select('id,notifications_opt_out').in('id', coachIds);
+      const optedOut = new Set((prefs ?? [])
+        .filter((p: { notifications_opt_out?: boolean }) => p.notifications_opt_out === true)
+        .map((p: { id: string }) => p.id));
+      const targets = coachIds.filter((id) => !optedOut.has(id));
+      if (targets.length) {
+        const { data: toks2 } = await svc2.from('device_tokens').select('token,user_id').in('user_id', targets);
+        const tokens2 = (toks2 ?? []).map((t: { token: string }) => t.token).filter(Boolean);
+        if (tokens2.length) {
+          try {
+            const r2 = await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(tokens2.map((to) => ({
+                to, title: title2, body: body2,
+                sound: payload.urgent === true ? 'default' : undefined,
+                ...(route ? { data: { route } } : {}),
+              }))),
+            });
+            if (r2.ok) pushed = tokens2.length;
+          } catch { /* best-effort; the in-app rows already landed */ }
+        }
+      }
+    }
+    return json({ ok: true, pushed, coaches: coachIds.length }, 200, cors);
+  }
+
   const athleteId = payload.athlete_id;
   if (!athleteId) return json({ error: 'athlete_id required' }, 400, cors);
   const title = (payload.title ?? 'Your coach sent a nudge').slice(0, 120);

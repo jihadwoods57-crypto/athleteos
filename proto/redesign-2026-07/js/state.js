@@ -20,7 +20,7 @@ import {
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { normalizePrefs } from './notify-plan.js';
 import { splitServerRows } from './notif-feed.js';
-import { groundExtras, buildClarifications, analysisTiming } from './meal-intel.js';
+import { groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts } from './meal-intel.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
 import { cachedMealPhoto, todayMealPhotoPath } from './photo-store.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
@@ -29,7 +29,7 @@ import {
   requestGuardianConsent as rpcRequestConsent,
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyNotifications, markMyNotificationsRead,
-  fetchMyCoachHandle, setMyCoachName, checkPhotoReuse,
+  fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
 
@@ -350,6 +350,8 @@ export function mealDetail(slot) {
     source: meta.source || (meta.live === false ? 'gallery' : null),
     flagged: meta.flagged || null,   // 'dup' → logged but doesn't score (photo reuse)
     takenAt: meta.takenAt || null,   // EXIF capture time of a gallery pick
+    corrections: Array.isArray(meta.corrections) ? meta.corrections : [], // athlete corrections (audit)
+    orig: meta.orig || null,         // the AI's original estimate, frozen at first correction
     analysis: meta.analysis || '',   // the AI's detailed paragraph (0062), '' pre-migration
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
     fiber: meta.fiber || 0,
@@ -508,6 +510,10 @@ export const act = {
       } else if (res) {
         DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), mealId: res };
         pushDay(RT.userId);
+        // Automatic coach visibility (upgrade 2026-07-16): every confirmed meal notifies the
+        // coach staff, urgency by classification — fires exactly once, on the FRESH insert
+        // (a dup never notifies; a retry can't reach here twice for the same slot).
+        this._notifyCoachMealLogged(slot, meta);
       }
     });
     // Reflect the just-logged meal into every RT flag the UI reads. Beyond the legacy
@@ -527,6 +533,35 @@ export const act = {
     }
     this.syncNotifications();
   },
+  /** Classified coach notification for a fresh meal insert (never for dups/retries).
+   *  'logged' = quiet in-app record; 'review'/'action' also push. Copy per spec:
+   *  normal → "Marcus logged Lunch · On time · Meal score 84"; flagged → "needs review". */
+  _notifyCoachMealLogged(slot, meta) {
+    try {
+      if (!this._coachConnected()) return;
+      const m = meta || {};
+      const hits = restrictionConflicts(m.foods || [], RT.restrictions || null);
+      const { cls, reasons } = classifyMealEvent({
+        quality: m.quality, detected: m.detectedRich, source: m.source,
+        restrictionHits: hits, minutesLate: m.minutesLate,
+      });
+      const first = (S.athlete.first || 'Your athlete');
+      const title = cls === 'action' ? `${first}'s ${slotTitle(slot)} needs review`
+        : cls === 'review' ? `${first}'s ${slotTitle(slot)} is worth a look`
+        : `${first} logged ${slotTitle(slot)}`;
+      const timing = m.minutesLate > 0 ? `${Math.round(m.minutesLate)} min late` : 'On time';
+      const body = cls === 'logged'
+        ? `${timing}${m.quality != null ? ` · Meal score ${m.quality}` : ''} · Tap to review the meal and join the conversation.`
+        : `${reasons[0] ? reasons[0].charAt(0).toUpperCase() + reasons[0].slice(1) : 'Worth a look'} · ${timing}${m.quality != null ? ` · Meal score ${m.quality}` : ''} · Tap to open the conversation.`;
+      void notifyMyCoach({
+        kind: cls === 'action' ? 'meal_action' : cls === 'review' ? 'meal_review' : 'meal_logged',
+        title, body, urgent: cls === 'action',
+        route: DAY.slotMacros[slot] && DAY.slotMacros[slot].mealId ? `coach-meal/${DAY.slotMacros[slot].mealId}` : undefined,
+      });
+    } catch { /* notification is best-effort — the log itself already landed */ }
+  },
+  _coachConnected() { return !!(RT.myCoach && RT.myCoach.teamId); },
+
   // Back-compat aliases (camera/search buttons and older routes) → the single logMeal impl.
   logDinner() { this.logMeal('dinner'); },
   day0Meal() { this.logMeal('breakfast'); },
@@ -682,9 +717,23 @@ export const act = {
   _analysisBody() {
     const capturedAt = MEAL.capturedAtMin != null ? MEAL.capturedAtMin : minutesNow();
     const timing = analysisTiming(capturedAt, slotDeadline(MEAL.key || 'dinner'));
+    // Real day context (upgrade 2026-07-16) so the AI's paragraph can connect the meal to
+    // the athlete's actual day — protein so far, the real target, meals remaining. Pure
+    // clamped numbers; the server only formats them. Older deploys ignore the extra field.
+    const dp = S.mealDayProgress;
+    const dayContext = {
+      proteinSoFar: Math.max(0, Math.min(500, dp.proteinSoFar)),
+      proteinTarget: Math.max(0, Math.min(500, dp.proteinTarget)),
+      mealsRemaining: Math.max(0, Math.min(8, dp.mealsRemaining)),
+    };
+    // Confirmed avoid-list (restriction names only — the model must not identify these
+    // unless unmistakable, and never suggest them).
+    const avoid = (RT.allergies || []).map((s) => String(s).split('·')[0].trim()).filter(Boolean).slice(0, 8);
     return {
       mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null,
       photoBase64: MEAL.photoBase64, ...(timing ? { timing } : {}),
+      dayContext,
+      ...(avoid.length ? { avoid } : {}),
       // The athlete's review-step note (§5.5): what the camera can't see. The edge fn treats
       // it as context when present; an older deploy simply ignores the extra field.
       ...(MEAL.userNote ? { athleteNote: MEAL.userNote } : {}),
@@ -739,6 +788,47 @@ export const act = {
   setMealNote(text) {
     MEAL.userNote = String(text || '').trim().slice(0, 240) || null;
     saveMeal();
+  },
+  /** Post-log correction (conversation upgrade 2026-07-16): fix what the photo couldn't show.
+   *  Recalculates macros/score via the deterministic rules (meal-intel applyMealCorrection),
+   *  keeps the ORIGINAL AI estimate frozen in the meta (audit trail), pushes the corrected day,
+   *  and best-effort updates the meals row so the coach reads the same corrected numbers —
+   *  with a "corrected by athlete" marker appended to the note. Returns the summary line. */
+  async correctMeal(slot, correction) {
+    const meta = DAY.slotMacros[slot];
+    if (!meta || !DAY.meals[slot]) return null;
+    const r = applyMealCorrection(meta, correction);
+    if (!r) return null;
+    DAY.slotMacros[slot] = r.meta;
+    pushDay(RT.userId);
+    // Mirror the corrected numbers onto the meals row the coach reads (athlete owns the row —
+    // meals_update RLS). The original stays in the day meta's `orig`; the note carries the trail.
+    const sb = window.sb;
+    const mealId = r.meta.mealId;
+    if (sb && RT.userId && mealId) {
+      try {
+        const marker = `[Athlete correction] ${r.summary}`;
+        const note = `${r.meta.note ? r.meta.note + ' · ' : ''}${marker}`.slice(0, 500);
+        await sb.from('meals').update({
+          protein: r.meta.protein || 0, carbs: r.meta.carbs || 0, fat: r.meta.fat || 0,
+          kcal: r.meta.kcal || 0, quality: r.meta.quality != null ? r.meta.quality : null,
+          note,
+        }).eq('id', mealId).eq('athlete_id', RT.userId);
+      } catch { /* best-effort — the corrected day is already persisted */ }
+    }
+    track(EVENTS.MEAL_LOGGED, { slot, source: 'correction' });
+    // A correction that moved the numbers meaningfully is worth a coach look — once per meal.
+    if (this._coachConnected() && r.kcalDelta >= 120 && !r.meta.correctionNotified) {
+      DAY.slotMacros[slot] = { ...r.meta, correctionNotified: true };
+      pushDay(RT.userId);
+      void notifyMyCoach({
+        kind: 'meal_review',
+        title: `${S.athlete.first || 'Your athlete'} corrected ${slotTitle(slot)}`,
+        body: `${r.summary} · Tap to open the conversation.`,
+        route: mealId ? `coach-meal/${mealId}` : undefined,
+      });
+    }
+    return r;
   },
   /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
      the actual macros the athlete assembled, not a demo constant. No AI "quality" is invented.
@@ -1737,6 +1827,24 @@ export const S = {
   /** Best score movement one meal can cause right now — "up to +N" on the camera (§4.4). */
   mealUpTo(slot) {
     try { return mealMaxGain(DAY, slot, this._explainOpts); } catch { return 0; }
+  },
+  /** Real day math for the AI conversation (upgrade 2026-07-16): protein so far (the same
+   *  evidence rule the score uses), the athlete's real target, and required meals remaining. */
+  get mealDayProgress() {
+    let soFar = 0;
+    for (const k of Object.keys(DAY.meals)) {
+      if (mealScored(DAY, k) && DAY.slotMacros[k]) soFar += DAY.slotMacros[k].protein || 0;
+    }
+    const remaining = reqMealSlots().filter(k => !mealScored(DAY, k)).length;
+    return {
+      proteinSoFar: Math.round(soFar),
+      proteinTarget: DAY.proteinTarget > 0 ? DAY.proteinTarget : 180,
+      mealsRemaining: remaining,
+    };
+  },
+  /** Engine-computed Daily Score credit for one logged slot (exposed for the AI opening). */
+  mealScoreImpact(slot) {
+    try { return mealImpact(slot); } catch { return 0; }
   },
   get weightLine() {
     if (RT.weightLogged) {
