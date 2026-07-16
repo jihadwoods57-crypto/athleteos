@@ -236,6 +236,30 @@ export const DAY = {
 };
 
 export function dayScore() { return scoreFor(DAY); }
+
+/** Reconstruct a past day object from a scoreHistory row (its meals + checkin jsonb) so the
+ *  SAME computeComponents that scores today can grade history — real category trends, no
+ *  second formula. Rows fetched before the jsonb ride-along return null (callers skip them). */
+export function dayFromHistoryRow(r) {
+  if (!r || !r.meals || !r.checkin) return null;
+  const ck = r.checkin || {};
+  return {
+    date: r.date,
+    meals: r.meals,
+    mealLoggedAt: ck.mealLoggedAt || {},
+    slotMacros: ck.slotMacros || {},
+    quickAdded: r.quickAdded || [],
+    hydrationL: r.hydrationL || 0,
+    dailyCommitment: ck.commitment ?? null,
+    ci: { energy: ck.energy, recovery: ck.recovery, sleep: ck.sleep, confidence: ck.confidence, soreness: ck.soreness, motivation: ck.motivation },
+    ciConfig: { ...DEFAULT_CICFG },
+    ciSubmitted: !!ck.submitted,
+    ciLast: ck.ciLast && ck.ciLast.date ? ck.ciLast : null,
+    proteinTarget: DAY.proteinTarget, calTarget: DAY.calTarget, scoringProfile: DAY.scoringProfile,
+    currentWeight: r.weight ?? null,
+    scoreHistory: [],
+  };
+}
 /** "If you finish today" projection — all requirements done — for the reach/possible messaging. */
 export function projectedDay() {
   const p = JSON.parse(JSON.stringify(DAY));
@@ -373,8 +397,14 @@ export async function loadDay(userId) {
     const { data } = await sb.from('days').select('*').eq('athlete_id', userId).eq('date', DAY.date).maybeSingle();
     const localAhead = projectRowToDay(data) || (!data && hasLoggedAnything());
     const since = addDaysISO(DAY.date, -60);
-    const { data: hist } = await sb.from('days').select('date,score,current_weight').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date');
-    if (Array.isArray(hist)) DAY.scoreHistory = hist.map((r) => ({ date: r.date, score: r.score ?? 0, weight: r.current_weight ?? null }));
+    // meals + checkin jsonb ride along so Progress can compute REAL per-category trends
+    // (computeComponents over reconstructed past days) — never fabricated category numbers.
+    const { data: hist } = await sb.from('days').select('date,score,current_weight,meals,checkin,hydration_l,quick_added').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date');
+    if (Array.isArray(hist)) DAY.scoreHistory = hist.map((r) => ({
+      date: r.date, score: r.score ?? 0, weight: r.current_weight ?? null,
+      meals: r.meals || null, checkin: r.checkin || null,
+      hydrationL: Number(r.hydration_l) || 0, quickAdded: Array.isArray(r.quick_added) ? r.quick_added : [],
+    }));
     // Real active Trust Pass (coach-granted; migration 0033/0039). Null if none / not applied.
     try {
       const { data: tp } = await sb.from('trust_passes').select('granted_date,length_days').eq('athlete_id', userId).is('ended_at', null).maybeSingle();

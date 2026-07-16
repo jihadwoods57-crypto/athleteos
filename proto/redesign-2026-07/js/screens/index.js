@@ -20,7 +20,7 @@ import states from './states.js';
 import requirement from './requirement.js';
 import { messages, settings as prefs, privacy, billing, notifSettings, deleteAccount, terms } from './settings.js';
 import { foodSearch, labelScan } from './foodsearch.js';
-import { trust, streak, history } from './trust.js';
+import { trust, streak, history, mealView } from './trust.js';
 import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
 import signin from './signin.js';
 import reset from './reset.js';
@@ -74,6 +74,7 @@ export const screens = {
   trust,
   streak,
   history,
+  'meal-view': mealView,
   role,
   signin,
   reset,

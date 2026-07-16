@@ -10,7 +10,7 @@
 import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet } from './requirements.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
-  DAY, computeComponents as realComponents, projectedDay, scoreFor,
+  DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal,
@@ -1978,9 +1978,37 @@ export const S = {
     const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     return (DAY.scoreHistory || []).slice().reverse().map(h => {
       const d = new Date(h.date + 'T00:00:00');
-      return { day: DOW[d.getDay()], date: `${MON[d.getMonth()]} ${d.getDate()}`, score: h.score || 0, tier: tier(h.score || 0).name, meals: [] };
+      return { iso: h.date, day: DOW[d.getDay()], date: `${MON[d.getMonth()]} ${d.getDate()}`, score: h.score || 0, tier: tier(h.score || 0).name, meals: [] };
     });
   },
+  /* This calendar week, Monday→Sunday (spec §14.3): real scores, standard hit/missed,
+     today, upcoming days, and the grace-used marker. Days before history are unknown. */
+  get streakCalendar() {
+    const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const today = new Date(DAY.date + 'T00:00:00');
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((today.getDay() + 6) % 7)); // back to Monday
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const byDate = {};
+    for (const h of DAY.scoreHistory || []) byDate[h.date] = h.score;
+    const graceDate = streakInfo().graceDate;
+    return DOW.map((label, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dISO = iso(d);
+      const isToday = dISO === String(DAY.date);
+      const future = dISO > String(DAY.date);
+      const s = isToday ? this.score : (typeof byDate[dISO] === 'number' ? byDate[dISO] : null);
+      return {
+        label, date: dISO, score: s,
+        on: s != null && s >= 80,
+        missed: !future && !isToday && (s == null || s < 80),
+        today: isToday, future,
+        grace: graceDate === dISO,
+      };
+    });
+  },
+
   // Last 6 days incl. today, for the streak week strip — real scores, honest gaps.
   get streakWeek() {
     const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -2078,13 +2106,81 @@ export const S = {
     const monthConsistency = last30.length >= 5 ? Math.round(last30.filter(d => d.score >= 80).length / last30.length * 100) : null;
     let best = 0, run = 0;
     for (const d of series) { if (d.score >= 80) { run++; best = Math.max(best, run); } else run = 0; }
+    // Best score ever recorded (incl. today) — the day-one baseline stat (spec §8.2).
+    const bestScore = Math.max(...series.map(d => d.score));
+    // Days with a real logged row (today counts once anything is logged).
+    const daysLogged = hist.length + (RT.day0 ? 0 : 1);
     return {
       hasHistory: hist.length > 0,
+      daysLogged, bestScore,
+      // Exact trend-unlock rule (spec §8.3): 3 logged days unlock the first weekly trend.
+      unlockNeed: 3, unlockHave: Math.min(3, daysLogged),
       weekScores, weekAvg, weekDelta,
       onDays: `${weekScores.filter(s => s >= 80).length} of ${weekScores.length}`,
       weekDayLabels: last7.map(d => 'SMTWTFS'[new Date(d.date + 'T00:00:00').getDay()]),
       monthConsistency, bestStreak: best,
     };
+  },
+
+  /* Real per-category trends (spec §8.5): the SAME computeComponents that scores today, run
+     over reconstructed history rows. Rows saved before the jsonb ride-along are skipped —
+     trends appear as real data accumulates, never fabricated. */
+  get categoryTrends() {
+    const rows = (DAY.scoreHistory || [])
+      .map(r => ({ date: r.date, day: dayFromHistoryRow(r) }))
+      .filter(r => r.day);
+    const todayC = componentsNow();
+    const comps = [...rows.map(r => {
+      const c = realComponents(r.day);
+      return { nutrition: c.nutrition, recovery: c.recoveryContribution, commitment: c.commitment, checkin: c.checkin };
+    }), todayC];
+    if (comps.length < 4) return null; // not enough real data for an honest direction
+    const half = Math.floor(comps.length / 2);
+    const avg = (arr, k) => Math.round(arr.reduce((a, b) => a + b[k], 0) / arr.length);
+    const older = comps.slice(0, half), newer = comps.slice(half);
+    const mk = (k, label, accent) => {
+      const now = avg(newer, k), prev = avg(older, k);
+      return { key: label, accent, now, delta: now - prev };
+    };
+    return [
+      mk('nutrition', 'Nutrition', 'g'),
+      mk('recovery', 'Recovery', 'p'),
+      mk('commitment', 'Daily Commitment', 'b'),
+      mk('checkin', 'Weekly Check-In', 'g'),
+    ];
+  },
+
+  /* ONE actionable insight (spec §8.5), computed from real data only. Priority:
+     late-meal pattern → weakest trending category → consistency nudge. Null when there
+     isn't enough data to say anything defensible. */
+  get progressInsight() {
+    const rows = (DAY.scoreHistory || []).map(dayFromHistoryRow).filter(Boolean);
+    if (rows.length >= 3) {
+      // Late-meal pattern: which slot is most often logged past its deadline?
+      const lateBy = {};
+      for (const d of rows) {
+        for (const k of Object.keys(d.mealLoggedAt || {})) {
+          if (d.mealLoggedAt[k] != null && DEADLINE[k] != null && d.mealLoggedAt[k] > DEADLINE[k]) lateBy[k] = (lateBy[k] || 0) + 1;
+        }
+      }
+      const worst = Object.entries(lateBy).sort((a, b) => b[1] - a[1])[0];
+      if (worst && worst[1] >= 2) {
+        const [slot, n] = worst;
+        return `Late ${slot} logs are costing you nutrition points — it happened ${n} times recently. Logging ${slot} before ${fmtClock(DEADLINE[slot])} is your biggest easy win.`;
+      }
+    }
+    const trends = this.categoryTrends;
+    if (trends) {
+      const falling = trends.filter(t => t.delta < 0).sort((a, b) => a.delta - b.delta)[0];
+      if (falling) return `${falling.key} is trending down (${falling.delta} vs your earlier average). One consistent day resets the direction.`;
+      const weakest = trends.slice().sort((a, b) => a.now - b.now)[0];
+      if (weakest && weakest.now < 70) return `${weakest.key} is your biggest opportunity — it's averaging ${weakest.now}%. Small daily wins there move your score fastest.`;
+    }
+    const p = this.progress;
+    if (p.hasHistory && p.weekAvg != null && p.weekAvg < 80) {
+      return `Your weekly average is ${p.weekAvg}. Hitting 80 today starts closing the gap to OnStandard.`;
+    }
+    return null;
   },
 
   // Squad / leaderboard: no backend (comp_mode is unused; the real roster lives coach-side).

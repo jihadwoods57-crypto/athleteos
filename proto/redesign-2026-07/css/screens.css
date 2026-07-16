@@ -735,3 +735,50 @@
 .cmt-choice.on.a{border-color:var(--amber-border);background:var(--amber-surface)}
 .cmt-choice.on.r{border-color:var(--red-border);background:var(--red-surface)}
 .cmt-done{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;font-weight:700;color:var(--green-bright);padding-top:6px;line-height:1.4}
+
+/* ----- Progress v2 (spec §8): baseline, unlock meter, category trends ----- */
+.unlock-row{display:flex;align-items:center;gap:12px;margin-top:14px}
+.unlock-k{font-size:12px;font-weight:800;color:var(--text-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.base-stats{display:flex;gap:10px;margin-top:14px}
+.base-stats>div{flex:1;background:var(--surface-2);border:1px solid var(--hairline-soft);border-radius:13px;padding:10px 12px}
+.base-stats .k{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.base-stats .v{font-size:17px;font-weight:800;letter-spacing:var(--num-tight);margin-top:2px;font-variant-numeric:tabular-nums}
+.cat-trend{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)}
+.cat-trend:last-child{border-bottom:none}
+.cat-trend .ct-k{width:118px;flex:none;font-size:12.5px;font-weight:700;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cat-trend .track{flex:1;height:7px;border-radius:4px;background:var(--surface-3);overflow:hidden}
+.cat-trend .fillb{height:100%;border-radius:4px}
+.cat-trend .fillb.g{background:linear-gradient(90deg,#16a34a,var(--green-bright))}
+.cat-trend .fillb.p{background:linear-gradient(90deg,#7e22ce,var(--purple-bright))}
+.cat-trend .fillb.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
+.cat-trend .ct-v{width:38px;text-align:right;font-size:12.5px;font-weight:800;flex:none;font-variant-numeric:tabular-nums}
+.cat-trend .ct-d{width:36px;text-align:right;font-size:11px;font-weight:800;flex:none;color:var(--text-3);font-variant-numeric:tabular-nums}
+.cat-trend .ct-d.up{color:var(--green-bright)}
+.cat-trend .ct-d.down{color:var(--amber-bright)}
+
+/* ----- Streak week calendar (spec §14.3) ----- */
+.stk-week{display:flex;gap:7px;margin-top:4px}
+.stk-day{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:9px 0;border-radius:13px;background:var(--surface-2);border:1px solid var(--hairline-soft)}
+.stk-day .d{font-size:10px;font-weight:800;color:var(--text-3);letter-spacing:.04em}
+.stk-day .s{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+.stk-day.on{background:var(--green-surface);border-color:var(--green-border)}
+.stk-day.on .s{color:var(--green-bright)}
+.stk-day.miss .s{color:var(--text-3)}
+.stk-day.today{border-color:var(--blue-border);box-shadow:0 0 0 1.5px var(--blue-border)}
+.stk-day.future{opacity:.45}
+.stk-day .g{font-size:8.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--amber-bright)}
+
+/* ----- Activity History cards (spec §15) ----- */
+.hist-card{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--hairline-soft);cursor:pointer}
+.hist-card:last-child{border-bottom:none}
+.hist-thumb{width:52px;height:52px;border-radius:13px;flex:none;background-size:cover;background-position:center;border:1px solid var(--hairline)}
+.hist-thumb.icon{display:grid;place-items:center;background:linear-gradient(150deg,rgba(245,165,36,0.18),rgba(245,165,36,0.06));color:var(--amber-bright);position:relative}
+.ht-nophoto{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);white-space:nowrap;display:none}
+.hist-main{flex:1;min-width:0}
+.hist-main .t{font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-main .s{font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:2px}
+.hist-score{font-size:15px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+.hist-score small{font-size:10px;font-weight:700;color:var(--text-3)}
+.hist-score.g{color:var(--green-bright)}
+.hist-score.a{color:var(--amber-bright)}
+.hist-score.r{color:var(--red)}
