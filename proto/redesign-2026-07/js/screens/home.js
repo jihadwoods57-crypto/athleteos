@@ -179,12 +179,13 @@ window.addEventListener('hashchange', () => {
    whole surface opens the breakdown (chevron + press state carry the affordance). */
 function hero(e) {
   const next = nextLabel(e);
-  // The formula bar is S.breakdown verbatim — the same numbers and accent colors as the
+  // The formula bar is S.breakdown verbatim — the same values and accent colors as the
   // breakdown screen, so the two surfaces can never disagree. Segments sum to /100.
+  // Deliberately UNLABELED (founder call 2026-07-16): the bar is a one-stroke teaser of
+  // where the points sit; the tap-through breakdown owns names and numbers. No legend.
   const parts = S.breakdown;
   const segs = parts.filter((b) => b.earned > 0)
     .map((b) => `<i class="${b.accent}" style="width:${b.earned}%"></i>`).join('');
-  const legend = parts.map((b) => `<span class="xf-l"><span class="xf-k"><i class="d ${b.accent}"></i>${esc(b.key.replace('Daily commitment', 'Commitment').replace('Weekly check-in', 'Weekly'))}</span><b>${b.earned}<small>/${b.possible}</small></b></span>`).join('');
   const gain = lastHomeScore != null && e.score > lastHomeScore ? e.score - lastHomeScore : 0;
   lastHomeScore = e.score;
   return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
@@ -201,7 +202,6 @@ function hero(e) {
     </div>
     <div class="xh-formula">
       <div class="xf-bar" role="img" aria-label="Score parts: ${parts.map((b) => `${b.key} ${b.earned} of ${b.possible}`).join(', ')}">${segs}</div>
-      <div class="xf-legend">${legend}</div>
     </div>
     ${next ? `<div class="xh-next">${icon('arrowRight', 14)}<span>Next: <b>${esc(next)}</b></span></div>` : ''}
   </section>`;
