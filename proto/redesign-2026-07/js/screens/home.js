@@ -195,8 +195,7 @@ function hero(e) {
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
         <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${deltaChip(e.score)}${streakPill()}</div>
-        <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> completed</div>
-        <div class="xh-line dim">Max possible today: <b>${e.possible}</b></div>
+        <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> completed <span class="sep">·</span> max today <b>${e.possible}</b></div>
       </div>
       <span class="xstrip-chev">${icon('chevron', 16)}</span>
     </div>
