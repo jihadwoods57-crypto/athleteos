@@ -1,5 +1,5 @@
 import { logoMark } from '../components.js';
-import { act, routeForRole } from '../state.js';
+import { RT, act, routeForRole } from '../state.js';
 
 /* Real email/password sign-in (returning users). Replaces the simulated role-picker. */
 export default {
@@ -31,6 +31,10 @@ export default {
     const passEl = root.querySelector('#si-pass');
     const err = root.querySelector('#si-err');
     const btn = root.querySelector('#si-go');
+    // Prefill the email a just-signed-up user typed, so a confirm-then-sign-in round trip
+    // only asks for the password.
+    if (RT.email && !emailEl.value) { emailEl.value = RT.email; }
+    if (emailEl.value) { passEl.focus(); }
     const submit = async () => {
       err.textContent = '';
       const email = (emailEl.value || '').trim();

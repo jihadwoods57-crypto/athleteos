@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { dobFromParts, ageOn, standardForGoal, weightDirection, weightContradictsGoal } from '../ob-helpers.js';
+import { dobFromParts, ageOn, standardForGoal, weightDirection, weightContradictsGoal, showConfirmPending } from '../ob-helpers.js';
 import { esc } from '../components.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { accountBody, wireAccount } from './ob-account.js';
@@ -444,11 +444,7 @@ export default {
             window.__go(bio ? 'bio-optin' : 'home');
             return;
           }
-          const err = root.querySelector('#su-err'), btn = root.querySelector('#su-go');
-          err.style.color = 'var(--text-2)';
-          err.textContent = 'Account created — confirm your email, then sign in to start.';
-          btn.textContent = 'Confirm your email to continue';
-          btn.disabled = true;
+          showConfirmPending(root, { email: RT.email });
         },
       });
     }

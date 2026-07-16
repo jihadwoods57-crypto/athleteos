@@ -2,7 +2,7 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, logoMark, esc } from '../components.js';
 import { accountBody, wireAccount } from './ob-account.js';
-import { standardForGoal } from '../ob-helpers.js';
+import { standardForGoal, showConfirmPending } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { track, EVENTS } from '../analytics.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
@@ -388,9 +388,7 @@ export const coachOb = {
         role: 'coach',
         onSession: async (live) => {
           if (live) { await act.persistCoachOnboarding(); window.__go('coach-ob/6'); return; }
-          const err = $('#su-err');
-          err.style.color = 'var(--text-2)';
-          err.textContent = 'Account created — confirm your email, then sign in. Your team and code mint automatically.';
+          showConfirmPending(root, { email: RT.email });
         },
       });
     }
@@ -512,9 +510,7 @@ export const trainerOb = {
         role: 'trainer',
         onSession: async (live) => {
           if (live) { await act.persistTrainerOnboarding(); window.__go('trainer-ob/4'); return; }
-          const err = $('#su-err');
-          err.style.color = 'var(--text-2)';
-          err.textContent = 'Account created — confirm your email, then sign in. Your code mints automatically.';
+          showConfirmPending(root, { email: RT.email });
         },
       });
     }
@@ -812,9 +808,7 @@ export const clientOb = {
             window.__go(bio ? 'bio-optin' : 'home');
             return;
           }
-          const err = $('#su-err');
-          err.style.color = 'var(--text-2)';
-          err.textContent = 'Account created — confirm your email, then sign in to start.';
+          showConfirmPending(root, { email: RT.email });
         },
       });
     }

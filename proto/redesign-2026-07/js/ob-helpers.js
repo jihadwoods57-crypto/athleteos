@@ -89,3 +89,27 @@ export function standardForGoal(goal, mealsPerDay, profile = 'athlete') {
     ],
   };
 }
+
+/* Confirmation-pending bridge. When Supabase email-confirmation is on, signUp returns no
+   session, so onboarding can't drop the user straight into the app. Instead of a dead,
+   disabled button, tell them exactly what to do and give a working path back in: one tap
+   to the sign-in screen (which prefills their email), so after they click the email link
+   they're one field away from starting. Shared by every onboarding flow's onSession(false). */
+export function showConfirmPending(root, { email } = {}) {
+  const err = root.querySelector('#su-err');
+  if (err) {
+    err.style.color = 'var(--text-2)';
+    err.textContent = email
+      ? `Account created. We sent a confirmation link to ${email} — tap it, then sign in to start.`
+      : 'Account created. Check your email for the confirmation link, then sign in to start.';
+  }
+  const btn = root.querySelector('#su-go');
+  if (btn) {
+    // Shallow-clone to strip the signup submit listener, then wire the sign-in hand-off.
+    const fresh = btn.cloneNode(false);
+    fresh.textContent = "I've confirmed — sign in";
+    fresh.disabled = false;
+    btn.replaceWith(fresh);
+    fresh.addEventListener('click', () => window.__go('signin'));
+  }
+}
