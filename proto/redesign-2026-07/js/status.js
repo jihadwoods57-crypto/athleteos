@@ -4,6 +4,7 @@
    Every input is real data (day row, resolved requirement windows, exception rows) —
    an unknown score/window degrades to the safest honest answer, never an invented one. */
 
+/** @type {Record<string, { label: string, color: string }>} */
 export const STATUS_META = {
   excused:        { label: 'Excused',        color: 'var(--text-3)' },
   overdue:        { label: 'Overdue',        color: 'var(--red)' },
@@ -41,7 +42,7 @@ function noActivity24h(row, nowMs) {
   return (nowMs - new Date(row.lastMealAt).getTime()) > 24 * 3600 * 1000;
 }
 
-export function athleteStatus({ nowMin, nowMs, row, reqs, excused, needsReview }) {
+export function athleteStatus({ nowMin, nowMs = /** @type {number | null} */ (null), row, reqs, excused, needsReview = false }) {
   const items = openItems(nowMin, row, reqs);
   const overdue = items.filter(i => i.state === 'overdue');
   const dueSoon = items.filter(i => i.state === 'due_soon');

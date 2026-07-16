@@ -46,7 +46,7 @@ function reasons(row, status, nowMs) {
 }
 
 /** entries: [{row, status}] (already scope-filtered). interventions: today's rows. */
-export function buildPriorities({ nowMin, nowMs, entries, interventions }) {
+export function buildPriorities({ nowMin, nowMs = /** @type {number | null} */ (null), entries, interventions }) {
   const acted = new Set((interventions || []).filter(i => i.reason_key).map(i => `${i.athlete_id}|${i.reason_key}`));
   const cards = [];
   for (const { row, status } of (entries || [])) {
