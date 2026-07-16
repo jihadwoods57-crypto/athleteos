@@ -585,6 +585,12 @@ export async function exportAccountData(): Promise<Record<string, unknown> | nul
  *  guardianship and sends the verification link. Inert without a backend. */
 export async function requestGuardianConsent(guardianEmail: string): Promise<void> {
   if (!isSupabaseConfigured) return;
+  // Prefer the guardian-request Edge Function: it records the pending request AND emails the
+  // guardian the verification link (COPPA/GDPR-K verifiable parental consent). If it isn't
+  // deployed yet, fall back to the raw RPC — which still records the pending request (no email),
+  // so the flow keeps working before the email sender ships and the client needs no change at go-live.
+  const { error: fnErr } = await requireSupabase().functions.invoke('guardian-request', { body: { guardian_email: guardianEmail } });
+  if (!fnErr) return;
   const { error } = await requireSupabase().rpc('request_guardian_consent', { guardian_email: guardianEmail });
   if (error) throw error;
 }
