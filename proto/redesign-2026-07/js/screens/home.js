@@ -216,20 +216,24 @@ const grow = (i, { hidePill, chev, checkIcon } = {}) => `<div class="xg-row" dat
     ${chev ? icon('chevron', 16, 'style="color:var(--text-3)"') : ''}
   </div>`;
 
-/* Hydration as the NOW card when nothing required is actionable: the one thing the athlete
-   can do right now gets the full inline control — quick-adds, live progress, and a real
-   custom amount — no detour through the Action Hub. Never rendered when a required item
+/* Hydration as the NOW card when nothing required is actionable. ONE NOW system (founder
+   call 2026-07-16): whatever holds the slot wears the same gold card with the internal NOW
+   label — no separate green section header, no second design language. Hydration's
+   optional-ness stays honest via the "Optional" pill, and its special powers (live progress
+   + quick-adds + custom amount) live inside the card. Never rendered when a required item
    holds the NOW slot (hydration then stays a quiet Upcoming row). */
 function hydroNow(h) {
   const pct = Math.min(100, Math.round(((h.oz || 0) / 120) * 100));
-  return `<div class="xgrp now">Now</div>
-  <section class="hyd-now">
-    <div class="hn-top">
-      <div class="xico gold">${icon('droplet', 19)}</div>
-      <div class="xr"><div class="xa">Hydration</div><div class="xb" id="hyd-sub">${esc(h.sub)}</div></div>
+  return `<section class="xnow hyd-now">
+    <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Optional</span></div>
+    <div class="xmain">
+      <div class="xico gold">${icon('droplet', 21)}</div>
+      <div><div class="xt">Hydration</div><div class="xwhy" id="hyd-sub">${esc(h.sub)}</div></div>
+    </div>
+    <div class="hn-row">
+      <div class="hn-bar" role="progressbar" aria-valuenow="${h.oz || 0}" aria-valuemin="0" aria-valuemax="120" aria-label="Hydration progress"><i id="hyd-fill" style="width:${pct}%"></i></div>
       <span class="hn-pct" id="hyd-pct">${pct}%</span>
     </div>
-    <div class="hn-bar" role="progressbar" aria-valuenow="${h.oz || 0}" aria-valuemin="0" aria-valuemax="120" aria-label="Hydration progress"><i id="hyd-fill" style="width:${pct}%"></i></div>
     <div class="hn-chips">
       <button class="hchip" data-water="8">+8 oz</button>
       <button class="hchip" data-water="16">+16 oz</button>
