@@ -171,6 +171,9 @@ export function assignedFromRow(row, coachName) {
     id: String(row.id), title: String(row.title), icon: 'clipboard',
     note: row.note || '', from: coachName || 'Coach',
     dueLabel: dueLabel || 'On your list', proof: row.proof || 'check',
+    // The real deadline rides along so the notification planner can remind on a DATED
+    // assignment (same-day due_at → one 'soon' reminder); dateless stays list-only.
+    dueAtISO: row.due_at || null,
     done: row.status === 'done', seen: false, real: true,
   };
 }

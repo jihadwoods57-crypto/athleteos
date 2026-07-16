@@ -18,6 +18,7 @@ import {
   setDayStandard, slotDeadline, setDayGoalConfig,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
+import { normalizePrefs } from './notify-plan.js';
 import { groundExtras, buildClarifications, analysisTiming } from './meal-intel.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
@@ -122,6 +123,7 @@ const DEFAULT_RT = {
   weightLoggedAt: null,  // minutes-from-midnight of the real weight log — drives honest "late"
   hydrationOz: 0,        // real: 0 until the athlete logs water (syncRtFromDay reflects DAY.hydrationL)
   notifsRead: false,
+  notifPrefs: null,      // reminder prefs {enabled,quietFrom,quietTo,allowDeadline}; null → framework defaults
   day0: false,           // fresh-athlete empty-state mode (set by finishing onboarding)
   day0Breakfast: false,  // day-0 first meal logged
   lastMove: null,        // {from, to, gain, what} — powers confirmation screens
@@ -380,6 +382,40 @@ function applyGoalToDay() {
 }
 
 /* ---------------- Actions ---------------- */
+/* The exec engine's catalog for the current runtime: a governing coach standard swaps ITS meal
+   slots (count/titles/windows) in for the classic meals; no standard → the classic CATALOG,
+   byte-identical. Shared by the live exec getter AND tomorrow's pre-scheduled reminder plan. */
+function execCatalog() {
+  const std = RT.stdMeals;
+  if (!std) return CATALOG;
+  const mealItems = reqMealSlots().map((k) => {
+    const base = CATALOG.find(c => c.id === k);
+    return {
+      id: k, title: (std.titles && std.titles[k]) || (base ? base.title : cap(k.replace('-', ' '))),
+      icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
+      freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) }, required: true,
+      impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: base ? base.note : '',
+    };
+  });
+  return [...mealItems, ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id))];
+}
+
+/* An assignment's due time as minutes-from-midnight, ONLY when its real due_at lands on the
+   current local day — dateless or other-day assignments get no reminder (null). */
+function dueAtMinToday(dueAtISO) {
+  if (!dueAtISO) return null;
+  const d = new Date(dueAtISO);
+  if (isNaN(d)) return null;
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return iso === String(DAY.date) ? d.getHours() * 60 + d.getMinutes() : null;
+}
+
+/* Registered-this-session guard for the push token, plus the token itself so sign-out can
+   unregister THIS device (and only this device) — otherwise a coach nudge for the previous
+   account would keep landing on a phone they no longer use. Session-scoped by design. */
+let PUSH_TOKEN_TRIED = false;
+let PUSH_TOKEN_VALUE = null;
+
 export const act = {
   /* Log a real meal into a real slot. One implementation for every meal (camera or search),
      any slot — not a hardcoded breakfast/dinner. Persists the AI plate (quality/foods/note)
@@ -459,8 +495,11 @@ export const act = {
   readNotifs() { RT.notifsRead = true; save(); },
   /* Post the engine's notification plan to native (schedule/cancel). Idempotent: skipped
      when the plan is unchanged since the last post, so completions auto-cancel their
-     reminders and untouched state causes zero churn. Best-effort — UI never blocks. */
+     reminders and untouched state causes zero churn. Also pre-schedules TOMORROW's plan
+     (fresh status, tomorrow's weekday) so a day without an app-open still gets reminders —
+     the next open replaces everything, bounding staleness to one day. Best-effort. */
   syncNotifications() {
+    void this.registerPushToken(); // piggyback: same permission moment, once per session
     try {
       let plan = S.exec.plan;
       // Celebration already posted today: strip it so a post-celebration score change (snack
@@ -468,22 +507,64 @@ export const act = {
       if (plan.some((p) => p.id === 'celebrate') && RT._celebratedOn === String(DAY.date)) {
         plan = plan.filter((p) => p.id !== 'celebrate');
       }
+      const [y, mo, d] = String(DAY.date).split('-').map(Number);
+      try {
+        const tm = new Date(y, mo - 1, d + 1);
+        const tmISO = `${tm.getFullYear()}-${String(tm.getMonth() + 1).padStart(2, '0')}-${String(tm.getDate()).padStart(2, '0')}`;
+        const tomorrow = deriveExec({
+          nowMin: -1, dow: tm.getDay(), status: {}, assigned: [],
+          pressure: mapPressure(RT.ob && RT.ob.standard && RT.ob.standard.pressure),
+          catalog: execCatalog(), dateISO: tmISO, prefs: RT.notifPrefs,
+          coachName: S.coach.hasCoach && S.coach.isNamed ? S.coach.name : null,
+        }).plan.map((p) => ({ ...p, dayOffset: 1 }));
+        plan = [...plan, ...tomorrow];
+      } catch { /* tomorrow is a bonus — today's plan still ships */ }
       // Dedupe by DAY too: a bare plan-equality check is date-blind, so two different days
       // with identical state would otherwise skip the sync and the new day gets zero reminders.
       const last = RT._lastPlan;
       if (last && last.date === String(DAY.date) && samePlan(plan, last.plan)) return;
       const N = window.OnStandardNative;
       if (!N || !N.notify) return; // bridge not injected yet — retry on the next trigger
-      const [y, mo, d] = String(DAY.date).split('-').map(Number);
       N.notify.sync(plan.map((p) => ({
         id: p.id,
-        atISO: p.immediate ? null : new Date(y, mo - 1, d, Math.floor(p.fireAtMin / 60), p.fireAtMin % 60).toISOString(),
+        atISO: p.immediate ? null : new Date(y, mo - 1, d + (p.dayOffset || 0), Math.floor(p.fireAtMin / 60), p.fireAtMin % 60).toISOString(),
         title: p.title, body: p.body,
         route: p.route || null, // tap lands on the exact screen (e.g. camera/dinner), not Home
       })));
       RT._lastPlan = { date: String(DAY.date), plan }; save(); // recorded only once the post was handed to native
       if (plan.some((p) => p.id === 'celebrate')) RT._celebratedOn = String(DAY.date);
     } catch { /* delivery failed — leave _lastPlan unset so the next trigger retries */ }
+  },
+  /* Update reminder prefs (quiet hours / deadline override / master switch) and resync.
+     The master switch is also written server-side (profiles.notifications_opt_out, 0067) so
+     automated pushes (weekly digest, coach nudge) honor the same choice. Best-effort. */
+  setNotifPrefs(patch) {
+    RT.notifPrefs = { ...normalizePrefs(RT.notifPrefs), ...(patch || {}) };
+    save();
+    this.syncNotifications();
+    if (patch && 'enabled' in patch && window.sb && RT.userId) {
+      try {
+        void window.sb.from('profiles')
+          .update({ notifications_opt_out: !RT.notifPrefs.enabled })
+          .eq('id', RT.userId);
+      } catch { /* server pref is best-effort; local prefs already applied */ }
+    }
+  },
+  /* Register this device's push token (coach→athlete nudges) via the bridge, once per
+     session, after sign-in. Fire-and-forget; a denial or missing seam is a silent no-op. */
+  async registerPushToken() {
+    if (PUSH_TOKEN_TRIED || !RT.userId) return;
+    const N = window.OnStandardNative;
+    const sb = window.sb;
+    if (!N || !N.push || !sb) return;
+    PUSH_TOKEN_TRIED = true;
+    try {
+      const r = await N.push.token();
+      if (r && r.token) {
+        PUSH_TOKEN_VALUE = r.token;
+        await sb.rpc('register_device_token', { tok: r.token, plat: r.platform || null });
+      }
+    } catch { /* best-effort — permission denied / no EAS project / offline */ }
   },
   setCommitment(ans) { daySetCommitment(RT.userId, ans); save(); track(EVENTS.COMMITMENT_SET, { answer: ans }); },
 
@@ -803,6 +884,13 @@ export const act = {
     const keep = opts && opts.keepPendingOb && RT.ob && RT.ob.email
       ? { ob: RT.ob, allergies: RT.allergies } : null;
     const camPrimed = RT.camPrimed; // device-level (camera permission priming), not user data
+    // Cancel every scheduled device reminder FIRST — the previous account's "dinner closes
+    // soon" must never fire for a signed-out user or the next account on this phone.
+    try {
+      const N = window.OnStandardNative;
+      if (N && N.notify) N.notify.sync([]);
+    } catch { /* never block a wipe */ }
+    PUSH_TOKEN_TRIED = false; PUSH_TOKEN_VALUE = null; // next sign-in re-registers its own token
     try { dayResetLocal(); } catch { /* never block a wipe */ }
     // A staged in-flight capture (photo + analysis) is user data now that it persists to
     // sessionStorage — clear it too so the next account on this device never inherits it.
@@ -1000,6 +1088,13 @@ export const act = {
   },
   async signOut() {
     const sb = window.sb;
+    // Unregister THIS device's push token (and only this device) before the session dies —
+    // otherwise coach nudges for the signed-out account keep landing on this phone.
+    try {
+      if (sb && RT.userId && PUSH_TOKEN_VALUE) {
+        await sb.from('device_tokens').delete().eq('user_id', RT.userId).eq('token', PUSH_TOKEN_VALUE);
+      }
+    } catch { /* best-effort */ }
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
     this._wipeUserScopedState({ keepPendingOb: true });
   },
@@ -1658,21 +1753,8 @@ export const S = {
       const at = DAY.mealLoggedAt[k];
       return { done: mealScored(DAY, k), late: at != null && at > slotDeadline(k), at: at != null ? fmtClock(at) : null };
     };
-    // A governing standard swaps the engine's meal items for ITS slots (count/titles/windows);
-    // no standard → the classic catalog, byte-identical.
     const std = RT.stdMeals;
-    const mealItems = std ? reqMealSlots().map((k) => {
-      const base = CATALOG.find(c => c.id === k);
-      return {
-        id: k, title: (std.titles && std.titles[k]) || (base ? base.title : cap(k.replace('-', ' '))),
-        icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
-        freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) }, required: true,
-        impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: base ? base.note : '',
-      };
-    }) : null;
-    const catalog = std
-      ? [...mealItems, ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id))]
-      : CATALOG;
+    const catalog = execCatalog();
     const status = {
       breakfast: mstat('breakfast'), lunch: mstat('lunch'), dinner: mstat('dinner'),
       // weight due comes from the catalog; late only when we actually know the log time
@@ -1685,10 +1767,14 @@ export const S = {
       nowMin: minutesNow(),
       dow: new Date().getDay(),
       status,
-      assigned: RT.assigned,
+      // A dated assignment (real due_at TODAY) gets a reminder; dateless ones stay list-only.
+      assigned: RT.assigned.map((a) => ({ ...a, dueAtMin: dueAtMinToday(a.dueAtISO) })),
       pressure: mapPressure(RT.ob && RT.ob.standard && RT.ob.standard.pressure),
       score: this.score, possible: this.possible, streak: this.streakDays,
       catalog,
+      dateISO: String(DAY.date),
+      prefs: RT.notifPrefs,
+      coachName: this.coach.hasCoach && this.coach.isNamed ? this.coach.name : null,
     });
   },
 

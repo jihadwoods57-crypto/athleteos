@@ -3,6 +3,7 @@
    the four surfaces can never disagree. Scoring is NEVER computed here (DECISION-MEMO
    D3): score/possible/streak arrive as inputs from the existing projections. */
 import { CATALOG, runsToday, fmtMin, IMPACT_LABEL } from './requirements.js';
+import { planNotifications } from './notify-plan.js';
 
 export const DUE_SOON_MIN = 90;
 
@@ -26,24 +27,6 @@ export function samePlan(a, b) { return JSON.stringify(a || []) === JSON.stringi
 const COLOR = { done: 'green', done_late: 'green', overdue: 'red', due_soon: 'gold', ready: 'gold', locked: 'gray' };
 const PILL = { done: 'Logged', done_late: 'Logged late', overdue: 'Overdue', due_soon: 'Due soon', ready: 'Open', locked: 'Upcoming' };
 
-/* Coach-voice reminder copy. Weight is trend-only and never mentions the score. */
-const HOOK = {
-  breakfast: 'Photo proof keeps the 50%.',
-  lunch: 'Photo proof keeps the 50%.',
-  dinner: 'Photo proof keeps the 50%.',
-  recovery: '20 seconds locks your Recovery 25%.',
-  weight: 'Same time, same conditions — the trend is what we read.',
-};
-function copyFor(req, kind, mins) {
-  const t = req.title;
-  if (req.id === 'weight') {
-    return { title: `${t} — this morning`, body: HOOK.weight };
-  }
-  if (kind === 'open') return { title: `${t} window is open`, body: `Due ${fmtMin(req.window.due)}. ${HOOK[req.id] || ''}`.trim() };
-  if (kind === 'soon') return { title: `${t} closes in ${mins}`, body: HOOK[req.id] || `Due ${fmtMin(req.window.due)}.` };
-  return { title: `${t} is due now`, body: HOOK[req.id] || 'Log it before the window closes.' };
-}
-
 function itemState(req, st, nowMin) {
   if (st.done) return st.late ? 'done_late' : 'done';
   if (nowMin > req.window.due) return 'overdue';
@@ -66,7 +49,7 @@ const ROUTE = {
  * Weekly Check-In is deliberately excluded (untracked in v1 — its completion isn't wired;
  * the Action Hub shows it as a navigational row on Sundays only, outside this engine).
  */
-export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'accountable', score = 0, possible = 0, streak = 0, catalog = CATALOG }) {
+export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'accountable', score = 0, possible = 0, streak = 0, catalog = CATALOG, dateISO = '', prefs = null, coachName = null }) {
   const rows = catalog.filter((r) => r.id !== 'weekly' && runsToday(r, dow));
   const items = rows.map((req) => {
     const st = status[req.id] || {};
@@ -136,39 +119,17 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     ...all.filter((i) => !i.required && !['done', 'done_late'].includes(i.state)),
   ];
 
-  // Notification plan: incomplete REQUIRED timed items only; future times only.
-  // Each entry carries the in-app `route` the tap should land on ("Dinner closes in 45" →
-  // the dinner camera, not Home) — the last inch of the accountability loop.
-  const routeFor = (req) => req.proof === 'photo' ? `camera/${req.id}`
-    : req.id === 'weight' ? 'weight'
-    : req.id === 'recovery' ? 'recovery'
-    : 'home';
-  const plan = [];
-  if (celebration) {
-    if (pressure !== 'gentle') plan.push({
-      id: 'celebrate', fireAtMin: nowMin, immediate: true, route: 'home',
-      title: "You're OnStandard.",
-      body: `Day locked at ${score} — day ${streak + 1} of your streak.`,
-    });
-  } else {
-    for (const i of items) {
-      if (!i.required || i.state === 'done' || i.state === 'done_late') continue;
-      const req = rows.find((r) => r.id === i.id);
-      const due = req.window.due;
-      const slots = [];
-      if (pressure === 'gentle') slots.push([due - 30, 'soon']);
-      else {
-        if (pressure === 'max' && req.window.open != null) slots.push([req.window.open, 'open']);
-        slots.push([due - 45, 'soon'], [due, 'due']);
-      }
-      for (const [t, kind] of slots) {
-        if (t <= nowMin) continue;
-        const c = copyFor(req, kind, due - t);
-        plan.push({ id: i.id, fireAtMin: t, immediate: false, route: routeFor(req), title: c.title, body: c.body });
-      }
-    }
-    plan.sort((a, b) => a.fireAtMin - b.fireAtMin);
-  }
+  // Notification plan: delegated to the pure planner framework (notify-plan.js) — stages,
+  // urgency, short-window collapse, coalescing, quiet hours, caps, and type-aware copy all
+  // live there. Each entry carries the in-app `route` the tap should land on ("Dinner closes
+  // at 8:30" → the dinner camera, not Home) — the last inch of the accountability loop.
+  const doneIds = new Set(items.filter((i) => i.state === 'done' || i.state === 'done_late').map((i) => i.id));
+  const plan = planNotifications({
+    nowMin, dateISO, dayOffset: 0,
+    reqs: rows.filter((r) => r.required && !doneIds.has(r.id)),
+    assigned: assigned.map((a) => ({ id: a.id, title: a.title, from: a.from, done: !!a.done, dueAtMin: a.dueAtMin })),
+    pressure, prefs, celebration, score, streak, coachName,
+  });
 
   return { items: all, now, next, later, doneItems, overdue, met, total, score, possible, celebration, plan };
 }

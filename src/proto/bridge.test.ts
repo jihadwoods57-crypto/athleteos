@@ -1,4 +1,5 @@
-jest.mock('react-native', () => ({ Share: { share: jest.fn() } }));
+jest.mock('react-native', () => ({ Share: { share: jest.fn() }, Platform: { OS: 'ios' } }));
+jest.mock('../lib/notify', () => ({ getPushToken: jest.fn(async () => 'ExponentPushToken[abc]') }));
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(), notificationAsync: jest.fn(),
   ImpactFeedbackStyle: { Light: 1, Medium: 2, Heavy: 3 },
@@ -51,4 +52,24 @@ test('NOTIFY_SYNC hands the plan to the exec seam (fire-and-forget)', async () =
 
 test('shim exposes notify.sync', () => {
   expect(BRIDGE_SHIM).toContain('NOTIFY_SYNC');
+});
+
+test('PUSH_TOKEN resolves the token + platform for the proto to register server-side', async () => {
+  const { injected, ref } = fakeRef();
+  const handled = await handleBridgeMessage(ref, { type: 'PUSH_TOKEN', id: 4 } as never);
+  expect(handled).toBe(true);
+  expect(injected[0]).toContain('ExponentPushToken[abc]');
+  expect(injected[0]).toContain('ios');
+});
+
+test('PUSH_TOKEN resolves null when no token is available (denied / no EAS project)', async () => {
+  const { getPushToken } = jest.requireMock('../lib/notify') as { getPushToken: jest.Mock };
+  getPushToken.mockResolvedValueOnce(null);
+  const { injected, ref } = fakeRef();
+  await handleBridgeMessage(ref, { type: 'PUSH_TOKEN', id: 5 } as never);
+  expect(injected[0]).toContain('__onNativeResult(5, null');
+});
+
+test('shim exposes push.token', () => {
+  expect(BRIDGE_SHIM).toContain('PUSH_TOKEN');
 });

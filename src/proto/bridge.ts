@@ -7,13 +7,14 @@
 //
 // Injection is JSON-escaped (incl. U+2028/U+2029, which are valid JSON but break a JS string
 // literal) so a value can never break out of the injected call.
-import { Share } from 'react-native';
+import { Platform, Share } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as SecureStore from 'expo-secure-store';
 import type WebView from 'react-native-webview';
 import { isAppleAuthAvailable, requestAppleIdentityToken } from '../lib/auth/apple';
 import { biometricsUsable } from '../lib/auth/biometrics';
 import { syncExecNotifications } from '../lib/notify/execSync';
+import { getPushToken } from '../lib/notify';
 
 type Ref = React.RefObject<WebView | null>;
 
@@ -27,6 +28,7 @@ export type BridgeMessage =
   | { type: 'APPLE_SIGNIN'; id: number }
   | { type: 'BIO_AVAILABLE'; id: number }
   | { type: 'NOTIFY_SYNC'; plan: import('../lib/notify/execSync').ExecPlanItem[] }
+  | { type: 'PUSH_TOKEN'; id: number }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -141,6 +143,16 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
     case 'NOTIFY_SYNC':
       void syncExecNotifications(msg.plan ?? []);
       return true;
+    case 'PUSH_TOKEN':
+      // Expo push token for coach→athlete nudges (registered server-side by the proto via
+      // register_device_token). Null when permission is denied / no EAS project / web.
+      try {
+        const token = await getPushToken();
+        resolve(ref, msg.id, token ? { token, platform: Platform.OS } : null);
+      } catch (e) {
+        resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
+      }
+      return true;
     default:
       return false;
   }
@@ -185,6 +197,7 @@ export const BRIDGE_SHIM = `
       available: function(){ return call('BIO_AVAILABLE', {}); }
     },
     notify: { sync: function(plan){ post({ type: 'NOTIFY_SYNC', plan: plan || [] }); } },
+    push: { token: function(){ return call('PUSH_TOKEN', {}); } },
   };
 
   // navigator.vibrate does not exist in WKWebView; route it (and navigator.share) to native.

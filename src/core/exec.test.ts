@@ -112,21 +112,28 @@ describe('groups + progress + celebration', () => {
   });
 });
 
-describe('notification plan', () => {
-  test('accountable: due−45 and at-due per incomplete item, future only', () => {
-    const e = at(9 * 60); // breakfast due 9:30 → only at-due (570) remains; 8:45 already past
+describe('notification plan (delegated to notify-plan.js — see notifyPlan.test.ts for the framework itself)', () => {
+  test('accountable: exactly ONE reminder per meal (soon), no at-due double', () => {
+    const e = at(6 * 60);
     const b = e.plan.filter((p: any) => p.id === 'breakfast');
-    expect(b.map((p: any) => p.fireAtMin)).toEqual([570]);
+    expect(b.map((p: any) => [p.fireAtMin, p.stage])).toEqual([[525, 'soon']]);
   });
-  test('gentle: single nudge at due−30, with an honest lead time in the copy', () => {
+  test('accountable: high-urgency weight collapses to a single last-call (no duplicate weigh-in pair)', () => {
+    const w = at(6 * 60).plan.filter((p: any) => p.id === 'weight');
+    expect(w).toHaveLength(1);
+    expect(w[0]!.stage).toBe('due');
+    expect(w[0]!.fireAtMin).toBe(495); // due−45, with due-stage copy — one sharp reminder
+  });
+  test('gentle: single nudge at due−30', () => {
     const e = at(8 * 60, {}, { pressure: 'gentle' });
     const b = e.plan.filter((p: any) => p.id === 'breakfast');
     expect(b.map((p: any) => p.fireAtMin)).toEqual([540]);
-    expect(b[0]!.title).toContain('closes in 30');
+    expect(b[0]!.title).toContain('Breakfast');
   });
-  test('max adds a window-open nudge', () => {
+  test('max keeps the full ladder: window-open + soon + due (soon may coalesce with the weigh-in)', () => {
     const e = at(6 * 60, {}, { pressure: 'max' });
-    expect(e.plan.filter((p: any) => p.id === 'breakfast').map((p: any) => p.fireAtMin)).toEqual([420, 525, 570]);
+    const bf = e.plan.filter((p: any) => String(p.id).includes('breakfast'));
+    expect(bf.map((p: any) => p.fireAtMin)).toEqual([420, 525, 570]);
   });
   test('done items produce no reminders (auto-cancel by omission)', () => {
     const e = at(8 * 60, { breakfast: { done: true } });
@@ -144,10 +151,16 @@ describe('notification plan', () => {
     if (r) expect(r.route).toBe('recovery');
     e.plan.forEach((p: any) => expect(typeof p.route).toBe('string'));
   });
-  test('weight copy is trend-only, never shame', () => {
-    const w = at(7 * 60).plan.find((p: any) => p.id === 'weight')!;
-    expect(w.body).toMatch(/trend/i);
-    expect(w.body).not.toMatch(/score/i);
+  test('no internal scoring formulas anywhere in the copy', () => {
+    for (const pressure of ['gentle', 'accountable', 'max'] as const) {
+      for (const p of at(6 * 60, {}, { pressure }).plan) {
+        expect(`${p.title} ${p.body}`).not.toMatch(/\d+\s*%|the 50|Recovery 25/i);
+      }
+    }
+  });
+  test('weight copy never mentions the score', () => {
+    const w = at(6 * 60).plan.find((p: any) => p.id === 'weight')!;
+    expect(w.body).not.toMatch(/score|point/i);
   });
   test('celebration: immediate note with score+streak, skipped on gentle', () => {
     const ALL = { breakfast: { done: true }, lunch: { done: true }, dinner: { done: true }, weight: { done: true }, hydration: { oz: 0 }, recovery: { done: true } };

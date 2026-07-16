@@ -1,6 +1,7 @@
 import { S, RT, act, roleNav, roleProfileRoute } from '../state.js';
 import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
+import { normalizePrefs } from '../notify-plan.js';
 import { backHead, esc } from '../components.js';
 
 /* Reminder-pressure chips: restore the athlete's REAL saved pressure and persist taps into
@@ -279,7 +280,9 @@ export const billing = {
   },
 };
 
-/* ---------- Notification settings (athlete-side quiet hours; coach sets urgency) ---------- */
+/* ---------- Notification settings (athlete-side quiet hours; coach sets urgency) ----------
+   All of it is LIVE now: master switch, quiet-hours start, and the deadline override persist
+   to RT.notifPrefs (act.setNotifPrefs) and resync the device schedule on every change. */
 export const notifSettings = {
   tab: 'profile',
   get nav() { return roleNav(); },
@@ -287,26 +290,36 @@ export const notifSettings = {
     // Athletes arrive from their Notifications screen; staff roles have no such screen — back
     // goes to their own profile instead of stranding them in athlete chrome.
     const back = roleNav() === 'athlete' ? 'notifications' : roleProfileRoute();
+    const p = normalizePrefs(RT.notifPrefs);
+    const qf = Math.round(p.quietFrom / 60); // 21 | 22 | 23
     return `
     ${backHead('Notification Settings', 'Coach sets urgency. You set the quiet.', back)}
+
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('bell', 17)}</div>
+        <div class="lm"><div class="lt">Reminders</div><div class="ls">Turning this off cancels everything scheduled</div></div>
+        <div class="seg" style="width:104px" id="ns-enabled"><button class="${p.enabled ? 'on' : ''}">On</button><button class="${p.enabled ? '' : 'on'}">Off</button></div>
+      </div>
+    </section>
 
     <div class="eyebrow">Reminder pressure</div>
     <div class="chip-row" id="ns-pressure" data-toggle-group>
       <span class="chp">Gentle</span><span class="chp on">Accountable</span><span class="chp">Max pressure</span>
     </div>
 
-    <div class="eyebrow">Quiet hours · coming with reminders</div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Your pressure level above is live. Quiet-hours scheduling turns on when device reminders ship — the controls below are a preview and don't save yet.</div>
+    <div class="eyebrow">Quiet hours</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Nothing pings between your cutoff and 7 AM. Deadline warnings can break through if you let them.</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('moon', 17)}</div>
         <div class="lm"><div class="lt">No pings after</div></div>
-        <div class="seg" style="width:150px" data-toggle-group><button>9 PM</button><button class="on">10 PM</button><button>11 PM</button></div>
+        <div class="seg" style="width:150px" id="ns-quiet"><button class="${qf === 21 ? 'on' : ''}">9 PM</button><button class="${qf === 22 ? 'on' : ''}">10 PM</button><button class="${qf === 23 ? 'on' : ''}">11 PM</button></div>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
         <div class="lm"><div class="lt">Deadline warnings</div><div class="ls">The only ones that break quiet hours</div></div>
-        <div class="seg" style="width:104px" data-toggle-group><button class="on">On</button><button>Off</button></div>
+        <div class="seg" style="width:104px" id="ns-deadline"><button class="${p.allowDeadline ? 'on' : ''}">On</button><button class="${p.allowDeadline ? '' : 'on'}">Off</button></div>
       </div>
     </section>
 
@@ -319,11 +332,28 @@ export const notifSettings = {
           <span class="status-pill ${lv === 'High' ? 'a' : lv === 'Medium' ? 'b' : 'p'}">${lv}</span>
         </div>`).join('')}
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px;padding:0 2px">Urgency per requirement belongs to your coach. Ask him, not the app.</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px;padding:0 2px">High urgency gets a last-call warning at the deadline. Medium gets one heads-up. Urgency per requirement belongs to your coach.</div>
     <div style="height:10px"></div>
     `;
   },
-  async mount(root) { wireToggles(root); wirePressure(root, '#ns-pressure'); },
+  async mount(root) {
+    wireToggles(root);
+    wirePressure(root, '#ns-pressure');
+    // Segmented controls persist straight into RT.notifPrefs and resync the device schedule.
+    const seg = (sel, value) => {
+      const row = root.querySelector(sel);
+      if (!row) return;
+      const btns = [...row.querySelectorAll('button')];
+      btns.forEach((b) => b.addEventListener('click', () => {
+        btns.forEach((x) => x.classList.remove('on'));
+        b.classList.add('on');
+        act.setNotifPrefs(value(b.textContent.trim()));
+      }));
+    };
+    seg('#ns-enabled', (t) => ({ enabled: t === 'On' }));
+    seg('#ns-deadline', (t) => ({ allowDeadline: t === 'On' }));
+    seg('#ns-quiet', (t) => ({ quietFrom: (t === '9 PM' ? 21 : t === '11 PM' ? 23 : 22) * 60 }));
+  },
 };
 
 /* ---------- Delete account (Apple requires in-app deletion) ---------- */
