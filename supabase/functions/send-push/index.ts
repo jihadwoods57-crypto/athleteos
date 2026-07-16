@@ -72,6 +72,16 @@ Deno.serve(async (req) => {
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
   await svc.from('notifications').insert({ user_id: athleteId, kind: 'nudge', title, body: message });
 
+  // 2b) Honor the athlete's notification preference for the PUSH. The in-app notification above is
+  // the durable record and always lands (it shows in the bell); we only suppress the device push
+  // when they turned notifications OFF. Resilient / fail-open: if notifications_opt_out (0067) is
+  // not applied yet the check errors and we push exactly as before.
+  const { data: pref, error: prefErr } = await svc.from('profiles')
+    .select('notifications_opt_out').eq('id', athleteId).maybeSingle();
+  if (!prefErr && pref?.notifications_opt_out === true) {
+    return json({ ok: true, pushed: 0, suppressed: 'notifications_off' }, 200, cors);
+  }
+
   // 3) Push to the athlete's registered devices (best-effort; the feed entry is already saved).
   const { data: toks } = await svc.from('device_tokens').select('token').eq('user_id', athleteId);
   const tokens = (toks ?? []).map((t: { token: string }) => t.token).filter(Boolean);
