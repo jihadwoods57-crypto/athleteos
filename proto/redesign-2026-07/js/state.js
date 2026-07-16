@@ -140,6 +140,7 @@ const DEFAULT_RT = {
   coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots)
   coachNudged: {},       // coach device: athleteId -> ISO date of last nudge (one per athlete per day)
   theme: 'dark',         // 'dark' | 'light' | 'system' — dark is the shipped default (WS2b)
+  haptics: true,         // device preference: light vibration on taps/logs (router buzz())
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
   planUpdate: null,      // coach-published plan update; REALLY lands in Plan·Notes + notifications
   squadScope: 'position',// coach-controlled leaderboard scope: 'team' | 'position' | 'off'
@@ -1096,6 +1097,7 @@ export const act = {
     RT.theme = ['dark', 'light', 'system'].includes(mode) ? mode : 'dark';
     save(); applyTheme();
   },
+  setHaptics(on) { RT.haptics = !!on; save(); },
   /** Coach edits their handle from the profile card. */
   async saveCoachHandle(name) {
     const r = await setMyCoachName(name);
@@ -1200,6 +1202,38 @@ export const act = {
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
     this._wipeUserScopedState(); // no keepPendingOb: the account is gone, the scratch dies too
     return serverOk;
+  },
+  /* REAL data export (spec §20.4/§23): every row the athlete owns, fetched under their own
+     RLS session, as a downloadable JSON file. Returns {ok} or {ok:false, error}. */
+  async exportMyData() {
+    const sb = window.sb;
+    if (!sb || !RT.userId) return { ok: false, error: 'Sign in and connect to export.' };
+    try {
+      const grab = async (table, col) => {
+        try { const { data } = await sb.from(table).select('*').eq(col, RT.userId); return data || []; }
+        catch { return []; }
+      };
+      const [profile, athleteProfile, days, meals] = await Promise.all([
+        grab('profiles', 'id'), grab('athlete_profiles', 'athlete_id'), grab('days', 'athlete_id'), grab('meals', 'athlete_id'),
+      ]);
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        account: { id: RT.userId, email: RT.email },
+        profile, athleteProfile, days, meals,
+        note: 'Meal photos are stored privately; each meals row lists its photo_path. Contact support@onstandard.app for a full media export.',
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `onstandard-export-${String(DAY.date)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 2000);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Export failed — check your connection and try again.' };
+    }
   },
   async saveAthleteProfile(fields) {
     const sb = window.sb;

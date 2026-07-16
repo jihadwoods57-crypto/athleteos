@@ -197,8 +197,9 @@ function render() {
       ${mod.hideTabs ? '' : tabbar(activeTab, mod.nav || 'athlete')}
     </div>`;
 
-  // haptic feedback where the platform supports it (Android web; no-op elsewhere)
-  const buzz = (ms) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch { /* no-op */ } };
+  // haptic feedback where the platform supports it (Android web; no-op elsewhere);
+  // honors the athlete's real haptics preference (notification settings).
+  const buzz = (ms) => { try { if (RT.haptics !== false && navigator.vibrate) navigator.vibrate(ms); } catch { /* no-op */ } };
   // wire navigation
   device.querySelectorAll('[data-go]').forEach(el => {
     el.addEventListener('click', async (e) => {

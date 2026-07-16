@@ -7,11 +7,13 @@ import { planNotifications } from './notify-plan.js';
 
 export const DUE_SOON_MIN = 90;
 
-/** Onboarding knob display string → engine pressure value. */
+/** Tone display string → engine pressure value. Accepts both the onboarding knob labels
+ *  ("Keep it gentle" / "Hold me accountable" / "Max pressure") and the notification-settings
+ *  tone names (Supportive / Direct / Intense — spec §13.3). Tone changes wording only. */
 export function mapPressure(label) {
   const s = String(label || '').toLowerCase();
-  if (s.includes('gentl')) return 'gentle';
-  if (s.includes('max')) return 'max';
+  if (s.includes('gentl') || s.includes('support')) return 'gentle';
+  if (s.includes('max') || s.includes('intens')) return 'max';
   return 'accountable';
 }
 

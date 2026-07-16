@@ -86,63 +86,50 @@ export const messages = {
     }
     const sub = [c.role, c.team].filter(Boolean).join(' · ') || 'Your coach';
     return `
-    ${backHead(c.name, sub, 'plan')}
+    ${backHead(c.name, sub, 'profile')}
 
     <div class="thread">
-      <div class="msg-status">Direct messages are coming soon. Today, ${esc(c.nameMid)} comments straight on your logged meals — open a meal to see and reply in its thread.</div>
+      <div class="msg-status">${esc(c.name)} talks to you on your meals — every comment and reaction lands in that meal's thread, and you reply right there.</div>
     </div>
     <div style="height:14px"></div>
-    <button class="btn ghost" data-go="history">Open meal history</button>
+    <button class="btn ghost" data-go="history">Open activity history</button>
     <div style="height:10px"></div>
     `;
   },
 };
 
-/* ---------- Units & preferences (working toggles) ---------- */
+/* ---------- Units & appearance (spec §22): focused — units, time, appearance. ----------
+   Unsupported unit options are HIDDEN, never shown as "· soon" (spec §22.2). Reminder
+   controls live ONLY in Notification Settings (spec §22.4). */
 export const settings = {
   tab: 'profile',
   get nav() { return roleNav(); },
   render() {
     return `
-    ${backHead('Units & preferences', 'Kept clean, not a junk drawer', roleProfileRoute())}
+    ${backHead('Units & appearance', '', roleProfileRoute())}
 
-    <div class="eyebrow">Units · US default for now</div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">The app shows lb / oz / 12-hour today. Metric and 24-hour display land in an update.</div>
+    <div class="eyebrow">Units</div>
     <section class="card" style="padding:6px 16px">
-      ${/* No fake segmented controls (WS7 audit fix): the old kg/L/24h buttons highlighted on
-            tap but persisted nothing — a control that lies. Until metric ships, the alternates
-            render honestly disabled. */''}
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('scale', 17)}</div>
         <div class="lm"><div class="lt">Weight</div></div>
-        <div class="seg" style="width:130px">
-          <button class="on" disabled>lb</button><button disabled style="opacity:.4">kg · soon</button>
-        </div>
+        <span class="status-pill b">lb</span>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('droplet', 17)}</div>
         <div class="lm"><div class="lt">Fluids</div></div>
-        <div class="seg" style="width:130px">
-          <button class="on" disabled>oz</button><button disabled style="opacity:.4">L · soon</button>
-        </div>
+        <span class="status-pill b">oz</span>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('clock', 17)}</div>
         <div class="lm"><div class="lt">Time</div></div>
-        <div class="seg" style="width:130px">
-          <button class="on" disabled>12h</button><button disabled style="opacity:.4">24h · soon</button>
-        </div>
+        <span class="status-pill b">12-hour</span>
       </div>
     </section>
 
     <div class="eyebrow">Appearance</div>
     <div class="chip-row" id="set-theme">
       ${['dark', 'light', 'system'].map((m) => `<span class="chp ${(RT.theme || 'dark') === m ? 'on' : ''}" data-theme-pick="${m}">${m === 'dark' ? 'Dark' : m === 'light' ? 'Light' : 'System'}</span>`).join('')}
-    </div>
-
-    <div class="eyebrow">Reminders</div>
-    <div class="chip-row" id="set-pressure" data-toggle-group>
-      <span class="chp">Gentle</span><span class="chp on">Accountable</span><span class="chp">Max pressure</span>
     </div>
 
     <div id="set-bio-wrap" style="display:none">
@@ -157,7 +144,7 @@ export const settings = {
     </div>
 
     <div style="height:18px"></div>
-    <button class="btn ghost" data-go="${roleProfileRoute()}">Done</button>
+    <button class="btn ghost" data-back="${roleProfileRoute()}">Done</button>
     <div style="height:10px"></div>
     `;
   },
@@ -168,7 +155,6 @@ export const settings = {
       act.setTheme(el.getAttribute('data-theme-pick'));
       root.querySelectorAll('[data-theme-pick]').forEach((x) => x.classList.toggle('on', x === el));
     }));
-    wirePressure(root, '#set-pressure');
     (async () => {
       const N = window.OnStandardNative;
       if (!N || !N.biometrics) return;
@@ -192,91 +178,136 @@ export const settings = {
    right in-progress step (by role) instead of always dropping the athlete on Profile. */
 const OB_BACK = { ob: 'onboarding/7', cob: 'coach-ob/5', tob: 'trainer-ob/3', clob: 'client-ob/6' };
 
-/* ---------- Privacy (role-scoped visibility, honest) ---------- */
+/* ---------- Privacy & visibility (spec §20): real connections only, plain language ----------
+   Rows render ONLY for people who actually exist (connected coach/trainer, a real guardian
+   relationship). Each expands into a plain-language access breakdown. "Download my data" is
+   a REAL export (act.exportMyData — the athlete's own rows, RLS-scoped, as a JSON file). */
 export const privacy = {
   tab: 'profile',
   hideTabs: true,
   render({ sub } = {}) {
     const back = OB_BACK[sub] || roleProfileRoute();
-    const rows = [
-      ['users', S.coach.hasCoach ? esc(S.coach.name) : 'Coach (when connected)', 'Score, logs, meal photos, check-ins, weight trend'],
-      ['heart', 'Parents', 'Score, streaks, completion only — no photos, no weight'],
-      ['bolt', 'Trainer', 'Recovery, readiness, nutrition consistency'],
-      ['grid', 'Teammates', 'Leaderboard score only'],
-    ];
+    const rows = [];
+    if (S.coach.hasCoach && S.coach.kind === 'coach') {
+      rows.push({
+        ic: 'users', t: S.coach.isNamed ? S.coach.name : 'Your coach', pill: 'View access',
+        s: 'Daily score, requirements, meal logs and photos, check-ins, weight trend',
+        detail: [
+          ['Can see', 'Your daily score, requirement completion, meal logs and photos, check-ins, and weight trend.'],
+          ['Can set', 'Your requirements, deadlines, targets, and reminder urgency.'],
+          ['Required by team', 'Sharing execution with your coach is what connecting means.'],
+          ['To revoke', 'Leave the team — ask your coach to remove you, or contact support@onstandard.app.'],
+        ],
+      });
+    }
+    if (RT.myTrainer) {
+      rows.push({
+        ic: 'bolt', t: (RT.myTrainer.name || 'Your trainer'), pill: 'Limited access',
+        s: 'Recovery, readiness, nutrition consistency — not your full meal detail',
+        detail: [
+          ['Can see', 'Recovery check-ins, readiness, and nutrition consistency.'],
+          ['Cannot see', 'Your full meal photos and per-meal detail stay with you and your coach.'],
+          ['To revoke', 'Leave the practice — ask your trainer, or contact support@onstandard.app.'],
+        ],
+      });
+    }
+    if (S.consent.minor || (RT.consent && RT.consent.guardianEmail)) {
+      rows.push({
+        ic: 'heart', t: RT.consent && RT.consent.guardianEmail ? `Guardian · ${RT.consent.guardianEmail}` : 'Parent / guardian', pill: 'Limited access',
+        s: 'Consent status and account controls — not your day-to-day logs',
+        detail: [
+          ['Can do', 'Approve your account, request your data, or request deletion — legal guardian rights for minors.'],
+          ['Cannot see', 'Your meal photos and daily logs are not mirrored to a guardian view.'],
+        ],
+      });
+    }
+    if (S.coach.hasCoach && S.coach.kind === 'coach') {
+      rows.push({
+        ic: 'grid', t: 'Teammates', pill: 'Score only',
+        s: 'Leaderboard score only — when your coach turns the board on',
+        detail: [
+          ['Can see', 'Your daily score on the team leaderboard, if your coach enables it.'],
+          ['Cannot see', 'Meals, photos, weight, and check-ins are never visible to teammates.'],
+        ],
+      });
+    }
     return `
-    ${backHead('Privacy', 'Who sees what — by role, nothing public', back)}
+    ${backHead('Privacy & visibility', 'Who sees what — nothing is public', back)}
 
+    ${rows.length ? `
     <section class="card" style="padding:6px 16px">
-      ${rows.map(([ic, t, s]) => `
-        <div class="lrow" style="cursor:default">
-          <div class="lic">${icon(ic, 17)}</div>
-          <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
-          <span class="status-pill g">Scoped</span>
-        </div>`).join('')}
-    </section>
+      ${rows.map((r, i) => `
+        <details class="pv-row">
+          <summary class="lrow">
+            <div class="lic">${icon(r.ic, 17)}</div>
+            <div class="lm"><div class="lt">${esc(r.t)}</div><div class="ls">${esc(r.s)}</div></div>
+            <span class="status-pill ${i === 0 ? 'g' : 'b'}">${r.pill}</span>
+          </summary>
+          <div class="pv-detail">
+            ${r.detail.map(([k, v]) => `<div class="pv-line"><b>${esc(k)}</b>${esc(v)}</div>`).join('')}
+          </div>
+        </details>`).join('')}
+    </section>` : `
+    <section class="card pad">
+      <div style="font-size:15px;font-weight:800">No one is connected</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5">Right now your data is visible to you alone. Connecting a coach or trainer shares your execution with them — you'll see exactly what before you join.</div>
+    </section>`}
 
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
       <div><div class="tt">Defaults that protect you</div>
-      <div class="ts">Nothing is public. Meal photos never leave your coach connection. Body photos are coach-only. You can export or delete everything from Account.</div></div>
+      <div class="ts">Nothing is public. Meal photos never leave your coach connection. You can download or delete everything, below.</div></div>
     </div>
 
-    <div style="height:18px"></div>
-    <button class="btn ghost" data-go="${back}">Done</button>
+    <div class="eyebrow">Your data</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" id="pv-export">
+        <div class="lic">${icon('share', 17)}</div>
+        <div class="lm"><div class="lt">Download my data</div><div class="ls">Profile, days, and meal records as a JSON file</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="delete-account">
+        <div class="lic" style="color:var(--red)">${icon('x', 17)}</div>
+        <div class="lm"><div class="lt" style="color:var(--red)">Delete my account</div><div class="ls">Permanent, in-app</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+    </section>
+    <div id="pv-export-note" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;padding:0 2px"></div>
+
+    <div style="height:14px"></div>
+    <button class="btn ghost" data-back="${back}">Done</button>
     <div style="height:10px"></div>
     `;
   },
+  mount(root) {
+    const btn = root.querySelector('#pv-export');
+    const note = root.querySelector('#pv-export-note');
+    if (!btn) return;
+    let busy = false;
+    btn.addEventListener('click', async () => {
+      if (busy) return;
+      busy = true;
+      if (note) { note.style.color = ''; note.textContent = 'Preparing your export…'; }
+      const r = await act.exportMyData();
+      if (note) {
+        note.style.color = r.ok ? 'var(--green-bright)' : '#f87171';
+        note.textContent = r.ok ? 'Export downloaded.' : (r.error || 'Export failed.');
+      }
+      busy = false;
+    });
+  },
 };
 
-/* ---------- Plan & billing (Stripe seam, honest about status) ----------
-   Role-aware: a coach/trainer sees THEIR plan (the team/practice tier) first and stays inside
-   their own chrome; an athlete sees the athlete tier first. Same honest unwired-checkout note. */
+/* ---------- Plan & billing — HIDDEN until billing is functional (spec §21.1). ----------
+   No entry point renders in any profile; this route only exists so a stale deep link
+   (old notification, bookmark) lands safely on the owner's profile instead of a 404. */
 export const billing = {
   tab: 'profile',
   get nav() { return roleNav(); },
   render() {
-    const back = roleProfileRoute();
-    const role = RT.authRole;
-    const staff = role === 'coach' || role === 'trainer';
-    const athleteCard = (mine) => `
-    <section class="card pad"${mine ? ' style="border-color:var(--blue-border)"' : ''}>
-      <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div style="font-size:17px;font-weight:800">Athlete</div>
-        <span class="status-pill ${mine ? 'b' : 'g'}">${mine ? 'Plan · preview' : 'Per athlete'}</span>
-      </div>
-      <div style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.5">
-        Daily score · AI meal analysis · coach connection · full history</div>
-      <div style="font-size:22px;font-weight:800;margin-top:12px">$9.99<small style="font-size:13px;color:var(--text-3)"> / month</small></div>
-    </section>`;
-    const teamCard = (mine) => `
-    <section class="card pad"${mine ? ' style="border-color:var(--blue-border)"' : ''}>
-      <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div style="font-size:17px;font-weight:800">${role === 'trainer' ? 'Practice' : 'Team'}</div>
-        <span class="status-pill ${mine ? 'b' : 'g'}">${mine ? 'Your plan · preview' : 'For coaches'}</span>
-      </div>
-      <div style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.5">
-        Whole roster · coach dashboard · assignments · team billing</div>
-      <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-top:12px">Priced per roster${mine ? '' : ' · coach starts it from the Team view'}</div>
-    </section>`;
-    return `
-    ${backHead('Plan & billing', 'Simple plans, no tricks', back)}
-
-    ${staff ? teamCard(true) : athleteCard(true)}
-    <div style="height:12px"></div>
-    ${staff ? athleteCard(false) : teamCard(false)}
-
-    <div style="height:14px"></div>
-    <div class="sidebox">
-      <div class="req-icon a" style="width:38px;height:38px">${icon('bolt', 17)}</div>
-      <div><div class="tt">Checkout not wired in this prototype</div>
-      <div class="ts">The Stripe seam exists in the app (plans seeded, portal stubbed). Only the charge is unwired, on purpose.</div></div>
-    </div>
-    <div style="height:18px"></div>
-    <button class="btn ghost" data-go="${back}">Done</button>
-    <div style="height:10px"></div>
-    `;
+    location.hash = '#' + roleProfileRoute();
+    return '';
   },
 };
 
@@ -287,25 +318,29 @@ export const notifSettings = {
   tab: 'profile',
   get nav() { return roleNav(); },
   render() {
-    // Athletes arrive from their Notifications screen; staff roles have no such screen — back
-    // goes to their own profile instead of stranding them in athlete chrome.
-    const back = roleNav() === 'athlete' ? 'notifications' : roleProfileRoute();
+    // Fallback only — data-back pops the real origin (Profile or Notifications).
+    const back = roleProfileRoute();
     const p = normalizePrefs(RT.notifPrefs);
     const qf = Math.round(p.quietFrom / 60); // 21 | 22 | 23
     return `
-    ${backHead('Notification Settings', 'Coach sets urgency. You set the quiet.', back)}
+    ${backHead('Notifications', 'Your tone. Your quiet hours. Coach sets urgency.', back)}
 
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Reminders</div><div class="ls">Turning this off cancels everything scheduled</div></div>
+        <div class="lm"><div class="lt">Accountability notifications</div><div class="ls">${p.enabled ? 'On — reminders track what’s actually still open' : 'Paused'}</div></div>
         <div class="seg" style="width:104px" id="ns-enabled"><button class="${p.enabled ? 'on' : ''}">On</button><button class="${p.enabled ? '' : 'on'}">Off</button></div>
+      </div>
+      <div class="lrow" id="ns-haptics" style="cursor:default">
+        <div class="lic">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Haptics</div><div class="ls">A light tick on taps and logs</div></div>
+        <div class="seg" style="width:104px" id="ns-haptics-seg"><button class="${RT.haptics !== false ? 'on' : ''}">On</button><button class="${RT.haptics === false ? 'on' : ''}">Off</button></div>
       </div>
     </section>
 
-    <div class="eyebrow">Reminder pressure</div>
+    <div class="eyebrow">Your tone · changes the wording, never the schedule</div>
     <div class="chip-row" id="ns-pressure" data-toggle-group>
-      <span class="chp">Gentle</span><span class="chp on">Accountable</span><span class="chp">Max pressure</span>
+      <span class="chp">Supportive</span><span class="chp on">Direct</span><span class="chp">Intense</span>
     </div>
 
     <div class="eyebrow">Quiet hours</div>
@@ -323,22 +358,29 @@ export const notifSettings = {
       </div>
     </section>
 
-    <div class="eyebrow">Per requirement${S.coach.hasCoach ? ` · set by ${esc(S.coach.nameMid)}` : ' · from your plan'}</div>
+    <div class="eyebrow">Urgency per requirement${S.coach.hasCoach ? ` · set by ${esc(S.coach.nameMid)}` : ' · from your plan'}</div>
     <section class="card" style="padding:6px 16px">
       ${[['utensils', 'Meals', 'Medium'], ['scale', 'Morning Weight', 'High'], ['moon', 'Recovery Check-In', 'High'], ['droplet', 'Hydration', 'Low']].map(([ic, t, lv]) => `
         <div class="lrow" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div></div>
-          <span class="status-pill ${lv === 'High' ? 'a' : lv === 'Medium' ? 'b' : 'p'}">${lv}</span>
+          <span class="status-pill ${lv === 'High' ? 'a' : lv === 'Medium' ? 'b' : 'p'}" style="display:inline-flex;align-items:center;gap:5px">${icon('lock', 11)} ${lv}</span>
         </div>`).join('')}
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px;padding:0 2px">High urgency gets a last-call warning at the deadline. Medium gets one heads-up. Urgency per requirement belongs to your coach.</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px;padding:0 2px">${icon('lock', 11)} Urgency drives escalation and deadline warnings, and belongs to ${S.coach.hasCoach ? 'your coach' : 'your plan'} — your tone above only changes how reminders are worded. Completed requirements never remind you; finishing one cancels its reminders immediately.</div>
     <div style="height:10px"></div>
     `;
   },
   async mount(root) {
     wireToggles(root);
     wirePressure(root, '#ns-pressure');
+    // Haptics: a REAL device preference — router's buzz() honors it on every tap.
+    const hseg = root.querySelector('#ns-haptics-seg');
+    if (hseg) {
+      const [onB, offB] = hseg.querySelectorAll('button');
+      onB.addEventListener('click', () => act.setHaptics(true));
+      offB.addEventListener('click', () => act.setHaptics(false));
+    }
     // Segmented controls persist straight into RT.notifPrefs and resync the device schedule.
     const seg = (sel, value) => {
       const row = root.querySelector(sel);
@@ -370,7 +412,7 @@ export const deleteAccount = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
       <div><div class="tt">Want your data first?</div>
-      <div class="ts">Export everything from Profile before you delete. Deletion completes within 30 days everywhere, immediately in the app.</div></div>
+      <div class="ts">Download everything from Privacy & visibility before you delete. Deletion completes within 30 days everywhere, immediately in the app.</div></div>
     </div>
     <div style="height:18px"></div>
     <button id="del-acct" class="btn" style="background:var(--red);color:#fff;box-shadow:0 10px 30px rgba(246,87,87,0.3)">${icon('x', 18)} Delete my account</button>
@@ -401,19 +443,35 @@ export const deleteAccount = {
   },
 };
 
-/* ---------- Terms (compliance surface) ---------- */
+/* ---------- Terms & legal (spec §23): separate links to the REAL documents ----------
+   onstandard.app/terms and /privacy are live pages; in-app actions (export, deletion) link
+   to their real screens. The plain-language summary stays — it must always match the docs. */
 export const terms = {
   hideTabs: true,
   render({ sub } = {}) {
     const back = OB_BACK[sub] || roleProfileRoute();
+    const ext = (href, ic, t, s) => `
+      <a class="lrow" href="${href}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+        <div class="lic">${icon(ic, 16)}</div>
+        <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
+        ${icon('share', 15, 'style="color:var(--text-3)"')}
+      </a>`;
     return `
-    ${backHead('Terms & Privacy', 'The short, honest version', back)}
+    ${backHead('Terms & Privacy', 'The documents, and what they mean', back)}
+    <section class="card" style="padding:6px 16px">
+      ${ext('https://onstandard.app/terms', 'clipboard', 'Terms of Service', 'The full agreement')}
+      ${ext('https://onstandard.app/privacy', 'lock', 'Privacy Policy', 'What we collect and why')}
+      <div class="lrow" data-go="privacy"><div class="lic">${icon('share', 16)}</div><div class="lm"><div class="lt">Data export</div><div class="ls">Download everything you own, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('x', 16)}</div><div class="lm"><div class="lt">Account deletion</div><div class="ls">Permanent, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
+      ${ext('mailto:support@onstandard.app', 'message', 'Contact & support', 'support@onstandard.app')}
+    </section>
+    <div class="eyebrow">The short version</div>
     <section class="card" style="padding:6px 16px">
       ${[
-        ['Your photos are yours', 'Meal photos go to your coach connection only. Never public, never sold, never used to train anything without asking.'],
-        ['Minors are protected', 'Under 13 requires a parent or guardian. Parents of minors can request full data access or deletion at any time.'],
-        ['No tracking', 'No ad tracking, no third-party analytics identifiers. The score is the product, not your data.'],
-        ['Health disclaimer', 'OnStandard gives execution feedback, not medical advice. Eating-disorder-pattern flags pause scoring and suggest talking to someone real.'],
+        ['Your photos are yours', 'Meal photos are private to your account and your coach connection. They are not public and not sold.'],
+        ['Health & AI disclaimer', 'OnStandard gives execution feedback, not medical or dietary advice. AI meal reads are estimates — verify anything health-critical yourself.'],
+        ['Children & guardians', 'Under 13 requires a parent or guardian. A guardian of a minor can request access to or deletion of the minor’s data at any time.'],
+        ['No ad tracking', 'No ad trackers or third-party ad identifiers in the app.'],
         ['Delete anytime', 'Full in-app account deletion. Export first if you want your history.'],
       ].map(([t, s]) => `
         <div class="lrow" style="cursor:default">
@@ -421,7 +479,6 @@ export const terms = {
           <div class="lm"><div class="lt">${t}</div><div class="ls" style="white-space:normal;line-height:1.4">${s}</div></div>
         </div>`).join('')}
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px;padding:0 2px">Full legal text ships with the real app at onstandard.app/legal.</div>
     <div style="height:10px"></div>
     `;
   },

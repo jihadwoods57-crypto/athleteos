@@ -782,3 +782,18 @@
 .hist-score.g{color:var(--green-bright)}
 .hist-score.a{color:var(--amber-bright)}
 .hist-score.r{color:var(--red)}
+
+/* ----- Edit Profile school-search suggestions (spec §11.3) ----- */
+.ep-results{margin-top:6px;border:1px solid var(--hairline);border-radius:var(--r-tile);background:var(--surface-1);overflow:hidden}
+.ep-result{padding:11px 14px;font-size:13.5px;font-weight:700;border-bottom:1px solid var(--hairline-soft);cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.ep-result:last-child{border-bottom:none}
+.ep-result:active{background:var(--surface-2)}
+.ep-result span{font-size:11px;font-weight:600;color:var(--text-3);white-space:nowrap}
+
+/* ----- Privacy per-role expanders (spec §20.2) ----- */
+.pv-row summary{list-style:none}
+.pv-row summary::-webkit-details-marker{display:none}
+.pv-detail{padding:2px 4px 12px 44px;border-bottom:1px solid var(--hairline-soft)}
+.pv-row:last-child .pv-detail{border-bottom:none}
+.pv-line{font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;padding:3px 0}
+.pv-line b{display:block;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
