@@ -54,7 +54,7 @@ delivery pipeline. Both kept for reference; neither schedules anything in produc
 | P8 | Recurring requirements go silent if the app isn't opened (all triggers are one-shot for today) | Plan was derived for today only; no tomorrow pre-schedule |
 | P9 | Coach-assigned tasks with a real `due_at` never got a reminder | The plan loop iterated catalog items only; `assignedFromRow` dropped `due_at` |
 | P10 | Coach nudge pushes go nowhere | The shipped app never registers a push token (`getPushToken` lives only in the dormant legacy store); `device_tokens` stays empty |
-| P11 | Server `notifications` rows (nudges) never appear in the athlete's bell | The bell feed is locally derived; nothing reads the table (documented, not fixed here — needs a feed-merge design) |
+| P11 | Server `notifications` rows (nudges) never appear in the athlete's bell | The bell feed is locally derived; nothing read the table. **CLOSED same day** (`js/notif-feed.js` + `fetchMyNotifications`/`markMyNotificationsRead`): the bell merges server rows with real per-row read state; opening it marks them read |
 
 Non-problems verified: no duplicate *scheduling* jobs (cancel-all-then-reschedule with unique
 identifiers `exec-<id>-<atISO>`); completions cancel correctly in-app (every completion path
@@ -132,7 +132,7 @@ Notification Settings screen now persists all of it (no more "preview, doesn't s
    treated as intentional (don't nag ghosts), and it bounds staleness after plan edits.
 4. Weekly Check-In remains outside the reminder engine (its completion is untracked in v1 —
    same exclusion as before).
-5. Server nudge rows still don't render in the athlete bell feed (P11) — needs a feed-merge
-   design; deliberately out of scope here.
+5. ~~Server nudge rows still don't render in the athlete bell feed (P11)~~ — closed same
+   day; see P11 above.
 6. Legacy `src/core/reminders.ts` path left dormant (still referenced by dormant screens);
    recommend deleting with the src/screens retirement, not piecemeal.
