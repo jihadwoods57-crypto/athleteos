@@ -50,6 +50,7 @@ export const MEAL = {
   key: null, mealType: null, photoBase64: null, photoDataUrl: null, result: null, live: true,
   questions: null, photoHash: null, source: null, takenAt: null, capturedAtMin: null,
   userNote: null, // athlete-entered invisible details (oil, sauce, prep) from the review step (spec §5.5)
+  photoQ: null,   // measured capture stats {luma, sharpness} — real numbers from the capture canvas
 };
 
 /* In-flight capture persistence (sessionStorage, NOT RT). The MEAL object holds the staged photo +
@@ -352,6 +353,7 @@ export function mealDetail(slot) {
     takenAt: meta.takenAt || null,   // EXIF capture time of a gallery pick
     corrections: Array.isArray(meta.corrections) ? meta.corrections : [], // athlete corrections (audit)
     orig: meta.orig || null,         // the AI's original estimate, frozen at first correction
+    photoQ: meta.photoQ || null,     // measured capture quality {luma, sharpness} (or null)
     analysis: meta.analysis || '',   // the AI's detailed paragraph (0062), '' pre-migration
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
     fiber: meta.fiber || 0,
@@ -486,6 +488,7 @@ export const act = {
       live: MEAL.live !== false, source, minutesLate,
       photoHash: hasPhoto ? MEAL.photoHash : null,
       takenAt: hasPhoto ? MEAL.takenAt : null,
+      ...(hasPhoto && MEAL.photoQ ? { photoQ: MEAL.photoQ } : {}),
     };
     const userNote = MEAL.key === slot ? MEAL.userNote : null;
     const meta = MEAL.result
@@ -680,6 +683,7 @@ export const act = {
     MEAL.source = MEAL.live ? 'live' : 'gallery';
     MEAL.capturedAtMin = minutesNow();
     MEAL.takenAt = (extra && extra.takenAt) || null; // EXIF time of a gallery pick (or null)
+    MEAL.photoQ = (extra && extra.stats) || null;    // measured brightness/sharpness (or null)
     MEAL.photoHash = null;
     // Hash the downscaled JPEG in the background (best-effort) so the reuse pre-check and the
     // insert are ready by the time the athlete confirms. checkPhotoReuse() below awaits it.
@@ -780,7 +784,7 @@ export const act = {
     MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null;
     MEAL.result = null; MEAL.live = true; MEAL.questions = null;
     MEAL.photoHash = null; MEAL.source = null; MEAL.takenAt = null; MEAL.capturedAtMin = null;
-    MEAL.userNote = null;
+    MEAL.userNote = null; MEAL.photoQ = null;
     saveMeal();
   },
   /** Review-step note (spec §5.5): what the photo can't show. Rides the analysis request and

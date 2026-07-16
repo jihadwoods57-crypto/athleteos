@@ -407,7 +407,7 @@ export const thread = {
     // number, each marked exact or estimated — same math as the feedback, so they agree.
     const rub = scoreRubric({
       quality: M.score, minutesLate: M.minutesLate, macros: M.macros, fiber: M.fiber,
-      detected: M.detectedRich, source: M.source, userNote: M.userNote,
+      detected: M.detectedRich, source: M.source, userNote: M.userNote, photoQ: M.photoQ,
     });
     const RUB_DOT = { met: 'g', partial: 'a', miss: 'r' };
     const photoBlock = `

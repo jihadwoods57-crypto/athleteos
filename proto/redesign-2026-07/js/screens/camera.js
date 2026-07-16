@@ -2,10 +2,13 @@ import { S, RT, act, MEAL, slotTitle } from '../state.js';
 import { icon } from '../icons.js';
 import { esc, safeImg, nonLiveBadge } from '../components.js';
 import { photoAgeMinutes, describePhotoAge } from '../photo-hash.js';
+import { photoStats, photoQuality } from '../meal-intel.js';
 
 /* ---- shared JPEG encode: one canvas pipeline for live frames AND picked files ----
    Downscale (max side) + JPEG-encode → { dataUrl, base64 }. Keeps the upload well under the
-   8MB analyze-meal limit and fast to send. */
+   8MB analyze-meal limit and fast to send. Also MEASURES photo quality (brightness + edge
+   energy on a 96px sample of the same canvas — real numbers, ~1ms) so the review step can
+   give honest capture feedback and the rubric can carry a measured photo-quality row. */
 function encodeToJpeg(source, srcW, srcH, maxDim, quality) {
   let w = srcW, h = srcH;
   const scale = Math.min(1, maxDim / Math.max(w, h));
@@ -13,7 +16,16 @@ function encodeToJpeg(source, srcW, srcH, maxDim, quality) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   cv.getContext('2d').drawImage(source, 0, 0, w, h);
   const dataUrl = cv.toDataURL('image/jpeg', quality);
-  return { dataUrl, base64: dataUrl.split(',')[1] };
+  let stats = null;
+  try {
+    const sw = Math.max(1, Math.min(96, w)), sh = Math.max(1, Math.round(sw * (h / w)));
+    const sc = document.createElement('canvas'); sc.width = sw; sc.height = sh;
+    const sctx = sc.getContext('2d');
+    sctx.drawImage(cv, 0, 0, sw, sh);
+    const d = sctx.getImageData(0, 0, sw, sh);
+    stats = photoStats(d.data, sw, sh);
+  } catch { /* measurement is best-effort — capture always proceeds */ }
+  return { dataUrl, base64: dataUrl.split(',')[1], stats };
 }
 function downscaleToJpeg(file, maxDim, quality) {
   return new Promise((resolve, reject) => {
@@ -172,8 +184,8 @@ export default {
             takenAt = exifDateTimeOriginal(new Uint8Array(await f.arrayBuffer()));
           } catch { /* EXIF absent/unreadable — normal, no badge */ }
         }
-        const { base64, dataUrl } = await downscaleToJpeg(f, 1000, 0.82);
-        act.captureMeal(base64, dataUrl, sub || undefined, live, { takenAt });
+        const { base64, dataUrl, stats } = await downscaleToJpeg(f, 1000, 0.82);
+        act.captureMeal(base64, dataUrl, sub || undefined, live, { takenAt, stats });
         window.__go('camera-confirm');
       } catch { failNote(); }
     };
@@ -182,8 +194,8 @@ export default {
       try {
         hapticTap('medium');
         if (flash) { flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on'); }
-        const { base64, dataUrl } = encodeToJpeg(video, video.videoWidth, video.videoHeight, 1000, 0.82);
-        act.captureMeal(base64, dataUrl, sub || undefined, true);
+        const { base64, dataUrl, stats } = encodeToJpeg(video, video.videoWidth, video.videoHeight, 1000, 0.82);
+        act.captureMeal(base64, dataUrl, sub || undefined, true, { stats });
         stopStream();
         // Let the flash read as a shutter click before the route swap.
         setTimeout(() => window.__go('camera-confirm'), 120);
@@ -237,6 +249,14 @@ export const cameraConfirm = {
         <div class="cc-chips">
           <span class="cc-chip">Drink</span><span class="cc-chip">Sauce</span><span class="cc-chip">Side</span><span class="cc-chip">Supplement</span>
         </div>
+        ${(() => {
+          // Measured capture feedback (spec §4.7): brightness + sharpness from the capture
+          // canvas — a gentle nudge, never a block. Silent when the photo reads clear.
+          const pq = photoQuality(MEAL.photoQ);
+          return pq && pq.state !== 'met'
+            ? `<div style="font-size:12px;font-weight:700;color:var(--amber-bright);margin-top:8px">${esc(pq.hint)}</div>`
+            : '';
+        })()}
       </div>
       <details class="cc-details">
         <summary>${icon('edit', 15)} Add details AI may not know <span class="opt">Optional</span></summary>
@@ -276,8 +296,8 @@ export const cameraConfirm = {
           const { exifDateTimeOriginal } = await import('../photo-hash.js');
           takenAt = exifDateTimeOriginal(new Uint8Array(await f.arrayBuffer()));
         } catch { /* EXIF absent — no badge */ }
-        const { base64, dataUrl } = await downscaleToJpeg(f, 1000, 0.82);
-        act.captureMeal(base64, dataUrl, MEAL.key || undefined, false, { takenAt });
+        const { base64, dataUrl, stats } = await downscaleToJpeg(f, 1000, 0.82);
+        act.captureMeal(base64, dataUrl, MEAL.key || undefined, false, { takenAt, stats });
         window.__render && window.__render();
       } catch { /* keep the current photo */ }
     };

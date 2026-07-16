@@ -225,3 +225,60 @@ describe('private notes stay out of the shared thread', () => {
     expect(privateNotes(rows).map((r: any) => r.text)).toEqual(['watch portions this week']);
   });
 });
+
+describe('produce-below-target pattern (real fiber history, 0070)', () => {
+  // @ts-ignore
+  const { mealPatterns: mp } = require('../../proto/redesign-2026-07/js/meal-intel.js');
+  const meal = (d: string, fiber: number | null) => ({ type: 'lunch', day_date: d, protein: 45, quality: 80, minutes_late: 5, fiber });
+  test('3 low-fiber lunches with REAL fiber data trigger the pattern', () => {
+    const p = mp([meal('2026-07-13', 2), meal('2026-07-14', 1), meal('2026-07-15', 3)], { slot: 'lunch' });
+    expect(p.join(' ')).toMatch(/Produce has been light/);
+  });
+  test('null fiber rows (pre-0070) are excluded — no pattern from missing data', () => {
+    const p = mp([meal('2026-07-13', null), meal('2026-07-14', null), meal('2026-07-15', 2)], { slot: 'lunch' });
+    expect(p.join(' ')).not.toMatch(/Produce/);
+  });
+  test('one good-fiber meal breaks the claim', () => {
+    const p = mp([meal('2026-07-13', 2), meal('2026-07-14', 8), meal('2026-07-15', 2)], { slot: 'lunch' });
+    expect(p.join(' ')).not.toMatch(/Produce/);
+  });
+});
+
+describe('photo quality (measured, conservative)', () => {
+  // @ts-ignore
+  const { photoStats: ps, photoQuality: pq, scoreRubric: sr } = require('../../proto/redesign-2026-07/js/meal-intel.js');
+  const flat = (w: number, h: number, v: number) => {
+    const a = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < a.length; i += 4) { a[i] = v; a[i + 1] = v; a[i + 2] = v; a[i + 3] = 255; }
+    return a;
+  };
+  const checker = (w: number, h: number) => {
+    const a = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const v = (x + y) % 2 ? 230 : 25;
+      const i = (y * w + x) * 4; a[i] = v; a[i + 1] = v; a[i + 2] = v; a[i + 3] = 255;
+    }
+    return a;
+  };
+  test('photoStats measures brightness and edge energy from real pixels', () => {
+    const dark = ps(flat(8, 8, 20), 8, 8)!;
+    expect(dark.luma).toBe(20);
+    expect(dark.sharpness).toBe(0); // flat = zero edges
+    const sharp = ps(checker(8, 8), 8, 8)!;
+    expect(sharp.sharpness).toBeGreaterThan(100); // checkerboard = max edges
+  });
+  test('classification: dark → Dim, flat → Soft, contrasty → Clear; null → no claim', () => {
+    expect(pq(ps(flat(8, 8, 20), 8, 8))!.label).toBe('Dim');
+    expect(pq(ps(flat(8, 8, 140), 8, 8))!.label).toBe('Soft');
+    expect(pq(ps(checker(8, 8), 8, 8))!.label).toBe('Clear');
+    expect(pq(null)).toBeNull();
+  });
+  test('the rubric carries a measured photo-quality row only when a measurement exists', () => {
+    const base = { quality: 84, minutesLate: 0, macros: { protein: 46, carbs: 62, fat: 22 }, fiber: 4, detected: [{ name: 'Chicken', confidence: 'high' }], source: 'live' };
+    const withQ = sr({ ...base, photoQ: { luma: 130, sharpness: 12 } });
+    const row = withQ.rows.find((r: any) => r.k === 'Photo quality')!;
+    expect(row.exact).toBe(true);
+    expect(row.note).toMatch(/measured/);
+    expect(sr(base).rows.find((r: any) => r.k === 'Photo quality')).toBeUndefined();
+  });
+});

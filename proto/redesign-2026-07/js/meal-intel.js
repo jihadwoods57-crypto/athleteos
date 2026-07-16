@@ -148,7 +148,7 @@ const GOAL_TIE = {
   gain: 'keeps the calorie floor and the protein climbing',
   lose: 'keeps you inside the window without starving the work',
   maintain: 'holds the line, and consistency is the whole game',
-  perform: 'fuels the next session and speeds recovery',
+  perform: 'fuels performance and speeds recovery',
   build: 'keeps the build fueled, never under',
   health: 'buys steady energy and habits that hold',
 };
@@ -474,6 +474,16 @@ export function mealPatterns(recentMeals, { slot, mealProteinBar } = {}) {
       if (nowQ - avg >= 8) out.push(`This ${slotName} scored ${Math.round(nowQ - avg)} points above your recent average.`);
     }
   }
+
+  // Produce below target lately: needs 3+ same-slot meals with REAL fiber history
+  // (meals.fiber, 0070 — null rows from before the column are excluded, never guessed).
+  const fibered = rows.filter((r) => typeof r.fiber === 'number' && isFinite(r.fiber));
+  if (fibered.length >= 3) {
+    const recent3 = fibered.slice(-3);
+    if (recent3.every((r) => r.fiber < 4)) {
+      out.push(`Produce has been light in your last ${recent3.length} ${plural} — a fruit or vegetable each time changes that fast.`);
+    }
+  }
   return out.slice(0, 2);
 }
 
@@ -484,7 +494,7 @@ export function mealPatterns(recentMeals, { slot, mealProteinBar } = {}) {
    facts) or estimated (macro alignment comes from photo estimates). It reuses the
    same math as qualityReason so the rubric can never contradict the feedback.
    ================================================================================ */
-export function scoreRubric({ quality, minutesLate, macros, fiber, detected, source, userNote } = {}) {
+export function scoreRubric({ quality, minutesLate, macros, fiber, detected, source, userNote, photoQ } = {}) {
   const m = macros || {};
   const p = Math.max(0, Number(m.protein) || 0);
   const c = Math.max(0, Number(m.carbs) || 0);
@@ -539,6 +549,17 @@ export function scoreRubric({ quality, minutesLate, macros, fiber, detected, sou
     state: noPhoto ? 'partial' : 'met',
     note: noPhoto ? 'No photo — entered by hand' : (userNote ? 'Photo plus your added details' : 'Photo submitted'),
   });
+
+  // Photo quality — MEASURED at capture (brightness + edge energy), only when a real
+  // measurement exists; never guessed for old rows or hand-entered meals.
+  const pq = photoQuality(photoQ);
+  if (pq && !noPhoto) {
+    rows.push({
+      k: 'Photo quality', exact: true,
+      state: pq.state,
+      note: pq.label === 'Clear' ? 'Clear (measured)' : `${pq.label} (measured) — a clearer photo sharpens the read`,
+    });
+  }
 
   return {
     rows,
@@ -721,4 +742,37 @@ export function coachThreadStatus({ mealId, hasCoach, comments, dayReviewed } = 
   if (dayReviewed) return { state: 'reviewed', label: 'Reviewed by Coach' };
   if (mealId) return { state: 'sent', label: 'Sent to Coach' };
   return { state: 'none', label: '' };
+}
+
+/* ================================================================================
+   PHOTO QUALITY (follow-through 2026-07-16) — a MEASURED signal, not a guess.
+   photoStats reads an RGBA pixel array (the capture pipeline's own downscaled
+   canvas) and returns two numbers: mean luma (brightness, 0-255) and mean local
+   gradient (edge energy — sharp photos have high edge energy, soft/blurry ones
+   low). photoQuality classifies them conservatively: only clearly dark or clearly
+   soft images get flagged, and a flag never blocks logging.
+   ================================================================================ */
+export function photoStats(rgba, width, height) {
+  if (!rgba || !width || !height || rgba.length < width * height * 4) return null;
+  let lumaSum = 0, gradSum = 0, gradN = 0;
+  const luma = (i) => 0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const l = luma(i);
+      lumaSum += l;
+      if (x + 1 < width) { gradSum += Math.abs(l - luma(i + 4)); gradN++; }
+      if (y + 1 < height) { gradSum += Math.abs(l - luma(i + width * 4)); gradN++; }
+    }
+  }
+  const n = width * height;
+  return { luma: Math.round(lumaSum / n), sharpness: gradN ? Math.round((gradSum / gradN) * 10) / 10 : 0 };
+}
+
+/** Conservative classification of measured stats. Null stats → null (no claim). */
+export function photoQuality(stats) {
+  if (!stats || typeof stats.luma !== 'number' || typeof stats.sharpness !== 'number') return null;
+  if (stats.luma < 50) return { label: 'Dim', state: 'partial', hint: 'Photo looks dark — brighter light gets a sharper read. Logging still counts.' };
+  if (stats.sharpness < 3) return { label: 'Soft', state: 'partial', hint: 'Photo looks blurry — hold steady for a sharper read. Logging still counts.' };
+  return { label: 'Clear', state: 'met', hint: '' };
 }

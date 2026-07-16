@@ -496,6 +496,7 @@ export function dayLogMeal(userId, key, macros, meta) {
     if (Array.isArray(meta.foods)) m.foods = meta.foods.slice(0, 8);
     if (meta.note) m.note = meta.note;
     if (meta.userNote) m.userNote = String(meta.userNote).slice(0, 240); // athlete's review-step details (§5.5)
+    if (meta.photoQ && typeof meta.photoQ.luma === 'number') m.photoQ = { luma: Math.round(meta.photoQ.luma), sharpness: Math.round((meta.photoQ.sharpness || 0) * 10) / 10 }; // measured capture quality
     if (meta.fiber != null) m.fiber = meta.fiber;
     if (Array.isArray(meta.highlights)) m.highlights = meta.highlights.slice(0, 3);
     if (Array.isArray(meta.detectedRich)) m.detectedRich = meta.detectedRich.slice(0, 8);
@@ -552,6 +553,8 @@ export async function insertMeal(userId, key, macros, meta, photoPath) {
       minutes_late: (typeof m.minutesLate === 'number' && isFinite(m.minutesLate))
         ? Math.max(0, Math.min(1440, Math.round(m.minutesLate))) : null,
       photo_taken_at: m.takenAt || null,
+      // 0070: fiber history powers the "produce below target lately" pattern.
+      fiber: (typeof m.fiber === 'number' && isFinite(m.fiber)) ? Math.max(0, Math.min(60, Math.round(m.fiber))) : null,
     };
     let { data, error } = await sb.from('meals').insert(row).select('id').maybeSingle();
     if (error && error.code === '23505') return { dup: true }; // photo reused — server wall held
