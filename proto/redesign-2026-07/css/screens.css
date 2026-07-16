@@ -549,7 +549,7 @@
 .xcount .xdl{font-size:12px;color:var(--text-2);font-weight:700}
 .xcta{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;box-sizing:border-box;padding:14px;border:none;border-radius:var(--r-btn);background:linear-gradient(150deg,var(--amber-bright),var(--amber));color:#1A1204;font-family:var(--font);font-size:15px;font-weight:800;box-shadow:0 12px 34px rgba(245,165,36,0.30);cursor:pointer}
 .xnow.red .xcta{background:linear-gradient(150deg,#F87171,var(--red));color:#1A0505;box-shadow:0 12px 34px rgba(246,87,87,0.28)}
-.xgrp{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);margin:6px 4px -4px}
+.xgrp{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);margin:12px 4px 7px}
 /* WS6 collapse primitive: a <details> whose summary reuses the .xgrp header look. Native
    toggle, no JS state; chevron rotates on open; body keeps the ladder's row rhythm. */
 .xcollapse{margin:0}
