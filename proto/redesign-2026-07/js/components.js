@@ -160,12 +160,13 @@ export function logoMark(size = 96, uid = 'lm') {
   </svg>`;
 }
 
-export function appHead() {
+export function appHead(sub) {
   const n = S.unreadNotifs;
   return `<header class="apphead">
     <div>
       <div class="greeting">${S.greeting},</div>
       <div class="name">${esc(S.athlete.first)}</div>
+      ${sub ? `<div class="apphead-sub">${esc(sub)}</div>` : ''}
     </div>
     <div class="actions">
       <div class="iconbtn" data-go="notifications" role="button" aria-label="${n ? `Notifications, ${n} unread` : 'Notifications'}">${icon('bell', 20)}${n ? `<span class="dot">${n > 9 ? '9+' : n}</span>` : ''}</div>

@@ -64,9 +64,9 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     const dueLabel = req.window.label || `due ${fmtMin(req.window.due)}`;
     const impact = IMPACT_LABEL[req.impact.comp || req.impact.kind] || '';
     let sub;
-    if (state === 'done' || state === 'done_late') sub = st.at ? `Logged ${st.at}${st.late ? ' · late' : ''}` : (isHydro ? `${st.oz} oz · goal hit` : req.proof === 'form' ? 'Submitted' : 'In');
+    if (state === 'done' || state === 'done_late') sub = st.at ? `Logged at ${st.at}${st.late ? ' · late' : ''}` : (isHydro ? `${st.oz} oz · goal hit` : req.proof === 'form' ? 'Submitted' : 'In');
     else if (state === 'overdue') sub = `Was due ${fmtMin(req.window.due)} — still counts, log it late`;
-    else if (state === 'locked') sub = `Opens ${fmtMin(req.window.open)}`;
+    else if (state === 'locked') sub = `Opens at ${fmtMin(req.window.open)}`;
     else if (isHydro) sub = `${st.oz || 0} of 120 oz · ${dueLabel}`;
     else sub = dueLabel;
     return {

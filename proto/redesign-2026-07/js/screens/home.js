@@ -4,39 +4,53 @@ import { appHead, scoreRing, animateRing, esc, safeImg, collapseSection } from '
 import { DAY } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
 
-// Per-type icon media (was a hardcoded hydration droplet for EVERY photo-less card —
-// Recovery and Morning Weight rendered as water). Tint follows the type's accent.
+// Per-type icon media tints (a photo-less card shows its own icon — never someone else's).
 const ACT_MEDIA = {
   droplet: ['rgba(56,189,248,0.28)', 'rgba(37,99,235,0.16)', 'var(--cyan)'],
   moon: ['rgba(168,85,247,0.24)', 'rgba(59,130,246,0.10)', 'var(--purple-bright)'],
   scale: ['rgba(59,130,246,0.22)', 'rgba(37,99,235,0.10)', 'var(--blue-bright)'],
   utensils: ['rgba(245,165,36,0.22)', 'rgba(245,165,36,0.08)', 'var(--amber-bright)'],
 };
-function actCard(a) {
-  let media;
-  if (a.img && safeImg(a.img)) {
-    media = `<div class="act-media" style="background-image:url('${safeImg(a.img)}')">${a.dim ? `<div class="dim">${icon('moon', 30)}</div>` : ''}</div>`;
-  } else {
-    const [c1, c2, fg] = ACT_MEDIA[a.icon] || ACT_MEDIA.droplet;
-    media = `<div class="act-media icon" style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 34)}</div>`;
-  }
-  return `<div class="act-card" ${a.route ? `data-go="${a.route}"` : ''}>
-    <div class="act-time">${a.time}</div>
+// Micro-label above a non-quality result value — names what the number IS.
+const RES_K = { 'Hydration': 'Total today', 'Morning Weight': 'This morning', 'Recovery Check-In': 'Status' };
+/* Recent RESULTS card (2-up grid): photo or icon media, then the outcome as labeled
+   key/value lines. Meals show BOTH numbers — Meal Quality (the plate read, tiered color)
+   and the honest computed Daily Score credit — because keeping those two ideas separate
+   is the core of how the product grades. */
+function resCard(a) {
+  const [c1, c2, fg] = ACT_MEDIA[a.icon] || ACT_MEDIA.droplet;
+  const media = a.img && safeImg(a.img)
+    ? `<div class="res-media" style="background-image:url('${safeImg(a.img)}')"></div>`
+    : `<div class="res-media icon" style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 30)}</div>`;
+  const metrics = a.qualityLabel
+    ? `<div class="res-m"><span class="k">Meal Quality</span><span class="v ${a.vClass}">${a.value}<small>${a.unit}</small></span></div>
+      ${a.impact > 0 ? `<div class="res-m"><span class="k">Daily Score</span><span class="v g">+${a.impact}</span></div>` : ''}`
+    : `<div class="res-m"><span class="k">${RES_K[a.type] || 'Status'}</span><span class="v ${a.vClass}">${a.value}</span></div>`;
+  return `<div class="res-card" ${a.route ? `data-go="${a.route}"` : ''}>
     ${media}
-    <div class="act-body">
-      <div class="act-type">${a.type}</div>
-      <div class="act-value ${a.vClass}">${a.value}${a.unit ? `<small>${a.unit}</small>` : ''}</div>
+    <div class="res-body">
+      <div class="res-t">${esc(a.type)}</div>
+      <div class="res-time">${esc(a.time)}</div>
+      ${metrics}
     </div>
   </div>`;
 }
+// Results are things that HAPPENED — a not-yet-submitted check-in isn't one.
+const recentResults = () => {
+  const rows = S.activity.filter((a) => !a.dim);
+  return rows.length ? `
+    <div class="eyebrow">Recent Results <span class="link" data-go="progress">View all</span></div>
+    <div class="res-grid">${rows.map(resCard).join('')}</div>` : '';
+};
 
 const whyHtml = (why) => esc(why).replace(/\*\*(.+?)\*\*/, '<b>$1</b>');
+
+const VERB = { form: 'Complete', scale: 'Log', photo: 'Log', counter: 'Add' };
+const CTA_ICON = { form: 'moon', scale: 'scale', photo: 'camera', counter: 'droplet' };
 
 function nowCard(e) {
   const n = e.now;
   const od = n.state === 'overdue';
-  const VERB = { form: 'Complete', scale: 'Log', photo: 'Log', counter: 'Add' };
-  const CTA_ICON = { form: 'moon', scale: 'scale', photo: 'camera', counter: 'droplet' };
   // check-type / assigned items (no proof) read "Mark ⟨title⟩ done"
   const isCheck = !n.proof || n.proof === 'check';
   const label = isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}${od ? ' late' : ''}`;
@@ -109,22 +123,82 @@ function streakPill() {
   return S.streakDays > 0 ? `<span style="font-size:11px;font-weight:700;color:var(--text-2)">🔥 ${S.streakDays} day streak</span>` : '';
 }
 
-function strip(e) {
-  // "finish the day at N" — the projection is a FINAL score, not points remaining; the old
-  // "reach 67 today" read both ways. The chevron + pressed state make the whole strip's
-  // tap-through to the breakdown discoverable without a separate button.
-  return `<section class="xstrip" data-go="score-breakdown" role="button" aria-label="Today's score ${e.score} — open score breakdown">
-    ${scoreRing({ score: e.score, size: 64, stroke: 7, glow: false, showCenter: false, centerNum: true, uid: 'strip' })}
-    <div class="xmid">
+/* One line under the greeting that orients before the number does. */
+function headSub(e) {
+  if (e.celebration) return 'Every requirement is in';
+  const left = e.total - e.met;
+  return `${left} requirement${left === 1 ? '' : 's'} remaining today`;
+}
+
+/* The single next move, named inside the score card. It deliberately repeats what the NOW
+   card below is — the score card TELLS you, the NOW card is where you DO it. */
+function nextLabel(e) {
+  const n = e.now;
+  if (n) return (!n.proof || n.proof === 'check') ? `Mark ${n.title} done` : `${VERB[n.proof]} ${n.title}`;
+  const hydro = e.items.find((i) => i.id === 'hydration' && i.state === 'ready');
+  if (hydro) return 'Complete hydration';
+  const locked = e.later.find((i) => i.state === 'locked');
+  if (locked) return `${locked.title} · ${locked.sub.charAt(0).toLowerCase()}${locked.sub.slice(1)}`;
+  return '';
+}
+
+/* Daily Score hero — the score owns the screen. Ring keeps the signature green→teal→blue
+   sweep (status lives in the tier pill, never in the ring color). Label, completion,
+   ceiling, and the next move all live inside the one card; the whole surface opens the
+   breakdown (chevron + press state carry the affordance). */
+function hero(e) {
+  const next = nextLabel(e);
+  return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
+    ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+    <div class="xh-body">
+      <div class="xh-k">Daily Score</div>
       <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${streakPill()}</div>
-      <div class="xsegs">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>
-      <div class="seglabel"><b>${e.met}</b> of ${e.total} in · finish the day at <b>${e.possible}</b></div>
+      <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> completed</div>
+      <div class="xh-line dim">Max possible today: <b>${e.possible}</b></div>
+      ${next ? `<div class="xh-next">${icon('arrowRight', 14)}<span>Next: <b>${esc(next)}</b></span></div>` : ''}
     </div>
     <span class="xstrip-chev">${icon('chevron', 16)}</span>
   </section>`;
 }
 
-// Streak-at-risk ribbon: a sibling of strip() (never a child — strip() owns
+/* Grouped-card row: Upcoming/Completed rows share ONE card, split by hairlines, instead of
+   a stack of separate bordered cards. Completed rows read status-first (green check) with a
+   chevron into the receipt. */
+const grow = (i, { hidePill, chev, checkIcon } = {}) => `<div class="xg-row" data-go="${i.route}">
+    <div class="xico sm ${i.color}">${icon(checkIcon ? 'checkCircle' : i.icon, 17)}</div>
+    <div class="xr"><div class="xa">${esc(i.title)}</div><div class="xb">${esc(i.sub)}</div></div>
+    ${hidePill ? '' : `<span class="xpill ${i.color}">${i.pill}</span>`}
+    ${chev ? icon('chevron', 16, 'style="color:var(--text-3)"') : ''}
+  </div>`;
+
+/* Hydration as the NOW card when nothing required is actionable: the one thing the athlete
+   can do right now gets the full inline control — quick-adds, live progress, and a real
+   custom amount — no detour through the Action Hub. Never rendered when a required item
+   holds the NOW slot (hydration then stays a quiet Upcoming row). */
+function hydroNow(h) {
+  const pct = Math.min(100, Math.round(((h.oz || 0) / 120) * 100));
+  return `<div class="xgrp now">Now</div>
+  <section class="hyd-now">
+    <div class="hn-top">
+      <div class="xico gold">${icon('droplet', 19)}</div>
+      <div class="xr"><div class="xa">Hydration</div><div class="xb" id="hyd-sub">${esc(h.sub)}</div></div>
+      <span class="hn-pct" id="hyd-pct">${pct}%</span>
+    </div>
+    <div class="hn-bar" role="progressbar" aria-valuenow="${h.oz || 0}" aria-valuemin="0" aria-valuemax="120" aria-label="Hydration progress"><i id="hyd-fill" style="width:${pct}%"></i></div>
+    <div class="hn-chips">
+      <button class="hchip" data-water="8">+8 oz</button>
+      <button class="hchip" data-water="16">+16 oz</button>
+      <button class="hchip" data-water="24">+24 oz</button>
+      <button class="hchip ghost" id="hyd-other" aria-expanded="false">Other</button>
+    </div>
+    <div class="hn-custom" id="hyd-custom" hidden>
+      <input id="hyd-oz" type="number" inputmode="numeric" min="1" max="200" placeholder="How many oz?" aria-label="Ounces of water">
+      <button class="hchip solid" id="hyd-add">Add</button>
+    </div>
+  </section>`;
+}
+
+// Streak-at-risk ribbon: a sibling of hero() (never a child — hero() owns
 // data-go="score-breakdown" and a nested data-go would fight it, though the router's
 // per-element stopPropagation would keep them independent regardless). Self-retires once
 // today counts, the streak hasn't reached day 2, or the day is already a celebration (that
@@ -158,7 +232,7 @@ function celebration(e) {
     <div style="height:14px"></div>
     <div class="eyebrow" style="align-self:flex-start">Today's record</div>
     <div class="xrecord" style="width:100%;box-sizing:border-box">
-      ${e.doneItems.map((d) => `<div class="xrec"><span class="xtk">${icon('check', 12)}</span>${esc(d.title)}<span class="xtm">${esc((d.sub || '').replace('Logged ', ''))}</span></div>`).join('')}
+      ${e.doneItems.map((d) => `<div class="xrec"><span class="xtk">${icon('check', 12)}</span>${esc(d.title)}<span class="xtm">${esc((d.sub || '').replace(/^Logged at /, ''))}</span></div>`).join('')}
     </div>
     ${RT.hydrationOz < 120 ? `<div style="width:100%;margin-top:10px"><div class="xrow-item" style="cursor:default"><div class="xico sm gray">${icon('droplet', 16)}</div><div class="xr"><div class="xa">Add water</div><div class="xb" id="home-water-sub">${RT.hydrationOz} of 120 oz — optional, still counts with coach</div></div><div class="water-btns"><span class="wb2" data-water="8">+8</span><span class="wb2" data-water="16">+16</span></div></div></div>` : ''}
   </div>`;
@@ -170,9 +244,10 @@ export default {
     const e = S.exec;
 
     if (RT.day0 && !RT.day0Breakfast) {
+      const rest = e.items.filter((i) => i.id !== 'breakfast');
       return `
-      ${appHead()}
-      ${strip(e)}
+      ${appHead(headSub(e))}
+      ${hero(e)}
       ${syncBanner()}
       <section class="xnow">
         <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>
@@ -181,9 +256,9 @@ export default {
         <div style="height:10px"></div>
         <button class="xcta" data-go="camera">${icon('camera', 18)} Log First Meal</button>
       </section>
-      <div class="xgrp">Later</div>
-      ${e.items.filter((i) => i.id !== 'breakfast').map((i) => row(i, i.state === 'locked')).join('')}
-      <div class="eyebrow">Recent Activity</div>
+      <div class="xgrp">Upcoming</div>
+      <div class="xgroup">${rest.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>
+      <div class="eyebrow">Recent Results</div>
       <div class="state-demo"><div class="sd-ic">${icon('camera', 24)}</div><div class="sd-t">No logs yet</div>
       <div class="sd-s">Your proof trail builds here as you log. Take a photo to begin today's standard.</div></div>
       <div style="height:8px"></div>`;
@@ -192,12 +267,11 @@ export default {
     if (e.celebration) {
       const t = S.trustPass;
       return `
-      ${appHead()}
+      ${appHead(headSub(e))}
       ${celebration(e)}
       <div id="seen-row" style="width:100%"></div>
       ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
-      <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
-      <div class="hscroll">${S.activity.map(actCard).join('')}</div>
+      ${recentResults()}
       <div style="height:20px"></div>`;
     }
 
@@ -228,27 +302,32 @@ export default {
         ? `<div class="xrow-item" data-go="trust"><div class="xico sm green">${icon('shield', 16)}</div><div class="xr"><div class="xa">Trust Pass · day ${t.day} of ${t.length}</div><div class="xb">Camera-free today</div></div><span class="xpill green">Active</span></div>` : '',
     ].filter(Boolean).join('');
 
-    const laterHtml = e.later.length
-      ? collapseSection('later', 'Later', e.later.length, e.later.map((i) => row(i, i.state === 'locked')).join(''), open.later === true)
+    // Hydration takes the NOW slot only when no required item holds it — the one actionable
+    // thing on an otherwise-locked screen gets the inline control instead of hiding in a fold.
+    const hydro = e.items.find((i) => i.id === 'hydration');
+    const hydroIsNow = !e.now && hydro && hydro.state === 'ready';
+    const upcoming = e.later.filter((i) => !(hydroIsNow && i.id === 'hydration'));
+
+    const laterHtml = upcoming.length
+      ? collapseSection('later', 'Upcoming', upcoming.length, `<div class="xgroup">${upcoming.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>`, open.later === true)
       : '';
     const doneHtml = e.doneItems.length
-      ? collapseSection('done', 'Done', e.doneItems.length, e.doneItems.map((i) => row(i, true)).join(''), open.done === true)
+      ? collapseSection('done', 'Completed', e.doneItems.length, `<div class="xgroup">${e.doneItems.map((i) => grow(i, { hidePill: true, chev: true, checkIcon: true })).join('')}</div>`, open.done === true)
       : '';
 
     return `
-    ${appHead()}
-    ${strip(e)}
+    ${appHead(headSub(e))}
+    ${hero(e)}
     <div id="seen-row"></div>
     ${streakPrompt(e)}
     ${attention}
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
-    ${e.now ? nowCard(e) : ''}
+    ${e.now ? nowCard(e) : hydroIsNow ? hydroNow(hydro) : ''}
     ${nextRows.length ? `<div class="xgrp">${e.next.state === 'overdue' ? 'Also overdue' : 'Next'}</div>${nextRows.map(row).join('')}` : ''}
     ${laterHtml}
     ${doneHtml}
     ${demoted}
-    <div class="eyebrow">Recent Activity <span class="link" data-go="progress">View all</span></div>
-    <div class="hscroll">${S.activity.map(actCard).join('')}</div>
+    ${recentResults()}
     <div style="height:20px"></div>`;
   },
   mount(root) {
@@ -261,17 +340,52 @@ export default {
       d.addEventListener('toggle', () => act.setHomeSection(d.getAttribute('data-sec'), d.open));
     });
     // One-tap water on Home (WS8): the highest-frequency micro-action used to cost two taps
-    // and a sheet animation. Same in-place patch pattern as the Action Hub — no re-render churn.
-    root.querySelectorAll('.water-btns [data-water]').forEach((btn) => {
-      btn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
-        act.addWater(+btn.getAttribute('data-water'));
-        if (RT.hydrationOz >= 120) { window.__render(); return; }
-        const sub = root.querySelector('#home-water-sub');
-        if (sub) sub.textContent = `${RT.hydrationOz} of 120 oz — optional, still counts with coach`;
-      });
+    // and a sheet animation. Same in-place patch pattern as the Action Hub — no re-render
+    // churn. patchWater covers BOTH surfaces (the NOW card and the celebration row): it
+    // rewrites whichever sub is present, plus the NOW card's live % and bar fill.
+    const patchWater = () => {
+      const oz = RT.hydrationOz;
+      for (const sel of ['#hyd-sub', '#home-water-sub']) {
+        const s = root.querySelector(sel);
+        if (s) { const t = s.textContent, i = t.indexOf(' of '); if (i >= 0) s.textContent = oz + t.slice(i); }
+      }
+      const pct = Math.min(100, Math.round((oz / 120) * 100));
+      const p = root.querySelector('#hyd-pct'); if (p) p.textContent = `${pct}%`;
+      const f = root.querySelector('#hyd-fill'); if (f) f.style.width = `${pct}%`;
+      const bar = root.querySelector('.hn-bar'); if (bar) bar.setAttribute('aria-valuenow', String(oz));
+    };
+    const logWater = (oz) => {
+      try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
+      act.addWater(oz);
+      // Crossing the goal is a real state change (hydration flips to Completed) — the one
+      // case where a full re-render is correct.
+      if (RT.hydrationOz >= 120) { window.__render(); return; }
+      patchWater();
+    };
+    root.querySelectorAll('[data-water]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => { ev.stopPropagation(); logWater(+btn.getAttribute('data-water')); });
     });
+    // "Other" reveals a real amount input inline — no prompt(), no detour.
+    const other = root.querySelector('#hyd-other');
+    if (other) other.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const c = root.querySelector('#hyd-custom');
+      const show = c.hidden;
+      c.hidden = !show;
+      other.setAttribute('aria-expanded', String(show));
+      if (show) { const inp = root.querySelector('#hyd-oz'); if (inp) inp.focus(); }
+    });
+    const addCustom = () => {
+      const inp = root.querySelector('#hyd-oz');
+      const oz = Math.round(+((inp && inp.value) || 0));
+      if (!oz || oz < 1) return;
+      if (inp) inp.value = '';
+      logWater(Math.min(200, oz));
+    };
+    const addBtn = root.querySelector('#hyd-add');
+    if (addBtn) addBtn.addEventListener('click', (ev) => { ev.stopPropagation(); addCustom(); });
+    const ozInput = root.querySelector('#hyd-oz');
+    if (ozInput) ozInput.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); addCustom(); } });
     // Coach-seen receipt (0043, athlete side): "something visibly came back" — the row shows
     // ONLY when a real linked human actually opened this day. Nothing is ever fabricated;
     // no receipts → no row. Fetched per-mount (cheap indexed read), injected async.

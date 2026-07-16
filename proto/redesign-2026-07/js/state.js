@@ -232,6 +232,25 @@ function componentsNow() {
   const c = realComponents(DAY);
   return { nutrition: c.nutrition, recovery: c.recoveryContribution, commitment: c.commitment, checkin: c.checkin };
 }
+/* Honest per-meal Daily Score attribution: today's score minus the score of the same day
+   WITHOUT this meal. Never fabricated — it's the same pure component math the score getter
+   uses, run twice. A late meal shows its real half-credit; a duplicate-flagged slot shows 0. */
+function mealImpact(k) {
+  if (!DAY.meals || !DAY.meals[k]) return 0;
+  const stripped = {
+    ...DAY,
+    meals: { ...DAY.meals, [k]: false },
+    mealLoggedAt: { ...DAY.mealLoggedAt },
+    slotMacros: { ...DAY.slotMacros },
+  };
+  delete stripped.mealLoggedAt[k];
+  delete stripped.slotMacros[k];
+  const w = realComponents(DAY);
+  const wo = realComponents(stripped);
+  const withScore = computeScore({ nutrition: w.nutrition, recovery: w.recoveryContribution, commitment: w.commitment, checkin: w.checkin });
+  const withoutScore = computeScore({ nutrition: wo.nutrition, recovery: wo.recoveryContribution, commitment: wo.commitment, checkin: wo.checkin });
+  return Math.max(0, withScore - withoutScore);
+}
 function componentsDone() {
   const c = realComponents(projectedDay());
   return { nutrition: c.nutrition, recovery: c.recoveryContribution, commitment: c.commitment, checkin: c.checkin };
@@ -1725,18 +1744,22 @@ export const S = {
       a.push({
         time: at != null ? `Today · ${fmtClock(at)}${late ? ' · late' : ''}` : 'Today',
         type: cap(k), icon: 'utensils',
-        // A bare "58" read as an unexplained mystery number — the unit names the concept
-        // (meal QUALITY, the plate read), keeping it distinct from the daily score.
+        // Meal QUALITY is its own concept (the plate read) and never success-green at 58 —
+        // tiers mirror the meal screen: 80+ green, 50+ amber, below red.
         value: meta.quality != null ? String(meta.quality) : 'Logged',
-        unit: meta.quality != null ? 'quality' : null,
-        vClass: meta.quality != null ? (meta.quality >= 80 ? 'g' : 'b') : 'muted',
+        unit: meta.quality != null ? '/100' : null,
+        qualityLabel: meta.quality != null,
+        vClass: meta.quality != null ? (meta.quality >= 80 ? 'g' : meta.quality >= 50 ? 'a' : 'r') : 'muted',
+        // Honest Daily Score attribution (computed, never canned) — the accountability credit
+        // this log actually earned, separate from how good the plate was.
+        impact: mealImpact(k),
         img, route: `meal-detail/${k}`,
       });
     }
     if (RT.hydrationOz > 0) a.push({ time: 'Today', type: 'Hydration', icon: 'droplet', value: `${RT.hydrationOz} oz`, vClass: 'b', img: null, route: 'log' });
     if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', icon: 'scale', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });
     a.push(DAY.ciSubmitted
-      ? { time: 'Today', type: 'Recovery Check-In', icon: 'moon', value: 'Done', vClass: 'g', img: null, route: 'recovery-confirm' }
+      ? { time: 'Today', type: 'Recovery Check-In', icon: 'moon', value: 'Submitted', vClass: 'g', img: null, route: 'recovery-confirm' }
       : { time: 'Tonight', type: 'Recovery Check-In', icon: 'moon', value: 'Upcoming', vClass: 'muted', img: null, dim: true, route: 'recovery' });
     return a;
   },
