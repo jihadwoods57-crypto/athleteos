@@ -96,7 +96,7 @@ function syncBanner() {
   const issue = S.syncIssue;
   if (issue === 'blocked') {
     const em = S.consent.guardianEmail;
-    return `<div class="lrow" data-go="guardian" style="margin:2px 0 10px;background:rgba(245,165,36,0.10);border:1px solid var(--amber-border);border-radius:14px;padding:12px 13px">
+    return `<div class="lrow" data-go="guardian" style="margin:12px 0 10px;background:rgba(245,165,36,0.10);border:1px solid var(--amber-border);border-radius:14px;padding:12px 13px">
       <div class="xico sm" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('lock', 16)}</div>
       <div class="xr"><div class="xa">${em ? 'Waiting on your parent' : 'One step before your day syncs'}</div>
       <div class="xb">${em ? 'Everything you log is safe on this phone until they approve.' : 'You’re under 18 — a parent approves before your day reaches your coach. Tap to send it.'}</div></div>
@@ -104,7 +104,7 @@ function syncBanner() {
     </div>`;
   }
   if (issue === 'error') {
-    return `<div class="lrow" style="margin:2px 0 10px;background:rgba(59,130,246,0.08);border:1px solid var(--hairline);border-radius:14px;padding:12px 13px;cursor:default">
+    return `<div class="lrow" style="margin:12px 0 10px;background:rgba(59,130,246,0.08);border:1px solid var(--hairline);border-radius:14px;padding:12px 13px;cursor:default">
       <div class="xico sm gray">${icon('wifiOff', 16)}</div>
       <div class="xr"><div class="xa">Saved on your phone</div>
       <div class="xb">Not synced yet — we’ll keep trying. Your logs are safe and count locally.</div></div>
@@ -335,13 +335,13 @@ export default {
     // Attention slot — exactly one card. syncBanner returns '' when sync is fine.
     const sync = syncBanner();
     const injuryCard = RT.injured ? `
-    <div class="trust" data-go="injury" style="cursor:pointer;margin:2px 0 10px;background:linear-gradient(100deg, rgba(245,165,36,0.14), rgba(59,130,246,0.05));border-color:var(--amber-border)">
+    <div class="trust" data-go="injury" style="cursor:pointer;margin:12px 0 10px;background:linear-gradient(100deg, rgba(245,165,36,0.14), rgba(59,130,246,0.05));border-color:var(--amber-border)">
       <div class="ic" style="background:rgba(245,165,36,0.2);color:var(--amber-bright)">${icon('bolt', 20)}</div>
       <div style="flex:1"><div class="tt">Injury mode · active</div>
       <div class="ts">Your Standard adapted. Rehab is on the list while you heal.</div></div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : '';
-    const trustCard = t.active ? `<div class="trust" data-go="trust" style="margin:2px 0 10px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : '';
+    const trustCard = t.active ? `<div class="trust" data-go="trust" style="margin:12px 0 10px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : '';
     const attention = sync || injuryCard || trustCard;
     // Whatever lost the attention slot demotes to a quiet one-line row below the ladder.
     const demoted = [
