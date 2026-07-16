@@ -124,8 +124,10 @@ Order, per the founder spec:
   `nudge|message|assign|handled`, reason_key, priority_tier, created_at, day) —
   RLS: team staff write/read
 - `athlete_exceptions` (team_id, athlete_id, starts_on, ends_on, reason, created_by)
-- `team_staff.scope_kind/scope_value` (null = whole team; `position` = room string)
-  + RLS updates so scoped staff read only their room's athletes/days/meals
+- `team_staff.scope_kind/scope_value` (null = whole team; `position` = room string).
+  Scope *columns* land here; the `can_view()` RLS enforcement wires in at Slice F with
+  the scoped roles — the live `can_view()` carries 0050 minor-consent logic, so that
+  surgery ships as its own reviewed change once a scoped role can actually exist.
 
 ---
 
