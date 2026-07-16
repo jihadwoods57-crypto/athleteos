@@ -64,6 +64,46 @@
 .rp-def-list b { display: block; font-size: clamp(15.5px, 1.5vw, 18px); font-weight: 800; letter-spacing: -0.01em; }
 .rp-def-list span { display: block; color: var(--text-2); font-size: clamp(13.5px, 1vw, 15px); line-height: 1.56; margin-top: 6px; }
 
+/* ---------- stakes: cited context that transitions into a real capability ----------
+   Editorial hairline rows (figure | argument), NOT a stat-card grid — every figure
+   earns its place by ending in something the app actually does, with a visible source. */
+.stakes { margin-top: clamp(40px, 5vw, 64px); border-top: 1px solid var(--hairline); }
+.stake {
+  display: grid; grid-template-columns: minmax(180px, 300px) minmax(0, 1fr);
+  gap: clamp(16px, 4vw, 64px); align-items: start;
+  padding: clamp(28px, 3.4vw, 48px) 0; border-bottom: 1px solid var(--hairline);
+}
+.stake-fig { min-width: 0; }
+.stake-num {
+  font-family: var(--display); font-weight: 900; line-height: 0.9;
+  font-size: clamp(46px, 6vw, 82px); letter-spacing: -0.03em; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.stake-num .u { color: var(--gold); }
+.stake-kw {
+  font-family: var(--display); text-transform: uppercase; font-weight: 900;
+  font-size: clamp(30px, 4vw, 50px); letter-spacing: 0.01em; line-height: 0.98; color: var(--text);
+}
+.stake-sub { display: block; margin-top: 12px; color: var(--text-2); font-size: clamp(12.5px, 1vw, 14px); line-height: 1.5; max-width: 30ch; }
+.stake-src {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 16px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3);
+}
+.stake-src::before { content: ''; flex: none; width: 16px; height: 2px; border-radius: 2px; background: var(--gold); }
+.stake-body { padding-top: 4px; }
+.stake-claim { font-size: clamp(16.5px, 1.6vw, 20px); font-weight: 800; letter-spacing: -0.01em; line-height: 1.36; }
+.stake-body p { color: var(--text-2); font-size: clamp(13.5px, 1.05vw, 15px); line-height: 1.64; margin-top: 12px; max-width: 60ch; }
+.stake-body p b { color: var(--text); }
+.stakes-foot {
+  margin-top: clamp(22px, 2.6vw, 32px); color: var(--text-3);
+  font-size: clamp(13px, 1vw, 14.5px); line-height: 1.62; max-width: 74ch;
+}
+.stakes-foot b { color: var(--text-2); }
+@media (max-width: 700px) {
+  .stake { grid-template-columns: 1fr; gap: 12px; }
+  .stake-sub { max-width: none; }
+}
+
 /* ---------- the day timeline ---------- */
 .tl { margin-top: clamp(44px, 5.5vw, 72px); position: relative; display: grid; gap: 0; max-width: 980px; }
 .tl::before {
