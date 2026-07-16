@@ -382,7 +382,9 @@
 .lnk{color:var(--green-bright);font-weight:800;cursor:pointer}
 
 /* ---- execution loop: score strip, NOW card, groups ---- */
-.xstrip{display:flex;align-items:center;gap:14px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:20px;padding:13px 15px;cursor:pointer}
+.xstrip{display:flex;align-items:center;gap:14px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:20px;padding:13px 15px;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
+.xstrip:active{transform:scale(0.985)}
+.xstrip .xstrip-chev{display:flex;flex:none;color:var(--text-3)}
 .xstrip .xmid{flex:1;display:flex;flex-direction:column;gap:7px}
 .xstrip .xrow{display:flex;align-items:center;gap:8px}
 /* score-in-ring: the 96px hero .score rule must not leak into the compact 64px strip dial */
@@ -440,8 +442,12 @@
 .xrow-item .xr{flex:1}
 .xrow-item .xa{font-size:14px;font-weight:700;letter-spacing:-.01em}
 .xrow-item .xb{font-size:11.5px;color:var(--text-3);margin-top:1px}
-.xrow-item.green{background:linear-gradient(90deg,var(--green-surface),transparent 70%);border-color:var(--green-border)}
-.xrow-item.green .xa{color:var(--green-bright)}
+/* Done rows: green is an ACCENT (icon tile + soft border), not the row's identity — the
+   old full green wash (bg gradient + green title + green pill) out-shouted the open NOW
+   card. Completed work should read settled, not compete for attention. */
+.xrow-item.green{background:var(--surface-1);border-color:rgba(52,211,153,0.22)}
+.xrow-item.green .xa{color:var(--text)}
+.xrow-item.green .xb{color:var(--text-3)}
 .xrow-item.red{background:linear-gradient(90deg,var(--red-surface),transparent 75%);border-color:var(--red-border)}
 .xpill{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:var(--r-pill);white-space:nowrap}
 .xpill.gold{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}

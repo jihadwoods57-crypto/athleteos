@@ -4,19 +4,28 @@ import { appHead, scoreRing, animateRing, esc, safeImg, collapseSection } from '
 import { DAY } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
 
+// Per-type icon media (was a hardcoded hydration droplet for EVERY photo-less card —
+// Recovery and Morning Weight rendered as water). Tint follows the type's accent.
+const ACT_MEDIA = {
+  droplet: ['rgba(56,189,248,0.28)', 'rgba(37,99,235,0.16)', 'var(--cyan)'],
+  moon: ['rgba(168,85,247,0.24)', 'rgba(59,130,246,0.10)', 'var(--purple-bright)'],
+  scale: ['rgba(59,130,246,0.22)', 'rgba(37,99,235,0.10)', 'var(--blue-bright)'],
+  utensils: ['rgba(245,165,36,0.22)', 'rgba(245,165,36,0.08)', 'var(--amber-bright)'],
+};
 function actCard(a) {
   let media;
   if (a.img && safeImg(a.img)) {
     media = `<div class="act-media" style="background-image:url('${safeImg(a.img)}')">${a.dim ? `<div class="dim">${icon('moon', 30)}</div>` : ''}</div>`;
   } else {
-    media = `<div class="act-media icon" style="background:linear-gradient(150deg, rgba(56,189,248,0.28), rgba(37,99,235,0.16));color:var(--cyan)">${icon('droplet', 34)}</div>`;
+    const [c1, c2, fg] = ACT_MEDIA[a.icon] || ACT_MEDIA.droplet;
+    media = `<div class="act-media icon" style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 34)}</div>`;
   }
   return `<div class="act-card" ${a.route ? `data-go="${a.route}"` : ''}>
     <div class="act-time">${a.time}</div>
     ${media}
     <div class="act-body">
       <div class="act-type">${a.type}</div>
-      <div class="act-value ${a.vClass}">${a.value}</div>
+      <div class="act-value ${a.vClass}">${a.value}${a.unit ? `<small>${a.unit}</small>` : ''}</div>
     </div>
   </div>`;
 }
@@ -49,10 +58,13 @@ function nowCard(e) {
   </section>`;
 }
 
-const row = (i) => `<div class="xrow-item ${i.color === 'green' ? 'green' : i.color === 'red' ? 'red' : ''}" data-go="${i.route}">
+// hidePill: inside the Later/Done collapse sections the pill often restates what the sub
+// already says ("Upcoming" vs "Opens 6:00 PM", "Logged" vs "Logged 1:10 PM") — callers drop
+// it there so every element on the row carries new information.
+const row = (i, hidePill) => `<div class="xrow-item ${i.color === 'green' ? 'green' : i.color === 'red' ? 'red' : ''}" data-go="${i.route}">
     <div class="xico sm ${i.color}">${icon(i.icon, 17)}</div>
     <div class="xr"><div class="xa">${esc(i.title)}</div><div class="xb">${esc(i.sub)}</div></div>
-    <span class="xpill ${i.color}">${i.pill}</span>
+    ${hidePill ? '' : `<span class="xpill ${i.color}">${i.pill}</span>`}
   </div>`;
 
 /* Honest sync/consent banner. A provable minor awaiting guardian approval sees a "stays on this
@@ -98,13 +110,17 @@ function streakPill() {
 }
 
 function strip(e) {
-  return `<section class="xstrip" data-go="score-breakdown">
+  // "finish the day at N" — the projection is a FINAL score, not points remaining; the old
+  // "reach 67 today" read both ways. The chevron + pressed state make the whole strip's
+  // tap-through to the breakdown discoverable without a separate button.
+  return `<section class="xstrip" data-go="score-breakdown" role="button" aria-label="Today's score ${e.score} — open score breakdown">
     ${scoreRing({ score: e.score, size: 64, stroke: 7, glow: false, showCenter: false, centerNum: true, uid: 'strip' })}
     <div class="xmid">
       <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${streakPill()}</div>
       <div class="xsegs">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>
-      <div class="seglabel"><b>${e.met}</b> of ${e.total} in · reach <b>${e.possible}</b> today</div>
+      <div class="seglabel"><b>${e.met}</b> of ${e.total} in · finish the day at <b>${e.possible}</b></div>
     </div>
+    <span class="xstrip-chev">${icon('chevron', 16)}</span>
   </section>`;
 }
 
@@ -166,7 +182,7 @@ export default {
         <button class="xcta" data-go="camera">${icon('camera', 18)} Log First Meal</button>
       </section>
       <div class="xgrp">Later</div>
-      ${e.items.filter((i) => i.id !== 'breakfast').map(row).join('')}
+      ${e.items.filter((i) => i.id !== 'breakfast').map((i) => row(i, i.state === 'locked')).join('')}
       <div class="eyebrow">Recent Activity</div>
       <div class="state-demo"><div class="sd-ic">${icon('camera', 24)}</div><div class="sd-t">No logs yet</div>
       <div class="sd-s">Your proof trail builds here as you log. Take a photo to begin today's standard.</div></div>
@@ -213,10 +229,10 @@ export default {
     ].filter(Boolean).join('');
 
     const laterHtml = e.later.length
-      ? collapseSection('later', 'Later', e.later.length, e.later.map(row).join(''), open.later === true)
+      ? collapseSection('later', 'Later', e.later.length, e.later.map((i) => row(i, i.state === 'locked')).join(''), open.later === true)
       : '';
     const doneHtml = e.doneItems.length
-      ? collapseSection('done', 'Done', e.doneItems.length, e.doneItems.map(row).join(''), open.done === true)
+      ? collapseSection('done', 'Done', e.doneItems.length, e.doneItems.map((i) => row(i, true)).join(''), open.done === true)
       : '';
 
     return `

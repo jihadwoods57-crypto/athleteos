@@ -1724,17 +1724,20 @@ export const S = {
       const img = (MEAL.key === k && MEAL.photoDataUrl) ? MEAL.photoDataUrl : null;
       a.push({
         time: at != null ? `Today · ${fmtClock(at)}${late ? ' · late' : ''}` : 'Today',
-        type: cap(k),
+        type: cap(k), icon: 'utensils',
+        // A bare "58" read as an unexplained mystery number — the unit names the concept
+        // (meal QUALITY, the plate read), keeping it distinct from the daily score.
         value: meta.quality != null ? String(meta.quality) : 'Logged',
+        unit: meta.quality != null ? 'quality' : null,
         vClass: meta.quality != null ? (meta.quality >= 80 ? 'g' : 'b') : 'muted',
         img, route: `meal-detail/${k}`,
       });
     }
-    if (RT.hydrationOz > 0) a.push({ time: 'Today', type: 'Hydration', value: `${RT.hydrationOz} oz`, vClass: 'b', img: null, route: 'log' });
-    if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });
+    if (RT.hydrationOz > 0) a.push({ time: 'Today', type: 'Hydration', icon: 'droplet', value: `${RT.hydrationOz} oz`, vClass: 'b', img: null, route: 'log' });
+    if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', icon: 'scale', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });
     a.push(DAY.ciSubmitted
-      ? { time: 'Today', type: 'Recovery Check-In', value: 'Done', vClass: 'g', img: null, route: 'recovery-confirm' }
-      : { time: 'Tonight', type: 'Recovery Check-In', value: 'Upcoming', vClass: 'muted', img: null, dim: true, route: 'recovery' });
+      ? { time: 'Today', type: 'Recovery Check-In', icon: 'moon', value: 'Done', vClass: 'g', img: null, route: 'recovery-confirm' }
+      : { time: 'Tonight', type: 'Recovery Check-In', icon: 'moon', value: 'Upcoming', vClass: 'muted', img: null, dim: true, route: 'recovery' });
     return a;
   },
 

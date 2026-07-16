@@ -297,6 +297,7 @@ body {
 .act-body { padding: 11px 14px 14px; }
 .act-type { font-size: 13px; font-weight: 700; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .act-value { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; }
+.act-value small { font-size: 9.5px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-3); margin-left: 6px; vertical-align: 2px; }
 .act-value.g { color: var(--green-bright); } .act-value.b { color: var(--blue-bright); }
 .act-value.muted { color: var(--text-3); font-size: 14px; }
 
@@ -341,10 +342,10 @@ body {
 .tab.active.home { color: var(--green-bright); }
 .tab svg { display: block; }
 .fab {
-  width: 62px; height: 62px; border-radius: var(--r-pill); margin: 0 auto; margin-top: -22px;
+  width: 57px; height: 57px; border-radius: var(--r-pill); margin: 0 auto; margin-top: -19px;
   background: linear-gradient(155deg, var(--green-bright), #16a34a);
   color: #04140b; display: grid; place-items: center;
-  box-shadow: var(--sh-green), 0 0 0 6px rgba(52,211,153,0.10);
+  box-shadow: var(--sh-green), 0 0 0 5px rgba(52,211,153,0.10);
   cursor: pointer; transition: transform var(--dur-1) var(--ease-out);
 }
 .fab:active { transform: scale(0.92); }
