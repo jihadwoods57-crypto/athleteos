@@ -352,7 +352,7 @@ export async function logIntervention({ teamId, athleteId, kind, reasonKey, tier
   const c = sb(); if (!c || !teamId || !athleteId || !kind) return false;
   try {
     const { error } = await c.from('coach_interventions').insert({
-      team_id: teamId, athlete_id: athleteId, kind,
+      team_id: teamId, athlete_id: athleteId, kind, day: todayISO(),
       reason_key: reasonKey || null, tier: tier || null, note: note || null,
     });
     return !error;
