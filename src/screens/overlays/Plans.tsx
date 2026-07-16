@@ -20,7 +20,7 @@ import {
 } from '@/core';
 import { useStore } from '@/store';
 import { isBackendLive } from '@/lib/supabase';
-import { isBillingConfigured, openBillingPortal, startCheckout, type BillingFailure } from '@/lib/billing/portal';
+import { isBillingConfigured, isCheckoutLive, openBillingPortal, startCheckout, type BillingFailure } from '@/lib/billing/portal';
 import { shadow } from '@/ui/tokens';
 import { useColors } from '@/ui/theme';
 import { Card, Reveal, Row, SampleTag, Txt, Pressable } from '@/ui/primitives';
@@ -28,8 +28,10 @@ import { haptics } from '@/ui/haptics';
 import { Icon, IconName } from '@/icons';
 import { Overlay } from './Overlay';
 
-/** Whether the live Stripe checkout path is even possible in this build. */
-const canCheckout = isBackendLive && isBillingConfigured;
+/** Whether the live Stripe checkout path is even possible in this build. `isCheckoutLive` is an
+ *  explicit off-by-default kill-switch so App Store review can never reach an external purchase
+ *  flow (Guideline 3.1.1) — see EXPO_PUBLIC_BILLING_CHECKOUT_LIVE in lib/billing/portal.ts. */
+const canCheckout = isBackendLive && isBillingConfigured && isCheckoutLive;
 
 export function Plans() {
   const c = useColors();

@@ -29,6 +29,23 @@ export const billingPortalUrl: string | null = process.env.EXPO_PUBLIC_BILLING_P
  *  Gates the live checkout CTA; with this false the UI shows "available at launch". */
 export const isBillingConfigured: boolean = Boolean(supaUrl && anonKey) || billingPortalUrl !== null;
 
+/**
+ * Master kill-switch for the live in-app checkout CTA — OFF unless explicitly enabled.
+ *
+ * App Store review must NEVER be able to reach an external (Stripe) purchase flow for a digital
+ * subscription — that is the Guideline 3.1.1 rejection surface. `isBillingConfigured` is true in
+ * any production build (the Supabase URL + anon key are always set), so it cannot be the guard on
+ * its own. This flag makes "inert" a property of the binary, not of whether the `billing-checkout`
+ * function happens to be deployed: leave `EXPO_PUBLIC_BILLING_CHECKOUT_LIVE` unset and every CTA
+ * falls back to the honest "available at launch" copy.
+ *
+ * Flip to `1`/`true` only AFTER the store build is approved and consumer plans are on Apple IAP
+ * (RevenueCat); the web build can also set it to enable Stripe where IAP does not apply.
+ */
+export const isCheckoutLive: boolean = /^(1|true)$/i.test(
+  process.env.EXPO_PUBLIC_BILLING_CHECKOUT_LIVE?.trim() ?? '',
+);
+
 /** Why a checkout/portal attempt did not produce a URL — for honest UI copy. */
 export type BillingFailure = 'not_configured' | 'sign_in_required' | 'not_available_yet' | 'error';
 
