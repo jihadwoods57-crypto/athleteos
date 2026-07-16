@@ -2,7 +2,7 @@ import { S, RT, tier, act, MEAL, mealDetail, fmtClock } from '../state.js';
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
-import { openingMessage, reactionGroups, threadMessages, contextForChat, applyFoodEdit, hasUserEdits } from '../meal-intel.js';
+import { openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages, contextForChat, applyFoodEdit, hasUserEdits } from '../meal-intel.js';
 
 function macroRow(m) {
   return `<div class="macro-row">
@@ -179,7 +179,7 @@ export const analysis = {
       <div class="ph-grad"></div>
       <div class="ph-meta">
         <div><div class="ph-t">${esc(L.name)}</div><div class="ph-s">${esc(timingLine || (nonLive ? 'From your gallery' : 'Captured just now'))}</div>${nonLive ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
-        ${L.score != null ? `<div class="scorechip"><span class="v">${L.score}</span><span class="k">Meal</span></div>` : ''}
+        ${L.score != null ? `<div class="scorechip ${(qualityBand(L.score) || {}).cls || ''}"><span class="v">${L.score}</span><span class="k">Meal</span></div>` : ''}
       </div>
     </div>
 
@@ -288,6 +288,10 @@ analysis._editing = false;
    S.exec / RT.lastMove / mealDetail — nothing here recomputes score math. ---------- */
 export const thread = {
   tab: 'home',
+  // Founder feedback 2026-07-16: the tab bar + camera FAB covered the composer, and "take
+  // another photo" is the wrong primary action on a meal that's already logged. Nav hides
+  // here; the back head and Back Home carry the exits.
+  hideTabs: true,
   render({ sub }) {
     const slot = sub || MEAL.key || 'dinner';
     const M = mealDetail(slot);
@@ -305,82 +309,124 @@ export const thread = {
       <div style="height:10px"></div>`;
     }
 
-    // ---- 1. LOGGED CONFIRMATION (celebrates the act of logging; never shames) ----
-    // Timing appears here ONCE — "Logged 1:47 PM · 42 min late" — and nowhere else on the page.
+    // ---- 1. LOGGED CONFIRMATION — compact (founder feedback 2026-07-16: the old celebration
+    // ate half the screen and mixed compliance with meal quality). Three facts only: logged
+    // (green = accountability), the score move, progress on the day. Timing appears here ONCE.
     const justLogged = RT.lastMove && !RT.lastMove._played && (RT.lastMove.what || '').toLowerCase() === M.slot;
     const dupFlagged = M.flagged === 'dup';
     const timing = M.loggedAt
       ? `Logged ${M.loggedAt} · ${M.minutesLate > 0 ? `${M.minutesLate} min late` : 'on time'}`
       : (M.late ? 'Logged late · still counts' : 'Logged on time');
     const toTier = justLogged ? tier(RT.lastMove.to) : null;
-    const scoreStatus = dupFlagged ? "Duplicate photo — doesn't count" : 'Counted toward Nutrition (50%)';
     const execTop = `
-    <section class="mt-exec">
-      <div class="bigcheck">${icon('check', 26)}</div>
-      <div class="t">Logged.</div>
-      <div class="s">${timing} · ${scoreStatus} · Coach can see it</div>
+    <section class="mt-confirm">
+      <div class="row1">
+        <div class="ck">${icon('check', 20)}</div>
+        <div><div class="t">${esc(M.name)} logged</div>
+        <div class="s">${timing} · Visible to Coach</div></div>
+      </div>
+      ${dupFlagged ? `<div class="dup-note">Duplicate photo · recorded, but it doesn't count. Coach can see the flag.</div>` : ''}
       ${justLogged && !dupFlagged ? `
-      <div class="mt-move"><span class="from" data-anim-from>${RT.lastMove.from}</span><span style="color:var(--text-3)">${icon('arrowRight', 20)}</span><span class="to" data-anim-to>${RT.lastMove.to}</span></div>
-      <div class="s">OnStandard Score · +${RT.lastMove.gain} pts</div>
-      ${toTier.name !== tier(RT.lastMove.from).name ? `<span class="tier-chip ${toTier.cls}">▲ ${esc(toTier.name)}</span>` : ''}` : ''}
-      <div style="height:12px"></div>
-      <div class="xsegs">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>
-      <div class="s" style="margin-top:6px">${e.met} of ${e.total} in today${S.streakDays > 0 ? ` · ${S.streakDays} day streak` : ''}</div>
+      <div class="score-line">
+        <span class="k">Daily Score</span>
+        <span class="from" data-anim-from>${RT.lastMove.from}</span>
+        <span class="arr">${icon('arrowRight', 14)}</span>
+        <span class="to" data-anim-to>${RT.lastMove.to}</span>
+        <span class="gain">+${RT.lastMove.gain}</span>
+        ${toTier.name !== tier(RT.lastMove.from).name ? `<span class="tier-chip ${toTier.cls}">▲ ${esc(toTier.name)}</span>` : ''}
+      </div>` : ''}
+      <div class="prog-line">
+        <div class="xsegs">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>
+        <span class="pk">${e.met} of ${e.total} in today${S.streakDays > 0 ? ` · ${S.streakDays} day streak` : ''}</span>
+      </div>
     </section>`;
 
-    // ---- 2. PHOTO (provenance badges live here; name/timing are NOT repeated) ----
+    // ---- 2. PHOTO + MEAL QUALITY (feedback 2026-07-16: quality is a separate concept from
+    // compliance — banded color, its own label, and a one-line WHY so 58 never reads as green
+    // success or an arbitrary number). Provenance badges live here; name/timing not repeated.
+    const band = qualityBand(M.score);
+    const reason = qualityReason(M.macros, M.fiber);
     const photoBlock = `
     <div class="photo-hero" id="meal-hero" style="margin-top:14px;background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))">
       <img id="meal-photo" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
       <div class="ph-grad"></div>
       <div class="ph-meta"><div>${M.live === false ? `<div>${nonLiveBadge()}</div>` : '<div></div>'}</div>
-      ${M.score != null ? `<div class="scorechip"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}</div>
+      ${M.score != null ? `<div class="scorechip ${band ? band.cls : ''}"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}</div>
     </div>
-    ${dupFlagged ? `<div style="font-size:11px;font-weight:600;color:var(--amber-bright);margin-top:6px">This exact photo was already logged once — this meal is recorded but doesn't count. Your coach can see the flag.</div>` : ''}`;
+    ${band ? `<div class="qual-line ${band.cls}">
+      <span class="qv">${M.score}<small>/100</small></span>
+      <div><div class="ql">Meal quality · ${band.label}</div>${reason ? `<div class="qr">${esc(reason)}</div>` : ''}</div>
+    </div>` : ''}`;
 
-    // ---- 3. MEAL BREAKDOWN (one card: foods+quantities line + macro bars; nothing repeated) ----
+    // ---- 3. MEAL BREAKDOWN (feedback 2026-07-16: progress bars imply a goal — they only
+    // render against REAL coach targets. No targets → plain nutrient tiles, no fake
+    // denominators. Detected foods are rows with portions + an honest estimate note.) ----
     const T = S.planTargets || {};
-    const bars = [
+    const fromPhoto = M.source !== 'label' && M.source !== 'manual';
+    const srcLabel = M.source === 'label' ? 'exact, from the nutrition label' : M.source === 'manual' ? 'entered by you' : 'estimated from photo';
+    const foodRows = M.detectedRich.map((d) => `
+      <div class="food-row">
+        <span class="conf-dot ${esc(d.confidence || 'high')}"></span>
+        <span class="fr-name">${esc(d.name)}</span>
+        <span class="fr-qty">${d.quantity ? `${fromPhoto ? '~ ' : ''}${esc(d.quantity)}` : ''}</span>
+      </div>`).join('');
+    const targetBars = [
       ['Protein', M.macros.protein, T.protein, 'g'],
-      ['Carbs', M.macros.carbs, null, 'g'],
-      ['Fat', M.macros.fat, null, 'g'],
-      ['Fiber', M.fiber, null, 'g'],
       ['Calories', M.macros.cals, T.calories, ''],
-    ];
-    const foodsLine = M.detectedRich
-      .map((d) => `${d.name}${d.quantity ? ` (${d.quantity})` : ''}`).join(' · ');
+    ].filter(([, , target]) => target);
     const breakdown = `
-    <div class="eyebrow" style="margin-top:16px">Meal Breakdown <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${M.source === 'label' ? 'exact, from the nutrition label' : M.source === 'manual' ? 'entered by you' : 'estimated from photo'}</span></div>
-    <section class="card pad" style="margin-top:8px">
-      ${foodsLine ? `<div style="font-size:13px;font-weight:700;color:var(--text-2);margin-bottom:12px">${esc(foodsLine)}</div>` : ''}
-      ${bars.map(([k, v, target, u]) => `
+    <div class="eyebrow" style="margin-top:16px">Meal Breakdown <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${srcLabel}</span></div>
+    ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
+    <div class="macro-row" style="margin-top:10px">
+      <div class="macro"><div class="mv">${M.macros.protein}g</div><div class="mk">Protein</div></div>
+      <div class="macro"><div class="mv">${M.macros.carbs}g</div><div class="mk">Carbs</div></div>
+      <div class="macro"><div class="mv">${M.macros.fat}g</div><div class="mk">Fat</div></div>
+      <div class="macro"><div class="mv">${M.fiber}g</div><div class="mk">Fiber</div></div>
+      <div class="macro"><div class="mv">${M.macros.cals}</div><div class="mk">Cals</div></div>
+    </div>
+    ${targetBars.length ? `<section class="card pad" style="margin-top:10px">
+      ${targetBars.map(([k, v, target, u]) => `
         <div class="cons-row" style="margin-bottom:10px">
           <span class="k" style="width:64px">${k}</span>
-          <div class="track"><div class="fillb" style="width:${target ? Math.min(100, Math.round((v / target) * 100)) : Math.min(100, Math.round((v / (k === 'Calories' ? 900 : 60)) * 100))}%;background:linear-gradient(90deg,#16a34a,var(--green-bright))"></div></div>
-          <span class="v" style="width:96px">${v}${u}${target ? ` <small style="color:var(--text-3)">/ ${esc(String(target))}${u} day</small>` : ''}</span>
+          <div class="track"><div class="fillb" style="width:${Math.min(100, Math.round((v / target) * 100))}%;background:linear-gradient(90deg,#16a34a,var(--green-bright))"></div></div>
+          <span class="v" style="width:110px">${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u} day target</small></span>
         </div>`).join('')}
-      ${T.protein ? '' : `<div style="font-size:12px;font-weight:600;color:var(--text-3)">No coach targets set yet — these are this meal's estimated totals.</div>`}
-    </section>`;
+    </section>` : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
+    ${fromPhoto ? `<div class="est-note">Estimated from the photo · portions can be off.${M.mealId ? ` <span class="link" id="flag-food" role="button">Something wrong? Flag it for Coach</span>` : ''}</div>` : ''}`;
 
-    // ---- 4. GROUPCHAT — the SINGLE AI-insight surface (opening message is DERIVED, never
-    // stored; it now carries the timing accountability + the detailed analysis + highlights,
-    // which used to leak into separate cards above). Coach + athlete both see and respond. ----
+    // ---- 4. GROUPCHAT — the SINGLE AI-insight surface. Feedback 2026-07-16: the opening
+    // used to be a wall of text nobody reads. Now it's the 5-second structured summary
+    // (derived, never stored) with the full openingMessage paragraph behind an expander.
+    // Quick actions make it feel like a chat, not a report. ----
+    const goal = RT.profile && RT.profile.baseGoal;
+    const sum = openingSummary({ quality: M.score, macros: M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal });
+    const fullText = openingMessage({
+      name: M.name, quality: M.score, note: M.note, analysis: M.analysis,
+      highlights: M.highlights, goal, coachTargets: S.planTargets, late: M.late, minutesLate: M.minutesLate,
+    });
     const discussion = `
     <div class="eyebrow" style="margin-top:18px">Team Discussion</div>
     <div class="rx-strip" id="rx-strip"></div>
     <div class="thread" id="meal-thread">
       <div class="msg ai">
         <div class="av">${icon('sparkle', 15)}</div>
-        <div><div class="who">OnStandard AI</div>
-        <div class="bubble">${esc(openingMessage({
-          name: M.name, quality: M.score, note: M.note, analysis: M.analysis,
-          highlights: M.highlights, goal: RT.profile && RT.profile.baseGoal,
-          coachTargets: S.planTargets, late: M.late, minutesLate: M.minutesLate,
-        }))}</div></div>
+        <div><div class="who">AI Nutritionist</div>
+        <div class="bubble ai-sum">
+          ${sum.wentWell ? `<div class="sr"><span class="sk">What went well</span>${esc(sum.wentWell)}</div>` : ''}
+          ${sum.opportunity ? `<div class="sr"><span class="sk">Biggest opportunity</span>${esc(sum.opportunity)}</div>` : ''}
+          ${sum.next ? `<div class="sr"><span class="sk">Next time</span>${esc(sum.next)}</div>` : ''}
+          ${fullText ? `<button class="ai-full-toggle" id="ai-full-toggle" aria-expanded="false">View full analysis</button>
+          <div class="ai-full" id="ai-full" hidden>${esc(fullText)}</div>` : ''}
+        </div></div>
       </div>
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : 'Syncs when connected — your coach sees this log either way.'}</div>
     </div>
     ${M.mealId ? `
+    <div class="qa-row">
+      <button class="qa" data-qa="">Ask a question</button>
+      <button class="qa" data-qa="Heads up, the AI misread this meal. It was actually ">Fix the read</button>
+      <button class="qa" data-qa="@Coach ">Tag Coach</button>
+    </div>
     ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send' })}
     <div id="chat-note" style="min-height:18px"></div>` : ''}`;
 
@@ -427,6 +473,19 @@ export const thread = {
       if (!url && RT.userId) url = await roles.signedMealPhotoUrl(`${RT.userId}/${DAY.date}/${M.slot}.jpg`);
       if (url) { photo.src = url; photo.style.display = 'block'; }
     }
+    // "View full analysis" expander — delegated on the screen root, so it survives paint()
+    // rebuilding threadEl.innerHTML (the opening bubble is captured/re-prepended as HTML,
+    // which drops any listener attached to the button itself).
+    root.addEventListener('click', (ev) => {
+      const t = ev.target.closest('#ai-full-toggle');
+      if (!t) return;
+      const full = root.querySelector('#ai-full');
+      if (!full) return;
+      const open = full.hasAttribute('hidden');
+      if (open) full.removeAttribute('hidden'); else full.setAttribute('hidden', '');
+      t.setAttribute('aria-expanded', String(open));
+      t.textContent = open ? 'Hide full analysis' : 'View full analysis';
+    });
     if (!M.mealId) return;
 
     const threadEl = root.querySelector('#meal-thread');
@@ -450,19 +509,40 @@ export const thread = {
     let gen = 0; // stale-response guard: only the newest refresh paints
     let comments = [];
 
+    // Message timestamps (feedback 2026-07-16: real chat mechanics). Local clock format;
+    // '' for rows without a parseable created_at, so nothing renders rather than "NaN".
+    const fmtMsgTime = (iso) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      let h = d.getHours();
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      const ap = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return `${h}:${mm} ${ap}`;
+    };
     const paint = () => {
       if (!threadEl) return;
       const msgs = threadMessages(comments);
+      // Coach REVIEW status: any coach row (message or reaction) counts as reviewed.
+      const coachSeen = (Array.isArray(comments) ? comments : []).some((c) => c && c.role === 'coach');
+      const tail = [];
+      if (!msgs.length) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
+      if (!coachSeen) tail.push("Coach hasn't reviewed this meal yet.");
       // The FIRST `.msg` in threadEl is assumed to be the derived AI opening message (rendered
       // once, above, and never stored) — it's captured here and re-prepended on every repaint.
       // Do not prepend/insert any other row above it, or the opening line stops being first.
       const openingHtml = threadEl.querySelector('.msg') ? threadEl.querySelector('.msg').outerHTML : '';
-      threadEl.innerHTML = openingHtml + (msgs.length ? msgs.map((c) => `
+      threadEl.innerHTML = openingHtml + msgs.map((c) => {
+        const t = fmtMsgTime(c.created_at);
+        return `
         <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
           ${c.role !== 'athlete' ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : 'M'}</div>` : ''}
-          <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'OnStandard AI' : 'Coach'}</div>` : ''}
-          <div class="bubble">${esc(c.text)}</div></div>
-        </div>`).join('') : `<div class="msg-status">No replies yet. Ask a question — your AI coach answers from YOUR plan.</div>`);
+          <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'AI Nutritionist' : 'Coach'}</div>` : ''}
+          <div class="bubble">${esc(c.text)}</div>
+          ${t ? `<div class="mtime">${t}</div>` : ''}</div>
+        </div>`;
+      }).join('') + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
       if (strip) strip.innerHTML = reactionGroups(comments).map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('');
       threadEl.scrollTop = threadEl.scrollHeight;
     };
@@ -481,6 +561,17 @@ export const thread = {
     const input = root.querySelector('#meal-msg');
     const send = root.querySelector('#meal-send');
     const note = root.querySelector('#chat-note');
+    // Quick actions + the breakdown's "flag it" link both prefill the composer — the thread
+    // is the correction channel (post-log meal data stays immutable; coach sees the flag).
+    const prefill = (text) => {
+      if (!input) return;
+      if (text) input.value = text;
+      input.focus();
+      input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    };
+    root.querySelectorAll('.qa').forEach((b) => b.addEventListener('click', () => prefill(b.getAttribute('data-qa') || '')));
+    const flag = root.querySelector('#flag-food');
+    if (flag) flag.addEventListener('click', () => prefill('Heads up, the AI misread this meal. It was actually '));
     const setNote = (t, retry) => { if (note) note.innerHTML = t ? `<div class="mt-retry" ${retry ? 'id="chat-retry"' : ''}>${esc(t)}</div>` : ''; };
     let busy = false;
     // Reaches the AI for an ALREADY-POSTED question. Retry re-runs only this — the athlete's

@@ -2,7 +2,7 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, titleHead, esc, composer } from '../components.js';
 import * as roles from '../roles.js';
-import { openingMessage, reactionGroups, threadMessages } from '../meal-intel.js';
+import { openingMessage, qualityBand, reactionGroups, threadMessages } from '../meal-intel.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -1092,7 +1092,7 @@ export const coachMeal = {
       ${meal._url ? `<img src="${esc(meal._url)}" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0"/>` : ''}
       <div class="ph-grad"></div>
       <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${meal.protein != null ? `${meal.protein}g protein` : 'Logged'}${meal.source === 'gallery' ? ' · from gallery' : ''}${meal.source === 'manual' || meal.source === 'label' ? ' · no photo' : ''}</div></div>
-      ${meal.quality != null ? `<div class="scorechip"><span class="v">${meal.quality}</span><span class="k">Meal</span></div>` : ''}</div>
+      ${meal.quality != null ? `<div class="scorechip ${(qualityBand(meal.quality) || {}).cls || ''}"><span class="v">${meal.quality}</span><span class="k">Meal</span></div>` : ''}</div>
     </div>` : ''}
 
     ${foods.length ? `<div class="eyebrow">Detected</div><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(typeof f === 'string' ? f : f.name)}</span>`).join('')}</div>` : ''}
@@ -1121,13 +1121,13 @@ export const coachMeal = {
         ${opening ? `
         <div class="msg">
           <div class="av">${icon('sparkle', 15)}</div>
-          <div><div class="who">OnStandard AI · what the athlete was told</div>
+          <div><div class="who">AI Nutritionist · what the athlete was told</div>
           <div class="bubble">${esc(opening)}</div></div>
         </div>` : ''}
         ${msgs.map((c) => `
           <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
             ${c.role !== 'athlete' ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : 'M'}</div>` : ''}
-            <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'OnStandard AI' : 'Coach'}</div>` : ''}
+            <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'AI Nutritionist' : 'Coach'}</div>` : ''}
             <div class="bubble">${esc(c.text)}</div></div>
           </div>`).join('')}
         ${!msgs.length ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet. React or say something — the athlete sees it on the log.</div>` : ''}

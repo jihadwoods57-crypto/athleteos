@@ -163,6 +163,80 @@ export function openingMessage({ name, quality, note, analysis, highlights, goal
   return parts.filter(Boolean).join(' ').slice(0, 1200);
 }
 
+/* ---------- Meal quality vs compliance (founder feedback 2026-07-16) ----------
+   Two different concepts that used to share one green: GREEN means "you did the work"
+   (logged, on time). Quality gets its own band and color so a 58 never wears success
+   green. Banded once here so every surface (chip, quality line, coach view) agrees. */
+
+/** Quality band for a 0-100 meal score. Null when there's no honest score. */
+export function qualityBand(score) {
+  if (score == null) return null; // Number(null) is 0 — don't band a missing score as "low"
+  const s = Number(score);
+  if (!isFinite(s)) return null;
+  if (s >= 75) return { cls: 'good', label: 'Strong' };
+  if (s >= 50) return { cls: 'mid', label: 'Needs work' };
+  return { cls: 'low', label: 'Weak plate' };
+}
+
+/** One plain-English line explaining WHY the quality score is what it is, from the
+ *  macro split alone (calorie shares: protein/carbs 4 kcal per g, fat 9). Without this
+ *  line the number reads as arbitrary. '' when there are no macros to reason from. */
+export function qualityReason(macros, fiber) {
+  const m = macros || {};
+  const p = Math.max(0, Number(m.protein) || 0);
+  const c = Math.max(0, Number(m.carbs) || 0);
+  const f = Math.max(0, Number(m.fat) || 0);
+  const total = p * 4 + c * 4 + f * 9;
+  if (!total) return '';
+  const issues = [];
+  if ((p * 4) / total < 0.2) issues.push('protein came in low next to the carbs and fat');
+  if ((f * 9) / total > 0.45) issues.push('fat ran above the range');
+  if (Math.max(0, Number(fiber) || 0) < 4 && c >= 30) issues.push('almost no fiber');
+  if (!issues.length) return 'Protein, carbs, and fat are in balance on this plate.';
+  const s = issues.slice(0, 2).join(' and ');
+  return s.charAt(0).toUpperCase() + s.slice(1) + '.';
+}
+
+/**
+ * The 5-second read (founder feedback 2026-07-16): the AI Nutritionist's opening bubble
+ * is now three labeled lines — what went well, the biggest opportunity, the concrete fix —
+ * with the full openingMessage() paragraph behind a "View full analysis" expander.
+ * Derived from the same stored meal data as openingMessage, so it can't drift from it.
+ */
+export function openingSummary({ quality, macros, fiber, highlights, late, goal } = {}) {
+  const m = macros || {};
+  const p = Math.max(0, Number(m.protein) || 0);
+  const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean);
+
+  // What went well: the accountability act first, then the plate's best fact.
+  const good = [];
+  if (late === false) good.push('Logged on time');
+  else if (late === true) good.push('You got it logged, and late still beats hidden');
+  if (p >= 25) good.push(`protein showed up at ${Math.round(p)}g`);
+  else if (Math.max(0, Number(fiber) || 0) >= 5) good.push('real fiber on the plate');
+  else if (hl.length) good.push(hl[0].charAt(0).toLowerCase() + hl[0].slice(1));
+  const wentWell = good.length ? `${good.join(', and ')}.` : '';
+
+  // Biggest opportunity: the one thing that moved the score.
+  const reason = qualityReason(m, fiber);
+  const balanced = reason.indexOf('in balance') !== -1;
+  const opportunity = balanced && quality != null && quality >= 75
+    ? 'Not much. This plate works.'
+    : reason;
+
+  // Next time: a concrete fix mapped to that opportunity, never generic advice.
+  // Case-insensitive: the first issue in the reason sentence arrives capitalized.
+  let next = '';
+  if (/protein came in low/i.test(reason)) next = 'Add a lean protein next time: a bigger egg portion, Greek yogurt, or chicken.';
+  else if (/fat ran above/i.test(reason)) next = 'Trim the heaviest item and keep the rest as is.';
+  else if (/fiber/i.test(reason)) next = 'Add a fruit or a vegetable and this same meal scores higher.';
+  else {
+    const tie = GOAL_TIE[goal];
+    next = tie ? `Keep this in rotation. It ${tie}.` : 'Keep this one in rotation.';
+  }
+  return { wentWell, opportunity, next };
+}
+
 /** Reaction rows (kind='reaction') grouped as [{emoji, count}], insertion-ordered. */
 export function reactionGroups(comments) {
   const counts = new Map();

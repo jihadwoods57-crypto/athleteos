@@ -1,6 +1,6 @@
 // Proto is plain ESM JS (allowJs) — same import pattern as obHelpers/exec tests.
 // @ts-ignore
-import { normalizeDetected, groundExtras, openingMessage, reactionGroups, threadMessages, contextForChat } from '../../proto/redesign-2026-07/js/meal-intel.js';
+import { normalizeDetected, groundExtras, openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages, contextForChat } from '../../proto/redesign-2026-07/js/meal-intel.js';
 // @ts-ignore
 import { DAY, dayLogMeal } from '../../proto/redesign-2026-07/js/day.js';
 
@@ -156,6 +156,65 @@ describe('openingMessage', () => {
   test('late true/false athlete-side behavior is unchanged by the null branch', () => {
     expect(openingMessage(base)).toMatch(/on time/i);
     expect(openingMessage({ ...base, late: true })).toMatch(/counts/i);
+  });
+});
+
+describe('qualityBand (2026-07-16 — quality is a separate concept from compliance green)', () => {
+  test('bands: >=75 good, 50-74 mid, <50 low', () => {
+    expect(qualityBand(82)).toEqual({ cls: 'good', label: 'Strong' });
+    expect(qualityBand(75)).toEqual({ cls: 'good', label: 'Strong' });
+    expect(qualityBand(58)).toEqual({ cls: 'mid', label: 'Needs work' });
+    expect(qualityBand(50)).toEqual({ cls: 'mid', label: 'Needs work' });
+    expect(qualityBand(31)).toEqual({ cls: 'low', label: 'Weak plate' });
+  });
+  test('no honest score yields null (nothing renders)', () => {
+    expect(qualityBand(null)).toBeNull();
+    expect(qualityBand(undefined)).toBeNull();
+    expect(qualityBand('nope')).toBeNull();
+  });
+});
+
+describe('qualityReason (the one-line WHY behind the number)', () => {
+  test('low protein share names protein vs carbs and fat', () =>
+    expect(qualityReason({ protein: 18, carbs: 55, fat: 28 }, 4))
+      .toMatch(/protein came in low next to the carbs and fat/i));
+  test('heavy fat share names fat', () =>
+    expect(qualityReason({ protein: 30, carbs: 20, fat: 45 }, 6)).toMatch(/fat ran above the range/i));
+  test('balanced plate says so instead of inventing a flaw', () =>
+    expect(qualityReason({ protein: 40, carbs: 45, fat: 15 }, 8)).toMatch(/in balance/i));
+  test('at most two issues, capitalized, one sentence', () => {
+    const r = qualityReason({ protein: 5, carbs: 80, fat: 40 }, 0);
+    expect(r[0]).toBe(r[0].toUpperCase());
+    expect(r.split(' and ').length).toBeLessThanOrEqual(3); // 2 issues max, joined once
+    expect(r.endsWith('.')).toBe(true);
+  });
+  test('no macros yields empty string', () => expect(qualityReason({}, 0)).toBe(''));
+});
+
+describe('openingSummary (the 5-second read)', () => {
+  const base = { quality: 58, macros: { protein: 18, carbs: 55, fat: 28 }, fiber: 4, highlights: [], late: false, goal: 'gain' };
+  test('three parts, all non-empty for a typical logged meal', () => {
+    const s = openingSummary(base);
+    expect(s.wentWell).toMatch(/logged on time/i);
+    expect(s.opportunity).toMatch(/protein came in low/i);
+    expect(s.next).toMatch(/greek yogurt|egg|chicken/i);
+  });
+  test('late meal still credits the log, never shames', () => {
+    const s = openingSummary({ ...base, late: true });
+    expect(s.wentWell).toMatch(/got it logged/i);
+    expect(s.wentWell).not.toMatch(/fail|bad|shame/i);
+  });
+  test('strong protein is named as the win with the real number', () =>
+    expect(openingSummary({ ...base, macros: { protein: 42, carbs: 40, fat: 18 } }).wentWell).toContain('42g'));
+  test('balanced high-quality plate: opportunity honest, next ties to goal', () => {
+    const s = openingSummary({ quality: 85, macros: { protein: 40, carbs: 45, fat: 15 }, fiber: 8, late: false, goal: 'perform' });
+    expect(s.opportunity).toMatch(/not much/i);
+    expect(s.next).toMatch(/rotation/i);
+  });
+  test('late: null omits the timing claim instead of guessing', () => {
+    const s = openingSummary({ ...base, late: null, macros: { protein: 42, carbs: 40, fat: 18 } });
+    expect(s.wentWell).not.toMatch(/on time|logged/i);
+    expect(s.wentWell).toContain('42g');
   });
 });
 
