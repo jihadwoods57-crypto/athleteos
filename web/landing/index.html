@@ -21,7 +21,7 @@
 <link rel="preload" href="fonts/archivo-exp900.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/pjs.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" as="image" href="assets/img/g-hero-athlete.webp" imagesrcset="assets/img/g-hero-athlete-780.webp 780w, assets/img/g-hero-athlete.webp 1024w" imagesizes="(max-width: 960px) 100vw, 46vw" fetchpriority="high">
-<link rel="stylesheet" href="css/site.css?v=9">
+<link rel="stylesheet" href="css/site.css?v=10">
 <noscript><style>.reveal, .an-row { opacity: 1 !important; transform: none !important; } .an-fill { transform: scaleX(1) !important; } .ticker-track { animation: none; flex-wrap: wrap; width: auto; row-gap: 12px; } .ticker-track span[aria-hidden="true"] { display: none; } .sys-stage { display: none !important; } .sys-static { display: grid !important; }</style></noscript>
 <script type="application/ld+json">
 {
@@ -55,13 +55,67 @@
       <span class="brand-name">ONSTANDARD</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
+      <div class="nav-sol">
+        <button class="sol-btn" type="button" aria-expanded="false" aria-controls="sol-menu" aria-haspopup="true">
+          Who are you?
+          <svg class="sol-x" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+        </button>
+        <div class="sol-menu" id="sol-menu" aria-label="OnStandard by role">
+          <div class="sol-grid">
+            <a class="sol-item" href="/coaches">
+              <span class="sol-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3.4A1.4 1.4 0 0 1 10.4 2h3.2A1.4 1.4 0 0 1 15 3.4v1.1"/><path d="M9 11l2 2 4-4.5"/><path d="M9 17h6"/></svg></span>
+              <span><span class="sol-name">Coaches</span><span class="sol-desc">The whole roster, live, in three seconds.</span></span>
+            </a>
+            <a class="sol-item" href="/athletes">
+              <span class="sol-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 5 13.5h5L9.5 22 19 9.5h-5.5L13 2z"/></svg></span>
+              <span><span class="sol-name">Athletes</span><span class="sol-desc">Prove the work. Own your record.</span></span>
+            </a>
+            <a class="sol-item" href="/parents">
+              <span class="sol-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 4.5 5.6v5.1c0 4.8 3.2 8.4 7.5 10.8 4.3-2.4 7.5-6 7.5-10.8V5.6L12 2.5z"/><path d="M9 11.5l2 2 4-4.5"/></svg></span>
+              <span><span class="sol-name">Parents</span><span class="sol-desc">Consent-first visibility. Never surveillance.</span></span>
+            </a>
+            <a class="sol-item" href="/trainers">
+              <span class="sol-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 8v8M4.5 9.5v5M16.5 8v8M19.5 9.5v5M7.5 12h9"/></svg></span>
+              <span><span class="sol-name">Trainers</span><span class="sol-desc">See the other 167 hours.</span></span>
+            </a>
+            <a class="sol-item" href="/dietitians">
+              <span class="sol-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8.5"/><circle cx="12" cy="13" r="4"/><path d="M12 1.5v3"/></svg></span>
+              <span><span class="sol-name">Dietitians &amp; Nutritionists</span><span class="sol-desc">Every plate, read honestly.</span></span>
+            </a>
+          </div>
+          <div class="sol-foot">
+            <span>Running a school, club, or facility?</span>
+            <button class="js-wl" type="button" data-intent="demo" data-role="Gym or program">Book a program demo →</button>
+          </div>
+        </div>
+      </div>
       <a href="#system">How it works</a>
-      <a href="#roles">Who it's for</a>
       <a href="#score">The score</a>
       <a href="#why">Why now</a>
       <a href="#pricing">Pricing</a>
     </nav>
     <a class="btn btn-nav js-wl" data-intent="trial" href="mailto:support@onstandard.app?subject=OnStandard%20founding%20access"><span class="cta-full">Claim a Founding 50 spot</span><span class="cta-short">Founding 50</span></a>
+    <button class="nav-burger" id="nav-burger" type="button" aria-expanded="false" aria-controls="m-menu" aria-label="Menu">
+      <svg viewBox="0 0 22 22" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="3" y="5" width="16" height="2" rx="1"/><rect x="3" y="10.5" width="16" height="2" rx="1"/><rect x="3" y="16" width="16" height="2" rx="1"/></svg>
+    </button>
+  </div>
+  <div class="m-menu" id="m-menu">
+    <span class="mm-eyebrow">Who are you?</span>
+    <nav class="mm-roles" aria-label="OnStandard by role">
+      <a class="mm-role" href="/coaches"><span class="sol-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3.4A1.4 1.4 0 0 1 10.4 2h3.2A1.4 1.4 0 0 1 15 3.4v1.1"/><path d="M9 11l2 2 4-4.5"/><path d="M9 17h6"/></svg></span><span><b>Coaches</b><span>The whole roster, live, in three seconds.</span></span></a>
+      <a class="mm-role" href="/athletes"><span class="sol-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 5 13.5h5L9.5 22 19 9.5h-5.5L13 2z"/></svg></span><span><b>Athletes</b><span>Prove the work. Own your record.</span></span></a>
+      <a class="mm-role" href="/parents"><span class="sol-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 4.5 5.6v5.1c0 4.8 3.2 8.4 7.5 10.8 4.3-2.4 7.5-6 7.5-10.8V5.6L12 2.5z"/><path d="M9 11.5l2 2 4-4.5"/></svg></span><span><b>Parents</b><span>Consent-first visibility. Never surveillance.</span></span></a>
+      <a class="mm-role" href="/trainers"><span class="sol-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 8v8M4.5 9.5v5M16.5 8v8M19.5 9.5v5M7.5 12h9"/></svg></span><span><b>Trainers</b><span>See the other 167 hours.</span></span></a>
+      <a class="mm-role" href="/dietitians"><span class="sol-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8.5"/><circle cx="12" cy="13" r="4"/><path d="M12 1.5v3"/></svg></span><span><b>Dietitians &amp; Nutritionists</b><span>Every plate, read honestly.</span></span></a>
+    </nav>
+    <nav class="mm-links" aria-label="Site">
+      <a href="/#system">How it works</a>
+      <a href="/#score">The score</a>
+      <a href="/#why">Why now</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/#faq">FAQ</a>
+    </nav>
+    <button class="btn btn-primary js-wl" data-intent="trial" type="button">Claim a Founding 50 spot</button>
   </div>
 </header>
 
@@ -172,7 +226,7 @@
         <ol class="sys-steps" id="sys-steps">
           <li class="ss on" data-step="0">
             <span class="ss-n">1</span>
-            <div><h3>Log your day</h3><p>Point the camera at the plate. Meals, recovery, and check&#8209;ins land in seconds. Live capture only: gallery photos never score.</p></div>
+            <div><h3>Log your day</h3><p>Point the camera at the plate. Meals, recovery, and check&#8209;ins land in seconds. Every photo counts once: repeats are caught by hash and score nothing.</p></div>
           </li>
           <li class="ss" data-step="1">
             <span class="ss-n">2</span>
@@ -190,7 +244,7 @@
         <div class="sys-phone">
           <div class="p3d p3d-sys">
             <div class="p3d-screen">
-              <img class="sys-img on" src="assets/product/v3-camera.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard camera screen for logging dinner: framed viewfinder, the 8:00 PM deadline, and the note that gallery photos never score.">
+              <img class="sys-img on" src="assets/product/v3-camera.webp?v=2" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard camera screen for logging dinner: framed viewfinder, the 8:00 PM deadline, and the note that each photo can only be logged once.">
               <img class="sys-img" src="assets/product/v3-thread.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard meal thread: the AI's read of a dinner plate with detected foods and confidence, then the coach and athlete discussing it.">
               <img class="sys-img" src="assets/product/v3-home.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard home screen: OnStandard Score 93 with the gradient ring, a 26-day streak, and today's record of completed requirements.">
               <img class="sys-img" src="assets/product/v3-team.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard coach team page: team score 87, needs-attention card with message and nudge actions, live activity feed of meals, and the roster with live scores.">
@@ -202,7 +256,7 @@
 
     <!-- static fallback (no-JS / reduced motion) -->
     <div class="wrap sys-static" id="sys-static">
-      <figure><div class="phone sm"><img src="assets/product/v3-camera.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard camera screen for logging dinner."></div><figcaption><b>1 · Log your day</b> Camera-first logging in seconds; gallery photos never score.</figcaption></figure>
+      <figure><div class="phone sm"><img src="assets/product/v3-camera.webp?v=2" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard camera screen for logging dinner."></div><figcaption><b>1 · Log your day</b> Camera-first logging in seconds; every photo counts exactly once.</figcaption></figure>
       <figure><div class="phone sm"><img src="assets/product/v3-thread.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard meal thread with the AI read and coach discussion."></div><figcaption><b>2 · AI reads &amp; verifies</b> Foods and macros with per-food confidence; a "?" instead of a guess.</figcaption></figure>
       <figure><div class="phone sm"><img src="assets/product/v3-home.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard home screen with the score ring at 93."></div><figcaption><b>3 · The score moves</b> The day lands against your standard the moment work is logged.</figcaption></figure>
       <figure><div class="phone sm"><img src="assets/product/v3-team.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard coach team page with live roster."></div><figcaption><b>4 · The right people see it</b> The whole roster in three seconds, every log as it lands.</figcaption></figure>
@@ -219,7 +273,7 @@
           <div class="role-body">
             <h3>Coaches</h3>
             <p>See who's executing. Intervene early. Develop better players without chasing anyone.</p>
-            <button class="role-cta js-wl" data-intent="trial" data-role="Coach" type="button">Request access →</button>
+            <a class="role-cta" href="/coaches">OnStandard for coaches →</a>
           </div>
         </article>
         <article class="role reveal d1" id="trainers">
@@ -227,7 +281,7 @@
           <div class="role-body">
             <h3>Trainers &amp; RDs</h3>
             <p>Your session is one hour. Results depend on the other 167. Finally see what happens between sessions.</p>
-            <button class="role-cta js-wl" data-intent="trial" data-role="Trainer or dietitian" type="button">Request access →</button>
+            <a class="role-cta" href="/trainers">For trainers →</a>&nbsp;&nbsp;<a class="role-cta" href="/dietitians">For dietitians →</a>
           </div>
         </article>
         <article class="role reveal d2" id="programs">
@@ -243,7 +297,7 @@
           <div class="role-body">
             <h3>Athletes</h3>
             <p>Own your process. Build the habits. Walk into every room with receipts.</p>
-            <button class="role-cta js-wl" data-intent="join" data-role="Athlete" type="button">Join your team →</button>
+            <a class="role-cta" href="/athletes">OnStandard for athletes →</a>
           </div>
         </article>
         <article class="role reveal d4" id="parents">
@@ -251,7 +305,7 @@
           <div class="role-body">
             <h3>Parents</h3>
             <p>Know the work is getting done. Support with confidence, not surveillance.</p>
-            <button class="role-cta js-wl" data-intent="join" data-role="Parent" type="button">Get visibility →</button>
+            <a class="role-cta" href="/parents">OnStandard for parents →</a>
           </div>
         </article>
       </div>
@@ -546,6 +600,6 @@
   ]
 }
 </script>
-<script src="js/site.js?v=9" defer></script>
+<script src="js/site.js?v=10" defer></script>
 </body>
 </html>

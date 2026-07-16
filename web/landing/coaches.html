@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OnStandard for Coaches: Your whole roster in three seconds.</title>
+<meta name="description" content="OnStandard turns your athletes' daily execution into verified proof. Set the team standard, see live scores for every athlete, intervene early — without chasing anyone.">
+<link rel="canonical" href="https://onstandard.app/coaches">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OnStandard">
+<meta property="og:title" content="OnStandard for Coaches: Your whole roster in three seconds.">
+<meta property="og:description" content="You set the standard. They prove the work. You see the whole roster, live — every meal, every check-in, every score, as it lands.">
+<meta property="og:url" content="https://onstandard.app/coaches">
+<meta property="og:image" content="https://onstandard.app/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0B0A08">
+<link rel="icon" href="assets/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preload" href="fonts/archivo-exp900.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/pjs.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/site.css?v=10">
+<link rel="stylesheet" href="css/role.css?v=2">
+<noscript><style>.reveal { opacity: 1 !important; transform: none !important; }</style></noscript>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav" id="nav">
+  <div class="nav-in">
+    <a class="brand" href="/" aria-label="OnStandard home">
+      <svg class="brand-mark" viewBox="0 0 100 100" width="28" height="28" aria-hidden="true" fill="none">
+        <defs>
+          <linearGradient id="brandDial" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#34D399"/><stop offset="50%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#60A5FA"/>
+          </linearGradient>
+        </defs>
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(216,190,140,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#brandDial)" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="10.5" fill="#0B0A08"/>
+        <circle cx="50" cy="18" r="6" fill="#F5F1E8"/>
+      </svg>
+      <span class="brand-name">ONSTANDARD</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <div class="nav-sol">
+        <button class="sol-btn" type="button" aria-expanded="false" aria-controls="sol-menu" aria-haspopup="true">
+          Who are you?
+          <svg class="sol-x" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+        </button>
+        <div class="sol-menu" id="sol-menu" aria-label="OnStandard by role">
+          <div class="sol-grid">
+            <a class="sol-item" href="/coaches" aria-current="page">
+              <span class="sol-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3.4A1.4 1.4 0 0 1 10.4 2h3.2A1.4 1.4 0 0 1 15 3.4v1.1"/><path d="M9 11l2 2 4-4.5"/><path d="M9 17h6"/></svg></span>
+              <span><span class="sol-name">Coaches</span><span class="sol-desc">The whole roster, live, in three seconds.</span></span>
+            </a>
+            <a class="sol-item" href="/athletes">
+              <span class="sol-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 5 13.5h5L9.5 22 19 9.5h-5.5L13 2z"/></svg></span>
+              <span><span class="sol-name">Athletes</span><span class="sol-desc">Prove the work. Own your record.</span></span>
+            </a>
+            <a class="sol-item" href="/parents">
+              <span class="sol-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 4.5 5.6v5.1c0 4.8 3.2 8.4 7.5 10.8 4.3-2.4 7.5-6 7.5-10.8V5.6L12 2.5z"/><path d="M9 11.5l2 2 4-4.5"/></svg></span>
+              <span><span class="sol-name">Parents</span><span class="sol-desc">Consent-first visibility. Never surveillance.</span></span>
+            </a>
+            <a class="sol-item" href="/trainers">
+              <span class="sol-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 8v8M4.5 9.5v5M16.5 8v8M19.5 9.5v5M7.5 12h9"/></svg></span>
+              <span><span class="sol-name">Trainers</span><span class="sol-desc">See the other 167 hours.</span></span>
+            </a>
+            <a class="sol-item" href="/dietitians">
+              <span class="sol-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8.5"/><circle cx="12" cy="13" r="4"/><path d="M12 1.5v3"/></svg></span>
+              <span><span class="sol-name">Dietitians &amp; Nutritionists</span><span class="sol-desc">Every plate, read honestly.</span></span>
+            </a>
+          </div>
+          <div class="sol-foot">
+            <span>Running a school, club, or facility?</span>
+            <button class="js-wl" type="button" data-intent="demo" data-role="Gym or program">Book a program demo →</button>
+          </div>
+        </div>
+      </div>
+      <a href="/#system">How it works</a>
+      <a href="/#score">The score</a>
+      <a href="/#why">Why now</a>
+      <a href="/#pricing">Pricing</a>
+    </nav>
+    <a class="btn btn-nav js-wl" data-intent="trial" data-role="Coach" href="mailto:support@onstandard.app?subject=OnStandard%20founding%20access"><span class="cta-full">Claim a Founding 50 spot</span><span class="cta-short">Founding 50</span></a>
+    <button class="nav-burger" id="nav-burger" type="button" aria-expanded="false" aria-controls="m-menu" aria-label="Menu">
+      <svg viewBox="0 0 22 22" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="3" y="5" width="16" height="2" rx="1"/><rect x="3" y="10.5" width="16" height="2" rx="1"/><rect x="3" y="16" width="16" height="2" rx="1"/></svg>
+    </button>
+  </div>
+  <div class="m-menu" id="m-menu">
+    <span class="mm-eyebrow">Who are you?</span>
+    <nav class="mm-roles" aria-label="OnStandard by role">
+      <a class="mm-role" href="/coaches" aria-current="page"><span class="sol-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3.4A1.4 1.4 0 0 1 10.4 2h3.2A1.4 1.4 0 0 1 15 3.4v1.1"/><path d="M9 11l2 2 4-4.5"/><path d="M9 17h6"/></svg></span><span><b>Coaches</b><span>The whole roster, live, in three seconds.</span></span></a>
+      <a class="mm-role" href="/athletes"><span class="sol-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 5 13.5h5L9.5 22 19 9.5h-5.5L13 2z"/></svg></span><span><b>Athletes</b><span>Prove the work. Own your record.</span></span></a>
+      <a class="mm-role" href="/parents"><span class="sol-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 4.5 5.6v5.1c0 4.8 3.2 8.4 7.5 10.8 4.3-2.4 7.5-6 7.5-10.8V5.6L12 2.5z"/><path d="M9 11.5l2 2 4-4.5"/></svg></span><span><b>Parents</b><span>Consent-first visibility. Never surveillance.</span></span></a>
+      <a class="mm-role" href="/trainers"><span class="sol-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 8v8M4.5 9.5v5M16.5 8v8M19.5 9.5v5M7.5 12h9"/></svg></span><span><b>Trainers</b><span>See the other 167 hours.</span></span></a>
+      <a class="mm-role" href="/dietitians"><span class="sol-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8.5"/><circle cx="12" cy="13" r="4"/><path d="M12 1.5v3"/></svg></span><span><b>Dietitians &amp; Nutritionists</b><span>Every plate, read honestly.</span></span></a>
+    </nav>
+    <nav class="mm-links" aria-label="Site">
+      <a href="/#system">How it works</a>
+      <a href="/#score">The score</a>
+      <a href="/#why">Why now</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/#faq">FAQ</a>
+    </nav>
+    <button class="btn btn-primary js-wl" data-intent="trial" data-role="Coach" type="button">Claim a Founding 50 spot</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============ HERO ============ -->
+  <section class="rp-hero" aria-labelledby="hero-h">
+    <div class="wrap rp-hero-in">
+      <div>
+        <p class="kicker reveal">OnStandard for coaches</p>
+        <h1 id="hero-h" class="reveal d1">Stop guessing what your roster did today<span class="dot">.</span></h1>
+        <p class="rp-sub reveal d2">You plan brilliantly. They promise sincerely. OnStandard closes the gap in between: every athlete's meals, recovery, and check&#8209;ins land as photo&#8209;verified logs, scored against the standard you set — and your whole roster reads in three seconds.</p>
+        <div class="rp-cta reveal d3">
+          <a class="btn btn-primary js-wl" data-intent="trial" data-role="Coach" href="mailto:support@onstandard.app?subject=OnStandard%20founding%20access">Claim a Founding 50 spot</a>
+          <a class="btn btn-ghost" href="#tour">See the coach experience</a>
+        </div>
+        <p class="rp-fine reveal d4"><b>First 50 coaches &amp; facilities lock 50% off for 12 months</b> — grandfathered for good.</p>
+        <p class="rp-fine reveal d4">Your athletes are always free with a paying professional.</p>
+      </div>
+      <div class="rp-visual reveal d2" aria-hidden="true">
+        <div class="rp-photo"><img src="assets/img/g-hero-coach.webp" width="1024" height="1536" alt="" fetchpriority="high"></div>
+        <div class="p3d">
+          <div class="p3d-screen"><img src="assets/product/v3-team.webp" width="390" height="760" alt="" decoding="async"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ WHAT IS ONSTANDARD ============ -->
+  <section class="rp-sect alt" aria-labelledby="def-h">
+    <div class="wrap rp-def">
+      <div class="rp-def-copy">
+        <p class="kicker reveal">What is OnStandard</p>
+        <h2 id="def-h" class="h2 reveal d1">The standard, with receipts.</h2>
+        <p class="reveal d2">OnStandard is an execution and accountability platform. You set the standard for your team — meals, recovery check&#8209;ins, weigh&#8209;in days, requirements — and every athlete proves they hit it with photo&#8209;verified logs an AI reads honestly. One score per athlete per day, computed by the same fixed math for everyone, live on your dashboard the moment work lands.</p>
+      </div>
+      <ul class="rp-def-list reveal d2">
+        <li><b>You own the standard.</b><span>Targets, meal windows, weigh&#8209;in days, and requirements — tuned per room and per athlete, within evidence&#8209;based rails.</span></li>
+        <li><b>The platform owns the math.</b><span>Fixed weights, published tiers, an honesty clamp. No athlete can sweet&#8209;talk the score, and no coach can hollow it out.</span></li>
+        <li><b>The proof is a photo.</b><span>Meals are logged by pointing a camera at the plate. Repeated photos are caught by hash and score nothing.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ THE DASHBOARD (signature) ============ -->
+  <section class="rp-sect" id="tour" aria-labelledby="dash-h">
+    <div class="wrap">
+      <div class="rp-head">
+        <p class="kicker reveal">The Team tab</p>
+        <h2 id="dash-h" class="h2 reveal d1">Three seconds. The whole roster.</h2>
+        <p class="lede reveal d2">Open the app and the Team tab answers the only question that matters: who's executing, who's slipping, and who hasn't logged at all. Team average up top, then every athlete with a live score, a flag, and an honest note — never a fabricated number.</p>
+      </div>
+      <div class="walk">
+        <div class="walk-phone reveal d1">
+          <div class="mk" role="img" aria-label="Recreation of the OnStandard coach roster: team average 87, live athlete scores with green, amber and red flags.">
+            <span class="mk-eyebrow">Roster · live scores</span>
+            <p class="mk-title">Varsity Football · today</p>
+            <div class="mk-stat3">
+              <div class="mk-stat"><b>87</b><span>Team avg</span></div>
+              <div class="mk-stat"><b>14</b><span>On standard</span></div>
+              <div class="mk-stat"><b>19/22</b><span>Logged today</span></div>
+            </div>
+            <div class="mk-rows">
+              <div class="mk-row"><span class="mk-dot g"></span><div class="mk-who"><b>Marcus Reed · WR</b><span>On standard today</span></div><span class="mk-frac">3/3</span><span class="mk-score g">94</span></div>
+              <div class="mk-row"><span class="mk-dot g"></span><div class="mk-who"><b>DeShawn Cole · RB</b><span>On standard today</span></div><span class="mk-frac">3/3</span><span class="mk-score g">88</span></div>
+              <div class="mk-row"><span class="mk-dot a"></span><div class="mk-who"><b>Jaylen Brooks · QB</b><span>Logged · below the bar</span></div><span class="mk-frac">2/3</span><span class="mk-score a">71</span></div>
+              <div class="mk-row"><span class="mk-dot r"></span><div class="mk-who"><b>Tommy Vargas · OL</b><span>No logs today</span></div><span class="mk-frac">0/3</span><span class="mk-score mut">—</span></div>
+            </div>
+            <div class="mk-note"><b>Needs attention:</b> one tap to Message, Nudge, or Assign — straight to their phone.</div>
+          </div>
+        </div>
+        <div class="walk-steps reveal d2">
+          <p class="kicker">How to read it</p>
+          <h3>Flags you can act on, not charts you have to study.</h3>
+          <div class="wstep"><span class="wstep-n">1</span><div><b>Green means on standard</b><p>80 or better with the day's requirements in. You don't need to think about these athletes today — and they know you can see that.</p></div></div>
+          <div class="wstep"><span class="wstep-n">2</span><div><b>Amber means logged, below the bar</b><p>The work is partial. Open their day — it's read&#8209;only — and see exactly which slots are open before you say a word at practice.</p></div></div>
+          <div class="wstep"><span class="wstep-n">3</span><div><b>Red means silent</b><p>No logs. One tap sends a nudge: <em>"Your log is overdue. Get it in."</em> One nudge per athlete per day — accountability, not spam.</p></div></div>
+          <div class="wstep"><span class="wstep-n">4</span><div><b>The activity feed shows every log as it lands</b><p>Real meal photos from your roster, newest first, with unseen markers. When you open an athlete's day, they see "Seen by Coach" — being watched is the point.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ A COACH'S DAY ============ -->
+  <section class="rp-sect alt" aria-labelledby="day-h">
+    <div class="wrap">
+      <div class="rp-head">
+        <p class="kicker reveal">A day on the sideline of the other 23 hours</p>
+        <h2 id="day-h" class="h2 reveal d1">Your day, with OnStandard in&nbsp;it.</h2>
+        <p class="lede reveal d2">Nothing here adds a meeting to your calendar. It replaces the chasing — the "did you eat?" texts, the screenshot spreadsheets, the honor system.</p>
+      </div>
+      <div class="tl">
+        <div class="tl-row reveal">
+          <span class="tl-when">7:10 AM</span>
+          <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>
+          <div class="tl-body"><h3>Read the daily briefing</h3><p>The Inbox opens with a briefing computed from your real roster: who hasn't logged yet, who's under 80, who leads the day. No dashboard spelunking — the app tells you where you're needed.</p>
+          <span class="tl-chip"><b>Daily briefing · from your real roster</b> — "3 not logged yet · 2 below the bar · Reed leads the day at 94"</span></div>
+        </div>
+        <div class="tl-row reveal">
+          <span class="tl-when">7:12 AM</span>
+          <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13m0 0-4-4m4 4 4-4"/><path d="M5 21h14"/></svg></span>
+          <div class="tl-body"><h3>Nudge the silent ones</h3><p>One tap per athlete. The push lands on their phone as you, by the name your room actually uses — "Coach JB is waiting." Once per day, so it stays sharp.</p></div>
+        </div>
+        <div class="tl-row reveal">
+          <span class="tl-when">12:40 PM</span>
+          <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="3"/><circle cx="12" cy="13" r="3.5"/><path d="M9 6l1.2-2h3.6L15 6"/></svg></span>
+          <div class="tl-body"><h3>Watch lunches land</h3><p>The activity feed fills with real plates as the cafeteria line moves. The AI has already read each one — foods, portions, macros, with a confidence level per detection — and scored it against that athlete's targets.</p></div>
+        </div>
+        <div class="tl-row reveal">
+          <span class="tl-when">3:30 PM</span>
+          <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
+          <div class="tl-body"><h3>Assign what tomorrow needs</h3><p>The + tab puts something on someone's plate in four taps: <b>Who</b> (whole team, a position room, or one athlete) → <b>What</b> ("Extra shake after lift") → <b>Proof</b> (photo, check, scale, or form) → <b>Due</b>. Every athlete gets a push; you see who marked it done.</p></div>
+        </div>
+        <div class="tl-row reveal">
+          <span class="tl-when">8:15 PM</span>
+          <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.2-.7L3 21l1.8-5.8a8.4 8.4 0 1 1 16.2-3.7z"/></svg></span>
+          <div class="tl-body"><h3>Say the thing that matters, where it counts</h3><p>Comment straight on a logged dinner. The athlete sees it in that meal's thread — next to the AI's read and their own reply. You get two messages per meal, so every word carries weight. Reactions are always open.</p>
+          <span class="tl-chip">"You've made your point — <b>2 coach messages per meal.</b> Reactions are always open."</span></div>
+        </div>
+        <div class="tl-row reveal">
+          <span class="tl-when">SUN 6 PM</span>
+          <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+          <div class="tl-body"><h3>Get the week, in one push</h3><p>The weekly digest lands automatically: days logged, team average, and — most valuable — who's gone silent for three or more days. The slow fades that used to surprise you in November now surface on Sunday.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ REAL SCREENS ============ -->
+  <section class="rp-sect" aria-labelledby="screens-h">
+    <div class="wrap">
+      <div class="rp-head">
+        <p class="kicker reveal">Real screens, not renders</p>
+        <h2 id="screens-h" class="h2 reveal d1">This is the actual app.</h2>
+      </div>
+      <div class="shots reveal d2">
+        <figure><div class="phone sm"><img src="assets/product/v3-team.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard coach Team page: team score 87, needs-attention card with message and nudge actions, live activity feed of meals, and the roster with live scores."></div><figcaption><b>Team</b> The roster with live scores, flags, and every log as it lands.</figcaption></figure>
+        <figure><div class="phone sm"><img src="assets/product/v3-inbox.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard coach Inbox: the daily briefing computed from the roster, join requests, and unopened logs."></div><figcaption><b>Inbox</b> The daily briefing, join requests, and unopened logs — a work queue, not a feed.</figcaption></figure>
+        <figure><div class="phone sm"><img src="assets/product/v3-thread.webp" width="390" height="760" loading="lazy" decoding="async" alt="OnStandard meal thread: the AI's read of a dinner plate with detected foods and confidence, then the coach and athlete discussing it."></div><figcaption><b>Meal thread</b> The AI's read, your comment, their reply — accountability with context.</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FEATURES ============ -->
+  <section class="rp-sect alt" aria-labelledby="feat-h">
+    <div class="wrap">
+      <div class="rp-head">
+        <p class="kicker reveal">The coach's toolkit</p>
+        <h2 id="feat-h" class="h2 reveal d1">Built for how a room actually runs.</h2>
+      </div>
+      <div class="fgrid">
+        <article class="fcard reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="12" rx="3"/><path d="M7 11h2m2 0h2m2 0h2M7 15h6"/></svg>
+          <h3>One code builds the team</h3>
+          <p>Finish onboarding and get your team code. Send it to the group chat; athletes enter it once and their work starts counting toward your board. You approve every join. Customize the code or kill it and mint a new one anytime.</p>
+          <span class="fq">"Send it to the group chat. Athletes enter it once and their work starts counting toward your board."</span>
+        </article>
+        <article class="fcard reveal d1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V9m8 11V4m8 16v-7"/></svg>
+          <h3>Standards, room by room</h3>
+          <p>Set the team default — meals per day (1–6), lift sessions, weigh&#8209;in days — then override per position room. The WR room and the OL room can run different standards; the score math never bends for either.</p>
+          <span class="fq">"The score model itself doesn't bend: four honest components, weight never scored daily."</span>
+        </article>
+        <article class="fcard reveal d2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11"/><path d="M4 6.5l1 1L7 5.5"/><path d="M4 11.5l1 1L7 10.5"/><path d="M4 16.5l1 1L7 15.5"/></svg>
+          <h3>Targets with open math</h3>
+          <p>Per&#8209;athlete protein, calories, and target weight. Tap Suggest and the math shows its work — bulk, cut, or hold formulas you approve before saving. Nothing is a black box, and nothing changes without you.</p>
+          <span class="fq">"Open math, not a black box — you approve, then Save writes it."</span>
+        </article>
+        <article class="fcard reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 4.5 5.6v5.1c0 4.8 3.2 8.4 7.5 10.8 4.3-2.4 7.5-6 7.5-10.8V5.6L12 2.5z"/><path d="M9 11.5l2 2 4-4.5"/></svg>
+          <h3>Trust Passes — earned, not given</h3>
+          <p>Seven photo&#8209;proven days on standard earns an athlete camera&#8209;free days, credited from their own real median — with camera spot&#8209;checks on days 5 and 10 and credit that decays until fresh photos reset it. You grant it; you can end it.</p>
+          <span class="fq">"No pass · needs 7 photo-logged days on standard."</span>
+        </article>
+        <article class="fcard reveal d1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V21"/><circle cx="9" cy="7.5" r="3.5"/><path d="M17 4a3.5 3.5 0 0 1 0 7"/><path d="M22 21v-1.5a4 4 0 0 0-2.5-3.7"/></svg>
+          <h3>Bring your staff</h3>
+          <p>Head coaches invite assistants and a nutritionist/RD with single&#8209;use staff codes. Your S&amp;C coach and your dietitian see the same live roster you do — one standard, one board, no forwarding screenshots.</p>
+        </article>
+        <article class="fcard reveal d2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 7v5l3.5 2"/></svg>
+          <h3>Late counts half. Honest, always.</h3>
+          <p>Every meal has a window. On time counts full, late counts half, skipped reads as skipped — and a re&#8209;used photo is caught by hash and scores zero while staying visible to you. The number you see is the day they actually had.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ WHO SEES WHAT ============ -->
+  <section class="rp-sect" aria-labelledby="priv-h">
+    <div class="wrap">
+      <div class="rp-head">
+        <p class="kicker reveal">Privacy &amp; permissions</p>
+        <h2 id="priv-h" class="h2 reveal d1">You see the work. Nothing is public.</h2>
+        <p class="lede reveal d2">Access is enforced on the server, per connection — not by promises. Athletes see exactly who can view what, in the app, at all times.</p>
+      </div>
+      <div class="ledger reveal d2">
+        <div class="lg-row hl">
+          <div class="lg-who">You, the coach<span>connected team</span></div>
+          <div class="lg-cell sees"><b>You see</b><p>Score, logs, meal photos, check&#8209;ins, weight trend, requirement completion, and meal threads for your connected athletes.</p></div>
+          <div class="lg-cell never"><b>Boundaries</b><p>Only athletes who joined with your code and were approved. When an athlete opens their day, they see that you looked.</p></div>
+        </div>
+        <div class="lg-row">
+          <div class="lg-who">Parents<span>via athlete invite</span></div>
+          <div class="lg-cell sees"><b>They see</b><p>Score, streaks, and completion only.</p></div>
+          <div class="lg-cell never"><b>Never</b><p>No meal photos, no weight, no check&#8209;in answers, no threads.</p></div>
+        </div>
+        <div class="lg-row">
+          <div class="lg-who">Teammates</div>
+          <div class="lg-cell sees"><b>They see</b><p>Leaderboard score only.</p></div>
+          <div class="lg-cell never"><b>Never</b><p>No logs, no photos, no details.</p></div>
+        </div>
+      </div>
+      <p class="rp-fine reveal d3" style="margin-top:22px; max-width:76ch;"><b>Minors are protected by default.</b> Under&#8209;13s can't sign up at all. For an athlete under 18, nothing syncs to you until a parent or guardian approves by email — the data stays on their device until consent is verified. You never have to police it; the platform refuses for you.</p>
+    </div>
+  </section>
+
+  <!-- ============ VS THE OLD WAY ============ -->
+  <section class="rp-sect alt" aria-labelledby="cmp-h">
+    <div class="wrap">
+      <div class="rp-head">
+        <p class="kicker reveal">Why coaches switch</p>
+        <h2 id="cmp-h" class="h2 reveal d1">Retire the group&#8209;chat honor system.</h2>
+      </div>
+      <div class="cmp reveal d2">
+        <div class="cmp-col was">
+          <h3>Texts, spreadsheets &amp; trust</h3>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span>"Did you eat?" texts that get a thumbs&#8209;up and no evidence.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Self&#8209;reported food logs typed in from memory, at night, generously.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span>A spreadsheet someone on staff updates when they remember.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Finding out in November that a starter quietly stopped in September.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Zero record when a parent, AD, or recruiter asks what the athlete actually did.</span></li>
+          </ul>
+        </div>
+        <div class="cmp-col now">
+          <h3>OnStandard</h3>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span><b>Photo proof</b> — the AI reads the actual plate; a re&#8209;used photo is caught by hash and scores nothing.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span><b>One live board</b> — every athlete, every day, scored by fixed math you can defend.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span><b>Early flags</b> — silence surfaces the same day, not at the end of the month.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span><b>Targeted pressure</b> — nudges and comments that land on one phone, not the whole chat.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span><b>A defensible record</b> — day&#8209;by&#8209;day proof of execution that belongs to the athlete and reflects on your program.</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="band reveal d3">
+        <div>
+          <h3>Set your standard this week.</h3>
+          <p>Founding coaches are onboarded personally, usually within a day. Your free 14&#8209;day trial starts when we onboard you — no card until you start, and your athletes ride free.</p>
+        </div>
+        <a class="btn btn-primary btn-big js-wl" data-intent="trial" data-role="Coach" href="mailto:support@onstandard.app?subject=OnStandard%20founding%20access">Request founding access</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section class="faq" id="faq" aria-labelledby="faq-h">
+    <div class="wrap faq-wrap">
+      <div class="faq-head">
+        <h2 id="faq-h" class="h2 reveal d1">Coach questions, straight answers</h2>
+        <p class="faq-note reveal d2">The things coaches ask before they put their room on it.</p>
+      </div>
+      <div class="faq-list reveal d2">
+        <details>
+          <summary>How do my athletes get on it?<span class="fx" aria-hidden="true"></span></summary>
+          <p>You finish setup and get a team code. Send it to the group chat; each athlete enters it once during their own signup and lands on your board as a join request you approve. Athletes under 18 additionally need one&#8209;email parent approval before anything syncs to you.</p>
+        </details>
+        <details>
+          <summary>What exactly do I see for each athlete?<span class="fx" aria-hidden="true"></span></summary>
+          <p>Their daily score and flag, every logged meal with its photo and the AI's macro read, recovery check&#8209;ins, weight trend, requirement completion, and the meal threads. Opening an athlete's day is read&#8209;only — and they can see that you looked, which does half the coaching for you.</p>
+        </details>
+        <details>
+          <summary>Can athletes game the photo proof?<span class="fx" aria-hidden="true"></span></summary>
+          <p>Every photo is hashed; a re&#8209;used photo stays visible to you but scores zero. Late logs count half, empty days read as empty, and the score is clamped so it can never exceed what was actually logged. If they want the number, they have to do the work.</p>
+        </details>
+        <details>
+          <summary>Do I have to set macros for every kid?<span class="fx" aria-hidden="true"></span></summary>
+          <p>No. Every athlete starts on your team default the moment they join. When you want to individualize, the targets editor suggests protein and calories from open math — bulk, cut, or hold — that you approve before it saves. Adjust one athlete or leave the default; the room keeps running either way.</p>
+        </details>
+        <details>
+          <summary>I have assistants and a dietitian. Can they see the roster?<span class="fx" aria-hidden="true"></span></summary>
+          <p>Yes. You invite assistants and a nutritionist/RD with single&#8209;use staff codes; they get the same live board. Revoke a staff seat anytime.</p>
+        </details>
+        <details>
+          <summary>What does it cost, and who pays?<span class="fx" aria-hidden="true"></span></summary>
+          <p>The professional pays; athletes are always free with a paying coach, trainer, or program. Team and facility plans are priced per roster — see <a href="/#pricing">pricing</a>. Founding 50 coaches lock 50% off for 12 months, grandfathered so a later price rise never touches them.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FINALE ============ -->
+  <section class="finale" aria-labelledby="fin-h">
+    <div class="fin-media" aria-hidden="true">
+      <img src="assets/img/g-role-coach.webp" alt="" width="640" height="960" loading="lazy" decoding="async">
+    </div>
+    <div class="wrap fin-in">
+      <h2 id="fin-h" class="h2 fin-h reveal d1">You set the standard.<br>Now you'll see it.</h2>
+      <div class="fin-cta reveal d2">
+        <button class="btn btn-primary btn-big js-wl" data-intent="trial" data-role="Coach" type="button">Claim a Founding 50 spot</button>
+        <a class="btn btn-ghost" href="/#pricing">See pricing</a>
+      </div>
+      <ul class="fin-ticks reveal d3">
+        <li>Founding 50: 50% off for 12 months</li>
+        <li>Free 14&#8209;day trial when onboarded</li>
+        <li>Athletes always free with you</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ WAITLIST DIALOG ============ -->
+  <dialog id="wl" class="wl" aria-labelledby="wl-h">
+    <button type="button" class="wl-close" id="wl-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="wl-panel">
+      <p class="kicker" id="wl-k">Early access</p>
+      <h2 id="wl-h" class="wl-h">Get on the standard.</h2>
+      <p class="wl-sub" id="wl-sub">Tell us who you are and we'll reach out as spots open.</p>
+      <form id="wl-form" class="wl-form" novalidate>
+        <div class="wl-field">
+          <label for="wl-name">Name</label>
+          <input id="wl-name" name="name" autocomplete="name" placeholder="Your name">
+        </div>
+        <div class="wl-field">
+          <label for="wl-email">Email <span class="req">*</span></label>
+          <input id="wl-email" name="email" type="email" required autocomplete="email" placeholder="you@email.com">
+        </div>
+        <div class="wl-field">
+          <label for="wl-role">I'm a</label>
+          <select id="wl-role" name="role">
+            <option>Athlete</option>
+            <option>Parent</option>
+            <option>Coach</option>
+            <option>Trainer or dietitian</option>
+            <option>Gym or program</option>
+            <option>Just curious</option>
+          </select>
+        </div>
+        <div class="wl-field">
+          <label for="wl-note">Anything else? <span class="opt">optional</span></label>
+          <textarea id="wl-note" name="note" rows="2" placeholder="Sport, team, roster size, or what you're chasing"></textarea>
+        </div>
+        <input type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true" class="wl-hp">
+        <input type="hidden" name="intent" id="wl-intent" value="access">
+        <button type="submit" class="btn btn-primary wl-submit" id="wl-submit">Request early access</button>
+        <p class="wl-msg" id="wl-msg" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </dialog>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div class="foot-brand">
+      <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden="true" fill="none">
+        <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(216,190,140,.22)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#brandDial)" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="50" cy="18" r="8" fill="#F5F1E8"/>
+      </svg>
+      <div>
+        <span class="brand-name">ONSTANDARD</span>
+        <p>Prove the work. Own your standard. The execution and accountability platform for serious athletes and coached clients.</p>
+        <div class="foot-social">
+          <a href="https://x.com/onstandard" target="_blank" rel="me noopener noreferrer" aria-label="OnStandard on X">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.714 6.231 5.45-6.231zm-1.161 17.52h1.833L7.084 4.126H5.117l11.966 15.644z"/></svg>
+          </a>
+          <a href="https://instagram.com/onstandard" target="_blank" rel="me noopener noreferrer" aria-label="OnStandard on Instagram">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="2.6" y="2.6" width="18.8" height="18.8" rx="5.4"/><circle cx="12" cy="12" r="4.1"/><circle cx="17.4" cy="6.6" r="1.15" fill="currentColor" stroke="none"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+    <nav class="foot-nav" aria-label="OnStandard by role">
+      <a href="/coaches">For coaches</a>
+      <a href="/athletes">For athletes</a>
+      <a href="/parents">For parents</a>
+      <a href="/trainers">For trainers</a>
+      <a href="/dietitians">For dietitians</a>
+      <a href="/#pricing">Pricing</a>
+    </nav>
+    <nav class="foot-links" aria-label="Legal and support">
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="mailto:support@onstandard.app">support@onstandard.app</a>
+    </nav>
+  </div>
+  <p class="foot-fine wrap">&copy; 2026 OnStandard. The score reflects work actually done. So does everything else here.</p>
+</footer>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "How do athletes join a coach's team on OnStandard?", "acceptedAnswer": { "@type": "Answer", "text": "The coach gets a team code at setup. Athletes enter it once during signup and land as join requests the coach approves. Athletes under 18 also need one-email parent approval before anything syncs to the coach." } },
+    { "@type": "Question", "name": "What does a coach see for each athlete?", "acceptedAnswer": { "@type": "Answer", "text": "Daily score and flag, every logged meal with its photo and AI macro read, recovery check-ins, weight trend, requirement completion, and meal threads — read-only, scoped to connected athletes only." } },
+    { "@type": "Question", "name": "Can athletes fake the photo proof?", "acceptedAnswer": { "@type": "Answer", "text": "Photos are hashed, so a re-used photo stays visible but scores zero. Late logs count half and the score is clamped so it can never exceed what was actually logged." } },
+    { "@type": "Question", "name": "Who pays for OnStandard?", "acceptedAnswer": { "@type": "Answer", "text": "The professional pays; athletes are always free with a paying coach, trainer, or program. The first 50 coaches and facilities lock 50% off for 12 months." } }
+  ]
+}
+</script>
+<script src="js/site.js?v=10" defer></script>
+</body>
+</html>

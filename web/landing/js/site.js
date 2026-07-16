@@ -237,6 +237,64 @@
     }
   }
 
+  /* ---------- nav: "Who are you?" role dropdown ---------- */
+  const solWrap = document.querySelector('.nav-sol');
+  if (solWrap) {
+    const solBtn = solWrap.querySelector('.sol-btn');
+    const solMenu = solWrap.querySelector('.sol-menu');
+    let closeT = 0;
+    const setOpen = (on) => {
+      solMenu.classList.toggle('open', on);
+      solBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    };
+    const isOpen = () => solMenu.classList.contains('open');
+    solBtn.addEventListener('click', () => setOpen(!isOpen()));
+    // hover intent (desktop pointers only)
+    if (matchMedia('(pointer: fine)').matches) {
+      solWrap.addEventListener('mouseenter', () => { clearTimeout(closeT); setOpen(true); });
+      solWrap.addEventListener('mouseleave', () => { closeT = setTimeout(() => setOpen(false), 160); });
+    }
+    // keyboard: Escape closes and refocuses; arrows walk the items
+    solWrap.addEventListener('keydown', (e) => {
+      const items = [...solMenu.querySelectorAll('a, button')];
+      if (e.key === 'Escape' && isOpen()) { setOpen(false); solBtn.focus(); }
+      else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && items.length) {
+        e.preventDefault();
+        if (!isOpen()) setOpen(true);
+        const i = items.indexOf(document.activeElement);
+        const next = e.key === 'ArrowDown'
+          ? (i < 0 ? 0 : Math.min(i + 1, items.length - 1))
+          : (i <= 0 ? 0 : i - 1);
+        items[next].focus();
+      }
+    });
+    // close when focus or clicks land outside
+    solWrap.addEventListener('focusout', (e) => {
+      if (!solWrap.contains(e.relatedTarget)) setOpen(false);
+    });
+    document.addEventListener('click', (e) => {
+      if (isOpen() && !solWrap.contains(e.target)) setOpen(false);
+    });
+  }
+
+  /* ---------- nav: mobile menu ---------- */
+  const burger = document.getElementById('nav-burger');
+  const mMenu = document.getElementById('m-menu');
+  if (burger && mMenu) {
+    const setMenu = (on) => {
+      mMenu.classList.toggle('open', on);
+      burger.setAttribute('aria-expanded', on ? 'true' : 'false');
+      document.documentElement.style.overflow = on ? 'hidden' : '';
+    };
+    burger.addEventListener('click', () => setMenu(!mMenu.classList.contains('open')));
+    mMenu.addEventListener('click', (e) => {
+      if (e.target.closest('a, .js-wl')) setMenu(false);
+    });
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && mMenu.classList.contains('open')) { setMenu(false); burger.focus(); }
+    });
+  }
+
   /* ---------- waitlist dialog (intent-aware) ---------- */
   const INTENTS = {
     trial: {
