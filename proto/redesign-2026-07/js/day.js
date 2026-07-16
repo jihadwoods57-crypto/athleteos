@@ -171,7 +171,7 @@ function recoveryParts(day) {
 }
 
 function commitmentScore(ans) { return ans === 'yes' ? 100 : ans === 'partial' ? 60 : 0; }
-function checkinReal(day) { return !!(day.ciSubmitted || (day.ciLast && withinTrailingWeek(day.ciLast.date, day.date))); }
+export function checkinReal(day) { return !!(day.ciSubmitted || (day.ciLast && withinTrailingWeek(day.ciLast.date, day.date))); }
 
 /** The four sub-scores. `recoveryContribution` is what the total uses (0 unless a real check-in backs it). */
 export function computeComponents(day) {

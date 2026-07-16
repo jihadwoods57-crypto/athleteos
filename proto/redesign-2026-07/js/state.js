@@ -15,7 +15,7 @@ import {
   setSyncBlocked, isSyncBlocked, SYNC,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
-  setDayStandard, slotDeadline, setDayGoalConfig,
+  setDayStandard, slotDeadline, setDayGoalConfig, checkinReal,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { normalizePrefs } from './notify-plan.js';
@@ -149,7 +149,8 @@ const DEFAULT_RT = {
   homeOpenSections: {},  // WS6: per-section open state for Home's collapsible groups (Later/Done)
   profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
   ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
-  allergies: [],         // declared in onboarding, enforced everywhere (guardian). Empty until the athlete declares one.
+  allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
+  restrictions: null,    // structured (spec §18.1): {allergies:[{name,severity}], intolerances:[], preferences:[]}
   injured: false,        // injury mode: the Standard adapts (rehab replaces recovery emphasis)
   partnerNudged: false,  // peer accountability: one nudge sent tonight
   wearable: false,       // v1 has NO wearable integration — never show fabricated hardware data
@@ -784,6 +785,25 @@ export const act = {
   captureOb(patch) { RT.ob = { ...(RT.ob || {}), ...patch }; save(); },
   clearJoin() { if (RT.ob) { delete RT.ob.join; save(); } },
   saveAllergies(list) { RT.allergies = list.slice(0, 8); save(); },
+  /* Structured restrictions (spec §18.1): allergies carry per-allergen severity;
+     intolerances and preferences are separate lists. The flat RT.allergies summary is
+     derived so every existing consumer (meal guardian line, profile row) stays correct. */
+  saveRestrictions(r) {
+    const cleanName = (s) => String(s || '').replace(/[<>]/g, '').trim().slice(0, 30);
+    RT.restrictions = {
+      allergies: (Array.isArray(r.allergies) ? r.allergies : []).slice(0, 12)
+        .map((a) => ({ name: cleanName(a.name), severity: a.severity === 'moderate' ? 'moderate' : 'severe' }))
+        .filter((a) => a.name),
+      intolerances: (Array.isArray(r.intolerances) ? r.intolerances : []).slice(0, 8).map(cleanName).filter(Boolean),
+      preferences: (Array.isArray(r.preferences) ? r.preferences : []).slice(0, 8).map(cleanName).filter(Boolean),
+    };
+    RT.allergies = [
+      ...RT.restrictions.allergies.map((a) => a.severity === 'severe' ? `${a.name} · severe` : a.name),
+      ...RT.restrictions.intolerances,
+      ...RT.restrictions.preferences,
+    ].slice(0, 12);
+    save();
+  },
   setAuthRole(role) { RT.authRole = role; save(); },
   nudgePartner() { RT.partnerNudged = true; save(); },
   toggleInjury() {
@@ -2106,19 +2126,19 @@ export const S = {
     return { fields };
   },
 
-  // ---------- WEEKLY CHECK-IN (honest: the weekly ritual isn't separately wired in v1) ----------
-  // No fabricated "Submitted Sunday · readiness 84". Readiness reflects the last REAL recovery
-  // check-in if one exists; the form is a blank preview until the weekly flow is wired.
+  // ---------- WEEKLY CHECK-IN ----------
+  // Engine truth: the weekly component is held by ANY check-in in the trailing 7 days
+  // (day.js checkinReal). The Sunday ritual submits through the same engine (checkin.js).
   get weekly() {
     const last = DAY.ciLast && DAY.ciLast.date ? DAY.ciLast : null;
+    const covered = !!(DAY.ciSubmitted || (last && checkinReal(DAY)));
+    const isSunday = new Date().getDay() === 0;
     return {
-      status: 'Opens Sunday · not submitted yet',
-      submitted: false,
+      status: DAY.ciSubmitted ? 'Checked in today · week covered'
+        : covered ? 'Covered by a recent check-in'
+        : isSunday ? 'Open today · worth 10 points' : 'Opens Sunday · worth 10 points',
+      submitted: !!DAY.ciSubmitted,
       readiness: last ? Math.round(last.recovery) : null,
-      fields: [
-        { k: 'Energy this week' }, { k: 'Recovery' }, { k: 'Sleep' },
-        { k: 'Confidence' }, { k: 'Soreness' }, { k: 'Motivation' },
-      ],
     };
   },
 

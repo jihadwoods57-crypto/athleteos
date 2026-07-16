@@ -291,3 +291,25 @@ export function contextForChat({ meal, plan, exec, recentMeals, thread } = {}) {
   while (size() > CONTEXT_MAX && ctx.thread.length > 1) ctx.thread.shift();
   return ctx;
 }
+
+/* ---------------- Restriction comparison (spec §18.3/§18.4) ----------------
+   Compares detected food names with the athlete's saved restrictions. HONEST BY DESIGN:
+   a hit is a "possible conflict" (name-level match only), and NO hit never claims safety —
+   detection can miss ingredients, preparation methods, and cross-contact. Pure. */
+export function restrictionConflicts(detectedNames, restrictions) {
+  const r = restrictions && typeof restrictions === 'object' ? restrictions : {};
+  const foods = (Array.isArray(detectedNames) ? detectedNames : [])
+    .map((f) => String(f && f.name != null ? f.name : f).toLowerCase());
+  // Name → match terms: an allergen matches when any detected food contains it (or a
+  // simple stem, so "peanuts" matches "peanut butter" and "eggs" matches "egg").
+  const hit = (name) => {
+    const stem = String(name || '').toLowerCase().replace(/s$/, '');
+    return stem.length >= 3 && foods.some((f) => f.includes(stem));
+  };
+  const severe = [], moderate = [], noted = [];
+  for (const a of Array.isArray(r.allergies) ? r.allergies : []) {
+    if (hit(a.name)) (a.severity === 'severe' ? severe : moderate).push(a.name);
+  }
+  for (const n of Array.isArray(r.intolerances) ? r.intolerances : []) if (hit(n)) noted.push(n);
+  return { severe, moderate, noted, any: !!(severe.length || moderate.length || noted.length) };
+}

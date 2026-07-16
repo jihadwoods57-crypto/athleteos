@@ -2,7 +2,7 @@ import { S, RT, tier, act, MEAL, mealDetail, fmtClock } from '../state.js';
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
-import { openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages, contextForChat, applyFoodEdit, hasUserEdits } from '../meal-intel.js';
+import { openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages, contextForChat, applyFoodEdit, hasUserEdits, restrictionConflicts } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
 
 function macroRow(m) {
@@ -208,9 +208,27 @@ export const analysis = {
     ${macroRow(L.macros)}
 
     <div style="height:14px"></div>
-    <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--green-surface);border:1px solid var(--green-border)">
-      ${icon('shield', 15)} <span style="font-size:12.5px;font-weight:700;color:var(--green-bright)">Guardian: no conflicts with your restrictions (${RT.allergies.length ? esc(RT.allergies.join(', ')) : 'none declared'})</span>
-    </div>
+    ${(() => {
+      // REAL restriction comparison (spec §18.3/§18.4): name-level match of detected foods
+      // vs saved restrictions. A severe hit is a loud pre-confirm alert that names the
+      // allergen and its uncertainty; a clean pass NEVER claims guaranteed safety.
+      if (!RT.allergies.length && !RT.restrictions) return '';
+      const cf = restrictionConflicts(rich, RT.restrictions || { allergies: RT.allergies.map((n) => ({ name: String(n).split('·')[0].trim(), severity: /severe/i.test(String(n)) ? 'severe' : 'moderate' })) });
+      if (cf.severe.length) return `
+      <div style="display:flex;gap:10px;padding:13px 14px;border-radius:var(--r-tile);background:var(--red-surface);border:1.5px solid var(--red-border)">
+        ${icon('bell', 17, 'style="color:var(--red);flex:none;margin-top:1px"')}
+        <div><div style="font-size:13.5px;font-weight:800;color:#FF9B9B">Possible severe allergen: ${esc(cf.severe.join(', '))}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:3px;line-height:1.45">A detected food may contain it — the read can't see every ingredient or cross-contact. Check the label or ask staff before you eat or log this.</div></div>
+      </div>`;
+      if (cf.moderate.length || cf.noted.length) return `
+      <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--amber-surface);border:1px solid var(--amber-border)">
+        ${icon('bell', 15)} <span style="font-size:12.5px;font-weight:700;color:var(--amber-bright)">Heads up: this may contain ${esc([...cf.moderate, ...cf.noted].join(', '))} from your restrictions.</span>
+      </div>`;
+      return `
+      <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--surface-2);border:1px solid var(--hairline)">
+        ${icon('shield', 15)} <span style="font-size:12px;font-weight:600;color:var(--text-2)">Compared with your saved restrictions — no matches detected. Detection can miss ingredients or cross-contact; always verify severe allergens yourself.</span>
+      </div>`;
+    })()}
 
     <div style="height:12px"></div>
     <div class="ai-note">
