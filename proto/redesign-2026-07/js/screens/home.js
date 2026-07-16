@@ -36,11 +36,13 @@ function resCard(a) {
   </div>`;
 }
 // Results are things that HAPPENED — a not-yet-submitted check-in isn't one.
+// Lateral snap rail (founder call 2026-07-16): cards share one anatomy and height, the
+// next card peeks at the screen edge, and scroll snaps card-to-card.
 const recentResults = () => {
   const rows = S.activity.filter((a) => !a.dim);
   return rows.length ? `
     <div class="eyebrow">Recent Results <span class="link" data-go="progress">View all</span></div>
-    <div class="res-grid">${rows.map(resCard).join('')}</div>` : '';
+    <div class="res-rail">${rows.map(resCard).join('')}</div>` : '';
 };
 
 const whyHtml = (why) => esc(why).replace(/\*\*(.+?)\*\*/, '<b>$1</b>');
@@ -51,15 +53,20 @@ const CTA_ICON = { form: 'moon', scale: 'scale', photo: 'camera', counter: 'drop
 function nowCard(e) {
   const n = e.now;
   const od = n.state === 'overdue';
+  // Closing-soon: inside the last 45 minutes the window itself becomes the message — the
+  // label names it and the countdown breathes. "Due 8:30 PM" is a fact; "42 min left on a
+  // closing window" is what actually gets a tired athlete to log.
+  const closing = !od && n.minsLeft != null && n.minsLeft <= 45;
   // check-type / assigned items (no proof) read "Mark ⟨title⟩ done"
   const isCheck = !n.proof || n.proof === 'check';
   const label = isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}${od ? ' late' : ''}`;
   const ctaIcon = isCheck ? 'check' : CTA_ICON[n.proof];
   // Overdue already announces itself three ways (label + pill + "Late") — the pill is the
   // redundant one when it just repeats the label; keep it only when it says something new.
-  const pill = od && String(n.pill).toUpperCase() === 'OVERDUE' ? '' : `<span class="xpill ${n.color}">${n.pill}</span>`;
-  return `<section class="xnow ${od ? 'red' : ''}">
-    <div class="xlab"><span class="xl">${od ? 'OVERDUE' : 'NOW'}</span>${pill}</div>
+  // Closing-soon drops the pill too: "CLOSING SOON" + the hot countdown says it all.
+  const pill = (od && String(n.pill).toUpperCase() === 'OVERDUE') || closing ? '' : `<span class="xpill ${n.color}">${n.pill}</span>`;
+  return `<section class="xnow ${od ? 'red' : ''}${closing ? ' closing' : ''}">
+    <div class="xlab"><span class="xl">${od ? 'OVERDUE' : closing ? 'NOW · CLOSING SOON' : 'NOW'}</span>${pill}</div>
     <div class="xmain">
       <div class="xico ${n.color}">${icon(n.icon, 21)}</div>
       <div><div class="xt">${esc(n.title)}</div><div class="xwhy">${whyHtml(n.why)}</div></div>
@@ -142,22 +149,61 @@ function nextLabel(e) {
   return '';
 }
 
+/* "▲ 8 vs yesterday" — trajectory against yesterday's REAL score. Renders nothing when
+   there is no yesterday row (never compares against a different day) or the scores tie.
+   Down-days show honestly in muted amber; never a screaming red. */
+function deltaChip(score) {
+  const y = S.scoreYesterday;
+  if (y == null || score === y) return '';
+  const up = score > y;
+  return `<span class="xh-delta ${up ? 'up' : 'down'}">${icon(up ? 'arrowUp' : 'arrowDown', 11)} ${Math.abs(score - y)} <span class="m">vs yesterday</span></span>`;
+}
+
+/* The last score this Home render showed — lets the next render know a log just moved the
+   number, so the hero can float an honest "+N". Module-level on purpose: survives route
+   changes within the session, resets with a fresh page load (no stale cross-day pops). */
+let lastHomeScore = null;
+
+/* Entrance-choreography gate: the staggered settle plays only when the athlete ARRIVES at
+   Home (fresh load or navigating back), never on the 30s exec-tick's in-place re-render.
+   The router exposes no route-transition signal, so watch the hash ourselves: leaving Home
+   arms the next mount; tick re-renders never touch the hash. */
+let homeEntrance = true;
+window.addEventListener('hashchange', () => {
+  if ((location.hash || '#home').slice(1).split('/')[0] !== 'home') homeEntrance = true;
+});
+
 /* Daily Score hero — the score owns the screen. Ring keeps the signature green→teal→blue
    sweep (status lives in the tier pill, never in the ring color). Label, completion,
-   ceiling, and the next move all live inside the one card; the whole surface opens the
-   breakdown (chevron + press state carry the affordance). */
+   ceiling, the four-part formula, and the next move all live inside the one card; the
+   whole surface opens the breakdown (chevron + press state carry the affordance). */
 function hero(e) {
   const next = nextLabel(e);
+  // The formula bar is S.breakdown verbatim — the same numbers and accent colors as the
+  // breakdown screen, so the two surfaces can never disagree. Segments sum to /100.
+  const parts = S.breakdown;
+  const segs = parts.filter((b) => b.earned > 0)
+    .map((b) => `<i class="${b.accent}" style="width:${b.earned}%"></i>`).join('');
+  const legend = parts.map((b) => `<span class="xf-l"><span class="xf-k"><i class="d ${b.accent}"></i>${esc(b.key.replace('Daily commitment', 'Commitment').replace('Weekly check-in', 'Weekly'))}</span><b>${b.earned}<small>/${b.possible}</small></b></span>`).join('');
+  const gain = lastHomeScore != null && e.score > lastHomeScore ? e.score - lastHomeScore : 0;
+  lastHomeScore = e.score;
   return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
-    ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
-    <div class="xh-body">
-      <div class="xh-k">Daily Score</div>
-      <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${streakPill()}</div>
-      <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> completed</div>
-      <div class="xh-line dim">Max possible today: <b>${e.possible}</b></div>
-      ${next ? `<div class="xh-next">${icon('arrowRight', 14)}<span>Next: <b>${esc(next)}</b></span></div>` : ''}
+    <div class="xh-main">
+      ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
+      <div class="xh-body">
+        <div class="xh-k">Daily Score</div>
+        <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${deltaChip(e.score)}${streakPill()}</div>
+        <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> completed</div>
+        <div class="xh-line dim">Max possible today: <b>${e.possible}</b></div>
+      </div>
+      <span class="xstrip-chev">${icon('chevron', 16)}</span>
     </div>
-    <span class="xstrip-chev">${icon('chevron', 16)}</span>
+    <div class="xh-formula">
+      <div class="xf-bar" role="img" aria-label="Score parts: ${parts.map((b) => `${b.key} ${b.earned} of ${b.possible}`).join(', ')}">${segs}</div>
+      <div class="xf-legend">${legend}</div>
+    </div>
+    ${next ? `<div class="xh-next">${icon('arrowRight', 14)}<span>Next: <b>${esc(next)}</b></span></div>` : ''}
   </section>`;
 }
 
@@ -333,6 +379,17 @@ export default {
   mount(root) {
     animateRing(root);
     act.syncNotifications();
+    // Entrance choreography: hero settles first, then each block ~45ms behind, done in
+    // about a third of a second. Plays only on ARRIVAL (homeEntrance gate) — the exec
+    // tick's in-place re-render never replays it. Reduced-motion skips entirely.
+    const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (homeEntrance && !reduceMotion) {
+      const view = root.querySelector('#view');
+      if (view) Array.from(view.children).slice(0, 9).forEach((el, i) => {
+        el.style.animation = `home-in .38s var(--ease-out) ${i * 45}ms backwards`;
+      });
+    }
+    homeEntrance = false;
     // WS6: persist collapse state per section so the 30s exec-tick re-render (and tomorrow's
     // fresh render) honors what the athlete left open. `toggle` only fires on user changes,
     // never on the initial `open` attribute — no save loop.
@@ -355,8 +412,13 @@ export default {
       const bar = root.querySelector('.hn-bar'); if (bar) bar.setAttribute('aria-valuenow', String(oz));
     };
     const logWater = (oz) => {
-      try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
+      const before = RT.hydrationOz;
       act.addWater(oz);
+      // Haptic grammar: a light tick per add; a distinct double-notch the moment the goal
+      // is crossed (physical feedback is the premium tell — Fitness/Whoop class).
+      try {
+        if (navigator.vibrate) navigator.vibrate(before < 120 && RT.hydrationOz >= 120 ? [18, 60, 26] : 14);
+      } catch { /* no-op */ }
       // Crossing the goal is a real state change (hydration flips to Completed) — the one
       // case where a full re-render is correct.
       if (RT.hydrationOz >= 120) { window.__render(); return; }
@@ -401,12 +463,15 @@ export default {
         const first = rows[0];
         const who = (first.viewer_name || S.coach.name).trim() || S.coach.name;
         const extra = rows.length > 1 ? ` + ${rows.length - 1} more` : '';
+        // Elevated 2026-07-16: a tinted card right under the score, not a whisper of a
+        // text row — proof someone who matters opened the day is the core differentiator.
         seenRow.innerHTML = `
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 4px 2px;font-size:12px;font-weight:700;color:var(--text-2)">
-            <span style="color:var(--green-bright);display:inline-flex">${icon('users', 14)}</span>
-            <span>Seen by ${esc(who)}${esc(extra)} · ${fmt(first.seen_at)}</span>
+          <div class="seen-receipt">
+            <span class="sic">${icon('eye', 15)}</span>
+            <span class="stx"><b>${esc(who)}</b> saw your day${esc(extra)}</span>
+            <span class="stm">${fmt(first.seen_at)}</span>
           </div>`;
-      }).catch(() => { /* best-effort — the row simply doesn't render */ });
+      }).catch(() => { /* best-effort — the card simply doesn't render */ });
     }
     // Live loop: re-render when the derived state changes (minute ticks, state
     // transitions, day rollover). Cheap: derive → compare → maybe render. The router

@@ -11,6 +11,8 @@ const P = {
   chevron: '<path d="m9 18 6-6-6-6"/>',
   flame: '<path d="M12 2s4 4 4 8a4 4 0 0 1-8 0c0-1 .5-2 .5-2S6 10 6 13a6 6 0 0 0 12 0c0-5-6-11-6-11z"/>',
   arrowUp: '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
+  arrowDown: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
   arrowRight: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
   camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>',
