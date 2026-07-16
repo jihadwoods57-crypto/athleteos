@@ -1,5 +1,7 @@
 # OnStandard — Privacy Policy
 
+> **⚠️ SUPERSEDED (2026-07-15):** the authoritative, PUBLISHED Privacy Policy is `web/landing/privacy.html` (served at onstandard.app/privacy, effective 2026-07-14) — finalized, no placeholders, and updated by the 2026-07-15 compliance audit. This markdown is an older engineering draft, kept for history. **Do not publish it.** See `docs/compliance/COMPLIANCE-AUDIT-2026-07-15.md`.
+>
 > **DRAFT — accurate to the app as of 2026-06-29; requires legal review before publishing. Not legal advice.**
 >
 > This document was authored by engineering to describe, truthfully, what the OnStandard

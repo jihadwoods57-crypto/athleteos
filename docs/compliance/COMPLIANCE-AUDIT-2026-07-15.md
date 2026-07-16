@@ -54,6 +54,8 @@ Determined from what the code demonstrably does — global App Store distributio
 
 ## c. NOT FIXED / NEEDS HUMAN
 
+> **Actionable pack (added at close-out):** [`GO-LIVE-COMPLIANCE-CHECKLIST.md`](GO-LIVE-COMPLIANCE-CHECKLIST.md) (every item below as concrete steps + commands), [`RoPA-record-of-processing.md`](RoPA-record-of-processing.md) (Art. 30 register), [`DPIA-draft.md`](DPIA-draft.md) (Art. 35 draft for counsel).
+
 These require a deploy, a contract, a lawyer, or a business decision — or are one of the explicit STOP-AND-ASK actions (applying migrations to live, deploying, adding a paid processor, transmitting data to a new service).
 
 ### STOP-AND-ASK (I authored the code; enabling it is yours)

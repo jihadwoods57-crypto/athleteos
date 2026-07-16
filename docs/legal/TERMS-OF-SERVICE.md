@@ -1,5 +1,7 @@
 # OnStandard — Terms of Service
 
+> **⚠️ SUPERSEDED (2026-07-15):** the authoritative, PUBLISHED Terms of Service is `web/landing/terms.html` (served at onstandard.app/terms, effective 2026-07-14) — finalized, no placeholders. This markdown is an older engineering draft, kept for history. **Do not publish it.** See `docs/compliance/COMPLIANCE-AUDIT-2026-07-15.md`.
+>
 > **DRAFT — accurate to the app as of 2026-06-29; requires legal review before publishing. Not legal advice.**
 >
 > Engineering-authored, review-ready draft describing the app as it actually behaves as of the
