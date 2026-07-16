@@ -66,3 +66,8 @@ sim/
 
 # wrangler local state/cache
 web/landing-src/deploy/.wrangler/
+
+# Agent skill installs (symlink farm — breaks the EAS tarball on Windows; tooling-only, not app code)
+.claude/skills/
+.agents/skills/
+skills-lock.json
