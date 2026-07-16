@@ -5,9 +5,10 @@
 import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, relative, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { zipSync } from 'fflate';
 
-const ROOT = 'C:/Users/Administrator/Downloads/athleteos';
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SRC = join(ROOT, 'proto/redesign-2026-07');
 const OUT_ZIP = join(ROOT, 'assets/proto.zip');
 const OUT_VER = join(ROOT, 'src/proto/protoVersion.ts');
