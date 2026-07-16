@@ -113,21 +113,21 @@ function syncBanner() {
   return '';
 }
 
-// Tiered streak pill: while today isn't locked in yet, a 2+ day streak reads as "at risk"
-// (amber, this week's grace already used) or "covered" (blue, grace still intact) instead of
-// the flat passive 🔥-N-day badge — the badge should feel different the day it's actually on
-// the line. Once today counts (or the streak hasn't started), the old passive pill returns.
-function streakPill() {
-  const st = S.streak;
-  if (st.days >= 2 && !st.todayCounted) {
-    return st.graceUsedRecently
-      ? `<span class="stk-pill risk">${icon('flame', 11)} ${st.days}-DAY · AT RISK</span>`
-      : `<span class="stk-pill safe">${icon('shield', 11)} ${st.days}-DAY · COVERED</span>`;
-  }
-  if (st.days >= 2 && st.todayCounted) {
-    return `<span class="stk-pill secured">${icon('check', 11)} ${st.days}-DAY · SECURED</span>`;
-  }
-  return S.streakDays > 0 ? `<span style="font-size:11px;font-weight:700;color:var(--text-2)">🔥 ${S.streakDays} day streak</span>` : '';
+/* Trust Pass, compressed (founder call 2026-07-16): a purple shield in the header row —
+   same 44px metrics as the bell — instead of a full-width card eating the fold. Tap opens
+   a quick anchored popup with the essentials; "Full details" goes to the existing trust
+   page. Renders ONLY while a real pass is active. */
+function trustShield() {
+  const t = S.trustPass;
+  if (!t.active) return '';
+  return `<div class="tp-wrap">
+    <button class="iconbtn tp-btn" id="tp-btn" aria-expanded="false" aria-haspopup="true" aria-label="Trust Pass, day ${t.day} of ${t.length}. Show quick info">${icon('shield', 20)}</button>
+    <div class="tp-pop" id="tp-pop" hidden>
+      <div class="tp-h">${icon('shield', 15)} Trust Pass · <b>day ${t.day} of ${t.length}</b></div>
+      <div class="tp-n">${esc(t.note)}</div>
+      <div class="tp-link" data-go="trust">Full details ${icon('chevron', 14)}</div>
+    </div>
+  </div>`;
 }
 
 /* One line under the greeting that orients before the number does. */
@@ -194,7 +194,7 @@ function hero(e) {
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
-        <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${deltaChip(e.score)}${streakPill()}</div>
+        <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${deltaChip(e.score)}</div>
         <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> completed <span class="sep">·</span> max today <b>${e.possible}</b></div>
       </div>
       <span class="xstrip-chev">${icon('chevron', 16)}</span>
@@ -247,29 +247,8 @@ function hydroNow(h) {
   </section>`;
 }
 
-// Streak-at-risk ribbon: a sibling of hero() (never a child — hero() owns
-// data-go="score-breakdown" and a nested data-go would fight it, though the router's
-// per-element stopPropagation would keep them independent regardless). Self-retires once
-// today counts, the streak hasn't reached day 2, or the day is already a celebration (that
-// path has its own "locks at midnight" copy — no double message).
-function streakPrompt(e) {
-  const st = S.streak;
-  if (!(st.days >= 2 && !st.todayCounted) || e.celebration) return '';
-  const strong = st.graceUsedRecently;
-  // When every remaining requirement is time-locked (no now/overdue), a "Log …" CTA would be a
-  // no-op promise — route to the score breakdown as "View standard" instead.
-  const next = e.now || e.overdue[0] || null;
-  const target = next ? next.route : 'score-breakdown';
-  const title = strong ? `Your ${st.days}-day streak ends tonight` : `Keep your ${st.days}-day run alive`;
-  const body = strong
-    ? `This week’s grace day is already used — hit 80 before midnight or the streak resets.`
-    : `Hit 80 before midnight to extend your ${st.days}-day run.`;
-  return `<div class="streak-ribbon ${strong ? 'strong' : 'mild'}" data-go="${target}">
-    <div class="sr-ic">${icon(strong ? 'flame' : 'shield', 18)}</div>
-    <div class="sr-body"><div class="sr-t">${esc(title)}</div><div class="sr-s">${esc(body)}</div></div>
-    <span class="sr-cta">${next ? `Log ${esc(next.title)}` : 'View standard'}</span>
-  </div>`;
-}
+// Streak ribbon removed (founder call 2026-07-16): the streak's home surfaces are the
+// celebration screen and notifications — Home stays focused on score + next action.
 
 function celebration(e) {
   return `<div class="xcelebwrap">
@@ -295,7 +274,7 @@ export default {
     if (RT.day0 && !RT.day0Breakfast) {
       const rest = e.items.filter((i) => i.id !== 'breakfast');
       return `
-      ${appHead(headSub(e))}
+      ${appHead(headSub(e), trustShield())}
       ${hero(e)}
       ${syncBanner()}
       <section class="xnow">
@@ -314,21 +293,18 @@ export default {
     }
 
     if (e.celebration) {
-      const t = S.trustPass;
       return `
-      ${appHead(headSub(e))}
+      ${appHead(headSub(e), trustShield())}
       ${celebration(e)}
       <div id="seen-row" style="width:100%"></div>
-      ${t.active ? `<div class="trust" data-go="trust" style="margin-top:14px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : ''}
       ${recentResults()}
       <div style="height:20px"></div>`;
     }
 
     // ---- WS6: four zones instead of a free-stack of 10+ blocks. ----
-    // Header (strip + at-risk ribbon) → ONE attention card (priority: sync > injury > trust;
-    // the losers demote to one-line rows below the fold) → action ladder (overdue/NOW/Next
-    // open; Later + Done collapsed by default) → below the fold (demoted rows + activity).
-    const t = S.trustPass;
+    // Header (hero) → ONE attention card (priority: sync > injury; Trust Pass lives as the
+    // header shield, never a card) → action ladder (overdue/NOW/Next open; Upcoming +
+    // Completed collapsed by default) → below the fold (demoted rows + results).
     const nextRows = e.next ? [e.next] : [];
     const open = RT.homeOpenSections || {};
 
@@ -341,14 +317,11 @@ export default {
       <div class="ts">Your Standard adapted. Rehab is on the list while you heal.</div></div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : '';
-    const trustCard = t.active ? `<div class="trust" data-go="trust" style="margin:12px 0 10px"><div class="ic">${icon('shield', 20)}</div><div style="flex:1"><div class="tt">Trust Pass · day ${t.day} of ${t.length}</div><div class="ts">${esc(t.note)}</div></div>${icon('chevron', 18, 'style="color:var(--text-3)"')}</div>` : '';
-    const attention = sync || injuryCard || trustCard;
+    const attention = sync || injuryCard;
     // Whatever lost the attention slot demotes to a quiet one-line row below the ladder.
     const demoted = [
       attention !== injuryCard && RT.injured
         ? `<div class="xrow-item" data-go="injury"><div class="xico sm" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('bolt', 16)}</div><div class="xr"><div class="xa">Injury mode active</div><div class="xb">Your Standard adapted while you heal</div></div><span class="xpill gold">On</span></div>` : '',
-      attention !== trustCard && t.active
-        ? `<div class="xrow-item" data-go="trust"><div class="xico sm green">${icon('shield', 16)}</div><div class="xr"><div class="xa">Trust Pass · day ${t.day} of ${t.length}</div><div class="xb">Camera-free today</div></div><span class="xpill green">Active</span></div>` : '',
     ].filter(Boolean).join('');
 
     // Hydration takes the NOW slot only when no required item holds it — the one actionable
@@ -365,10 +338,9 @@ export default {
       : '';
 
     return `
-    ${appHead(headSub(e))}
+    ${appHead(headSub(e), trustShield())}
     ${hero(e)}
     <div id="seen-row"></div>
-    ${streakPrompt(e)}
     ${attention}
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
     ${e.now ? nowCard(e) : hydroIsNow ? hydroNow(hydro) : ''}
@@ -382,6 +354,18 @@ export default {
   mount(root) {
     animateRing(root);
     act.syncNotifications();
+    // Trust Pass shield popup: tap toggles; any tap outside closes. Listeners live on
+    // elements inside this render, so they die with the next innerHTML swap — no stacking.
+    const tpBtn = root.querySelector('#tp-btn');
+    if (tpBtn) {
+      const pop = root.querySelector('#tp-pop');
+      const setOpen = (open) => { pop.hidden = !open; tpBtn.setAttribute('aria-expanded', String(open)); };
+      tpBtn.addEventListener('click', (ev) => { ev.stopPropagation(); setOpen(pop.hidden); });
+      const vp = root.querySelector('#viewport');
+      if (vp) vp.addEventListener('click', (ev) => {
+        if (!pop.hidden && !ev.target.closest('.tp-wrap')) setOpen(false);
+      });
+    }
     // Entrance choreography: hero settles first, then each block ~45ms behind, done in
     // about a third of a second. Plays only on ARRIVAL (homeEntrance gate) — the exec
     // tick's in-place re-render never replays it. Reduced-motion skips entirely.

@@ -495,6 +495,7 @@
 .stk-pill.secured{background:rgba(52,211,153,0.10);color:var(--green-bright);border:1px solid var(--green-border)}
 /* Streak-at-risk ribbon — sibling of .xstrip, own tap target (44px+), reuses the amber/blue
    pair the rest of the app already uses for urgency vs. mild-reminder framing. */
+/* Streak ribbon: removed from Home (founder call 2026-07-16) but Progress still renders it. */
 .streak-ribbon{display:flex;align-items:center;gap:11px;min-height:44px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:16px;padding:10px 12px;margin:12px 0 10px;cursor:pointer}
 .streak-ribbon .sr-ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto}
 .streak-ribbon .sr-body{flex:1;min-width:0}
@@ -507,6 +508,15 @@
 .streak-ribbon.mild{background:var(--surface-2);border-color:var(--hairline-soft)}
 .streak-ribbon.mild .sr-ic{background:var(--blue-surface);color:var(--blue-bright)}
 .streak-ribbon.mild .sr-cta{background:var(--blue-surface);color:var(--blue-bright);border:1px solid var(--blue-border)}
+/* Trust Pass shield + quick popup (replaces the full-width trust card on Home —
+   Home stays score + next action). Popup anchors to the header. */
+.apphead{position:relative}
+.iconbtn.tp-btn{background:var(--purple-surface);border-color:var(--purple-border);color:var(--purple-bright)}
+.tp-pop{position:absolute;top:calc(100% - 8px);right:0;z-index:60;width:min(300px,84vw);background:var(--surface-2);border:1px solid var(--hairline);border-radius:16px;padding:13px 14px;box-shadow:0 18px 44px rgba(0,0,0,0.55);text-align:left;cursor:default}
+.tp-pop .tp-h{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--purple-bright)}
+.tp-pop .tp-h b{color:var(--text);font-weight:800}
+.tp-pop .tp-n{font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-top:6px}
+.tp-pop .tp-link{display:flex;align-items:center;justify-content:space-between;margin-top:11px;padding-top:10px;border-top:1px solid var(--hairline-soft);font-size:12.5px;font-weight:800;color:var(--blue-bright);cursor:pointer;min-height:24px}
 .xnow{background:linear-gradient(160deg,rgba(245,165,36,0.16),rgba(245,165,36,0.05) 55%),var(--surface-1);border:1px solid var(--amber-border);border-radius:22px;padding:16px 16px 14px;box-shadow:var(--sh-card)}
 .xnow.red{background:linear-gradient(160deg,rgba(246,87,87,0.16),rgba(246,87,87,0.05) 55%),var(--surface-1);border-color:var(--red-border)}
 .xnow .xlab{display:flex;justify-content:space-between;align-items:center}
