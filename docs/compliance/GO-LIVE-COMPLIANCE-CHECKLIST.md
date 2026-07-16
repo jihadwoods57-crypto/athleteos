@@ -6,7 +6,9 @@ Legend: **[YOU]** you can do it · **[COUNSEL]** needs a lawyer · **[BOTH]** yo
 
 ---
 
-## 1. Ship the code that's already written  **[YOU]**
+## 1. Ship the code that's already written  ✅ **DONE (executed against production 2026-07-15)**
+
+> Migrations `0063`–`0067` applied to prod (`ftwrvylzoyznhbzhgism`) and verified (all columns/functions present); retention cron `data-retention` armed (nightly 3:17); `cancel-subscription`, `guardian-request`, `guardian-verify` deployed; `weekly-digest` + `send-push` redeployed with opt-out enforcement. Boxes retained for the record.
 
 All four migrations are **authored only** — never applied to your live DB by the audit (per this repo's "founder applies at go-live" convention). Apply them the same way you apply `0007`/`0048`/`0050`:
 
@@ -37,11 +39,18 @@ All four migrations are **authored only** — never applied to your live DB by t
   supabase functions deploy send-push
   ```
 
-## 2. Finish verifiable parental consent for minors  **[YOU + COUNSEL]**
+## 2. Finish verifiable parental consent for minors  🔑 **CODE DONE — needs your email key**
 
-The guardian-verify flow is built but **inert until an email sender is wired** (`guardian-verify/index.ts:22`, `0008:15`). **Minors' real data must not sync until this works.**
+The email-sender is now **written and deployed**: `guardian-request` (records the request + emails the guardian) and `guardian-verify` are live on prod, and the client prefers them. **The only remaining step is the credential I can't set for you:**
 
-- [ ] Wire an email provider to send the guardian-consent link (this is a **new data processor** — add it to the subprocessor list in `web/landing/privacy.html` §7 and sign its DPA). Resend is already named in the policy but not wired — either wire Resend or update the policy to the provider you choose.
+```bash
+supabase secrets set RESEND_API_KEY=re_...
+supabase secrets set GUARDIAN_EMAIL_FROM="OnStandard <support@onstandard.app>"   # a sender you VERIFIED in Resend
+```
+Until those are set, guardian requests are recorded but no email is sent (returns `emailed:false` — nothing breaks). Resend is already disclosed in privacy §7 — **sign its DPA** before relying on it. **[COUNSEL]** still confirms the token-link method satisfies COPPA/GDPR-K.
+
+- [ ] Set `RESEND_API_KEY` + `GUARDIAN_EMAIL_FROM` (above) and confirm a test guardian email arrives
+- [ ] ~~Wire an email provider to send the guardian-consent link~~ (code done) (this is a **new data processor** — add it to the subprocessor list in `web/landing/privacy.html` §7 and sign its DPA). Resend is already named in the policy but not wired — either wire Resend or update the policy to the provider you choose.
 - [ ] Test the full flow on a disposable project: minor signs up → guardian email sent → guardian confirms → `guardian_consent_requests.status = 'verified'` → minor data syncs.
 - [ ] **[COUNSEL]** Confirm the token-link verification method is an acceptable "verifiable parental consent" mechanism for your target jurisdictions (COPPA has specific methods; the code comment at `guardian-verify/index.ts:13` notes "counsel blesses this flow" — get that blessing in writing).
 
@@ -92,9 +101,10 @@ A full runbook is a fast follow — this quick reference plus the RoPA is enough
 | Area | State |
 |------|-------|
 | Code fixes (9 gaps) | ✅ Done, committed on `compliance-fixes`, `npm run verify` green (typecheck + 1833 tests + xss + bundle) |
-| Migrations `0064`–`0067` | ✍️ Authored, **not applied** — §1 |
-| `cancel-subscription` fn | ✍️ Authored, **not deployed** — §1 |
+| Migrations `0063`–`0067` | ✅ **Applied to prod 2026-07-15 + verified** |
+| Retention cron | ✅ **Armed** (`data-retention`, nightly 3:17) |
+| Edge functions | ✅ **Deployed** (cancel-subscription, guardian-request, guardian-verify; weekly-digest + send-push redeployed) |
 | Served policy + terms | ✅ Finalized + accurate (Stripe/Expo disclosed) |
-| Guardian-consent email | ⛔ Not wired — §2 (blocks minors on connected backend) |
+| Guardian-consent email | 🔑 Code+functions live — **needs your `RESEND_API_KEY`** — §2 |
 | DPAs / EU rep / DPIA / entity | ⛔ Counsel — §3–5 |
 | Accessibility | ⛔ Audit needed — §6 |
