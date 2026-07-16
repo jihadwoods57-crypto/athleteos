@@ -4,68 +4,15 @@ import { backHead, titleHead, esc, composer } from '../components.js';
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, reactionGroups, threadMessages, privateNotes } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
+import { CD, loadCoachRoster, loadActivity, actTime } from '../coach-data.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
-/* Coach roster cache: null = not loaded (show loading), else { teams, rows } from real data.
-   Fetched once on mount, repainted via window.__render; the athletes' scores are their own real
-   numbers (days.score), and a member with no day row today is honestly "No logs today". */
-let ROSTER = null;
-let rosterLoading = false;
-export async function loadCoachRoster(force) {
-  if (rosterLoading) return;
-  if (ROSTER && !force) return;
-  rosterLoading = true;
-  try {
-    const r = await roles.loadCoachRoster();
-    // Pending join requests per team (athlete names before their link is active).
-    const pending = [];
-    for (const t of r.teams) {
-      const reqs = await roles.pendingTeamRequests(t.id);
-      for (const q of reqs) pending.push({ teamId: t.id, ...q });
-    }
-    r.pending = pending;
-    r.offline = false;
-    ROSTER = r;
-  } catch {
-    // A fetch that actually threw (vs the lower layers' swallow-to-[]) must NOT leave the screen
-    // stuck on "Loading…" forever — mark offline so the render shows a distinct, retryable state.
-    ROSTER = { teams: [], rows: [], pending: [], offline: true };
-  } finally {
-    rosterLoading = false; // always clear so a retry can re-run
-  }
-  // coach-athlete also depends on the roster (name + membership guard for a stale/dead link).
-  if (location.hash === '#coach' || location.hash === '#copilot' || location.hash === '#coach-inbox' || location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#coach-assign') || location.hash.startsWith('#coach-plan')) window.__render();
-}
-const scoreColor = (s) => s == null ? 'var(--text-3)' : s >= 80 ? 'var(--green-bright)' : s >= 60 ? 'var(--amber-bright)' : 'var(--red)';
+// Back-compat re-export: loadCoachRoster now lives in coach-data.js (shared across every coach
+// screen), but keeps this exact name/signature so any existing importer keeps working untouched.
+export { loadCoachRoster };
 
-/* Roster-wide activity feed (WS4a): recent meals across the team, newest first, with
-   per-device unseen dots. Photos are real signed URLs (cached), never stock plates. */
-let ACT = null;            // null = loading; { rows, photos: {mealId: url} }
-let actLoading = false;
-let actFetchedAt = 0;      // freshness window: a tab visit refetches, a repaint doesn't loop
-async function loadActivity(force) {
-  if (actLoading) return;
-  if (ACT && !force && Date.now() - actFetchedAt < 30000) return;
-  actLoading = true;
-  try {
-    const rows = await roles.fetchTeamActivity(roles.daysAgoISO(1), 20);
-    const photos = {};
-    await Promise.all(rows.slice(0, 10).filter(m => m.photo_path).map(async (m) => {
-      const u = await roles.signedMealPhotoUrl(m.photo_path);
-      if (u) photos[m.id] = u;
-    }));
-    ACT = { rows, photos };
-  } catch { ACT = { rows: [], photos: {} }; }
-  finally { actLoading = false; actFetchedAt = Date.now(); }
-  if (location.hash === '#coach' || location.hash === '#coach-inbox') window.__render();
-}
-const actTime = (iso) => {
-  const d = new Date(iso);
-  if (isNaN(d)) return '';
-  let h = d.getHours() % 12; if (h === 0) h = 12;
-  return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
-};
+const scoreColor = (s) => s == null ? 'var(--text-3)' : s >= 80 ? 'var(--green-bright)' : s >= 60 ? 'var(--amber-bright)' : 'var(--red)';
 
 function rosterRow(r) {
   return `
@@ -84,8 +31,8 @@ function rosterRow(r) {
 export const coach = {
   nav: 'coach', tab: 'team',
   render() {
-    const teamName = ROSTER && ROSTER.teams[0] ? ROSTER.teams[0].name : (S.athlete.school || 'Your team');
-    const rows = ROSTER ? ROSTER.rows : null;
+    const teamName = CD.roster && CD.roster.teams[0] ? CD.roster.teams[0].name : (S.athlete.school || 'Your team');
+    const rows = CD.roster ? CD.roster.rows : null;
     const scored = rows ? rows.filter(r => r.score != null) : [];
     const avg = scored.length ? Math.round(scored.reduce((a, r) => a + r.score, 0) / scored.length) : null;
     const onStd = rows ? rows.filter(r => r.score != null && r.score >= 80).length : 0;
@@ -94,7 +41,7 @@ export const coach = {
     return `
     ${titleHead(`${S.greeting}, ${S.coachIdentity.handle}`, `${esc(teamName)} · today`)}
 
-    ${rows === null || (ROSTER && ROSTER.offline) ? `
+    ${rows === null || (CD.roster && CD.roster.offline) ? `
     <div class="coach-stats">
       <div class="coach-stat"><div class="v" style="color:var(--text-3)">—</div><div class="k">Team avg</div></div>
       <div class="coach-stat"><div class="v" style="color:var(--text-3)">—</div><div class="k">On standard</div></div>
@@ -112,10 +59,10 @@ export const coach = {
       </div>
     </section>`}
 
-    ${ROSTER && ROSTER.pending && ROSTER.pending.length ? `
+    ${CD.roster && CD.roster.pending && CD.roster.pending.length ? `
     <div class="eyebrow">Join requests</div>
     <section class="card" style="padding:6px 16px">
-      ${ROSTER.pending.map(q => `
+      ${CD.roster.pending.map(q => `
         <div class="lrow" style="cursor:default">
           <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
           <div class="lm"><div class="lt">${esc(q.athlete_name || 'Athlete')}${q.position ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(q.position)}</small>` : ''}</div><div class="ls">Wants to join</div></div>
@@ -128,7 +75,7 @@ export const coach = {
     <div class="eyebrow">Roster</div>
     <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
     <div><div class="tt">Loading your roster…</div><div class="ts">Pulling today's real scores for your team.</div></div></div>`
-    : (ROSTER && ROSTER.offline) ? `
+    : (CD.roster && CD.roster.offline) ? `
     <div class="eyebrow">Roster</div>
     <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
     <div class="sd-t">Can't reach your roster</div>
@@ -164,14 +111,14 @@ export const coach = {
     }).join('')}` : ''}
 
     ${(() => {
-      const act = ACT && ACT.rows ? ACT.rows : null;
+      const act = CD.act && CD.act.rows ? CD.act.rows : null;
       const names = {}; rows.forEach(r => { names[r.athleteId] = r; });
       const seen = new Set(RT.coachSeenMealIds || []);
       const unseenCount = act ? act.filter(m => !seen.has(m.id)).length : 0;
       const card = (m) => {
         const who = names[m.athlete_id] || {};
         const first = (who.name || 'Athlete').split(' ')[0];
-        const photo = ACT.photos[m.id];
+        const photo = CD.act.photos[m.id];
         const bits = [cap(m.type || 'Meal'), actTime(m.logged_at)].filter(Boolean);
         if (m.protein != null) bits.push(`${Math.round(m.protein)}g`);
         return `
@@ -259,7 +206,7 @@ export const coachAssign = {
   nav: 'coach', tab: 'assign',
   render({ sub } = {}) {
     // deep-link: coach-assign/<athleteId> pre-targets one athlete (from the athlete screen)
-    const rows = ROSTER ? ROSTER.rows : [];
+    const rows = CD.roster ? CD.roster.rows : [];
     if (sub && ASSIGN.scopeKind !== 'athlete') { ASSIGN.scopeKind = 'athlete'; ASSIGN.scopeValue = sub; }
     const positions = [...new Set(rows.map(r => (r.unit || '').trim().toUpperCase()).filter(Boolean))];
     const target = ASSIGN.scopeKind === 'athlete' ? rows.find(r => r.athleteId === ASSIGN.scopeValue) : null;
@@ -329,7 +276,7 @@ export const coachAssign = {
       keep();
       const title = ASSIGN.title.trim();
       if (title.length < 2) { say('Give it a name first — what are they doing?', true); return; }
-      const teamId = ROSTER && ROSTER.teams[0] && ROSTER.teams[0].id;
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (!teamId) { say('Your roster hasn’t loaded yet — give it a second and try again.', true); return; }
       const due = DUE_CHOICES[ASSIGN.due];
       const dueAt = due.at();
@@ -386,7 +333,7 @@ function suggestTargets(targetWeight, baseWeight) {
 let SETS = null;            // team's requirement_sets, or null (loading) / {offline:true}
 let setsLoading = false;
 async function loadSets(force) {
-  const teamId = ROSTER && ROSTER.teams[0] && ROSTER.teams[0].id;
+  const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
   if (!teamId || setsLoading) return;
   if (SETS && !force) return;
   setsLoading = true;
@@ -401,7 +348,7 @@ let tpLoading = false;
 async function loadTrust(force) {
   if (tpLoading) return;
   if (TP && !force) return;
-  const rows = ROSTER ? ROSTER.rows.slice(0, 12) : [];
+  const rows = CD.roster ? CD.roster.rows.slice(0, 12) : [];
   tpLoading = true;
   try {
     const map = {};
@@ -429,7 +376,7 @@ export const coachPlan = {
     const who = rosterName(athleteId);
     const head = backHead('Nutrition targets', `${esc(who.name)} · coach owns the plan`, athleteId ? `coach-athlete/${esc(athleteId)}` : 'coach-plan');
     if (!athleteId) {
-      const rows = ROSTER ? ROSTER.rows : null;
+      const rows = CD.roster ? CD.roster.rows : null;
       const positions = rows ? [...new Set(rows.map(r => (r.unit || '').trim().toUpperCase()).filter(Boolean))] : [];
       const sets = SETS && SETS.rows ? SETS.rows : null;
       const teamSet = sets && sets.find(s => s.scope_kind === 'team');
@@ -747,7 +694,7 @@ export const coachPlanSet = {
     }));
     const save = root.querySelector('#set-save');
     if (save) save.addEventListener('click', async () => {
-      const teamId = ROSTER && ROSTER.teams[0] && ROSTER.teams[0].id;
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (!teamId) { say('Your team hasn’t loaded yet — give it a second.', true); return; }
       save.disabled = true; say('Saving…');
       const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB));
@@ -758,7 +705,7 @@ export const coachPlanSet = {
     });
     const clear = root.querySelector('#set-clear');
     if (clear) clear.addEventListener('click', async () => {
-      const teamId = ROSTER && ROSTER.teams[0] && ROSTER.teams[0].id;
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (!teamId) return;
       clear.disabled = true; say('Resetting…');
       const r = await roles.clearTeamRequirements(teamId, kind, value);
@@ -778,15 +725,15 @@ export const coachPlanSet = {
 export const coachInbox = {
   nav: 'coach', tab: 'inbox',
   badge() {
-    const pending = ROSTER ? (ROSTER.pending || []).length : 0;
+    const pending = CD.roster ? (CD.roster.pending || []).length : 0;
     const seen = new Set(RT.coachSeenMealIds || []);
-    const unseen = ACT && ACT.rows ? ACT.rows.filter(m => !seen.has(m.id)).length : 0;
+    const unseen = CD.act && CD.act.rows ? CD.act.rows.filter(m => !seen.has(m.id)).length : 0;
     return pending + unseen;
   },
   render() {
-    const rows = ROSTER ? ROSTER.rows : null;
-    const pending = ROSTER ? (ROSTER.pending || []) : [];
-    const act = ACT && ACT.rows ? ACT.rows : [];
+    const rows = CD.roster ? CD.roster.rows : null;
+    const pending = CD.roster ? (CD.roster.pending || []) : [];
+    const act = CD.act && CD.act.rows ? CD.act.rows : [];
     const seen = new Set(RT.coachSeenMealIds || []);
     const unseen = act.filter(m => !seen.has(m.id));
     const names = {}; (rows || []).forEach(r => { names[r.athleteId] = r; });
@@ -794,7 +741,7 @@ export const coachInbox = {
 
     let briefing = '';
     if (rows === null) briefing = 'Reading your roster…';
-    else if (ROSTER && ROSTER.offline) briefing = "Can't reach your roster — reopen to retry. Nothing is invented while it's down.";
+    else if (CD.roster && CD.roster.offline) briefing = "Can't reach your roster — reopen to retry. Nothing is invented while it's down.";
     else if (!rows.length) briefing = 'No athletes yet. Share your team code and this becomes your morning read.';
     else {
       const notLogged = rows.filter(r => !r.loggedToday);
@@ -811,10 +758,10 @@ export const coachInbox = {
     ${titleHead('Inbox', needsMe ? `${needsMe} need${needsMe === 1 ? 's' : ''} you` : 'All caught up')}
 
     <div class="eyebrow">Daily briefing · from your real roster</div>
-    <section class="card pad" ${rows && !rows.length && !(ROSTER && ROSTER.offline) ? 'data-go="coach-profile" style="cursor:pointer;' : 'style="'}background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
+    <section class="card pad" ${rows && !rows.length && !(CD.roster && CD.roster.offline) ? 'data-go="coach-profile" style="cursor:pointer;' : 'style="'}background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
       <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
       <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
-      ${rows && !rows.length && !(ROSTER && ROSTER.offline) && RT.team && RT.team.code ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
+      ${rows && !rows.length && !(CD.roster && CD.roster.offline) && RT.team && RT.team.code ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
     </section>
 
     ${pending.length ? `
@@ -864,11 +811,11 @@ export const coachInbox = {
 export const copilot = {
   nav: 'coach', tab: 'copilot',
   render() {
-    const rows = ROSTER ? ROSTER.rows : null;
+    const rows = CD.roster ? CD.roster.rows : null;
     // Offline must read as offline, not as a stuck "loading" (F-C1) or a false "no athletes":
-    // when the roster fetch failed, ROSTER.rows is [] with offline=true, which would otherwise
+    // when the roster fetch failed, CD.roster.rows is [] with offline=true, which would otherwise
     // fall through to the empty-roster summary. Mirror the Coach/Trainer tabs' honest offline card.
-    if (ROSTER && ROSTER.offline) {
+    if (CD.roster && CD.roster.offline) {
       return `${backHead('Copilot', 'Deterministic roster reads', 'coach')}
       <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
       <div class="sd-t">Can't reach your roster</div>
@@ -917,7 +864,7 @@ export const copilot = {
 let ATH = null;           // { athleteId, day, meals } for the athlete being reviewed
 let athLoadingId = null;
 function rosterName(athleteId) {
-  const r = ROSTER && ROSTER.rows.find(x => x.athleteId === athleteId);
+  const r = CD.roster && CD.roster.rows.find(x => x.athleteId === athleteId);
   return r ? { name: r.name, unit: r.unit } : { name: 'Athlete', unit: '' };
 }
 let athGen = 0;            // navigation generation: a stale fetch must never clobber the screen
@@ -967,8 +914,8 @@ export const coachAthlete = {
     // Dead/stale-link guard: once the roster is loaded, an id that isn't a member and has no data
     // is a bad link, not a real athlete with an empty day — say so instead of a blank review. Only
     // fires when the roster is definitively loaded, so a real athlete is never misflagged mid-load.
-    const rosterLoaded = !!(ROSTER && ROSTER.rows);
-    const onRoster = rosterLoaded && ROSTER.rows.some(r => r.athleteId === athleteId);
+    const rosterLoaded = !!(CD.roster && CD.roster.rows);
+    const onRoster = rosterLoaded && CD.roster.rows.some(r => r.athleteId === athleteId);
     if (rosterLoaded && !onRoster && !ATH.day && !ATH.meals.length) {
       return `${head}
       <div class="state-demo"><div class="sd-ic">${icon('user', 24)}</div>
