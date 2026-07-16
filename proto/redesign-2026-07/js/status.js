@@ -1,4 +1,4 @@
-/* Coach OS athlete statuses — PURE (no imports, no DOM, no fetch): testable like notify-plan.js.
+/* Coach OS athlete statuses — PURE (no imports, no DOM, no fetch, no Date.now — callers pass nowMs): testable like notify-plan.js.
    One athlete → one status, precedence-ordered so the roster chip is never ambiguous:
    excused > overdue > needs_review > below_standard > due_soon > no_activity > on_standard.
    Every input is real data (day row, resolved requirement windows, exception rows) —
@@ -34,13 +34,14 @@ function openItems(nowMin, row, reqs) {
 }
 
 /** true when the latest meal is older than 24h AND nothing is logged today. */
-function noActivity24h(row) {
+function noActivity24h(row, nowMs) {
   if (row.loggedToday) return false;
   if (!row.lastMealAt) return true;
-  return (Date.now() - new Date(row.lastMealAt).getTime()) > 24 * 3600 * 1000;
+  if (!nowMs) return false;
+  return (nowMs - new Date(row.lastMealAt).getTime()) > 24 * 3600 * 1000;
 }
 
-export function athleteStatus({ nowMin, row, reqs, excused, needsReview }) {
+export function athleteStatus({ nowMin, nowMs, row, reqs, excused, needsReview }) {
   const items = openItems(nowMin, row, reqs);
   const overdue = items.filter(i => i.state === 'overdue');
   const dueSoon = items.filter(i => i.state === 'due_soon');
@@ -53,7 +54,8 @@ export function athleteStatus({ nowMin, row, reqs, excused, needsReview }) {
     const next = dueSoon.reduce((a, b) => (a.dueMin ?? 9999) <= (b.dueMin ?? 9999) ? a : b);
     return mk('due_soon', `${next.title} window closes in ${Math.max(0, (next.dueMin ?? nowMin) - nowMin)} minutes`);
   }
-  if (noActivity24h(row)) return mk('no_activity', 'No activity in the last day');
+  if (noActivity24h(row, nowMs)) return mk('no_activity', 'No activity in the last day');
+  if (row.loggedToday && row.score == null) return mk('needs_review', 'Logged today — score pending');
   if (row.loggedToday) return mk('on_standard', 'On standard today');
   return mk('no_activity', 'Nothing logged yet today');
 }

@@ -53,3 +53,29 @@ test('every status key has display meta', () => {
     expect(STATUS_META[k].label).toBeTruthy();
   }
 });
+test('needs_review flag outranks below_standard but not overdue', () => {
+  const below = athleteStatus({ nowMin: 700, row: row({ loggedToday: true, score: 55, tasks: [{ id: 'breakfast', done: true }] }), reqs: REQS, excused: false, needsReview: true });
+  expect(below.key).toBe('needs_review');
+  const over = athleteStatus({ nowMin: 900, row: row({ loggedToday: true, tasks: [{ id: 'breakfast', done: true }, { id: 'lunch', done: false }] }), reqs: REQS, excused: false, needsReview: true });
+  expect(over.key).toBe('overdue');
+});
+test('logged but unscored never claims on_standard', () => {
+  const s = athleteStatus({ nowMin: 700, row: row({ loggedToday: true, score: null, tasks: [{ id: 'breakfast', done: true }] }), reqs: REQS, excused: false });
+  expect(s.key).toBe('needs_review');
+  expect(s.detail).toMatch(/pending/i);
+});
+test('no-activity staleness comes from nowMs, purely', () => {
+  const base = { nowMin: 500, row: row({ lastMealAt: '2026-07-15T12:00:00Z' }), reqs: REQS, excused: false };
+  const fresh = athleteStatus({ ...base, nowMs: new Date('2026-07-15T20:00:00Z').getTime() });
+  expect(fresh.detail).toBe('Nothing logged yet today');   // 8h old — not the stale 'No activity in the last day'
+  const stale = athleteStatus({ ...base, nowMs: new Date('2026-07-17T12:00:00Z').getTime() });
+  expect(stale.key).toBe('no_activity');       // 48h old
+  expect(stale.detail).toBe('No activity in the last day');
+  const unknown = athleteStatus({ ...base });   // no nowMs → age unknown → never invented
+  expect(unknown.detail).toBe('Nothing logged yet today');
+});
+test('openItems carries id/title/dueMin/state and nowMin===due is due_soon not overdue', () => {
+  const s = athleteStatus({ nowMin: 570, row: row({ loggedToday: true, score: 90 }), reqs: REQS, excused: false });
+  const b = s.openItems.find(i => i.id === 'breakfast')!;
+  expect(b).toEqual({ id: 'breakfast', title: 'breakfast', dueMin: 570, state: 'due_soon' });
+});
