@@ -1,12 +1,198 @@
 import { S } from '../state.js';
 import { icon } from '../icons.js';
 import { avatarHead, esc } from '../components.js';
-import { CD, loadCoachRoster, entriesFor } from '../coach-data.js';
+import * as roles from '../roles.js';
+import { CD, loadCoachRoster, entriesFor, getScope, scopeFilter } from '../coach-data.js';
+import { CATALOG, resolveRequirementSet, catalogFromItems } from '../requirements.js';
+import { weekWindows, weeklyBrief, athletesToWatch, mostMissed, weekVsMonth, interventionOutcomes } from '../insights.js';
 
 /* Insights v1 starter (slice A): today's deterministic read over the real roster.
    Weekly trends / most-missed / movers land in slice E — the unlock note below is
    honest about that, and coach_interventions is ALREADY recording so slice E's
    "did the intervention work?" has history from today forward. */
+
+/* ---------------- Slice E: the "This week" lower half ----------------
+   Module cache + in-flight guard, same idiom as ANN_CACHE/loadAnnouncements and
+   INBOX_DATA/loadInboxData in screens/coach.js: one fetch per team, repainted via
+   window.__render, never refetched on every repaint. ONE rollup fetch spanning
+   monthFrom..today covers this week, last week, AND the trailing 28-day window —
+   weekWindows() (insights.js) derives all three from the same todayISO. Outcomes span
+   the trailing 56 days, comfortably past team_intervention_outcomes' own 14-day floor
+   so a team that just crossed the unlock threshold isn't starved of qualifying rows. */
+let INSIGHTS_DATA = null; // { teamId, rollup, outcomes }
+let insightsLoadingId = null;
+async function loadInsights(teamId, force) {
+  if (!teamId) return;
+  if (INSIGHTS_DATA && INSIGHTS_DATA.teamId === teamId && !force) return;
+  if (insightsLoadingId === teamId) return;
+  insightsLoadingId = teamId;
+  const today = roles.todayISO();
+  const { monthFrom } = weekWindows(today);
+  try {
+    const [rollup, outcomes] = await Promise.all([
+      roles.fetchTeamDayRollup(teamId, monthFrom, today),
+      roles.fetchInterventionOutcomes(teamId, roles.daysAgoISO(56)),
+    ]);
+    INSIGHTS_DATA = { teamId, rollup, outcomes };
+  } finally { insightsLoadingId = null; }
+  if (location.hash === '#coach-insights') window.__render();
+}
+
+/* Which of the built-in CATALOG's fixed ids map onto insights.js's per-kind "done" rules
+   (weeklyBrief/mostMissed branch on req.kind === 'meal'/'weigh'/'checkin') — CATALOG itself
+   carries no `kind` field (see requirements.js). Anything not listed here (recovery,
+   hydration) is honestly counted through its own tasks_done id instead, same as the server
+   does for those items — no fabricated kind, just a coarser real signal. */
+const CATALOG_KIND = { breakfast: 'meal', lunch: 'meal', dinner: 'meal', weight: 'weigh', weekly: 'checkin' };
+
+/* reqsByAthlete for the insights engine: {id, title, kind, required, freq, ...} per roster
+   athlete, using the EXACT governance resolveRequirementSet already gives entriesFor
+   (coach-data.js:129-149) — athlete > position > team custom set, else the built-in CATALOG.
+   catalogFromItems maps a set's raw items into the CATALOG-shaped requirement athleteStatus
+   consumes (title/freq/required/proof/window/...) — exactly the shape needed here too, except
+   it drops the item's own `kind`, which weeklyBrief/mostMissed need to pick the right per-day
+   "done" signal (positional meal count vs weight_logged vs checkin_done vs tasks_done). So kind
+   is read straight off the raw item and reattached by id rather than recomputed. */
+function buildReqsByAthlete(roster, extras) {
+  const sets = (extras && extras.sets) || [];
+  const out = {};
+  for (const r of roster) {
+    if (!r || !r.athleteId) continue;
+    const set = resolveRequirementSet(sets, r.athleteId, r.position);
+    if (set) {
+      const kindById = {};
+      for (const it of (set.items || [])) { if (it && it.id != null) kindById[String(it.id)] = it.kind; }
+      out[r.athleteId] = catalogFromItems(set.items).map(req => ({ ...req, kind: kindById[req.id] || 'custom' }));
+    } else {
+      out[r.athleteId] = CATALOG.map(c => ({ ...c, kind: CATALOG_KIND[c.id] }));
+    }
+  }
+  return out;
+}
+
+function humanizeKind(k) {
+  return String(k || 'other').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+
+/* Mirrors coach-home.js's private scopeLabel — duplicated rather than imported (each screen
+   keeps its own small copy of this, same as coach-announce.js's variant); getScope()'s shape
+   is the shared contract, not this rendering. */
+function scopeLabel(scope) {
+  if (!scope || scope.kind === 'team') return 'Entire team';
+  if (scope.kind === 'position') return `${scope.value} room`;
+  if (scope.kind === 'group') {
+    const g = ((CD.extras && CD.extras.groups) || []).find(x => x.id === scope.value);
+    return g ? g.name : 'Group';
+  }
+  if (scope.kind === 'athlete') {
+    const r = CD.roster && CD.roster.rows.find(x => x.athleteId === scope.value);
+    return r ? r.name : 'One athlete';
+  }
+  return 'Entire team';
+}
+
+const dotLine = (text, cls) => `<div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:13.5px;font-weight:600;color:var(--text);line-height:1.5"><span class="dot ${cls}" style="width:7px;height:7px;border-radius:50%;margin-top:7px;flex:none"></span><span>${esc(text)}</span></div>`;
+
+const EMPTY_COPY = `
+    <div class="co-eyebrow">This week</div>
+    <div class="co-empty"><div class="ic">${icon('bars', 24)}</div>
+    <div class="tt">Trends unlock as history builds</div>
+    <div class="ts">Weekly change, most-missed requirements, and whether your nudges are working — this screen fills in from your team's real data. Every action you take is already recording toward it.</div></div>`;
+
+/* Builds the whole "This week" lower half, or the honest placeholder when there isn't enough
+   history yet. Kept as one function so render() below stays a straight read. */
+function weekSection() {
+  const teamId = CD.roster.teams[0] && CD.roster.teams[0].id;
+  if (!teamId) return EMPTY_COPY; // no team at all — never will have history either
+
+  const data = INSIGHTS_DATA && INSIGHTS_DATA.teamId === teamId ? INSIGHTS_DATA : null;
+  if (!data) {
+    return `
+    <div class="co-eyebrow">This week</div>
+    <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div><div><div class="tt">Reading the week…</div></div></div>`;
+  }
+
+  const scope = getScope();
+  const scopedRoster = scopeFilter(CD.roster.rows, scope);
+  const scopedIds = new Set(scopedRoster.map(r => r.athleteId));
+  const rollup = data.rollup.filter(r => r && scopedIds.has(r.athlete_id));
+
+  const uniqueDays = new Set(rollup.map(r => r.day)).size;
+  if (uniqueDays < 2) return EMPTY_COPY;
+
+  const today = roles.todayISO();
+  const reqsByAthlete = buildReqsByAthlete(scopedRoster, CD.extras);
+  const brief = weeklyBrief({ rollup, roster: scopedRoster, todayISO: today, reqsByAthlete });
+  const watch = athletesToWatch({ rollup, roster: scopedRoster, todayISO: today });
+  const missed = mostMissed({ rollup, reqsByAthlete, todayISO: today }).slice(0, 3);
+  const vsMonth = weekVsMonth({ rollup, todayISO: today });
+  const scopedOutcomes = (data.outcomes || []).filter(o => o && scopedIds.has(o.athlete_id));
+  const outcomes = interventionOutcomes({ outcomes: scopedOutcomes, roster: scopedRoster, todayISO: today });
+
+  const decliners = watch.decliners.slice(0, 3);
+  const disengaging = watch.disengaging.slice(0, 3);
+  const recoverers = (outcomes.unlocked ? outcomes.recoverers : []).slice(0, 3);
+
+  const sections = [];
+
+  // ---- This week (weeklyBrief) ----
+  if (brief.lines.length || brief.byRoom.length) {
+    sections.push(`
+    <div class="co-eyebrow">This week · ${esc(scopeLabel(scope))}</div>
+    <section class="card" style="padding:var(--s3) var(--s4)">
+      ${brief.lines.map(l => dotLine(l.text, l.dir === 'up' ? 'g' : l.dir === 'down' ? 'r' : 'b')).join('')}
+      ${brief.byRoom.map(r => dotLine(r.text, r.completionDelta > 0 ? 'g' : 'r')).join('')}
+    </section>`);
+  }
+
+  // ---- Athletes to watch (decliners / disengaging / recoverers) ----
+  if (decliners.length || disengaging.length || recoverers.length) {
+    const athRow = (a, sub) => `
+      <div class="lrow" data-go="coach-athlete/${esc(a.athleteId)}">
+        <div class="lm"><div class="lt">${esc(a.name)}</div><div class="ls">${esc(sub)}</div></div>
+      </div>`;
+    sections.push(`
+    <div class="co-eyebrow">Athletes to watch</div>
+    <section class="card" style="padding:6px 16px">
+      ${decliners.length ? `<div class="eyebrow" style="margin:10px 2px 0">Trending down</div>${decliners.map(d => athRow(d, d.text)).join('')}` : ''}
+      ${disengaging.length ? `<div class="eyebrow" style="margin:10px 2px 0">Going quiet</div>${disengaging.map(d => athRow(d, d.text)).join('')}` : ''}
+      ${recoverers.length ? `<div class="eyebrow" style="margin:10px 2px 0">Bouncing back</div>${recoverers.map(r => athRow(r, `${r.lift >= 0 ? '+' : ''}${r.lift} avg score lift after an intervention`)).join('')}` : ''}
+    </section>`);
+  }
+
+  // ---- Most missed ----
+  if (missed.length) {
+    sections.push(`
+    <div class="co-eyebrow">Most missed</div>
+    <section class="card" style="padding:var(--s3) var(--s4)">
+      ${missed.map(m => dotLine(m.text, 'a')).join('')}
+    </section>`);
+  }
+
+  // ---- Week vs month ----
+  if (vsMonth.text) {
+    sections.push(`
+    <div class="co-eyebrow">Week vs month</div>
+    <section class="card" style="padding:var(--s3) var(--s4)">
+      ${dotLine(vsMonth.text, vsMonth.weekAvg > vsMonth.monthAvg ? 'g' : vsMonth.weekAvg < vsMonth.monthAvg ? 'r' : 'b')}
+    </section>`);
+  }
+
+  // ---- Are interventions working? — always shown (locked or unlocked), the one section
+  // exempt from "silence over noise": a coach who opens this should always see WHERE the
+  // outcomes tracker stands, never nothing at all. ----
+  const sinceLabel = new Date(`${outcomes.sinceISO}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  sections.push(`
+  <div class="co-eyebrow">Are interventions working?</div>
+  <section class="card" style="padding:var(--s3) var(--s4)">
+    ${outcomes.unlocked
+      ? `${dotLine(outcomes.text, 'b')}${(outcomes.byKind || []).map(k => dotLine(`${humanizeKind(k.kind)} · ${k.n} use${k.n === 1 ? '' : 's'} · ${k.avgLift >= 0 ? '+' : ''}${k.avgLift} avg lift`, 'b')).join('')}`
+      : `<div style="display:flex;gap:10px;align-items:flex-start"><span style="flex:none;color:var(--text-3);margin-top:1px">${icon('lock', 15)}</span><span style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.5">Intervention tracking started ${esc(sinceLabel)} — outcomes unlock after two weeks of history.</span></div>`}
+  </section>`);
+
+  return sections.join('');
+}
+
 export const coachInsights = {
   nav: 'coach', tab: 'insights',
   render() {
@@ -50,11 +236,13 @@ export const coachInsights = {
     </section>
     <div class="co-note">Computed from your roster's real logs — nothing here is generated.</div>
 
-    <div class="co-eyebrow">This week</div>
-    <div class="co-empty"><div class="ic">${icon('bars', 24)}</div>
-    <div class="tt">Trends unlock as history builds</div>
-    <div class="ts">Weekly change, most-missed requirements, and whether your nudges are working — this screen fills in from your team's real data. Every action you take is already recording toward it.</div></div>
+    ${weekSection()}
     <div class="co-bottom"></div>`;
   },
-  mount() { loadCoachRoster(); },
+  mount() {
+    loadCoachRoster().then(() => {
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      if (teamId) loadInsights(teamId);
+    });
+  },
 };
