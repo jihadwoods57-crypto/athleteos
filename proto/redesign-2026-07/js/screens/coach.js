@@ -6,6 +6,7 @@ import { openingMessage, qualityBand, reactionGroups, threadMessages, privateNot
 import { openImageViewer } from '../image-viewer.js';
 import { CD, loadCoachRoster, loadActivity, actTime, loadAthleteProfile } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
+import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel } from '../requirements.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -944,6 +945,94 @@ function conversationSection(P) {
   <div style="height:10px"></div>`;
 }
 
+/* Human label for the requirement source, mirroring resolveRequirementSet's own precedence
+   (athlete > position > team > built-in CATALOG) so the coach always knows WHOSE standard
+   they're looking at — never left to guess whether this is the team default or an override. */
+function requirementSourceLabel(set) {
+  if (!set) return 'Team default (built-in)';
+  if (set.scope_kind === 'athlete') return 'Individual';
+  if (set.scope_kind === 'position') return `${String(set.scope_value || '').trim().toUpperCase() || 'Position'} room`;
+  return 'Team standard';
+}
+/* ---------- Requirements pane (Task 7): the athlete's GOVERNING standard, resolved with the
+   same precedence entriesFor/loadAthleteProfile already use — never a second, drifting copy of
+   the logic. Also surfaces active exceptions and the real assignment history; nothing here is
+   invented, and an empty list says so honestly. */
+function requirementsSection(P, athleteId) {
+  const set = resolveRequirementSet(CD.extras && CD.extras.sets, athleteId, P.row && P.row.position);
+  const reqs = set ? catalogFromItems(set.items) : CATALOG;
+  const source = requirementSourceLabel(set);
+  const exceptions = P.exceptions || [];
+  const assignments = P.assignments || [];
+  return `
+  <div class="eyebrow">Governing standard <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${esc(source)}</span></div>
+  <section class="card" style="padding:2px 16px">
+    ${reqs.length ? reqs.map(r => `
+    <div class="lrow" style="cursor:default"><div class="lic" style="color:var(--${r.accent === 'g' ? 'green' : r.accent === 'a' ? 'amber' : r.accent === 'p' ? 'purple' : 'blue'}-bright)">${icon(r.icon || 'clipboard', 17)}</div>
+    <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc((PROOF[r.proof] && PROOF[r.proof].label) || 'Proof')} · ${esc(freqLabel(r.freq))}</div></div></div>`).join('')
+    : `<div class="lrow" style="cursor:default"><div class="lm"><div class="ls">No requirements set.</div></div></div>`}
+  </section>
+  <div class="lrow" data-go="coach-plan/${esc(athleteId)}" style="margin:2px 2px 0">
+    <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('edit', 17)}</div>
+    <div class="lm"><div class="lt">Edit their standard</div><div class="ls">Open Plan · Schedule</div></div>
+    ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+  </div>
+
+  <div class="eyebrow" style="margin-top:14px">Active exceptions${exceptions.length ? '' : ' · none'}</div>
+  ${exceptions.length ? `
+  <section class="card" style="padding:6px 16px">
+    ${exceptions.map(e => `
+    <div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div>
+    <div class="lm"><div class="lt">${esc(e.reason || 'Excused')}</div><div class="ls">${esc(e.starts_on || '')}${e.ends_on ? ` – ${esc(e.ends_on)}` : ''}</div></div></div>`).join('')}
+  </section>` : `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px">No active exceptions.</div>`}
+
+  <div class="eyebrow" style="margin-top:14px">Assignment history${assignments.length ? '' : ' · none'}</div>
+  ${assignments.length ? `
+  <section class="card" style="padding:2px 16px">
+    ${assignments.map(a => `
+    <div class="lrow" style="cursor:default"><div class="lic">${icon('clipboard', 17)}</div>
+    <div class="lm"><div class="lt">${esc(a.title || 'Requirement')}</div>
+    <div class="ls">${esc((PROOF[a.proof] && PROOF[a.proof].label) || a.proof || 'Proof')} · ${esc(cap(a.status || 'open'))} · ${esc(relTime(a.due_at || a.created_at))}${a.note ? ` · ${esc(a.note)}` : ''}</div></div></div>`).join('')}
+  </section>` : `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px">No assignments yet.</div>`}
+  <div style="height:10px"></div>`;
+}
+
+/* ---------- Notes pane (Task 7): coach-only margin notes on the athlete — separate table from
+   meal-comment "private notes" above, RLS-scoped to team staff only. The composer keeps typed
+   text on a failed save (never silently eats it), and delete ALWAYS refreshes from the server
+   rather than optimistically splicing — deleteCoachNote returns true even on an RLS no-op
+   (deleting a note you don't own deletes 0 rows but still resolves true), so only the refreshed
+   P.notes can honestly say whether it's gone. */
+function notesSection(P) {
+  const notes = P.notes || [];
+  return `
+  <div class="sidebox" style="padding:10px 14px">
+    <div class="req-icon p" style="width:32px;height:32px">${icon('lock', 15)}</div>
+    <div><div class="ts" style="color:var(--text-2)">Private to your staff — the athlete never sees these.</div></div>
+  </div>
+
+  <div class="eyebrow" style="margin-top:14px">Notes${notes.length ? '' : ' · none yet'}</div>
+  ${notes.length ? `
+  <section class="card" style="padding:2px 16px">
+    ${notes.map(n => `
+    <div class="lrow" style="cursor:default">
+      <div class="lic">${icon('user', 17)}</div>
+      <div class="lm"><div class="lt">${n.author_id === RT.userId ? 'You' : 'Staff'} <span style="color:var(--text-3);font-weight:600">· ${esc(relTime(n.created_at))}</span></div>
+      <div class="ls" style="white-space:normal;line-height:1.4;color:var(--text-2)">${esc(n.body)}</div></div>
+      <button class="btn ghost sm" data-del-note="${esc(n.id)}" style="width:auto;padding:0 12px;height:30px">${icon('x', 15)}</button>
+    </div>`).join('')}
+  </section>` : `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px">No notes on this athlete yet.</div>`}
+
+  <div class="eyebrow" style="margin-top:14px">Add a note</div>
+  <section class="card" style="padding:10px 14px">
+    <textarea id="cn-input" rows="3" maxlength="1000" placeholder="Something worth remembering about this athlete…"
+      style="display:block;width:100%;box-sizing:border-box;border-radius:12px;background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:14px;font-weight:600;padding:10px 12px;outline:none;resize:none"></textarea>
+    <div id="cn-err" style="font-size:12px;font-weight:700;color:var(--amber-bright);min-height:16px;margin-top:6px"></div>
+    <button class="btn green sm" id="cn-save" style="margin-top:2px">Save note</button>
+  </section>
+  <div style="height:10px"></div>`;
+}
+
 // Sections 5-6 (Requirements/Notes) land in Task 7 — an honest empty rather than a "coming soon" narration.
 function stubSection(key) {
   const label = (PROFILE_SECTIONS.find(([k]) => k === key) || [null, key])[1];
@@ -991,6 +1080,7 @@ export const coachAthlete = {
     }
     const body = PSECTION === 'overview' ? overviewSection(P) : PSECTION === 'today' ? todaySection(P)
       : PSECTION === 'activity' ? activitySection(P) : PSECTION === 'conversation' ? conversationSection(P)
+      : PSECTION === 'requirements' ? requirementsSection(P, athleteId) : PSECTION === 'notes' ? notesSection(P)
       : stubSection(PSECTION);
     return `
     ${head}
@@ -1028,6 +1118,31 @@ export const coachAthlete = {
     try { roles.markDayViewed(athleteId, roles.todayISO(), RT.userId, S.coachIdentity.handle); } catch { /* best-effort */ }
     root.querySelectorAll('[data-psec]').forEach(el => el.addEventListener('click', () => {
       PSECTION = el.getAttribute('data-psec'); window.__render();
+    }));
+    // Private notes composer + delete (Task 7). Save keeps the typed text on failure — never
+    // silently eats it — and both save and delete refresh from the server rather than
+    // optimistically mutating the list (deleteCoachNote resolves true even on an RLS no-op).
+    const cnInput = root.querySelector('#cn-input');
+    const cnErr = root.querySelector('#cn-err');
+    const cnSave = root.querySelector('#cn-save');
+    if (cnSave && cnInput) cnSave.addEventListener('click', async () => {
+      const body = (cnInput.value || '').trim();
+      if (cnErr) cnErr.textContent = '';
+      if (!body) { if (cnErr) cnErr.textContent = 'Write something first.'; return; }
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      if (!teamId) { if (cnErr) cnErr.textContent = "Couldn't save — no team found."; return; }
+      cnSave.disabled = true;
+      const r = await roles.postCoachNote(teamId, athleteId, body);
+      cnSave.disabled = false;
+      if (!r.ok) { if (cnErr) cnErr.textContent = r.error || "Couldn't save — try again."; return; }
+      cnInput.value = '';
+      loadAthleteProfile(athleteId, true);
+    });
+    root.querySelectorAll('[data-del-note]').forEach(el => el.addEventListener('click', async () => {
+      const id = el.getAttribute('data-del-note');
+      el.disabled = true;
+      await roles.deleteCoachNote(id);
+      loadAthleteProfile(athleteId, true); // ALWAYS refresh — a bare true can be an RLS no-op
     }));
     const btn = root.querySelector('#tp-btn');
     const status = root.querySelector('#tp-status');
