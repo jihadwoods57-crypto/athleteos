@@ -91,6 +91,44 @@ const REPLY_TOOL = {
   },
 } as const;
 
+// Coach OS Slice D draft mode: FOUR candidate replies the coach could send, one per stance.
+// Forced tool with a fixed 4-item array. These are DRAFTS — the function persists nothing.
+const DRAFT_STANCES = ['supportive', 'direct', 'context', 'followup'] as const;
+const DRAFT_TOOL = {
+  name: 'draft_replies',
+  description: 'Draft exactly four alternative replies the coach could send to the athlete about this meal, one per stance.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      drafts: {
+        type: 'array',
+        minItems: 4,
+        maxItems: 4,
+        description: 'Exactly four drafts, one for each stance in order: supportive, direct, context, followup.',
+        items: {
+          type: 'object',
+          properties: {
+            stance: { type: 'string', enum: ['supportive', 'direct', 'context', 'followup'] },
+            text: { type: 'string', description: 'Coach-voiced draft to the athlete, 60 words max, plain prose, no em dashes, no markdown. Reference only numbers present in the provided context.' },
+          },
+          required: ['stance', 'text'],
+        },
+      },
+    },
+    required: ['drafts'],
+  },
+} as const;
+
+const DRAFT_SYSTEM = `You are the OnStandard AI Nutritionist helping a COACH draft replies inside an athlete's meal thread.
+Rules that bind you:
+1. Use ONLY the provided context (this meal, their plan and goal, today's summary, recent meals, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
+2. Coach voice: specific, encouraging, practical. Consistency is praised before choices are critiqued. Never shame food, weight, or a late log.
+3. When coach guidance appears in the context, defer to it explicitly.
+4. Speak AS the coach TO the athlete about THEIR goal and plan, not generic nutrition advice.
+5. Draft FOUR alternative replies the COACH could send, one per stance: supportive (reinforce what went right), direct (name the gap and the fix), context (ask one clarifying question), followup (propose one concrete next step).
+6. These are drafts the coach will edit before sending. Do not sign them, do not send them.
+7. 60 words maximum per draft. No em dashes. No markdown.`;
+
 const SYSTEM = `You are the OnStandard AI Nutritionist inside an athlete's meal thread.
 Rules that bind you:
 1. Use ONLY the provided context (this meal, their plan and goal, today's summary, recent meals, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
@@ -116,9 +154,12 @@ Deno.serve(async (req) => {
     // add AT MOST ONE short supporting message per meal — and only when the coach's message is
     // substantive (a question or a nutrition point), never on every post.
     const coachSupport = body?.coachSupport === true;
+    // Coach OS Slice D — draft mode: the coach asks for FOUR candidate replies. No question is
+    // sent (there is nothing to answer yet), and NOTHING is persisted — these are drafts.
+    const draftMode = body?.draftReplies === true;
     const question = String((coachSupport ? body?.coachText : body?.question) ?? '').trim().slice(0, 500);
     const context = body?.context;
-    if (!mealId || !question || !context) return bad(400, 'bad_request', cors);
+    if (!mealId || !context || (!draftMode && !question)) return bad(400, 'bad_request', cors);
     if (JSON.stringify(context).length > CONTEXT_MAX) return bad(400, 'bad_request', cors);
 
     // ---- authorization (RLS does the work) ----
@@ -133,9 +174,48 @@ Deno.serve(async (req) => {
     if (!callerId) return bad(401, 'unauthorized', cors);
     const { data: mealRow } = await userClient.from('meals').select('id, athlete_id').eq('id', mealId).maybeSingle();
     if (!mealRow) return bad(403, 'unauthorized', cors);
-    if (coachSupport ? mealRow.athlete_id === callerId : mealRow.athlete_id !== callerId) return bad(403, 'unauthorized', cors);
+    // Coach modes (coachSupport + draft): the RLS-scoped select above succeeding for a NON-owner
+    // proves can_view (linked coach/staff), so a coach must NOT own the meal. Athlete mode: owner.
+    const coachMode = coachSupport || draftMode;
+    if (coachMode ? mealRow.athlete_id === callerId : mealRow.athlete_id !== callerId) return bad(403, 'unauthorized', cors);
 
     const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    // ---- draft mode: four candidate coach-voice replies, PERSIST NOTHING ----
+    if (draftMode) {
+      // New rate-limit keys so drafting never consumes the coachSupport / athlete-chat budget.
+      // Per-user fails open (an infra hiccup never blocks a legit draft); global fails CLOSED.
+      if (!(await withinKeyCap(`meal_draft:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
+      if (!(await withinKeyCap('meal_draft_global', GLOBAL_CAP, /* failOpen */ false))) return bad(429, 'limit', cors);
+
+      const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+      const msg = await anthropic.messages.create({
+        model: MODEL,
+        max_tokens: 700, // 4 drafts x ~60 words + tool-call JSON; headroom so the 4th draft never truncates into a 502
+        system: [{ type: 'text', text: DRAFT_SYSTEM, cache_control: { type: 'ephemeral' } }],
+        tools: [DRAFT_TOOL],
+        tool_choice: { type: 'tool', name: 'draft_replies' },
+        messages: [{
+          role: 'user',
+          content: `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nDraft four replies the COACH could send to the athlete about this meal, one per stance (supportive, direct, context, followup), using ONLY figures already in the context. Speak as the coach to the athlete. Each draft is 60 words or less.`,
+        }],
+      });
+      const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: { drafts?: Array<{ stance?: string; text?: string }> } } | undefined;
+      const raw = Array.isArray(tool?.input?.drafts) ? tool!.input!.drafts! : [];
+      // Normalize to exactly the four canonical stances in order; strip em dashes; enforce ~60 words.
+      const byStance = new Map<string, string>();
+      for (const d of raw) {
+        const stance = String(d?.stance ?? '').toLowerCase();
+        const text = String(d?.text ?? '').replace(/—/g, ',').trim();
+        if (DRAFT_STANCES.includes(stance as typeof DRAFT_STANCES[number]) && text && !byStance.has(stance)) {
+          byStance.set(stance, text.split(/\s+/).slice(0, 60).join(' '));
+        }
+      }
+      const drafts = DRAFT_STANCES.map((stance) => ({ stance, text: byStance.get(stance) ?? '' }));
+      if (drafts.some((d) => !d.text)) return bad(502, 'unavailable', cors);
+      // PERSIST NOTHING — no meal_comments insert. The coach edits and sends these manually.
+      return new Response(JSON.stringify({ drafts }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
 
     if (coachSupport) {
       // Selective: only back a substantive coach message; and only once per meal, ever.
