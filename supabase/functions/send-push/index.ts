@@ -58,11 +58,93 @@ Deno.serve(async (req) => {
      *  linked coach staff about their own meal. Caller identity comes from the JWT; the link
      *  is verified server-side (active team membership → active staff). */
     to_coach?: boolean; kind?: string; urgent?: boolean; route?: string;
+    /** Coach OS Slice C: push-only fan-out for an already-posted announcement (feed rows were
+     *  already written by post_announcement — this mode must NEVER insert notifications). */
+    announcement_id?: string;
   };
   try {
     payload = await req.json();
   } catch {
     return json({ error: 'bad request' }, 400, cors);
+  }
+
+  // ---------- coach announcement fan-out (announcement_id mode, push-only) ----------
+  if (payload.announcement_id) {
+    const svc0 = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const { data: ann, error: annErr } = await svc0.from('announcements')
+      .select('id,team_id,scope_kind,scope_value,title,body')
+      .eq('id', payload.announcement_id).maybeSingle();
+    if (annErr || !ann) return json({ error: 'announcement not found' }, 404, cors);
+
+    // Authorize: caller must be an ACTIVE team_staff member of the announcement's team. Identity
+    // comes from the caller's own JWT (never the service-role client) — mirrors the to_coach
+    // pattern above.
+    const caller0 = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
+    const { data: me0, error: meErr0 } = await caller0.auth.getUser();
+    const callerId = me0?.user?.id;
+    if (meErr0 || !callerId) return json({ error: 'unauthorized' }, 401, cors);
+    const { data: staffRow } = await svc0.from('team_staff')
+      .select('staff_id').eq('team_id', ann.team_id).eq('staff_id', callerId).eq('status', 'active').maybeSingle();
+    if (!staffRow) return json({ error: 'not authorized for this team' }, 403, cors);
+
+    // Resolve the SAME audience as post_announcement (0074_coach_os_slice_c.sql): active
+    // team_members of this team, narrowed by scope. Mirror the RPC's matching semantics exactly.
+    const { data: members } = await svc0.from('team_members')
+      .select('athlete_id,position').eq('team_id', ann.team_id).eq('status', 'active');
+    const active = members ?? [];
+    let athleteIds: string[] = [];
+    if (ann.scope_kind === 'team') {
+      athleteIds = active.map((m: { athlete_id: string }) => m.athlete_id);
+    } else if (ann.scope_kind === 'position') {
+      const want = String(ann.scope_value ?? '').toUpperCase();
+      athleteIds = active
+        .filter((m: { position?: string | null }) => String(m.position ?? '').toUpperCase() === want)
+        .map((m: { athlete_id: string }) => m.athlete_id);
+    } else if (ann.scope_kind === 'athlete') {
+      athleteIds = active
+        .filter((m: { athlete_id: string }) => m.athlete_id === ann.scope_value)
+        .map((m: { athlete_id: string }) => m.athlete_id);
+    } else if (ann.scope_kind === 'group') {
+      // The group row must belong to THIS team — same as the RPC's `g.team_id = p_team` guard —
+      // so a scope_value from another team's group can never leak an audience cross-team.
+      const { data: group } = await svc0.from('coach_groups')
+        .select('athlete_ids').eq('id', ann.scope_value).eq('team_id', ann.team_id).maybeSingle();
+      const groupSet = new Set<string>((group?.athlete_ids as string[] | null) ?? []);
+      athleteIds = active
+        .filter((m: { athlete_id: string }) => groupSet.has(m.athlete_id))
+        .map((m: { athlete_id: string }) => m.athlete_id);
+    }
+    athleteIds = [...new Set(athleteIds)];
+    if (!athleteIds.length) return json({ ok: true, pushed: 0 }, 200, cors);
+
+    // Opt-out filter BEFORE token fetch — same convention as the athlete_id branch below.
+    const { data: prefs0 } = await svc0.from('profiles')
+      .select('id,notifications_opt_out').in('id', athleteIds);
+    const optedOut0 = new Set((prefs0 ?? [])
+      .filter((p: { notifications_opt_out?: boolean }) => p.notifications_opt_out === true)
+      .map((p: { id: string }) => p.id));
+    const targets0 = athleteIds.filter((id) => !optedOut0.has(id));
+    if (!targets0.length) return json({ ok: true, pushed: 0 }, 200, cors);
+
+    // NOTE: no `notifications` insert here — post_announcement already wrote every feed row.
+    // This branch is push-only; writing here would double-deliver.
+    const { data: toks0 } = await svc0.from('device_tokens').select('token').in('user_id', targets0);
+    const tokens0 = (toks0 ?? []).map((t: { token: string }) => t.token).filter(Boolean);
+    let pushed = 0;
+    const title0 = (ann.title ?? 'Team announcement').slice(0, 120);
+    const body0 = (ann.body ?? '').slice(0, 300);
+    for (let i = 0; i < tokens0.length; i += 100) {
+      const chunk = tokens0.slice(i, i + 100);
+      try {
+        const r0 = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(chunk.map((to) => ({ to, title: title0, body: body0, sound: 'default' }))),
+        });
+        if (r0.ok) pushed += chunk.length;
+      } catch { /* best-effort; feed rows already landed via post_announcement */ }
+    }
+    return json({ ok: true, pushed }, 200, cors);
   }
 
   // ---------- athlete → coach (to_coach mode) ----------

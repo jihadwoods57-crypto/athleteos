@@ -531,6 +531,15 @@ export async function nudgePush(athleteId, title, body) {
   try { const { error } = await c.functions.invoke('send-push', { body: { athlete_id: athleteId, title, body } }); return !error; } catch { return false; }
 }
 
+/** Coach OS Slice C: push-only fan-out for an already-posted announcement. The feed rows are
+ *  the guaranteed delivery (written by post_announcement); this is a best-effort nudge on top —
+ *  never awaited by the send flow, so a push failure can't break the compose screen. */
+export async function pushAnnouncement(announcementId) {
+  const c = sb(); if (!c || !announcementId) return { ok: false };
+  try { const { error } = await c.functions.invoke('send-push', { body: { announcement_id: announcementId } }); return { ok: !error }; }
+  catch { return { ok: false }; }
+}
+
 /** Athlete → coach notification (meal-conversation upgrade 2026-07-16): the server resolves
  *  the caller's ACTIVE coach staff from the JWT, records a durable in-app notification for
  *  each, and pushes by classification — kind 'meal_logged' stays quiet (record only),

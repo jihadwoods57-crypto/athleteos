@@ -136,7 +136,9 @@ export const coachAnnounce = {
       });
       send.disabled = false;
       if (!r.ok) { say(r.error || 'Could not send — try again.', true); return; }
-      // push fan-out lands in the next commit
+      // Push is best-effort on top of the guaranteed feed rows the RPC already wrote —
+      // fire-and-forget, never allowed to affect the status copy below.
+      roles.pushAnnouncement(r.id).catch(() => {});
       const count = r.count || 0;
       const msg = `Sent to ${count} athlete${count === 1 ? '' : 's'}.`;
       ANN.title = ''; ANN.body = '';
