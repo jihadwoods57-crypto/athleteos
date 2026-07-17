@@ -1571,6 +1571,11 @@ function mealById(mealId) {
   if (MEAL && MEAL.id === mealId) return MEAL.row;
   return ATH && ATH.meals.find(m => m.id === mealId);
 }
+/* Suggested replies (Coach OS Slice D, Task 4): AI drafts four stance-labeled candidates, the
+   coach taps one to PREFILL the composer, edits, and sends manually — the AI never auto-sends.
+   Module state keyed by mealId so switching meals never shows a stale draft for the wrong one. */
+let DRAFTS = { mealId: null, items: [], loading: false, error: null };
+const STANCE_LABEL = { supportive: 'Supportive', direct: 'Direct', context: 'Ask for context', followup: 'Set a follow-up' };
 export const coachMeal = {
   nav: 'coach', tab: 'roster',
   render({ sub }) {
@@ -1641,6 +1646,25 @@ export const coachMeal = {
       <button class="qa" id="cm-ask-photo">Request another photo</button>
       <button class="qa" id="cm-note-toggle">Private note</button>
     </div>
+    ${(() => {
+      // Suggested replies (Task 4): only offered while the coach can still send (coachN < 2) —
+      // drafting a reply they're capped from sending would be dishonest. Nothing renders past
+      // the cap; the existing "2 coach messages per meal" note in mount() already covers it.
+      const coachN0 = Array.isArray(MC && MC.comments)
+        ? MC.comments.filter(c => c.role === 'coach' && (c.kind || 'message') === 'message').length : 0;
+      if (coachN0 >= 2) return '';
+      if (DRAFTS.loading && DRAFTS.mealId === sub) {
+        return `<div class="qa-row" style="margin-top:8px"><span style="font-size:12.5px;font-weight:600;color:var(--text-3);padding:6px 2px">Drafting…</span></div>`;
+      }
+      if (DRAFTS.mealId === sub && DRAFTS.items.length) {
+        return `<div class="qa-row" style="margin-top:8px">
+          ${DRAFTS.items.map((d, i) => `<button class="qa" data-draft="${i}">${esc(STANCE_LABEL[d.stance] || cap(d.stance || 'Reply'))}</button>`).join('')}
+        </div>`;
+      }
+      const errLine = (DRAFTS.mealId === sub && DRAFTS.error)
+        ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 6px">Couldn't draft right now — write your own or try again.</div>` : '';
+      return `${errLine}<div class="qa-row" style="margin-top:8px"><button class="qa" id="cm-draft">✍️ Draft a reply</button></div>`;
+    })()}
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment' })}
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:#f87171;margin:6px 2px 0;min-height:16px"></div>
 
@@ -1746,6 +1770,41 @@ export const coachMeal = {
     };
     if (send) send.addEventListener('click', submit);
     if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    // Draft a reply (Task 4): asks meal-chat's draft mode for four stance-labeled candidates.
+    // Context mirrors the coachSupport shape above (meal macros) plus the last few thread
+    // messages, so drafts are grounded in what was actually said.
+    const draftBtn = root.querySelector('#cm-draft');
+    if (draftBtn) draftBtn.addEventListener('click', async () => {
+      DRAFTS = { mealId: sub, items: [], loading: true, error: null };
+      window.__render();
+      const meal0 = mealById(sub);
+      const context = {
+        meal: meal0 ? { type: meal0.type, protein: meal0.protein, kcal: meal0.kcal, quality: meal0.quality } : {},
+        thread: threadMessages(MC && MC.comments).slice(-6).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
+      };
+      const r = await roles.draftMealReplies(sub, context);
+      if (DRAFTS.mealId !== sub) return; // stale — coach navigated away/on before this resolved
+      DRAFTS.loading = false;
+      DRAFTS.items = r.ok ? r.drafts : [];
+      DRAFTS.error = r.ok ? null : (r.error || 'unavailable');
+      window.__render();
+    });
+    // Chip tap: fills the REAL #cm-input element (never re-renders over it — that would rebuild
+    // the DOM and wipe the value just set, same lesson as meal.js's prefill()). The chip row is
+    // removed directly from the DOM instead, and DRAFTS.items is cleared so a later legit
+    // re-render (e.g. a new comment landing) doesn't resurrect stale chips.
+    root.querySelectorAll('[data-draft]').forEach((b) => b.addEventListener('click', () => {
+      const i = +b.getAttribute('data-draft');
+      const d = DRAFTS.items[i];
+      if (!d || !input) return;
+      input.value = d.text;
+      input.focus();
+      const end = input.value.length;
+      if (input.setSelectionRange) input.setSelectionRange(end, end);
+      DRAFTS.items = [];
+      const row = b.closest('.qa-row');
+      if (row) row.remove();
+    }));
     // One shared lock across all four emoji: a burst of taps lands exactly one reaction.
     const rxNote = root.querySelector('#rx-note');
     let rxBusy = false;
