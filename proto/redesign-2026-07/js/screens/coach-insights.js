@@ -28,17 +28,33 @@ export const coachInsights = {
         : logged ? `${logged} of ${entries.length} ${logged === 1 ? 'has' : 'have'} logged today — nothing needs your attention right now.`
         : 'Quiet so far — no logs yet today.');
     }
+    // Recurring standing-bar motif — the same signature language as Home, so Insights opens
+    // on the team's real shape at a glance before the sentences explain it.
+    const keys = entries.map(e => e.status.key);
+    const cnt = (p) => keys.filter(p).length;
+    const g = cnt(k => k === 'on_standard'), a = cnt(k => k === 'due_soon' || k === 'below_standard' || k === 'needs_review');
+    const r = cnt(k => k === 'overdue'), d = cnt(k => k === 'no_activity' || k === 'excused');
+    const seg = (cls, c) => c ? `<span class="seg ${cls}" style="flex:${c}"></span>` : '';
+    const leg = (cls, c, l) => c ? `<span class="it"><span class="dot ${cls}"></span><b>${c}</b> ${l}</span>` : '';
+    const lineDot = (l) => /overdue|no activity/i.test(l) ? 'r' : /below|waiting|review/i.test(l) ? 'a' : /leads/i.test(l) ? 'g' : 'b';
     return `${head}
-    <div class="eyebrow">Today's read</div>
-    <section class="card" style="padding:13px 16px">
-      ${lines.map(l => `<div style="font-size:13px;font-weight:600;color:var(--text-2);line-height:1.55;margin:3px 0">· ${esc(l)}</div>`).join('')}
-      <div style="font-size:10.5px;color:var(--text-3);font-weight:700;margin-top:8px">Computed from your roster's real logs — nothing here is generated.</div>
+    ${entries.length ? `<div class="co-eyebrow tight">Where the team stands</div>
+    <section class="card" style="padding:var(--s4)">
+      <div class="co-standing">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
+      <div class="co-legend">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>
+    </section>` : ''}
+
+    <div class="co-eyebrow">Today's read</div>
+    <section class="card" style="padding:var(--s3) var(--s4)">
+      ${lines.map(l => `<div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:13.5px;font-weight:600;color:var(--text);line-height:1.5"><span class="dot ${lineDot(l)}" style="width:7px;height:7px;border-radius:50%;margin-top:7px;flex:none"></span><span>${esc(l)}</span></div>`).join('')}
     </section>
-    <div class="eyebrow">This week</div>
-    <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
-    <div><div class="tt">Trends unlock as history builds</div>
-    <div class="ts">Weekly change, most-missed requirements, and whether your nudges are working — this screen fills in from your team's real data. Every action you take is already being recorded toward it.</div></div></div>
-    <div style="height:10px"></div>`;
+    <div class="co-note">Computed from your roster's real logs — nothing here is generated.</div>
+
+    <div class="co-eyebrow">This week</div>
+    <div class="co-empty"><div class="ic">${icon('bars', 24)}</div>
+    <div class="tt">Trends unlock as history builds</div>
+    <div class="ts">Weekly change, most-missed requirements, and whether your nudges are working — this screen fills in from your team's real data. Every action you take is already recording toward it.</div></div>
+    <div class="co-bottom"></div>`;
   },
   mount() { loadCoachRoster(); },
 };

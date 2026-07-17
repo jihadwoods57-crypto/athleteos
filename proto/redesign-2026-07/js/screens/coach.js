@@ -752,38 +752,63 @@ function lastActivityLabel(iso) {
   if (h < 24) return `Active ${h}h ago`;
   return `Active ${Math.floor(h / 24)}d ago`;
 }
+/* A real, legible 7-day trend — a filled sparkline that fills its card with min/max context,
+   not a lost squiggle. Honest empty until two logged days exist. */
+function coTrend(hist) {
+  const pts = (hist || []).filter(h => h && h.score != null);
+  if (pts.length < 2) {
+    return `<div class="co-trend"><div class="co-trend-top"><span class="lbl">Last logged days</span><span class="rng">—</span></div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);padding:4px 0 2px">Two or more logged days unlock the trend.</div></div>`;
+  }
+  const w = 360, h = 60, scores = pts.map(p => p.score);
+  const min = Math.min(...scores), max = Math.max(...scores), span = Math.max(1, max - min);
+  const xy = pts.map((p, i) => [(i / (pts.length - 1)) * w, (h - 7) - ((p.score - min) / span) * (h - 14)]);
+  const line = xy.map((c, i) => `${i ? 'L' : 'M'}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' ');
+  const area = `M0,${h} L${xy.map(c => `${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' L')} L${w},${h} Z`;
+  const up = pts[pts.length - 1].score >= pts[0].score;
+  const stroke = up ? 'var(--green-bright)' : '#FF9B9B';
+  const lp = xy[xy.length - 1];
+  return `<div class="co-trend">
+    <div class="co-trend-top"><span class="lbl">Last ${pts.length} logged days</span><span class="rng">${min}–${max}</span></div>
+    <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="cotrend" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${stroke}" stop-opacity="0.26"/><stop offset="1" stop-color="${stroke}" stop-opacity="0"/></linearGradient></defs>
+      <path d="${area}" fill="url(#cotrend)"/>
+      <path d="${line}" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+      <circle cx="${lp[0].toFixed(1)}" cy="${lp[1].toFixed(1)}" r="3.5" fill="${stroke}"/>
+    </svg>
+    <div class="co-trend-x"><span>then</span><span>now</span></div>
+  </div>`;
+}
 function overviewSection(P) {
   const st = P.status, meta = st ? STATUS_META[st.key] : null;
   const day = P.day;
   const tasks = (day && day.tasks) || [];
   const totalN = tasks.length, doneN = tasks.filter(t => t && t.done).length;
-  const alerts = [st && st.detail, ...(P.exceptions || []).map(e => e.reason ? `Excused · ${e.reason}` : 'Excused')].filter(Boolean);
-  const hist = (P.row && P.row.scoreHistory) || [];
+  const crit = st && (st.key === 'overdue' || st.key === 'no_activity');
+  const last = lastActivityLabel(P.row && P.row.lastMealAt);
+  const subtitle = (st && st.detail) || last || 'On track';
+  const alerts = (P.exceptions || []).map(e => e.reason ? `Excused · ${e.reason}` : 'Excused');
   return `
-  <div class="coach-stats">
-    <div class="coach-stat"><div class="v" style="color:${meta ? meta.color : 'var(--text-3)'}">${meta ? meta.label : '—'}</div><div class="k">Status</div></div>
-    <div class="coach-stat"><div class="v" style="color:${scoreColor(day && day.score)}">${day && day.score != null ? day.score : '—'}</div><div class="k">Score today</div></div>
-    <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${totalN ? `${doneN}/${totalN}` : '—'}</div><div class="k">Completion</div></div>
+  <section class="card" style="padding:var(--s4);display:flex;align-items:center;justify-content:space-between;gap:var(--s3)">
+    <div style="min-width:0">
+      <div class="co-status ${crit ? 'crit' : ''}"><span class="dot" style="background:${meta ? meta.color : 'var(--text-3)'}"></span><span class="lbl" style="font-size:14px;font-weight:800">${meta ? esc(meta.label) : '—'}</span></div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:5px;line-height:1.4">${esc(subtitle)}</div>
+    </div>
+    ${last && st && st.detail ? `<div style="font-size:11.5px;font-weight:700;color:var(--text-3);white-space:nowrap;flex:none">${esc(last)}</div>` : ''}
+  </section>
+
+  <div class="co-tiles two" style="margin-top:var(--s3)">
+    <div class="co-stat"><div class="v" style="color:${scoreColor(day && day.score)}">${day && day.score != null ? day.score : '—'}</div><div class="k">Score today</div></div>
+    <div class="co-stat"><div class="v">${totalN ? `${doneN}<small>&thinsp;/&thinsp;${totalN}</small>` : '—'}</div><div class="k">Completion</div></div>
   </div>
 
-  <div class="eyebrow">7-day trend</div>
-  <section class="card" style="padding:10px 16px;display:flex;align-items:center;justify-content:space-between">
-    <div style="font-size:12px;font-weight:600;color:var(--text-3)">${hist.filter(h => h.score != null).length >= 2 ? 'Last 7 logged days' : 'Not enough history yet'}</div>
-    ${sparkline(hist)}
-  </section>
+  <div class="co-eyebrow">7-day trend</div>
+  ${coTrend((P.row && P.row.scoreHistory) || [])}
 
-  <div class="eyebrow">Last activity</div>
-  <section class="card" style="padding:6px 16px">
-    <div class="lrow" style="cursor:default"><div class="lic">${icon('clock', 17)}</div>
-    <div class="lm"><div class="lt">${esc(lastActivityLabel(P.row && P.row.lastMealAt) || 'No recent activity')}</div></div></div>
-  </section>
-
-  <div class="eyebrow">Active alerts${alerts.length ? '' : ' · none'}</div>
-  ${alerts.length ? `
-  <section class="card" style="padding:6px 16px">
+  ${alerts.length ? `<div class="co-eyebrow">Active alerts</div>
+  <section class="card" style="padding:var(--s1) var(--s4)">
     ${alerts.map(a => `<div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div><div class="lm"><div class="lt">${esc(a)}</div></div></div>`).join('')}
-  </section>` : `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px">Nothing needs your attention.</div>`}
-  <div style="height:10px"></div>
+  </section>` : ''}
   `;
 }
 function todaySection(P) {
@@ -795,10 +820,10 @@ function todaySection(P) {
   const ci = (day && day.checkin) || {};
   const openSlots = ['breakfast', 'lunch', 'dinner'].filter(k => !mealsJson[k]);
   return `
-    <div class="coach-stats">
-      <div class="coach-stat"><div class="v" style="color:${scoreColor(score)}">${score != null ? score : '—'}</div><div class="k">Score today</div></div>
-      <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${MEAL_SLOTS.filter(k => mealsJson[k]).length}</div><div class="k">Meals logged</div></div>
-      <div class="coach-stat"><div class="v" style="color:${ci.submitted ? 'var(--green-bright)' : 'var(--amber-bright)'}">${ci.submitted ? 'In' : 'Open'}</div><div class="k">Recovery</div></div>
+    <div class="co-tiles">
+      <div class="co-stat"><div class="v" style="color:${scoreColor(score)}">${score != null ? score : '—'}</div><div class="k">Score today</div></div>
+      <div class="co-stat"><div class="v g">${MEAL_SLOTS.filter(k => mealsJson[k]).length}</div><div class="k">Meals logged</div></div>
+      <div class="co-stat"><div class="v ${ci.submitted ? 'g' : 'a'}">${ci.submitted ? 'In' : 'Open'}</div><div class="k">Recovery</div></div>
     </div>
 
     ${!day ? `<div class="sidebox" style="margin-top:14px"><div class="req-icon a" style="width:38px;height:38px">${icon('clock', 17)}</div>
@@ -861,55 +886,36 @@ function activitySection(P) {
   const items = [];
   for (const m of (P.meals || [])) {
     if (!m || !m.id || !m.logged_at) continue;
-    items.push({
-      ts: new Date(m.logged_at).getTime(),
-      html: `
-      <div class="lrow" data-go="coach-meal/${esc(m.id)}">
-        <div class="lic" style="overflow:hidden;padding:0">
-          ${P.photos[m.id] ? `<img src="${esc(P.photos[m.id])}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/>` : icon('utensils', 17)}
-        </div>
-        <div class="lm"><div class="lt">${esc(cap(m.type || 'Meal'))}${m.quality != null ? ` · ${m.quality}` : ''}</div>
-        <div class="ls">${esc(relTime(m.logged_at))}</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>`,
-    });
+    items.push({ ts: new Date(m.logged_at).getTime(), cls: 'i-meal', go: `coach-meal/${m.id}`,
+      when: relTime(m.logged_at), what: `${esc(cap(m.type || 'Meal'))} logged${m.quality != null ? ` <span class="sub">· quality ${m.quality}</span>` : ''}` });
   }
   const day = P.day;
   if (day && day.updated_at) {
     const t = new Date(day.updated_at).getTime();
     if (isFinite(t)) {
-      if (day.current_weight != null) items.push({ ts: t, html: `
-      <div class="lrow" style="cursor:default"><div class="lic">${icon('scale', 17)}</div>
-      <div class="lm"><div class="lt">Weighed in · ${esc(String(day.current_weight))} lb</div><div class="ls">${esc(relTime(day.updated_at))}</div></div></div>` });
-      if (day.checkin && day.checkin.submitted) items.push({ ts: t, html: `
-      <div class="lrow" style="cursor:default"><div class="lic">${icon('moon', 17)}</div>
-      <div class="lm"><div class="lt">Recovery check-in submitted</div><div class="ls">${esc(relTime(day.updated_at))}</div></div></div>` });
+      if (day.current_weight != null) items.push({ ts: t, cls: 'i-weight', when: relTime(day.updated_at), what: `Weighed in <span class="sub">· ${esc(String(day.current_weight))} lb</span>` });
+      if (day.checkin && day.checkin.submitted) items.push({ ts: t, cls: 'i-weight', when: relTime(day.updated_at), what: 'Recovery check-in submitted' });
     }
   }
   for (const iv of (P.interventions || [])) {
     if (!iv || !iv.created_at || (iv.kind !== 'nudge' && iv.kind !== 'handled')) continue;
-    const label = iv.kind === 'nudge' ? 'You nudged them' : 'Marked handled';
-    items.push({ ts: new Date(iv.created_at).getTime(), html: `
-    <div class="lrow" style="cursor:default"><div class="lic">${icon(iv.kind === 'nudge' ? 'bell' : 'check', 17)}</div>
-    <div class="lm"><div class="lt">${esc(label)}</div><div class="ls">${esc(relTime(iv.created_at))}</div></div></div>` });
+    items.push({ ts: new Date(iv.created_at).getTime(), cls: 'i-coach', when: relTime(iv.created_at), what: iv.kind === 'nudge' ? 'You nudged them' : 'You marked this handled' });
   }
   for (const a of (P.assignments || [])) {
     if (!a || !a.created_at) continue;
-    items.push({ ts: new Date(a.created_at).getTime(), html: `
-    <div class="lrow" style="cursor:default"><div class="lic">${icon('clipboard', 17)}</div>
-    <div class="lm"><div class="lt">Assigned: ${esc(a.title || 'Requirement')}</div><div class="ls">${esc(relTime(a.created_at))}${a.note ? ` · ${esc(a.note)}` : ''}</div></div></div>` });
+    items.push({ ts: new Date(a.created_at).getTime(), cls: 'i-coach', when: relTime(a.created_at), what: `Assigned <span class="sub">· ${esc(a.title || 'Requirement')}</span>` });
   }
   items.sort((x, y) => y.ts - x.ts);
   if (!items.length) return `
-  <div class="state-demo"><div class="sd-ic">${icon('clock', 24)}</div>
-  <div class="sd-t">No activity in the last 30 days</div>
-  <div class="sd-s">Meal logs, weigh-ins, check-ins, and your own actions show up here as they happen.</div></div>
-  <div style="height:10px"></div>`;
+  <div class="co-empty"><div class="ic">${icon('clock', 24)}</div>
+  <div class="tt">No activity in the last 30 days</div>
+  <div class="ts">Meal logs, weigh-ins, check-ins, and your own actions land here as they happen.</div></div>`;
   return `
-  <div class="eyebrow">Last 30 days</div>
-  <section class="card" style="padding:2px 16px">${items.map(i => i.html).join('')}</section>
-  <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:6px 4px 0">Weigh-ins and check-ins shown for today only; meal history spans 30 days.</div>
-  <div style="height:10px"></div>`;
+  <div class="co-eyebrow">Last 30 days</div>
+  <div class="co-tl">
+    ${items.map(i => `<div class="co-tl-item ${i.cls}"${i.go ? ` data-go="${esc(i.go)}" style="cursor:pointer"` : ''}><div class="co-tl-when">${esc(i.when)}</div><div class="co-tl-what">${i.what}</div></div>`).join('')}
+  </div>
+  <div class="co-note">Weigh-ins and check-ins are shown for today; meal history spans 30 days.</div>`;
 }
 
 /* Date label for a meal row in Conversation: "Jul 15 · 2d ago" from its real logged_at
@@ -1011,31 +1017,28 @@ function requirementsSection(P, athleteId) {
 function notesSection(P) {
   const notes = P.notes || [];
   return `
-  <div class="sidebox" style="padding:10px 14px">
-    <div class="req-icon p" style="width:32px;height:32px">${icon('lock', 15)}</div>
-    <div><div class="ts" style="color:var(--text-2)">Private to your staff — the athlete never sees these.</div></div>
-  </div>
+  <div class="co-notebanner"><span class="ic">${icon('lock', 16)}</span><span>Private to your staff — <b>the athlete never sees these.</b></span></div>
 
-  <div class="eyebrow" style="margin-top:14px">Notes${notes.length ? '' : ' · none yet'}</div>
+  <div class="co-eyebrow">Notes${notes.length ? ` <span class="n">${notes.length}</span>` : ' · none yet'}</div>
   ${notes.length ? `
-  <section class="card" style="padding:2px 16px">
+  <section class="card" style="padding:0 var(--s4)">
     ${notes.map(n => `
-    <div class="lrow" style="cursor:default">
-      <div class="lic">${icon('user', 17)}</div>
-      <div class="lm"><div class="lt">${n.author_id === RT.userId ? 'You' : 'Staff'} <span style="color:var(--text-3);font-weight:600">· ${esc(relTime(n.created_at))}</span></div>
-      <div class="ls" style="white-space:normal;line-height:1.4;color:var(--text-2)">${esc(n.body)}</div></div>
-      <button class="btn ghost sm" data-del-note="${esc(n.id)}" style="width:auto;padding:0 12px;height:30px">${icon('x', 15)}</button>
+    <div class="co-note-row">
+      <div style="flex:1;min-width:0">
+        <div><span class="who">${n.author_id === RT.userId ? 'You' : 'Staff'}</span> <span class="when">· ${esc(relTime(n.created_at))}</span></div>
+        <div class="body">${esc(n.body)}</div>
+      </div>
+      <button class="co-abtn" data-del-note="${esc(n.id)}" style="flex:none;width:36px;height:36px;padding:0" aria-label="Delete note">${icon('x', 15)}</button>
     </div>`).join('')}
-  </section>` : `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px">No notes on this athlete yet.</div>`}
+  </section>` : `<div class="co-note">No notes on this athlete yet — jot the first below.</div>`}
 
-  <div class="eyebrow" style="margin-top:14px">Add a note</div>
-  <section class="card" style="padding:10px 14px">
+  <div class="co-eyebrow">Add a note</div>
+  <section class="card" style="padding:var(--s3) var(--s4)">
     <textarea id="cn-input" rows="3" maxlength="1000" placeholder="Something worth remembering about this athlete…"
-      style="display:block;width:100%;box-sizing:border-box;border-radius:12px;background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:14px;font-weight:600;padding:10px 12px;outline:none;resize:none"></textarea>
-    <div id="cn-err" style="font-size:12px;font-weight:700;color:var(--amber-bright);min-height:16px;margin-top:6px"></div>
-    <button class="btn green sm" id="cn-save" style="margin-top:2px">Save note</button>
-  </section>
-  <div style="height:10px"></div>`;
+      style="display:block;width:100%;box-sizing:border-box;border-radius:var(--r-chip);background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:14px;font-weight:600;line-height:1.5;padding:11px 13px;outline:none;resize:none"></textarea>
+    <div id="cn-err" style="font-size:12px;font-weight:700;color:var(--amber-bright);min-height:0;margin:6px 0"></div>
+    <button class="btn green sm" id="cn-save">Save note</button>
+  </section>`;
 }
 
 export const coachAthlete = {
@@ -1079,26 +1082,20 @@ export const coachAthlete = {
     return `
     ${head}
 
-    <div class="eyebrow">Coach actions</div>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="coach-plan/${esc(athleteId)}">
-        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('clipboard', 17)}</div>
-        <div class="lm"><div class="lt">Set nutrition targets</div><div class="ls">Protein · calories · target weight</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('shield', 17)}</div>
-        <div class="lm"><div class="lt">Trust Pass</div><div class="ls">${P.trustPass ? `Active · granted ${esc(P.trustPass.granted_date)}` : 'Camera-free days, earned with photo-logged history'}</div></div>
-        <button class="btn ghost sm" id="tp-btn" style="width:auto;padding:0 14px;height:34px">${P.trustPass ? 'End' : 'Grant'}</button>
-      </div>
-    </section>
-    <div id="tp-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:2px"></div>
+    <div class="co-actionbar">
+      <button class="co-act" data-anudge="${esc(athleteId)}">${icon('bell', 18)}<span class="lbl">Nudge</span></button>
+      <button class="co-act" data-go="coach-assign/${esc(athleteId)}">${icon('clipboard', 18)}<span class="lbl">Assign</span></button>
+      <button class="co-act" data-go="coach-plan/${esc(athleteId)}">${icon('edit', 18)}<span class="lbl">Targets</span></button>
+      <button class="co-act ${P.trustPass ? 'hero' : ''}" id="tp-btn">${icon('shield', 18)}<span class="lbl">${P.trustPass ? 'End pass' : 'Trust'}</span></button>
+    </div>
+    <div id="tp-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:0"></div>
 
-    <div class="chip-row" id="psec-row">
-      ${PROFILE_SECTIONS.map(([key, label]) => `<span class="chp ${PSECTION === key ? 'on' : ''}" data-psec="${key}">${esc(label)}</span>`).join('')}
+    <div class="co-seg co-scroll" id="psec-row">
+      ${PROFILE_SECTIONS.map(([key, label]) => `<button class="co-chip ${PSECTION === key ? 'on' : ''}" data-psec="${key}">${esc(label)}</button>`).join('')}
     </div>
 
     ${body}
+    <div class="co-bottom"></div>
     `;
   },
   mount(root, { sub }) {
@@ -1117,6 +1114,17 @@ export const coachAthlete = {
     }
     root.querySelectorAll('[data-psec]').forEach(el => el.addEventListener('click', () => {
       PSECTION = el.getAttribute('data-psec'); window.__render();
+    }));
+    // Nudge from the action bar — one-tap push, honest inline status, never double-fires.
+    root.querySelectorAll('[data-anudge]').forEach(el => el.addEventListener('click', async () => {
+      if (el.disabled) return;
+      const id = el.getAttribute('data-anudge');
+      const status = root.querySelector('#tp-status');
+      el.disabled = true; if (status) { status.style.color = 'var(--text-3)'; status.textContent = 'Sending nudge…'; }
+      const ok = await roles.nudgePush(id, `${S.coachIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
+      if (ok) { try { act.markNudged(id); } catch { /* best-effort */ } try { const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id; await roles.logIntervention({ teamId, athleteId: id, kind: 'nudge' }); } catch { /* best-effort */ } }
+      el.disabled = false;
+      if (status) { status.style.color = ok ? 'var(--green-bright)' : 'var(--red)'; status.textContent = ok ? 'Nudge sent — it lands on their phone.' : "Couldn't send it — check your connection."; }
     }));
     // Private notes composer + delete (Task 7). Save keeps the typed text on failure — never
     // silently eats it — and both save and delete refresh from the server rather than
