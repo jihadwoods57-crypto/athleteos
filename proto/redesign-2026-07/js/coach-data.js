@@ -179,8 +179,11 @@ export async function loadAthleteProfile(athleteId, force) {
     }));
     const row = (CD.roster.rows || []).find(r => r.athleteId === athleteId) || null;
     const exceptions = ((CD.extras && CD.extras.exceptions) || []).filter(e => e.athlete_id === athleteId);
+    // Mirrors entriesFor's own defensive style (`if (!ROSTER || !CD.extras) return null`):
+    // status depends on CD.extras (requirement sets) being loaded — when it isn't, leave
+    // status null rather than throwing into the offline catch below.
     let status = null;
-    if (row) {
+    if (row && CD.extras) {
       const now = new Date();
       // Mirrors entriesFor's resolveRequirementSet → catalogFromItems shape exactly, including
       // its CATALOG fallback when no requirement set governs this athlete/position.
@@ -195,17 +198,15 @@ export async function loadAthleteProfile(athleteId, force) {
     if (gen !== profileGen) return;                    // a newer load superseded us
     PROFILE = { athleteId, day, meals: meals || [], photos, targets, basics, trustPass,
       interventions, assignments, notes, exceptions, row, status, offline: false };
-    // Receipt: coach opened this athlete's day. Fire-and-forget — never blocks or throws.
-    // No static import of state.js here: state.js unconditionally does `window.__act = act`
-    // at module scope, which would drag a browser-only global into every consumer of this
-    // module's import graph (broke src/core/coachData.test.ts's node-env jest run — that
-    // suite has never needed a DOM/window shim before). markDayViewed already best-effort-
-    // no-ops when viewerId is falsy, so the receipt harmlessly skips rather than importing
-    // RT/S; a screen with access to RT/S can pass them explicitly via a future overload if
-    // the receipt needs to carry a real viewer identity later.
-    try { roles.markDayViewed(athleteId, roles.todayISO()); } catch { /* best-effort */ }
+    // Receipt moved to the screen's mount(), where a real viewer id (RT.userId/S.coachIdentity)
+    // is actually available — this loader has no viewer identity to write, so a call here was
+    // a silent no-op (markDayViewed short-circuits without viewerId). See coach.js coachAthlete.mount.
   } catch {
-    if (gen === profileGen) PROFILE = { athleteId, offline: true };
+    // Fuller offline shape so screens can't crash indexing into missing collections.
+    if (gen === profileGen) PROFILE = {
+      athleteId, offline: true, meals: [], photos: {},
+      interventions: [], assignments: [], notes: [], exceptions: [],
+    };
   } finally {
     if (gen === profileGen) profileLoadingId = null;
     if (location.hash === `#coach-athlete/${athleteId}`) window.__render();

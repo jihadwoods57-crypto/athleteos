@@ -1,10 +1,11 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, titleHead, esc, composer } from '../components.js';
+import { backHead, titleHead, esc, composer, sparkline } from '../components.js';
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, reactionGroups, threadMessages, privateNotes } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
-import { CD, loadCoachRoster, loadActivity, actTime } from '../coach-data.js';
+import { CD, loadCoachRoster, loadActivity, actTime, loadAthleteProfile } from '../coach-data.js';
+import { STATUS_META } from '../status.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -726,40 +727,69 @@ async function loadAthlete(athleteId, viewerId, viewerName) {
   if (location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#trainer-client')) window.__render();
 }
 const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
-export const coachAthlete = {
-  nav: 'coach', tab: 'roster',
-  render({ sub }) {
-    const athleteId = sub;
-    const who = rosterName(athleteId);
-    const head = backHead(`${esc(who.name)}${who.unit ? ` · ${esc(who.unit)}` : ''}`, 'Their day · read-only', 'coach-home');
-    if (!athleteId) return `${head}<div class="state-demo"><div class="sd-t">No athlete selected</div></div>`;
-    if (!ATH || ATH.athleteId !== athleteId) {
-      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('user', 17)}</div>
-      <div><div class="tt">Loading their day…</div><div class="ts">Pulling today's real score and logged meals.</div></div></div>`;
-    }
-    // Dead/stale-link guard: once the roster is loaded, an id that isn't a member and has no data
-    // is a bad link, not a real athlete with an empty day — say so instead of a blank review. Only
-    // fires when the roster is definitively loaded, so a real athlete is never misflagged mid-load.
-    const rosterLoaded = !!(CD.roster && CD.roster.rows);
-    const onRoster = rosterLoaded && CD.roster.rows.some(r => r.athleteId === athleteId);
-    if (rosterLoaded && !onRoster && !ATH.day && !ATH.meals.length) {
-      return `${head}
-      <div class="state-demo"><div class="sd-ic">${icon('user', 24)}</div>
-      <div class="sd-t">Athlete not found</div>
-      <div class="sd-s">This athlete isn't on your roster — the link may be old, or they left your team. Head back and pick someone from your roster.</div>
-      <div class="sd-cta"><button class="btn ghost sm" data-go="coach-roster">Back to roster</button></div></div>
-      <div style="height:10px"></div>`;
-    }
-    const day = ATH.day;
-    const today = roles.todayISO();
-    const todayMeals = ATH.meals.filter(m => m.day_date === today);
-    const score = day && day.score != null ? day.score : null;
-    const mealsJson = (day && day.meals) || {};
-    const ci = (day && day.checkin) || {};
-    const openSlots = ['breakfast', 'lunch', 'dinner'].filter(k => !mealsJson[k]);
-    return `
-    ${head}
 
+/* ---------- Coach → athlete profile: six-section shell (Task 5 ships Overview + Today; the
+   other four land in Tasks 6-7). PSECTION is the active chip; PSEC_FOR tracks which athlete it
+   belongs to so opening a DIFFERENT athlete always starts back on Overview instead of leaving a
+   stale section showing. Loads BOTH loadAthleteProfile (this screen's own data) AND the legacy
+   loadAthlete (keeps ATH populated) — coachMeal's mealById()/back-nav still reads ATH, and this
+   screen still links into coach-meal/{id} from Today's proof, so ATH must not go stale. ---------- */
+let PSECTION = 'overview';
+let PSEC_FOR = null;
+const PROFILE_SECTIONS = [
+  ['overview', 'Overview'], ['today', 'Today'], ['activity', 'Activity'],
+  ['conversation', 'Conversation'], ['requirements', 'Requirements'], ['notes', 'Notes'],
+];
+function lastActivityLabel(iso) {
+  if (!iso) return null;
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
+  if (h < 1) return 'Active just now';
+  if (h < 24) return `Active ${h}h ago`;
+  return `Active ${Math.floor(h / 24)}d ago`;
+}
+function overviewSection(P) {
+  const st = P.status, meta = st ? STATUS_META[st.key] : null;
+  const day = P.day;
+  const tasks = (day && day.tasks) || [];
+  const totalN = tasks.length, doneN = tasks.filter(t => t && t.done).length;
+  const alerts = [st && st.detail, ...(P.exceptions || []).map(e => e.reason ? `Excused · ${e.reason}` : 'Excused')].filter(Boolean);
+  const hist = (P.row && P.row.scoreHistory) || [];
+  return `
+  <div class="coach-stats">
+    <div class="coach-stat"><div class="v" style="color:${meta ? meta.color : 'var(--text-3)'}">${meta ? meta.label : '—'}</div><div class="k">Status</div></div>
+    <div class="coach-stat"><div class="v" style="color:${scoreColor(day && day.score)}">${day && day.score != null ? day.score : '—'}</div><div class="k">Score today</div></div>
+    <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${totalN ? `${doneN}/${totalN}` : '—'}</div><div class="k">Completion</div></div>
+  </div>
+
+  <div class="eyebrow">7-day trend</div>
+  <section class="card" style="padding:10px 16px;display:flex;align-items:center;justify-content:space-between">
+    <div style="font-size:12px;font-weight:600;color:var(--text-3)">${hist.filter(h => h.score != null).length >= 2 ? 'Last 7 logged days' : 'Not enough history yet'}</div>
+    ${sparkline(hist)}
+  </section>
+
+  <div class="eyebrow">Last activity</div>
+  <section class="card" style="padding:6px 16px">
+    <div class="lrow" style="cursor:default"><div class="lic">${icon('clock', 17)}</div>
+    <div class="lm"><div class="lt">${esc(lastActivityLabel(P.row && P.row.lastMealAt) || 'No recent activity')}</div></div></div>
+  </section>
+
+  <div class="eyebrow">Active alerts${alerts.length ? '' : ' · none'}</div>
+  ${alerts.length ? `
+  <section class="card" style="padding:6px 16px">
+    ${alerts.map(a => `<div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div><div class="lm"><div class="lt">${esc(a)}</div></div></div>`).join('')}
+  </section>` : `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px">Nothing needs your attention.</div>`}
+  <div style="height:10px"></div>
+  `;
+}
+function todaySection(P) {
+  const day = P.day;
+  const today = roles.todayISO();
+  const todayMeals = (P.meals || []).filter(m => m.day_date === today);
+  const score = day && day.score != null ? day.score : null;
+  const mealsJson = (day && day.meals) || {};
+  const ci = (day && day.checkin) || {};
+  const openSlots = ['breakfast', 'lunch', 'dinner'].filter(k => !mealsJson[k]);
+  return `
     <div class="coach-stats">
       <div class="coach-stat"><div class="v" style="color:${scoreColor(score)}">${score != null ? score : '—'}</div><div class="k">Score today</div></div>
       <div class="coach-stat"><div class="v" style="color:var(--green-bright)">${MEAL_SLOTS.filter(k => mealsJson[k]).length}</div><div class="k">Meals logged</div></div>
@@ -774,8 +804,8 @@ export const coachAthlete = {
       ${todayMeals.map(m => `
         <div class="act-card" data-go="coach-meal/${esc(m.id)}">
           <div class="act-time">${esc(cap(m.type || 'Meal'))}</div>
-          ${m._url
-            ? `<div class="act-media"><img src="${esc(m._url)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
+          ${P.photos[m.id]
+            ? `<div class="act-media"><img src="${esc(P.photos[m.id])}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
             : `<div class="act-media icon" style="background:linear-gradient(150deg, rgba(52,211,153,0.2), rgba(37,99,235,0.1));color:var(--green-bright)">${icon('utensils', 26)}</div>`}
           <div class="act-body"><div class="act-type">${m.quality != null ? 'Meal score' : 'Logged'}</div><div class="act-value ${m.quality != null && m.quality >= 80 ? 'g' : 'b'}">${m.quality != null ? m.quality : '·'}</div></div>
         </div>`).join('')}
@@ -792,6 +822,58 @@ export const coachAthlete = {
         : `<div class="lrow" style="cursor:default"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
           <div class="lm"><div class="lt">Everything is in</div><div class="ls">Finished day${score != null ? ` · ${score}` : ''}</div></div></div>`}
     </section>`}
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:4px;padding:0 2px">Tap a meal photo to review and comment on it.</div>
+    <div style="height:10px"></div>
+  `;
+}
+// Sections 3-6 land in Tasks 6-7 — an honest empty rather than a "coming soon" narration.
+function stubSection(key) {
+  const label = (PROFILE_SECTIONS.find(([k]) => k === key) || [null, key])[1];
+  return `
+  <section class="card" style="padding:16px">
+    <div style="font-size:13.5px;font-weight:800">${esc(label)}</div>
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:4px">—</div>
+  </section>
+  <div style="height:10px"></div>`;
+}
+export const coachAthlete = {
+  nav: 'coach', tab: 'roster',
+  render({ sub }) {
+    const athleteId = sub;
+    if (athleteId !== PSEC_FOR) { PSECTION = 'overview'; PSEC_FOR = athleteId; }
+    const who = rosterName(athleteId);
+    if (!athleteId) return `${backHead('Athlete', 'coach view', 'coach-roster')}<div class="state-demo"><div class="sd-t">No athlete selected</div></div>`;
+    const P = CD.profile;
+    if (!P || P.athleteId !== athleteId) {
+      return `${backHead(who.name, (who.unit ? `${esc(who.unit)} · ` : '') + 'coach view', 'coach-roster')}
+      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('user', 17)}</div>
+      <div><div class="tt">Loading their profile…</div><div class="ts">Pulling today's real score and logged meals.</div></div></div>`;
+    }
+    const name = (P.row && P.row.name) || who.name;
+    const position = (P.row && P.row.position) || who.unit;
+    const head = backHead(name, (position ? `${position} · ` : '') + 'coach view', 'coach-roster');
+    if (P.offline) {
+      return `${head}
+      <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+      <div class="sd-t">Can't reach their profile</div>
+      <div class="sd-s">Reopen this page to retry — nothing is invented while it's down.</div></div>`;
+    }
+    // Dead/stale-link guard: once the roster is loaded, an id that isn't a member and has no data
+    // is a bad link, not a real athlete with an empty day — say so instead of a blank review. Only
+    // fires when the roster is definitively loaded, so a real athlete is never misflagged mid-load.
+    const rosterLoaded = !!(CD.roster && CD.roster.rows);
+    const onRoster = rosterLoaded && CD.roster.rows.some(r => r.athleteId === athleteId);
+    if (rosterLoaded && !onRoster && !P.day && !(P.meals || []).length) {
+      return `${head}
+      <div class="state-demo"><div class="sd-ic">${icon('user', 24)}</div>
+      <div class="sd-t">Athlete not found</div>
+      <div class="sd-s">This athlete isn't on your roster — the link may be old, or they left your team. Head back and pick someone from your roster.</div>
+      <div class="sd-cta"><button class="btn ghost sm" data-go="coach-roster">Back to roster</button></div></div>
+      <div style="height:10px"></div>`;
+    }
+    const body = PSECTION === 'overview' ? overviewSection(P) : PSECTION === 'today' ? todaySection(P) : stubSection(PSECTION);
+    return `
+    ${head}
 
     <div class="eyebrow">Coach actions</div>
     <section class="card" style="padding:6px 16px">
@@ -802,31 +884,44 @@ export const coachAthlete = {
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('shield', 17)}</div>
-        <div class="lm"><div class="lt">Trust Pass</div><div class="ls">${ATH.pass ? `Active · granted ${esc(ATH.pass.granted_date)}` : 'Camera-free days, earned with photo-logged history'}</div></div>
-        <button class="btn ghost sm" id="tp-btn" style="width:auto;padding:0 14px;height:34px">${ATH.pass ? 'End' : 'Grant'}</button>
+        <div class="lm"><div class="lt">Trust Pass</div><div class="ls">${P.trustPass ? `Active · granted ${esc(P.trustPass.granted_date)}` : 'Camera-free days, earned with photo-logged history'}</div></div>
+        <button class="btn ghost sm" id="tp-btn" style="width:auto;padding:0 14px;height:34px">${P.trustPass ? 'End' : 'Grant'}</button>
       </div>
     </section>
-    <div id="tp-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:4px;padding:0 2px">Tap a meal photo to review and comment on it.</div>
-    <div style="height:10px"></div>
+    <div id="tp-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:2px"></div>
+
+    <div class="chip-row" id="psec-row">
+      ${PROFILE_SECTIONS.map(([key, label]) => `<span class="chp ${PSECTION === key ? 'on' : ''}" data-psec="${key}">${esc(label)}</span>`).join('')}
+    </div>
+
+    ${body}
     `;
   },
   mount(root, { sub }) {
+    const athleteId = sub;
     loadCoachRoster(); // ensure the name is available
-    loadAthlete(sub, RT.userId, S.athlete.name);
+    loadAthleteProfile(athleteId);
+    loadAthlete(athleteId, RT.userId, S.athlete.name); // keeps ATH populated for coach-meal's mealById()/back-nav
+    // Day-view receipt: written HERE, not the loader — this is where a real viewer id (RT.userId)
+    // is actually available. Fire-and-forget, never blocks or throws.
+    try { roles.markDayViewed(athleteId, roles.todayISO(), RT.userId, S.coachIdentity.handle); } catch { /* best-effort */ }
+    root.querySelectorAll('[data-psec]').forEach(el => el.addEventListener('click', () => {
+      PSECTION = el.getAttribute('data-psec'); window.__render();
+    }));
     const btn = root.querySelector('#tp-btn');
     const status = root.querySelector('#tp-status');
     if (btn) btn.addEventListener('click', async () => {
-      btn.disabled = true; if (status) status.textContent = ATH.pass ? 'Ending…' : 'Granting…';
-      if (ATH.pass) {
-        const ok = await roles.endTrustPass(sub);
+      const P = CD.profile;
+      const hasPass = P && P.trustPass;
+      btn.disabled = true; if (status) status.textContent = hasPass ? 'Ending…' : 'Granting…';
+      if (hasPass) {
+        const ok = await roles.endTrustPass(athleteId);
         if (status) status.textContent = ok ? 'Trust Pass ended.' : 'Could not end it.';
       } else {
-        const r = await roles.grantTrustPass(sub, 10);
+        const r = await roles.grantTrustPass(athleteId, 10);
         if (status) status.textContent = r.ok ? 'Trust Pass granted.' : (r.error && /on.?standard|photo|eligib/i.test(r.error) ? 'Not eligible yet — needs 7 photo-logged days.' : 'Could not grant it.');
       }
-      ATH = null; // force a refresh of the pass state
-      setTimeout(() => { if (location.hash.startsWith('#coach-athlete')) { loadAthlete(sub, RT.userId, S.athlete.name); } }, 500);
+      setTimeout(() => { if (location.hash.startsWith('#coach-athlete')) loadAthleteProfile(athleteId, true); }, 500);
     });
   },
 };
