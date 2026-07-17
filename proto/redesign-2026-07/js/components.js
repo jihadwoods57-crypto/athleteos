@@ -202,6 +202,16 @@ export function titleHead(title, sub) {
   </div>`;
 }
 
+/* A coach tab-root header: titleHead + the account avatar (initials) top-right.
+   Profile left the tab bar (Coach OS slice A) — the avatar is its one home. */
+export function avatarHead(title, sub, initials) {
+  return `<div class="back-head" style="align-items:center">
+    <div style="flex:1;min-width:0"><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
+    <div role="button" aria-label="Your profile" data-go="coach-profile"
+      style="width:34px;height:34px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);display:grid;place-items:center;font-size:12px;font-weight:800;letter-spacing:0.02em;flex:none;cursor:pointer">${esc(initials || 'C')}</div>
+  </div>`;
+}
+
 /* Shared composer (text input + send) markup — the single source for every "ask/comment/note"
    bar in the app. A real native <button> gives free keyboard operability (Tab focus, Enter AND
    Space activation) with zero extra JS — a bare <div class="send"> had neither. Both the input

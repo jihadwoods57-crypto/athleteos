@@ -15,11 +15,11 @@ const NAVS = {
     { id: 'profile',  route: 'profile',  label: 'Profile',  icon: 'user' },
   ],
   coach: [
-    { id: 'team',    route: 'coach',        label: 'Team',    icon: 'users' },
-    { id: 'plan',    route: 'coach-plan',   label: 'Plan',    icon: 'clipboard' },
-    { id: 'assign',  route: 'coach-assign', label: '',        icon: 'plus', fab: true },
-    { id: 'inbox',   route: 'coach-inbox',  label: 'Inbox',   icon: 'message' },
-    { id: 'profile', route: 'coach-profile',label: 'Profile', icon: 'user' },
+    { id: 'home',     route: 'coach-home',     label: 'Home',     icon: 'home' },
+    { id: 'roster',   route: 'coach-roster',   label: 'Roster',   icon: 'users' },
+    { id: 'create',   route: 'coach-create',   label: '',         icon: 'plus', fab: true },
+    { id: 'inbox',    route: 'coach-inbox',    label: 'Inbox',    icon: 'message' },
+    { id: 'insights', route: 'coach-insights', label: 'Insights', icon: 'bars' },
   ],
   trainer: [
     { id: 'clients', route: 'trainer',         label: 'Clients', icon: 'heart' },
@@ -80,7 +80,9 @@ const NAV_KEY = 'onstd-nav-v1';
 // Every role's tab-root routes → their tab id (role guards elsewhere keep roles apart).
 const ROOT_TAB = {
   home: 'home', plan: 'plan', progress: 'progress', profile: 'profile',
-  coach: 'team', 'coach-plan': 'plan', 'coach-inbox': 'inbox', 'coach-profile': 'profile',
+  coach: 'home', 'coach-home': 'home', 'coach-roster': 'roster',
+  'coach-inbox': 'inbox', 'coach-insights': 'insights', 'coach-profile': 'profile',
+  'coach-plan': 'roster',
   trainer: 'clients', 'trainer-profile': 'profile',
 };
 let NAV = (() => {
