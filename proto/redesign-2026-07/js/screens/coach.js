@@ -4,12 +4,11 @@ import { backHead, titleHead, esc, composer, sparkline } from '../components.js'
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, reactionGroups, threadMessages, privateNotes } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
-import { CD, loadCoachRoster, loadActivity, actTime, loadAthleteProfile } from '../coach-data.js';
+import { CD, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin } from '../requirements.js';
 import { seedTemplates, templateLabel } from '../templates.js';
-import { audienceLabel } from './coach-announce.js';
-import { fmtWhen } from '../notif-feed.js';
+import { categorizeInbox, inboxAlerts } from '../inbox.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -722,15 +721,17 @@ export const coachPlanSet = {
   },
 };
 
-/* ---------- Inbox (WS5.2): what needs the coach right now ----------
+/* ---------- Inbox v2 (Slice D): six real categories over real thread state ----------
    Replaces the Copilot TAB (the copilot screen stays routable for deep links).
    Briefing = deterministic reads over the real roster — never narrated fiction.
-   Then: join requests (act here), unopened logs (the feed's unseen dots as a list). */
+   categorizeInbox (js/inbox.js) sorts/buckets the real data into Needs response · Athletes ·
+   Meal reviews · Staff · Announcements · Resolved; this screen only fetches, escapes, and
+   wires the chip switcher + the existing join-request approve/decline. */
 
-/* Recent-announcements cache for the compact Inbox block below (Slice C, 0074). Its own
-   fetch, not shared with coach-announce.js's history — that screen may not have mounted
-   yet, and this block only ever needs the newest 3. Honest empty state: the section is
-   absent entirely with zero announcements (Slice D turns this into a real category). */
+/* Recent-announcements cache for the Inbox (Slice C, 0074). Its own fetch, not shared with
+   coach-announce.js's history — that screen may not have mounted yet, and this block only
+   ever needs the newest 3. Honest empty state: the category says so, never an empty card
+   pretending there's more. */
 let ANN_CACHE = null; // { teamId, rows }
 let annLoadingId = null;
 async function loadAnnouncements(teamId) {
@@ -743,22 +744,154 @@ async function loadAnnouncements(teamId) {
   if (location.hash === '#coach-inbox') window.__render();
 }
 
+/* Inbox v2 data cache: team meal-comment threads + recent coach interventions (who spoke
+   last / what's resolved) + the staff roster, feeding categorizeInbox's needsResponse/
+   mealReviews/resolved/staff categories. Same cache-per-team-id + in-flight guard idiom as
+   ANN_CACHE/loadAnnouncements above — one fetch per team, repainted via window.__render,
+   never refetched on every chip switch. */
+let INBOX_DATA = null; // { teamId, comments, interventions, staff }
+let inboxLoadingId = null;
+async function loadInboxData(teamId, athleteIds, force) {
+  if (!teamId) return;
+  if (INBOX_DATA && INBOX_DATA.teamId === teamId && !force) return;
+  if (inboxLoadingId === teamId) return;
+  inboxLoadingId = teamId;
+  // A screen may read the real clock (inbox.js's pure functions never do — they always take
+  // nowMs/sinceISO from the caller). 7 days is enough runway for a thread to still be "recent".
+  const sinceISO = new Date(Date.now() - 7 * 864e5).toISOString();
+  try {
+    const [comments, interventions, staff] = await Promise.all([
+      roles.fetchTeamMealComments(athleteIds, sinceISO),
+      roles.fetchRecentInterventions(teamId, sinceISO),
+      roles.fetchTeamStaff(teamId),
+    ]);
+    INBOX_DATA = { teamId, comments, interventions, staff };
+  } finally { inboxLoadingId = null; }
+  if (location.hash === '#coach-inbox') window.__render();
+}
+
+/* Category switcher state — which of the six buckets is showing. Persisted so a coach who
+   was reading "Meal reviews" doesn't get bounced back to "Needs response" on reopen. */
+const INBOX_CAT_KEY = 'onstd-inbox-cat-v1';
+const INBOX_CATEGORIES = [
+  ['needsResponse', 'Needs response'],
+  ['athletes', 'Athletes'],
+  ['mealReviews', 'Meal reviews'],
+  ['staff', 'Staff'],
+  ['announcements', 'Announcements'],
+  ['resolved', 'Resolved'],
+];
+let INBOX_CAT = 'needsResponse';
+try {
+  const savedCat = localStorage.getItem(INBOX_CAT_KEY);
+  if (savedCat && INBOX_CATEGORIES.some(([key]) => key === savedCat)) INBOX_CAT = savedCat;
+} catch { /* default stands */ }
+
+/* categorizeInbox's staff param wants {id, name, email?, role, created_at?} — team_staff_list
+   (0061) returns {staff_id, role, status, name}. Mapped here rather than reshaping either the
+   RPC or the pure categorizer for one caller's field names. */
+function staffRowsFor(rawStaff) {
+  return (rawStaff || []).map(s => ({ id: s.staff_id, name: s.name, role: s.role }));
+}
+
+/* One categorizeInbox call + the inboxAlerts merge, built from whatever's loaded so far — any
+   still-loading input degrades to [] inside categorizeInbox, never throws mid-render. The
+   entriesFor(team) scope (not the coach's currently-viewed roster scope) is deliberate: Inbox
+   alerts are about the whole roster's overdue requirements, regardless of which position room
+   the coach happens to be filtered to elsewhere (coach-roster/coach-home). */
+function inboxOut() {
+  const roster = CD.roster;
+  const teamId = roster && roster.teams && roster.teams[0] && roster.teams[0].id;
+  const data = INBOX_DATA && INBOX_DATA.teamId === teamId ? INBOX_DATA : null;
+  const annRows = ANN_CACHE && ANN_CACHE.teamId === teamId ? ANN_CACHE.rows : [];
+  const nowMs = Date.now();
+  const out = categorizeInbox({
+    meals: CD.act && CD.act.rows ? CD.act.rows : [],
+    comments: data ? data.comments : [],
+    interventions: data ? data.interventions : [],
+    roster: roster ? roster.rows : [],
+    pending: roster ? (roster.pending || []) : [],
+    staff: staffRowsFor(data ? data.staff : []),
+    announcements: annRows,
+    seenIds: RT.coachSeenMealIds || [],
+    nowMs,
+  });
+  const entries = entriesFor({ kind: 'team', value: null });
+  const alerts = inboxAlerts(entries, nowMs);
+  const needsResponse = [...out.needsResponse, ...alerts].sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  return { ...out, needsResponse, counts: { ...out.counts, needsResponse: needsResponse.length } };
+}
+
+/* One categorized row → one .lrow, escaped. Meal rows deep-link the thread; announcements open
+   the composer; staff/alert rows are honest non-clickable summaries in this first cut. Join
+   rows are rendered separately (joinRow below) — the categorized 'join' row loses the
+   teamId/athleteId the approve/decline buttons need, so those render straight off the raw
+   pending list instead, verbatim from the pre-Slice-D markup. */
+function inboxRow(r) {
+  if (r.kind === 'meal') {
+    return `
+    <div class="lrow" data-go="coach-meal/${esc(r.id)}">
+      <div class="lic">${icon('utensils', 17)}</div>
+      <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+    </div>`;
+  }
+  if (r.kind === 'announcement') {
+    return `
+    <div class="lrow" data-go="coach-announce" style="cursor:pointer">
+      <div class="lic">${icon('share', 17)}</div>
+      <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+    </div>`;
+  }
+  if (r.kind === 'staff') {
+    return `
+    <div class="lrow" style="cursor:default">
+      <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
+      <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+    </div>`;
+  }
+  if (r.kind === 'alert') {
+    return `
+    <div class="lrow" style="cursor:default">
+      <div class="lic" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('bell', 17)}</div>
+      <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+    </div>`;
+  }
+  // resolved meals land here too (kind 'meal') via the branch above; anything unrecognized
+  // still renders as an honest, non-clickable summary rather than silently disappearing.
+  return `
+    <div class="lrow" style="cursor:default">
+      <div class="lic">${icon('checkCircle', 17)}</div>
+      <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+    </div>`;
+}
+function joinRow(q) {
+  return `
+    <div class="lrow" style="cursor:default">
+      <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
+      <div class="lm"><div class="lt">${esc(q.athlete_name || 'Athlete')}${q.position ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(q.position)}</small>` : ''}</div><div class="ls">Wants to join</div></div>
+      <button class="btn ghost sm" data-jr="decline" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="width:auto;padding:0 12px;height:32px">Decline</button>
+      <button class="btn green sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="width:auto;padding:0 12px;height:32px;margin-left:6px">Approve</button>
+    </div>`;
+}
+const INBOX_EMPTY = {
+  needsResponse: 'No threads need you right now.',
+  athletes: 'No athlete meal threads yet — logs land here as they come in.',
+  mealReviews: "Nothing unopened — you've seen every log so far.",
+  staff: 'No other staff on your team yet.',
+  announcements: 'No announcements yet — send your first from here.',
+  resolved: 'Nothing marked resolved yet.',
+};
+
 export const coachInbox = {
   nav: 'coach', tab: 'inbox',
   badge() {
-    const pending = CD.roster ? (CD.roster.pending || []).length : 0;
-    const seen = new Set(RT.coachSeenMealIds || []);
-    const unseen = CD.act && CD.act.rows ? CD.act.rows.filter(m => !seen.has(m.id)).length : 0;
-    return pending + unseen;
+    if (!CD.roster || CD.roster.offline) return 0;
+    return inboxOut().counts.needsResponse;
   },
   render() {
     const rows = CD.roster ? CD.roster.rows : null;
     const pending = CD.roster ? (CD.roster.pending || []) : [];
-    const act = CD.act && CD.act.rows ? CD.act.rows : [];
-    const seen = new Set(RT.coachSeenMealIds || []);
-    const unseen = act.filter(m => !seen.has(m.id));
-    const names = {}; (rows || []).forEach(r => { names[r.athleteId] = r; });
-    const needsMe = pending.length + unseen.length;
 
     let briefing = '';
     if (rows === null) briefing = 'Reading your roster…';
@@ -775,64 +908,60 @@ export const coachInbox = {
       briefing = lines.join('<div style="height:7px"></div>') || 'Quiet so far — logs land here as they come in.';
     }
 
+    // Honest offline state: one clear message, not a segmented control full of zero-count
+    // categories over data we can't actually see.
+    if (CD.roster && CD.roster.offline) {
+      return `
+      ${titleHead('Inbox', "Can't reach your roster")}
+      <div class="eyebrow">Daily briefing · from your real roster</div>
+      <section class="card pad" style="background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
+        <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
+        <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${esc(briefing)}</div>
+      </section>
+      <div style="height:10px"></div>`;
+    }
+
+    const out = inboxOut();
+    const needsMe = out.counts.needsResponse;
+    const isNeedsResponse = INBOX_CAT === 'needsResponse';
+    const showAddAnnouncement = INBOX_CAT === 'announcements';
+    const catRows = out[INBOX_CAT] || [];
+    // Join rows aren't renderable from categorizeInbox's own needsResponse output (they've lost
+    // teamId/athleteId by the time they're categorized) — rendered from the raw pending list
+    // instead (below), so drop the categorized 'join' rows here to avoid showing them twice.
+    const genericRows = isNeedsResponse ? catRows.filter(r => r.kind !== 'join') : catRows;
+
     return `
     ${titleHead('Inbox', needsMe ? `${needsMe} need${needsMe === 1 ? 's' : ''} you` : 'All caught up')}
 
+    ${isNeedsResponse ? `
     <div class="eyebrow">Daily briefing · from your real roster</div>
-    <section class="card pad" ${rows && !rows.length && !(CD.roster && CD.roster.offline) ? 'data-go="coach-profile" style="cursor:pointer;' : 'style="'}background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
+    <section class="card pad" ${rows && !rows.length ? 'data-go="coach-profile" style="cursor:pointer;' : 'style="'}background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
       <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
       <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
-      ${rows && !rows.length && !(CD.roster && CD.roster.offline) && RT.team && RT.team.code ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
-    </section>
-
-    ${pending.length ? `
-    <div class="eyebrow">Join requests · ${pending.length}</div>
-    <section class="card" style="padding:6px 16px">
-      ${pending.map(q => `
-        <div class="lrow" style="cursor:default">
-          <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
-          <div class="lm"><div class="lt">${esc(q.athlete_name || 'Athlete')}${q.position ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(q.position)}</small>` : ''}</div><div class="ls">Wants to join</div></div>
-          <button class="btn ghost sm" data-jr="decline" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="width:auto;padding:0 12px;height:32px">Decline</button>
-          <button class="btn green sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="width:auto;padding:0 12px;height:32px;margin-left:6px">Approve</button>
-        </div>`).join('')}
+      ${rows && !rows.length && RT.team && RT.team.code ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
     </section>` : ''}
 
-    <div class="eyebrow">Unopened logs${unseen.length ? ` · ${unseen.length}` : ''}</div>
-    ${unseen.length ? `
-    <section class="card" style="padding:6px 16px">
-      ${unseen.slice(0, 10).map(m => {
-        const who = names[m.athlete_id] || {};
-        return `
-        <div class="lrow" data-go="coach-meal/${esc(m.id)}">
-          <div class="lic" style="position:relative">${icon('utensils', 17)}<span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--blue-bright)"></span></div>
-          <div class="lm"><div class="lt">${esc((who.name || 'Athlete'))}${who.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(who.unit)}</small>` : ''}</div>
-          <div class="ls">${esc(cap(m.type || 'Meal'))} · ${esc(actTime(m.logged_at))}${m.protein != null ? ` · ${Math.round(m.protein)}g` : ''}</div></div>
-          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-        </div>`;
-      }).join('')}
-    </section>` : `
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">You've opened everything the roster has logged. New meals land here with a dot.</div>`}
+    <div class="co-seg co-scroll" id="inbox-cat-row">
+      ${INBOX_CATEGORIES.map(([key, label]) => `<button class="co-chip ${INBOX_CAT === key ? 'on' : ''}" data-icat="${key}">${esc(label)} <span class="cnt">${out.counts[key]}</span></button>`).join('')}
+    </div>
 
-    ${(() => {
-      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      const annRows = ANN_CACHE && ANN_CACHE.teamId === teamId ? ANN_CACHE.rows : [];
-      // Honest empty state: no section at all with zero announcements, not an empty card.
-      if (!annRows.length) return '';
-      const groups = (CD.extras && CD.extras.groups) || [];
-      return `
-    <div class="eyebrow">Announcements</div>
+    ${isNeedsResponse && pending.length ? `
+    <div class="eyebrow">Join requests · ${pending.length}</div>
     <section class="card" style="padding:6px 16px">
-      ${annRows.map(a => `
-      <div class="lrow" data-go="coach-announce" style="cursor:pointer">
-        <div class="lic">${icon('share', 17)}</div>
-        <div class="lm"><div class="lt">${esc(a.title)}</div><div class="ls">${esc(audienceLabel(a.scope_kind, a.scope_value, groups))} · ${esc(fmtWhen(a.created_at, Date.now()))}</div></div>
-      </div>`).join('')}
+      ${pending.map(joinRow).join('')}
+    </section>` : ''}
+
+    ${(genericRows.length || showAddAnnouncement) ? `
+    <section class="card" style="padding:6px 16px">
+      ${genericRows.map(inboxRow).join('')}
+      ${showAddAnnouncement ? `
       <div class="lrow" data-go="coach-announce" style="cursor:pointer">
         <div class="lic">${icon('plus', 17)}</div>
         <div class="lm"><div class="lt">New announcement</div></div>
-      </div>
-    </section>`;
-    })()}
+      </div>` : ''}
+    </section>` : (isNeedsResponse && pending.length ? '' : `
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">${esc(INBOX_EMPTY[INBOX_CAT])}</div>`)}
 
     <div style="height:10px"></div>
     `;
@@ -841,7 +970,11 @@ export const coachInbox = {
     loadCoachRoster().then(() => {
       loadActivity();
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      if (teamId) loadAnnouncements(teamId);
+      if (teamId) {
+        loadAnnouncements(teamId);
+        const athleteIds = (CD.roster.rows || []).map(r => r.athleteId).filter(Boolean);
+        loadInboxData(teamId, athleteIds);
+      }
     });
     root.querySelectorAll('[data-jr]').forEach(b => b.addEventListener('click', async () => {
       const team = b.getAttribute('data-team'), ath = b.getAttribute('data-ath');
@@ -849,6 +982,11 @@ export const coachInbox = {
       if (b.getAttribute('data-jr') === 'approve') await roles.approveMember(team, ath);
       else await roles.declineMember(team, ath);
       await loadCoachRoster(true);
+    }));
+    root.querySelectorAll('[data-icat]').forEach(el => el.addEventListener('click', () => {
+      INBOX_CAT = el.getAttribute('data-icat');
+      try { localStorage.setItem(INBOX_CAT_KEY, INBOX_CAT); } catch { /* in-memory only */ }
+      window.__render();
     }));
   },
 };
