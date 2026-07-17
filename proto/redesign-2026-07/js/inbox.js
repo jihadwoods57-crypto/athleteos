@@ -101,7 +101,7 @@ export function categorizeInbox({ meals, comments, interventions, roster, pendin
     }
 
     // mealReviews: unseen meals with no coach message yet ("unopened logs").
-    if (!seen.has(id) && lastRole[id] !== 'coach') {
+    if (!seen.has(id) && lastRole[id] !== 'coach' && lastRole[id] !== 'athlete') {
       mealReviews.push(row);
     }
   }

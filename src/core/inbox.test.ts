@@ -41,6 +41,34 @@ test('all athlete meal threads appear under athletes; join requests under staff-
   expect(out.needsResponse.some(r => r.kind === 'join')).toBe(true);
 });
 
+test('reactions/notes are ignored for last-role: coach message + newer athlete reaction/note is still coach-spoke-last', () => {
+  const out = categorizeInbox({
+    meals: [meal('m5')],
+    comments: [
+      { meal_id: 'm5', role: 'coach', kind: 'message', created_at: new Date(NOW - 7200_000).toISOString() },
+      { meal_id: 'm5', role: 'athlete', kind: 'reaction', created_at: new Date(NOW - 1800_000).toISOString() },
+      { meal_id: 'm5', role: 'athlete', kind: 'note', created_at: new Date(NOW - 900_000).toISOString() },
+    ],
+    interventions: [], roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW,
+  });
+  expect(out.needsResponse.some(r => r.id === 'm5')).toBe(false);
+});
+
+test('mealReviews never double-categorizes with needsResponse: unseen athlete-last meal is needsResponse only; unseen no-comment meal is mealReviews only', () => {
+  const out = categorizeInbox({
+    meals: [meal('m6'), meal('m7')],
+    comments: [
+      { meal_id: 'm6', role: 'coach', kind: 'message', created_at: new Date(NOW - 7200_000).toISOString() },
+      { meal_id: 'm6', role: 'athlete', kind: 'message', created_at: new Date(NOW - 1800_000).toISOString() },
+    ],
+    interventions: [], roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW,
+  });
+  expect(out.needsResponse.some(r => r.id === 'm6')).toBe(true);
+  expect(out.mealReviews.some(r => r.id === 'm6')).toBe(false);
+  expect(out.mealReviews.some(r => r.id === 'm7')).toBe(true);
+  expect(out.needsResponse.some(r => r.id === 'm7')).toBe(false);
+});
+
 test('inboxAlerts groups overdue requirements across athletes', () => {
   const entries = [
     { row: { athleteId: 'a1', name: 'A' }, status: { key: 'overdue', openItems: [{ id: 'lunch', title: 'Lunch', state: 'overdue' }] } },
