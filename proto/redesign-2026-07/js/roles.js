@@ -771,4 +771,20 @@ export async function loadTrainerBook() {
   return { practices, rows };
 }
 
+/* ---------------- Slice E team insights reads (0076) ---------------- */
+export async function fetchTeamDayRollup(teamId, fromISO, toISO) {
+  const c = sb(); if (!c || !teamId) return [];
+  try {
+    const { data, error } = await c.rpc('team_day_rollup', { p_team: teamId, p_from: fromISO, p_to: toISO });
+    return error ? [] : (data || []);
+  } catch { return []; }
+}
+export async function fetchInterventionOutcomes(teamId, fromISO) {
+  const c = sb(); if (!c || !teamId) return [];
+  try {
+    const { data, error } = await c.rpc('team_intervention_outcomes', { p_team: teamId, p_from: fromISO });
+    return error ? [] : (data || []);
+  } catch { return []; }
+}
+
 export { cap };
