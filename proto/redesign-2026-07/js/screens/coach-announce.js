@@ -14,8 +14,6 @@ import { fmtWhen } from '../notif-feed.js';
 const ANN = { scopeKind: 'team', scopeValue: null, title: '', body: '' };
 let HIST = null;          // { teamId, rows } — fetchAnnouncements cache
 let histLoadingId = null;
-let SENT_MSG = '';        // persists the post-send confirmation across the history-refresh render
-let KEEP_MSG = false;     // SENT_MSG survives exactly the send's own history-refresh render
 
 /** Plain-language "who this went to" — shared by this screen's history list and the coach
     Inbox's compact Announcements block (coach.js). Reads a server row's scope_kind/scope_value
@@ -45,8 +43,6 @@ async function loadHistory(teamId, force) {
 export const coachAnnounce = {
   nav: 'coach', tab: 'create', transient: true,
   render({ sub } = {}) {
-    if (!KEEP_MSG) SENT_MSG = '';
-    KEEP_MSG = false;
     const rows = CD.roster ? CD.roster.rows : [];
     const groups = (CD.extras && CD.extras.groups) || [];
     // deep-link: coach-announce/<athleteId> pre-targets one athlete (from the athlete screen)
@@ -88,7 +84,7 @@ export const coachAnnounce = {
 
     <div style="height:16px"></div>
     <button class="btn" id="an-send">${icon('share', 18)} ${sendLabel}</button>
-    <div id="an-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:8px">${esc(SENT_MSG)}</div>
+    <div id="an-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:8px"></div>
 
     <div class="eyebrow" style="margin-top:18px">Recent announcements</div>
     ${histRows === null ? `
@@ -142,11 +138,10 @@ export const coachAnnounce = {
       if (!r.ok) { say(r.error || 'Could not send — try again.', true); return; }
       // push fan-out lands in the next commit
       const count = r.count || 0;
-      SENT_MSG = `Sent to ${count} athlete${count === 1 ? '' : 's'}.`;
-      say(SENT_MSG);
+      const msg = `Sent to ${count} athlete${count === 1 ? '' : 's'}.`;
       ANN.title = ''; ANN.body = '';
-      KEEP_MSG = true;
       await loadHistory(teamId, true);
+      say(msg);
     });
   },
 };
