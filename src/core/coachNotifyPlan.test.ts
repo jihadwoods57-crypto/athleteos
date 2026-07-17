@@ -131,10 +131,10 @@ describe('morning briefing + evening recap', () => {
     const future = plan({ entries, nowMin: 9 * 60, prefs: { briefingAt: 10 * 60, recap: false } });
     const b = future.find((x: any) => x.id === 'cn-open-briefing');
     expect(b).toBeTruthy();
-    expect(b.title).toBe('Morning read');
-    expect(b.body).toBe('1 overdue from yesterday · 1 due today. Open for the latest.');
-    expect(b.route).toBe('coach-home');
-    expect(b.stage).toBe('open');
+    expect(b!.title).toBe('Morning read');
+    expect(b!.body).toBe('1 overdue from yesterday · 1 due today. Open for the latest.');
+    expect(b!.route).toBe('coach-home');
+    expect(b!.stage).toBe('open');
 
     const past = plan({ entries, nowMin: 9 * 60, prefs: { briefingAt: 8 * 60, recap: false } });
     expect(past.find((x: any) => x.id === 'cn-open-briefing')).toBeUndefined();
@@ -149,9 +149,9 @@ describe('morning briefing + evening recap', () => {
     const future = plan({ entries, nowMin: 9 * 60, prefs: { recapAt: 10 * 60, briefing: false } });
     const r = future.find((x: any) => x.id === 'cn-open-recap');
     expect(r).toBeTruthy();
-    expect(r.title).toBe('Evening recap');
-    expect(r.body).toBe('2 finished on standard · 1 still open.');
-    expect(r.route).toBe('coach-insights');
+    expect(r!.title).toBe('Evening recap');
+    expect(r!.body).toBe('2 finished on standard · 1 still open.');
+    expect(r!.route).toBe('coach-insights');
 
     const past = plan({ entries, nowMin: 9 * 60, prefs: { recapAt: 8 * 60, briefing: false } });
     expect(past.find((x: any) => x.id === 'cn-open-recap')).toBeUndefined();
@@ -190,9 +190,9 @@ describe('immediate critical', () => {
     const fresh = plan({ entries, lastAlertKeys: [], prefs: { briefing: false, recap: false } });
     const imm = fresh.find((x: any) => x.immediate);
     expect(imm).toBeTruthy();
-    expect(imm.title).toBe('2 athletes missed Lunch');
-    expect(imm.stage).toBe('due');
-    expect(imm.route).toBe('coach-inbox');
+    expect(imm!.title).toBe('2 athletes missed Lunch');
+    expect(imm!.stage).toBe('due');
+    expect(imm!.route).toBe('coach-inbox');
 
     const known = plan({ entries, lastAlertKeys: ['overdue:lunch:2'], prefs: { briefing: false, recap: false } });
     expect(known.find((x: any) => x.immediate)).toBeUndefined();
@@ -231,7 +231,7 @@ describe('quiet hours', () => {
     const p = plan({ nowMin: 5 * 60, prefs: { briefingAt: 23 * 60, recap: false } });
     const b = p.find((x: any) => x.id === 'cn-open-briefing');
     expect(b).toBeTruthy();
-    expect(b.fireAtMin).toBe(7 * 60); // default quietTo
+    expect(b!.fireAtMin).toBe(7 * 60); // default quietTo
   });
   test('window alert within 3h of quietTo shifts (2h59m)', () => {
     const entries = [entry('a1', 'Devin', 'overdue', [openItem('lunch', 'Lunch', 211, 'overdue')])];
@@ -254,7 +254,7 @@ describe('quiet hours', () => {
     const p = plan({ entries, nowMin: 350, lastAlertKeys: [], prefs: { briefing: false, recap: false } }); // 350 is inside quiet (<420)
     const imm = p.find((x: any) => x.immediate);
     expect(imm).toBeTruthy();
-    expect(imm.fireAtMin).toBe(350);
+    expect(imm!.fireAtMin).toBe(350);
   });
   test('allowCriticalInQuiet:false demotes to a normal slot at quietTo (morning-side quiet)', () => {
     const entries = [
@@ -267,8 +267,8 @@ describe('quiet hours', () => {
     });
     const critical = p.find((x: any) => x.id.startsWith('cn-due-immediate'));
     expect(critical).toBeTruthy();
-    expect(critical.immediate).toBe(false);
-    expect(critical.fireAtMin).toBe(7 * 60);
+    expect(critical!.immediate).toBe(false);
+    expect(critical!.fireAtMin).toBe(7 * 60);
   });
   test('allowCriticalInQuiet:false on the evening side of the wrap drops entirely (pinned: no dayOffset roll)', () => {
     // nowMin 22:30 is inside quiet (evening side); quietTo (7:00) is numerically BEFORE nowMin,
@@ -364,7 +364,7 @@ test('n===1 group title uses the FIRST name, consistent with the body style', ()
   const entries = [
     { row: { athleteId: 'a1', name: 'Devin Cole' }, status: { key: 'overdue', openItems: [{ id: 'lunch', title: 'Lunch', dueMin: 840, state: 'overdue' }] } },
   ];
-  const plan = planCoachNotifications({ nowMin: 900, dateISO: '2026-07-18', entries, interventions: [], prefs: { ...DEFAULT_COACH_NOTIF_PREFS, briefing: false, recap: false }, lastAlertKeys: [] });
+  const plan = planCoachNotifications({ nowMin: 900, dateISO: '2026-07-18', entries, interventions: [], prefs: { ...DEFAULT_COACH_NOTIF_PREFS, briefing: false, recap: false }, lastAlertKeys: [] } as never);
   const alert = plan.find(p => p.stage === 'due');
   expect(alert).toBeTruthy();
   expect(alert!.title).toBe('Devin missed Lunch');
