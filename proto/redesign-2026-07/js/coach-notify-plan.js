@@ -275,3 +275,29 @@ export function planCoachNotifications({
     .slice(0, 8)
     .sort((a, b) => a.fireAtMin - b.fireAtMin);
 }
+
+/**
+ * Task 5 caller helper (PURE): assemble a coach device's full notification post from ONE live
+ * entries snapshot — today's coach plan PLUS a tomorrow morning-briefing preview. The briefing is
+ * the ONLY slot knowable a day out (window alerts/recap/immediate all depend on tomorrow's live
+ * roster status, which no one has yet); "Open for the latest" flags its staleness, and the next
+ * coach app-open replaces everything (bounding staleness to one day, exactly like the athlete
+ * tomorrow pre-schedule). The tomorrow briefing is derived by re-running the planner with
+ * nowMin:-1 (so its fixed 7:30 slot is always future for "tomorrow") and keeping ONLY the briefing
+ * item, tagged dayOffset:1 — mirrors notify-plan.js's athlete idiom (re-derive + map dayOffset).
+ *
+ * Returns null when `entries` is null (coach data still loading) so the caller posts NOTHING and
+ * leaves its dedupe state unset — the next trigger (loadCoachRoster completion) retries. Both
+ * planner calls share the SAME entries snapshot, so the caller can persist alertKeys(entries) from
+ * that same snapshot and keep the NEW-critical diff honest.
+ */
+export function buildCoachSyncPlan({
+  entries, interventions = [], prefs = null, nowMin, dateISO = '', lastAlertKeys = [],
+}) {
+  if (entries == null) return null; // still loading — caller posts nothing, retries next trigger
+  const today = planCoachNotifications({ nowMin, dateISO, entries, interventions, prefs, lastAlertKeys });
+  const tomorrow = planCoachNotifications({ nowMin: -1, dateISO, entries, interventions, prefs, lastAlertKeys })
+    .filter((p) => p.id === 'cn-open-briefing')
+    .map((p) => ({ ...p, dayOffset: 1 }));
+  return [...today, ...tomorrow];
+}
