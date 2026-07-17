@@ -5,7 +5,7 @@
    sheet on a failed write, and say so honestly inline. */
 import { RT, S, act } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc } from '../components.js';
+import { avatarHead, esc, sparkline } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster, entriesFor } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
@@ -18,15 +18,6 @@ let BULK_BUSY = false;
 const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard', 'due_soon', 'excused', 'on_standard'];
 
 const NO_MATCH_HTML = `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`;
-
-function sparkline(hist) {
-  const pts = (hist || []).filter(h => h.score != null).slice(-7);
-  if (pts.length < 2) return `<span style="font-size:10px;color:var(--text-3);font-weight:700">—</span>`;
-  const w = 44, h = 16, min = 0, max = 100;
-  const xy = pts.map((p, i) => `${(i / (pts.length - 1)) * w},${h - ((p.score - min) / (max - min)) * h}`).join(' ');
-  const up = pts[pts.length - 1].score >= pts[0].score;
-  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${xy}" fill="none" stroke="${up ? 'var(--green-bright)' : 'var(--red)'}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/></svg>`;
-}
 
 function lastActivityLabel(iso) {
   if (!iso) return 'No recent activity';

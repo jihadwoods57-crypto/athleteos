@@ -424,6 +424,52 @@ export async function fetchMyStaffScope(teamId) {
   } catch { return null; }
 }
 
+/* ---------------- Coach OS Slice B: profile helpers ---------------- */
+export async function fetchCoachNotes(teamId, athleteId) {
+  const c = sb(); if (!c || !teamId || !athleteId) return [];
+  try {
+    const { data } = await c.from('coach_notes').select('id,author_id,body,created_at')
+      .eq('team_id', teamId).eq('athlete_id', athleteId)
+      .order('created_at', { ascending: false }).limit(100);
+    return data || [];
+  } catch { return []; }
+}
+export async function postCoachNote(teamId, athleteId, body) {
+  const c = sb(); if (!c || !teamId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { error } = await c.from('coach_notes').insert({ team_id: teamId, athlete_id: athleteId, body });
+    return error ? { ok: false, error: error.message || 'Could not save the note.' } : { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the note.' }; }
+}
+export async function deleteCoachNote(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('coach_notes').delete().eq('id', id); return !error; } catch { return false; }
+}
+export async function fetchAthleteInterventions(teamId, athleteId, sinceISO) {
+  const c = sb(); if (!c || !teamId || !athleteId) return [];
+  try {
+    let q = c.from('coach_interventions').select('kind,reason_key,tier,note,created_at')
+      .eq('team_id', teamId).eq('athlete_id', athleteId);
+    if (sinceISO) q = q.gte('day', sinceISO);
+    const { data } = await q.order('created_at', { ascending: false }).limit(100);
+    return data || [];
+  } catch { return []; }
+}
+export async function fetchAthleteAssignments(athleteId, sinceISO) {
+  const c = sb(); if (!c || !athleteId) return [];
+  try {
+    let q = c.from('requirement_assignments').select('id,title,proof,status,due_at,created_at,note')
+      .eq('athlete_id', athleteId);
+    if (sinceISO) q = q.gte('created_at', sinceISO);
+    const { data } = await q.order('created_at', { ascending: false }).limit(60);
+    return data || [];
+  } catch { return []; }
+}
+export async function fetchMeal(mealId) {
+  const c = sb(); if (!c || !mealId) return null;
+  try { const { data } = await c.from('meals').select('*').eq('id', mealId).maybeSingle(); return data || null; } catch { return null; }
+}
+
 /* ---------------- photo integrity (0062) ---------------- */
 /** Prior logs of this EXACT photo by the signed-in athlete (sha256 of the downscaled JPEG),
     newest first: [{ day_date, meal_type, logged_at }]. [] when clean OR when the check can't

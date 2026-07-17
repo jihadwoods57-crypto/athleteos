@@ -83,6 +83,7 @@ export const actTime = (iso) => {
 export const CD = {
   get roster() { return ROSTER; },
   get act() { return ACT; },
+  get profile() { return PROFILE; },
   extras: null,
 };
 
@@ -145,4 +146,67 @@ export function entriesFor(scope) {
       }),
     };
   });
+}
+
+/* Per-athlete profile cache (Task 4): one athlete's day, recent meals + signed photos, trust
+   pass, coach interventions/assignments/notes, and their live status (same engine
+   entriesFor uses, resolved at THIS call's clock). Guarded like loadCoachRoster: a generation
+   counter so a stale/superseded load can never clobber a newer one, and a thrown fetch degrades
+   to { athleteId, offline: true } rather than leaving the screen stuck loading forever. */
+let PROFILE = null, profileLoadingId = null, profileGen = 0;
+export async function loadAthleteProfile(athleteId, force) {
+  if (!athleteId) return;
+  if (profileLoadingId === athleteId && !force) return;
+  if (PROFILE && PROFILE.athleteId === athleteId && !force) return;
+  const gen = ++profileGen; profileLoadingId = athleteId;
+  try {
+    if (!CD.roster) await loadCoachRoster();           // need the row + extras (sets/exceptions)
+    const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+    const since30 = roles.daysAgoISO(30);
+    const [day, meals, trustPass, interventions, assignments, notes] = await Promise.all([
+      roles.fetchDay(athleteId, roles.todayISO()),
+      roles.fetchRecentMeals(athleteId, since30),
+      roles.fetchActiveTrustPass(athleteId),
+      roles.fetchAthleteInterventions(teamId, athleteId, since30),
+      roles.fetchAthleteAssignments(athleteId, since30),
+      roles.fetchCoachNotes(teamId, athleteId),
+    ]);
+    const photos = {};
+    await Promise.all((meals || []).slice(0, 12).filter(m => m.photo_path).map(async (m) => {
+      const u = await roles.signedMealPhotoUrl(m.photo_path); if (u) photos[m.id] = u;
+    }));
+    const row = (CD.roster.rows || []).find(r => r.athleteId === athleteId) || null;
+    const exceptions = ((CD.extras && CD.extras.exceptions) || []).filter(e => e.athlete_id === athleteId);
+    // Mirrors entriesFor's own defensive style (`if (!ROSTER || !CD.extras) return null`):
+    // status depends on CD.extras (requirement sets) being loaded — when it isn't, leave
+    // status null rather than throwing into the offline catch below.
+    let status = null;
+    if (row && CD.extras) {
+      const now = new Date();
+      // Mirrors entriesFor's resolveRequirementSet → catalogFromItems shape exactly, including
+      // its CATALOG fallback when no requirement set governs this athlete/position.
+      const set = resolveRequirementSet(CD.extras.sets, row.athleteId, row.position);
+      const reqs = set ? catalogFromItems(set.items) : CATALOG;
+      status = athleteStatus({
+        nowMin: now.getHours() * 60 + now.getMinutes(), nowMs: now.getTime(), nowDow: now.getDay(),
+        row, reqs,
+        excused: exceptions.length > 0, needsReview: false,
+      });
+    }
+    if (gen !== profileGen) return;                    // a newer load superseded us
+    PROFILE = { athleteId, day, meals: meals || [], photos, trustPass,
+      interventions, assignments, notes, exceptions, row, status, offline: false };
+    // Receipt moved to the screen's mount(), where a real viewer id (RT.userId/S.coachIdentity)
+    // is actually available — this loader has no viewer identity to write, so a call here was
+    // a silent no-op (markDayViewed short-circuits without viewerId). See coach.js coachAthlete.mount.
+  } catch {
+    // Fuller offline shape so screens can't crash indexing into missing collections.
+    if (gen === profileGen) PROFILE = {
+      athleteId, offline: true, meals: [], photos: {},
+      interventions: [], assignments: [], notes: [], exceptions: [],
+    };
+  } finally {
+    if (gen === profileGen) profileLoadingId = null;
+    if (location.hash === `#coach-athlete/${athleteId}`) window.__render();
+  }
 }
