@@ -94,10 +94,11 @@ function namesBody(fullNames) {
   return restN > 0 ? `${shown.join(', ')} and ${restN} more.` : `${shown.join(', ')}.`;
 }
 
-/** n===1 uses the athlete's name; otherwise "<n> athletes missed <title>". Shared by grouped
- *  window alerts and the immediate-critical item so both read the same way. */
+/** n===1 uses the athlete's FIRST name (matching the body's name style); otherwise
+ *  "<n> athletes missed <title>". Shared by grouped window alerts and the immediate-critical
+ *  item so both read the same way. */
 function groupTitle(names, title) {
-  return names.length === 1 ? `${names[0]} missed ${title}` : `${names.length} athletes missed ${title}`;
+  return names.length === 1 ? `${firstName(names[0])} missed ${title}` : `${names.length} athletes missed ${title}`;
 }
 
 /** Does this athlete already have a today-intervention matching their CURRENT status signature

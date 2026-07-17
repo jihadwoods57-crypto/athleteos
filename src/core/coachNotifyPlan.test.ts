@@ -359,3 +359,13 @@ describe('native shape', () => {
     }
   });
 });
+
+test('n===1 group title uses the FIRST name, consistent with the body style', () => {
+  const entries = [
+    { row: { athleteId: 'a1', name: 'Devin Cole' }, status: { key: 'overdue', openItems: [{ id: 'lunch', title: 'Lunch', dueMin: 840, state: 'overdue' }] } },
+  ];
+  const plan = planCoachNotifications({ nowMin: 900, dateISO: '2026-07-18', entries, interventions: [], prefs: { ...DEFAULT_COACH_NOTIF_PREFS, briefing: false, recap: false }, lastAlertKeys: [] });
+  const alert = plan.find(p => p.stage === 'due');
+  expect(alert).toBeTruthy();
+  expect(alert!.title).toBe('Devin missed Lunch');
+});
