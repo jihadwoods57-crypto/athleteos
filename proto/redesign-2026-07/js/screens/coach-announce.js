@@ -15,6 +15,7 @@ const ANN = { scopeKind: 'team', scopeValue: null, title: '', body: '' };
 let HIST = null;          // { teamId, rows } — fetchAnnouncements cache
 let histLoadingId = null;
 let SENT_MSG = '';        // persists the post-send confirmation across the history-refresh render
+let KEEP_MSG = false;     // SENT_MSG survives exactly the send's own history-refresh render
 
 /** Plain-language "who this went to" — shared by this screen's history list and the coach
     Inbox's compact Announcements block (coach.js). Reads a server row's scope_kind/scope_value
@@ -44,12 +45,14 @@ async function loadHistory(teamId, force) {
 export const coachAnnounce = {
   nav: 'coach', tab: 'create', transient: true,
   render({ sub } = {}) {
+    if (!KEEP_MSG) SENT_MSG = '';
+    KEEP_MSG = false;
     const rows = CD.roster ? CD.roster.rows : [];
     const groups = (CD.extras && CD.extras.groups) || [];
     // deep-link: coach-announce/<athleteId> pre-targets one athlete (from the athlete screen)
-    if (sub && ANN.scopeKind !== 'athlete') { ANN.scopeKind = 'athlete'; ANN.scopeValue = sub; SENT_MSG = ''; }
+    if (sub && ANN.scopeKind !== 'athlete') { ANN.scopeKind = 'athlete'; ANN.scopeValue = sub; }
     // a plain (non-deep-link) open must not inherit a stale athlete-only scope from a prior deep-link visit
-    if (!sub && ANN.scopeKind === 'athlete') { ANN.scopeKind = 'team'; ANN.scopeValue = null; SENT_MSG = ''; }
+    if (!sub && ANN.scopeKind === 'athlete') { ANN.scopeKind = 'team'; ANN.scopeValue = null; }
     const positions = [...new Set(rows.map((r) => (r.unit || '').trim().toUpperCase()).filter(Boolean))];
     const target = ANN.scopeKind === 'athlete' ? rows.find((r) => r.athleteId === ANN.scopeValue) : null;
     const group = ANN.scopeKind === 'group' ? groups.find((g) => g.id === ANN.scopeValue) : null;
@@ -116,7 +119,6 @@ export const coachAnnounce = {
     };
     root.querySelectorAll('[data-ann]').forEach((el) => el.addEventListener('click', () => {
       keep();
-      SENT_MSG = '';
       const [act, arg] = el.getAttribute('data-ann').split(':');
       if (act === 'team') { ANN.scopeKind = 'team'; ANN.scopeValue = null; }
       if (act === 'position') { ANN.scopeKind = 'position'; ANN.scopeValue = arg; }
@@ -137,12 +139,13 @@ export const coachAnnounce = {
         teamId, scopeKind: ANN.scopeKind, scopeValue: ANN.scopeValue, title, body,
       });
       send.disabled = false;
-      if (!r.ok) { SENT_MSG = ''; say(r.error || 'Could not send — try again.', true); return; }
+      if (!r.ok) { say(r.error || 'Could not send — try again.', true); return; }
       // push fan-out lands in the next commit
       const count = r.count || 0;
       SENT_MSG = `Sent to ${count} athlete${count === 1 ? '' : 's'}.`;
       say(SENT_MSG);
       ANN.title = ''; ANN.body = '';
+      KEEP_MSG = true;
       await loadHistory(teamId, true);
     });
   },
