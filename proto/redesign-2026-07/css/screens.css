@@ -324,6 +324,7 @@
 .notif.critical { border-color: var(--red-border); }
 .notif.medium .nic { background: var(--blue-surface); color: var(--blue-bright); }
 .notif.positive .nic { background: var(--green-surface); color: var(--green-bright); }
+.notif.info .nic { background: var(--blue-surface); color: var(--blue-bright); }
 .notif .nt { font-size: 14.5px; font-weight: 800; }
 .notif .nb { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top: 3px; line-height: 1.4; }
 .notif .nw { font-size: 11.5px; font-weight: 700; color: var(--text-3); flex: none; }
@@ -332,6 +333,7 @@
 .level-tag.critical { background: var(--red-surface); color: var(--red); }
 .level-tag.medium { background: var(--blue-surface); color: var(--blue-bright); }
 .level-tag.positive { background: var(--green-surface); color: var(--green-bright); }
+.level-tag.info { background: var(--blue-surface); color: var(--blue-bright); }
 
 /* meta column: timestamp + unread dot (read swaps the dot for a chevron in JS) */
 .nmeta { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; flex: none; padding-top: 2px; }

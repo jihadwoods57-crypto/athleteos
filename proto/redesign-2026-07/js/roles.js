@@ -370,6 +370,27 @@ export async function deleteRequirementTemplate(id) {
   catch { return { ok: false }; }
 }
 
+/* ---- Announcements (Slice C, 0074): staff broadcast → feed rows server-side ---- */
+export async function postAnnouncement({ teamId, scopeKind = 'team', scopeValue = null, title, body }) {
+  const c = sb(); if (!c) return { ok: false, error: 'Offline' };
+  try {
+    const { data, error } = await c.rpc('post_announcement', {
+      p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue, p_title: title, p_body: body,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, id: data && data.id, count: (data && data.count) || 0 };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+export async function fetchAnnouncements(teamId, limit = 10) {
+  const c = sb(); if (!c || !teamId) return [];
+  try {
+    const { data } = await c.from('announcements')
+      .select('id,title,body,scope_kind,scope_value,sent_count,created_at')
+      .eq('team_id', teamId).order('created_at', { ascending: false }).limit(limit);
+    return data || [];
+  } catch { return []; }
+}
+
 /* ---------------- Coach OS core (0071): interventions, groups, exceptions ---------------- */
 /** Log a coach action (nudge/message/assign/handled). The queue and Insights both read this. */
 export async function logIntervention({ teamId, athleteId, kind, reasonKey, tier, note }) {

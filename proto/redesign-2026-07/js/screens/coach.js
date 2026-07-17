@@ -8,6 +8,8 @@ import { CD, loadCoachRoster, loadActivity, actTime, loadAthleteProfile } from '
 import { STATUS_META } from '../status.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin } from '../requirements.js';
 import { seedTemplates, templateLabel } from '../templates.js';
+import { audienceLabel } from './coach-announce.js';
+import { fmtWhen } from '../notif-feed.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -724,6 +726,23 @@ export const coachPlanSet = {
    Replaces the Copilot TAB (the copilot screen stays routable for deep links).
    Briefing = deterministic reads over the real roster — never narrated fiction.
    Then: join requests (act here), unopened logs (the feed's unseen dots as a list). */
+
+/* Recent-announcements cache for the compact Inbox block below (Slice C, 0074). Its own
+   fetch, not shared with coach-announce.js's history — that screen may not have mounted
+   yet, and this block only ever needs the newest 3. Honest empty state: the section is
+   absent entirely with zero announcements (Slice D turns this into a real category). */
+let ANN_CACHE = null; // { teamId, rows }
+let annLoadingId = null;
+async function loadAnnouncements(teamId) {
+  if (!teamId) return;
+  if (ANN_CACHE && ANN_CACHE.teamId === teamId) return;
+  if (annLoadingId === teamId) return;
+  annLoadingId = teamId;
+  try { ANN_CACHE = { teamId, rows: await roles.fetchAnnouncements(teamId, 3) }; }
+  finally { annLoadingId = null; }
+  if (location.hash === '#coach-inbox') window.__render();
+}
+
 export const coachInbox = {
   nav: 'coach', tab: 'inbox',
   badge() {
@@ -794,11 +813,36 @@ export const coachInbox = {
     </section>` : `
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">You've opened everything the roster has logged. New meals land here with a dot.</div>`}
 
+    ${(() => {
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      const annRows = ANN_CACHE && ANN_CACHE.teamId === teamId ? ANN_CACHE.rows : [];
+      // Honest empty state: no section at all with zero announcements, not an empty card.
+      if (!annRows.length) return '';
+      const groups = (CD.extras && CD.extras.groups) || [];
+      return `
+    <div class="eyebrow">Announcements</div>
+    <section class="card" style="padding:6px 16px">
+      ${annRows.map(a => `
+      <div class="lrow" data-go="coach-announce" style="cursor:pointer">
+        <div class="lic">${icon('share', 17)}</div>
+        <div class="lm"><div class="lt">${esc(a.title)}</div><div class="ls">${esc(audienceLabel(a.scope_kind, a.scope_value, groups))} · ${esc(fmtWhen(a.created_at, Date.now()))}</div></div>
+      </div>`).join('')}
+      <div class="lrow" data-go="coach-announce" style="cursor:pointer">
+        <div class="lic">${icon('plus', 17)}</div>
+        <div class="lm"><div class="lt">New announcement</div></div>
+      </div>
+    </section>`;
+    })()}
+
     <div style="height:10px"></div>
     `;
   },
   mount(root) {
-    loadCoachRoster().then(() => loadActivity());
+    loadCoachRoster().then(() => {
+      loadActivity();
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      if (teamId) loadAnnouncements(teamId);
+    });
     root.querySelectorAll('[data-jr]').forEach(b => b.addEventListener('click', async () => {
       const team = b.getAttribute('data-team'), ath = b.getAttribute('data-ath');
       b.disabled = true; b.textContent = '…';

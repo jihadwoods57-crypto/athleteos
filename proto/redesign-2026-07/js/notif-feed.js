@@ -12,6 +12,7 @@ const KIND_META = {
   join_request: { icon: 'users', level: 'medium' },
   join_approved: { icon: 'check', level: 'positive' },
   digest: { icon: 'clipboard', level: 'medium' },
+  announcement: { icon: 'share', level: 'info' },
 };
 const DEFAULT_META = { icon: 'bell', level: 'medium' };
 
