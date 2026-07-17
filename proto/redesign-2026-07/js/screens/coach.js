@@ -6,7 +6,8 @@ import { openingMessage, qualityBand, reactionGroups, threadMessages, privateNot
 import { openImageViewer } from '../image-viewer.js';
 import { CD, loadCoachRoster, loadActivity, actTime, loadAthleteProfile } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
-import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel } from '../requirements.js';
+import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin } from '../requirements.js';
+import { seedTemplates, templateLabel } from '../templates.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -468,6 +469,53 @@ export function itemsFromKnobs(k) {
   return items;
 }
 
+/* "What the athlete sees": the DRAFT preview card renders from this — same itemsFromKnobs()
+   the Save button publishes, then stdFromItems() (the exact function state.js uses live) so
+   the coach previews through the identical code path the athlete's Home day-card uses. Never
+   a parallel std-building logic — if stdFromItems can't build a standard (no meal items), the
+   preview is honestly null rather than fabricated. */
+export function previewFromKnobs(k) {
+  const items = itemsFromKnobs(k);
+  const std = stdFromItems(items);
+  return std ? { std, items } : null;
+}
+
+/* ---------- Requirement templates (Slice C, 0074): team-scoped named drafts ----------
+   TPL is a module cache — { teamId, rows } — separate from SETS (the live standing sets)
+   because templates are drafts a coach browses, not anything that's ever live on its own. */
+let TPL = null;          // { teamId, rows } | null (not yet loaded)
+let tplLoading = false;
+let SHOW_TPL_SAVE = false;
+async function loadTemplates(force) {
+  const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+  if (!teamId || tplLoading) return;
+  if (TPL && TPL.teamId === teamId && !force) return;
+  tplLoading = true;
+  try {
+    const rows = await roles.fetchRequirementTemplates(teamId);
+    // Seed on first open: an empty result from a SUCCESSFUL fetch (not an offline/'no client'
+    // short-circuit) with a real teamId means this team has never had templates — plant the
+    // seven seeds once. fetchRequirementTemplates has no way to distinguish "really empty"
+    // from "offline" (both return [] — see roles.js), so an offline athlete/coach opening this
+    // screen for the first time WILL attempt a seed insert here; each insert independently
+    // no-ops (saveRequirementTemplate resolves { ok:false } with no client) rather than
+    // throwing, so it's inert offline, not just "harmless" — no junk rows are ever created
+    // without a live connection. The unique (team_id, lower(name)) index also makes a
+    // concurrent double-seed from two tabs/agents harmless: the losing inserts come back as
+    // duplicate-name errors, which we ignore.
+    if (rows.length === 0 && teamId) {
+      for (const s of seedTemplates()) {
+        await roles.saveRequirementTemplate(teamId, s.name, s.kind, s.items);
+      }
+      TPL = { teamId, rows: await roles.fetchRequirementTemplates(teamId) };
+    } else {
+      TPL = { teamId, rows };
+    }
+  } catch { TPL = { teamId, rows: [] }; }
+  finally { tplLoading = false; }
+  if (location.hash.startsWith('#coach-plan')) window.__render();
+}
+
 export const coachPlanSet = {
   nav: 'coach', tab: 'roster',
   render({ sub }) {
@@ -530,12 +578,45 @@ export const coachPlanSet = {
     <div class="eyebrow">Hydration target</div>
     <div class="chip-row">${[80, 100, 120, 150].map(n => chip(KNOB.hydrationOz === n, `${n} oz`, 'hydoz', n)).join('')}</div>` : ''}
 
+    <div class="eyebrow">Templates</div>
+    <div class="chip-row">
+      ${(TPL && TPL.rows ? TPL.rows : []).map(t => `<span class="chp" data-knob="tpl:${esc(t.id)}" title="${esc(templateLabel(t.kind))}">${esc(t.name)}</span>`).join('')}
+      <span class="chp" style="border:1px dashed var(--line)" data-knob="tplsave:1">+ Save as template</span>
+    </div>
+    ${SHOW_TPL_SAVE ? `
+    <section class="card" style="padding:10px 16px">
+      <div style="display:flex;gap:7px">
+        <input class="ob-input" id="tpl-name" maxlength="40" placeholder="Template name" style="flex:1;height:36px" />
+        <button class="btn green sm" id="tpl-save-btn" style="width:auto;padding:0 12px;height:36px">Save</button>
+      </div>
+    </section>` : ''}
+
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
       <div><div class="tt">Stored live, rails enforced server-side</div>
       <div class="ts">Meals 1–6, lifts 0–7 — the database rejects anything outside the rails. Athlete day lists AND scoring follow this standard on their next sync: the meal count is the denominator.</div></div>
     </div>
+
+    ${(() => {
+      const preview = previewFromKnobs(KNOB);
+      if (!preview) return '';
+      const { std } = preview;
+      return `
+      <div class="eyebrow">What the athlete sees</div>
+      <section class="card" style="padding:6px 16px">
+        ${std.slots.map(slot => {
+          const title = std.titles[slot] || cap(slot);
+          const due = std.deadlines[slot];
+          return `
+        <div class="lrow" style="cursor:default">
+          <div class="lm"><div class="lt">${esc(title)}</div>
+          <div class="ls">${due != null ? `Due by ${fmtMin(due)}` : 'No deadline set'}</div></div>
+        </div>`;
+        }).join('')}
+        <div style="font-size:11.5px;font-weight:600;color:var(--text-3);padding:8px 2px 4px">${std.mealsRequired} meal${std.mealsRequired === 1 ? '' : 's'} make the day's nutrition score.</div>
+      </section>`;
+    })()}
 
     <div style="height:16px"></div>
     <button class="btn primary" id="set-save">${icon('check', 19)} Save the ${kind === 'team' ? 'team standard' : `${esc(value)} room standard`}</button>
@@ -545,7 +626,7 @@ export const coachPlanSet = {
     `;
   },
   mount(root, { sub }) {
-    loadCoachRoster().then(() => loadSets());
+    loadCoachRoster().then(() => { loadSets(); loadTemplates(); });
     const [kind, rawVal] = (sub || 'team').split('/');
     const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
     const say = (msg, isErr) => {
@@ -584,8 +665,29 @@ export const coachPlanSet = {
       if (k === 'hydration') KNOB.hydration = arg === '1';
       if (k === 'photo') KNOB.photoProof = arg === '1';
       if (k === 'hydoz') KNOB.hydrationOz = +arg;
+      // Applying a template only fills the knobs — it never writes the DB directly. The
+      // coach still reviews the preview card and hits the existing Save to publish.
+      if (k === 'tpl') {
+        const tpl = TPL && TPL.rows && TPL.rows.find(t => String(t.id) === arg);
+        if (tpl) KNOB = { key: KNOB.key, ...knobsFromItems(tpl.items) };
+      }
+      if (k === 'tplsave') SHOW_TPL_SAVE = !SHOW_TPL_SAVE;
       window.__render();
     }));
+    const tplSaveBtn = root.querySelector('#tpl-save-btn');
+    if (tplSaveBtn) tplSaveBtn.addEventListener('click', async () => {
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      const name = ((root.querySelector('#tpl-name') || {}).value || '').trim();
+      if (!name) { say('Name the template first.', true); return; }
+      if (!teamId) { say('Your team hasn’t loaded yet — give it a second.', true); return; }
+      tplSaveBtn.disabled = true; say('Saving template…');
+      const r = await roles.saveRequirementTemplate(teamId, name, 'custom', itemsFromKnobs(KNOB));
+      tplSaveBtn.disabled = false;
+      if (!r.ok) { say(r.error || 'Could not save the template.', true); return; }
+      SHOW_TPL_SAVE = false;
+      say('Template saved.');
+      await loadTemplates(true);
+    });
     const save = root.querySelector('#set-save');
     if (save) save.addEventListener('click', async () => {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
