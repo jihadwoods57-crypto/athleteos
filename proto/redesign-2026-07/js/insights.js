@@ -203,24 +203,25 @@ export function athletesToWatch({ rollup = [], roster = [], todayISO }) {
   }
   decliners.sort((a, b) => a.slope - b.slope); // worst (most negative) first
 
-  // Disengaging: consecutive no-data days ending today. Bounded by the earliest day present
-  // anywhere in the supplied rollup, since a pure function has no other honest notion of
-  // "how far back to look" — with zero rollup rows at all, there is nothing to compare
-  // against and we emit nothing (silence over a guess).
+  // Disengaging: consecutive no-data days ending today, ATHLETE-ANCHORED — the walk-back is
+  // bounded by that athlete's OWN earliest rollup row, never by a teammate's history or the
+  // rollup's team-wide earliest day. An athlete with NO rollup rows at all (e.g. joined the
+  // team yesterday) has no honest gap to report and is EXCLUDED from this list entirely —
+  // the roster's per-day status already surfaces "No activity" for them; a fabricated
+  // day-count anchored to someone else's data would be worse than silence.
   const disengaging = [];
-  const allDays = rollup.map(r => r.day).filter(Boolean);
-  if (allDays.length) {
-    const minDay = allDays.reduce((a, b) => (a < b ? a : b));
-    for (const r of roster) {
-      if (!r || !r.athleteId) continue;
-      const daySet = new Set((byAthlete[r.athleteId] || []).map(x => x.day));
-      let gap = 0;
-      let cursor = todayISO;
-      while (cursor >= minDay && !daySet.has(cursor)) { gap++; cursor = addDaysISO(cursor, -1); }
-      if (gap >= 3) {
-        disengaging.push({ athleteId: r.athleteId, name: r.name || r.athleteId, gapDays: gap,
-          text: `${r.name || r.athleteId} has no logged activity in ${gap} days.` });
-      }
+  for (const r of roster) {
+    if (!r || !r.athleteId) continue;
+    const athleteDays = (byAthlete[r.athleteId] || []).map(x => x.day).filter(Boolean);
+    if (!athleteDays.length) continue; // no rows at all -> excluded, not a fabricated gap
+    const minDay = athleteDays.reduce((a, b) => (a < b ? a : b));
+    const daySet = new Set(athleteDays);
+    let gap = 0;
+    let cursor = todayISO;
+    while (cursor >= minDay && !daySet.has(cursor)) { gap++; cursor = addDaysISO(cursor, -1); }
+    if (gap >= 3) {
+      disengaging.push({ athleteId: r.athleteId, name: r.name || r.athleteId, gapDays: gap,
+        text: `${r.name || r.athleteId} has no logged activity in ${gap} days.` });
     }
   }
   disengaging.sort((a, b) => b.gapDays - a.gapDays);

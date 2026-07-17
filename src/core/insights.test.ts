@@ -94,6 +94,34 @@ test('athletesToWatch: disengaging counts the no-data gap ending today, bounded 
   expect(w.disengaging.find(d => d.athleteId === 'control')).toBeFalsy(); // no gap, not flagged
 });
 
+test('athletesToWatch: an athlete with zero rollup rows is excluded from disengaging (and decliners), even with a teammate\'s 30-day history', () => {
+  const vetDays: string[] = [];
+  let d = '2026-06-17';
+  while (d <= TODAY) { vetDays.push(d); d = new Date(new Date(d + 'T12:00:00Z').getTime() + 86400000).toISOString().slice(0, 10); }
+  const rollup = vetDays.map(day => rr('vet', day, { score: 80 })); // 30 days of history; nothing for 'cam'
+  const roster = [{ athleteId: 'vet', name: 'Vet', position: 'LB' }, { athleteId: 'cam', name: 'Cam', position: 'LB' }];
+  const w = athletesToWatch({ rollup, roster, todayISO: TODAY });
+  expect(w.disengaging.find(x => x.athleteId === 'cam')).toBeUndefined(); // no rows at all -> excluded, not a fabricated gap
+  expect(w.decliners.find(x => x.athleteId === 'cam')).toBeUndefined();
+});
+
+test('athletesToWatch: disengaging gap is athlete-anchored — own last row, unaffected by a teammate\'s older rows', () => {
+  const vetDays: string[] = [];
+  let d = '2026-06-17';
+  while (d <= TODAY) { vetDays.push(d); d = new Date(new Date(d + 'T12:00:00Z').getTime() + 86400000).toISOString().slice(0, 10); }
+  const rollup = [
+    ...vetDays.map(day => rr('vet', day, { score: 80 })), // teammate's 30-day-old history, must not bound riley's walk-back
+    rr('riley', '2026-07-11', {}), // riley's own earliest row: 5 days before today
+    rr('riley', '2026-07-12', {}), // riley's own last activity: 4 days before today
+  ];
+  const roster = [{ athleteId: 'vet', name: 'Vet', position: 'LB' }, { athleteId: 'riley', name: 'Riley', position: 'LB' }];
+  const w = athletesToWatch({ rollup, roster, todayISO: TODAY });
+  const r = w.disengaging.find(x => x.athleteId === 'riley');
+  expect(r).toBeTruthy();
+  expect(r!.gapDays).toBe(4);
+  expect(r!.text).toBe('Riley has no logged activity in 4 days.');
+});
+
 // ---------------- mostMissed ----------------
 test('mostMissed: counts absent req ids only on the days the athlete actually has data', () => {
   const reqsByAthlete = {
