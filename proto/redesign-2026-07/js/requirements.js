@@ -144,7 +144,8 @@ export function stdFromItems(items) {
   if (!mealItems.length) return null;
   const m = Math.min(6, Math.max(1, mealItems.length));
   const slots = STD_SLOT_MAP[m];
-  const deadlines = {}, titles = {};
+  const deadlines = /** @type {Record<string, number>} */ ({});
+  const titles = /** @type {Record<string, string>} */ ({});
   slots.forEach((k, i) => {
     const it = mealItems[i] || {};
     if (it.window && it.window.due != null) deadlines[k] = it.window.due;
