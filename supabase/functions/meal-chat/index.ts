@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
       const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
       const msg = await anthropic.messages.create({
         model: MODEL,
-        max_tokens: 500,
+        max_tokens: 700, // 4 drafts x ~60 words + tool-call JSON; headroom so the 4th draft never truncates into a 502
         system: [{ type: 'text', text: DRAFT_SYSTEM, cache_control: { type: 'ephemeral' } }],
         tools: [DRAFT_TOOL],
         tool_choice: { type: 'tool', name: 'draft_replies' },
