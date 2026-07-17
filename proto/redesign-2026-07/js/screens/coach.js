@@ -728,12 +728,12 @@ async function loadAthlete(athleteId, viewerId, viewerName) {
 }
 const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
 
-/* ---------- Coach → athlete profile: six-section shell (Task 5 ships Overview + Today; the
-   other four land in Tasks 6-7). PSECTION is the active chip; PSEC_FOR tracks which athlete it
-   belongs to so opening a DIFFERENT athlete always starts back on Overview instead of leaving a
-   stale section showing. Loads BOTH loadAthleteProfile (this screen's own data) AND the legacy
-   loadAthlete (keeps ATH populated) — coachMeal's mealById()/back-nav still reads ATH, and this
-   screen still links into coach-meal/{id} from Today's proof, so ATH must not go stale. ---------- */
+/* ---------- Coach → athlete profile: six-section shell (Task 5 shipped Overview + Today, Task 6
+   adds Activity + Conversation; Requirements/Notes land in Task 7). PSECTION is the active chip;
+   PSEC_FOR tracks which athlete it belongs to so opening a DIFFERENT athlete always starts back
+   on Overview instead of leaving a stale section showing. Loads ONLY loadAthleteProfile — the
+   legacy ATH/loadAthlete double-fetch is gone (Task 6 Part C): coachMeal now resolves its own
+   meal standalone via roles.fetchMeal, so this screen no longer needs to keep ATH warm. ---------- */
 let PSECTION = 'overview';
 let PSEC_FOR = null;
 const PROFILE_SECTIONS = [
@@ -826,7 +826,125 @@ function todaySection(P) {
     <div style="height:10px"></div>
   `;
 }
-// Sections 3-6 land in Tasks 6-7 — an honest empty rather than a "coming soon" narration.
+/* Generic "X ago" for real timestamps only — used by Activity + Conversation (the two sections
+   that render a merged/chronological list, unlike lastActivityLabel's single "Active …" line). */
+function relTime(iso) {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (!isFinite(t)) return '';
+  const ms = Date.now() - t;
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return `${Math.floor(d / 7)}w ago`;
+}
+
+/* ---------- Activity pane (Task 6): a merged, reverse-chronological timeline built ONLY from
+   real rows already on P — nothing here is invented or guessed.
+     - meal logs: P.meals (30-day window), each with its real logged_at
+     - today's weigh-in / recovery check-in: P.day is the ONLY day this profile fetches, so these
+       can only ever show today's entry (if any) — dated by the day row's own updated_at, never
+       a fabricated time
+     - coach actions: P.interventions, but only kind 'nudge'/'handled' — kind 'assign' is just a
+       bookkeeping twin of the row already sitting in P.assignments (which carries the real
+       requirement TITLE), so assignments render from there instead of the technical reason_key */
+function activitySection(P) {
+  const items = [];
+  for (const m of (P.meals || [])) {
+    if (!m || !m.id || !m.logged_at) continue;
+    items.push({
+      ts: new Date(m.logged_at).getTime(),
+      html: `
+      <div class="lrow" data-go="coach-meal/${esc(m.id)}">
+        <div class="lic" style="overflow:hidden;padding:0">
+          ${P.photos[m.id] ? `<img src="${esc(P.photos[m.id])}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/>` : icon('utensils', 17)}
+        </div>
+        <div class="lm"><div class="lt">${esc(cap(m.type || 'Meal'))}${m.quality != null ? ` · ${m.quality}` : ''}</div>
+        <div class="ls">${esc(relTime(m.logged_at))}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>`,
+    });
+  }
+  const day = P.day;
+  if (day && day.updated_at) {
+    const t = new Date(day.updated_at).getTime();
+    if (isFinite(t)) {
+      if (day.current_weight != null) items.push({ ts: t, html: `
+      <div class="lrow" style="cursor:default"><div class="lic">${icon('scale', 17)}</div>
+      <div class="lm"><div class="lt">Weighed in · ${esc(String(day.current_weight))} lb</div><div class="ls">${esc(relTime(day.updated_at))}</div></div></div>` });
+      if (day.checkin && day.checkin.submitted) items.push({ ts: t, html: `
+      <div class="lrow" style="cursor:default"><div class="lic">${icon('moon', 17)}</div>
+      <div class="lm"><div class="lt">Recovery check-in submitted</div><div class="ls">${esc(relTime(day.updated_at))}</div></div></div>` });
+    }
+  }
+  for (const iv of (P.interventions || [])) {
+    if (!iv || !iv.created_at || (iv.kind !== 'nudge' && iv.kind !== 'handled')) continue;
+    const label = iv.kind === 'nudge' ? 'You nudged them' : 'Marked handled';
+    items.push({ ts: new Date(iv.created_at).getTime(), html: `
+    <div class="lrow" style="cursor:default"><div class="lic">${icon(iv.kind === 'nudge' ? 'bell' : 'check', 17)}</div>
+    <div class="lm"><div class="lt">${esc(label)}</div><div class="ls">${esc(relTime(iv.created_at))}</div></div></div>` });
+  }
+  for (const a of (P.assignments || [])) {
+    if (!a || !a.created_at) continue;
+    items.push({ ts: new Date(a.created_at).getTime(), html: `
+    <div class="lrow" style="cursor:default"><div class="lic">${icon('clipboard', 17)}</div>
+    <div class="lm"><div class="lt">Assigned: ${esc(a.title || 'Requirement')}</div><div class="ls">${esc(relTime(a.created_at))}${a.note ? ` · ${esc(a.note)}` : ''}</div></div></div>` });
+  }
+  items.sort((x, y) => y.ts - x.ts);
+  if (!items.length) return `
+  <div class="state-demo"><div class="sd-ic">${icon('clock', 24)}</div>
+  <div class="sd-t">No activity in the last 30 days</div>
+  <div class="sd-s">Meal logs, weigh-ins, check-ins, and your own actions show up here as they happen.</div></div>
+  <div style="height:10px"></div>`;
+  return `
+  <div class="eyebrow">Last 30 days</div>
+  <section class="card" style="padding:2px 16px">${items.map(i => i.html).join('')}</section>
+  <div style="height:10px"></div>`;
+}
+
+/* Date label for a meal row in Conversation: "Jul 15 · 2d ago" from its real logged_at
+   (falling back to day_date if logged_at is somehow missing — never a made-up time). */
+function mealDateLabel(m) {
+  const d = m.logged_at ? new Date(m.logged_at) : (m.day_date ? new Date(`${m.day_date}T00:00:00`) : null);
+  if (!d || isNaN(d)) return '';
+  const rel = relTime(m.logged_at || m.day_date);
+  return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${rel ? ` · ${rel}` : ''}`;
+}
+
+/* ---------- Conversation pane (Task 6): a DIRECTORY into existing meal threads — deliberately
+   NOT a second composer. The real thread (the AI Nutritionist's read, coach comments, athlete
+   replies, reactions, private notes) already lives entirely in coachMeal and is reused as-is;
+   this list is pure navigation into it, newest meal first. */
+function conversationSection(P) {
+  const meals = [...(P.meals || [])].filter(m => m && m.id)
+    .sort((a, b) => new Date(b.logged_at || b.day_date || 0) - new Date(a.logged_at || a.day_date || 0));
+  if (!meals.length) return `
+  <div class="state-demo"><div class="sd-ic">${icon('message', 24)}</div>
+  <div class="sd-t">No meal conversations yet</div>
+  <div class="sd-s">Once they log a meal, you can react or comment on it here.</div></div>
+  <div style="height:10px"></div>`;
+  return `
+  <div class="eyebrow">Meal threads</div>
+  <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Tap any meal to open its full thread — the AI's read, your comments, and theirs.</div>
+  <section class="card" style="padding:2px 16px">
+  ${meals.slice(0, 30).map(m => `
+    <div class="lrow" data-go="coach-meal/${esc(m.id)}">
+      <div class="lic" style="overflow:hidden;padding:0">
+        ${P.photos[m.id] ? `<img src="${esc(P.photos[m.id])}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/>` : icon('message', 17)}
+      </div>
+      <div class="lm"><div class="lt">${esc(cap(m.type || 'Meal'))}${m.quality != null ? ` · ${m.quality}` : ''}</div>
+      <div class="ls">${esc(mealDateLabel(m))}</div></div>
+      <span class="btn ghost sm" style="width:auto;padding:0 12px;height:30px;pointer-events:none">View thread</span>
+    </div>`).join('')}
+  </section>
+  <div style="height:10px"></div>`;
+}
+
+// Sections 5-6 (Requirements/Notes) land in Task 7 — an honest empty rather than a "coming soon" narration.
 function stubSection(key) {
   const label = (PROFILE_SECTIONS.find(([k]) => k === key) || [null, key])[1];
   return `
@@ -871,7 +989,9 @@ export const coachAthlete = {
       <div class="sd-cta"><button class="btn ghost sm" data-go="coach-roster">Back to roster</button></div></div>
       <div style="height:10px"></div>`;
     }
-    const body = PSECTION === 'overview' ? overviewSection(P) : PSECTION === 'today' ? todaySection(P) : stubSection(PSECTION);
+    const body = PSECTION === 'overview' ? overviewSection(P) : PSECTION === 'today' ? todaySection(P)
+      : PSECTION === 'activity' ? activitySection(P) : PSECTION === 'conversation' ? conversationSection(P)
+      : stubSection(PSECTION);
     return `
     ${head}
 
@@ -901,7 +1021,8 @@ export const coachAthlete = {
     const athleteId = sub;
     loadCoachRoster(); // ensure the name is available
     loadAthleteProfile(athleteId);
-    loadAthlete(athleteId, RT.userId, S.athlete.name); // keeps ATH populated for coach-meal's mealById()/back-nav
+    // coachMeal now resolves its own meal via roles.fetchMeal (Task 6 Part C) — it no longer
+    // depends on this screen keeping the legacy ATH cache warm, so the double-fetch is gone.
     // Day-view receipt: written HERE, not the loader — this is where a real viewer id (RT.userId)
     // is actually available. Fire-and-forget, never blocks or throws.
     try { roles.markDayViewed(athleteId, roles.todayISO(), RT.userId, S.coachIdentity.handle); } catch { /* best-effort */ }
@@ -940,14 +1061,39 @@ async function loadMealComments(mealId, force) {
   mcLoadingId = null;
   if (location.hash.startsWith('#coach-meal')) window.__render();
 }
-function mealById(mealId) { return ATH && ATH.meals.find(m => m.id === mealId); }
+/* Standalone meal cache (Task 6 Part C): coachMeal no longer DEPENDS on the shared ATH cache
+   being pre-populated by some other screen's mount — it resolves its own meal via
+   roles.fetchMeal(mealId) (added Task 2), signs the photo itself, and keeps a tiny cache keyed
+   by mealId. Fast path: if ATH already happens to have this meal (trainerClient still warms it
+   for its own screen, and a coach could open a meal moments after that), reuse it instantly with
+   no extra round-trip — same behavior as before, just no longer the ONLY path. */
+let MEAL = null;           // { id, row }
+let mealLoadingId = null;
+async function loadMeal(mealId) {
+  if (!mealId) return;
+  const fast = ATH && ATH.meals.find(m => m.id === mealId);
+  if (fast) { MEAL = { id: mealId, row: fast }; return; }
+  if (MEAL && MEAL.id === mealId) return;
+  if (mealLoadingId === mealId) return;
+  mealLoadingId = mealId;
+  const row = await roles.fetchMeal(mealId);
+  if (row && row.photo_path) row._url = await roles.signedMealPhotoUrl(row.photo_path);
+  if (mealLoadingId === mealId) mealLoadingId = null;
+  MEAL = { id: mealId, row };
+  if (location.hash.startsWith('#coach-meal')) window.__render();
+}
+function mealById(mealId) {
+  if (MEAL && MEAL.id === mealId) return MEAL.row;
+  return ATH && ATH.meals.find(m => m.id === mealId);
+}
 export const coachMeal = {
   nav: 'coach', tab: 'roster',
   render({ sub }) {
     const mealId = sub;
     const meal = mealById(mealId);
     const title = meal ? cap(meal.type || 'Meal') : 'Meal';
-    const head = backHead(title, 'Your comment lands on the athlete’s log', ATH ? `coach-athlete/${ATH.athleteId}` : 'coach-home');
+    const backTo = (meal && meal.athlete_id) ? `coach-athlete/${meal.athlete_id}` : (ATH ? `coach-athlete/${ATH.athleteId}` : 'coach-home');
+    const head = backHead(title, 'Your comment lands on the athlete’s log', backTo);
     if (!MC || MC.mealId !== mealId) {
       return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('message', 17)}</div>
       <div><div class="tt">Loading the thread…</div><div class="ts">Reading the athlete’s comments on this meal.</div></div></div>`;
@@ -1031,6 +1177,7 @@ export const coachMeal = {
     `;
   },
   mount(root, { sub }) {
+    loadMeal(sub);
     loadMealComments(sub);
     act.markMealSeen(sub); // clears this meal's unseen dot in the team activity feed
     const threadRetry = root.querySelector('#coach-thread-retry');
