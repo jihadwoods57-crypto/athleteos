@@ -212,6 +212,15 @@ export function avatarHead(title, sub, initials) {
   </div>`;
 }
 
+export function sparkline(hist) {
+  const pts = (hist || []).filter(h => h.score != null).slice(-7);
+  if (pts.length < 2) return `<span style="font-size:10px;color:var(--text-3);font-weight:700">—</span>`;
+  const w = 44, h = 16, min = 0, max = 100;
+  const xy = pts.map((p, i) => `${(i / (pts.length - 1)) * w},${h - ((p.score - min) / (max - min)) * h}`).join(' ');
+  const up = pts[pts.length - 1].score >= pts[0].score;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${xy}" fill="none" stroke="${up ? 'var(--green-bright)' : 'var(--red)'}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/></svg>`;
+}
+
 /* Shared composer (text input + send) markup — the single source for every "ask/comment/note"
    bar in the app. A real native <button> gives free keyboard operability (Tab focus, Enter AND
    Space activation) with zero extra JS — a bare <div class="send"> had neither. Both the input
