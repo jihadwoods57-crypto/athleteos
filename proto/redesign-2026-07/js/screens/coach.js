@@ -29,7 +29,7 @@ const PROOF_CHOICES = [
 ];
 
 export const coachAssign = {
-  nav: 'coach', tab: 'assign',
+  nav: 'coach', tab: 'create',
   render({ sub } = {}) {
     // deep-link: coach-assign/<athleteId> pre-targets one athlete (from the athlete screen)
     const rows = CD.roster ? CD.roster.rows : [];
@@ -196,7 +196,7 @@ const setSummary = (items) => {
 };
 
 export const coachPlan = {
-  nav: 'coach', tab: 'plan',
+  nav: 'coach', tab: 'roster',
   render({ sub }) {
     const athleteId = sub;
     const who = rosterName(athleteId);
@@ -443,7 +443,7 @@ function itemsFromKnobs(k) {
 }
 
 export const coachPlanSet = {
-  nav: 'coach', tab: 'plan',
+  nav: 'coach', tab: 'roster',
   render({ sub }) {
     const [kind, rawVal] = (sub || 'team').split('/');
     const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
