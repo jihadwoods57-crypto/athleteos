@@ -7,7 +7,7 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet } from './requirements.js';
+import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems } from './requirements.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
@@ -277,16 +277,6 @@ function reqMealSlots() {
   return (RT.stdMeals && Array.isArray(RT.stdMeals.slots) && RT.stdMeals.slots.length)
     ? RT.stdMeals.slots : REQ_MEAL_SLOTS;
 }
-/* Physical slot order for a standard of M meals — maps onto the classic keys first so the
-   camera, meal-detail, and server jsonb all keep working; 5th/6th are new slot keys. */
-const STD_SLOT_MAP = {
-  1: ['dinner'],
-  2: ['breakfast', 'dinner'],
-  3: ['breakfast', 'lunch', 'dinner'],
-  4: ['breakfast', 'lunch', 'snack', 'dinner'],
-  5: ['breakfast', 'lunch', 'snack', 'dinner', 'meal-5'],
-  6: ['breakfast', 'lunch', 'snack', 'dinner', 'meal-5', 'meal-6'],
-};
 const SLOT_DUE = { breakfast: 'Due by 10:00 AM', lunch: 'Due by 2:00 PM', snack: 'Optional', dinner: 'Due by 8:00 PM' };
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 /** Display title for a meal slot key: the coach standard's title when one governs
@@ -1241,17 +1231,7 @@ export const act = {
      list, deadlines, titles, and the nutrition denominator. No set → the classic day. */
   _applyStandardFromSets() {
     const set = resolveRequirementSet(RT.reqSets || [], RT.userId, (RT.profile || {}).position);
-    const mealItems = set && Array.isArray(set.items) ? set.items.filter(i => i && i.kind === 'meal') : [];
-    if (!mealItems.length) { RT.stdMeals = null; setDayStandard(null); return; }
-    const m = Math.min(6, Math.max(1, mealItems.length));
-    const slots = STD_SLOT_MAP[m];
-    const deadlines = {}, titles = {};
-    slots.forEach((k, i) => {
-      const it = mealItems[i] || {};
-      if (it.window && it.window.due != null) deadlines[k] = it.window.due;
-      if (it.title) titles[k] = it.title;
-    });
-    RT.stdMeals = { mealsRequired: m, slots, deadlines, titles };
+    RT.stdMeals = stdFromItems(set && set.items);
     setDayStandard(RT.stdMeals);
   },
   /* Athlete: redeem a coach team code (or a trainer practice code) from the Connect screen.

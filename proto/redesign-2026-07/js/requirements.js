@@ -125,6 +125,34 @@ export function resolveRequirementSet(sets, athleteId, position) {
   return sets.find(s => s.scope_kind === 'team') || null;
 }
 
+/* Physical slot order for a standard of M meals — maps onto the classic keys first so the
+   camera, meal-detail, and server jsonb all keep working; 5th/6th are new slot keys. */
+export const STD_SLOT_MAP = {
+  1: ['dinner'],
+  2: ['breakfast', 'dinner'],
+  3: ['breakfast', 'lunch', 'dinner'],
+  4: ['breakfast', 'lunch', 'snack', 'dinner'],
+  5: ['breakfast', 'lunch', 'snack', 'dinner', 'meal-5'],
+  6: ['breakfast', 'lunch', 'snack', 'dinner', 'meal-5', 'meal-6'],
+};
+
+/* One shared path from a requirement set's items to the athlete day standard
+   ({mealsRequired, slots, deadlines, titles} — the setDayStandard shape). state.js applies
+   it live; the coach standards editor previews a DRAFT through the same function. */
+export function stdFromItems(items) {
+  const mealItems = Array.isArray(items) ? items.filter(i => i && i.kind === 'meal') : [];
+  if (!mealItems.length) return null;
+  const m = Math.min(6, Math.max(1, mealItems.length));
+  const slots = STD_SLOT_MAP[m];
+  const deadlines = {}, titles = {};
+  slots.forEach((k, i) => {
+    const it = mealItems[i] || {};
+    if (it.window && it.window.due != null) deadlines[k] = it.window.due;
+    if (it.title) titles[k] = it.title;
+  });
+  return { mealsRequired: m, slots, deadlines, titles };
+}
+
 /* Defaults per item kind, so a server set only has to carry what the coach chose.
    Every value here mirrors a CATALOG entry — one visual/behavioral language. */
 const KIND_DEFAULTS = {
