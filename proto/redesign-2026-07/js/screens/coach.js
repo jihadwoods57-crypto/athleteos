@@ -1527,6 +1527,11 @@ export const coachAthlete = {
 
 /* ---------- Coach → meal review + comment: the REAL meal_comments thread (slice 5) ---------- */
 let MC = null;            // { mealId, comments }
+// Resolved meal threads (Slice D, Inbox v2): mealIds the coach has marked handled THIS session.
+// Purely a local "button already flipped" flag — the real resolved state lives in
+// coach_interventions (kind:'handled', reason_key:'meal:'+id) and is what the inbox categorizer
+// reads; this Set just keeps the button honest across re-renders without a refetch.
+let RESOLVED_MEALS = new Set();
 let mcLoadingId = null;
 async function loadMealComments(mealId, force) {
   if (!mealId || (mcLoadingId === mealId && !force)) return;
@@ -1645,6 +1650,10 @@ export const coachMeal = {
     <div class="qa-row" style="margin-top:8px">
       <button class="qa" id="cm-ask-photo">Request another photo</button>
       <button class="qa" id="cm-note-toggle">Private note</button>
+    </div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+      <button class="btn ghost sm" id="cm-resolve">${RESOLVED_MEALS.has(mealId) ? 'Resolved ✓' : 'Mark resolved'}</button>
+      <span id="cm-resolve-note" style="font-size:12.5px;font-weight:600;color:var(--text-3)"></span>
     </div>
     ${(() => {
       // Suggested replies (Task 4): only offered while the coach can still send (coachN < 2) —
@@ -1766,10 +1775,40 @@ export const coachMeal = {
           context: meal ? { meal: { type: meal.type, protein: meal.protein, kcal: meal.kcal, quality: meal.quality } } : { meal: {} },
         } });
       } catch { /* skipped or unavailable — the coach's message already landed */ }
+      // Log the intervention for Inbox v2's categorizer (Slice D): fire-and-forget, never blocks
+      // or breaks the send — the coach's message already landed by this point. reason_key MUST
+      // be 'meal:'+sub (the exact convention the categorizer keys on).
+      try {
+        const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+        if (teamId) roles.logIntervention({ teamId, athleteId, kind: 'message', reasonKey: 'meal:' + sub }).catch(() => {});
+      } catch { /* best-effort */ }
       await loadMealComments(sub, true);
     };
     if (send) send.addEventListener('click', submit);
     if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    // Mark resolved (Slice D): logs kind:'handled' so this meal moves to the Resolved category in
+    // the coach inbox. Idempotent — a second tap just re-logs (harmless) since the button already
+    // reads "Resolved ✓" once it succeeds.
+    const resolveBtn = root.querySelector('#cm-resolve');
+    const resolveNote = root.querySelector('#cm-resolve-note');
+    if (resolveBtn) resolveBtn.addEventListener('click', async () => {
+      const meal0 = mealById(sub);
+      const athleteId0 = meal0 ? meal0.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      if (!athleteId0 || !teamId) {
+        if (resolveNote) resolveNote.textContent = "Couldn't resolve — try again.";
+        return;
+      }
+      const ok = await roles.logIntervention({ teamId, athleteId: athleteId0, kind: 'handled', reasonKey: 'meal:' + sub });
+      if (!ok) {
+        if (resolveNote) resolveNote.textContent = "Couldn't resolve — try again.";
+        return;
+      }
+      RESOLVED_MEALS.add(sub);
+      resolveBtn.textContent = 'Resolved ✓';
+      if (resolveNote) resolveNote.textContent = 'Resolved.';
+      setTimeout(() => { location.hash = '#coach-inbox'; }, 800);
+    });
     // Draft a reply (Task 4): asks meal-chat's draft mode for four stance-labeled candidates.
     // Context mirrors the coachSupport shape above (meal macros) plus the last few thread
     // messages, so drafts are grounded in what was actually said.
