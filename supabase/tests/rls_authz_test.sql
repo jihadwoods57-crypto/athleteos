@@ -415,6 +415,10 @@ select _superuser();
 delete from notifications where user_id in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004');
 select _as('11111111-0000-0000-0000-000000000001');
 select post_announcement('77777777-1111-0000-0000-000000000001','team',null,'Team meeting','Meet at the field house at 7am.');
+-- notifications are owner-read (notif_read: user_id = auth.uid()); coach_1 cannot see the
+-- athletes' feed rows under RLS. Verify the fan-out from superuser (same idiom as the
+-- profile-name check in section 3).
+select _superuser();
 select _ok((select count(*) from notifications where user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and kind = 'announcement') = 1,
            'post_announcement (team scope) notifies athlete A');
 select _ok((select count(*) from notifications where user_id = 'dddddddd-0000-0000-0000-000000000004' and kind = 'announcement') = 1,
@@ -430,6 +434,7 @@ select _superuser();
 delete from notifications where user_id in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004') and kind = 'announcement';
 select _as('11111111-0000-0000-0000-000000000001');
 select post_announcement('77777777-1111-0000-0000-000000000001','position','QB','QB meeting','Film room, 8am.');
+select _superuser();  -- owner-read notifications: verify the fan-out from superuser
 select _ok((select count(*) from notifications where user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and kind = 'announcement') = 1,
            'post_announcement (position=QB) notifies the QB (athlete A)');
 select _ok((select count(*) from notifications where user_id = 'dddddddd-0000-0000-0000-000000000004' and kind = 'announcement') = 0,
@@ -453,6 +458,7 @@ select _ok(_try($q$update requirement_templates set name = 'pwned' where id = 'b
 select _superuser();
 select _ok((select name from requirement_templates where id = 'b0000000-0000-0000-0000-000000000001') = 'Game Week (Away)',
            'cross-team coach_2 did not actually change T1''s requirement_template (0 rows updated)');
+select _as('22222222-0000-0000-0000-000000000002');  -- back to coach_2: the insert/delete below must be RLS-enforced, not run as the superuser from the verify above
 select _ok(_try($q$insert into requirement_templates (team_id, name, kind, items) values
   ('77777777-1111-0000-0000-000000000001','Sneaky','custom','[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb)$q$) <> 'ok',
            'cross-team coach_2 cannot insert a requirement_template into T1');

@@ -36,7 +36,10 @@ drop policy if exists ann_author_delete on announcements;
 create policy ann_author_delete on announcements
   for delete using (is_team_staff(team_id) and author_id = auth.uid());
 -- No insert policy: writes go through post_announcement (SECURITY DEFINER) so the
--- audience fan-out can never be skipped or forged.
+-- audience fan-out can never be skipped or forged. Table privileges: SELECT (read by
+-- staff via ann_staff_read) is granted by the schema default; the DELETE grant makes the
+-- ann_author_delete policy actually usable (a policy without the table privilege is dead).
+grant select, delete on announcements to authenticated;
 
 create or replace function post_announcement(
   p_team uuid, p_scope_kind text, p_scope_value text, p_title text, p_body text
@@ -95,6 +98,10 @@ drop policy if exists rt_staff_rw on requirement_templates;
 create policy rt_staff_rw on requirement_templates
   for all using (is_team_staff(team_id))
   with check (is_team_staff(team_id));
+-- Table privileges: the rt_staff_rw policy governs which ROWS staff may touch, but a
+-- policy is inert without the underlying table privilege. Grant full DML so staff can
+-- actually insert/update/delete their team's templates (row scope stays enforced by RLS).
+grant select, insert, update, delete on requirement_templates to authenticated;
 
 -- Extend the items validator: optional window/target rails. Recreated in full — 0055's body
 -- (verbatim, 0055_requirements_engine.sql:53-70) plus the window/target block inside the
