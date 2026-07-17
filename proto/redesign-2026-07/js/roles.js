@@ -208,6 +208,23 @@ export async function coachSetGoals(athleteId, targets) {
   const c = sb(); if (!c || !athleteId) return false;
   try { const { error } = await c.rpc('coach_set_goals', { athlete: athleteId, new_targets: targets, new_season_goal: null }); return !error; } catch { return false; }
 }
+// Coach OS Slice D — Inbox v2. Ask meal-chat (draft mode) for FOUR candidate coach-voice
+// replies about a meal. The edge fn persists NOTHING here; these are drafts the coach edits
+// and sends manually. Same vendored-supabase-js error-parse idiom as screens/meal.js (~818):
+// on a non-2xx the client throws FunctionsHttpError, so data is null and the structured error
+// body must be read off error.context.json(). Never throws into the UI.
+export async function draftMealReplies(mealId, context) {
+  const c = sb(); if (!c || !mealId) return { ok: false, error: 'offline' };
+  try {
+    const { data, error } = await c.functions.invoke('meal-chat', { body: { mealId, draftReplies: true, context: context || {} } });
+    if (error || !data || data.error) {
+      let parsed = data && data.error ? data : null;
+      if (!parsed && error && error.context && typeof error.context.json === 'function') parsed = await error.context.json().catch(() => null);
+      return { ok: false, error: (parsed && parsed.error) || 'unavailable' };
+    }
+    return { ok: true, drafts: Array.isArray(data.drafts) ? data.drafts : [] };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
 export async function fetchActiveTrustPass(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
   try { const { data } = await c.from('trust_passes').select('granted_date,length_days').eq('athlete_id', athleteId).is('ended_at', null).maybeSingle(); return data || null; } catch { return null; }
