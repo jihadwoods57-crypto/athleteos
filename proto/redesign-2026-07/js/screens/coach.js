@@ -737,6 +737,10 @@ const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
    meal standalone via roles.fetchMeal, so this screen no longer needs to keep ATH warm. ---------- */
 let PSECTION = 'overview';
 let PSEC_FOR = null;
+// Day-view receipt de-dupe: markDayViewed only needs to fire once per athlete open, not on every
+// chip switch (mount() re-runs on every window.__render()). Track which athlete we've already
+// recorded a receipt for; reset naturally happens by comparing against the new athleteId.
+let VIEWED_FOR = null;
 const PROFILE_SECTIONS = [
   ['overview', 'Overview'], ['today', 'Today'], ['activity', 'Activity'],
   ['conversation', 'Conversation'], ['requirements', 'Requirements'], ['notes', 'Notes'],
@@ -904,6 +908,7 @@ function activitySection(P) {
   return `
   <div class="eyebrow">Last 30 days</div>
   <section class="card" style="padding:2px 16px">${items.map(i => i.html).join('')}</section>
+  <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:6px 4px 0">Weigh-ins and check-ins shown for today only; meal history spans 30 days.</div>
   <div style="height:10px"></div>`;
 }
 
@@ -1033,16 +1038,6 @@ function notesSection(P) {
   <div style="height:10px"></div>`;
 }
 
-// Sections 5-6 (Requirements/Notes) land in Task 7 — an honest empty rather than a "coming soon" narration.
-function stubSection(key) {
-  const label = (PROFILE_SECTIONS.find(([k]) => k === key) || [null, key])[1];
-  return `
-  <section class="card" style="padding:16px">
-    <div style="font-size:13.5px;font-weight:800">${esc(label)}</div>
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:4px">—</div>
-  </section>
-  <div style="height:10px"></div>`;
-}
 export const coachAthlete = {
   nav: 'coach', tab: 'roster',
   render({ sub }) {
@@ -1080,8 +1075,7 @@ export const coachAthlete = {
     }
     const body = PSECTION === 'overview' ? overviewSection(P) : PSECTION === 'today' ? todaySection(P)
       : PSECTION === 'activity' ? activitySection(P) : PSECTION === 'conversation' ? conversationSection(P)
-      : PSECTION === 'requirements' ? requirementsSection(P, athleteId) : PSECTION === 'notes' ? notesSection(P)
-      : stubSection(PSECTION);
+      : PSECTION === 'requirements' ? requirementsSection(P, athleteId) : notesSection(P);
     return `
     ${head}
 
@@ -1114,8 +1108,13 @@ export const coachAthlete = {
     // coachMeal now resolves its own meal via roles.fetchMeal (Task 6 Part C) — it no longer
     // depends on this screen keeping the legacy ATH cache warm, so the double-fetch is gone.
     // Day-view receipt: written HERE, not the loader — this is where a real viewer id (RT.userId)
-    // is actually available. Fire-and-forget, never blocks or throws.
-    try { roles.markDayViewed(athleteId, roles.todayISO(), RT.userId, S.coachIdentity.handle); } catch { /* best-effort */ }
+    // is actually available. Fire-and-forget, never blocks or throws. Gated to fire exactly once
+    // per athlete open — mount() re-runs on every window.__render() (e.g. every chip switch), and
+    // without this guard the receipt call would re-fire on each of those instead of once.
+    if (VIEWED_FOR !== athleteId) {
+      VIEWED_FOR = athleteId;
+      try { roles.markDayViewed(athleteId, roles.todayISO(), RT.userId, S.coachIdentity.handle); } catch { /* best-effort */ }
+    }
     root.querySelectorAll('[data-psec]').forEach(el => el.addEventListener('click', () => {
       PSECTION = el.getAttribute('data-psec'); window.__render();
     }));
@@ -1194,7 +1193,14 @@ async function loadMeal(mealId) {
   const row = await roles.fetchMeal(mealId);
   if (row && row.photo_path) row._url = await roles.signedMealPhotoUrl(row.photo_path);
   if (mealLoadingId === mealId) mealLoadingId = null;
-  MEAL = { id: mealId, row };
+  // Never cache a null/undefined row: a fetch failure looks identical to "meal doesn't exist",
+  // and caching it here would permanently block retries via the `MEAL.id === mealId` guard above
+  // for the rest of the session. Leaving MEAL unset means the guard is skipped on the next mount,
+  // so a real remount naturally retries. This can't loop: mount() calls loadMeal() exactly once
+  // per navigation — render() never re-triggers it — so a failed fetch just falls back to the
+  // existing "meal not found / thread only" render state until the athlete/coach navigates again.
+  if (row) MEAL = { id: mealId, row };
+  else if (MEAL && MEAL.id === mealId) MEAL = null;
   if (location.hash.startsWith('#coach-meal')) window.__render();
 }
 function mealById(mealId) {

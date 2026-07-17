@@ -148,8 +148,8 @@ export function entriesFor(scope) {
   });
 }
 
-/* Per-athlete profile cache (Task 4): one athlete's day, recent meals + signed photos, targets,
-   basics, trust pass, coach interventions/assignments/notes, and their live status (same engine
+/* Per-athlete profile cache (Task 4): one athlete's day, recent meals + signed photos, trust
+   pass, coach interventions/assignments/notes, and their live status (same engine
    entriesFor uses, resolved at THIS call's clock). Guarded like loadCoachRoster: a generation
    counter so a stale/superseded load can never clobber a newer one, and a thrown fetch degrades
    to { athleteId, offline: true } rather than leaving the screen stuck loading forever. */
@@ -163,11 +163,9 @@ export async function loadAthleteProfile(athleteId, force) {
     if (!CD.roster) await loadCoachRoster();           // need the row + extras (sets/exceptions)
     const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
     const since30 = roles.daysAgoISO(30);
-    const [day, meals, targets, basics, trustPass, interventions, assignments, notes] = await Promise.all([
+    const [day, meals, trustPass, interventions, assignments, notes] = await Promise.all([
       roles.fetchDay(athleteId, roles.todayISO()),
       roles.fetchRecentMeals(athleteId, since30),
-      roles.fetchAthleteTargets(athleteId),
-      roles.fetchAthleteBasics(athleteId),
       roles.fetchActiveTrustPass(athleteId),
       roles.fetchAthleteInterventions(teamId, athleteId, since30),
       roles.fetchAthleteAssignments(athleteId, since30),
@@ -196,7 +194,7 @@ export async function loadAthleteProfile(athleteId, force) {
       });
     }
     if (gen !== profileGen) return;                    // a newer load superseded us
-    PROFILE = { athleteId, day, meals: meals || [], photos, targets, basics, trustPass,
+    PROFILE = { athleteId, day, meals: meals || [], photos, trustPass,
       interventions, assignments, notes, exceptions, row, status, offline: false };
     // Receipt moved to the screen's mount(), where a real viewer id (RT.userId/S.coachIdentity)
     // is actually available — this loader has no viewer identity to write, so a call here was
