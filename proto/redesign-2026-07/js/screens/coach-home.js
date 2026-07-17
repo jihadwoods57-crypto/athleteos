@@ -215,6 +215,8 @@ export const coachHome = {
       window.__render();
     }));
     root.querySelectorAll('[data-passign]').forEach(b => b.addEventListener('click', async () => {
+      if (b.disabled) return; // double-tap guard — navigates away, so no re-enable needed
+      b.disabled = true;
       const id = b.getAttribute('data-passign');
       // The intervention row is bookkeeping; the assign itself happens in the composer —
       // navigate regardless (log() already refuses to fake the cache on failure).

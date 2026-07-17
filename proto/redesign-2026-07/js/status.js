@@ -16,13 +16,35 @@ export const STATUS_META = {
 };
 const DUE_SOON_MIN = 60;
 
-/** Open required items with their due state at `nowMin`. Done-ness comes from day.tasks. */
-function openItems(nowMin, row, reqs) {
+/** Pure mirror of requirements.js `runsToday` — status.js stays import-free (no imports, no
+ *  DOM, no fetch), so the schedule semantics are reproduced here rather than imported.
+ *  daily -> every day; days:[1,3,5] -> dow must be in the list; weekly -> only its one day.
+ *  (exec.js additionally hard-excludes id 'weekly' from its own day filter because the
+ *  Action Hub renders weekly check-in as a separate Sunday-only nav row outside that engine —
+ *  the coach roster has no such separate surface, so here weekly simply falls out of the
+ *  normal weekly rule below: due only on its scheduled day, never a phantom overdue any other day.)
+ * @param {{ freq?: { type: string, days?: number[], day?: number } }} req
+ * @param {number} dow 0=Sunday..6=Saturday
+ */
+export function runsOn(req, dow) {
+  const f = req && req.freq;
+  if (!f || !f.type) return true;
+  if (f.type === 'daily') return true;
+  if (f.type === 'days') return Array.isArray(f.days) && f.days.includes(dow);
+  if (f.type === 'weekly') return f.day === dow;
+  return true; // unknown freq shape (e.g. a coach-assigned 'once' task) — never phantom-hide it
+}
+
+/** Open required items with their due state at `nowMin`. Done-ness comes from day.tasks.
+ *  `nowDow` (0-6), when supplied, gates each item by its schedule first — an off-day
+ *  requirement (e.g. Tue/Thu/Sat for an MWF weigh-in) never enters the list at all. */
+function openItems(nowMin, row, reqs, nowDow) {
   const doneById = {};
   for (const t of (row.tasks || [])) if (t && t.done) doneById[t.id] = true;
   const out = [];
   for (const r of (reqs || [])) {
     if (!r || !r.required || doneById[r.id]) continue;
+    if (nowDow != null && !runsOn(r, nowDow)) continue;
     const due = r.window && typeof r.window.due === 'number' ? r.window.due : null;
     const open = r.window && typeof r.window.open === 'number' ? r.window.open : 0;
     let state = 'ready';
@@ -42,13 +64,24 @@ function noActivity24h(row, nowMs) {
   return (nowMs - new Date(row.lastMealAt).getTime()) > 24 * 3600 * 1000;
 }
 
-export function athleteStatus({ nowMin, nowMs = /** @type {number | null} */ (null), row, reqs, excused, needsReview = false }) {
-  const items = openItems(nowMin, row, reqs);
+/** Grammatical join for the overdue-detail sentence: 1 item -> "a"; 2 -> "a and b" (byte-identical
+ *  to the old two-item output); 3+ -> Oxford-style "a, b and c" instead of "a and b and c". */
+function joinTitles(titles) {
+  if (titles.length <= 2) return titles.join(' and ');
+  return `${titles.slice(0, -1).join(', ')} and ${titles[titles.length - 1]}`;
+}
+
+/* nowDow (0=Sunday..6=Saturday), when passed, gates every open item by its own schedule first —
+   off-schedule requirements (e.g. a Mon/Wed/Fri weigh-in on a Thursday) never read as overdue.
+   Left null/undefined only for backward test compat with pre-schedule callers; every real
+   caller must pass it. */
+export function athleteStatus({ nowMin, nowMs = /** @type {number | null} */ (null), row, reqs, excused, needsReview = false, nowDow = /** @type {number | null} */ (null) }) {
+  const items = openItems(nowMin, row, reqs, nowDow);
   const overdue = items.filter(i => i.state === 'overdue');
   const dueSoon = items.filter(i => i.state === 'due_soon');
   const mk = (key, detail) => ({ key, label: STATUS_META[key].label, detail, openItems: items });
   if (excused) return mk('excused', 'Excused today');
-  if (overdue.length) return mk('overdue', `${overdue.map(i => i.title).join(' and ')} overdue`);
+  if (overdue.length) return mk('overdue', `${joinTitles(overdue.map(i => i.title))} overdue`);
   if (needsReview) return mk('needs_review', 'A log is waiting on your review');
   if (row.loggedToday && row.score != null && row.score < 80) return mk('below_standard', `Scored ${row.score} today`);
   if (dueSoon.length) {
@@ -56,6 +89,9 @@ export function athleteStatus({ nowMin, nowMs = /** @type {number | null} */ (nu
     return mk('due_soon', `${next.title} window closes in ${Math.max(0, (next.dueMin ?? nowMin) - nowMin)} minutes`);
   }
   if (noActivity24h(row, nowMs)) return mk('no_activity', 'No activity in the last day');
+  // needs_review is deliberately emitted from two precedence positions: the explicit
+  // `needsReview` flag above (a flagged/reviewed log) and here (a log landed but the score
+  // hasn't resolved yet) — both are honestly "needs a human", just different reasons why.
   if (row.loggedToday && row.score == null) return mk('needs_review', 'Logged today — score pending');
   if (row.loggedToday) return mk('on_standard', 'On standard today');
   return mk('no_activity', 'Nothing logged yet today');

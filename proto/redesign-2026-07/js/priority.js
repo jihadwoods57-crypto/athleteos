@@ -45,7 +45,10 @@ function reasons(row, status, nowMs) {
   return out;
 }
 
-/** entries: [{row, status}] (already scope-filtered). interventions: today's rows. */
+/** entries: [{row, status}] (already scope-filtered). interventions: today's rows.
+ *  nowMin is accepted but not consumed here — tiering only needs nowMs for staleness.
+ *  Kept in the destructure (rather than dropped) so existing/future callers that pass it
+ *  don't trip TS's excess-property check on the call-site object literal. */
 export function buildPriorities({ nowMin, nowMs = /** @type {number | null} */ (null), entries, interventions }) {
   const acted = new Set((interventions || []).filter(i => i.reason_key).map(i => `${i.athlete_id}|${i.reason_key}`));
   const cards = [];

@@ -25,7 +25,7 @@ export const coachInsights = {
     if (!lines.length) {
       const logged = entries.filter(e => e.row.loggedToday).length;
       lines.push(!entries.length ? 'No athletes on the roster yet.'
-        : logged ? `${logged} of ${entries.length} have logged today — nothing needs your attention right now.`
+        : logged ? `${logged} of ${entries.length} ${logged === 1 ? 'has' : 'have'} logged today — nothing needs your attention right now.`
         : 'Quiet so far — no logs yet today.');
     }
     return `${head}

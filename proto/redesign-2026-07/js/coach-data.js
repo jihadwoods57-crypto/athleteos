@@ -128,6 +128,7 @@ export function scopeFilter(rows, scope) {
 export function entriesFor(scope) {
   if (!ROSTER || !CD.extras) return null;   // still loading — screens render skeletons
   const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes(); const nowMs = now.getTime();
+  const nowDow = now.getDay();
   const excusedIds = new Set(CD.extras.exceptions.map(e => e.athlete_id));
   return scopeFilter(ROSTER.rows, scope).map((row) => {
     // resolveRequirementSet(sets, athleteId, position) → the governing SET row (or null), not a
@@ -138,7 +139,7 @@ export function entriesFor(scope) {
     return {
       row,
       status: athleteStatus({
-        nowMin, nowMs, row, reqs,
+        nowMin, nowMs, nowDow, row, reqs,
         excused: excusedIds.has(row.athleteId),
         needsReview: false, // slice D wires flagged-meal review state
       }),
