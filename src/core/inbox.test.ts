@@ -122,3 +122,31 @@ test('inboxAlerts groups overdue requirements across athletes', () => {
   expect(lunch).toBeTruthy();
   expect(lunch!.title).toMatch(/2 athletes/);
 });
+
+test('pending staff invites appear in the staff category (used_by null), active staff after', () => {
+  const out = categorizeInbox({
+    meals: [], comments: [], interventions: [], roster: [], pending: [], announcements: [],
+    staff: [{ id: 's1', name: 'Coach Reynolds', role: 'head_coach' }],
+    staffInvites: [{ id: 'inv1', role: 'nutritionist', created_at: new Date(NOW).toISOString() }],
+    seenIds: new Set(), nowMs: NOW,
+  });
+  expect(out.counts.staff).toBe(2);
+  const invite = out.staff.find((r: any) => r.id === 'invite:inv1');
+  expect(invite).toBeTruthy();
+  expect(invite.title).toBe('Nutritionist invite');
+  expect(invite.sub).toBe('Awaiting redemption');
+  expect(invite.go).toBe('coach-profile');
+  // active staff still present, invites listed first
+  expect(out.staff.find((r: any) => r.id === 's1')).toBeTruthy();
+  expect(out.staff[0].id).toBe('invite:inv1');
+});
+
+test('no staffInvites param -> staff category is just active staff (back-compat)', () => {
+  const out = categorizeInbox({
+    meals: [], comments: [], interventions: [], roster: [], pending: [], announcements: [],
+    staff: [{ id: 's1', name: 'Coach', role: 'head_coach' }],
+    seenIds: new Set(), nowMs: NOW,
+  });
+  expect(out.counts.staff).toBe(1);
+  expect(out.staff[0].id).toBe('s1');
+});

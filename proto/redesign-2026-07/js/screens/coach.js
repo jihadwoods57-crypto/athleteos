@@ -760,12 +760,13 @@ async function loadInboxData(teamId, athleteIds, force) {
   // nowMs/sinceISO from the caller). 7 days is enough runway for a thread to still be "recent".
   const sinceISO = new Date(Date.now() - 7 * 864e5).toISOString();
   try {
-    const [comments, interventions, staff] = await Promise.all([
+    const [comments, interventions, staff, staffInvites] = await Promise.all([
       roles.fetchTeamMealComments(athleteIds, sinceISO),
       roles.fetchRecentInterventions(teamId, sinceISO),
       roles.fetchTeamStaff(teamId),
+      roles.fetchOpenStaffInvites(teamId),
     ]);
-    INBOX_DATA = { teamId, comments, interventions, staff };
+    INBOX_DATA = { teamId, comments, interventions, staff, staffInvites };
   } finally { inboxLoadingId = null; }
   if (location.hash === '#coach-inbox') window.__render();
 }
@@ -812,6 +813,7 @@ function inboxOut() {
     roster: roster ? roster.rows : [],
     pending: roster ? (roster.pending || []) : [],
     staff: staffRowsFor(data ? data.staff : []),
+    staffInvites: data ? data.staffInvites : [],
     announcements: annRows,
     seenIds: RT.coachSeenMealIds || [],
     nowMs,
@@ -844,10 +846,14 @@ function inboxRow(r) {
     </div>`;
   }
   if (r.kind === 'staff') {
+    // Active staff = plain summary; a pending invite carries r.go='coach-profile' → tap to
+    // re-share or revoke the code.
+    const clickable = !!r.go;
     return `
-    <div class="lrow" style="cursor:default">
+    <div class="lrow"${clickable ? ` data-go="${esc(r.go)}" style="cursor:pointer"` : ' style="cursor:default"'}>
       <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
       <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+      ${clickable ? icon('chevron', 17, 'style="color:var(--text-3)"') : ''}
     </div>`;
   }
   if (r.kind === 'alert') {
@@ -916,7 +922,7 @@ export const coachInbox = {
       <div class="eyebrow">Daily briefing · from your real roster</div>
       <section class="card pad" style="background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
         <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
-        <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${esc(briefing)}</div>
+        <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
       </section>
       <div style="height:10px"></div>`;
     }
@@ -1527,11 +1533,18 @@ export const coachAthlete = {
 
 /* ---------- Coach → meal review + comment: the REAL meal_comments thread (slice 5) ---------- */
 let MC = null;            // { mealId, comments }
-// Resolved meal threads (Slice D, Inbox v2): mealIds the coach has marked handled THIS session.
-// Purely a local "button already flipped" flag — the real resolved state lives in
-// coach_interventions (kind:'handled', reason_key:'meal:'+id) and is what the inbox categorizer
-// reads; this Set just keeps the button honest across re-renders without a refetch.
+// Resolved meal threads (Slice D, Inbox v2): mealIds known handled. Seeded from the DB on
+// thread open (fetchMealResolved) so "Resolved ✓" survives a reload, and added to when the
+// coach taps Mark resolved. The real resolved state lives in coach_interventions
+// (kind:'handled', reason_key:'meal:'+id) — what the inbox categorizer reads; this Set keeps
+// the button honest across re-renders without a refetch.
 let RESOLVED_MEALS = new Set();
+// Coach message-kind comments on a meal (the "2 per meal" cap). One definition for the draft
+// affordance (render) and the composer cap (mount) so they can't drift.
+function coachMsgCount(comments) {
+  return Array.isArray(comments)
+    ? comments.filter(c => c.role === 'coach' && (c.kind || 'message') === 'message').length : 0;
+}
 let mcLoadingId = null;
 async function loadMealComments(mealId, force) {
   if (!mealId || (mcLoadingId === mealId && !force)) return;
@@ -1659,8 +1672,7 @@ export const coachMeal = {
       // Suggested replies (Task 4): only offered while the coach can still send (coachN < 2) —
       // drafting a reply they're capped from sending would be dishonest. Nothing renders past
       // the cap; the existing "2 coach messages per meal" note in mount() already covers it.
-      const coachN0 = Array.isArray(MC && MC.comments)
-        ? MC.comments.filter(c => c.role === 'coach' && (c.kind || 'message') === 'message').length : 0;
+      const coachN0 = coachMsgCount(MC && MC.comments);
       if (coachN0 >= 2) return '';
       if (DRAFTS.loading && DRAFTS.mealId === sub) {
         return `<div class="qa-row" style="margin-top:8px"><span style="font-size:12.5px;font-weight:600;color:var(--text-3);padding:6px 2px">Drafting…</span></div>`;
@@ -1698,6 +1710,13 @@ export const coachMeal = {
     loadMeal(sub);
     loadMealComments(sub);
     act.markMealSeen(sub); // clears this meal's unseen dot in the team activity feed
+    // Seed the resolved flag from the DB so "Resolved ✓" persists across a reload (not just
+    // this session). Best-effort; a miss just shows "Mark resolved" until the coach taps it.
+    if (sub && !RESOLVED_MEALS.has(sub)) {
+      roles.fetchMealResolved(sub).then(done => {
+        if (done) { RESOLVED_MEALS.add(sub); if (location.hash === `#coach-meal/${sub}`) window.__render(); }
+      }).catch(() => {});
+    }
     const threadRetry = root.querySelector('#coach-thread-retry');
     if (threadRetry) threadRetry.addEventListener('click', () => loadMealComments(sub, true));
     // Full-screen zoom on the meal photo (same viewer as the athlete side).
@@ -1741,8 +1760,7 @@ export const coachMeal = {
     const cmNote = root.querySelector('#cm-note');
     // Thread caps (0059, founder-ratified): coach 2 / athlete 3 messages per meal. The DB
     // trigger is the real wall; this is the honest UI for it.
-    const coachN = Array.isArray(MC && MC.comments)
-      ? MC.comments.filter(c => c.role === 'coach' && (c.kind || 'message') === 'message').length : 0;
+    const coachN = coachMsgCount(MC && MC.comments);
     if (coachN >= 2) {
       if (input) { input.disabled = true; input.placeholder = 'Coach cap reached'; }
       if (send) send.disabled = true;

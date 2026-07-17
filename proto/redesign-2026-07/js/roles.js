@@ -159,6 +159,32 @@ export async function fetchRecentInterventions(teamId, sinceISO) {
   } catch { return []; }
 }
 
+/* Outstanding (unredeemed) staff invites for the Staff inbox category — used_by is null is
+   the real "pending staff" state (staff_invites RLS: is_staff_of_team, 0061). No approval
+   queue exists; an unused code IS the pending signal. */
+export async function fetchOpenStaffInvites(teamId) {
+  const c = sb(); if (!c || !teamId) return [];
+  try {
+    const { data } = await c.from('staff_invites')
+      .select('id,role,created_at')
+      .eq('team_id', teamId).is('used_by', null)
+      .order('created_at', { ascending: false }).limit(50);
+    return data || [];
+  } catch { return []; }
+}
+
+/* Has this meal thread been resolved (a handled intervention with reason_key meal:<id>)?
+   Lets the coach thread show "Resolved ✓" on load instead of forgetting across a reload.
+   RLS (is_team_staff) scopes the read; the meal uuid makes reason_key globally unique. */
+export async function fetchMealResolved(mealId) {
+  const c = sb(); if (!c || !mealId) return false;
+  try {
+    const { data } = await c.from('coach_interventions')
+      .select('id').eq('reason_key', 'meal:' + mealId).eq('kind', 'handled').limit(1);
+    return !!(data && data.length);
+  } catch { return false; }
+}
+
 /* ---------------- coach → athlete review ---------------- */
 export async function fetchDay(athleteId, date) {
   const c = sb(); if (!c || !athleteId) return null;

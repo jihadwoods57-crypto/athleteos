@@ -91,10 +91,10 @@ export function inboxAlerts(entries, nowMs) {
   return out;
 }
 
-/** categorizeInbox({ meals, comments, interventions, roster, pending, staff, announcements,
- *  seenIds, nowMs }) -> { needsResponse, athletes, mealReviews, staff, announcements, resolved,
+/** categorizeInbox({ meals, comments, interventions, roster, pending, staff, staffInvites,
+ *  announcements, seenIds, nowMs }) -> { needsResponse, athletes, mealReviews, staff, announcements, resolved,
  *  counts } — see js/inbox.js header + task brief for the six category rules. */
-export function categorizeInbox({ meals, comments, interventions, roster, pending, staff, announcements, seenIds, nowMs } = {}) {
+export function categorizeInbox({ meals, comments, interventions, roster, pending, staff, staffInvites, announcements, seenIds, nowMs } = {}) {
   const mealRows = Array.isArray(meals) ? meals : [];
   const seen = seenIds instanceof Set ? seenIds : new Set(Array.isArray(seenIds) ? seenIds : []);
   const lastRole = lastByMeal(comments);
@@ -139,9 +139,19 @@ export function categorizeInbox({ meals, comments, interventions, roster, pendin
     kind: 'join', id: p.id, title: `${p.name || 'New athlete'} wants to join`, sub: 'Join request', ts: nowMs,
   }));
 
-  const staffRows = (staff || []).map(s => ({
+  // Active staff, then pending (unredeemed) invites — the real "awaiting" signal, from
+  // staff_invites where used_by is null (no schema for a staff approval queue; an outstanding
+  // code IS the pending state). Invite rows deep-link to coach-profile to re-share or revoke.
+  const activeStaffRows = (staff || []).map(s => ({
     kind: 'staff', id: s.id, title: s.name || s.email || 'Staff', sub: s.role || '', ts: (s.created_at ? new Date(s.created_at).getTime() : nowMs),
   }));
+  const inviteRows = (staffInvites || []).map(iv => ({
+    kind: 'staff', id: 'invite:' + iv.id,
+    title: (iv.role ? iv.role[0].toUpperCase() + iv.role.slice(1) : 'Staff') + ' invite',
+    sub: 'Awaiting redemption', go: 'coach-profile',
+    ts: (iv.created_at ? new Date(iv.created_at).getTime() : nowMs),
+  }));
+  const staffRows = [...inviteRows, ...activeStaffRows];
 
   const announcementRows = (announcements || []).map(a => ({
     kind: 'announcement', id: a.id, title: a.title || 'Announcement', sub: a.body || '', ts: (a.created_at ? new Date(a.created_at).getTime() : nowMs),
