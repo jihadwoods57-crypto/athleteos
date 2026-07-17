@@ -133,6 +133,32 @@ export async function fetchTeamActivity(sinceISO, limit = 24) {
   } catch { return []; }
 }
 
+/* ---------------- coach: Inbox v2 (Slice D) — comment threads + intervention state ---------------- */
+/** Recent meal_comments across the given athletes (RLS scopes rows). Feeds inbox.js's
+    lastByMeal (who spoke last per meal thread). Best-effort []. */
+export async function fetchTeamMealComments(athleteIds, sinceISO) {
+  const c = sb(); if (!c || !athleteIds || !athleteIds.length) return [];
+  try {
+    const { data } = await c.from('meal_comments')
+      .select('meal_id,athlete_id,role,kind,created_at')
+      .in('athlete_id', athleteIds).gte('created_at', sinceISO)
+      .order('created_at', { ascending: true }).limit(1000);
+    return data || [];
+  } catch { return []; }
+}
+/** Recent coach_interventions for the team (kind 'handled' + reason_key 'meal:<id>' marks a
+    thread resolved — Task 5 writes it, inbox.js reads it). Best-effort []. */
+export async function fetchRecentInterventions(teamId, sinceISO) {
+  const c = sb(); if (!c || !teamId) return [];
+  try {
+    const { data } = await c.from('coach_interventions')
+      .select('athlete_id,kind,reason_key,created_at')
+      .eq('team_id', teamId).gte('created_at', sinceISO)
+      .order('created_at', { ascending: false }).limit(500);
+    return data || [];
+  } catch { return []; }
+}
+
 /* ---------------- coach → athlete review ---------------- */
 export async function fetchDay(athleteId, date) {
   const c = sb(); if (!c || !athleteId) return null;
