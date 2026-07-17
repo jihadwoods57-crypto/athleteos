@@ -346,6 +346,30 @@ export async function completeAssignmentRemote(id) {
   try { const { data, error } = await c.rpc('complete_assignment', { p_id: id }); return !error && data === true; } catch { return false; }
 }
 
+/* ---- Requirement templates (Slice C, 0074): named reusable requirement-set drafts ---- */
+export async function fetchRequirementTemplates(teamId) {
+  const c = sb(); if (!c || !teamId) return [];
+  try {
+    const { data } = await c.from('requirement_templates')
+      .select('id,name,kind,items,created_at').eq('team_id', teamId).order('created_at');
+    return data || [];
+  } catch { return []; }
+}
+export async function saveRequirementTemplate(teamId, name, kind, items) {
+  const c = sb(); if (!c) return { ok: false, error: 'Offline' };
+  try {
+    const { error } = await c.from('requirement_templates')
+      .insert({ team_id: teamId, name, kind: kind || 'custom', items });
+    if (error) return { ok: false, error: /duplicate|unique/i.test(error.message || '') ? 'A template with that name already exists.' : error.message };
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+export async function deleteRequirementTemplate(id) {
+  const c = sb(); if (!c) return { ok: false };
+  try { const { error } = await c.from('requirement_templates').delete().eq('id', id); return { ok: !error }; }
+  catch { return { ok: false }; }
+}
+
 /* ---------------- Coach OS core (0071): interventions, groups, exceptions ---------------- */
 /** Log a coach action (nudge/message/assign/handled). The queue and Insights both read this. */
 export async function logIntervention({ teamId, athleteId, kind, reasonKey, tier, note }) {
