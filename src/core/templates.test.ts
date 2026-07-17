@@ -33,6 +33,7 @@ test('the templates differ where it matters', () => {
   const meals = (k: string) => by[k].items.filter((i: any) => i.kind === 'meal').length;
   expect(meals('weight_gain')).toBeGreaterThan(meals('weight_loss'));
   expect(by['travel'].items.some((i: any) => i.kind === 'lift')).toBe(false);
+  expect(by['travel'].items.some((i: any) => i.kind === 'checkin')).toBe(false);
   expect(by['injured'].items.some((i: any) => i.kind === 'recovery')).toBe(true);
   expect(templateLabel('game_week')).toBe('Game week');
 });
