@@ -1,6 +1,5 @@
 import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
-import { RT } from '../state.js';
 
 /* The + is a CREATE MENU now, not a single composer (Coach OS spec §3). Slice A ships
    the options that have real destinations today; announcements, check-ins, and schedule

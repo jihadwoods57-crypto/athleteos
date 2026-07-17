@@ -2,7 +2,6 @@ import { S } from '../state.js';
 import { icon } from '../icons.js';
 import { avatarHead, esc } from '../components.js';
 import { CD, loadCoachRoster, entriesFor } from '../coach-data.js';
-import { STATUS_META } from '../status.js';
 
 /* Insights v1 starter (slice A): today's deterministic read over the real roster.
    Weekly trends / most-missed / movers land in slice E — the unlock note below is
@@ -20,9 +19,15 @@ export const coachInsights = {
     if (by('overdue').length) lines.push(`${by('overdue').length} athlete${by('overdue').length > 1 ? 's are' : ' is'} overdue right now: ${by('overdue').slice(0, 3).map(e => e.row.name.split(' ')[0]).join(', ')}${by('overdue').length > 3 ? '…' : ''}.`);
     if (by('no_activity').length) lines.push(`${by('no_activity').length} ${by('no_activity').length > 1 ? 'have' : 'has'} no activity in the last day.`);
     if (by('below_standard').length) lines.push(`${by('below_standard').length} logged below the standard today.`);
+    if (by('needs_review').length) lines.push(`${by('needs_review').length} log${by('needs_review').length > 1 ? 's are' : ' is'} in — waiting on a score or your review.`);
     const top = entries.filter(e => e.row.score != null).sort((a, b) => b.row.score - a.row.score)[0];
     if (top) lines.push(`${top.row.name} leads the day at ${top.row.score}.`);
-    if (!lines.length) lines.push(entries.length ? 'Quiet so far — no logs yet today.' : 'No athletes on the roster yet.');
+    if (!lines.length) {
+      const logged = entries.filter(e => e.row.loggedToday).length;
+      lines.push(!entries.length ? 'No athletes on the roster yet.'
+        : logged ? `${logged} of ${entries.length} have logged today — nothing needs your attention right now.`
+        : 'Quiet so far — no logs yet today.');
+    }
     return `${head}
     <div class="eyebrow">Today's read</div>
     <section class="card" style="padding:13px 16px">
