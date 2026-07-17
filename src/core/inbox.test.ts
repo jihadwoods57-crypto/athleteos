@@ -14,14 +14,14 @@ test('a meal whose last comment is from the athlete lands in needsResponse', () 
     ],
     interventions: [], roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW,
   });
-  expect(out.needsResponse.some(r => r.id === 'm1')).toBe(true);
+  expect(out.needsResponse.some((r: any) => r.id === 'm1')).toBe(true);
   expect(out.counts.needsResponse).toBeGreaterThanOrEqual(1);
 });
 
 test('an unseen meal with no comments lands in mealReviews, not needsResponse', () => {
   const out = categorizeInbox({ meals: [meal('m2')], comments: [], interventions: [], roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW });
-  expect(out.mealReviews.some(r => r.id === 'm2')).toBe(true);
-  expect(out.needsResponse.some(r => r.id === 'm2')).toBe(false);
+  expect(out.mealReviews.some((r: any) => r.id === 'm2')).toBe(true);
+  expect(out.needsResponse.some((r: any) => r.id === 'm2')).toBe(false);
 });
 
 test('a meal with a handled intervention (reason_key meal:<id>) lands in resolved', () => {
@@ -31,14 +31,14 @@ test('a meal with a handled intervention (reason_key meal:<id>) lands in resolve
     interventions: [{ athlete_id: 'a1', kind: 'handled', reason_key: 'meal:m3', created_at: new Date(NOW - 600_000).toISOString() }],
     roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW,
   });
-  expect(out.resolved.some(r => r.id === 'm3')).toBe(true);
-  expect(out.needsResponse.some(r => r.id === 'm3')).toBe(false); // resolved wins
+  expect(out.resolved.some((r: any) => r.id === 'm3')).toBe(true);
+  expect(out.needsResponse.some((r: any) => r.id === 'm3')).toBe(false); // resolved wins
 });
 
 test('all athlete meal threads appear under athletes; join requests under staff-adjacent needsResponse', () => {
   const out = categorizeInbox({ meals: [meal('m4')], comments: [], interventions: [], roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [{ id: 'p1', name: 'New Kid' }], staff: [], announcements: [], seenIds: new Set(['m4']), nowMs: NOW });
-  expect(out.athletes.some(r => r.id === 'm4')).toBe(true);
-  expect(out.needsResponse.some(r => r.kind === 'join')).toBe(true);
+  expect(out.athletes.some((r: any) => r.id === 'm4')).toBe(true);
+  expect(out.needsResponse.some((r: any) => r.kind === 'join')).toBe(true);
 });
 
 test('reactions/notes are ignored for last-role: coach message + newer athlete reaction/note is still coach-spoke-last', () => {
@@ -51,7 +51,7 @@ test('reactions/notes are ignored for last-role: coach message + newer athlete r
     ],
     interventions: [], roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW,
   });
-  expect(out.needsResponse.some(r => r.id === 'm5')).toBe(false);
+  expect(out.needsResponse.some((r: any) => r.id === 'm5')).toBe(false);
 });
 
 test('mealReviews never double-categorizes with needsResponse: unseen athlete-last meal is needsResponse only; unseen no-comment meal is mealReviews only', () => {
@@ -63,10 +63,10 @@ test('mealReviews never double-categorizes with needsResponse: unseen athlete-la
     ],
     interventions: [], roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW,
   });
-  expect(out.needsResponse.some(r => r.id === 'm6')).toBe(true);
-  expect(out.mealReviews.some(r => r.id === 'm6')).toBe(false);
-  expect(out.mealReviews.some(r => r.id === 'm7')).toBe(true);
-  expect(out.needsResponse.some(r => r.id === 'm7')).toBe(false);
+  expect(out.needsResponse.some((r: any) => r.id === 'm6')).toBe(true);
+  expect(out.mealReviews.some((r: any) => r.id === 'm6')).toBe(false);
+  expect(out.mealReviews.some((r: any) => r.id === 'm7')).toBe(true);
+  expect(out.needsResponse.some((r: any) => r.id === 'm7')).toBe(false);
 });
 
 test('inboxAlerts groups overdue requirements across athletes', () => {
