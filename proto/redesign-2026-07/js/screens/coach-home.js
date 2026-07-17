@@ -1,10 +1,10 @@
-import { S, RT } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { avatarHead, esc } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster, loadActivity, actTime, entriesFor, getScope, setScope } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
-import { teamPulse, STATUS_META } from '../status.js';
+import { teamPulse } from '../status.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 let SHOW_SCOPES = false;        // scope sheet open?
@@ -92,6 +92,7 @@ function priorityCard(c, i, nudgedToday) {
       <button class="btn ghost sm" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" style="height:32px;font-size:11.5px">Assign</button>
       <button class="btn ghost sm" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" style="height:32px;font-size:11.5px">Handled</button>
     </div>
+    <div id="pstatus-${esc(c.athleteId)}" style="font-size:11px;font-weight:600;color:var(--text-3);min-height:0"></div>
   </div>`;
 }
 
@@ -124,8 +125,8 @@ export const coachHome = {
     const cards = entries ? buildPriorities({ nowMin, nowMs, entries, interventions: (CD.extras && CD.extras.interventions) || [] }) : [];
     const pending = CD.roster.pending || [];
     const seen = new Set(RT.coachSeenMealIds || []);
-    const act = CD.act && CD.act.rows ? CD.act.rows.filter(m => rows.some(r => r.athleteId === m.athlete_id)) : null;
-    const unseen = act ? act.filter(m => !seen.has(m.id)).length : 0;
+    const feed = CD.act && CD.act.rows ? CD.act.rows.filter(m => rows.some(r => r.athleteId === m.athlete_id)) : null;
+    const unseen = feed ? feed.filter(m => !seen.has(m.id)).length : 0;
     const followUps = [
       unseen ? { n: unseen, t: `log${unseen > 1 ? 's' : ''} you haven't opened`, go: 'coach-inbox' } : null,
       pending.length ? { n: pending.length, t: `join request${pending.length > 1 ? 's' : ''} waiting`, go: 'coach-inbox' } : null,
@@ -144,9 +145,9 @@ export const coachHome = {
     : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === new Date().toISOString().slice(0, 10))).join('')}
 
     <div class="eyebrow" style="display:flex;justify-content:space-between;align-items:baseline"><span>Live activity</span>${unseen ? `<span style="color:var(--blue-bright)">${unseen} new</span>` : ''}</div>
-    ${act === null ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px">Loading the feed…</div>`
-    : act.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No logs yet ${scope.kind === 'team' ? 'today' : 'in this group today'}. Every meal lands here the moment it's logged.</div>`
-    : `<div style="display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin:0 -2px">${act.slice(0, 12).map(m => {
+    ${feed === null ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px">Loading the feed…</div>`
+    : feed.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No logs yet ${scope.kind === 'team' ? 'today' : 'in this group today'}. Every meal lands here the moment it's logged.</div>`
+    : `<div style="display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin:0 -2px">${feed.slice(0, 12).map(m => {
         const who = rows.find(r => r.athleteId === m.athlete_id) || {};
         const photo = CD.act.photos[m.id];
         const bits = [cap(m.type || 'Meal'), actTime(m.logged_at)].filter(Boolean);
@@ -177,25 +178,46 @@ export const coachHome = {
       setScope({ kind: kind || 'team', value: value || null }); SHOW_SCOPES = false; window.__render();
     }));
     const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+    // Failed writes never lie: log() only mirrors the intervention into the local cache when the
+    // server took it, and returns the honest boolean so callers can keep the card + say so.
     const log = async (athleteId, kind, b) => {
       const reasonKey = b.getAttribute('data-key'), tier = b.getAttribute('data-tier');
-      await roles.logIntervention({ teamId, athleteId, kind, reasonKey, tier });
-      if (CD.extras) CD.extras.interventions.push({ athlete_id: athleteId, kind, reason_key: reasonKey, tier });
+      const ok = await roles.logIntervention({ teamId, athleteId, kind, reasonKey, tier });
+      if (ok && CD.extras) CD.extras.interventions.push({ athlete_id: athleteId, kind, reason_key: reasonKey, tier });
+      return ok;
+    };
+    const sayFail = (athleteId, msg) => {
+      const el = root.querySelector(`#pstatus-${athleteId}`);
+      if (el) { el.style.color = 'var(--red)'; el.textContent = msg; }
     };
     root.querySelectorAll('[data-phandle]').forEach(b => b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-phandle');
       b.disabled = true; b.textContent = '…';
-      await log(b.getAttribute('data-phandle'), 'handled', b);
+      const ok = await log(id, 'handled', b);
+      if (!ok) {
+        b.disabled = false; b.textContent = 'Handled';
+        sayFail(id, "Couldn't save that — check your connection.");
+        return;
+      }
       window.__render();
     }));
     root.querySelectorAll('[data-pnudge]').forEach(b => b.addEventListener('click', async () => {
       const id = b.getAttribute('data-pnudge');
       b.disabled = true; b.textContent = '…';
       const ok = await roles.nudgePush(id, `${S.coachIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
-      if (ok) { const { act } = await import('../state.js'); act.markNudged(id); await log(id, 'nudge', b); }
+      if (!ok) {
+        b.disabled = false; b.textContent = 'Nudge';
+        sayFail(id, "Couldn't send the nudge — check your connection.");
+        return;
+      }
+      act.markNudged(id);
+      await log(id, 'nudge', b);
       window.__render();
     }));
     root.querySelectorAll('[data-passign]').forEach(b => b.addEventListener('click', async () => {
       const id = b.getAttribute('data-passign');
+      // The intervention row is bookkeeping; the assign itself happens in the composer —
+      // navigate regardless (log() already refuses to fake the cache on failure).
       await log(id, 'assign', b);
       window.__go(`coach-assign/${id}`);
     }));
