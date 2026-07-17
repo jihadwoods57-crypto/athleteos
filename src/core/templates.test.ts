@@ -35,6 +35,7 @@ test('the templates differ where it matters', () => {
   expect(by['travel'].items.some((i: any) => i.kind === 'lift')).toBe(false);
   expect(by['travel'].items.some((i: any) => i.kind === 'checkin')).toBe(false);
   expect(by['injured'].items.some((i: any) => i.kind === 'recovery')).toBe(true);
+  expect(by['injured'].items.some((i: any) => i.kind === 'weigh' && i.freq.type === 'daily')).toBe(true);
   expect(templateLabel('game_week')).toBe('Game week');
 });
 

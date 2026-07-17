@@ -126,6 +126,7 @@ const SEEDS = [
   ] },
   { name: 'Injured', kind: 'injured', items: [
     ...mealItems(STANDARD_MEAL_WINDOWS),
+    weighItem('daily'),
     hydrationItem(120),
     recoveryItem(),
     checkinItem(),
