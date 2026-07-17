@@ -411,25 +411,45 @@ const MEAL_NAMES = ['Breakfast', 'Lunch', 'Dinner', 'Meal 4', 'Meal 5', 'Meal 6'
 const MEAL_WINDOWS = [{ open: 420, due: 570 }, { open: 720, due: 840 }, { open: 1080, due: 1230 }, { due: 1290 }, { due: 1320 }, { due: 1350 }];
 let KNOB = null; // { key, meals, lifts, weigh, hydration, recovery, checkin }
 
-function knobsFromItems(items) {
+export function knobsFromItems(items) {
+  const mealItems = items.filter(i => i.kind === 'meal');
   const lift = items.find(i => i.kind === 'lift');
   const weigh = items.find(i => i.kind === 'weigh');
+  const hyd = items.find(i => i.kind === 'hydration');
+  const meals = Math.min(6, Math.max(1, mealItems.length));
   return {
-    meals: Math.min(6, Math.max(1, items.filter(i => i.kind === 'meal').length)),
+    meals,
     lifts: lift ? Math.min(7, (lift.freq && lift.freq.days && lift.freq.days.length) || 3) : 0,
     weigh: weigh ? ((weigh.freq && weigh.freq.type === 'daily') ? 'daily' : 'mwf') : 'off',
-    hydration: items.some(i => i.kind === 'hydration'),
+    hydration: !!hyd,
+    hydrationOz: (hyd && typeof hyd.target === 'number') ? hyd.target
+      : (hyd && /(\d+)\s*oz/i.test(hyd.title || '') ? +(hyd.title.match(/(\d+)\s*oz/i)[1]) : 120),
     recovery: items.some(i => i.kind === 'recovery'),
     checkin: items.some(i => i.kind === 'checkin'),
+    photoProof: mealItems.length ? mealItems.every(m => m.proof === 'photo') : true,
+    mealNames: mealItems.slice(0, meals).map((m, i) => m.title || MEAL_NAMES[i]),
+    mealWins: mealItems.slice(0, meals).map((m, i) => (m.window && m.window.due != null) ? { ...m.window } : { ...MEAL_WINDOWS[i] }),
   };
 }
-function itemsFromKnobs(k) {
+// Shared fallback logic for meal names/windows — render() uses this too, so what's shown
+// on screen IS exactly what itemsFromKnobs would save.
+function resolveMeals(k) {
+  if (Array.isArray(k.mealNames) && k.mealNames.length === k.meals
+      && Array.isArray(k.mealWins) && k.mealWins.length === k.meals) {
+    return { names: k.mealNames, wins: k.mealWins };
+  }
+  if (k.meals === 1) return { names: ['Daily meal'], wins: [{ open: 720, due: 1230 }] };
+  if (k.meals === 2) return { names: ['Breakfast', 'Dinner'], wins: [MEAL_WINDOWS[0], MEAL_WINDOWS[2]] };
+  return { names: MEAL_NAMES.slice(0, k.meals), wins: MEAL_WINDOWS.slice(0, k.meals) };
+}
+export function itemsFromKnobs(k) {
   const items = [];
-  let names, wins;
-  if (k.meals === 1) { names = ['Daily meal']; wins = [{ open: 720, due: 1230 }]; }
-  else if (k.meals === 2) { names = ['Breakfast', 'Dinner']; wins = [MEAL_WINDOWS[0], MEAL_WINDOWS[2]]; }
-  else { names = MEAL_NAMES.slice(0, k.meals); wins = MEAL_WINDOWS.slice(0, k.meals); }
-  names.forEach((t, i) => items.push({ id: `meal-${i + 1}`, title: t, kind: 'meal', proof: 'photo', freq: { type: 'daily' }, window: wins[i] }));
+  const { names, wins } = resolveMeals(k);
+  const proof = k.photoProof === false ? 'check' : 'photo';
+  names.forEach((t, i) => items.push({
+    id: `meal-${i + 1}`, title: String(t || MEAL_NAMES[i] || `Meal ${i + 1}`).slice(0, 40),
+    kind: 'meal', proof, freq: { type: 'daily' }, window: { ...wins[i] },
+  }));
   if (k.lifts > 0) items.push({
     id: 'lift', title: `Lift session`, kind: 'lift', proof: 'check',
     freq: { type: 'days', days: LIFT_DAYS[k.lifts], label: `${k.lifts}× / week` }, window: { due: 1230, label: 'After training' },
@@ -438,7 +458,11 @@ function itemsFromKnobs(k) {
     id: 'weight', title: 'Morning Weight', kind: 'weigh', proof: 'scale',
     freq: k.weigh === 'daily' ? { type: 'daily' } : { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' }, window: { due: 540 },
   });
-  if (k.hydration) items.push({ id: 'hydration', title: 'Hydration · 120 oz', kind: 'hydration', proof: 'counter', freq: { type: 'daily' }, window: { due: 1290 }, required: false });
+  if (k.hydration) {
+    const oz = Math.min(999, Math.max(1, +k.hydrationOz || 120));
+    items.push({ id: 'hydration', title: `Hydration · ${oz} oz`, kind: 'hydration', proof: 'counter',
+                 freq: { type: 'daily' }, window: { due: 1290 }, required: false, target: oz });
+  }
   if (k.recovery) items.push({ id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } });
   if (k.checkin) items.push({ id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', proof: 'form', freq: { type: 'weekly', day: 0, label: 'Sundays' }, window: { due: 1260 } });
   return items;
@@ -457,7 +481,7 @@ export const coachPlanSet = {
     if (!KNOB || KNOB.key !== key) {
       KNOB = existing
         ? { key, ...knobsFromItems(existing.items) }
-        : { key, meals: 3, lifts: 0, weigh: 'mwf', hydration: true, recovery: true, checkin: true };
+        : { key, meals: 3, lifts: 0, weigh: 'mwf', hydration: true, hydrationOz: 120, recovery: true, checkin: true, photoProof: true };
     }
     const chip = (on, label, act, arg) => `<span class="chp ${on ? 'on' : ''}" data-knob="${act}:${arg}">${label}</span>`;
     const seg = (label, subLabel, act, on) => `
@@ -467,11 +491,25 @@ export const coachPlanSet = {
           <button class="${on ? 'on' : ''}" data-knob="${act}:1">On</button><button class="${on ? '' : 'on'}" data-knob="${act}:0">Off</button>
         </div>
       </div>`;
+    const toHM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const { names, wins } = resolveMeals(KNOB);
     return `
     ${backHead(scopeName, kind === 'team' ? 'Every athlete starts here' : 'Overrides the team default for this room', 'coach-plan')}
 
     <div class="eyebrow">Meals per day · photo proof</div>
     <div class="chip-row">${[1, 2, 3, 4, 5, 6].map(n => chip(KNOB.meals === n, String(n), 'meals', n)).join('')}</div>
+
+    <div class="eyebrow">Meal names & windows · windows drive due-soon, overdue, and reminders</div>
+    <section class="card" style="padding:10px 16px">
+      ${names.map((t, i) => `
+        <div class="lrow" style="cursor:default;gap:8px">
+          <input class="mname" data-meal="${i}" maxlength="40" value="${esc(t)}"
+                 style="flex:1;min-width:0;background:transparent;border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--text-1);font-size:13.5px;font-weight:600">
+          <input type="time" class="mwin" data-meal="${i}" data-edge="open" value="${wins[i].open != null ? toHM(wins[i].open) : ''}">
+          <span style="color:var(--text-3);font-size:12px">→</span>
+          <input type="time" class="mwin" data-meal="${i}" data-edge="due" value="${toHM(wins[i].due)}">
+        </div>`).join('')}
+    </section>
 
     <div class="eyebrow">Lift sessions per week</div>
     <div class="chip-row">${[0, 1, 2, 3, 4, 5, 6, 7].map(n => chip(KNOB.lifts === n, n === 0 ? 'Off' : String(n), 'lifts', n)).join('')}</div>
@@ -486,7 +524,11 @@ export const coachPlanSet = {
       ${seg('Recovery check-in', 'Nightly · 25% of the score', 'recovery', KNOB.recovery)}
       ${seg('Weekly check-in', 'Sundays · 10% of the score', 'checkin', KNOB.checkin)}
       ${seg('Hydration focus', 'Visible, never scored', 'hydration', KNOB.hydration)}
+      ${seg('Photo proof on meals', 'Off = tap-to-check, no photo required', 'photo', KNOB.photoProof)}
     </section>
+    ${KNOB.hydration ? `
+    <div class="eyebrow">Hydration target</div>
+    <div class="chip-row">${[80, 100, 120, 150].map(n => chip(KNOB.hydrationOz === n, `${n} oz`, 'hydoz', n)).join('')}</div>` : ''}
 
     <div style="height:14px"></div>
     <div class="sidebox">
@@ -510,20 +552,50 @@ export const coachPlanSet = {
       const el = root.querySelector('#set-status');
       if (el) { el.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; el.textContent = msg; }
     };
+    const fromHM = s => { const [h, mm] = String(s || '').split(':').map(Number); return (Number.isFinite(h) && Number.isFinite(mm)) ? h * 60 + mm : null; };
+    // Text/time inputs write straight into KNOB — NEVER window.__render() here, or a
+    // full re-render mid-keystroke steals focus (the Slice A roster-search lesson).
+    const materializeMeals = () => {
+      if (!Array.isArray(KNOB.mealNames) || KNOB.mealNames.length !== KNOB.meals
+          || !Array.isArray(KNOB.mealWins) || KNOB.mealWins.length !== KNOB.meals) {
+        const { names, wins } = resolveMeals(KNOB);
+        KNOB.mealNames = [...names]; KNOB.mealWins = wins.map(w => ({ ...w }));
+      }
+    };
+    root.querySelectorAll('.mname').forEach(el => el.addEventListener('change', () => {
+      materializeMeals();
+      KNOB.mealNames[+el.getAttribute('data-meal')] = el.value;
+    }));
+    root.querySelectorAll('.mwin').forEach(el => el.addEventListener('change', () => {
+      materializeMeals();
+      const i = +el.getAttribute('data-meal');
+      const edge = el.getAttribute('data-edge');
+      const mins = fromHM(el.value);
+      if (edge === 'open') { if (mins == null) delete KNOB.mealWins[i].open; else KNOB.mealWins[i].open = mins; }
+      else { KNOB.mealWins[i].due = mins; }
+    }));
     root.querySelectorAll('[data-knob]').forEach(el => el.addEventListener('click', () => {
       const [k, arg] = el.getAttribute('data-knob').split(':');
-      if (k === 'meals') KNOB.meals = +arg;
+      if (k === 'meals') { KNOB.meals = +arg; delete KNOB.mealNames; delete KNOB.mealWins; }
       if (k === 'lifts') KNOB.lifts = +arg;
       if (k === 'weigh') KNOB.weigh = arg;
       if (k === 'recovery') KNOB.recovery = arg === '1';
       if (k === 'checkin') KNOB.checkin = arg === '1';
       if (k === 'hydration') KNOB.hydration = arg === '1';
+      if (k === 'photo') KNOB.photoProof = arg === '1';
+      if (k === 'hydoz') KNOB.hydrationOz = +arg;
       window.__render();
     }));
     const save = root.querySelector('#set-save');
     if (save) save.addEventListener('click', async () => {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (!teamId) { say('Your team hasn’t loaded yet — give it a second.', true); return; }
+      const { wins } = resolveMeals(KNOB);
+      for (let i = 0; i < wins.length; i++) {
+        const w = wins[i];
+        if (w.due == null) { say(`Meal ${i + 1}'s window closes before it opens — fix the times.`, true); return; }
+        if (w.open != null && !(w.open < w.due)) { say(`Meal ${i + 1}'s window closes before it opens — fix the times.`, true); return; }
+      }
       save.disabled = true; say('Saving…');
       const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB));
       save.disabled = false;
