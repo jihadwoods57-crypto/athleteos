@@ -18,6 +18,14 @@ describe('feedRowFromServer', () => {
     expect(feedRowFromServer(at('2026-07-16T11:00:00Z', { kind: 'digest' }), NOW)).toMatchObject({ icon: 'clipboard' });
     expect(feedRowFromServer(at('2026-07-16T11:00:00Z', { kind: 'brand-new-kind' }), NOW)).toMatchObject({ icon: 'bell', level: 'medium' });
   });
+  test('announcement kind renders with its own icon, not the default bell', () => {
+    const r = feedRowFromServer({
+      id: 'n1', kind: 'announcement', title: 'Lift moved to 6am',
+      body: 'Weight room closes early Friday.', created_at: new Date(NOW - 60000).toISOString(), read_at: null,
+    }, NOW)!;
+    expect(r.icon).toBe('share'); // verified real glyph — js/icons.js has no 'speaker'; 'share' (send-out arrows) is the closest real broadcast icon
+    expect(r.level).toBe('info');
+  });
   test('read_at drives read; malformed rows drop to null, never invented', () => {
     expect(feedRowFromServer(at('2026-07-16T11:00:00Z', { read_at: '2026-07-16T11:30:00Z' }), NOW)!.read).toBe(true);
     expect(feedRowFromServer(null, NOW)).toBeNull();

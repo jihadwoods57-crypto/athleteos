@@ -8,7 +8,7 @@ function notif(n, read) {
   return `<div class="notif ${n.level} ${read ? 'read' : 'unread'}" ${n.route ? `data-go="${n.route}" style="cursor:pointer"` : ''}>
     <div class="nic">${icon(n.icon, 19)}</div>
     <div style="flex:1">
-      <span class="level-tag ${n.level}">${{ high: 'urgent', medium: 'reminder', positive: 'nice work', critical: 'now' }[n.level] || n.level}</span>
+      <span class="level-tag ${n.level}">${{ high: 'urgent', medium: 'reminder', positive: 'nice work', critical: 'now', info: 'announcement' }[n.level] || n.level}</span>
       <div class="nt">${esc(n.title)}</div>
       <div class="nb">${esc(n.body)}</div>
     </div>

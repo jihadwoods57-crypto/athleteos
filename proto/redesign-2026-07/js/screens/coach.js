@@ -6,7 +6,10 @@ import { openingMessage, qualityBand, reactionGroups, threadMessages, privateNot
 import { openImageViewer } from '../image-viewer.js';
 import { CD, loadCoachRoster, loadActivity, actTime, loadAthleteProfile } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
-import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel } from '../requirements.js';
+import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin } from '../requirements.js';
+import { seedTemplates, templateLabel } from '../templates.js';
+import { audienceLabel } from './coach-announce.js';
+import { fmtWhen } from '../notif-feed.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -411,25 +414,45 @@ const MEAL_NAMES = ['Breakfast', 'Lunch', 'Dinner', 'Meal 4', 'Meal 5', 'Meal 6'
 const MEAL_WINDOWS = [{ open: 420, due: 570 }, { open: 720, due: 840 }, { open: 1080, due: 1230 }, { due: 1290 }, { due: 1320 }, { due: 1350 }];
 let KNOB = null; // { key, meals, lifts, weigh, hydration, recovery, checkin }
 
-function knobsFromItems(items) {
+export function knobsFromItems(items) {
+  const mealItems = items.filter(i => i.kind === 'meal');
   const lift = items.find(i => i.kind === 'lift');
   const weigh = items.find(i => i.kind === 'weigh');
+  const hyd = items.find(i => i.kind === 'hydration');
+  const meals = Math.min(6, Math.max(1, mealItems.length));
   return {
-    meals: Math.min(6, Math.max(1, items.filter(i => i.kind === 'meal').length)),
+    meals,
     lifts: lift ? Math.min(7, (lift.freq && lift.freq.days && lift.freq.days.length) || 3) : 0,
     weigh: weigh ? ((weigh.freq && weigh.freq.type === 'daily') ? 'daily' : 'mwf') : 'off',
-    hydration: items.some(i => i.kind === 'hydration'),
+    hydration: !!hyd,
+    hydrationOz: (hyd && typeof hyd.target === 'number') ? hyd.target
+      : (hyd && /(\d+)\s*oz/i.test(hyd.title || '') ? +(hyd.title.match(/(\d+)\s*oz/i)[1]) : 120),
     recovery: items.some(i => i.kind === 'recovery'),
     checkin: items.some(i => i.kind === 'checkin'),
+    photoProof: mealItems.length ? mealItems.every(m => m.proof === 'photo') : true,
+    mealNames: mealItems.slice(0, meals).map((m, i) => m.title || MEAL_NAMES[i]),
+    mealWins: mealItems.slice(0, meals).map((m, i) => (m.window && m.window.due != null) ? { ...m.window } : { ...MEAL_WINDOWS[i] }),
   };
 }
-function itemsFromKnobs(k) {
+// Shared fallback logic for meal names/windows — render() uses this too, so what's shown
+// on screen IS exactly what itemsFromKnobs would save.
+function resolveMeals(k) {
+  if (Array.isArray(k.mealNames) && k.mealNames.length === k.meals
+      && Array.isArray(k.mealWins) && k.mealWins.length === k.meals) {
+    return { names: k.mealNames, wins: k.mealWins };
+  }
+  if (k.meals === 1) return { names: ['Daily meal'], wins: [{ open: 720, due: 1230 }] };
+  if (k.meals === 2) return { names: ['Breakfast', 'Dinner'], wins: [MEAL_WINDOWS[0], MEAL_WINDOWS[2]] };
+  return { names: MEAL_NAMES.slice(0, k.meals), wins: MEAL_WINDOWS.slice(0, k.meals) };
+}
+export function itemsFromKnobs(k) {
   const items = [];
-  let names, wins;
-  if (k.meals === 1) { names = ['Daily meal']; wins = [{ open: 720, due: 1230 }]; }
-  else if (k.meals === 2) { names = ['Breakfast', 'Dinner']; wins = [MEAL_WINDOWS[0], MEAL_WINDOWS[2]]; }
-  else { names = MEAL_NAMES.slice(0, k.meals); wins = MEAL_WINDOWS.slice(0, k.meals); }
-  names.forEach((t, i) => items.push({ id: `meal-${i + 1}`, title: t, kind: 'meal', proof: 'photo', freq: { type: 'daily' }, window: wins[i] }));
+  const { names, wins } = resolveMeals(k);
+  const proof = k.photoProof === false ? 'check' : 'photo';
+  names.forEach((t, i) => items.push({
+    id: `meal-${i + 1}`, title: String(t || MEAL_NAMES[i] || `Meal ${i + 1}`).slice(0, 40),
+    kind: 'meal', proof, freq: { type: 'daily' }, window: { ...wins[i] },
+  }));
   if (k.lifts > 0) items.push({
     id: 'lift', title: `Lift session`, kind: 'lift', proof: 'check',
     freq: { type: 'days', days: LIFT_DAYS[k.lifts], label: `${k.lifts}× / week` }, window: { due: 1230, label: 'After training' },
@@ -438,10 +461,61 @@ function itemsFromKnobs(k) {
     id: 'weight', title: 'Morning Weight', kind: 'weigh', proof: 'scale',
     freq: k.weigh === 'daily' ? { type: 'daily' } : { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' }, window: { due: 540 },
   });
-  if (k.hydration) items.push({ id: 'hydration', title: 'Hydration · 120 oz', kind: 'hydration', proof: 'counter', freq: { type: 'daily' }, window: { due: 1290 }, required: false });
+  if (k.hydration) {
+    const oz = Math.min(999, Math.max(1, +k.hydrationOz || 120));
+    items.push({ id: 'hydration', title: `Hydration · ${oz} oz`, kind: 'hydration', proof: 'counter',
+                 freq: { type: 'daily' }, window: { due: 1290 }, required: false, target: oz });
+  }
   if (k.recovery) items.push({ id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } });
   if (k.checkin) items.push({ id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', proof: 'form', freq: { type: 'weekly', day: 0, label: 'Sundays' }, window: { due: 1260 } });
   return items;
+}
+
+/* "What the athlete sees": the DRAFT preview card renders from this — same itemsFromKnobs()
+   the Save button publishes, then stdFromItems() (the exact function state.js uses live) so
+   the coach previews through the identical code path the athlete's Home day-card uses. Never
+   a parallel std-building logic — if stdFromItems can't build a standard (no meal items), the
+   preview is honestly null rather than fabricated. */
+export function previewFromKnobs(k) {
+  const items = itemsFromKnobs(k);
+  const std = stdFromItems(items);
+  return std ? { std, items } : null;
+}
+
+/* ---------- Requirement templates (Slice C, 0074): team-scoped named drafts ----------
+   TPL is a module cache — { teamId, rows } — separate from SETS (the live standing sets)
+   because templates are drafts a coach browses, not anything that's ever live on its own. */
+let TPL = null;          // { teamId, rows } | null (not yet loaded)
+let tplLoading = false;
+let SHOW_TPL_SAVE = false;
+async function loadTemplates(force) {
+  const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+  if (!teamId || tplLoading) return;
+  if (TPL && TPL.teamId === teamId && !force) return;
+  tplLoading = true;
+  try {
+    const rows = await roles.fetchRequirementTemplates(teamId);
+    // Seed on first open: an empty result from a SUCCESSFUL fetch (not an offline/'no client'
+    // short-circuit) with a real teamId means this team has never had templates — plant the
+    // seven seeds once. fetchRequirementTemplates has no way to distinguish "really empty"
+    // from "offline" (both return [] — see roles.js), so an offline athlete/coach opening this
+    // screen for the first time WILL attempt a seed insert here; each insert independently
+    // no-ops (saveRequirementTemplate resolves { ok:false } with no client) rather than
+    // throwing, so it's inert offline, not just "harmless" — no junk rows are ever created
+    // without a live connection. The unique (team_id, lower(name)) index also makes a
+    // concurrent double-seed from two tabs/agents harmless: the losing inserts come back as
+    // duplicate-name errors, which we ignore.
+    if (rows.length === 0 && teamId) {
+      for (const s of seedTemplates()) {
+        await roles.saveRequirementTemplate(teamId, s.name, s.kind, s.items);
+      }
+      TPL = { teamId, rows: await roles.fetchRequirementTemplates(teamId) };
+    } else {
+      TPL = { teamId, rows };
+    }
+  } catch { TPL = { teamId, rows: [] }; }
+  finally { tplLoading = false; }
+  if (location.hash.startsWith('#coach-plan')) window.__render();
 }
 
 export const coachPlanSet = {
@@ -457,7 +531,7 @@ export const coachPlanSet = {
     if (!KNOB || KNOB.key !== key) {
       KNOB = existing
         ? { key, ...knobsFromItems(existing.items) }
-        : { key, meals: 3, lifts: 0, weigh: 'mwf', hydration: true, recovery: true, checkin: true };
+        : { key, meals: 3, lifts: 0, weigh: 'mwf', hydration: true, hydrationOz: 120, recovery: true, checkin: true, photoProof: true };
     }
     const chip = (on, label, act, arg) => `<span class="chp ${on ? 'on' : ''}" data-knob="${act}:${arg}">${label}</span>`;
     const seg = (label, subLabel, act, on) => `
@@ -467,11 +541,25 @@ export const coachPlanSet = {
           <button class="${on ? 'on' : ''}" data-knob="${act}:1">On</button><button class="${on ? '' : 'on'}" data-knob="${act}:0">Off</button>
         </div>
       </div>`;
+    const toHM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const { names, wins } = resolveMeals(KNOB);
     return `
     ${backHead(scopeName, kind === 'team' ? 'Every athlete starts here' : 'Overrides the team default for this room', 'coach-plan')}
 
     <div class="eyebrow">Meals per day · photo proof</div>
     <div class="chip-row">${[1, 2, 3, 4, 5, 6].map(n => chip(KNOB.meals === n, String(n), 'meals', n)).join('')}</div>
+
+    <div class="eyebrow">Meal names & windows · windows drive due-soon, overdue, and reminders</div>
+    <section class="card" style="padding:10px 16px">
+      ${names.map((t, i) => `
+        <div class="lrow" style="cursor:default;gap:8px">
+          <input class="mname" data-meal="${i}" maxlength="40" value="${esc(t)}"
+                 style="flex:1;min-width:0;background:transparent;border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--text-1);font-size:13.5px;font-weight:600">
+          <input type="time" class="mwin" data-meal="${i}" data-edge="open" value="${wins[i].open != null ? toHM(wins[i].open) : ''}">
+          <span style="color:var(--text-3);font-size:12px">→</span>
+          <input type="time" class="mwin" data-meal="${i}" data-edge="due" value="${toHM(wins[i].due)}">
+        </div>`).join('')}
+    </section>
 
     <div class="eyebrow">Lift sessions per week</div>
     <div class="chip-row">${[0, 1, 2, 3, 4, 5, 6, 7].map(n => chip(KNOB.lifts === n, n === 0 ? 'Off' : String(n), 'lifts', n)).join('')}</div>
@@ -486,7 +574,24 @@ export const coachPlanSet = {
       ${seg('Recovery check-in', 'Nightly · 25% of the score', 'recovery', KNOB.recovery)}
       ${seg('Weekly check-in', 'Sundays · 10% of the score', 'checkin', KNOB.checkin)}
       ${seg('Hydration focus', 'Visible, never scored', 'hydration', KNOB.hydration)}
+      ${seg('Photo proof on meals', 'Off = tap-to-check, no photo required', 'photo', KNOB.photoProof)}
     </section>
+    ${KNOB.hydration ? `
+    <div class="eyebrow">Hydration target</div>
+    <div class="chip-row">${[80, 100, 120, 150].map(n => chip(KNOB.hydrationOz === n, `${n} oz`, 'hydoz', n)).join('')}</div>` : ''}
+
+    <div class="eyebrow">Templates</div>
+    <div class="chip-row">
+      ${(TPL && TPL.rows ? TPL.rows : []).map(t => `<span class="chp" data-knob="tpl:${esc(t.id)}" title="${esc(templateLabel(t.kind))}">${esc(t.name)}</span>`).join('')}
+      <span class="chp" style="border:1px dashed var(--line)" data-knob="tplsave:1">+ Save as template</span>
+    </div>
+    ${SHOW_TPL_SAVE ? `
+    <section class="card" style="padding:10px 16px">
+      <div style="display:flex;gap:7px">
+        <input class="ob-input" id="tpl-name" maxlength="40" placeholder="Template name" style="flex:1;height:36px" />
+        <button class="btn green sm" id="tpl-save-btn" style="width:auto;padding:0 12px;height:36px">Save</button>
+      </div>
+    </section>` : ''}
 
     <div style="height:14px"></div>
     <div class="sidebox">
@@ -494,6 +599,26 @@ export const coachPlanSet = {
       <div><div class="tt">Stored live, rails enforced server-side</div>
       <div class="ts">Meals 1–6, lifts 0–7 — the database rejects anything outside the rails. Athlete day lists AND scoring follow this standard on their next sync: the meal count is the denominator.</div></div>
     </div>
+
+    ${(() => {
+      const preview = previewFromKnobs(KNOB);
+      if (!preview) return '';
+      const { std } = preview;
+      return `
+      <div class="eyebrow">What the athlete sees</div>
+      <section class="card" style="padding:6px 16px">
+        ${std.slots.map(slot => {
+          const title = std.titles[slot] || cap(slot);
+          const due = std.deadlines[slot];
+          return `
+        <div class="lrow" style="cursor:default">
+          <div class="lm"><div class="lt">${esc(title)}</div>
+          <div class="ls">${due != null ? `Due by ${fmtMin(due)}` : 'No deadline set'}</div></div>
+        </div>`;
+        }).join('')}
+        <div style="font-size:11.5px;font-weight:600;color:var(--text-3);padding:8px 2px 4px">${std.mealsRequired} meal${std.mealsRequired === 1 ? '' : 's'} make the day's nutrition score.</div>
+      </section>`;
+    })()}
 
     <div style="height:16px"></div>
     <button class="btn primary" id="set-save">${icon('check', 19)} Save the ${kind === 'team' ? 'team standard' : `${esc(value)} room standard`}</button>
@@ -503,27 +628,78 @@ export const coachPlanSet = {
     `;
   },
   mount(root, { sub }) {
-    loadCoachRoster().then(() => loadSets());
+    loadCoachRoster().then(() => { loadSets(); loadTemplates(); });
     const [kind, rawVal] = (sub || 'team').split('/');
     const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
     const say = (msg, isErr) => {
       const el = root.querySelector('#set-status');
       if (el) { el.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; el.textContent = msg; }
     };
+    const fromHM = s => { const [h, mm] = String(s || '').split(':').map(Number); return (Number.isFinite(h) && Number.isFinite(mm)) ? h * 60 + mm : null; };
+    // Text/time inputs write straight into KNOB — NEVER window.__render() here, or a
+    // full re-render mid-keystroke steals focus (the Slice A roster-search lesson).
+    const materializeMeals = () => {
+      if (!Array.isArray(KNOB.mealNames) || KNOB.mealNames.length !== KNOB.meals
+          || !Array.isArray(KNOB.mealWins) || KNOB.mealWins.length !== KNOB.meals) {
+        const { names, wins } = resolveMeals(KNOB);
+        KNOB.mealNames = [...names]; KNOB.mealWins = wins.map(w => ({ ...w }));
+      }
+    };
+    root.querySelectorAll('.mname').forEach(el => el.addEventListener('change', () => {
+      materializeMeals();
+      KNOB.mealNames[+el.getAttribute('data-meal')] = el.value;
+    }));
+    root.querySelectorAll('.mwin').forEach(el => el.addEventListener('change', () => {
+      materializeMeals();
+      const i = +el.getAttribute('data-meal');
+      const edge = el.getAttribute('data-edge');
+      const mins = fromHM(el.value);
+      if (edge === 'open') { if (mins == null) delete KNOB.mealWins[i].open; else KNOB.mealWins[i].open = mins; }
+      else { KNOB.mealWins[i].due = mins; }
+    }));
     root.querySelectorAll('[data-knob]').forEach(el => el.addEventListener('click', () => {
       const [k, arg] = el.getAttribute('data-knob').split(':');
-      if (k === 'meals') KNOB.meals = +arg;
+      if (k === 'meals') { KNOB.meals = +arg; delete KNOB.mealNames; delete KNOB.mealWins; }
       if (k === 'lifts') KNOB.lifts = +arg;
       if (k === 'weigh') KNOB.weigh = arg;
       if (k === 'recovery') KNOB.recovery = arg === '1';
       if (k === 'checkin') KNOB.checkin = arg === '1';
       if (k === 'hydration') KNOB.hydration = arg === '1';
+      if (k === 'photo') KNOB.photoProof = arg === '1';
+      if (k === 'hydoz') KNOB.hydrationOz = +arg;
+      // Applying a template only fills the knobs — it never writes the DB directly. The
+      // coach still reviews the preview card and hits the existing Save to publish.
+      if (k === 'tpl') {
+        const tpl = TPL && TPL.rows && TPL.rows.find(t => String(t.id) === arg);
+        if (tpl) KNOB = { key: KNOB.key, ...knobsFromItems(tpl.items) };
+      }
+      if (k === 'tplsave') SHOW_TPL_SAVE = !SHOW_TPL_SAVE;
       window.__render();
     }));
+    const tplSaveBtn = root.querySelector('#tpl-save-btn');
+    if (tplSaveBtn) tplSaveBtn.addEventListener('click', async () => {
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      const name = ((root.querySelector('#tpl-name') || {}).value || '').trim();
+      if (!name) { say('Name the template first.', true); return; }
+      if (!teamId) { say('Your team hasn’t loaded yet — give it a second.', true); return; }
+      tplSaveBtn.disabled = true; say('Saving template…');
+      const r = await roles.saveRequirementTemplate(teamId, name, 'custom', itemsFromKnobs(KNOB));
+      tplSaveBtn.disabled = false;
+      if (!r.ok) { say(r.error || 'Could not save the template.', true); return; }
+      SHOW_TPL_SAVE = false;
+      say('Template saved.');
+      await loadTemplates(true);
+    });
     const save = root.querySelector('#set-save');
     if (save) save.addEventListener('click', async () => {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (!teamId) { say('Your team hasn’t loaded yet — give it a second.', true); return; }
+      const { wins } = resolveMeals(KNOB);
+      for (let i = 0; i < wins.length; i++) {
+        const w = wins[i];
+        if (w.due == null) { say(`Meal ${i + 1}'s window closes before it opens — fix the times.`, true); return; }
+        if (w.open != null && !(w.open < w.due)) { say(`Meal ${i + 1}'s window closes before it opens — fix the times.`, true); return; }
+      }
       save.disabled = true; say('Saving…');
       const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB));
       save.disabled = false;
@@ -550,6 +726,23 @@ export const coachPlanSet = {
    Replaces the Copilot TAB (the copilot screen stays routable for deep links).
    Briefing = deterministic reads over the real roster — never narrated fiction.
    Then: join requests (act here), unopened logs (the feed's unseen dots as a list). */
+
+/* Recent-announcements cache for the compact Inbox block below (Slice C, 0074). Its own
+   fetch, not shared with coach-announce.js's history — that screen may not have mounted
+   yet, and this block only ever needs the newest 3. Honest empty state: the section is
+   absent entirely with zero announcements (Slice D turns this into a real category). */
+let ANN_CACHE = null; // { teamId, rows }
+let annLoadingId = null;
+async function loadAnnouncements(teamId) {
+  if (!teamId) return;
+  if (ANN_CACHE && ANN_CACHE.teamId === teamId) return;
+  if (annLoadingId === teamId) return;
+  annLoadingId = teamId;
+  try { ANN_CACHE = { teamId, rows: await roles.fetchAnnouncements(teamId, 3) }; }
+  finally { annLoadingId = null; }
+  if (location.hash === '#coach-inbox') window.__render();
+}
+
 export const coachInbox = {
   nav: 'coach', tab: 'inbox',
   badge() {
@@ -620,11 +813,36 @@ export const coachInbox = {
     </section>` : `
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">You've opened everything the roster has logged. New meals land here with a dot.</div>`}
 
+    ${(() => {
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      const annRows = ANN_CACHE && ANN_CACHE.teamId === teamId ? ANN_CACHE.rows : [];
+      // Honest empty state: no section at all with zero announcements, not an empty card.
+      if (!annRows.length) return '';
+      const groups = (CD.extras && CD.extras.groups) || [];
+      return `
+    <div class="eyebrow">Announcements</div>
+    <section class="card" style="padding:6px 16px">
+      ${annRows.map(a => `
+      <div class="lrow" data-go="coach-announce" style="cursor:pointer">
+        <div class="lic">${icon('share', 17)}</div>
+        <div class="lm"><div class="lt">${esc(a.title)}</div><div class="ls">${esc(audienceLabel(a.scope_kind, a.scope_value, groups))} · ${esc(fmtWhen(a.created_at, Date.now()))}</div></div>
+      </div>`).join('')}
+      <div class="lrow" data-go="coach-announce" style="cursor:pointer">
+        <div class="lic">${icon('plus', 17)}</div>
+        <div class="lm"><div class="lt">New announcement</div></div>
+      </div>
+    </section>`;
+    })()}
+
     <div style="height:10px"></div>
     `;
   },
   mount(root) {
-    loadCoachRoster().then(() => loadActivity());
+    loadCoachRoster().then(() => {
+      loadActivity();
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      if (teamId) loadAnnouncements(teamId);
+    });
     root.querySelectorAll('[data-jr]').forEach(b => b.addEventListener('click', async () => {
       const team = b.getAttribute('data-team'), ath = b.getAttribute('data-ath');
       b.disabled = true; b.textContent = '…';

@@ -19,6 +19,7 @@ import { coachAthlete, coachMeal, coachAssign, coachPlan, coachPlanSet, coachInb
 import { coachHome } from './coach-home.js';
 import { coachRoster } from './coach-roster.js';
 import { coachCreate } from './coach-create.js';
+import { coachAnnounce } from './coach-announce.js';
 import { coachInsights } from './coach-insights.js';
 import states from './states.js';
 import requirement from './requirement.js';
@@ -59,6 +60,7 @@ export const screens = {
   'coach-home': coachHome, coach: coachHome,     // alias — old route renders the new Home
   'coach-roster': coachRoster,
   'coach-create': coachCreate,
+  'coach-announce': coachAnnounce,
   'coach-insights': coachInsights,
   'coach-athlete': coachAthlete,
   'coach-meal': coachMeal,

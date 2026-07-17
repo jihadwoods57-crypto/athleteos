@@ -380,6 +380,119 @@ select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, ro
                          'aaaaaaaa-0000-0000-0000-000000000001', 'athlete', 'hi', 'invalid-kind')$q$) <> 'ok',
            '0049: kind is constrained to message|reaction');
 
+-- ================================================================ COACH OS SLICE C: announcements
+-- Placed here (before section 8's revocation): post_announcement's team-scope fan-out reads
+-- team_members WHERE status = 'active', and section 8 flips athlete A's T1 membership to
+-- 'removed' — an assertion that A gets notified must run before that revocation.
+-- Seed positions on T1's roster so the position-scope probe (below) has something to match.
+select _superuser();
+update team_members set position = 'QB'
+  where team_id = '77777777-1111-0000-0000-000000000001' and athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+update team_members set position = 'WR'
+  where team_id = '77777777-1111-0000-0000-000000000001' and athlete_id = 'dddddddd-0000-0000-0000-000000000004';
+
+insert into announcements (id, team_id, author_id, scope_kind, title, body) values
+  ('a0000000-0000-0000-0000-000000000001','77777777-1111-0000-0000-000000000001',
+   '11111111-0000-0000-0000-000000000001','team','Practice moved','Practice starts at 6am tomorrow.');
+
+select _as('11111111-0000-0000-0000-000000000001');  -- coach_1, staff of T1
+select _ok((select count(*) from announcements) = 1, 'coach_1 (T1 staff) can read T1''s announcement');
+
+select _as('aaaaaaaa-0000-0000-0000-000000000001');  -- athlete A, non-staff member of T1
+select _ok((select count(*) from announcements) = 0, 'non-staff athlete A cannot read T1''s announcement');
+
+select _as('22222222-0000-0000-0000-000000000002');  -- coach_2, staff of a DIFFERENT team (T2)
+select _ok((select count(*) from announcements) = 0, 'coach_2 (staff of a different team) cannot read T1''s announcement');
+
+-- direct insert is RPC-only: no insert policy exists on announcements at all.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($q$insert into announcements (team_id, author_id, scope_kind, title, body)
+                 values ('77777777-1111-0000-0000-000000000001','11111111-0000-0000-0000-000000000001','team','Direct insert','Should fail')$q$) <> 'ok',
+           'direct insert into announcements FAILS — writes must go through post_announcement');
+
+-- post_announcement: team scope fans out to every active member and notifies each.
+select _superuser();
+delete from notifications where user_id in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004');
+select _as('11111111-0000-0000-0000-000000000001');
+select post_announcement('77777777-1111-0000-0000-000000000001','team',null,'Team meeting','Meet at the field house at 7am.');
+-- notifications are owner-read (notif_read: user_id = auth.uid()); coach_1 cannot see the
+-- athletes' feed rows under RLS. Verify the fan-out from superuser (same idiom as the
+-- profile-name check in section 3).
+select _superuser();
+select _ok((select count(*) from notifications where user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and kind = 'announcement') = 1,
+           'post_announcement (team scope) notifies athlete A');
+select _ok((select count(*) from notifications where user_id = 'dddddddd-0000-0000-0000-000000000004' and kind = 'announcement') = 1,
+           'post_announcement (team scope) notifies minor M');
+
+-- as an athlete (non-staff), the RPC raises 'not team staff'.
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok(_try($q$select post_announcement('77777777-1111-0000-0000-000000000001','team',null,'Fake','Not staff')$q$) like '%not team staff%',
+           'athlete A cannot post_announcement — RPC raises not team staff');
+
+-- position scope: only the matching position gets notified.
+select _superuser();
+delete from notifications where user_id in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004') and kind = 'announcement';
+select _as('11111111-0000-0000-0000-000000000001');
+select post_announcement('77777777-1111-0000-0000-000000000001','position','QB','QB meeting','Film room, 8am.');
+select _superuser();  -- owner-read notifications: verify the fan-out from superuser
+select _ok((select count(*) from notifications where user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and kind = 'announcement') = 1,
+           'post_announcement (position=QB) notifies the QB (athlete A)');
+select _ok((select count(*) from notifications where user_id = 'dddddddd-0000-0000-0000-000000000004' and kind = 'announcement') = 0,
+           'post_announcement (position=QB) does NOT notify the WR (minor M)');
+
+-- ================================================================ COACH OS SLICE C: requirement_templates
+select _as('11111111-0000-0000-0000-000000000001');  -- coach_1, staff of T1
+select _ok(_try($q$insert into requirement_templates (id, team_id, name, kind, items) values
+  ('b0000000-0000-0000-0000-000000000001','77777777-1111-0000-0000-000000000001','Game Week','game_week',
+   '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"},{"id":"l1","title":"Lift","kind":"lift","proof":"check"}]'::jsonb)$q$) = 'ok',
+           'coach_1 CAN insert a requirement_template for T1');
+select _ok(_try($q$update requirement_templates set name = 'Game Week (Away)' where id = 'b0000000-0000-0000-0000-000000000001'$q$) = 'ok',
+           'coach_1 CAN update T1''s requirement_template');
+select _ok((select count(*) from requirement_templates where id = 'b0000000-0000-0000-0000-000000000001') = 1,
+           'coach_1 sees T1''s requirement_template');
+
+select _as('22222222-0000-0000-0000-000000000002');  -- coach_2, staff of a DIFFERENT team (T2)
+select _ok((select count(*) from requirement_templates) = 0, 'cross-team coach_2 cannot see T1''s requirement_templates');
+select _ok(_try($q$update requirement_templates set name = 'pwned' where id = 'b0000000-0000-0000-0000-000000000001'$q$) = 'ok',
+           'cross-team coach_2''s update statement runs (RLS silently matches 0 rows)');
+select _superuser();
+select _ok((select name from requirement_templates where id = 'b0000000-0000-0000-0000-000000000001') = 'Game Week (Away)',
+           'cross-team coach_2 did not actually change T1''s requirement_template (0 rows updated)');
+select _as('22222222-0000-0000-0000-000000000002');  -- back to coach_2: the insert/delete below must be RLS-enforced, not run as the superuser from the verify above
+select _ok(_try($q$insert into requirement_templates (team_id, name, kind, items) values
+  ('77777777-1111-0000-0000-000000000001','Sneaky','custom','[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb)$q$) <> 'ok',
+           'cross-team coach_2 cannot insert a requirement_template into T1');
+select _ok(_try($q$delete from requirement_templates where id = 'b0000000-0000-0000-0000-000000000001'$q$) = 'ok',
+           'cross-team coach_2''s delete statement runs (RLS silently matches 0 rows)');
+select _superuser();
+select _ok((select count(*) from requirement_templates where id = 'b0000000-0000-0000-0000-000000000001') = 1,
+           'cross-team coach_2 did not actually delete T1''s requirement_template (0 rows deleted)');
+
+select _as('aaaaaaaa-0000-0000-0000-000000000001');  -- athlete A, non-staff member of T1
+select _ok((select count(*) from requirement_templates) = 0, 'non-staff athlete A cannot see T1''s requirement_templates');
+select _ok(_try($q$insert into requirement_templates (team_id, name, kind, items) values
+  ('77777777-1111-0000-0000-000000000001','Athlete Sneaky','custom','[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb)$q$) <> 'ok',
+           'non-staff athlete A cannot insert a requirement_template');
+select _ok(_try($q$delete from requirement_templates where id = 'b0000000-0000-0000-0000-000000000001'$q$) = 'ok',
+           'non-staff athlete A''s delete statement runs (RLS silently matches 0 rows)');
+select _superuser();
+select _ok((select count(*) from requirement_templates where id = 'b0000000-0000-0000-0000-000000000001') = 1,
+           'non-staff athlete A did not actually delete T1''s requirement_template (0 rows deleted)');
+
+select _as('11111111-0000-0000-0000-000000000001');  -- coach_1, staff of T1 — the legitimate delete
+select _ok(_try($q$delete from requirement_templates where id = 'b0000000-0000-0000-0000-000000000001'$q$) = 'ok',
+           'coach_1 CAN delete T1''s own requirement_template');
+select _superuser();
+select _ok((select count(*) from requirement_templates where id = 'b0000000-0000-0000-0000-000000000001') = 0,
+           'coach_1''s delete actually removed the row');
+
+-- item-window rail: an out-of-range window.due (>1439) fails the check constraint.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($q$insert into requirement_templates (team_id, name, kind, items) values
+  ('77777777-1111-0000-0000-000000000001','Bad Window','custom',
+   '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo","window":{"due":2000}}]'::jsonb)$q$) <> 'ok',
+           'requirement_template insert with window.due=2000 FAILS the items-valid check');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'
