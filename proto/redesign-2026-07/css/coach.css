@@ -1,0 +1,252 @@
+/* OnStandard — Coach OS design layer ("Command Center")
+   Namespaced (.co-*) so it never fights the athlete-side component specificity.
+   Signature: the Standing Bar — the coach's glanceable answer to the athlete score ring.
+   Everything derives from tokens.css (spacing --s*, semantic hues, blue->teal ring stops). */
+
+/* ---------- shared rhythm ---------- */
+.co-scroll { overflow-x: auto; scrollbar-width: none; }
+.co-scroll::-webkit-scrollbar { display: none; }
+.co-eyebrow {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-3); margin: var(--s6) 2px var(--s3);
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3);
+}
+.co-eyebrow .n { color: var(--blue-bright); letter-spacing: 0.02em; font-size: 12px; }
+.co-eyebrow.tight { margin-top: var(--s4); }
+.co-note { font-size: 12.5px; font-weight: 600; color: var(--text-3); line-height: 1.5; margin: 2px 2px var(--s2); }
+
+/* ============================================================
+   SIGNATURE — Team Pulse "Standing Bar"
+   A wide calm band: the group score in the blue->teal signature, the roster's
+   real standing as one proportional bar, a restrained aurora glow beneath.
+   ============================================================ */
+.co-pulse {
+  position: relative;
+  border-radius: var(--r-card);
+  background:
+    radial-gradient(120% 140% at 12% -10%, rgba(34,211,238,0.10), transparent 55%),
+    var(--surface-1);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--sh-card);
+  padding: var(--s5) var(--s5) var(--s4);
+  overflow: hidden;
+}
+/* aurora echo — one soft blue->teal bloom, ties the coach hero to the athlete ring */
+.co-pulse::before {
+  content: ''; position: absolute; z-index: 0; inset: auto -20% -60% -20%; height: 150px;
+  background: radial-gradient(60% 100% at 30% 100%, rgba(52,211,153,0.16), transparent 60%),
+              radial-gradient(60% 100% at 75% 100%, rgba(59,130,246,0.18), transparent 62%);
+  filter: blur(24px); opacity: 0.9; pointer-events: none;
+}
+.co-pulse > * { position: relative; z-index: 1; }
+.co-pulse-top { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s4); }
+.co-pulse-score .k {
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 2px;
+}
+.co-pulse-score .num {
+  font-size: 60px; font-weight: 800; line-height: 0.9; letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(105deg, var(--ring-a), var(--ring-b) 46%, var(--ring-c));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.co-pulse-score .delta { font-size: 13px; font-weight: 800; margin-top: var(--s2); display: inline-flex; align-items: center; gap: 5px; }
+.co-pulse-score .delta.up { color: var(--green-bright); }
+.co-pulse-score .delta.down { color: #FF9B9B; }
+.co-pulse-score .delta.flat { color: var(--text-3); }
+.co-pulse-done { text-align: right; flex: none; }
+.co-pulse-done .v { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); font-variant-numeric: tabular-nums; }
+.co-pulse-done .k { font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-top: 1px; }
+
+/* the standing bar itself */
+.co-standing {
+  display: flex; gap: 3px; height: 12px; margin-top: var(--s4);
+  border-radius: var(--r-pill); overflow: hidden;
+}
+.co-standing .seg { height: 100%; border-radius: 3px; min-width: 4px; transform-origin: left; }
+.co-standing .seg.g { background: linear-gradient(90deg, var(--green), var(--green-bright)); }
+.co-standing .seg.a { background: linear-gradient(90deg, var(--amber), var(--amber-bright)); }
+.co-standing .seg.r { background: var(--red); }
+.co-standing .seg.d { background: var(--surface-3); }
+@media (prefers-reduced-motion: no-preference) {
+  .view .co-standing .seg { animation: coSeg var(--dur-3) var(--ease-out) both; }
+  @keyframes coSeg { from { transform: scaleX(0); opacity: 0.4; } to { transform: scaleX(1); opacity: 1; } }
+}
+.co-legend { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); margin-top: var(--s3); }
+.co-legend .it { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text-2); }
+.co-legend .it .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.co-legend .it b { color: var(--text); font-variant-numeric: tabular-nums; }
+.dot.g { background: var(--green-bright); } .dot.a { background: var(--amber-bright); }
+.dot.r { background: var(--red); } .dot.d { background: var(--text-3); } .dot.b { background: var(--blue-bright); }
+
+/* tappable affordance for the whole pulse (explain-the-score) */
+.co-pulse[data-go], .co-pulse.tappable { cursor: pointer; transition: transform var(--dur-1) var(--ease-out); }
+.co-pulse[data-go]:active, .co-pulse.tappable:active { transform: scale(0.992); }
+
+/* slim recurring motif — a standing bar as a header accent (scope views, roster) */
+.co-standing.slim { height: 6px; margin-top: var(--s3); }
+
+/* ============================================================
+   Segmented switcher — single row, horizontal scroll, no wrap
+   ============================================================ */
+.co-seg {
+  display: flex; gap: var(--s2); padding: 2px 0 var(--s2); margin: 0 -2px;
+}
+.co-seg .co-chip {
+  flex: none; height: 34px; padding: 0 15px; border-radius: var(--r-pill);
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  color: var(--text-2); font-family: var(--font); font-size: 13px; font-weight: 700;
+  letter-spacing: -0.005em; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.co-seg .co-chip:active { transform: scale(0.96); }
+.co-seg .co-chip.on {
+  background: var(--surface-3); color: var(--text); border-color: var(--hairline);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.co-seg .co-chip .cnt {
+  font-size: 11px; font-weight: 800; color: var(--text-3); font-variant-numeric: tabular-nums;
+}
+.co-seg .co-chip.on .cnt { color: var(--blue-bright); }
+/* filter variant carries a leading status dot */
+.co-seg .co-chip .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+
+/* ============================================================
+   Priority card — ranked, calm, one primary action
+   ============================================================ */
+.co-pri {
+  position: relative; background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: var(--r-tile); box-shadow: var(--sh-card);
+  padding: var(--s4); margin-bottom: var(--s3); overflow: hidden;
+}
+.co-pri::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+.co-pri.t-critical::before { background: var(--red); }
+.co-pri.t-below::before { background: var(--amber-bright); }
+.co-pri.t-due::before { background: var(--blue-bright); }
+.co-pri-head { display: flex; align-items: flex-start; gap: var(--s3); cursor: pointer; }
+.co-pri-rank {
+  flex: none; width: 22px; font-size: 13px; font-weight: 800; color: var(--text-3);
+  font-variant-numeric: tabular-nums; line-height: 1.5; padding-top: 1px;
+}
+.co-pri-main { flex: 1; min-width: 0; }
+.co-pri-name { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.co-pri-name .pos { font-size: 12px; font-weight: 700; color: var(--text-3); }
+.co-pri-reason { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top: 3px; line-height: 1.45; }
+.co-pri-action { font-size: 12px; font-weight: 800; color: var(--blue-bright); margin-top: 5px; display: inline-flex; align-items: center; gap: 5px; }
+.co-pri-score { flex: none; font-size: 22px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; padding-top: 1px; }
+.co-tier {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: var(--r-pill);
+}
+.co-tier.t-critical { color: #FF9B9B; background: var(--red-surface); }
+.co-tier.t-below { color: var(--amber-bright); background: var(--amber-surface); }
+.co-tier.t-due { color: var(--blue-bright); background: var(--blue-surface); }
+/* action row: one primary + subordinate ghosts */
+.co-pri-acts { display: flex; gap: var(--s2); margin-top: var(--s3); }
+.co-abtn {
+  flex: 1; height: 36px; border-radius: var(--r-chip); border: 1px solid var(--hairline);
+  background: var(--surface-2); color: var(--text); font-family: var(--font);
+  font-size: 12.5px; font-weight: 700; cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; gap: 6px;
+  transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
+}
+.co-abtn:active { transform: scale(0.97); }
+.co-abtn.primary { flex: 1.4; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(37,99,235,0.30); }
+.co-abtn.primary.warn { background: linear-gradient(150deg, #F87171, var(--red)); box-shadow: 0 6px 18px rgba(246,87,87,0.28); }
+.co-abtn:disabled { opacity: 0.5; }
+.co-pstatus { font-size: 11px; font-weight: 600; color: var(--text-3); min-height: 0; margin-top: 6px; }
+
+/* ============================================================
+   Status line — dot + calm label (red demoted from big display color)
+   ============================================================ */
+.co-status { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; }
+.co-status .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.co-status .lbl { color: var(--text-2); }
+.co-status.crit .lbl { color: #FF9B9B; }   /* only genuine critical gets warm text, and small */
+
+/* ============================================================
+   Stat tiles (score / completion / streak) — clean, tabular
+   ============================================================ */
+.co-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s3); }
+.co-tiles.two { grid-template-columns: repeat(2, 1fr); }
+.co-stat {
+  background: var(--surface-2); border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-tile); padding: var(--s4) var(--s3); text-align: left;
+}
+.co-stat .v { font-size: 26px; font-weight: 800; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--text); }
+.co-stat .v.g { color: var(--green-bright); } .co-stat .v.a { color: var(--amber-bright); } .co-stat .v.r { color: #FF9B9B; } .co-stat .v.b { color: var(--blue-bright); }
+.co-stat .v small { font-size: 13px; font-weight: 700; color: var(--text-3); letter-spacing: 0; }
+.co-stat .k { font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-top: 7px; }
+
+/* ============================================================
+   Athlete profile — identity header + slim action bar
+   ============================================================ */
+.co-actionbar { display: flex; gap: var(--s2); margin: var(--s2) 0 var(--s4); }
+.co-act {
+  flex: 1; min-width: 0; height: 58px; border-radius: var(--r-tile);
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  color: var(--text-2); cursor: pointer; font-family: var(--font);
+  transition: transform var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.co-act:active { transform: scale(0.95); }
+.co-act:hover { color: var(--text); }
+.co-act .lbl { font-size: 10px; font-weight: 800; letter-spacing: 0.02em; }
+.co-act.hero { background: var(--blue-surface); border-color: var(--blue-border); color: var(--blue-bright); }
+.co-act:disabled { opacity: 0.5; }
+
+/* ============================================================
+   7-day trend — a real, legible sparkline card
+   ============================================================ */
+.co-trend { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-tile); box-shadow: var(--sh-card); padding: var(--s4); }
+.co-trend-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--s3); }
+.co-trend-top .lbl { font-size: 12.5px; font-weight: 700; color: var(--text-2); }
+.co-trend-top .rng { font-size: 11.5px; font-weight: 700; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.co-trend svg { display: block; width: 100%; height: 60px; }
+.co-trend-x { display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: 0.02em; }
+
+/* ============================================================
+   Timeline (Activity) — one calm vertical rail
+   ============================================================ */
+.co-tl { position: relative; padding-left: var(--s5); }
+.co-tl::before { content: ''; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 2px; background: var(--hairline); border-radius: 2px; }
+.co-tl-item { position: relative; padding: 0 0 var(--s4); }
+.co-tl-item::before { content: ''; position: absolute; left: calc(-1 * var(--s5) + 1px); top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--surface-3); border: 2px solid var(--bg); }
+.co-tl-item.i-meal::before { background: var(--green-bright); }
+.co-tl-item.i-coach::before { background: var(--blue-bright); }
+.co-tl-item.i-weight::before { background: var(--cyan); }
+.co-tl-when { font-size: 11px; font-weight: 700; color: var(--text-3); }
+.co-tl-what { font-size: 13.5px; font-weight: 700; color: var(--text); margin-top: 1px; }
+.co-tl-what .sub { color: var(--text-2); font-weight: 600; }
+
+/* ============================================================
+   Intentional empty / honest-pending composition
+   ============================================================ */
+.co-empty { text-align: center; padding: var(--s7) var(--s5); }
+.co-empty .ic {
+  width: 56px; height: 56px; border-radius: 18px; margin: 0 auto var(--s4);
+  display: grid; place-items: center; color: var(--blue-bright);
+  background: var(--blue-surface); border: 1px solid var(--blue-border);
+}
+.co-empty .tt { font-size: 15.5px; font-weight: 800; letter-spacing: -0.01em; }
+.co-empty .ts { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.55; margin-top: 6px; max-width: 30ch; margin-left: auto; margin-right: auto; }
+
+/* ============================================================
+   Notes — private, warm-tinted, clearly staff-only
+   ============================================================ */
+.co-notebanner {
+  display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4);
+  border-radius: var(--r-tile); background: var(--purple-surface); border: 1px solid var(--purple-border);
+  font-size: 12.5px; font-weight: 700; color: var(--purple-bright); line-height: 1.4;
+}
+.co-notebanner .ic { flex: none; }
+.co-notebanner b { color: var(--text); font-weight: 700; }
+.co-note-row { display: flex; gap: var(--s3); padding: var(--s4) 0; border-bottom: 1px solid var(--hairline-soft); }
+.co-note-row:last-child { border-bottom: none; }
+.co-note-row .who { font-size: 12px; font-weight: 800; color: var(--text-2); }
+.co-note-row .when { font-size: 11px; font-weight: 700; color: var(--text-3); }
+.co-note-row .body { font-size: 13.5px; font-weight: 500; color: var(--text); line-height: 1.5; margin-top: 3px; }
+
+/* bottom breathing room so panes/composers clear the tab bar */
+.co-bottom { height: var(--s8); }

@@ -50,15 +50,20 @@ function applyView(entries) {
 function rosterRow(e) {
   const r = e.row, st = e.status, meta = STATUS_META[st.key];
   const sel = SEL.has(r.athleteId);
+  // One calm status signal: a colored dot on the left. The label reads in quiet text-2,
+  // not saturated body text — a roster full of red type reads as panic, not information.
+  const scoreCol = r.score == null ? 'var(--text-3)' : r.score >= 80 ? 'var(--green-bright)' : r.score >= 60 ? 'var(--amber-bright)' : '#FF9B9B';
   return `
   <div class="roster-row" ${SELECTING ? `data-sel="${esc(r.athleteId)}"` : `data-go="coach-athlete/${esc(r.athleteId)}"`}>
-    ${SELECTING ? `<div style="width:20px;height:20px;border-radius:6px;border:2px solid ${sel ? 'var(--green-bright)' : 'var(--hairline)'};background:${sel ? 'var(--green-bright)' : 'transparent'};display:grid;place-items:center;flex:none">${sel ? '✓' : ''}</div>` : `<div class="flagdot ${r.flag}"></div>`}
+    ${SELECTING
+      ? `<div style="width:20px;height:20px;border-radius:6px;border:2px solid ${sel ? 'var(--green-bright)' : 'var(--hairline)'};background:${sel ? 'var(--green-bright)' : 'transparent'};display:grid;place-items:center;flex:none;color:#04140b;font-weight:900;font-size:12px">${sel ? '✓' : ''}</div>`
+      : `<span style="width:9px;height:9px;border-radius:50%;background:${meta.color};flex:none;box-shadow:0 0 8px ${meta.color}40"></span>`}
     <div class="rn">
       <div class="t">${esc(r.name)}${r.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(r.unit)}</small>` : ''}</div>
-      <div class="s"><span style="color:${meta.color};font-weight:800">${meta.label}</span> · ${esc(lastActivityLabel(r.lastMealAt))}</div>
+      <div class="s" style="color:var(--text-2)">${esc(meta.label)} <span style="color:var(--text-3)">· ${esc(lastActivityLabel(r.lastMealAt))}</span></div>
     </div>
     ${sparkline(r.scoreHistory)}
-    <span class="rs" style="color:${r.score == null ? 'var(--text-3)' : r.score >= 80 ? 'var(--green-bright)' : r.score >= 60 ? 'var(--amber-bright)' : 'var(--red)'};margin-left:8px">${r.score != null ? r.score : '—'}</span>
+    <span class="rs" style="color:${scoreCol};margin-left:8px">${r.score != null ? r.score : '—'}</span>
   </div>`;
 }
 
@@ -180,19 +185,19 @@ export const coachRoster = {
     const positions = [...new Set(entries.map(e => (e.row.position || '').toUpperCase()).filter(Boolean))].sort();
     const groups = (CD.extras && CD.extras.groups) || [];
     const list = applyView(entries);
-    const fchip = (kind, value, label) => {
+    const fchip = (kind, value, label, dotColor) => {
       const on = FILTER.kind === kind && String(FILTER.value || '') === String(value || '');
-      return `<button class="btn ${on ? 'green' : 'ghost'} sm" data-filter="${esc(kind)}:${esc(value == null ? '' : value)}" style="width:auto;padding:0 11px;height:29px;flex:none">${esc(label)}</button>`;
+      return `<button class="co-chip ${on ? 'on' : ''}" data-filter="${esc(kind)}:${esc(value == null ? '' : value)}">${dotColor ? `<span class="dot" style="background:${dotColor}"></span>` : ''}${esc(label)}</button>`;
     };
     return `${head}
-    <div style="display:flex;gap:7px;margin-bottom:8px">
-      <input class="ob-input" id="roster-q" placeholder="Search athletes" value="${esc(Q)}" style="flex:1;height:36px" />
-      <button class="btn ghost sm" data-sort style="width:auto;padding:0 11px;height:36px">${{ score: 'Score ↓', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
-      <button class="btn ${SELECTING ? 'green' : 'ghost'} sm" data-selmode style="width:auto;padding:0 11px;height:36px">${SELECTING ? 'Done' : 'Select'}</button>
+    <div style="display:flex;gap:var(--s2);margin-bottom:var(--s3)">
+      <input class="ob-input" id="roster-q" placeholder="Search athletes" value="${esc(Q)}" style="flex:1;height:38px" />
+      <button class="btn ghost sm" data-sort style="width:auto;padding:0 12px;height:38px">${{ score: 'Score ↓', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
+      <button class="btn ${SELECTING ? 'green' : 'ghost'} sm" data-selmode style="width:auto;padding:0 12px;height:38px">${SELECTING ? 'Done' : 'Select'}</button>
     </div>
-    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin:0 -2px 4px">
-      ${fchip('all', '', 'All')}${STATUS_ORDER.map(k => fchip('status', k, STATUS_META[k].label)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
-      <button class="btn ghost sm" data-groups style="width:auto;padding:0 11px;height:29px;flex:none">＋ Group</button>
+    <div class="co-seg co-scroll">
+      ${fchip('all', '', 'All')}${STATUS_ORDER.map(k => fchip('status', k, STATUS_META[k].label, STATUS_META[k].color)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
+      <button class="co-chip" data-groups>＋ Group</button>
     </div>
     ${SHOW_GROUPS ? groupSheet(groups) : ''}
     ${SHOW_ABSENCE ? absenceSheet() : ''}

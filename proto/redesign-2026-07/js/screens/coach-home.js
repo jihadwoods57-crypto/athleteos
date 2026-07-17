@@ -43,56 +43,64 @@ function scopeSheet() {
   </section>`;
 }
 
+/* SIGNATURE — Team Pulse standing bar: the group score in the blue→teal signature,
+   the roster's real live standing as one honest proportional bar. */
 function pulseCard(rows, statuses) {
   const p = teamPulse(rows, statuses, roles.todayISO());
   if (p.avg == null && !rows.length) return '';
+  const keys = Object.values(statuses).map(s => s.key);
+  const count = (pred) => keys.filter(pred).length;
+  const g = count(k => k === 'on_standard');
+  const a = count(k => k === 'due_soon' || k === 'below_standard' || k === 'needs_review');
+  const r = count(k => k === 'overdue');
+  const d = count(k => k === 'no_activity' || k === 'excused');
+  const seg = (cls, c) => c ? `<span class="seg ${cls}" style="flex:${c}"></span>` : '';
+  const leg = (cls, c, label) => c ? `<span class="it"><span class="dot ${cls}"></span><b>${c}</b> ${label}</span>` : '';
   const delta = p.deltaVsYesterday;
-  const deltaTxt = delta == null ? '' : `<span style="font-size:12px;font-weight:800;color:${delta >= 0 ? 'var(--green-bright)' : 'var(--red)'}">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)} vs yesterday</span>`;
-  const cell = (v, k, color) => `<div style="flex:1;text-align:center"><div style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;color:${color}">${v}</div><div style="font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3)">${k}</div></div>`;
+  const dCls = delta == null ? 'flat' : delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+  const dTxt = delta == null ? 'First day of data' : delta === 0 ? 'Even with yesterday'
+    : `${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)} vs yesterday`;
+  const scored = rows.filter(x => x.score != null).length;
   return `
-  <section class="card" data-pulse style="padding:15px 18px;cursor:pointer">
-    <div style="display:flex;align-items:center;gap:16px">
-      <div style="flex:none">
-        <div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px">Group score</div>
-        <div style="font-size:42px;font-weight:800;letter-spacing:-0.04em;line-height:1;font-variant-numeric:tabular-nums;background:linear-gradient(105deg,var(--ring-a),var(--ring-b) 45%,var(--ring-c));-webkit-background-clip:text;background-clip:text;color:transparent">${p.avg != null ? p.avg : '—'}</div>
-        ${deltaTxt}
+  <section class="co-pulse tappable" data-pulse>
+    <div class="co-pulse-top">
+      <div class="co-pulse-score">
+        <div class="k">Group score</div>
+        <div class="num">${p.avg != null ? p.avg : '—'}</div>
+        <div class="delta ${dCls}">${esc(dTxt)}</div>
       </div>
-      <div style="flex:1;display:flex;border-left:1px solid var(--hairline-soft);padding-left:10px">
-        ${cell(p.onStandard, 'On std', 'var(--green-bright)')}
-        ${cell(p.dueSoon, 'Due soon', 'var(--amber-bright)')}
-        ${cell(p.overdue, 'Overdue', 'var(--red)')}
-        ${cell(p.completionPct != null ? p.completionPct + '%' : '—', 'Done', 'var(--blue-bright)')}
-      </div>
+      <div class="co-pulse-done"><div class="v">${p.completionPct != null ? p.completionPct + '%' : '—'}</div><div class="k">Done today</div></div>
     </div>
-    ${SHOW_PULSE ? `
-    <div style="border-top:1px solid var(--hairline-soft);margin-top:12px;padding-top:10px;font-size:12px;font-weight:600;color:var(--text-2);line-height:1.6">
-      The group score is the average of today's real athlete scores (${rows.filter(r => r.score != null).length} of ${rows.length} scored so far).
-      Completion counts every required item across the group — ${p.completionPct != null ? p.completionPct + '% done' : 'no requirements resolved yet'}.
-      Nothing here is estimated: an athlete with no log contributes no score.
-    </div>` : ''}
+    <div class="co-standing">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
+    <div class="co-legend">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>
+    ${SHOW_PULSE ? `<div style="border-top:1px solid var(--hairline-soft);margin-top:var(--s3);padding-top:var(--s3);font-size:12px;font-weight:600;color:var(--text-2);line-height:1.6">The group score averages today's real athlete scores (${scored} of ${rows.length} scored so far). The bar is your roster's live standing — nothing is estimated; an athlete with no log adds no score.</div>` : ''}
   </section>`;
 }
 
+/* Ranked priority — calm hierarchy, one primary action by tier, the rest subordinate. */
 function priorityCard(c, i, nudgedToday) {
-  const tierMeta = { critical: ['CRITICAL', 'var(--red)'], below: ['BELOW STANDARD', 'var(--amber-bright)'], due_soon: ['DUE SOON', 'var(--blue-bright)'] }[c.tier];
+  const tier = c.tier === 'critical' ? 'critical' : c.tier === 'below' ? 'below' : 'due';
+  const tierLbl = { critical: 'Critical', below: 'Below standard', due: 'Due soon' }[tier];
+  const scoreCol = c.score == null ? '' : c.score >= 80 ? 'var(--green-bright)' : c.score >= 60 ? 'var(--amber-bright)' : '#FF9B9B';
+  const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
+  const nudgeCls = !openPrimary ? (tier === 'critical' ? 'primary warn' : 'primary') : '';
   return `
-  <div class="card" style="padding:13px 15px;border-left:3px solid ${tierMeta[1]}">
-    <div style="display:flex;align-items:center;gap:10px;cursor:pointer" data-go="coach-athlete/${esc(c.athleteId)}">
-      <span style="font-size:15px;font-weight:800;color:var(--text-3);flex:none">${i + 1}</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13.5px;font-weight:800">${esc(c.name)}${c.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(c.unit)}</small>` : ''} <span style="font-size:9px;font-weight:800;letter-spacing:0.1em;color:${tierMeta[1]}">${tierMeta[0]}</span></div>
-        ${c.reasons.map(r => `<div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(r)}</div>`).join('')}
-        <div style="font-size:11px;font-weight:700;color:var(--blue-bright);margin-top:3px">→ ${esc(c.suggestedAction.label)}</div>
+  <div class="co-pri t-${tier}">
+    <div class="co-pri-head" data-go="coach-athlete/${esc(c.athleteId)}">
+      <div class="co-pri-rank">${i + 1}</div>
+      <div class="co-pri-main">
+        <div class="co-pri-name">${esc(c.name)}${c.unit ? `<span class="pos">${esc(c.unit)}</span>` : ''}<span class="co-tier t-${tier}">${tierLbl}</span></div>
+        ${c.reasons.map(r => `<div class="co-pri-reason">${esc(r)}</div>`).join('')}
       </div>
-      ${c.score != null ? `<span class="nw">${c.score}</span>` : ''}
+      ${c.score != null ? `<div class="co-pri-score" style="color:${scoreCol}">${c.score}</div>` : ''}
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px">
-      <button class="btn sm" data-go="coach-athlete/${esc(c.athleteId)}" style="height:32px;font-size:11.5px">Open</button>
-      <button class="btn ghost sm" data-pnudge="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" style="height:32px;font-size:11.5px" ${nudgedToday ? 'disabled' : ''}>${nudgedToday ? 'Nudged ✓' : 'Nudge'}</button>
-      <button class="btn ghost sm" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" style="height:32px;font-size:11.5px">Assign</button>
-      <button class="btn ghost sm" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" style="height:32px;font-size:11.5px">Handled</button>
+    <div class="co-pri-acts">
+      <button class="co-abtn ${openPrimary ? 'primary' : ''}" data-go="coach-athlete/${esc(c.athleteId)}">${openPrimary ? 'Review' : 'Open'}</button>
+      <button class="co-abtn ${nudgeCls}" data-pnudge="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" ${nudgedToday ? 'disabled' : ''}>${nudgedToday ? 'Nudged ✓' : 'Nudge'}</button>
+      <button class="co-abtn" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Assign</button>
+      <button class="co-abtn" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Handled</button>
     </div>
-    <div id="pstatus-${esc(c.athleteId)}" style="font-size:11px;font-weight:600;color:var(--text-3);min-height:0"></div>
+    <div class="co-pstatus" id="pstatus-${esc(c.athleteId)}"></div>
   </div>`;
 }
 
@@ -167,7 +175,7 @@ export const coachHome = {
         <div class="lm"><div class="lt" style="text-transform:capitalize">${esc(f.t)}</div></div>
         ${f.go ? '<span style="color:var(--text-3)">›</span>' : ''}
       </div>`).join('')}</section>`}
-    <div style="height:10px"></div>`;
+    <div class="co-bottom"></div>`;
   },
   mount(root) {
     loadCoachRoster().then(() => loadActivity());
