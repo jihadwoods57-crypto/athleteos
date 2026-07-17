@@ -39,7 +39,7 @@ export const coachAssign = {
     const chip = (on, label, act, arg) =>
       `<span class="chp ${on ? 'on' : ''}" data-assign="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
     return `
-    ${backHead('Assign', 'Put something on someone’s plate', 'coach')}
+    ${backHead('Assign', 'Put something on someone’s plate', 'coach-home')}
 
     <div class="eyebrow">Who</div>
     <div class="chip-row" id="as-who">
@@ -642,13 +642,13 @@ export const copilot = {
     // when the roster fetch failed, CD.roster.rows is [] with offline=true, which would otherwise
     // fall through to the empty-roster summary. Mirror the Coach/Trainer tabs' honest offline card.
     if (CD.roster && CD.roster.offline) {
-      return `${backHead('Copilot', 'Deterministic roster reads', 'coach')}
+      return `${backHead('Copilot', 'Deterministic roster reads', 'coach-home')}
       <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
       <div class="sd-t">Can't reach your roster</div>
       <div class="sd-s">Copilot reads your real team data, and we couldn't load today's scores. Reopen this tab to retry — no numbers are invented while it's down.</div></div>`;
     }
     if (rows === null) {
-      return `${backHead('Copilot', 'Deterministic roster reads', 'coach')}
+      return `${backHead('Copilot', 'Deterministic roster reads', 'coach-home')}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('sparkle', 17)}</div>
       <div><div class="tt">Loading the roster…</div><div class="ts">Copilot reads your real team data — no numbers until it loads.</div></div></div>`;
     }
@@ -661,7 +661,7 @@ export const copilot = {
         + (attention.length ? `${attention.length} need attention (no logs or off standard). ` : 'Everyone who logged is on standard. ')
         + (notLogged.length ? `${notLogged.length} haven't logged today.` : 'Everyone has logged today.');
     return `
-    ${backHead('Copilot', 'Deterministic reads over your real roster', 'coach')}
+    ${backHead('Copilot', 'Deterministic reads over your real roster', 'coach-home')}
 
     <div class="ai-note">
       <div class="av">${icon('sparkle', 18)}</div>
@@ -727,11 +727,11 @@ async function loadAthlete(athleteId, viewerId, viewerName) {
 }
 const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
 export const coachAthlete = {
-  nav: 'coach', tab: 'team',
+  nav: 'coach', tab: 'roster',
   render({ sub }) {
     const athleteId = sub;
     const who = rosterName(athleteId);
-    const head = backHead(`${esc(who.name)}${who.unit ? ` · ${esc(who.unit)}` : ''}`, 'Their day · read-only', 'coach');
+    const head = backHead(`${esc(who.name)}${who.unit ? ` · ${esc(who.unit)}` : ''}`, 'Their day · read-only', 'coach-home');
     if (!athleteId) return `${head}<div class="state-demo"><div class="sd-t">No athlete selected</div></div>`;
     if (!ATH || ATH.athleteId !== athleteId) {
       return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('user', 17)}</div>
@@ -747,7 +747,7 @@ export const coachAthlete = {
       <div class="state-demo"><div class="sd-ic">${icon('user', 24)}</div>
       <div class="sd-t">Athlete not found</div>
       <div class="sd-s">This athlete isn't on your roster — the link may be old, or they left your team. Head back and pick someone from your roster.</div>
-      <div class="sd-cta"><button class="btn ghost sm" data-go="coach">Back to roster</button></div></div>
+      <div class="sd-cta"><button class="btn ghost sm" data-go="coach-roster">Back to roster</button></div></div>
       <div style="height:10px"></div>`;
     }
     const day = ATH.day;
@@ -847,12 +847,12 @@ async function loadMealComments(mealId, force) {
 }
 function mealById(mealId) { return ATH && ATH.meals.find(m => m.id === mealId); }
 export const coachMeal = {
-  nav: 'coach', tab: 'team',
+  nav: 'coach', tab: 'roster',
   render({ sub }) {
     const mealId = sub;
     const meal = mealById(mealId);
     const title = meal ? cap(meal.type || 'Meal') : 'Meal';
-    const head = backHead(title, 'Your comment lands on the athlete’s log', ATH ? `coach-athlete/${ATH.athleteId}` : 'coach');
+    const head = backHead(title, 'Your comment lands on the athlete’s log', ATH ? `coach-athlete/${ATH.athleteId}` : 'coach-home');
     if (!MC || MC.mealId !== mealId) {
       return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('message', 17)}</div>
       <div><div class="tt">Loading the thread…</div><div class="ts">Reading the athlete’s comments on this meal.</div></div></div>`;

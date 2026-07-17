@@ -224,10 +224,10 @@ export const restrictions = {
    real data to show here. This is a safety surface — a coach could order team meals off it —
    so it must NEVER render invented allergies. Coming-soon until the sync exists. */
 export const teamDiet = {
-  nav: 'coach', tab: 'team',
+  nav: 'coach', tab: 'roster',
   render() {
     return `
-    ${backHead('Team Dietary Sheet', 'Every restriction, one screen. Travel-ready.', 'coach')}
+    ${backHead('Team Dietary Sheet', 'Every restriction, one screen. Travel-ready.', 'coach-home')}
 
     <div class="state-demo">
       <div class="sd-ic">${icon('bell', 24)}</div>
@@ -343,10 +343,10 @@ export const coachVoice = {
 
 /* ---------- #safety · Protective pattern flags (design preview, deliberately not simulated) ---------- */
 export const safety = {
-  nav: 'coach', tab: 'team',
+  nav: 'coach', tab: 'roster',
   render() {
     return `
-    ${backHead('Wellness Flags', 'Protective, never punitive', 'coach')}
+    ${backHead('Wellness Flags', 'Protective, never punitive', 'coach-home')}
 
     <section class="card pad" style="border-color:var(--green-border)">
       <div style="display:flex;align-items:center;gap:13px">
