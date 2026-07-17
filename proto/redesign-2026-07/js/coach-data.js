@@ -83,6 +83,7 @@ export const actTime = (iso) => {
 export const CD = {
   get roster() { return ROSTER; },
   get act() { return ACT; },
+  get profile() { return PROFILE; },
   extras: null,
 };
 
@@ -145,4 +146,68 @@ export function entriesFor(scope) {
       }),
     };
   });
+}
+
+/* Per-athlete profile cache (Task 4): one athlete's day, recent meals + signed photos, targets,
+   basics, trust pass, coach interventions/assignments/notes, and their live status (same engine
+   entriesFor uses, resolved at THIS call's clock). Guarded like loadCoachRoster: a generation
+   counter so a stale/superseded load can never clobber a newer one, and a thrown fetch degrades
+   to { athleteId, offline: true } rather than leaving the screen stuck loading forever. */
+let PROFILE = null, profileLoadingId = null, profileGen = 0;
+export async function loadAthleteProfile(athleteId, force) {
+  if (!athleteId) return;
+  if (profileLoadingId === athleteId && !force) return;
+  if (PROFILE && PROFILE.athleteId === athleteId && !force) return;
+  const gen = ++profileGen; profileLoadingId = athleteId;
+  try {
+    if (!CD.roster) await loadCoachRoster();           // need the row + extras (sets/exceptions)
+    const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+    const since30 = roles.daysAgoISO(30);
+    const [day, meals, targets, basics, trustPass, interventions, assignments, notes] = await Promise.all([
+      roles.fetchDay(athleteId, roles.todayISO()),
+      roles.fetchRecentMeals(athleteId, since30),
+      roles.fetchAthleteTargets(athleteId),
+      roles.fetchAthleteBasics(athleteId),
+      roles.fetchActiveTrustPass(athleteId),
+      roles.fetchAthleteInterventions(teamId, athleteId, since30),
+      roles.fetchAthleteAssignments(athleteId, since30),
+      roles.fetchCoachNotes(teamId, athleteId),
+    ]);
+    const photos = {};
+    await Promise.all((meals || []).slice(0, 12).filter(m => m.photo_path).map(async (m) => {
+      const u = await roles.signedMealPhotoUrl(m.photo_path); if (u) photos[m.id] = u;
+    }));
+    const row = (CD.roster.rows || []).find(r => r.athleteId === athleteId) || null;
+    const exceptions = ((CD.extras && CD.extras.exceptions) || []).filter(e => e.athlete_id === athleteId);
+    let status = null;
+    if (row) {
+      const now = new Date();
+      // Mirrors entriesFor's resolveRequirementSet → catalogFromItems shape exactly, including
+      // its CATALOG fallback when no requirement set governs this athlete/position.
+      const set = resolveRequirementSet(CD.extras.sets, row.athleteId, row.position);
+      const reqs = set ? catalogFromItems(set.items) : CATALOG;
+      status = athleteStatus({
+        nowMin: now.getHours() * 60 + now.getMinutes(), nowMs: now.getTime(), nowDow: now.getDay(),
+        row, reqs,
+        excused: exceptions.length > 0, needsReview: false,
+      });
+    }
+    if (gen !== profileGen) return;                    // a newer load superseded us
+    PROFILE = { athleteId, day, meals: meals || [], photos, targets, basics, trustPass,
+      interventions, assignments, notes, exceptions, row, status, offline: false };
+    // Receipt: coach opened this athlete's day. Fire-and-forget — never blocks or throws.
+    // No static import of state.js here: state.js unconditionally does `window.__act = act`
+    // at module scope, which would drag a browser-only global into every consumer of this
+    // module's import graph (broke src/core/coachData.test.ts's node-env jest run — that
+    // suite has never needed a DOM/window shim before). markDayViewed already best-effort-
+    // no-ops when viewerId is falsy, so the receipt harmlessly skips rather than importing
+    // RT/S; a screen with access to RT/S can pass them explicitly via a future overload if
+    // the receipt needs to carry a real viewer identity later.
+    try { roles.markDayViewed(athleteId, roles.todayISO()); } catch { /* best-effort */ }
+  } catch {
+    if (gen === profileGen) PROFILE = { athleteId, offline: true };
+  } finally {
+    if (gen === profileGen) profileLoadingId = null;
+    if (location.hash === `#coach-athlete/${athleteId}`) window.__render();
+  }
 }
