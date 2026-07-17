@@ -545,9 +545,17 @@ select _ok(_try($q$select team_day_rollup('77777777-1111-0000-0000-000000000001'
 select _ok((select count(*) from team_intervention_outcomes(
              '77777777-1111-0000-0000-000000000001', current_date - 60)) >= 1,
            'slice E: coach_1 gets intervention outcomes for T1');
-select _ok((select score_before = 70 and score_after = 90 and days_before = 1 and days_after = 1
-             from team_intervention_outcomes('77777777-1111-0000-0000-000000000001', current_date - 60)
-             where intervention_id = 'c1000000-0000-0000-0000-000000000001'),
+-- NOTE: the 0041 evidence-ceiling trigger clamps seeded scores (these bare rows carry no
+-- meals/checkin evidence), so assert the RPC's averages against the ACTUALLY-STORED scores
+-- rather than the raw seeded literals — this still proves the windowing (exactly one day per
+-- side) and the averaging, without assuming what the trigger stored.
+select _ok((select o.score_before = (select d.score::numeric from days d
+              where d.athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001' and d.date = current_date - 22)
+        and o.score_after = (select d.score::numeric from days d
+              where d.athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001' and d.date = current_date - 18)
+        and o.days_before = 1 and o.days_after = 1
+             from team_intervention_outcomes('77777777-1111-0000-0000-000000000001', current_date - 60) o
+             where o.intervention_id = 'c1000000-0000-0000-0000-000000000001'),
            'slice E: outcomes compute before/after averages from the bracketing days');
 select _as('22222222-0000-0000-0000-000000000002');  -- cross-team coach_2
 select _ok(_try($q$select team_intervention_outcomes('77777777-1111-0000-0000-000000000001', current_date - 60)$q$)
