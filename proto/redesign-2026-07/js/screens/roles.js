@@ -209,7 +209,7 @@ const coachSteps = {
       <div class="ob-sub" style="padding:0 8px">${esc(joined.teamName || 'The team')} · ${esc(STAFF_ROLE_LABEL[joined.role] || joined.role || 'Staff')}. The roster, standards, and activity feed are yours to work.</div>
     </div>
     <div class="ob-foot" style="margin-top:auto">
-      <button class="btn primary" data-go="coach">Open Coach Dashboard</button>
+      <button class="btn primary" data-go="coach-home">Open Coach Dashboard</button>
     </div>
   </div>`;
     }
@@ -228,7 +228,7 @@ const coachSteps = {
         <div><div class="tt">Code pending</div><div class="ts">We couldn't mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in — check Profile → Team code.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
-      <button class="btn primary" data-go="coach">Open Coach Dashboard</button>
+      <button class="btn primary" data-go="coach-home">Open Coach Dashboard</button>
     </div>
   </div>`;
   },
@@ -831,7 +831,7 @@ export const coachProfile = {
     const metaLine = teamBits.filter(Boolean).map(esc).join(' · ') || 'Your team';
     const code = ci.code || (RT.ob || {}).teamCode || '';
     return `
-    ${backHead('Coach Profile', 'You, your team, your code', 'coach')}
+    ${backHead('Coach Profile', 'You, your team, your code', 'coach-home')}
 
     <section class="card id-card">
       <div class="big-av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${esc((name[0] || 'C').toUpperCase())}</div>
@@ -914,8 +914,9 @@ export const coachProfile = {
 
     <div class="eyebrow">Team settings</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Game plan defaults</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Standards</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-assign"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">What you assign most</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Team trends, standard adherence</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI in your voice</div><div class="ls">It reinforces your rulings, never invents</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Appearance &amp; preferences</div><div class="ls">Light / dark, units, reminders</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>

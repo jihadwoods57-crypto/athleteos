@@ -346,6 +346,84 @@ export async function completeAssignmentRemote(id) {
   try { const { data, error } = await c.rpc('complete_assignment', { p_id: id }); return !error && data === true; } catch { return false; }
 }
 
+/* ---------------- Coach OS core (0071): interventions, groups, exceptions ---------------- */
+/** Log a coach action (nudge/message/assign/handled). The queue and Insights both read this. */
+export async function logIntervention({ teamId, athleteId, kind, reasonKey, tier, note }) {
+  const c = sb(); if (!c || !teamId || !athleteId || !kind) return false;
+  try {
+    const { error } = await c.from('coach_interventions').insert({
+      team_id: teamId, athlete_id: athleteId, kind, day: todayISO(),
+      reason_key: reasonKey || null, tier: tier || null, note: note || null,
+    });
+    return !error;
+  } catch { return false; }
+}
+/** Today's interventions for the team (priority queue filters on these). Best-effort []. */
+export async function fetchTodayInterventions(teamId) {
+  const c = sb(); if (!c || !teamId) return [];
+  try {
+    const { data } = await c.from('coach_interventions')
+      .select('athlete_id,kind,reason_key,tier,created_at')
+      .eq('team_id', teamId).eq('day', todayISO()).limit(400);
+    return data || [];
+  } catch { return []; }
+}
+export async function fetchCoachGroups(teamId) {
+  const c = sb(); if (!c || !teamId) return [];
+  try { const { data } = await c.from('coach_groups').select('id,name,athlete_ids').eq('team_id', teamId).order('name'); return data || []; } catch { return []; }
+}
+export async function saveCoachGroup(teamId, { id, name, athleteIds }) {
+  const c = sb(); if (!c || !teamId) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const row = { team_id: teamId, name, athlete_ids: athleteIds || [], updated_at: new Date().toISOString() };
+    const q = id ? c.from('coach_groups').update(row).eq('id', id) : c.from('coach_groups').insert(row);
+    const { error } = await q;
+    return error ? { ok: false, error: error.message || 'Could not save the group.' } : { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the group.' }; }
+}
+export async function deleteCoachGroup(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('coach_groups').delete().eq('id', id); return !error; } catch { return false; }
+}
+/** Exceptions whose window covers today. Best-effort []. */
+export async function fetchActiveExceptions(teamId) {
+  const c = sb(); if (!c || !teamId) return [];
+  try {
+    const t = todayISO();
+    const { data } = await c.from('athlete_exceptions')
+      .select('id,athlete_id,starts_on,ends_on,reason')
+      .eq('team_id', teamId).lte('starts_on', t).gte('ends_on', t);
+    return data || [];
+  } catch { return []; }
+}
+export async function saveAthleteException(teamId, athleteId, startsOn, endsOn, reason) {
+  const c = sb(); if (!c || !teamId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { error } = await c.from('athlete_exceptions').insert({
+      team_id: teamId, athlete_id: athleteId, starts_on: startsOn, ends_on: endsOn, reason: reason || null,
+    });
+    return error ? { ok: false, error: error.message || 'Could not mark that.' } : { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not mark that.' }; }
+}
+export async function endAthleteException(id) {
+  const c = sb(); if (!c || !id) return false;
+  try {
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    const { error } = await c.from('athlete_exceptions').update({ ends_on: iso(y) }).eq('id', id);
+    return !error;
+  } catch { return false; }
+}
+/** The signed-in staff member's own scope on this team. null = whole team (default). */
+export async function fetchMyStaffScope(teamId) {
+  const c = sb(); if (!c || !teamId) return null;
+  try {
+    const uid = (await c.auth.getUser()).data.user.id;
+    const { data } = await c.from('team_staff').select('scope_kind,scope_value')
+      .eq('team_id', teamId).eq('staff_id', uid).maybeSingle();
+    return (data && data.scope_kind) ? { kind: data.scope_kind, value: data.scope_value } : null;
+  } catch { return null; }
+}
+
 /* ---------------- photo integrity (0062) ---------------- */
 /** Prior logs of this EXACT photo by the signed-in athlete (sha256 of the downscaled JPEG),
     newest first: [{ day_date, meal_type, logged_at }]. [] when clean OR when the check can't
@@ -446,7 +524,7 @@ export async function declineClient(practiceId, clientId) {
 export function tierFlag(score) { return score == null ? '' : score >= 80 ? 'g' : score >= 60 ? 'y' : 'r'; }
 /** Merge a roster member (from the RPC) with today's real day row into a UI row.
     A member with no day row today is honestly "No logs today" — never a made-up score. */
-export function buildRosterRow(member, dayRow) {
+export function buildRosterRow(member, dayRow, extras = {}) {
   const name = member.athlete_name || 'Athlete';
   const logged = !!dayRow;
   const score = logged && dayRow.score != null ? dayRow.score : null;
@@ -454,13 +532,16 @@ export function buildRosterRow(member, dayRow) {
   const done = tasks.filter(t => t && t.done).length;
   return {
     athleteId: member.athlete_id,
-    name, unit: member.position || '',
+    name, unit: member.position || '', position: member.position || '',
     score, loggedToday: logged,
     flag: logged ? tierFlag(score) : 'r',
     logs: logged && tasks.length ? `${done}/${tasks.length}` : (logged ? 'Logged' : '—'),
     note: logged
       ? (score != null ? (score >= 80 ? 'On standard today' : 'Logged · below the bar') : 'Logged today')
       : 'No logs today',
+    tasks,
+    scoreHistory: extras.scoreHistory || [],
+    lastMealAt: extras.lastMealAt || null,
   };
 }
 
@@ -469,18 +550,29 @@ export async function loadCoachRoster() {
   const teams = await fetchMyTeams();
   if (teams.error) throw new Error('roster-fetch-failed'); // caller renders honest offline
   if (!teams.length) return { teams: [], rows: [] };
-  const [perTeam, days] = await Promise.all([
+  const [perTeam, days, recentMeals] = await Promise.all([
     Promise.all(teams.map(t => fetchTeamRoster(t.id))),
-    fetchLinkedDaysSince(daysAgoISO(1)),
+    fetchLinkedDaysSince(daysAgoISO(7)),
+    fetchTeamActivity(daysAgoISO(2), 400),
   ]);
   const today = todayISO();
-  const dayByAthlete = {};
-  for (const d of days) { if (d.date === today) dayByAthlete[d.athlete_id] = d; }
+  const dayByAthlete = {}, histByAthlete = {}, lastMealBy = {};
+  for (const d of days) {
+    if (d.date === today) dayByAthlete[d.athlete_id] = d;
+    (histByAthlete[d.athlete_id] = histByAthlete[d.athlete_id] || []).push({ date: d.date, score: d.score });
+  }
+  for (const h of Object.values(histByAthlete)) h.sort((a, b) => a.date < b.date ? -1 : 1);
+  for (const m of recentMeals) {
+    if (!lastMealBy[m.athlete_id] || m.logged_at > lastMealBy[m.athlete_id]) lastMealBy[m.athlete_id] = m.logged_at;
+  }
   const seen = new Set(); const rows = [];
   for (const members of perTeam) {
     for (const m of members) {
       if (seen.has(m.athlete_id)) continue; seen.add(m.athlete_id);
-      rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id]));
+      rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id], {
+        scoreHistory: histByAthlete[m.athlete_id] || [],
+        lastMealAt: lastMealBy[m.athlete_id] || null,
+      }));
     }
   }
   rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
