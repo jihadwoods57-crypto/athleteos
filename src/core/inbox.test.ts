@@ -69,6 +69,48 @@ test('mealReviews never double-categorizes with needsResponse: unseen athlete-la
   expect(out.needsResponse.some((r: any) => r.id === 'm7')).toBe(false);
 });
 
+test('preview sub: low protein + athlete-last needsResponse meal names the macro flag and the conversation state', () => {
+  const out = categorizeInbox({
+    meals: [meal('m8', { protein: 8 })],
+    comments: [{ meal_id: 'm8', role: 'athlete', kind: 'message', created_at: new Date(NOW - 1800_000).toISOString() }],
+    interventions: [], roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW,
+  });
+  const row = out.needsResponse.find((r: any) => r.id === 'm8');
+  expect(row.sub).toContain('Low protein');
+  expect(row.sub).toContain('needs your response');
+});
+
+test('preview sub: coach-last meal (not resolved) shows "you replied" and lands in athletes, not needsResponse', () => {
+  const out = categorizeInbox({
+    meals: [meal('m9')],
+    comments: [{ meal_id: 'm9', role: 'coach', kind: 'message', created_at: new Date(NOW - 1800_000).toISOString() }],
+    interventions: [], roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW,
+  });
+  const row = out.athletes.find((r: any) => r.id === 'm9');
+  expect(row.sub).toContain('you replied');
+  expect(out.needsResponse.some((r: any) => r.id === 'm9')).toBe(false);
+});
+
+test('preview sub: resolved meal says "resolved" regardless of conversation state', () => {
+  const out = categorizeInbox({
+    meals: [meal('m10')],
+    comments: [{ meal_id: 'm10', role: 'athlete', kind: 'message', created_at: new Date(NOW - 1800_000).toISOString() }],
+    interventions: [{ athlete_id: 'a1', kind: 'handled', reason_key: 'meal:m10', created_at: new Date(NOW - 600_000).toISOString() }],
+    roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW,
+  });
+  const row = out.resolved.find((r: any) => r.id === 'm10');
+  expect(row.sub).toContain('resolved');
+});
+
+test('preview sub: fresh unseen meal with normal macros and no comments is plain meal type + not yet opened', () => {
+  const out = categorizeInbox({
+    meals: [meal('m11')],
+    comments: [], interventions: [], roster: [{ athleteId: 'a1', name: 'Devin' }], pending: [], staff: [], announcements: [], seenIds: new Set(), nowMs: NOW,
+  });
+  const row = out.mealReviews.find((r: any) => r.id === 'm11');
+  expect(row.sub).toBe('Lunch · not yet opened');
+});
+
 test('inboxAlerts groups overdue requirements across athletes', () => {
   const entries = [
     { row: { athleteId: 'a1', name: 'A' }, status: { key: 'overdue', openItems: [{ id: 'lunch', title: 'Lunch', state: 'overdue' }] } },

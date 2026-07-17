@@ -35,6 +35,34 @@ function nameFor(roster, athleteId) {
   return (r && r.name) || 'Athlete';
 }
 
+/** Deterministic macro-flag clause for a meal row: leads with a real signal already on the
+ *  meal (protein/quality) before falling back to the plain meal type. Thresholds: protein
+ *  < 20g is "Low protein" (brief's convention — categorizeInbox has no per-athlete protein
+ *  target to compare against, unlike meal-intel.js's mealProteinBar); quality < 50 mirrors
+ *  meal-intel.js's qualityBand() "low"/"Weak plate" band so this never disagrees with the
+ *  score chip the athlete/coach already see elsewhere. */
+function macroFlag(meal) {
+  if (meal.protein != null && meal.protein < 20) return 'Low protein';
+  if (meal.quality != null && meal.quality < 50) return 'Low quality meal';
+  return meal.type || 'Meal';
+}
+
+/** Deterministic conversation-state clause from lastRole (who spoke last, message-kind only,
+ *  see lastByMeal above) and whether a 'handled' intervention already resolved this meal. */
+function conversationState(role, resolved) {
+  if (resolved) return 'resolved';
+  if (role === 'athlete') return 'athlete replied · needs your response';
+  if (role === 'coach') return 'you replied';
+  return 'not yet opened';
+}
+
+/** Thread preview sub-line: "<macro flag> · <conversation state>", e.g. "Low protein ·
+ *  athlete replied · needs your response". Deterministic — same (meal, role, resolved)
+ *  always yields the same string. No em dashes; " · " is the only separator. */
+export function previewSub(meal, role, resolved) {
+  return [macroFlag(meal), conversationState(role, resolved)].filter(Boolean).join(' · ');
+}
+
 /** Grouped alert rows for overdue requirements across a scope's entries ([{row,status}] from
  *  entriesFor). Groups by openItems[].id where state==='overdue' — an athlete with 2 overdue
  *  items counts once per item id, never double-counted within one id. */
@@ -85,12 +113,13 @@ export function categorizeInbox({ meals, comments, interventions, roster, pendin
     const athleteId = m.athlete_id;
     const title = `${nameFor(roster, athleteId)} — ${m.type || 'Meal'}`;
     const ts = tsOf(m);
-    const row = { kind: 'meal', id, athleteId, title, sub: m.type || '', ts };
+    const isResolved = resolvedIds.has(id);
+    const sub = previewSub(m, lastRole[id], isResolved);
+    const row = { kind: 'meal', id, athleteId, title, sub, ts };
 
     // athletes: every recent athlete meal thread, regardless of seen/resolved.
     athletes.push(row);
 
-    const isResolved = resolvedIds.has(id);
     if (isResolved) {
       resolved.push(row);
       continue; // resolved wins over needsResponse — never also shown there
