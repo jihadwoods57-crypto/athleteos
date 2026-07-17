@@ -493,6 +493,79 @@ select _ok(_try($q$insert into requirement_templates (team_id, name, kind, items
    '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo","window":{"due":2000}}]'::jsonb)$q$) <> 'ok',
            'requirement_template insert with window.due=2000 FAILS the items-valid check');
 
+-- ================================================================ COACH OS SLICE E: team analytics RPCs (0076)
+-- Placed here (before section 8's revocation): the rollup/outcomes join team_members WHERE
+-- status='active', and section 8 flips athlete A's T1 membership to 'removed' — an "authorized coach
+-- gets A's rows" assertion must run before that revocation (the Slice C lesson). All windows are
+-- built from current_date IN THE TEST (the function's no-current_date/now() rule constrains the
+-- MIGRATION body, not these param values). Seeded rows are cleaned by the suite's final rollback.
+select _superuser();
+-- A day whose checkin JSON marks it submitted, 10 days back so A's checkins-table row (submitted_at
+-- ~ current_date) is OUTSIDE its [day-6,day] window — this isolates the days.checkin source.
+insert into days (athlete_id, date, score, checkin) values
+  ('aaaaaaaa-0000-0000-0000-000000000001', current_date - 10, 88, '{"submitted":"2026-07-07T12:00:00Z"}'::jsonb);
+-- An intervention on A (day = current_date - 20) with days bracketing it: one in the before window
+-- [day-7,day-1] and one in the after window [day+1,day+7], to exercise the outcome averages.
+insert into coach_interventions (id, team_id, athlete_id, coach_id, kind, tier, day) values
+  ('c1000000-0000-0000-0000-000000000001','77777777-1111-0000-0000-000000000001',
+   'aaaaaaaa-0000-0000-0000-000000000001','11111111-0000-0000-0000-000000000001','nudge','below', current_date - 20);
+insert into days (athlete_id, date, score) values
+  ('aaaaaaaa-0000-0000-0000-000000000001', current_date - 22, 70),   -- in [day-7, day-1]
+  ('aaaaaaaa-0000-0000-0000-000000000001', current_date - 18, 90);   -- in [day+1, day+7]
+
+-- 1. authorized staff gets rows, scoped to T1 members only (A and M — never stranger B).
+select _as('11111111-0000-0000-0000-000000000001');  -- coach_1, staff of T1
+select _ok((select count(*) from team_day_rollup(
+             '77777777-1111-0000-0000-000000000001', current_date - 30, current_date)) >= 1,
+           'slice E: coach_1 (T1 staff) gets rollup rows for T1');
+select _ok((select count(*) from team_day_rollup(
+             '77777777-1111-0000-0000-000000000001', current_date - 30, current_date)
+            where athlete_id not in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004')) = 0,
+           'slice E: rollup returns only active T1 members, never stranger B');
+
+-- 2. cross-team coach raises 'not authorized'.
+select _as('22222222-0000-0000-0000-000000000002');  -- coach_2, staff of T2 only
+select _ok(_try($q$select team_day_rollup('77777777-1111-0000-0000-000000000001', current_date - 7, current_date)$q$)
+             like '%not authorized%',
+           'slice E: cross-team coach_2 cannot pull T1''s rollup (gate raises)');
+
+-- 3. an athlete (not team staff) raises.
+select _as('aaaaaaaa-0000-0000-0000-000000000001');  -- athlete A, a T1 member but not staff
+select _ok(_try($q$select team_day_rollup('77777777-1111-0000-0000-000000000001', current_date - 7, current_date)$q$)
+             like '%not authorized%',
+           'slice E: athlete A (not staff) cannot pull the rollup');
+
+-- 4. window guard: a >62-day window raises.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($q$select team_day_rollup('77777777-1111-0000-0000-000000000001', current_date - 90, current_date)$q$)
+             like '%0-62 days%',
+           'slice E: a >62-day rollup window is rejected');
+
+-- 5. outcomes: authorized staff gets rows with correct before/after averages; cross-team raises.
+select _ok((select count(*) from team_intervention_outcomes(
+             '77777777-1111-0000-0000-000000000001', current_date - 60)) >= 1,
+           'slice E: coach_1 gets intervention outcomes for T1');
+select _ok((select score_before = 70 and score_after = 90 and days_before = 1 and days_after = 1
+             from team_intervention_outcomes('77777777-1111-0000-0000-000000000001', current_date - 60)
+             where intervention_id = 'c1000000-0000-0000-0000-000000000001'),
+           'slice E: outcomes compute before/after averages from the bracketing days');
+select _as('22222222-0000-0000-0000-000000000002');  -- cross-team coach_2
+select _ok(_try($q$select team_intervention_outcomes('77777777-1111-0000-0000-000000000001', current_date - 60)$q$)
+             like '%not authorized%',
+           'slice E: cross-team coach_2 cannot pull T1''s intervention outcomes');
+
+-- 6. checkin_done true from BOTH sources: the days.checkin JSON (isolated on the day-10 row) and
+--    the checkins table (A's current_date day, matched by the [day-6,day] submitted_at window).
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select checkin_done from team_day_rollup(
+             '77777777-1111-0000-0000-000000000001', current_date - 30, current_date)
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001' and day = current_date - 10),
+           'slice E: checkin_done is true from the day''s checkin JSON (submitted set)');
+select _ok((select checkin_done from team_day_rollup(
+             '77777777-1111-0000-0000-000000000001', current_date - 30, current_date)
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001' and day = current_date),
+           'slice E: checkin_done is true from the checkins table (submitted within the week window)');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'
