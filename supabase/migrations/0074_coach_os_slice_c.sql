@@ -75,6 +75,7 @@ begin
   update announcements set sent_count = n where id = ann_id;
   return jsonb_build_object('id', ann_id, 'count', n);
 end $$;
+revoke all on function post_announcement(uuid, text, text, text, text) from public;
 grant execute on function post_announcement(uuid, text, text, text, text) to authenticated;
 
 create table if not exists requirement_templates (
