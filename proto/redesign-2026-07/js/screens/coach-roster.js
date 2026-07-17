@@ -13,6 +13,7 @@ import { STATUS_META } from '../status.js';
 let Q = '', SORT = 'score', FILTER = { kind: 'all', value: null };
 let SELECTING = false; const SEL = new Set();
 let SHOW_GROUPS = false, SHOW_ABSENCE = false, BULK_STATUS = '';
+let BULK_BUSY = false;
 
 const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard', 'due_soon', 'excused', 'on_standard'];
 
@@ -68,7 +69,7 @@ function rosterRow(e) {
   </div>`;
 }
 
-function groupSheet(entries, groups) {
+function groupSheet(groups) {
   return `
   <section class="card" style="padding:13px 16px">
     <div class="eyebrow" style="margin:0 0 8px">Custom groups</div>
@@ -118,29 +119,52 @@ function absenceSheet() {
     <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused athletes drop out of the priority queue and today's completion math — and nothing pings them while excused.</div>
     <input class="ob-input" id="abs-reason" maxlength="120" placeholder="Reason (travel, injury, family…)" style="height:36px" />
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
-      <button class="btn sm" data-abs="0" style="height:34px;font-size:12px">Just today</button>
-      <button class="btn ghost sm" data-abs="6" style="height:34px;font-size:12px">Through the week</button>
+      <button class="btn sm" data-abs="0" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:12px">Just today</button>
+      <button class="btn ghost sm" data-abs="6" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:12px">Through the week</button>
     </div>
     <div id="abs-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:5px"></div>
   </section>`;
 }
 function wireAbsenceSheet(root, teamId) {
   root.querySelectorAll('[data-abs]').forEach(b => b.addEventListener('click', async () => {
+    if (BULK_BUSY) return;
     const days = +b.getAttribute('data-abs');
     const reason = ((root.querySelector('#abs-reason') || {}).value || '').trim();
     const end = new Date(); end.setDate(end.getDate() + days);
     const endISO = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
-    b.disabled = true;
+    BULK_BUSY = true; window.__render();
     let failed = 0;
-    for (const id of [...SEL]) {
-      const r = await roles.saveAthleteException(teamId, id, roles.todayISO(), endISO, reason);
-      if (!r.ok) failed++;
+    try {
+      for (const id of [...SEL]) {
+        const r = await roles.saveAthleteException(teamId, id, roles.todayISO(), endISO, reason);
+        if (!r.ok) failed++;
+      }
+    } finally {
+      BULK_BUSY = false;
     }
-    const el = root.querySelector('#abs-status');
-    if (failed) { b.disabled = false; if (el) { el.style.color = 'var(--red)'; el.textContent = `Could not excuse ${failed} — check your connection.`; } return; }
+    if (failed) {
+      window.__render();
+      const el = document.querySelector('#abs-status');
+      if (el) { el.style.color = 'var(--red)'; el.textContent = `Could not excuse ${failed} — check your connection.`; }
+      return;
+    }
     SEL.clear(); SELECTING = false; SHOW_ABSENCE = false;
     await loadCoachRoster(true);
   }));
+}
+
+/* Search must patch #roster-list in place — a full window.__render() per keystroke would
+   replace the <input> node and drop focus/keyboard mid-word in a WebView (cf. foodsearch.js). */
+function patchList(root) {
+  const list = root.querySelector('#roster-list');
+  if (!list) return;
+  const entries = entriesFor({ kind: 'team', value: null }) || [];
+  const view = applyView(entries);
+  list.innerHTML = view.length ? view.map(rosterRow).join('') : `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`;
+  list.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => {
+    const id = b.getAttribute('data-sel'); SEL.has(id) ? SEL.delete(id) : SEL.add(id); window.__render();
+  }));
+  list.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', () => window.__go(el.getAttribute('data-go'))));
 }
 
 export const coachRoster = {
@@ -170,23 +194,23 @@ export const coachRoster = {
       ${fchip('all', '', 'All')}${STATUS_ORDER.map(k => fchip('status', k, STATUS_META[k].label)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
       <button class="btn ghost sm" data-groups style="width:auto;padding:0 11px;height:29px;flex:none">＋ Group</button>
     </div>
-    ${SHOW_GROUPS ? groupSheet(entries, groups) : ''}
+    ${SHOW_GROUPS ? groupSheet(groups) : ''}
     ${SHOW_ABSENCE ? absenceSheet() : ''}
-    <section class="card" style="padding:2px 0">${list.length ? list.map(rosterRow).join('') : `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`}</section>
+    <section class="card" id="roster-list" style="padding:2px 0">${list.length ? list.map(rosterRow).join('') : `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`}</section>
     ${SELECTING && SEL.size ? `
     <div class="card" style="position:sticky;bottom:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px">
-      <button class="btn sm" data-bulk="nudge" style="height:34px;font-size:11.5px">Nudge ${SEL.size}</button>
-      <button class="btn ghost sm" data-bulk="assign" style="height:34px;font-size:11.5px">Assign</button>
-      <button class="btn ghost sm" data-bulk="group" style="height:34px;font-size:11.5px">→ Group</button>
-      <button class="btn ghost sm" data-bulk="absence" style="height:34px;font-size:11.5px">Excuse</button>
-    </div>
-    <div id="bulk-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:4px">${esc(BULK_STATUS)}</div>` : ''}
+      <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Nudge ${SEL.size}</button>
+      <button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Assign</button>
+      <button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">→ Group</button>
+      <button class="btn ghost sm" data-bulk="absence" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Excuse</button>
+    </div>` : ''}
+    ${BULK_STATUS ? `<div id="bulk-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:4px">${esc(BULK_STATUS)}</div>` : ''}
     <div style="height:10px"></div>`;
   },
   mount(root) {
     loadCoachRoster();
     const q = root.querySelector('#roster-q');
-    if (q) q.addEventListener('input', () => { Q = q.value; window.__render(); });
+    if (q) q.addEventListener('input', () => { Q = q.value; patchList(root); });
     root.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => {
       SORT = { score: 'status', status: 'name', name: 'activity', activity: 'score' }[SORT]; window.__render();
     }));
@@ -201,23 +225,27 @@ export const coachRoster = {
     root.querySelectorAll('[data-groups]').forEach(b => b.addEventListener('click', () => { SHOW_GROUPS = !SHOW_GROUPS; window.__render(); }));
     const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
     root.querySelectorAll('[data-bulk]').forEach(b => b.addEventListener('click', async () => {
+      if (BULK_BUSY) return;
       const kind = b.getAttribute('data-bulk'); const ids = [...SEL];
       if (kind === 'nudge') {
-        b.disabled = true; BULK_STATUS = 'Sending…'; window.__render();
+        BULK_BUSY = true; BULK_STATUS = 'Sending…'; window.__render();
         const today = new Date().toISOString().slice(0, 10);
         const already = ids.filter(id => (RT.coachNudged || {})[id] === today);
         const toSend = ids.filter(id => (RT.coachNudged || {})[id] !== today);
         let sent = 0, failed = 0;
-        for (const id of toSend) {
-          const ok = await roles.nudgePush(id, `${S.coachIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
-          if (ok) { act.markNudged(id); await roles.logIntervention({ teamId, athleteId: id, kind: 'nudge' }); sent++; }
-          else failed++;
+        try {
+          for (const id of toSend) {
+            const ok = await roles.nudgePush(id, `${S.coachIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
+            if (ok) { act.markNudged(id); await roles.logIntervention({ teamId, athleteId: id, kind: 'nudge' }); sent++; }
+            else failed++;
+          }
+        } finally {
+          BULK_BUSY = false;
         }
         const parts = [`Nudged ${sent}.`];
         if (already.length) parts[0] = `Nudged ${sent} (${already.length} already nudged today).`;
         if (failed) parts.push(`${failed} failed — check your connection.`);
         BULK_STATUS = parts.join(' ');
-        b.disabled = false;
         if (!failed) { SEL.clear(); SELECTING = false; }
         window.__render();
       } else if (kind === 'assign') {
