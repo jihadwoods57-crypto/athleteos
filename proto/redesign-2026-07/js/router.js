@@ -139,6 +139,7 @@ function goBack(fallback) {
   try { location.replace('#' + fb); } catch { go(fb); }
 }
 window.__back = goBack;
+window.__navigate = navigateTo; // Screens that patch subtrees (roster search) re-wire taps through the SAME origin-tracking path.
 
 function render() {
   // Screens with live countdowns register a tick; every route change clears it.

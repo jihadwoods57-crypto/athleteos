@@ -17,6 +17,8 @@ let BULK_BUSY = false;
 
 const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard', 'due_soon', 'excused', 'on_standard'];
 
+const NO_MATCH_HTML = `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`;
+
 function sparkline(hist) {
   const pts = (hist || []).filter(h => h.score != null).slice(-7);
   if (pts.length < 2) return `<span style="font-size:10px;color:var(--text-3);font-weight:700">—</span>`;
@@ -144,6 +146,8 @@ function wireAbsenceSheet(root, teamId) {
     }
     if (failed) {
       window.__render();
+      // Re-query after the render: the clicked BUTTON node is gone (root itself is the
+      // persistent #device node and stays valid — only element references go stale).
       const el = document.querySelector('#abs-status');
       if (el) { el.style.color = 'var(--red)'; el.textContent = `Could not excuse ${failed} — check your connection.`; }
       return;
@@ -160,11 +164,16 @@ function patchList(root) {
   if (!list) return;
   const entries = entriesFor({ kind: 'team', value: null }) || [];
   const view = applyView(entries);
-  list.innerHTML = view.length ? view.map(rosterRow).join('') : `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`;
+  list.innerHTML = view.length ? view.map(rosterRow).join('') : NO_MATCH_HTML;
   list.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => {
     const id = b.getAttribute('data-sel'); SEL.has(id) ? SEL.delete(id) : SEL.add(id); window.__render();
   }));
-  list.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', () => window.__go(el.getAttribute('data-go'))));
+  // Route through the router's origin-tracking navigate (NOT bare __go) so Back from the
+  // athlete page returns to this filtered roster instead of the coach dashboard.
+  list.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.__navigate(el.getAttribute('data-go'));
+  }));
 }
 
 export const coachRoster = {
@@ -196,7 +205,7 @@ export const coachRoster = {
     </div>
     ${SHOW_GROUPS ? groupSheet(groups) : ''}
     ${SHOW_ABSENCE ? absenceSheet() : ''}
-    <section class="card" id="roster-list" style="padding:2px 0">${list.length ? list.map(rosterRow).join('') : `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`}</section>
+    <section class="card" id="roster-list" style="padding:2px 0">${list.length ? list.map(rosterRow).join('') : NO_MATCH_HTML}</section>
     ${SELECTING && SEL.size ? `
     <div class="card" style="position:sticky;bottom:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px">
       <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Nudge ${SEL.size}</button>
@@ -209,6 +218,7 @@ export const coachRoster = {
   },
   mount(root) {
     loadCoachRoster();
+    BULK_STATUS = ''; // a stale "Nudged N." must not survive a tab revisit
     const q = root.querySelector('#roster-q');
     if (q) q.addEventListener('input', () => { Q = q.value; patchList(root); });
     root.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => {
