@@ -47,8 +47,22 @@ test('custom window: overdue strictly after coach-set due', () => {
 });
 
 test('before a custom open the item is upcoming, never due_soon', () => {
-  const s = athleteStatus({ nowMin: 200, row: row(), reqs, excused: false });
-  expect(s.key).toBe('on_standard');
+  // Discriminates the coach-set open (300) from the old hardcoded default (420): at nowMin 250
+  // (before the custom open) meal-1 is 'upcoming'; at nowMin 350 (after the custom open, but
+  // still before the OLD default open of 420, and before due_soon's 360 threshold: due 420
+  // minus DUE_SOON_MIN 60) meal-1 must have flipped out of 'upcoming' into 'ready'. If the
+  // engine silently fell back to the old default window, meal-1 would still read 'upcoming'
+  // at 350 (350 < 420) and this assertion would fail -- pinning the custom open, not just the
+  // overall status key (which stays 'on_standard' at both probes and pins nothing on its own).
+  const before = athleteStatus({ nowMin: 250, row: row(), reqs, excused: false });
+  expect(before.key).toBe('on_standard');
+  const mealBefore = before.openItems.find((i: any) => i.id === 'meal-1');
+  expect(mealBefore.state).toBe('upcoming');
+
+  const after = athleteStatus({ nowMin: 350, row: row(), reqs, excused: false });
+  expect(after.key).toBe('on_standard');
+  const mealAfter = after.openItems.find((i: any) => i.id === 'meal-1');
+  expect(mealAfter.state).toBe('ready');
 });
 
 test('reminders fire off the coach-set due (soon = due - lead), with custom title in copy', () => {
