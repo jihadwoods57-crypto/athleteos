@@ -1353,6 +1353,34 @@ export const act = {
     }
     return { ok: true };
   },
+  /* ---------- Parent (guardian) — scoped read + invite (migration 0081). A guardian reads ONLY
+     score/grade/day via the guardian_* RPCs; the server (0081) blocks meals/photos/weight/checkins.
+     All graceful when the RPCs aren't live yet (returns empty / not-ok), so the parent screen
+     renders its "no athletes linked" state instead of erroring. ---------- */
+  async guardianChildren() {
+    const sb = window.sb;
+    if (!sb) return [];
+    try { const { data, error } = await sb.rpc('guardian_children'); return error ? [] : (data || []); }
+    catch { return []; }
+  },
+  async guardianChildDays(child, daysBack = 30) {
+    const sb = window.sb;
+    if (!sb || !child) return [];
+    try { const { data, error } = await sb.rpc('guardian_child_days', { child, days_back: daysBack }); return error ? [] : (data || []); }
+    catch { return []; }
+  },
+  async createGuardianInvite(relationship) {
+    const sb = window.sb;
+    if (!sb) return { ok: false, error: 'Not ready — try again in a moment.' };
+    try { const { data, error } = await sb.rpc('create_guardian_invite', { relationship: relationship || null }); return error ? { ok: false, error: friendlyAuth(error.message) } : { ok: true, token: data }; }
+    catch { return { ok: false, error: 'Could not create an invite. Try again.' }; }
+  },
+  async acceptGuardianInvite(token, rel) {
+    const sb = window.sb;
+    if (!sb) return { ok: false, error: 'Not ready — try again in a moment.' };
+    try { const { data, error } = await sb.rpc('accept_guardian_invite', { invite_token: (token || '').trim(), rel: rel || null }); return error ? { ok: false, error: friendlyAuth(error.message) } : { ok: true, athleteId: data }; }
+    catch { return { ok: false, error: 'Could not link — check the code and try again.' }; }
+  },
   /* Apple 5.1.1(v): REAL in-app account deletion. Calls the delete_account RPC (server cascades
      the athlete's rows), signs out, and wipes local state. Best-effort on the RPC so a missing
      backend still signs the user out; returns whether the server delete succeeded. */

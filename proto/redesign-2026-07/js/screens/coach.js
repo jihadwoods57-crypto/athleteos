@@ -2094,32 +2094,59 @@ export const trainerClient = {
   },
 };
 
-/* ---------- Parent view — honest pending state (no parent→child data path yet) ---------- */
+/* ---------- Parent view — the child's scores/streaks via the guardian_* RPCs (migration 0081).
+   A guardian reads ONLY score/grade/day here; meal photos, weight, and check-ins are closed
+   server-side. Graceful when nothing is linked yet or the RPCs aren't live — renders the
+   "no athletes linked" state, never a fabricated score. ---------- */
 export const parent = {
   hideTabs: true,
   render() {
-    // A real guardian has NO server data path in v1 (guardianship + minor-consent verification
-    // aren't wired). So we show an honest pending state — never a fabricated child's score/digest.
     return `
-    ${titleHead('Parent view', 'Setting up access')}
+    ${titleHead('Your athletes', 'Scores & streaks')}
 
-    <div class="state-demo">
-      <div class="sd-ic">${icon('users', 24)}</div>
-      <div class="sd-t">Parent access is being set up</div>
-      <div class="sd-s">Once your athlete confirms the link (and, for a minor, consent is verified), their score, streak, and weekly digest show up here. Until then there's nothing to show — we won't invent it.</div>
-    </div>
+    <div id="par-list"><div class="sd-s" style="text-align:center;padding:28px 10px">Loading…</div></div>
 
+    <div style="height:12px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
-      <div><div class="tt">What parents will see</div>
-      <div class="ts">Scores, streaks, and completion only. Meal photos, weight, and check-in answers stay between your athlete and their coach by default.</div></div>
+      <div><div class="tt">What you can see</div>
+      <div class="ts">Scores, streaks, and daily completion only. Meal photos, weight, and check-in answers stay between your athlete and their coach.</div></div>
     </div>
 
-    <div style="height:14px"></div>
+    <div style="height:12px"></div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
     </section>
     <div style="height:10px"></div>
     `;
+  },
+  async mount(root) {
+    const list = root.querySelector('#par-list');
+    if (!list) return;
+    let kids = [];
+    try { kids = await act.guardianChildren(); } catch { kids = []; }
+    if (!kids || !kids.length) {
+      list.innerHTML = `
+      <div class="state-demo">
+        <div class="sd-ic">${icon('users', 24)}</div>
+        <div class="sd-t">No athletes linked yet</div>
+        <div class="sd-s">When your athlete sends you an invite and you accept it, their score and streak show up here — never their photos, weight, or check-in answers.</div>
+      </div>`;
+      return;
+    }
+    list.innerHTML = kids.map((k) => {
+      const score = (k.latest_score == null) ? '—' : String(k.latest_score);
+      const grade = k.latest_grade ? esc(String(k.latest_grade)) : '';
+      const when = k.latest_day ? esc(String(k.latest_day)) : 'No days logged yet';
+      return `
+      <section class="card" style="padding:16px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div style="min-width:0"><div class="lt" style="font-size:16px">${esc(k.name || 'Athlete')}</div>
+          <div class="ls">Latest day: ${when}</div></div>
+          <div style="text-align:right;flex:none"><div style="font-size:30px;font-weight:800;letter-spacing:-0.03em;color:var(--blue-bright)">${score}</div>
+          <div class="ls">${grade}</div></div>
+        </div>
+      </section>`;
+    }).join('');
   },
 };
