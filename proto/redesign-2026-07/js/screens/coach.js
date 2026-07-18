@@ -2115,6 +2115,7 @@ export const parent = {
 
     <div style="height:12px"></div>
     <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="parent-link"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Link an athlete</div><div class="ls">Enter the invite code they gave you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
     </section>
     <div style="height:10px"></div>
@@ -2148,5 +2149,76 @@ export const parent = {
         </div>
       </section>`;
     }).join('');
+  },
+};
+
+/* ---------- Athlete → generate a single-use parent invite code (migration 0081) ---------- */
+export const inviteParent = {
+  hideTabs: true,
+  render() {
+    return `
+    ${backHead('Invite a parent', 'They see your score & streak')}
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div><div class="tt">What they'll see</div>
+      <div class="ts">Your daily score, streak, and completion — never your meal photos, weight, or check-in answers.</div></div>
+    </div>
+    <div style="height:16px"></div>
+    <div id="inv-out"></div>
+    <button id="inv-go" class="btn primary">Generate an invite code</button>
+    <div style="height:10px"></div>`;
+  },
+  mount(root) {
+    const btn = root.querySelector('#inv-go');
+    const out = root.querySelector('#inv-out');
+    btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      btn.disabled = true; btn.textContent = 'Generating…';
+      const r = await act.createGuardianInvite('parent');
+      if (r.ok) {
+        out.innerHTML = `
+        <section class="card" style="padding:18px;text-align:center;margin-bottom:12px">
+          <div class="ls" style="margin-bottom:6px">Give this code to your parent</div>
+          <div style="font-size:30px;font-weight:800;letter-spacing:0.12em;color:var(--blue-bright)">${esc(r.token || '')}</div>
+          <div class="ls" style="margin-top:8px">They tap “Link an athlete” and enter it. Single use · expires in 14 days.</div>
+        </section>`;
+        btn.textContent = 'Generate another';
+      } else {
+        out.innerHTML = `<div class="si-err" style="text-align:center">${esc(r.error || 'Could not create an invite.')}</div>`;
+        btn.textContent = 'Try again';
+      }
+      btn.disabled = false;
+    });
+  },
+};
+
+/* ---------- Parent → redeem an invite code to link an athlete (migration 0081) ---------- */
+export const parentLink = {
+  hideTabs: true,
+  render() {
+    return `
+    ${backHead('Link an athlete', 'Enter their invite code')}
+    <div style="height:8px"></div>
+    <input id="pl-code" class="ob-input" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="Invite code" aria-label="Invite code" style="text-transform:uppercase;letter-spacing:0.12em">
+    <div id="pl-err" class="si-err" style="min-height:18px;margin-top:12px"></div>
+    <button id="pl-go" class="btn primary">Link athlete</button>
+    <div style="height:10px"></div>`;
+  },
+  mount(root) {
+    const code = root.querySelector('#pl-code');
+    const err = root.querySelector('#pl-err');
+    const btn = root.querySelector('#pl-go');
+    const submit = async () => {
+      if (btn.disabled) return;
+      err.textContent = '';
+      const token = (code.value || '').trim().toUpperCase();
+      if (!token) { err.textContent = 'Enter the invite code.'; return; }
+      btn.disabled = true; btn.textContent = 'Linking…';
+      const r = await act.acceptGuardianInvite(token, 'parent');
+      if (r.ok) { window.__go('parent'); }
+      else { err.textContent = r.error || 'Could not link — check the code.'; btn.disabled = false; btn.textContent = 'Link athlete'; }
+    };
+    btn.addEventListener('click', submit);
+    code.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
   },
 };

@@ -114,6 +114,7 @@ export default {
 
     <div class="eyebrow">Settings</div>
     <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="invite-parent"><div class="lic">${icon('users', 17)}</div><div class="lm"><div class="lt">Invite a parent</div><div class="ls">Let a parent see your score &amp; streak</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy & visibility</div><div class="ls">Who sees what · download your data</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & appearance</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms & privacy policy</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>

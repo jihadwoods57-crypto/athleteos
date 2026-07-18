@@ -15,7 +15,7 @@ import auth from './auth.js';
 import onboarding from './onboarding.js';
 import checkin from './checkin.js';
 import commitment from './commitment.js';
-import { coachAthlete, coachMeal, coachAssign, coachPlan, coachPlanSet, coachInbox, copilot, trainer, trainerClient, parent } from './coach.js';
+import { coachAthlete, coachMeal, coachAssign, coachPlan, coachPlanSet, coachInbox, copilot, trainer, trainerClient, parent, inviteParent, parentLink } from './coach.js';
 import { coachHome } from './coach-home.js';
 import { coachRoster } from './coach-roster.js';
 import { coachCreate } from './coach-create.js';
@@ -72,6 +72,8 @@ export const screens = {
   trainer,
   'trainer-client': trainerClient,
   parent,
+  'invite-parent': inviteParent,
+  'parent-link': parentLink,
   states,
   requirement,
   messages,

@@ -35,7 +35,7 @@ $$;
 
 -- ---------------------------------------------------------------- 2. single-use, expiring invites
 create table if not exists guardian_invites (
-  token        text primary key default encode(extensions.gen_random_bytes(16), 'hex'),
+  token        text primary key default upper(substr(encode(extensions.gen_random_bytes(8), 'hex'), 1, 8)),
   athlete_id   uuid not null references profiles(id) on delete cascade,
   relationship text,
   created_at   timestamptz not null default now(),
