@@ -23,17 +23,41 @@ export function ageOn(dobISO, todayISO) {
   return age;
 }
 
-/** 3-band strength: floor is 8 chars; +1 for 3+ character classes; +1 for 12+ length. */
+/** 3-band strength: floor is 12 chars (long passphrases welcome). +1 for 2+ character
+    classes; +1 for 16+ chars OR 3+ classes. Passphrases win on length, not symbol soup. */
 export function passwordStrength(pw) {
   const p = pw || '';
-  if (p.length < 8) return { ok: false, score: 0, label: 'Too short' };
+  if (p.length < 12) return { ok: false, score: 0, label: 'Too short' };
   let variety = 0;
   if (/[a-z]/.test(p)) variety++;
   if (/[A-Z]/.test(p)) variety++;
   if (/[0-9]/.test(p)) variety++;
   if (/[^A-Za-z0-9]/.test(p)) variety++;
-  const score = 1 + (variety >= 3 ? 1 : 0) + (p.length >= 12 ? 1 : 0);
-  return { ok: true, score, label: ['Too short', 'Weak', 'Good', 'Strong'][score] };
+  const score = 1 + (variety >= 2 ? 1 : 0) + (p.length >= 16 || variety >= 3 ? 1 : 0);
+  return { ok: true, score, label: ['Too short', 'Fair', 'Good', 'Strong'][score] };
+}
+
+/** Reject obviously-weak or identity-derived passwords regardless of length: a small bundled
+    common-password list, the app name, or the user's own email / its local-part. Returns a
+    reason string to show, or null when acceptable. (A full breached-password check against
+    HIBP's k-anonymity API is a later phase.) Pure + tested. */
+const COMMON_PW = new Set([
+  'password', 'password1', 'password123', '123456', '12345678', '123456789', '1234567890',
+  'qwerty', 'qwertyuiop', 'letmein', 'welcome', 'iloveyou', 'admin', 'abc123', 'monkey',
+  'football', 'baseball', 'onstandard', 'changeme', 'passw0rd', 'trustno1', 'sunshine',
+]);
+export function weakPasswordReason(pw, email) {
+  const p = String(pw || '');
+  const low = p.toLowerCase();
+  if (COMMON_PW.has(low)) return 'That password is too common — pick something unique.';
+  if (low.includes('onstandard')) return "Don't put the app name in your password.";
+  const e = String(email || '').trim().toLowerCase();
+  if (e) {
+    if (low === e) return "Don't use your email as your password.";
+    const local = e.split('@')[0];
+    if (local && local.length >= 4 && low.includes(local)) return "Don't build your password from your email.";
+  }
+  return null;
 }
 
 /* Goal → emphasis copy. Athlete goals (gain/lose/maintain/perform) + client goals

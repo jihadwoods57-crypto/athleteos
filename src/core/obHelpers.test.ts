@@ -1,6 +1,6 @@
 // Proto is plain ESM JS (allowJs) — same import pattern as scoreParity.test.ts.
 // @ts-ignore
-import { dobFromParts, ageOn, passwordStrength, standardForGoal, TOS_VERSION } from '../../proto/redesign-2026-07/js/ob-helpers.js';
+import { dobFromParts, ageOn, passwordStrength, weakPasswordReason, standardForGoal, TOS_VERSION } from '../../proto/redesign-2026-07/js/ob-helpers.js';
 
 describe('dobFromParts', () => {
   test('valid date, string inputs, zero-pads', () => expect(dobFromParts('7', '9', '2010')).toBe('2010-07-09'));
@@ -16,14 +16,27 @@ describe('ageOn — the 13th-birthday boundary', () => {
 });
 
 describe('passwordStrength', () => {
-  test('7 chars fails the floor', () => expect(passwordStrength('abcdefg').ok).toBe(false));
-  test('8 plain chars = ok, score 1 (Weak)', () =>
-    expect(passwordStrength('abcdefgh')).toEqual({ ok: true, score: 1, label: 'Weak' }));
-  test('8 chars with 3 character classes = score 2', () =>
-    expect(passwordStrength('Abcdef1!').score).toBe(2));
-  test('12+ chars with variety = score 3 (Strong)', () =>
+  test('11 chars fails the 12-char floor', () => expect(passwordStrength('abcdefghijk').ok).toBe(false));
+  test('12 plain lowercase = ok, score 1 (Fair)', () =>
+    expect(passwordStrength('abcdefghijkl')).toEqual({ ok: true, score: 1, label: 'Fair' }));
+  test('12 chars with 2 character classes = score 2 (Good)', () =>
+    expect(passwordStrength('abcdefghij12').score).toBe(2));
+  test('12+ chars with full variety = score 3 (Strong)', () =>
     expect(passwordStrength('Abcdefgh1234!')).toEqual({ ok: true, score: 3, label: 'Strong' }));
+  test('a long passphrase with a space = Strong (length rewards)', () =>
+    expect(passwordStrength('correct horse staple').label).toBe('Strong'));
   test('empty = score 0', () => expect(passwordStrength('').score).toBe(0));
+});
+
+describe('weakPasswordReason', () => {
+  test('a common password is rejected', () => expect(weakPasswordReason('password123', '')).toBeTruthy());
+  test('the app name is rejected', () => expect(weakPasswordReason('onstandard-rules', '')).toBeTruthy());
+  test('using the email as the password is rejected', () =>
+    expect(weakPasswordReason('jordan@team.com', 'jordan@team.com')).toBeTruthy());
+  test('an email local-part inside the password is rejected', () =>
+    expect(weakPasswordReason('jordan-blake-9', 'jordan@team.com')).toBeTruthy());
+  test('a strong unrelated passphrase passes', () =>
+    expect(weakPasswordReason('mountain river lantern', 'jordan@team.com')).toBeNull());
 });
 
 describe('standardForGoal', () => {

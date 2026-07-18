@@ -228,9 +228,12 @@ function friendlyAuth(msg) {
   const m = String(msg || '').toLowerCase();
   if (m.includes('invalid login')) return 'That email or password is incorrect.';
   if (m.includes('email not confirmed') || m.includes('not confirmed') || m.includes('confirm your email')) return 'Confirm your email first — check your inbox for the link, then sign in.';
-  if (m.includes('already registered') || m.includes('already been registered') || m.includes('user already')) return 'That email already has an account — try signing in.';
-  if (m.includes('rate limit') || m.includes('too many')) return 'Too many attempts. Wait a minute and try again.';
-  if (m.includes('password')) return 'Password must be at least 8 characters.';
+  if (m.includes('disabled') || m.includes('banned') || m.includes('suspended')) return "This account isn't available right now. Contact your coach or support.";
+  // Anti-enumeration on the sign-up path: never definitively confirm an address is registered.
+  if (m.includes('already registered') || m.includes('already been registered') || m.includes('user already')) return 'That email may already be registered — try signing in or resetting your password.';
+  if (m.includes('provider') || m.includes('identity') || m.includes('oauth')) return 'That account uses a different sign-in method. Try email and password.';
+  if (m.includes('rate limit') || m.includes('too many')) return 'Too many attempts. Wait a minute and try again, or reset your password.';
+  if (m.includes('password')) return 'Use a longer password — at least 12 characters.';
   if (m.includes('valid email') || m.includes('email address')) return 'Enter a valid email address.';
   if (m.includes('network') || m.includes('fetch') || m.includes('failed to')) return 'Network problem — check your connection.';
   return msg || 'Something went wrong. Try again.';
