@@ -5,6 +5,95 @@ import * as roles from '../roles.js';
 import { CD, loadCoachRoster, loadActivity, actTime, entriesFor, getScope, setScope } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { teamPulse } from '../status.js';
+import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
+
+/* Athlete-invite link + share text (mirrors the trainer's inviteLink/inviteShareText inline,
+   the same way state.js mirrors src/core in plain JS). Empty code → empty string: never link or
+   share a dead code before the team's join code is real. */
+function inviteLink(code) {
+  const c = (code || '').trim().toUpperCase();
+  return c ? `https://onstandard.app/join?code=${c}` : '';
+}
+function inviteShareText(code, teamName) {
+  const c = (code || '').trim().toUpperCase();
+  if (!c) return '';
+  const name = (teamName && teamName.trim()) || 'my team';
+  return `Join ${name} on OnStandard. Use code ${c} or open ${inviteLink(c)}`;
+}
+
+/* SIGNATURE-matched invite card for the empty dashboard: the athlete code in boxes, a scannable
+   QR, and Copy / Share — the coach's first useful action is to hand out the code. */
+function coachInviteCard(code, teamName) {
+  const link = inviteLink(code);
+  const svg = qrSvg(addQuietZone(encodeQR(link, 'M')), 96, '#0B0D12', `QR code to join ${esc(teamName)}`);
+  return `<section class="card" style="padding:18px">
+    <div class="hq-invite-top">
+      <div style="flex:1;min-width:0">
+        <div class="eyebrow" style="margin:0 0 8px">Athlete invitation code</div>
+        <div class="code-boxes" style="justify-content:flex-start;padding:0">
+          ${code.split('').map((ch) => `<div class="cb filled">${esc(ch)}</div>`).join('')}
+        </div>
+        <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.4">Athletes scan the code or enter it to join your team. Only you hand it out.</div>
+      </div>
+      <div><div class="hq-qr">${svg}</div><div class="hq-qcap">SCAN TO JOIN</div></div>
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn ghost sm" id="coach-copy-code">${icon('clipboard', 16)} Copy code</button>
+      <button class="btn sm" id="coach-share-invite" style="background:linear-gradient(150deg,var(--blue-bright),#2563eb);color:#fff">${icon('share', 16)} Share invite</button>
+    </div>
+  </section>`;
+}
+
+/* First-run checklist — the concrete next actions, each linking to the real screen. "Share your
+   athlete code" is already done the moment a code exists. */
+function setupChecklist(hasCode) {
+  const items = [
+    { done: hasCode, t: 'Share your athlete code', s: 'Invite athletes to start tracking execution', go: null },
+    { done: false, t: 'Review your standard', s: 'Meals, windows, and requirements', go: 'coach-plan' },
+    { done: false, t: 'Set notification rules', s: 'When you and your athletes get nudged', go: 'coach-notif-settings' },
+    { done: false, t: 'Add another staff member', s: 'Coordinators, position coaches, and more', go: 'coach-profile' },
+    { done: false, t: 'Create position groups', s: 'Scope the standard to a room', go: 'coach-roster' },
+  ];
+  return `<div class="eyebrow">Finish setting up your team</div>
+    <section class="card" style="padding:6px 16px">
+      ${items.map((i) => `<div class="lrow" ${i.go ? `data-go="${i.go}" style="cursor:pointer"` : 'style="cursor:default"'}>
+        <div class="xico sm ${i.done ? 'green' : 'gray'}">${i.done ? icon('check', 15) : ''}</div>
+        <div class="lm"><div class="lt">${esc(i.t)}</div><div class="ls">${esc(i.s)}</div></div>
+        ${i.go ? icon('chevron', 17, 'style="color:var(--text-3)"') : ''}
+      </div>`).join('')}
+    </section>`;
+}
+
+/* Honest team-score tile for the empty roster: "Not scored yet", never a fabricated 0/failure. */
+function notScoredTeamTile() {
+  return `<section class="co-pulse" style="cursor:default">
+    <div class="co-pulse-top">
+      <div class="co-pulse-score"><div class="k">Team score</div><div class="num">—</div><div class="delta flat">Not scored yet</div></div>
+      <div class="co-pulse-done"><div class="v">0</div><div class="k">Athletes</div></div>
+    </div>
+  </section>`;
+}
+
+/* The whole truthful empty dashboard body (everything below the header): team-created
+   confirmation, "Not scored yet" tile, athlete-invite card (code/QR/share) or a minting note,
+   setup checklist, and honest empty roster/activity — never a fabricated athlete or team score.
+   Pure (given code + teamName) so it is unit-testable without a live roster. */
+export function emptyTeamDashboard(code, teamName) {
+  return `
+    <section class="state-demo" style="border-style:solid;border-color:var(--green-border)"><div class="sd-ic" style="color:var(--green-bright)">${icon('check', 24)}</div>
+      <div class="sd-t">Your team is ready</div>
+      <div class="sd-s">Invite athletes to begin. Your command center lights up in real time as they log.</div></section>
+    ${notScoredTeamTile()}
+    ${code
+        ? coachInviteCard(code, teamName)
+        : `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div><div><div class="tt">Your athlete code is minting…</div><div class="ts">It appears here the moment your team is set up on the server — usually a few seconds. Nothing shows until it's real.</div></div></div>`}
+    ${setupChecklist(!!code)}
+    <div class="eyebrow">Roster</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 8px;line-height:1.4">No athletes yet — they appear here the moment they join with your code.</div>
+    <div class="eyebrow">Live activity</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No activity yet. New logs land here in real time once athletes begin.</div>
+    <div class="co-bottom"></div>`;
+}
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 let SHOW_SCOPES = false;        // scope sheet open?
@@ -120,11 +209,11 @@ export const coachHome = {
       <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
       <div class="sd-t">Can't reach your team</div>
       <div class="sd-s">Check your connection — reopen to retry. Nothing is lost.</div></div>`;
-    if (!CD.roster.rows.length) return `${head}
-      <div class="state-demo" data-go="coach-profile" style="cursor:pointer"><div class="sd-ic">${icon('users', 24)}</div>
-      <div class="sd-t">No athletes yet</div>
-      <div class="sd-s">Share your team code so athletes can join. Your command center lights up as they log.</div>
-      ${RT.team && RT.team.code ? `<div class="sd-cta"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</span></div>` : ''}</div>`;
+    if (!CD.roster.rows.length) {
+      const code = RT.team && RT.team.code;
+      const teamNm = (CD.roster.teams[0] && CD.roster.teams[0].name) || teamName;
+      return `${head}${emptyTeamDashboard(code, teamNm)}`;
+    }
 
     const entries = entriesFor(scope);
     const statuses = {}; if (entries) for (const e of entries) statuses[e.row.athleteId] = e.status;
@@ -181,6 +270,31 @@ export const coachHome = {
   },
   mount(root) {
     loadCoachRoster().then(() => loadActivity());
+    // Empty-state invite card: Copy + native Share of the athlete code (present only before any
+    // athlete has joined).
+    const code = RT.team && RT.team.code;
+    const teamNm = (CD.roster && CD.roster.teams[0] && CD.roster.teams[0].name) || 'your team';
+    const copyBtn = root.querySelector('#coach-copy-code');
+    if (copyBtn) copyBtn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(code || ''); } catch { /* no-op */ }
+      copyBtn.innerHTML = `${icon('check', 16)} Copied`;
+      setTimeout(() => { copyBtn.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
+    });
+    const shareBtn = root.querySelector('#coach-share-invite');
+    if (shareBtn) shareBtn.addEventListener('click', async () => {
+      const url = inviteLink(code), text = inviteShareText(code, teamNm);
+      try {
+        if (window.OnStandardNative && window.OnStandardNative.share) {
+          window.OnStandardNative.share({ title: `Join ${teamNm}`, message: text, url });
+        } else if (navigator.share) {
+          await navigator.share({ title: `Join ${teamNm}`, text, url });
+        } else {
+          await navigator.clipboard.writeText(text);
+          shareBtn.innerHTML = `${icon('check', 16)} Copied invite`;
+          setTimeout(() => { shareBtn.innerHTML = `${icon('share', 16)} Share invite`; }, 1600);
+        }
+      } catch { /* share sheet dismissed */ }
+    });
     root.querySelectorAll('[data-scopes]').forEach(b => b.addEventListener('click', () => { SHOW_SCOPES = !SHOW_SCOPES; window.__render(); }));
     root.querySelectorAll('[data-pulse]').forEach(b => b.addEventListener('click', () => { SHOW_PULSE = !SHOW_PULSE; window.__render(); }));
     root.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
