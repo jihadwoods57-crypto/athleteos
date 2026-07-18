@@ -732,6 +732,23 @@ select _ok(_try($q$select create_staff_invite('77777777-1111-0000-0000-000000000
 select _ok(_try($q$select set_staff_role('77777777-1111-0000-0000-000000000001','10000000-0000-0000-0000-000000000010','coordinator')$q$) <> 'ok',
            'slice F: a non-head-coach cannot change roles');
 
+-- 8b. Roles v2 (0082/0083): a head coach mints + assigns S&C / Athletic Trainer / Team Admin;
+--     head_coach stays un-mintable and unknown roles are still refused.
+select _as('11111111-0000-0000-0000-000000000001');  -- head coach
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','s_and_c')) = 8,
+           'roles v2: head coach mints a Strength & Conditioning invite');
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','athletic_trainer')) = 8,
+           'roles v2: head coach mints an Athletic Trainer invite');
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','team_admin')) = 8,
+           'roles v2: head coach mints a Team Admin invite');
+select _ok(_try($q$select create_staff_invite('77777777-1111-0000-0000-000000000001','bogus_role')$q$) <> 'ok',
+           'roles v2: an unknown invite role is still refused');
+select _ok(set_staff_role('77777777-1111-0000-0000-000000000001','66666666-0000-0000-0000-000000000006','athletic_trainer'),
+           'roles v2: head coach re-roles a staff member to Athletic Trainer');
+select _ok((select role::text = 'athletic_trainer' from team_staff
+            where team_id = '77777777-1111-0000-0000-000000000001' and staff_id = '66666666-0000-0000-0000-000000000006'),
+           'roles v2: the Athletic Trainer role is stored');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'

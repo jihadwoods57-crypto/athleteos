@@ -83,6 +83,28 @@ describe('capability helpers', () => {
   });
 });
 
+describe('staff-role vocabulary v2 — S&C / Athletic Trainer / Team Admin', () => {
+  test('roleLabel names the three new roles', () => {
+    expect(roleLabel('s_and_c')).toBe('Strength & Conditioning');
+    expect(roleLabel('athletic_trainer')).toBe('Athletic Trainer');
+    expect(roleLabel('team_admin')).toBe('Team Admin');
+  });
+  test('S&C and Team Admin edit standards + assign; Athletic Trainer assigns without standards', () => {
+    expect(canEditStandards('s_and_c')).toBe(true);
+    expect(allowedCreateKeys('s_and_c')).toContain('assign');
+    expect(canEditStandards('team_admin')).toBe(true);
+    expect(allowedCreateKeys('athletic_trainer')).toContain('assign');
+    expect(canEditStandards('athletic_trainer')).toBe(false);
+  });
+  test('none of the new roles manage staff (head coach only) or are readonly, and none see bounced buttons', () => {
+    for (const r of ['s_and_c', 'athletic_trainer', 'team_admin']) {
+      expect(canManageStaff(r)).toBe(false);
+      expect(isReadonly(r)).toBe(false);
+      expect(allowedCreateKeys(r)).not.toContain('invite_staff');
+    }
+  });
+});
+
 describe('scopeForResponsibility — the onboarding step contract', () => {
   test('org and team responsibilities are whole-team (kind null)', () => {
     expect(scopeForResponsibility('org', '')).toEqual({ kind: null, value: null });

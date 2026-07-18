@@ -1059,7 +1059,10 @@ export const coachProfile = {
       <div class="chip-row" style="padding:0 2px 12px">
         <span class="chp" data-staff-invite="coordinator">Coordinator</span>
         <span class="chp" data-staff-invite="position_coach">Position coach</span>
+        <span class="chp" data-staff-invite="s_and_c">Strength &amp; Conditioning</span>
+        <span class="chp" data-staff-invite="athletic_trainer">Athletic Trainer</span>
         <span class="chp" data-staff-invite="nutritionist">Dietitian</span>
+        <span class="chp" data-staff-invite="team_admin">Team Admin</span>
         <span class="chp" data-staff-invite="readonly">View only</span>
       </div>` : `
       <div style="font-size:11.5px;font-weight:600;color:var(--text-3);padding:2px 2px 10px">Staff invites and scopes are managed by the head coach.</div>`}`}
