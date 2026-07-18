@@ -1,7 +1,7 @@
 // Requirements engine (0055) pure helpers — proto is plain ESM JS (allowJs), same import
 // pattern as exec.test.ts.
 // @ts-ignore
-import { resolveRequirementSet, catalogFromItems, assignedFromRow } from '../../proto/redesign-2026-07/js/requirements.js';
+import { resolveRequirementSet, catalogFromItems, assignedFromRow, derive } from '../../proto/redesign-2026-07/js/requirements.js';
 
 const TEAM = { id: 't', scope_kind: 'team', scope_value: null, items: [] };
 const OL = { id: 'p', scope_kind: 'position', scope_value: 'OL', items: [] };
@@ -22,6 +22,25 @@ describe('resolveRequirementSet — precedence athlete > position > team', () =>
   });
   test('another athlete\'s override never leaks', () =>
     expect(resolveRequirementSet([MINE, TEAM], 'ath-2', null)).toBe(TEAM));
+});
+
+describe('derive — first-day activation marks pre-activation windows Not required, never Missed', () => {
+  const lunch = { id: 'lunch', title: 'Lunch', accent: 'g', proof: 'photo', window: { open: 12 * 60, due: 14 * 60 }, required: true };
+  test('window closed before activation → "Not required" (not "Missed")', () => {
+    const d = derive(lunch, {}, 18 * 60 + 40, 18 * 60 + 34); // now 6:40 PM, activated 6:34 PM
+    expect(d.status).toBe('Not required');
+    expect(d.missed).toBe(false);
+  });
+  test('without an activation stamp, a past-due window is still "Missed"', () => {
+    const d = derive(lunch, {}, 18 * 60 + 40);
+    expect(d.status).toBe('Missed');
+    expect(d.missed).toBe(true);
+  });
+  test('a logged pre-activation slot still reads Logged, not excused', () => {
+    const d = derive(lunch, { done: true }, 18 * 60 + 40, 18 * 60 + 34);
+    expect(d.done).toBe(true);
+    expect(d.status).toBe('Logged');
+  });
 });
 
 describe('catalogFromItems — server items to catalog-shaped requirements', () => {

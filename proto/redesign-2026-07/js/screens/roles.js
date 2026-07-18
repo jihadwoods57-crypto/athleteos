@@ -83,8 +83,8 @@ export const role = {
     return `
     <div class="ob">
       <div style="width:56px;height:56px;margin:6px auto 18px">${logoMark(56, 'role')}</div>
-      <div class="ob-title" style="text-align:center">Who are you?</div>
-      <div class="ob-sub" style="text-align:center">Each role gets its own view. Nothing shared that shouldn't be.</div>
+      <div class="ob-title" style="text-align:center">Choose your role</div>
+      <div class="ob-sub" style="text-align:center">We'll personalize your account, permissions, and experience.</div>
       <div class="ob-body">
         <div class="choice-grid">
           ${card('onboarding/1', 'bolt', 'background:rgba(52,211,153,0.18);color:var(--green-bright)', 'Athlete', 'Execute your coach’s standard')}
@@ -228,7 +228,7 @@ const coachSteps = {
           <div class="lm"><div class="lt">${esc(t)}</div><div class="ls">${esc(s)}</div></div>
         </div>`).join('')}
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px">The score model itself doesn’t bend: four honest components, weight never scored daily.</div>`,
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px">Start from a template, then make the standard yours — meals, windows, and rooms are all editable in Standards.</div>`,
     'Next', 'coach-ob/6', { back: 'coach-ob/4' });
   },
 
@@ -404,7 +404,7 @@ export const coachOb = {
           }));
         } catch {
           if (myGen !== gen) return; // stale: don't clobber whatever's on screen now
-          out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Directory unreachable — add your school below.</div>`;
+          out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Couldn't reach the directory — you can add your school below.</div>`;
         }
       }, 300));
       $('#co-add').addEventListener('click', () => {
@@ -687,7 +687,7 @@ const clientSteps = {
       <div class="ts">Same four components as athletes. Inside Nutrition, your goal changes the mix: for fat loss it's calorie window 45, protein 25, meals logged 30.</div></div>
     </div>`, 'Next', 'client-ob/2'),
 
-  2: () => frame(2, 6, 'Who are you?', 'Your trainer sees this next to every log.', `
+  2: () => frame(2, 6, 'Start with the basics', 'This is how your trainer will recognize you.', `
     <input id="cl-first" class="ob-input" placeholder="First name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:12px"></div>
     <input id="cl-last" class="ob-input" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" />

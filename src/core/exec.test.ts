@@ -173,6 +173,41 @@ describe('notification plan (delegated to notify-plan.js — see notifyPlan.test
   });
 });
 
+describe('first-day activation — pre-activation windows are Not required, never overdue', () => {
+  const get = (e: any, id: string) => e.items.find((i: any) => i.id === id);
+  // Athlete activated 6:34 PM (1114). It is now 6:40 PM (1120), Friday.
+  const NOW = 18 * 60 + 40;
+  const ACT = 18 * 60 + 34; // 1114
+  const e = deriveExec({ nowMin: NOW, dow: 5, status: FRESH, activationMin: ACT });
+
+  test('windows that closed before activation read not_required, not overdue', () => {
+    for (const id of ['breakfast', 'lunch', 'weight']) {
+      expect(get(e, id).state).toBe('not_required');
+    }
+    expect(e.overdue).toHaveLength(0);
+  });
+  test('a window comfortably after activation stays the athlete’s to do', () => {
+    // dinner due 20:30 (1230) > activation+buffer (1174) → still required and actionable
+    expect(get(e, 'dinner').state).toBe('ready');
+    expect(get(e, 'dinner').required).toBe(true);
+  });
+  test('the denominator counts only post-activation required items', () => {
+    // Friday required = breakfast, lunch, weight, dinner, recovery (5). Pre-activation removes
+    // breakfast/lunch/weight → 2 remain (dinner, recovery).
+    expect(e.total).toBe(2);
+  });
+  test('no reminders fire for pre-activation windows', () => {
+    for (const id of ['breakfast', 'lunch', 'weight']) {
+      expect(e.plan.filter((p: any) => String(p.id).includes(id))).toEqual([]);
+    }
+  });
+  test('without an activation stamp, nothing changes (existing users unaffected)', () => {
+    const plain = deriveExec({ nowMin: NOW, dow: 5, status: FRESH });
+    expect(get(plain, 'breakfast').state).toBe('overdue');
+    expect(plain.total).toBe(5);
+  });
+});
+
 describe('catalog/deadline consistency', () => {
   test('meal window.due matches the scoring DEADLINE', () => {
     // requirements.js stays import-free by design — this test is the enforcement seam
@@ -190,7 +225,8 @@ describe('catalog/deadline consistency', () => {
 describe('helpers', () => {
   test('mapPressure maps the onboarding display strings', () => {
     expect(mapPressure('Remind me gently')).toBe('gentle');
-    expect(mapPressure('Max pressure')).toBe('max');
+    expect(mapPressure('High accountability')).toBe('max'); // renamed from "Max pressure"
+    expect(mapPressure('Max pressure')).toBe('max');         // legacy stored value still maps
     expect(mapPressure('Hold me accountable')).toBe('accountable');
     expect(mapPressure(undefined)).toBe('accountable');
   });

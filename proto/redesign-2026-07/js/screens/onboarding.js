@@ -32,7 +32,7 @@ function frame(n, title, sub, body, cta, next, opts = {}) {
 const numInput = 'width:100%;background:transparent;border:none;outline:none;text-align:center;font-size:34px;font-weight:800;color:inherit;font-family:inherit;padding:0';
 
 const steps = {
-  1: () => frame(1, 'Who are you?', 'Your coach sees this next to every log.', `
+  1: () => frame(1, 'Start with the basics', 'This is how your coach and team will recognize you.', `
     <input id="ob-first" class="ob-input" placeholder="First name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:12px"></div>
     <input id="ob-last" class="ob-input" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" />
@@ -82,7 +82,7 @@ const steps = {
       <div class="ob-textlink" style="font-size:13px" data-act="clearJoin">Remove connection</div>`,
       'Continue', 'onboarding/3');
     }
-    return frame(2, 'Your school', 'Find your school, then your coach. Their code is the handshake.', `
+    return frame(2, 'Your school', 'Find your school, then your coach. Enter their invitation code to connect.', `
       <input id="sc-q" class="ob-input" placeholder="Search your school" autocorrect="off" spellcheck="false" />
       <div id="sc-out" style="margin-top:14px"></div>
       <div style="height:10px"></div>
@@ -127,11 +127,12 @@ const steps = {
     </div>
     <div id="ob-wt-hint" style="font-size:12.5px;font-weight:700;margin:10px 2px 0;min-height:17px;line-height:1.4"></div>
     <div style="height:8px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Allergies & restrictions · enforced on every scan</div>
+    <div class="eyebrow" style="margin:8px 2px 10px">Allergies & dietary restrictions</div>
     <div class="chip-row" data-multi>
       <span class="chp">Peanuts · severe</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
       <span class="chp">Gluten</span><span class="chp">Shellfish</span><span class="chp">Vegetarian</span><span class="chp">Halal</span>
     </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">We use these to flag possible conflicts in meal feedback — it's a heads-up, not a guarantee. Always check ingredients yourself.</div>
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
@@ -170,9 +171,9 @@ const steps = {
         <div><div class="tt">Your edge</div><div class="ts">${std.focus}</div></div>
       </div>
       ${knobs}
-      <div class="eyebrow" style="margin:14px 2px 10px">Reminder pressure</div>
+      <div class="eyebrow" style="margin:14px 2px 10px">Accountability style</div>
       <div class="chip-row" id="ob-pressure" style="justify-content:center">
-        <span class="chp ${ob.pressure === 'Remind me gently' ? 'on' : ''}">Remind me gently</span><span class="chp ${!ob.pressure || ob.pressure === 'Hold me accountable' ? 'on' : ''}">Hold me accountable</span><span class="chp ${ob.pressure === 'Max pressure' ? 'on' : ''}">Max pressure</span>
+        <span class="chp ${ob.pressure === 'Remind me gently' ? 'on' : ''}">Remind me gently</span><span class="chp ${!ob.pressure || ob.pressure === 'Hold me accountable' ? 'on' : ''}">Hold me accountable</span><span class="chp ${ob.pressure === 'High accountability' || ob.pressure === 'Max pressure' ? 'on' : ''}">High accountability</span>
       </div>
       <div style="height:16px"></div>
       ${commitButton(committed)}`,

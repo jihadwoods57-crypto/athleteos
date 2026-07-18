@@ -18,6 +18,7 @@ import {
   setDayStandard, slotDeadline, setDayGoalConfig, checkinReal,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
+import { activationInfo, parseActivation } from './activation.js';
 import { normalizePrefs } from './notify-plan.js';
 import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
 import { entriesFor, getScope, CD } from './coach-data.js';
@@ -139,6 +140,7 @@ const DEFAULT_RT = {
   serverAckAt: null,     // when the bell was last opened — offline unread-badge ack for server rows
   day0: false,           // fresh-athlete empty-state mode (set by finishing onboarding)
   day0Breakfast: false,  // day-0 first meal logged
+  activationDate: null,  // ISO stamp of onboarding commit (first-day activation; never backdate). Server committed_at is the cross-device backstop.
   lastMove: null,        // {from, to, gain, what} — powers confirmation screens
   assigned: [],          // coach-assigned requirements: {id,title,icon,note,from,dueLabel,done,seen,real?}
   reqSets: null,         // team's standing requirement_sets (0055) — cached for resolution surfaces
@@ -383,6 +385,19 @@ export function syncRtFromDay() {
   // "day 0" (fresh empty state) until the athlete logs anything real today
   RT.day0 = !DAY.meals.breakfast && !DAY.meals.lunch && !DAY.meals.snack && !DAY.meals.dinner && !DAY.ciSubmitted && !DAY.dailyCommitment;
   save();
+}
+
+/* The athlete's activation stamp for the first-day (no-retroactive-failure) rules. Primary:
+   RT.activationDate, stamped locally at onboarding commit — covers the exact signup→dashboard
+   moment on the same device. Backstop: the server committed_at hydrated into RT.profile.committedAt
+   (cross-device). Null (existing/pre-change users) ⇒ fully active, so nobody is affected retroactively. */
+function activationStamp() {
+  return RT.activationDate || (RT.profile && RT.profile.committedAt) || null;
+}
+/** The activation calendar date only ('YYYY-MM-DD'), or null. */
+function activationDateOnly() {
+  const p = parseActivation(activationStamp());
+  return p ? p.date : null;
 }
 
 /* ---------------- Goal → scoring profile + targets (proto mirror of src/core) ----------------
@@ -1053,12 +1068,15 @@ export const act = {
     const hadTargets = !!(RT.profile && RT.profile.targets);
     RT.profileLoading = true; save();
     try {
-      const { data: prof } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
+      const { data: prof } = await sb.from('profiles').select('full_name,committed_at').eq('id', userId).maybeSingle();
       // SETTLED sentinel: supabase-js resolves network/RLS failures into `{error}` without
       // throwing — destructure it so a real fetch failure is never misread as "no targets".
       const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob').eq('athlete_id', userId).maybeSingle();
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
+      // Cross-device activation backstop: the server's committed_at is the first-day anchor when
+      // this device never ran onboarding (RT.activationDate is local-only).
+      if (prof && prof.committed_at) patch.committedAt = prof.committed_at;
       if (ap) {
         if (ap.sport) patch.sport = ap.sport; if (ap.position) patch.position = ap.position; if (ap.level) patch.level = ap.level;
         if (ap.base_weight != null) patch.baseWeight = ap.base_weight;
@@ -1473,6 +1491,10 @@ export const act = {
     const ob = RT.ob || {};
     const synced = { legacy: false, extra: false, stamps: false, join: false, ...(ob._synced || {}) };
     const name = ob.name || (RT.profile && RT.profile.name) || '';
+    // First-day activation anchor: stamped once, at signup, from the hold-to-commit moment (or now).
+    // Everything scored before this instant is "Not required" — the athlete is never punished for
+    // windows that closed before their account existed. Idempotent (set once; retries never move it).
+    if (!RT.activationDate) { RT.activationDate = ob.committedAt || new Date().toISOString(); save(); }
     // local identity first (always — cheap, idempotent)
     this.saveProfile({ name, sport: ob.sport || '', position: ob.position || '', level: ob.level || '' });
     this.saveAllergies(ob.allergies || RT.allergies || []);
@@ -1812,7 +1834,12 @@ export const S = {
     const y = (DAY.scoreHistory || []).find(h => h.date === yISO);
     return y ? y.score : null;
   },
-  get streakDays() { return dayStreak(); },
+  get streakDays() { return dayStreak(activationDateOnly()); },
+  // First-day activation state (no retroactive failure). notYetScored is true for the whole
+  // activation day: the athlete may log (and the coach sees it), but the day shows "Not scored
+  // yet" and doesn't grade/streak — full scoring resumes the next local day.
+  get activation() { return activationInfo(activationStamp(), String(DAY.date)); },
+  get notYetScored() { return this.activation.notYetScored; },
   // Guardian-consent surface (athlete side of 0050). `needed` gates the Home banner + the
   // sync pill copy; a verified minor and every adult read as not-needed.
   get consent() {
@@ -1834,7 +1861,7 @@ export const S = {
   // Grace-aware streak state for the label surfaces. The grace "recharges": a graced miss
   // older than the trailing 7 days reads as intact again (one miss per rolling week).
   get streak() {
-    const info = streakInfo();
+    const info = streakInfo(activationDateOnly());
     let graceUsedRecently = false;
     if (info.graceDate) {
       const diff = Math.round((new Date(DAY.date + 'T12:00:00') - new Date(info.graceDate + 'T12:00:00')) / 86400000);
@@ -2188,6 +2215,8 @@ export const S = {
       assigned: RT.assigned.map((a) => ({ ...a, dueAtMin: dueAtMinToday(a.dueAtISO) })),
       pressure: mapPressure(RT.ob && RT.ob.standard && RT.ob.standard.pressure),
       score: this.score, possible: this.possible, streak: this.streakDays,
+      // First-day activation: windows that closed before the athlete activated read "Not required".
+      activationMin: this.activation.activationMin,
       catalog,
       dateISO: String(DAY.date),
       prefs: RT.notifPrefs,

@@ -291,7 +291,7 @@ export function tierFor(s) { return s >= 90 ? { name: 'OnStandard', cls: 'g' } :
  *
  *  Returns { days, todayCounted, graceDate } — graceDate is the most recent graced miss
  *  inside the run (null when the grace is intact). */
-export function streakInfo() {
+export function streakInfo(activationDate = /** @type {string | null} */ (null)) {
   const THRESH = 80;
   const byDate = {};
   let earliest = null;
@@ -300,12 +300,19 @@ export function streakInfo() {
     if (earliest === null || h.date < earliest) earliest = h.date;
   }
   const diffDays = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
-  const todayCounted = dayScore() >= THRESH;
+  // First-day activation (no retroactive failure): the activation day is a partial day the athlete
+  // is never scored on — it neither counts toward the streak nor breaks it. `activationDate` is a
+  // 'YYYY-MM-DD'; null (existing users) leaves every rule below untouched.
+  const isActivationDay = !!activationDate && DAY.date === activationDate;
+  const todayCounted = !isActivationDay && dayScore() >= THRESH;
   let days = todayCounted ? 1 : 0;
   let graceDate = null;   // most recent graced miss (first one met walking backward)
   let lastGrace = null;   // for the rolling-7 rule
   let cursor = addDaysISO(DAY.date, -1);
   while (earliest !== null && cursor >= earliest) {
+    // The activation day and everything before it predate accountability — stop the walk there
+    // (never a miss, never burns grace, never counts).
+    if (activationDate && cursor <= activationDate) break;
     const s = byDate[cursor];
     if (typeof s === 'number' && s >= THRESH) {
       days++;
@@ -324,8 +331,9 @@ export function streakInfo() {
   return { days, todayCounted, graceDate };
 }
 
-/** Back-compat: the plain day count (now grace-aware and morning-safe). */
-export function streakDays() { return streakInfo().days; }
+/** Back-compat: the plain day count (now grace-aware and morning-safe). `activationDate`
+ *  (a 'YYYY-MM-DD', or null) forwards the first-day exclusion to streakInfo. */
+export function streakDays(activationDate = /** @type {string | null} */ (null)) { return streakInfo(activationDate).days; }
 
 /* ---- offline cache (per user) ---- */
 function cacheKey(userId) { return `onstd-day-${userId}-${DAY.date}`; }

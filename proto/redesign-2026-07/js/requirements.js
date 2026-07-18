@@ -30,6 +30,9 @@ export const IMPACT_LABEL = {
 /* The proto's clock: 7:12 PM (dinner due 8:00 PM, "48 min remaining"). */
 export const NOW_MIN = 19 * 60 + 12;
 export const TODAY_DOW = 5; // Friday — Morning Weight runs Mon/Wed/Fri
+/* First-day activation grace buffer (mirrors activation.js — kept inline so requirements.js
+   stays import-free by design, per the exec.test catalog/deadline enforcement seam). */
+export const ACTIVATION_BUFFER_MIN = 60;
 
 export const CATALOG = [
   { id: 'breakfast', title: 'Breakfast', icon: 'utensils', accent: 'g', proof: 'photo',
@@ -79,8 +82,11 @@ export function runsToday(req, dow = TODAY_DOW) {
   return false;
 }
 
-/* Derive one requirement's live view. done/late come from the runtime resolver. */
-export function derive(req, { done = false, late = false, progress = null } = {}, nowMin = NOW_MIN) {
+/* Derive one requirement's live view. done/late come from the runtime resolver.
+   `activationMin` (minute-of-day of the athlete's activation on the activation day, or null)
+   protects a just-activated athlete: a window that closed before they could act reads
+   "Not required", never "Missed" — the same first-day rule exec.js applies to Home. */
+export function derive(req, { done = false, late = false, progress = null } = {}, nowMin = NOW_MIN, activationMin = /** @type {number | null} */ (null)) {
   const due = req.window.due;
   const dueLabel = req.window.label || `Due by ${fmtMin(due)}`;
   let status, statusColor, sub, subColor, accent = req.accent, missed = false, next = false;
@@ -92,6 +98,9 @@ export function derive(req, { done = false, late = false, progress = null } = {}
   } else if (progress != null) {
     status = 'Open'; statusColor = 'b';
     sub = `${progress} · ${dueLabel.toLowerCase()}`; subColor = 'b';
+  } else if (activationMin != null && due != null && due <= activationMin + ACTIVATION_BUFFER_MIN) {
+    status = 'Not required'; statusColor = 'b';
+    sub = `Closed ${fmtMin(due)} · you joined after`; subColor = 'b';
   } else if (nowMin > due) {
     status = 'Missed'; statusColor = 'a'; missed = true;
     sub = `Was due ${fmtMin(due)}`; subColor = 'a'; accent = 'a';

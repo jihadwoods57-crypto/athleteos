@@ -83,3 +83,28 @@ test('no history and a blank today reads 0', () => {
   seed([]);
   expect(streakDays()).toBe(0);
 });
+
+// First-day activation: the activation day is excluded from the streak entirely — a strong day 0
+// never starts a run early, and a weak day 0 in history never burns grace or breaks a run.
+test('activation day is excluded — a strong first day does not start a streak', () => {
+  seed([]);
+  DAY.date = iso(0);
+  qualifyToday(); // athlete logs a full day on their very first day
+  const info = streakInfo(iso(0));
+  expect(info.days).toBe(0);
+  expect(info.todayCounted).toBe(false);
+});
+
+test('a weak activation day in history burns no grace and does not break the run', () => {
+  seed([[1, 90], [2, 88], [3, 91], [4, 40]]); // 4 days ago = activation day, partial/low
+  qualifyToday();
+  const info = streakInfo(iso(4));
+  expect(info.days).toBe(4); // today + the three strong post-activation days
+  expect(info.graceDate).toBeNull(); // the low activation day never burned grace
+});
+
+test('without an activation date, streak behavior is unchanged (existing users)', () => {
+  seed([[1, 85], [2, 90]]);
+  qualifyToday();
+  expect(streakInfo().days).toBe(3);
+});
