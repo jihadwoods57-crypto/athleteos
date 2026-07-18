@@ -236,19 +236,42 @@ export function athletesToWatch({ rollup = [], roster = [], todayISO }) {
 /** Team-wide "most missed required item" for the current week. A day counts as "the athlete
  *  had data" simply by having a rollup row — team_day_rollup only returns rows joined off the
  *  `days` table, so a present row already IS the "any data" signal; there is no separate check.
- *  Per-kind done rule, using the fields 0076 actually gives us instead of guessing from ids:
- *   - kind 'weigh'   -> row.weight_logged
- *   - kind 'checkin' -> row.checkin_done
- *   - kind 'meal'    -> positional vs meals_logged (see completionFraction's comment above —
- *                       tasks_done carries physical slot keys, not the coach's req id)
- *   - anything else  -> tasks_done includes the req id directly
- *  Freq-gated: a requirement that doesn't run on that day's weekday (e.g. Mon/Wed/Fri weigh-in)
- *  is never counted as missed. */
+ *
+ *  HONESTY FIX (post final-review, finding d): the old code had a fallback branch that treated
+ *  ANY non-meal/weigh/checkin requirement as "done" via `tasks_done.includes(req.id)`. No shipped
+ *  writer ever populates `days.tasks` with a requirement id — the proto's pushDay never writes
+ *  `tasks` (column defaults '[]'), and the RN writer uses numeric ids, not req ids (see 0076's own
+ *  jsonb-guard comment). That meant the fallback was permanently false, so every required-daily
+ *  built-in like Recovery Check-In was reported "missed" on every single data-day, team-wide,
+ *  forever — a fabricated number dressed as a real one. We now only report a miss for requirement
+ *  kinds that map onto a REAL rollup column that 0076 actually derives from source data:
+ *   - kind 'meal'    -> positional vs meals_logged, per day (see completionFraction's comment
+ *                       above — tasks_done carries physical slot keys, not the coach's req id).
+ *                       Freq-gated per day exactly as before; UNCHANGED from the prior version.
+ *   - kind 'weigh'   -> row.weight_logged, per day, freq-gated (daily or Mon/Wed/Fri via
+ *                       freq.days) — already a real column, so the per-day rule was already
+ *                       honest and is kept as-is.
+ *   - kind 'checkin' -> weekly cadence, so we count AT MOST ONE miss per athlete for the whole
+ *                       week window (not per day — the requirement only fires once a week, and
+ *                       0076's checkin_done is itself a trailing 7-day OR, so any one true day in
+ *                       the window is enough to clear it). An athlete needs >=1 data-day in the
+ *                       window to be judged at all; zero data-days is silence, not a fabricated
+ *                       miss (that's `athletesToWatch`'s disengaging list's job).
+ *   - anything else (lift, recovery, custom, unknown) -> SKIPPED ENTIRELY. No sentence, no count.
+ *     A fabricated miss-count is worse than silence. Revisit once pushDay actually writes
+ *     `tasks_done` keyed by requirement id — then this can grow a real per-kind rule instead of
+ *     an omission. */
 export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
   const { thisFrom, thisTo } = weekWindows(todayISO);
   const rows = rollup.filter(r => r && r.athlete_id && inWindow(r.day, thisFrom, thisTo));
 
   const totals = {}; // reqId -> { title, missedCount }
+  const bump = (req) => {
+    if (!totals[req.id]) totals[req.id] = { title: req.title || req.id, missedCount: 0 };
+    totals[req.id].missedCount++;
+  };
+
+  // meal + weigh: per-day, freq-gated, verified against real rollup columns. Unchanged logic.
   for (const row of rows) {
     const reqs = reqsByAthlete[row.athlete_id] || [];
     const mealReqs = reqs.filter(r => r && r.kind === 'meal');
@@ -256,18 +279,25 @@ export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
     const loggedMeals = Number(row.meals_logged) || 0;
     for (const req of reqs) {
       if (!req || !req.required) continue;
+      if (req.kind !== 'meal' && req.kind !== 'weigh') continue; // checkin below; rest skipped
       if (!runsOnLocal(req.freq, dow)) continue;
-      let done;
-      if (req.kind === 'weigh') done = row.weight_logged === true;
-      else if (req.kind === 'checkin') done = row.checkin_done === true;
-      else if (req.kind === 'meal') done = loggedMeals > mealReqs.indexOf(req);
-      else done = Array.isArray(row.tasks_done) && row.tasks_done.includes(req.id);
-
-      if (!done) {
-        if (!totals[req.id]) totals[req.id] = { title: req.title || req.id, missedCount: 0 };
-        totals[req.id].missedCount++;
-      }
+      const done = req.kind === 'meal'
+        ? loggedMeals > mealReqs.indexOf(req)
+        : row.weight_logged === true;
+      if (!done) bump(req);
     }
+  }
+
+  // checkin: weekly cadence -> one miss per athlete per week window, never per day.
+  const rowsByAthlete = {};
+  for (const row of rows) (rowsByAthlete[row.athlete_id] = rowsByAthlete[row.athlete_id] || []).push(row);
+  for (const athleteId of Object.keys(rowsByAthlete)) {
+    const athleteRows = rowsByAthlete[athleteId];
+    if (!athleteRows.length) continue; // no data-day in the window -> silence, not a miss
+    const checkinReqs = (reqsByAthlete[athleteId] || []).filter(r => r && r.required && r.kind === 'checkin');
+    if (!checkinReqs.length) continue;
+    const anyDone = athleteRows.some(r => r.checkin_done === true);
+    if (!anyDone) for (const req of checkinReqs) bump(req);
   }
 
   return Object.keys(totals)

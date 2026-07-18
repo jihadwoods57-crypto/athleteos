@@ -123,22 +123,85 @@ test('athletesToWatch: disengaging gap is athlete-anchored — own last row, una
 });
 
 // ---------------- mostMissed ----------------
-test('mostMissed: counts absent req ids only on the days the athlete actually has data', () => {
+// HONESTY FIX (post final-review, finding d): a required daily req of an unverifiable kind
+// (recovery, lift, custom, unknown) must never be reported — no writer populates tasks_done
+// with requirement ids, so the old fallback branch fabricated a miss on every data-day.
+test('mostMissed: an unverifiable required-daily kind (recovery) is skipped entirely, even with a full week of data', () => {
   const reqsByAthlete = {
-    a1: [
-      { id: 'recovery', title: 'Recovery Check-In', kind: 'other', required: true, freq: { type: 'daily' } },
-      { id: 'weight', title: 'Morning Weight', kind: 'weigh', required: true, freq: { type: 'daily' } },
-    ],
+    a1: [{ id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', required: true, freq: { type: 'daily' } }],
+  };
+  const rollup = ['2026-07-10', '2026-07-11', '2026-07-12', '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16']
+    .map(d => rr('a1', d, { tasks_done: [] })); // a full week of real data; tasks_done never carries this req id
+  const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
+  expect(m).toEqual([]); // silence, not a fabricated 7-miss count
+});
+
+test('mostMissed: meal positional rule is unchanged — only days the athlete has data count, and 0 misses is silent', () => {
+  const reqsByAthlete = {
+    a1: [{ id: 'dinner', title: 'Dinner', kind: 'meal', required: true, freq: { type: 'daily' } }],
   };
   // Only 5 days of data in the window (not the full 7) -> missedCount must reflect 5, not 7.
   const rollup = ['2026-07-12', '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16']
-    .map(d => rr('a1', d, { tasks_done: [], weight_logged: true })); // recovery always missing; weight always logged
+    .map(d => rr('a1', d, { meals_logged: 0 })); // single meal req, never logged
   const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
-  expect(m).toHaveLength(1); // weight has 0 misses -> silent, omitted entirely
-  expect(m[0]).toEqual({
-    reqId: 'recovery', title: 'Recovery Check-In', missedCount: 5,
-    text: 'Recovery Check-In was missed 5 times across the team this week.',
-  });
+  expect(m).toEqual([{
+    reqId: 'dinner', title: 'Dinner', missedCount: 5,
+    text: 'Dinner was missed 5 times across the team this week.',
+  }]);
+});
+
+test('mostMissed: weigh — counts a genuine miss only on the freq-required days the athlete has data', () => {
+  const reqsByAthlete = {
+    a1: [{ id: 'weight', title: 'Morning Weight', kind: 'weigh', required: true, freq: { type: 'days', days: [1, 3, 5] } }],
+  };
+  const rollup = [
+    rr('a1', '2026-07-13', { weight_logged: false }), // Monday (dow 1), required, missed
+    rr('a1', '2026-07-14', { weight_logged: false }), // Tuesday (dow 2), not required -> ignored
+    rr('a1', '2026-07-15', { weight_logged: true }),  // Wednesday (dow 3), required, logged
+  ];
+  const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
+  expect(m).toEqual([{
+    reqId: 'weight', title: 'Morning Weight', missedCount: 1,
+    text: 'Morning Weight was missed 1 time across the team this week.',
+  }]);
+});
+
+test('mostMissed: weigh — zero misses on the required days is silent, not a zero-value line', () => {
+  const reqsByAthlete = {
+    a1: [{ id: 'weight', title: 'Morning Weight', kind: 'weigh', required: true, freq: { type: 'days', days: [1, 3, 5] } }],
+  };
+  const rollup = [
+    rr('a1', '2026-07-13', { weight_logged: true }), // Monday, required, logged
+    rr('a1', '2026-07-15', { weight_logged: true }), // Wednesday, required, logged
+  ];
+  const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
+  expect(m).toEqual([]);
+});
+
+test('mostMissed: checkin — one miss per athlete per week, never per day, when no day in the window has checkin_done true', () => {
+  const reqsByAthlete = {
+    a1: [{ id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', required: true, freq: { type: 'weekly', day: 0 } }],
+  };
+  const rollup = ['2026-07-12', '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16']
+    .map(d => rr('a1', d, { checkin_done: false })); // 5 data-days this week, never checked in
+  const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
+  expect(m).toEqual([{
+    reqId: 'weekly', title: 'Weekly Check-In', missedCount: 1,
+    text: 'Weekly Check-In was missed 1 time across the team this week.',
+  }]);
+});
+
+test('mostMissed: checkin — any single true day in the window clears the whole week, silently', () => {
+  const reqsByAthlete = {
+    a1: [{ id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', required: true, freq: { type: 'weekly', day: 0 } }],
+  };
+  const rollup = [
+    rr('a1', '2026-07-12', { checkin_done: false }),
+    rr('a1', '2026-07-13', { checkin_done: true }), // one true day is enough for the whole week
+    rr('a1', '2026-07-16', { checkin_done: false }),
+  ];
+  const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
+  expect(m).toEqual([]);
 });
 
 test('mostMissed: empty rollup -> empty list, never throws', () => {
