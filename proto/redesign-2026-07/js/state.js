@@ -1506,6 +1506,9 @@ export const act = {
         const row = Array.isArray(data) ? data[0] : data;
         if (!error && row) {
           this.captureOb({ teamCode: null, joinedStaff: { teamName: row.team_name, role: row.staff_role } });
+          // Slice F: a joiner self-declares their INITIAL responsibility (0078 allows exactly
+          // that once; widening later is head-coach-only).
+          try { await this._applyCoachResponsibility(row.team_id, false); } catch { /* best-effort */ }
           return true;
         }
         return false;
@@ -1531,8 +1534,68 @@ export const act = {
       });
       if (error || !code) return false;
       this.captureOb({ teamCode: code });
+      // Slice F: land the responsibility + starting-standard choices on the fresh team.
+      // Best-effort — the account/team/code above is the contract; these refine it.
+      try { await this._finishCreatedTeamSetup(); } catch { /* editor can publish later */ }
       return true;
     } catch { return false; }
+  },
+  /* Slice F: after the team/staff link exists, apply the onboarding responsibility choice.
+     A staff-code JOINER self-declares their initial narrowing via set_staff_scope (0078
+     permits exactly that once). The team CREATOR is the head coach — the server keeps the
+     head-coach row whole-team, so their choice seeds the client Home scope filter instead. */
+  async _applyCoachResponsibility(teamId, isCreator) {
+    const sb = window.sb;
+    const c = ((RT.ob || {}).coach) || {};
+    if (!sb || !teamId || !c.responsibility) return;
+    const { scopeForResponsibility } = await import('./staff-access.js');
+    const scope = scopeForResponsibility(c.responsibility, c.respRooms);
+    if (isCreator) {
+      if (scope.kind === 'position' && !String(scope.value || '').includes(',')) {
+        try { const { setScope } = await import('./coach-data.js'); setScope({ kind: 'position', value: scope.value }); }
+        catch { /* scope selector defaults to whole team */ }
+      }
+      return;
+    }
+    try {
+      if (scope.kind === 'group') {
+        // Mint the private group first (a readonly joiner can't insert one — skips silently;
+        // the head coach can scope them from Staff later).
+        const { data: g } = await sb.from('coach_groups')
+          .insert({ team_id: teamId, name: 'My athletes', athlete_ids: [] }).select('id').maybeSingle();
+        if (g && g.id) await sb.rpc('set_staff_scope', { p_team: teamId, p_staff: RT.userId, p_kind: 'group', p_value: g.id });
+        return;
+      }
+      if (scope.kind === 'position') {
+        await sb.rpc('set_staff_scope', { p_team: teamId, p_staff: RT.userId, p_kind: 'position', p_value: scope.value });
+      }
+    } catch { /* best-effort — never blocks onboarding */ }
+  },
+  /* Slice F, CREATE path only: resolve the fresh team's id, apply responsibility, and seed
+     the chosen template as the team standard. Never runs on the staff-join path — joining
+     must not stomp an existing team's standard. */
+  async _finishCreatedTeamSetup() {
+    const sb = window.sb;
+    const c = ((RT.ob || {}).coach) || {};
+    if (!sb) return;
+    let teamId = null;
+    try {
+      const { data: t } = await sb.from('teams').select('id').limit(1).maybeSingle();
+      teamId = t && t.id;
+    } catch { return; }
+    if (!teamId) return;
+    await this._applyCoachResponsibility(teamId, true);
+    if (c.standardTemplate && c.standardTemplate !== 'default') {
+      try {
+        const { seedTemplates } = await import('./templates.js');
+        const tpl = seedTemplates().find((s) => s.kind === c.standardTemplate);
+        if (tpl) {
+          await sb.rpc('set_team_requirements', {
+            p_team: teamId, p_scope_kind: 'team', p_scope_value: null, p_items: tpl.items,
+          });
+        }
+      } catch { /* the standards editor can publish it later */ }
+    }
   },
   /* Mint the trainer's real practice + client code. Idempotent via RT.ob.practiceCode. */
   async persistTrainerOnboarding() {
