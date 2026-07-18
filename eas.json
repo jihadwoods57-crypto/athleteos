@@ -10,7 +10,9 @@
       "credentialsSource": "local",
       "env": {
         "EXPO_PUBLIC_BACKEND_LIVE": "true",
-        "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest"
+        "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1080144223656-0k4crb69m5o2o7nj1550edu7d62gsk5a.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1080144223656-hauiigc5nkb6t07e6vet4udvd0mve3kr.apps.googleusercontent.com"
       },
       "channel": "development"
     },
@@ -18,7 +20,9 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_BACKEND_LIVE": "true",
-        "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest"
+        "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1080144223656-0k4crb69m5o2o7nj1550edu7d62gsk5a.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1080144223656-hauiigc5nkb6t07e6vet4udvd0mve3kr.apps.googleusercontent.com"
       },
       "channel": "preview"
     },
@@ -27,7 +31,9 @@
       "credentialsSource": "local",
       "env": {
         "EXPO_PUBLIC_BACKEND_LIVE": "true",
-        "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest"
+        "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1080144223656-0k4crb69m5o2o7nj1550edu7d62gsk5a.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1080144223656-hauiigc5nkb6t07e6vet4udvd0mve3kr.apps.googleusercontent.com"
       },
       "channel": "production"
     }
