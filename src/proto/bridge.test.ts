@@ -9,6 +9,19 @@ jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn(), deleteItemAsync: jest.fn(),
 }));
 jest.mock('../lib/notify/execSync', () => ({ syncExecNotifications: jest.fn(async () => undefined) }));
+// Mock the native auth seams so the bridge is tested against a KNOWN seam state (unavailable),
+// deterministically, whether or not expo-apple-authentication / expo-local-authentication are
+// installed. The bridge's job is to route whatever the seam reports; the seams' own availability
+// logic lives in src/lib/auth/*.
+jest.mock('../lib/auth/apple', () => ({
+  isAppleAuthAvailable: false,
+  requestAppleIdentityToken: jest.fn(async () => null),
+}));
+jest.mock('../lib/auth/biometrics', () => ({
+  isBiometricsAvailable: false,
+  biometricsUsable: jest.fn(async () => false),
+  authenticateBiometric: jest.fn(async () => true),
+}));
 
 import { handleBridgeMessage, BRIDGE_SHIM } from './bridge';
 import { syncExecNotifications } from '../lib/notify/execSync';
@@ -18,14 +31,14 @@ function fakeRef() {
   return { injected, ref: { current: { injectJavaScript: (js: string) => injected.push(js) } } as never };
 }
 
-test('APPLE_AVAILABLE resolves false while the native module is absent', async () => {
+test('APPLE_AVAILABLE resolves false when the auth seam reports unavailable', async () => {
   const { injected, ref } = fakeRef();
   const handled = await handleBridgeMessage(ref, { type: 'APPLE_AVAILABLE', id: 1 } as never);
   expect(handled).toBe(true);
   expect(injected[0]).toContain('__onNativeResult(1, false');
 });
 
-test('APPLE_SIGNIN resolves null while the native module is absent', async () => {
+test('APPLE_SIGNIN resolves null when the auth seam reports unavailable', async () => {
   const { injected, ref } = fakeRef();
   await handleBridgeMessage(ref, { type: 'APPLE_SIGNIN', id: 2 } as never);
   expect(injected[0]).toContain('__onNativeResult(2, null');
@@ -36,7 +49,7 @@ test('shim exposes the apple API', () => {
   expect(BRIDGE_SHIM).toContain('APPLE_SIGNIN');
 });
 
-test('BIO_AVAILABLE resolves false while the native module is absent', async () => {
+test('BIO_AVAILABLE resolves false when the auth seam reports unavailable', async () => {
   const { injected, ref } = fakeRef();
   await handleBridgeMessage(ref, { type: 'BIO_AVAILABLE', id: 3 } as never);
   expect(injected[0]).toContain('__onNativeResult(3, false');

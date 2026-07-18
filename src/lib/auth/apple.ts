@@ -43,5 +43,20 @@ export const isAppleAuthAvailable: boolean = (() => {
  */
 export async function requestAppleIdentityToken(): Promise<string | null> {
   if (!isAppleAuthAvailable) return null;
-  return null; // replaced by the signInAsync block above once the dep is added
+  try {
+    // Lazy require (mirrors biometrics.ts) so the native-only module is touched only on iOS,
+    // after the isAppleAuthAvailable gate.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const AppleAuthentication = require('expo-apple-authentication');
+    const cred = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+    return cred.identityToken ?? null;
+  } catch {
+    // User canceled (ERR_REQUEST_CANCELED) or the request failed → treat as "not signed in".
+    return null;
+  }
 }

@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.onstandard.app",
       "buildNumber": "1",
       "config": {
@@ -90,6 +91,13 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Unlock OnStandard with Face ID."
+        }
+      ],
+      "expo-apple-authentication",
       [
         "expo-splash-screen",
         {
