@@ -419,8 +419,8 @@ export const coachOb = {
           const { orgs } = await dir.search(v);
           if (myGen !== gen || q.value.trim() !== v) return; // stale: repainted or query changed since
           out.innerHTML = orgs.length ? `<section class="card" style="padding:6px 16px">${orgs.map((o, i) => `
-            <div class="lrow" data-org="${i}"><div class="lic">${icon('shield', 17)}</div>
-            <div class="lm"><div class="lt">${esc(o.name)}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}</div></div></div>`).join('')}</section>`
+            <div class="lrow" data-org="${i}"><div class="lic"${o.verified ? ' style="color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
+            <div class="lm"><div class="lt">${esc(o.name)}${o.verified ? ` <span style="font-size:10px;font-weight:800;color:var(--green-bright);letter-spacing:0.02em">✓ Verified</span>` : ''}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}</div></div></div>`).join('')}</section>`
             : `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Nothing yet — add your school below.</div>`;
           out.querySelectorAll('[data-org]').forEach((el) => el.addEventListener('click', () => {
             const o = orgs[+el.getAttribute('data-org')];

@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
       const q = clean(body.q);
       if (q.length < 2) return json({ orgs: [] });
       const { data: orgs, error } = await sb.from("orgs")
-        .select("id,name,type,city,state").ilike("name", `%${q}%`).order("name").limit(20);
+        .select("id,name,type,city,state,verification_status").ilike("name", `%${q}%`).order("name").limit(20);
       if (error) return json({ error: "bad_request" }, 400);
       const ids = (orgs ?? []).map((o) => o.id);
       const counts: Record<string, number> = {};
@@ -53,7 +53,8 @@ Deno.serve(async (req) => {
           .select("org_id").in("org_id", ids).eq("discoverable", true);
         for (const t of teams ?? []) counts[t.org_id] = (counts[t.org_id] || 0) + 1;
       }
-      return json({ orgs: (orgs ?? []).map((o) => ({ ...o, teams: counts[o.id] || 0 })) });
+      // `verified` is a badge-only signal (migration 0084): true for the seeded official orgs.
+      return json({ orgs: (orgs ?? []).map(({ verification_status, ...o }) => ({ ...o, teams: counts[o.id] || 0, verified: verification_status === "verified" })) });
     }
 
     if (body.op === "teams") {

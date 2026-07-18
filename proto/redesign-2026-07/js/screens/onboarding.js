@@ -346,8 +346,8 @@ export default {
           }
           out.innerHTML = `<section class="card" style="padding:6px 16px">${orgs.map((o, i) => `
             <div class="lrow" data-org="${i}">
-              <div class="lic">${icon('shield', 17)}</div>
-              <div class="lm"><div class="lt">${esc(o.name)}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}${o.teams ? ` · ${o.teams} coach${o.teams > 1 ? 'es' : ''}` : ''}</div></div>
+              <div class="lic"${o.verified ? ' style="color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
+              <div class="lm"><div class="lt">${esc(o.name)}${o.verified ? ` <span style="font-size:10px;font-weight:800;color:var(--green-bright);letter-spacing:0.02em">✓ Verified</span>` : ''}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}${o.teams ? ` · ${o.teams} coach${o.teams > 1 ? 'es' : ''}` : ''}</div></div>
               ${icon('chevron', 17, 'style="color:var(--text-3)"')}
             </div>`).join('')}</section>`;
           out.querySelectorAll('[data-org]').forEach((el) => el.addEventListener('click', () => showTeams(orgs[+el.getAttribute('data-org')])));
