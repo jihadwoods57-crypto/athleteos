@@ -146,7 +146,17 @@ const coachSteps = {
       'Next', 'coach-ob/3', { back: 'coach-ob/1' });
   },
 
-  3: () => frame(3, 7, 'Build the team.', 'Athletes join it with one code. You can run more than one group.', `
+  /* Step 3 — the create-vs-join fork (handoff: never combine "Build the team" and "Join a
+     staff" as competing forms on one screen). A segmented choice picks the path; only the
+     chosen path's fields render, and persistCoachOnboarding routes on the staff code being set. */
+  3: () => {
+    const c = (RT.ob || {}).coach || {};
+    const mode = c.joinMode === 'join' ? 'join' : 'create';
+    const seg = `<div class="seg" style="width:100%;margin-bottom:18px" id="co-joinmode">
+      <button class="${mode === 'create' ? 'on' : ''}" data-mode="create">Create a team</button>
+      <button class="${mode === 'join' ? 'on' : ''}" data-mode="join">Join a staff</button>
+    </div>`;
+    const createBody = `
     <input id="co-team" class="ob-input" placeholder="Team name (e.g. Varsity Football)" />
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
@@ -162,11 +172,17 @@ const coachSteps = {
     <div class="lrow" style="cursor:default;padding:0 2px">
       <div class="lm"><div class="lt">Listed in school search</div><div class="ls">Athletes at your school can find this team. The code is still required to join.</div></div>
       <div class="seg" style="width:104px" id="co-disc"><button class="on">On</button><button>Off</button></div>
-    </div>
-    <div style="height:14px"></div>
-    <div class="eyebrow" style="margin:8px 2px 8px">Joining an existing staff instead?</div>
-    <input id="co-staff-code" class="ob-input" maxlength="8" placeholder="Staff code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.4">With a staff code you skip team creation and land on that team's staff.</div>`, 'Next', 'coach-ob/4', { back: 'coach-ob/2' }),
+    </div>`;
+    const joinBody = `
+    <div class="eyebrow" style="margin:8px 2px 10px">Staff code</div>
+    <input id="co-staff-code" class="ob-input" maxlength="8" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team's staff with the role and permissions they set — you won't create a new team.</div>`;
+    return frame(3, 7,
+      mode === 'join' ? 'Join a staff.' : 'Build the team.',
+      mode === 'join' ? 'Enter the code from your head coach.' : 'Athletes join it with one code. You can run more than one group.',
+      `${seg}${mode === 'join' ? joinBody : createBody}`,
+      'Next', 'coach-ob/4', { back: 'coach-ob/2' });
+  },
 
   /* Step 4 — role + responsibility (NEW, Slice F). Sets team_staff scope: a staff-code
      joiner self-declares their initial narrowing (0078 allows exactly that once); a team
@@ -197,9 +213,18 @@ const coachSteps = {
     'Next', 'coach-ob/5', { back: 'coach-ob/3' });
   },
 
-  /* Step 5 — starting standard, template-aware (Slice C templates surfaced at creation). */
+  /* Step 5 — starting standard, template-aware (Slice C templates surfaced at creation).
+     A staff JOINER doesn't set the team standard (the head coach owns it) — they review that
+     it's already in place and move on. */
   5: () => {
     const c = (RT.ob || {}).coach || {};
+    if (c.joinMode === 'join') {
+      return frame(5, 7, 'The standard is set.', 'Your head coach owns the team standard. You’ll see it — and everything your athletes log against it — the moment you’re on staff.', `
+      <div class="sidebox">
+        <div class="req-icon g" style="width:38px;height:38px">${icon('check', 17)}</div>
+        <div><div class="tt">Nothing to configure here</div><div class="ts">Meals, windows, recovery, and check-ins are already defined for this team. If your role includes standards, you can fine-tune them later in Standards.</div></div>
+      </div>`, 'Next', 'coach-ob/6', { back: 'coach-ob/4' });
+    }
     const sel = c.standardTemplate || 'default';
     const seeds = seedTemplates();
     const chosen = sel === 'default' ? null : seeds.find((s) => s.kind === sel);
@@ -428,7 +453,18 @@ export const coachOb = {
     }
     const clear = $('#co-school-clear');
     if (clear) clear.addEventListener('click', () => { cap({ orgId: null, schoolName: '', city: '', state: '' }); window.__render(); });
-    // step 3: team fields (restore + capture; discoverable defaults On)
+    // step 3: create-vs-join fork — the toggle re-renders so only the chosen path's fields show
+    const joinModeSeg = $('#co-joinmode');
+    if (joinModeSeg) {
+      joinModeSeg.querySelectorAll('button[data-mode]').forEach((b) => b.addEventListener('click', () => {
+        const mode = b.getAttribute('data-mode');
+        // Switching path clears the OTHER path's input so persistCoachOnboarding never routes on
+        // stale data — a leftover staff code would wrongly skip team creation.
+        cap(mode === 'create' ? { joinMode: 'create', staffCode: '' } : { joinMode: 'join' });
+        window.__render();
+      }));
+    }
+    // step 3 (create path): team fields (restore + capture; discoverable defaults On)
     const team = $('#co-team');
     if (team) {
       const c = (RT.ob || {}).coach || {};
@@ -448,13 +484,13 @@ export const coachOb = {
         if (el) el.querySelectorAll('.chp, button').forEach((it) => it.addEventListener('click', sync));
       });
       sync();
-      // Staff-code alternative (0061): joining an existing staff skips team creation.
-      const staffCode = $('#co-staff-code');
-      if (staffCode) {
-        const c2 = (RT.ob || {}).coach || {};
-        if (c2.staffCode) staffCode.value = c2.staffCode;
-        staffCode.addEventListener('input', () => cap({ staffCode: staffCode.value.trim().toUpperCase() }));
-      }
+    }
+    // step 3 (join path): staff code (0061) — joining an existing staff skips team creation
+    const staffCode = $('#co-staff-code');
+    if (staffCode) {
+      const c2 = (RT.ob || {}).coach || {};
+      if (c2.staffCode) staffCode.value = c2.staffCode;
+      staffCode.addEventListener('input', () => cap({ staffCode: staffCode.value.trim().toUpperCase() }));
     }
     // step 4: responsibility picker — re-render on choice (the detail input depends on it)
     const resp = $('#co-resp');
