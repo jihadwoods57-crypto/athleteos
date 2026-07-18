@@ -11,7 +11,9 @@ let SHOW_SCOPES = false;        // scope sheet open?
 let SHOW_PULSE = false;         // pulse breakdown open?
 
 function scopeLabel(scope) {
-  if (!scope || scope.kind === 'team') return 'Entire team';
+  // Slice F: a scoped staff member's 'team' view is already server-narrowed to their
+  // responsibility (0078) — calling it "Entire team" would overstate what they see.
+  if (!scope || scope.kind === 'team') return (CD.extras && CD.extras.scope) ? 'My athletes' : 'Entire team';
   if (scope.kind === 'position') return `${scope.value} room`;
   if (scope.kind === 'group') {
     const g = ((CD.extras && CD.extras.groups) || []).find(x => x.id === scope.value);
@@ -36,7 +38,7 @@ function scopeSheet() {
   return `
   <section class="card" style="padding:13px 16px">
     <div class="eyebrow" style="margin:0 0 8px">Who you're looking at</div>
-    <div>${chip('team', '', 'Entire team', is('team', ''))}
+    <div>${chip('team', '', (CD.extras && CD.extras.scope) ? 'My athletes' : 'Entire team', is('team', ''))}
     ${positions.map(p => chip('position', p, `${p} room`, is('position', p))).join('')}
     ${groups.map(g => chip('group', g.id, g.name, is('group', g.id))).join('')}</div>
     <div style="font-size:11.5px;color:var(--text-3);font-weight:600;margin-top:4px">Custom groups are built on the Roster tab.</div>

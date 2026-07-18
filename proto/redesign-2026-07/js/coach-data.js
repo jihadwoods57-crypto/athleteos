@@ -95,12 +95,19 @@ export const CD = {
 };
 
 async function loadExtras(teamId) {
-  const [sets, groups, exceptions, interventions, scope] = await Promise.all([
+  const [sets, groups, exceptions, interventions, access] = await Promise.all([
     roles.fetchRequirementSets(teamId), roles.fetchCoachGroups(teamId),
     roles.fetchActiveExceptions(teamId), roles.fetchTodayInterventions(teamId),
-    roles.fetchMyStaffScope(teamId),
+    roles.fetchMyStaffAccess(teamId),
   ]);
-  CD.extras = { sets, groups, exceptions, interventions, scope };
+  // Slice F: one read carries role + scope. `scope` keeps its pre-F shape for every existing
+  // consumer; `myRole` is the client-side capability hint (staff-access.js) — the server
+  // (0077/0078) is the real wall.
+  CD.extras = {
+    sets, groups, exceptions, interventions,
+    scope: access ? access.scope : null,
+    myRole: access ? access.role : null,
+  };
 }
 
 /* Which slice of the roster the coach is currently looking at (team / one position room /
@@ -111,7 +118,11 @@ const SCOPE_KEY = 'onstd-coach-scope-v1';
 export function getScope() {
   try { const j = JSON.parse(localStorage.getItem(SCOPE_KEY) || 'null'); if (j && j.kind) return j; } catch { /* fresh */ }
   const s = CD.extras && CD.extras.scope;
-  return s && s.kind === 'position' ? { kind: 'position', value: s.value } : { kind: 'team', value: null };
+  // Slice F: a comma-list position scope ('LB, WR' — a coordinator's side) can't seed a
+  // single-room filter; default to 'team', which post-0078 is already server-narrowed to
+  // exactly their responsibility — nothing over-shows.
+  return s && s.kind === 'position' && !String(s.value || '').includes(',')
+    ? { kind: 'position', value: s.value } : { kind: 'team', value: null };
 }
 export function setScope(scope) {
   try { localStorage.setItem(SCOPE_KEY, JSON.stringify(scope)); } catch { /* in-memory only */ }

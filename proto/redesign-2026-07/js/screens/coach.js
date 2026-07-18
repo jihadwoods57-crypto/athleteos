@@ -8,6 +8,7 @@ import { CD, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor } fro
 import { STATUS_META } from '../status.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin } from '../requirements.js';
 import { seedTemplates, templateLabel } from '../templates.js';
+import { canEditStandards } from '../staff-access.js';
 import { categorizeInbox, inboxAlerts } from '../inbox.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -531,6 +532,32 @@ export const coachPlanSet = {
       KNOB = existing
         ? { key, ...knobsFromItems(existing.items) }
         : { key, meals: 3, lifts: 0, weigh: 'mwf', hydration: true, hydrationOz: 120, recovery: true, checkin: true, photoProof: true };
+    }
+    // Slice F: position coaches and view-only staff SEE the governing standard but don't
+    // edit it (founder matrix; 0078's set_team_requirements would bounce the save anyway).
+    if (CD.extras && !canEditStandards(CD.extras.myRole)) {
+      const preview = previewFromKnobs(KNOB);
+      return `
+      ${backHead(scopeName, 'View only — standards are set by the head coach', 'coach-plan')}
+      <div class="sidebox">
+        <div class="req-icon b" style="width:38px;height:38px">${icon('eye', 17)}</div>
+        <div><div class="tt">The standard, as your athletes see it</div>
+        <div class="ts">Editing standards is for the head coach, coordinators, and the nutritionist. Ask the head coach if your role should change.</div></div>
+      </div>
+      ${preview ? `
+      <section class="card" style="padding:6px 16px">
+        ${preview.std.slots.map(slot => {
+          const title = preview.std.titles[slot] || cap(slot);
+          const due = preview.std.deadlines[slot];
+          return `
+        <div class="lrow" style="cursor:default">
+          <div class="lm"><div class="lt">${esc(title)}</div>
+          <div class="ls">${due != null ? `Due by ${fmtMin(due)}` : 'No deadline set'}</div></div>
+        </div>`;
+        }).join('')}
+        <div style="font-size:11.5px;font-weight:600;color:var(--text-3);padding:8px 2px 4px">${preview.std.mealsRequired} meal${preview.std.mealsRequired === 1 ? '' : 's'} make the day's nutrition score.</div>
+      </section>` : ''}
+      <div style="height:10px"></div>`;
     }
     const chip = (on, label, act, arg) => `<span class="chp ${on ? 'on' : ''}" data-knob="${act}:${arg}">${label}</span>`;
     const seg = (label, subLabel, act, on) => `
