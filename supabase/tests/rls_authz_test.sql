@@ -834,6 +834,58 @@ select _as('99999999-0000-0000-0000-000000000009');
 select _ok(_try($q$insert into days (athlete_id, date, score) values ('99999999-0000-0000-0000-000000000009', current_date, 75)$q$) = 'ok',
            '0050: unknown-age profile (pre-dob-era adult) is NOT blocked from syncing');
 
+-- ================================================================ ACCOUNT ERASURE (0079)
+-- A STAFF member who created team artifacts must be able to delete their account. Before 0079
+-- the actor FKs (created_by/author_id/coach_id) were NO ACTION and BLOCKED the profiles cascade
+-- with a foreign-key violation. coach_del is a coordinator on T1 (owned by coach_1, so erasing
+-- coach_del never touches the team); their artifacts must SURVIVE with attribution nulled.
+-- Runs last: it adds + deletes its own isolated actor, disturbing no earlier section.
+select _superuser();
+insert into auth.users (id, email) values ('12000000-0000-0000-0000-000000000012','cdel@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('12000000-0000-0000-0000-000000000012','Coach Del','cdel@x.io','coach')
+  on conflict (id) do update set full_name = excluded.full_name, email = excluded.email, primary_role = excluded.primary_role;
+insert into team_staff (team_id, staff_id, role, status) values
+  ('77777777-1111-0000-0000-000000000001','12000000-0000-0000-0000-000000000012','coordinator','active');
+insert into requirement_sets (id, team_id, scope_kind, scope_value, items, created_by) values
+  ('a5000000-0000-0000-0000-000000000001','77777777-1111-0000-0000-000000000001','position','ZZ',
+   '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb,'12000000-0000-0000-0000-000000000012');
+insert into coach_groups (id, team_id, name, created_by) values
+  ('a5000000-0000-0000-0000-000000000002','77777777-1111-0000-0000-000000000001','Del Group','12000000-0000-0000-0000-000000000012');
+insert into coach_interventions (id, team_id, athlete_id, coach_id, kind) values
+  ('a5000000-0000-0000-0000-000000000003','77777777-1111-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','12000000-0000-0000-0000-000000000012','nudge');
+insert into coach_notes (id, team_id, athlete_id, author_id, body) values
+  ('a5000000-0000-0000-0000-000000000004','77777777-1111-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','12000000-0000-0000-0000-000000000012','a note');
+insert into requirement_templates (id, team_id, name, kind, items, created_by) values
+  ('a5000000-0000-0000-0000-000000000005','77777777-1111-0000-0000-000000000001','Del Tpl','custom',
+   '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb,'12000000-0000-0000-0000-000000000012');
+insert into announcements (id, team_id, author_id, scope_kind, scope_value, title, body) values
+  ('a5000000-0000-0000-0000-000000000006','77777777-1111-0000-0000-000000000001','12000000-0000-0000-0000-000000000012','team',null,'Hi','Body');
+insert into staff_invites (id, team_id, role, code, created_by) values
+  ('a5000000-0000-0000-0000-000000000007','77777777-1111-0000-0000-000000000001','coordinator','DELCODE1','12000000-0000-0000-0000-000000000012');
+
+select _as('12000000-0000-0000-0000-000000000012');
+select _ok(_try($q$select delete_account()$q$) = 'ok',
+           '0079: a staff member with created artifacts CAN delete_account (no FK block)');
+
+select _superuser();
+select _ok((select count(*) from requirement_sets where id='a5000000-0000-0000-0000-000000000001' and created_by is null) = 1,
+           '0079: requirement_set survives erasure with created_by nulled');
+select _ok((select count(*) from coach_groups where id='a5000000-0000-0000-0000-000000000002' and created_by is null) = 1,
+           '0079: coach_group survives erasure with created_by nulled');
+select _ok((select count(*) from coach_interventions where id='a5000000-0000-0000-0000-000000000003' and coach_id is null) = 1,
+           '0079: intervention survives erasure with coach_id nulled');
+select _ok((select count(*) from coach_notes where id='a5000000-0000-0000-0000-000000000004' and author_id is null) = 1,
+           '0079: coach_note survives erasure with author_id nulled');
+select _ok((select count(*) from requirement_templates where id='a5000000-0000-0000-0000-000000000005' and created_by is null) = 1,
+           '0079: template survives erasure with created_by nulled');
+select _ok((select count(*) from announcements where id='a5000000-0000-0000-0000-000000000006' and author_id is null) = 1,
+           '0079: announcement survives erasure with author_id nulled');
+select _ok((select count(*) from staff_invites where id='a5000000-0000-0000-0000-000000000007' and created_by is null) = 1,
+           '0079: staff_invite survives erasure with created_by nulled');
+select _ok((select count(*) from profiles where id='12000000-0000-0000-0000-000000000012') = 0,
+           '0079: the erased coach''s profile is actually gone');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
