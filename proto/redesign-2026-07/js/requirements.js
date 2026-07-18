@@ -123,15 +123,25 @@ export function derive(req, { done = false, late = false, progress = null } = {}
    REPLACES the standard wholesale (no merging) — the coach's word is the whole
    contract, and partial merges would make "what am I on?" unanswerable. */
 
-/** Pick the governing set for one athlete out of their team's sets. Pure. */
-export function resolveRequirementSet(sets, athleteId, position) {
+/** Pick the governing set for one athlete out of their team's sets. Pure.
+ *  Versioning: among sets sharing a scope, the governing one is the LATEST whose effective_date
+ *  is on/before `asOfDate` (the day being scored). A null effective_date is the always-in-effect
+ *  base (pre-versioning rows), so a future-dated edit never rescopes an earlier day. asOfDate null
+ *  (legacy callers) disables date filtering and returns the sole per-scope match unchanged. */
+export function resolveRequirementSet(sets, athleteId, position, asOfDate = /** @type {string | null} */ (null)) {
   if (!Array.isArray(sets) || !sets.length) return null;
+  const eff = (s) => s.effective_date || '0001-01-01';
+  const govern = (candidates) => {
+    const active = asOfDate == null ? candidates : candidates.filter((s) => eff(s) <= asOfDate);
+    if (!active.length) return null;
+    return active.reduce((a, b) => (eff(a) >= eff(b) ? a : b));
+  };
   const pos = String(position || '').trim().toUpperCase();
-  const mine = sets.find(s => s.scope_kind === 'athlete' && String(s.scope_value) === String(athleteId));
+  const mine = govern(sets.filter(s => s.scope_kind === 'athlete' && String(s.scope_value) === String(athleteId)));
   if (mine) return mine;
-  const room = pos && sets.find(s => s.scope_kind === 'position' && String(s.scope_value || '').trim().toUpperCase() === pos);
+  const room = pos ? govern(sets.filter(s => s.scope_kind === 'position' && String(s.scope_value || '').trim().toUpperCase() === pos)) : null;
   if (room) return room;
-  return sets.find(s => s.scope_kind === 'team') || null;
+  return govern(sets.filter(s => s.scope_kind === 'team'));
 }
 
 /* Physical slot order for a standard of M meals — maps onto the classic keys first so the

@@ -374,12 +374,15 @@ export async function markMyNotificationsRead() {
   catch { /* best-effort — unread state self-heals on the next fetch */ }
 }
 
-/** Coach saves a standing requirement set (team / position / athlete scope). */
-export async function setTeamRequirements(teamId, scopeKind, scopeValue, items) {
+/** Coach saves a standing requirement set (team / position / athlete scope). `effectiveDate`
+    ('YYYY-MM-DD' or null) makes the change prospective — null is the always-in-effect base
+    (team creation / apply-now), a future date leaves today and past days untouched (0085). */
+export async function setTeamRequirements(teamId, scopeKind, scopeValue, items, effectiveDate = null) {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
   try {
     const { error } = await c.rpc('set_team_requirements', {
       p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null, p_items: items,
+      p_effective_date: effectiveDate || null,
     });
     return error ? { ok: false, error: error.message || 'Could not save the standard.' } : { ok: true };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the standard.' }; }

@@ -39,6 +39,22 @@ test('an EXISTING solo athlete (no activation stamp): the classic 4-meal day sta
   expect(dayStandard()).toBeNull();
 });
 
+test('a future-dated team standard never rescopes today (prospective effective dates, 0085)', () => {
+  RT.activationDate = null;
+  RT.profile = { position: null };
+  RT.reqSets = [
+    // base: 3 meals, always in effect
+    { scope_kind: 'team', scope_value: null, effective_date: null, items: [
+      { id: 'b', title: 'B', kind: 'meal' }, { id: 'l', title: 'L', kind: 'meal' }, { id: 'd', title: 'D', kind: 'meal' }] },
+    // a 5-meal version dated far in the future
+    { scope_kind: 'team', scope_value: null, effective_date: '2099-01-01', items: [
+      { id: 'b', title: 'B', kind: 'meal' }, { id: 'l', title: 'L', kind: 'meal' }, { id: 's', title: 'S', kind: 'meal' },
+      { id: 'd', title: 'D', kind: 'meal' }, { id: 'm5', title: 'M5', kind: 'meal' }] },
+  ];
+  act._applyStandardFromSets();
+  expect(RT.stdMeals.mealsRequired).toBe(3); // today still resolves to the base, not the future edit
+});
+
 test('a coach standard always wins over a personal standard, regardless of activation', () => {
   RT.activationDate = null; // even an existing coach athlete
   RT.profile = { standard: { mealsPerDay: 2 }, position: null };

@@ -1318,7 +1318,9 @@ export const act = {
   /* Resolve the governing set (athlete > position room > team) into the DAY engine: slot
      list, deadlines, titles, and the nutrition denominator. No set → the classic day. */
   _applyStandardFromSets() {
-    const set = resolveRequirementSet(RT.reqSets || [], RT.userId, (RT.profile || {}).position);
+    // Resolve the version governing the day being scored (DAY.date), so a coach's future-dated
+    // standard edit never rescopes today or a past day (prospective effective dates, 0085).
+    const set = resolveRequirementSet(RT.reqSets || [], RT.userId, (RT.profile || {}).position, String(DAY.date));
     let std = stdFromItems(set && set.items);
     // Independent (no governing coach set): a NEW solo athlete's chosen personal standard governs
     // their scored day. Gated on RT.activationDate — stamped only by this build's onboarding — so

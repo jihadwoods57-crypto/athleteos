@@ -749,6 +749,28 @@ select _ok((select role::text = 'athletic_trainer' from team_staff
             where team_id = '77777777-1111-0000-0000-000000000001' and staff_id = '66666666-0000-0000-0000-000000000006'),
            'roles v2: the Athletic Trainer role is stored');
 
+-- 8c. Standard versioning (0085): a future-dated edit ADDS a version and never overwrites the
+--     base, so today's scoring is never rescoped; re-saving the same date replaces that version.
+select _as('11111111-0000-0000-0000-000000000001');  -- head coach
+select set_team_requirements('77777777-1111-0000-0000-000000000001','position','VER',
+  '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb, null);           -- base (in effect now)
+select set_team_requirements('77777777-1111-0000-0000-000000000001','position','VER',
+  '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},{"id":"m2","title":"D","kind":"meal","proof":"photo"}]'::jsonb, current_date + 1);  -- prospective
+select _ok((select count(*) from requirement_sets
+            where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='VER') = 2,
+           'versioning: a future-dated edit adds a version alongside the base');
+select set_team_requirements('77777777-1111-0000-0000-000000000001','position','VER',
+  '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},{"id":"m2","title":"L","kind":"meal","proof":"photo"},{"id":"m3","title":"D","kind":"meal","proof":"photo"}]'::jsonb, current_date + 1);  -- re-edit same date
+select _ok((select count(*) from requirement_sets
+            where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='VER') = 2,
+           'versioning: re-saving the same effective date replaces it — no duplicate row');
+select _ok((select jsonb_array_length(items) from requirement_sets
+            where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='VER' and effective_date = current_date + 1) = 3,
+           'versioning: the tomorrow version holds the re-saved 3 meals');
+select _ok((select jsonb_array_length(items) from requirement_sets
+            where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='VER' and effective_date is null) = 1,
+           'versioning: the base version is untouched — today is unchanged');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'

@@ -647,6 +647,12 @@ export const coachPlanSet = {
     })()}
 
     <div style="height:16px"></div>
+    <div class="eyebrow">Effective from</div>
+    <div class="seg" style="width:100%" id="set-effective">
+      <button class="${existing ? 'on' : ''}" data-eff="tomorrow">Tomorrow</button>
+      <button class="${existing ? '' : 'on'}" data-eff="today">Today</button>
+    </div>
+    <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:8px 2px 14px;line-height:1.45">Prospective by default — today's scores and windows never change. Choose Today only to apply it right now.</div>
     <button class="btn primary" id="set-save">${icon('check', 19)} Save the ${kind === 'team' ? 'team standard' : `${esc(value)} room standard`}</button>
     ${kind !== 'team' && existing ? `<div style="height:8px"></div><button class="btn ghost" id="set-clear">Use team default instead</button>` : ''}
     <div id="set-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
@@ -716,6 +722,12 @@ export const coachPlanSet = {
       say('Template saved.');
       await loadTemplates(true);
     });
+    // Effective-from toggle: a plain local switch (no re-render — a full render mid-edit would
+    // reset the knobs/steal focus). The save handler reads the active choice.
+    root.querySelectorAll('#set-effective button').forEach((b) => b.addEventListener('click', () => {
+      root.querySelectorAll('#set-effective button').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+    }));
     const save = root.querySelector('#set-save');
     if (save) save.addEventListener('click', async () => {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
@@ -726,11 +738,16 @@ export const coachPlanSet = {
         if (w.due == null) { say(`Meal ${i + 1}'s window closes before it opens — fix the times.`, true); return; }
         if (w.open != null && !(w.open < w.due)) { say(`Meal ${i + 1}'s window closes before it opens — fix the times.`, true); return; }
       }
+      // Prospective effective date (0085): a version dated tomorrow leaves today's scoring
+      // untouched; "Today" applies it now. Never null from the editor — null is the creation seed.
+      const isoOffset = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+      const effBtn = root.querySelector('#set-effective .on');
+      const effDate = (effBtn && effBtn.getAttribute('data-eff') === 'today') ? isoOffset(0) : isoOffset(1);
       save.disabled = true; say('Saving…');
-      const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB));
+      const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB), effDate);
       save.disabled = false;
       if (!r.ok) { say(r.error || 'Could not save — try again.', true); return; }
-      say('Saved. This is the standard now.');
+      say(effDate === isoOffset(0) ? 'Saved. This is the standard now.' : 'Saved. It takes effect tomorrow — today is unchanged.');
       await loadSets(true);
     });
     const clear = root.querySelector('#set-clear');
