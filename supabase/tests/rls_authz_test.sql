@@ -291,10 +291,17 @@ select _ok(can_view('cccccccc-0000-0000-0000-000000000003'),
 select _ok((select count(*) from meals where athlete_id = 'bbbbbbbb-0000-0000-0000-000000000002') = 0,
            'org admin of O1 CANNOT read athlete B in a DIFFERENT org (O2)');
 
--- ================================================================ 5. PARENT / GUARDIAN SCOPE
+-- ================================================================ 5. PARENT / GUARDIAN SCOPE (0081)
+-- 0081 (founder security spec 2026-07-18): a guardian now gets NO direct table access —
+-- is_guardian_of was removed from can_view(). A guardian reads ONLY score/grade/day through the
+-- guardian_* RPCs; meals, meal photos, weight, and check-ins are closed. (Was: guardian == coach.)
 select _as('33333333-0000-0000-0000-000000000003');
-select _ok((select count(*) from meals where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 1,
-           'parent P CAN read their minor''s meals');
+select _ok((select count(*) from meals where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 0,
+           '0081: parent P CANNOT read their minor''s meals directly (meal photos live here)');
+select _ok((select count(*) from days where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 0,
+           '0081: parent P CANNOT read the days row directly (current_weight lives here)');
+select _ok((select count(*) from guardian_children() where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 1,
+           '0081: parent P sees their minor ONLY via guardian_children() (scores, not photos/weight)');
 select _ok((select count(*) from meals where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') = 0,
            'parent P CANNOT read unrelated athlete A''s meals');
 select _ok((select count(*) from checkins where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 1,
@@ -348,8 +355,8 @@ select _ok((select count(*) from storage.objects where name like 'aaaaaaaa%') = 
            'stranger coach_2 CANNOT read A''s meal photos');
 
 select _as('33333333-0000-0000-0000-000000000003');  -- parent of minor M
-select _ok((select count(*) from storage.objects where name like 'dddddddd%') = 1,
-           'parent P CAN read their minor''s meal photo');
+select _ok((select count(*) from storage.objects where name like 'dddddddd%') = 0,
+           '0081: parent P CANNOT read their minor''s meal photo (closed — guardians see scores only)');
 select _ok((select count(*) from storage.objects where name like 'aaaaaaaa%') = 0,
            'parent P CANNOT read unrelated athlete A''s meal photo');
 
@@ -746,8 +753,8 @@ select _ok((select count(*) from meals where athlete_id = 'aaaaaaaa-0000-0000-00
 select _superuser();
 update guardianships set status = 'removed' where guardian_id = '33333333-0000-0000-0000-000000000003';
 select _as('33333333-0000-0000-0000-000000000003');
-select _ok((select count(*) from meals where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 0,
-           'REVOKED: ended guardianship cuts the parent''s access to the minor');
+select _ok((select count(*) from guardian_children()) = 0,
+           'REVOKED: ended guardianship cuts the parent''s score access (guardian_children empty)');
 
 -- ================================================================ 9. NO / BROKEN TOKEN
 select _as(null);  -- authenticated role but auth.uid() is NULL (broken/expired token)
