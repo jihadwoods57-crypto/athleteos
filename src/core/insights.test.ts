@@ -123,17 +123,41 @@ test('athletesToWatch: disengaging gap is athlete-anchored — own last row, una
 });
 
 // ---------------- mostMissed ----------------
-// HONESTY FIX (post final-review, finding d): a required daily req of an unverifiable kind
-// (recovery, lift, custom, unknown) must never be reported — no writer populates tasks_done
-// with requirement ids, so the old fallback branch fabricated a miss on every data-day.
-test('mostMissed: an unverifiable required-daily kind (recovery) is skipped entirely, even with a full week of data', () => {
-  const reqsByAthlete = {
-    a1: [{ id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', required: true, freq: { type: 'daily' } }],
-  };
-  const rollup = ['2026-07-10', '2026-07-11', '2026-07-12', '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16']
-    .map(d => rr('a1', d, { tasks_done: [] })); // a full week of real data; tasks_done never carries this req id
-  const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
-  expect(m).toEqual([]); // silence, not a fabricated 7-miss count
+// recovery is now COUNTED via days.tasks (proto pushDay writes it), but ONLY on proto-written
+// rows: a pre-writer row (empty tasks_done) and a legacy RN row (numeric ids) both stay silent.
+const RECOVERY_REQ = { a1: [{ id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', required: true, freq: { type: 'daily' } }] };
+const WEEK = ['2026-07-10', '2026-07-11', '2026-07-12', '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16'];
+
+test('mostMissed: recovery on PRE-WRITER rows (empty tasks_done) stays silent — never a fabricated miss', () => {
+  const rollup = WEEK.map(d => rr('a1', d, { tasks_done: [] }));
+  expect(mostMissed({ rollup, reqsByAthlete: RECOVERY_REQ, todayISO: TODAY } as never)).toEqual([]);
+});
+
+test('mostMissed: recovery on legacy RN rows (numeric task ids) stays silent — those ids are never the req id', () => {
+  const rollup = WEEK.map(d => rr('a1', d, { tasks_done: ['1', '2', '3'] })); // RN writer: numeric ids
+  expect(mostMissed({ rollup, reqsByAthlete: RECOVERY_REQ, todayISO: TODAY } as never)).toEqual([]);
+});
+
+test('mostMissed: recovery IS counted on proto rows where the req id is absent from tasks_done', () => {
+  // 5 proto-written days (non-numeric ids present), recovery never done -> 5 real misses.
+  const rollup = ['2026-07-12', '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16']
+    .map(d => rr('a1', d, { tasks_done: ['breakfast', 'lunch'] })); // proto meal ids, no 'recovery'
+  const m = mostMissed({ rollup, reqsByAthlete: RECOVERY_REQ, todayISO: TODAY } as never);
+  expect(m).toEqual([{
+    reqId: 'recovery', title: 'Recovery Check-In', missedCount: 5,
+    text: 'Recovery Check-In was missed 5 times across the team this week.',
+  }]);
+});
+
+test('mostMissed: recovery present in tasks_done clears the day silently', () => {
+  const rollup = WEEK.map(d => rr('a1', d, { tasks_done: ['breakfast', 'recovery'] })); // done every day
+  expect(mostMissed({ rollup, reqsByAthlete: RECOVERY_REQ, todayISO: TODAY } as never)).toEqual([]);
+});
+
+test('mostMissed: a lift/custom req the athlete cannot complete stays silent even on proto rows', () => {
+  const reqsByAthlete = { a1: [{ id: 'lift', title: 'Lift session', kind: 'lift', required: true, freq: { type: 'daily' } }] };
+  const rollup = WEEK.map(d => rr('a1', d, { tasks_done: ['breakfast', 'lunch'] }));
+  expect(mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never)).toEqual([]);
 });
 
 test('mostMissed: meal positional rule is unchanged — only days the athlete has data count, and 0 misses is silent', () => {

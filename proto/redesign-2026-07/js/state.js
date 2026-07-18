@@ -12,7 +12,7 @@ import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
-  setSyncBlocked, isSyncBlocked, SYNC,
+  setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
   setDayStandard, slotDeadline, setDayGoalConfig, checkinReal,
@@ -2514,3 +2514,11 @@ export const S = {
 // convenience
 export function pct(v, of) { return Math.round((v / of) * 100); }
 window.S = S; // debug
+
+// days.tasks writer: hand day.js this athlete's per-requirement done-ness at push time, from the
+// ONE exec derivation Home/Hub/notifications already use — so the coach side finally sees non-meal
+// completion (recovery, etc.) instead of the old never-written '[]'. Lazy: only invoked inside
+// pushDay, so S/DAY are fully hydrated by the time it runs. Weekly check-in is excluded by
+// deriveExec and stays on its own rollup column (checkin_done) — no double signal.
+setDayTaskProvider(() =>
+  S.exec.items.map((i) => ({ id: i.id, done: i.state === 'done' || i.state === 'done_late' })));

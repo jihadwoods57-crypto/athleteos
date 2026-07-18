@@ -442,6 +442,26 @@ let pushTimer = null;
 let SYNC_BLOCKED = false;
 export function setSyncBlocked(blocked) { SYNC_BLOCKED = !!blocked; }
 export function isSyncBlocked() { return SYNC_BLOCKED; }
+
+/* days.tasks writer (closes the coach-side done-ness gap): a registered provider returns the
+   day's per-requirement completion as [{ id, done }] — the SAME requirement ids the coach's
+   engines resolve (CATALOG ids like 'recovery', or coach-set meal-slot keys), derived from the
+   exec engine's item states. state.js registers it because it owns the resolved standard +
+   completion map; day.js stays free of that dependency (no circular import — the setSyncBlocked
+   pattern). Before this, pushDay never wrote `tasks`, so every non-meal requirement read as
+   never-done in status.js/Insights. Returns null when unregistered so pushDay never blocks and
+   never clobbers the column with a stale empty array. */
+let taskProvider = null;
+export function setDayTaskProvider(fn) { taskProvider = typeof fn === 'function' ? fn : null; }
+function currentTasks() {
+  if (!taskProvider) return null;
+  try {
+    const t = taskProvider();
+    if (!Array.isArray(t)) return null;
+    // Only well-formed { id, done } entries — never a fabricated or malformed row.
+    return t.filter((x) => x && x.id != null).map((x) => ({ id: String(x.id), done: !!x.done }));
+  } catch { return null; }
+}
 /* Honest sync surface: the result of the LAST attempted day push — 'ok' | 'error' | null (none
    attempted yet). Home renders a quiet "not synced" pill off this instead of the old silent
    console.warn, so an athlete can't log all week into a void without knowing. */
@@ -454,12 +474,16 @@ export function pushDay(userId, immediate) {
     const sb = window.sb;
     if (!sb || !userId || SYNC_BLOCKED) return;
     const s = clampedScore(DAY);
+    const tasks = currentTasks(); // [{id, done}] from the exec engine, or null if unavailable
     const row = {
       athlete_id: userId, date: DAY.date,
       meals: DAY.meals, hydration_l: DAY.hydrationL, quick_added: DAY.quickAdded,
       current_weight: DAY.currentWeight,
       checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros },
       score: s, grade: gradeFor(s),
+      // Only include tasks when we actually derived them — the column defaults to '[]', and 0041's
+      // evidence ceiling reads meals/checkin/trust_passes, NOT tasks, so this never moves a score.
+      ...(tasks ? { tasks } : {}),
     };
     try {
       // supabase-js reports failures via {error}, it doesn't throw — check both paths so the

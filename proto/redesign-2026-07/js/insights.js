@@ -257,10 +257,25 @@ export function athletesToWatch({ rollup = [], roster = [], todayISO }) {
  *                       the window is enough to clear it). An athlete needs >=1 data-day in the
  *                       window to be judged at all; zero data-days is silence, not a fabricated
  *                       miss (that's `athletesToWatch`'s disengaging list's job).
- *   - anything else (lift, recovery, custom, unknown) -> SKIPPED ENTIRELY. No sentence, no count.
- *     A fabricated miss-count is worse than silence. Revisit once pushDay actually writes
- *     `tasks_done` keyed by requirement id — then this can grow a real per-kind rule instead of
- *     an omission. */
+ *   - kind 'recovery' -> NOW COUNTED (proto pushDay writes days.tasks keyed by requirement id).
+ *                       Per-day, freq-gated, verified against the row's tasks_done array. Guarded
+ *                       by protoTasksAware() so ONLY rows a tasks-aware proto client wrote are
+ *                       judged: a legacy RN row carries NUMERIC task ids (never 'recovery'), and a
+ *                       pre-writer row carries none — both stay silent rather than fabricate a miss.
+ *   - anything else (lift, custom, unknown) -> STILL SKIPPED. The athlete app has no completion
+ *     surface for a coach-set lift/custom item, so its absence from tasks_done isn't a real miss;
+ *     a fabricated count is worse than silence until the athlete side renders those items. */
+
+/** True when this rollup row was written by a tasks-aware PROTO client — the only rows whose
+ *  tasks_done we can trust for non-column requirements. A proto row that logged anything carries
+ *  at least one STRING requirement id (a meal slot like 'breakfast', or 'recovery'); the legacy
+ *  RN writer uses NUMERIC ids (see src/store/sync.ts), and a pre-writer row has an empty array.
+ *  So "contains a non-numeric id" cleanly separates a trustworthy proto row from both. */
+function protoTasksAware(row) {
+  return Array.isArray(row.tasks_done)
+    && row.tasks_done.some((id) => id != null && !/^\d+$/.test(String(id)));
+}
+
 export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
   const { thisFrom, thisTo } = weekWindows(todayISO);
   const rows = rollup.filter(r => r && r.athlete_id && inWindow(r.day, thisFrom, thisTo));
@@ -271,7 +286,8 @@ export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
     totals[req.id].missedCount++;
   };
 
-  // meal + weigh: per-day, freq-gated, verified against real rollup columns. Unchanged logic.
+  // meal + weigh + recovery: per-day, freq-gated. meal/weigh verify against real rollup columns
+  // (unchanged); recovery verifies against tasks_done, but ONLY on a proto-written row.
   for (const row of rows) {
     const reqs = reqsByAthlete[row.athlete_id] || [];
     const mealReqs = reqs.filter(r => r && r.kind === 'meal');
@@ -279,11 +295,19 @@ export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
     const loggedMeals = Number(row.meals_logged) || 0;
     for (const req of reqs) {
       if (!req || !req.required) continue;
-      if (req.kind !== 'meal' && req.kind !== 'weigh') continue; // checkin below; rest skipped
+      const isMeal = req.kind === 'meal';
+      const isWeigh = req.kind === 'weigh';
+      // recovery is identified by id (built-in CATALOG carries no kind) OR kind (coach set).
+      const isRecovery = req.id === 'recovery' || req.kind === 'recovery';
+      if (!isMeal && !isWeigh && !isRecovery) continue; // checkin below; lift/custom skipped
       if (!runsOnLocal(req.freq, dow)) continue;
-      const done = req.kind === 'meal'
-        ? loggedMeals > mealReqs.indexOf(req)
-        : row.weight_logged === true;
+      let done;
+      if (isMeal) done = loggedMeals > mealReqs.indexOf(req);
+      else if (isWeigh) done = row.weight_logged === true;
+      else {
+        if (!protoTasksAware(row)) continue; // untrustworthy row -> silence, never a fabricated miss
+        done = row.tasks_done.includes(req.id);
+      }
       if (!done) bump(req);
     }
   }
