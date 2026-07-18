@@ -574,6 +574,157 @@ select _ok((select checkin_done from team_day_rollup(
             where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001' and day = current_date),
            'slice E: checkin_done is true from the checkins table (submitted within the week window)');
 
+-- ================================================================ COACH OS SLICE F: scoped staff roles (0077/0078)
+-- Placed before section 8 for the same reason as Slice E: these probes need athlete A's T1
+-- membership still ACTIVE. New actors: coach_3 (position_coach scoped to the LB room) and
+-- coach_r (readonly, whole team). A plays LB, minor M plays WR (M's guardian consent is
+-- verified at seed, so any M-block below is proven to come from SCOPE, not consent).
+select _superuser();
+update team_members set position = 'LB'
+  where team_id = '77777777-1111-0000-0000-000000000001' and athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+update team_members set position = 'WR'
+  where team_id = '77777777-1111-0000-0000-000000000001' and athlete_id = 'dddddddd-0000-0000-0000-000000000004';
+insert into days (athlete_id, date, score) values
+  ('dddddddd-0000-0000-0000-000000000004', current_date - 33, 60);
+insert into auth.users (id, email) values
+  ('66666666-0000-0000-0000-000000000006','c3@x.io'),
+  ('10000000-0000-0000-0000-000000000010','cr@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('66666666-0000-0000-0000-000000000006','Coach Three','c3@x.io','coach'),
+  ('10000000-0000-0000-0000-000000000010','Coach Readonly','cr@x.io','coach')
+  on conflict (id) do update set full_name = excluded.full_name, email = excluded.email, primary_role = excluded.primary_role;
+insert into team_staff (team_id, staff_id, role, status, scope_kind, scope_value) values
+  ('77777777-1111-0000-0000-000000000001','66666666-0000-0000-0000-000000000006','position_coach','active','position','LB'),
+  ('77777777-1111-0000-0000-000000000001','10000000-0000-0000-0000-000000000010','readonly','active',null,null);
+
+-- 1. A position coach's world ends at their room: can_view + raw table reads + roster + rollup.
+select _as('66666666-0000-0000-0000-000000000006');  -- coach_3, LB room only
+select _ok(can_view('aaaaaaaa-0000-0000-0000-000000000001'),
+           'slice F: LB coach can_view his LB athlete A');
+select _ok(not can_view('dddddddd-0000-0000-0000-000000000004'),
+           'slice F: LB coach can_view = FALSE for WR athlete M (consented — block is scope)');
+select _ok((select count(*) from days where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') >= 1,
+           'slice F: LB coach reads his LB athlete''s days');
+select _ok((select count(*) from days where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 0,
+           'slice F: LB coach reads NONE of the WR athlete''s days');
+select _ok((select count(*) from team_roster('77777777-1111-0000-0000-000000000001')
+            where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 0,
+           'slice F: team_roster hides out-of-room athletes from a scoped coach');
+select _ok((select count(*) from team_roster('77777777-1111-0000-0000-000000000001')
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') = 1,
+           'slice F: team_roster still lists the in-room athlete');
+select _ok((select count(*) from team_day_rollup('77777777-1111-0000-0000-000000000001',
+             current_date - 40, current_date)
+            where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 0,
+           'slice F: team_day_rollup returns no out-of-room rows to a scoped coach');
+
+-- 2. The comma-list position scope (a coordinator's side of the ball) widens coverage.
+select _superuser();
+update team_staff set scope_value = 'LB, WR'
+  where team_id = '77777777-1111-0000-0000-000000000001' and staff_id = '66666666-0000-0000-0000-000000000006';
+select _as('66666666-0000-0000-0000-000000000006');
+select _ok(can_view('dddddddd-0000-0000-0000-000000000004'),
+           'slice F: a comma-list position scope (LB, WR) covers the WR athlete');
+select _superuser();
+update team_staff set scope_value = 'LB'
+  where team_id = '77777777-1111-0000-0000-000000000001' and staff_id = '66666666-0000-0000-0000-000000000006';
+
+-- 3. Group scope: head coach re-scopes coach_3 to a group containing only M.
+select _superuser();
+insert into coach_groups (id, team_id, name, athlete_ids, created_by) values
+  ('d1000000-0000-0000-0000-000000000001','77777777-1111-0000-0000-000000000001','Slot Room',
+   array['dddddddd-0000-0000-0000-000000000004']::uuid[],'11111111-0000-0000-0000-000000000001');
+select _as('11111111-0000-0000-0000-000000000001');  -- head coach manages scope
+select _ok(_try($q$select set_staff_scope('77777777-1111-0000-0000-000000000001',
+             '66666666-0000-0000-0000-000000000006','group','d1000000-0000-0000-0000-000000000001')$q$) = 'ok',
+           'slice F: head coach sets a staff member''s group scope');
+select _as('66666666-0000-0000-0000-000000000006');
+select _ok(can_view('dddddddd-0000-0000-0000-000000000004')
+       and not can_view('aaaaaaaa-0000-0000-0000-000000000001'),
+           'slice F: group scope flips coverage (in-group M visible, out-of-group A not)');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($q$select set_staff_scope('77777777-1111-0000-0000-000000000001',
+             '66666666-0000-0000-0000-000000000006','position','LB')$q$) = 'ok',
+           'slice F: head coach restores the position scope');
+
+-- 4. The head coach and whole-team staff are never narrowed.
+select _ok(can_view('aaaaaaaa-0000-0000-0000-000000000001')
+       and can_view('dddddddd-0000-0000-0000-000000000004'),
+           'slice F: head coach still sees the whole team');
+select _ok(_try($q$select set_staff_scope('77777777-1111-0000-0000-000000000001',
+             '11111111-0000-0000-0000-000000000001','position','LB')$q$) like '%whole team%',
+           'slice F: narrowing the head coach is refused');
+
+-- 5. Scope self-service: initial narrowing only — never a self-widen.
+select _as('66666666-0000-0000-0000-000000000006');  -- already narrowed
+select _ok(_try($q$select set_staff_scope('77777777-1111-0000-0000-000000000001',
+             '66666666-0000-0000-0000-000000000006',null,null)$q$) like '%head coach%',
+           'slice F: a scoped coach cannot clear their own scope');
+select _ok(_try($q$select set_staff_scope('77777777-1111-0000-0000-000000000001',
+             '66666666-0000-0000-0000-000000000006','position','LB, WR, QB')$q$) like '%head coach%',
+           'slice F: a scoped coach cannot re-write their own scope');
+select _as('99999999-0000-0000-0000-000000000009');  -- rando
+select _ok(_try($q$select set_staff_scope('77777777-1111-0000-0000-000000000001',
+             '66666666-0000-0000-0000-000000000006',null,null)$q$) <> 'ok',
+           'slice F: a stranger cannot touch anyone''s scope');
+
+-- 6. Readonly: reads work, every write path is walled (policies AND definer RPCs).
+select _as('10000000-0000-0000-0000-000000000010');  -- coach_r, readonly, whole team
+select _ok((select count(*) from days where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') >= 1,
+           'slice F: readonly staff still READS athlete data in scope');
+select _ok((select count(*) from coach_interventions
+            where team_id = '77777777-1111-0000-0000-000000000001') >= 1,
+           'slice F: readonly staff reads the team''s intervention log');
+select _ok(_try($q$insert into coach_interventions (team_id, athlete_id, kind)
+             values ('77777777-1111-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','nudge')$q$) <> 'ok',
+           'slice F: readonly staff CANNOT log an intervention');
+select _ok(_try($q$insert into coach_groups (team_id, name)
+             values ('77777777-1111-0000-0000-000000000001','RO Group')$q$) <> 'ok',
+           'slice F: readonly staff CANNOT create a group');
+select _ok(_try($q$insert into requirement_templates (team_id, name, kind, items) values
+             ('77777777-1111-0000-0000-000000000001','RO Tpl','custom',
+              '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb)$q$) <> 'ok',
+           'slice F: readonly staff CANNOT save a template');
+select _ok(_try($q$select set_team_requirements('77777777-1111-0000-0000-000000000001','team',null,
+             '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb)$q$) <> 'ok',
+           'slice F: readonly staff CANNOT set the standard (definer RPC guard)');
+select _ok(_try($q$select assign_requirement('77777777-1111-0000-0000-000000000001','team',null,'Run a mile')$q$) <> 'ok',
+           'slice F: readonly staff CANNOT assign (definer RPC guard)');
+select _ok(_try($q$select post_announcement('77777777-1111-0000-0000-000000000001','team',null,'Hi','Body')$q$) <> 'ok',
+           'slice F: readonly staff CANNOT post an announcement (definer RPC guard)');
+select _ok(_try($q$insert into athlete_exceptions (team_id, athlete_id)
+             values ('77777777-1111-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001')$q$) <> 'ok',
+           'slice F: readonly staff CANNOT mark an excused window');
+
+-- 7. Readonly self-declares an INITIAL narrowing (the onboarding responsibility step).
+select _ok(_try($q$select set_staff_scope('77777777-1111-0000-0000-000000000001',
+             '10000000-0000-0000-0000-000000000010','position','LB')$q$) = 'ok',
+           'slice F: unscoped staff may self-declare their initial responsibility');
+select _ok(not can_view('dddddddd-0000-0000-0000-000000000004'),
+           'slice F: the self-declared scope narrows immediately');
+
+-- 8. Invites + role management honor the new vocabulary.
+select _as('11111111-0000-0000-0000-000000000001');  -- head coach
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','position_coach')) = 8,
+           'slice F: head coach mints a position_coach invite');
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','readonly')) = 8,
+           'slice F: head coach mints a readonly invite');
+select _ok(_try($q$select create_staff_invite('77777777-1111-0000-0000-000000000001','head_coach')$q$) <> 'ok',
+           'slice F: a head_coach invite is refused');
+select _ok(set_staff_role('77777777-1111-0000-0000-000000000001','66666666-0000-0000-0000-000000000006','coordinator'),
+           'slice F: head coach re-roles a staff member to coordinator');
+select _ok(not set_staff_role('77777777-1111-0000-0000-000000000001','11111111-0000-0000-0000-000000000001','readonly'),
+           'slice F: the head-coach row can never be re-roled');
+select _ok((select s.scope_kind = 'position' and s.scope_value = 'LB'
+            from team_staff_list('77777777-1111-0000-0000-000000000001') s
+            where s.staff_id = '66666666-0000-0000-0000-000000000006'),
+           'slice F: team_staff_list surfaces scope columns');
+select _as('66666666-0000-0000-0000-000000000006');  -- not head coach
+select _ok(_try($q$select create_staff_invite('77777777-1111-0000-0000-000000000001','readonly')$q$) <> 'ok',
+           'slice F: a non-head-coach cannot mint staff invites');
+select _ok(_try($q$select set_staff_role('77777777-1111-0000-0000-000000000001','10000000-0000-0000-0000-000000000010','coordinator')$q$) <> 'ok',
+           'slice F: a non-head-coach cannot change roles');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'

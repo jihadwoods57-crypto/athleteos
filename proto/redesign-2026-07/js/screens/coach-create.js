@@ -1,50 +1,39 @@
 import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
-import { RT } from '../state.js';
-import * as roles from '../roles.js';
 import { CD, loadCoachRoster } from '../coach-data.js';
+import { allowedCreateKeys, isReadonly } from '../staff-access.js';
 
 /* The + is a CREATE MENU now, not a single composer (Coach OS spec §3). Announcements, check-ins,
-   and schedule adjustments landed in Slice C alongside this rebuild. */
+   and schedule adjustments landed in Slice C alongside this rebuild.
+   Slice F: options filter by the staff member's role (staff-access.js capability map; the
+   role rides in CD.extras.myRole from the roster load — one fetch for all coach screens).
+   The server (0077/0078) enforces regardless; this just never dangles a dead button. */
 const OPTIONS = [
-  { icon: 'clipboard', title: 'Assign a requirement',  sub: 'Team, room, group, or one athlete', go: 'coach-assign' },
-  { icon: 'share',     title: 'Send an announcement',  sub: 'Feed + push to the room you pick',  go: 'coach-announce' },
-  { icon: 'message',   title: 'Message an athlete',    sub: 'Pick from the roster',              go: 'coach-roster' },
-  { icon: 'users',     title: 'Message a group',       sub: 'Announce to a custom group',        go: 'coach-announce' },
-  { icon: 'bars',      title: 'Standards & templates', sub: 'Meals, windows, check-ins by room', go: 'coach-plan' },
-  { icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster' },
-  { icon: 'user',      title: 'Add an athlete',        sub: 'Share your team code',              go: 'coach-profile' },
-  { icon: 'users',     title: 'Invite staff',          sub: 'Assistant or dietitian codes',      go: 'coach-profile' },
+  { key: 'assign',          icon: 'clipboard', title: 'Assign a requirement',  sub: 'Team, room, group, or one athlete', go: 'coach-assign' },
+  { key: 'announce',        icon: 'share',     title: 'Send an announcement',  sub: 'Feed + push to the room you pick',  go: 'coach-announce' },
+  { key: 'message_athlete', icon: 'message',   title: 'Message an athlete',    sub: 'Pick from the roster',              go: 'coach-roster' },
+  { key: 'message_group',   icon: 'users',     title: 'Message a group',       sub: 'Announce to a custom group',        go: 'coach-announce' },
+  { key: 'standards',       icon: 'bars',      title: 'Standards & templates', sub: 'Meals, windows, check-ins by room', go: 'coach-plan' },
+  { key: 'schedule',        icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster' },
+  { key: 'add_athlete',     icon: 'user',      title: 'Add an athlete',        sub: 'Share your team code',              go: 'coach-profile' },
+  { key: 'invite_staff',    icon: 'users',     title: 'Invite staff',          sub: 'Coordinator, room, or view-only',   go: 'coach-profile' },
+  { key: 'team_diet',       icon: 'heart',     title: 'Team diet',             sub: 'Meal-plan tools',                   go: 'team-diet' },
 ];
-
-/* This staff member's own role (0061 team_staff), fetched once per team and cached module-level
-   — nothing client-side already holds "my role", so this screen owns the one fetch. Until it
-   resolves (or the roster hasn't loaded), the base OPTIONS list renders unfiltered: it never
-   goes blank waiting on a role we don't have yet. Position-coach audience capping is Slice F —
-   not built here, client note only. */
-let MYROLE = null; // { teamId, role }
-let myRoleLoadingId = null;
-async function loadMyRole(teamId) {
-  if (!teamId) return;
-  if (MYROLE && MYROLE.teamId === teamId) return;
-  if (myRoleLoadingId === teamId) return;
-  myRoleLoadingId = teamId;
-  try {
-    const staff = await roles.fetchTeamStaff(teamId);
-    const me = staff.find((s) => s.staff_id === RT.userId);
-    MYROLE = { teamId, role: me ? me.role : null };
-  } finally { myRoleLoadingId = null; }
-  if (location.hash === '#coach-create') window.__render();
-}
 
 export const coachCreate = {
   nav: 'coach', tab: 'create', transient: true,
   render() {
-    const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-    const opts = OPTIONS.slice();
-    if (MYROLE && MYROLE.teamId === teamId && MYROLE.role === 'nutritionist') {
-      opts.push({ icon: 'heart', title: 'Team diet', sub: 'Meal-plan tools', go: 'team-diet' });
+    const myRole = CD.extras ? CD.extras.myRole : null;
+    if (CD.extras && isReadonly(myRole)) {
+      return `${backHead('Create', 'What do you want to put in motion?', 'coach-home')}
+      <div class="sidebox">
+        <div class="req-icon b" style="width:38px;height:38px">${icon('eye', 17)}</div>
+        <div><div class="tt">You have view-only access</div>
+        <div class="ts">You can see the roster, standards, and activity for your scope — creating and assigning is for the coaching staff. Ask the head coach if that should change.</div></div>
+      </div>`;
     }
+    const allowed = allowedCreateKeys(myRole);
+    const opts = OPTIONS.filter((o) => allowed.includes(o.key));
     return `${backHead('Create', 'What do you want to put in motion?', 'coach-home')}
     <section class="card" style="padding:6px 16px">
       ${opts.map(o => `
@@ -56,9 +45,7 @@ export const coachCreate = {
     </section>`;
   },
   mount() {
-    loadCoachRoster().then(() => {
-      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      if (teamId) loadMyRole(teamId);
-    });
+    // Roster load also fills CD.extras (incl. myRole) and repaints this route when it lands.
+    loadCoachRoster();
   },
 };

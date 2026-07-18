@@ -6,7 +6,9 @@ import { standardForGoal, showConfirmPending } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { track, EVENTS } from '../analytics.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
-import { setMyTeamCode, regenerateMyTeamCode, fetchTeamStaff, createStaffInvite, revokeStaff } from '../roles.js';
+import { setMyTeamCode, regenerateMyTeamCode, fetchTeamStaff, createStaffInvite, revokeStaff, setStaffScope } from '../roles.js';
+import { roleLabel, scopeText, normalizeRole, RESPONSIBILITIES } from '../staff-access.js';
+import { seedTemplates, templateLabel } from '../templates.js';
 
 /* Staff & collaborators (0061): cached per profile visit. */
 let STAFF = null;
@@ -20,7 +22,7 @@ async function loadStaff(teamId, force) {
   finally { staffLoadingFor = null; }
   if (location.hash === '#coach-profile') window.__render();
 }
-const STAFF_ROLE_LABEL = { head_coach: 'Head Coach', assistant: 'Assistant', nutritionist: 'Nutritionist / RD' };
+/* Slice F: role labels + capability logic live in ../staff-access.js (pure, tested). */
 
 /* Practice HQ invite link + share text — mirrors src/core/practiceIdentity.ts (the tested
    oracle) inline, the same way state.js mirrors src/core logic in plain JS rather than
@@ -112,17 +114,15 @@ export const role = {
   },
 };
 
-/* ============ COACH ONBOARDING (5 steps + code screen) ============ */
+/* ============ COACH ONBOARDING (7 steps + code screen — Slice F rebuild) ============
+   Spec order (2026-07-16 Slice F): name+display name → school → team (sport/level) →
+   role+responsibility (sets team_staff scope) → starting standard (template-aware) →
+   notification preferences → account → code screen (customize surfaced at creation). */
 const coachSteps = {
-  1: () => frame(1, 5, 'You, coach.', 'Your athletes see this name on every standard you set.', `
+  1: () => frame(1, 7, 'You, coach.', 'Your athletes see this name on every standard you set.', `
     <input id="co-first" class="ob-input" placeholder="First name" autocapitalize="words" />
     <div style="height:12px"></div>
     <input id="co-last" class="ob-input" placeholder="Last name" autocapitalize="words" />
-    <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Your role</div>
-    <div class="chip-row" id="co-role">
-      <span class="chp on">Head Coach</span><span class="chp">Assistant</span><span class="chp">S&amp;C</span><span class="chp">Nutrition</span>
-    </div>
     <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
     <div class="chip-row" id="co-handle"></div>
     <input id="co-handle-custom" class="ob-input" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
@@ -130,7 +130,7 @@ const coachSteps = {
 
   2: () => {
     const c = (RT.ob || {}).coach || {};
-    return frame(2, 5, 'Your school.', 'Athletes find you by school. Same-name schools split by city.', c.schoolName ? `
+    return frame(2, 7, 'Your school.', 'Athletes find you by school. Same-name schools split by city.', c.schoolName ? `
       <section class="card team-preview">
         <div class="tp-av">${esc(c.schoolName[0])}</div>
         <div style="flex:1"><div style="font-size:16px;font-weight:800">${esc(c.schoolName)}</div>
@@ -146,7 +146,7 @@ const coachSteps = {
       'Next', 'coach-ob/3', { back: 'coach-ob/1' });
   },
 
-  3: () => frame(3, 5, 'Build the team.', 'Athletes join it with one code. You can run more than one group.', `
+  3: () => frame(3, 7, 'Build the team.', 'Athletes join it with one code. You can run more than one group.', `
     <input id="co-team" class="ob-input" placeholder="Team name (e.g. Varsity Football)" />
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
@@ -168,29 +168,97 @@ const coachSteps = {
     <input id="co-staff-code" class="ob-input" maxlength="8" placeholder="Staff code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" />
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.4">With a staff code you skip team creation and land on that team's staff.</div>`, 'Next', 'coach-ob/4', { back: 'coach-ob/2' }),
 
-  4: () => frame(4, 5, 'Set the team standard.', 'Every athlete starts with these. Adjust per athlete anytime.', `
+  /* Step 4 — role + responsibility (NEW, Slice F). Sets team_staff scope: a staff-code
+     joiner self-declares their initial narrowing (0078 allows exactly that once); a team
+     CREATOR is the head coach — the server keeps them whole-team and the choice seeds
+     their Home scope filter instead. */
+  4: () => {
+    const c = (RT.ob || {}).coach || {};
+    const choice = c.responsibility || 'team';
+    const needRooms = choice === 'side' || choice === 'room';
+    const RESP_ICON = { org: 'shield', team: 'users', side: 'bars', room: 'target', individuals: 'user' };
+    return frame(4, 7, 'What’s yours to run?', 'This sets how far your view reaches — your roster, priorities, and alerts follow it.', `
+    <div class="choice-grid" id="co-resp">
+      ${RESPONSIBILITIES.map((r) => `
+      <div class="choice ${choice === r.key ? 'on' : ''}" data-val="${r.key}" style="cursor:pointer">
+        <div class="cic" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon(RESP_ICON[r.key] || 'users', 19)}</div>
+        <div class="ct">${esc(r.title)}</div><div class="cs">${esc(r.sub)}</div>
+      </div>`).join('')}
+    </div>
+    ${needRooms ? `
+    <div class="eyebrow" style="margin:16px 2px 8px">${choice === 'room' ? 'Which room?' : 'Which rooms?'}</div>
+    <input id="co-rooms" class="ob-input" placeholder="${choice === 'room' ? 'e.g. LB' : 'e.g. OL, TE, QB'}" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Use the position names your athletes pick — that’s how the app knows who’s in your room. Leave it blank and you keep the whole team.</div>` : choice === 'individuals' ? `
+    <div style="height:14px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+      <div><div class="tt">You’ll pick them after</div><div class="ts">A private “My athletes” group is created for you — add athletes to it from the Roster and your view follows it.</div></div>
+    </div>` : ''}`,
+    'Next', 'coach-ob/5', { back: 'coach-ob/3' });
+  },
+
+  /* Step 5 — starting standard, template-aware (Slice C templates surfaced at creation). */
+  5: () => {
+    const c = (RT.ob || {}).coach || {};
+    const sel = c.standardTemplate || 'default';
+    const seeds = seedTemplates();
+    const chosen = sel === 'default' ? null : seeds.find((s) => s.kind === sel);
+    const KIND_ICON = { meal: 'utensils', lift: 'bolt', hydration: 'droplet', recovery: 'moon', weigh: 'scale', checkin: 'clipboard', custom: 'clipboard' };
+    const PROOF_LABEL = { photo: 'photo proof', form: 'quick form', scale: 'scale', counter: 'count it', check: 'check it off' };
+    const rows = chosen
+      ? chosen.items.map((it) => [KIND_ICON[it.kind] || 'clipboard', it.title,
+          [(it.freq && it.freq.label) || (it.freq && it.freq.type === 'daily' ? 'Daily' : ''), PROOF_LABEL[it.proof] || ''].filter(Boolean).join(' · ')])
+      : [
+        ['utensils', 'Three meals · photo proof', 'Nutrition · 50% of score'],
+        ['moon', 'Recovery check-in · nightly', 'Recovery · 25%'],
+        ['clipboard', 'Weekly check-in · Sundays', 'Check-in · 10%'],
+        ['scale', 'Weight · Mon / Wed / Fri', 'Season trend · not scored'],
+        ['droplet', 'Hydration · 120 oz', 'Focus item · optional'],
+      ];
+    return frame(5, 7, 'Set the team standard.', 'Start from a proven template. Fine-tune meals, windows, and rooms anytime in Standards.', `
+    <div class="chip-row" id="co-tpl">
+      <span class="chp ${sel === 'default' ? 'on' : ''}" data-tpl="default">Standard day</span>
+      ${seeds.map((s) => `<span class="chp ${sel === s.kind ? 'on' : ''}" data-tpl="${s.kind}">${esc(templateLabel(s.kind))}</span>`).join('')}
+    </div>
+    <div style="height:12px"></div>
     <section class="card" style="padding:6px 16px">
-      ${[
-        ['utensils', 'g', 'Three meals · photo proof', 'Nutrition · 50% of score', true],
-        ['moon', 'p', 'Recovery check-in · nightly', 'Recovery · 25%', true],
-        ['clipboard', 'g', 'Weekly check-in · Sundays', 'Check-in · 10%', true],
-        ['scale', 'a', 'Weight · Mon / Wed / Fri', 'Season trend · not scored', true],
-        ['droplet', 'b', 'Hydration · 120 oz', 'Focus item · optional', false],
-      ].map(([ic, cl, t, s, on]) => `
+      ${rows.map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
-          <div class="lic" style="color:var(--${cl === 'g' ? 'green-bright' : cl === 'p' ? 'purple-bright' : cl === 'b' ? 'cyan' : 'amber-bright'})">${icon(ic, 17)}</div>
-          <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
-          <div class="seg" style="width:104px">
-            <button class="${on ? 'on' : ''}">On</button><button class="${on ? '' : 'on'}">Off</button>
-          </div>
+          <div class="lic">${icon(ic, 17)}</div>
+          <div class="lm"><div class="lt">${esc(t)}</div><div class="ls">${esc(s)}</div></div>
         </div>`).join('')}
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px">The score model itself doesn't bend: four honest components, weight never scored daily.</div>`,
-    'Next', 'coach-ob/5', { back: 'coach-ob/3' }),
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px">The score model itself doesn’t bend: four honest components, weight never scored daily.</div>`,
+    'Next', 'coach-ob/6', { back: 'coach-ob/4' });
+  },
 
-  5: () => `
+  /* Step 6 — notification preferences (NEW, Slice F; device-local like the Slice E screen). */
+  6: () => {
+    const c = (RT.ob || {}).coach || {};
+    const n = c.notif || {};
+    const segRow = (id, title, sub, on) => `
+      <div class="lrow" style="cursor:default">
+        <div class="lm"><div class="lt">${title}</div><div class="ls">${sub}</div></div>
+        <div class="seg" style="width:104px" id="${id}"><button class="${on ? 'on' : ''}">On</button><button class="${on ? '' : 'on'}">Off</button></div>
+      </div>`;
+    return frame(6, 7, 'How you hear from us.', 'Planned on your phone from your latest roster view — never noise for its own sake.', `
+    <section class="card" style="padding:6px 16px">
+      ${segRow('co-nf-brief', 'Morning briefing', '7:30 AM · who needs you today', n.briefing !== false)}
+      ${segRow('co-nf-recap', 'Evening recap', '8:30 PM · how the day closed', n.recap !== false)}
+      ${segRow('co-nf-crit', 'Critical alerts immediately', 'Overdue athletes, gone-quiet streaks', n.immediateCritical !== false)}
+      ${segRow('co-nf-hourly', 'Hourly summaries', 'Off by default — the briefing catches it', n.hourly === true)}
+    </section>
+    <div style="height:10px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div>
+      <div><div class="tt">Quiet hours are on</div><div class="ts">Nothing between 10 PM and 7 AM unless it’s critical and you’ve allowed that. Times and quiet hours are tunable in Profile → Notifications.</div></div>
+    </div>`,
+    'Next', 'coach-ob/7', { back: 'coach-ob/5' });
+  },
+
+  7: () => `
   <div class="ob">
-    <div class="ob-nav"><div class="ob-back" data-go="coach-ob/4">${icon('chevron', 18)}</div>${progressOf(5, 5)}</div>
+    <div class="ob-nav"><div class="ob-back" data-go="coach-ob/6">${icon('chevron', 18)}</div>${progressOf(7, 7)}</div>
     <div class="ob-title">Create your account.</div>
     <div class="ob-sub">Your team, code, and roster live on it.</div>
     <div style="height:8px"></div>
@@ -198,7 +266,7 @@ const coachSteps = {
     <div class="ob-foot" style="margin-top:auto"><button id="su-go" class="btn primary" disabled>Create account &amp; Get my code</button></div>
   </div>`,
 
-  6: () => {
+  8: () => {
     const joined = (RT.ob || {}).joinedStaff;
     if (joined) {
       return `
@@ -206,7 +274,7 @@ const coachSteps = {
     <div class="standard-set">
       <div class="halo"><div class="core" style="background:linear-gradient(155deg,#f59e0b,#d97706)">${icon('users', 34)}</div></div>
       <div class="ob-title" style="margin-top:22px">You're on staff.</div>
-      <div class="ob-sub" style="padding:0 8px">${esc(joined.teamName || 'The team')} · ${esc(STAFF_ROLE_LABEL[joined.role] || joined.role || 'Staff')}. The roster, standards, and activity feed are yours to work.</div>
+      <div class="ob-sub" style="padding:0 8px">${esc(joined.teamName || 'The team')} · ${esc(roleLabel(normalizeRole(joined.role)))}. The roster, standards, and activity feed are yours to work.</div>
     </div>
     <div class="ob-foot" style="margin-top:auto">
       <button class="btn primary" data-go="coach-home">Open Coach Dashboard</button>
@@ -223,7 +291,18 @@ const coachSteps = {
       <div style="height:22px"></div>
       ${code ? `<div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(245,165,36,0.08)">${c}</div>`).join('')}</div>
       <div style="height:12px"></div>
-      <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:0 auto">${icon('clipboard', 16)} Copy code</button>` :
+      <div style="display:flex;justify-content:center;gap:8px">
+        <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 22px">${icon('clipboard', 16)} Copy code</button>
+        <button class="btn ghost sm" id="ob-code-edit" style="width:auto;padding:0 22px">Customize</button>
+      </div>
+      <div id="ob-code-editor" style="display:none;margin-top:14px">
+        <input id="ob-code-input" class="ob-input" placeholder="YOUR CODE · 4–12 letters/numbers" maxlength="12"
+          autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
+        <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
+          <button class="btn green sm" id="ob-code-save" style="width:auto;padding:0 22px">Save code</button>
+        </div>
+        <div id="ob-code-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center">Make it yours — e.g. GATORS. The random code stops working once you save.</div>
+      </div>` :
       `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
         <div><div class="tt">Code pending</div><div class="ts">We couldn't mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in — check Profile → Team code.</div></div></div>`}
     </div>
@@ -237,7 +316,7 @@ const coachSteps = {
 export const coachOb = {
   hideTabs: true,
   render({ sub }) {
-    const n = Math.min(6, Math.max(1, +(sub || 1)));
+    const n = Math.min(8, Math.max(1, +(sub || 1)));
     return coachSteps[n]();
   },
   async mount(root) {
@@ -254,14 +333,13 @@ export const coachOb = {
       const match = items.find((el) => el.textContent.trim() === String(saved));
       if (match) { items.forEach((el) => el.classList.remove('on')); match.classList.add('on'); }
     };
-    // step 1: names + role chips
+    // step 1: names (the old role chips moved to step 4's responsibility picker)
     const f = $('#co-first');
     if (f) {
-      const l = $('#co-last'), roleRow = $('#co-role');
+      const l = $('#co-last');
       const nextBtn = root.querySelector('.ob-foot .btn');
       const c = (RT.ob || {}).coach || {};
       if (c.name) { const [cf, ...cl] = c.name.split(' '); f.value = cf; l.value = cl.join(' '); }
-      restore('#co-role', c.staffRole);
       // "What the room calls you" — suggestions derived live from the name (Coach Brown /
       // Coach John / Coach JB) + a free-text override. Stored to ob scratch; pushed to
       // profiles.coach_display_name (0056) on first authenticated hydrate.
@@ -285,16 +363,12 @@ export const coachOb = {
       };
       const sync = () => {
         const name = `${f.value.trim()} ${l.value.trim()}`.trim();
-        const on = roleRow.querySelector('.on');
-        cap({ name, staffRole: on ? on.textContent.trim() : 'Head Coach' });
+        cap({ name });
         act.captureOb({ name }); // account step + profiles.full_name read RT.ob.name
         nextBtn.disabled = !(f.value.trim() && l.value.trim());
         paintHandles();
       };
       [f, l].forEach((el) => el.addEventListener('input', sync));
-      // Per-chip binding: wireToggles' chip handler stopPropagation()s, so a group-level
-      // listener never fires. Attach order guarantees sync reads the fresh .on state.
-      roleRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', sync));
       sync();
       if (handleCustom) {
         const saved = (((RT.ob || {}).coach || {}).coachName || '').trim();
@@ -382,22 +456,87 @@ export const coachOb = {
         staffCode.addEventListener('input', () => cap({ staffCode: staffCode.value.trim().toUpperCase() }));
       }
     }
-    // step 5: shared account → mint org/team → code screen
+    // step 4: responsibility picker — re-render on choice (the detail input depends on it)
+    const resp = $('#co-resp');
+    if (resp) {
+      resp.querySelectorAll('.choice[data-val]').forEach((el) => el.addEventListener('click', () => {
+        cap({ responsibility: el.getAttribute('data-val') });
+        window.__render();
+      }));
+      const rooms = $('#co-rooms');
+      if (rooms) {
+        const c = (RT.ob || {}).coach || {};
+        if (c.respRooms) rooms.value = c.respRooms;
+        rooms.addEventListener('input', () => cap({ respRooms: rooms.value.trim().toUpperCase() }));
+      }
+    }
+    // step 5: starting-standard template chips — re-render repaints the item list
+    const tpl = $('#co-tpl');
+    if (tpl) {
+      tpl.querySelectorAll('[data-tpl]').forEach((el) => el.addEventListener('click', () => {
+        cap({ standardTemplate: el.getAttribute('data-tpl') });
+        window.__render();
+      }));
+    }
+    // step 6: notification prefs — capture to ob scratch AND apply to the device-local
+    // planner prefs immediately (same store the Slice E settings screen edits).
+    const nfBrief = $('#co-nf-brief');
+    if (nfBrief) {
+      const segs = [
+        ['#co-nf-brief', 'briefing'], ['#co-nf-recap', 'recap'],
+        ['#co-nf-crit', 'immediateCritical'], ['#co-nf-hourly', 'hourly'],
+      ];
+      const syncNf = () => {
+        const patch = {};
+        for (const [sel, key] of segs) {
+          const g = $(sel);
+          if (g) patch[key] = (g.querySelector('.on') || {}).textContent === 'On';
+        }
+        cap({ notif: patch });
+        try { act.setCoachNotifPrefs(patch); } catch { /* prefs apply again on first sync */ }
+      };
+      // Per-button binding (wireToggles stopPropagation, attach order guarantees fresh state).
+      segs.forEach(([sel]) => {
+        const g = $(sel);
+        if (g) g.querySelectorAll('button').forEach((b) => b.addEventListener('click', syncNf));
+      });
+    }
+    // step 7: shared account → mint org/team (+ scope/standard, state.js) → code screen
     if ($('#su-go')) {
       wireAccount(root, {
         role: 'coach',
         onSession: async (live) => {
-          if (live) { await act.persistCoachOnboarding(); window.__go('coach-ob/6'); return; }
+          if (live) { await act.persistCoachOnboarding(); window.__go('coach-ob/8'); return; }
           showConfirmPending(root, { email: RT.email });
         },
       });
     }
-    // step 6: copy the REAL code
+    // step 8: copy the REAL code + customize it right here (set_my_team_code, 0026)
     const copy = $('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText((RT.ob || {}).teamCode || ''); } catch { /* label still confirms intent */ }
       copy.innerHTML = `${icon('check', 16)} Copied`;
     });
+    const obCodeEdit = $('#ob-code-edit');
+    if (obCodeEdit) {
+      const editor = $('#ob-code-editor'), input = $('#ob-code-input'), status = $('#ob-code-status');
+      obCodeEdit.addEventListener('click', () => {
+        editor.style.display = editor.style.display === 'none' ? '' : 'none';
+        if (editor.style.display === '' && input) input.focus();
+      });
+      $('#ob-code-save').addEventListener('click', async (e) => {
+        const raw = ((input && input.value) || '').trim().toUpperCase();
+        if (!/^[A-Z0-9]{4,12}$/.test(raw)) { status.style.color = 'var(--red)'; status.textContent = '4–12 letters or numbers only (A–Z, 0–9).'; return; }
+        e.target.disabled = true;
+        status.style.color = 'var(--text-3)'; status.textContent = 'Saving…';
+        const r = await setMyTeamCode(raw);
+        e.target.disabled = false;
+        if (!r.ok) { status.style.color = 'var(--red)'; status.textContent = r.error || 'Could not save that code.'; return; }
+        act.captureOb({ teamCode: r.code });
+        if (RT.team) RT.team = { ...RT.team, code: r.code };
+        window.__render();
+      });
+    }
   },
 };
 
@@ -887,6 +1026,10 @@ export const coachProfile = {
     <div class="eyebrow">Staff &amp; collaborators</div>
     ${(() => {
       const staff = STAFF && STAFF.teamId === (RT.team && RT.team.id) ? STAFF.rows : null;
+      // Slice F: only the head coach manages staff (0078 enforces; the client just doesn't
+      // dangle controls a coordinator can't use). Fail-open while the list loads.
+      const me = staff && staff.find(s => s.staff_id === RT.userId);
+      const iAmHead = !staff || !me || me.role === 'head_coach';
       return `
     <section class="card" style="padding:6px 16px">
       ${staff === null ? `
@@ -894,16 +1037,32 @@ export const coachProfile = {
       <div class="lm"><div class="lt">Loading your staff…</div></div></div>` : `
       ${staff.map(s => `
       <div class="lrow" style="cursor:default">
-        <div class="lic" style="${s.role === 'nutritionist' ? 'background:rgba(168,85,247,0.16);color:var(--purple-bright)' : ''}">${icon(s.role === 'nutritionist' ? 'heart' : 'user', 17)}</div>
-        <div class="lm"><div class="lt">${esc(s.name)}</div><div class="ls">${STAFF_ROLE_LABEL[s.role] || esc(s.role)}</div></div>
-        ${s.role !== 'head_coach' && s.staff_id !== RT.userId ? `<button class="btn ghost sm" data-staff-rm="${esc(s.staff_id)}" style="width:auto;padding:0 12px;height:30px;font-size:11px;color:var(--red)">Remove</button>` : ''}
-      </div>`).join('')}
+        <div class="lic" style="${s.role === 'nutritionist' ? 'background:rgba(168,85,247,0.16);color:var(--purple-bright)' : ''}">${icon(s.role === 'nutritionist' ? 'heart' : s.role === 'readonly' ? 'eye' : 'user', 17)}</div>
+        <div class="lm"><div class="lt">${esc(s.name)}</div><div class="ls">${esc(roleLabel(normalizeRole(s.role)))}${s.role === 'head_coach' ? '' : ` · ${esc(scopeText(s.scope_kind ? { kind: s.scope_kind, value: s.scope_value } : null))}`}</div></div>
+        ${iAmHead && s.role !== 'head_coach' && s.staff_id !== RT.userId ? `
+        <button class="btn ghost sm" data-staff-scope="${esc(s.staff_id)}" style="width:auto;padding:0 10px;height:30px;font-size:11px">Scope</button>
+        <button class="btn ghost sm" data-staff-rm="${esc(s.staff_id)}" style="width:auto;padding:0 10px;height:30px;font-size:11px;color:var(--red);margin-left:6px">Remove</button>` : ''}
+      </div>
+      ${iAmHead && s.role !== 'head_coach' ? `
+      <div id="staff-scope-ed-${esc(s.staff_id)}" style="display:none;padding:2px 2px 12px">
+        <input class="ob-input" data-scope-input="${esc(s.staff_id)}" placeholder="Rooms, comma-separated — e.g. LB or OL, TE. Blank = whole team"
+          autocapitalize="characters" autocorrect="off" spellcheck="false" value="${s.scope_kind === 'position' ? esc(s.scope_value || '') : ''}" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn green sm" data-scope-save="${esc(s.staff_id)}" style="width:auto;padding:0 18px">Save scope</button>
+        </div>
+      </div>` : ''}`).join('')}
+      ${iAmHead ? `
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('plus', 17)}</div>
         <div class="lm"><div class="lt">Invite to your staff</div><div class="ls">Single-use code · they enter it at coach sign-up</div></div>
-        <button class="btn ghost sm" data-staff-invite="assistant" style="width:auto;padding:0 10px;height:30px;font-size:11px">Assistant</button>
-        <button class="btn ghost sm" data-staff-invite="nutritionist" style="width:auto;padding:0 10px;height:30px;font-size:11px;margin-left:6px">Dietitian</button>
-      </div>`}
+      </div>
+      <div class="chip-row" style="padding:0 2px 12px">
+        <span class="chp" data-staff-invite="coordinator">Coordinator</span>
+        <span class="chp" data-staff-invite="position_coach">Position coach</span>
+        <span class="chp" data-staff-invite="nutritionist">Dietitian</span>
+        <span class="chp" data-staff-invite="readonly">View only</span>
+      </div>` : `
+      <div style="font-size:11.5px;font-weight:600;color:var(--text-3);padding:2px 2px 10px">Staff invites and scopes are managed by the head coach.</div>`}`}
       <div id="staff-code-out" style="display:none;padding:4px 2px 10px">
         <div class="code-boxes" id="staff-code-boxes" style="padding:0 0 6px"></div>
         <div style="font-size:11.5px;font-weight:600;color:var(--text-3);text-align:center">One use only. Text it to them — they pick "Coach" at sign-up and enter it as a staff code.</div>
@@ -952,6 +1111,25 @@ export const coachProfile = {
       const ok = await revokeStaff(RT.team && RT.team.id, b.getAttribute('data-staff-rm'));
       if (ok) await loadStaff(RT.team && RT.team.id, true);
       else { b.disabled = false; b.textContent = 'Remove'; b.removeAttribute('data-armed'); sSay('Could not remove them — try again.', true); }
+    }));
+    // Slice F: per-staff scope editor (head coach only — 0078 set_staff_scope is the wall).
+    // Blank input clears back to whole team; comma list narrows to those rooms.
+    root.querySelectorAll('[data-staff-scope]').forEach(b => b.addEventListener('click', () => {
+      const ed = root.querySelector(`#staff-scope-ed-${CSS.escape(b.getAttribute('data-staff-scope'))}`);
+      if (ed) ed.style.display = ed.style.display === 'none' ? '' : 'none';
+    }));
+    root.querySelectorAll('[data-scope-save]').forEach(b => b.addEventListener('click', async () => {
+      const staffId = b.getAttribute('data-scope-save');
+      const input = root.querySelector(`[data-scope-input="${CSS.escape(staffId)}"]`);
+      const rooms = ((input && input.value) || '').trim().toUpperCase();
+      b.disabled = true; sSay('Saving scope…');
+      const r = rooms
+        ? await setStaffScope(RT.team && RT.team.id, staffId, 'position', rooms)
+        : await setStaffScope(RT.team && RT.team.id, staffId, null, null);
+      b.disabled = false;
+      if (!r.ok) { sSay(r.error || 'Could not set the scope.', true); return; }
+      sSay('');
+      await loadStaff(RT.team && RT.team.id, true);
     }));
     // "Goes by" editor → set_my_coach_name (0056); repaints so every surface updates at once.
     const hEdit = root.querySelector('#handle-edit'), hBox = root.querySelector('#handle-editor');

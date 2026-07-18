@@ -538,6 +538,44 @@ export async function fetchMyStaffScope(teamId) {
   } catch { return null; }
 }
 
+/* ---------------- Coach OS Slice F (0077/0078): roles + scope management ---------------- */
+/** The signed-in staff member's own role + scope in ONE read: { role, scope } — scope null =
+    whole team. null when not staff / offline (callers fail open on the client; the server
+    walls everything regardless). */
+export async function fetchMyStaffAccess(teamId) {
+  const c = sb(); if (!c || !teamId) return null;
+  try {
+    const uid = (await c.auth.getUser()).data.user.id;
+    const { data } = await c.from('team_staff').select('role,scope_kind,scope_value')
+      .eq('team_id', teamId).eq('staff_id', uid).maybeSingle();
+    if (!data) return null;
+    return {
+      role: data.role || null,
+      scope: data.scope_kind ? { kind: data.scope_kind, value: data.scope_value } : null,
+    };
+  } catch { return null; }
+}
+/** Head coach sets anyone's scope; a staffer may self-declare their INITIAL narrowing only
+    (0078 set_staff_scope enforces both). kind null clears back to whole team. */
+export async function setStaffScope(teamId, staffId, kind, value) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { error } = await c.rpc('set_staff_scope', {
+      p_team: teamId, p_staff: staffId, p_kind: kind || null, p_value: value || null,
+    });
+    return error ? { ok: false, error: error.message || 'Could not set the scope.' } : { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not set the scope.' }; }
+}
+/** Head coach re-roles a staff member (never the head-coach row). */
+export async function setStaffRole(teamId, staffId, role) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.rpc('set_staff_role', { p_team: teamId, p_staff: staffId, p_role: role });
+    if (error) return { ok: false, error: error.message || 'Could not change the role.' };
+    return data === true ? { ok: true } : { ok: false, error: 'That role is locked.' };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not change the role.' }; }
+}
+
 /* ---------------- Coach OS Slice B: profile helpers ---------------- */
 export async function fetchCoachNotes(teamId, athleteId) {
   const c = sb(); if (!c || !teamId || !athleteId) return [];
