@@ -159,6 +159,92 @@
 .welcome .spacer { flex: 1; }
 .role-note { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top: 14px; line-height: 1.5; }
 
+/* ----- Welcome (v2) — self-contained under .wel so the sign-in / reset screens
+   keep the shared .welcome/.logo-wrap/.wordmark rules above. The premium reshape:
+   the whole lockup is one centered composition; the CTA and the payoff line carry
+   the blue→teal brand sweep (green stays status-only); and the mark's arc draws
+   itself in on entry — the score coming to life. ----- */
+/* Fill the scroll area so the composition can truly center — scoped to the welcome
+   view via :has() so no other screen's .view is affected. */
+.view:has(> .wel) { display: flex; flex-direction: column; min-height: 100%; }
+.wel {
+  flex: 1 1 auto;
+  display: flex; flex-direction: column; justify-content: center;
+  text-align: center; padding: 28px 0 8px;
+}
+.wel-hero { display: flex; flex-direction: column; align-items: center; }
+.wel-actions { margin-top: 46px; }
+
+.wel-logo {
+  position: relative; width: 104px; height: 104px; margin: 0 auto 16px;
+  /* subtle teal→blue ambient glow behind the mark; the rest stays near-black */
+  filter: drop-shadow(0 0 24px rgba(34,211,238,0.22)) drop-shadow(0 0 54px rgba(37,99,235,0.20));
+}
+.wel-logo::before {
+  content: ''; position: absolute; inset: -44px; z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(34,211,238,0.15), rgba(37,99,235,0.09) 52%, transparent 74%);
+}
+/* The payoff arc draws itself in on entry — the score climbing to the standard.
+   Arc length measured ≈88.85 (getTotalLength); dasharray 89 covers it exactly.
+   Under prefers-reduced-motion the global rule (app.css) kills .view * animations,
+   leaving the arc at offset 0 = fully drawn. */
+.wel-logo svg path[stroke^="url"] {
+  stroke-dasharray: 89; animation: welRingDraw 950ms var(--ease-out) 220ms both;
+}
+@keyframes welRingDraw { from { stroke-dashoffset: 89; } to { stroke-dashoffset: 0; } }
+
+/* Two-tone wordmark per docs/brand/LOGO.md: "On" ink, "Standard" on-dark blue accent. */
+.wel-mark { font-size: 33px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; color: var(--blue-bright); }
+.wel-mark .on { color: var(--text); }
+.wel-kicker {
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--text-3); margin-top: 11px;
+}
+/* Headline = the three brand pillars, promoted from flat tagline to bold hero.
+   The payoff line carries the score sweep — the one accent moment. */
+.wel-head {
+  margin-top: 22px; font-size: 23px; font-weight: 800; line-height: 1.32;
+  letter-spacing: -0.02em; color: var(--text);
+}
+.wel-head .accent {
+  color: var(--blue-bright); /* fallback if background-clip unsupported */
+  background: linear-gradient(96deg, var(--blue-bright) 4%, var(--ring-b) 92%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+/* Light theme: bright cyan drops below 3:1 on the light canvas, so the payoff line
+   uses a deeper blue→teal that stays legible. */
+:root[data-theme="light"] .wel-head .accent {
+  background: linear-gradient(96deg, var(--blue-deep) 4%, #0E7490 92%);
+  /* re-assert the text clip: the `background` shorthand above resets background-clip
+     to border-box, which would paint a solid bar instead of clipping to the glyphs. */
+  -webkit-background-clip: text; background-clip: text;
+  color: var(--blue-deep);
+}
+
+/* Primary CTA on welcome: deep blue→teal fill keeps white text ≥4.5:1 (the bright
+   teal lives in the bloom, not under the label); reuses the .btn.primary base. */
+.wel .btn.primary {
+  background: linear-gradient(133deg, var(--blue-deep), #0E7490);
+  box-shadow: var(--sh-blue), 0 8px 36px rgba(34,211,238,0.26);
+}
+.wel .btn.primary:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }
+.wel-arrow { font-weight: 800; }
+.wel-signin {
+  margin-top: 14px; width: 100%; min-height: 44px; padding: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer;
+  font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--text-2);
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+.wel-signin b { color: var(--blue-bright); font-weight: 800; }
+.wel-signin:active { opacity: 0.6; }
+.wel-signin:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; border-radius: 12px; }
+.wel-trust {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 16px; font-size: 12px; font-weight: 600; color: var(--text-3);
+}
+.wel-trust svg { opacity: 0.85; }
+
 /* ----- Coach dashboard ----- */
 .flagdot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
 .flagdot.g { background: var(--green-bright); box-shadow: 0 0 10px rgba(52,211,153,0.55); }
