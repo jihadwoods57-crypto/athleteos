@@ -1,7 +1,7 @@
 // Requirements engine (0055) pure helpers — proto is plain ESM JS (allowJs), same import
 // pattern as exec.test.ts.
 // @ts-ignore
-import { resolveRequirementSet, catalogFromItems, assignedFromRow, derive } from '../../proto/redesign-2026-07/js/requirements.js';
+import { resolveRequirementSet, catalogFromItems, assignedFromRow, derive, stdFromSolo } from '../../proto/redesign-2026-07/js/requirements.js';
 
 const TEAM = { id: 't', scope_kind: 'team', scope_value: null, items: [] };
 const OL = { id: 'p', scope_kind: 'position', scope_value: 'OL', items: [] };
@@ -22,6 +22,23 @@ describe('resolveRequirementSet — precedence athlete > position > team', () =>
   });
   test('another athlete\'s override never leaks', () =>
     expect(resolveRequirementSet([MINE, TEAM], 'ath-2', null)).toBe(TEAM));
+});
+
+describe('stdFromSolo — an independent athlete personal standard → the scored day', () => {
+  test('3 meals → a 3-slot day (breakfast/lunch/dinner)', () => {
+    const std = stdFromSolo({ mealsPerDay: 3 });
+    expect(std!.mealsRequired).toBe(3);
+    expect(std!.slots).toEqual(['breakfast', 'lunch', 'dinner']);
+  });
+  test('2 meals → a 2-slot day', () => {
+    expect(stdFromSolo({ mealsPerDay: 2 })!.mealsRequired).toBe(2);
+  });
+  test('no/invalid meal count → null (the classic 4-meal day stands)', () => {
+    expect(stdFromSolo(null)).toBeNull();
+    expect(stdFromSolo({})).toBeNull();
+    expect(stdFromSolo({ mealsPerDay: 0 })).toBeNull();
+    expect(stdFromSolo({ mealsPerDay: 9 })).toBeNull();
+  });
 });
 
 describe('derive — first-day activation marks pre-activation windows Not required, never Missed', () => {

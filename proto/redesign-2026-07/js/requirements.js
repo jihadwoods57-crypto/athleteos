@@ -163,6 +163,16 @@ export function stdFromItems(items) {
   return { mealsRequired: m, slots, deadlines, titles };
 }
 
+/** An independent (no-coach) athlete's personal standard → the same scored-day shape a coach
+ *  standard produces. v1 configures only the meal count (onboarding's 2/3/4 chip); windows and
+ *  titles fall back to the classic day. Returns null for a missing/out-of-range count, so the
+ *  classic 4-meal day stands. Pure. */
+export function stdFromSolo(standard) {
+  const m = standard && Number(standard.mealsPerDay);
+  if (!(m >= 1 && m <= 6)) return null;
+  return stdFromItems(Array.from({ length: Math.round(m) }, () => ({ kind: 'meal' })));
+}
+
 /* Defaults per item kind, so a server set only has to carry what the coach chose.
    Every value here mirrors a CATALOG entry — one visual/behavioral language. */
 const KIND_DEFAULTS = {

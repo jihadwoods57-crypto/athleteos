@@ -7,7 +7,7 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems } from './requirements.js';
+import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo } from './requirements.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
@@ -927,7 +927,7 @@ export const act = {
     saveMeal();
   },
 
-  startDay0() { RT.lastMove = null; dayResetLocal(); applyGoalToDay(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
+  startDay0() { RT.lastMove = null; dayResetLocal(); applyGoalToDay(); this._applyStandardFromSets(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
   // Coach→athlete assignments: real rows (0055) sync completion to the server; local-only
   // items (injury-mode rehab) stay local. Optimistic — server truth reasserts on next hydrate.
   completeAssigned(id) {
@@ -1071,7 +1071,7 @@ export const act = {
       const { data: prof } = await sb.from('profiles').select('full_name,committed_at').eq('id', userId).maybeSingle();
       // SETTLED sentinel: supabase-js resolves network/RLS failures into `{error}` without
       // throwing — destructure it so a real fetch failure is never misread as "no targets".
-      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob').eq('athlete_id', userId).maybeSingle();
+      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob,standard').eq('athlete_id', userId).maybeSingle();
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
       // Cross-device activation backstop: the server's committed_at is the first-day anchor when
@@ -1084,6 +1084,7 @@ export const act = {
         if (ap.season_goal && typeof ap.season_goal === 'object') patch.seasonGoal = ap.season_goal;
         if (ap.targets && typeof ap.targets === 'object') patch.targets = ap.targets;
         if (ap.dob) patch.dob = ap.dob; // drives the client-side minor gate (mirrors 0050's is_provable_minor)
+        if (ap.standard && typeof ap.standard === 'object') patch.standard = ap.standard; // solo personal standard (mealsPerDay)
       }
       // The patch above only ever touches RT.profile.targets when `ap` actually came back, so a
       // previously-cached target (hadTargets) survives an errored fetch untouched — the athlete
@@ -1301,7 +1302,9 @@ export const act = {
   async _loadAssignmentsIntoRt() {
     if (!RT.userId) return;
     const rows = await fetchMyAssignments();
-    if (!rows.length && !RT.assigned.some(a => a.real)) return; // nothing server-side yet — keep local
+    // Even with no coach assignments, a solo athlete still needs their standard resolved (their
+    // personal meal count governs the scored day) — apply it before the early return.
+    if (!rows.length && !RT.assigned.some(a => a.real)) { this._applyStandardFromSets(); return; }
     const coachName = (RT.myCoach && RT.myCoach.name) || 'Coach';
     const prevSeen = new Set(RT.assigned.filter(a => a.seen).map(a => a.id));
     const real = rows.map(r => assignedFromRow(r, coachName)).filter(Boolean)
@@ -1316,7 +1319,13 @@ export const act = {
      list, deadlines, titles, and the nutrition denominator. No set → the classic day. */
   _applyStandardFromSets() {
     const set = resolveRequirementSet(RT.reqSets || [], RT.userId, (RT.profile || {}).position);
-    RT.stdMeals = stdFromItems(set && set.items);
+    let std = stdFromItems(set && set.items);
+    // Independent (no governing coach set): a NEW solo athlete's chosen personal standard governs
+    // their scored day. Gated on RT.activationDate — stamped only by this build's onboarding — so
+    // EXISTING solo athletes are never silently re-scored against a different meal count (they
+    // keep the classic 4-meal day). Coach-linked athletes always resolve `set` first, unaffected.
+    if (!std && RT.activationDate) std = stdFromSolo((RT.profile && RT.profile.standard) || (RT.ob && RT.ob.standard));
+    RT.stdMeals = std;
     setDayStandard(RT.stdMeals);
   },
   /* Athlete: redeem a coach team code (or a trainer practice code) from the Connect screen.
