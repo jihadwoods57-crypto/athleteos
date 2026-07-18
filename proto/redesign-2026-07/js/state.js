@@ -19,6 +19,8 @@ import {
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { normalizePrefs } from './notify-plan.js';
+import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
+import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
 import { groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts } from './meal-intel.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
@@ -30,6 +32,7 @@ import {
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
+  todayISO,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
 
@@ -130,6 +133,8 @@ const DEFAULT_RT = {
   hydrationOz: 0,        // real: 0 until the athlete logs water (syncRtFromDay reflects DAY.hydrationL)
   notifsRead: false,
   notifPrefs: null,      // reminder prefs {enabled,quietFrom,quietTo,allowDeadline}; null → framework defaults
+  coachNotifPrefs: null, // COACH device reminder prefs (briefing/recap/hourly/immediate/quiet/myRoomOnly); null → coach defaults
+  _lastCoachAlertKeys: [], // last synced objective overdue signatures (alertKeys) — drives the NEW-critical diff across syncs
   serverNotifs: [],      // cached server notification rows (0027: nudges, join events, digests)
   serverAckAt: null,     // when the bell was last opened — offline unread-badge ack for server rows
   day0: false,           // fresh-athlete empty-state mode (set by finishing onboarding)
@@ -597,6 +602,9 @@ export const act = {
      the next open replaces everything, bounding staleness to one day. Best-effort. */
   syncNotifications() {
     void this.registerPushToken(); // piggyback: same permission moment, once per session
+    // COACH devices schedule the COACH plan (roster-derived), NOT the generic athlete meal
+    // reminders. This early-return leaves the athlete/trainer/parent path below byte-identical.
+    if (RT.authRole === 'coach') { this._syncCoachNotifications(); return; }
     try {
       let plan = S.exec.plan;
       // Celebration already posted today: strip it so a post-celebration score change (snack
@@ -643,6 +651,62 @@ export const act = {
       try {
         void window.sb.from('profiles')
           .update({ notifications_opt_out: !RT.notifPrefs.enabled })
+          .eq('id', RT.userId);
+      } catch { /* server pref is best-effort; local prefs already applied */ }
+    }
+  },
+  /* Coach-device notification sync (Task 5). Reached only from syncNotifications() when
+     RT.authRole === 'coach'. Builds the plan from the coach's LIVE roster status (entriesFor)
+     instead of the athlete meal catalog, then posts it over the SAME native bridge the athlete
+     plan uses (deterministic cn-* ids so RT._lastPlan / samePlan() dedupe works identically).
+     Coach data not loaded yet (entriesFor → null) → post NOTHING and leave _lastPlan unset so the
+     next trigger (loadCoachRoster completion) retries — never wipes the still-scheduled plan from
+     an earlier open (which carries its own tomorrow-briefing bridge). Best-effort. */
+  _syncCoachNotifications() {
+    try {
+      const prefs = normalizeCoachPrefs(RT.coachNotifPrefs);
+      // myRoomOnly → the coach's saved scope (defaults to their position room); else the whole team.
+      const scope = prefs.myRoomOnly ? getScope() : { kind: 'team', value: null };
+      const entries = entriesFor(scope);
+      const plan = buildCoachSyncPlan({
+        entries,
+        interventions: (CD.extras && CD.extras.interventions) || [],
+        prefs, nowMin: minutesNow(), dateISO: todayISO(),
+        lastAlertKeys: RT._lastCoachAlertKeys || [],
+      });
+      if (plan == null) return; // coach data still loading — post nothing, retry on the next trigger
+      const [y, mo, d] = String(DAY.date).split('-').map(Number);
+      // Dedupe by DAY too, exactly like the athlete path (a date-blind equality check would skip a
+      // new day's post). alertKeys is persisted from the SAME entries snapshot the plan was built
+      // from, keeping the immediate-critical NEW-key diff honest across syncs.
+      const last = RT._lastPlan;
+      if (last && last.date === String(DAY.date) && samePlan(plan, last.plan)) {
+        RT._lastCoachAlertKeys = alertKeys(entries); save(); return;
+      }
+      const N = window.OnStandardNative;
+      if (!N || !N.notify) return; // bridge not injected yet — retry on the next trigger (no key/plan advance)
+      N.notify.sync(plan.map((p) => ({
+        id: p.id,
+        atISO: p.immediate ? null : new Date(y, mo - 1, d + (p.dayOffset || 0), Math.floor(p.fireAtMin / 60), p.fireAtMin % 60).toISOString(),
+        title: p.title, body: p.body,
+        route: p.route || null,
+      })));
+      RT._lastCoachAlertKeys = alertKeys(entries);
+      RT._lastPlan = { date: String(DAY.date), plan }; save(); // recorded only once the post was handed to native
+    } catch { /* delivery failed — leave _lastPlan unset so the next trigger retries */ }
+  },
+  /* Update COACH reminder prefs and resync (mirrors setNotifPrefs). The master switch is also
+     written server-side (profiles.notifications_opt_out) — the SAME single opt-out column athletes
+     use: one person, one opt-out, so a coach turning reminders off here also suppresses automated
+     pushes for that account. Best-effort. */
+  setCoachNotifPrefs(patch) {
+    RT.coachNotifPrefs = { ...normalizeCoachPrefs(RT.coachNotifPrefs), ...(patch || {}) };
+    save();
+    this.syncNotifications();
+    if (patch && 'enabled' in patch && window.sb && RT.userId) {
+      try {
+        void window.sb.from('profiles')
+          .update({ notifications_opt_out: !RT.coachNotifPrefs.enabled })
           .eq('id', RT.userId);
       } catch { /* server pref is best-effort; local prefs already applied */ }
     }

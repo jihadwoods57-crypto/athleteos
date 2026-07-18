@@ -2,6 +2,7 @@ import { S, RT, act, roleNav, roleProfileRoute } from '../state.js';
 import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
+import { normalizeCoachPrefs } from '../coach-notify-plan.js';
 import { backHead, esc } from '../components.js';
 
 /* Reminder-pressure chips: restore the athlete's REAL saved pressure and persist taps into
@@ -395,6 +396,118 @@ export const notifSettings = {
     seg('#ns-enabled', (t) => ({ enabled: t === 'On' }));
     seg('#ns-deadline', (t) => ({ allowDeadline: t === 'On' }));
     seg('#ns-quiet', (t) => ({ quietFrom: (t === '9 PM' ? 21 : t === '11 PM' ? 23 : 22) * 60 }));
+  },
+};
+
+/* ---------- Coach notification settings (Slice E) ----------
+   Coach-side sibling of notifSettings above: edits RT.coachNotifPrefs (act.setCoachNotifPrefs)
+   which drives the LOCAL planner in js/coach-notify-plan.js — there is no live server schedule
+   yet, so the header sub-copy says exactly that (the honesty marker from the Slice E brief).
+   Every control writes straight through act.setCoachNotifPrefs (merge + save + resync + the
+   opt-out mirror) — this screen never touches RT.coachNotifPrefs directly. */
+export const coachNotifSettings = {
+  nav: 'coach', tab: 'profile',
+  render() {
+    const p = normalizeCoachPrefs(RT.coachNotifPrefs);
+    const qf = Math.round(p.quietFrom / 60); // 21 | 22 | 23
+    return `
+    ${backHead('Notifications', 'Planned on this phone from your latest roster view — open the app for the live picture.', 'coach-profile')}
+
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('bell', 17)}</div>
+        <div class="lm"><div class="lt">Coach notifications</div><div class="ls">${p.enabled ? 'On' : 'Paused'}</div></div>
+        <div class="seg" style="width:104px" id="cns-enabled"><button class="${p.enabled ? 'on' : ''}">On</button><button class="${p.enabled ? '' : 'on'}">Off</button></div>
+      </div>
+    </section>
+
+    <div class="eyebrow">Morning briefing</div>
+    <div class="chip-row" id="cns-briefing">
+      <span class="chp ${!p.briefing ? 'on' : ''}">Off</span>
+      <span class="chp ${p.briefing && p.briefingAt === 7 * 60 ? 'on' : ''}">7:00</span>
+      <span class="chp ${p.briefing && p.briefingAt === 7 * 60 + 30 ? 'on' : ''}">7:30</span>
+      <span class="chp ${p.briefing && p.briefingAt === 8 * 60 ? 'on' : ''}">8:00</span>
+    </div>
+
+    <div class="eyebrow">Evening recap</div>
+    <div class="chip-row" id="cns-recap">
+      <span class="chp ${!p.recap ? 'on' : ''}">Off</span>
+      <span class="chp ${p.recap && p.recapAt === 20 * 60 ? 'on' : ''}">8:00 PM</span>
+      <span class="chp ${p.recap && p.recapAt === 20 * 60 + 30 ? 'on' : ''}">8:30 PM</span>
+      <span class="chp ${p.recap && p.recapAt === 21 * 60 ? 'on' : ''}">9:00 PM</span>
+    </div>
+
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('clock', 17)}</div>
+        <div class="lm"><div class="lt">Hourly summary</div><div class="ls">Only while something is overdue</div></div>
+        <div class="seg" style="width:104px" id="cns-hourly"><button class="${p.hourly ? 'on' : ''}">On</button><button class="${p.hourly ? '' : 'on'}">Off</button></div>
+      </div>
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Immediate critical</div><div class="ls">One ping when a new group goes overdue</div></div>
+        <div class="seg" style="width:104px" id="cns-critical"><button class="${p.immediateCritical ? 'on' : ''}">On</button><button class="${p.immediateCritical ? '' : 'on'}">Off</button></div>
+      </div>
+    </section>
+
+    <div class="eyebrow">Quiet hours</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('moon', 17)}</div>
+        <div class="lm"><div class="lt">No pings after</div></div>
+        <div class="seg" style="width:150px" id="cns-quiet"><button class="${qf === 21 ? 'on' : ''}">9 PM</button><button class="${qf === 22 ? 'on' : ''}">10 PM</button><button class="${qf === 23 ? 'on' : ''}">11 PM</button></div>
+      </div>
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('users', 17)}</div>
+        <div class="lm"><div class="lt">My room only</div><div class="ls">Follow my scope instead of the whole team</div></div>
+        <div class="seg" style="width:104px" id="cns-myroom"><button class="${p.myRoomOnly ? 'on' : ''}">On</button><button class="${p.myRoomOnly ? '' : 'on'}">Off</button></div>
+      </div>
+    </section>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root) {
+    // Plain On/Off segments: each writes one field straight through act.setCoachNotifPrefs.
+    const seg2 = (sel, patch) => {
+      const row = root.querySelector(sel);
+      if (!row) return;
+      const [onBtn, offBtn] = row.querySelectorAll('button');
+      onBtn.addEventListener('click', () => act.setCoachNotifPrefs(patch(true)));
+      offBtn.addEventListener('click', () => act.setCoachNotifPrefs(patch(false)));
+    };
+    seg2('#cns-enabled', (on) => ({ enabled: on }));
+    seg2('#cns-hourly', (on) => ({ hourly: on }));
+    seg2('#cns-critical', (on) => ({ immediateCritical: on }));
+    seg2('#cns-myroom', (on) => ({ myRoomOnly: on }));
+
+    // Quiet-hours start: mirrors the athlete notifSettings quiet chips (9/10/11 PM), quietTo
+    // stays the framework default (no UI here, matching the athlete side).
+    const quiet = root.querySelector('#cns-quiet');
+    if (quiet) {
+      const btns = [...quiet.querySelectorAll('button')];
+      const atHour = { '9 PM': 21 * 60, '10 PM': 22 * 60, '11 PM': 23 * 60 };
+      btns.forEach((b) => b.addEventListener('click', () => {
+        btns.forEach((x) => x.classList.remove('on'));
+        b.classList.add('on');
+        act.setCoachNotifPrefs({ quietFrom: atHour[b.textContent.trim()] });
+      }));
+    }
+
+    // Off/time chip rows: "Off" clears the flag; a time sets the flag true + its *At minute.
+    const chipTime = (sel, flag, atMap) => {
+      const row = root.querySelector(sel);
+      if (!row) return;
+      const chips = [...row.querySelectorAll('.chp')];
+      chips.forEach((c) => c.addEventListener('click', () => {
+        chips.forEach((x) => x.classList.remove('on'));
+        c.classList.add('on');
+        const t = c.textContent.trim();
+        if (t === 'Off') act.setCoachNotifPrefs({ [flag]: false });
+        else act.setCoachNotifPrefs({ [flag]: true, [`${flag}At`]: atMap[t] });
+      }));
+    };
+    chipTime('#cns-briefing', 'briefing', { '7:00': 7 * 60, '7:30': 7 * 60 + 30, '8:00': 8 * 60 });
+    chipTime('#cns-recap', 'recap', { '8:00 PM': 20 * 60, '8:30 PM': 20 * 60 + 30, '9:00 PM': 21 * 60 });
   },
 };
 

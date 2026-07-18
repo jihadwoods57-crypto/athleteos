@@ -50,6 +50,13 @@ export async function loadCoachRoster(force) {
   if (location.hash === '#coach' || location.hash === '#copilot' || location.hash === '#coach-inbox'
     || location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#coach-assign') || location.hash.startsWith('#coach-plan')
     || location.hash === '#coach-home' || location.hash === '#coach-roster' || location.hash === '#coach-create' || location.hash === '#coach-insights') window.__render();
+  // Coach data just became ready (roster + extras). Re-run the notification sync so this coach's
+  // device now schedules the COACH plan from live roster status — the boot-time sync (hydrateDay)
+  // ran before this fetch, when entriesFor() was still null and posted nothing. syncNotifications
+  // itself routes to the coach branch only when RT.authRole === 'coach'; harmless for any other
+  // role. This is the ONLY data-arrival re-sync trigger a coach gets (checked: nothing else fires).
+  try { if (window.__act && window.__act.syncNotifications) window.__act.syncNotifications(); }
+  catch { /* best-effort — a sync failure never blocks the roster render */ }
 }
 
 /* Roster-wide activity feed (WS4a): recent meals across the team, newest first, with

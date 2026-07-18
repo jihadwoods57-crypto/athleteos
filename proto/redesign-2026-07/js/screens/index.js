@@ -23,7 +23,7 @@ import { coachAnnounce } from './coach-announce.js';
 import { coachInsights } from './coach-insights.js';
 import states from './states.js';
 import requirement from './requirement.js';
-import { messages, settings as prefs, privacy, billing, notifSettings, deleteAccount, terms } from './settings.js';
+import { messages, settings as prefs, privacy, billing, notifSettings, coachNotifSettings, deleteAccount, terms } from './settings.js';
 import { foodSearch, labelScan } from './foodsearch.js';
 import { trust, streak, history, mealView } from './trust.js';
 import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
@@ -95,6 +95,7 @@ export const screens = {
   'edit-profile': editProfile,
   squad,
   'notif-settings': notifSettings,
+  'coach-notif-settings': coachNotifSettings,
   'delete-account': deleteAccount,
   terms,
   devices,
