@@ -43,12 +43,28 @@ const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
 
 // Deno/edge has no Node crypto, so the SDK must use fetch + SubtleCrypto (the async verify path).
-const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  // Pinned to the version the SDK (npm:stripe@^17) is built against — its types enforce this.
-  apiVersion: '2025-02-24.acacia',
-  httpClient: Stripe.createFetchHttpClient(),
-});
-const cryptoProvider = Stripe.createSubtleCryptoProvider();
+//
+// LAZY construction is deliberate: `new Stripe('')` THROWS ("apiKey required"), so building the
+// client at module top-level crashed the whole worker at import time when STRIPE_SECRET_KEY was
+// unset — the platform then returned a generic WORKER_ERROR 500 and the handler's own config gate
+// (below) never ran. Deferring construction until the gate has confirmed the key exists lets an
+// unconfigured deploy load cleanly and answer 400/503 instead of crash-looping.
+let _stripe: Stripe | null = null;
+function stripeClient(): Stripe {
+  if (!_stripe) {
+    _stripe = new Stripe(STRIPE_SECRET_KEY, {
+      // Pinned to the version the SDK (npm:stripe@^17) is built against — its types enforce this.
+      apiVersion: '2025-02-24.acacia',
+      httpClient: Stripe.createFetchHttpClient(),
+    });
+  }
+  return _stripe;
+}
+let _cryptoProvider: ReturnType<typeof Stripe.createSubtleCryptoProvider> | null = null;
+function cryptoProvider() {
+  if (!_cryptoProvider) _cryptoProvider = Stripe.createSubtleCryptoProvider();
+  return _cryptoProvider;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -129,7 +145,7 @@ async function rewardReferrer(
     const refSubId = refRow?.stripe_subscription_id;
     if (!refSubId || refRow?.status === 'canceled') return; // stays pending until they hold a live plan
 
-    await stripe.subscriptions.update(refSubId, { discounts: [{ coupon: REFERRAL_COUPON }] });
+    await stripeClient().subscriptions.update(refSubId, { discounts: [{ coupon: REFERRAL_COUPON }] });
     await svc
       .from('referral_redemptions')
       .update({ status: 'rewarded', rewarded_at: new Date().toISOString() })
@@ -141,19 +157,29 @@ async function rewardReferrer(
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
-  if (!STRIPE_SECRET_KEY || !STRIPE_WEBHOOK_SECRET || !SUPABASE_URL || !SERVICE_ROLE) {
-    console.error('stripe-webhook: missing configuration');
-    return json({ error: 'server not configured' }, 500);
-  }
 
+  // Authenticate the request SHAPE first: a webhook call with no Stripe signature is a probe,
+  // a scanner, or misdirected traffic — reject it 400. (A 500 here read as OUR crash and, when
+  // it came from Stripe, triggered retry storms; 9/10 sibling fns already fail closed cleanly.)
   const sig = req.headers.get('stripe-signature');
   if (!sig) return json({ error: 'missing signature' }, 400);
+
+  // Config gate AFTER the signature-presence check. A SIGNED event we can't verify because a
+  // secret is unset is a transient server condition: 503 tells Stripe to retry with backoff
+  // (the event is preserved for when billing is configured) rather than 500 (also retried but
+  // reads as a crash) or 200 (which would silently DROP a real paid event). Billing is not yet
+  // live on prod (no STRIPE_* secrets), so today this branch only tames probe traffic; it also
+  // makes the endpoint correct the moment the secrets land.
+  if (!STRIPE_SECRET_KEY || !STRIPE_WEBHOOK_SECRET || !SUPABASE_URL || !SERVICE_ROLE) {
+    console.error('stripe-webhook: missing configuration');
+    return json({ error: 'server not configured' }, 503);
+  }
 
   // Verify the signature against the RAW body — this is the endpoint's only authentication.
   const raw = await req.text();
   let event: Stripe.Event;
   try {
-    event = await stripe.webhooks.constructEventAsync(raw, sig, STRIPE_WEBHOOK_SECRET, undefined, cryptoProvider);
+    event = await stripeClient().webhooks.constructEventAsync(raw, sig, STRIPE_WEBHOOK_SECRET, undefined, cryptoProvider());
   } catch (e) {
     console.error('stripe-webhook: signature verification failed:', (e as Error).message);
     return json({ error: 'invalid signature' }, 400);
@@ -178,7 +204,7 @@ Deno.serve(async (req) => {
           return json({ received: true, note: 'no subscription on session' });
         }
         // Pull the subscription for plan/seats/period end/status.
-        const sub = await stripe.subscriptions.retrieve(subId);
+        const sub = await stripeClient().subscriptions.retrieve(subId);
         const { error } = await svc.from('subscriptions').upsert({
           owner_id: ownerId,
           tier: 'team',
