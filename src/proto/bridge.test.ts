@@ -17,6 +17,10 @@ jest.mock('../lib/auth/apple', () => ({
   isAppleAuthAvailable: false,
   requestAppleIdentityToken: jest.fn(async () => null),
 }));
+jest.mock('../lib/auth/google', () => ({
+  isGoogleAuthAvailable: false,
+  requestGoogleIdToken: jest.fn(async () => null),
+}));
 jest.mock('../lib/auth/biometrics', () => ({
   isBiometricsAvailable: false,
   biometricsUsable: jest.fn(async () => false),

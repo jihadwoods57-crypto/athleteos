@@ -12,6 +12,7 @@ import * as Haptics from 'expo-haptics';
 import * as SecureStore from 'expo-secure-store';
 import type WebView from 'react-native-webview';
 import { isAppleAuthAvailable, requestAppleIdentityToken } from '../lib/auth/apple';
+import { isGoogleAuthAvailable, requestGoogleIdToken } from '../lib/auth/google';
 import { biometricsUsable } from '../lib/auth/biometrics';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { getPushToken } from '../lib/notify';
@@ -26,6 +27,8 @@ export type BridgeMessage =
   | { type: 'SECURE_DELETE'; id: number; key: string }
   | { type: 'APPLE_AVAILABLE'; id: number }
   | { type: 'APPLE_SIGNIN'; id: number }
+  | { type: 'GOOGLE_AVAILABLE'; id: number }
+  | { type: 'GOOGLE_SIGNIN'; id: number }
   | { type: 'BIO_AVAILABLE'; id: number }
   | { type: 'NOTIFY_SYNC'; plan: import('../lib/notify/execSync').ExecPlanItem[] }
   | { type: 'PUSH_TOKEN'; id: number }
@@ -137,6 +140,16 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
       }
       return true;
+    case 'GOOGLE_AVAILABLE':
+      resolve(ref, msg.id, isGoogleAuthAvailable);
+      return true;
+    case 'GOOGLE_SIGNIN':
+      try {
+        resolve(ref, msg.id, await requestGoogleIdToken());
+      } catch (e) {
+        resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
+      }
+      return true;
     case 'BIO_AVAILABLE':
       resolve(ref, msg.id, await biometricsUsable());
       return true;
@@ -192,6 +205,10 @@ export const BRIDGE_SHIM = `
     apple: {
       available: function(){ return call('APPLE_AVAILABLE', {}); },
       signIn: function(){ return call('APPLE_SIGNIN', {}); }
+    },
+    google: {
+      available: function(){ return call('GOOGLE_AVAILABLE', {}); },
+      signIn: function(){ return call('GOOGLE_SIGNIN', {}); }
     },
     biometrics: {
       available: function(){ return call('BIO_AVAILABLE', {}); }

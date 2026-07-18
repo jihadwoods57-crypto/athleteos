@@ -64,28 +64,33 @@ export function wireAccount(root, { role, onSession }) {
   btn.addEventListener('click', submit);
   p2.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !btn.disabled) submit(); });
 
-  // Sign in with Apple — renders only when the native seam reports availability (go-live).
-  (async () => {
-    const native = window.OnStandardNative && window.OnStandardNative.apple;
+  // Sign in with Apple / Google — each button renders only when the native seam reports it
+  // available (go-live). A fresh social identity (no primary_role) adopts THIS onboarding's
+  // role + name; an existing identity is never silently demoted/renamed.
+  const wireSocial = async (key, provider, label) => {
+    const native = window.OnStandardNative && window.OnStandardNative[key];
     if (!native) return;
     let ok = false;
     try { ok = await native.available(); } catch { /* treat as unavailable */ }
     if (!ok) return;
     const wrap = $('#ap-wrap');
     if (!wrap) return;
-    wrap.innerHTML = `<button class="btn ghost" id="su-apple" style="margin-bottom:14px"> Continue with Apple</button>`;
-    wrap.querySelector('#su-apple').addEventListener('click', async () => {
+    const b = document.createElement('button');
+    b.className = 'btn ghost';
+    b.style.marginBottom = '10px';
+    b.textContent = 'Continue with ' + label;
+    wrap.appendChild(b);
+    b.addEventListener('click', async () => {
+      if (b.disabled) return;
       err.textContent = '';
+      b.disabled = true;
       let proceed = false;
       try {
         const token = await native.signIn();
-        if (!token) return; // user cancelled
-        const { data, error } = await window.sb.auth.signInWithIdToken({ provider: 'apple', token });
-        if (error || !data || !data.user) { err.textContent = 'Apple sign-in failed. Use email instead.'; return; }
+        if (!token) { b.disabled = false; return; } // user cancelled
+        const { data, error } = await window.sb.auth.signInWithIdToken({ provider, token });
+        if (error || !data || !data.user) { err.textContent = label + ' sign-in failed. Use email instead.'; b.disabled = false; return; }
         act._syncSession(data.user);
-        // This Apple identity may already belong to an existing account (any role) — never let
-        // onboarding silently demote/rename it. Only a fresh (no primary_role) account proceeds
-        // through this onboarding's role + name.
         const { data: prof } = await window.sb.from('profiles').select('primary_role').eq('id', data.user.id).maybeSingle();
         if (prof && prof.primary_role) {
           act.setAuthRole(prof.primary_role);
@@ -99,8 +104,10 @@ export function wireAccount(root, { role, onSession }) {
           }).eq('id', data.user.id);
         } catch { /* best-effort */ }
         proceed = true;
-      } catch { err.textContent = 'Apple sign-in failed. Use email instead.'; }
+      } catch { err.textContent = label + ' sign-in failed. Use email instead.'; b.disabled = false; }
       if (proceed) await onSession(true);
     });
-  })();
+  };
+  wireSocial('apple', 'apple', 'Apple');
+  wireSocial('google', 'google', 'Google');
 }
