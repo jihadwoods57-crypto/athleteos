@@ -148,6 +148,7 @@ const DEFAULT_RT = {
   coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots)
   coachNudged: {},       // coach device: athleteId -> ISO date of last nudge (one per athlete per day)
   coachSetup: {},        // coach first-run checklist: real per-step completion flags (sharedCode/standard/staff/group) marked when the coach actually does each step; reset per-account by _wipeUserScopedState
+  coachVoice: null,      // coach's AI-voice config {enabled,tone,level,approved:[],prohibited}; null → defaults. The AI edge fn consumes this once wired (server-deferred)
   theme: 'dark',         // 'dark' | 'light' | 'system' — dark is the shipped default (WS2b)
   haptics: true,         // device preference: light vibration on taps/logs (router buzz())
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
@@ -739,6 +740,12 @@ export const act = {
     if (!RT.coachSetup || typeof RT.coachSetup !== 'object') RT.coachSetup = {};
     if (RT.coachSetup[key]) return;
     RT.coachSetup[key] = true;
+    save();
+  },
+  /* Coach Voice config (tone/accountability/approved phrases/prohibited words). Persisted with RT;
+     the AI edge function reads it to reinforce the coach's standards in their tone once wired. */
+  setCoachVoice(patch) {
+    RT.coachVoice = { ...(RT.coachVoice || {}), ...(patch || {}) };
     save();
   },
   /* Register this device's push token (coach→athlete nudges) via the bridge, once per
