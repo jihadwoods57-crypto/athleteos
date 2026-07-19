@@ -120,10 +120,7 @@
   border-radius: var(--r-tile); box-shadow: var(--sh-card);
   padding: var(--s4); margin-bottom: var(--s3); overflow: hidden;
 }
-.co-pri::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
-.co-pri.t-critical::before { background: var(--red); }
-.co-pri.t-below::before { background: var(--amber-bright); }
-.co-pri.t-due::before { background: var(--blue-bright); }
+/* Tier is conveyed by the .co-tier chip + the score color — no side-stripe accent (T-14; PRODUCT.md ban). */
 .co-pri-head { display: flex; align-items: flex-start; gap: var(--s3); cursor: pointer; }
 .co-pri-rank {
   flex: none; width: 22px; font-size: 13px; font-weight: 800; color: var(--text-3);
@@ -352,8 +349,7 @@
     linear-gradient(180deg, rgba(52,211,153,0.06), rgba(59,130,246,0.05)), var(--surface-1);
   border:1px solid var(--green-border); border-radius:var(--r-card); padding:16px; margin-bottom:13px;
   box-shadow:var(--sh-card); }
-.std-preview::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
-  background:linear-gradient(180deg, var(--ring-a), var(--ring-b), var(--ring-c)); }
+/* No side-stripe on the preview card — the green border + header already frame it (T-14). */
 .std-prev-h { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:800;
   letter-spacing:.06em; text-transform:uppercase; color:var(--green-bright); margin-bottom:12px; }
 .std-prev-row { display:flex; align-items:center; gap:11px; padding:9px 0; border-top:1px solid var(--hairline-soft); }
