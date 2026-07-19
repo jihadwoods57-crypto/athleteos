@@ -9,7 +9,7 @@
 - **Behavior verified in a real headless browser** (Playwright + a local static server): render assertions, mount-and-click harnesses, and pure-function fixtures. A fresh server port was used to bust the browser's ES-module cache when a shared module (day.js, state.js) changed.
 - A remote cloud agent was tried first; it completed **T-28** and pushed it, then died on an infrastructure stream-timeout. The rest was completed locally.
 
-## DONE — 12 tickets, verified + pushed
+## DONE — 14 tickets, verified + pushed
 
 | Ticket | What shipped | Verified |
 |---|---|---|
@@ -24,6 +24,9 @@
 | **T-17** *(partial)* | Effective date is Today / Tomorrow / **Pick a date** (with a date picker, min = today); fixes the contradictory selected state; history still never rewritten. | three options + date input; Today is the consistent default |
 | **T-07** *(partial)* | Notification quick-setup presets (Essential / Balanced / Hands-on) + quiet-hours **resume** time ("Back on at"). | presets apply correct bundles; resume sets quietTo |
 | **T-12** *(partial)* | Coach Voice is real config (tone, accountability, approvable phrases, "never say" list) + explicit AI-labeling and hard limits. | config persists via `act.setCoachVoice`; guardrail copy present |
+| **T-19** *(partial)* | Coach Profile: split the catch-all "Team settings" into Program / Analytics / Preferences (+ clean Sign out); "Athlete code" label; Coach Voice renamed. | render: sections + order + wiring intact |
+| **T-23** *(partial)* | Raised sub-44px touch targets: `.co-chip` 34→40, `.co-abtn` 36→**44**, header avatar 34→40. | source-verified |
+| **T-10 / GS-5** | Confirmed athlete-code regenerate already has a two-tap "old code dies" confirmation; fixed two user-facing "Minting…" strings → "Creating…". | copy-lint clean |
 
 ## PARTIAL — client done, server pieces deferred
 - **T-17:** shipped the effective-date control. **Deferred:** collapsible sections, per-meal proof rules, schedule variations, custom weigh cadence, and score-weight validation (no editable weights exist client-side — they live in `day.js`; making them editable is a scoring change).
@@ -31,10 +34,11 @@
 - **T-12:** shipped the config UI + guardrail copy. **Deferred (edge fn):** actually wiring the `meal-chat` AI to consume `RT.coachVoice` (tone/phrases/prohibited) and enforce the guardrails server-side.
 
 ## NOT STARTED — safe client work remaining (next run)
-- **T-18 / T-19** — Plan hub + Coach Profile restructure (actionable cards; six profile sections). Larger, and CD-getter state makes render-path browser verification harder; do with care.
+- **T-18** — Plan hub: convert passive empty sections into actionable cards. CD-getter state makes render-path browser verification harder; do with care.
+- **T-19 (remainder)** — the full six-route profile split (personal profile / team access / staff as separate screens); the settings-grouping slice shipped.
+- **T-23 (remainder)** — dynamic/large-text scaling + a full safe-area sweep; the touch-target bump shipped.
 - **T-16** — persist the setup state machine server-side (`0092`); today it's client-derived (`RT.coachSetup` + live signals), which works but isn't cross-device.
-- **T-10** — athlete-code full lifecycle client parts (customize/regenerate confirm/copy/share already exist; rate-limit is server).
-- **T-21** — focused/resumable setup navigation. **T-22** — universal loading/error/retry/permission state audit. **T-23** — dynamic/large-text + safe-area sweep.
+- **T-21** — focused/resumable setup navigation (deep-links already land on the exact section; the resume-mid-setup piece remains). **T-22** — universal loading/error/retry/permission state audit.
 - **T-03 / T-04** — the *dedicated* staff-invite flow and room/group builder: the UI shells are client work, but the full lifecycle (granular permissions, states, audit, owner-safety, first-class rooms) needs migrations `0087`/`0093`, so only shells are safe unattended.
 
 ## DEFERRED by design — need your decision + a staged rollout (NOT done)
