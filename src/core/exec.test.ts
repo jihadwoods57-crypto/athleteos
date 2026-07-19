@@ -208,6 +208,21 @@ describe('first-day activation — pre-activation windows are Not required, neve
   });
 });
 
+describe('grace window — a meal past due but within grace is not yet overdue', () => {
+  const cat = [{ id: 'lunch', title: 'Lunch', icon: 'bowl', accent: 'g', proof: 'photo',
+    freq: { type: 'daily' }, window: { open: 720, due: 840, grace: 60 }, required: true,
+    impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: '' }];
+  const st = { lunch: { done: false } };
+  test('within grace → due_soon (still actionable), never the red overdue', () => {
+    const e = deriveExec({ nowMin: 870, dow: 2, status: st, catalog: cat }); // 840 < 870 <= 900
+    expect(e.items.find((i: any) => i.id === 'lunch')!.state).toBe('due_soon');
+  });
+  test('past deadline+grace → overdue', () => {
+    const e = deriveExec({ nowMin: 910, dow: 2, status: st, catalog: cat }); // > 900
+    expect(e.items.find((i: any) => i.id === 'lunch')!.state).toBe('overdue');
+  });
+});
+
 describe('catalog/deadline consistency', () => {
   test('meal window.due matches the scoring DEADLINE', () => {
     // requirements.js stays import-free by design — this test is the enforcement seam

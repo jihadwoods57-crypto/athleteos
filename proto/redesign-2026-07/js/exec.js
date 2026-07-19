@@ -33,9 +33,13 @@ const PILL = { done: 'Logged', done_late: 'Logged late', overdue: 'Overdue', due
 
 function itemState(req, st, nowMin) {
   if (st.done) return st.late ? 'done_late' : 'done';
-  if (nowMin > req.window.due) return 'overdue';
+  // A meal within its grace window (day.js slotGrace) still scores on time, so it must not read
+  // as red "overdue" here — it stays actionable until deadline+grace. Absent grace = 0 (unchanged).
+  const grace = (req.window && typeof req.window.grace === 'number') ? req.window.grace : 0;
+  const close = req.window.due + grace;
+  if (nowMin > close) return 'overdue';
   if (req.window.open != null && nowMin < req.window.open) return 'locked';
-  if (req.window.due - nowMin <= DUE_SOON_MIN) return 'due_soon';
+  if (close - nowMin <= DUE_SOON_MIN) return 'due_soon';
   return 'ready';
 }
 

@@ -15,7 +15,7 @@ import {
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
-  setDayStandard, slotDeadline, setDayGoalConfig, checkinReal,
+  setDayStandard, slotDeadline, slotGrace, setDayGoalConfig, checkinReal,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
@@ -456,7 +456,7 @@ function execCatalog() {
     return {
       id: k, title: (std.titles && std.titles[k]) || (base ? base.title : cap(k.replace('-', ' '))),
       icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
-      freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) }, required: true,
+      freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k), grace: slotGrace(k) }, required: true,
       impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: base ? base.note : '',
     };
   });
@@ -2206,7 +2206,9 @@ export const S = {
   get exec() {
     const mstat = (k) => {
       const at = DAY.mealLoggedAt[k];
-      return { done: mealScored(DAY, k), late: at != null && at > slotDeadline(k), at: at != null ? fmtClock(at) : null };
+      // "late" for display must match scoring: a meal inside the grace window scored on-time,
+      // so it reads "Logged", not "Logged late".
+      return { done: mealScored(DAY, k), late: at != null && at > slotDeadline(k) + slotGrace(k), at: at != null ? fmtClock(at) : null };
     };
     const std = RT.stdMeals;
     const catalog = execCatalog();
