@@ -20,7 +20,9 @@ async function loadStaff(teamId, force) {
   try { STAFF = { teamId, rows: await fetchTeamStaff(teamId) }; }
   catch { STAFF = { teamId, rows: [] }; }
   finally { staffLoadingFor = null; }
-  if (location.hash === '#coach-profile') window.__render();
+  // T-19: staff now lives at #coach-profile/staff (a section route), so repaint on any coach-profile
+  // route — an exact '#coach-profile' match would leave the staff section stuck on "Loading…".
+  if (location.hash.startsWith('#coach-profile')) window.__render();
 }
 /* Slice F: role labels + capability logic live in ../staff-access.js (pure, tested). */
 
@@ -1010,40 +1012,57 @@ export const clientOb = {
 };
 
 /* ============ COACH & TRAINER PROFILES ============ */
-export const coachProfile = {
-  nav: 'coach', tab: 'profile',
-  render() {
-    // Server-confirmed identity first (S.coachIdentity: profiles.full_name + the real team row
-    // with its real join code) — the onboarding scratch is only a fallback for a just-onboarded
-    // coach whose team fetch hasn't landed yet. Never a fabricated persona.
-    const ci = S.coachIdentity;
-    const ob = (RT.ob && RT.ob.coach) || {};
-    const name = ci.name !== 'Coach' ? ci.name : (ob.name || 'Coach');
-    const teamBits = ci.hasIdentity
-      ? [ci.teamName]
-      : [ob.teamName, ob.schoolName].filter(Boolean);
-    const metaLine = teamBits.filter(Boolean).map(esc).join(' · ') || 'Your team';
-    const code = ci.code || (RT.ob || {}).teamCode || '';
-    return `
-    ${backHead('Coach Profile', 'You, your team, your code', 'coach-home')}
 
+/* ---- Coach Profile · routed sections (T-19) --------------------------------------------------
+   The old dense single page becomes a scannable section MENU (render with no sub) plus one section
+   per sub, each its own screen with a back header and the profile tab. The mount() below is
+   self-guarding (every handler is querySelector-null-guarded), so it wires only whichever section's
+   controls are actually present — no flow changed, just where each concern lives. */
+const CP_SECTIONS = [
+  { sub: 'personal',    icon: 'user',      t: 'Personal profile',       s: 'Your name, coach handle, sign out' },
+  { sub: 'invitations', icon: 'share',     t: 'Athlete code & invites', s: 'The code athletes join with' },
+  { sub: 'staff',       icon: 'users',     t: 'Staff & collaborators',  s: 'Invite staff, set their scope' },
+  { sub: 'program',     icon: 'clipboard', t: 'Program',                s: 'Standards, templates, Coach Voice, visibility' },
+  { sub: 'analytics',   icon: 'bars',      t: 'Analytics',              s: 'Team trends and adherence' },
+  { sub: 'preferences', icon: 'bell',      t: 'Preferences',            s: 'Notifications and appearance' },
+];
+function cpNames() {
+  // Server-confirmed identity first (S.coachIdentity), onboarding scratch only as a fallback.
+  const ci = S.coachIdentity;
+  const ob = (RT.ob && RT.ob.coach) || {};
+  const name = ci.name !== 'Coach' ? ci.name : (ob.name || 'Coach');
+  const teamBits = ci.hasIdentity ? [ci.teamName] : [ob.teamName, ob.schoolName].filter(Boolean);
+  const metaLine = teamBits.filter(Boolean).map(esc).join(' · ') || 'Your team';
+  const code = ci.code || (RT.ob || {}).teamCode || '';
+  return { ci, name, metaLine, code };
+}
+function cpIdCard(withHandle) {
+  const { ci, name, metaLine } = cpNames();
+  return `
     <section class="card id-card">
       <div class="big-av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${esc((name[0] || 'C').toUpperCase())}</div>
       <div style="flex:1">
         <div class="nm">${esc(name)}</div>
         <div class="meta">${metaLine}</div>
-        <div class="meta" style="margin-top:3px">Goes by <b style="color:var(--text)">${esc(ci.handle)}</b> · <span id="handle-edit" style="color:var(--blue-bright);cursor:pointer;font-weight:800">Change</span></div>
+        ${withHandle ? `<div class="meta" style="margin-top:3px">Goes by <b style="color:var(--text)">${esc(ci.handle)}</b> · <span id="handle-edit" style="color:var(--blue-bright);cursor:pointer;font-weight:800">Change</span></div>` : ''}
       </div>
-    </section>
-    <div id="handle-editor" style="display:none;margin:-6px 0 12px">
+    </section>`;
+}
+function cpHandleEditor() {
+  const { ci } = cpNames();
+  return `
+    <div id="handle-editor" style="display:none;margin:6px 0 12px">
       <input id="handle-input" class="ob-input" maxlength="40" placeholder="e.g. Coach JB" value="${esc(ci.handle)}" />
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn ghost sm" id="handle-cancel" style="width:auto;padding:0 18px">Cancel</button>
         <button class="btn green sm" id="handle-save" style="width:auto;padding:0 22px">Save</button>
       </div>
       <div id="handle-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:6px">Athletes see this everywhere — greetings, meal threads, your standard.</div>
-    </div>
-
+    </div>`;
+}
+function cpCodeBlock() {
+  const { ci, code } = cpNames();
+  return `
     <div class="eyebrow" id="cp-code">Athlete code · share it</div>
     ${code ? `
     <section class="card pad" style="text-align:center">
@@ -1075,17 +1094,17 @@ export const coachProfile = {
     </div>` : `
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-      <div><div class="tt">No code yet</div><div class="ts">It mints when your team is created, automatically on your next sign-in.</div></div>
-    </div>`}
-
+      <div><div class="tt">No code yet</div><div class="ts">It appears when your team is created, automatically on your next sign-in.</div></div>
+    </div>`}`;
+}
+function cpStaffBlock() {
+  const staff = STAFF && STAFF.teamId === (RT.team && RT.team.id) ? STAFF.rows : null;
+  // Slice F: only the head coach manages staff (0078 enforces; the client just doesn't dangle
+  // controls a coordinator can't use). Fail-open while the list loads.
+  const me = staff && staff.find(s => s.staff_id === RT.userId);
+  const iAmHead = !staff || !me || me.role === 'head_coach';
+  return `
     <div class="eyebrow" id="cp-staff">Staff &amp; collaborators</div>
-    ${(() => {
-      const staff = STAFF && STAFF.teamId === (RT.team && RT.team.id) ? STAFF.rows : null;
-      // Slice F: only the head coach manages staff (0078 enforces; the client just doesn't
-      // dangle controls a coordinator can't use). Fail-open while the list loads.
-      const me = staff && staff.find(s => s.staff_id === RT.userId);
-      const iAmHead = !staff || !me || me.role === 'head_coach';
-      return `
     <section class="card" style="padding:6px 16px">
       ${staff === null ? `
       <div class="lrow" style="cursor:default"><div class="lic">${icon('users', 17)}</div>
@@ -1127,46 +1146,72 @@ export const coachProfile = {
       </div>
       <div id="staff-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;padding:0 2px 8px"></div>
     </section>`;
-    })()}
-
+}
+function cpProgramBlock() {
+  return `
     <div class="eyebrow">Program</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Standards</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-assign"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">What you assign most</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">Coach Voice</div><div class="ls">Tone, phrases, hard limits</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-    </section>
-
+      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+    </section>`;
+}
+function cpAnalyticsBlock() {
+  return `
     <div class="eyebrow">Analytics</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Team trends, standard adherence</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-    </section>
-
+    </section>`;
+}
+function cpPrefsBlock() {
+  return `
     <div class="eyebrow">Preferences</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Appearance &amp; preferences</div><div class="ls">Light / dark, units, reminders</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-    </section>
-
-    <div style="height:8px"></div>
+    </section>`;
+}
+function cpSignOut() {
+  return `
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
+    </section>`;
+}
+
+export const coachProfile = {
+  nav: 'coach', tab: 'profile',
+  render({ sub } = {}) {
+    // T-19: a section MENU at the root, one section per sub. `code` is kept as an alias for
+    // `invitations` so the existing checklist/Create deep-links (coach-profile/code, /staff) still
+    // land on the right section. Each section is a detail route (back → the profile menu).
+    const alias = sub === 'code' ? 'invitations' : (sub || '');
+    const back = (t, s) => backHead(t, s, 'coach-profile');
+    if (alias === 'personal')    return `${back('Personal profile', 'Your identity and handle')}${cpIdCard(true)}${cpHandleEditor()}<div style="height:8px"></div>${cpSignOut()}<div style="height:10px"></div>`;
+    if (alias === 'invitations') return `${back('Athlete code', 'Share it — athletes join with this')}${cpCodeBlock()}<div style="height:10px"></div>`;
+    if (alias === 'staff')       return `${back('Staff & collaborators', 'Invite staff and set their scope')}${cpStaffBlock()}<div style="height:10px"></div>`;
+    if (alias === 'program')     return `${back('Program', 'Standards, templates, and voice')}${cpProgramBlock()}<div style="height:10px"></div>`;
+    if (alias === 'analytics')   return `${back('Analytics', 'What the numbers say')}${cpAnalyticsBlock()}<div style="height:10px"></div>`;
+    if (alias === 'preferences') return `${back('Preferences', 'Notifications and appearance')}${cpPrefsBlock()}<div style="height:10px"></div>`;
+    // Root: identity + a scannable section menu + sign out — never the old wall of settings.
+    return `
+    ${backHead('Coach Profile', 'You, your team, your code', 'coach-home')}
+    ${cpIdCard(false)}
+    <div class="eyebrow">Manage</div>
+    <section class="card" style="padding:6px 16px">
+      ${CP_SECTIONS.map(x => `<div class="lrow" data-go="coach-profile/${x.sub}"><div class="lic">${icon(x.icon, 17)}</div><div class="lm"><div class="lt">${esc(x.t)}</div><div class="ls">${esc(x.s)}</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>`).join('')}
     </section>
+    <div style="height:8px"></div>
+    ${cpSignOut()}
     <div style="height:10px"></div>
     `;
   },
   mount(root, { sub } = {}) {
-    // Deep-link: coach-profile/staff and coach-profile/code land the coach directly on that
-    // section instead of the top of this dense page — so "Add another staff member" and "Add an
-    // athlete" (checklist + Create menu) terminate on the action, not a wall of settings. The
-    // eyebrow anchors exist immediately in render(); a short delay lets the router's reset-to-top
-    // scroll settle first, then this smooth-scrolls the section into view.
-    if (sub === 'staff' || sub === 'code') {
-      const anchor = root.querySelector(sub === 'staff' ? '#cp-staff' : '#cp-code');
-      if (anchor) setTimeout(() => { try { anchor.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch { anchor.scrollIntoView(); } }, 60);
-    }
-    // Staff & collaborators (0061)
-    loadStaff(RT.team && RT.team.id);
+    // T-19: each concern is now its own routed section, so the old deep-link scroll hack is gone —
+    // the router lands directly on the section. This mount is self-guarding (every handler below is
+    // querySelector-null-guarded / forEach-over-empty), so it wires only the current section's
+    // controls. Staff data is fetched only when the staff section is showing.
+    if (sub === 'staff') loadStaff(RT.team && RT.team.id);
     const sStatus = root.querySelector('#staff-status');
     const sSay = (msg, isErr) => { if (sStatus) { sStatus.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; sStatus.textContent = msg; } };
     root.querySelectorAll('[data-staff-invite]').forEach(b => b.addEventListener('click', async () => {
