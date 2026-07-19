@@ -411,7 +411,7 @@ export const coachNotifSettings = {
     const p = normalizeCoachPrefs(RT.coachNotifPrefs);
     const qf = Math.round(p.quietFrom / 60); // 21 | 22 | 23
     return `
-    ${backHead('Notifications', 'Planned on this phone from your latest roster view — open the app for the live picture.', 'coach-profile')}
+    ${backHead('Notifications', 'When and how you get alerts about your team.', 'coach-profile')}
 
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
@@ -440,7 +440,7 @@ export const coachNotifSettings = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('clock', 17)}</div>
-        <div class="lm"><div class="lt">Hourly summary</div><div class="ls">Only while something is overdue</div></div>
+        <div class="lm"><div class="lt">Overdue digest</div><div class="ls">Only while something is overdue</div></div>
         <div class="seg" style="width:104px" id="cns-hourly"><button class="${p.hourly ? 'on' : ''}">On</button><button class="${p.hourly ? '' : 'on'}">Off</button></div>
       </div>
       <div class="lrow" style="cursor:default">

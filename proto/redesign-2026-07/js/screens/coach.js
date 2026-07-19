@@ -240,7 +240,7 @@ export const coachPlan = {
         </div>
         ${positions.map(roomCard).join('')}
       </section>
-      ${positions.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Rooms appear as athletes with positions join. The team default covers everyone until then.</div>` : ''}`}
+      ${positions.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Rooms appear as athletes with positions join. The team standard covers everyone until then.</div>` : ''}`}
 
       <div class="eyebrow">Targets · per athlete</div>
       ${rows && rows.length ? `
@@ -602,7 +602,7 @@ export const coachPlanSet = {
       </div>
 
       <section class="std-mod">
-        ${modHead('utensils', 'std-ic-g', 'Meals', 'The daily nutrition standard — this count is the score denominator', `${KNOB.meals}/day`)}
+        ${modHead('utensils', 'std-ic-g', 'Meals', 'The meals that count toward the daily score', `${KNOB.meals}/day`)}
         <div class="std-lbl">Meals per day</div>
         <div class="std-count">${[1, 2, 3, 4, 5, 6].map(n => chip(KNOB.meals === n, String(n), 'meals', n)).join('')}</div>
         <div class="std-lbl mt">Names &amp; windows · these drive due-soon, overdue &amp; reminders</div>
@@ -636,7 +636,7 @@ export const coachPlanSet = {
         ${modHead('bolt', 'std-ic-a', 'Training &amp; body', 'Lifting cadence and weigh-in schedule')}
         <div class="std-lbl">Lift sessions / week</div>
         <div class="std-chips">${[0, 1, 2, 3, 4, 5, 6, 7].map(n => chip(KNOB.lifts === n, n === 0 ? 'Off' : String(n), 'lifts', n)).join('')}</div>
-        <div class="std-lbl mt">Weigh-ins · season trend, never scored</div>
+        <div class="std-lbl mt">Weigh-ins · season trend, tracked not scored</div>
         <div class="std-chips">${chip(KNOB.weigh === 'off', 'Off', 'weigh', 'off')}${chip(KNOB.weigh === 'mwf', 'Mon / Wed / Fri', 'weigh', 'mwf')}${chip(KNOB.weigh === 'daily', 'Daily', 'weigh', 'daily')}</div>
       </section>
 
@@ -648,9 +648,9 @@ export const coachPlanSet = {
       </section>
 
       <section class="std-mod">
-        ${modHead('droplet', 'std-ic-c', 'Hydration', 'A visible daily focus — never scored', KNOB.hydration ? `${KNOB.hydrationOz} oz` : 'Off')}
+        ${modHead('droplet', 'std-ic-c', 'Hydration', 'A visible daily focus — tracked, not scored', KNOB.hydration ? `${KNOB.hydrationOz} oz` : 'Off')}
         <div class="std-switch-row" style="padding-top:0">
-          <div class="std-sw-m"><div class="std-sw-t">Hydration focus</div><div class="std-sw-s">Shown on Home and tracked — never scored</div></div>
+          <div class="std-sw-m"><div class="std-sw-t">Hydration focus</div><div class="std-sw-s">Shown on Home — tracked, not scored</div></div>
           ${sw(KNOB.hydration, 'hydration')}
         </div>
         ${KNOB.hydration ? `<div class="std-lbl mt">Daily target</div><div class="std-chips">${[80, 100, 120, 150].map(n => chip(KNOB.hydrationOz === n, `${n} oz`, 'hydoz', n)).join('')}</div>` : ''}
@@ -687,12 +687,12 @@ export const coachPlanSet = {
             <div class="std-prev-s">${due != null ? `Due by ${fmtMin(due)}` : 'No deadline set'}${g ? ` · ${g} min grace` : ''}</div></div>
           </div>`;
           }).join('')}
-          <div class="std-prev-foot"><b>${std.mealsRequired}</b> meal${std.mealsRequired === 1 ? '' : 's'} make the day’s nutrition score · rails enforced server-side.</div>
+          <div class="std-prev-foot"><b>${std.mealsRequired}</b> meal${std.mealsRequired === 1 ? '' : 's'} make the day’s nutrition score.</div>
         </section>`;
       })()}
 
       <section class="std-mod">
-        ${modHead('arrowRight', 'std-ic-b', 'Effective from', 'Prospective by default — today never changes')}
+        ${modHead('arrowRight', 'std-ic-b', 'Effective from', 'Applies going forward — today never changes')}
         <div class="std-seg" id="set-effective">
           <button class="${existing ? 'on' : ''}" data-eff="tomorrow">Tomorrow</button>
           <button class="${existing ? '' : 'on'}" data-eff="today">Today</button>
@@ -702,7 +702,7 @@ export const coachPlanSet = {
 
       <div class="std-save">
         <button class="btn primary" id="set-save">${icon('check', 19)} Save the ${kind === 'team' ? 'team standard' : `${esc(value)} room standard`}</button>
-        ${kind !== 'team' && existing ? `<div style="height:9px"></div><button class="btn ghost" id="set-clear">Use team default instead</button>` : ''}
+        ${kind !== 'team' && existing ? `<div style="height:9px"></div><button class="btn ghost" id="set-clear">Use the team standard instead</button>` : ''}
         <div class="std-status" id="set-status"></div>
       </div>
     </div>
