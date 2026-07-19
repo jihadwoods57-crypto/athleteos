@@ -75,10 +75,13 @@ async function toggles(root) {
 export const role = {
   hideTabs: true,
   render() {
-    const card = (go, ic, cls, t, s) => `
-      <div class="choice" data-go="${go}" style="cursor:pointer">
-        <div class="cic" style="${cls}">${icon(ic, 19)}</div>
-        <div class="ct">${t}</div><div class="cs">${s}</div>
+    // Full-width role rows: a tinted icon, a benefit-first line, and a chevron affordance so each
+    // role reads as an intentional, tappable choice (not a flat tile). Accent bar per role.
+    const card = (go, ic, tint, accent, t, s) => `
+      <div class="role-card" data-go="${go}" role="button" aria-label="${esc(t)} — ${esc(s)}" style="--role-accent:${accent}">
+        <div class="role-ic" style="background:${tint};color:${accent}">${icon(ic, 21)}</div>
+        <div class="role-tt"><div class="role-t">${esc(t)}</div><div class="role-s">${esc(s)}</div></div>
+        <div class="role-chev">${icon('chevron', 18)}</div>
       </div>`;
     return `
     <div class="ob">
@@ -86,28 +89,28 @@ export const role = {
       <div class="ob-title" style="text-align:center">Choose your role</div>
       <div class="ob-sub" style="text-align:center">We'll personalize your account, permissions, and experience.</div>
       <div class="ob-body">
-        <div class="choice-grid">
-          ${card('onboarding/1', 'bolt', 'background:rgba(52,211,153,0.18);color:var(--green-bright)', 'Athlete', 'Execute your coach’s standard')}
-          ${card('client-ob/1', 'user', 'background:var(--blue-surface);color:var(--blue-bright)', 'Client', 'Train with a coach or trainer, no team')}
-          ${card('coach-ob/1', 'users', 'background:rgba(245,165,36,0.18);color:var(--amber-bright)', 'Coach', 'Set the standard, see who executes')}
-          ${card('trainer-ob/1', 'heart', 'background:rgba(168,85,247,0.18);color:var(--purple-bright)', 'Trainer', 'Clients, readiness, consistency')}
+        <div class="role-list">
+          ${card('onboarding/1', 'bolt', 'var(--green-surface)', 'var(--green-bright)', 'Athlete', 'Compete for a team and execute your coach’s standard.')}
+          ${card('client-ob/1', 'user', 'var(--blue-surface)', 'var(--blue-bright)', 'Client', 'Build consistency with a personal trainer or coach.')}
+          ${card('coach-ob/1', 'users', 'var(--amber-surface)', 'var(--amber-bright)', 'Coach', 'Set the standard and see who consistently executes.')}
+          ${card('trainer-ob/1', 'bars', 'var(--purple-surface)', 'var(--purple-bright)', 'Trainer', 'Manage clients, track consistency, and prove results.')}
         </div>
-        <div style="height:16px"></div>
+        <div style="height:14px"></div>
         <div class="sidebox">
           <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
-          <div><div class="tt">Parents</div>
-          <div class="ts">Parents join from their athlete's invite, not here. They see scores and streaks, never photos or weight.</div></div>
+          <div><div class="tt">Joining as a parent or guardian?</div>
+          <div class="ts">Open the invite your athlete or coach sent you — parents connect from there, and only ever see scores and streaks, never photos or weight.</div></div>
         </div>
       </div>
       <div class="ob-foot">
-        <div style="text-align:center;font-size:14px;font-weight:700;color:var(--text-3);cursor:pointer" data-go="welcome">Back</div>
+        <div class="ob-textlink" data-go="welcome">Back</div>
       </div>
     </div>`;
   },
   mount(root) {
     // Funnel: which role a fresh user picks (the choice, not yet an account). Anonymous.
     const ROLE_BY_GO = { 'onboarding/1': 'athlete', 'client-ob/1': 'client', 'coach-ob/1': 'coach', 'trainer-ob/1': 'trainer' };
-    root.querySelectorAll('.choice[data-go]').forEach((c) => c.addEventListener('click', () => {
+    root.querySelectorAll('.role-card[data-go]').forEach((c) => c.addEventListener('click', () => {
       const r = ROLE_BY_GO[c.getAttribute('data-go')];
       if (r) track(EVENTS.ONBOARDING_ROLE, { role: r });
     }));
