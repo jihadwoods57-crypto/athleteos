@@ -4,6 +4,10 @@
    Every neutral is tinted toward the brand's slate-blue hue — never pure #000/#fff. */
 
 :root {
+  /* Native controls (time/date pickers, scrollbars) follow the app theme instead of rendering
+     as raw white system widgets on the dark canvas. Overridden for light below. */
+  color-scheme: dark;
+
   /* ---- Surfaces (deep navy-black, tinted toward brand hue) ---- */
   --bg:            #070B14;   /* app canvas */
   --bg-grad-top:   #0A1120;   /* subtle top wash behind the hero */
@@ -77,6 +81,7 @@
    data-theme from the athlete's choice (Dark / Light / System). Semantic hues shift to
    their deep variants so text-weight color holds AA on white. */
 :root[data-theme="light"] {
+  color-scheme: light;
   --bg:            #F8FAFC;
   --bg-grad-top:   #EFF4FA;
   --surface-1:     #FFFFFF;
