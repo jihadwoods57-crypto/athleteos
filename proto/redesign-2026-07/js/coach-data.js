@@ -140,14 +140,35 @@ export function scopeFilter(rows, scope) {
   return rows;
 }
 
+/** Athlete-local minute-of-day + day-of-week from an IANA timezone (profiles.timezone, 0088), so
+ *  coach-facing "overdue"/"due soon" is judged in the ATHLETE's day, not the coach's device clock
+ *  (logic-audit P0-1). Null/absent tz or any failure → null and the caller falls back to the coach
+ *  clock, so a pre-0088 roster or an athlete who hasn't captured a tz is completely unaffected.
+ *  nowMs stays absolute (the coach's real instant); only the wall-clock projection changes. */
+function localClock(tz, nowMs) {
+  if (!tz) return null;
+  try {
+    const p = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour12: false, hour: '2-digit', minute: '2-digit', weekday: 'short',
+    }).formatToParts(new Date(nowMs));
+    const val = (t) => (p.find((x) => x.type === t) || {}).value;
+    let h = parseInt(val('hour'), 10); if (h === 24) h = 0; // some engines emit 24 at midnight
+    const m = parseInt(val('minute'), 10);
+    const dow = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[val('weekday')];
+    if (!isFinite(h) || !isFinite(m) || dow == null) return null;
+    return { nowMin: h * 60 + m, nowDow: dow };
+  } catch { return null; }
+}
+
 /** Scope-filtered [{ row, status }] for the given scope — the one place coach screens compute
     an athlete's live status. Pure w.r.t. this module's caches: resolves each athlete's governing
-    requirement set (athlete > position > team > built-in CATALOG when no set is configured),
-    then runs the pure status engine at THIS caller's clock (nowMin/nowMs), not a fixed constant. */
+    requirement set (athlete > position > team > built-in CATALOG when no set is configured), then
+    runs the pure status engine at each athlete's OWN local clock (their timezone; coach clock when
+    none), so a coach in another timezone never sees a phantom "overdue". */
 export function entriesFor(scope) {
   if (!ROSTER || !CD.extras) return null;   // still loading — screens render skeletons
-  const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes(); const nowMs = now.getTime();
-  const nowDow = now.getDay();
+  const now = new Date(); const nowMs = now.getTime();
+  const coachMin = now.getHours() * 60 + now.getMinutes(); const coachDow = now.getDay();
   const excusedIds = new Set(CD.extras.exceptions.map(e => e.athlete_id));
   return scopeFilter(ROSTER.rows, scope).map((row) => {
     // resolveRequirementSet(sets, athleteId, position) → the governing SET row (or null), not a
@@ -155,10 +176,11 @@ export function entriesFor(scope) {
     // athleteStatus expects. No configured set for this athlete → the built-in CATALOG governs.
     const set = resolveRequirementSet(CD.extras.sets, row.athleteId, row.position);
     const reqs = set ? catalogFromItems(set.items) : CATALOG;
+    const lc = localClock(row.timezone, nowMs) || { nowMin: coachMin, nowDow: coachDow };
     return {
       row,
       status: athleteStatus({
-        nowMin, nowMs, nowDow, row, reqs,
+        nowMin: lc.nowMin, nowMs, nowDow: lc.nowDow, row, reqs,
         excused: excusedIds.has(row.athleteId),
         needsReview: false, // slice D wires flagged-meal review state
       }),
@@ -200,13 +222,17 @@ export async function loadAthleteProfile(athleteId, force) {
     // status null rather than throwing into the offline catch below.
     let status = null;
     if (row && CD.extras) {
-      const now = new Date();
+      const now = new Date(); const nowMs = now.getTime();
       // Mirrors entriesFor's resolveRequirementSet → catalogFromItems shape exactly, including
-      // its CATALOG fallback when no requirement set governs this athlete/position.
+      // its CATALOG fallback when no requirement set governs this athlete/position, and the same
+      // athlete-local clock (their timezone; coach clock when none) so the profile header's status
+      // agrees with the roster chip instead of drifting on the coach's device time.
       const set = resolveRequirementSet(CD.extras.sets, row.athleteId, row.position);
       const reqs = set ? catalogFromItems(set.items) : CATALOG;
+      const lc = localClock(row.timezone, nowMs)
+        || { nowMin: now.getHours() * 60 + now.getMinutes(), nowDow: now.getDay() };
       status = athleteStatus({
-        nowMin: now.getHours() * 60 + now.getMinutes(), nowMs: now.getTime(), nowDow: now.getDay(),
+        nowMin: lc.nowMin, nowMs, nowDow: lc.nowDow,
         row, reqs,
         excused: exceptions.length > 0, needsReview: false,
       });

@@ -28,6 +28,21 @@ export async function fetchLinkedDaysSince(sinceISO) {
   const c = sb(); if (!c) return [];
   try { const { data } = await c.from('days').select('athlete_id,date,score,grade,tasks').gte('date', sinceISO).limit(2000); return data || []; } catch { return []; }
 }
+/** Athlete IANA timezones for the coach roster (0088), keyed by id. Best-effort and RLS-safe: a
+ *  coach reads these through the SAME profiles access they already have (connected → can_view, the
+ *  predicate that already gates their days/meals reads). A pre-0088 database has no `timezone`
+ *  column, so PostgREST returns an error we swallow to {} — every row then falls back to the coach
+ *  clock, exactly as today. Nothing here can make the roster read (a separate RPC) fail. */
+export async function fetchProfileTimezones(ids) {
+  const c = sb(); if (!c || !Array.isArray(ids) || !ids.length) return {};
+  try {
+    const { data, error } = await c.from('profiles').select('id,timezone').in('id', ids);
+    if (error) return {};
+    const out = {};
+    for (const r of (data || [])) if (r && r.id && r.timezone) out[r.id] = r.timezone;
+    return out;
+  } catch { return {}; }
+}
 export async function pendingTeamRequests(teamId) {
   const c = sb(); if (!c || !teamId) return [];
   try { const { data } = await c.rpc('pending_team_requests', { team: teamId }); return data || []; } catch { return []; }
@@ -752,6 +767,9 @@ export function buildRosterRow(member, dayRow, extras = {}) {
     tasks,
     scoreHistory: extras.scoreHistory || [],
     lastMealAt: extras.lastMealAt || null,
+    // Athlete IANA timezone (0088) so the coach status engine judges due/overdue in the athlete's
+    // local day. null (no set, or pre-migration) → the caller falls back to the coach clock.
+    timezone: extras.timezone || null,
   };
 }
 
@@ -765,6 +783,11 @@ export async function loadCoachRoster() {
     fetchLinkedDaysSince(daysAgoISO(7)),
     fetchTeamActivity(daysAgoISO(2), 400),
   ]);
+  // Athlete timezones (0088) so coach "overdue"/"due soon" is judged in each athlete's local day.
+  // Best-effort: a pre-migration DB or missing tz leaves the map empty and every row uses the
+  // coach clock (today's behavior). Resolved after perTeam since the ids come from the roster.
+  const tzIds = []; { const s = new Set(); for (const members of perTeam) for (const m of members) if (m && m.athlete_id && !s.has(m.athlete_id)) { s.add(m.athlete_id); tzIds.push(m.athlete_id); } }
+  const tzByAthlete = await fetchProfileTimezones(tzIds);
   const today = todayISO();
   const dayByAthlete = {}, histByAthlete = {}, lastMealBy = {};
   for (const d of days) {
@@ -782,6 +805,7 @@ export async function loadCoachRoster() {
       rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id], {
         scoreHistory: histByAthlete[m.athlete_id] || [],
         lastMealAt: lastMealBy[m.athlete_id] || null,
+        timezone: tzByAthlete[m.athlete_id] || null,
       }));
     }
   }

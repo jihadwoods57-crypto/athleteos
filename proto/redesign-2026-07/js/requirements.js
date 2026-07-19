@@ -214,6 +214,10 @@ export function catalogFromItems(items) {
       proof: PROOF[it.proof] ? it.proof : d.proof,
       freq: it.freq && it.freq.type ? it.freq : d.freq,
       window: it.window && typeof it.window === 'object' ? it.window : { due: 23 * 60 + 30, label: 'Before bed' },
+      // Grace minutes ride the requirement so the coach status engine (status.js) judges "overdue"
+      // with the SAME deadline+grace the athlete's day engine applies (day.js slotGrace). Clamped
+      // exactly like stdFromItems; absent/invalid grace = 0 (the shipped, grace-free behavior).
+      grace: typeof it.grace === 'number' && it.grace >= 0 ? Math.min(240, Math.round(it.grace)) : 0,
       required: it.required !== false && d.required,
       impact: d.impact, reminder: d.reminder,
       note: typeof it.note === 'string' ? it.note : '',

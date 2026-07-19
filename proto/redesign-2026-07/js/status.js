@@ -47,8 +47,14 @@ function openItems(nowMin, row, reqs, nowDow) {
     if (nowDow != null && !runsOn(r, nowDow)) continue;
     const due = r.window && typeof r.window.due === 'number' ? r.window.due : null;
     const open = r.window && typeof r.window.open === 'number' ? r.window.open : 0;
+    // Grace mirrors the athlete's OWN day engine (day.js slotGrace): a meal logged within
+    // deadline+grace still counts on-time, so the coach must not flip an athlete to "overdue"
+    // while that grace window is still open — inside it the item reads "due_soon" (closing), not
+    // overdue. catalogFromItems carries each configured item's grace; the built-in CATALOG and
+    // every shipped standard are 0, so a grace-free team stays byte-identical to before.
+    const grace = typeof r.grace === 'number' && r.grace > 0 ? r.grace : 0;
     let state = 'ready';
-    if (due != null && nowMin > due) state = 'overdue';
+    if (due != null && nowMin > due + grace) state = 'overdue';
     else if (due != null && nowMin >= due - DUE_SOON_MIN && nowMin >= open) state = 'due_soon';
     else if (nowMin < open) state = 'upcoming';
     out.push({ id: r.id, title: r.title || r.id, dueMin: due, state });

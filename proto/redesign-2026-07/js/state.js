@@ -741,12 +741,29 @@ export const act = {
     if (RT.coachSetup[key]) return;
     RT.coachSetup[key] = true;
     save();
+    // Best-effort server sync (0092). Local RT stays the fast path; a missing table (migration not
+    // applied yet) or offline just no-ops. onConflict keeps it idempotent per (team, step).
+    try {
+      if (window.sb && RT.team && RT.team.id) {
+        void window.sb.from('coach_setup_state').upsert(
+          { team_id: RT.team.id, step: key, state: 'completed', updated_by: RT.userId || null, updated_at: new Date().toISOString() },
+          { onConflict: 'team_id,step' });
+      }
+    } catch { /* best-effort */ }
   },
   /* Coach Voice config (tone/accountability/approved phrases/prohibited words). Persisted with RT;
      the AI edge function reads it to reinforce the coach's standards in their tone once wired. */
   setCoachVoice(patch) {
     RT.coachVoice = { ...(RT.coachVoice || {}), ...(patch || {}) };
     save();
+    // Best-effort server sync (0094) — local RT stays the fast path; a missing table or offline no-ops.
+    try {
+      if (window.sb && RT.team && RT.team.id) {
+        void window.sb.from('coach_voice_config').upsert(
+          { team_id: RT.team.id, enabled: RT.coachVoice.enabled !== false, config: RT.coachVoice, updated_by: RT.userId || null, updated_at: new Date().toISOString() },
+          { onConflict: 'team_id' });
+      }
+    } catch { /* best-effort */ }
   },
   /* Register this device's push token (coach→athlete nudges) via the bridge, once per
      session, after sign-in. Fire-and-forget; a denial or missing seam is a silent no-op. */
@@ -1715,6 +1732,12 @@ export const act = {
         if (prof && prof.primary_role) { RT.authRole = prof.primary_role; save(); }
       } catch { /* offline — routes as athlete until the next successful boot */ }
     }
+    // Capture the device timezone once (0088) — powers coach-side, athlete-local overdue. Best-effort:
+    // a not-yet-applied profiles.timezone column or offline just no-ops.
+    try {
+      const tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat) ? Intl.DateTimeFormat().resolvedOptions().timeZone : null;
+      if (tz && window.sb) void window.sb.from('profiles').update({ timezone: tz }).eq('id', user.id);
+    } catch { /* best-effort */ }
   },
   // Load today's real day from Supabase and reflect it into the UI flags.
   async hydrateDay() {
