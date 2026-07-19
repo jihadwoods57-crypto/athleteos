@@ -694,10 +694,12 @@ export const coachPlanSet = {
       <section class="std-mod">
         ${modHead('arrowRight', 'std-ic-b', 'Effective from', 'Applies going forward — today never changes')}
         <div class="std-seg" id="set-effective">
-          <button class="${existing ? 'on' : ''}" data-eff="tomorrow">Tomorrow</button>
           <button class="${existing ? '' : 'on'}" data-eff="today">Today</button>
+          <button class="${existing ? 'on' : ''}" data-eff="tomorrow">Tomorrow</button>
+          <button data-eff="date">Pick a date</button>
         </div>
-        <div class="std-help">Choose Today only to apply it right now. Past days and already-scored windows are never rewritten.</div>
+        <input type="date" id="set-eff-date" class="std-time" style="display:none;margin-top:8px;width:auto" min="${(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })()}" aria-label="Effective date" />
+        <div class="std-help">Today applies it now. Tomorrow keeps today unchanged. Or pick a future date. Past, already-scored days are never rewritten.</div>
       </section>
 
       <div class="std-save">
@@ -781,6 +783,8 @@ export const coachPlanSet = {
     root.querySelectorAll('#set-effective button').forEach((b) => b.addEventListener('click', () => {
       root.querySelectorAll('#set-effective button').forEach((x) => x.classList.remove('on'));
       b.classList.add('on');
+      const dateInput = root.querySelector('#set-eff-date');
+      if (dateInput) dateInput.style.display = b.getAttribute('data-eff') === 'date' ? '' : 'none';
     }));
     const save = root.querySelector('#set-save');
     if (save) save.addEventListener('click', async () => {
@@ -796,13 +800,22 @@ export const coachPlanSet = {
       // untouched; "Today" applies it now. Never null from the editor — null is the creation seed.
       const isoOffset = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
       const effBtn = root.querySelector('#set-effective .on');
-      const effDate = (effBtn && effBtn.getAttribute('data-eff') === 'today') ? isoOffset(0) : isoOffset(1);
+      const effKind = effBtn ? effBtn.getAttribute('data-eff') : 'tomorrow';
+      let effDate;
+      if (effKind === 'today') effDate = isoOffset(0);
+      else if (effKind === 'date') {
+        const dv = ((root.querySelector('#set-eff-date') || {}).value || '').trim();
+        if (!dv || dv < isoOffset(0)) { say('Pick a date from today onward.', true); return; }
+        effDate = dv;
+      } else effDate = isoOffset(1);
       save.disabled = true; say('Saving…');
       const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB), effDate);
       save.disabled = false;
       if (!r.ok) { say(r.error || 'Could not save — try again.', true); return; }
       act.markCoachSetup('standard'); // real "reviewed your standard" signal for the setup checklist
-      say(effDate === isoOffset(0) ? 'Saved. This is the standard now.' : 'Saved. It takes effect tomorrow — today is unchanged.');
+      say(effDate === isoOffset(0) ? 'Saved. This is the standard now.'
+        : effDate === isoOffset(1) ? 'Saved. It takes effect tomorrow — today is unchanged.'
+        : `Saved. It takes effect ${effDate} — earlier days are unchanged.`);
       await loadSets(true);
     });
     const clear = root.querySelector('#set-clear');
