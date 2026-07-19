@@ -5,7 +5,7 @@
    sheet on a failed write, and say so honestly inline. */
 import { RT, S, act } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc, sparkline } from '../components.js';
+import { avatarHead, esc, sparkline, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster, entriesFor } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
@@ -177,8 +177,10 @@ export const coachRoster = {
   render() {
     const initials = (S.coachIdentity.handle || 'C').replace(/coach\s*/i, '').slice(0, 2).toUpperCase();
     const head = avatarHead('Roster', CD.roster && CD.roster.teams[0] ? CD.roster.teams[0].name : '', initials);
-    if (CD.roster === null || !CD.extras) return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div><div><div class="tt">Loading the roster…</div><div class="ts">Real statuses, real scores.</div></div></div>`;
-    if (CD.roster.offline) return `${head}<div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div><div class="sd-t">Can't reach the roster</div><div class="sd-s">Check your connection and reopen.</div></div>`;
+    // Audit G-4: offline is checked BEFORE the loading gate — CD.extras stays null on a cold
+    // offline load, so gating loading on !CD.extras first (as before) hid this card forever.
+    if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: "Can't reach the roster", body: 'Your team and their scores are safe — reconnect and the roster loads right here.', retryId: 'roster-retry' })}`;
+    if (CD.roster === null || !CD.extras) return `${head}${skeletonRows(5, 'Loading the roster')}`;
     const entries = entriesFor({ kind: 'team', value: null }) || [];
     if (!entries.length) return `${head}
       <div class="state-demo">
@@ -224,6 +226,8 @@ export const coachRoster = {
   mount(root) {
     loadCoachRoster();
     BULK_STATUS = ''; // a stale "Nudged N." must not survive a tab revisit
+    const rosterRetry = root.querySelector('#roster-retry');
+    if (rosterRetry) rosterRetry.addEventListener('click', () => { rosterRetry.disabled = true; loadCoachRoster(true).then(() => window.__render()); });
     const q = root.querySelector('#roster-q');
     if (q) q.addEventListener('input', () => { Q = q.value; patchList(root); });
     root.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => {

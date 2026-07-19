@@ -29,6 +29,42 @@ export function safeImg(v) {
   return ok ? s : '';
 }
 
+/* ---------- GS-2 state primitives (universal state coverage, T-22) ----------
+   One visual language for the states every data-bearing surface owes the user: loading (a
+   skeleton, never a spinner-in-content), empty (teaches + a DIRECT action, never a dead pointer),
+   error (honest + retry, no fabricated data), and permission-denied (honest, role-scoped, no
+   dangling controls). Built on the existing .state-demo / .err-box / .sk-* CSS so every screen
+   reads identically. Pure string builders — the caller wires any button id in its own mount(). */
+
+/** The honest loading state: `n` shimmer rows shaped like the list they stand in for. */
+export function skeletonRows(n = 3, label = 'Loading') {
+  const row = '<div class="sk-row"><div class="sk-dot"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line sk-line-2"></div></div></div>';
+  return `<section class="card sk-card" aria-busy="true" aria-label="${esc(label)}" style="padding:6px 16px">${row.repeat(Math.max(1, n | 0))}</section>`;
+}
+
+/** Empty state that teaches and offers a DIRECT action — never a dead pointer. `action` is
+ *  { label, go } (a data-go route) or { label, id } (a button the caller's mount wires), or null. */
+export function emptyState({ icon: ic = 'sparkle', title, body = '', action = null } = {}) {
+  const a = action
+    ? `<div class="sd-cta"><button class="btn ghost sm" ${action.go ? `data-go="${esc(action.go)}"` : ''}${action.id ? ` id="${esc(action.id)}"` : ''} style="width:auto;padding:0 18px">${esc(action.label)}</button></div>`
+    : '';
+  return `<section class="state-demo"><div class="sd-ic">${icon(ic, 24)}</div>
+    <div class="sd-t">${esc(title)}</div>${body ? `<div class="sd-s">${esc(body)}</div>` : ''}${a}</section>`;
+}
+
+/** Honest error + retry. `retryId` is wired by the caller's mount(); omit for a non-retryable note. */
+export function errorState({ title = "Couldn't load this", body = 'Reconnect and it loads right here — nothing was lost.', retryId = null } = {}) {
+  const a = retryId ? `<div class="sd-cta"><button class="btn ghost sm" id="${esc(retryId)}" style="width:auto;padding:0 18px">${icon('wifiOff', 15)} Retry</button></div>` : '';
+  return `<section class="state-demo err-box"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+    <div class="sd-t">${esc(title)}</div><div class="sd-s">${esc(body)}</div>${a}</section>`;
+}
+
+/** Permission-denied — honest and role-scoped, with no dangling controls. */
+export function permissionState({ title = 'Not your access', body = 'Your head coach can open this for you.' } = {}) {
+  return `<section class="state-demo"><div class="sd-ic">${icon('shield', 24)}</div>
+    <div class="sd-t">${esc(title)}</div><div class="sd-s">${esc(body)}</div></section>`;
+}
+
 /* Honest disclosure badge for a gallery-picked meal photo. Gallery photos SCORE now (founder
    reversal 2026-07-15; the integrity wall is the 0062 photo-hash duplicate check) — this badge
    is pure transparency for athlete + coach, never a scoring signal. Neutral by design (spec

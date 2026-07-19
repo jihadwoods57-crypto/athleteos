@@ -5,7 +5,7 @@
    who (team / position room / custom group, or one athlete via the coach-announce/<id>
    deep-link) → what (title + body) → send. A short "Recent announcements" history reads the
    announcements table back (staff-read RLS) so the coach can see what already went out. */
-import { backHead, esc } from '../components.js';
+import { backHead, esc, errorState, skeletonRows } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster } from '../coach-data.js';
@@ -36,6 +36,7 @@ async function loadHistory(teamId, force) {
   if (histLoadingId === teamId) return;
   histLoadingId = teamId;
   try { HIST = { teamId, rows: await roles.fetchAnnouncements(teamId, 10) }; }
+  catch { HIST = { teamId, rows: [], offline: true }; } // audit G-3: don't leave history stuck on "Loading…"
   finally { histLoadingId = null; }
   if (location.hash.startsWith('#coach-announce')) window.__render();
 }
@@ -87,8 +88,7 @@ export const coachAnnounce = {
     <div id="an-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:8px"></div>
 
     <div class="eyebrow" style="margin-top:18px">Recent announcements</div>
-    ${histRows === null ? `
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px">Loading…</div>` : histRows.length ? `
+    ${(HIST && HIST.teamId === teamId && HIST.offline) ? errorState({ title: "Couldn't load history", body: 'Your sent announcements are safe — reconnect to see them.', retryId: 'an-hist-retry' }) : histRows === null ? skeletonRows(2, 'Loading announcements') : histRows.length ? `
     <section class="card" style="padding:6px 16px">
       ${histRows.map((a) => `
       <div class="lrow" style="cursor:default">
@@ -104,6 +104,11 @@ export const coachAnnounce = {
     loadCoachRoster().then(() => {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (teamId) loadHistory(teamId);
+    });
+    const histRetry = root.querySelector('#an-hist-retry');
+    if (histRetry) histRetry.addEventListener('click', () => {
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      if (teamId) { histRetry.disabled = true; loadHistory(teamId, true); }
     });
     const say = (msg, isErr) => {
       const el = root.querySelector('#an-status');
