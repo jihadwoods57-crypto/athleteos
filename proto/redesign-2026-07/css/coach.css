@@ -93,7 +93,7 @@
   display: flex; gap: var(--s2); padding: 2px 0 var(--s2); margin: 0 -2px;
 }
 .co-seg .co-chip {
-  flex: none; height: 34px; padding: 0 15px; border-radius: var(--r-pill);
+  flex: none; height: 34px; padding: 0 15px; border-radius: var(--r-chip);
   background: var(--surface-1); border: 1px solid var(--hairline);
   color: var(--text-2); font-family: var(--font); font-size: 13px; font-weight: 700;
   letter-spacing: -0.005em; cursor: pointer; white-space: nowrap;

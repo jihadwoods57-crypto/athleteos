@@ -52,7 +52,7 @@
 .sheet-row .sv { font-size: 13px; font-weight: 800; }
 .water-btns { display: flex; gap: 8px; }
 .water-btns .wb2 {
-  padding: 8px 13px; border-radius: var(--r-pill); background: var(--cyan-surface); color: var(--cyan);
+  padding: 8px 13px; border-radius: var(--r-chip); background: var(--cyan-surface); color: var(--cyan);
   font-size: 13px; font-weight: 800; cursor: pointer; border: 1px solid rgba(56,189,248,0.3);
   /* 44px tap floor (a11y) without changing the visual pill much */
   display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
@@ -112,9 +112,9 @@
 .choice .cic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 9px; }
 .chip-row .chp {
-  padding: 11px 17px; border-radius: var(--r-pill); background: var(--surface-1); border: 1.5px solid var(--hairline);
+  padding: 11px 17px; border-radius: var(--r-chip); background: var(--surface-1); border: 1.5px solid var(--hairline);
   font-size: 14px; font-weight: 700; cursor: pointer; transition: all var(--dur-1) var(--ease-out);
-  /* 44px tap floor (a11y) — inline-flex keeps the pill shape while guaranteeing the height */
+  /* 44px tap floor (a11y) — inline-flex keeps a soft chip shape while guaranteeing the height */
   display: inline-flex; align-items: center; min-height: 44px;
 }
 .chip-row .chp.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.12); color: var(--blue-bright);
