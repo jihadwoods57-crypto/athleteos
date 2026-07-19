@@ -1,6 +1,7 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, titleHead, esc, composer, sparkline } from '../components.js';
+import { backHead, titleHead, esc, composer, sparkline, emptyState, errorState, skeletonRows } from '../components.js';
+import { coachSetupState, coachSetupSteps } from './coach-home.js';
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, reactionGroups, threadMessages, privateNotes } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
@@ -135,12 +136,16 @@ async function loadTargets(athleteId) {
   if (!athleteId || tgtLoadingId === athleteId) return;
   if (TGT && TGT.athleteId === athleteId) return; // loaded — repaints must not refetch-loop
   tgtLoadingId = athleteId;
-  const [targets, basics] = await Promise.all([
-    roles.fetchAthleteTargets(athleteId),
-    roles.fetchAthleteBasics(athleteId),
-  ]);
-  TGT = { athleteId, targets: targets || {}, basics: basics || null };
-  tgtLoadingId = null;
+  // Audit G-3: a throw here previously left tgtLoadingId set with no finally, permanently wedging
+  // this athlete on "Loading their targets…" for the session. catch → honest offline; finally clears.
+  try {
+    const [targets, basics] = await Promise.all([
+      roles.fetchAthleteTargets(athleteId),
+      roles.fetchAthleteBasics(athleteId),
+    ]);
+    TGT = { athleteId, targets: targets || {}, basics: basics || null };
+  } catch { TGT = { athleteId, targets: {}, basics: null, offline: true }; }
+  finally { tgtLoadingId = null; }
   if (location.hash.startsWith('#coach-plan')) window.__render();
 }
 /* Deterministic target suggestion — sports-nutrition rules of thumb, computed in the open
@@ -211,6 +216,36 @@ export const coachPlan = {
       const positions = rows ? [...new Set(rows.map(r => (r.unit || '').trim().toUpperCase()).filter(Boolean))] : [];
       const sets = SETS && SETS.rows ? SETS.rows : null;
       const teamSet = sets && sets.find(s => s.scope_kind === 'team');
+      const teamCount = rows ? rows.length : 0;
+      // T-18: readiness (ONE source of truth with Home — imported, never re-derived) + scheduled
+      // versions (0085 effective_date, read defensively so a pre-0085 DB simply shows none).
+      const setup = coachSetupState();
+      const setupSteps = coachSetupSteps(setup);
+      const todayISO = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+      const upcoming = (sets || []).filter(s => s && s.effective_date && String(s.effective_date) > todayISO)
+        .sort((a, b) => String(a.effective_date) < String(b.effective_date) ? -1 : 1);
+      const scopeLabelOf = (s) => s.scope_kind === 'team' ? 'Team standard'
+        : s.scope_kind === 'position' ? `${esc(String(s.scope_value || '').toUpperCase())} room` : 'Athlete standard';
+      const readinessCard = () => {
+        const openReq = setupSteps.required.filter(x => !x.done);
+        const openOpt = setupSteps.optional.filter(x => !x.done);
+        const stepRow = (x, req) => `
+          <div class="lrow" ${x.go ? `data-go="${esc(x.go)}" style="cursor:pointer"` : 'style="cursor:default;opacity:0.75"'}>
+            <div class="lic" style="${req ? 'background:var(--amber-surface);color:var(--amber-bright)' : 'background:var(--surface-3);color:var(--text-3)'}">${icon(req ? 'bolt' : 'clipboard', 16)}</div>
+            <div class="lm"><div class="lt">${esc(x.t)}</div><div class="ls">${esc(x.s)}</div></div>
+            ${x.go ? icon('chevron', 17, 'style="color:var(--text-3)"') : `<span style="font-size:10px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3)">Soon</span>`}
+          </div>`;
+        const shown = [...openReq.map(x => stepRow(x, true)), ...(setup.ready ? openOpt.slice(0, 2).map(x => stepRow(x, false)) : [])];
+        const line = setup.ready
+          ? `<div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:var(--green-bright)">${icon('check', 14)} Required setup complete</div>`
+          : `<div style="font-size:12px;font-weight:800;color:var(--amber-bright)">${setup.requiredDone} of ${setup.requiredTotal} required steps done</div>`;
+        return `
+        <div class="eyebrow">Readiness</div>
+        <section class="card" style="padding:${shown.length ? '11px 16px 6px' : '13px 16px'};${setup.ready ? '' : 'background:var(--amber-surface);border-color:var(--amber-border)'}">
+          ${line}
+          ${shown.length ? `<div style="height:8px"></div>${shown.join('')}` : (setup.ready ? `<div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:3px">Everything's set. Invite athletes and your command center fills in live.</div>` : '')}
+        </section>`;
+      };
       const roomCard = (pos) => {
         const s = sets && sets.find(x => x.scope_kind === 'position' && String(x.scope_value || '').trim().toUpperCase() === pos);
         const n = rows ? rows.filter(r => (r.unit || '').trim().toUpperCase() === pos).length : 0;
@@ -223,24 +258,42 @@ export const coachPlan = {
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>`;
       };
+      // GS-2 / audit G-2: a coach who is merely OFFLINE must not be shown the fake "empty team"
+      // program page (rooms/targets/trust reading "will appear once your team joins"). Honest error.
+      if (CD.roster && CD.roster.offline) {
+        return `${titleHead('Plan', 'Your program, room by room')}${errorState({ title: "Can't reach your program", body: 'Your standards, rooms, and targets are safe — reconnect and they load right here.', retryId: 'plan-retry' })}`;
+      }
       return `
       ${titleHead('Plan', 'Your program, room by room')}
 
+      ${readinessCard()}
+
       <div class="eyebrow">Standards · what every day asks</div>
-      ${sets === null && rows === null ? `
-      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-      <div><div class="tt">Loading your program…</div><div class="ts">Pulling your rooms and standards.</div></div></div>` : `
+      ${sets === null && rows === null ? skeletonRows(3, 'Loading your program') : `
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-plan-set/team">
           <div class="lic" style="background:var(--surface-3);color:var(--text-2);font-weight:800;font-size:12px">TM</div>
-          <div class="lm"><div class="lt">Your Team Standard</div>
+          <div class="lm"><div class="lt">Your Team Standard${teamCount ? ` <small style="color:var(--text-3);font-weight:700">· ${teamCount}</small>` : ''}</div>
           <div class="ls">${teamSet ? esc(setSummary(teamSet.items)) : 'Built-in · 3 meals, recovery, weekly check-in'}</div></div>
           ${teamSet ? '<span class="status-pill b">Custom</span>' : ''}
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>
         ${positions.map(roomCard).join('')}
       </section>
-      ${positions.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Rooms appear as athletes with positions join. The team standard covers everyone until then.</div>` : ''}`}
+      ${positions.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Rooms appear as athletes with positions join — the team standard covers everyone until then.${rows && !rows.length ? ` <span data-go="coach-profile/code" style="color:var(--blue-bright);font-weight:800;cursor:pointer">Invite athletes</span>` : ''}</div>` : ''}`}
+
+      <div class="eyebrow">Upcoming changes</div>
+      ${sets === null ? skeletonRows(1, 'Loading scheduled changes') : upcoming.length ? `
+      <section class="card" style="padding:6px 16px">
+        ${upcoming.map(s => `
+        <div class="lrow" data-go="coach-plan-set/${s.scope_kind === 'position' ? `position/${esc(String(s.scope_value || '').toUpperCase())}` : 'team'}">
+          <div class="lic" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('bolt', 16)}</div>
+          <div class="lm"><div class="lt">${scopeLabelOf(s)} <small style="color:var(--text-3);font-weight:700">· ${esc(setSummary(s.items))}</small></div>
+          <div class="ls">Takes effect ${esc(String(s.effective_date))} · earlier days stay unchanged</div></div>
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>`).join('')}
+      </section>` : `
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 2px;line-height:1.4">No scheduled changes. Publish a standard with a future date and it lists here — today's scoring stays untouched.</div>`}
 
       <div class="eyebrow">Targets · per athlete</div>
       ${rows && rows.length ? `
@@ -253,7 +306,7 @@ export const coachPlan = {
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>`).join('')}
       </section>` : `
-      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.4">Athlete targets open from the roster once your team joins.</div>`}
+      ${emptyState({ icon: 'target', title: 'No athletes yet', body: 'Per-athlete protein, calorie, and target-weight numbers open here the moment your team joins.', action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
 
       <div class="eyebrow">Trust passes · earned camera-free days</div>
       ${rows && rows.length ? `
@@ -271,14 +324,15 @@ export const coachPlan = {
         }).join('')}
         <div id="tp-plan-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;padding:2px 2px 8px"></div>
       </section>` : `
-      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.4">Trust passes unlock once athletes are on the roster — earned with 7 straight photo-logged days on standard.</div>`}
+      ${emptyState({ icon: 'shield', title: 'No trust passes yet', body: 'A pass is earned after 7 straight photo-logged days on standard. Invite athletes to start the clock.', action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
 
-      <div class="eyebrow">Program controls</div>
+      <div class="eyebrow">Program</div>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-voice">
           <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
-          <div class="lm"><div class="lt">AI in your voice</div><div class="ls">It reinforces your rulings, never invents</div></div>
-          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+          <div class="lm"><div class="lt">AI in your voice</div><div class="ls">${RT.coachVoice ? 'Reinforces your rulings, never invents' : 'Set the tone the AI reinforces'}</div></div>
+          <span class="status-pill ${RT.coachVoice && RT.coachVoice.enabled !== false ? 'g' : 'muted'}">${RT.coachVoice && RT.coachVoice.enabled !== false ? 'On' : 'Off'}</span>
+          ${icon('chevron', 17, 'style="color:var(--text-3);margin-left:8px"')}
         </div>
         <div class="lrow" data-go="team-diet">
           <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
@@ -290,8 +344,10 @@ export const coachPlan = {
       `;
     }
     if (!TGT || TGT.athleteId !== athleteId) {
-      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-      <div><div class="tt">Loading their targets…</div></div></div>`;
+      return `${head}${skeletonRows(3, 'Loading their targets')}`;
+    }
+    if (TGT.offline) {
+      return `${head}${errorState({ title: "Couldn't load their targets", body: 'Their plan is safe — reconnect and it loads right here.', retryId: 'tgt-retry' })}`;
     }
     const t = TGT.targets || {};
     // Distinguish "no targets set yet" (starter defaults shown as a starting point) from real
@@ -346,6 +402,9 @@ export const coachPlan = {
   },
   mount(root, { sub }) {
     loadCoachRoster().then(() => { loadSets(); if (!sub) loadTrust(); });
+    // GS-2 offline retry (the program page's honest error state) — refetch and repaint.
+    const planRetry = root.querySelector('#plan-retry');
+    if (planRetry) planRetry.addEventListener('click', () => { planRetry.disabled = true; loadCoachRoster(true).then(() => { loadSets(true); window.__render(); }); });
     // Trust pass grant/end on the Plan home (server-enforced eligibility, honest errors)
     root.querySelectorAll('[data-tp]').forEach(b => b.addEventListener('click', async () => {
       const [what, id] = b.getAttribute('data-tp').split(':');
@@ -365,6 +424,8 @@ export const coachPlan = {
     }));
     if (!sub) return;
     loadTargets(sub);
+    const tgtRetry = root.querySelector('#tgt-retry');
+    if (tgtRetry) tgtRetry.addEventListener('click', () => { tgtRetry.disabled = true; TGT = null; loadTargets(sub); }); // audit G-3 retry: clear the cache then refetch
     root.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
       const el = root.querySelector('#' + b.getAttribute('data-step'));
       const u = el.getAttribute('data-u');
@@ -1000,6 +1061,13 @@ const INBOX_EMPTY = {
   announcements: 'No announcements yet — send your first from here.',
   resolved: 'Nothing marked resolved yet.',
 };
+/* Audit G-1: the categories whose empty state is a real next action, not just a status line —
+   so an empty Athletes/Staff/Announcements tab offers a direct route instead of a dead pointer. */
+const INBOX_EMPTY_ACTION = {
+  athletes: { label: 'Share athlete code', go: 'coach-profile/code' },
+  staff: { label: 'Invite staff', go: 'coach-profile/staff' },
+  announcements: { label: 'New announcement', go: 'coach-announce' },
+};
 
 export const coachInbox = {
   nav: 'coach', tab: 'inbox',
@@ -1079,7 +1147,7 @@ export const coachInbox = {
         <div class="lm"><div class="lt">New announcement</div></div>
       </div>` : ''}
     </section>` : (isNeedsResponse && pending.length ? '' : `
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">${esc(INBOX_EMPTY[INBOX_CAT])}</div>`)}
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">${esc(INBOX_EMPTY[INBOX_CAT])}</div>${INBOX_EMPTY_ACTION[INBOX_CAT] ? `<div style="margin-top:12px"><button class="btn ghost sm" data-go="${esc(INBOX_EMPTY_ACTION[INBOX_CAT].go)}" style="width:auto;padding:0 16px">${esc(INBOX_EMPTY_ACTION[INBOX_CAT].label)}</button></div>` : ''}`)}
 
     <div style="height:10px"></div>
     `;
@@ -1118,15 +1186,14 @@ export const copilot = {
     // when the roster fetch failed, CD.roster.rows is [] with offline=true, which would otherwise
     // fall through to the empty-roster summary. Mirror the Coach/Trainer tabs' honest offline card.
     if (CD.roster && CD.roster.offline) {
-      return `${backHead('Copilot', 'Deterministic roster reads', 'coach-home')}
-      <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
-      <div class="sd-t">Can't reach your roster</div>
-      <div class="sd-s">Copilot reads your real team data, and we couldn't load today's scores. Reopen this tab to retry — no numbers are invented while it's down.</div></div>`;
+      return `${backHead('Copilot', 'Deterministic roster reads', 'coach-home')}${errorState({ title: "Can't reach your roster", body: "Copilot reads only real team data — no numbers are invented while it's down. Reconnect and its reads fill in right here.", retryId: 'copilot-retry' })}`;
     }
     if (rows === null) {
-      return `${backHead('Copilot', 'Deterministic roster reads', 'coach-home')}
-      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('sparkle', 17)}</div>
-      <div><div class="tt">Loading the roster…</div><div class="ts">Copilot reads your real team data — no numbers until it loads.</div></div></div>`;
+      return `${backHead('Copilot', 'Deterministic roster reads', 'coach-home')}${skeletonRows(3, 'Loading the roster')}`;
+    }
+    if (rows.length === 0) {
+      // Audit G-1: an actionable empty, not the dead-pointer "Share your team code to get started".
+      return `${backHead('Copilot', 'Deterministic reads over your real roster', 'coach-home')}${emptyState({ icon: 'users', title: 'No athletes yet', body: 'Copilot reads your real roster — share your athlete code and its reads fill in as your team logs.', action: { label: 'Share athlete code', go: 'coach-profile/code' } })}`;
     }
     const attention = rows.filter(r => r.flag === 'r');
     const belowBar = rows.filter(r => r.score != null && r.score < 80);
@@ -1159,7 +1226,11 @@ export const copilot = {
     <div style="height:10px"></div>
     `;
   },
-  mount() { loadCoachRoster(); },
+  mount(root) {
+    loadCoachRoster();
+    const cRetry = root && root.querySelector('#copilot-retry');
+    if (cRetry) cRetry.addEventListener('click', () => { cRetry.disabled = true; loadCoachRoster(true).then(() => window.__render()); });
+  },
 };
 
 /* ---------- Coach → athlete review: real day + meals, RLS-scoped; a "seen" receipt on open ---------- */
