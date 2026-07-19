@@ -1172,7 +1172,7 @@ export const coachProfile = {
     root.querySelectorAll('[data-staff-invite]').forEach(b => b.addEventListener('click', async () => {
       const teamId = RT.team && RT.team.id;
       if (!teamId) { sSay('Your team hasn’t loaded yet.', true); return; }
-      b.disabled = true; sSay('Minting a code…');
+      b.disabled = true; sSay('Creating a code…');
       const r = await createStaffInvite(teamId, b.getAttribute('data-staff-invite'));
       b.disabled = false;
       if (!r.ok) { sSay(r.error || 'Could not mint the code.', true); return; }
@@ -1269,7 +1269,7 @@ export const coachProfile = {
       let armed = false;
       regen.addEventListener('click', async () => {
         if (!armed) { armed = true; regen.textContent = 'Sure? Old code dies'; say('A new code replaces this one immediately — anyone holding the old code can no longer join.'); return; }
-        regen.disabled = true; say('Minting a new code…');
+        regen.disabled = true; say('Creating a new code…');
         const r = await regenerateMyTeamCode();
         regen.disabled = false; armed = false; regen.textContent = 'New code';
         if (!r.ok || !r.code) { say(r.error || 'Could not make a new code.', true); return; }
