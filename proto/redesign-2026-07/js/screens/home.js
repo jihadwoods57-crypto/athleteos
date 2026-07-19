@@ -133,7 +133,7 @@ function trustShield() {
 
 /* One line under the greeting that orients before the number does. */
 function headSub(e) {
-  if (e.celebration) return 'Every requirement is in';
+  if (e.celebration) return 'Locked in for today';
   const left = e.total - e.met;
   return `${left} requirement${left === 1 ? '' : 's'} remaining today`;
 }

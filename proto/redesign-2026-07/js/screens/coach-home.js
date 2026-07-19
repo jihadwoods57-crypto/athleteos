@@ -27,15 +27,13 @@ function coachInviteCard(code, teamName) {
   const link = inviteLink(code);
   const svg = qrSvg(addQuietZone(encodeQR(link, 'M')), 96, '#0B0D12', `QR code to join ${esc(teamName)}`);
   return `<section class="card" style="padding:18px">
-    <div class="hq-invite-top">
-      <div style="flex:1;min-width:0">
-        <div class="eyebrow" style="margin:0 0 8px">Athlete invitation code</div>
-        <div class="code-boxes" style="justify-content:flex-start;padding:0">
-          ${code.split('').map((ch) => `<div class="cb filled">${esc(ch)}</div>`).join('')}
-        </div>
-        <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.4">Athletes scan the code or enter it to join your team. Only you hand it out.</div>
-      </div>
-      <div><div class="hq-qr">${svg}</div><div class="hq-qcap">SCAN TO JOIN</div></div>
+    <div class="eyebrow" style="margin:0 0 10px">Invite code</div>
+    <div class="code-boxes invite-code" style="padding:0;margin-bottom:14px">
+      ${code.split('').map((ch) => `<div class="cb filled">${esc(ch)}</div>`).join('')}
+    </div>
+    <div style="display:flex;gap:14px;align-items:center">
+      <div style="flex:none"><div class="hq-qr">${svg}</div><div class="hq-qcap">SCAN TO JOIN</div></div>
+      <div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">Athletes scan the code or enter it to join your team. Only you hand it out.</div>
     </div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn ghost sm" id="coach-copy-code">${icon('clipboard', 16)} Copy code</button>
@@ -68,7 +66,7 @@ function setupChecklist(hasCode) {
 function notScoredTeamTile() {
   return `<section class="co-pulse" style="cursor:default">
     <div class="co-pulse-top">
-      <div class="co-pulse-score"><div class="k">Team score</div><div class="num">—</div><div class="delta flat">Not scored yet</div></div>
+      <div class="co-pulse-score"><div class="k">Team score</div><div class="num" style="font-size:34px;color:var(--text-3);-webkit-text-fill-color:var(--text-3)">—</div><div class="delta flat">Not scored yet</div></div>
       <div class="co-pulse-done"><div class="v">0</div><div class="k">Athletes</div></div>
     </div>
   </section>`;

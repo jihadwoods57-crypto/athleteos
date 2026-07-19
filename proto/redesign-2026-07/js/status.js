@@ -11,7 +11,7 @@ export const STATUS_META = {
   needs_review:   { label: 'Needs review',   color: 'var(--amber-bright)' },
   below_standard: { label: 'Below standard', color: 'var(--red)' },
   due_soon:       { label: 'Due soon',       color: 'var(--amber-bright)' },
-  no_activity:    { label: 'No activity',    color: 'var(--red)' },
+  no_activity:    { label: 'No activity',    color: 'var(--text-3)' },
   on_standard:    { label: 'On standard',    color: 'var(--green-bright)' },
 };
 const DUE_SOON_MIN = 60;

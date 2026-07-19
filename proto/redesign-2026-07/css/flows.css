@@ -97,7 +97,7 @@
 .ob-dots .d { width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); transition: all var(--dur-2) var(--ease-out); }
 .ob-dots .d.on { width: 22px; border-radius: 4px; background: linear-gradient(90deg, var(--green-bright), var(--blue-bright)); }
 .ob-title { font-size: 27px; font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.15; }
-.ob-sub { font-size: 14.5px; font-weight: 600; color: var(--text-2); margin-top: 8px; line-height: 1.5; }
+.ob-sub { font-size: 14.5px; font-weight: 600; color: var(--text-2); margin-top: 8px; line-height: 1.5; text-wrap: balance; }
 .ob-body { flex: 1; padding-top: 22px; }
 .ob-foot { padding: 18px 0 6px; }
 /* Text links in ob flows — same 44px tap floor pattern as .chp/.tab */
@@ -105,7 +105,7 @@
 .ob-textlink.g{color:var(--green-bright)}
 .choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .choice {
-  padding: 17px 15px; border-radius: 18px; background: var(--surface-1); border: 1.5px solid var(--hairline);
+  padding: 17px 15px; border-radius: 18px; background: var(--surface-1); border: 1px solid var(--hairline);
   cursor: pointer; transition: all var(--dur-1) var(--ease-out);
 }
 .choice.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.10); box-shadow: 0 0 18px rgba(59,130,246,0.18); }
@@ -323,7 +323,7 @@
 .flagdot.r { background: var(--red); box-shadow: 0 0 10px rgba(246,87,87,0.55); }
 .coach-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
 .coach-stat { text-align: center; padding: 15px 6px; border-radius: var(--r-tile); background: var(--surface-1); border: 1px solid var(--hairline); }
-.coach-stat .v { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; }
+.coach-stat .v { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; min-height: 30px; display: flex; align-items: center; justify-content: center; }
 .coach-stat .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top: 3px; text-transform: uppercase; letter-spacing: var(--track-key); }
 .roster-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
 .roster-row:last-child { border-bottom: none; }

@@ -28,8 +28,8 @@ export default {
         ${S.experience === 'client' ? `
         <div class="meta">${esc(S.planGoalLabel || 'Personal plan')}</div>
         ${S.coach.kind === 'trainer' && S.coach.team ? `<div class="meta" style="margin-top:1px">${esc(S.coach.team)}</div>` : ''}` : `
-        <div class="meta">${esc([S.athlete.sport, S.athlete.position].filter(Boolean).join(' · ') || 'Add your sport')}</div>
-        <div class="meta" style="margin-top:1px">${esc(S.athlete.school || 'Add your school')}</div>`}
+        <div class="meta"${[S.athlete.sport, S.athlete.position].filter(Boolean).length ? '' : ' style="color:var(--text-3)"'}>${esc([S.athlete.sport, S.athlete.position].filter(Boolean).join(' · ') || 'Add your sport')}</div>
+        <div class="meta" style="margin-top:1px${S.athlete.school ? '' : ';color:var(--text-3)'}">${esc(S.athlete.school || 'Add your school')}</div>`}
       </div>
       <button class="btn ghost sm" style="width:auto;padding:0 16px;height:44px" data-go="edit-profile">Edit</button>
     </section>
@@ -79,7 +79,7 @@ export default {
       <div class="lrow" data-go="streak">
         <div class="lic" style="color:var(--amber-bright)">${icon('flame', 18)}</div>
         <div class="lm"><div class="lt">Streak</div><div class="ls">Days on standard · 1 grace per rolling week</div></div>
-        <span class="lv">${S.streakDays}d</span>
+        <span class="lv">${S.streakDays}d</span>${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="history">
         <div class="lic">${icon('clipboard', 17)}</div>

@@ -406,6 +406,9 @@ body {
 .macro { flex: 1; text-align: center; padding: 14px 4px; border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); min-width: 0; }
 .macro .mv { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }
 .macro .mk { font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top: 3px; text-transform: uppercase; letter-spacing: var(--track-key); }
+/* 5-up macro row (thread meal breakdown) is denser than 3/4-up — ease the type so values don't touch edges */
+.macro-row.five .mv { font-size: 17px; }
+.macro-row.five .mk { font-size: 10px; letter-spacing: 0.04em; }
 
 /* coach note / callout */
 .coachnote { padding: 18px; border-radius: var(--r-card); background: var(--surface-1); border: 1px solid var(--hairline); }

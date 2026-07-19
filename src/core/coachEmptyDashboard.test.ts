@@ -18,7 +18,7 @@ describe('coach empty dashboard — with a live athlete code', () => {
   const html: string = emptyTeamDashboard('ABC123', 'Varsity Football');
 
   test('invites athletes: code boxes, scannable QR, Copy + Share', () => {
-    expect(html).toContain('Athlete invitation code');
+    expect(html).toContain('Invite code');
     expect(html).toContain('SCAN TO JOIN'); // the QR block
     expect(html).toContain('id="coach-copy-code"');
     expect(html).toContain('id="coach-share-invite"');

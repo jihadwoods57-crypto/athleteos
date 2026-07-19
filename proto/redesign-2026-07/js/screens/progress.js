@@ -117,7 +117,7 @@ export default {
     <div class="coach-stats">
       <div class="coach-stat" data-go="streak" style="cursor:pointer"><div class="v" style="color:var(--amber-bright)">${S.streakDays}d</div><div class="k">Current streak</div></div>
       ${P.monthConsistency != null ? `<div class="coach-stat"><div class="v">${P.monthConsistency}%</div><div class="k">Consistency (≥80)</div></div>` : ''}
-      <div class="coach-stat" data-go="history" style="cursor:pointer"><div class="v" style="color:var(--blue-bright)">${icon('clipboard', 18)}</div><div class="k">History</div></div>
+      <div class="coach-stat" data-go="history" style="cursor:pointer"><div class="v" style="color:var(--blue-bright)">${icon('clipboard', 22)}</div><div class="k">History</div></div>
     </div>
 
     ${trends ? `
