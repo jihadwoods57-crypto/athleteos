@@ -36,6 +36,8 @@
   box-shadow: 0 -18px 60px rgba(0,0,0,0.6);
   animation: sheetUp 320ms var(--ease-out);
 }
+/* light theme: base sheet fill is hardcoded dark (#101827) — flip to a light surface + softer lift */
+:root[data-theme="light"] .sheet { background: var(--surface-1); box-shadow: 0 -18px 60px rgba(15,23,42,0.18); }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 .sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--surface-3); margin: 0 auto 14px; }
 .sheet .sh-title { font-size: 17px; font-weight: 800; text-align: center; margin-bottom: 4px; }
@@ -322,13 +324,13 @@
 .coach-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
 .coach-stat { text-align: center; padding: 15px 6px; border-radius: var(--r-tile); background: var(--surface-1); border: 1px solid var(--hairline); }
 .coach-stat .v { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; }
-.coach-stat .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+.coach-stat .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top: 3px; text-transform: uppercase; letter-spacing: var(--track-key); }
 .roster-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
 .roster-row:last-child { border-bottom: none; }
 .roster-row .rn { flex: 1; min-width: 0; }
 .roster-row .rn .t { font-size: 15px; font-weight: 800; }
 .roster-row .rn .s { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.roster-row .rs { font-size: 18px; font-weight: 800; width: 34px; text-align: right; }
+.roster-row .rs { font-size: 18px; font-weight: 800; width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
 .roster-row .rl { font-size: 11.5px; font-weight: 700; color: var(--text-3); width: 30px; text-align: right; }
 
 /* honest delivery status line in threads */

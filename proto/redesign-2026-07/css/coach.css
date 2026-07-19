@@ -7,7 +7,7 @@
 .co-scroll { overflow-x: auto; scrollbar-width: none; }
 .co-scroll::-webkit-scrollbar { display: none; }
 .co-eyebrow {
-  font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  font-size: 11px; font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
   color: var(--text-3); margin: var(--s6) 2px var(--s3);
   display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3);
 }
@@ -177,7 +177,7 @@
 .co-stat .v { font-size: 26px; font-weight: 800; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--text); }
 .co-stat .v.g { color: var(--green-bright); } .co-stat .v.a { color: var(--amber-bright); } .co-stat .v.r { color: #FF9B9B; } .co-stat .v.b { color: var(--blue-bright); }
 .co-stat .v small { font-size: 13px; font-weight: 700; color: var(--text-3); letter-spacing: 0; }
-.co-stat .k { font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-top: 7px; }
+.co-stat .k { font-size: 10.5px; font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); margin-top: 7px; }
 
 /* ============================================================
    Athlete profile — identity header + slim action bar
@@ -282,7 +282,7 @@
 .std-ic-p { background:var(--purple-surface); color:var(--purple-bright); }
 .std-ic-c { background:var(--cyan-surface); color:var(--cyan); }
 
-.std-lbl { font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+.std-lbl { font-size:10.5px; font-weight:800; letter-spacing:var(--track-key); text-transform:uppercase;
   color:var(--text-3); margin:0 2px 9px; }
 .std-lbl.mt { margin-top:17px; }
 .std-help { font-size:11.5px; font-weight:600; color:var(--text-3); line-height:1.45; margin:9px 2px 0; }
@@ -301,17 +301,18 @@
 .std-chip.dashed { border-style:dashed; color:var(--text-3); background:transparent; }
 
 /* Circular meal-count chips */
-.std-count { display:flex; gap:9px; }
-.std-count .std-chip { width:46px; height:46px; min-width:46px; padding:0; border-radius:50%;
+.std-count { display:flex; gap:7px; justify-content:space-between; }
+.std-count .std-chip { width:44px; height:44px; min-width:44px; padding:0; border-radius:50%;
   font-size:15px; font-weight:800; }
 
 /* Segmented multi-choice (late policy, effective-from) */
-.std-seg { display:flex; gap:4px; padding:4px; background:var(--surface-3);
-  border:1px solid var(--hairline-soft); border-radius:15px; }
-.std-seg button { flex:1; min-height:40px; border:none; background:transparent; color:var(--text-2);
-  font:700 13px var(--font); border-radius:11px; cursor:pointer;
+/* unified with athlete .seg: pill track, 44px buttons (a11y floor), surface-3 on-state */
+.std-seg { display:flex; gap:4px; padding:4px; background:var(--surface-1);
+  border:1px solid var(--hairline); border-radius:var(--r-pill); }
+.std-seg button { flex:1; min-height:44px; border:none; background:transparent; color:var(--text-2);
+  font:700 13px var(--font); border-radius:var(--r-pill); cursor:pointer;
   transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
-.std-seg button.on { background:var(--surface-1); color:var(--text); box-shadow:var(--sh-card); }
+.std-seg button.on { background:var(--surface-3); color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,0.3); }
 .std-seg.accent button.on { background:var(--blue-surface); color:var(--blue-bright);
   box-shadow: 0 0 0 1px var(--blue-border) inset; }
 

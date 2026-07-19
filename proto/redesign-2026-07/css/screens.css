@@ -317,7 +317,7 @@
 .markread:active { transform: scale(0.97); }
 .markread[disabled] { color: var(--text-3); opacity: 0.5; cursor: default; pointer-events: none; }
 
-.notif { display: flex; gap: 13px; padding: 15px 16px; border-radius: 18px; background: var(--surface-1); border: 1px solid var(--hairline); margin-bottom: 10px; }
+.notif { display: flex; gap: 13px; padding: 15px 16px; border-radius: var(--r-card); background: var(--surface-1); border: 1px solid var(--hairline); margin-bottom: 10px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), var(--sh-card); }
 .notif .nic { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; flex: none; }
 .notif.high .nic { background: rgba(245,165,36,0.18); color: var(--amber-bright); }
 .notif.critical .nic { background: var(--red-surface); color: var(--red); }
@@ -397,11 +397,12 @@
 .pw-meter i.on{background:var(--amber-bright)}
 .pw-meter i.on.s3{background:var(--green-bright)}
 .pw-row{position:relative}
+.pw-row .ob-input{padding-right:60px}  /* reserve room for the 44px Show toggle so the placeholder can't run under it */
 .pw-row .pw-eye{position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:12px;font-weight:800;color:var(--text-3);cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding-right:6px}
-.lnk{color:var(--green-bright);font-weight:800;cursor:pointer}
+.lnk{color:var(--blue-bright);font-weight:800;cursor:pointer}
 
 /* ---- execution loop: score strip, NOW card, groups ---- */
-.xstrip{display:flex;align-items:center;gap:14px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:20px;padding:13px 15px;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
+.xstrip{display:flex;align-items:center;gap:14px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:var(--r-card);padding:13px 15px;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
 .xstrip:active{transform:scale(0.985)}
 .xstrip-chev{display:flex;flex:none;color:var(--text-3)}
 /* ---- Daily Score hero (2026-07-16 restructure + formula upgrade): the score owns the
@@ -449,7 +450,7 @@
    never on the 30s tick re-render */
 @keyframes home-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 /* ---- grouped section card: sibling rows share one surface, split by hairlines ---- */
-.xgroup{background:var(--surface-1);border:1px solid var(--hairline);border-radius:17px;overflow:hidden}
+.xgroup{background:var(--surface-1);border:1px solid var(--hairline);border-radius:var(--r-card-sm);overflow:hidden}
 .xg-row{display:flex;align-items:center;gap:11px;padding:11px 12px;min-height:44px;box-sizing:border-box;cursor:pointer}
 .xg-row + .xg-row{border-top:1px solid var(--hairline-soft)}
 .xg-row:active{background:var(--surface-2)}
@@ -551,7 +552,7 @@
 .xcount .xdl{font-size:12px;color:var(--text-2);font-weight:700}
 .xcta{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;box-sizing:border-box;padding:14px;border:none;border-radius:var(--r-btn);background:linear-gradient(150deg,var(--amber-bright),var(--amber));color:#1A1204;font-family:var(--font);font-size:15px;font-weight:800;box-shadow:0 12px 34px rgba(245,165,36,0.30);cursor:pointer}
 .xnow.red .xcta{background:linear-gradient(150deg,#F87171,var(--red));color:#1A0505;box-shadow:0 12px 34px rgba(246,87,87,0.28)}
-.xgrp{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);margin:12px 4px 7px}
+.xgrp{font-size:11px;font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin:12px 4px 7px}
 /* WS6 collapse primitive: a <details> whose summary reuses the .xgrp header look. Native
    toggle, no JS state; chevron rotates on open; body keeps the ladder's row rhythm. */
 .xcollapse{margin:0}
@@ -560,7 +561,7 @@
 .xcollapse .xchev{display:inline-flex;color:var(--text-3);transform:rotate(90deg);transition:transform var(--dur-1) var(--ease-out)}
 .xcollapse[open] .xchev{transform:rotate(270deg)}
 .xcollapse-body{display:grid;gap:8px;padding-top:6px}
-.xrow-item{display:flex;align-items:center;gap:11px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:17px;padding:10px 12px;cursor:pointer}
+.xrow-item{display:flex;align-items:center;gap:11px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:10px 12px;cursor:pointer}
 .xrow-item .xr{flex:1}
 .xrow-item .xa{font-size:14px;font-weight:700;letter-spacing:-.01em}
 .xrow-item .xb{font-size:11.5px;color:var(--text-3);margin-top:1px}
@@ -576,13 +577,13 @@
 .xpill.gray{background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
 .xpill.green{background:var(--green-surface);color:var(--green-bright);border:1px solid var(--green-border)}
 .xpill.red{background:var(--red-surface);color:var(--red);border:1px solid var(--red-border)}
-.xico{width:46px;height:46px;border-radius:var(--r-tile);display:grid;place-items:center;flex:0 0 auto}
+.xico{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;flex:0 0 auto}
 .xico.gold{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}
 .xico.green{background:var(--green-surface);color:var(--green-bright)}
 .xico.gray{background:var(--surface-2);color:var(--text-3);border:1px solid var(--hairline)}
 .xico.red{background:var(--red-surface);color:var(--red);border:1px solid var(--red-border)}
-.xico.sm{width:38px;height:38px}
-.xrecord{background:var(--surface-1);border:1px solid var(--hairline);border-radius:20px;padding:6px 14px;text-align:left}
+.xico.sm{width:38px;height:38px;border-radius:12px}
+.xrecord{background:var(--surface-1);border:1px solid var(--hairline);border-radius:var(--r-card);padding:6px 14px;text-align:left}
 .xrec{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft);font-size:13px;font-weight:700}
 .xrec:last-child{border-bottom:none}
 .xrec .xtk{width:22px;height:22px;border-radius:8px;background:var(--green-surface);color:var(--green-bright);display:grid;place-items:center;flex:0 0 auto}
@@ -694,7 +695,7 @@
 .rub{margin-top:8px;border:1px solid var(--hairline);border-radius:var(--r-tile);background:var(--surface-1)}
 .rub>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;padding:10px 14px;font-size:12.5px;font-weight:800;color:var(--text-2)}
 .rub>summary::-webkit-details-marker{display:none}
-.rub>summary .ic{transition:transform var(--dur-2) var(--ease-out);color:var(--text-3)}
+.rub>summary .ic{transition:transform var(--dur-2) var(--ease-out);color:var(--text-3);margin-left:auto}
 .rub[open]>summary .ic{transform:rotate(90deg)}
 .rub-body{padding:2px 14px 12px}
 .rub-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--hairline-soft)}
@@ -768,7 +769,7 @@
 .unlock-k{font-size:12px;font-weight:800;color:var(--text-2);white-space:nowrap;font-variant-numeric:tabular-nums}
 .base-stats{display:flex;gap:10px;margin-top:14px}
 .base-stats>div{flex:1;background:var(--surface-2);border:1px solid var(--hairline-soft);border-radius:13px;padding:10px 12px}
-.base-stats .k{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.base-stats .k{font-size:10.5px;font-weight:800;letter-spacing:var(--track-key);text-transform:uppercase;color:var(--text-3)}
 .base-stats .v{font-size:17px;font-weight:800;letter-spacing:var(--num-tight);margin-top:2px;font-variant-numeric:tabular-nums}
 .cat-trend{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)}
 .cat-trend:last-child{border-bottom:none}
