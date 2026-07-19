@@ -432,6 +432,10 @@ export function knobsFromItems(items) {
     photoProof: mealItems.length ? mealItems.every(m => m.proof === 'photo') : true,
     mealNames: mealItems.slice(0, meals).map((m, i) => m.title || MEAL_NAMES[i]),
     mealWins: mealItems.slice(0, meals).map((m, i) => (m.window && m.window.due != null) ? { ...m.window } : { ...MEAL_WINDOWS[i] }),
+    // Part B rails, read from the first meal (the editor sets them uniformly across meals).
+    grace: typeof (mealItems[0] || {}).grace === 'number' ? mealItems[0].grace : 0,
+    latePolicy: ((mealItems[0] || {}).latePolicy === 'full' || (mealItems[0] || {}).latePolicy === 'none') ? mealItems[0].latePolicy : 'half',
+    coachReview: !!(mealItems[0] || {}).coachReview,
   };
 }
 // Shared fallback logic for meal names/windows — render() uses this too, so what's shown
@@ -449,10 +453,19 @@ export function itemsFromKnobs(k) {
   const items = [];
   const { names, wins } = resolveMeals(k);
   const proof = k.photoProof === false ? 'check' : 'photo';
-  names.forEach((t, i) => items.push({
-    id: `meal-${i + 1}`, title: String(t || MEAL_NAMES[i] || `Meal ${i + 1}`).slice(0, 40),
-    kind: 'meal', proof, freq: { type: 'daily' }, window: { ...wins[i] },
-  }));
+  const grace = Math.min(240, Math.max(0, +k.grace || 0));
+  const latePolicy = (k.latePolicy === 'full' || k.latePolicy === 'none') ? k.latePolicy : null; // 'half' = default, omit
+  names.forEach((t, i) => {
+    const meal = {
+      id: `meal-${i + 1}`, title: String(t || MEAL_NAMES[i] || `Meal ${i + 1}`).slice(0, 40),
+      kind: 'meal', proof, freq: { type: 'daily' }, window: { ...wins[i] },
+    };
+    // Part B: only write non-default rails so existing standards stay byte-identical.
+    if (grace > 0) meal.grace = grace;
+    if (latePolicy) meal.latePolicy = latePolicy;
+    if (k.coachReview) meal.coachReview = true;
+    items.push(meal);
+  });
   if (k.lifts > 0) items.push({
     id: 'lift', title: `Lift session`, kind: 'lift', proof: 'check',
     freq: { type: 'days', days: LIFT_DAYS[k.lifts], label: `${k.lifts}× / week` }, window: { due: 1230, label: 'After training' },
@@ -587,6 +600,13 @@ export const coachPlanSet = {
         </div>`).join('')}
     </section>
 
+    <div class="eyebrow">Meal timing · grace & late credit</div>
+    <div class="chip-row">${[0, 15, 30, 60].map(n => chip((KNOB.grace || 0) === n, n === 0 ? 'No grace' : `${n} min grace`, 'grace', n)).join('')}</div>
+    <div class="chip-row" style="margin-top:8px">
+      ${chip((KNOB.latePolicy || 'half') === 'half', 'Late = half', 'late', 'half')}${chip(KNOB.latePolicy === 'full', 'Late = full', 'late', 'full')}${chip(KNOB.latePolicy === 'none', 'Late = none', 'late', 'none')}
+    </div>
+    <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">A meal logged within the grace window counts on time. Past it, the late policy sets the credit — half (default), full, or none.</div>
+
     <div class="eyebrow">Lift sessions per week</div>
     <div class="chip-row">${[0, 1, 2, 3, 4, 5, 6, 7].map(n => chip(KNOB.lifts === n, n === 0 ? 'Off' : String(n), 'lifts', n)).join('')}</div>
 
@@ -601,6 +621,7 @@ export const coachPlanSet = {
       ${seg('Weekly check-in', 'Sundays · 10% of the score', 'checkin', KNOB.checkin)}
       ${seg('Hydration focus', 'Visible, never scored', 'hydration', KNOB.hydration)}
       ${seg('Photo proof on meals', 'Off = tap-to-check, no photo required', 'photo', KNOB.photoProof)}
+      ${seg('Coach review on meals', 'Flag each logged meal for your review', 'review', KNOB.coachReview)}
     </section>
     ${KNOB.hydration ? `
     <div class="eyebrow">Hydration target</div>
@@ -699,6 +720,9 @@ export const coachPlanSet = {
       if (k === 'hydration') KNOB.hydration = arg === '1';
       if (k === 'photo') KNOB.photoProof = arg === '1';
       if (k === 'hydoz') KNOB.hydrationOz = +arg;
+      if (k === 'grace') KNOB.grace = +arg;
+      if (k === 'late') KNOB.latePolicy = arg;
+      if (k === 'review') KNOB.coachReview = arg === '1';
       // Applying a template only fills the knobs — it never writes the DB directly. The
       // coach still reviews the preview card and hits the existing Save to publish.
       if (k === 'tpl') {

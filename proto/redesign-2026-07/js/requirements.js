@@ -165,12 +165,18 @@ export function stdFromItems(items) {
   const slots = STD_SLOT_MAP[m];
   const deadlines = /** @type {Record<string, number>} */ ({});
   const titles = /** @type {Record<string, string>} */ ({});
+  const grace = /** @type {Record<string, number>} */ ({});
+  const latePolicy = /** @type {Record<string, string>} */ ({});
   slots.forEach((k, i) => {
     const it = mealItems[i] || {};
     if (it.window && it.window.due != null) deadlines[k] = it.window.due;
     if (it.title) titles[k] = it.title;
+    // Part B item-schema depth: grace minutes + late policy ride each meal item into the day
+    // engine (day.js slotGrace/slotLateCredit). Absent = the classic on-time/half-credit rule.
+    if (typeof it.grace === 'number' && it.grace >= 0) grace[k] = Math.min(240, Math.round(it.grace));
+    if (it.latePolicy === 'full' || it.latePolicy === 'none' || it.latePolicy === 'half') latePolicy[k] = it.latePolicy;
   });
-  return { mealsRequired: m, slots, deadlines, titles };
+  return { mealsRequired: m, slots, deadlines, titles, grace, latePolicy };
 }
 
 /** An independent (no-coach) athlete's personal standard → the same scored-day shape a coach

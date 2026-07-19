@@ -79,4 +79,28 @@ describe('proto day engine — setDayStandard governs slots, deadlines, denomina
     DAY.slotMacros.dinner = { protein: 180 };
     expect(computeComponents(DAY).nutrition).toBe(Math.round(65 + 0.5 * 35));
   });
+
+  test('grace period: a meal logged within grace still earns FULL credit', () => {
+    freshDay();
+    setDayStandard({ mealsRequired: 1, slots: ['dinner'], deadlines: { dinner: 1230 }, titles: {}, grace: { dinner: 90 } });
+    DAY.meals.dinner = true; DAY.mealLoggedAt.dinner = 1300; // 70 min late — inside the 90-min grace
+    DAY.slotMacros.dinner = { protein: 180 };
+    expect(computeComponents(DAY).nutrition).toBe(100);
+  });
+
+  test('latePolicy "full": a late meal past grace still earns full credit', () => {
+    freshDay();
+    setDayStandard({ mealsRequired: 1, slots: ['dinner'], deadlines: { dinner: 1230 }, titles: {}, latePolicy: { dinner: 'full' } });
+    DAY.meals.dinner = true; DAY.mealLoggedAt.dinner = 1300;
+    DAY.slotMacros.dinner = { protein: 180 };
+    expect(computeComponents(DAY).nutrition).toBe(100);
+  });
+
+  test('latePolicy "none": a late meal earns no meal credit (protein only)', () => {
+    freshDay();
+    setDayStandard({ mealsRequired: 1, slots: ['dinner'], deadlines: { dinner: 1230 }, titles: {}, latePolicy: { dinner: 'none' } });
+    DAY.meals.dinner = true; DAY.mealLoggedAt.dinner = 1300;
+    DAY.slotMacros.dinner = { protein: 180 };
+    expect(computeComponents(DAY).nutrition).toBe(65); // 65 protein + 0 meal credit
+  });
 });

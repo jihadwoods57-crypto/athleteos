@@ -72,6 +72,18 @@ export function slotDeadline(k) {
   if (STD && STD.deadlines && STD.deadlines[k] != null) return STD.deadlines[k];
   return DEADLINE[k] != null ? DEADLINE[k] : 1440;
 }
+/** Grace minutes for a slot — a meal logged within deadline+grace still counts on-time. A
+ *  standard with no grace (every shipped standard + the classic day) is 0, so scoring stays
+ *  byte-identical to the parity-locked engine. */
+export function slotGrace(k) {
+  return (STD && STD.grace && typeof STD.grace[k] === 'number') ? STD.grace[k] : 0;
+}
+/** Credit a slot earns when logged past deadline+grace: half (shipped default), full (the coach
+ *  forgives lateness), or none (a hard window). */
+function slotLateCredit(k) {
+  const p = STD && STD.latePolicy && STD.latePolicy[k];
+  return p === 'full' ? 1 : p === 'none' ? 0 : 0.5;
+}
 const scoredSlotKeys = () => (STD && STD.slots ? STD.slots : MEAL_KEYS);
 
 function effectiveMeals(day) {
@@ -79,7 +91,8 @@ function effectiveMeals(day) {
   for (const k of scoredSlotKeys()) {
     if (!mealScored(day, k)) continue;
     const at = day.mealLoggedAt && day.mealLoggedAt[k];
-    n += (at == null || at <= slotDeadline(k)) ? 1 : 0.5; // late meal earns half (matches effectiveMealsLogged)
+    const onTime = at == null || at <= slotDeadline(k) + slotGrace(k);
+    n += onTime ? 1 : slotLateCredit(k); // late → the standard's late policy (default: half)
   }
   return n;
 }
