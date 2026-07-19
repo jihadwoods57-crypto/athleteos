@@ -180,7 +180,16 @@ export const coachRoster = {
     if (CD.roster === null || !CD.extras) return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div><div><div class="tt">Loading the roster…</div><div class="ts">Real statuses, real scores.</div></div></div>`;
     if (CD.roster.offline) return `${head}<div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div><div class="sd-t">Can't reach the roster</div><div class="sd-s">Check your connection and reopen.</div></div>`;
     const entries = entriesFor({ kind: 'team', value: null }) || [];
-    if (!entries.length) return `${head}<div class="state-demo"><div class="sd-ic">${icon('users', 24)}</div><div class="sd-t">No athletes yet</div><div class="sd-s">Share your team code from your profile — every athlete who joins shows up here.</div></div>`;
+    if (!entries.length) return `${head}
+      <div class="state-demo">
+        <div class="sd-ic">${icon('users', 24)}</div>
+        <div class="sd-t">No athletes yet</div>
+        <div class="sd-s">Share your athlete code — everyone who joins shows up here in real time.</div>
+        <div class="sd-cta" style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+          <button class="btn primary sm" data-go="coach-profile/code">${icon('share', 16)} Share athlete code</button>
+          <button class="btn ghost sm" data-go="coach-plan-set/team">${icon('clipboard', 16)} Set your standard</button>
+        </div>
+      </div>`;
 
     const positions = [...new Set(entries.map(e => (e.row.position || '').toUpperCase()).filter(Boolean))].sort();
     const groups = (CD.extras && CD.extras.groups) || [];
