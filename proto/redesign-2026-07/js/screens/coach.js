@@ -801,6 +801,7 @@ export const coachPlanSet = {
       const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB), effDate);
       save.disabled = false;
       if (!r.ok) { say(r.error || 'Could not save — try again.', true); return; }
+      act.markCoachSetup('standard'); // real "reviewed your standard" signal for the setup checklist
       say(effDate === isoOffset(0) ? 'Saved. This is the standard now.' : 'Saved. It takes effect tomorrow — today is unchanged.');
       await loadSets(true);
     });

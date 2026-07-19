@@ -1031,7 +1031,7 @@ export const coachProfile = {
       <div id="handle-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:6px">Athletes see this everywhere — greetings, meal threads, your standard.</div>
     </div>
 
-    <div class="eyebrow">Team code · share it</div>
+    <div class="eyebrow" id="cp-code">Team code · share it</div>
     ${code ? `
     <section class="card pad" style="text-align:center">
       <div class="code-boxes" style="padding:0 0 4px">
@@ -1065,7 +1065,7 @@ export const coachProfile = {
       <div><div class="tt">No code yet</div><div class="ts">It mints when your team is created, automatically on your next sign-in.</div></div>
     </div>`}
 
-    <div class="eyebrow">Staff &amp; collaborators</div>
+    <div class="eyebrow" id="cp-staff">Staff &amp; collaborators</div>
     ${(() => {
       const staff = STAFF && STAFF.teamId === (RT.team && RT.team.id) ? STAFF.rows : null;
       // Slice F: only the head coach manages staff (0078 enforces; the client just doesn't
@@ -1130,7 +1130,16 @@ export const coachProfile = {
     <div style="height:10px"></div>
     `;
   },
-  mount(root) {
+  mount(root, { sub } = {}) {
+    // Deep-link: coach-profile/staff and coach-profile/code land the coach directly on that
+    // section instead of the top of this dense page — so "Add another staff member" and "Add an
+    // athlete" (checklist + Create menu) terminate on the action, not a wall of settings. The
+    // eyebrow anchors exist immediately in render(); a short delay lets the router's reset-to-top
+    // scroll settle first, then this smooth-scrolls the section into view.
+    if (sub === 'staff' || sub === 'code') {
+      const anchor = root.querySelector(sub === 'staff' ? '#cp-staff' : '#cp-code');
+      if (anchor) setTimeout(() => { try { anchor.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch { anchor.scrollIntoView(); } }, 60);
+    }
     // Staff & collaborators (0061)
     loadStaff(RT.team && RT.team.id);
     const sStatus = root.querySelector('#staff-status');
@@ -1142,6 +1151,7 @@ export const coachProfile = {
       const r = await createStaffInvite(teamId, b.getAttribute('data-staff-invite'));
       b.disabled = false;
       if (!r.ok) { sSay(r.error || 'Could not mint the code.', true); return; }
+      act.markCoachSetup('staff'); // real "added another staff member" signal for the setup checklist
       const out = root.querySelector('#staff-code-out'), boxes = root.querySelector('#staff-code-boxes');
       if (out && boxes) {
         boxes.innerHTML = r.code.split('').map(ch => `<div class="cb filled" style="border-color:var(--blue-border)">${esc(ch)}</div>`).join('');

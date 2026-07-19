@@ -91,7 +91,7 @@ function wireGroupSheet(root, teamId) {
     if (!name) { status('Name the group first.', true); return; }
     b.disabled = true;
     const r = await roles.saveCoachGroup(teamId, { name, athleteIds: [...SEL] });
-    if (r.ok) { SEL.clear(); SELECTING = false; SHOW_GROUPS = false; await loadCoachRoster(true); }
+    if (r.ok) { act.markCoachSetup('group'); SEL.clear(); SELECTING = false; SHOW_GROUPS = false; await loadCoachRoster(true); }
     else { b.disabled = false; status(r.error || 'Could not save the group — check your connection.', true); }
   }));
   root.querySelectorAll('[data-gadd]').forEach(b => b.addEventListener('click', async () => {

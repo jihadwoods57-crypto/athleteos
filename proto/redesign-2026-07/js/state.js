@@ -147,6 +147,7 @@ const DEFAULT_RT = {
   stdMeals: null,        // resolved governing standard {mealsRequired, slots, deadlines, titles} — drives the scored day
   coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots)
   coachNudged: {},       // coach device: athleteId -> ISO date of last nudge (one per athlete per day)
+  coachSetup: {},        // coach first-run checklist: real per-step completion flags (sharedCode/standard/staff/group) marked when the coach actually does each step; reset per-account by _wipeUserScopedState
   theme: 'dark',         // 'dark' | 'light' | 'system' — dark is the shipped default (WS2b)
   haptics: true,         // device preference: light vibration on taps/logs (router buzz())
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
@@ -728,6 +729,17 @@ export const act = {
           .eq('id', RT.userId);
       } catch { /* server pref is best-effort; local prefs already applied */ }
     }
+  },
+  /* First-run coach checklist (coach Home). Mark a setup step genuinely complete the moment the
+     coach actually does it — the checklist then reads a real signal instead of a hardcoded
+     "done". Persisted with RT and reset per-account by _wipeUserScopedState, so a new coach on
+     the same device never inherits another coach's progress. Idempotent + best-effort. */
+  markCoachSetup(key) {
+    if (!key) return;
+    if (!RT.coachSetup || typeof RT.coachSetup !== 'object') RT.coachSetup = {};
+    if (RT.coachSetup[key]) return;
+    RT.coachSetup[key] = true;
+    save();
   },
   /* Register this device's push token (coach→athlete nudges) via the bridge, once per
      session, after sign-in. Fire-and-forget; a denial or missing seam is a silent no-op. */

@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc } from '../components.js';
+import { avatarHead, esc, collapseSection } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster, loadActivity, actTime, entriesFor, getScope, setScope } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
@@ -42,22 +42,48 @@ function coachInviteCard(code, teamName) {
   </section>`;
 }
 
-/* First-run checklist — the concrete next actions, each linking to the real screen. "Share your
-   athlete code" is already done the moment a code exists. */
-function setupChecklist(hasCode) {
-  const items = [
-    { done: hasCode, t: 'Share your athlete code', s: 'Invite athletes to start tracking execution', go: null },
-    { done: false, t: 'Review your standard', s: 'Meals, windows, and requirements', go: 'coach-plan' },
-    { done: false, t: 'Set notification rules', s: 'When you and your athletes get nudged', go: 'coach-notif-settings' },
-    { done: false, t: 'Add another staff member', s: 'Coordinators, position coaches, and more', go: 'coach-profile' },
-    { done: false, t: 'Create position groups', s: 'Scope the standard to a room', go: 'coach-roster' },
+/* First-run checklist — real per-step completion, never a hardcoded "done". Each flag is a
+   genuine signal: a shared code, a saved standard, touched notification prefs, a minted staff
+   invite, a real group (persisted per-account in RT.coachSetup by act.markCoachSetup, or derived
+   from live state). Athletes already on the roster imply the code was shared. */
+function coachSetupState() {
+  const cs = (RT && RT.coachSetup) || {};
+  const hasAthletes = !!(CD.roster && CD.roster.rows && CD.roster.rows.length);
+  const groups = (CD.extras && CD.extras.groups) || [];
+  return {
+    sharedCode: !!cs.sharedCode || hasAthletes,
+    standard: !!cs.standard,
+    notif: RT.coachNotifPrefs != null || !!cs.notif,
+    staff: !!cs.staff,
+    group: !!cs.group || groups.length > 0,
+    hasAthletes,
+  };
+}
+function coachSetupSteps(st) {
+  return [
+    // Deep-links to the code section of the profile so the step is always actionable; the empty
+    // dashboard also shows Copy/Share inline right above, which marks this done on tap.
+    { done: st.sharedCode, t: 'Share your athlete code', s: st.sharedCode ? 'Shared — athletes can join anytime' : 'Invite athletes to start tracking execution', go: 'coach-profile/code' },
+    { done: st.standard, t: 'Review your standard', s: 'Meals, windows, and requirements', go: 'coach-plan' },
+    { done: st.notif, t: 'Set notification rules', s: 'When you and your athletes get nudged', go: 'coach-notif-settings' },
+    // Lands directly on the staff-invite section, not the top of the dense profile page.
+    { done: st.staff, t: 'Add another staff member', s: 'Coordinators, position coaches, and more', go: 'coach-profile/staff' },
+    // Groups need athletes on the roster — never route to an empty roster that can't make one.
+    { done: st.group, t: 'Organize athletes into groups', s: st.hasAthletes ? 'Group your roster by room or unit' : 'Unlocks once athletes join', go: st.hasAthletes ? 'coach-roster' : null },
   ];
-  return `<div class="eyebrow">Finish setting up your team</div>
-    <section class="card" style="padding:6px 16px">
-      ${items.map((i) => `<div class="lrow" ${i.go ? `data-go="${i.go}" style="cursor:pointer"` : 'style="cursor:default"'}>
+}
+function setupIncompleteCount(st) {
+  return coachSetupSteps(st).filter((i) => !i.done).length;
+}
+/* Just the checklist card (rows). Shared by the empty dashboard (inline) and the populated
+   dashboard (inside a collapsed "Finish setup" section), so setup guidance survives the first
+   athlete joining instead of vanishing mid-setup. */
+function setupChecklistCard(st) {
+  return `<section class="card" style="padding:6px 16px">
+      ${coachSetupSteps(st).map((i) => `<div class="lrow" ${i.go ? `data-go="${i.go}" style="cursor:pointer"` : 'style="cursor:default;opacity:0.72"'}>
         <div class="xico sm ${i.done ? 'green' : 'gray'}">${i.done ? icon('check', 15) : ''}</div>
         <div class="lm"><div class="lt">${esc(i.t)}</div><div class="ls">${esc(i.s)}</div></div>
-        ${i.go ? icon('chevron', 17, 'style="color:var(--text-3)"') : ''}
+        ${i.go ? icon('chevron', 17, 'style="color:var(--text-3)"') : (i.done ? '' : `<span style="font-size:10px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3)">Soon</span>`)}
       </div>`).join('')}
     </section>`;
 }
@@ -85,7 +111,8 @@ export function emptyTeamDashboard(code, teamName) {
     ${code
         ? coachInviteCard(code, teamName)
         : `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div><div><div class="tt">Your athlete code is minting…</div><div class="ts">It appears here the moment your team is set up on the server — usually a few seconds. Nothing shows until it's real.</div></div></div>`}
-    ${setupChecklist(!!code)}
+    <div class="eyebrow">Finish setting up your team</div>
+    ${setupChecklistCard(coachSetupState())}
     <div class="eyebrow">Roster</div>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 8px;line-height:1.4">No athletes yet — they appear here the moment they join with your code.</div>
     <div class="eyebrow">Live activity</div>
@@ -236,6 +263,14 @@ export const coachHome = {
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div><span style="color:var(--text-3)">›</span></div>` : ''}
     ${entries === null ? '' : pulseCard(rows, statuses)}
 
+    ${(() => {
+      // Setup guidance persists (collapsed) after the first athlete joins — it no longer vanishes
+      // mid-setup. Hidden only once every step is genuinely done.
+      const st = coachSetupState();
+      const left = setupIncompleteCount(st);
+      return left ? collapseSection('coach-setup', 'Finish setting up your team', left, setupChecklistCard(st), false) : '';
+    })()}
+
     <div class="eyebrow">Coach priorities</div>
     ${entries === null ? `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
     : cards.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">Nothing needs you right now. Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.</div>`
@@ -275,12 +310,14 @@ export const coachHome = {
     const copyBtn = root.querySelector('#coach-copy-code');
     if (copyBtn) copyBtn.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(code || ''); } catch { /* no-op */ }
+      if (code) act.markCoachSetup('sharedCode'); // real "shared" signal for the setup checklist
       copyBtn.innerHTML = `${icon('check', 16)} Copied`;
       setTimeout(() => { copyBtn.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
     });
     const shareBtn = root.querySelector('#coach-share-invite');
     if (shareBtn) shareBtn.addEventListener('click', async () => {
       const url = inviteLink(code), text = inviteShareText(code, teamNm);
+      if (code) act.markCoachSetup('sharedCode');
       try {
         if (window.OnStandardNative && window.OnStandardNative.share) {
           window.OnStandardNative.share({ title: `Join ${teamNm}`, message: text, url });
