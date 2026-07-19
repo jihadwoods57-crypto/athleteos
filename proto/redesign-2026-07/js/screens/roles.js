@@ -375,6 +375,10 @@ export const coachOb = {
       // Coach John / Coach JB) + a free-text override. Stored to ob scratch; pushed to
       // profiles.coach_display_name (0056) on first authenticated hydrate.
       const handleRow = $('#co-handle'), handleCustom = $('#co-handle-custom');
+      // The room handle defaults to "Coach <lastname>" and never the first name; it auto-tracks the
+      // last name until the coach explicitly picks a chip or types a custom handle (T-27: "Coach
+      // Woods", not automatically "Coach Jihad").
+      let autoHandle = !(((RT.ob || {}).coach || {}).coachName || '').trim();
       const paintHandles = () => {
         if (!handleRow) return;
         const first = f.value.trim(), last = l.value.trim();
@@ -382,10 +386,18 @@ export const coachOb = {
           last && `Coach ${last}`, first && `Coach ${first}`,
           first && last && `Coach ${first[0].toUpperCase()}${last[0].toUpperCase()}`,
         ].filter(Boolean))];
+        const customTyped = !!(handleCustom && handleCustom.value.trim());
+        // Keep the default synced to "Coach <lastname>" (opts[0], once a last name exists) until the
+        // coach chooses — capture it so the handle is explicit, not silently derived downstream.
+        if (autoHandle && !customTyped && last && opts.length
+            && opts[0] !== (((RT.ob || {}).coach || {}).coachName || '').trim()) {
+          cap({ coachName: opts[0] });
+        }
         const saved = (((RT.ob || {}).coach || {}).coachName || '').trim();
         handleRow.innerHTML = opts.map((o) => `<span class="chp ${saved === o ? 'on' : ''}">${esc(o)}</span>`).join('')
           || `<span style="font-size:12px;font-weight:600;color:var(--text-3)">Type your name above and options appear.</span>`;
         handleRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', () => {
+          autoHandle = false;
           handleRow.querySelectorAll('.on').forEach((x) => x.classList.remove('on'));
           el.classList.add('on');
           if (handleCustom) handleCustom.value = '';
@@ -405,6 +417,7 @@ export const coachOb = {
         const saved = (((RT.ob || {}).coach || {}).coachName || '').trim();
         if (saved && !handleRow.querySelector('.on')) handleCustom.value = saved;
         handleCustom.addEventListener('input', () => {
+          autoHandle = false;
           handleRow.querySelectorAll('.on').forEach((x) => x.classList.remove('on'));
           cap({ coachName: handleCustom.value.trim() });
         });
