@@ -36,6 +36,8 @@
   box-shadow: 0 -18px 60px rgba(0,0,0,0.6);
   animation: sheetUp 320ms var(--ease-out);
 }
+/* light theme: base sheet fill is hardcoded dark (#101827) — flip to a light surface + softer lift */
+:root[data-theme="light"] .sheet { background: var(--surface-1); box-shadow: 0 -18px 60px rgba(15,23,42,0.18); }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 .sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--surface-3); margin: 0 auto 14px; }
 .sheet .sh-title { font-size: 17px; font-weight: 800; text-align: center; margin-bottom: 4px; }
@@ -52,7 +54,7 @@
 .sheet-row .sv { font-size: 13px; font-weight: 800; }
 .water-btns { display: flex; gap: 8px; }
 .water-btns .wb2 {
-  padding: 8px 13px; border-radius: var(--r-pill); background: var(--cyan-surface); color: var(--cyan);
+  padding: 8px 13px; border-radius: var(--r-chip); background: var(--cyan-surface); color: var(--cyan);
   font-size: 13px; font-weight: 800; cursor: pointer; border: 1px solid rgba(56,189,248,0.3);
   /* 44px tap floor (a11y) without changing the visual pill much */
   display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
@@ -95,7 +97,7 @@
 .ob-dots .d { width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); transition: all var(--dur-2) var(--ease-out); }
 .ob-dots .d.on { width: 22px; border-radius: 4px; background: linear-gradient(90deg, var(--green-bright), var(--blue-bright)); }
 .ob-title { font-size: 27px; font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.15; }
-.ob-sub { font-size: 14.5px; font-weight: 600; color: var(--text-2); margin-top: 8px; line-height: 1.5; }
+.ob-sub { font-size: 14.5px; font-weight: 600; color: var(--text-2); margin-top: 8px; line-height: 1.5; text-wrap: balance; }
 .ob-body { flex: 1; padding-top: 22px; }
 .ob-foot { padding: 18px 0 6px; }
 /* Text links in ob flows — same 44px tap floor pattern as .chp/.tab */
@@ -103,7 +105,7 @@
 .ob-textlink.g{color:var(--green-bright)}
 .choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .choice {
-  padding: 17px 15px; border-radius: 18px; background: var(--surface-1); border: 1.5px solid var(--hairline);
+  padding: 17px 15px; border-radius: 18px; background: var(--surface-1); border: 1px solid var(--hairline);
   cursor: pointer; transition: all var(--dur-1) var(--ease-out);
 }
 .choice.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.10); box-shadow: 0 0 18px rgba(59,130,246,0.18); }
@@ -112,12 +114,17 @@
 .choice .cic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 9px; }
 .chip-row .chp {
-  padding: 11px 17px; border-radius: var(--r-pill); background: var(--surface-1); border: 1.5px solid var(--hairline);
+  padding: 11px 17px; border-radius: var(--r-chip); background: var(--surface-1); border: 1.5px solid var(--hairline);
   font-size: 14px; font-weight: 700; cursor: pointer; transition: all var(--dur-1) var(--ease-out);
-  /* 44px tap floor (a11y) — inline-flex keeps the pill shape while guaranteeing the height */
+  /* 44px tap floor (a11y) — inline-flex keeps a soft chip shape while guaranteeing the height */
   display: inline-flex; align-items: center; min-height: 44px;
 }
-.chip-row .chp.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.12); color: var(--blue-bright); }
+.chip-row .chp.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.12); color: var(--blue-bright);
+  box-shadow: inset 0 0 0 1px var(--blue-border), 0 0 16px rgba(59,130,246,0.22); }
+/* Non-color affordance (WCAG 1.4.1): a filled dot marks the selected chip, not color alone. */
+.chip-row .chp.on::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--blue-bright); margin-left: 8px; flex: 0 0 auto; }
+/* Press feedback on tappable chips/choices. */
+.chp:active, .choice:active { transform: scale(0.97); }
 .ob-input {
   width: 100%; height: 56px; border-radius: 16px; background: var(--surface-1); border: 1.5px solid var(--hairline);
   color: var(--text); font-family: var(--font); font-size: 17px; font-weight: 700; padding: 0 18px; outline: none;
@@ -167,6 +174,14 @@
 /* Fill the scroll area so the composition can truly center — scoped to the welcome
    view via :has() so no other screen's .view is affected. */
 .view:has(> .wel) { display: flex; flex-direction: column; min-height: 100%; }
+/* Onboarding frames fill the viewport so .ob-body (flex:1) pushes the CTA/foot to the thumb,
+   instead of the whole frame + button floating mid-screen. Mirrors the welcome/sign-in rule.
+   .ob must GROW as a flex item — a percentage min-height alone doesn't resolve against a
+   min-height-only parent, so the foot never anchored. */
+.view:has(> .ob) { display: flex; flex-direction: column; min-height: 100%; }
+.view:has(> .ob) > .ob { flex: 1 1 auto; }
+/* Onboarding is tab-less — reclaim the 128px tab-bar clearance so the foot sits near the thumb. */
+.viewport:has(> .view > .ob) { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
 .wel {
   flex: 1 1 auto;
   display: flex; flex-direction: column; justify-content: center;
@@ -308,14 +323,14 @@
 .flagdot.r { background: var(--red); box-shadow: 0 0 10px rgba(246,87,87,0.55); }
 .coach-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
 .coach-stat { text-align: center; padding: 15px 6px; border-radius: var(--r-tile); background: var(--surface-1); border: 1px solid var(--hairline); }
-.coach-stat .v { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; }
-.coach-stat .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+.coach-stat .v { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; min-height: 30px; display: flex; align-items: center; justify-content: center; }
+.coach-stat .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top: 3px; text-transform: uppercase; letter-spacing: var(--track-key); }
 .roster-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
 .roster-row:last-child { border-bottom: none; }
 .roster-row .rn { flex: 1; min-width: 0; }
 .roster-row .rn .t { font-size: 15px; font-weight: 800; }
 .roster-row .rn .s { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.roster-row .rs { font-size: 18px; font-weight: 800; width: 34px; text-align: right; }
+.roster-row .rs { font-size: 18px; font-weight: 800; width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
 .roster-row .rl { font-size: 11.5px; font-weight: 700; color: var(--text-3); width: 30px; text-align: right; }
 
 /* honest delivery status line in threads */
@@ -366,3 +381,20 @@
 .state-demo .sd-cta { margin-top: 14px; }
 .err-box { border-color: var(--red-border); }
 .err-box .sd-ic { background: var(--red-surface); color: var(--red); }
+
+/* ---------- Premium role picker (full-width rows, rich copy, tap affordance) ---------- */
+.role-list { display: flex; flex-direction: column; gap: 11px; }
+.role-card {
+  display: flex; align-items: center; gap: 14px; padding: 16px 15px;
+  border-radius: var(--r-card); background: var(--surface-1); border: 1px solid var(--hairline);
+  box-shadow: var(--sh-card); cursor: pointer; position: relative; overflow: hidden;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+.role-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--role-accent, transparent); opacity: .85; }
+.role-card:active { transform: scale(.985); }
+.role-card:hover { border-color: var(--hairline); box-shadow: var(--sh-raised); }
+.role-ic { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; flex: 0 0 auto; }
+.role-tt { flex: 1; min-width: 0; }
+.role-t { font-size: 16.5px; font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.1; }
+.role-s { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top: 4px; line-height: 1.4; }
+.role-chev { color: var(--text-3); flex: 0 0 auto; display: grid; place-items: center; }

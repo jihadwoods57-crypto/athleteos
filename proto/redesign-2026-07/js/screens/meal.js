@@ -210,7 +210,7 @@ export const analysis = {
       </div>
     </div>
 
-    <div class="eyebrow">Breakdown <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${srcLabel}</span> <span class="link" id="edit-foods">${'Edit'}</span></div>
+    <div class="eyebrow" style="flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span> <span class="link" id="edit-foods" style="margin-left:auto">${'Edit'}</span></div>
     <section class="card" style="padding:4px 16px" id="foods">
       ${rich.map((d) => `
         <div class="food-row" data-name="${esc(d.name)}">
@@ -459,9 +459,9 @@ export const thread = {
     ].filter(([, , target]) => target);
     const corrLog = (M.corrections || []).length;
     const breakdown = `
-    <div class="eyebrow" style="margin-top:16px">Meal Breakdown <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${srcLabel}</span></div>
+    <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Meal Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
-    <div class="macro-row" style="margin-top:10px">
+    <div class="macro-row five" style="margin-top:10px">
       <div class="macro"><div class="mv">${tilde}${M.macros.protein}g</div><div class="mk">Protein</div></div>
       <div class="macro"><div class="mv">${tilde}${M.macros.carbs}g</div><div class="mk">Carbs</div></div>
       <div class="macro"><div class="mv">${tilde}${M.macros.fat}g</div><div class="mk">Fat</div></div>

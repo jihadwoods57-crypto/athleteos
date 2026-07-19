@@ -91,7 +91,7 @@ function wireGroupSheet(root, teamId) {
     if (!name) { status('Name the group first.', true); return; }
     b.disabled = true;
     const r = await roles.saveCoachGroup(teamId, { name, athleteIds: [...SEL] });
-    if (r.ok) { SEL.clear(); SELECTING = false; SHOW_GROUPS = false; await loadCoachRoster(true); }
+    if (r.ok) { act.markCoachSetup('group'); SEL.clear(); SELECTING = false; SHOW_GROUPS = false; await loadCoachRoster(true); }
     else { b.disabled = false; status(r.error || 'Could not save the group — check your connection.', true); }
   }));
   root.querySelectorAll('[data-gadd]').forEach(b => b.addEventListener('click', async () => {
@@ -180,7 +180,16 @@ export const coachRoster = {
     if (CD.roster === null || !CD.extras) return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div><div><div class="tt">Loading the roster…</div><div class="ts">Real statuses, real scores.</div></div></div>`;
     if (CD.roster.offline) return `${head}<div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div><div class="sd-t">Can't reach the roster</div><div class="sd-s">Check your connection and reopen.</div></div>`;
     const entries = entriesFor({ kind: 'team', value: null }) || [];
-    if (!entries.length) return `${head}<div class="state-demo"><div class="sd-ic">${icon('users', 24)}</div><div class="sd-t">No athletes yet</div><div class="sd-s">Share your team code from your profile — every athlete who joins shows up here.</div></div>`;
+    if (!entries.length) return `${head}
+      <div class="state-demo">
+        <div class="sd-ic">${icon('users', 24)}</div>
+        <div class="sd-t">No athletes yet</div>
+        <div class="sd-s">Share your athlete code — everyone who joins shows up here in real time.</div>
+        <div class="sd-cta" style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+          <button class="btn primary sm" data-go="coach-profile/code">${icon('share', 16)} Share athlete code</button>
+          <button class="btn ghost sm" data-go="coach-plan-set/team">${icon('clipboard', 16)} Set your standard</button>
+        </div>
+      </div>`;
 
     const positions = [...new Set(entries.map(e => (e.row.position || '').toUpperCase()).filter(Boolean))].sort();
     const groups = (CD.extras && CD.extras.groups) || [];
@@ -203,7 +212,7 @@ export const coachRoster = {
     ${SHOW_ABSENCE ? absenceSheet() : ''}
     <section class="card" id="roster-list" style="padding:2px 0">${list.length ? list.map(rosterRow).join('') : NO_MATCH_HTML}</section>
     ${SELECTING && SEL.size ? `
-    <div class="card" style="position:sticky;bottom:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px">
+    <div class="card" style="position:sticky;bottom:calc(96px + env(safe-area-inset-bottom, 0px) + 8px);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px;z-index:20">
       <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Nudge ${SEL.size}</button>
       <button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Assign</button>
       <button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">→ Group</button>

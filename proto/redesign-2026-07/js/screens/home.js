@@ -133,7 +133,7 @@ function trustShield() {
 
 /* One line under the greeting that orients before the number does. */
 function headSub(e) {
-  if (e.celebration) return 'Every requirement is in';
+  if (e.celebration) return 'Locked in for today';
   const left = e.total - e.met;
   return `${left} requirement${left === 1 ? '' : 's'} remaining today`;
 }
@@ -267,10 +267,85 @@ function celebration(e) {
   </div>`;
 }
 
+/* ---- First-day activation (no retroactive failure) ---- */
+function fmtClock(m) {
+  if (m == null) return '';
+  const h24 = Math.floor(m / 60), mm = m % 60;
+  const h = ((h24 + 11) % 12) + 1;
+  return `${h}:${String(mm).padStart(2, '0')} ${h24 < 12 ? 'AM' : 'PM'}`;
+}
+
+/* The score hero on the athlete's activation day: an honest "Not scored yet" instead of a 0 /
+   Off-Standard that would punish them for a day they just joined. Neutral ring (—), no tier,
+   no "vs yesterday". Full scoring resumes the next local day. */
+function notScoredHero() {
+  return `<section class="xhero" style="cursor:default">
+    <div class="xh-main">
+      <div style="width:102px;height:102px;border-radius:50%;border:10px solid var(--surface-3);display:flex;align-items:center;justify-content:center;flex:0 0 auto">
+        <span style="font-size:34px;font-weight:800;color:var(--text-3)">—</span></div>
+      <div class="xh-body">
+        <div class="xh-k">Daily Score</div>
+        <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">Not scored yet</span></div>
+        <div class="xh-line">Ready to begin — your score starts with your next action.</div>
+      </div>
+    </div>
+  </section>`;
+}
+
+/* The first real action on the activation day — points at the next actionable requirement
+   (never a pre-activation window, which exec.js already excused), framed as a start, not a miss. */
+function firstActionCard(n) {
+  const isCheck = !n.proof || n.proof === 'check';
+  const label = isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}`;
+  const ctaIcon = isCheck ? 'check' : CTA_ICON[n.proof];
+  return `<section class="xnow">
+    <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>
+    <div class="xmain"><div class="xico gold">${icon(n.icon, 21)}</div>
+      <div><div class="xt">${esc(n.title)}</div><div class="xwhy">Your score starts moving with your first log. ${whyHtml(n.why)}</div></div></div>
+    <div style="height:10px"></div>
+    <button class="xcta" data-go="${n.route}">${icon(ctaIcon, 18)} ${label}</button>
+  </section>`;
+}
+
+/* The one sentence that makes first-day scoring feel fair — states the join time and that
+   nothing before it counts. Cumulative goals (hydration) start fresh tomorrow. */
+function fairnessNote(activationMin) {
+  const t = fmtClock(activationMin);
+  return `<div class="sidebox" style="margin-top:12px">
+    <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+    <div><div class="tt">You're set up${t ? ` — you joined at ${t}` : ''}</div>
+    <div class="ts">Anything scheduled before now won't count against you today. Hydration and your first full score start fresh tomorrow.</div></div>
+  </div>`;
+}
+
 export default {
   tab: 'home',
   render() {
     const e = S.exec;
+
+    // First-day activation: the athlete's very first day reads "Not scored yet" — they can log
+    // (and their coach sees it), but nothing is graded, overdue, or Off-Standard, and cumulative
+    // goals defer to tomorrow. Pre-activation windows already resolve to "Not required" in exec.js.
+    if (S.notYetScored) {
+      const first = e.now;
+      const done = e.doneItems;
+      const upcoming = e.later.filter((i) => i.state !== 'not_required' && i.id !== 'hydration');
+      const excused = e.items.filter((i) => i.state === 'not_required');
+      const grp = (label, rows, opts) => rows.length
+        ? `<div class="xgrp">${label}</div><div class="xgroup">${rows.map((i) => grow(i, opts || {})).join('')}</div>` : '';
+      return `
+      ${appHead('Your standard is ready', trustShield())}
+      ${notScoredHero()}
+      ${syncBanner()}
+      ${first
+          ? firstActionCard(first)
+          : `<div class="sidebox"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 17)}</div><div><div class="tt">You're all set for today</div><div class="ts">Your first scored day begins tomorrow — rest up.</div></div></div>`}
+      ${grp('Logged today', done, { checkIcon: true, chev: true })}
+      ${grp('Later today', upcoming, { hidePill: false })}
+      ${grp('Not counted today', excused)}
+      ${fairnessNote(S.activation.activationMin)}
+      <div style="height:12px"></div>`;
+    }
 
     if (RT.day0 && !RT.day0Breakfast) {
       const rest = e.items.filter((i) => i.id !== 'breakfast');

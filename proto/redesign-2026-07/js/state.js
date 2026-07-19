@@ -7,7 +7,7 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems } from './requirements.js';
+import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo } from './requirements.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
@@ -15,9 +15,10 @@ import {
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
-  setDayStandard, slotDeadline, setDayGoalConfig, checkinReal,
+  setDayStandard, slotDeadline, slotGrace, setDayGoalConfig, checkinReal,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
+import { activationInfo, parseActivation } from './activation.js';
 import { normalizePrefs } from './notify-plan.js';
 import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
 import { entriesFor, getScope, CD } from './coach-data.js';
@@ -139,12 +140,15 @@ const DEFAULT_RT = {
   serverAckAt: null,     // when the bell was last opened — offline unread-badge ack for server rows
   day0: false,           // fresh-athlete empty-state mode (set by finishing onboarding)
   day0Breakfast: false,  // day-0 first meal logged
+  activationDate: null,  // ISO stamp of onboarding commit (first-day activation; never backdate). Server committed_at is the cross-device backstop.
   lastMove: null,        // {from, to, gain, what} — powers confirmation screens
   assigned: [],          // coach-assigned requirements: {id,title,icon,note,from,dueLabel,done,seen,real?}
   reqSets: null,         // team's standing requirement_sets (0055) — cached for resolution surfaces
   stdMeals: null,        // resolved governing standard {mealsRequired, slots, deadlines, titles} — drives the scored day
   coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots)
   coachNudged: {},       // coach device: athleteId -> ISO date of last nudge (one per athlete per day)
+  coachSetup: {},        // coach first-run checklist: real per-step completion flags (sharedCode/standard/staff/group) marked when the coach actually does each step; reset per-account by _wipeUserScopedState
+  coachVoice: null,      // coach's AI-voice config {enabled,tone,level,approved:[],prohibited}; null → defaults. The AI edge fn consumes this once wired (server-deferred)
   theme: 'dark',         // 'dark' | 'light' | 'system' — dark is the shipped default (WS2b)
   haptics: true,         // device preference: light vibration on taps/logs (router buzz())
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
@@ -385,6 +389,19 @@ export function syncRtFromDay() {
   save();
 }
 
+/* The athlete's activation stamp for the first-day (no-retroactive-failure) rules. Primary:
+   RT.activationDate, stamped locally at onboarding commit — covers the exact signup→dashboard
+   moment on the same device. Backstop: the server committed_at hydrated into RT.profile.committedAt
+   (cross-device). Null (existing/pre-change users) ⇒ fully active, so nobody is affected retroactively. */
+function activationStamp() {
+  return RT.activationDate || (RT.profile && RT.profile.committedAt) || null;
+}
+/** The activation calendar date only ('YYYY-MM-DD'), or null. */
+function activationDateOnly() {
+  const p = parseActivation(activationStamp());
+  return p ? p.date : null;
+}
+
 /* ---------------- Goal → scoring profile + targets (proto mirror of src/core) ----------------
    A solo client never gets a coach to set their scoring, so the goal they chose at signup drives
    it: lose/maintain → the calorie-target `general` profile, build → the surplus `gain` profile,
@@ -441,7 +458,7 @@ function execCatalog() {
     return {
       id: k, title: (std.titles && std.titles[k]) || (base ? base.title : cap(k.replace('-', ' '))),
       icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
-      freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) }, required: true,
+      freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k), grace: slotGrace(k) }, required: true,
       impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: base ? base.note : '',
     };
   });
@@ -714,6 +731,23 @@ export const act = {
       } catch { /* server pref is best-effort; local prefs already applied */ }
     }
   },
+  /* First-run coach checklist (coach Home). Mark a setup step genuinely complete the moment the
+     coach actually does it — the checklist then reads a real signal instead of a hardcoded
+     "done". Persisted with RT and reset per-account by _wipeUserScopedState, so a new coach on
+     the same device never inherits another coach's progress. Idempotent + best-effort. */
+  markCoachSetup(key) {
+    if (!key) return;
+    if (!RT.coachSetup || typeof RT.coachSetup !== 'object') RT.coachSetup = {};
+    if (RT.coachSetup[key]) return;
+    RT.coachSetup[key] = true;
+    save();
+  },
+  /* Coach Voice config (tone/accountability/approved phrases/prohibited words). Persisted with RT;
+     the AI edge function reads it to reinforce the coach's standards in their tone once wired. */
+  setCoachVoice(patch) {
+    RT.coachVoice = { ...(RT.coachVoice || {}), ...(patch || {}) };
+    save();
+  },
   /* Register this device's push token (coach→athlete nudges) via the bridge, once per
      session, after sign-in. Fire-and-forget; a denial or missing seam is a silent no-op. */
   async registerPushToken() {
@@ -912,7 +946,7 @@ export const act = {
     saveMeal();
   },
 
-  startDay0() { RT.lastMove = null; dayResetLocal(); applyGoalToDay(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
+  startDay0() { RT.lastMove = null; dayResetLocal(); applyGoalToDay(); this._applyStandardFromSets(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
   // Coach→athlete assignments: real rows (0055) sync completion to the server; local-only
   // items (injury-mode rehab) stay local. Optimistic — server truth reasserts on next hydrate.
   completeAssigned(id) {
@@ -1053,12 +1087,15 @@ export const act = {
     const hadTargets = !!(RT.profile && RT.profile.targets);
     RT.profileLoading = true; save();
     try {
-      const { data: prof } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
+      const { data: prof } = await sb.from('profiles').select('full_name,committed_at').eq('id', userId).maybeSingle();
       // SETTLED sentinel: supabase-js resolves network/RLS failures into `{error}` without
       // throwing — destructure it so a real fetch failure is never misread as "no targets".
-      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob').eq('athlete_id', userId).maybeSingle();
+      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob,standard').eq('athlete_id', userId).maybeSingle();
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
+      // Cross-device activation backstop: the server's committed_at is the first-day anchor when
+      // this device never ran onboarding (RT.activationDate is local-only).
+      if (prof && prof.committed_at) patch.committedAt = prof.committed_at;
       if (ap) {
         if (ap.sport) patch.sport = ap.sport; if (ap.position) patch.position = ap.position; if (ap.level) patch.level = ap.level;
         if (ap.base_weight != null) patch.baseWeight = ap.base_weight;
@@ -1066,6 +1103,7 @@ export const act = {
         if (ap.season_goal && typeof ap.season_goal === 'object') patch.seasonGoal = ap.season_goal;
         if (ap.targets && typeof ap.targets === 'object') patch.targets = ap.targets;
         if (ap.dob) patch.dob = ap.dob; // drives the client-side minor gate (mirrors 0050's is_provable_minor)
+        if (ap.standard && typeof ap.standard === 'object') patch.standard = ap.standard; // solo personal standard (mealsPerDay)
       }
       // The patch above only ever touches RT.profile.targets when `ap` actually came back, so a
       // previously-cached target (hadTargets) survives an errored fetch untouched — the athlete
@@ -1283,7 +1321,9 @@ export const act = {
   async _loadAssignmentsIntoRt() {
     if (!RT.userId) return;
     const rows = await fetchMyAssignments();
-    if (!rows.length && !RT.assigned.some(a => a.real)) return; // nothing server-side yet — keep local
+    // Even with no coach assignments, a solo athlete still needs their standard resolved (their
+    // personal meal count governs the scored day) — apply it before the early return.
+    if (!rows.length && !RT.assigned.some(a => a.real)) { this._applyStandardFromSets(); return; }
     const coachName = (RT.myCoach && RT.myCoach.name) || 'Coach';
     const prevSeen = new Set(RT.assigned.filter(a => a.seen).map(a => a.id));
     const real = rows.map(r => assignedFromRow(r, coachName)).filter(Boolean)
@@ -1297,8 +1337,16 @@ export const act = {
   /* Resolve the governing set (athlete > position room > team) into the DAY engine: slot
      list, deadlines, titles, and the nutrition denominator. No set → the classic day. */
   _applyStandardFromSets() {
-    const set = resolveRequirementSet(RT.reqSets || [], RT.userId, (RT.profile || {}).position);
-    RT.stdMeals = stdFromItems(set && set.items);
+    // Resolve the version governing the day being scored (DAY.date), so a coach's future-dated
+    // standard edit never rescopes today or a past day (prospective effective dates, 0085).
+    const set = resolveRequirementSet(RT.reqSets || [], RT.userId, (RT.profile || {}).position, String(DAY.date));
+    let std = stdFromItems(set && set.items);
+    // Independent (no governing coach set): a NEW solo athlete's chosen personal standard governs
+    // their scored day. Gated on RT.activationDate — stamped only by this build's onboarding — so
+    // EXISTING solo athletes are never silently re-scored against a different meal count (they
+    // keep the classic 4-meal day). Coach-linked athletes always resolve `set` first, unaffected.
+    if (!std && RT.activationDate) std = stdFromSolo((RT.profile && RT.profile.standard) || (RT.ob && RT.ob.standard));
+    RT.stdMeals = std;
     setDayStandard(RT.stdMeals);
   },
   /* Athlete: redeem a coach team code (or a trainer practice code) from the Connect screen.
@@ -1473,6 +1521,10 @@ export const act = {
     const ob = RT.ob || {};
     const synced = { legacy: false, extra: false, stamps: false, join: false, ...(ob._synced || {}) };
     const name = ob.name || (RT.profile && RT.profile.name) || '';
+    // First-day activation anchor: stamped once, at signup, from the hold-to-commit moment (or now).
+    // Everything scored before this instant is "Not required" — the athlete is never punished for
+    // windows that closed before their account existed. Idempotent (set once; retries never move it).
+    if (!RT.activationDate) { RT.activationDate = ob.committedAt || new Date().toISOString(); save(); }
     // local identity first (always — cheap, idempotent)
     this.saveProfile({ name, sport: ob.sport || '', position: ob.position || '', level: ob.level || '' });
     this.saveAllergies(ob.allergies || RT.allergies || []);
@@ -1812,7 +1864,12 @@ export const S = {
     const y = (DAY.scoreHistory || []).find(h => h.date === yISO);
     return y ? y.score : null;
   },
-  get streakDays() { return dayStreak(); },
+  get streakDays() { return dayStreak(activationDateOnly()); },
+  // First-day activation state (no retroactive failure). notYetScored is true for the whole
+  // activation day: the athlete may log (and the coach sees it), but the day shows "Not scored
+  // yet" and doesn't grade/streak — full scoring resumes the next local day.
+  get activation() { return activationInfo(activationStamp(), String(DAY.date)); },
+  get notYetScored() { return this.activation.notYetScored; },
   // Guardian-consent surface (athlete side of 0050). `needed` gates the Home banner + the
   // sync pill copy; a verified minor and every adult read as not-needed.
   get consent() {
@@ -1834,7 +1891,7 @@ export const S = {
   // Grace-aware streak state for the label surfaces. The grace "recharges": a graced miss
   // older than the trailing 7 days reads as intact again (one miss per rolling week).
   get streak() {
-    const info = streakInfo();
+    const info = streakInfo(activationDateOnly());
     let graceUsedRecently = false;
     if (info.graceDate) {
       const diff = Math.round((new Date(DAY.date + 'T12:00:00') - new Date(info.graceDate + 'T12:00:00')) / 86400000);
@@ -2168,7 +2225,9 @@ export const S = {
   get exec() {
     const mstat = (k) => {
       const at = DAY.mealLoggedAt[k];
-      return { done: mealScored(DAY, k), late: at != null && at > slotDeadline(k), at: at != null ? fmtClock(at) : null };
+      // "late" for display must match scoring: a meal inside the grace window scored on-time,
+      // so it reads "Logged", not "Logged late".
+      return { done: mealScored(DAY, k), late: at != null && at > slotDeadline(k) + slotGrace(k), at: at != null ? fmtClock(at) : null };
     };
     const std = RT.stdMeals;
     const catalog = execCatalog();
@@ -2188,6 +2247,8 @@ export const S = {
       assigned: RT.assigned.map((a) => ({ ...a, dueAtMin: dueAtMinToday(a.dueAtISO) })),
       pressure: mapPressure(RT.ob && RT.ob.standard && RT.ob.standard.pressure),
       score: this.score, possible: this.possible, streak: this.streakDays,
+      // First-day activation: windows that closed before the athlete activated read "Not required".
+      activationMin: this.activation.activationMin,
       catalog,
       dateISO: String(DAY.date),
       prefs: RT.notifPrefs,

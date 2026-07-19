@@ -72,6 +72,19 @@ export function slotDeadline(k) {
   if (STD && STD.deadlines && STD.deadlines[k] != null) return STD.deadlines[k];
   return DEADLINE[k] != null ? DEADLINE[k] : 1440;
 }
+/** Grace minutes for a slot — a meal logged within deadline+grace still counts on-time. A
+ *  standard with no grace (every shipped standard + the classic day) is 0, so scoring stays
+ *  byte-identical to the parity-locked engine. */
+export function slotGrace(k) {
+  return (STD && STD.grace && typeof STD.grace[k] === 'number') ? STD.grace[k] : 0;
+}
+/** Credit a slot earns when logged past deadline+grace: half (shipped default), full (the coach
+ *  forgives lateness), or none (a hard window). Exported so the score breakdown explains lateness
+ *  with the SAME credit the score applies (T-01), never a hardcoded half. */
+export function slotLateCredit(k) {
+  const p = STD && STD.latePolicy && STD.latePolicy[k];
+  return p === 'full' ? 1 : p === 'none' ? 0 : 0.5;
+}
 const scoredSlotKeys = () => (STD && STD.slots ? STD.slots : MEAL_KEYS);
 
 function effectiveMeals(day) {
@@ -79,7 +92,8 @@ function effectiveMeals(day) {
   for (const k of scoredSlotKeys()) {
     if (!mealScored(day, k)) continue;
     const at = day.mealLoggedAt && day.mealLoggedAt[k];
-    n += (at == null || at <= slotDeadline(k)) ? 1 : 0.5; // late meal earns half (matches effectiveMealsLogged)
+    const onTime = at == null || at <= slotDeadline(k) + slotGrace(k);
+    n += onTime ? 1 : slotLateCredit(k); // late → the standard's late policy (default: half)
   }
   return n;
 }
@@ -291,7 +305,7 @@ export function tierFor(s) { return s >= 90 ? { name: 'OnStandard', cls: 'g' } :
  *
  *  Returns { days, todayCounted, graceDate } — graceDate is the most recent graced miss
  *  inside the run (null when the grace is intact). */
-export function streakInfo() {
+export function streakInfo(activationDate = /** @type {string | null} */ (null)) {
   const THRESH = 80;
   const byDate = {};
   let earliest = null;
@@ -300,12 +314,19 @@ export function streakInfo() {
     if (earliest === null || h.date < earliest) earliest = h.date;
   }
   const diffDays = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
-  const todayCounted = dayScore() >= THRESH;
+  // First-day activation (no retroactive failure): the activation day is a partial day the athlete
+  // is never scored on — it neither counts toward the streak nor breaks it. `activationDate` is a
+  // 'YYYY-MM-DD'; null (existing users) leaves every rule below untouched.
+  const isActivationDay = !!activationDate && DAY.date === activationDate;
+  const todayCounted = !isActivationDay && dayScore() >= THRESH;
   let days = todayCounted ? 1 : 0;
   let graceDate = null;   // most recent graced miss (first one met walking backward)
   let lastGrace = null;   // for the rolling-7 rule
   let cursor = addDaysISO(DAY.date, -1);
   while (earliest !== null && cursor >= earliest) {
+    // The activation day and everything before it predate accountability — stop the walk there
+    // (never a miss, never burns grace, never counts).
+    if (activationDate && cursor <= activationDate) break;
     const s = byDate[cursor];
     if (typeof s === 'number' && s >= THRESH) {
       days++;
@@ -324,8 +345,9 @@ export function streakInfo() {
   return { days, todayCounted, graceDate };
 }
 
-/** Back-compat: the plain day count (now grace-aware and morning-safe). */
-export function streakDays() { return streakInfo().days; }
+/** Back-compat: the plain day count (now grace-aware and morning-safe). `activationDate`
+ *  (a 'YYYY-MM-DD', or null) forwards the first-day exclusion to streakInfo. */
+export function streakDays(activationDate = /** @type {string | null} */ (null)) { return streakInfo(activationDate).days; }
 
 /* ---- offline cache (per user) ---- */
 function cacheKey(userId) { return `onstd-day-${userId}-${DAY.date}`; }

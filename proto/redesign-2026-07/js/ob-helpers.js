@@ -96,6 +96,24 @@ export function weightContradictsGoal(goal, current, target) {
 /** The solo standard for a goal: requirement rows + focus line. `profile` relabels the
     component weights ('athlete' 50/25/15/10 · 'general' 55/20/15/10) — labels only; the
     scoring engine itself is untouched (DECISION-MEMO D3). */
+/* One color per requirement category (matches Home's req-icon.* and the editor's std-ic-*), so
+   the "Your Standard" preview rows carry the same semantic hues instead of flat grey. */
+export function reqHeadTint(iconName) {
+  const M = {
+    utensils:  ['var(--green-surface)',  'var(--green-bright)'],
+    bowl:      ['var(--green-surface)',  'var(--green-bright)'],
+    moon:      ['var(--purple-surface)', 'var(--purple-bright)'],
+    check:     ['var(--blue-surface)',   'var(--blue-bright)'],
+    clipboard: ['var(--cyan-surface)',   'var(--cyan)'],
+    scale:     ['var(--amber-surface)',  'var(--amber-bright)'],
+    droplet:   ['var(--cyan-surface)',   'var(--cyan)'],
+    bolt:      ['var(--amber-surface)',  'var(--amber-bright)'],
+    target:    ['var(--blue-surface)',   'var(--blue-bright)'],
+    users:     ['var(--blue-surface)',   'var(--blue-bright)'],
+  };
+  return M[iconName] || ['var(--surface-2)', 'var(--text-2)'];
+}
+
 export function standardForGoal(goal, mealsPerDay, profile = 'athlete') {
   const meals = Math.min(4, Math.max(2, Math.round(mealsPerDay || 3)));
   const W = profile === 'general'
@@ -105,9 +123,9 @@ export function standardForGoal(goal, mealsPerDay, profile = 'athlete') {
     meals,
     focus: GOAL_EMPHASIS[goal] || GOAL_EMPHASIS.maintain,
     rows: [
-      ['utensils', `${MEAL_WORD[meals]} meals, photo proof`, `Nutrition · ${W.n}% of your score`],
+      ['utensils', `${MEAL_WORD[meals]} meals, photo proof`, `Nutrition · ${W.n}%`],
       ['moon', 'Recovery check-in before bed', `Recovery · ${W.r}%`],
-      ['check', 'One honest commitment tap', `Commitment · ${W.c}%`],
+      ['check', 'Daily commitment — one honest tap', `Commitment · ${W.c}%`],
       ['clipboard', 'Weekly check-in on Sundays', `Check-in · ${W.w}%`],
       ['scale', 'Weight Mon / Wed / Fri', 'Season trend · not scored'],
     ],

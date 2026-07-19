@@ -1,10 +1,174 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc } from '../components.js';
+import { avatarHead, esc, collapseSection } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster, loadActivity, actTime, entriesFor, getScope, setScope } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { teamPulse } from '../status.js';
+import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
+
+/* Athlete-invite link + share text (mirrors the trainer's inviteLink/inviteShareText inline,
+   the same way state.js mirrors src/core in plain JS). Empty code → empty string: never link or
+   share a dead code before the team's join code is real. */
+function inviteLink(code) {
+  const c = (code || '').trim().toUpperCase();
+  return c ? `https://onstandard.app/join?code=${c}` : '';
+}
+function inviteShareText(code, teamName) {
+  const c = (code || '').trim().toUpperCase();
+  if (!c) return '';
+  const name = (teamName && teamName.trim()) || 'my team';
+  return `Join ${name} on OnStandard. Use code ${c} or open ${inviteLink(c)}`;
+}
+
+/* SIGNATURE-matched invite card for the empty dashboard: the athlete code in boxes, a scannable
+   QR, and Copy / Share — the coach's first useful action is to hand out the code. */
+function coachInviteCard(code, teamName) {
+  const link = inviteLink(code);
+  const svg = qrSvg(addQuietZone(encodeQR(link, 'M')), 96, '#0B0D12', `QR code to join ${esc(teamName)}`);
+  return `<section class="card" style="padding:18px">
+    <div class="eyebrow" style="margin:0 0 10px">Invite code</div>
+    <div class="code-boxes invite-code" style="padding:0;margin-bottom:14px">
+      ${code.split('').map((ch) => `<div class="cb filled">${esc(ch)}</div>`).join('')}
+    </div>
+    <div style="display:flex;gap:14px;align-items:center">
+      <div style="flex:none"><div class="hq-qr">${svg}</div><div class="hq-qcap">SCAN TO JOIN</div></div>
+      <div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">Athletes scan the code or enter it to join your team. Only you hand it out.</div>
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn ghost sm" id="coach-copy-code">${icon('clipboard', 16)} Copy code</button>
+      <button class="btn sm" id="coach-share-invite" style="background:linear-gradient(150deg,var(--blue-bright),#2563eb);color:#fff">${icon('share', 16)} Share invite</button>
+    </div>
+  </section>`;
+}
+
+/* First-run checklist — real per-step completion, never a hardcoded "done". Each flag is a
+   genuine signal: a shared code, a saved standard, touched notification prefs, a minted staff
+   invite, a real group (persisted per-account in RT.coachSetup by act.markCoachSetup, or derived
+   from live state). Athletes already on the roster imply the code was shared. */
+function coachSetupState() {
+  const cs = (RT && RT.coachSetup) || {};
+  const hasAthletes = !!(CD.roster && CD.roster.rows && CD.roster.rows.length);
+  const groups = (CD.extras && CD.extras.groups) || [];
+  const st = {
+    sharedCode: !!cs.sharedCode || hasAthletes,
+    standard: !!cs.standard,
+    notif: RT.coachNotifPrefs != null || !!cs.notif,
+    staff: !!cs.staff,
+    group: !!cs.group || groups.length > 0,
+    hasAthletes,
+  };
+  // Required = share code + review standard. "Team ready" and the amber gating key off these (T-05 #11).
+  st.requiredDone = (st.sharedCode ? 1 : 0) + (st.standard ? 1 : 0);
+  st.requiredTotal = 2;
+  st.ready = st.requiredDone === st.requiredTotal;
+  return st;
+}
+/* Setup steps split into REQUIRED (share code, review standard) and OPTIONAL. */
+function coachSetupSteps(st) {
+  return {
+    required: [
+      { key: 'sharedCode', done: st.sharedCode, t: 'Share your athlete code', s: st.sharedCode ? 'Shared — athletes can join anytime' : 'Invite athletes to start tracking execution', go: 'coach-profile/code' },
+      { key: 'standard', done: st.standard, t: 'Review your standard', s: 'Meals, windows, and requirements', go: 'coach-plan-set/team' },
+    ],
+    optional: [
+      { key: 'notif', done: st.notif, t: 'Set notification rules', s: 'When you and your athletes get nudged', go: 'coach-notif-settings' },
+      { key: 'staff', done: st.staff, t: 'Invite your staff', s: 'Coordinators, position coaches, and more', go: 'coach-profile/staff' },
+      { key: 'group', done: st.group, t: 'Organize your roster', s: st.hasAthletes ? 'Group by room or unit' : 'Rooms fill in as athletes join', go: st.hasAthletes ? 'coach-roster' : null },
+    ],
+  };
+}
+function allSetupSteps(st) { const g = coachSetupSteps(st); return [...g.required, ...g.optional]; }
+function setupIncompleteCount(st) { return allSetupSteps(st).filter((i) => !i.done).length; }
+
+/* One checklist row. Done → green check; a required-incomplete step gets a restrained amber marker
+   (Warning token, no side-stripe/neon per PRODUCT.md); optional-incomplete stays neutral. */
+function setupRow(i, required) {
+  const marker = i.done
+    ? `<div class="xico sm green">${icon('check', 15)}</div>`
+    : required
+      ? `<div class="xico sm" style="background:var(--amber-surface);border:1.5px solid var(--amber-border)"></div>`
+      : `<div class="xico sm gray"></div>`;
+  return `<div class="lrow" ${i.go ? `data-go="${i.go}" style="cursor:pointer"` : 'style="cursor:default;opacity:0.7"'}>
+      ${marker}
+      <div class="lm"><div class="lt">${esc(i.t)}</div><div class="ls">${esc(i.s)}</div></div>
+      ${i.go ? icon('chevron', 17, 'style="color:var(--text-3)"') : (i.done ? '' : `<span style="font-size:10px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3)">Soon</span>`)}
+    </div>`;
+}
+/* Required + optional groups with a progress line. Required-incomplete card carries a restrained
+   amber tint. Shared by the empty and populated dashboards, so guidance survives the first join. */
+function setupChecklistCard(st) {
+  const { required, optional } = coachSetupSteps(st);
+  const left = st.requiredTotal - st.requiredDone;
+  const progress = st.ready
+    ? `<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;color:var(--green-bright);margin:0 2px 8px">${icon('check', 13)} Required setup complete</div>`
+    : `<div style="font-size:11.5px;font-weight:800;letter-spacing:0.02em;color:var(--amber-bright);margin:0 2px 8px">${st.requiredDone} of ${st.requiredTotal} required steps done · ${left} to go</div>`;
+  return `
+    ${progress}
+    <section class="card" style="padding:6px 16px;${st.ready ? '' : 'background:var(--amber-surface);border-color:var(--amber-border)'}">
+      ${required.map((i) => setupRow(i, true)).join('')}
+    </section>
+    <div class="eyebrow" style="margin-top:14px">Optional</div>
+    <section class="card" style="padding:6px 16px">
+      ${optional.map((i) => setupRow(i, false)).join('')}
+    </section>`;
+}
+
+/* Muted, honestly-inactive team-score tile for the empty roster — no fabricated 0, and clearly
+   "not scored until athletes log" so it never reads as an active score (T-13/#do-not-show-active).
+   A margin keeps it off the card above it (T-20 seam fix). */
+function notScoredTeamTile() {
+  return `<section class="co-pulse" style="cursor:default;margin-top:4px;box-shadow:none">
+    <div class="co-pulse-top">
+      <div class="co-pulse-score"><div class="k">Team score</div><div class="num" style="font-size:34px;color:var(--text-3);-webkit-text-fill-color:var(--text-3);background:none">—</div><div class="delta flat">Not scored until athletes log</div></div>
+      <div class="co-pulse-done"><div class="v" style="color:var(--text-3)">0</div><div class="k">Athletes</div></div>
+    </div>
+  </section>`;
+}
+
+/* Honest code-card state when there's no live code yet: loading / offline (with retry) / creating —
+   never a fake "minting… a few seconds" (T-13). */
+function codeStateBox() {
+  const state = S.coachIdentity.state;
+  if (state === 'loading') {
+    return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">Loading your team…</div><div class="ts">Checking your team and code.</div></div></div>`;
+  }
+  if (state === 'offline') {
+    return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('wifiOff', 17)}</div>
+      <div style="flex:1"><div class="tt">Can't reach the server</div><div class="ts">Your code is safe — reconnect and it shows right here.</div>
+      <button class="btn ghost sm" id="coach-team-retry" style="width:auto;padding:0 16px;margin-top:8px">${icon('wifiOff', 15)} Retry</button></div></div>`;
+  }
+  return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+    <div><div class="tt">Creating your athlete code…</div><div class="ts">It shows up here as soon as your team is set up. If it doesn't appear, reopen the app and it'll retry.</div></div></div>`;
+}
+
+/* The truthful empty dashboard: readiness gate first (amber "Let's get your team ready" until the
+   required steps are done, then green "ready"), the invite code, the required/optional setup, and a
+   muted team-status tile below the actionable content (F7). Never a fabricated score or fake mint. */
+export function emptyTeamDashboard(code, teamName) {
+  const st = coachSetupState();
+  const left = st.requiredTotal - st.requiredDone;
+  const banner = st.ready
+    ? `<section class="state-demo" style="border-style:solid;border-color:var(--green-border)"><div class="sd-ic" style="color:var(--green-bright)">${icon('check', 24)}</div>
+        <div class="sd-t">Your team is ready</div>
+        <div class="sd-s">Invite athletes to begin. Your command center lights up in real time as they log.</div></section>`
+    : `<section class="state-demo" style="border-style:solid;border-color:var(--amber-border);background:var(--amber-surface)"><div class="sd-ic" style="color:var(--amber-bright)">${icon('bolt', 24)}</div>
+        <div class="sd-t">Let's get your team ready</div>
+        <div class="sd-s">${left} required step${left === 1 ? '' : 's'} to go — share your code and set your standard, then invite your athletes.</div></section>`;
+  return `
+    ${banner}
+    ${code ? coachInviteCard(code, teamName) : codeStateBox()}
+    <div class="eyebrow">Finish setting up your team</div>
+    ${setupChecklistCard(st)}
+    <div class="eyebrow">Team status</div>
+    ${notScoredTeamTile()}
+    <div class="eyebrow">Roster</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 8px;line-height:1.4">No athletes yet — they appear here the moment they join with your code.</div>
+    <div class="eyebrow">Live activity</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No activity yet. New logs land here in real time once athletes begin.</div>
+    <div class="co-bottom"></div>`;
+}
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 let SHOW_SCOPES = false;        // scope sheet open?
@@ -120,11 +284,11 @@ export const coachHome = {
       <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
       <div class="sd-t">Can't reach your team</div>
       <div class="sd-s">Check your connection — reopen to retry. Nothing is lost.</div></div>`;
-    if (!CD.roster.rows.length) return `${head}
-      <div class="state-demo" data-go="coach-profile" style="cursor:pointer"><div class="sd-ic">${icon('users', 24)}</div>
-      <div class="sd-t">No athletes yet</div>
-      <div class="sd-s">Share your team code so athletes can join. Your command center lights up as they log.</div>
-      ${RT.team && RT.team.code ? `<div class="sd-cta"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</span></div>` : ''}</div>`;
+    if (!CD.roster.rows.length) {
+      const code = RT.team && RT.team.code;
+      const teamNm = (CD.roster.teams[0] && CD.roster.teams[0].name) || teamName;
+      return `${head}${emptyTeamDashboard(code, teamNm)}`;
+    }
 
     const entries = entriesFor(scope);
     const statuses = {}; if (entries) for (const e of entries) statuses[e.row.athleteId] = e.status;
@@ -148,6 +312,14 @@ export const coachHome = {
     ${SHOW_SCOPES ? scopeSheet() : ''}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div><span style="color:var(--text-3)">›</span></div>` : ''}
     ${entries === null ? '' : pulseCard(rows, statuses)}
+
+    ${(() => {
+      // Setup guidance persists (collapsed) after the first athlete joins — it no longer vanishes
+      // mid-setup. Hidden only once every step is genuinely done.
+      const st = coachSetupState();
+      const left = setupIncompleteCount(st);
+      return left ? collapseSection('coach-setup', 'Finish setting up your team', left, setupChecklistCard(st), false) : '';
+    })()}
 
     <div class="eyebrow">Coach priorities</div>
     ${entries === null ? `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
@@ -181,6 +353,40 @@ export const coachHome = {
   },
   mount(root) {
     loadCoachRoster().then(() => loadActivity());
+    // Empty-state invite card: Copy + native Share of the athlete code (present only before any
+    // athlete has joined).
+    const code = RT.team && RT.team.code;
+    const teamNm = (CD.roster && CD.roster.teams[0] && CD.roster.teams[0].name) || 'your team';
+    const copyBtn = root.querySelector('#coach-copy-code');
+    if (copyBtn) copyBtn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(code || ''); } catch { /* no-op */ }
+      if (code) act.markCoachSetup('sharedCode'); // real "shared" signal for the setup checklist
+      copyBtn.innerHTML = `${icon('check', 16)} Copied`;
+      setTimeout(() => { copyBtn.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
+    });
+    // Offline code-card retry (T-13): re-pull the team identity, then repaint honestly.
+    const teamRetry = root.querySelector('#coach-team-retry');
+    if (teamRetry) teamRetry.addEventListener('click', async () => {
+      teamRetry.disabled = true; teamRetry.innerHTML = 'Retrying…';
+      try { await act._loadTeamIntoRt(RT.userId); } catch { /* still offline — honest state re-renders */ }
+      window.__render();
+    });
+    const shareBtn = root.querySelector('#coach-share-invite');
+    if (shareBtn) shareBtn.addEventListener('click', async () => {
+      const url = inviteLink(code), text = inviteShareText(code, teamNm);
+      if (code) act.markCoachSetup('sharedCode');
+      try {
+        if (window.OnStandardNative && window.OnStandardNative.share) {
+          window.OnStandardNative.share({ title: `Join ${teamNm}`, message: text, url });
+        } else if (navigator.share) {
+          await navigator.share({ title: `Join ${teamNm}`, text, url });
+        } else {
+          await navigator.clipboard.writeText(text);
+          shareBtn.innerHTML = `${icon('check', 16)} Copied invite`;
+          setTimeout(() => { shareBtn.innerHTML = `${icon('share', 16)} Share invite`; }, 1600);
+        }
+      } catch { /* share sheet dismissed */ }
+    });
     root.querySelectorAll('[data-scopes]').forEach(b => b.addEventListener('click', () => { SHOW_SCOPES = !SHOW_SCOPES; window.__render(); }));
     root.querySelectorAll('[data-pulse]').forEach(b => b.addEventListener('click', () => { SHOW_PULSE = !SHOW_PULSE; window.__render(); }));
     root.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {

@@ -7,7 +7,7 @@
 .co-scroll { overflow-x: auto; scrollbar-width: none; }
 .co-scroll::-webkit-scrollbar { display: none; }
 .co-eyebrow {
-  font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  font-size: 11px; font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
   color: var(--text-3); margin: var(--s6) 2px var(--s3);
   display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3);
 }
@@ -93,7 +93,7 @@
   display: flex; gap: var(--s2); padding: 2px 0 var(--s2); margin: 0 -2px;
 }
 .co-seg .co-chip {
-  flex: none; height: 34px; padding: 0 15px; border-radius: var(--r-pill);
+  flex: none; height: 40px; padding: 0 15px; border-radius: var(--r-chip);
   background: var(--surface-1); border: 1px solid var(--hairline);
   color: var(--text-2); font-family: var(--font); font-size: 13px; font-weight: 700;
   letter-spacing: -0.005em; cursor: pointer; white-space: nowrap;
@@ -120,10 +120,7 @@
   border-radius: var(--r-tile); box-shadow: var(--sh-card);
   padding: var(--s4); margin-bottom: var(--s3); overflow: hidden;
 }
-.co-pri::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
-.co-pri.t-critical::before { background: var(--red); }
-.co-pri.t-below::before { background: var(--amber-bright); }
-.co-pri.t-due::before { background: var(--blue-bright); }
+/* Tier is conveyed by the .co-tier chip + the score color — no side-stripe accent (T-14; PRODUCT.md ban). */
 .co-pri-head { display: flex; align-items: flex-start; gap: var(--s3); cursor: pointer; }
 .co-pri-rank {
   flex: none; width: 22px; font-size: 13px; font-weight: 800; color: var(--text-3);
@@ -145,7 +142,7 @@
 /* action row: one primary + subordinate ghosts */
 .co-pri-acts { display: flex; gap: var(--s2); margin-top: var(--s3); }
 .co-abtn {
-  flex: 1; height: 36px; border-radius: var(--r-chip); border: 1px solid var(--hairline);
+  flex: 1; height: 44px; border-radius: var(--r-chip); border: 1px solid var(--hairline);
   background: var(--surface-2); color: var(--text); font-family: var(--font);
   font-size: 12.5px; font-weight: 700; cursor: pointer; display: inline-flex;
   align-items: center; justify-content: center; gap: 6px;
@@ -177,7 +174,7 @@
 .co-stat .v { font-size: 26px; font-weight: 800; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--text); }
 .co-stat .v.g { color: var(--green-bright); } .co-stat .v.a { color: var(--amber-bright); } .co-stat .v.r { color: #FF9B9B; } .co-stat .v.b { color: var(--blue-bright); }
 .co-stat .v small { font-size: 13px; font-weight: 700; color: var(--text-3); letter-spacing: 0; }
-.co-stat .k { font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-top: 7px; }
+.co-stat .k { font-size: 10.5px; font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); margin-top: 7px; }
 
 /* ============================================================
    Athlete profile — identity header + slim action bar
@@ -250,3 +247,123 @@
 
 /* bottom breathing room so panes/composers clear the tab bar */
 .co-bottom { height: var(--s8); }
+
+/* ============================================================
+   Standards editor (coachPlanSet) — premium module redesign
+   Built entirely on design tokens so it adapts to light/dark.
+   ============================================================ */
+.std-wrap { padding-bottom: 24px; }
+
+/* Live summary of the current standard, under the header */
+.std-summary { display:flex; flex-wrap:wrap; gap:7px; margin:2px 0 18px; }
+.std-sum { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px;
+  border-radius:var(--r-pill); background:var(--surface-2); border:1px solid var(--hairline);
+  color:var(--text-2); font-size:12px; font-weight:700; }
+.std-sum svg { opacity:.9; }
+.std-sum b { color:var(--text); font-weight:800; }
+
+/* Module card */
+.std-mod { background:var(--surface-1); border:1px solid var(--hairline); border-radius:var(--r-card);
+  padding:15px 16px 17px; margin-bottom:13px; box-shadow:var(--sh-card); }
+.std-mod-head { display:flex; align-items:center; gap:11px; margin-bottom:15px; }
+.std-mod-ic { width:37px; height:37px; border-radius:12px; display:grid; place-items:center; flex:0 0 auto; }
+.std-mod-tt { min-width:0; }
+.std-mod-t { font-size:14.5px; font-weight:800; letter-spacing:var(--title-tight); line-height:1.15; }
+.std-mod-s { font-size:11.5px; font-weight:600; color:var(--text-3); margin-top:2px; line-height:1.35; }
+.std-mod-val { margin-left:auto; align-self:center; font-size:13px; font-weight:800; color:var(--text-2);
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+.std-ic-g { background:var(--green-surface); color:var(--green-bright); }
+.std-ic-a { background:var(--amber-surface); color:var(--amber-bright); }
+.std-ic-b { background:var(--blue-surface); color:var(--blue-bright); }
+.std-ic-p { background:var(--purple-surface); color:var(--purple-bright); }
+.std-ic-c { background:var(--cyan-surface); color:var(--cyan); }
+
+.std-lbl { font-size:10.5px; font-weight:800; letter-spacing:var(--track-key); text-transform:uppercase;
+  color:var(--text-3); margin:0 2px 9px; }
+.std-lbl.mt { margin-top:17px; }
+.std-help { font-size:11.5px; font-weight:600; color:var(--text-3); line-height:1.45; margin:9px 2px 0; }
+
+/* Chips */
+.std-chips { display:flex; flex-wrap:wrap; gap:8px; }
+.std-chip { min-width:44px; min-height:42px; padding:0 15px; display:inline-flex; align-items:center;
+  justify-content:center; border-radius:var(--r-chip); background:var(--surface-2);
+  border:1px solid var(--hairline); color:var(--text-2); font-size:13.5px; font-weight:700;
+  cursor:pointer; user-select:none;
+  transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
+.std-chip:active { transform: scale(.95); }
+.std-chip.on { background:var(--blue-surface); border-color:var(--blue-border); color:var(--text);
+  box-shadow: 0 0 0 1px var(--blue-border) inset, var(--sh-blue); }
+.std-chip.dashed { border-style:dashed; color:var(--text-3); background:transparent; }
+
+/* Circular meal-count chips */
+.std-count { display:flex; gap:7px; justify-content:space-between; }
+.std-count .std-chip { width:44px; height:44px; min-width:44px; padding:0; border-radius:50%;
+  font-size:15px; font-weight:800; }
+
+/* Segmented multi-choice (late policy, effective-from) */
+/* unified with athlete .seg: pill track, 44px buttons (a11y floor), surface-3 on-state */
+.std-seg { display:flex; gap:4px; padding:4px; background:var(--surface-1);
+  border:1px solid var(--hairline); border-radius:var(--r-pill); }
+.std-seg button { flex:1; min-height:44px; border:none; background:transparent; color:var(--text-2);
+  font:700 13px var(--font); border-radius:var(--r-pill); cursor:pointer;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
+.std-seg button.on { background:var(--surface-3); color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,0.3); }
+.std-seg.accent button.on { background:var(--blue-surface); color:var(--blue-bright);
+  box-shadow: 0 0 0 1px var(--blue-border) inset; }
+
+/* Toggle switch rows (on/off requirements) */
+.std-switch-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-top:1px solid var(--hairline-soft); }
+.std-switch-row:first-child { border-top:none; padding-top:2px; }
+.std-switch-row:last-child { padding-bottom:2px; }
+.std-sw-m { flex:1; min-width:0; }
+.std-sw-t { font-size:13.5px; font-weight:700; }
+.std-sw-s { font-size:11.5px; font-weight:600; color:var(--text-3); margin-top:2px; line-height:1.35; }
+.std-switch { flex:0 0 auto; width:50px; height:30px; border-radius:var(--r-pill); background:var(--surface-3);
+  border:1px solid var(--hairline); position:relative; cursor:pointer;
+  transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out); }
+.std-switch::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%;
+  background:var(--text-3); transition: transform var(--dur-2) var(--ease-out), background var(--dur-1) var(--ease-out); }
+.std-switch.on { background:var(--green-surface); border-color:var(--green-border); }
+.std-switch.on::after { transform: translateX(20px); background:var(--green-bright); }
+
+/* Meal name + window rows — name gets its own full-width line, times labeled below */
+.std-meal { display:flex; flex-direction:column; gap:8px; padding:11px 0; border-top:1px solid var(--hairline-soft); }
+.std-meal:first-child { border-top:none; padding-top:2px; }
+.std-name { width:100%; box-sizing:border-box; background:var(--surface-2); border:1px solid var(--hairline);
+  border-radius:10px; padding:10px 12px; color:var(--text); font:700 14px var(--font); }
+.std-name:focus { outline:none; border-color:var(--blue-border); background:var(--surface-3); }
+.std-meal-times { display:flex; align-items:center; gap:8px; }
+.std-tlabel { font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--text-3); flex:0 0 auto; }
+.std-time { flex:1; min-width:0; box-sizing:border-box; background:var(--surface-3); border:1px solid var(--hairline);
+  border-radius:10px; color:var(--text); font:700 13px var(--font); font-variant-numeric:tabular-nums;
+  padding:9px 10px; min-height:40px; }
+.std-time:focus { outline:none; border-color:var(--blue-border); }
+.std-time::-webkit-calendar-picker-indicator { opacity:.55; cursor:pointer; }
+.std-arrow { color:var(--text-3); font-size:13px; flex:0 0 auto; }
+
+/* "What the athlete sees" — the signature payoff card */
+.std-preview { position:relative; overflow:hidden; background:
+    linear-gradient(180deg, rgba(52,211,153,0.06), rgba(59,130,246,0.05)), var(--surface-1);
+  border:1px solid var(--green-border); border-radius:var(--r-card); padding:16px; margin-bottom:13px;
+  box-shadow:var(--sh-card); }
+/* No side-stripe on the preview card — the green border + header already frame it (T-14). */
+.std-prev-h { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:800;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--green-bright); margin-bottom:12px; }
+.std-prev-row { display:flex; align-items:center; gap:11px; padding:9px 0; border-top:1px solid var(--hairline-soft); }
+.std-prev-row:first-of-type { border-top:none; }
+.std-prev-ic { width:30px; height:30px; border-radius:9px; background:var(--surface-2); color:var(--text-2);
+  display:grid; place-items:center; flex:0 0 auto; }
+.std-prev-t { font-size:13.5px; font-weight:700; }
+.std-prev-s { font-size:11.5px; font-weight:600; color:var(--text-3); margin-top:1px; }
+.std-prev-foot { font-size:12px; font-weight:700; color:var(--text-2); margin-top:12px;
+  padding-top:11px; border-top:1px solid var(--hairline); }
+.std-prev-foot b { color:var(--green-bright); }
+
+/* Save affordance */
+.std-save { margin-top:4px; }
+.std-save .btn { height:54px; font-size:15.5px; box-shadow:var(--sh-blue); }
+.std-status { text-align:center; font-size:13px; font-weight:700; color:var(--text-3);
+  min-height:18px; margin-top:11px; }

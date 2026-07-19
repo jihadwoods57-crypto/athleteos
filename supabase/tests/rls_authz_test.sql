@@ -732,6 +732,45 @@ select _ok(_try($q$select create_staff_invite('77777777-1111-0000-0000-000000000
 select _ok(_try($q$select set_staff_role('77777777-1111-0000-0000-000000000001','10000000-0000-0000-0000-000000000010','coordinator')$q$) <> 'ok',
            'slice F: a non-head-coach cannot change roles');
 
+-- 8b. Roles v2 (0082/0083): a head coach mints + assigns S&C / Athletic Trainer / Team Admin;
+--     head_coach stays un-mintable and unknown roles are still refused.
+select _as('11111111-0000-0000-0000-000000000001');  -- head coach
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','s_and_c')) = 8,
+           'roles v2: head coach mints a Strength & Conditioning invite');
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','athletic_trainer')) = 8,
+           'roles v2: head coach mints an Athletic Trainer invite');
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','team_admin')) = 8,
+           'roles v2: head coach mints a Team Admin invite');
+select _ok(_try($q$select create_staff_invite('77777777-1111-0000-0000-000000000001','bogus_role')$q$) <> 'ok',
+           'roles v2: an unknown invite role is still refused');
+select _ok(set_staff_role('77777777-1111-0000-0000-000000000001','66666666-0000-0000-0000-000000000006','athletic_trainer'),
+           'roles v2: head coach re-roles a staff member to Athletic Trainer');
+select _ok((select role::text = 'athletic_trainer' from team_staff
+            where team_id = '77777777-1111-0000-0000-000000000001' and staff_id = '66666666-0000-0000-0000-000000000006'),
+           'roles v2: the Athletic Trainer role is stored');
+
+-- 8c. Standard versioning (0085): a future-dated edit ADDS a version and never overwrites the
+--     base, so today's scoring is never rescoped; re-saving the same date replaces that version.
+select _as('11111111-0000-0000-0000-000000000001');  -- head coach
+select set_team_requirements('77777777-1111-0000-0000-000000000001','position','VER',
+  '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb, null);           -- base (in effect now)
+select set_team_requirements('77777777-1111-0000-0000-000000000001','position','VER',
+  '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},{"id":"m2","title":"D","kind":"meal","proof":"photo"}]'::jsonb, current_date + 1);  -- prospective
+select _ok((select count(*) from requirement_sets
+            where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='VER') = 2,
+           'versioning: a future-dated edit adds a version alongside the base');
+select set_team_requirements('77777777-1111-0000-0000-000000000001','position','VER',
+  '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},{"id":"m2","title":"L","kind":"meal","proof":"photo"},{"id":"m3","title":"D","kind":"meal","proof":"photo"}]'::jsonb, current_date + 1);  -- re-edit same date
+select _ok((select count(*) from requirement_sets
+            where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='VER') = 2,
+           'versioning: re-saving the same effective date replaces it — no duplicate row');
+select _ok((select jsonb_array_length(items) from requirement_sets
+            where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='VER' and effective_date = current_date + 1) = 3,
+           'versioning: the tomorrow version holds the re-saved 3 meals');
+select _ok((select jsonb_array_length(items) from requirement_sets
+            where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='VER' and effective_date is null) = 1,
+           'versioning: the base version is untouched — today is unchanged');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'

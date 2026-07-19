@@ -15,8 +15,8 @@ const OPTIONS = [
   { key: 'message_group',   icon: 'users',     title: 'Message a group',       sub: 'Announce to a custom group',        go: 'coach-announce' },
   { key: 'standards',       icon: 'bars',      title: 'Standards & templates', sub: 'Meals, windows, check-ins by room', go: 'coach-plan' },
   { key: 'schedule',        icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster' },
-  { key: 'add_athlete',     icon: 'user',      title: 'Add an athlete',        sub: 'Share your team code',              go: 'coach-profile' },
-  { key: 'invite_staff',    icon: 'users',     title: 'Invite staff',          sub: 'Coordinator, room, or view-only',   go: 'coach-profile' },
+  { key: 'add_athlete',     icon: 'user',      title: 'Add an athlete',        sub: 'Share your team code',              go: 'coach-profile/code' },
+  { key: 'invite_staff',    icon: 'users',     title: 'Invite staff',          sub: 'Coordinator, room, or view-only',   go: 'coach-profile/staff' },
   { key: 'team_diet',       icon: 'heart',     title: 'Team diet',             sub: 'Meal-plan tools',                   go: 'team-diet' },
 ];
 

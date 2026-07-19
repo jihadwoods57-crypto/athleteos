@@ -410,8 +410,17 @@ export const coachNotifSettings = {
   render() {
     const p = normalizeCoachPrefs(RT.coachNotifPrefs);
     const qf = Math.round(p.quietFrom / 60); // 21 | 22 | 23
+    const qt = Math.round((p.quietTo != null ? p.quietTo : 7 * 60) / 60); // resume hour
     return `
-    ${backHead('Notifications', 'Planned on this phone from your latest roster view — open the app for the live picture.', 'coach-profile')}
+    ${backHead('Notifications', 'When and how you get alerts about your team.', 'coach-profile')}
+
+    <div class="eyebrow">Quick setup</div>
+    <div class="chip-row" id="cns-preset">
+      <span class="chp">Essential</span>
+      <span class="chp">Balanced</span>
+      <span class="chp">Hands-on</span>
+    </div>
+    <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:0 2px 6px">Pick a starting point, then fine-tune below.</div>
 
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
@@ -440,7 +449,7 @@ export const coachNotifSettings = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('clock', 17)}</div>
-        <div class="lm"><div class="lt">Hourly summary</div><div class="ls">Only while something is overdue</div></div>
+        <div class="lm"><div class="lt">Overdue digest</div><div class="ls">Only while something is overdue</div></div>
         <div class="seg" style="width:104px" id="cns-hourly"><button class="${p.hourly ? 'on' : ''}">On</button><button class="${p.hourly ? '' : 'on'}">Off</button></div>
       </div>
       <div class="lrow" style="cursor:default">
@@ -456,6 +465,11 @@ export const coachNotifSettings = {
         <div class="lic">${icon('moon', 17)}</div>
         <div class="lm"><div class="lt">No pings after</div></div>
         <div class="seg" style="width:150px" id="cns-quiet"><button class="${qf === 21 ? 'on' : ''}">9 PM</button><button class="${qf === 22 ? 'on' : ''}">10 PM</button><button class="${qf === 23 ? 'on' : ''}">11 PM</button></div>
+      </div>
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('bell', 17)}</div>
+        <div class="lm"><div class="lt">Back on at</div></div>
+        <div class="seg" style="width:150px" id="cns-quietto"><button class="${qt === 6 ? 'on' : ''}">6 AM</button><button class="${qt === 7 ? 'on' : ''}">7 AM</button><button class="${qt === 8 ? 'on' : ''}">8 AM</button></div>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('users', 17)}</div>
@@ -490,6 +504,32 @@ export const coachNotifSettings = {
         btns.forEach((x) => x.classList.remove('on'));
         b.classList.add('on');
         act.setCoachNotifPrefs({ quietFrom: atHour[b.textContent.trim()] });
+      }));
+    }
+
+    // Quiet-hours resume time (quietTo) — both a start AND a resume, per the correction.
+    const quietTo = root.querySelector('#cns-quietto');
+    if (quietTo) {
+      const btns = [...quietTo.querySelectorAll('button')];
+      const atHour = { '6 AM': 6 * 60, '7 AM': 7 * 60, '8 AM': 8 * 60 };
+      btns.forEach((b) => b.addEventListener('click', () => {
+        btns.forEach((x) => x.classList.remove('on'));
+        b.classList.add('on');
+        act.setCoachNotifPrefs({ quietTo: atHour[b.textContent.trim()] });
+      }));
+    }
+
+    // Quick-setup presets: apply a bundle of prefs, then repaint so every control reflects it.
+    const presetRow = root.querySelector('#cns-preset');
+    if (presetRow) {
+      const PRESETS = {
+        Essential: { enabled: true, briefing: false, recap: false, hourly: false, immediateCritical: true, quietFrom: 21 * 60 },
+        Balanced: { enabled: true, briefing: true, briefingAt: 7 * 60 + 30, recap: true, recapAt: 20 * 60 + 30, hourly: true, immediateCritical: true, quietFrom: 22 * 60 },
+        'Hands-on': { enabled: true, briefing: true, briefingAt: 7 * 60, recap: true, recapAt: 20 * 60, hourly: true, immediateCritical: true, quietFrom: 23 * 60 },
+      };
+      presetRow.querySelectorAll('.chp').forEach((c) => c.addEventListener('click', () => {
+        const b = PRESETS[c.textContent.trim()];
+        if (b) { act.setCoachNotifPrefs(b); window.__render(); }
       }));
     }
 
@@ -600,12 +640,22 @@ export const terms = {
 /* shared: single-select toggle groups */
 export function wireToggles(root) {
   root.querySelectorAll('[data-toggle-group]').forEach(g => {
-    g.querySelectorAll('button, .chp, .c5, .choice').forEach(el => {
+    const items = g.querySelectorAll('button, .chp, .c5, .choice');
+    // Single-select group = a radiogroup. Expose the selection to screen readers (it was
+    // conveyed by color/glow alone) so VoiceOver announces "selected".
+    if (!g.hasAttribute('role')) g.setAttribute('role', 'radiogroup');
+    const syncAria = () => items.forEach(x => {
+      if (!x.hasAttribute('role')) x.setAttribute('role', 'radio');
+      x.setAttribute('aria-checked', x.classList.contains('on') ? 'true' : 'false');
+    });
+    items.forEach(el => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         g.querySelectorAll('.on').forEach(x => x.classList.remove('on'));
         el.classList.add('on');
+        syncAria();
       });
     });
+    syncAria();
   });
 }

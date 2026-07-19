@@ -2,7 +2,7 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, logoMark, esc } from '../components.js';
 import { accountBody, wireAccount } from './ob-account.js';
-import { standardForGoal, showConfirmPending } from '../ob-helpers.js';
+import { standardForGoal, reqHeadTint, showConfirmPending } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { track, EVENTS } from '../analytics.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
@@ -75,39 +75,42 @@ async function toggles(root) {
 export const role = {
   hideTabs: true,
   render() {
-    const card = (go, ic, cls, t, s) => `
-      <div class="choice" data-go="${go}" style="cursor:pointer">
-        <div class="cic" style="${cls}">${icon(ic, 19)}</div>
-        <div class="ct">${t}</div><div class="cs">${s}</div>
+    // Full-width role rows: a tinted icon, a benefit-first line, and a chevron affordance so each
+    // role reads as an intentional, tappable choice (not a flat tile). Accent bar per role.
+    const card = (go, ic, tint, accent, t, s) => `
+      <div class="role-card" data-go="${go}" role="button" aria-label="${esc(t)} — ${esc(s)}" style="--role-accent:${accent}">
+        <div class="role-ic" style="background:${tint};color:${accent}">${icon(ic, 21)}</div>
+        <div class="role-tt"><div class="role-t">${esc(t)}</div><div class="role-s">${esc(s)}</div></div>
+        <div class="role-chev">${icon('chevron', 18)}</div>
       </div>`;
     return `
     <div class="ob">
       <div style="width:56px;height:56px;margin:6px auto 18px">${logoMark(56, 'role')}</div>
-      <div class="ob-title" style="text-align:center">Who are you?</div>
-      <div class="ob-sub" style="text-align:center">Each role gets its own view. Nothing shared that shouldn't be.</div>
+      <div class="ob-title" style="text-align:center">Choose your role</div>
+      <div class="ob-sub" style="text-align:center">We'll personalize your account, permissions, and experience.</div>
       <div class="ob-body">
-        <div class="choice-grid">
-          ${card('onboarding/1', 'bolt', 'background:rgba(52,211,153,0.18);color:var(--green-bright)', 'Athlete', 'Execute your coach’s standard')}
-          ${card('client-ob/1', 'user', 'background:var(--blue-surface);color:var(--blue-bright)', 'Client', 'Train with a coach or trainer, no team')}
-          ${card('coach-ob/1', 'users', 'background:rgba(245,165,36,0.18);color:var(--amber-bright)', 'Coach', 'Set the standard, see who executes')}
-          ${card('trainer-ob/1', 'heart', 'background:rgba(168,85,247,0.18);color:var(--purple-bright)', 'Trainer', 'Clients, readiness, consistency')}
+        <div class="role-list">
+          ${card('onboarding/1', 'bolt', 'var(--green-surface)', 'var(--green-bright)', 'Athlete', 'Compete for a team and execute your coach’s standard.')}
+          ${card('client-ob/1', 'user', 'var(--blue-surface)', 'var(--blue-bright)', 'Client', 'Build consistency with a personal trainer or coach.')}
+          ${card('coach-ob/1', 'users', 'var(--amber-surface)', 'var(--amber-bright)', 'Coach', 'Set the standard and see who consistently executes.')}
+          ${card('trainer-ob/1', 'bars', 'var(--purple-surface)', 'var(--purple-bright)', 'Trainer', 'Manage clients, track consistency, and prove results.')}
         </div>
-        <div style="height:16px"></div>
+        <div style="height:14px"></div>
         <div class="sidebox">
           <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
-          <div><div class="tt">Parents</div>
-          <div class="ts">Parents join from their athlete's invite, not here. They see scores and streaks, never photos or weight.</div></div>
+          <div><div class="tt">Joining as a parent or guardian?</div>
+          <div class="ts">Open the invite your athlete or coach sent you — parents connect from there, and only ever see scores and streaks, never photos or weight.</div></div>
         </div>
       </div>
       <div class="ob-foot">
-        <div style="text-align:center;font-size:14px;font-weight:700;color:var(--text-3);cursor:pointer" data-go="welcome">Back</div>
+        <div class="ob-textlink" role="button" tabindex="0" aria-label="Back" data-go="welcome">Back</div>
       </div>
     </div>`;
   },
   mount(root) {
     // Funnel: which role a fresh user picks (the choice, not yet an account). Anonymous.
     const ROLE_BY_GO = { 'onboarding/1': 'athlete', 'client-ob/1': 'client', 'coach-ob/1': 'coach', 'trainer-ob/1': 'trainer' };
-    root.querySelectorAll('.choice[data-go]').forEach((c) => c.addEventListener('click', () => {
+    root.querySelectorAll('.role-card[data-go]').forEach((c) => c.addEventListener('click', () => {
       const r = ROLE_BY_GO[c.getAttribute('data-go')];
       if (r) track(EVENTS.ONBOARDING_ROLE, { role: r });
     }));
@@ -120,9 +123,9 @@ export const role = {
    notification preferences → account → code screen (customize surfaced at creation). */
 const coachSteps = {
   1: () => frame(1, 7, 'You, coach.', 'Your athletes see this name on every standard you set.', `
-    <input id="co-first" class="ob-input" placeholder="First name" autocapitalize="words" />
+    <input id="co-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" />
     <div style="height:12px"></div>
-    <input id="co-last" class="ob-input" placeholder="Last name" autocapitalize="words" />
+    <input id="co-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" />
     <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
     <div class="chip-row" id="co-handle"></div>
     <input id="co-handle-custom" class="ob-input" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
@@ -146,7 +149,17 @@ const coachSteps = {
       'Next', 'coach-ob/3', { back: 'coach-ob/1' });
   },
 
-  3: () => frame(3, 7, 'Build the team.', 'Athletes join it with one code. You can run more than one group.', `
+  /* Step 3 — the create-vs-join fork (handoff: never combine "Build the team" and "Join a
+     staff" as competing forms on one screen). A segmented choice picks the path; only the
+     chosen path's fields render, and persistCoachOnboarding routes on the staff code being set. */
+  3: () => {
+    const c = (RT.ob || {}).coach || {};
+    const mode = c.joinMode === 'join' ? 'join' : 'create';
+    const seg = `<div class="seg" style="width:100%;margin-bottom:18px" id="co-joinmode">
+      <button class="${mode === 'create' ? 'on' : ''}" data-mode="create">Create a team</button>
+      <button class="${mode === 'join' ? 'on' : ''}" data-mode="join">Join a staff</button>
+    </div>`;
+    const createBody = `
     <input id="co-team" class="ob-input" placeholder="Team name (e.g. Varsity Football)" />
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
@@ -162,11 +175,17 @@ const coachSteps = {
     <div class="lrow" style="cursor:default;padding:0 2px">
       <div class="lm"><div class="lt">Listed in school search</div><div class="ls">Athletes at your school can find this team. The code is still required to join.</div></div>
       <div class="seg" style="width:104px" id="co-disc"><button class="on">On</button><button>Off</button></div>
-    </div>
-    <div style="height:14px"></div>
-    <div class="eyebrow" style="margin:8px 2px 8px">Joining an existing staff instead?</div>
-    <input id="co-staff-code" class="ob-input" maxlength="8" placeholder="Staff code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.4">With a staff code you skip team creation and land on that team's staff.</div>`, 'Next', 'coach-ob/4', { back: 'coach-ob/2' }),
+    </div>`;
+    const joinBody = `
+    <div class="eyebrow" style="margin:8px 2px 10px">Staff code</div>
+    <input id="co-staff-code" class="ob-input" maxlength="8" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team's staff with the role and permissions they set — you won't create a new team.</div>`;
+    return frame(3, 7,
+      mode === 'join' ? 'Join a staff.' : 'Build the team.',
+      mode === 'join' ? 'Enter the code from your head coach.' : 'Athletes join it with one code. You can run more than one group.',
+      `${seg}${mode === 'join' ? joinBody : createBody}`,
+      'Next', 'coach-ob/4', { back: 'coach-ob/2' });
+  },
 
   /* Step 4 — role + responsibility (NEW, Slice F). Sets team_staff scope: a staff-code
      joiner self-declares their initial narrowing (0078 allows exactly that once); a team
@@ -197,9 +216,18 @@ const coachSteps = {
     'Next', 'coach-ob/5', { back: 'coach-ob/3' });
   },
 
-  /* Step 5 — starting standard, template-aware (Slice C templates surfaced at creation). */
+  /* Step 5 — starting standard, template-aware (Slice C templates surfaced at creation).
+     A staff JOINER doesn't set the team standard (the head coach owns it) — they review that
+     it's already in place and move on. */
   5: () => {
     const c = (RT.ob || {}).coach || {};
+    if (c.joinMode === 'join') {
+      return frame(5, 7, 'The standard is set.', 'Your head coach owns the team standard. You’ll see it — and everything your athletes log against it — the moment you’re on staff.', `
+      <div class="sidebox">
+        <div class="req-icon g" style="width:38px;height:38px">${icon('check', 17)}</div>
+        <div><div class="tt">Nothing to configure here</div><div class="ts">Meals, windows, recovery, and check-ins are already defined for this team. If your role includes standards, you can fine-tune them later in Standards.</div></div>
+      </div>`, 'Next', 'coach-ob/6', { back: 'coach-ob/4' });
+    }
     const sel = c.standardTemplate || 'default';
     const seeds = seedTemplates();
     const chosen = sel === 'default' ? null : seeds.find((s) => s.kind === sel);
@@ -222,13 +250,16 @@ const coachSteps = {
     </div>
     <div style="height:12px"></div>
     <section class="card" style="padding:6px 16px">
-      ${rows.map(([ic, t, s]) => `
+      ${rows.map(([ic, t, s]) => {
+        const [bg, fg] = reqHeadTint(ic);
+        return `
         <div class="lrow" style="cursor:default">
-          <div class="lic">${icon(ic, 17)}</div>
+          <div class="lic" style="background:${bg};color:${fg}">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${esc(t)}</div><div class="ls">${esc(s)}</div></div>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px">The score model itself doesn’t bend: four honest components, weight never scored daily.</div>`,
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px">Start from a template, then make the standard yours — meals, windows, and rooms are all editable in Standards.</div>`,
     'Next', 'coach-ob/6', { back: 'coach-ob/4' });
   },
 
@@ -344,6 +375,10 @@ export const coachOb = {
       // Coach John / Coach JB) + a free-text override. Stored to ob scratch; pushed to
       // profiles.coach_display_name (0056) on first authenticated hydrate.
       const handleRow = $('#co-handle'), handleCustom = $('#co-handle-custom');
+      // The room handle defaults to "Coach <lastname>" and never the first name; it auto-tracks the
+      // last name until the coach explicitly picks a chip or types a custom handle (T-27: "Coach
+      // Woods", not automatically "Coach Jihad").
+      let autoHandle = !(((RT.ob || {}).coach || {}).coachName || '').trim();
       const paintHandles = () => {
         if (!handleRow) return;
         const first = f.value.trim(), last = l.value.trim();
@@ -351,10 +386,18 @@ export const coachOb = {
           last && `Coach ${last}`, first && `Coach ${first}`,
           first && last && `Coach ${first[0].toUpperCase()}${last[0].toUpperCase()}`,
         ].filter(Boolean))];
+        const customTyped = !!(handleCustom && handleCustom.value.trim());
+        // Keep the default synced to "Coach <lastname>" (opts[0], once a last name exists) until the
+        // coach chooses — capture it so the handle is explicit, not silently derived downstream.
+        if (autoHandle && !customTyped && last && opts.length
+            && opts[0] !== (((RT.ob || {}).coach || {}).coachName || '').trim()) {
+          cap({ coachName: opts[0] });
+        }
         const saved = (((RT.ob || {}).coach || {}).coachName || '').trim();
         handleRow.innerHTML = opts.map((o) => `<span class="chp ${saved === o ? 'on' : ''}">${esc(o)}</span>`).join('')
           || `<span style="font-size:12px;font-weight:600;color:var(--text-3)">Type your name above and options appear.</span>`;
         handleRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', () => {
+          autoHandle = false;
           handleRow.querySelectorAll('.on').forEach((x) => x.classList.remove('on'));
           el.classList.add('on');
           if (handleCustom) handleCustom.value = '';
@@ -374,6 +417,7 @@ export const coachOb = {
         const saved = (((RT.ob || {}).coach || {}).coachName || '').trim();
         if (saved && !handleRow.querySelector('.on')) handleCustom.value = saved;
         handleCustom.addEventListener('input', () => {
+          autoHandle = false;
           handleRow.querySelectorAll('.on').forEach((x) => x.classList.remove('on'));
           cap({ coachName: handleCustom.value.trim() });
         });
@@ -394,8 +438,8 @@ export const coachOb = {
           const { orgs } = await dir.search(v);
           if (myGen !== gen || q.value.trim() !== v) return; // stale: repainted or query changed since
           out.innerHTML = orgs.length ? `<section class="card" style="padding:6px 16px">${orgs.map((o, i) => `
-            <div class="lrow" data-org="${i}"><div class="lic">${icon('shield', 17)}</div>
-            <div class="lm"><div class="lt">${esc(o.name)}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}</div></div></div>`).join('')}</section>`
+            <div class="lrow" data-org="${i}"><div class="lic"${o.verified ? ' style="color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
+            <div class="lm"><div class="lt">${esc(o.name)}${o.verified ? ` <span style="font-size:10px;font-weight:800;color:var(--green-bright);letter-spacing:0.02em">✓ Verified</span>` : ''}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}</div></div></div>`).join('')}</section>`
             : `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Nothing yet — add your school below.</div>`;
           out.querySelectorAll('[data-org]').forEach((el) => el.addEventListener('click', () => {
             const o = orgs[+el.getAttribute('data-org')];
@@ -404,7 +448,7 @@ export const coachOb = {
           }));
         } catch {
           if (myGen !== gen) return; // stale: don't clobber whatever's on screen now
-          out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Directory unreachable — add your school below.</div>`;
+          out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Couldn't reach the directory — you can add your school below.</div>`;
         }
       }, 300));
       $('#co-add').addEventListener('click', () => {
@@ -428,7 +472,18 @@ export const coachOb = {
     }
     const clear = $('#co-school-clear');
     if (clear) clear.addEventListener('click', () => { cap({ orgId: null, schoolName: '', city: '', state: '' }); window.__render(); });
-    // step 3: team fields (restore + capture; discoverable defaults On)
+    // step 3: create-vs-join fork — the toggle re-renders so only the chosen path's fields show
+    const joinModeSeg = $('#co-joinmode');
+    if (joinModeSeg) {
+      joinModeSeg.querySelectorAll('button[data-mode]').forEach((b) => b.addEventListener('click', () => {
+        const mode = b.getAttribute('data-mode');
+        // Switching path clears the OTHER path's input so persistCoachOnboarding never routes on
+        // stale data — a leftover staff code would wrongly skip team creation.
+        cap(mode === 'create' ? { joinMode: 'create', staffCode: '' } : { joinMode: 'join' });
+        window.__render();
+      }));
+    }
+    // step 3 (create path): team fields (restore + capture; discoverable defaults On)
     const team = $('#co-team');
     if (team) {
       const c = (RT.ob || {}).coach || {};
@@ -448,13 +503,13 @@ export const coachOb = {
         if (el) el.querySelectorAll('.chp, button').forEach((it) => it.addEventListener('click', sync));
       });
       sync();
-      // Staff-code alternative (0061): joining an existing staff skips team creation.
-      const staffCode = $('#co-staff-code');
-      if (staffCode) {
-        const c2 = (RT.ob || {}).coach || {};
-        if (c2.staffCode) staffCode.value = c2.staffCode;
-        staffCode.addEventListener('input', () => cap({ staffCode: staffCode.value.trim().toUpperCase() }));
-      }
+    }
+    // step 3 (join path): staff code (0061) — joining an existing staff skips team creation
+    const staffCode = $('#co-staff-code');
+    if (staffCode) {
+      const c2 = (RT.ob || {}).coach || {};
+      if (c2.staffCode) staffCode.value = c2.staffCode;
+      staffCode.addEventListener('input', () => cap({ staffCode: staffCode.value.trim().toUpperCase() }));
     }
     // step 4: responsibility picker — re-render on choice (the detail input depends on it)
     const resp = $('#co-resp');
@@ -687,7 +742,7 @@ const clientSteps = {
       <div class="ts">Same four components as athletes. Inside Nutrition, your goal changes the mix: for fat loss it's calorie window 45, protein 25, meals logged 30.</div></div>
     </div>`, 'Next', 'client-ob/2'),
 
-  2: () => frame(2, 6, 'Who are you?', 'Your trainer sees this next to every log.', `
+  2: () => frame(2, 6, 'Start with the basics', 'This is how your trainer will recognize you.', `
     <input id="cl-first" class="ob-input" placeholder="First name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:12px"></div>
     <input id="cl-last" class="ob-input" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" />
@@ -989,7 +1044,7 @@ export const coachProfile = {
       <div id="handle-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:6px">Athletes see this everywhere — greetings, meal threads, your standard.</div>
     </div>
 
-    <div class="eyebrow">Team code · share it</div>
+    <div class="eyebrow" id="cp-code">Athlete code · share it</div>
     ${code ? `
     <section class="card pad" style="text-align:center">
       <div class="code-boxes" style="padding:0 0 4px">
@@ -1023,7 +1078,7 @@ export const coachProfile = {
       <div><div class="tt">No code yet</div><div class="ts">It mints when your team is created, automatically on your next sign-in.</div></div>
     </div>`}
 
-    <div class="eyebrow">Staff &amp; collaborators</div>
+    <div class="eyebrow" id="cp-staff">Staff &amp; collaborators</div>
     ${(() => {
       const staff = STAFF && STAFF.teamId === (RT.team && RT.team.id) ? STAFF.rows : null;
       // Slice F: only the head coach manages staff (0078 enforces; the client just doesn't
@@ -1059,7 +1114,10 @@ export const coachProfile = {
       <div class="chip-row" style="padding:0 2px 12px">
         <span class="chp" data-staff-invite="coordinator">Coordinator</span>
         <span class="chp" data-staff-invite="position_coach">Position coach</span>
+        <span class="chp" data-staff-invite="s_and_c">Strength &amp; Conditioning</span>
+        <span class="chp" data-staff-invite="athletic_trainer">Athletic Trainer</span>
         <span class="chp" data-staff-invite="nutritionist">Dietitian</span>
+        <span class="chp" data-staff-invite="team_admin">Team Admin</span>
         <span class="chp" data-staff-invite="readonly">View only</span>
       </div>` : `
       <div style="font-size:11.5px;font-weight:600;color:var(--text-3);padding:2px 2px 10px">Staff invites and scopes are managed by the head coach.</div>`}`}
@@ -1071,21 +1129,42 @@ export const coachProfile = {
     </section>`;
     })()}
 
-    <div class="eyebrow">Team settings</div>
+    <div class="eyebrow">Program</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Standards</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-assign"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">What you assign most</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">Coach Voice</div><div class="ls">Tone, phrases, hard limits</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+    </section>
+
+    <div class="eyebrow">Analytics</div>
+    <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Team trends, standard adherence</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI in your voice</div><div class="ls">It reinforces your rulings, never invents</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Appearance &amp; preferences</div><div class="ls">Light / dark, units, reminders</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+    </section>
+
+    <div class="eyebrow">Preferences</div>
+    <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Appearance &amp; preferences</div><div class="ls">Light / dark, units, reminders</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+    </section>
+
+    <div style="height:8px"></div>
+    <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
     </section>
     <div style="height:10px"></div>
     `;
   },
-  mount(root) {
+  mount(root, { sub } = {}) {
+    // Deep-link: coach-profile/staff and coach-profile/code land the coach directly on that
+    // section instead of the top of this dense page — so "Add another staff member" and "Add an
+    // athlete" (checklist + Create menu) terminate on the action, not a wall of settings. The
+    // eyebrow anchors exist immediately in render(); a short delay lets the router's reset-to-top
+    // scroll settle first, then this smooth-scrolls the section into view.
+    if (sub === 'staff' || sub === 'code') {
+      const anchor = root.querySelector(sub === 'staff' ? '#cp-staff' : '#cp-code');
+      if (anchor) setTimeout(() => { try { anchor.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch { anchor.scrollIntoView(); } }, 60);
+    }
     // Staff & collaborators (0061)
     loadStaff(RT.team && RT.team.id);
     const sStatus = root.querySelector('#staff-status');
@@ -1093,10 +1172,11 @@ export const coachProfile = {
     root.querySelectorAll('[data-staff-invite]').forEach(b => b.addEventListener('click', async () => {
       const teamId = RT.team && RT.team.id;
       if (!teamId) { sSay('Your team hasn’t loaded yet.', true); return; }
-      b.disabled = true; sSay('Minting a code…');
+      b.disabled = true; sSay('Creating a code…');
       const r = await createStaffInvite(teamId, b.getAttribute('data-staff-invite'));
       b.disabled = false;
       if (!r.ok) { sSay(r.error || 'Could not mint the code.', true); return; }
+      act.markCoachSetup('staff'); // real "added another staff member" signal for the setup checklist
       const out = root.querySelector('#staff-code-out'), boxes = root.querySelector('#staff-code-boxes');
       if (out && boxes) {
         boxes.innerHTML = r.code.split('').map(ch => `<div class="cb filled" style="border-color:var(--blue-border)">${esc(ch)}</div>`).join('');
@@ -1189,7 +1269,7 @@ export const coachProfile = {
       let armed = false;
       regen.addEventListener('click', async () => {
         if (!armed) { armed = true; regen.textContent = 'Sure? Old code dies'; say('A new code replaces this one immediately — anyone holding the old code can no longer join.'); return; }
-        regen.disabled = true; say('Minting a new code…');
+        regen.disabled = true; say('Creating a new code…');
         const r = await regenerateMyTeamCode();
         regen.disabled = false; armed = false; regen.textContent = 'New code';
         if (!r.ok || !r.code) { say(r.error || 'Could not make a new code.', true); return; }

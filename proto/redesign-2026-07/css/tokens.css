@@ -4,6 +4,10 @@
    Every neutral is tinted toward the brand's slate-blue hue — never pure #000/#fff. */
 
 :root {
+  /* Native controls (time/date pickers, scrollbars) follow the app theme instead of rendering
+     as raw white system widgets on the dark canvas. Overridden for light below. */
+  color-scheme: dark;
+
   /* ---- Surfaces (deep navy-black, tinted toward brand hue) ---- */
   --bg:            #070B14;   /* app canvas */
   --bg-grad-top:   #0A1120;   /* subtle top wash behind the hero */
@@ -45,9 +49,12 @@
   --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --num-tight: -0.03em;
   --title-tight: -0.02em;
+  --track-eyebrow: 0.14em;  /* uppercase section labels */
+  --track-key: 0.06em;      /* small uppercase stat keys */
 
   /* ---- Radii ---- */
   --r-card: 22px;
+  --r-card-sm: 16px;
   --r-tile: 15px;
   --r-pill: 999px;
   --r-chip: 11px;
@@ -64,6 +71,8 @@
   --sh-raised: 0 14px 40px rgba(0,0,0,0.48);
   --sh-blue: 0 10px 30px rgba(37, 99, 235, 0.40);
   --sh-green: 0 12px 34px rgba(52, 211, 153, 0.34);
+  /* hero score lift: teal halo + dark drop to seat white numerals on the dark ring */
+  --score-lift: 0 0 44px rgba(94,234,212,0.25), 0 4px 26px rgba(0,0,0,0.5);
 
   /* ---- Motion ---- */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);      /* ease-out-expo-ish */
@@ -77,6 +86,7 @@
    data-theme from the athlete's choice (Dark / Light / System). Semantic hues shift to
    their deep variants so text-weight color holds AA on white. */
 :root[data-theme="light"] {
+  color-scheme: light;
   --bg:            #F8FAFC;
   --bg-grad-top:   #EFF4FA;
   --surface-1:     #FFFFFF;
@@ -87,7 +97,7 @@
 
   --text:   #0F172A;
   --text-2: #475569;
-  --text-3: #64748B;
+  --text-3: #5B6675;
   --text-on-accent: #FFFFFF;
 
   --blue:        #2563EB;
@@ -96,7 +106,7 @@
   --blue-surface: rgba(37, 99, 235, 0.09);
   --blue-border:  rgba(37, 99, 235, 0.28);
 
-  --green:  #16A34A;  --green-bright: #16A34A;  --green-surface: rgba(22, 163, 74, 0.10);  --green-border: rgba(22, 163, 74, 0.28);
+  --green:  #16A34A;  --green-bright: #15803D;  --green-surface: rgba(22, 163, 74, 0.10);  --green-border: rgba(22, 163, 74, 0.28);
   --amber:  #D97706;  --amber-bright: #B45309;  --amber-surface: rgba(217, 119, 6, 0.10);  --amber-border: rgba(217, 119, 6, 0.30);
   --purple: #9333EA;  --purple-bright:#7E22CE;  --purple-surface:rgba(147, 51, 234, 0.09); --purple-border:rgba(147, 51, 234, 0.26);
   --red:    #DC2626;  --red-surface:  rgba(220, 38, 38, 0.09);   --red-border: rgba(220, 38, 38, 0.26);
@@ -110,5 +120,7 @@
   --sh-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(15, 23, 42, 0.06);
   --sh-raised: 0 10px 30px rgba(15, 23, 42, 0.10);
   --sh-blue: 0 8px 22px rgba(37, 99, 235, 0.28);
+  /* on a light ground the numerals are dark ink — a dark drop would muddy them; keep only a soft teal halo */
+  --score-lift: 0 0 40px rgba(20, 184, 166, 0.16);
   --sh-green: 0 10px 26px rgba(22, 163, 74, 0.22);
 }

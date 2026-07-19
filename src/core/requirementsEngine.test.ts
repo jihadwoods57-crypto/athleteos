@@ -1,7 +1,7 @@
 // Requirements engine (0055) pure helpers — proto is plain ESM JS (allowJs), same import
 // pattern as exec.test.ts.
 // @ts-ignore
-import { resolveRequirementSet, catalogFromItems, assignedFromRow } from '../../proto/redesign-2026-07/js/requirements.js';
+import { resolveRequirementSet, catalogFromItems, assignedFromRow, derive, stdFromSolo } from '../../proto/redesign-2026-07/js/requirements.js';
 
 const TEAM = { id: 't', scope_kind: 'team', scope_value: null, items: [] };
 const OL = { id: 'p', scope_kind: 'position', scope_value: 'OL', items: [] };
@@ -22,6 +22,68 @@ describe('resolveRequirementSet — precedence athlete > position > team', () =>
   });
   test('another athlete\'s override never leaks', () =>
     expect(resolveRequirementSet([MINE, TEAM], 'ath-2', null)).toBe(TEAM));
+});
+
+describe('resolveRequirementSet — versioning (prospective effective dates)', () => {
+  const v = (eff: string | null, id: string) => ({ id, scope_kind: 'team', scope_value: null, effective_date: eff, items: [] });
+  test('picks the latest version whose effective_date <= the scored day', () => {
+    const sets = [v('2026-07-01', 'a'), v('2026-07-10', 'b'), v('2026-07-20', 'c')];
+    expect(resolveRequirementSet(sets, 'ath', null, '2026-07-15').id).toBe('b'); // c not yet effective
+    expect(resolveRequirementSet(sets, 'ath', null, '2026-07-25').id).toBe('c');
+    expect(resolveRequirementSet(sets, 'ath', null, '2026-07-05').id).toBe('a');
+  });
+  test('a future-only edit never governs an earlier day; the null base holds until then', () => {
+    const sets = [v(null, 'base'), v('2026-07-20', 'future')];
+    expect(resolveRequirementSet(sets, 'ath', null, '2026-07-15').id).toBe('base'); // today unchanged
+    expect(resolveRequirementSet(sets, 'ath', null, '2026-07-20').id).toBe('future');
+  });
+  test('athlete override versions win over team and are still date-resolved', () => {
+    const team = { id: 't', scope_kind: 'team', scope_value: null, effective_date: null, items: [] };
+    const a1 = { id: 'a1', scope_kind: 'athlete', scope_value: 'ath', effective_date: '2026-07-10', items: [] };
+    const a2 = { id: 'a2', scope_kind: 'athlete', scope_value: 'ath', effective_date: '2026-07-20', items: [] };
+    expect(resolveRequirementSet([team, a1, a2], 'ath', null, '2026-07-15').id).toBe('a1');
+    expect(resolveRequirementSet([team, a1, a2], 'ath', null, '2026-07-25').id).toBe('a2');
+  });
+  test('no asOfDate (legacy callers) keeps the pre-versioning behavior', () => {
+    const only = { id: 'only', scope_kind: 'team', scope_value: null, items: [] };
+    expect(resolveRequirementSet([only], 'ath', null)).toBe(only);
+  });
+});
+
+describe('stdFromSolo — an independent athlete personal standard → the scored day', () => {
+  test('3 meals → a 3-slot day (breakfast/lunch/dinner)', () => {
+    const std = stdFromSolo({ mealsPerDay: 3 });
+    expect(std!.mealsRequired).toBe(3);
+    expect(std!.slots).toEqual(['breakfast', 'lunch', 'dinner']);
+  });
+  test('2 meals → a 2-slot day', () => {
+    expect(stdFromSolo({ mealsPerDay: 2 })!.mealsRequired).toBe(2);
+  });
+  test('no/invalid meal count → null (the classic 4-meal day stands)', () => {
+    expect(stdFromSolo(null)).toBeNull();
+    expect(stdFromSolo({})).toBeNull();
+    expect(stdFromSolo({ mealsPerDay: 0 })).toBeNull();
+    expect(stdFromSolo({ mealsPerDay: 9 })).toBeNull();
+  });
+});
+
+describe('derive — first-day activation marks pre-activation windows Not required, never Missed', () => {
+  const lunch = { id: 'lunch', title: 'Lunch', accent: 'g', proof: 'photo', window: { open: 12 * 60, due: 14 * 60 }, required: true };
+  test('window closed before activation → "Not required" (not "Missed")', () => {
+    const d = derive(lunch, {}, 18 * 60 + 40, 18 * 60 + 34); // now 6:40 PM, activated 6:34 PM
+    expect(d.status).toBe('Not required');
+    expect(d.missed).toBe(false);
+  });
+  test('without an activation stamp, a past-due window is still "Missed"', () => {
+    const d = derive(lunch, {}, 18 * 60 + 40);
+    expect(d.status).toBe('Missed');
+    expect(d.missed).toBe(true);
+  });
+  test('a logged pre-activation slot still reads Logged, not excused', () => {
+    const d = derive(lunch, { done: true }, 18 * 60 + 40, 18 * 60 + 34);
+    expect(d.done).toBe(true);
+    expect(d.status).toBe('Logged');
+  });
 });
 
 describe('catalogFromItems — server items to catalog-shaped requirements', () => {

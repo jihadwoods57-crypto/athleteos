@@ -30,6 +30,9 @@ export const IMPACT_LABEL = {
 /* The proto's clock: 7:12 PM (dinner due 8:00 PM, "48 min remaining"). */
 export const NOW_MIN = 19 * 60 + 12;
 export const TODAY_DOW = 5; // Friday — Morning Weight runs Mon/Wed/Fri
+/* First-day activation grace buffer (mirrors activation.js — kept inline so requirements.js
+   stays import-free by design, per the exec.test catalog/deadline enforcement seam). */
+export const ACTIVATION_BUFFER_MIN = 60;
 
 export const CATALOG = [
   { id: 'breakfast', title: 'Breakfast', icon: 'utensils', accent: 'g', proof: 'photo',
@@ -79,8 +82,11 @@ export function runsToday(req, dow = TODAY_DOW) {
   return false;
 }
 
-/* Derive one requirement's live view. done/late come from the runtime resolver. */
-export function derive(req, { done = false, late = false, progress = null } = {}, nowMin = NOW_MIN) {
+/* Derive one requirement's live view. done/late come from the runtime resolver.
+   `activationMin` (minute-of-day of the athlete's activation on the activation day, or null)
+   protects a just-activated athlete: a window that closed before they could act reads
+   "Not required", never "Missed" — the same first-day rule exec.js applies to Home. */
+export function derive(req, { done = false, late = false, progress = null } = {}, nowMin = NOW_MIN, activationMin = /** @type {number | null} */ (null)) {
   const due = req.window.due;
   const dueLabel = req.window.label || `Due by ${fmtMin(due)}`;
   let status, statusColor, sub, subColor, accent = req.accent, missed = false, next = false;
@@ -92,6 +98,9 @@ export function derive(req, { done = false, late = false, progress = null } = {}
   } else if (progress != null) {
     status = 'Open'; statusColor = 'b';
     sub = `${progress} · ${dueLabel.toLowerCase()}`; subColor = 'b';
+  } else if (activationMin != null && due != null && due <= activationMin + ACTIVATION_BUFFER_MIN) {
+    status = 'Not required'; statusColor = 'b';
+    sub = `Closed ${fmtMin(due)} · you joined after`; subColor = 'b';
   } else if (nowMin > due) {
     status = 'Missed'; statusColor = 'a'; missed = true;
     sub = `Was due ${fmtMin(due)}`; subColor = 'a'; accent = 'a';
@@ -114,15 +123,25 @@ export function derive(req, { done = false, late = false, progress = null } = {}
    REPLACES the standard wholesale (no merging) — the coach's word is the whole
    contract, and partial merges would make "what am I on?" unanswerable. */
 
-/** Pick the governing set for one athlete out of their team's sets. Pure. */
-export function resolveRequirementSet(sets, athleteId, position) {
+/** Pick the governing set for one athlete out of their team's sets. Pure.
+ *  Versioning: among sets sharing a scope, the governing one is the LATEST whose effective_date
+ *  is on/before `asOfDate` (the day being scored). A null effective_date is the always-in-effect
+ *  base (pre-versioning rows), so a future-dated edit never rescopes an earlier day. asOfDate null
+ *  (legacy callers) disables date filtering and returns the sole per-scope match unchanged. */
+export function resolveRequirementSet(sets, athleteId, position, asOfDate = /** @type {string | null} */ (null)) {
   if (!Array.isArray(sets) || !sets.length) return null;
+  const eff = (s) => s.effective_date || '0001-01-01';
+  const govern = (candidates) => {
+    const active = asOfDate == null ? candidates : candidates.filter((s) => eff(s) <= asOfDate);
+    if (!active.length) return null;
+    return active.reduce((a, b) => (eff(a) >= eff(b) ? a : b));
+  };
   const pos = String(position || '').trim().toUpperCase();
-  const mine = sets.find(s => s.scope_kind === 'athlete' && String(s.scope_value) === String(athleteId));
+  const mine = govern(sets.filter(s => s.scope_kind === 'athlete' && String(s.scope_value) === String(athleteId)));
   if (mine) return mine;
-  const room = pos && sets.find(s => s.scope_kind === 'position' && String(s.scope_value || '').trim().toUpperCase() === pos);
+  const room = pos ? govern(sets.filter(s => s.scope_kind === 'position' && String(s.scope_value || '').trim().toUpperCase() === pos)) : null;
   if (room) return room;
-  return sets.find(s => s.scope_kind === 'team') || null;
+  return govern(sets.filter(s => s.scope_kind === 'team'));
 }
 
 /* Physical slot order for a standard of M meals — maps onto the classic keys first so the
@@ -146,12 +165,28 @@ export function stdFromItems(items) {
   const slots = STD_SLOT_MAP[m];
   const deadlines = /** @type {Record<string, number>} */ ({});
   const titles = /** @type {Record<string, string>} */ ({});
+  const grace = /** @type {Record<string, number>} */ ({});
+  const latePolicy = /** @type {Record<string, string>} */ ({});
   slots.forEach((k, i) => {
     const it = mealItems[i] || {};
     if (it.window && it.window.due != null) deadlines[k] = it.window.due;
     if (it.title) titles[k] = it.title;
+    // Part B item-schema depth: grace minutes + late policy ride each meal item into the day
+    // engine (day.js slotGrace/slotLateCredit). Absent = the classic on-time/half-credit rule.
+    if (typeof it.grace === 'number' && it.grace >= 0) grace[k] = Math.min(240, Math.round(it.grace));
+    if (it.latePolicy === 'full' || it.latePolicy === 'none' || it.latePolicy === 'half') latePolicy[k] = it.latePolicy;
   });
-  return { mealsRequired: m, slots, deadlines, titles };
+  return { mealsRequired: m, slots, deadlines, titles, grace, latePolicy };
+}
+
+/** An independent (no-coach) athlete's personal standard → the same scored-day shape a coach
+ *  standard produces. v1 configures only the meal count (onboarding's 2/3/4 chip); windows and
+ *  titles fall back to the classic day. Returns null for a missing/out-of-range count, so the
+ *  classic 4-meal day stands. Pure. */
+export function stdFromSolo(standard) {
+  const m = standard && Number(standard.mealsPerDay);
+  if (!(m >= 1 && m <= 6)) return null;
+  return stdFromItems(Array.from({ length: Math.round(m) }, () => ({ kind: 'meal' })));
 }
 
 /* Defaults per item kind, so a server set only has to carry what the coach chose.

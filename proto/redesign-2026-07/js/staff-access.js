@@ -15,6 +15,9 @@ export const STAFF_ROLE_LABEL = {
   assistant: 'Coordinator',
   position_coach: 'Position Coach',
   nutritionist: 'Nutritionist / RD',
+  s_and_c: 'Strength & Conditioning',
+  athletic_trainer: 'Athletic Trainer',
+  team_admin: 'Team Admin',
   readonly: 'View only',
 };
 
@@ -36,11 +39,17 @@ export function normalizeRole(role) {
      nutritionist  — targets & meal plans (standards/diet surfaces) + messaging
      readonly      — nothing (view only)                                          */
 const CREATE_CAPS = {
-  head_coach:     ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule', 'add_athlete', 'invite_staff'],
-  coordinator:    ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule'],
-  position_coach: ['assign', 'announce', 'message_athlete', 'message_group'],
-  nutritionist:   ['announce', 'message_athlete', 'message_group', 'standards', 'team_diet'],
-  readonly:       [],
+  head_coach:       ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule', 'add_athlete', 'invite_staff'],
+  coordinator:      ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule'],
+  position_coach:   ['assign', 'announce', 'message_athlete', 'message_group'],
+  nutritionist:     ['announce', 'message_athlete', 'message_group', 'standards', 'team_diet'],
+  // v1 (pre per-category permissions): S&C and Team Admin get coordinator-level write; the
+  // Athletic Trainer assigns/messages in their scope without owning the nutrition standard.
+  // Finer differences (Team Admin staff management, exports) land with the capability model.
+  s_and_c:          ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule'],
+  athletic_trainer: ['assign', 'announce', 'message_athlete', 'message_group'],
+  team_admin:       ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule'],
+  readonly:         [],
 };
 
 /** The Create-menu keys this role may use. An unknown/unloaded role gets the full head-coach

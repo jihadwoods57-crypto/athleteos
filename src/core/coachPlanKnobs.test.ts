@@ -54,6 +54,26 @@ test('knobsFromItems round-trips names, windows, photo flag and target', () => {
   expect(k.hydrationOz).toBe(120);
 });
 
+test('Part B rails: grace, late policy, and coach review round-trip through items', () => {
+  const meals = itemsFromKnobs({ ...base, grace: 30, latePolicy: 'none', coachReview: true }).filter((i: any) => i.kind === 'meal');
+  expect(meals.every((m: any) => m.grace === 30 && m.latePolicy === 'none' && m.coachReview === true)).toBe(true);
+  const k = knobsFromItems(meals);
+  expect(k.grace).toBe(30);
+  expect(k.latePolicy).toBe('none');
+  expect(k.coachReview).toBe(true);
+});
+
+test('Part B defaults are omitted from items so existing standards stay byte-identical', () => {
+  const meals = itemsFromKnobs({ ...base, grace: 0, latePolicy: 'half', coachReview: false }).filter((i: any) => i.kind === 'meal');
+  meals.forEach((m: any) => {
+    expect(m).not.toHaveProperty('grace');
+    expect(m).not.toHaveProperty('latePolicy');
+    expect(m).not.toHaveProperty('coachReview');
+  });
+  const k = knobsFromItems(meals); // defaults read back
+  expect(k).toMatchObject({ grace: 0, latePolicy: 'half', coachReview: false });
+});
+
 test('legacy items (no custom fields) produce sane defaults', () => {
   const k = knobsFromItems([
     { id: 'meal-1', title: 'Breakfast', kind: 'meal', proof: 'photo', freq: { type: 'daily' }, window: { open: 420, due: 570 } },

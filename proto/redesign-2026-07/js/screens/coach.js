@@ -218,7 +218,7 @@ export const coachPlan = {
         <div class="lrow" data-go="coach-plan-set/position/${esc(pos)}">
           <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright);font-weight:800;font-size:12px">${esc(pos.slice(0, 2))}</div>
           <div class="lm"><div class="lt">${esc(pos)} room <small style="color:var(--text-3);font-weight:700">· ${n}</small></div>
-          <div class="ls">${s ? esc(setSummary(s.items)) : 'Team default'}</div></div>
+          <div class="ls">${s ? esc(setSummary(s.items)) : 'Inherits team standard'}</div></div>
           ${s ? '<span class="status-pill b">Custom</span>' : ''}
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>`;
@@ -233,14 +233,14 @@ export const coachPlan = {
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-plan-set/team">
           <div class="lic" style="background:var(--surface-3);color:var(--text-2);font-weight:800;font-size:12px">TM</div>
-          <div class="lm"><div class="lt">Team default</div>
+          <div class="lm"><div class="lt">Your Team Standard</div>
           <div class="ls">${teamSet ? esc(setSummary(teamSet.items)) : 'Built-in · 3 meals, recovery, weekly check-in'}</div></div>
           ${teamSet ? '<span class="status-pill b">Custom</span>' : ''}
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>
         ${positions.map(roomCard).join('')}
       </section>
-      ${positions.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Rooms appear as athletes with positions join. The team default covers everyone until then.</div>` : ''}`}
+      ${positions.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Rooms appear as athletes with positions join. The team standard covers everyone until then.</div>` : ''}`}
 
       <div class="eyebrow">Targets · per athlete</div>
       ${rows && rows.length ? `
@@ -432,6 +432,10 @@ export function knobsFromItems(items) {
     photoProof: mealItems.length ? mealItems.every(m => m.proof === 'photo') : true,
     mealNames: mealItems.slice(0, meals).map((m, i) => m.title || MEAL_NAMES[i]),
     mealWins: mealItems.slice(0, meals).map((m, i) => (m.window && m.window.due != null) ? { ...m.window } : { ...MEAL_WINDOWS[i] }),
+    // Part B rails, read from the first meal (the editor sets them uniformly across meals).
+    grace: typeof (mealItems[0] || {}).grace === 'number' ? mealItems[0].grace : 0,
+    latePolicy: ((mealItems[0] || {}).latePolicy === 'full' || (mealItems[0] || {}).latePolicy === 'none') ? mealItems[0].latePolicy : 'half',
+    coachReview: !!(mealItems[0] || {}).coachReview,
   };
 }
 // Shared fallback logic for meal names/windows — render() uses this too, so what's shown
@@ -449,10 +453,19 @@ export function itemsFromKnobs(k) {
   const items = [];
   const { names, wins } = resolveMeals(k);
   const proof = k.photoProof === false ? 'check' : 'photo';
-  names.forEach((t, i) => items.push({
-    id: `meal-${i + 1}`, title: String(t || MEAL_NAMES[i] || `Meal ${i + 1}`).slice(0, 40),
-    kind: 'meal', proof, freq: { type: 'daily' }, window: { ...wins[i] },
-  }));
+  const grace = Math.min(240, Math.max(0, +k.grace || 0));
+  const latePolicy = (k.latePolicy === 'full' || k.latePolicy === 'none') ? k.latePolicy : null; // 'half' = default, omit
+  names.forEach((t, i) => {
+    const meal = {
+      id: `meal-${i + 1}`, title: String(t || MEAL_NAMES[i] || `Meal ${i + 1}`).slice(0, 40),
+      kind: 'meal', proof, freq: { type: 'daily' }, window: { ...wins[i] },
+    };
+    // Part B: only write non-default rails so existing standards stay byte-identical.
+    if (grace > 0) meal.grace = grace;
+    if (latePolicy) meal.latePolicy = latePolicy;
+    if (k.coachReview) meal.coachReview = true;
+    items.push(meal);
+  });
   if (k.lifts > 0) items.push({
     id: 'lift', title: `Lift session`, kind: 'lift', proof: 'check',
     freq: { type: 'days', days: LIFT_DAYS[k.lifts], label: `${k.lifts}× / week` }, window: { due: 1230, label: 'After training' },
@@ -524,7 +537,7 @@ export const coachPlanSet = {
     const [kind, rawVal] = (sub || 'team').split('/');
     const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
     const key = `${kind}:${value || ''}`;
-    const scopeName = kind === 'team' ? 'Team default' : `${value} room`;
+    const scopeName = kind === 'team' ? 'Your Team Standard' : `${value} room`;
     const sets = SETS && SETS.rows ? SETS.rows : [];
     const existing = sets.find(s => s.scope_kind === kind && String(s.scope_value || '').trim().toUpperCase() === (value || '').toUpperCase())
       || (kind === 'team' ? sets.find(s => s.scope_kind === 'team') : null);
@@ -559,98 +572,142 @@ export const coachPlanSet = {
       </section>` : ''}
       <div style="height:10px"></div>`;
     }
-    const chip = (on, label, act, arg) => `<span class="chp ${on ? 'on' : ''}" data-knob="${act}:${arg}">${label}</span>`;
-    const seg = (label, subLabel, act, on) => `
-      <div class="lrow" style="cursor:default">
-        <div class="lm"><div class="lt">${label}</div><div class="ls">${subLabel}</div></div>
-        <div class="seg" style="width:104px">
-          <button class="${on ? 'on' : ''}" data-knob="${act}:1">On</button><button class="${on ? '' : 'on'}" data-knob="${act}:0">Off</button>
-        </div>
+    const chip = (on, label, act, arg) => `<span class="std-chip ${on ? 'on' : ''}" data-knob="${act}:${arg}">${label}</span>`;
+    const sw = (on, act) => `<div class="std-switch ${on ? 'on' : ''}" role="switch" tabindex="0" aria-checked="${on ? 'true' : 'false'}" data-knob="${act}:toggle"></div>`;
+    const swRow = (title, subLabel, act, on) => `
+      <div class="std-switch-row">
+        <div class="std-sw-m"><div class="std-sw-t">${title}</div><div class="std-sw-s">${subLabel}</div></div>
+        ${sw(on, act)}
       </div>`;
+    const modHead = (ic, cls, title, subLabel, val) => `
+      <div class="std-mod-head">
+        <div class="std-mod-ic ${cls}">${icon(ic, 18)}</div>
+        <div class="std-mod-tt"><div class="std-mod-t">${title}</div>${subLabel ? `<div class="std-mod-s">${subLabel}</div>` : ''}</div>
+        ${val ? `<div class="std-mod-val">${val}</div>` : ''}
+      </div>`;
+    const sumChip = (ic, html) => `<span class="std-sum">${icon(ic, 13)}${html}</span>`;
     const toHM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     const { names, wins } = resolveMeals(KNOB);
+    const PREV_IC = { breakfast: 'utensils', lunch: 'bowl', dinner: 'bowl', snack: 'utensils' };
     return `
-    ${backHead(scopeName, kind === 'team' ? 'Every athlete starts here' : 'Overrides the team default for this room', 'coach-plan')}
+    ${backHead(scopeName, kind === 'team' ? 'The starting standard for athletes without an override' : `Overrides your team standard for ${esc(value)}`, 'coach-plan')}
+    <div class="std-wrap">
 
-    <div class="eyebrow">Meals per day · photo proof</div>
-    <div class="chip-row">${[1, 2, 3, 4, 5, 6].map(n => chip(KNOB.meals === n, String(n), 'meals', n)).join('')}</div>
-
-    <div class="eyebrow">Meal names & windows · windows drive due-soon, overdue, and reminders</div>
-    <section class="card" style="padding:10px 16px">
-      ${names.map((t, i) => `
-        <div class="lrow" style="cursor:default;gap:8px">
-          <input class="mname" data-meal="${i}" maxlength="40" value="${esc(t)}"
-                 style="flex:1;min-width:0;background:transparent;border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--text-1);font-size:13.5px;font-weight:600">
-          <input type="time" class="mwin" data-meal="${i}" data-edge="open" value="${wins[i].open != null ? toHM(wins[i].open) : ''}">
-          <span style="color:var(--text-3);font-size:12px">→</span>
-          <input type="time" class="mwin" data-meal="${i}" data-edge="due" value="${toHM(wins[i].due)}">
-        </div>`).join('')}
-    </section>
-
-    <div class="eyebrow">Lift sessions per week</div>
-    <div class="chip-row">${[0, 1, 2, 3, 4, 5, 6, 7].map(n => chip(KNOB.lifts === n, n === 0 ? 'Off' : String(n), 'lifts', n)).join('')}</div>
-
-    <div class="eyebrow">Weigh-ins · season trend, never scored</div>
-    <div class="chip-row">
-      ${chip(KNOB.weigh === 'off', 'Off', 'weigh', 'off')}${chip(KNOB.weigh === 'mwf', 'Mon / Wed / Fri', 'weigh', 'mwf')}${chip(KNOB.weigh === 'daily', 'Daily', 'weigh', 'daily')}
-    </div>
-
-    <div class="eyebrow">Always-on pieces</div>
-    <section class="card" style="padding:6px 16px">
-      ${seg('Recovery check-in', 'Nightly · 25% of the score', 'recovery', KNOB.recovery)}
-      ${seg('Weekly check-in', 'Sundays · 10% of the score', 'checkin', KNOB.checkin)}
-      ${seg('Hydration focus', 'Visible, never scored', 'hydration', KNOB.hydration)}
-      ${seg('Photo proof on meals', 'Off = tap-to-check, no photo required', 'photo', KNOB.photoProof)}
-    </section>
-    ${KNOB.hydration ? `
-    <div class="eyebrow">Hydration target</div>
-    <div class="chip-row">${[80, 100, 120, 150].map(n => chip(KNOB.hydrationOz === n, `${n} oz`, 'hydoz', n)).join('')}</div>` : ''}
-
-    <div class="eyebrow">Templates</div>
-    <div class="chip-row">
-      ${(TPL && TPL.rows ? TPL.rows : []).map(t => `<span class="chp" data-knob="tpl:${esc(t.id)}" title="${esc(templateLabel(t.kind))}">${esc(t.name)}</span>`).join('')}
-      <span class="chp" style="border:1px dashed var(--line)" data-knob="tplsave:1">+ Save as template</span>
-    </div>
-    ${SHOW_TPL_SAVE ? `
-    <section class="card" style="padding:10px 16px">
-      <div style="display:flex;gap:7px">
-        <input class="ob-input" id="tpl-name" maxlength="40" placeholder="Template name" style="flex:1;height:36px" />
-        <button class="btn green sm" id="tpl-save-btn" style="width:auto;padding:0 12px;height:36px">Save</button>
+      <div class="std-summary">
+        ${sumChip('utensils', `<b>${KNOB.meals}</b> meal${KNOB.meals === 1 ? '' : 's'}`)}
+        ${KNOB.photoProof ? sumChip('camera', 'Photo proof') : ''}
+        ${KNOB.weigh !== 'off' ? sumChip('scale', KNOB.weigh === 'daily' ? 'Daily weigh' : 'MWF weigh') : ''}
+        ${KNOB.recovery ? sumChip('moon', 'Recovery') : ''}
+        ${KNOB.hydration ? sumChip('droplet', `<b>${KNOB.hydrationOz}</b> oz`) : ''}
       </div>
-    </section>` : ''}
 
-    <div style="height:14px"></div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
-      <div><div class="tt">Stored live, rails enforced server-side</div>
-      <div class="ts">Meals 1–6, lifts 0–7 — the database rejects anything outside the rails. Athlete day lists AND scoring follow this standard on their next sync: the meal count is the denominator.</div></div>
+      <section class="std-mod">
+        ${modHead('utensils', 'std-ic-g', 'Meals', 'The meals that count toward the daily score', `${KNOB.meals}/day`)}
+        <div class="std-lbl">Meals per day</div>
+        <div class="std-count">${[1, 2, 3, 4, 5, 6].map(n => chip(KNOB.meals === n, String(n), 'meals', n)).join('')}</div>
+        <div class="std-lbl mt">Names &amp; windows · these drive due-soon, overdue &amp; reminders</div>
+        ${names.map((t, i) => `
+        <div class="std-meal">
+          <input class="mname std-name" data-meal="${i}" maxlength="40" value="${esc(t)}" aria-label="Meal ${i + 1} name" />
+          <div class="std-meal-times">
+            <input type="time" class="mwin std-time" data-meal="${i}" data-edge="open" value="${wins[i].open != null ? toHM(wins[i].open) : ''}" aria-label="Meal ${i + 1} opens" />
+            <span class="std-arrow">→</span>
+            <input type="time" class="mwin std-time" data-meal="${i}" data-edge="due" value="${toHM(wins[i].due)}" aria-label="Meal ${i + 1} due" />
+          </div>
+        </div>`).join('')}
+        <div class="std-switch-row" style="margin-top:6px">
+          <div class="std-sw-m"><div class="std-sw-t">Photo proof</div><div class="std-sw-s">Off = tap-to-check, no photo required</div></div>
+          ${sw(KNOB.photoProof, 'photo')}
+        </div>
+      </section>
+
+      <section class="std-mod">
+        ${modHead('clock', 'std-ic-b', 'Timing &amp; late credit', 'How grace and lateness change a meal’s score')}
+        <div class="std-lbl">Grace window</div>
+        <div class="std-chips">${[0, 15, 30, 60].map(n => chip((KNOB.grace || 0) === n, n === 0 ? 'None' : `${n} min`, 'grace', n)).join('')}</div>
+        <div class="std-lbl mt">Late meals earn</div>
+        <div class="std-seg accent">
+          ${['half', 'full', 'none'].map(p => `<button class="${(KNOB.latePolicy || 'half') === p ? 'on' : ''}" data-knob="late:${p}">${p === 'half' ? 'Half' : p === 'full' ? 'Full' : 'None'}</button>`).join('')}
+        </div>
+        <div class="std-help">A meal logged within grace counts on time. Past it, the late policy sets the credit.</div>
+      </section>
+
+      <section class="std-mod">
+        ${modHead('bolt', 'std-ic-a', 'Training &amp; body', 'Lifting cadence and weigh-in schedule')}
+        <div class="std-lbl">Lift sessions / week</div>
+        <div class="std-chips">${[0, 1, 2, 3, 4, 5, 6, 7].map(n => chip(KNOB.lifts === n, n === 0 ? 'Off' : String(n), 'lifts', n)).join('')}</div>
+        <div class="std-lbl mt">Weigh-ins · season trend, tracked not scored</div>
+        <div class="std-chips">${chip(KNOB.weigh === 'off', 'Off', 'weigh', 'off')}${chip(KNOB.weigh === 'mwf', 'Mon / Wed / Fri', 'weigh', 'mwf')}${chip(KNOB.weigh === 'daily', 'Daily', 'weigh', 'daily')}</div>
+      </section>
+
+      <section class="std-mod">
+        ${modHead('moon', 'std-ic-p', 'Recovery &amp; check-ins', 'Scored pillars and your review preference')}
+        ${swRow('Recovery check-in', 'Nightly · 25% of the score', 'recovery', KNOB.recovery)}
+        ${swRow('Weekly check-in', 'Sundays · 10% of the score', 'checkin', KNOB.checkin)}
+        ${swRow('Coach review on meals', 'Flag each logged meal for your review', 'review', KNOB.coachReview)}
+      </section>
+
+      <section class="std-mod">
+        ${modHead('droplet', 'std-ic-c', 'Hydration', 'A visible daily focus — tracked, not scored', KNOB.hydration ? `${KNOB.hydrationOz} oz` : 'Off')}
+        <div class="std-switch-row" style="padding-top:0">
+          <div class="std-sw-m"><div class="std-sw-t">Hydration focus</div><div class="std-sw-s">Shown on Home — tracked, not scored</div></div>
+          ${sw(KNOB.hydration, 'hydration')}
+        </div>
+        ${KNOB.hydration ? `<div class="std-lbl mt">Daily target</div><div class="std-chips">${[80, 100, 120, 150].map(n => chip(KNOB.hydrationOz === n, `${n} oz`, 'hydoz', n)).join('')}</div>` : ''}
+      </section>
+
+      <section class="std-mod">
+        ${modHead('clipboard', 'std-ic-b', 'Templates', 'Start from a proven draft, or save this one')}
+        <div class="std-chips">
+          ${(TPL && TPL.rows ? TPL.rows : []).map(t => `<span class="std-chip" data-knob="tpl:${esc(t.id)}" title="${esc(templateLabel(t.kind))}">${esc(t.name)}</span>`).join('')}
+          <span class="std-chip dashed" data-knob="tplsave:1">${icon('plus', 14)} Save current</span>
+        </div>
+        ${SHOW_TPL_SAVE ? `
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input class="std-name" id="tpl-name" maxlength="40" placeholder="Template name" style="flex:1" />
+          <button class="btn green sm" id="tpl-save-btn" style="width:auto;padding:0 16px">Save</button>
+        </div>` : ''}
+      </section>
+
+      ${(() => {
+        const preview = previewFromKnobs(KNOB);
+        if (!preview) return '';
+        const { std } = preview;
+        return `
+        <section class="std-preview">
+          <div class="std-prev-h">${icon('eye', 13)} What the athlete sees</div>
+          ${std.slots.map(slot => {
+            const title = std.titles[slot] || cap(String(slot).replace('-', ' '));
+            const due = std.deadlines[slot];
+            const g = std.grace && std.grace[slot];
+            return `
+          <div class="std-prev-row">
+            <div class="std-prev-ic">${icon(PREV_IC[slot] || 'utensils', 15)}</div>
+            <div style="flex:1;min-width:0"><div class="std-prev-t">${esc(title)}</div>
+            <div class="std-prev-s">${due != null ? `Due by ${fmtMin(due)}` : 'No deadline set'}${g ? ` · ${g} min grace` : ''}</div></div>
+          </div>`;
+          }).join('')}
+          <div class="std-prev-foot"><b>${std.mealsRequired}</b> meal${std.mealsRequired === 1 ? '' : 's'} make the day’s nutrition score.</div>
+        </section>`;
+      })()}
+
+      <section class="std-mod">
+        ${modHead('arrowRight', 'std-ic-b', 'Effective from', 'Applies going forward — today never changes')}
+        <div class="std-seg" id="set-effective">
+          <button class="${existing ? '' : 'on'}" data-eff="today">Today</button>
+          <button class="${existing ? 'on' : ''}" data-eff="tomorrow">Tomorrow</button>
+          <button data-eff="date">Pick a date</button>
+        </div>
+        <input type="date" id="set-eff-date" class="std-time" style="display:none;margin-top:8px;width:auto" min="${(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })()}" aria-label="Effective date" />
+        <div class="std-help">Today applies it now. Tomorrow keeps today unchanged. Or pick a future date. Past, already-scored days are never rewritten.</div>
+      </section>
+
+      <div class="std-save">
+        <button class="btn primary" id="set-save">${icon('check', 19)} Save the ${kind === 'team' ? 'team standard' : `${esc(value)} room standard`}</button>
+        ${kind !== 'team' && existing ? `<div style="height:9px"></div><button class="btn ghost" id="set-clear">Use the team standard instead</button>` : ''}
+        <div class="std-status" id="set-status"></div>
+      </div>
     </div>
-
-    ${(() => {
-      const preview = previewFromKnobs(KNOB);
-      if (!preview) return '';
-      const { std } = preview;
-      return `
-      <div class="eyebrow">What the athlete sees</div>
-      <section class="card" style="padding:6px 16px">
-        ${std.slots.map(slot => {
-          const title = std.titles[slot] || cap(slot);
-          const due = std.deadlines[slot];
-          return `
-        <div class="lrow" style="cursor:default">
-          <div class="lm"><div class="lt">${esc(title)}</div>
-          <div class="ls">${due != null ? `Due by ${fmtMin(due)}` : 'No deadline set'}</div></div>
-        </div>`;
-        }).join('')}
-        <div style="font-size:11.5px;font-weight:600;color:var(--text-3);padding:8px 2px 4px">${std.mealsRequired} meal${std.mealsRequired === 1 ? '' : 's'} make the day's nutrition score.</div>
-      </section>`;
-    })()}
-
-    <div style="height:16px"></div>
-    <button class="btn primary" id="set-save">${icon('check', 19)} Save the ${kind === 'team' ? 'team standard' : `${esc(value)} room standard`}</button>
-    ${kind !== 'team' && existing ? `<div style="height:8px"></div><button class="btn ghost" id="set-clear">Use team default instead</button>` : ''}
-    <div id="set-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
-    <div style="height:10px"></div>
     `;
   },
   mount(root, { sub }) {
@@ -688,11 +745,16 @@ export const coachPlanSet = {
       if (k === 'meals') { KNOB.meals = +arg; delete KNOB.mealNames; delete KNOB.mealWins; }
       if (k === 'lifts') KNOB.lifts = +arg;
       if (k === 'weigh') KNOB.weigh = arg;
-      if (k === 'recovery') KNOB.recovery = arg === '1';
-      if (k === 'checkin') KNOB.checkin = arg === '1';
-      if (k === 'hydration') KNOB.hydration = arg === '1';
-      if (k === 'photo') KNOB.photoProof = arg === '1';
+      // Switch rows emit ":toggle" (flip); the legacy ":1"/":0" path is kept for safety.
+      const tog = (v) => (arg === 'toggle' ? !v : arg === '1');
+      if (k === 'recovery') KNOB.recovery = tog(KNOB.recovery);
+      if (k === 'checkin') KNOB.checkin = tog(KNOB.checkin);
+      if (k === 'hydration') KNOB.hydration = tog(KNOB.hydration);
+      if (k === 'photo') KNOB.photoProof = tog(KNOB.photoProof);
+      if (k === 'review') KNOB.coachReview = tog(KNOB.coachReview);
       if (k === 'hydoz') KNOB.hydrationOz = +arg;
+      if (k === 'grace') KNOB.grace = +arg;
+      if (k === 'late') KNOB.latePolicy = arg;
       // Applying a template only fills the knobs — it never writes the DB directly. The
       // coach still reviews the preview card and hits the existing Save to publish.
       if (k === 'tpl') {
@@ -716,6 +778,14 @@ export const coachPlanSet = {
       say('Template saved.');
       await loadTemplates(true);
     });
+    // Effective-from toggle: a plain local switch (no re-render — a full render mid-edit would
+    // reset the knobs/steal focus). The save handler reads the active choice.
+    root.querySelectorAll('#set-effective button').forEach((b) => b.addEventListener('click', () => {
+      root.querySelectorAll('#set-effective button').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+      const dateInput = root.querySelector('#set-eff-date');
+      if (dateInput) dateInput.style.display = b.getAttribute('data-eff') === 'date' ? '' : 'none';
+    }));
     const save = root.querySelector('#set-save');
     if (save) save.addEventListener('click', async () => {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
@@ -726,11 +796,26 @@ export const coachPlanSet = {
         if (w.due == null) { say(`Meal ${i + 1}'s window closes before it opens — fix the times.`, true); return; }
         if (w.open != null && !(w.open < w.due)) { say(`Meal ${i + 1}'s window closes before it opens — fix the times.`, true); return; }
       }
+      // Prospective effective date (0085): a version dated tomorrow leaves today's scoring
+      // untouched; "Today" applies it now. Never null from the editor — null is the creation seed.
+      const isoOffset = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+      const effBtn = root.querySelector('#set-effective .on');
+      const effKind = effBtn ? effBtn.getAttribute('data-eff') : 'tomorrow';
+      let effDate;
+      if (effKind === 'today') effDate = isoOffset(0);
+      else if (effKind === 'date') {
+        const dv = ((root.querySelector('#set-eff-date') || {}).value || '').trim();
+        if (!dv || dv < isoOffset(0)) { say('Pick a date from today onward.', true); return; }
+        effDate = dv;
+      } else effDate = isoOffset(1);
       save.disabled = true; say('Saving…');
-      const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB));
+      const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB), effDate);
       save.disabled = false;
       if (!r.ok) { say(r.error || 'Could not save — try again.', true); return; }
-      say('Saved. This is the standard now.');
+      act.markCoachSetup('standard'); // real "reviewed your standard" signal for the setup checklist
+      say(effDate === isoOffset(0) ? 'Saved. This is the standard now.'
+        : effDate === isoOffset(1) ? 'Saved. It takes effect tomorrow — today is unchanged.'
+        : `Saved. It takes effect ${effDate} — earlier days are unchanged.`);
       await loadSets(true);
     });
     const clear = root.querySelector('#set-clear');
@@ -1349,7 +1434,7 @@ function conversationSection(P) {
    (athlete > position > team > built-in CATALOG) so the coach always knows WHOSE standard
    they're looking at — never left to guess whether this is the team default or an override. */
 function requirementSourceLabel(set) {
-  if (!set) return 'Team default (built-in)';
+  if (!set) return 'Team standard (built-in)';
   if (set.scope_kind === 'athlete') return 'Individual';
   if (set.scope_kind === 'position') return `${String(set.scope_value || '').trim().toUpperCase() || 'Position'} room`;
   return 'Team standard';

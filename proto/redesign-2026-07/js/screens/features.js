@@ -1,4 +1,4 @@
-import { S, RT } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 
@@ -304,41 +304,75 @@ export const partner = {
   render() { location.hash = '#home'; return ''; },
 };
 
-/* ---------- #coach-voice · AI that sounds like YOUR coach ---------- */
+/* ---------- #coach-voice · configure how the AI reinforces YOUR standards ---------- */
+const CV_PHRASES = ['That’s the standard.', 'Don’t chase the scale, we’re building.', 'Hydration is the standard this week.', 'Keep this structure.'];
 export const coachVoice = {
   nav: 'coach', tab: 'profile',
   render() {
+    const cv = RT.coachVoice || {};
+    const enabled = cv.enabled !== false;
+    const tone = cv.tone || 'direct';
+    const level = cv.level || 'balanced';
+    const approved = Array.isArray(cv.approved) ? cv.approved : CV_PHRASES;
+    const chip = (on, label, key, val) => `<span class="chp ${on ? 'on' : ''}" data-cv="${key}:${val}">${label}</span>`;
     return `
-    ${backHead('AI · Your Voice', 'It reinforces your rulings. It never invents.', 'coach-profile')}
+    ${backHead('Coach Voice', 'How the AI reinforces your standards — in your tone.', 'coach-profile')}
 
-    <section class="card pad" style="display:flex;align-items:center;gap:14px">
-      <div style="flex:1">
-        <div style="font-size:15px;font-weight:800">Speak as ${esc(S.coachIdentity.name)}</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px">AI replies to your athletes will borrow your phrasing.</div>
-      </div>
-      <span class="status-pill a" style="flex:none">Preview</span>
-    </section>
-
-    <div class="eyebrow">Phrases it will reinforce</div>
     <section class="card" style="padding:6px 16px">
-      ${['That’s the standard.', 'Don’t chase the scale, we’re building.', 'Hydration is the standard this week.', 'Keep this structure.'].map(p => `
-        <div class="lrow" style="cursor:default">
-          <div class="lic">${icon('message', 16)}</div>
-          <div class="lm"><div class="lt" style="font-weight:700">“${p}”</div></div>
-          <span class="status-pill" style="color:var(--text-3);border-color:var(--hairline)">Example</span>
-        </div>`).join('')}
+      <div class="lrow" style="cursor:default">
+        <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
+        <div class="lm"><div class="lt">AI in your voice</div><div class="ls">${enabled ? 'On — always labeled as AI, never signed as you' : 'Off'}</div></div>
+        <div class="seg" style="width:104px" id="cv-enabled"><button class="${enabled ? 'on' : ''}">On</button><button class="${enabled ? '' : 'on'}">Off</button></div>
+      </div>
     </section>
+
+    <div class="eyebrow">Tone</div>
+    <div class="chip-row" id="cv-tone">${chip(tone === 'calm', 'Calm', 'tone', 'calm')}${chip(tone === 'direct', 'Direct', 'tone', 'direct')}${chip(tone === 'fired', 'Fired up', 'tone', 'fired')}</div>
+
+    <div class="eyebrow">Accountability</div>
+    <div class="chip-row" id="cv-level">${chip(level === 'supportive', 'Supportive', 'level', 'supportive')}${chip(level === 'balanced', 'Balanced', 'level', 'balanced')}${chip(level === 'hard', 'Hard-nosed', 'level', 'hard')}</div>
+
+    <div class="eyebrow">Phrases the AI may echo · tap to approve</div>
+    <section class="card" style="padding:6px 16px" id="cv-approved">
+      ${CV_PHRASES.map((p, i) => { const on = approved.includes(p); return `
+        <div class="lrow" data-cvphrase="${i}" style="cursor:pointer">
+          <div class="xico sm ${on ? 'green' : 'gray'}">${on ? icon('check', 15) : ''}</div>
+          <div class="lm"><div class="lt" style="font-weight:700">“${esc(p)}”</div></div>
+        </div>`; }).join('')}
+    </section>
+
+    <div class="eyebrow">Never say · comma-separated</div>
+    <input id="cv-prohibited" class="ob-input" maxlength="200" placeholder="e.g. skinny, fat, lazy" value="${esc(cv.prohibited || '')}" />
 
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
       <div><div class="tt">Hard limits</div>
-      <div class="ts">The AI only restates rulings you actually made, in words you actually use. New coaching always comes from you; it clarifies, it never leads.</div></div>
+      <div class="ts">Every AI message is labeled as AI and never signed as you. It reinforces rulings you already made, in your tone — it never creates requirements, changes deadlines, alters scores, or gives medical advice. New coaching always comes from you.</div></div>
     </div>
     <div style="height:10px"></div>
     `;
   },
-  async mount(root) { const { wireToggles } = await import('./settings.js'); wireToggles(root); },
+  mount(root) {
+    const seg = root.querySelector('#cv-enabled');
+    if (seg) {
+      const [on, off] = seg.querySelectorAll('button');
+      on.addEventListener('click', () => { act.setCoachVoice({ enabled: true }); window.__render(); });
+      off.addEventListener('click', () => { act.setCoachVoice({ enabled: false }); window.__render(); });
+    }
+    root.querySelectorAll('[data-cv]').forEach((el) => el.addEventListener('click', () => {
+      const [k, v] = el.getAttribute('data-cv').split(':');
+      act.setCoachVoice({ [k]: v }); window.__render();
+    }));
+    root.querySelectorAll('[data-cvphrase]').forEach((el) => el.addEventListener('click', () => {
+      const p = CV_PHRASES[+el.getAttribute('data-cvphrase')];
+      const cur = Array.isArray((RT.coachVoice || {}).approved) ? RT.coachVoice.approved.slice() : CV_PHRASES.slice();
+      const set = new Set(cur); set.has(p) ? set.delete(p) : set.add(p);
+      act.setCoachVoice({ approved: [...set] }); window.__render();
+    }));
+    const prohibited = root.querySelector('#cv-prohibited');
+    if (prohibited) prohibited.addEventListener('change', () => act.setCoachVoice({ prohibited: prohibited.value.trim() }));
+  },
 };
 
 /* ---------- #safety · Protective pattern flags (design preview, deliberately not simulated) ---------- */

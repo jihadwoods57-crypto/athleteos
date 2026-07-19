@@ -4,16 +4,18 @@
    D3): score/possible/streak arrive as inputs from the existing projections. */
 import { CATALOG, runsToday, fmtMin, IMPACT_LABEL } from './requirements.js';
 import { planNotifications } from './notify-plan.js';
+import { windowPreActivation } from './activation.js';
 
 export const DUE_SOON_MIN = 90;
 
-/** Tone display string → engine pressure value. Accepts both the onboarding knob labels
- *  ("Keep it gentle" / "Hold me accountable" / "Max pressure") and the notification-settings
- *  tone names (Supportive / Direct / Intense — spec §13.3). Tone changes wording only. */
+/** Tone display string → engine pressure value. Accepts the onboarding knob labels
+ *  ("Remind me gently" / "Hold me accountable" / "High accountability", plus legacy "Max
+ *  pressure") and the notification-settings tone names (Supportive / Direct / Intense — spec
+ *  §13.3). Tone changes wording only. */
 export function mapPressure(label) {
   const s = String(label || '').toLowerCase();
   if (s.includes('gentl') || s.includes('support')) return 'gentle';
-  if (s.includes('max') || s.includes('intens')) return 'max';
+  if (s.includes('max') || s.includes('intens') || s.includes('high')) return 'max';
   return 'accountable';
 }
 
@@ -26,14 +28,18 @@ export function fmtCountdown(mins) {
 
 export function samePlan(a, b) { return JSON.stringify(a || []) === JSON.stringify(b || []); }
 
-const COLOR = { done: 'green', done_late: 'green', overdue: 'red', due_soon: 'gold', ready: 'gold', locked: 'gray' };
-const PILL = { done: 'Logged', done_late: 'Logged late', overdue: 'Overdue', due_soon: 'Due soon', ready: 'Open', locked: 'Upcoming' };
+const COLOR = { done: 'green', done_late: 'green', overdue: 'red', due_soon: 'gold', ready: 'gold', locked: 'gray', not_required: 'gray' };
+const PILL = { done: 'Logged', done_late: 'Logged late', overdue: 'Overdue', due_soon: 'Due soon', ready: 'Open', locked: 'Upcoming', not_required: 'Not required' };
 
 function itemState(req, st, nowMin) {
   if (st.done) return st.late ? 'done_late' : 'done';
-  if (nowMin > req.window.due) return 'overdue';
+  // A meal within its grace window (day.js slotGrace) still scores on time, so it must not read
+  // as red "overdue" here — it stays actionable until deadline+grace. Absent grace = 0 (unchanged).
+  const grace = (req.window && typeof req.window.grace === 'number') ? req.window.grace : 0;
+  const close = req.window.due + grace;
+  if (nowMin > close) return 'overdue';
   if (req.window.open != null && nowMin < req.window.open) return 'locked';
-  if (req.window.due - nowMin <= DUE_SOON_MIN) return 'due_soon';
+  if (close - nowMin <= DUE_SOON_MIN) return 'due_soon';
   return 'ready';
 }
 
@@ -51,7 +57,7 @@ const ROUTE = {
  * Weekly Check-In is deliberately excluded (untracked in v1 — its completion isn't wired;
  * the Action Hub shows it as a navigational row on Sundays only, outside this engine).
  */
-export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'accountable', score = 0, possible = 0, streak = 0, catalog = CATALOG, dateISO = '', prefs = null, coachName = null }) {
+export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'accountable', score = 0, possible = 0, streak = 0, catalog = CATALOG, dateISO = '', prefs = null, coachName = null, activationMin = /** @type {number | null} */ (null) }) {
   const rows = catalog.filter((r) => r.id !== 'weekly' && runsToday(r, dow));
   const items = rows.map((req) => {
     const st = status[req.id] || {};
@@ -59,6 +65,11 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     const hydroDone = isHydro && (st.oz || 0) >= 120;
     const done = isHydro ? hydroDone : !!st.done;
     let state = itemState(req, { done, late: !!st.late }, nowMin);
+    // First-day activation (no retroactive failure): a REQUIRED window that closed before the
+    // athlete could act — activation moment + buffer — is not their responsibility today. It
+    // reads "Not required", never overdue/missed, and drops out of the denominator, the NOW
+    // ladder, and reminders. A meal they logged anyway still counts (done wins).
+    if (req.required && !done && windowPreActivation(req.window.due, activationMin)) state = 'not_required';
     // Optional items are never late in a way that matters — cap overdue/due_soon to
     // 'ready' so hydration (etc.) never renders the red "still counts" treatment.
     if (!req.required && (state === 'overdue' || state === 'due_soon')) state = 'ready';
@@ -67,6 +78,7 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     const impact = IMPACT_LABEL[req.impact.comp || req.impact.kind] || '';
     let sub;
     if (state === 'done' || state === 'done_late') sub = st.at ? `Logged at ${st.at}${st.late ? ' · late' : ''}` : (isHydro ? `${st.oz} oz · goal hit` : req.proof === 'form' ? 'Submitted' : 'In');
+    else if (state === 'not_required') sub = `Closed at ${fmtMin(req.window.due)} — you joined after, so it won’t count`;
     else if (state === 'overdue') sub = `Was due ${fmtMin(req.window.due)} — still counts, log it late`;
     else if (state === 'locked') sub = `Opens at ${fmtMin(req.window.open)}`;
     else if (isHydro) sub = `${st.oz || 0} of 120 oz · ${dueLabel}`;
@@ -97,13 +109,15 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
   const doneItems = all.filter((i) => i.state === 'done' || i.state === 'done_late');
   const overdue = byDue(all.filter((i) => i.required && i.state === 'overdue'));
   const met = all.filter((i) => i.required && (i.state === 'done' || i.state === 'done_late')).length;
-  const total = all.filter((i) => i.required).length;
+  // Pre-activation windows ('not_required') are excused today — out of the denominator so a
+  // late-signup athlete is never scored against windows that closed before they activated.
+  const total = all.filter((i) => i.required && i.state !== 'not_required').length;
   const celebration = met === total && total > 0;
 
   // NOW: overdue (earliest due) → due_soon (nearest due) → ready required (earliest due) → assigned.
   // LOCKED items never enter the ladder — the NOW card must always be actionable. When everything
   // actionable is exhausted but locked required items remain, now/next are null and it is NOT celebration.
-  const openRequired = all.filter((i) => i.required && !['done', 'done_late'].includes(i.state));
+  const openRequired = all.filter((i) => i.required && i.state !== 'not_required' && !['done', 'done_late'].includes(i.state));
   let ordered = [];
   if (!celebration) {
     ordered = [
@@ -119,6 +133,9 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     ...ordered.slice(2),
     ...byDue(all.filter((i) => i.required && i.state === 'locked')),
     ...all.filter((i) => !i.required && !['done', 'done_late'].includes(i.state)),
+    // Excused-today (pre-activation) rows sit quietly at the bottom — visible for honesty
+    // ("won't count"), never in the NOW ladder.
+    ...all.filter((i) => i.required && i.state === 'not_required'),
   ];
 
   // Notification plan: delegated to the pure planner framework (notify-plan.js) — stages,
@@ -126,9 +143,11 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
   // live there. Each entry carries the in-app `route` the tap should land on ("Dinner closes
   // at 8:30" → the dinner camera, not Home) — the last inch of the accountability loop.
   const doneIds = new Set(items.filter((i) => i.state === 'done' || i.state === 'done_late').map((i) => i.id));
+  // Never remind an athlete about a window that closed before they activated.
+  const notReqIds = new Set(items.filter((i) => i.state === 'not_required').map((i) => i.id));
   const plan = planNotifications({
     nowMin, dateISO, dayOffset: 0,
-    reqs: rows.filter((r) => r.required && !doneIds.has(r.id)),
+    reqs: rows.filter((r) => r.required && !doneIds.has(r.id) && !notReqIds.has(r.id)),
     assigned: assigned.map((a) => ({ id: a.id, title: a.title, from: a.from, done: !!a.done, dueAtMin: a.dueAtMin })),
     pressure, prefs, celebration, score, streak, coachName,
   });

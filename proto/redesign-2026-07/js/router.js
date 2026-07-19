@@ -47,7 +47,8 @@ function tabbar(activeTab, nav = 'athlete') {
           dot = e.celebration ? '' : `<span class="fab-dot ${e.overdue.length ? 'red' : 'gold'}"></span>`;
         } catch { /* pre-auth render — no dot */ }
       }
-      return `<div class="tab"><div class="fab" data-go="${t.route}" style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
+      const fabLabel = nav === 'athlete' ? 'Log a meal' : nav === 'coach' ? 'Create' : 'Add';
+      return `<div class="tab"><div class="fab" role="button" tabindex="0" aria-label="${fabLabel}" data-go="${t.route}" style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
     }
     const on = t.id === activeTab ? `active ${t.id === 'home' || t.id === 'team' || t.id === 'clients' ? 'home' : ''}` : '';
     // Coach Inbox badge: pending joins + unopened logs (real counts, hidden at zero).
@@ -58,7 +59,7 @@ function tabbar(activeTab, nav = 'athlete') {
         if (n) badge = `<span style="position:absolute;top:-3px;right:50%;margin-right:-16px;min-width:15px;height:15px;border-radius:999px;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;padding:0 3px;border:2px solid var(--bg)">${n > 9 ? '9+' : n}</span>`;
       } catch { /* pre-auth render */ }
     }
-    return `<div class="tab ${on}" data-go="${t.route}" style="position:relative">${badge}${icon(t.icon, 23)}<span>${t.label}</span></div>`;
+    return `<div class="tab ${on}" ${on ? 'aria-current="page"' : ''} data-go="${t.route}" style="position:relative">${badge}${icon(t.icon, 23)}<span>${t.label}</span></div>`;
   }).join('')}</nav>`;
 }
 
@@ -100,6 +101,8 @@ function navSave() {
 }
 let NAV_INTENT = false;   // this hash change came from our own handlers (vs browser/swipe back)
 let RESTORE = null;       // {r, s} — scroll position to restore once that route paints
+let LAST_FULL = null;     // the route (route/sub) the previous render painted — lets a same-route
+                          // re-render (window.__render) PRESERVE scroll instead of snapping to top (T-08)
 
 function currentFull() { const { route, sub } = parse(); return sub ? `${route}/${sub}` : route; }
 function currentScroll() { const vp = document.getElementById('viewport'); return vp ? vp.scrollTop : 0; }
@@ -189,6 +192,11 @@ function render() {
   const activeTab = roleTabs.includes(NAV.tab) ? NAV.tab : (mod.tab || route);
   const device = document.getElementById('device');
 
+  // Capture the outgoing viewport's scroll BEFORE innerHTML replaces it, so a same-route re-render
+  // can restore it — the fix for controls that call window.__render() (Team Standard editor knobs,
+  // athlete profile chips) snapping the page to the top (T-08).
+  const prevVp = document.getElementById('viewport');
+  const prevScroll = prevVp ? prevVp.scrollTop : 0;
   const body = mod.render({ sub, S });
   device.innerHTML = `
     <div class="island"></div>
@@ -239,8 +247,12 @@ function render() {
   // scrollTo with behavior:'instant' overrides the viewport's smooth scroll-behavior — a
   // restore must snap, never animate.
   const vp = document.getElementById('viewport');
-  const targetScroll = (RESTORE && RESTORE.r === full) ? (RESTORE.s || 0) : 0;
+  // Back-pop → the recorded origin scroll; a same-route re-render (LAST_FULL === full, e.g. an
+  // editor knob calling window.__render) → keep where the user was; a real forward view → top.
+  const targetScroll = (RESTORE && RESTORE.r === full) ? (RESTORE.s || 0)
+    : (LAST_FULL === full ? prevScroll : 0);
   RESTORE = null;
+  LAST_FULL = full;
   try { vp.scrollTo({ top: targetScroll, behavior: 'instant' }); } catch { vp.scrollTop = targetScroll; }
   if (mod.mount) mod.mount(device, { sub, S });
 }
