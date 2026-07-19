@@ -218,7 +218,7 @@ export const coachPlan = {
         <div class="lrow" data-go="coach-plan-set/position/${esc(pos)}">
           <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright);font-weight:800;font-size:12px">${esc(pos.slice(0, 2))}</div>
           <div class="lm"><div class="lt">${esc(pos)} room <small style="color:var(--text-3);font-weight:700">· ${n}</small></div>
-          <div class="ls">${s ? esc(setSummary(s.items)) : 'Team default'}</div></div>
+          <div class="ls">${s ? esc(setSummary(s.items)) : 'Inherits team standard'}</div></div>
           ${s ? '<span class="status-pill b">Custom</span>' : ''}
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>`;
@@ -233,7 +233,7 @@ export const coachPlan = {
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-plan-set/team">
           <div class="lic" style="background:var(--surface-3);color:var(--text-2);font-weight:800;font-size:12px">TM</div>
-          <div class="lm"><div class="lt">Team default</div>
+          <div class="lm"><div class="lt">Your Team Standard</div>
           <div class="ls">${teamSet ? esc(setSummary(teamSet.items)) : 'Built-in · 3 meals, recovery, weekly check-in'}</div></div>
           ${teamSet ? '<span class="status-pill b">Custom</span>' : ''}
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
@@ -537,7 +537,7 @@ export const coachPlanSet = {
     const [kind, rawVal] = (sub || 'team').split('/');
     const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
     const key = `${kind}:${value || ''}`;
-    const scopeName = kind === 'team' ? 'Team default' : `${value} room`;
+    const scopeName = kind === 'team' ? 'Your Team Standard' : `${value} room`;
     const sets = SETS && SETS.rows ? SETS.rows : [];
     const existing = sets.find(s => s.scope_kind === kind && String(s.scope_value || '').trim().toUpperCase() === (value || '').toUpperCase())
       || (kind === 'team' ? sets.find(s => s.scope_kind === 'team') : null);
@@ -590,7 +590,7 @@ export const coachPlanSet = {
     const { names, wins } = resolveMeals(KNOB);
     const PREV_IC = { breakfast: 'utensils', lunch: 'bowl', dinner: 'bowl', snack: 'utensils' };
     return `
-    ${backHead(scopeName, kind === 'team' ? 'Every athlete starts here' : `Overrides the team default for ${esc(value)}`, 'coach-plan')}
+    ${backHead(scopeName, kind === 'team' ? 'The starting standard for athletes without an override' : `Overrides your team standard for ${esc(value)}`, 'coach-plan')}
     <div class="std-wrap">
 
       <div class="std-summary">
@@ -1421,7 +1421,7 @@ function conversationSection(P) {
    (athlete > position > team > built-in CATALOG) so the coach always knows WHOSE standard
    they're looking at — never left to guess whether this is the team default or an override. */
 function requirementSourceLabel(set) {
-  if (!set) return 'Team default (built-in)';
+  if (!set) return 'Team standard (built-in)';
   if (set.scope_kind === 'athlete') return 'Individual';
   if (set.scope_kind === 'position') return `${String(set.scope_value || '').trim().toUpperCase() || 'Position'} room`;
   return 'Team standard';

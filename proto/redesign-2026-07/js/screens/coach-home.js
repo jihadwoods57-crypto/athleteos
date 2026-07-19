@@ -64,7 +64,7 @@ function coachSetupSteps(st) {
     // Deep-links to the code section of the profile so the step is always actionable; the empty
     // dashboard also shows Copy/Share inline right above, which marks this done on tap.
     { done: st.sharedCode, t: 'Share your athlete code', s: st.sharedCode ? 'Shared — athletes can join anytime' : 'Invite athletes to start tracking execution', go: 'coach-profile/code' },
-    { done: st.standard, t: 'Review your standard', s: 'Meals, windows, and requirements', go: 'coach-plan' },
+    { done: st.standard, t: 'Review your standard', s: 'Meals, windows, and requirements', go: 'coach-plan-set/team' },
     { done: st.notif, t: 'Set notification rules', s: 'When you and your athletes get nudged', go: 'coach-notif-settings' },
     // Lands directly on the staff-invite section, not the top of the dense profile page.
     { done: st.staff, t: 'Add another staff member', s: 'Coordinators, position coaches, and more', go: 'coach-profile/staff' },
