@@ -101,6 +101,8 @@ function navSave() {
 }
 let NAV_INTENT = false;   // this hash change came from our own handlers (vs browser/swipe back)
 let RESTORE = null;       // {r, s} — scroll position to restore once that route paints
+let LAST_FULL = null;     // the route (route/sub) the previous render painted — lets a same-route
+                          // re-render (window.__render) PRESERVE scroll instead of snapping to top (T-08)
 
 function currentFull() { const { route, sub } = parse(); return sub ? `${route}/${sub}` : route; }
 function currentScroll() { const vp = document.getElementById('viewport'); return vp ? vp.scrollTop : 0; }
@@ -190,6 +192,11 @@ function render() {
   const activeTab = roleTabs.includes(NAV.tab) ? NAV.tab : (mod.tab || route);
   const device = document.getElementById('device');
 
+  // Capture the outgoing viewport's scroll BEFORE innerHTML replaces it, so a same-route re-render
+  // can restore it — the fix for controls that call window.__render() (Team Standard editor knobs,
+  // athlete profile chips) snapping the page to the top (T-08).
+  const prevVp = document.getElementById('viewport');
+  const prevScroll = prevVp ? prevVp.scrollTop : 0;
   const body = mod.render({ sub, S });
   device.innerHTML = `
     <div class="island"></div>
@@ -240,8 +247,12 @@ function render() {
   // scrollTo with behavior:'instant' overrides the viewport's smooth scroll-behavior — a
   // restore must snap, never animate.
   const vp = document.getElementById('viewport');
-  const targetScroll = (RESTORE && RESTORE.r === full) ? (RESTORE.s || 0) : 0;
+  // Back-pop → the recorded origin scroll; a same-route re-render (LAST_FULL === full, e.g. an
+  // editor knob calling window.__render) → keep where the user was; a real forward view → top.
+  const targetScroll = (RESTORE && RESTORE.r === full) ? (RESTORE.s || 0)
+    : (LAST_FULL === full ? prevScroll : 0);
   RESTORE = null;
+  LAST_FULL = full;
   try { vp.scrollTo({ top: targetScroll, behavior: 'instant' }); } catch { vp.scrollTop = targetScroll; }
   if (mod.mount) mod.mount(device, { sub, S });
 }
