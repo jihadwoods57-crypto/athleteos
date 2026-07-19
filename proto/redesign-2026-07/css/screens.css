@@ -29,6 +29,19 @@
 .sidebox .tt { font-size: 13.5px; font-weight: 800; }
 .sidebox .ts { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top: 3px; line-height: 1.45; }
 
+/* GS-2 loading skeleton (T-22) — the honest loading state, never a spinner-in-content. Shimmer
+   rows shaped like the list items they stand in for, so the layout doesn't jump when data lands. */
+.sk-card { pointer-events: none; }
+.sk-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.sk-row + .sk-row { border-top: 1px solid var(--hairline-soft); }
+.sk-dot { width: 34px; height: 34px; border-radius: 11px; flex: none; }
+.sk-lines { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+.sk-line { height: 10px; border-radius: 5px; width: 70%; }
+.sk-line.sk-line-2 { width: 45%; }
+.sk-dot, .sk-line { background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: skShimmer 1.4s ease-in-out infinite; }
+@keyframes skShimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .sk-dot, .sk-line { animation: none; } }
+
 /* ----- Camera ----- */
 .cam { position: relative; height: 100%; display: flex; flex-direction: column; }
 .cam-head { padding: 8px 20px 12px; display:flex; align-items:center; gap: 14px; }

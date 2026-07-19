@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc, collapseSection } from '../components.js';
+import { avatarHead, esc, collapseSection, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster, loadActivity, actTime, entriesFor, getScope, setScope } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
@@ -46,7 +46,7 @@ function coachInviteCard(code, teamName) {
    genuine signal: a shared code, a saved standard, touched notification prefs, a minted staff
    invite, a real group (persisted per-account in RT.coachSetup by act.markCoachSetup, or derived
    from live state). Athletes already on the roster imply the code was shared. */
-function coachSetupState() {
+export function coachSetupState() {
   const cs = (RT && RT.coachSetup) || {};
   const hasAthletes = !!(CD.roster && CD.roster.rows && CD.roster.rows.length);
   const groups = (CD.extras && CD.extras.groups) || [];
@@ -65,7 +65,7 @@ function coachSetupState() {
   return st;
 }
 /* Setup steps split into REQUIRED (share code, review standard) and OPTIONAL. */
-function coachSetupSteps(st) {
+export function coachSetupSteps(st) {
   return {
     required: [
       { key: 'sharedCode', done: st.sharedCode, t: 'Share your athlete code', s: st.sharedCode ? 'Shared — athletes can join anytime' : 'Invite athletes to start tracking execution', go: 'coach-profile/code' },
@@ -327,7 +327,7 @@ export const coachHome = {
     : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === new Date().toISOString().slice(0, 10))).join('')}
 
     <div class="eyebrow" style="display:flex;justify-content:space-between;align-items:baseline"><span>Live activity</span>${unseen ? `<span style="color:var(--blue-bright)">${unseen} new</span>` : ''}</div>
-    ${feed === null ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px">Loading the feed…</div>`
+    ${feed === null ? skeletonRows(2, 'Loading the activity feed')
     : feed.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No logs yet ${scope.kind === 'team' ? 'today' : 'in this group today'}. Every meal lands here the moment it's logged.</div>`
     : `<div style="display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin:0 -2px">${feed.slice(0, 12).map(m => {
         const who = rows.find(r => r.athleteId === m.athlete_id) || {};

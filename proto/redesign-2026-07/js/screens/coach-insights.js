@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc } from '../components.js';
+import { avatarHead, esc, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster, entriesFor, getScope, scopeFilter } from '../coach-data.js';
 import { CATALOG, resolveRequirementSet, catalogFromItems } from '../requirements.js';
@@ -34,7 +34,8 @@ async function loadInsights(teamId, force) {
       roles.fetchInterventionOutcomes(teamId, roles.daysAgoISO(56)),
     ]);
     INSIGHTS_DATA = { teamId, rollup, outcomes };
-  } finally { insightsLoadingId = null; }
+  } catch { INSIGHTS_DATA = { teamId, rollup: [], outcomes: [], offline: true }; } // audit G-3: honest error, not perpetual "Reading the week…"
+  finally { insightsLoadingId = null; }
   if (location.hash === '#coach-insights') window.__render();
 }
 
@@ -106,10 +107,15 @@ function weekSection() {
   if (!teamId) return EMPTY_COPY; // no team at all — never will have history either
 
   const data = INSIGHTS_DATA && INSIGHTS_DATA.teamId === teamId ? INSIGHTS_DATA : null;
+  if (data && data.offline) {
+    return `
+    <div class="co-eyebrow">This week</div>
+    ${errorState({ title: "Couldn't load the week", body: 'Your weekly trends are safe — reconnect and they load right here.', retryId: 'insights-week-retry' })}`;
+  }
   if (!data) {
     return `
     <div class="co-eyebrow">This week</div>
-    <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div><div><div class="tt">Reading the week…</div></div></div>`;
+    ${skeletonRows(2, 'Reading the week')}`;
   }
 
   const scope = getScope();
@@ -198,7 +204,10 @@ export const coachInsights = {
   render() {
     const initials = (S.coachIdentity.handle || 'C').replace(/coach\s*/i, '').slice(0, 2).toUpperCase();
     const head = avatarHead('Insights', 'What the numbers say', initials);
-    if (CD.roster === null || !CD.extras) return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div><div><div class="tt">Reading the day…</div></div></div>`;
+    // Audit G-4: offline before the loading gate (CD.extras is null on a cold offline load too),
+    // so an offline coach gets an honest retry instead of a permanent "Reading the day…".
+    if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: "Can't reach insights", body: "Your team's numbers are safe — reconnect and the read loads right here.", retryId: 'insights-retry' })}`;
+    if (CD.roster === null || !CD.extras) return `${head}${skeletonRows(3, 'Reading the day')}`;
     const entries = entriesFor({ kind: 'team', value: null }) || [];
     const by = (k) => entries.filter(e => e.status.key === k);
     const lines = [];
@@ -239,10 +248,18 @@ export const coachInsights = {
     ${weekSection()}
     <div class="co-bottom"></div>`;
   },
-  mount() {
+  mount(root) {
     loadCoachRoster().then(() => {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (teamId) loadInsights(teamId);
+    });
+    // Audit G-4/G-3 retries: the top gate refetches the roster; the week section refetches the rollup.
+    const iRetry = root && root.querySelector('#insights-retry');
+    if (iRetry) iRetry.addEventListener('click', () => { iRetry.disabled = true; loadCoachRoster(true).then(() => window.__render()); });
+    const wRetry = root && root.querySelector('#insights-week-retry');
+    if (wRetry) wRetry.addEventListener('click', () => {
+      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+      if (teamId) { wRetry.disabled = true; loadInsights(teamId, true); }
     });
   },
 };
