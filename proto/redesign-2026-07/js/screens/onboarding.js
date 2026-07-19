@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { dobFromParts, ageOn, standardForGoal, weightDirection, weightContradictsGoal, showConfirmPending } from '../ob-helpers.js';
+import { dobFromParts, ageOn, standardForGoal, reqHeadTint, weightDirection, weightContradictsGoal, showConfirmPending } from '../ob-helpers.js';
 import { esc } from '../components.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { accountBody, wireAccount } from './ob-account.js';
@@ -33,15 +33,15 @@ const numInput = 'width:100%;background:transparent;border:none;outline:none;tex
 
 const steps = {
   1: () => frame(1, 'Start with the basics', 'This is how your coach and team will recognize you.', `
-    <input id="ob-first" class="ob-input" placeholder="First name" autocapitalize="words" autocorrect="off" spellcheck="false" />
+    <input id="ob-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:12px"></div>
-    <input id="ob-last" class="ob-input" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" />
+    <input id="ob-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Date of birth</div>
     <div class="dob-row">
-      <input id="ob-dob-m" class="ob-input" type="number" inputmode="numeric" placeholder="MM" />
-      <input id="ob-dob-d" class="ob-input" type="number" inputmode="numeric" placeholder="DD" />
-      <input id="ob-dob-y" class="ob-input" type="number" inputmode="numeric" placeholder="YYYY" />
+      <input id="ob-dob-m" class="ob-input" type="number" inputmode="numeric" placeholder="MM" aria-label="Birth month" />
+      <input id="ob-dob-d" class="ob-input" type="number" inputmode="numeric" placeholder="DD" aria-label="Birth day" />
+      <input id="ob-dob-y" class="ob-input" type="number" inputmode="numeric" placeholder="YYYY" aria-label="Birth year" />
     </div>
     <div id="ob-age-err" style="color:var(--amber-bright);font-size:13px;font-weight:700;min-height:18px;margin-top:10px"></div>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.5">You must be 13 or older to use OnStandard.</div>`,
@@ -83,7 +83,7 @@ const steps = {
       'Continue', 'onboarding/3');
     }
     return frame(2, 'Your school', 'Find your school, then your coach. Enter their invitation code to connect.', `
-      <input id="sc-q" class="ob-input" placeholder="Search your school" autocorrect="off" spellcheck="false" />
+      <input id="sc-q" class="ob-input" placeholder="Search your school" aria-label="Search your school" autocorrect="off" spellcheck="false" />
       <div id="sc-out" style="margin-top:14px"></div>
       <div style="height:10px"></div>
       <div id="sc-alt" class="ob-textlink g">I have a coach code</div>`,
@@ -122,8 +122,8 @@ const steps = {
 
   5: () => frame(5, 'Where are you now?', 'Weight is a season trend here, never a daily judgment.', `
     <div class="bignum-pair">
-      <div class="bignum"><input id="ob-cur" type="number" inputmode="decimal" placeholder="—" style="${numInput}" /><div class="bk">Current lb</div></div>
-      <div class="bignum" style="border-color:var(--green-border)"><input id="ob-tgt" type="number" inputmode="decimal" placeholder="—" style="${numInput};color:var(--green-bright)" /><div class="bk">Target lb</div></div>
+      <div class="bignum"><input id="ob-cur" type="number" inputmode="decimal" placeholder="—" aria-label="Current weight in pounds" style="${numInput}" /><div class="bk">Current lb</div></div>
+      <div class="bignum" style="border-color:var(--green-border)"><input id="ob-tgt" type="number" inputmode="decimal" placeholder="—" aria-label="Target weight in pounds" style="${numInput};color:var(--green-bright)" /><div class="bk">Target lb</div></div>
     </div>
     <div id="ob-wt-hint" style="font-size:12.5px;font-weight:700;margin:10px 2px 0;min-height:17px;line-height:1.4"></div>
     <div style="height:8px"></div>
@@ -155,11 +155,14 @@ const steps = {
     const sub = join
       ? `${pos && coachLast ? `Coach ${coachLast} sets it for your room. ` : ''}The deal on ${esc(join.teamName || 'the team')}. Your score is built on it — hold to commit.`
       : 'Built from your goal. When you connect a coach, their standard takes over.';
-    const rows = std.rows.map(([ic, t, s]) => `
+    const rows = std.rows.map(([ic, t, s]) => {
+      const [bg, fg] = reqHeadTint(ic);
+      return `
         <div class="lrow" style="cursor:default">
-          <div class="lic" style="background:var(--surface-2)">${icon(ic, 17)}</div>
+          <div class="lic" style="background:${bg};color:${fg}">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
     const knobs = join ? '' : `
       <div class="eyebrow" style="margin:14px 2px 10px">Meals per day</div>
       <div class="chip-row" id="ob-meals">${[2, 3, 4].map((m) => `<span class="chp ${m === std.meals ? 'on' : ''}">${m}</span>`).join('')}</div>`;

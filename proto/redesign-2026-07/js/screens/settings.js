@@ -600,12 +600,22 @@ export const terms = {
 /* shared: single-select toggle groups */
 export function wireToggles(root) {
   root.querySelectorAll('[data-toggle-group]').forEach(g => {
-    g.querySelectorAll('button, .chp, .c5, .choice').forEach(el => {
+    const items = g.querySelectorAll('button, .chp, .c5, .choice');
+    // Single-select group = a radiogroup. Expose the selection to screen readers (it was
+    // conveyed by color/glow alone) so VoiceOver announces "selected".
+    if (!g.hasAttribute('role')) g.setAttribute('role', 'radiogroup');
+    const syncAria = () => items.forEach(x => {
+      if (!x.hasAttribute('role')) x.setAttribute('role', 'radio');
+      x.setAttribute('aria-checked', x.classList.contains('on') ? 'true' : 'false');
+    });
+    items.forEach(el => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         g.querySelectorAll('.on').forEach(x => x.classList.remove('on'));
         el.classList.add('on');
+        syncAria();
       });
     });
+    syncAria();
   });
 }

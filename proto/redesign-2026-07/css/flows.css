@@ -117,7 +117,12 @@
   /* 44px tap floor (a11y) — inline-flex keeps the pill shape while guaranteeing the height */
   display: inline-flex; align-items: center; min-height: 44px;
 }
-.chip-row .chp.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.12); color: var(--blue-bright); }
+.chip-row .chp.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.12); color: var(--blue-bright);
+  box-shadow: inset 0 0 0 1px var(--blue-border), 0 0 16px rgba(59,130,246,0.22); }
+/* Non-color affordance (WCAG 1.4.1): a filled dot marks the selected chip, not color alone. */
+.chip-row .chp.on::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--blue-bright); margin-left: 8px; flex: 0 0 auto; }
+/* Press feedback on tappable chips/choices. */
+.chp:active, .choice:active { transform: scale(0.97); }
 .ob-input {
   width: 100%; height: 56px; border-radius: 16px; background: var(--surface-1); border: 1.5px solid var(--hairline);
   color: var(--text); font-family: var(--font); font-size: 17px; font-weight: 700; padding: 0 18px; outline: none;
@@ -167,6 +172,14 @@
 /* Fill the scroll area so the composition can truly center — scoped to the welcome
    view via :has() so no other screen's .view is affected. */
 .view:has(> .wel) { display: flex; flex-direction: column; min-height: 100%; }
+/* Onboarding frames fill the viewport so .ob-body (flex:1) pushes the CTA/foot to the thumb,
+   instead of the whole frame + button floating mid-screen. Mirrors the welcome/sign-in rule.
+   .ob must GROW as a flex item — a percentage min-height alone doesn't resolve against a
+   min-height-only parent, so the foot never anchored. */
+.view:has(> .ob) { display: flex; flex-direction: column; min-height: 100%; }
+.view:has(> .ob) > .ob { flex: 1 1 auto; }
+/* Onboarding is tab-less — reclaim the 128px tab-bar clearance so the foot sits near the thumb. */
+.viewport:has(> .view > .ob) { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
 .wel {
   flex: 1 1 auto;
   display: flex; flex-direction: column; justify-content: center;

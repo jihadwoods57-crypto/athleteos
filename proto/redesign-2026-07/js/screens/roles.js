@@ -2,7 +2,7 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, logoMark, esc } from '../components.js';
 import { accountBody, wireAccount } from './ob-account.js';
-import { standardForGoal, showConfirmPending } from '../ob-helpers.js';
+import { standardForGoal, reqHeadTint, showConfirmPending } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { track, EVENTS } from '../analytics.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
@@ -103,7 +103,7 @@ export const role = {
         </div>
       </div>
       <div class="ob-foot">
-        <div class="ob-textlink" data-go="welcome">Back</div>
+        <div class="ob-textlink" role="button" tabindex="0" aria-label="Back" data-go="welcome">Back</div>
       </div>
     </div>`;
   },
@@ -123,9 +123,9 @@ export const role = {
    notification preferences → account → code screen (customize surfaced at creation). */
 const coachSteps = {
   1: () => frame(1, 7, 'You, coach.', 'Your athletes see this name on every standard you set.', `
-    <input id="co-first" class="ob-input" placeholder="First name" autocapitalize="words" />
+    <input id="co-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" />
     <div style="height:12px"></div>
-    <input id="co-last" class="ob-input" placeholder="Last name" autocapitalize="words" />
+    <input id="co-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" />
     <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
     <div class="chip-row" id="co-handle"></div>
     <input id="co-handle-custom" class="ob-input" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
@@ -250,11 +250,14 @@ const coachSteps = {
     </div>
     <div style="height:12px"></div>
     <section class="card" style="padding:6px 16px">
-      ${rows.map(([ic, t, s]) => `
+      ${rows.map(([ic, t, s]) => {
+        const [bg, fg] = reqHeadTint(ic);
+        return `
         <div class="lrow" style="cursor:default">
-          <div class="lic">${icon(ic, 17)}</div>
+          <div class="lic" style="background:${bg};color:${fg}">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${esc(t)}</div><div class="ls">${esc(s)}</div></div>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </section>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px">Start from a template, then make the standard yours — meals, windows, and rooms are all editable in Standards.</div>`,
     'Next', 'coach-ob/6', { back: 'coach-ob/4' });
