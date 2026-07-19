@@ -9,7 +9,8 @@ create table if not exists trust_pass_policy (
   team_id           uuid primary key references teams(id) on delete cascade,
   length_days       int not null default 10 check (length_days between 1 and 60),
   eligibility_days  int not null default 7  check (eligibility_days between 1 and 30),
-  updated_by        uuid references profiles(id),
+  -- on delete set null so a staff member's account erasure (0079) is never blocked by this FK.
+  updated_by        uuid references profiles(id) on delete set null,
   updated_at        timestamptz not null default now()
 );
 alter table trust_pass_policy enable row level security;

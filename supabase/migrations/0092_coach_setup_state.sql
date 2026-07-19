@@ -10,7 +10,10 @@ create table if not exists coach_setup_state (
   step        text not null check (step in ('sharedCode','standard','notif','staff','group')),
   state       text not null default 'not_started'
                 check (state in ('not_started','in_progress','completed','skipped','failed')),
-  updated_by  uuid references profiles(id),
+  -- on delete set null: a staff member deleting their account (auth.users → profiles cascade) must
+  -- not be blocked by this FK — the same right-to-erasure fix 0079_staff_erasure_fk applied to every
+  -- other profiles(id) reference. The row belongs to the team (team_id cascade), not this editor.
+  updated_by  uuid references profiles(id) on delete set null,
   updated_at  timestamptz not null default now(),
   primary key (team_id, step)
 );

@@ -9,7 +9,8 @@ create table if not exists coach_voice_config (
   team_id     uuid primary key references teams(id) on delete cascade,
   enabled     boolean not null default true,
   config      jsonb not null default '{}'::jsonb,  -- { tone, level, approved:[], prohibited }
-  updated_by  uuid references profiles(id),
+  -- on delete set null so a staff member's account erasure (0079) is never blocked by this FK.
+  updated_by  uuid references profiles(id) on delete set null,
   updated_at  timestamptz not null default now()
 );
 alter table coach_voice_config enable row level security;
