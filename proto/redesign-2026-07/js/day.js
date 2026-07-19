@@ -79,8 +79,9 @@ export function slotGrace(k) {
   return (STD && STD.grace && typeof STD.grace[k] === 'number') ? STD.grace[k] : 0;
 }
 /** Credit a slot earns when logged past deadline+grace: half (shipped default), full (the coach
- *  forgives lateness), or none (a hard window). */
-function slotLateCredit(k) {
+ *  forgives lateness), or none (a hard window). Exported so the score breakdown explains lateness
+ *  with the SAME credit the score applies (T-01), never a hardcoded half. */
+export function slotLateCredit(k) {
   const p = STD && STD.latePolicy && STD.latePolicy[k];
   return p === 'full' ? 1 : p === 'none' ? 0 : 0.5;
 }

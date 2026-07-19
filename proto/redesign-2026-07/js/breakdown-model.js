@@ -9,8 +9,12 @@
    points depend on plate protein, answer quality, or timing. */
 
 import {
-  computeComponents, scoreFor, PROFILE_WEIGHTS, slotDeadline, mealScored,
+  computeComponents, scoreFor, PROFILE_WEIGHTS, slotDeadline, mealScored, slotGrace, slotLateCredit,
 } from './day.js';
+
+/* Lateness copy that matches the coach's real late policy (T-01) — never a hardcoded "half". */
+function lateBadge(credit) { return credit >= 1 ? 'late (full credit)' : credit <= 0 ? 'late (no credit)' : 'late (half credit)'; }
+function lateHint(credit) { return credit >= 1 ? 'log late, still full credit' : credit <= 0 ? 'logging late earns no credit now' : 'log late for half credit'; }
 
 const clone = (day) => JSON.parse(JSON.stringify(day));
 const weightsFor = (day) => PROFILE_WEIGHTS[day.scoringProfile] || PROFILE_WEIGHTS.athlete;
@@ -156,25 +160,26 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
   const nutriEarned = Math.round(w.nutrition * c.nutrition);
   const loggedSlots = slots.filter((k) => mealScored(day, k));
   const openSlots = slots.filter((k) => !mealScored(day, k));
-  const lateCount = loggedSlots.filter((k) => (day.mealLoggedAt || {})[k] != null && day.mealLoggedAt[k] > slotDeadline(k)).length;
+  const lateCount = loggedSlots.filter((k) => (day.mealLoggedAt || {})[k] != null && day.mealLoggedAt[k] > slotDeadline(k) + slotGrace(k)).length;
   const title = (k) => titles[k] || k.charAt(0).toUpperCase() + k.slice(1).replace('-', ' ');
   const mealRows = slots.map((k) => {
     const due = slotDeadline(k);
     if (mealScored(day, k)) {
       const at = (day.mealLoggedAt || {})[k];
-      const late = at != null && at > due;
+      const late = at != null && at > due + slotGrace(k);
       const g = (day.slotMacros && day.slotMacros[k] && day.slotMacros[k].protein) || 0;
-      return { label: title(k), sub: `Logged ${at != null ? fmtClock(at) : ''}${late ? ' · late (half credit)' : ' · on time'}`, value: `${g} g protein`, state: late ? 'late' : 'done' };
+      return { label: title(k), sub: `Logged ${at != null ? fmtClock(at) : ''}${late ? ` · ${lateBadge(slotLateCredit(k))}` : ' · on time'}`, value: `${g} g protein`, state: late ? 'late' : 'done' };
     }
     const dupped = day.meals && day.meals[k] && day.slotMacros && day.slotMacros[k] && day.slotMacros[k].flagged === 'dup';
     if (dupped) return { label: title(k), sub: 'Duplicate photo — logged, not scored', value: '0 pts', state: 'flagged' };
     const opt = optional.includes(k);
-    const late = !opt && nowMin > due;
+    const late = !opt && nowMin > due + slotGrace(k);
+    const credit = slotLateCredit(k);
     return {
       label: title(k),
       sub: opt ? 'Optional — counts whenever you log it'
-        : late ? `Was due ${fmtClock(due)} — log late for half credit` : `Due by ${fmtClock(due)}`,
-      value: `+${Math.round(w.nutrition * 35 / denom * (late ? 0.5 : 1))} on log`,
+        : late ? `Was due ${fmtClock(due)} — ${lateHint(credit)}` : `Due by ${fmtClock(due)}`,
+      value: `+${Math.round(w.nutrition * 35 / denom * (late ? credit : 1))} on log`,
       state: late ? 'overdue' : 'open',
     };
   });
