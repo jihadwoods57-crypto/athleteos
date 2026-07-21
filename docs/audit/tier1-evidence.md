@@ -55,8 +55,12 @@ Now:
 - Tone validator `analysisAgreesWithBand`: AI prose that can't sit next to the computed
   band (the "keep it in rotation on a 62" bug) is replaced by the deterministic
   `qualityReason` line, and `meal_text_conflict` is tracked.
-- Tests: `src/core/protoMealQuality.test.ts` (band boundaries, timing costs, rubric
-  agreement, tone conflicts).
+- Tests: `src/core/protoMealQuality.test.ts` — including exact band-boundary plates
+  (a 75 that reads Strong vs 74 Needs work; a 50 vs 49 Weak plate) and timing-cutoff
+  edges (0→1 and 60→61 minutes late change the score; 1–60 all cost the same).
+- Screenshot: `qc/tier1-s4-tone-conflict.png` — a payload claiming quality 90 with
+  "keep this in rotation" prose renders as the app's 44 (red band) with the deterministic
+  reason line; the AI's 90 survives only as the `aiQuality` cross-check.
 
 ### 9c. DB-backed nutrition in the shipped flow (AI-architecture invariant)
 Was: the shipped WebView applied only hard caps (protein≤120 etc.); the real food-DB
@@ -74,8 +78,11 @@ home, preserves the conversation, never auto-publishes. Screenshot:
 
 ## Founder ops required to activate server-side pieces
 - Deploy `analyze-meal` (per-food macro schema) and `analytics-ingest` (two new event
-  names). The client tolerates BOTH payload shapes, so deploy order is safe either way.
-- Watch `meal_score_delta` after ship: it quantifies AI-vs-deterministic drift per meal.
+  names) — full plan, rollback, and monitoring thresholds in `tier1-deploy-plan.md`.
+- Payload compatibility is TESTED, not asserted: `src/core/protoGroundResult.test.ts`
+  feeds the current prod shape, the pre-0062 legacy string shape, and the new per-food
+  shape through the real (exported) `groundResult` — every shape yields an app-computed
+  score with the AI's number demoted to `aiQuality`.
 
 ## Surfaced OPEN decisions (not decided in code, per the brief)
 - Final score bands/labels/thresholds (current 75/50 bands kept as-is).

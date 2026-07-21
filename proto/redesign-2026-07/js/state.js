@@ -94,8 +94,10 @@ loadMeal(); // restore an in-flight capture across a reload, before the first re
        the rubric displays). The AI's own quality survives only as aiQuality, feeding the
        meal_score_delta cross-check analytic — it is never shown and never stored as the score.
     3. LANGUAGE — the AI paragraph rides along only when its tone can sit next to the computed
-       band; on conflict the deterministic qualityReason line speaks instead. */
-function groundResult(d) {
+       band; on conflict the deterministic qualityReason line speaks instead.
+    Exported for protoGroundResult.test.ts — the payload-compat gate that feeds real old-shape
+    (no per-food macros) and new-shape wire payloads through this exact function. */
+export function groundResult(d) {
   const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(v || 0)));
   // Belt-and-braces: the AI response is untrusted text. Strip angle brackets at the source so a
   // crafted analyze-meal payload can never inject markup (render sites still escape as well).

@@ -40,6 +40,28 @@ describe('mealQualityScore — deterministic and rubric-aligned', () => {
     const withProduce = mealQualityScore({ macros: balanced, fiber: 3, detected: [{ name: 'Broccoli' }], minutesLate: 0 })!;
     expect(withProduce).toBeGreaterThan(noProduce);
   });
+  test('BAND BOUNDARY: a plate scoring exactly 75 sits in Strong, not Needs work', () => {
+    // met protein (35) + partial carbs (9) + met fat (20) + miss fiber (5) + partial timing (6) = 75
+    const q = mealQualityScore({ macros: { protein: 30, carbs: 75, fat: 3 }, fiber: 0, detected: [], minutesLate: 30 });
+    expect(q).toBe(75);
+    expect(qualityBand(q)!.label).toBe('Strong');
+    expect(qualityBand(74)!.label).toBe('Needs work'); // one point under the edge flips the band
+  });
+  test('BAND BOUNDARY: a plate scoring exactly 50 sits in Needs work, not Weak plate', () => {
+    // miss protein (8) + met carbs (15) + partial fat (12) + miss fiber (5) + met timing (10) = 50
+    const q = mealQualityScore({ macros: { protein: 10, carbs: 60, fat: 22 }, fiber: 0, detected: [], minutesLate: 0 });
+    expect(q).toBe(50);
+    expect(qualityBand(q)!.label).toBe('Needs work');
+    expect(qualityBand(49)!.label).toBe('Weak plate'); // one point under the edge flips the band
+  });
+  test('TIMING EDGES: penalties change exactly at the window cutoffs (0→1 and 60→61 min late)', () => {
+    const at = (minutesLate: number) => mealQualityScore({ macros: balanced, fiber: 7, detected: [], minutesLate })!;
+    expect(at(0)).toBe(100);          // on the deadline = inside the window
+    expect(at(1)).toBe(96);           // first late minute costs the partial (10→6)
+    expect(at(60)).toBe(at(1));       // the whole 1–60 grace band costs the same
+    expect(at(61)).toBe(92);          // minute 61 crosses into the miss (6→2)
+    expect(at(600)).toBe(at(61));     // and it never compounds beyond that
+  });
   test('pure function: same inputs, same score', () => {
     const args = { macros: lowProtein, fiber: 2, detected: [{ name: 'Fries' }], minutesLate: 45 };
     expect(mealQualityScore(args)).toBe(mealQualityScore(args));
