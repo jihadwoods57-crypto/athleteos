@@ -10,6 +10,7 @@
 //
 // Deploy:  supabase functions deploy assist   (shares the ANTHROPIC_API_KEY secret)
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
+import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 
 // Cost sweep (audit item 20): default to Sonnet 5 (strictly better AND cheaper than the stale
@@ -210,6 +211,8 @@ Deno.serve(async (request) => {
     return new Response(JSON.stringify({ narration: null, error: 'daily limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 
+  const t0 = Date.now();
+  let recorded = false;
   try {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
@@ -223,10 +226,13 @@ Deno.serve(async (request) => {
       tool_choice: { type: 'tool', name: NARRATION_TOOL.name },
       messages: [{ role: 'user', content: [{ type: 'text', text: userText }] }],
     });
+    await recordAiCall({ fn: 'assist', userId: uid, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0, ok: true });
+    recorded = true;
     const used = msg.content.find((b) => b.type === 'tool_use');
     const narration = used && used.type === 'tool_use' ? (used.input as { narration?: unknown }).narration : null;
     return new Response(JSON.stringify({ narration: typeof narration === 'string' ? narration : null }), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch {
+    if (!recorded) await recordAiCall({ fn: 'assist', userId: uid, model: MODEL, latencyMs: Date.now() - t0, ok: false, errorCode: 'upstream_error' });
     // Any failure/refusal -> deterministic fallback; the app renders `data` with no narration.
     return new Response(JSON.stringify({ narration: null }), { headers: { ...cors, 'Content-Type': 'application/json' } });
   }

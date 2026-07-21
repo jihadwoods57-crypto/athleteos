@@ -7,6 +7,7 @@
 //   supabase functions deploy plan-generate
 // Model is configurable via the ANTHROPIC_MODEL secret; defaults to claude-sonnet-5.
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
+import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
@@ -296,6 +297,8 @@ Deno.serve(async (request) => {
     return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 
+  const t0 = Date.now();
+  let recorded = false;
   try {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
@@ -312,12 +315,15 @@ Deno.serve(async (request) => {
       tool_choice: { type: 'tool', name: PLAN_TOOL.name },
       messages: [{ role: 'user', content: buildPrompt(req) }],
     });
+    await recordAiCall({ fn: 'plan-generate', userId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0, ok: true });
+    recorded = true;
     if (msg.stop_reason === 'max_tokens') throw new Error('plan output truncated at max_tokens');
     const used = msg.content.find((b) => b.type === 'tool_use');
     if (!used || used.type !== 'tool_use') throw new Error('no structured output');
 
     return new Response(JSON.stringify(used.input), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch (e) {
+    if (!recorded) await recordAiCall({ fn: 'plan-generate', userId, model: MODEL, latencyMs: Date.now() - t0, ok: false, errorCode: 'upstream_error' });
     // Log detail server-side; return a generic message so no internal/upstream error text or stack
     // leaks to the client (matches analyze-meal). The client falls back to its local draft on 5xx.
     console.error('plan-generate upstream error:', e);

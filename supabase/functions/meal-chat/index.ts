@@ -15,6 +15,7 @@
 // photo analyses are metered independently. Both fail open, per the assist/analyze-meal
 // discipline (an un-applied migration never blocks a legit question).
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
+import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
@@ -189,6 +190,7 @@ Deno.serve(async (req) => {
       if (!(await withinKeyCap('meal_draft_global', GLOBAL_CAP, /* failOpen */ false))) return bad(429, 'limit', cors);
 
       const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+      const t0d = Date.now();
       const msg = await anthropic.messages.create({
         model: MODEL,
         max_tokens: 700, // 4 drafts x ~60 words + tool-call JSON; headroom so the 4th draft never truncates into a 502
@@ -200,6 +202,7 @@ Deno.serve(async (req) => {
           content: `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nDraft four replies the COACH could send to the athlete about this meal, one per stance (supportive, direct, context, followup), using ONLY figures already in the context. Speak as the coach to the athlete. Each draft is 60 words or less.`,
         }],
       });
+      await recordAiCall({ fn: 'meal-chat', mode: 'draft', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0d, ok: true });
       const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: { drafts?: Array<{ stance?: string; text?: string }> } } | undefined;
       const raw = Array.isArray(tool?.input?.drafts) ? tool!.input!.drafts! : [];
       // Normalize to exactly the four canonical stances in order; strip em dashes; enforce ~60 words.
@@ -233,6 +236,7 @@ Deno.serve(async (req) => {
 
     // ---- the model call: prose only, forced tool ----
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+    const t0r = Date.now();
     const msg = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 400,
@@ -246,6 +250,7 @@ Deno.serve(async (req) => {
           : `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}`,
       }],
     });
+    await recordAiCall({ fn: 'meal-chat', mode: 'reply', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
     const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: { message?: string } } | undefined;
     const reply = String(tool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
     if (!reply) return bad(502, 'unavailable', cors);

@@ -18,6 +18,7 @@
 // Deploy: supabase functions deploy deep-analysis    (shares ANTHROPIC_API_KEY)
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const REQUIRES_PLAN = Deno.env.get('DEEP_REQUIRES_PLAN') === '1';
@@ -176,6 +177,8 @@ Deno.serve(async (req) => {
     return json({ error: 'deep analysis unavailable' }, 503, cors);
   }
 
+  const t0 = Date.now();
+  let recorded = false;
   try {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
@@ -193,10 +196,13 @@ Deno.serve(async (req) => {
         }],
       }],
     });
+    await recordAiCall({ fn: 'deep-analysis', userId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0, ok: true });
+    recorded = true;
     const used = msg.content.find((b) => b.type === 'tool_use');
     if (!used || used.type !== 'tool_use') throw new Error('no structured output');
     return json(used.input as Record<string, unknown>, 200, cors);
   } catch (e) {
+    if (!recorded) await recordAiCall({ fn: 'deep-analysis', userId, model: MODEL, latencyMs: Date.now() - t0, ok: false, errorCode: 'upstream_error' });
     console.error('deep-analysis upstream error:', e);
     return json({ error: 'deep analysis unavailable' }, 502, cors);
   }

@@ -32,6 +32,7 @@
 // the panel verbatim, so they need no grounding.
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 // Cost sweep (audit item 20): memory/order are pure PROSE rephrases whose every number is re-verified
@@ -696,12 +697,14 @@ Deno.serve(async (request) => {
   // OPEN — never block a legit log on an infra hiccup); an anonymous caller gets a per-IP daily cap
   // that fails CLOSED — the only ceiling an anon caller has, so it must hold when the counter is down.
   const countsAgainstDailyCap = !isMemory && !isOrder;
+  // Resolve the caller once, up front: reused for the daily cap below AND for cost telemetry, so
+  // it's a single auth round-trip. (memory/order don't hit the cap but are still attributed.)
+  const userId = await resolveUserId(request);
   // Captured for the clarify budget below: whether this is a signed-in athlete and how many paid
   // calls they've made today. Anonymous callers (userId null) never get the 2-call clarify path.
   let signedIn = false;
   let dailyUsed = 0;
   if (countsAgainstDailyCap) {
-    const userId = await resolveUserId(request);
     signedIn = userId != null;
     if (userId) {
       const cap = await withinDailyCap(userId);
@@ -739,6 +742,15 @@ Deno.serve(async (request) => {
     i === tools.length - 1 ? { ...t, cache_control: { type: 'ephemeral' as const } } : t
   );
 
+  // Cost/latency telemetry (item 8a): time the paid call and record it once, best-effort. On
+  // success `model` is the AUTHORITATIVE string the API reports back. A billed-but-malformed
+  // response (no tool_use, thrown below) is still logged ok here — that parse error is an app
+  // concern, not a second billing event, so the `recorded` flag keeps the catch from double-logging.
+  const telemMode = isLabel ? 'label' : isMemory ? 'memory' : isOrder ? 'order' : 'meal';
+  const telemPhase = isMeal ? (isFinalize ? 'finalize' : 'analyze') : null;
+  const intendedModel = isMemory || isOrder ? TEXT_MODEL : MODEL;
+  const t0 = Date.now();
+  let recorded = false;
   try {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
@@ -749,6 +761,17 @@ Deno.serve(async (request) => {
       tool_choice: toolChoice,
       messages: [{ role: 'user', content }],
     });
+    await recordAiCall({
+      fn: 'analyze-meal',
+      mode: telemMode,
+      phase: telemPhase,
+      userId,
+      model: msg.model ?? intendedModel,
+      ...usageFrom(msg.usage),
+      latencyMs: Date.now() - t0,
+      ok: true,
+    });
+    recorded = true;
     const used = msg.content.find((b) => b.type === 'tool_use');
     if (!used || used.type !== 'tool_use') throw new Error('no structured output');
 
@@ -769,6 +792,21 @@ Deno.serve(async (request) => {
     // Label facts + memory/order prose are returned as-is (the CLIENT bounds the numbers).
     return new Response(JSON.stringify(used.input), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch (e) {
+    // A failed API call (network/429/5xx): record it once as a failed attempt (latency + error tag)
+    // so failures show up in the cost/latency views too. A post-response parse throw was already
+    // recorded ok above, so `recorded` guards against a duplicate row.
+    if (!recorded) {
+      await recordAiCall({
+        fn: 'analyze-meal',
+        mode: telemMode,
+        phase: telemPhase,
+        userId,
+        model: intendedModel,
+        latencyMs: Date.now() - t0,
+        ok: false,
+        errorCode: 'upstream_error',
+      });
+    }
     // Log the detail server-side; return a generic message so no internal detail (upstream error
     // text, stack) leaks to the client. The app falls back to the deterministic result on any 5xx.
     console.error('analyze-meal upstream error:', e);
