@@ -260,7 +260,7 @@ function inProgressHero(e) {
   return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
       ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
-      <div class="xh-side">
+      <div class="xh-body">
         <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">In progress</span></div>
         <div class="xh-line">${esc(`${e.met} of ${e.total} done · ${toGo}`)}</div>
       </div>
