@@ -18,6 +18,7 @@ import commitment from './commitment.js';
 import { coachAthlete, coachMeal, coachAssign, coachPlan, coachPlanSet, coachInbox, copilot, trainer, trainerClient, parent, inviteParent, parentLink } from './coach.js';
 import { coachHome } from './coach-home.js';
 import { coachRoster } from './coach-roster.js';
+import { coachRooms } from './coach-rooms.js';
 import { coachCreate } from './coach-create.js';
 import { coachAnnounce } from './coach-announce.js';
 import { coachInsights } from './coach-insights.js';
@@ -59,6 +60,7 @@ export const screens = {
   commitment,
   'coach-home': coachHome, coach: coachHome,     // alias — old route renders the new Home
   'coach-roster': coachRoster,
+  'coach-rooms': coachRooms,
   'coach-create': coachCreate,
   'coach-announce': coachAnnounce,
   'coach-insights': coachInsights,

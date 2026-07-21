@@ -344,6 +344,11 @@ export const coachPlan = {
           <div class="lm"><div class="lt">Training week</div><div class="ls">${(() => { const p = Array.isArray(RT.weekPattern) ? RT.weekPattern : []; const rest = p.filter((d) => d === 'rest').length; return rest ? `${7 - rest} training · ${rest} rest` : 'Every day training'; })()}</div></div>
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>
+        <div class="lrow" data-go="coach-rooms">
+          <div class="lic" style="background:rgba(59,130,246,0.14);color:var(--blue-bright)">${icon('users', 17)}</div>
+          <div class="lm"><div class="lt">Position rooms</div><div class="ls">${(() => { const n = ((CD.extras && CD.extras.rooms) || []).length; return n ? `${n} room${n === 1 ? '' : 's'}` : 'Group your roster by position'; })()}</div></div>
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>
         <div class="lrow" data-go="team-diet">
           <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
           <div class="lm"><div class="lt">Team dietary sheet</div><div class="ls">Allergies &amp; restrictions across the roster</div></div>

@@ -35,7 +35,7 @@ export async function loadCoachRoster(force) {
     // because the extras fetch (a separate set of tables) had trouble.
     if (r.teams.length) {
       try { await loadExtras(r.teams[0].id); }
-      catch { CD.extras = { sets: [], groups: [], exceptions: [], interventions: [], scope: null }; }
+      catch { CD.extras = { sets: [], groups: [], exceptions: [], interventions: [], rooms: [], scope: null }; }
     }
   } catch {
     // A fetch that actually threw (vs the lower layers' swallow-to-[]) must NOT leave the screen
@@ -95,16 +95,16 @@ export const CD = {
 };
 
 async function loadExtras(teamId) {
-  const [sets, groups, exceptions, interventions, access] = await Promise.all([
+  const [sets, groups, exceptions, interventions, access, rooms] = await Promise.all([
     roles.fetchRequirementSets(teamId), roles.fetchCoachGroups(teamId),
     roles.fetchActiveExceptions(teamId), roles.fetchTodayInterventions(teamId),
-    roles.fetchMyStaffAccess(teamId),
+    roles.fetchMyStaffAccess(teamId), roles.fetchTeamRooms(teamId),
   ]);
   // Slice F: one read carries role + scope. `scope` keeps its pre-F shape for every existing
   // consumer; `myRole` is the client-side capability hint (staff-access.js) — the server
-  // (0077/0078) is the real wall.
+  // (0077/0078) is the real wall. `rooms` is T-04 slice 1 (position rooms, read-only here).
   CD.extras = {
-    sets, groups, exceptions, interventions,
+    sets, groups, exceptions, interventions, rooms,
     scope: access ? access.scope : null,
     myRole: access ? access.role : null,
   };

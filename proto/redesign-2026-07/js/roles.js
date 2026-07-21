@@ -554,6 +554,26 @@ export async function deleteCoachGroup(id) {
   const c = sb(); if (!c || !id) return false;
   try { const { error } = await c.from('coach_groups').delete().eq('id', id); return !error; } catch { return false; }
 }
+/* Position rooms (0087, T-04 slice 1): first-class rooms, distinct from custom groups above. Members
+   read, staff write. Slice 1 is the object + CRUD only — no auto-assign, no scoring inheritance. */
+export async function fetchTeamRooms(teamId) {
+  const c = sb(); if (!c || !teamId) return [];
+  try { const { data } = await c.from('team_rooms').select('id,key,label,sort,staff_owner_id').eq('team_id', teamId).order('sort').order('label'); return data || []; } catch { return []; }
+}
+export async function saveTeamRoom(teamId, { id, key, label, sort }) {
+  const c = sb(); if (!c || !teamId) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const row = { team_id: teamId, key, label, updated_at: new Date().toISOString() };
+    if (typeof sort === 'number') row.sort = sort;
+    const q = id ? c.from('team_rooms').update(row).eq('id', id) : c.from('team_rooms').insert(row);
+    const { error } = await q;
+    return error ? { ok: false, error: error.message || 'Could not save the room.' } : { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the room.' }; }
+}
+export async function deleteTeamRoom(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('team_rooms').delete().eq('id', id); return !error; } catch { return false; }
+}
 /** Exceptions whose window covers today. Best-effort []. */
 export async function fetchActiveExceptions(teamId) {
   const c = sb(); if (!c || !teamId) return [];
