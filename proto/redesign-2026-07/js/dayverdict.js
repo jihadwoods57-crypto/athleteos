@@ -6,7 +6,7 @@
 
 const STILL_OPEN = new Set(['locked', 'ready', 'due_soon']);
 
-/** @param {{required?: boolean, state?: string}[]} items derived exec items
+/** @param {{required?: boolean, state?: string, window?: object}[]} items derived exec items
  *  @returns {boolean} true once no required window is still open on time */
 export function dayDecided(items) {
   const list = Array.isArray(items) ? items : [];
