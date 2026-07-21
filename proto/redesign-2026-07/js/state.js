@@ -23,7 +23,11 @@ import { normalizePrefs } from './notify-plan.js';
 import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
 import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
-import { groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts } from './meal-intel.js';
+import {
+  groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
+  mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions,
+} from './meal-intel.js';
+import { groundMealFromFoods, groundMealTotals } from './nutrition.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
 import { cachedMealPhoto, todayMealPhotoPath } from './photo-store.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
@@ -81,25 +85,63 @@ function loadMeal() {
 }
 loadMeal(); // restore an in-flight capture across a reload, before the first render
 
-/** Bound the AI's macros to sane per-meal ranges (Atwater fallback for calories) so a mis-read
-   can never spike the score — a lightweight port of macroGrounding for v1. */
+/** Ground the AI result into numbers the APP owns (Tier 1 invariants, 2026-07-21):
+    1. NUTRITION — per-food macros bounded against the curated food DB (nutrition.js); totals
+       are the SUM of the per-food numbers, so removing a food later subtracts exactly its
+       share. Payloads from older edge deploys (no per-food macros) fall back to meal-level
+       DB bounding. The old hard caps stay as the outermost belt-and-braces.
+    2. SCORING — quality is computed HERE by mealQualityScore (deterministic, same evaluation
+       the rubric displays). The AI's own quality survives only as aiQuality, feeding the
+       meal_score_delta cross-check analytic — it is never shown and never stored as the score.
+    3. LANGUAGE — the AI paragraph rides along only when its tone can sit next to the computed
+       band; on conflict the deterministic qualityReason line speaks instead. */
 function groundResult(d) {
   const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(v || 0)));
   // Belt-and-braces: the AI response is untrusted text. Strip angle brackets at the source so a
   // crafted analyze-meal payload can never inject markup (render sites still escape as well).
   const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
-  const protein = clampN(d.protein, 120), carbs = clampN(d.carbs, 250), fat = clampN(d.fat, 150);
-  const kcal = clampN(d.kcal || (4 * protein + 4 * carbs + 9 * fat), 2200);
   const extras = groundExtras(d);
+
+  // ---- nutrition: per-food attribution when the payload carries it; totals fallback otherwise
+  const perFood = extras.detectedRich.some((f) => f && f.per);
+  let detectedRich = extras.detectedRich;
+  let totals;
+  if (perFood) {
+    const g = groundMealFromFoods(extras.detectedRich);
+    detectedRich = g.foods;
+    totals = g.totals;
+  } else {
+    totals = groundMealTotals(d, extras.detectedNames).totals;
+  }
+  const protein = clampN(totals.protein, 120), carbs = clampN(totals.carbs, 250), fat = clampN(totals.fat, 150);
+  const kcal = clampN(totals.kcal || (4 * protein + 4 * carbs + 9 * fat), 2200);
+  const gm = { protein, carbs, fat, kcal };
+
+  // ---- scoring: deterministic, timing measured on the athlete's clock at capture
+  const timing = analysisTiming(MEAL.capturedAtMin != null ? MEAL.capturedAtMin : minutesNow(), slotDeadline(MEAL.key || 'dinner'));
+  const quality = mealQualityScore({ macros: gm, fiber: extras.fiber, detected: detectedRich, minutesLate: timing ? timing.minutesLate : 0 });
+  const aiQuality = d.quality != null ? clampN(d.quality, 100) : null;
+  if (quality != null && aiQuality != null) track(EVENTS.MEAL_SCORE_DELTA, { ai: aiQuality, det: quality, delta: quality - aiQuality });
+
+  // ---- language: score and words must agree (one evaluation result)
+  const band = qualityBand(quality);
+  let analysis = extras.analysis;
+  let note = clean(d.note);
+  if (!analysisAgreesWithBand(analysis, band) || !analysisAgreesWithBand(note, band)) {
+    track(EVENTS.MEAL_TEXT_CONFLICT, { det: quality != null ? quality : -1 });
+    analysis = '';
+    note = qualityReason(gm, extras.fiber, detectedRich) || 'Logged. The breakdown shows how this plate reads.';
+  }
+
   return {
-    name: clean(d.name) || 'Meal', quality: clampN(d.quality, 100),
+    name: clean(d.name) || 'Meal', quality, aiQuality,
     protein, carbs, fat, kcal,
     fiber: extras.fiber,
     highlights: extras.highlights,
-    detected: extras.detectedNames,      // legacy consumers keep plain names
-    detectedRich: extras.detectedRich,   // confidence-aware renderers use this (now with quantity)
-    note: clean(d.note),
-    analysis: extras.analysis,           // detailed coach paragraph (0062); '' from an old edge fn
+    detected: detectedRich.map((f) => f.name), // legacy consumers keep plain names
+    detectedRich,                              // confidence-aware renderers (now with per-food macros)
+    note,
+    analysis,                                  // detailed coach paragraph (0062); '' from an old edge fn
   };
 }
 
@@ -1003,6 +1045,47 @@ export const act = {
     }
     return r;
   },
+  /* Pre-log edit propagation (Tier 1 session isolation, 2026-07-21): called right after every
+     successful applyFoodEdit. A removed food must leave EVERYTHING — totals, score inputs, and
+     prose — not just the food list. Totals + quality recompute deterministically from the
+     remaining per-food grounded macros; possible only when every remaining food is priced
+     (per-food AI attribution, or a DB match for a user-added item). When a food can't be
+     priced (older edge payloads, unknown user adds) the AI totals stay and the UI keeps the
+     honest "macros stay the AI's estimate" hint — recomputed=false says which world we're in. */
+  recomputeStagedMeal(op) {
+    const r = MEAL.result;
+    if (!r) return;
+    // Prose isolation runs regardless of pricing: text can never mention an absent food.
+    if (op && op.kind === 'remove' && op.name) {
+      r.analysis = stripFoodMentions(r.analysis, op.name);
+      r.note = stripFoodMentions(r.note, op.name);
+      r.highlights = (r.highlights || []).map((h) => stripFoodMentions(h, op.name)).filter(Boolean);
+    }
+    const g = groundMealFromFoods(r.detectedRich || []);
+    const canRecompute = (r.detectedRich || []).length === 0 || (g.foods.length > 0 && g.unpriced === 0);
+    if (canRecompute) {
+      r.detectedRich = g.foods;
+      r.detected = g.foods.map((f) => f.name);
+      const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(v || 0)));
+      r.protein = clampN(g.totals.protein, 120); r.carbs = clampN(g.totals.carbs, 250);
+      r.fat = clampN(g.totals.fat, 150);
+      r.kcal = clampN(g.totals.kcal || (4 * r.protein + 4 * r.carbs + 9 * r.fat), 2200);
+      const timing = analysisTiming(MEAL.capturedAtMin != null ? MEAL.capturedAtMin : minutesNow(), slotDeadline(MEAL.key || 'dinner'));
+      const gm = { protein: r.protein, carbs: r.carbs, fat: r.fat, kcal: r.kcal };
+      r.quality = mealQualityScore({ macros: gm, fiber: r.fiber, detected: r.detectedRich, minutesLate: timing ? timing.minutesLate : 0 });
+      // The score moved — re-check that the surviving prose still agrees with the new band.
+      const band = qualityBand(r.quality);
+      if (!analysisAgreesWithBand(r.analysis, band) || !analysisAgreesWithBand(r.note, band)) {
+        r.analysis = '';
+        r.note = qualityReason(gm, r.fiber, r.detectedRich) || 'Logged. The breakdown shows how this plate reads.';
+      }
+      r.recomputed = true;
+    } else {
+      r.recomputed = false;
+    }
+    save(); saveMeal();
+  },
+
   /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
      the actual macros the athlete assembled, not a demo constant. No AI "quality" is invented.
      `source` distinguishes 'manual' (search-built plate) from 'label' (typed off the panel —

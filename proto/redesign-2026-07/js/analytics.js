@@ -36,6 +36,10 @@ export const EVENTS = Object.freeze({
   TRIAL_STARTED: 'trial_started',             // {plan, cadence} — "Start free" tapped (intent; billing go-live gated)
   MEAL_LOGGED: 'meal_logged',                 // {slot, source}
   MEAL_ANALYSIS_FAILED: 'meal_analysis_failed', // {reason}  — the client-only signal 0037 can't see
+  // Deterministic-scoring cutover (2026-07-21): the app computes meal quality; the AI's own
+  // number is only this cross-check so drift between the two is measurable post-ship.
+  MEAL_SCORE_DELTA: 'meal_score_delta',       // {ai, det, delta} — AI estimate vs deterministic score
+  MEAL_TEXT_CONFLICT: 'meal_text_conflict',   // {det} — AI prose disagreed with the band; deterministic copy shown
   MEAL_GALLERY_LOGGED: 'meal_gallery_logged', // {slot} — gallery photos score now; measure usage
   MEAL_DUP_BLOCKED: 'meal_dup_blocked',       // {stage:'precheck'|'insert'} — reuse attempt caught
   MEAL_STALE_PHOTO: 'meal_stale_photo',       // {slot} — gallery pick with an old EXIF capture time

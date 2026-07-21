@@ -34,6 +34,8 @@ const ALLOWED = new Set([
   "code_join_failed", "app_error",
   // Paywall funnel (2026-07-21) — surface events; must match proto analytics.js EVENTS.
   "paywall_viewed", "plan_selected", "trial_started",
+  // Deterministic-scoring cutover (2026-07-21) — AI-vs-app score delta + tone-conflict signals.
+  "meal_score_delta", "meal_text_conflict",
 ]);
 const ENUM_RE = /^[a-z0-9_.:-]{1,24}$/;
 const SID_RE = /^[a-z0-9_.:-]{1,64}$/i;

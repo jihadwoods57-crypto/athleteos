@@ -75,7 +75,9 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
-  padding: 4px var(--pad-screen) 128px;
+  /* Bottom pad must clear the 96px tabbar on EVERY screen; a big home-indicator inset
+     grows the clearance instead of eating it (nav must never cover the last action). */
+  padding: 4px var(--pad-screen) calc(128px + max(0px, env(safe-area-inset-bottom, 0px) - 22px));
   scroll-behavior: smooth;
 }
 .viewport::-webkit-scrollbar { display: none; }

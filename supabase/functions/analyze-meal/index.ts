@@ -257,15 +257,19 @@ const MEAL_TOOL = {
       fat: { type: 'integer', description: 'Estimated grams of fat.' },
       detected: {
         type: 'array',
-        description: 'Foods identified in the photo, each with your confidence in the identification.',
+        description: 'Foods identified in the photo, each with your confidence in the identification and its own macro estimate. The per-food protein/kcal/carbs/fat MUST sum to the meal-level totals — the app subtracts a food\'s numbers when the athlete removes it, so an unattributed calorie would survive the deletion.',
         items: {
           type: 'object',
           properties: {
             name: { type: 'string', description: 'The food, e.g. "Grilled chicken".' },
             confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'high = clearly visible; medium = probable; low = uncertain, the athlete should confirm.' },
             quantity: { type: 'string', description: 'Estimated quantity in plain kitchen units, e.g. "2 eggs", "1 cup rice", "6 oz". Omit when unguessable.' },
+            protein: { type: 'integer', description: 'Estimated grams of protein from THIS food at the estimated quantity.' },
+            kcal: { type: 'integer', description: 'Estimated calories from THIS food.' },
+            carbs: { type: 'integer', description: 'Estimated grams of carbohydrate from THIS food.' },
+            fat: { type: 'integer', description: 'Estimated grams of fat from THIS food.' },
           },
-          required: ['name', 'confidence'],
+          required: ['name', 'confidence', 'protein', 'kcal', 'carbs', 'fat'],
         },
       },
       fiber: { type: 'integer', description: 'Estimated grams of dietary fiber. 0 when negligible.' },
@@ -369,7 +373,9 @@ ranges and hedged phrasing for anything the photo cannot pin down ("roughly 42 t
 move this"). Never present an estimate as an exact fact.
 
 Consistency rules, hard requirements: your written analysis, detected list, macro numbers, and
-quality score must agree with each other. Never claim "no fiber" or "no vegetables" when the
+quality score must agree with each other. Attribute the macros food by food: every detected food
+carries its own protein/kcal/carbs/fat estimate, and those per-food numbers must add up to the
+meal-level totals you report (the app removes a food's numbers when the athlete deletes it). Never claim "no fiber" or "no vegetables" when the
 detected list contains a vegetable, fruit, legume, or whole grain — if fiber seems low despite
 visible produce, say the portion looks small rather than denying what is on the plate. Never
 praise protein in the text while reporting a low protein number, or the reverse.`;

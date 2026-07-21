@@ -224,7 +224,7 @@ export const analysis = {
         <input class="fr-in qty" id="add-qty" placeholder="Qty" aria-label="Quantity" />
         <button class="fr-ok" id="add-ok" aria-label="Add">${icon('check', 15)}</button>
       </div>
-      ${edited ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);padding:4px 0 8px">Edited by you — macros stay the AI's estimate.</div>` : ''}
+      ${edited ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);padding:4px 0 8px">${MEAL.result && MEAL.result.recomputed ? 'Edited by you — macros and score recalculated from the foods listed.' : 'Edited by you — macros stay the AI’s estimate.'}</div>` : ''}
     </section>
 
     <div class="eyebrow">Estimated</div>
@@ -282,9 +282,11 @@ export const analysis = {
     }
     // Edit mode (real editing, not a dead button): remove / rename / set quantity / add.
     // Every mutation goes through applyFoodEdit so MEAL.result.detectedRich and .detected stay
-    // in lockstep — act.logMeal reads the arrays, not the DOM. Macros are deliberately never
-    // re-estimated; the "edited by you" hint keeps that honest. Repaint via __render so the
-    // rendered rows always mirror the arrays (no hand-synced DOM state).
+    // in lockstep — act.logMeal reads the arrays, not the DOM — then recomputeStagedMeal
+    // propagates it: totals + quality recompute deterministically from the remaining per-food
+    // macros and removed foods leave the prose (Tier 1 session isolation). When a food can't
+    // be priced the totals honestly stay the AI's estimate and the hint says so. Repaint via
+    // __render so the rendered rows always mirror the arrays (no hand-synced DOM state).
     const btn = root.querySelector('#edit-foods');
     const box = root.querySelector('#foods');
     if (!btn || !box) return;
@@ -303,19 +305,22 @@ export const analysis = {
         row.insertAdjacentHTML('beforeend', '<span class="rm" role="button" aria-label="Remove" style="margin-left:8px;color:var(--red);font-weight:800;cursor:pointer">✕</span>');
         row.querySelector('.rm').addEventListener('click', (e) => {
           e.stopPropagation();
-          if (applyFoodEdit(MEAL.result, { kind: 'remove', name })) { analysis._editing = true; window.__render(); }
+          const op = { kind: 'remove', name };
+          if (applyFoodEdit(MEAL.result, op)) { act.recomputeStagedMeal(op); analysis._editing = true; window.__render(); }
         });
         if (nameEl) {
           nameEl.innerHTML = `<input class="fr-in name" value="${esc(name)}" aria-label="Food name" />`;
           nameEl.querySelector('input').addEventListener('change', (e) => {
-            applyFoodEdit(MEAL.result, { kind: 'rename', name, newName: e.target.value });
+            const op = { kind: 'rename', name, newName: e.target.value };
+            if (applyFoodEdit(MEAL.result, op)) act.recomputeStagedMeal(op);
             analysis._editing = true; window.__render();
           });
         }
         if (qtyEl) {
           qtyEl.innerHTML = `<input class="fr-in qty" value="${esc((item && item.quantity) || '')}" placeholder="Qty" aria-label="Quantity" />`;
           qtyEl.querySelector('input').addEventListener('change', (e) => {
-            applyFoodEdit(MEAL.result, { kind: 'quantity', name, quantity: e.target.value });
+            const op = { kind: 'quantity', name, quantity: e.target.value };
+            if (applyFoodEdit(MEAL.result, op)) act.recomputeStagedMeal(op);
             analysis._editing = true; window.__render();
           });
         }
@@ -323,7 +328,9 @@ export const analysis = {
       const addOk = root.querySelector('#add-ok');
       if (addOk) addOk.addEventListener('click', () => {
         const n = root.querySelector('#add-name'), q = root.querySelector('#add-qty');
-        if (applyFoodEdit(MEAL.result, { kind: 'add', name: n && n.value, quantity: q && q.value })) {
+        const op = { kind: 'add', name: n && n.value, quantity: q && q.value };
+        if (applyFoodEdit(MEAL.result, op)) {
+          act.recomputeStagedMeal(op);
           analysis._editing = true; window.__render();
         }
       });
@@ -598,6 +605,8 @@ export const thread = {
     </div>` : '';
 
     return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
+    <div style="height:18px"></div>
+    <button class="btn green" style="width:100%" data-go="home" aria-label="Done — back to home">${icon('check', 18)} Done</button>
     <div style="height:16px"></div>`;
   },
 
