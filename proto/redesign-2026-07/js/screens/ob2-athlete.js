@@ -440,6 +440,7 @@ const steps = [
         </div>`;
     },
     mount(root) {
+      track(EVENTS.PAYWALL_VIEWED, { variant: 'team_covered' });
       root.querySelector('#ob-enter').addEventListener('click', goDestination);
     },
   },
@@ -458,7 +459,7 @@ const steps = [
       return `
       ${testimonial({ quote: 'My coach stopped asking if I ate. He just checks the board. I put on 9 lb over the season without one nagging text.', name: 'Marcus', role: 'RB · high school senior', initials: 'M', stat: '+9 lb', statKey: 'in a season' })}
       <div class="ob2-cadence" role="tablist" aria-label="Billing period">
-        <button class="cad ${cad === 'annual' ? 'on' : ''}" data-cad="annual" role="tab" aria-selected="${cad === 'annual'}">Annual<small>2 months free</small></button>
+        <button class="cad ${cad === 'annual' ? 'on' : ''}" data-cad="annual" role="tab" aria-selected="${cad === 'annual'}">Annual<small>Save 30%</small></button>
         <button class="cad ${cad === 'monthly' ? 'on' : ''}" data-cad="monthly" role="tab" aria-selected="${cad === 'monthly'}">Monthly</button>
       </div>
       <div class="ob2-plans" id="ob-plans">
@@ -482,7 +483,7 @@ const steps = [
       const render = () => {
         const list = root.querySelector('#ob-plans');
         list.innerHTML = PLANS.individual.map((p) => planCard({ ...p, cadence: cad(), on: plan() === p.id })).join('');
-        list.querySelectorAll('.ob2-plan').forEach((el) => el.addEventListener('click', () => { capture({ plan: el.dataset.val }); render(); }));
+        list.querySelectorAll('.ob2-plan').forEach((el) => el.addEventListener('click', () => { capture({ plan: el.dataset.val }); track(EVENTS.PLAN_SELECTED, { plan: el.dataset.val, cadence: cad() }); render(); }));
         root.querySelectorAll('.ob2-cadence .cad').forEach((b) => {
           const on = b.dataset.cad === cad();
           b.classList.toggle('on', on); b.setAttribute('aria-selected', on);
@@ -490,11 +491,14 @@ const steps = [
         root.querySelector('#ob-fine').textContent = fineFor(cad());
       };
       root.querySelectorAll('.ob2-cadence .cad').forEach((b) => b.addEventListener('click', () => { capture({ cadence: b.dataset.cad }); render(); }));
+      /* Exposure: fire the moment the paywall is on screen — the report's non-negotiable for honest funnel math. */
+      track(EVENTS.PAYWALL_VIEWED, { variant: paywallVariant('athlete'), cadence: cad() });
       render();
       root.querySelector('#ob-start').addEventListener('click', () => {
         /* Lock in the framed defaults if the user never tapped. Intent only — billing is go-live gated. */
         if (!o().plan) capture({ plan: PLANS.individual[0].id });
         if (!o().cadence) capture({ cadence: 'annual' });
+        track(EVENTS.TRIAL_STARTED, { plan: plan(), cadence: cad() });
         goDestination();
       });
     },

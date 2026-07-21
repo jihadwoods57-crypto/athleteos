@@ -252,9 +252,9 @@ export function paywallVariant(role) {
    is go-live gated so these capture intent, they don't charge. */
 export const PLANS = {
   individual: [
-    { id: 'individual', name: 'Individual', monthly: '$14.99', annual: '$149', annualPer: '$12.42', save: 'Save $31', tag: '7-day free trial',
+    { id: 'individual', name: 'Individual', monthly: '$14.99', annual: '$126', annualPer: '$10.50', save: 'Save $54', tag: '7-day free trial',
       sub: 'Daily Score, AI meal analysis, streaks, one connected supporter.' },
-    { id: 'individual_plus', name: 'Individual+', monthly: '$24.99', annual: '$249', annualPer: '$20.75', save: 'Save $51',
+    { id: 'individual_plus', name: 'Individual+', monthly: '$24.99', annual: '$210', annualPer: '$17.50', save: 'Save $90',
       sub: 'Everything in Individual plus full history, trends, and unlimited supporters.' },
   ],
   pro: [

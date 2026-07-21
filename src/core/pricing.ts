@@ -33,14 +33,18 @@ export interface PricedPlan {
 
 // The recommended opening catalog (docs/founding/LAUNCH-PRICING.md).
 export const PLAN_CATALOG: PricedPlan[] = [
-  { id: 'individual', name: 'Individual', audience: 'individual', rail: 'iap', monthly: 14.99, annual: 149, trialDays: 7,
+  // Consumer annual discount deepened to 30% (2026-07-21): fitness revenue is annual-dominated,
+  // and a strong long-term anchor is the single highest-leverage paywall lever for this category.
+  // Annual = monthly * 12 * 0.70, rounded to a clean effective /mo ($10.50 / $17.50 / $28.00).
+  // Pro/org (Stripe, B2B) keep the 2-months-free anchor below — different buyer, different churn.
+  { id: 'individual', name: 'Individual', audience: 'individual', rail: 'iap', monthly: 14.99, annual: 126, trialDays: 7,
     blurb: 'Keep your history, score, AI coach, and daily game plan — on your own.' },
-  { id: 'individual_plus', name: 'Individual Plus', audience: 'individual', rail: 'iap', monthly: 24.99, annual: 249, trialDays: 7,
+  { id: 'individual_plus', name: 'Individual Plus', audience: 'individual', rail: 'iap', monthly: 24.99, annual: 210, trialDays: 7,
     blurb: 'Adds your full portable record across every team + a shareable recruiting card.' },
   // Family plan (add-on build 2026-07-04): a parent with 2-4 athlete kids pays one bill at
   // ~33% under 4x Individual. Families churn slower than solo teens, and the parent digest
-  // gives the payer their own value. IAP rail (consumer), same as Individual.
-  { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 39.99, annual: 399, trialDays: 7, seatLimit: 4,
+  // gives the payer their own value. IAP rail (consumer), same as Individual — 30% annual too.
+  { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 39.99, annual: 336, trialDays: 7, seatLimit: 4,
     blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   // Cost sweep 2026-07-04: Solo/Professional were repriced up (69->99, 124.99->179) and the extra-seat
   // add-on 3->10. The old numbers sat at/below the per-seat AI-cost floor once a trainer's roster was
@@ -137,8 +141,9 @@ export function purchaseCtaLabel(p: PricedPlan): string {
 
 // ---------------------------------------------------------------- billing cadence
 // Annual-first checkout (revenue build 2026-07-04): annual is the highlighted default at
-// checkout — the buyer saves two months, the business gets cash up front and roughly half
-// the churn surface. These helpers keep every cadence-dependent string in one tested place.
+// checkout — the buyer saves 30% on consumer plans (two months on pro/org), the business gets
+// cash up front and roughly half the churn surface. These helpers keep every cadence-dependent
+// string in one tested place.
 
 export type BillingCadence = 'monthly' | 'annual';
 

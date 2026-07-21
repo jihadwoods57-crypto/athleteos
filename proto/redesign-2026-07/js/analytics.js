@@ -27,6 +27,13 @@ export const EVENTS = Object.freeze({
   GOAL_SELECTED: 'goal_selected',             // {goal}
   AGE_BLOCKED: 'age_blocked',                 // under-13 gate hit (a real, invisible drop)
   ONBOARDING_COMPLETED: 'onboarding_completed', // account created  {role}
+  // Paywall funnel (2026-07-21) — the surface events the report insists on. PAYWALL_VIEWED is the
+  // exposure signal (fire the moment the screen is visible, or conversion readouts undercount).
+  // The lagging events (trial→paid, renewal, refund) are server truth from App Store Server
+  // Notifications / Play RTDN, NOT client events — see docs/paywall/event-schema.md.
+  PAYWALL_VIEWED: 'paywall_viewed',           // {variant, cadence} — plans OR covered screen shown
+  PLAN_SELECTED: 'plan_selected',             // {plan, cadence} — a plan card tapped
+  TRIAL_STARTED: 'trial_started',             // {plan, cadence} — "Start free" tapped (intent; billing go-live gated)
   MEAL_LOGGED: 'meal_logged',                 // {slot, source}
   MEAL_ANALYSIS_FAILED: 'meal_analysis_failed', // {reason}  — the client-only signal 0037 can't see
   MEAL_GALLERY_LOGGED: 'meal_gallery_logged', // {slot} — gallery photos score now; measure usage
