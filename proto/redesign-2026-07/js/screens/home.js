@@ -412,7 +412,7 @@ export default {
       const rest = e.items.filter((i) => i.id !== 'breakfast');
       return `
       ${appHead(headSub(e), trustShield())}
-      ${hero(e)}
+      ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
       ${syncBanner()}
       <section class="xnow">
         <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>

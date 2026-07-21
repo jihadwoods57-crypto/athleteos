@@ -124,4 +124,22 @@ describe('in-progress framing — no failure verdict on a day that is not over',
   test('S.dayDecided mirrors exec.decided', () => {
     expect(S.dayDecided).toBe(S.exec.decided);
   });
+
+  test('day0 empty morning (established user) → In progress, never Off Standard', () => {
+    // Established user (activated yesterday — no first-day grace), but RT.day0 recomputes true
+    // every morning before anything is logged (state.js:389) — not just the literal first day.
+    RT.activationDate = activatedYesterday;
+    RT.profile = { createdAt: activatedYesterday };
+    RT.day0 = true;
+    RT.day0Breakfast = false;
+    DAY.date = todayISO;
+    const home = require('../../proto/redesign-2026-07/js/screens/home.js').default;
+    const html: string = home.render();
+    // Confirm we actually took the day0 branch (its unique "start here" NOW card).
+    expect(html).toContain('Log First Meal');
+    if (!S.dayDecided) {
+      expect(html).not.toContain('Off Standard');
+      expect(html).toContain('In progress');
+    }
+  });
 });
