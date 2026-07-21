@@ -33,7 +33,7 @@ import {
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
-  fetchTrustPassPolicy, fetchTeamWeekPattern,
+  fetchTrustPassPolicy, fetchTeamWeekPattern, fetchCoachSetupState,
   todayISO,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
@@ -1287,6 +1287,10 @@ export const act = {
           : (RT.trustPolicy || { length_days: 10, eligibility_days: 7 });
         const wp = await fetchTeamWeekPattern(RT.team.id);
         if (wp) RT.weekPattern = wp; // for the coach's weekly-pattern editor
+        // T-21: resume first-run setup after a reinstall / on a new device. UNION the server's
+        // completed steps with anything marked locally this session — never un-complete a step.
+        const remote = await fetchCoachSetupState(RT.team.id);
+        RT.coachSetup = { ...remote, ...(RT.coachSetup || {}) };
         save();
       } catch { /* best-effort */ }
     }

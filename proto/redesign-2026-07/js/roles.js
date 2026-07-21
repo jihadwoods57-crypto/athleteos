@@ -318,6 +318,18 @@ export async function fetchTrustPassPolicy(teamId) {
     return data || null;
   } catch { return null; }
 }
+/* Coach first-run setup progress (0092), read back so the checklist RESUMES after a reinstall or on
+   a new device — the write side (act.markCoachSetup) had no reader, so progress looked lost. Returns
+   a { step: true } map of completed steps. Staff-scoped RLS; a missing table/offline returns {}. */
+export async function fetchCoachSetupState(teamId) {
+  const c = sb(); if (!c || !teamId) return {};
+  try {
+    const { data } = await c.from('coach_setup_state').select('step, state').eq('team_id', teamId).eq('state', 'completed');
+    const map = {};
+    for (const r of (data || [])) if (r && r.step) map[r.step] = true;
+    return map;
+  } catch { return {}; }
+}
 /* Per-team weekly training/rest pattern (0100): a 7-element array indexed by getDay() (0=Sun). Team
    MEMBERS read it (their scored day resolves day-type from it); staff write. A missing row means no
    day-type gating — every requirement item applies every day. The WRITE lives in state.js
