@@ -7,7 +7,7 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo } from './requirements.js';
+import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType } from './requirements.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
@@ -33,7 +33,7 @@ import {
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
-  fetchTrustPassPolicy,
+  fetchTrustPassPolicy, fetchTeamWeekPattern,
   todayISO,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
@@ -786,6 +786,26 @@ export const act = {
       }
     } catch { /* best-effort */ }
   },
+  /* Team weekly training/rest pattern (0100): set one weekday's type and persist. `dow` is 0=Sun..
+     6=Sat (JS getDay()). Local RT drives the editor + the athlete's day-type resolution; best-effort
+     staff upsert. Seeds an all-training week the first time a coach touches it. */
+  setWeekPattern(dow, type) {
+    if (dow < 0 || dow > 6) return;
+    const t = (type === 'rest' || type === 'training') ? type : 'training';
+    const next = Array.isArray(RT.weekPattern) && RT.weekPattern.length === 7
+      ? RT.weekPattern.slice()
+      : ['training', 'training', 'training', 'training', 'training', 'training', 'training'];
+    next[dow] = t;
+    RT.weekPattern = next;
+    save();
+    try {
+      if (window.sb && RT.team && RT.team.id) {
+        void window.sb.from('team_week_pattern').upsert(
+          { team_id: RT.team.id, pattern: next, updated_by: RT.userId || null, updated_at: new Date().toISOString() },
+          { onConflict: 'team_id' });
+      }
+    } catch { /* best-effort */ }
+  },
   /* Cache the resolved Coach Voice nudge (0094 consumer) keyed by the slipping-state signature, so
      the model is asked at most once per distinct state per day. A null text (Voice off / no nudge)
      is cached too, to suppress repeat calls. Persisted with RT. */
@@ -1265,6 +1285,8 @@ export const act = {
         RT.trustPolicy = pol && pol.length_days != null
           ? { length_days: pol.length_days, eligibility_days: pol.eligibility_days }
           : (RT.trustPolicy || { length_days: 10, eligibility_days: 7 });
+        const wp = await fetchTeamWeekPattern(RT.team.id);
+        if (wp) RT.weekPattern = wp; // for the coach's weekly-pattern editor
         save();
       } catch { /* best-effort */ }
     }
@@ -1386,7 +1408,12 @@ export const act = {
       .map(a => ({ ...a, seen: prevSeen.has(a.id) || a.done }));
     RT.assigned = [...RT.assigned.filter(a => !a.real), ...real];
     // the team's standing requirement sets govern the athlete's scored day (WS3 slice 2)
-    if (RT.myCoach && RT.myCoach.teamId) RT.reqSets = await fetchRequirementSets(RT.myCoach.teamId);
+    if (RT.myCoach && RT.myCoach.teamId) {
+      RT.reqSets = await fetchRequirementSets(RT.myCoach.teamId);
+      // The team's weekly pattern (0100) resolves this athlete's day-type. Best-effort; a null
+      // (no pattern / not-applied table / offline) leaves day-type 'any' — no gating.
+      try { RT.weekPattern = await fetchTeamWeekPattern(RT.myCoach.teamId); } catch { /* best-effort */ }
+    }
     this._applyStandardFromSets();
     save();
   },
@@ -1396,7 +1423,11 @@ export const act = {
     // Resolve the version governing the day being scored (DAY.date), so a coach's future-dated
     // standard edit never rescopes today or a past day (prospective effective dates, 0085).
     const set = resolveRequirementSet(RT.reqSets || [], RT.userId, (RT.profile || {}).position, String(DAY.date));
-    let std = stdFromItems(set && set.items);
+    // Day-type gating (0100): with the team's weekly pattern, drop items that don't apply to the
+    // type of the day being scored. No pattern → dayType 'any' → items pass through untouched, so
+    // the scored day is byte-identical for every team without a pattern (parity contract).
+    const dayType = dayTypeFor(RT.weekPattern, String(DAY.date));
+    let std = stdFromItems(set && filterItemsByDayType(set.items, dayType));
     // Independent (no governing coach set): a NEW solo athlete's chosen personal standard governs
     // their scored day. Gated on RT.activationDate — stamped only by this build's onboarding — so
     // EXISTING solo athletes are never silently re-scored against a different meal count (they

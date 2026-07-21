@@ -179,6 +179,36 @@ export function stdFromItems(items) {
   return { mealsRequired: m, slots, deadlines, titles, grace, latePolicy };
 }
 
+/* ---- Day-type resolution (0086 item.dayType + 0100 team_week_pattern) ----
+   A coach can mark a requirement item to apply on training days, rest days, or any day, and set a
+   weekly training/rest pattern for the team. These two PURE helpers turn that into "which items
+   govern the day being scored". Parity is the contract: with no team pattern (dayType 'any'),
+   NOTHING is filtered and stdFromItems is byte-identical to before. */
+
+/** The type of a given day from a team's weekly pattern. `pattern` is a 7-element array of
+ *  'training' | 'rest', indexed by JS getDay() (0 = Sunday). A missing/malformed pattern, or a
+ *  slot that isn't training/rest, resolves to 'any' — i.e. no day-type gating. */
+export function dayTypeFor(pattern, dayOrISO) {
+  if (!Array.isArray(pattern) || pattern.length !== 7) return 'any';
+  let dow;
+  if (typeof dayOrISO === 'number') dow = dayOrISO;
+  else { const d = new Date(String(dayOrISO) + 'T12:00:00'); if (isNaN(d)) return 'any'; dow = d.getDay(); }
+  const t = pattern[dow];
+  return (t === 'training' || t === 'rest') ? t : 'any';
+}
+
+/** Keep only the items that apply on a day of the given type. An item with no dayType (or 'any')
+ *  ALWAYS applies, so every existing set — none of which carry dayType — is returned unchanged.
+ *  When dayType is 'any' (no pattern), nothing is filtered at all. */
+export function filterItemsByDayType(items, dayType) {
+  if (!Array.isArray(items)) return items;
+  if (dayType !== 'training' && dayType !== 'rest') return items; // 'any' / unknown → no gating
+  return items.filter((it) => {
+    const d = it && it.dayType;
+    return d == null || d === 'any' || d === dayType;
+  });
+}
+
 /** An independent (no-coach) athlete's personal standard → the same scored-day shape a coach
  *  standard produces. v1 configures only the meal count (onboarding's 2/3/4 chip); windows and
  *  titles fall back to the classic day. Returns null for a missing/out-of-range count, so the

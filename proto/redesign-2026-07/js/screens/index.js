@@ -29,7 +29,7 @@ import { trust, streak, history, mealView } from './trust.js';
 import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
 import signin from './signin.js';
 import reset from './reset.js';
-import { devices, recruiting, restrictions, teamDiet, injury, partner, coachVoice, trustPassPolicy, safety } from './features.js';
+import { devices, recruiting, restrictions, teamDiet, injury, partner, coachVoice, trustPassPolicy, weekPattern, safety } from './features.js';
 import bioOptin from './bio-optin.js';
 
 export const screens = {
@@ -108,6 +108,7 @@ export const screens = {
   partner,
   'coach-voice': coachVoice,
   'trust-pass-policy': trustPassPolicy,
+  'week-pattern': weekPattern,
   safety,
   'bio-optin': bioOptin,
 };

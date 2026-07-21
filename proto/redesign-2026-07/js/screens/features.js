@@ -418,6 +418,49 @@ export const trustPassPolicy = {
   },
 };
 
+/* ---------- #week-pattern · which weekdays are training vs rest (0100 → day-type scoring) ---------- */
+const WP_DAYS = [[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'Thursday'], [5, 'Friday'], [6, 'Saturday'], [0, 'Sunday']];
+export const weekPattern = {
+  nav: 'coach', tab: 'profile',
+  render() {
+    const p = Array.isArray(RT.weekPattern) && RT.weekPattern.length === 7
+      ? RT.weekPattern : ['training', 'training', 'training', 'training', 'training', 'training', 'training'];
+    const rows = WP_DAYS.map(([dow, label]) => {
+      const rest = p[dow] === 'rest';
+      return `
+      <div class="lrow" style="cursor:default">
+        <div class="lm"><div class="lt">${label}</div></div>
+        <div class="seg" style="width:150px" data-wp="${dow}">
+          <button class="${rest ? '' : 'on'}" data-wt="training">Training</button>
+          <button class="${rest ? 'on' : ''}" data-wt="rest">Rest</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `
+    ${backHead('Training week', 'Mark rest days so day-only requirements don’t count against them.', 'coach-profile')}
+
+    <section class="card" style="padding:6px 16px">${rows}</section>
+
+    <div style="height:10px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
+      <div><div class="tt">How this is used</div>
+      <div class="ts">A requirement you tag as <b>training-only</b> or <b>rest-only</b> in the standards editor applies only on those days. On a rest day, training-only meals simply aren’t required — they don’t count against the athlete’s score. Leave every day “Training” for no change.</div></div>
+    </div>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root) {
+    root.querySelectorAll('[data-wp]').forEach((seg) => {
+      const dow = Number(seg.getAttribute('data-wp'));
+      seg.querySelectorAll('[data-wt]').forEach((b) => b.addEventListener('click', () => {
+        act.setWeekPattern(dow, b.getAttribute('data-wt'));
+        window.__render();
+      }));
+    });
+  },
+};
+
 /* ---------- #safety · Protective pattern flags (design preview, deliberately not simulated) ---------- */
 export const safety = {
   nav: 'coach', tab: 'roster',

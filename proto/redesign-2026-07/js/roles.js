@@ -318,6 +318,17 @@ export async function fetchTrustPassPolicy(teamId) {
     return data || null;
   } catch { return null; }
 }
+/* Per-team weekly training/rest pattern (0100): a 7-element array indexed by getDay() (0=Sun). Team
+   MEMBERS read it (their scored day resolves day-type from it); staff write. A missing row means no
+   day-type gating — every requirement item applies every day. The WRITE lives in state.js
+   act.setWeekPattern (owns RT). */
+export async function fetchTeamWeekPattern(teamId) {
+  const c = sb(); if (!c || !teamId) return null;
+  try {
+    const { data } = await c.from('team_week_pattern').select('pattern').eq('team_id', teamId).maybeSingle();
+    return data && Array.isArray(data.pattern) ? data.pattern : null;
+  } catch { return null; }
+}
 
 /* ---------------- staff & collaborators (0061) ---------------- */
 export async function fetchTeamStaff(teamId) {
