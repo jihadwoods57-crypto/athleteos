@@ -70,6 +70,19 @@ export function isReadonly(role) {
   return normalizeRole(role) === 'readonly';
 }
 
+/* ---------------- per-field READ visibility (0103, weight slice 1) ----------------
+   Unlike the create-menu (which fails OPEN on a slow role fetch because the server bounces a
+   bad write), a READ capability must fail CLOSED: showing a weight field for a beat and then
+   yanking it is a leak, not a loading state. Unknown/absent/loading role → no weight UI; the
+   0103 grants + RPCs are the real wall regardless — this map only keeps honest screens from
+   offering fields the server would return redacted anyway. Keep the list in sync with
+   can_view_weight() in 0103. */
+const WEIGHT_VIEW_ROLES = ['head_coach', 'athletic_trainer', 's_and_c'];
+export function canViewWeight(role) {
+  const r = normalizeRole(role);
+  return !!r && WEIGHT_VIEW_ROLES.includes(r);
+}
+
 /* ---------------- onboarding responsibility -> team_staff scope ---------------- */
 
 export const RESPONSIBILITIES = [

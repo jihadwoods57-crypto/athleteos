@@ -11,7 +11,7 @@ import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, std
 import { dayFromHistoryRow, minutesNow, MEAL_KEYS } from '../day.js';
 import { explainCategories } from '../breakdown-model.js';
 import { seedTemplates, templateLabel } from '../templates.js';
-import { canEditStandards } from '../staff-access.js';
+import { canEditStandards, canViewWeight } from '../staff-access.js';
 import { categorizeInbox, inboxAlerts } from '../inbox.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -367,10 +367,15 @@ export const coachPlan = {
       return `${head}${errorState({ title: "Couldn't load their targets", body: 'Their plan is safe — reconnect and it loads right here.', retryId: 'tgt-retry' })}`;
     }
     const t = TGT.targets || {};
+    // Per-field visibility (0103): a role outside [head coach, athletic trainer, S&C] neither
+    // sees nor edits weight — the server RPC already strips it, so rendering a "180" here would
+    // be a fabricated default, not their real target. Fail CLOSED while the role loads.
+    const seeWeight = canViewWeight(CD.extras && CD.extras.myRole);
     // Distinguish "no targets set yet" (starter defaults shown as a starting point) from real
     // saved values — a coach shouldn't think targets already exist when they're just placeholders.
-    const unset = t.protein == null && t.calories == null && t.weight == null;
-    const rows = [['Protein', 'tg-protein', t.protein != null ? t.protein : 180, 'g', 5], ['Calories', 'tg-calories', t.calories != null ? t.calories : 2400, '', 50], ['Target weight', 'tg-weight', t.weight != null ? t.weight : 180, ' lb', 1]];
+    const unset = t.protein == null && t.calories == null && (!seeWeight || t.weight == null);
+    const rows = [['Protein', 'tg-protein', t.protein != null ? t.protein : 180, 'g', 5], ['Calories', 'tg-calories', t.calories != null ? t.calories : 2400, '', 50],
+      ...(seeWeight ? [['Target weight', 'tg-weight', t.weight != null ? t.weight : 180, ' lb', 1]] : [])];
     return `
     ${head}
 
@@ -385,7 +390,7 @@ export const coachPlan = {
           <span class="wb2" data-step="${id}" data-d="1" data-s="${step}" style="padding:6px 13px">+</span>
         </div>`).join('')}
     </section>
-
+    ${seeWeight ? `
     <div style="height:12px"></div>
     <section class="card" style="padding:12px 16px">
       <div style="display:flex;align-items:center;gap:10px">
@@ -402,7 +407,13 @@ export const coachPlan = {
         </div>
         <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:6px">Open math, not a black box — you approve, then Save writes it.</div>
       </div>
-    </section>
+    </section>` : `
+    <div style="height:12px"></div>
+    <div class="sidebox">
+      <div class="req-icon" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div><div class="tt">Weight targets are managed by allowed roles</div>
+      <div class="ts">Your role sets protein and calorie targets. Body-weight data and the weight target are visible to the head coach, athletic trainer, and S&amp;C coach.</div></div>
+    </div>`}
 
     <div style="height:14px"></div>
     <div class="sidebox">
@@ -477,7 +488,12 @@ export const coachPlan = {
     if (save) save.addEventListener('click', async () => {
       const num = (id) => parseInt(root.querySelector('#' + id).textContent) || 0;
       save.disabled = true; if (status) status.textContent = 'Saving…';
-      const ok = await roles.coachSetGoals(sub, { protein: num('tg-protein'), calories: num('tg-calories'), weight: num('tg-weight') });
+      // 0103: a weight-restricted role's payload carries no weight key at all — the field wasn't
+      // rendered, and sending a fabricated default would be dishonest even though the server
+      // guard preserves the stored value regardless. Only send what this role actually edited.
+      const payload = { protein: num('tg-protein'), calories: num('tg-calories') };
+      if (root.querySelector('#tg-weight')) payload.weight = num('tg-weight');
+      const ok = await roles.coachSetGoals(sub, payload);
       if (ok) { if (status) status.textContent = 'Saved to their plan.'; TGT = null; setTimeout(() => { location.hash = `#coach-athlete/${sub}`; }, 600); }
       else { save.disabled = false; if (status) status.textContent = 'Could not save — check the connection.'; }
     });

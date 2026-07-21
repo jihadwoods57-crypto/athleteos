@@ -932,6 +932,111 @@ select _ok((select count(*) from staff_invites where id='a5000000-0000-0000-0000
 select _ok((select count(*) from profiles where id='12000000-0000-0000-0000-000000000012') = 0,
            '0079: the erased coach''s profile is actually gone');
 
+-- ================================================================ 0103: per-field weight visibility
+-- Deny-by-default weight (founder decision 2026-07-21): only head_coach / athletic_trainer /
+-- s_and_c team staff (+ trainers + self) may read body weight. The wall is the COLUMN-SPLIT
+-- SELECT grant (nobody reads the raw columns directly — not even allowed roles; the RPCs are
+-- the only doors) + can_view_weight inside weight_series / athlete_plan_meta / coach_set_goals.
+-- Self-contained cast on a fresh team TW so earlier sections' membership flips can't interfere.
+select _superuser();
+insert into auth.users (id, email) values
+  ('a1030000-0000-0000-0000-0000000000a1','w@x.io'),  -- athlete W
+  ('a1030000-0000-0000-0000-0000000000c1','whc@x.io'),-- head coach (allowed)
+  ('a1030000-0000-0000-0000-0000000000c2','wat@x.io'),-- athletic trainer (allowed)
+  ('a1030000-0000-0000-0000-0000000000c3','wpc@x.io'),-- position coach (RESTRICTED)
+  ('a1030000-0000-0000-0000-0000000000c4','wnu@x.io');-- nutritionist (RESTRICTED, keeps protein/cal lane)
+insert into profiles (id, full_name, email, primary_role) values
+  ('a1030000-0000-0000-0000-0000000000a1','Athlete W','w@x.io','athlete'),
+  ('a1030000-0000-0000-0000-0000000000c1','HC W','whc@x.io','coach'),
+  ('a1030000-0000-0000-0000-0000000000c2','AT W','wat@x.io','coach'),
+  ('a1030000-0000-0000-0000-0000000000c3','PC W','wpc@x.io','coach'),
+  ('a1030000-0000-0000-0000-0000000000c4','NU W','wnu@x.io','coach')
+  on conflict (id) do update set full_name = excluded.full_name, primary_role = excluded.primary_role;
+insert into teams (id, name, join_code, created_by) values
+  ('a1030000-1111-0000-0000-000000000001','TW','TWCODE','a1030000-0000-0000-0000-0000000000c1');
+insert into team_members (team_id, athlete_id, status, position) values
+  ('a1030000-1111-0000-0000-000000000001','a1030000-0000-0000-0000-0000000000a1','active','WR');
+insert into team_staff (team_id, staff_id, role, status) values
+  ('a1030000-1111-0000-0000-000000000001','a1030000-0000-0000-0000-0000000000c1','head_coach','active'),
+  ('a1030000-1111-0000-0000-000000000001','a1030000-0000-0000-0000-0000000000c2','athletic_trainer','active'),
+  ('a1030000-1111-0000-0000-000000000001','a1030000-0000-0000-0000-0000000000c3','position_coach','active'),
+  ('a1030000-1111-0000-0000-000000000001','a1030000-0000-0000-0000-0000000000c4','nutritionist','active');
+insert into days (athlete_id, date, meals, score, grade, current_weight) values
+  ('a1030000-0000-0000-0000-0000000000a1', current_date, '{"breakfast":true}'::jsonb, 80, 'B', 201);
+insert into checkins (athlete_id, week, weight, energy) values
+  ('a1030000-0000-0000-0000-0000000000a1', '0103-w', 200, 8);
+insert into athlete_profiles (athlete_id, base_weight, base_goal, targets) values
+  ('a1030000-0000-0000-0000-0000000000a1', 199, 'perform', '{"protein":180,"calories":3200,"weight":190}'::jsonb)
+  on conflict (athlete_id) do update set base_weight = excluded.base_weight, targets = excluded.targets;
+
+-- The column wall: DIRECT weight-column selects are denied for everyone (the RPC is the door)…
+select _as('a1030000-0000-0000-0000-0000000000c3'); -- position coach
+select _ok(_try($q$select current_weight from days where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) like 'denied(42501)%',
+           '0103: position coach direct days.current_weight select is column-denied');
+select _ok(_try($q$select weight from checkins where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) like 'denied(42501)%',
+           '0103: position coach direct checkins.weight select is column-denied');
+select _ok(_try($q$select base_weight from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) like 'denied(42501)%',
+           '0103: position coach direct athlete_profiles.base_weight select is column-denied');
+select _ok(_try($q$select targets from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) like 'denied(42501)%',
+           '0103: position coach direct athlete_profiles.targets select is column-denied');
+-- …while the NON-weight columns and row visibility are untouched (the whole suite's count(*)
+-- idiom keeps working under column grants — this is the regression sentinel for that).
+select _ok(_try($q$select date, score, meals from days where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) = 'ok',
+           '0103: position coach still reads the day row''s non-weight columns');
+select _ok((select count(*) from days where athlete_id='a1030000-0000-0000-0000-0000000000a1') = 1,
+           '0103: count(*) over days still works for staff under column grants');
+select _ok(_try($q$select energy from checkins where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) = 'ok',
+           '0103: position coach still reads non-weight checkin columns');
+select _ok(_try($q$select base_goal, "position", sport from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) = 'ok',
+           '0103: position coach still reads non-weight profile columns');
+-- The RPC doors return LESS for the restricted: zero series rows, nulled/stripped plan meta.
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 0,
+           '0103: weight_series returns ZERO rows to a position coach');
+select _ok((select base_weight is null and not (targets ? 'weight') and (targets ? 'protein') and (targets ? 'calories')
+            from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
+           '0103: plan meta for a position coach has no base_weight, no target weight, but keeps protein/calories');
+
+select _as('a1030000-0000-0000-0000-0000000000c4'); -- nutritionist (deliberately restricted)
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 0,
+           '0103: weight_series returns ZERO rows to the nutritionist');
+select _ok((select not (targets ? 'weight') and (targets->>'protein')::int = 180
+            from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
+           '0103: nutritionist keeps the protein target but never the weight target');
+-- Write guard: the nutritionist's save goes through, but the stored target weight DOESN'T move.
+select _ok(_try($q$select coach_set_goals('a1030000-0000-0000-0000-0000000000a1','{"protein":200,"calories":3300,"weight":150}'::jsonb, null)$q$) = 'ok',
+           '0103: nutritionist coach_set_goals succeeds (their protein/cal lane is intact)');
+select _superuser();
+select _ok((select (targets->>'weight')::int = 190 and (targets->>'protein')::int = 200
+            from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'),
+           '0103: nutritionist save moved protein to 200 but the weight target stayed 190');
+
+select _as('a1030000-0000-0000-0000-0000000000c2'); -- athletic trainer (allowed)
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 1
+           and (select weight from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 201,
+           '0103: athletic trainer reads the real weight series through the RPC');
+select _ok((select base_weight = 199 and (targets->>'weight')::int = 190
+            from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
+           '0103: athletic trainer reads base_weight and the weight target');
+select _ok(_try($q$select coach_set_goals('a1030000-0000-0000-0000-0000000000a1','{"protein":200,"calories":3300,"weight":185}'::jsonb, null)$q$) = 'ok',
+           '0103: athletic trainer coach_set_goals succeeds');
+select _superuser();
+select _ok((select (targets->>'weight')::int = 185 from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'),
+           '0103: the athletic trainer''s weight target write actually lands');
+
+select _as('a1030000-0000-0000-0000-0000000000c1'); -- head coach (allowed)
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 1,
+           '0103: head coach reads the weight series');
+
+select _as('a1030000-0000-0000-0000-0000000000a1'); -- the athlete themself
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 1
+           and (select base_weight = 199 and (targets ? 'weight') from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
+           '0103: the athlete always reads their own weight in full (is_self)');
+
+select _as('99999999-0000-0000-0000-000000000009'); -- rando, no links
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 0
+           and (select count(*) from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')) = 0,
+           '0103: an unlinked stranger gets zero rows from both weight doors');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$

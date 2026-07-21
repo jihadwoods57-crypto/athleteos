@@ -1267,7 +1267,20 @@ export const act = {
       const { data: prof } = await sb.from('profiles').select('full_name,committed_at,created_at').eq('id', userId).maybeSingle();
       // SETTLED sentinel: supabase-js resolves network/RLS failures into `{error}` without
       // throwing — destructure it so a real fetch failure is never misread as "no targets".
-      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob,standard').eq('athlete_id', userId).maybeSingle();
+      // Weight visibility (0103): base_weight + targets left the direct SELECT grant — they come
+      // through the athlete_plan_meta RPC (is_self always passes, so the athlete gets both in
+      // full). Pre-apply fallback below keeps this client shippable AHEAD of the migration.
+      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_goal,season_goal,dob,standard').eq('athlete_id', userId).maybeSingle();
+      let meta = null;
+      try {
+        const { data: pm, error: pmErr } = await sb.rpc('athlete_plan_meta', { athlete: userId });
+        if (!pmErr && Array.isArray(pm) && pm[0]) meta = pm[0];
+        else if (pmErr) {
+          // Pre-0103: the RPC doesn't exist yet but the columns are still directly readable.
+          const { data: legacy } = await sb.from('athlete_profiles').select('base_weight,targets').eq('athlete_id', userId).maybeSingle();
+          if (legacy) meta = legacy;
+        }
+      } catch { /* offline — cached values survive untouched below */ }
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
       // Cross-device activation backstop: the server's committed_at is the first-day anchor when
@@ -1276,12 +1289,14 @@ export const act = {
       if (prof && prof.created_at) patch.createdAt = prof.created_at; // server birthday: the activation anchor
       if (ap) {
         if (ap.sport) patch.sport = ap.sport; if (ap.position) patch.position = ap.position; if (ap.level) patch.level = ap.level;
-        if (ap.base_weight != null) patch.baseWeight = ap.base_weight;
         if (ap.base_goal) patch.baseGoal = ap.base_goal;
         if (ap.season_goal && typeof ap.season_goal === 'object') patch.seasonGoal = ap.season_goal;
-        if (ap.targets && typeof ap.targets === 'object') patch.targets = ap.targets;
         if (ap.dob) patch.dob = ap.dob; // drives the client-side minor gate (mirrors 0050's is_provable_minor)
         if (ap.standard && typeof ap.standard === 'object') patch.standard = ap.standard; // solo personal standard (mealsPerDay)
+      }
+      if (meta) {
+        if (meta.base_weight != null) patch.baseWeight = meta.base_weight;
+        if (meta.targets && typeof meta.targets === 'object') patch.targets = meta.targets;
       }
       // The patch above only ever touches RT.profile.targets when `ap` actually came back, so a
       // previously-cached target (hadTargets) survives an errored fetch untouched — the athlete

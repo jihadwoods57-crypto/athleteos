@@ -416,6 +416,33 @@ function projectRowToDay(row) {
   return localAhead;
 }
 
+/* The days columns the client may SELECT directly after 0103's column-split grant — everything
+   except current_weight, which only the weight_series RPC returns. Keep in sync with the 0103
+   grant list (and add any future days column to BOTH). */
+export const DAY_SELECT_COLS = 'id,athlete_id,date,meals,hydration_l,tasks,quick_added,checkin,score,grade,computed_at,updated_at';
+
+/** The athlete's weight-by-date map via the 0103 weight_series RPC (is_self always passes;
+ *  a restricted viewer gets zero rows, never an error). Pre-apply fallback: before 0103 lands
+ *  the RPC doesn't exist, so a direct column select (still granted then) keeps weight working —
+ *  making the client safe to ship AHEAD of the migration, which the 0103 deploy order requires. */
+export async function fetchWeightSeries(sb, userId, daysBack) {
+  const m = new Map();
+  if (!sb || !userId) return m;
+  try {
+    const { data, error } = await sb.rpc('weight_series', { athlete: userId, days_back: daysBack });
+    if (!error && Array.isArray(data)) {
+      for (const r of data) if (r && r.weight != null) m.set(String(r.date), r.weight);
+      return m;
+    }
+  } catch { /* fall through to the pre-0103 path */ }
+  try {
+    const { data } = await sb.from('days').select('date,current_weight')
+      .eq('athlete_id', userId).gte('date', addDaysISO(todayISO(), -daysBack)).not('current_weight', 'is', null);
+    if (Array.isArray(data)) for (const r of data) if (r && r.current_weight != null) m.set(String(r.date), r.current_weight);
+  } catch { /* offline / post-0103 without the RPC result — weight simply absent this load */ }
+  return m;
+}
+
 export async function loadDay(userId) {
   // Reset to a fresh day FIRST — never merge the fetch onto a previous session's (or a
   // previous calendar day's) in-memory residue. Without this, a user with no server row
@@ -428,14 +455,23 @@ export async function loadDay(userId) {
   const sb = window.sb;
   if (!sb || !userId) return;
   try {
-    const { data } = await sb.from('days').select('*').eq('athlete_id', userId).eq('date', DAY.date).maybeSingle();
-    const localAhead = projectRowToDay(data) || (!data && hasLoggedAnything());
+    // Weight visibility (0103): days.current_weight left the direct SELECT grant — weight rides
+    // its own permission-gated channel (the weight_series RPC; is_self always passes). Columns
+    // are enumerated (never '*', which 42501s once the grant splits), the series is fetched in
+    // parallel, and the weights are stitched back onto the fetched rows BEFORE any existing
+    // processing — projectRowToDay, the history map, and every downstream consumer are unchanged.
     const since = addDaysISO(DAY.date, -60);
-    // meals + checkin jsonb ride along so Progress can compute REAL per-category trends
-    // (computeComponents over reconstructed past days) — never fabricated category numbers.
-    const { data: hist } = await sb.from('days').select('date,score,current_weight,meals,checkin,hydration_l,quick_added').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date');
+    const [{ data }, { data: hist }, weights] = await Promise.all([
+      sb.from('days').select(DAY_SELECT_COLS).eq('athlete_id', userId).eq('date', DAY.date).maybeSingle(),
+      // meals + checkin jsonb ride along so Progress can compute REAL per-category trends
+      // (computeComponents over reconstructed past days) — never fabricated category numbers.
+      sb.from('days').select('date,score,meals,checkin,hydration_l,quick_added').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date'),
+      fetchWeightSeries(sb, userId, 60),
+    ]);
+    if (data && weights.has(String(data.date))) data.current_weight = weights.get(String(data.date));
+    const localAhead = projectRowToDay(data) || (!data && hasLoggedAnything());
     if (Array.isArray(hist)) DAY.scoreHistory = hist.map((r) => ({
-      date: r.date, score: r.score ?? 0, weight: r.current_weight ?? null,
+      date: r.date, score: r.score ?? 0, weight: weights.has(String(r.date)) ? weights.get(String(r.date)) : null,
       meals: r.meals || null, checkin: r.checkin || null,
       hydrationL: Number(r.hydration_l) || 0, quickAdded: Array.isArray(r.quick_added) ? r.quick_added : [],
     }));

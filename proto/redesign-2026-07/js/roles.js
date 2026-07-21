@@ -201,9 +201,34 @@ export async function fetchMealResolved(mealId) {
 }
 
 /* ---------------- coach → athlete review ---------------- */
+/* Weight visibility (0103): days.current_weight left the direct SELECT grant, so staff reads
+   enumerate the granted columns (never '*', which 42501s post-apply). Weight, when the caller's
+   role is allowed, is stitched in separately via fetchAthleteWeights below. */
+const DAY_COLS = 'id,athlete_id,date,meals,hydration_l,tasks,quick_added,checkin,score,grade,computed_at,updated_at';
 export async function fetchDay(athleteId, date) {
   const c = sb(); if (!c || !athleteId) return null;
-  try { const { data } = await c.from('days').select('*').eq('athlete_id', athleteId).eq('date', date).maybeSingle(); return data || null; } catch { return null; }
+  try { const { data } = await c.from('days').select(DAY_COLS).eq('athlete_id', athleteId).eq('date', date).maybeSingle(); return data || null; } catch { return null; }
+}
+/** The athlete's weight-by-date map (0103 weight_series RPC). A restricted role gets an empty
+ *  map — zero rows, never an error — so callers stitch best-effort and weight surfaces simply
+ *  don't exist for roles outside [head_coach, athletic_trainer, s_and_c] (+ trainers, + self).
+ *  Pre-0103 fallback: the direct column read still works until the migration applies. */
+export async function fetchAthleteWeights(athleteId, daysBack = 30) {
+  const c = sb(); const m = new Map();
+  if (!c || !athleteId) return m;
+  try {
+    const { data, error } = await c.rpc('weight_series', { athlete: athleteId, days_back: daysBack });
+    if (!error && Array.isArray(data)) {
+      for (const r of data) if (r && r.weight != null) m.set(String(r.date), r.weight);
+      return m;
+    }
+  } catch { /* fall through */ }
+  try {
+    const { data } = await c.from('days').select('date,current_weight')
+      .eq('athlete_id', athleteId).gte('date', daysAgoISO(daysBack)).not('current_weight', 'is', null);
+    if (Array.isArray(data)) for (const r of data) if (r && r.current_weight != null) m.set(String(r.date), r.current_weight);
+  } catch { /* offline / post-0103 restricted — weight honestly absent */ }
+  return m;
 }
 export async function fetchRecentMeals(athleteId, sinceISO) {
   const c = sb(); if (!c || !athleteId) return [];
@@ -258,21 +283,40 @@ export async function postMealComment(mealId, athleteId, authorId, role, text, k
 }
 
 /* ---------------- coach: targets / trust pass (RPCs) ---------------- */
-export async function fetchAthleteTargets(athleteId) {
+/** base_weight + targets via the 0103 athlete_plan_meta RPC — the server conditionally redacts
+ *  the weight parts for roles outside the allowed set (base_weight → null, targets minus its
+ *  'weight' key; protein/calories always survive — the nutritionist's lane). Pre-0103 fallback:
+ *  direct column read, still granted until the migration applies. Best-effort null. */
+async function fetchPlanMeta(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
-  try { const { data } = await c.from('athlete_profiles').select('targets').eq('athlete_id', athleteId).maybeSingle(); return (data && data.targets) || null; } catch { return null; }
+  try {
+    const { data, error } = await c.rpc('athlete_plan_meta', { athlete: athleteId });
+    if (!error && Array.isArray(data) && data[0]) return data[0];
+    if (error) {
+      const { data: legacy } = await c.from('athlete_profiles').select('base_weight,targets').eq('athlete_id', athleteId).maybeSingle();
+      return legacy || null;
+    }
+    return null;
+  } catch { return null; }
+}
+export async function fetchAthleteTargets(athleteId) {
+  const meta = await fetchPlanMeta(athleteId);
+  return (meta && meta.targets) || null;
 }
 /** Coach-visible athlete basics for target suggestions + the score breakdown's nutrition config
- *  (can_view-scoped; ap_read gates this on the coach being linked). base_goal + base_weight +
- *  coach-set targets are exactly what nutritionConfigForGoal needs to reconstruct the athlete's
- *  OWN scoring profile/targets, so the coach breakdown grades their day the way they're really
- *  graded — never the coach device's defaults. Best-effort null. */
+ *  (can_view-scoped). base_goal/position/sport stay direct reads (granted post-0103); base_weight
+ *  + coach-set targets ride the redacting RPC. A weight-restricted role gets base_weight null +
+ *  targets without a weight key — nutritionConfigForGoal degrades honestly (default bodyweight
+ *  for goal-derived targets; exact whenever coach-set protein/cal targets exist). */
 export async function fetchAthleteBasics(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
   try {
-    const { data } = await c.from('athlete_profiles')
-      .select('base_weight,base_goal,position,sport,targets').eq('athlete_id', athleteId).maybeSingle();
-    return data || null;
+    const [{ data }, meta] = await Promise.all([
+      c.from('athlete_profiles').select('base_goal,position,sport').eq('athlete_id', athleteId).maybeSingle(),
+      fetchPlanMeta(athleteId),
+    ]);
+    if (!data && !meta) return null;
+    return { ...(data || {}), base_weight: meta ? meta.base_weight : null, targets: (meta && meta.targets) || null };
   } catch { return null; }
 }
 export async function coachSetGoals(athleteId, targets) {

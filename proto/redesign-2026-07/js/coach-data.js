@@ -211,7 +211,7 @@ export async function loadAthleteProfile(athleteId, force) {
     if (!CD.roster) await loadCoachRoster();           // need the row + extras (sets/exceptions)
     const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
     const since30 = roles.daysAgoISO(30);
-    const [day, meals, trustPass, interventions, assignments, notes, basics] = await Promise.all([
+    const [day, meals, trustPass, interventions, assignments, notes, basics, weights] = await Promise.all([
       roles.fetchDay(athleteId, roles.todayISO()),
       roles.fetchRecentMeals(athleteId, since30),
       roles.fetchActiveTrustPass(athleteId),
@@ -219,7 +219,12 @@ export async function loadAthleteProfile(athleteId, force) {
       roles.fetchAthleteAssignments(athleteId, since30),
       roles.fetchCoachNotes(teamId, athleteId),
       roles.fetchAthleteBasics(athleteId), // base_goal/base_weight/targets → the score breakdown's nutrition config
+      roles.fetchAthleteWeights(athleteId, 30), // 0103: empty map for weight-restricted roles — surfaces just go absent
     ]);
+    // Stitch today's weigh-in back onto the day row (current_weight left the direct grant).
+    // Restricted roles get nothing here, so the activity "Weighed in" line and the breakdown's
+    // weight simply don't exist for them — absence, never a blank or a fake.
+    if (day && weights && weights.has(String(day.date))) day.current_weight = weights.get(String(day.date));
     const photos = {};
     await Promise.all((meals || []).slice(0, 12).filter(m => m.photo_path).map(async (m) => {
       const u = await roles.signedMealPhotoUrl(m.photo_path); if (u) photos[m.id] = u;

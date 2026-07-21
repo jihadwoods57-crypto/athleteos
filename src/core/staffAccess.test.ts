@@ -4,6 +4,7 @@
 import {
   allowedCreateKeys, canEditStandards, canManageStaff, isReadonly, normalizeRole,
   roleLabel, scopeForResponsibility, parseScopeRooms, scopeText, RESPONSIBILITIES,
+  canViewWeight,
   // @ts-ignore
 } from '../../proto/redesign-2026-07/js/staff-access.js';
 
@@ -14,6 +15,27 @@ describe('normalizeRole', () => {
     expect(normalizeRole('head_coach')).toBe('head_coach');
     expect(normalizeRole(null)).toBeNull();
     expect(normalizeRole('')).toBeNull();
+  });
+});
+
+describe('canViewWeight — per-field read visibility (0103), FAIL-CLOSED', () => {
+  test('exactly the founder-approved trio may see weight', () => {
+    expect(canViewWeight('head_coach')).toBe(true);
+    expect(canViewWeight('athletic_trainer')).toBe(true);
+    expect(canViewWeight('s_and_c')).toBe(true);
+  });
+  test('every other role is denied — including the nutritionist (founder-confirmed exclusion)', () => {
+    for (const role of ['nutritionist', 'coordinator', 'assistant', 'position_coach', 'team_admin', 'readonly']) {
+      expect(canViewWeight(role)).toBe(false);
+    }
+  });
+  // Unlike the create-menu (fails open — the server bounces a bad write), a READ capability
+  // fails closed: weight that flashes during a slow role fetch is a leak, not a loading state.
+  test('FAIL CLOSED: unknown, absent, or still-loading role shows NO weight UI', () => {
+    expect(canViewWeight(null)).toBe(false);
+    expect(canViewWeight(undefined)).toBe(false);
+    expect(canViewWeight('')).toBe(false);
+    expect(canViewWeight('made_up_role')).toBe(false);
   });
 });
 
