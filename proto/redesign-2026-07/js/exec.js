@@ -5,6 +5,7 @@
 import { CATALOG, runsToday, fmtMin, IMPACT_LABEL } from './requirements.js';
 import { planNotifications } from './notify-plan.js';
 import { windowPreActivation } from './activation.js';
+import { dayDecided } from './dayverdict.js';
 
 export const DUE_SOON_MIN = 90;
 
@@ -105,6 +106,19 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
   }));
 
   const all = [...items, ...assignedItems];
+
+  // Verdict timing: a required window past its close is "Late" (amber, still savable) while the day
+  // is live, and only becomes "Missed" (red) once the day is DECIDED — no required window still open.
+  // The internal state stays 'overdue' so NOW ordering and the denominator are untouched; only the
+  // display (color/pill) changes. Done/optional/not_required items are never re-treated.
+  const decided = dayDecided(all);
+  for (const i of all) {
+    if (i.required && i.state === 'overdue') {
+      i.color = decided ? 'red' : 'gold';
+      i.pill = decided ? 'Missed' : 'Late';
+    }
+  }
+
   const byDue = (arr) => arr.slice().sort((a, b) => (a.window ? a.window.due : 1e9) - (b.window ? b.window.due : 1e9));
   const doneItems = all.filter((i) => i.state === 'done' || i.state === 'done_late');
   const overdue = byDue(all.filter((i) => i.required && i.state === 'overdue'));
@@ -152,5 +166,5 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     pressure, prefs, celebration, score, streak, coachName,
   });
 
-  return { items: all, now, next, later, doneItems, overdue, met, total, score, possible, celebration, plan };
+  return { items: all, now, next, later, doneItems, overdue, met, total, score, possible, celebration, plan, decided };
 }
