@@ -273,6 +273,9 @@ body {
 .status-pill.r { color: #FF9B9B; border-color: var(--red-border); background: var(--red-surface); }
 /* Neutral provenance pill (gallery upload, informational only — §5.7): no signal color. */
 .status-pill.muted { color: var(--text-2); border-color: var(--hairline); background: rgba(7,11,20,0.55); }
+/* Light theme: the dark translucent fill above turns dark-on-dark (the "Simulated/Sample"
+   honesty disclosures fail AA) — flip to a light fill so text-2 reads clearly. */
+:root[data-theme="light"] .status-pill.muted { background: rgba(15,23,42,0.06); }
 
 /* ===== Full-screen image viewer (spec §6.1) ===== */
 .imgview { position: fixed; inset: 0; z-index: 400; background: rgba(3,5,10,0.94); display: grid; place-items: center; opacity: 0; transition: opacity 180ms ease; touch-action: none; }

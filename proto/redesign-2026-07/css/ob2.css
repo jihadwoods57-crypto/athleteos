@@ -11,7 +11,9 @@
 
 /* ----- Chapter progress: 5 segments, fill advances within the chapter ----- */
 .ob2-prog { display: flex; gap: 6px; flex: 1; align-items: center; }
-.ob2-prog .seg { flex: 1; height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
+/* reset the global segmented-control `.seg` (app.css) that otherwise leaks padding/border here
+   and collapses the 4px fill to zero height */
+.ob2-prog .seg { flex: 1; height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; padding: 0; border: 0; display: block; box-sizing: border-box; }
 .ob2-prog .seg > i { display: block; height: 100%; width: 0; border-radius: 2px;
   background: linear-gradient(90deg, var(--ring-b), var(--blue-bright));
   transition: width var(--dur-2) var(--ease-out); }
@@ -23,6 +25,21 @@
 /* The hero centers in the leftover height: .ob-body must become a flex column for
    the hero's flex:1 to resolve (it's a plain block for every other step). */
 .ob-body:has(> .ob2-hero) { display: flex; flex-direction: column; }
+/* noFoot steps render their own <div class="ob-foot" style="margin-top:auto"> INSIDE .ob-body;
+   make the body a flex column so that auto-margin actually pins the CTA to the bottom
+   (commit / account / covered / plans) instead of floating mid-screen. */
+.ob-body:has(> .ob-foot) { display: flex; flex-direction: column; }
+/* The commit "signing" moment (bare #ob-commit button, every flow) and the one-idea habit
+   anchor read best centered in the available height — otherwise they strand in the top third. */
+.ob-body:has(> .ob2-habit),
+.ob-body:has(#ob-commit) { display: flex; flex-direction: column; justify-content: center; }
+/* Sparse single-question screens (the whole body IS a choice grid / chip row / rating scale)
+   center their options instead of stranding them at the top with a big void below. These bodies
+   are always short, so centering never overflows; the `> ` guards keep preview/mirror screens
+   (phone cards, boards — grids nested deeper) and noFoot screens untouched. */
+.ob-body:has(> .choice-grid),
+.ob-body:has(> .chip-row),
+.ob-body:has(> .ob2-scale) { display: flex; flex-direction: column; justify-content: center; }
 .ob2-hero { display: flex; flex-direction: column; justify-content: center; flex: 1; padding: 8px 0 40px; }
 .ob2-hero .h-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: var(--track-eyebrow);
   text-transform: uppercase; color: var(--text-3); margin-bottom: 14px; }
@@ -150,7 +167,7 @@
 .ob2-foods .fc.high { color: var(--green-bright); background: var(--green-surface); }
 .ob2-foods .fc.medium { color: var(--amber-bright); background: var(--amber-surface); }
 .ob2-foods .fc.low { color: var(--text-3); background: var(--surface-3); }
-.ob2-foods .fx { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+.ob2-foods .fx { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
   color: var(--text-3); background: var(--surface-2); cursor: pointer; flex: none; }
 .ob2-macros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-top: 12px; }
 .ob2-macros .mc { text-align: center; padding: 12px 4px; border-radius: var(--r-tile);
@@ -175,7 +192,21 @@
 .ob2-plan .pl-tag { position: absolute; top: -9px; left: 14px; font-size: 9.5px; font-weight: 800;
   letter-spacing: 0.08em; text-transform: uppercase; color: #04140b;
   background: linear-gradient(90deg, var(--ring-a), var(--ring-b)); padding: 3px 9px; border-radius: var(--r-pill); }
-.ob2-plan.on .pl-check { position: absolute; right: 14px; bottom: 14px; color: var(--blue-bright); }
+.ob2-plan .pl-save { font-size: 12px; font-weight: 800; color: var(--green-bright); margin-top: 7px;
+  font-variant-numeric: tabular-nums; }
+.ob2-plan .pl-check { display: none; }
+.ob2-plan.on .pl-check { display: block; position: absolute; right: 14px; bottom: 14px; color: var(--blue-bright); }
+
+/* Billing-cadence toggle (annual-first) + trial fine print */
+.ob2-cadence { display: flex; gap: 5px; padding: 4px; border-radius: var(--r-pill); background: var(--surface-1);
+  border: 1px solid var(--hairline); margin-bottom: 12px; }
+.ob2-cadence .cad { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 8px 8px; border: none; border-radius: var(--r-pill); background: transparent; cursor: pointer;
+  font-family: inherit; font-size: 13.5px; font-weight: 800; color: var(--text-2);
+  transition: all var(--dur-1) var(--ease-out); }
+.ob2-cadence .cad small { font-size: 10px; font-weight: 800; color: var(--green-bright); letter-spacing: 0.01em; }
+.ob2-cadence .cad.on { background: rgba(59,130,246,0.12); color: var(--text-1); box-shadow: 0 1px 6px rgba(59,130,246,0.14); }
+.ob2-fine { font-size: 11px; font-weight: 600; color: var(--text-3); line-height: 1.45; text-align: center; padding-top: 10px; }
 
 /* Covered-by-team confirmation */
 .ob2-covered { text-align: center; padding: 26px 0 8px; }

@@ -20,7 +20,7 @@
 import { RT } from './state.js';
 import { icon } from './icons.js';
 import { esc } from './components.js';
-import { openingMessage, qualityBand, groundExtras } from './meal-intel.js';
+import { openingMessage, openingSummary, qualityBand, groundExtras } from './meal-intel.js';
 import { capture, simChip, meter, chatSim, phoneCard, gateCta } from './ob2.js';
 
 /* Demo scratch — module-level, never persisted (photos are heavy and this is a
@@ -247,7 +247,7 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
         const band = qualityBand(r.quality);
         return `
           ${simChip('Example day — your real score starts fresh and is earned')}
-          <div style="display:flex;justify-content:center;padding:6px 0 2px">${meter(score, { value: String(score), label: 'Example Daily Score', uid: 'ds' })}</div>
+          <div style="display:flex;justify-content:center;padding:6px 0 2px">${meter(score, { value: String(score), label: 'Example score', uid: 'ds' })}</div>
           <div style="height:12px"></div>
           ${phoneCard('How the number is built', `
             <div class="comp-read">
@@ -266,11 +266,17 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
       sub: () => `Every meal opens a shared thread — you, the AI nutritionist, and your ${HUMAN.role}. Nobody has to chase anybody.`,
       body: (o) => {
         const r = DEMO.result || SAMPLE_MEAL;
-        const ai = openingMessage({
-          name: r.name, quality: r.quality, note: r.note, analysis: r.analysis,
-          highlights: r.highlights, goal: o.goal || null, late: null,
+        /* Demo bubble is SHORT — the plate's own one-line note (aligned with the coach reply
+           below), falling back to the compact openingSummary. The full openingMessage
+           paragraph was a 14-line wall that buried the coach/trainer reply; the whole point
+           of the screen is the shared thread, not the AI monologue. */
+        const s = openingSummary({
+          quality: r.quality, macros: { protein: r.protein, carbs: r.carbs, fat: r.fat, kcal: r.kcal },
+          fiber: r.fiber, highlights: r.highlights, goal: o.goal || null, late: null,
           detected: r.detectedRich, source: ob2mode() === 'sample' ? 'gallery' : 'live',
         });
+        const aiRaw = (r.note || '').trim() || [s.opportunity, s.next].filter(Boolean).join(' ') || 'Logged and analyzed.';
+        const ai = aiRaw.charAt(0).toUpperCase() + aiRaw.slice(1);
         return `
           ${simChip(`Simulated preview — ${HUMAN.name} stands in for your real ${HUMAN.role}`)}
           ${chatSim([
@@ -291,6 +297,10 @@ async function runLiveAnalysis(root, ctx) {
   const err = root.querySelector('#scan-err');
   const fail = (msg) => {
     if (!err) return;
+    /* clear the in-progress scan UI so "Reading the plate…" doesn't sit above the error */
+    const ph = root.querySelector('#scan-phase'); if (ph) ph.textContent = 'Analysis stopped';
+    const ps = root.querySelector('#scan-sub'); if (ps) ps.style.display = 'none';
+    const box = root.querySelector('.scanbox'); if (box) box.style.display = 'none';
     err.innerHTML = `
       <div class="state-demo err-box" style="text-align:center">
         <div class="sd-t">Analysis didn’t go through</div>

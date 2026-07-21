@@ -101,9 +101,9 @@ const steps = [
     title: () => 'You, coach.',
     sub: () => 'Your athletes see this name on every standard you set.',
     body: () => `
-      <input id="co-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" />
+      <input id="co-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" spellcheck="false" autocorrect="off" />
       <div style="height:12px"></div>
-      <input id="co-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" />
+      <input id="co-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" spellcheck="false" autocorrect="off" />
       <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
       <div class="chip-row" id="co-handle"></div>
       <input id="co-handle-custom" class="ob-input" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
@@ -267,10 +267,10 @@ const steps = [
     sub: () => 'Every score opens the same honest breakdown — the real weights, not a vibe.',
     body: () => `${simChip('Simulated athlete — real breakdowns come from real logs')}
       <div class="lrow" id="obk-open" role="button" aria-label="Open Marcus’s breakdown" style="border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px 14px;background:var(--surface-1)">
-        <div class="lm"><div class="lt">Marcus · RB</div><div class="ls">Today’s score — tap to open</div></div>
+        <div class="lm"><div class="lt">Marcus · RB</div><div class="ls">Today’s score — the honest weights</div></div>
         <div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--green-bright)">91</div>
       </div>
-      <div id="obk-detail" style="display:none;margin-top:12px">
+      <div id="obk-detail" style="display:block;margin-top:12px">
         ${phoneCard('Score breakdown', `
           <div style="display:flex;justify-content:center;padding:4px 0 10px">${meter(91, { size: 120, value: '91', label: 'Today', uid: 'obk-brk' })}</div>
           <div class="comp-read">
@@ -302,7 +302,7 @@ const steps = [
     sub: () => 'The AI does the first read on every plate. You step in only where it counts.',
     body: () => `${simChip('Simulated thread')}
       ${chatSim([
-        { who: 'trainer', init: 'J', name: 'Jaylen', sim: true, text: 'Post-practice dinner.' },
+        { who: 'trainer', init: 'A', name: 'Andre', sim: true, text: 'Post-practice dinner.' },
         { who: 'ai', name: 'OnStandard AI', sim: true, text: 'Grilled chicken, rice, broccoli — solid plate. Protein on target; carbs a little light for tomorrow’s lift.' },
         { who: 'me', name: 'You', init: 'C', sim: true, text: 'Good plate. Add a carb at breakfast before the lift.' },
       ])}`,
@@ -377,12 +377,12 @@ const steps = [
   /* ================= ch4 — START ================= */
   {
     id: 'proof', ch: 4, cta: 'Next',
-    title: () => 'Programs already run on this.',
+    title: () => 'What it looks like in a program.',
     body: () => `
       <!-- Launch placeholders — the founder swaps these for real customer quotes before release. -->
       ${testimonial({ quote: 'Spring ball, logging held at 84%. I stopped asking “did you eat” and started coaching.', name: 'Coach D.', role: 'HS football, 47 athletes', initials: 'CD', stat: '84%', statKey: 'team log rate' })}
       ${testimonial({ quote: 'The board caught two guys drifting in week one — before the scale did. That used to take a month.', name: 'Coach R.', role: 'College track, 31 athletes', initials: 'CR', stat: 'wk 1', statKey: 'first catch' })}
-      <div style="font-size:11.5px;font-weight:700;color:var(--text-3);text-align:center;margin-top:8px">From early OnStandard programs</div>`,
+      <div style="font-size:11.5px;font-weight:700;color:var(--text-3);text-align:center;margin-top:8px">Illustrative examples — not actual customers yet</div>`,
   },
   {
     id: 'staff-or-create', ch: 4, cta: 'Next',

@@ -37,8 +37,8 @@ const hero = (eyebrow, title, body, note = '') => `
 const DEMO_HIST = [{ score: 74 }, { score: 78 }, { score: 76 }, { score: 83 }, { score: 85 }, { score: 88 }, { score: 90 }];
 
 const WORRY_TEXT = {
-  enough: 'whether they eat enough',
-  right: 'whether they eat right',
+  enough: 'eating enough',
+  right: 'eating right',
   burnout: 'burnout',
   away: 'the distance',
 };
@@ -46,7 +46,8 @@ function worryLine(o) {
   const w = (Array.isArray(o.worries) ? o.worries : []).map((k) => WORRY_TEXT[k]).filter(Boolean);
   if (!w.length) return '';
   if (w.length === 1) return w[0];
-  return `${w.slice(0, -1).join(', ')} and ${w[w.length - 1]}`;
+  if (w.length === 2) return `${w[0]} and ${w[1]}`;
+  return `${w.slice(0, -1).join(', ')}, and ${w[w.length - 1]}`;
 }
 
 const STYLE_LABEL = {
@@ -239,13 +240,13 @@ const steps = [
     id: 'boundaries', ch: 1, cta: 'Continue',
     title: () => 'How much do you want to hear?',
     sub: () => 'You can change this any time.',
-    body: () => `
+    body: (o) => `
       ${choiceGrid('parentDigest', [
         { v: 'weekly', t: 'Weekly digest', s: 'One summary, Sunday evening', ic: 'mail' },
         { v: 'milestones', t: 'Milestones only', s: 'Streaks and bests, as they happen', ic: 'flame' },
-        { v: 'milestones-missed', t: 'Milestones + missed days', s: 'Missed-day alerts also need your athlete\'s ok', ic: 'bell' },
+        { v: 'milestones-missed', t: 'Milestones + missed days', s: `Missed-day alerts also need ${nm(o)}'s ok`, ic: 'bell' },
       ])}
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:12px">Nothing is silent to them — your athlete can always see what reaches you.</div>`,
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:12px">Nothing is silent to them — ${nmEsc(o)} can always see what reaches you.</div>`,
   },
 
   /* ================= ch2 · Your plan ================= */

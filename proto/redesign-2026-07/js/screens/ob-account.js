@@ -10,7 +10,7 @@ export function accountBody(opts = {}) {
     <div id="ap-wrap"></div>
     <input id="su-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Email" aria-label="Email" />
     <div style="height:12px"></div>
-    <div class="pw-row"><input id="su-pass" class="ob-input" type="password" maxlength="64" placeholder="Create a password (12+ characters)" aria-label="Create a password" /><span class="pw-eye" id="su-eye" role="button" tabindex="0" aria-pressed="false" aria-label="Show password">Show</span></div>
+    <div class="pw-row"><input id="su-pass" class="ob-input" type="password" maxlength="64" placeholder="Create a password" aria-label="Create a password" /><span class="pw-eye" id="su-eye" role="button" tabindex="0" aria-pressed="false" aria-label="Show password">Show</span></div>
     <div class="pw-meter" id="su-meter"><i></i><i></i><i></i></div>
     <div id="su-meter-label" style="font-size:12px;font-weight:700;color:var(--text-3);min-height:16px;margin:0 2px 8px"></div>
     <input id="su-pass2" class="ob-input" type="password" maxlength="64" placeholder="Retype password" aria-label="Retype password" />

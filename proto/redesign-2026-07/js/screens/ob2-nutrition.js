@@ -237,7 +237,7 @@ const steps = [
       const mid = b ? b.mid : 15;
       const entries = mid * 3 * 7;
       const hours = Math.max(1, Math.round((entries * 90) / 3600));
-      const who = b ? `${b.t} clients` : 'a typical 15-client practice';
+      const who = b ? `~${mid} clients` : 'a typical 15-client practice';
       const hrs = HOURS_LABEL[String((o || {}).reviewHours)] || null;
       return `
       ${countStat(`${entries} entries`,
@@ -321,7 +321,7 @@ const steps = [
       return `
       ${simChip('AI draft — grounded in the analysis you just reviewed')}
       ${phoneCard('Your note to Devon · editable', `
-        <textarea id="obn-fb" class="ob-input" rows="5" aria-label="Feedback draft" style="height:auto;min-height:128px;padding:14px;line-height:1.55;resize:none;font-size:14px">${esc(draft)}</textarea>
+        <textarea id="obn-fb" class="ob-input" rows="7" aria-label="Feedback draft" style="height:auto;min-height:168px;padding:14px;line-height:1.55;resize:none;font-size:14px">${esc(draft)}</textarea>
         <div class="ob2-scan-note" style="text-align:left;margin-top:8px">Edit anything — in the demo nothing sends. In your practice, one tap approves it into the client’s thread.</div>`)}`;
     },
   },
@@ -455,9 +455,9 @@ const steps = [
   /* ================= ch4 · Start ================= */
   {
     id: 'proof', ch: 4, cta: 'Continue',
-    title: () => 'Professionals run on it.',
+    title: () => 'What it looks like in a practice.',
     body: () => `
-      <div class="eyebrow" style="margin:0 2px 12px">From early OnStandard professionals</div>
+      <div class="eyebrow" style="margin:0 2px 12px">Illustrative examples — not actual customers yet</div>
       <!-- LAUNCH PLACEHOLDERS: realistic sample testimonials — the founder swaps these
            for real customer quotes before go-live. Not real people. -->
       ${testimonial({

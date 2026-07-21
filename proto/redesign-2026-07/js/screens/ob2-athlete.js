@@ -171,6 +171,20 @@ const steps = [
       { v: 'coach', t: 'My coach' }, { v: 'trainer', t: 'A trainer' }, { v: 'parents', t: 'My parents' },
       { v: 'teammates', t: 'Teammates' }, { v: 'nobody', t: 'Nobody yet' },
     ], { multi: true }),
+    /* "Nobody yet" is mutually exclusive with the real supporters — picking one clears the other. */
+    mount(root) {
+      const grid = root.querySelector('[data-obkey-multi="supporters"]');
+      const nobody = grid && grid.querySelector('[data-val="nobody"]');
+      if (!grid || !nobody) return;
+      grid.addEventListener('click', (e) => {
+        const chip = e.target.closest('[data-val]');
+        if (!chip) return;
+        const others = [...grid.querySelectorAll('[data-val]')].filter((c) => c !== nobody);
+        if (chip === nobody && nobody.classList.contains('on')) others.forEach((c) => c.classList.remove('on'));
+        else if (chip !== nobody && chip.classList.contains('on')) nobody.classList.remove('on');
+        capture({ supporters: [...grid.querySelectorAll('[data-val].on')].map((c) => c.getAttribute('data-val')) });
+      });
+    },
   },
 
   /* ============================== ch1 · See it ============================== */
@@ -180,13 +194,15 @@ const steps = [
     body: (o) => {
       const n = clamp10(o.goalImportance);
       const m = clamp10(o.accountabilityRating);
-      const verdict = m >= n
-        ? `Your accountability system (<b>${m}/10</b>) already matches your goal (<b>${n}/10</b>). That is rare — OnStandard makes it visible, every day, to the people who back you.`
-        : `You rated your goal <b>${n}/10</b> but your accountability system <b>${m}/10</b>. That gap is exactly what OnStandard closes.`;
+      const verdict = (!n && !m)
+        ? 'Rate your goal and your current system on the previous two screens — the gap between them is exactly what OnStandard closes.'
+        : m >= n
+          ? `Your accountability system (<b>${m}/10</b>) already keeps pace with how much this goal matters (<b>${n}/10</b>). That is rare — OnStandard makes it visible, every day, to the people who back you.`
+          : `You rated your goal <b>${n}/10</b> but your accountability system <b>${m}/10</b>. That gap is exactly what OnStandard closes.`;
       return `
         <div class="ob2-gap">
           ${meter(n * 10, { value: String(n), label: 'Your goal', uid: 'gap-g' })}
-          ${meter(m * 10, { value: String(m), label: 'Your system', uid: 'gap-s' })}
+          ${meter(m * 10, { value: String(m), label: 'Your system', uid: 'gap-s', muted: m < n })}
         </div>
         <div class="ob2-gap-verdict">${verdict}</div>`;
     },
@@ -281,7 +297,7 @@ const steps = [
   {
     id: 'proof', ch: 4, cta: 'Next',
     title: () => 'It works when it’s seen',
-    sub: () => 'From early OnStandard athletes.',
+    sub: () => 'Illustrative — not actual customers yet.',
     /* Launch placeholders — the founder swaps these for real customer quotes before release. */
     body: () => `
       ${testimonial({ quote: 'My coach stopped asking if I ate. He just checks the board. I put on 9 lb over the season without one nagging text.', name: 'Marcus', role: 'RB · high school senior', initials: 'M', stat: '+9 lb', statKey: 'in a season' })}
@@ -371,7 +387,7 @@ const steps = [
     when: (o) => !!o.dobBlocked,
     body: () => `
       <div class="standard-set" style="padding-bottom:6px">
-        <div class="halo"><div class="core" style="background:var(--surface-2);color:var(--text-2)">${icon('lock', 32)}</div></div>
+        <div class="halo" style="background:radial-gradient(closest-side,rgba(148,163,184,0.20),transparent 75%)"><div class="core" style="background:var(--surface-2);color:var(--text-2)">${icon('lock', 32)}</div></div>
         <div class="ob-title" style="margin-top:18px">Not yet — but soon.</div>
         <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older — that's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
       </div>
@@ -432,21 +448,53 @@ const steps = [
     when: () => paywallVariant('athlete') !== 'team_covered',
     title: () => 'Pick your plan',
     sub: () => 'The trial opens everything. Nothing charges today.',
-    body: (o) => `
-      <div class="ob2-plans" data-obkey="plan">
-        ${PLANS.individual.map((p) => planCard({ ...p, on: (o.plan || PLANS.individual[0].id) === p.id })).join('')}
+    /* Annual-first, mirroring src/core/pricing.ts (revenue build 2026-07-04): annual is the
+       framed default (saves ~2 months), one trust cue sits right above the price, and the
+       auto-renew terms are disclosed on-screen. Selection is captured to RT.ob.{plan,cadence}
+       as intent — billing is still go-live gated, nothing charges today. */
+    body: (o) => {
+      const cad = o.cadence || 'annual';
+      const plan = o.plan || PLANS.individual[0].id;
+      return `
+      ${testimonial({ quote: 'My coach stopped asking if I ate. He just checks the board. I put on 9 lb over the season without one nagging text.', name: 'Marcus', role: 'RB · high school senior', initials: 'M', stat: '+9 lb', statKey: 'in a season' })}
+      <div class="ob2-cadence" role="tablist" aria-label="Billing period">
+        <button class="cad ${cad === 'annual' ? 'on' : ''}" data-cad="annual" role="tab" aria-selected="${cad === 'annual'}">Annual<small>2 months free</small></button>
+        <button class="cad ${cad === 'monthly' ? 'on' : ''}" data-cad="monthly" role="tab" aria-selected="${cad === 'monthly'}">Monthly</button>
       </div>
-      <div style="height:18px"></div>
+      <div class="ob2-plans" id="ob-plans">
+        ${PLANS.individual.map((p) => planCard({ ...p, cadence: cad, on: plan === p.id })).join('')}
+      </div>
+      <div style="height:16px"></div>
       <div class="ob-foot" style="margin-top:auto">
         <button id="ob-start" class="btn green">Start free — no card today</button>
-        <div class="ob-textlink" style="padding-top:14px" data-go="${R}/connect">I have a code</div>
+        <div class="ob2-fine" id="ob-fine"></div>
+        <div class="ob-textlink" style="padding-top:10px" data-go="${R}/connect">I have a code</div>
         <div class="ob2-scan-note">Today's standard is live. One photo starts it.</div>
-      </div>`,
+      </div>`;
+    },
     mount(root) {
+      const o = () => (RT.ob || {});
+      const cad = () => o().cadence || 'annual';
+      const plan = () => o().plan || PLANS.individual[0].id;
+      const fineFor = (c) => c === 'annual'
+        ? 'Free for 7 days, then the yearly price. Cancel anytime in Settings before it ends.'
+        : 'Free for 7 days, then the monthly price. Cancel anytime in Settings before it ends.';
+      const render = () => {
+        const list = root.querySelector('#ob-plans');
+        list.innerHTML = PLANS.individual.map((p) => planCard({ ...p, cadence: cad(), on: plan() === p.id })).join('');
+        list.querySelectorAll('.ob2-plan').forEach((el) => el.addEventListener('click', () => { capture({ plan: el.dataset.val }); render(); }));
+        root.querySelectorAll('.ob2-cadence .cad').forEach((b) => {
+          const on = b.dataset.cad === cad();
+          b.classList.toggle('on', on); b.setAttribute('aria-selected', on);
+        });
+        root.querySelector('#ob-fine').textContent = fineFor(cad());
+      };
+      root.querySelectorAll('.ob2-cadence .cad').forEach((b) => b.addEventListener('click', () => { capture({ cadence: b.dataset.cad }); render(); }));
+      render();
       root.querySelector('#ob-start').addEventListener('click', () => {
-        /* Default = the highlighted card; a tap on either card recaptures via
-           the engine's data-obkey wiring. Intent only — billing is go-live gated. */
-        if (!(RT.ob && RT.ob.plan)) capture({ plan: PLANS.individual[0].id });
+        /* Lock in the framed defaults if the user never tapped. Intent only — billing is go-live gated. */
+        if (!o().plan) capture({ plan: PLANS.individual[0].id });
+        if (!o().cadence) capture({ cadence: 'annual' });
         goDestination();
       });
     },

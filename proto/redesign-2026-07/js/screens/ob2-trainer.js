@@ -114,11 +114,11 @@ const steps = [
     title: () => 'You, trainer.',
     sub: () => 'Clients see this name on every note you send.',
     body: (o) => `
-      <input id="tr-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" value="${esc(o.firstName || '')}" />
+      <input id="tr-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" spellcheck="false" autocorrect="off" value="${esc(o.firstName || '')}" />
       <div style="height:12px"></div>
-      <input id="tr-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" value="${esc(o.lastName || '')}" />
+      <input id="tr-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" spellcheck="false" autocorrect="off" value="${esc(o.lastName || '')}" />
       <div style="height:16px"></div>
-      <input id="tr-practice" class="ob-input" placeholder="Practice name (e.g. Boone Performance)" aria-label="Practice name" value="${esc(o.practiceName || '')}" />
+      <input id="tr-practice" class="ob-input" placeholder="Practice name (e.g. Boone Performance)" aria-label="Practice name" spellcheck="false" autocorrect="off" value="${esc(o.practiceName || '')}" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your practice name goes on the invite your clients get. You can name it later.</div>`,
     mount(root, ctx) {
       const f = root.querySelector('#tr-first');
@@ -295,7 +295,11 @@ const steps = [
     title: () => 'Set your client price.',
     sub: () => 'Configuration only — OnStandard doesn’t bill your clients today. You set the real price when you invite them.',
     body: (o) => {
-      const p = Math.max(19, Math.min(199, Math.round(o.clientPrice || 49)));
+      /* Seed the slider from the price band the trainer picked earlier (pricePoint) so their
+         answer isn't discarded; once they drag, clientPrice takes over. */
+      /* step-aligned to the slider grid (19 + 5·k) so the seed doesn't snap/flash */
+      const PRICE_START = { under50: 39, '50-100': 74, '100-200': 149, '200plus': 199 };
+      const p = Math.max(19, Math.min(199, Math.round(o.clientPrice || PRICE_START[o.pricePoint] || 49)));
       const count = countMid(o);
       const mo = p * count;
       return `
@@ -394,9 +398,9 @@ const steps = [
   /* ==================== ch4 · Start ==================== */
   {
     id: 'proof', ch: 4, cta: 'Next',
-    title: () => 'Trainers run on it.',
+    title: () => 'What it looks like for a trainer.',
     body: () => `
-      <div class="eyebrow" style="margin:0 2px 12px">From early OnStandard trainers</div>
+      <div class="eyebrow" style="margin:0 2px 12px">Illustrative examples — not actual customers yet</div>
       ${/* Launch placeholders — the founder swaps these for real customers before go-live. */''}
       ${testimonial({
         quote: 'I used to spend Sunday night texting check-ins. Now I open the queue, approve the drafts, and it’s done before my coffee is.',

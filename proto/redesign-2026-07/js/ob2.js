@@ -129,7 +129,7 @@ export function gateCta(root) {
 /* ---------- selection markup helpers ---------- */
 export function choiceGrid(key, opts, { multi = false, req = true, current = null } = {}) {
   const cur = current != null ? current : ob()[key];
-  const on = (v) => (multi ? Array.isArray(cur) && cur.includes(v) : cur === v);
+  const on = (v) => (multi ? (Array.isArray(cur) && cur.map(String).includes(String(v))) : String(cur) === String(v));
   return `<div class="choice-grid" ${multi ? 'data-obkey-multi' : 'data-obkey'}="${key}" ${req ? 'data-req' : ''}>${opts.map((o) => `
     <div class="choice ${on(o.v) ? 'on' : ''}" data-val="${esc(o.v)}" role="button" aria-label="${esc(o.t)}">
       ${o.ic ? `<div class="cic" style="background:${o.tint || 'var(--blue-surface)'};color:${o.color || 'var(--blue-bright)'}">${icon(o.ic, 18)}</div>` : ''}
@@ -138,7 +138,7 @@ export function choiceGrid(key, opts, { multi = false, req = true, current = nul
 }
 export function chipRow(key, opts, { multi = false, req = true } = {}) {
   const cur = ob()[key];
-  const on = (v) => (multi ? Array.isArray(cur) && cur.includes(v) : cur === v);
+  const on = (v) => (multi ? (Array.isArray(cur) && cur.map(String).includes(String(v))) : String(cur) === String(v));
   return `<div class="chip-row" ${multi ? 'data-obkey-multi' : 'data-obkey'}="${key}" ${req ? 'data-req' : ''}>${opts.map((o) => {
     const v = typeof o === 'string' ? o : o.v; const t = typeof o === 'string' ? o : o.t;
     return `<div class="chp ${on(v) ? 'on' : ''}" data-val="${esc(v)}" role="button">${esc(t)}</div>`;
@@ -154,7 +154,7 @@ export function scale10(key) {
 /* ---------- Standard Meter (signature element) ----------
    270° arc, green→teal→blue signature sweep. pct 0–100 fills the arc;
    value/label sit centered. animateMeters() draws it in on mount. */
-export function meter(pct, { size = 168, value = '', label = '', uid = 'm' } = {}) {
+export function meter(pct, { size = 168, value = '', label = '', uid = 'm', muted = false } = {}) {
   const stroke = Math.max(10, Math.round(size / 14));
   const r = (size - stroke) / 2, c = size / 2;
   const target = Math.max(0, Math.min(100, pct)) * 0.75; /* of pathLength 100 */
@@ -166,7 +166,7 @@ export function meter(pct, { size = 168, value = '', label = '', uid = 'm' } = {
       </linearGradient></defs>
       <circle class="arc-track" cx="${c}" cy="${c}" r="${r}" fill="none" stroke-width="${stroke}" stroke-linecap="round"
         pathLength="100" stroke-dasharray="75 100" transform="rotate(135 ${c} ${c})"/>
-      <circle class="arc-fill" cx="${c}" cy="${c}" r="${r}" fill="none" stroke="url(#og-${uid})" stroke-width="${stroke}" stroke-linecap="round"
+      <circle class="arc-fill" cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${muted ? 'var(--text-3)' : `url(#og-${uid})`}" stroke-width="${stroke}" stroke-linecap="round"
         pathLength="100" stroke-dasharray="0 100" data-arc="${target.toFixed(1)}" transform="rotate(135 ${c} ${c})"/>
     </svg>
     <div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center">
@@ -218,11 +218,20 @@ export function testimonial({ quote, name, role, initials, stat, statKey }) {
     <div><div class="tn">${esc(name)}</div><div class="tr">${esc(role)}</div></div>
     ${stat ? `<div class="ts"><div class="v">${esc(stat)}</div><div class="k">${esc(statKey || '')}</div></div>` : ''}</div></div>`;
 }
-export function planCard({ id, name, price, per = '/mo', sub, tag, on }) {
+export function planCard({ id, name, price, per = '/mo', sub, tag, on, cadence, monthly, annual, annualPer, save }) {
+  /* Cadence-aware individual plans pass monthly/annual/annualPer/save; legacy pro/org/seat
+     plans still pass price/per and render exactly as before. Annual is the framed default. */
+  let p = price, u = per, saveLine = '';
+  if (annual && cadence) {
+    if (cadence === 'annual') { p = annual; u = '/yr'; saveLine = `${annualPer}/mo · ${save}`; }
+    else { p = monthly; u = '/mo'; }
+  }
   return `<div class="ob2-plan ${on ? 'on' : ''}" data-val="${esc(id)}" role="button" aria-label="${esc(name)}">
     ${tag ? `<div class="pl-tag">${esc(tag)}</div>` : ''}
-    <div class="pl-row"><div class="pl-t">${esc(name)}</div><div class="pl-p">${esc(price)}<small>${esc(per)}</small></div></div>
-    <div class="pl-s">${esc(sub)}</div><div class="pl-check">${icon('check', 16)}</div></div>`;
+    <div class="pl-row"><div class="pl-t">${esc(name)}</div><div class="pl-p">${esc(p)}<small>${esc(u)}</small></div></div>
+    <div class="pl-s">${esc(sub)}</div>
+    ${saveLine ? `<div class="pl-save">${esc(saveLine)}</div>` : ''}
+    <div class="pl-check">${icon('check', 16)}</div></div>`;
 }
 
 /* ---------- adaptive account/paywall resolution ----------
@@ -243,8 +252,10 @@ export function paywallVariant(role) {
    is go-live gated so these capture intent, they don't charge. */
 export const PLANS = {
   individual: [
-    { id: 'individual', name: 'Individual', price: '$14.99', sub: 'Daily Score, AI meal analysis, streaks, one connected supporter.', tag: '7-day free trial' },
-    { id: 'individual_plus', name: 'Individual+', price: '$24.99', sub: 'Everything in Individual plus full history, trends, and unlimited supporters.' },
+    { id: 'individual', name: 'Individual', monthly: '$14.99', annual: '$149', annualPer: '$12.42', save: 'Save $31', tag: '7-day free trial',
+      sub: 'Daily Score, AI meal analysis, streaks, one connected supporter.' },
+    { id: 'individual_plus', name: 'Individual+', monthly: '$24.99', annual: '$249', annualPer: '$20.75', save: 'Save $51',
+      sub: 'Everything in Individual plus full history, trends, and unlimited supporters.' },
   ],
   pro: [
     { id: 'pro_solo', name: 'Pro Solo', price: '$49', sub: 'Up to 25 clients. Client codes, AI reviews, your daily queue.', tag: '14-day free trial' },

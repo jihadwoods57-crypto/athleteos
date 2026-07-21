@@ -36,7 +36,7 @@ const ROUTE = 'obf';
 const CODE_RE = /^[A-Z0-9]{4,12}$/; // same shape ob-directory validates
 
 /* Label maps — slugs live in RT.ob, labels are mirrored back later. */
-const GOALS = { lose: 'lose fat', maintain: 'maintain', build: 'build', health: 'health' };
+const GOALS = { lose: 'fat loss', maintain: 'maintenance', build: 'muscle gain', health: 'better health' };
 const BETWEEN = {
   'wing-it': 'you wing it between sessions',
   remember: 'you try to remember the plan',
@@ -191,7 +191,7 @@ const steps = [
       const slip = slips.length ? BETWEEN[slips[0]] : null;
       const mirrors = [
         mirrorCard('target', goal
-          ? `You said your goal is to <b>${esc(goal)}</b> — so every meal is scored against it, not against a generic diet.`
+          ? `You said your goal is <b>${esc(goal)}</b> — so every meal is scored against it, not against a generic diet.`
           : 'Your goal sets the scoring — every meal is graded against it, not a generic diet.'),
         mirrorCard('clock', slip
           ? `You said <b>${esc(slip)}</b> — so your score runs all seven days. Weekends count the same as Tuesdays.`
@@ -254,8 +254,8 @@ const steps = [
   /* ==================== ch4 · Start ==================== */
 
   { id: 'proof', ch: 4, cta: 'Continue',
-    title: () => 'People like you, holding it.',
-    sub: () => 'From early OnStandard clients.',
+    title: () => 'What holding it looks like.',
+    sub: () => 'Illustrative — not actual customers yet.',
     /* LAUNCH PLACEHOLDERS — realistic composites, not real customers. The founder
        swaps these for real client quotes (with permission) before go-live. */
     body: () => `
@@ -264,6 +264,9 @@ const steps = [
       <div class="ob2-scan-note">Results vary with consistency — the score only reflects what you actually log.</div>` },
 
   { id: 'connect', ch: 4, cta: 'Continue', skip: true,
+    /* If the account already exists (user returned here via "I have a code" on the paywall),
+       don't loop them back through signup — resolve straight to the paywall they came from. */
+    next: () => (RT.userId ? (paywallVariant('client') === 'trainer_covered' ? 'covered' : 'plans') : 'account'),
     title: (o) => (o.trainerStatus === 'have' ? 'Connect your trainer.' : 'Have a trainer code?'),
     sub: (o) => (o.trainerStatus === 'have'
       ? 'Ask your trainer for your client code — it links your daily score to their board from day one.'
