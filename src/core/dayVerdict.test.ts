@@ -1,7 +1,7 @@
 // @ts-ignore — proto is plain ESM JS (allowJs), same import pattern as exec.test.ts
 import { dayDecided } from '../../proto/redesign-2026-07/js/dayverdict.js';
 
-const req = (state: string) => ({ required: true, state });
+const req = (state: string) => ({ required: true, state, window: { due: 840 } });
 const opt = (state: string) => ({ required: false, state });
 
 describe('dayDecided — the day is over for on-time purposes', () => {
@@ -29,5 +29,13 @@ describe('dayDecided — the day is over for on-time purposes', () => {
   test('empty / no required items → vacuously decided', () => {
     expect(dayDecided([])).toBe(true);
     expect(dayDecided([opt('ready')])).toBe(true);
+  });
+  test('a windowless coach-assigned task does NOT hold the day open', () => {
+    // assigned items have no `window` and sit at 'ready' until done — they must not gate the
+    // verdict, or a standing assignment would keep every day "in progress" forever.
+    expect(dayDecided([req('overdue'), { required: true, state: 'ready' }])).toBe(true);
+  });
+  test('a windowed required item still open DOES hold the day open', () => {
+    expect(dayDecided([{ required: true, state: 'ready', window: { due: 840 } }])).toBe(false);
   });
 });

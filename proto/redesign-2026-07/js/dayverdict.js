@@ -10,5 +10,9 @@ const STILL_OPEN = new Set(['locked', 'ready', 'due_soon']);
  *  @returns {boolean} true once no required window is still open on time */
 export function dayDecided(items) {
   const list = Array.isArray(items) ? items : [];
-  return !list.some((i) => i && i.required && STILL_OPEN.has(i.state));
+  // Only time-windowed required items gate the verdict. A coach-assigned task has no closing
+  // window (its state stays 'ready' until done), so it must never hold the day "in progress"
+  // forever — that would keep the negative verdict from ever showing for a user who has a
+  // standing assignment. Gating on a real window is the honest "the day's requirements came due".
+  return !list.some((i) => i && i.required && i.window && STILL_OPEN.has(i.state));
 }
