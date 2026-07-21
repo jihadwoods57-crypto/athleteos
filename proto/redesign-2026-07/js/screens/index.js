@@ -28,6 +28,13 @@ import { messages, settings as prefs, privacy, billing, notifSettings, coachNoti
 import { foodSearch, labelScan } from './foodsearch.js';
 import { trust, streak, history, mealView } from './trust.js';
 import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
+import { ob2Role } from './ob2-role.js';
+import { obAthlete } from './ob2-athlete.js';
+import { obClient } from './ob2-client.js';
+import { obCoach } from './ob2-coach.js';
+import { obTrainer } from './ob2-trainer.js';
+import { obParent } from './ob2-parent.js';
+import { obNutrition } from './ob2-nutrition.js';
 import signin from './signin.js';
 import reset from './reset.js';
 import { devices, recruiting, restrictions, teamDiet, injury, partner, coachVoice, trustPassPolicy, weekPattern, safety } from './features.js';
@@ -88,7 +95,16 @@ export const screens = {
   streak,
   history,
   'meal-view': mealView,
-  role,
+  // OB2 adaptive onboarding (2026-07 redesign) — the 6-role narrative flow now owns the
+  // `role` route; the legacy picker stays importable as `legacy-role` for rollback.
+  role: ob2Role,
+  'legacy-role': role,
+  oba: obAthlete,
+  obf: obClient,
+  obk: obCoach,
+  obt: obTrainer,
+  obp: obParent,
+  obn: obNutrition,
   signin,
   reset,
   'coach-ob': coachOb,

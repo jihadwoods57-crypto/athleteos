@@ -262,7 +262,8 @@ window.__render = render;
 
 // Boot gate: restore a Keychain session and gate app screens behind auth. Auth screens are
 // always reachable; fresh (signed-out) users land on Welcome. Runs once on load.
-const AUTH_ROUTES = ['welcome', 'role', 'signin', 'reset', 'onboarding', 'coach-ob', 'trainer-ob', 'client-ob', 'terms', 'privacy'];
+const AUTH_ROUTES = ['welcome', 'role', 'signin', 'reset', 'onboarding', 'coach-ob', 'trainer-ob', 'client-ob', 'terms', 'privacy',
+  'oba', 'obf', 'obk', 'obt', 'obp', 'obn']; // OB2 adaptive onboarding flows (2026-07 redesign)
 async function boot() {
   initAnalytics(); // wire crash capture + visibility-flush (inert until a sink is configured)
   track(EVENTS.APP_OPEN, { role: RT.authRole || 'anon' });

@@ -1,0 +1,265 @@
+/* ============================================================
+   OB2 — Adaptive narrative onboarding (2026-07 redesign).
+   Six role paths share one engine (js/ob2.js). Everything here
+   drives the existing token system — no new colors, no new
+   fonts. The signature element is the Standard Meter: the same
+   green→teal→blue sweep as the score ring, assembling itself
+   out of the user's own answers.
+   Namespaced .ob2-* on top of the shared .ob shell from
+   flows.css (title/sub/body/foot/inputs/choices are reused).
+   ============================================================ */
+
+/* ----- Chapter progress: 5 segments, fill advances within the chapter ----- */
+.ob2-prog { display: flex; gap: 6px; flex: 1; align-items: center; }
+.ob2-prog .seg { flex: 1; height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
+.ob2-prog .seg > i { display: block; height: 100%; width: 0; border-radius: 2px;
+  background: linear-gradient(90deg, var(--ring-b), var(--blue-bright));
+  transition: width var(--dur-2) var(--ease-out); }
+.ob2-prog .seg.done > i { width: 100%; background: linear-gradient(90deg, var(--ring-a), var(--ring-b)); }
+.ob2-ch-label { font-size: 10.5px; font-weight: 800; letter-spacing: var(--track-eyebrow);
+  text-transform: uppercase; color: var(--text-3); margin-left: 10px; flex: none; }
+
+/* ----- Hero / problem screens: one idea, big type ----- */
+/* The hero centers in the leftover height: .ob-body must become a flex column for
+   the hero's flex:1 to resolve (it's a plain block for every other step). */
+.ob-body:has(> .ob2-hero) { display: flex; flex-direction: column; }
+.ob2-hero { display: flex; flex-direction: column; justify-content: center; flex: 1; padding: 8px 0 40px; }
+.ob2-hero .h-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: var(--track-eyebrow);
+  text-transform: uppercase; color: var(--text-3); margin-bottom: 14px; }
+.ob2-hero .h-title { font-size: 33px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.14; }
+.ob2-hero .h-title .accent {
+  color: var(--blue-bright);
+  background: linear-gradient(96deg, var(--blue-bright) 4%, var(--ring-b) 92%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+:root[data-theme="light"] .ob2-hero .h-title .accent {
+  background: linear-gradient(96deg, var(--blue-deep) 4%, #0E7490 92%);
+  -webkit-background-clip: text; background-clip: text; color: var(--blue-deep);
+}
+.ob2-hero .h-body { font-size: 15.5px; font-weight: 600; color: var(--text-2); line-height: 1.6; margin-top: 16px; text-wrap: balance; }
+.ob2-hero .h-note { font-size: 12.5px; font-weight: 600; color: var(--text-3); line-height: 1.5; margin-top: 14px; }
+
+/* Entrance beat: title rises, body follows. Global reduced-motion rule in app.css disables. */
+.ob2-hero .h-title { animation: ob2Rise 520ms var(--ease-out) both; }
+.ob2-hero .h-body, .ob2-hero .h-note { animation: ob2Rise 520ms var(--ease-out) 120ms both; }
+@keyframes ob2Rise { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ----- Standard Meter (the signature): partial arc that grows with answers ----- */
+.ob2-meter { display: flex; flex-direction: column; align-items: center; }
+.ob2-meter svg { display: block; }
+.ob2-meter .mv { font-size: 44px; font-weight: 800; letter-spacing: var(--num-tight); }
+.ob2-meter .mk { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: var(--track-key); color: var(--text-3); margin-top: 2px; }
+.ob2-meter .arc-track { stroke: var(--surface-3); }
+.ob2-meter .arc-fill { transition: stroke-dashoffset 900ms var(--ease-out); }
+
+/* The aha gap: two meters, the space between them is the message */
+.ob2-gap { display: flex; justify-content: center; gap: 26px; padding: 8px 0 4px; }
+.ob2-gap .ob2-meter .mv { font-size: 34px; }
+.ob2-gap-verdict {
+  margin-top: 18px; padding: 15px 17px; border-radius: var(--r-card);
+  background: var(--blue-surface); border: 1px solid var(--blue-border);
+  font-size: 14.5px; font-weight: 700; line-height: 1.5;
+}
+.ob2-gap-verdict b { color: var(--blue-bright); }
+
+/* ----- Big counting stat (coach/trainer/pro math ahas) ----- */
+.ob2-count { text-align: center; padding: 10px 0 4px; }
+.ob2-count .cv { font-size: 64px; font-weight: 800; letter-spacing: -0.045em; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--blue-bright);
+  background: linear-gradient(120deg, var(--ring-a), var(--ring-b) 55%, var(--ring-c));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+:root[data-theme="light"] .ob2-count .cv {
+  background: linear-gradient(120deg, #0E9F6E, #0E7490 55%, var(--blue-deep));
+  -webkit-background-clip: text; background-clip: text; color: var(--blue-deep); }
+.ob2-count .ck { font-size: 13px; font-weight: 700; color: var(--text-2); margin-top: 8px; line-height: 1.5; }
+.ob2-count .cmath { font-size: 12px; font-weight: 700; color: var(--text-3); margin-top: 12px;
+  font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+
+/* ----- Mirror-back card ("you told us") ----- */
+.ob2-mirror { display: flex; gap: 12px; padding: 14px 15px; border-radius: var(--r-card-sm);
+  background: var(--surface-1); border: 1px solid var(--hairline); margin-bottom: 10px; }
+.ob2-mirror .mi { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; flex: none;
+  background: var(--blue-surface); color: var(--blue-bright); }
+.ob2-mirror .mt { font-size: 13.5px; font-weight: 600; color: var(--text-2); line-height: 1.5; align-self: center; }
+.ob2-mirror .mt b { color: var(--text); font-weight: 800; }
+
+/* ----- Simulated-content marker (status pill stays read-only) ----- */
+.ob2-sim { display: flex; justify-content: center; margin: 2px 0 10px; }
+
+/* ----- Chat simulation (athlete/client demo · coach thread previews) ----- */
+.ob2-chat { display: flex; flex-direction: column; gap: 12px; padding: 4px 0; }
+.ob2-chat .cm { display: flex; gap: 10px; max-width: 92%; animation: ob2Rise 420ms var(--ease-out) both; }
+.ob2-chat .cm.me { align-self: flex-end; flex-direction: row-reverse; }
+.ob2-chat .av { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  font-size: 11px; font-weight: 800; margin-top: 16px; }
+.ob2-chat .av.ai { background: var(--blue-surface); color: var(--blue-bright); }
+.ob2-chat .av.coach { background: var(--amber-surface); color: var(--amber-bright); }
+.ob2-chat .av.me { background: var(--green-surface); color: var(--green-bright); }
+.ob2-chat .bw { min-width: 0; }
+.ob2-chat .who { font-size: 11px; font-weight: 800; color: var(--text-3); margin: 0 4px 4px;
+  display: flex; align-items: center; gap: 6px; }
+.ob2-chat .cm.me .who { justify-content: flex-end; }
+.ob2-chat .bub { padding: 11px 14px; border-radius: 16px; font-size: 14px; font-weight: 600;
+  line-height: 1.55; background: var(--surface-2); border: 1px solid var(--hairline-soft); }
+.ob2-chat .cm.me .bub { background: var(--blue-surface); border-color: var(--blue-border); }
+.ob2-chat .cm.coach .bub { border-color: var(--amber-border); }
+
+/* ----- Notification previews (parent + coach alert screens) ----- */
+.ob2-notif { display: flex; gap: 11px; padding: 13px 14px; border-radius: 16px;
+  background: var(--surface-2); border: 1px solid var(--hairline); box-shadow: var(--sh-card);
+  margin-bottom: 10px; animation: ob2Rise 420ms var(--ease-out) both; }
+.ob2-notif .ni { width: 38px; height: 38px; border-radius: 10px; flex: none; display: grid; place-items: center; }
+.ob2-notif .nb { flex: 1; min-width: 0; }
+.ob2-notif .nt { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ob2-notif .nt .t { font-size: 13.5px; font-weight: 800; }
+.ob2-notif .nt .tm { font-size: 11px; font-weight: 700; color: var(--text-3); flex: none; }
+.ob2-notif .ns { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.45; margin-top: 3px; }
+
+/* ----- Inset "product moment" preview card ----- */
+.ob2-phone { border-radius: var(--r-card); background: var(--surface-1);
+  border: 1px solid var(--hairline); box-shadow: var(--sh-card); padding: 15px; }
+.ob2-phone + .ob2-phone { margin-top: 10px; }
+.ob2-phone .ph-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.ob2-phone .ph-t { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: var(--track-key); color: var(--text-3); }
+
+/* ----- Demo option cards (Analyze My Meal vs Sample) ----- */
+.ob2-demo-choice { display: flex; flex-direction: column; gap: 12px; }
+.ob2-demo-card { position: relative; display: flex; gap: 14px; padding: 17px 16px; border-radius: var(--r-card);
+  background: var(--surface-1); border: 1.5px solid var(--hairline); cursor: pointer;
+  transition: all var(--dur-1) var(--ease-out); overflow: hidden; }
+.ob2-demo-card:active { transform: scale(0.98); }
+.ob2-demo-card.rec { border-color: var(--blue-border); background: rgba(59,130,246,0.07); }
+.ob2-demo-card .dc-ic { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; flex: none; }
+.ob2-demo-card .dc-t { font-size: 16px; font-weight: 800; }
+.ob2-demo-card .dc-s { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top: 4px; line-height: 1.45; }
+.ob2-demo-card .dc-tag { position: absolute; top: 12px; right: 12px; font-size: 9.5px; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--blue-bright);
+  background: var(--blue-surface); border: 1px solid var(--blue-border);
+  padding: 3px 8px; border-radius: var(--r-pill); }
+
+/* ----- Detected foods (analysis + correction) ----- */
+.ob2-foods { display: flex; flex-direction: column; }
+.ob2-foods .fr { display: flex; align-items: center; gap: 11px; padding: 11px 2px;
+  border-bottom: 1px solid var(--hairline-soft); }
+.ob2-foods .fr:last-child { border-bottom: none; }
+.ob2-foods .fn { flex: 1; font-size: 14.5px; font-weight: 700; min-width: 0; }
+.ob2-foods .fq { font-size: 12.5px; font-weight: 600; color: var(--text-2); flex: none; }
+.ob2-foods .fc { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 3px 8px; border-radius: var(--r-pill); flex: none; }
+.ob2-foods .fc.high { color: var(--green-bright); background: var(--green-surface); }
+.ob2-foods .fc.medium { color: var(--amber-bright); background: var(--amber-surface); }
+.ob2-foods .fc.low { color: var(--text-3); background: var(--surface-3); }
+.ob2-foods .fx { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  color: var(--text-3); background: var(--surface-2); cursor: pointer; flex: none; }
+.ob2-macros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-top: 12px; }
+.ob2-macros .mc { text-align: center; padding: 12px 4px; border-radius: var(--r-tile);
+  background: var(--surface-2); border: 1px solid var(--hairline-soft); }
+.ob2-macros .mv { font-size: 19px; font-weight: 800; letter-spacing: var(--num-tight); font-variant-numeric: tabular-nums; }
+.ob2-macros .mk { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-top: 3px; }
+.ob2-meal-photo { width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: var(--r-card-sm);
+  border: 1px solid var(--hairline); display: block; }
+
+/* ----- Plan / paywall cards ----- */
+.ob2-plans { display: flex; flex-direction: column; gap: 11px; }
+.ob2-plan { position: relative; padding: 16px; border-radius: var(--r-card); background: var(--surface-1);
+  border: 1.5px solid var(--hairline); cursor: pointer; transition: all var(--dur-1) var(--ease-out); }
+.ob2-plan:active { transform: scale(0.985); }
+.ob2-plan.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.08);
+  box-shadow: 0 0 22px rgba(59,130,246,0.16); }
+.ob2-plan .pl-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ob2-plan .pl-t { font-size: 16px; font-weight: 800; }
+.ob2-plan .pl-p { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ob2-plan .pl-p small { font-size: 11.5px; font-weight: 700; color: var(--text-3); }
+.ob2-plan .pl-s { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top: 5px; line-height: 1.45; }
+.ob2-plan .pl-tag { position: absolute; top: -9px; left: 14px; font-size: 9.5px; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase; color: #04140b;
+  background: linear-gradient(90deg, var(--ring-a), var(--ring-b)); padding: 3px 9px; border-radius: var(--r-pill); }
+.ob2-plan.on .pl-check { position: absolute; right: 14px; bottom: 14px; color: var(--blue-bright); }
+
+/* Covered-by-team confirmation */
+.ob2-covered { text-align: center; padding: 26px 0 8px; }
+.ob2-covered .halo { width: 130px; height: 130px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(closest-side, rgba(34,211,238,0.20), transparent 75%); }
+.ob2-covered .core { width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(155deg, var(--blue-bright), #0E7490);
+  box-shadow: 0 0 50px rgba(34,211,238,0.4); }
+
+/* ----- Testimonials / social proof ----- */
+.ob2-testi { padding: 17px; border-radius: var(--r-card); background: var(--surface-1);
+  border: 1px solid var(--hairline); box-shadow: var(--sh-card); margin-bottom: 11px; }
+.ob2-testi .tq { font-size: 15px; font-weight: 700; line-height: 1.55; }
+.ob2-testi .tq::before { content: '\201C'; color: var(--blue-bright); font-weight: 800; }
+.ob2-testi .tq::after { content: '\201D'; color: var(--blue-bright); font-weight: 800; }
+.ob2-testi .tw { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.ob2-testi .ta { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 12px; font-weight: 800; background: var(--surface-3); color: var(--text-2); flex: none; }
+.ob2-testi .tn { font-size: 13px; font-weight: 800; }
+.ob2-testi .tr { font-size: 11.5px; font-weight: 600; color: var(--text-3); margin-top: 1px; }
+.ob2-testi .ts { margin-left: auto; text-align: right; flex: none; }
+.ob2-testi .ts .v { font-size: 17px; font-weight: 800; color: var(--green-bright); font-variant-numeric: tabular-nums; }
+.ob2-testi .ts .k { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* ----- Price setter (trainer) ----- */
+.ob2-price { text-align: center; padding: 6px 0; }
+.ob2-price .pv { font-size: 54px; font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.ob2-price .pv small { font-size: 16px; font-weight: 700; color: var(--text-3); }
+.ob2-price input[type="range"] { width: 100%; margin-top: 18px; accent-color: var(--blue); height: 44px; }
+.ob2-rev { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.ob2-rev .rv { padding: 15px 8px; text-align: center; border-radius: var(--r-tile);
+  background: var(--surface-1); border: 1px solid var(--hairline); }
+.ob2-rev .rv .v { font-size: 23px; font-weight: 800; letter-spacing: var(--num-tight); font-variant-numeric: tabular-nums; }
+.ob2-rev .rv .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: var(--track-key); margin-top: 3px; }
+
+/* ----- Coach completion board ----- */
+.ob2-board { display: flex; flex-direction: column; }
+.ob2-board .br { display: flex; align-items: center; gap: 11px; padding: 11px 2px; border-bottom: 1px solid var(--hairline-soft); }
+.ob2-board .br:last-child { border-bottom: none; }
+.ob2-board .bn { flex: 1; font-size: 14px; font-weight: 700; min-width: 0; }
+.ob2-board .bp { font-size: 11px; font-weight: 700; color: var(--text-3); width: 34px; flex: none; }
+.ob2-board .bd { display: flex; gap: 5px; flex: none; }
+.ob2-board .bd i { width: 16px; height: 16px; border-radius: 5px; background: var(--surface-3); display: grid; place-items: center; }
+.ob2-board .bd i.ok { background: var(--green-surface); color: var(--green-bright); }
+.ob2-board .bd i.miss { background: var(--red-surface); color: var(--red); }
+
+/* ----- Habit anchor ----- */
+.ob2-habit { text-align: center; padding: 18px 0 6px; }
+.ob2-habit .hb { font-size: 25px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.3; }
+.ob2-habit .hb .accent { color: var(--blue-bright);
+  background: linear-gradient(96deg, var(--blue-bright), var(--ring-b));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+:root[data-theme="light"] .ob2-habit .hb .accent {
+  background: linear-gradient(96deg, var(--blue-deep), #0E7490);
+  -webkit-background-clip: text; background-clip: text; color: var(--blue-deep); }
+.ob2-habit .hs { font-size: 13.5px; font-weight: 600; color: var(--text-2); margin-top: 12px; line-height: 1.55; }
+
+/* ----- Boundary / privacy rows (parent) ----- */
+.ob2-bound { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border-bottom: 1px solid var(--hairline-soft); }
+.ob2-bound:last-child { border-bottom: none; }
+.ob2-bound .bi { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+.ob2-bound .bi.yes { background: var(--green-surface); color: var(--green-bright); }
+.ob2-bound .bi.no { background: var(--red-surface); color: var(--red); }
+.ob2-bound .bt { flex: 1; font-size: 14px; font-weight: 700; }
+.ob2-bound .bs { font-size: 11.5px; font-weight: 600; color: var(--text-3); margin-top: 1px; }
+
+/* Rating scale 1–10 */
+.ob2-scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.ob2-scale .sc { min-height: 52px; border-radius: 14px; display: grid; place-items: center;
+  background: var(--surface-1); border: 1.5px solid var(--hairline);
+  font-size: 16px; font-weight: 800; cursor: pointer; transition: all var(--dur-1) var(--ease-out);
+  font-variant-numeric: tabular-nums; }
+.ob2-scale .sc:active { transform: scale(0.95); }
+.ob2-scale .sc.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.12); color: var(--blue-bright);
+  box-shadow: inset 0 0 0 1px var(--blue-border); }
+.ob2-scale-keys { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;
+  color: var(--text-3); margin-top: 8px; padding: 0 2px; }
+
+/* Loading shimmer for the live analysis (skeleton, not spinner) */
+.ob2-scan-note { font-size: 12px; font-weight: 600; color: var(--text-3); text-align: center; margin-top: 12px; line-height: 1.5; }
+
+/* Reduced motion: kill the entrance beats (mirrors the app-wide rule) */
+@media (prefers-reduced-motion: reduce) {
+  .ob2-hero .h-title, .ob2-hero .h-body, .ob2-hero .h-note,
+  .ob2-chat .cm, .ob2-notif { animation: none; }
+  .ob2-meter .arc-fill, .ob2-prog .seg > i { transition: none; }
+}
