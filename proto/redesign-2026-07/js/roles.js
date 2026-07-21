@@ -574,6 +574,12 @@ export async function deleteTeamRoom(id) {
   const c = sb(); if (!c || !id) return false;
   try { const { error } = await c.from('team_rooms').delete().eq('id', id); return !error; } catch { return false; }
 }
+/* Set (or clear) a room's staff owner — the position coach responsible for it (T-04 slice 3).
+   Staff-scoped RLS (team_rooms tr_staff_update). staffId null clears the owner. */
+export async function setRoomOwner(roomId, staffId) {
+  const c = sb(); if (!c || !roomId) return { ok: false };
+  try { const { error } = await c.from('team_rooms').update({ staff_owner_id: staffId || null, updated_at: new Date().toISOString() }).eq('id', roomId); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
+}
 /* The signed-in ATHLETE's own assigned room label (0101), or null when unassigned. Drives their
    standard resolution (an assigned athlete's day follows their room; null = raw position, parity).
    Reads their own team_members row (tm_read self policy) then the room label (member read). */

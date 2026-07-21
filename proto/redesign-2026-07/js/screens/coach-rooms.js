@@ -14,13 +14,17 @@ const teamId = () => CD.roster && CD.roster.teams && CD.roster.teams[0] && CD.ro
 const rosterRows = () => (CD.roster && CD.roster.rows) || [];
 const rosterPositions = () => rosterRows().map((r) => (r.position || '').toUpperCase());
 
-let BUSY = false; // guards double-submit while a write + reload is in flight
+let BUSY = false;        // guards double-submit while a write + reload is in flight
+let STAFF = null;        // team staff list (for the owner picker), lazy-loaded in mount
+let OPEN_OWNER = null;   // roomId whose owner picker is expanded, or null
 
 async function run(work) {
   if (BUSY) return;
   BUSY = true; window.__render();
   try { await work(); } finally { BUSY = false; window.__render(); }
 }
+const staffName = (id) => { const s = (STAFF || []).find((x) => x.staff_id === id); return s ? s.name : null; };
+const setOwner = (roomId, staffId) => run(async () => { OPEN_OWNER = null; const r = await roles.setRoomOwner(roomId, staffId); if (r.ok) await loadCoachRoster(true); });
 const createRoom = (label) => run(async () => {
   const id = teamId(); const key = slugifyRoomKey(label);
   if (!id || !key) return;
@@ -45,8 +49,18 @@ export const coachRooms = {
         <div class="lrow" style="cursor:default">
           <div class="lic" style="background:rgba(59,130,246,0.14);color:var(--blue-bright)">${icon('users', 17)}</div>
           <div class="lm"><div class="lt">${esc(rm.label)}</div><div class="ls">${members.length ? `${members.length} athlete${members.length === 1 ? '' : 's'}` : 'No one assigned yet'}</div></div>
-          <button class="btn ghost sm" data-room-del="${esc(rm.id)}" style="width:auto;padding:0 12px;height:30px;color:var(--red)">Delete</button>
+          <button class="btn ghost sm" data-go="coach-plan-set/position/${esc(String(rm.label).toUpperCase())}" style="width:auto;padding:0 12px;height:30px">Standard</button>
+          <button class="btn ghost sm" data-room-del="${esc(rm.id)}" style="width:auto;padding:0 10px;height:30px;color:var(--red);margin-left:6px">Delete</button>
         </div>
+        <div class="lrow" data-owner-toggle="${esc(rm.id)}" style="cursor:pointer;padding-left:6px">
+          <div class="xico sm gray" style="width:26px;height:26px">${icon('user', 15)}</div>
+          <div class="lm"><div class="lt" style="font-size:13.5px">Room owner</div><div class="ls">${staffName(rm.staff_owner_id) ? esc(staffName(rm.staff_owner_id)) : 'Unassigned · tap to set'}</div></div>
+          ${icon('chevron', 16, 'style="color:var(--text-3)"')}
+        </div>
+        ${OPEN_OWNER === rm.id ? `<div class="chip-row" style="margin:2px 0 8px 6px">
+          ${(STAFF || []).map((s) => `<span class="chp ${s.staff_id === rm.staff_owner_id ? 'on' : ''}" data-set-owner="${esc(rm.id)}|${esc(s.staff_id)}">${esc(s.name)}</span>`).join('') || '<span class="ls">No staff yet — invite staff first.</span>'}
+          ${rm.staff_owner_id ? `<span class="chp" data-set-owner="${esc(rm.id)}|">Clear</span>` : ''}
+        </div>` : ''}
         ${members.map((m) => `
         <div class="lrow" style="cursor:default;padding-left:6px">
           <div class="xico sm gray" style="width:26px;height:26px">${esc((m.name || 'A').trim().charAt(0).toUpperCase())}</div>
@@ -101,6 +115,14 @@ export const coachRooms = {
     `;
   },
   mount(root) {
+    // Lazy-load the staff list once, for the owner picker.
+    if (STAFF === null && teamId()) { STAFF = []; roles.fetchTeamStaff(teamId()).then((s) => { STAFF = s || []; window.__render(); }); }
+    root.querySelectorAll('[data-owner-toggle]').forEach((el) => el.addEventListener('click', () => {
+      const id = el.getAttribute('data-owner-toggle'); OPEN_OWNER = OPEN_OWNER === id ? null : id; window.__render();
+    }));
+    root.querySelectorAll('[data-set-owner]').forEach((el) => el.addEventListener('click', () => {
+      const [roomId, staffId] = el.getAttribute('data-set-owner').split('|'); setOwner(roomId, staffId || null);
+    }));
     const input = root.querySelector('#room-name');
     const add = root.querySelector('#room-add');
     const submit = () => { const v = (input && input.value || '').trim(); if (v) createRoom(v); };

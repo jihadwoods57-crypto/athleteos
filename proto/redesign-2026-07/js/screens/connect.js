@@ -1,4 +1,4 @@
-import { S, act } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import { dir, CODE_RE } from '../ob-directory.js';
@@ -32,6 +32,11 @@ export default {
         <div class="sd-t">${title}</div>
         <div class="sd-s">${sub}</div>
       </div>
+      ${!isTrainer && RT.myRoomLabel ? `
+      <div class="lrow" style="cursor:default;margin-top:10px">
+        <div class="lic" style="background:rgba(59,130,246,0.14);color:var(--blue-bright)">${icon('users', 17)}</div>
+        <div class="lm"><div class="lt">Your room</div><div class="ls">${esc(RT.myRoomLabel)} — your standard follows this room</div></div>
+      </div>` : ''}
       <div style="height:10px"></div>
       `;
     }
