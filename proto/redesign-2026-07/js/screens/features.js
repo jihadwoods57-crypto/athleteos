@@ -375,6 +375,49 @@ export const coachVoice = {
   },
 };
 
+/* ---------- #trust-pass-policy · the team defaults grant_trust_pass reads (0097/0099) ---------- */
+export const trustPassPolicy = {
+  nav: 'coach', tab: 'profile',
+  render() {
+    const p = RT.trustPolicy || { length_days: 10, eligibility_days: 7 };
+    const stepper = (label, key, val, lo, hi, unit) => `
+    <div class="eyebrow">${label}</div>
+    <section class="card" style="padding:10px 16px">
+      <div class="lrow" style="cursor:default">
+        <div class="lm"><div class="lt">${val} ${unit}</div><div class="ls">Range ${lo}–${hi}</div></div>
+        <div class="seg" style="width:104px" data-tpp="${key}">
+          <button data-step="-1" aria-label="Decrease ${label}">−</button>
+          <button data-step="1" aria-label="Increase ${label}">+</button>
+        </div>
+      </div>
+    </section>`;
+    return `
+    ${backHead('Trust Pass', 'The default reward every grant on your team uses.', 'coach-profile')}
+
+    ${stepper('Pass length', 'length_days', p.length_days, 1, 60, p.length_days === 1 ? 'day' : 'days')}
+    ${stepper('Earned after', 'eligibility_days', p.eligibility_days, 1, 30, 'photo-logged days')}
+
+    <div style="height:10px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div><div class="tt">How a Trust Pass works</div>
+      <div class="ts">A pass lets a proven athlete one-tap their trailing nutrition median instead of a photo, for <b>${p.length_days}</b> ${p.length_days === 1 ? 'day' : 'days'}. You grant it by hand from an athlete’s profile, and only after they’ve photo-logged a meal on <b>${p.eligibility_days}</b> separate days — the server checks that every time, so a pass can never be earned from nothing.</div></div>
+    </div>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root) {
+    root.querySelectorAll('[data-tpp]').forEach((seg) => {
+      const key = seg.getAttribute('data-tpp');
+      seg.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => {
+        const cur = (RT.trustPolicy || { length_days: 10, eligibility_days: 7 })[key];
+        act.setTrustPolicy({ [key]: cur + Number(b.getAttribute('data-step')) });
+        window.__render();
+      }));
+    });
+  },
+};
+
 /* ---------- #safety · Protective pattern flags (design preview, deliberately not simulated) ---------- */
 export const safety = {
   nav: 'coach', tab: 'roster',

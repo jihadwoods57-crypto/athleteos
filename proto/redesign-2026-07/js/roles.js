@@ -298,11 +298,25 @@ export async function fetchActiveTrustPass(athleteId) {
 }
 export async function grantTrustPass(athleteId, lengthDays) {
   const c = sb(); if (!c || !athleteId) return { ok: false };
-  try { const { error } = await c.rpc('grant_trust_pass', { p_athlete: athleteId, p_length: lengthDays || 10 }); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
+  // No length by default: the server resolves the team's trust_pass_policy (0099). An explicit
+  // number still overrides (back-compat).
+  const args = { p_athlete: athleteId };
+  if (typeof lengthDays === 'number') args.p_length = lengthDays;
+  try { const { error } = await c.rpc('grant_trust_pass', args); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
 }
 export async function endTrustPass(athleteId) {
   const c = sb(); if (!c || !athleteId) return false;
   try { const { error } = await c.rpc('end_trust_pass', { p_athlete: athleteId }); return !error; } catch { return false; }
+}
+/* Per-team Trust Pass policy (0097): the coach-chosen pass length + eligibility the grant reads.
+   Staff-scoped RLS; a missing row means the shipped 10-day / 7-day defaults are in effect. The
+   WRITE lives in state.js act.setTrustPolicy (it owns RT for updated_by), mirroring setCoachVoice. */
+export async function fetchTrustPassPolicy(teamId) {
+  const c = sb(); if (!c || !teamId) return null;
+  try {
+    const { data } = await c.from('trust_pass_policy').select('length_days, eligibility_days').eq('team_id', teamId).maybeSingle();
+    return data || null;
+  } catch { return null; }
 }
 
 /* ---------------- staff & collaborators (0061) ---------------- */

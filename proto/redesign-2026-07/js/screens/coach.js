@@ -318,13 +318,13 @@ export const coachPlan = {
         <div class="lrow" style="cursor:default">
           <div class="lic" style="${active ? 'background:var(--green-surface);color:var(--green-bright)' : ''}">${icon('shield', 17)}</div>
           <div class="lm"><div class="lt">${esc(r.name)}</div>
-          <div class="ls">${TP === null ? 'Checking…' : active ? `Active · started ${esc(pass.granted_date)} · ${pass.length_days || 10} days` : 'No pass · needs 7 photo-logged days on standard'}</div></div>
+          <div class="ls">${TP === null ? 'Checking…' : active ? `Active · started ${esc(pass.granted_date)} · ${pass.length_days || 10} days` : `No pass · needs ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days on standard`}</div></div>
           <button class="btn ghost sm" data-tp="${active ? 'end' : 'grant'}:${esc(r.athleteId)}" style="width:auto;padding:0 12px;height:30px;font-size:11px;${active ? 'color:var(--red)' : ''}">${active ? 'End' : 'Grant'}</button>
         </div>`;
         }).join('')}
         <div id="tp-plan-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;padding:2px 2px 8px"></div>
       </section>` : `
-      ${emptyState({ icon: 'shield', title: 'No trust passes yet', body: 'A pass is earned after 7 straight photo-logged days on standard. Invite athletes to start the clock.', action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
+      ${emptyState({ icon: 'shield', title: 'No trust passes yet', body: `A pass is earned after ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days on standard. Invite athletes to start the clock.`, action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
 
       <div class="eyebrow">Program</div>
       <section class="card" style="padding:6px 16px">
@@ -333,6 +333,11 @@ export const coachPlan = {
           <div class="lm"><div class="lt">AI in your voice</div><div class="ls">${RT.coachVoice ? 'Reinforces your rulings, never invents' : 'Set the tone the AI reinforces'}</div></div>
           <span class="status-pill ${RT.coachVoice && RT.coachVoice.enabled !== false ? 'g' : 'muted'}">${RT.coachVoice && RT.coachVoice.enabled !== false ? 'On' : 'Off'}</span>
           ${icon('chevron', 17, 'style="color:var(--text-3);margin-left:8px"')}
+        </div>
+        <div class="lrow" data-go="trust-pass-policy">
+          <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div>
+          <div class="lm"><div class="lt">Trust Pass defaults</div><div class="ls">${(RT.trustPolicy || { length_days: 10, eligibility_days: 7 }).length_days}-day pass · earned after ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days</div></div>
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>
         <div class="lrow" data-go="team-diet">
           <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
@@ -1706,8 +1711,10 @@ export const coachAthlete = {
         const ok = await roles.endTrustPass(athleteId);
         if (status) status.textContent = ok ? 'Trust Pass ended.' : 'Could not end it.';
       } else {
-        const r = await roles.grantTrustPass(athleteId, 10);
-        if (status) status.textContent = r.ok ? 'Trust Pass granted.' : (r.error && /on.?standard|photo|eligib/i.test(r.error) ? 'Not eligible yet — needs 7 photo-logged days.' : 'Could not grant it.');
+        // No length passed: the server resolves the team's trust_pass_policy (0099).
+        const pol = RT.trustPolicy || { length_days: 10, eligibility_days: 7 };
+        const r = await roles.grantTrustPass(athleteId);
+        if (status) status.textContent = r.ok ? `Trust Pass granted · ${pol.length_days} days.` : (r.error && /on.?standard|photo|eligib/i.test(r.error) ? `Not eligible yet — needs ${pol.eligibility_days} photo-logged days.` : 'Could not grant it.');
       }
       setTimeout(() => { if (location.hash.startsWith('#coach-athlete')) loadAthleteProfile(athleteId, true); }, 500);
     });

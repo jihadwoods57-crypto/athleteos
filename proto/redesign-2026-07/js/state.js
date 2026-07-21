@@ -33,6 +33,7 @@ import {
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
+  fetchTrustPassPolicy,
   todayISO,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
@@ -765,6 +766,26 @@ export const act = {
       }
     } catch { /* best-effort */ }
   },
+  /* Trust Pass policy (0097): the per-team pass length + eligibility the grant reads. Local RT is the
+     fast path for the editor; best-effort server upsert (staff RLS) — a missing table or offline
+     no-ops. Values are clamped to the table's own bounds so the DB check can never reject them. */
+  setTrustPolicy(patch) {
+    const cur = RT.trustPolicy || { length_days: 10, eligibility_days: 7 };
+    const clamp = (n, lo, hi, d) => { n = Math.round(Number(n)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+    const next = {
+      length_days: clamp(patch.length_days != null ? patch.length_days : cur.length_days, 1, 60, 10),
+      eligibility_days: clamp(patch.eligibility_days != null ? patch.eligibility_days : cur.eligibility_days, 1, 30, 7),
+    };
+    RT.trustPolicy = next;
+    save();
+    try {
+      if (window.sb && RT.team && RT.team.id) {
+        void window.sb.from('trust_pass_policy').upsert(
+          { team_id: RT.team.id, length_days: next.length_days, eligibility_days: next.eligibility_days, updated_by: RT.userId || null, updated_at: new Date().toISOString() },
+          { onConflict: 'team_id' });
+      }
+    } catch { /* best-effort */ }
+  },
   /* Cache the resolved Coach Voice nudge (0094 consumer) keyed by the slipping-state signature, so
      the model is asked at most once per distinct state per day. A null text (Voice off / no nudge)
      is cached too, to suppress repeat calls. Persisted with RT. */
@@ -1236,6 +1257,17 @@ export const act = {
     }
     RT.teamLoading = false;
     save();
+    // Trust Pass policy (0097) into RT for the editor + grant copy. Best-effort; a missing row or
+    // not-yet-applied table falls back to the shipped defaults. Never blocks team load.
+    if (RT.team && RT.team.id) {
+      try {
+        const pol = await fetchTrustPassPolicy(RT.team.id);
+        RT.trustPolicy = pol && pol.length_days != null
+          ? { length_days: pol.length_days, eligibility_days: pol.eligibility_days }
+          : (RT.trustPolicy || { length_days: 10, eligibility_days: 7 });
+        save();
+      } catch { /* best-effort */ }
+    }
   },
   /* Athlete guardian-consent state (the client half of 0050): hydrate the newest request's
      status, then arm/disarm the day-sync gate. A PROVABLE minor (dob says <18 — the same rule
