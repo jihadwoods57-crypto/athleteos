@@ -250,6 +250,24 @@ function hero(e) {
   </section>`;
 }
 
+/* The hero on a day that is still live but sub-passing: the score is climbing, not failing. Same
+   signature ring, but the tier verdict is held — a neutral "In progress" chip + what's left to do,
+   never "Off Standard", never a red down-delta. The real tier returns once the day is decided
+   (home render gates this) or once a passing tier is earned. */
+function inProgressHero(e) {
+  const left = e.total - e.met;
+  const toGo = left > 0 ? `${left} to go — your day is still open` : 'Log your first requirement to start your score';
+  return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
+    <div class="xh-main">
+      ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      <div class="xh-side">
+        <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">In progress</span></div>
+        <div class="xh-line">${esc(`${e.met} of ${e.total} done · ${toGo}`)}</div>
+      </div>
+    </div>
+  </section>`;
+}
+
 /* Grouped-card row: Upcoming/Completed rows share ONE card, split by hairlines, instead of
    a stack of separate bordered cards. Completed rows read status-first (green check) with a
    chevron into the receipt. */
@@ -458,7 +476,7 @@ export default {
 
     return `
     ${appHead(headSub(e), trustShield())}
-    ${hero(e)}
+    ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
     <div id="seen-row"></div>
     ${attention}
     <div id="cv-nudge">${cachedNudge(e)}</div>

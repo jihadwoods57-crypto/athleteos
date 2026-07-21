@@ -1993,6 +1993,9 @@ export const S = {
   // yet" and doesn't grade/streak — full scoring resumes the next local day.
   get activation() { return activationInfo(activationStamp(), String(DAY.date)); },
   get notYetScored() { return this.activation.notYetScored; },
+  // A day is "decided" once no required window is still open on time — the point at which a
+  // negative verdict (Off Standard / a red Missed pill) is honest. Derived from exec, no recompute.
+  get dayDecided() { return this.exec.decided; },
   // Guardian-consent surface (athlete side of 0050). `needed` gates the Home banner + the
   // sync pill copy; a verified minor and every adult read as not-needed.
   get consent() {

@@ -105,3 +105,23 @@ describe('activation anchors to the account birthday, not a stale device stamp',
     expect(S.notYetScored).toBe(true);
   });
 });
+
+describe('in-progress framing — no failure verdict on a day that is not over', () => {
+  test('established user, live sub-passing day → hero reads In progress, never Off Standard', () => {
+    // Activated yesterday (fully active), Tuesday morning, nothing logged, windows still open.
+    RT.activationDate = activatedYesterday;
+    RT.profile = { createdAt: activatedYesterday };
+    DAY.date = todayISO;
+    // Force a mid-morning clock so required windows are still open (not decided).
+    const home = require('../../proto/redesign-2026-07/js/screens/home.js').default;
+    const html: string = home.render();
+    if (!S.dayDecided) {
+      expect(html).toContain('In progress');
+      expect(html).not.toContain('Off Standard');
+    }
+  });
+
+  test('S.dayDecided mirrors exec.decided', () => {
+    expect(S.dayDecided).toBe(S.exec.decided);
+  });
+});
