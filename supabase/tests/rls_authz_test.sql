@@ -304,8 +304,8 @@ select _ok((select count(*) from guardian_children() where athlete_id = 'ddddddd
            '0081: parent P sees their minor ONLY via guardian_children() (scores, not photos/weight)');
 select _ok((select count(*) from meals where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') = 0,
            'parent P CANNOT read unrelated athlete A''s meals');
-select _ok((select count(*) from checkins where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 1,
-           'parent P CAN read their minor''s checkin');
+select _ok((select count(*) from checkins where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 0,
+           '0081: parent P CANNOT read their minor''s checkin directly (weight/notes live here)');
 
 -- ================================================================ 6. TRAINER SCOPE
 select _as('44444444-0000-0000-0000-000000000004');
