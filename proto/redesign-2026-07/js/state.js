@@ -27,7 +27,7 @@ import {
   groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
   mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions,
 } from './meal-intel.js';
-import { groundMealFromFoods, groundMealTotals } from './nutrition.js';
+import { groundMealFromFoods, groundMealTotals, gapFoods } from './nutrition.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
 import { cachedMealPhoto, todayMealPhotoPath } from './photo-store.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
@@ -604,6 +604,10 @@ export const act = {
         // coach staff, urgency by classification — fires exactly once, on the FRESH insert
         // (a dup never notifies; a retry can't reach here twice for the same slot).
         this._notifyCoachMealLogged(slot, meta);
+        // Background macro enrichment (fire-and-forget): resolve the foods the curated table
+        // couldn't ground against USDA/OFF so FUTURE meals ground on real data + seed the eval
+        // corpus. Fires once on the fresh insert (never a dup); never touches THIS logged meal.
+        this._enrichMeal(meta);
       }
     });
     // Reflect the just-logged meal into every RT flag the UI reads. Beyond the legacy
@@ -622,6 +626,21 @@ export const act = {
       if (age != null && age >= 60) track(EVENTS.MEAL_STALE_PHOTO, { slot });
     }
     this.syncNotifications();
+  },
+  /* Post-log macro enrichment (background, fire-and-forget). Resolves the foods the curated table
+     couldn't ground (gapFoods) against USDA/OFF via the enrich-meal function, so the NEXT time this
+     population logs the same branded/restaurant food it grounds on real data — and seeds the
+     de-identified eval corpus. Forward-only: it NEVER re-touches this logged meal or its score
+     (post-log immutability; a silent retroactive score change is a trust break). De-identified —
+     only food names + the AI's per-food macros leave the device. Best-effort; failure is silent. */
+  _enrichMeal(meta) {
+    try {
+      const sb = window.sb;
+      if (!sb || !sb.functions) return;
+      const foods = gapFoods((meta && meta.detectedRich) || []);
+      if (!foods.length) return;
+      void sb.functions.invoke('enrich-meal', { body: { foods } }).then(() => {}, () => {});
+    } catch { /* enrichment is best-effort — it must never affect the logged meal */ }
   },
   /** Classified coach notification for a fresh meal insert (never for dups/retries).
    *  'logged' = quiet in-app record; 'review'/'action' also push. Copy per spec:

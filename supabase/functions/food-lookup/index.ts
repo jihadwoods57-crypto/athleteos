@@ -7,6 +7,10 @@
 // Both normalize to macros PER 100 g + a printed serving; the app (core/foodSource.ts) scales to
 // the serving and logs an EditableFood via the normal saveMeal path.
 //
+// The USDA/OFF resolve + normalization + ranking now live in _shared/food-resolve.ts so the
+// post-log enrich-meal background job grounds identically (one ranking, no drift). This file owns
+// the cache policy, rate limiting, and CORS; the resolver owns the data normalization.
+//
 // Free data sources (no per-call cost): USDA is public domain (CC0), Open Food Facts is open
 // (ODbL). Every resolved lookup is CACHED in the food_cache table (migration 0021) so repeat
 // scans/searches are instant and never re-hit the external API.
@@ -18,6 +22,7 @@
 // Fail-soft: any miss/error returns { found: false } and the app keeps working (photo estimate /
 // manual entry). Holds no user data; the only auth is the standard Supabase gateway.
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { resolveByBarcode, resolveByQuery, type FoodOut } from '../_shared/food-resolve.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -34,115 +39,6 @@ function corsFor(req: Request): Record<string, string> {
   if (!origin) return BASE_HEADERS;
   if (ALLOWED_ORIGINS.includes(origin)) return { ...BASE_HEADERS, 'Access-Control-Allow-Origin': origin };
   return BASE_HEADERS;
-}
-
-interface MacroSet { protein: number; kcal: number; carbs: number; fat: number; }
-interface FoodOut {
-  found: true;
-  name: string;
-  serving: string | null;
-  per100: MacroSet;
-  source: 'off' | 'usda';
-  attribution: string;
-  cached?: boolean;
-}
-
-/** Non-negative finite number, else 0 (external data can be missing/junk). */
-function num(x: unknown): number {
-  const n = Number(x);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
-/** Normalize an Open Food Facts product into per-100g macros. Null if no usable macros. */
-function fromOFF(product: Record<string, unknown> | undefined): FoodOut | null {
-  const n = (product?.nutriments ?? {}) as Record<string, unknown>;
-  const per100: MacroSet = {
-    protein: num(n['proteins_100g']),
-    kcal: num(n['energy-kcal_100g'] ?? n['energy-kcal']),
-    carbs: num(n['carbohydrates_100g']),
-    fat: num(n['fat_100g']),
-  };
-  if (per100.kcal <= 0 && per100.protein <= 0) return null;
-  const name = String(product?.product_name ?? '').trim();
-  const serving = product?.serving_size ? String(product.serving_size) : null;
-  return { found: true, name: name || 'Scanned product', serving, per100, source: 'off', attribution: 'Open Food Facts (ODbL)' };
-}
-
-/** Normalize a USDA FoodData Central search hit into per-100g macros. Null if no usable macros. */
-function fromUSDA(food: Record<string, unknown> | undefined): FoodOut | null {
-  const byNum: Record<string, number> = {};
-  for (const fn of (food?.foodNutrients ?? []) as Array<Record<string, unknown>>) {
-    const k = String(fn?.nutrientNumber ?? (fn?.nutrient as Record<string, unknown> | undefined)?.number ?? '');
-    if (k) byNum[k] = num(fn?.value);
-  }
-  // 203 protein, 204 fat, 205 carbs, 208 energy (kcal) — USDA values are per 100 g.
-  const per100: MacroSet = { protein: byNum['203'] ?? 0, kcal: byNum['208'] ?? 0, carbs: byNum['205'] ?? 0, fat: byNum['204'] ?? 0 };
-  if (per100.kcal <= 0) return null; // a real food has calories; drop incomplete USDA entries
-  const name = String(food?.description ?? '').trim();
-  const serving = food?.servingSize ? `${food.servingSize} ${String(food?.servingSizeUnit ?? 'g')}` : null;
-  return { found: true, name: name || 'Food', serving, per100, source: 'usda', attribution: 'USDA FoodData Central (CC0)' };
-}
-
-/** Score a USDA generic result for a query: reward a description that leads with the query and is a
- *  raw/plain whole food; penalize derivative forms (oil, flour, powder, chips, leaves, ...) USDA
- *  surfaces for plain terms ("Oil, almond" for "almonds"). Higher is better. */
-const USDA_PENALTIES = [
-  'oil', 'flour', 'leaves', 'powder', 'dehydrated', 'dried', 'chips', 'juice', 'roll', 'bread',
-  'snacks', 'snack', 'babyfood', 'baby', 'candies', 'candy', 'cookies', 'cookie', 'nuggets',
-  'nugget', 'breaded', 'tenders', 'tender', 'butter', 'canned', 'coated', 'fried', 'cake', 'pie',
-  'sandwich', 'sauce', 'soup', 'pudding', 'cream', 'frozen', 'prepared',
-  'deli', 'luncheon', 'seasoned', 'rotisserie', 'blueberry', 'strawberry', 'vanilla', 'chocolate',
-  'flavored', 'honey',
-];
-
-function scoreUSDA(desc: string, query: string): number {
-  const d = desc.toLowerCase();
-  const q = query.toLowerCase().trim();
-  const q0 = (q.split(/\s+/)[0] ?? q).replace(/s$/, ''); // tolerate plural ("almonds" -> "almond")
-  const first = (d.split(/[\s,]+/)[0] ?? '').replace(/s$/, '');
-  let s = 0;
-  if (d.startsWith(q)) s += 100;
-  else if (first === q0 || first.startsWith(q0)) s += 40;
-  if (/\braw\b/.test(d)) s += 25;
-  // Penalize processed / derivative forms — but only when the word isn't part of the query itself
-  // (so "peanut butter" or "banana bread" aren't self-penalized).
-  for (const w of USDA_PENALTIES) {
-    if (!q.includes(w) && new RegExp(`\\b${w}\\b`).test(d)) s -= 40;
-  }
-  return s;
-}
-
-/** Rank USDA search hits for a query, best first. A light index penalty preserves USDA's own
- *  relevance order as the tiebreak between equally-scored entries. Drops entries with no macros. */
-function usdaCandidates(foods: Array<Record<string, unknown>> | undefined, query: string): FoodOut[] {
-  return (foods ?? [])
-    .map((f, i) => ({ out: fromUSDA(f), sc: scoreUSDA(String(f?.description ?? ''), query) - i * 0.1 }))
-    .filter((x): x is { out: FoodOut; sc: number } => x.out !== null)
-    .sort((a, b) => b.sc - a.sc)
-    .map((x) => x.out);
-}
-
-/** USDA repeats near-identical descriptions; keep only the first (best-ranked) of each name. */
-function dedupeByName(items: FoodOut[]): FoodOut[] {
-  const seen = new Set<string>();
-  const out: FoodOut[] = [];
-  for (const it of items) {
-    const k = it.name.toLowerCase();
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(it);
-  }
-  return out;
-}
-
-async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'OnStandard/1.0 (nutrition app)' } });
-    if (!res.ok) return null;
-    return (await res.json()) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
 }
 
 // Best-effort per-IP rate limit (same in-memory pattern as the paid functions). This endpoint
@@ -197,7 +93,6 @@ Deno.serve(async (request) => {
 
   // ---- Barcode: one exact packaged product (cached; a scanned bottle is unambiguous). ----
   if (barcode) {
-    // Cache read (service role; the client never touches food_cache directly).
     if (sb && !refresh) {
       try {
         const { data } = await sb.from('food_cache').select('name,serving,per100,source,attribution').eq('source', source).eq('key', key).maybeSingle();
@@ -206,25 +101,16 @@ Deno.serve(async (request) => {
         // cache miss/unreachable -> fall through to a live lookup
       }
     }
-    const data = await fetchJson(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,nutriments,serving_size`);
-    const out = data && data.status !== 0 ? fromOFF(data.product as Record<string, unknown> | undefined) : null;
+    const out = await resolveByBarcode(barcode);
     if (!out) return json({ found: false });
     await cacheWrite(out);
     return json(out);
   }
 
-  // ---- Query: a RANKED LIST the athlete picks from. A plain term ("chicken breast") returns many
-  // USDA variants; auto-picking the single right one is guesswork, so we surface the top matches and
-  // let them choose theirs. Prefer the clean generic datasets (SR Legacy + Foundation); fall back to
-  // Branded packaged foods only when there is no generic hit. Queries are always live (USDA is free),
-  // so the picker never gets stuck on one stale cached auto-pick. ----
-  const q = encodeURIComponent(query);
-  const base = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${q}`;
-  let ranked = usdaCandidates((await fetchJson(`${base}&pageSize=25&dataType=${encodeURIComponent('SR Legacy,Foundation')}`))?.foods as Array<Record<string, unknown>> | undefined, query);
-  if (!ranked.length) {
-    ranked = usdaCandidates((await fetchJson(`${base}&pageSize=15&dataType=Branded`))?.foods as Array<Record<string, unknown>> | undefined, query);
-  }
-  const results = dedupeByName(ranked).slice(0, 6);
+  // ---- Query: a RANKED LIST the athlete picks from. Prefer the clean generic datasets; fall back
+  // to Branded only when there is no generic hit. Queries are always live (USDA is free), so the
+  // picker never gets stuck on one stale cached auto-pick. ----
+  const results = await resolveByQuery(query, USDA_API_KEY, 6);
   if (!results.length) return json({ found: false });
   // Keep the auto-pick warm — but only for short, reusable queries: every novel query text is a
   // service-role row in food_cache, so long one-off strings would just grow the table forever.

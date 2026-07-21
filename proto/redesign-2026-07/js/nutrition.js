@@ -247,3 +247,35 @@ export function groundMealTotals(estimate, detectedNames) {
   if (adjusted) confidence = confidence === 'high' ? 'medium' : 'low';
   return { totals, confidence };
 }
+
+/**
+ * The detected foods the curated table CAN'T ground (no matchFood hit) — the "gap" foods
+ * (branded products, restaurant plates) whose macros ride through on the AI's raw estimate.
+ * Post-log enrichment (enrich-meal) resolves exactly these against USDA/OFF to warm the learned
+ * store for future meals. Pure: takes the staged/logged detectedRich list, returns a compact
+ * payload [{ name, protein, kcal, carbs, fat }] deduped by name, capped, foods already in the
+ * curated table excluded (never waste a USDA call on chicken or rice). Empty when nothing needs it.
+ */
+export function gapFoods(detectedRich, cap = 8) {
+  const list = Array.isArray(detectedRich) ? detectedRich.filter(Boolean) : [];
+  const out = [];
+  const seen = new Set();
+  for (const d of list) {
+    const name = String((d && d.name) || '').trim();
+    if (name.length < 2) continue;
+    const k = name.toLowerCase();
+    if (seen.has(k)) continue;
+    // Full-NAME match only (searchFoods), NOT matchFood's longest-word fallback: a food like
+    // "Chipotle chicken burrito bowl" only weak-matches plain "chicken", which grounds a whole
+    // bowl against 4 oz of breast — that poor partial match IS the gap enrichment exists to close.
+    if (searchFoods(name, 1).length) continue; // the curated table grounds this by name — skip
+    seen.add(k);
+    const per = (d && d.per) || {};
+    out.push({
+      name,
+      protein: nn(per.protein), kcal: nn(per.kcal), carbs: nn(per.carbs), fat: nn(per.fat),
+    });
+    if (out.length >= cap) break;
+  }
+  return out;
+}
