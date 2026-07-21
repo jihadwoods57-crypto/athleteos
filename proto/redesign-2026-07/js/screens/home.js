@@ -4,6 +4,49 @@ import { appHead, scoreRing, animateRing, esc, safeImg, collapseSection } from '
 import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
+import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
+
+// Coach Voice nudge (0094 consumer): at most one in-flight request; the resolved text is cached on
+// RT (persisted) keyed by the slipping-state signature, so we ask the model once per distinct state
+// per day and never on a clean day or a team without Coach Voice configured (the edge fn returns
+// null, which we cache too). Purely additive — absence leaves Home unchanged.
+let nudgeInFlight = null;
+function coachNudgeHtml(text) {
+  return `
+  <div class="trust" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(168,85,247,0.12), rgba(59,130,246,0.05));border-color:var(--purple-border, rgba(168,85,247,0.35))">
+    <div class="ic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('sparkle', 20)}</div>
+    <div style="flex:1"><div class="tt" style="display:flex;align-items:center;gap:6px">Your coach<span class="status-pill muted" style="font-size:10px;padding:1px 6px">AI</span></div>
+    <div class="ts">${esc(text)}</div></div>
+  </div>`;
+}
+// Server-side render of a cached nudge whose signature still matches TODAY's state — no flash on
+// re-render, and it self-drops the instant the state moves (a logged meal changes the signature).
+function cachedNudge(e) {
+  const c = RT.voiceNudge;
+  if (!c || !c.text || !shouldNudge(e)) return '';
+  return c.sig === nudgeSignature(String(DAY.date), e) ? coachNudgeHtml(c.text) : '';
+}
+function maybeCoachNudge(e) {
+  const slot = typeof document !== 'undefined' ? document.getElementById('cv-nudge') : null;
+  if (!slot) return;
+  // Only ask when slipping, signed in, and attached to a team (a coach who could have a voice).
+  if (!shouldNudge(e) || !RT.userId || !RT.team || !window.sb) return;
+  const sig = nudgeSignature(String(DAY.date), e);
+  const cached = RT.voiceNudge;
+  if (cached && cached.sig === sig) { if (cached.text) slot.innerHTML = coachNudgeHtml(cached.text); return; }
+  if (nudgeInFlight === sig) return;
+  nudgeInFlight = sig;
+  window.sb.functions.invoke('coach-voice-nudge', { body: { data: nudgeData(e, String(DAY.date)) } })
+    .then(({ data }) => {
+      nudgeInFlight = null;
+      const text = data && typeof data.nudge === 'string' && data.nudge ? data.nudge : null;
+      act.setVoiceNudge(sig, text);
+      if (!text) return;
+      const s = document.getElementById('cv-nudge');
+      if (s) s.innerHTML = coachNudgeHtml(text);
+    })
+    .catch(() => { nudgeInFlight = null; });
+}
 
 // Per-type icon media tints (a photo-less card shows its own icon — never someone else's).
 const ACT_MEDIA = {
@@ -418,6 +461,7 @@ export default {
     ${hero(e)}
     <div id="seen-row"></div>
     ${attention}
+    <div id="cv-nudge">${cachedNudge(e)}</div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
     ${e.now ? nowCard(e) : hydroIsNow ? hydroNow(hydro) : ''}
     ${nextRows.length ? `<div class="xgrp">${e.next.state === 'overdue' ? 'Also overdue' : 'Next'}</div>${nextRows.map(row).join('')}` : ''}
@@ -430,6 +474,8 @@ export default {
   mount(root) {
     animateRing(root);
     act.syncNotifications();
+    // Coach Voice nudge: best-effort, fire-and-forget over today's deterministic exec state.
+    maybeCoachNudge(S.exec);
     // Resolve today's stored meal photos (signed URLs) so Recent Results shows the real
     // plates after a reload — repaints once when the batch lands (spec §7.1).
     if (RT.userId) {

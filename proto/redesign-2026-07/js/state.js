@@ -765,6 +765,13 @@ export const act = {
       }
     } catch { /* best-effort */ }
   },
+  /* Cache the resolved Coach Voice nudge (0094 consumer) keyed by the slipping-state signature, so
+     the model is asked at most once per distinct state per day. A null text (Voice off / no nudge)
+     is cached too, to suppress repeat calls. Persisted with RT. */
+  setVoiceNudge(sig, text) {
+    RT.voiceNudge = { sig, text: text || null };
+    save();
+  },
   /* Register this device's push token (coach→athlete nudges) via the bridge, once per
      session, after sign-in. Fire-and-forget; a denial or missing seam is a silent no-op. */
   async registerPushToken() {

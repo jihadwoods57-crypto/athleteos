@@ -26,12 +26,13 @@ describe('coach empty dashboard — with a live athlete code', () => {
   });
   test('shows a first-run setup checklist that links to real screens', () => {
     expect(html).toContain('Finish setting up your team');
-    expect(html).toContain('data-go="coach-plan"');
+    // Routes tracked to the coach-experience restructure (Plan hub + Profile sections).
+    expect(html).toContain('data-go="coach-plan-set/team"');
     expect(html).toContain('data-go="coach-notif-settings"');
-    expect(html).toContain('data-go="coach-profile"');
+    expect(html).toContain('data-go="coach-profile/staff"');
   });
-  test('team score reads "Not scored yet", never a fabricated number', () => {
-    expect(html).toContain('Not scored yet');
+  test('team score is honest ("Not scored until athletes log"), never a fabricated number', () => {
+    expect(html).toContain('Not scored until athletes log');
     expect(html).toContain('Team score');
   });
   test('honest empty roster + activity, and NO fabricated athletes or priority cards', () => {
@@ -45,12 +46,12 @@ describe('coach empty dashboard — with a live athlete code', () => {
 
 describe('coach empty dashboard — before the code has minted', () => {
   const html: string = emptyTeamDashboard(null, 'Varsity Football');
-  test('shows an honest "minting" note instead of a dead code', () => {
-    expect(html).toContain('minting');
+  test('shows an honest "checking" note instead of a dead code', () => {
+    expect(html).toContain('Checking your team and code.'); // honest pending state, not a fake code
     expect(html).not.toContain('SCAN TO JOIN'); // no QR for a code that does not exist yet
   });
   test('still shows the checklist and the not-scored team tile', () => {
     expect(html).toContain('Finish setting up your team');
-    expect(html).toContain('Not scored yet');
+    expect(html).toContain('Not scored until athletes log');
   });
 });
