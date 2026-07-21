@@ -390,12 +390,22 @@ export function syncRtFromDay() {
   save();
 }
 
-/* The athlete's activation stamp for the first-day (no-retroactive-failure) rules. Primary:
-   RT.activationDate, stamped locally at onboarding commit — covers the exact signup→dashboard
-   moment on the same device. Backstop: the server committed_at hydrated into RT.profile.committedAt
-   (cross-device). Null (existing/pre-change users) ⇒ fully active, so nobody is affected retroactively. */
+/* The athlete's activation stamp for the first-day (no-retroactive-failure) rules. The account's
+   SERVER birthday (profiles.created_at, hydrated into RT.profile.createdAt) is the authoritative,
+   tamper-proof anchor — it can't be stale because the row didn't exist until the account did. A
+   commit stamp (RT.activationDate / RT.profile.committedAt) only refines the minute-of-day, and
+   only when it lands on the birthday; a stale cross-day carry (the founder's 11-day-old stamp) is
+   ignored. No server birthday (older clients) ⇒ prior commit-stamp behavior, so nobody regresses. */
 function activationStamp() {
-  return RT.activationDate || (RT.profile && RT.profile.committedAt) || null;
+  const created = (RT.profile && RT.profile.createdAt) || null;
+  const committed = RT.activationDate || (RT.profile && RT.profile.committedAt) || null;
+  if (created) {
+    const cd = parseActivation(created);
+    const md = committed ? parseActivation(committed) : null;
+    if (cd && md && md.date === cd.date) return committed; // same-day: keep the finer minute
+    if (cd) return created;                                 // reject a stale cross-day commit
+  }
+  return committed;
 }
 /** The activation calendar date only ('YYYY-MM-DD'), or null. */
 function activationDateOnly() {
@@ -1155,7 +1165,7 @@ export const act = {
     const hadTargets = !!(RT.profile && RT.profile.targets);
     RT.profileLoading = true; save();
     try {
-      const { data: prof } = await sb.from('profiles').select('full_name,committed_at').eq('id', userId).maybeSingle();
+      const { data: prof } = await sb.from('profiles').select('full_name,committed_at,created_at').eq('id', userId).maybeSingle();
       // SETTLED sentinel: supabase-js resolves network/RLS failures into `{error}` without
       // throwing — destructure it so a real fetch failure is never misread as "no targets".
       const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob,standard').eq('athlete_id', userId).maybeSingle();
@@ -1164,6 +1174,7 @@ export const act = {
       // Cross-device activation backstop: the server's committed_at is the first-day anchor when
       // this device never ran onboarding (RT.activationDate is local-only).
       if (prof && prof.committed_at) patch.committedAt = prof.committed_at;
+      if (prof && prof.created_at) patch.createdAt = prof.created_at; // server birthday: the activation anchor
       if (ap) {
         if (ap.sport) patch.sport = ap.sport; if (ap.position) patch.position = ap.position; if (ap.level) patch.level = ap.level;
         if (ap.base_weight != null) patch.baseWeight = ap.base_weight;
@@ -1626,7 +1637,11 @@ export const act = {
     // First-day activation anchor: stamped once, at signup, from the hold-to-commit moment (or now).
     // Everything scored before this instant is "Not required" — the athlete is never punished for
     // windows that closed before their account existed. Idempotent (set once; retries never move it).
-    if (!RT.activationDate) { RT.activationDate = ob.committedAt || new Date().toISOString(); save(); }
+    if (!RT.activationDate) {
+      const c = ob.committedAt ? parseActivation(ob.committedAt) : null;
+      RT.activationDate = (c && c.date === todayISO()) ? ob.committedAt : new Date().toISOString();
+      save();
+    }
     // local identity first (always — cheap, idempotent)
     this.saveProfile({ name, sport: ob.sport || '', position: ob.position || '', level: ob.level || '' });
     this.saveAllergies(ob.allergies || RT.allergies || []);
@@ -1653,7 +1668,7 @@ export const act = {
     }
     // phase 3: consent + commitment stamps (profiles_self_write; 0048 columns, best-effort)
     if (!synced.stamps && sb && RT.userId) {
-      synced.stamps = await this._stampConsent(ob.committedAt);
+      synced.stamps = await this._stampConsent(RT.activationDate || ob.committedAt);
     }
     // phase 4: redeem the validated join code (server re-validates; idempotent)
     if (!synced.join) {

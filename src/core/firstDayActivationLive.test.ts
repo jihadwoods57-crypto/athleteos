@@ -70,3 +70,38 @@ test('activation-day Home renders "Not scored yet" and never "Off Standard" or a
   // the lunch row, if shown, must read Not required — never the red Overdue pill
   expect(html).not.toMatch(/Lunch[\s\S]{0,80}Overdue/);
 });
+
+describe('activation anchors to the account birthday, not a stale device stamp', () => {
+  const isoDaysAgo = (days: number, h = 12, mi = 0) =>
+    new Date(t.getFullYear(), t.getMonth(), t.getDate() - days, h, mi).toISOString();
+
+  test('created today but committed_at is 11 days stale → still activation day (created_at wins)', () => {
+    // Reproduces the founder's row: created today, committed_at carried from 11 days ago.
+    RT.activationDate = isoDaysAgo(11, 12, 35); // stale local carry too
+    RT.profile = { createdAt: activatedToday634pm, committedAt: isoDaysAgo(11, 12, 35) };
+    expect(S.activation.isActivationDay).toBe(true);
+    expect(S.notYetScored).toBe(true);
+    expect(lunch(S.exec).state).toBe('not_required'); // lunch window closed pre-signup → excused
+  });
+
+  test('created today + committed_at same day → uses committed_at to refine the minute', () => {
+    const createdEarly = new Date(t.getFullYear(), t.getMonth(), t.getDate(), 9, 0).toISOString();
+    RT.activationDate = null;
+    RT.profile = { createdAt: createdEarly, committedAt: activatedToday634pm };
+    expect(S.activation.isActivationDay).toBe(true);
+    expect(S.activation.activationMin).toBe(1114); // 6:34 PM, the finer commit minute
+  });
+
+  test('created yesterday (established user) → fully active even if a commit stamp is today', () => {
+    RT.activationDate = activatedToday634pm;
+    RT.profile = { createdAt: isoDaysAgo(1, 18, 34), committedAt: activatedToday634pm };
+    expect(S.activation.isActivationDay).toBe(false);
+    expect(S.notYetScored).toBe(false);
+  });
+
+  test('no created_at (older client) → falls back to the commit stamp (prior behavior)', () => {
+    RT.activationDate = activatedToday634pm;
+    RT.profile = {}; // no createdAt
+    expect(S.notYetScored).toBe(true);
+  });
+});
