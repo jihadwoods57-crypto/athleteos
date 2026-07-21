@@ -145,6 +145,60 @@ export function estimateConfidence(source, detected) {
   return 'high';
 }
 
+/** Calorie-share-weighted overall confidence, for the accuracy verify trigger (spec item 6 §5).
+ *  Each food contributes a weight (high=1, medium=0.5, low=0) scaled by its kcal share; the
+ *  weighted mean maps back to a band, so a small low-confidence item can't drag a well-read
+ *  plate down. Foods without kcal are weighted equally as a fallback. Distinct from
+ *  estimateConfidence (which drives display and stays "any low -> low"). */
+export function weightedConfidence(detected) {
+  const rich = Array.isArray(detected) ? detected.filter(Boolean) : [];
+  if (!rich.length) return 'medium';
+  const score = (c) => (c === 'high' ? 1 : c === 'medium' ? 0.5 : 0);
+  const kcalOf = (d) => Math.max(0, Number(d.kcal) || 0);
+  const totalKcal = rich.reduce((s, d) => s + kcalOf(d), 0);
+  const weight = (d) => (totalKcal > 0 ? kcalOf(d) / totalKcal : 1 / rich.length);
+  const mean = rich.reduce((s, d) => s + score(d.confidence) * weight(d), 0);
+  if (mean >= 0.75) return 'high';
+  if (mean >= 0.35) return 'medium';
+  return 'low';
+}
+
+/** Pure gate for the second-pass verifier (spec item 6 §3). Fires on exactly two cases:
+ *  (a) allergen: severe restriction AND any food is low-confidence (per-food, so a single
+ *      uncertain item that could hide an allergen still fires);
+ *  (b) accuracy: calorie-weighted confidence is low AND the read looks off (quality<50).
+ *  allergen wins ties; no fire for non-photo sources or spent budget. */
+export function shouldVerify({ detected, quality, source, severeRestrictions, budgetLeft } = {}) {
+  const none = { fire: false, trigger: null };
+  if (source !== 'photo') return none;
+  if (!(Number(budgetLeft) > 0)) return none;
+  const foods = Array.isArray(detected) ? detected.filter(Boolean) : [];
+  const anyLow = foods.some((d) => d.confidence === 'low');
+  const hasSevere = Array.isArray(severeRestrictions) && severeRestrictions.length > 0;
+  if (hasSevere && anyLow) return { fire: true, trigger: 'allergen' };
+  const q = Number(quality);
+  if (weightedConfidence(foods) === 'low' && isFinite(q) && q < 50) {
+    return { fire: true, trigger: 'accuracy' };
+  }
+  return none;
+}
+
+/** What the second pass actually did, for effectiveness telemetry (ai_calls.outcome).
+ *  allergen_caught if the re-scan flagged an allergen the first read didn't; else
+ *  macros_moved if kcal or protein shifted >15%; else no_change. */
+export function classifyVerifyOutcome(first, second) {
+  const firstAllergens = (first && Array.isArray(first.allergensFound)) ? first.allergensFound : [];
+  const secondAllergens = (second && Array.isArray(second.allergensFound)) ? second.allergensFound : [];
+  if (secondAllergens.some((a) => !firstAllergens.includes(a))) return 'allergen_caught';
+  const moved = (a, b) => {
+    const x = Number(a) || 0, y = Number(b) || 0;
+    return Math.abs(y - x) / Math.max(1, x) > 0.15;
+  };
+  if (moved(first && first.kcal, second && second.kcal)) return 'macros_moved';
+  if (moved(first && first.protein, second && second.protein)) return 'macros_moved';
+  return 'no_change';
+}
+
 /* Produce vocabulary for the fiber-consistency guard: if any of these is visible on the
    plate, feedback must never claim "no fiber" — the estimate may be wrong, not the plate. */
 const PRODUCE_TERMS = ['asparagus', 'broccoli', 'spinach', 'salad', 'greens', 'kale', 'beans',
