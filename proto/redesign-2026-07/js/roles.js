@@ -574,6 +574,27 @@ export async function deleteTeamRoom(id) {
   const c = sb(); if (!c || !id) return false;
   try { const { error } = await c.from('team_rooms').delete().eq('id', id); return !error; } catch { return false; }
 }
+/* The signed-in ATHLETE's own assigned room label (0101), or null when unassigned. Drives their
+   standard resolution (an assigned athlete's day follows their room; null = raw position, parity).
+   Reads their own team_members row (tm_read self policy) then the room label (member read). */
+export async function fetchMyRoomLabel(teamId) {
+  const c = sb(); if (!c || !teamId) return null;
+  try {
+    const u = await c.auth.getUser();
+    const uid = u.data.user && u.data.user.id;
+    if (!uid) return null;
+    const { data: mem } = await c.from('team_members').select('room_id').eq('team_id', teamId).eq('athlete_id', uid).eq('status', 'active').maybeSingle();
+    if (!mem || !mem.room_id) return null;
+    const { data: room } = await c.from('team_rooms').select('label').eq('id', mem.room_id).maybeSingle();
+    return room && room.label ? room.label : null;
+  } catch { return null; }
+}
+/* Staff: assign (or reassign) an athlete to a room, or null to un-assign. Server re-checks the
+   coach-link and that the room is on the athlete's team (assign_athlete_room, 0101). */
+export async function assignAthleteRoom(athleteId, roomId) {
+  const c = sb(); if (!c || !athleteId) return { ok: false };
+  try { const { error } = await c.rpc('assign_athlete_room', { p_athlete: athleteId, p_room: roomId || null }); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
+}
 /** Exceptions whose window covers today. Best-effort []. */
 export async function fetchActiveExceptions(teamId) {
   const c = sb(); if (!c || !teamId) return [];
@@ -815,6 +836,9 @@ export function buildRosterRow(member, dayRow, extras = {}) {
   return {
     athleteId: member.athlete_id,
     name, unit: member.position || '', position: member.position || '',
+    // Assigned room (0101), or null when unassigned. Drives room-scoped standard resolution in the
+    // coach view + Needs-Assignment; null = the athlete resolves by raw position (parity).
+    roomId: member.room_id || null,
     score, loggedToday: logged,
     flag: logged ? tierFlag(score) : 'r',
     logs: logged && tasks.length ? `${done}/${tasks.length}` : (logged ? 'Logged' : '—'),

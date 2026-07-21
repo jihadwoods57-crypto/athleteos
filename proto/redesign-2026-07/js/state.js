@@ -33,7 +33,7 @@ import {
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
-  fetchTrustPassPolicy, fetchTeamWeekPattern, fetchCoachSetupState,
+  fetchTrustPassPolicy, fetchTeamWeekPattern, fetchCoachSetupState, fetchMyRoomLabel,
   todayISO,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
@@ -1417,6 +1417,10 @@ export const act = {
       // The team's weekly pattern (0100) resolves this athlete's day-type. Best-effort; a null
       // (no pattern / not-applied table / offline) leaves day-type 'any' — no gating.
       try { RT.weekPattern = await fetchTeamWeekPattern(RT.myCoach.teamId); } catch { /* best-effort */ }
+      // The athlete's assigned room label (0101): when set, their standard resolves against the ROOM
+      // instead of their raw position. null (unassigned — every athlete until a coach assigns) = the
+      // exact prior behavior. Best-effort.
+      try { RT.myRoomLabel = await fetchMyRoomLabel(RT.myCoach.teamId); } catch { /* best-effort */ }
     }
     this._applyStandardFromSets();
     save();
@@ -1426,7 +1430,11 @@ export const act = {
   _applyStandardFromSets() {
     // Resolve the version governing the day being scored (DAY.date), so a coach's future-dated
     // standard edit never rescopes today or a past day (prospective effective dates, 0085).
-    const set = resolveRequirementSet(RT.reqSets || [], RT.userId, (RT.profile || {}).position, String(DAY.date));
+    // Room-scoped standard (0101): an athlete assigned to a room resolves against the ROOM's label;
+    // unassigned (RT.myRoomLabel null — every athlete until a coach assigns) falls back to their raw
+    // position, byte-identical to before.
+    const resolvePosition = RT.myRoomLabel || (RT.profile || {}).position;
+    const set = resolveRequirementSet(RT.reqSets || [], RT.userId, resolvePosition, String(DAY.date));
     // Day-type gating (0100): with the team's weekly pattern, drop items that don't apply to the
     // type of the day being scored. No pattern → dayType 'any' → items pass through untouched, so
     // the scored day is byte-identical for every team without a pattern (parity contract).

@@ -7,6 +7,14 @@
 import * as roles from './roles.js';
 import { CATALOG, resolveRequirementSet, catalogFromItems } from './requirements.js';
 import { athleteStatus } from './status.js';
+import { effectiveRoomLabel } from './rooms.js';
+
+/* The position value a roster row resolves its standard against: the athlete's ASSIGNED room label
+   (0101) when set, else their raw position. Unassigned (every athlete until a coach assigns) → raw
+   position, byte-identical to before. */
+function resolvePos(row) {
+  return effectiveRoomLabel(row.roomId, (CD.extras && CD.extras.rooms) || []) || row.position;
+}
 
 /* Coach roster cache: null = not loaded (show loading), else { teams, rows } from real data.
    Fetched once on mount, repainted via window.__render; the athletes' scores are their own real
@@ -174,7 +182,7 @@ export function entriesFor(scope) {
     // resolveRequirementSet(sets, athleteId, position) → the governing SET row (or null), not a
     // reqs array — catalogFromItems maps its raw .items into the CATALOG-shaped requirements
     // athleteStatus expects. No configured set for this athlete → the built-in CATALOG governs.
-    const set = resolveRequirementSet(CD.extras.sets, row.athleteId, row.position);
+    const set = resolveRequirementSet(CD.extras.sets, row.athleteId, resolvePos(row));
     const reqs = set ? catalogFromItems(set.items) : CATALOG;
     const lc = localClock(row.timezone, nowMs) || { nowMin: coachMin, nowDow: coachDow };
     return {
@@ -227,7 +235,7 @@ export async function loadAthleteProfile(athleteId, force) {
       // its CATALOG fallback when no requirement set governs this athlete/position, and the same
       // athlete-local clock (their timezone; coach clock when none) so the profile header's status
       // agrees with the roster chip instead of drifting on the coach's device time.
-      const set = resolveRequirementSet(CD.extras.sets, row.athleteId, row.position);
+      const set = resolveRequirementSet(CD.extras.sets, row.athleteId, resolvePos(row));
       const reqs = set ? catalogFromItems(set.items) : CATALOG;
       const lc = localClock(row.timezone, nowMs)
         || { nowMin: now.getHours() * 60 + now.getMinutes(), nowDow: now.getDay() };
