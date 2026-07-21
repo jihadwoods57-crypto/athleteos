@@ -1,7 +1,8 @@
 # Paywall Event Schema
 
-**Status:** client surface events wired (2026-07-21); server-side lagging events and the sink are not yet live.
-**Owner:** founder decision needed on the sink URL + the store-notification webhook (see "Not yet wired").
+**Status (2026-07-21):** client + server code is wired. What remains is founder **ops** — deploying
+the two edge functions, applying migration 0102, and setting three env values (see "Founder ops to
+go live"). No more code is required to start collecting the funnel.
 
 The paywall research report's strongest structural finding is: *optimize the screen, but judge the
 system.* Surface conversion (trial starts) can rise while the money (proceeds, renewals, refunds)
@@ -58,29 +59,34 @@ Existing adjacent events already in the vocabulary: `onboarding_completed {role}
 
 ---
 
-## Server lagging events (NOT yet wired — the important half)
+## Server lagging events — WIRED via `revenuecat-webhook`
 
 These are **store truth** and cannot be trusted from the client (the client can't see a renewal, a
-refund, a cross-device restore, or a billing failure). They must be captured from:
+refund, a cross-device restore, or a billing failure). Rather than integrate Apple's App Store Server
+Notifications V2 and Google Play RTDN separately, we take them **through RevenueCat**, which the app
+already chose as its consumer-IAP aggregator (`src/lib/billing/portal.ts`, `_shared/plans.ts`). One
+normalized webhook covers both stores.
 
-- **iOS:** App Store Server Notifications V2 → a webhook → a `subscriptions` table. Reconcile with the
-  App Store Server API. Relevant notification types: `SUBSCRIBED` / `DID_RENEW` / `EXPIRED` /
-  `DID_FAIL_TO_RENEW` (→ billing issue) / `REFUND` / `GRACE_PERIOD_EXPIRED`.
-- **Android:** Google Play Real-time Developer Notifications (RTDN) via Pub/Sub → the same webhook →
-  call the Play Developer API for the full purchase state. Relevant: `SUBSCRIPTION_PURCHASED`,
-  `SUBSCRIPTION_RENEWED`, `SUBSCRIPTION_CANCELED`, `SUBSCRIPTION_ON_HOLD`, refund voided notifications.
+- Function: [`supabase/functions/revenuecat-webhook/index.ts`](../../supabase/functions/revenuecat-webhook/index.ts)
+  (mirrors `stripe-webhook`'s safety model: shared-secret auth, inert-503 until configured, service-role
+  is the only writer, 500-on-DB-error so events retry).
+- Mapping (unit-tested): [`supabase/functions/_shared/revenuecat.ts`](../../supabase/functions/_shared/revenuecat.ts).
+- Storage: the `subscriptions` table, extended for the consumer rail by migration **0102**
+  (`tier='consumer'`, `rc_app_user_id`, `store`, `store_product_id`).
+- Entitlement: [`src/core/subscription.ts`](../../src/core/subscription.ts) now recognizes the `consumer`
+  tier (`isPro`, `hasFeature`, `planLabel`, `billingRowCopy`), so a paid consumer row grants access.
 
-| Logical event | Source | Why it matters |
+| RevenueCat event | Row effect | Why it matters |
 |---|---|---|
-| `trial_converted` | first paid transaction after trial | the real conversion, vs the `trial_started` tap |
-| `renewal` (Renewal 1, N) | `DID_RENEW` / `SUBSCRIPTION_RENEWED` | Renewal 1 is the single most important early retention checkpoint |
-| `refund` | `REFUND` / refund notification | guards against misleading "wins" and pricing mismatch |
-| `billing_issue` | `DID_FAIL_TO_RENEW` / `ON_HOLD` | involuntary churn — recoverable, so worth its own signal |
-| `reactivation` | resubscribe after lapse | matters for episodic/seasonal use (an athlete between seasons) |
+| `INITIAL_PURCHASE` / `RENEWAL` / `PRODUCT_CHANGE` / `UNCANCELLATION` | `active` | the real conversion + renewals (Renewal 1 is the key retention checkpoint) |
+| `CANCELLATION` | `active` + `cancel_at_period_end` | auto-renew off; access to expiry — the moment to offer a save |
+| `BILLING_ISSUE` | `past_due` + `payment_failed_at` | involuntary churn (recoverable) — drives the "update your card" banner |
+| `SUBSCRIPTION_PAUSED` | `paused` | paused, no paid access, nothing deleted |
+| `EXPIRATION` | `canceled`, tier → `preview` | the real end / refund landing |
 
-These are keyed to the **billing account**, not the anonymous client session — they live server-side and
-never flow through the client PII firewall. Joining them to the client funnel is done on an anonymized
-cohort key, not on identity.
+These rows are keyed to the **billing account** (`owner_id` = profile UUID; the client sets the RevenueCat
+App User ID to that UUID), NOT the anonymous client session — they live server-side and never flow through
+the client PII firewall. Joining them to the client funnel is done on an anonymized cohort key, not identity.
 
 ---
 
@@ -107,17 +113,29 @@ why the annual anchor (now 30% off) leads the screen.
 
 ---
 
-## Not yet wired (founder decisions)
+## Founder ops to go live (no code left — just deploy + config)
 
-1. **Sink URL.** The client seam is **inert by default** — events buffer locally and nothing leaves the
-   device until `window.__ANALYTICS_SINK = { url }` is injected by the native shell (mirrors
-   `__SUPABASE`). Decision: point it at a Supabase edge function / table, or a product-analytics vendor
-   (Amplitude/Firebase). Until then the funnel is measurable only on-device.
-2. **Store-notification webhook.** Stand up the App Store Server Notifications V2 + Play RTDN endpoint
-   and the `subscriptions` table before billing go-live, or the entire bottom half of the dashboard is
-   blind. This is the gating dependency for judging any paywall A/B test on revenue quality.
-3. **Checkout rail.** Keep native (StoreKit / Play Billing). The report's Dipsea case earned only
-   **$0.93 per $1.00** when checkout moved to web — treat web billing as a tested exception, not a default.
+**A. Analytics sink** (client injection + function already exist; server whitelist synced 2026-07-21):
+1. `supabase functions deploy analytics-ingest`
+2. Set `EXPO_PUBLIC_ANALYTICS_URL` to that function's URL and ship an app build. Until set, the client
+   buffers locally and sends nothing (guardrail). That's the whole sink.
+
+**B. RevenueCat lagging-events webhook:**
+1. Apply migration `0102_consumer_iap_subscriptions.sql` to the live project (per the 0010/0102 guardrail,
+   the crew never applies it — the founder does at consumer go-live).
+2. `supabase secrets set REVENUECAT_WEBHOOK_SECRET=<long random string>` then
+   `supabase functions deploy revenuecat-webhook --no-verify-jwt`. Inert (503) until the secret is set.
+3. In RevenueCat → Integrations → Webhooks: URL = `<project>/functions/v1/revenuecat-webhook`, and set the
+   **Authorization** header value to the same secret.
+4. Create the store products (App Store Connect / Play Console) and map them in RevenueCat. Name them to
+   match `CONSUMER_PRODUCTS` in `_shared/revenuecat.ts` (e.g. `onstandard_individual_annual`) — or any name
+   containing the plan id, which the loose matcher resolves.
+5. **Store-launch native piece (separate):** the client must set the RevenueCat App User ID to the profile
+   UUID and present the purchase via the IAP SDK (`react-native-purchases`). Until that ships, the webhook
+   receives nothing because no purchases occur — but it's ready the moment they do.
+
+**Checkout rail:** keep native (StoreKit / Play Billing) — the report's Dipsea case earned only **$0.93
+per $1.00** when checkout moved to web. Treat web billing as a tested exception, not a default.
 
 ## A/B tests this schema unblocks (in the report's priority order)
 

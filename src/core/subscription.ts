@@ -12,8 +12,13 @@
 // below decide what's unlocked. Nothing here charges anyone.
 import type { Flow } from './types';
 
-/** preview = free beta; team = a paid coach/org plan. */
-export type PlanTier = 'preview' | 'team';
+/** preview = free beta; team = a paid coach/org plan (Stripe B2B); consumer = a paid
+ *  Individual/Family plan the athlete/parent buys via Apple/Google IAP (RevenueCat, 0102). */
+export type PlanTier = 'preview' | 'team' | 'consumer';
+/** The paid tiers (both unlock while active/past_due). preview is not paid. */
+export function isPaidTier(t: PlanTier): boolean {
+  return t === 'team' || t === 'consumer';
+}
 /** Lifecycle of a paid plan (preview accounts are simply 'preview'). 'paused' = the owner
  *  paused billing (Stripe pause_collection): the row and data stay, paid access does not. */
 export type PlanStatus = 'preview' | 'active' | 'past_due' | 'canceled' | 'paused';
@@ -57,9 +62,9 @@ export interface SubscriptionLike {
 /** Project a stored subscription row into the entitlement model. Null/garbage rows
  *  fall back to free preview (fail-safe — never accidentally grant paid access). */
 export function entitlementFromRow(row?: SubscriptionLike | null): Entitlement {
-  if (!row || row.tier !== 'team') return previewEntitlement();
+  if (!row || (row.tier !== 'team' && row.tier !== 'consumer')) return previewEntitlement();
   return normalizeEntitlement({
-    tier: 'team',
+    tier: row.tier,
     status: (row.status ?? 'preview') as PlanStatus,
     planId: row.plan_id ?? null,
     seats: row.seats ?? undefined,
@@ -72,7 +77,7 @@ export function entitlementFromRow(row?: SubscriptionLike | null): Entitlement {
 
 /** Normalize a possibly-partial/older persisted value back to a valid entitlement. */
 export function normalizeEntitlement(e?: Partial<Entitlement> | null): Entitlement {
-  if (!e || (e.tier !== 'team' && e.tier !== 'preview')) return previewEntitlement();
+  if (!e || (e.tier !== 'team' && e.tier !== 'preview' && e.tier !== 'consumer')) return previewEntitlement();
   const status: PlanStatus =
     e.status === 'active' || e.status === 'past_due' || e.status === 'canceled' || e.status === 'paused'
       ? e.status
@@ -93,14 +98,14 @@ export function normalizeEntitlement(e?: Partial<Entitlement> | null): Entitleme
  *  (a grace window — don't lock a coach out the instant a card fails); canceled, paused,
  *  and preview do not. The single gate the app should check, mirroring isBackendLive. */
 export function isPro(e: Entitlement): boolean {
-  return e.tier === 'team' && (e.status === 'active' || e.status === 'past_due');
+  return isPaidTier(e.tier) && (e.status === 'active' || e.status === 'past_due');
 }
 
 /** Dunning surface: true when the plan needs a billing fix NOW (card failed / payment due).
  *  Drives the "update your card" banner — separate from isPro because access continues
  *  through the grace window while the banner shows. */
 export function needsBillingAttention(e: Entitlement): boolean {
-  return e.tier === 'team' && e.status === 'past_due';
+  return isPaidTier(e.tier) && e.status === 'past_due';
 }
 
 // ---------------------------------------------------------------- feature entitlements
@@ -140,12 +145,20 @@ export const FREE_ROSTER_LIMIT = 3;
 // this map.) A team plan that lapses (canceled) falls back to the free set.
 const FEATURES_BY_TIER: Record<PlanTier, ReadonlySet<FeatureKey>> = {
   preview: new Set<FeatureKey>(['dev_score', 'meal_analysis', 'daily_game_plan']),
+  // A paid consumer (athlete/parent) unlocks the full athlete-facing set — the core loop plus AI
+  // coach, restaurant intel, weekly insights, and the premium add-ons — but not the B2B roster
+  // tools (client dashboard, groups, reports, white-label), which only a team plan grants.
+  consumer: new Set<FeatureKey>([
+    'dev_score', 'meal_analysis', 'daily_game_plan',
+    'ai_coach', 'restaurant_intel', 'weekly_insights',
+    'deep_dive', 'recruiting_record',
+  ]),
   team: new Set<FeatureKey>(FEATURE_KEYS),
 };
 
-/** The tier whose features are actually in force (a canceled team plan reverts to free). */
+/** The tier whose features are actually in force (a lapsed paid plan reverts to free preview). */
 function effectiveTier(e: Entitlement): PlanTier {
-  return isPro(e) ? 'team' : 'preview';
+  return isPro(e) ? e.tier : 'preview';
 }
 
 /** The single feature gate. Replaces ad-hoc isPro() checks at call sites so the eventual
@@ -159,14 +172,24 @@ export function entitlementFeatures(e: Entitlement): FeatureKey[] {
   return FEATURE_KEYS.filter((k) => hasFeature(e, k));
 }
 
+/** Friendly name for a consumer plan id (individual / individual_plus / family). */
+function consumerPlanName(planId?: string | null): string {
+  switch (planId) {
+    case 'individual_plus': return 'Individual+';
+    case 'family': return 'Family';
+    default: return 'Individual';
+  }
+}
+
 /** Short status label for chips/headers. */
 export function planLabel(e: Entitlement): string {
-  if (e.tier !== 'team') return 'Free preview';
+  if (e.tier === 'preview') return 'Free preview';
+  const base = e.tier === 'consumer' ? consumerPlanName(e.planId) : 'Team';
   switch (e.status) {
-    case 'active': return e.cancelAtPeriodEnd ? 'Team · ending soon' : 'Team plan';
-    case 'past_due': return 'Team · payment due';
-    case 'paused': return 'Team · paused';
-    case 'canceled': return 'Team · canceled';
+    case 'active': return e.cancelAtPeriodEnd ? `${base} · ending soon` : (e.tier === 'consumer' ? base : 'Team plan');
+    case 'past_due': return `${base} · payment due`;
+    case 'paused': return `${base} · paused`;
+    case 'canceled': return `${base} · canceled`;
     default: return 'Free preview';
   }
 }
@@ -184,6 +207,27 @@ export interface BillingRowCopy {
  */
 export function billingRowCopy(e: Entitlement, flow: Flow): BillingRowCopy {
   const overseer = flow === 'coach' || flow === 'trainer';
+  // Consumer (athlete/parent paying for their own Individual/Family plan via the store).
+  if (e.tier === 'consumer') {
+    const name = consumerPlanName(e.planId);
+    const renew = e.renewsAt ? `Renews ${e.renewsAt}. ` : '';
+    switch (e.status) {
+      case 'active':
+        if (e.cancelAtPeriodEnd) {
+          const until = e.renewsAt ? `until ${e.renewsAt}` : 'until the period ends';
+          return { hint: 'Ending soon', detail: `Your ${name} plan is set to end ${until}. You keep full access until then. Resubscribe any time from your store subscriptions.` };
+        }
+        return { hint: name, detail: `${renew}You're on the ${name} plan. Manage or cancel any time from your App Store or Google Play subscriptions.` };
+      case 'past_due':
+        return { hint: 'Payment due', detail: `Your last payment didn't go through. Update your payment method in your store subscriptions to keep ${name} access.` };
+      case 'paused':
+        return { hint: 'Paused', detail: `Your ${name} plan is paused, so paid features are off but nothing was deleted. Resume from your store subscriptions.` };
+      case 'canceled':
+        return { hint: 'Canceled', detail: `Your ${name} plan is canceled. Resubscribe any time to restore paid features.` };
+      default:
+        return { hint: 'Free preview', detail: 'OnStandard is in free preview.' };
+    }
+  }
   if (e.tier !== 'team') {
     return {
       hint: 'Free preview',

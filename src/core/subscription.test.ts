@@ -139,11 +139,66 @@ describe('billingRowCopy', () => {
   });
   it('never uses an em dash (account copy ban)', () => {
     for (const flow of ['app', 'coach', 'trainer', 'parent'] as const) {
-      for (const e of [previewEntitlement(), { tier: 'team', status: 'active', seats: 5 }, { tier: 'team', status: 'past_due', seats: 5 }, { tier: 'team', status: 'paused', seats: 5 }, { tier: 'team', status: 'active', seats: 5, cancelAtPeriodEnd: true }, { tier: 'team', status: 'canceled' }] as Entitlement[]) {
+      for (const e of [
+        previewEntitlement(),
+        { tier: 'team', status: 'active', seats: 5 }, { tier: 'team', status: 'past_due', seats: 5 },
+        { tier: 'team', status: 'paused', seats: 5 }, { tier: 'team', status: 'active', seats: 5, cancelAtPeriodEnd: true },
+        { tier: 'team', status: 'canceled' },
+        { tier: 'consumer', status: 'active', planId: 'individual' },
+        { tier: 'consumer', status: 'past_due', planId: 'family' },
+        { tier: 'consumer', status: 'paused', planId: 'individual_plus' },
+        { tier: 'consumer', status: 'active', planId: 'family', cancelAtPeriodEnd: true, renewsAt: '2026-08-01' },
+        { tier: 'consumer', status: 'canceled', planId: 'individual' },
+      ] as Entitlement[]) {
         const c = billingRowCopy(e, flow);
         expect(c.hint).not.toContain('—');
         expect(c.detail).not.toContain('—');
       }
     }
+  });
+});
+
+describe('consumer IAP tier (RevenueCat rail)', () => {
+  it('an active consumer plan is pro; past_due keeps access; canceled/paused do not', () => {
+    expect(isPro({ tier: 'consumer', status: 'active' })).toBe(true);
+    expect(isPro({ tier: 'consumer', status: 'past_due' })).toBe(true);
+    expect(isPro({ tier: 'consumer', status: 'canceled' })).toBe(false);
+    expect(isPro({ tier: 'consumer', status: 'paused' })).toBe(false);
+    expect(needsBillingAttention({ tier: 'consumer', status: 'past_due' })).toBe(true);
+  });
+  it('maps a consumer row (individual+/family) into the entitlement', () => {
+    const e = entitlementFromRow({
+      tier: 'consumer', status: 'active', seats: null, seats_used: null, current_period_end: '2026-08-01',
+      plan_id: 'individual_plus', cancel_at_period_end: false, payment_failed_at: null,
+    });
+    expect(e.tier).toBe('consumer');
+    expect(e.planId).toBe('individual_plus');
+    expect(isPro(e)).toBe(true);
+  });
+  it('unlocks the athlete-facing paid set but NOT the B2B roster tools', () => {
+    const c: Entitlement = { tier: 'consumer', status: 'active', planId: 'individual' };
+    expect(hasFeature(c, 'ai_coach')).toBe(true);
+    expect(hasFeature(c, 'weekly_insights')).toBe(true);
+    expect(hasFeature(c, 'recruiting_record')).toBe(true);
+    expect(hasFeature(c, 'client_dashboard')).toBe(false);
+    expect(hasFeature(c, 'groups')).toBe(false);
+    expect(hasFeature(c, 'white_label')).toBe(false);
+  });
+  it('a canceled consumer plan reverts to the free core loop', () => {
+    expect(hasFeature({ tier: 'consumer', status: 'canceled', planId: 'individual' }, 'ai_coach')).toBe(false);
+    expect(hasFeature({ tier: 'consumer', status: 'canceled', planId: 'individual' }, 'dev_score')).toBe(true);
+  });
+  it('labels consumer plans by name', () => {
+    expect(planLabel({ tier: 'consumer', status: 'active', planId: 'individual' })).toBe('Individual');
+    expect(planLabel({ tier: 'consumer', status: 'active', planId: 'family' })).toBe('Family');
+    expect(planLabel({ tier: 'consumer', status: 'active', planId: 'individual_plus', cancelAtPeriodEnd: true })).toBe('Individual+ · ending soon');
+    expect(planLabel({ tier: 'consumer', status: 'past_due', planId: 'individual' })).toBe('Individual · payment due');
+  });
+  it('billing row: a paying athlete sees their own store-managed plan', () => {
+    const c = billingRowCopy({ tier: 'consumer', status: 'active', planId: 'individual', renewsAt: '2026-08-01' }, 'app');
+    expect(c.hint).toBe('Individual');
+    expect(c.detail.toLowerCase()).toContain('app store');
+    const due = billingRowCopy({ tier: 'consumer', status: 'past_due', planId: 'family' }, 'app');
+    expect(due.hint).toBe('Payment due');
   });
 });

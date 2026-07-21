@@ -86,9 +86,10 @@ export type OrgMembershipRow = {
  *  added in 0042. */
 export type SubscriptionRow = {
   owner_id: string;
-  tier: 'preview' | 'team';
+  /** preview = free beta; team = B2B coach/org (Stripe); consumer = Individual/Family IAP (0102). */
+  tier: 'preview' | 'team' | 'consumer';
   status: 'preview' | 'active' | 'past_due' | 'canceled' | 'paused';
-  /** Which catalog plan was bought (pro_solo / professional / org_*). Null pre-0042. */
+  /** Which catalog plan was bought (pro_solo / professional / org_* / individual / family). Null pre-0042. */
   plan_id: string | null;
   seats: number | null;
   seats_used: number | null;
@@ -99,6 +100,10 @@ export type SubscriptionRow = {
   payment_failed_at: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  /** RevenueCat linkage for the consumer IAP rail (0102); null on preview/team rows. */
+  rc_app_user_id?: string | null;
+  store?: 'app_store' | 'play_store' | null;
+  store_product_id?: string | null;
   updated_at: string;
 }
 
