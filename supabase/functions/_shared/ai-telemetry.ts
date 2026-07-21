@@ -27,6 +27,7 @@ export interface AiCallRecord {
   latencyMs?: number | null;  // wall-clock around the Anthropic call
   ok?: boolean;               // false for a failed/again upstream call
   errorCode?: string | null;  // short tag on failure (e.g. 'upstream_error'); null on success
+  outcome?: string | null;    // verifier effectiveness: 'no_change'|'macros_moved'|'allergen_caught'
 }
 
 // Pull the four token counts off an Anthropic SDK `message.usage` object into our record shape.
@@ -68,6 +69,7 @@ export async function recordAiCall(rec: AiCallRecord): Promise<void> {
       latency_ms: rec.latencyMs ?? null,
       ok: rec.ok ?? true,
       error_code: rec.errorCode ?? null,
+      outcome: rec.outcome ?? null,
     });
     if (error) console.error('ai-telemetry insert error:', error.message);
   } catch (e) {
