@@ -459,7 +459,10 @@ function execCatalog() {
     return {
       id: k, title: (std.titles && std.titles[k]) || (base ? base.title : cap(k.replace('-', ' '))),
       icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
-      freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k), grace: slotGrace(k) }, required: true,
+      freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k), grace: slotGrace(k) },
+      // Snack-optional (0100/0086): a snack slot is loggable but not required — it never reads
+      // overdue and drops out of the denominator. Every other slot stays required (parity).
+      required: !(std.optional && std.optional.includes(k)),
       impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: base ? base.note : '',
     };
   });
@@ -2232,7 +2235,8 @@ export const S = {
           const title = (RT.stdMeals.titles && RT.stdMeals.titles[k]) || (base ? base.title : cap(k.replace('-', ' ')));
           return {
             id: k, title, icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
-            freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) }, required: true,
+            freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) },
+            required: !(RT.stdMeals.optional && RT.stdMeals.optional.includes(k)), // snack slot = optional
             impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
             note: base ? base.note : 'Photo proof — part of your room standard.',
           };

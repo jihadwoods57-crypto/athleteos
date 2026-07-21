@@ -512,6 +512,9 @@ export function knobsFromItems(items) {
     grace: typeof (mealItems[0] || {}).grace === 'number' ? mealItems[0].grace : 0,
     latePolicy: ((mealItems[0] || {}).latePolicy === 'full' || (mealItems[0] || {}).latePolicy === 'none') ? mealItems[0].latePolicy : 'half',
     coachReview: !!(mealItems[0] || {}).coachReview,
+    // Snack-optional: the meal on the snack slot (index 2, present only at 4+ meals) is bonus, not
+    // required. Read back from that item's flag so the toggle reflects the saved standard.
+    snackOptional: mealItems.length >= 4 && !!(mealItems[2] || {}).snack,
   };
 }
 // Shared fallback logic for meal names/windows — render() uses this too, so what's shown
@@ -540,6 +543,8 @@ export function itemsFromKnobs(k) {
     if (grace > 0) meal.grace = grace;
     if (latePolicy) meal.latePolicy = latePolicy;
     if (k.coachReview) meal.coachReview = true;
+    // Snack-optional: mark the snack-slot meal (index 2, only meaningful at 4+ meals) as a bonus.
+    if (k.snackOptional && k.meals >= 4 && i === 2) meal.snack = true;
     items.push(meal);
   });
   if (k.lifts > 0) items.push({
@@ -695,6 +700,7 @@ export const coachPlanSet = {
           <div class="std-sw-m"><div class="std-sw-t">Photo proof</div><div class="std-sw-s">Off = tap-to-check, no photo required</div></div>
           ${sw(KNOB.photoProof, 'photo')}
         </div>
+        ${KNOB.meals >= 4 ? swRow('Snack is optional', 'Loggable for bonus, but never counts against the score', 'snack', KNOB.snackOptional) : ''}
       </section>
 
       <section class="std-mod">
@@ -828,6 +834,7 @@ export const coachPlanSet = {
       if (k === 'hydration') KNOB.hydration = tog(KNOB.hydration);
       if (k === 'photo') KNOB.photoProof = tog(KNOB.photoProof);
       if (k === 'review') KNOB.coachReview = tog(KNOB.coachReview);
+      if (k === 'snack') KNOB.snackOptional = tog(KNOB.snackOptional);
       if (k === 'hydoz') KNOB.hydrationOz = +arg;
       if (k === 'grace') KNOB.grace = +arg;
       if (k === 'late') KNOB.latePolicy = arg;

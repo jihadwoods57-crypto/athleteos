@@ -167,6 +167,10 @@ export function stdFromItems(items) {
   const titles = /** @type {Record<string, string>} */ ({});
   const grace = /** @type {Record<string, number>} */ ({});
   const latePolicy = /** @type {Record<string, string>} */ ({});
+  // Snack-optional (0086 item.snack): slot keys that are loggable but NOT required — they earn
+  // credit when logged (day.js numerator) yet never count against the athlete (out of the
+  // denominator, and required:false in the exec catalog so they can't read overdue).
+  const optional = /** @type {string[]} */ ([]);
   slots.forEach((k, i) => {
     const it = mealItems[i] || {};
     if (it.window && it.window.due != null) deadlines[k] = it.window.due;
@@ -175,8 +179,14 @@ export function stdFromItems(items) {
     // engine (day.js slotGrace/slotLateCredit). Absent = the classic on-time/half-credit rule.
     if (typeof it.grace === 'number' && it.grace >= 0) grace[k] = Math.min(240, Math.round(it.grace));
     if (it.latePolicy === 'full' || it.latePolicy === 'none' || it.latePolicy === 'half') latePolicy[k] = it.latePolicy;
+    if (it.snack === true) optional.push(k);
   });
-  return { mealsRequired: m, slots, deadlines, titles, grace, latePolicy };
+  // Denominator = the REQUIRED meals only. PARITY: no snack-flagged item → requiredCount === m, so
+  // mealsRequired is byte-identical to before. A standard that marks every meal a snack keeps 1
+  // required (never divide by zero).
+  const requiredCount = mealItems.filter(it => it.snack !== true).length;
+  const mealsRequired = Math.min(6, Math.max(1, requiredCount || m));
+  return { mealsRequired, slots, deadlines, titles, grace, latePolicy, optional };
 }
 
 /* ---- Day-type resolution (0086 item.dayType + 0100 team_week_pattern) ----
