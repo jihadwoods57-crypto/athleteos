@@ -1,13 +1,15 @@
-import { S, RT, act } from '../state.js';
+import { S, RT, act, fmtClock, nutritionConfigForGoal } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, titleHead, esc, composer, sparkline, emptyState, errorState, skeletonRows } from '../components.js';
 import { coachSetupState, coachSetupSteps } from './coach-home.js';
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
-import { CD, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor } from '../coach-data.js';
+import { CD, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin } from '../requirements.js';
+import { dayFromHistoryRow, minutesNow, MEAL_KEYS } from '../day.js';
+import { explainCategories } from '../breakdown-model.js';
 import { seedTemplates, templateLabel } from '../templates.js';
 import { canEditStandards } from '../staff-access.js';
 import { categorizeInbox, inboxAlerts } from '../inbox.js';
@@ -1357,9 +1359,88 @@ let PSEC_FOR = null;
 // recorded a receipt for; reset naturally happens by comparing against the new athleteId.
 let VIEWED_FOR = null;
 const PROFILE_SECTIONS = [
-  ['overview', 'Overview'], ['today', 'Today'], ['activity', 'Activity'],
+  ['overview', 'Overview'], ['today', 'Today'], ['score', 'Score'], ['activity', 'Activity'],
   ['conversation', 'Conversation'], ['requirements', 'Requirements'], ['notes', 'Notes'],
 ];
+
+/* Coach-side score explainability (Tier 2, 2026-07-21): the SAME per-category breakdown the
+   athlete sees on their own Score screen — why this athlete's day scores what it does — built
+   from the same explainCategories engine. Correctness guard: the athlete's day is reconstructed
+   with THEIR OWN standard (resolveRequirementSet → stdFromItems) and THEIR OWN nutrition config
+   (nutritionConfigForGoal off athlete_profiles), both passed EXPLICITLY into the scoring engine,
+   so a coach's device standard/targets can never leak into another athlete's score. No scoring
+   math is defined here; this reads the engine, it doesn't reweigh it. */
+const CAT_ROW_STATE = {
+  done: { cls: 'g', ic: 'check' }, late: { cls: 'a', ic: 'clock' }, open: { cls: 'b', ic: 'chevron' },
+  overdue: { cls: 'r', ic: 'clock' }, flagged: { cls: 'a', ic: 'alert' }, info: { cls: 'muted', ic: 'info' },
+};
+function coachCatCard(b) {
+  const st = (s) => CAT_ROW_STATE[s] || CAT_ROW_STATE.info;
+  return `
+  <details class="bd-cat" data-cat="${b.id}">
+    <summary class="bd-row">
+      <div class="bd-top">
+        <span class="bd-name">${esc(b.key)} <span class="bd-weight">${b.weightPct}% of score</span></span>
+        <span class="bd-val">${b.earned}<small>/${b.possible}</small></span>
+      </div>
+      <div class="bd-bar"><div class="bd-fill ${b.accent}" style="width:${b.possible ? Math.round(b.earned / b.possible * 100) : 0}%"></div></div>
+      <div class="bd-note">${esc(b.note)}</div>
+      <span class="bd-chev">${icon('chevron', 14)}</span>
+    </summary>
+    <div class="bd-detail">
+      ${b.rows.map(r => `
+        <div class="bd-req">
+          <span class="bd-req-dot ${st(r.state).cls}"></span>
+          <div class="bd-req-main"><div class="t">${esc(r.label)}</div>${r.sub ? `<div class="s">${esc(r.sub)}</div>` : ''}</div>
+          ${r.value ? `<div class="bd-req-val">${esc(r.value)}</div>` : ''}
+        </div>`).join('')}
+      <div class="bd-remaining-note">${esc(b.remainingNote)}</div>
+    </div>
+  </details>`;
+}
+function scoreSection(P, athleteId) {
+  const row = P.day; // raw days row (snake_case) or null when they have no day today
+  if (!row) return `
+  <div class="sidebox" style="margin-top:4px"><div class="req-icon a" style="width:38px;height:38px">${icon('clock', 17)}</div>
+  <div><div class="tt">No score to break down yet</div><div class="ts">They haven't logged today. The category breakdown appears here once their day has something in it.</div></div></div>`;
+  // Reconstruct the athlete's OWN standard + nutrition config — never this coach device's.
+  const set = resolveRequirementSet(CD.extras && CD.extras.sets, athleteId, P.row && P.row.position);
+  const std = set ? stdFromItems(set.items) : null;
+  const b = P.basics || {};
+  const cfg = nutritionConfigForGoal(b.base_goal, b.base_weight, b.targets);
+  // Map the snake_case days row into the shape dayFromHistoryRow reads, and score it against the
+  // athlete's config (not the device DAY's). checkin/meals default to {} in the schema, so a real
+  // row always projects; a null row is handled above.
+  const mapped = { date: row.date, meals: row.meals || {}, checkin: row.checkin || {}, quickAdded: row.quick_added || [], hydrationL: row.hydration_l || 0, weight: row.current_weight };
+  const day = dayFromHistoryRow(mapped, cfg);
+  if (!day) return `
+  <div class="sidebox" style="margin-top:4px"><div class="req-icon b" style="width:38px;height:38px">${icon('info', 17)}</div>
+  <div><div class="tt">Breakdown unavailable</div><div class="ts">This day was logged before detailed scoring data was captured, so it can't be broken down. Their score still stands.</div></div></div>`;
+  const slots = std ? std.slots : MEAL_KEYS;
+  // Judge "open/overdue/due" in the ATHLETE's local day (timezone), falling back to coach clock.
+  const lc = localClock(P.row && P.row.timezone, Date.now());
+  const nowMin = lc ? lc.nowMin : minutesNow();
+  const cats = explainCategories(day, {
+    slots,
+    denom: std ? std.mealsRequired : 4,
+    titles: std ? std.titles : {},
+    optional: std ? (std.optional || []) : ['snack'],
+    nowMin, fmtClock, std,
+  });
+  const score = row.score != null ? row.score : null;
+  const first = ((P.row && P.row.name) || 'This athlete').split(' ')[0];
+  return `
+  <div class="co-tiles two" style="margin-top:4px">
+    <div class="co-stat"><div class="v" style="color:${scoreColor(score)}">${score != null ? score : '—'}</div><div class="k">Score today</div></div>
+    <div class="co-stat"><div class="v">${cfg.scoringProfile === 'gain' ? 'Gain' : cfg.scoringProfile === 'general' ? 'General' : 'Athlete'}</div><div class="k">Scoring profile</div></div>
+  </div>
+  <div class="co-eyebrow" style="margin-top:14px">Why ${esc(first)}'s day scores this</div>
+  <section class="card bd-comp" style="padding:2px 16px">
+    ${cats.map(coachCatCard).join('')}
+  </section>
+  <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Graded against ${esc(first)}'s own standard and ${cfg.proteinTarget}g protein${cfg.scoringProfile !== 'athlete' ? ` / ${cfg.calTarget} kcal` : ''} target — the same numbers they're scored on. Reflects today; past days keep the score they earned.</div>
+  <div style="height:10px"></div>`;
+}
 function lastActivityLabel(iso) {
   if (!iso) return null;
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
@@ -1692,6 +1773,7 @@ export const coachAthlete = {
       <div style="height:10px"></div>`;
     }
     const body = PSECTION === 'overview' ? overviewSection(P) : PSECTION === 'today' ? todaySection(P)
+      : PSECTION === 'score' ? scoreSection(P, athleteId)
       : PSECTION === 'activity' ? activitySection(P) : PSECTION === 'conversation' ? conversationSection(P)
       : PSECTION === 'requirements' ? requirementsSection(P, athleteId) : notesSection(P);
     return `

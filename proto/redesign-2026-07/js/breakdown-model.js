@@ -148,9 +148,12 @@ const CI_LABELS = {
 
 /** Category cards: name, weight, earned/possible, plain-language result, exact remaining
  *  ("up to" vs guaranteed), and requirement-by-requirement rows for the expanded view. */
-export function explainCategories(day, { slots, denom, titles = {}, optional = [], nowMin, fmtClock }) {
+export function explainCategories(day, { slots, denom, titles = {}, optional = [], nowMin, fmtClock, std }) {
   const w = weightsFor(day);
-  const c = computeComponents(day);
+  // std defaults (undefined) to day.js's module global — byte-identical for the athlete's own
+  // breakdown. A coach viewing another athlete passes that athlete's reconstructed standard so
+  // deadlines/grace/late-credit read the athlete's windows, not the coach device's.
+  const c = computeComponents(day, std);
   const target = day.proteinTarget > 0 ? day.proteinTarget : 180;
   const remP = proteinRemaining(day, slots);
   const pMax = (frac) => Math.round(w.nutrition * 100 * frac); // category ceilings in score points
@@ -160,21 +163,21 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
   const nutriEarned = Math.round(w.nutrition * c.nutrition);
   const loggedSlots = slots.filter((k) => mealScored(day, k));
   const openSlots = slots.filter((k) => !mealScored(day, k));
-  const lateCount = loggedSlots.filter((k) => (day.mealLoggedAt || {})[k] != null && day.mealLoggedAt[k] > slotDeadline(k) + slotGrace(k)).length;
+  const lateCount = loggedSlots.filter((k) => (day.mealLoggedAt || {})[k] != null && day.mealLoggedAt[k] > slotDeadline(k, std) + slotGrace(k, std)).length;
   const title = (k) => titles[k] || k.charAt(0).toUpperCase() + k.slice(1).replace('-', ' ');
   const mealRows = slots.map((k) => {
-    const due = slotDeadline(k);
+    const due = slotDeadline(k, std);
     if (mealScored(day, k)) {
       const at = (day.mealLoggedAt || {})[k];
-      const late = at != null && at > due + slotGrace(k);
+      const late = at != null && at > due + slotGrace(k, std);
       const g = (day.slotMacros && day.slotMacros[k] && day.slotMacros[k].protein) || 0;
-      return { label: title(k), sub: `Logged ${at != null ? fmtClock(at) : ''}${late ? ` · ${lateBadge(slotLateCredit(k))}` : ' · on time'}`, value: `${g} g protein`, state: late ? 'late' : 'done' };
+      return { label: title(k), sub: `Logged ${at != null ? fmtClock(at) : ''}${late ? ` · ${lateBadge(slotLateCredit(k, std))}` : ' · on time'}`, value: `${g} g protein`, state: late ? 'late' : 'done' };
     }
     const dupped = day.meals && day.meals[k] && day.slotMacros && day.slotMacros[k] && day.slotMacros[k].flagged === 'dup';
     if (dupped) return { label: title(k), sub: 'Duplicate photo — logged, not scored', value: '0 pts', state: 'flagged' };
     const opt = optional.includes(k);
-    const late = !opt && nowMin > due + slotGrace(k);
-    const credit = slotLateCredit(k);
+    const late = !opt && nowMin > due + slotGrace(k, std);
+    const credit = slotLateCredit(k, std);
     return {
       label: title(k),
       sub: opt ? 'Optional — counts whenever you log it'
@@ -193,10 +196,10 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
   const requiredOpen = openSlots.filter((k) => !optional.includes(k));
   if (!loggedSlots.length) nutriNote = `No meals logged yet · ${denom} count today`;
   else {
-    const nextOpen = requiredOpen.find((k) => nowMin <= slotDeadline(k)) || requiredOpen[0];
+    const nextOpen = requiredOpen.find((k) => nowMin <= slotDeadline(k, std)) || requiredOpen[0];
     const parts = [`${loggedSlots.length} of ${denom} meals completed`];
     if (lateCount) parts.push(`${lateCount} late (half credit)`);
-    if (nextOpen) parts.push(nowMin > slotDeadline(nextOpen) ? `${title(nextOpen)} overdue` : `${title(nextOpen)} due ${fmtClock(slotDeadline(nextOpen))}`);
+    if (nextOpen) parts.push(nowMin > slotDeadline(nextOpen, std) ? `${title(nextOpen)} overdue` : `${title(nextOpen)} due ${fmtClock(slotDeadline(nextOpen, std))}`);
     else if (openSlots.length) parts.push(`${title(openSlots[0])} still available`);
     nutriNote = parts.join(' · ');
   }

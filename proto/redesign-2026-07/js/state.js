@@ -483,6 +483,22 @@ function goalDerivedTargets(goal, bodyweightLb) {
     default:                        return { proteinTarget: GOAL_PROTEIN_DEFAULT, calTarget: GOAL_CAL_DEFAULT };
   }
 }
+/* The athlete's nutrition scoring config from their goal + bodyweight + coach-set targets — the
+   ONE source both the athlete's own hydrate (applyGoalToDay) and the coach-side score breakdown
+   read, so a coach viewing an athlete grades their day exactly as the athlete is graded. A
+   coach/trainer target (athlete_profiles.targets) wins over the goal-derived default; no goal →
+   the shipped athlete defaults (never another athlete's device values). Pure + exported for the
+   coach reconstruction. */
+export function nutritionConfigForGoal(goal, bodyweightLb, targets) {
+  if (!goal) return { scoringProfile: 'athlete', proteinTarget: GOAL_PROTEIN_DEFAULT, calTarget: GOAL_CAL_DEFAULT };
+  const derived = goalDerivedTargets(goal, bodyweightLb > 0 ? +bodyweightLb : GOAL_BW_DEFAULT);
+  const t = targets || {};
+  return {
+    scoringProfile: scoringProfileForGoal(goal),
+    proteinTarget: t.protein > 0 ? +t.protein : derived.proteinTarget,
+    calTarget: t.calories > 0 ? +t.calories : derived.calTarget,
+  };
+}
 /* Derive the athlete's scoring profile + calorie/protein targets from their real goal (server
    baseGoal, else the onboarding scratch) and body weight, and push them onto the live DAY so the
    score honors what they signed up for. A coach/trainer-set target (athlete_profiles.targets)
@@ -494,11 +510,9 @@ function applyGoalToDay() {
   const bw = (p.baseWeight != null ? +p.baseWeight : 0)
     || (RT.ob && RT.ob.currentWeight ? +RT.ob.currentWeight : 0)
     || (DAY.currentWeight != null ? +DAY.currentWeight : 0) || GOAL_BW_DEFAULT;
-  const derived = goalDerivedTargets(goal, bw);
-  const t = p.targets || {};
-  const proteinTarget = (t.protein > 0 ? +t.protein : derived.proteinTarget);
-  const calTarget = (t.calories > 0 ? +t.calories : derived.calTarget);
-  setDayGoalConfig(scoringProfileForGoal(goal), proteinTarget, calTarget);
+  // ONE derivation, shared with the coach breakdown (nutritionConfigForGoal) so they never drift.
+  const cfg = nutritionConfigForGoal(goal, bw, p.targets);
+  setDayGoalConfig(cfg.scoringProfile, cfg.proteinTarget, cfg.calTarget);
 }
 
 /* ---------------- Actions ---------------- */

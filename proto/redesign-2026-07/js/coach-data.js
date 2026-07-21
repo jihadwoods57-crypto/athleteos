@@ -153,7 +153,7 @@ export function scopeFilter(rows, scope) {
  *  (logic-audit P0-1). Null/absent tz or any failure → null and the caller falls back to the coach
  *  clock, so a pre-0088 roster or an athlete who hasn't captured a tz is completely unaffected.
  *  nowMs stays absolute (the coach's real instant); only the wall-clock projection changes. */
-function localClock(tz, nowMs) {
+export function localClock(tz, nowMs) {
   if (!tz) return null;
   try {
     const p = new Intl.DateTimeFormat('en-US', {
@@ -211,13 +211,14 @@ export async function loadAthleteProfile(athleteId, force) {
     if (!CD.roster) await loadCoachRoster();           // need the row + extras (sets/exceptions)
     const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
     const since30 = roles.daysAgoISO(30);
-    const [day, meals, trustPass, interventions, assignments, notes] = await Promise.all([
+    const [day, meals, trustPass, interventions, assignments, notes, basics] = await Promise.all([
       roles.fetchDay(athleteId, roles.todayISO()),
       roles.fetchRecentMeals(athleteId, since30),
       roles.fetchActiveTrustPass(athleteId),
       roles.fetchAthleteInterventions(teamId, athleteId, since30),
       roles.fetchAthleteAssignments(athleteId, since30),
       roles.fetchCoachNotes(teamId, athleteId),
+      roles.fetchAthleteBasics(athleteId), // base_goal/base_weight/targets → the score breakdown's nutrition config
     ]);
     const photos = {};
     await Promise.all((meals || []).slice(0, 12).filter(m => m.photo_path).map(async (m) => {
@@ -247,7 +248,7 @@ export async function loadAthleteProfile(athleteId, force) {
     }
     if (gen !== profileGen) return;                    // a newer load superseded us
     PROFILE = { athleteId, day, meals: meals || [], photos, trustPass,
-      interventions, assignments, notes, exceptions, row, status, offline: false };
+      interventions, assignments, notes, exceptions, row, status, basics, offline: false };
     // Receipt moved to the screen's mount(), where a real viewer id (RT.userId/S.coachIdentity)
     // is actually available — this loader has no viewer identity to write, so a call here was
     // a silent no-op (markDayViewed short-circuits without viewerId). See coach.js coachAthlete.mount.

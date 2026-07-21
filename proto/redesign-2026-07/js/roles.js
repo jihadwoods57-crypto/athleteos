@@ -262,12 +262,16 @@ export async function fetchAthleteTargets(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
   try { const { data } = await c.from('athlete_profiles').select('targets').eq('athlete_id', athleteId).maybeSingle(); return (data && data.targets) || null; } catch { return null; }
 }
-/** Coach-visible athlete basics for target suggestions (can_view-scoped). Best-effort null. */
+/** Coach-visible athlete basics for target suggestions + the score breakdown's nutrition config
+ *  (can_view-scoped; ap_read gates this on the coach being linked). base_goal + base_weight +
+ *  coach-set targets are exactly what nutritionConfigForGoal needs to reconstruct the athlete's
+ *  OWN scoring profile/targets, so the coach breakdown grades their day the way they're really
+ *  graded — never the coach device's defaults. Best-effort null. */
 export async function fetchAthleteBasics(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
   try {
     const { data } = await c.from('athlete_profiles')
-      .select('base_weight,position,sport,targets').eq('athlete_id', athleteId).maybeSingle();
+      .select('base_weight,base_goal,position,sport,targets').eq('athlete_id', athleteId).maybeSingle();
     return data || null;
   } catch { return null; }
 }

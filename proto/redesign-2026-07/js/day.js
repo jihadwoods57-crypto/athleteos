@@ -68,39 +68,39 @@ export function setDayGoalConfig(profile, proteinTarget, calTarget) {
   if (calTarget > 0) DAY.calTarget = Math.round(calTarget);
 }
 /** A slot's deadline: the standard's window when set, else the classic map, else end of day. */
-export function slotDeadline(k) {
-  if (STD && STD.deadlines && STD.deadlines[k] != null) return STD.deadlines[k];
+export function slotDeadline(k, std = STD) {
+  if (std && std.deadlines && std.deadlines[k] != null) return std.deadlines[k];
   return DEADLINE[k] != null ? DEADLINE[k] : 1440;
 }
 /** Grace minutes for a slot — a meal logged within deadline+grace still counts on-time. A
  *  standard with no grace (every shipped standard + the classic day) is 0, so scoring stays
  *  byte-identical to the parity-locked engine. */
-export function slotGrace(k) {
-  return (STD && STD.grace && typeof STD.grace[k] === 'number') ? STD.grace[k] : 0;
+export function slotGrace(k, std = STD) {
+  return (std && std.grace && typeof std.grace[k] === 'number') ? std.grace[k] : 0;
 }
 /** Credit a slot earns when logged past deadline+grace: half (shipped default), full (the coach
  *  forgives lateness), or none (a hard window). Exported so the score breakdown explains lateness
  *  with the SAME credit the score applies (T-01), never a hardcoded half. */
-export function slotLateCredit(k) {
-  const p = STD && STD.latePolicy && STD.latePolicy[k];
+export function slotLateCredit(k, std = STD) {
+  const p = std && std.latePolicy && std.latePolicy[k];
   return p === 'full' ? 1 : p === 'none' ? 0 : 0.5;
 }
-const scoredSlotKeys = () => (STD && STD.slots ? STD.slots : MEAL_KEYS);
+const scoredSlotKeys = (std = STD) => (std && std.slots ? std.slots : MEAL_KEYS);
 
-function effectiveMeals(day) {
+function effectiveMeals(day, std = STD) {
   let n = 0;
-  for (const k of scoredSlotKeys()) {
+  for (const k of scoredSlotKeys(std)) {
     if (!mealScored(day, k)) continue;
     const at = day.mealLoggedAt && day.mealLoggedAt[k];
-    const onTime = at == null || at <= slotDeadline(k) + slotGrace(k);
-    n += onTime ? 1 : slotLateCredit(k); // late → the standard's late policy (default: half)
+    const onTime = at == null || at <= slotDeadline(k, std) + slotGrace(k, std);
+    n += onTime ? 1 : slotLateCredit(k, std); // late → the standard's late policy (default: half)
   }
   return n;
 }
 
-function proteinToday(day) {
+function proteinToday(day, std = STD) {
   let p = 0;
-  for (const k of scoredSlotKeys()) {
+  for (const k of scoredSlotKeys(std)) {
     // Evidence rule: a logged slot with no saved plate earns 0 protein (matches mealSlotMacros).
     // A duplicate-flagged slot earns 0 protein too (mealScored excludes it).
     if (mealScored(day, k) && day.slotMacros && day.slotMacros[k]) p += day.slotMacros[k].protein || 0;
@@ -113,9 +113,9 @@ function proteinToday(day) {
 /** Calories logged today — the SAME evidence rule as protein (only a plated, non-duplicate,
  *  scored slot counts), plus quick-add kcal. Feeds the calorie-target adherence the general/gain
  *  profiles are graded on. */
-function kcalToday(day) {
+function kcalToday(day, std = STD) {
   let k = 0;
-  for (const key of scoredSlotKeys()) {
+  for (const key of scoredSlotKeys(std)) {
     if (mealScored(day, key) && day.slotMacros && day.slotMacros[key]) k += day.slotMacros[key].kcal || 0;
   }
   const q = day.quickAdded || [];
@@ -148,19 +148,19 @@ function calorieFloorAdherence(kcal, target) {
  *   - general: calorie adherence 45 + protein 25 + meal consistency 30 (a lose/maintain client).
  *   - gain:    calorie floor 40 + protein 35 + meal consistency 25 (surplus + protein led).
  *  The platform owns these weights; the coach/trainer owns the targets (Scoring Contract). */
-function nutritionScore(day) {
+function nutritionScore(day, std = STD) {
   const pt = day.proteinTarget > 0 ? day.proteinTarget : PROTEIN_TARGET;
-  const proteinFrac = pt > 0 ? Math.min(proteinToday(day), pt) / pt : 0;
+  const proteinFrac = pt > 0 ? Math.min(proteinToday(day, std), pt) / pt : 0;
   // Denominator = the coach standard's meal count (1–6) when one governs; classic 4 otherwise.
-  const mealsFrac = clamp(effectiveMeals(day) / ((STD && STD.mealsRequired) || 4), 0, 1);
+  const mealsFrac = clamp(effectiveMeals(day, std) / ((std && std.mealsRequired) || 4), 0, 1);
   const profile = day.scoringProfile || 'athlete';
   if (profile === 'general') {
     const ct = day.calTarget > 0 ? day.calTarget : CAL_TARGET;
-    return Math.min(100, Math.round(calorieAdherence(kcalToday(day), ct) * 45 + proteinFrac * 25 + mealsFrac * 30));
+    return Math.min(100, Math.round(calorieAdherence(kcalToday(day, std), ct) * 45 + proteinFrac * 25 + mealsFrac * 30));
   }
   if (profile === 'gain') {
     const ct = day.calTarget > 0 ? day.calTarget : CAL_TARGET;
-    return Math.min(100, Math.round(calorieFloorAdherence(kcalToday(day), ct) * 40 + proteinFrac * 35 + mealsFrac * 25));
+    return Math.min(100, Math.round(calorieFloorAdherence(kcalToday(day, std), ct) * 40 + proteinFrac * 35 + mealsFrac * 25));
   }
   return Math.min(100, Math.round(proteinFrac * 65 + mealsFrac * 35));
 }
@@ -187,11 +187,13 @@ function recoveryParts(day) {
 function commitmentScore(ans) { return ans === 'yes' ? 100 : ans === 'partial' ? 60 : 0; }
 export function checkinReal(day) { return !!(day.ciSubmitted || (day.ciLast && withinTrailingWeek(day.ciLast.date, day.date))); }
 
-/** The four sub-scores. `recoveryContribution` is what the total uses (0 unless a real check-in backs it). */
-export function computeComponents(day) {
+/** The four sub-scores. `recoveryContribution` is what the total uses (0 unless a real check-in
+ *  backs it). Only nutrition depends on the standard (meal slots/windows/denominator); recovery,
+ *  commitment, and check-in are standard-independent, so `std` only reaches nutritionScore. */
+export function computeComponents(day, std = STD) {
   const rec = recoveryParts(day);
   return {
-    nutrition: nutritionScore(day),
+    nutrition: nutritionScore(day, std),
     recovery: rec.score,
     recoveryContribution: rec.isReal ? rec.score : 0,
     commitment: commitmentScore(day.dailyCommitment),
@@ -199,9 +201,9 @@ export function computeComponents(day) {
   };
 }
 
-export function scoreFor(day) {
+export function scoreFor(day, std = STD) {
   const w = PROFILE_WEIGHTS[day.scoringProfile] || PROFILE_WEIGHTS.athlete;
-  const c = computeComponents(day);
+  const c = computeComponents(day, std);
   return clamp(Math.round(w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin), 0, 100);
 }
 
@@ -253,10 +255,18 @@ export function dayScore() { return scoreFor(DAY); }
 
 /** Reconstruct a past day object from a scoreHistory row (its meals + checkin jsonb) so the
  *  SAME computeComponents that scores today can grade history — real category trends, no
- *  second formula. Rows fetched before the jsonb ride-along return null (callers skip them). */
-export function dayFromHistoryRow(r) {
+ *  second formula. Rows fetched before the jsonb ride-along return null (callers skip them).
+ *
+ *  `cfg` overrides the nutrition targets/profile the reconstructed day is scored against.
+ *  Default = the live device DAY's values (correct for the signed-in athlete's own history).
+ *  A COACH viewing another athlete MUST pass that athlete's own {proteinTarget, calTarget,
+ *  scoringProfile}, or nutrition would be graded against the coach device's targets — the
+ *  cross-athlete hazard the std-threading also closes. Pair with an explicit std at the
+ *  computeComponents/scoreFor call. */
+export function dayFromHistoryRow(r, cfg) {
   if (!r || !r.meals || !r.checkin) return null;
   const ck = r.checkin || {};
+  const c = cfg || {};
   return {
     date: r.date,
     meals: r.meals,
@@ -269,7 +279,9 @@ export function dayFromHistoryRow(r) {
     ciConfig: { ...DEFAULT_CICFG },
     ciSubmitted: !!ck.submitted,
     ciLast: ck.ciLast && ck.ciLast.date ? ck.ciLast : null,
-    proteinTarget: DAY.proteinTarget, calTarget: DAY.calTarget, scoringProfile: DAY.scoringProfile,
+    proteinTarget: c.proteinTarget != null ? c.proteinTarget : DAY.proteinTarget,
+    calTarget: c.calTarget != null ? c.calTarget : DAY.calTarget,
+    scoringProfile: c.scoringProfile != null ? c.scoringProfile : DAY.scoringProfile,
     currentWeight: r.weight ?? null,
     scoreHistory: [],
   };
