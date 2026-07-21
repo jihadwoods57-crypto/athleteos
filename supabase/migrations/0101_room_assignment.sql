@@ -78,6 +78,11 @@ grant execute on function assign_athlete_room(uuid, uuid) to authenticated;
 
 -- team_roster now carries room_id so the coach view can resolve a room-scoped standard and render
 -- room membership. Additive: supabase-js keys results by column name, so existing callers ignore it.
+-- MUST drop first: adding a column to a RETURNS TABLE is a return-type change, which CREATE OR
+-- REPLACE rejects against the live function (a fresh test:rls build wouldn't catch this — prod has
+-- the old signature). No SQL object depends on this definer RPC (it's called over the wire), so the
+-- drop is safe; the recreate below restores it in the same transaction.
+drop function if exists team_roster(uuid);
 create or replace function team_roster(team uuid)
 returns table (athlete_id uuid, athlete_name text, "position" text, joined_at timestamptz, room_id uuid)
 language plpgsql stable security definer set search_path = public as $$
