@@ -492,25 +492,46 @@ const MEAL_NAMES = ['Breakfast', 'Lunch', 'Dinner', 'Meal 4', 'Meal 5', 'Meal 6'
 const MEAL_WINDOWS = [{ open: 420, due: 570 }, { open: 720, due: 840 }, { open: 1080, due: 1230 }, { due: 1290 }, { due: 1320 }, { due: 1350 }];
 let KNOB = null; // { key, meals, lifts, weigh, hydration, recovery, checkin }
 
+// Weekday short names by JS getDay() index (0 = Sunday) — the one label source for weigh cadence.
+const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW_1 = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+function weighLabel(days) {
+  const d = (Array.isArray(days) ? days : []).filter((x) => x >= 0 && x <= 6).sort((a, b) => a - b);
+  if (!d.length) return 'No days set';
+  if (d.length === 7) return 'Every day';
+  return d.map((x) => DOW_SHORT[x]).join(' / ');
+}
+
 export function knobsFromItems(items) {
   const mealItems = items.filter(i => i.kind === 'meal');
   const lift = items.find(i => i.kind === 'lift');
   const weigh = items.find(i => i.kind === 'weigh');
   const hyd = items.find(i => i.kind === 'hydration');
   const meals = Math.min(6, Math.max(1, mealItems.length));
+  const slice = mealItems.slice(0, meals);
+  const weighDaily = !!(weigh && weigh.freq && weigh.freq.type === 'daily');
   return {
     meals,
     lifts: lift ? Math.min(7, (lift.freq && lift.freq.days && lift.freq.days.length) || 3) : 0,
-    weigh: weigh ? ((weigh.freq && weigh.freq.type === 'daily') ? 'daily' : 'mwf') : 'off',
+    // Weigh cadence: off / daily / custom weekdays. A pre-existing MWF (or any days-based) standard
+    // reads back as 'custom' with its exact days selected — same schedule, now editable per-day.
+    weigh: weigh ? (weighDaily ? 'daily' : 'custom') : 'off',
+    weighDays: (weigh && weigh.freq && Array.isArray(weigh.freq.days)) ? weigh.freq.days.slice() : [1, 3, 5],
     hydration: !!hyd,
     hydrationOz: (hyd && typeof hyd.target === 'number') ? hyd.target
       : (hyd && /(\d+)\s*oz/i.test(hyd.title || '') ? +(hyd.title.match(/(\d+)\s*oz/i)[1]) : 120),
     recovery: items.some(i => i.kind === 'recovery'),
     checkin: items.some(i => i.kind === 'checkin'),
+    // Per-meal proof (Tier 2): read each meal's own proof; photoProof stays as the "all photo?"
+    // summary the master toggle reads/writes. mealProofs is the authoritative per-meal source.
     photoProof: mealItems.length ? mealItems.every(m => m.proof === 'photo') : true,
-    mealNames: mealItems.slice(0, meals).map((m, i) => m.title || MEAL_NAMES[i]),
-    mealWins: mealItems.slice(0, meals).map((m, i) => (m.window && m.window.due != null) ? { ...m.window } : { ...MEAL_WINDOWS[i] }),
-    // Part B rails, read from the first meal (the editor sets them uniformly across meals).
+    mealProofs: slice.map((m) => (m.proof === 'check' ? 'check' : 'photo')),
+    // Per-meal training/rest tagging (Tier 2, 0086 item.dayType). 'any' = every day (the default,
+    // byte-identical to an untagged standard). Only bites when a team week pattern exists.
+    mealDayTypes: slice.map((m) => (m.dayType === 'training' || m.dayType === 'rest') ? m.dayType : 'any'),
+    mealNames: slice.map((m, i) => m.title || MEAL_NAMES[i]),
+    mealWins: slice.map((m, i) => (m.window && m.window.due != null) ? { ...m.window } : { ...MEAL_WINDOWS[i] }),
+    // Part B rails, read from the first meal (grace/late are still set uniformly across meals).
     grace: typeof (mealItems[0] || {}).grace === 'number' ? mealItems[0].grace : 0,
     latePolicy: ((mealItems[0] || {}).latePolicy === 'full' || (mealItems[0] || {}).latePolicy === 'none') ? mealItems[0].latePolicy : 'half',
     coachReview: !!(mealItems[0] || {}).coachReview,
@@ -519,32 +540,44 @@ export function knobsFromItems(items) {
     snackOptional: mealItems.length >= 4 && !!(mealItems[2] || {}).snack,
   };
 }
-// Shared fallback logic for meal names/windows — render() uses this too, so what's shown
-// on screen IS exactly what itemsFromKnobs would save.
+// Shared fallback logic for meal names/windows/proof/day-type — render() uses this too, so what's
+// shown on screen IS exactly what itemsFromKnobs would save. Per-meal arrays fall back element-wise
+// (a saved standard may predate mealProofs/mealDayTypes) so a partial array never drops a meal.
 function resolveMeals(k) {
+  let names, wins;
   if (Array.isArray(k.mealNames) && k.mealNames.length === k.meals
       && Array.isArray(k.mealWins) && k.mealWins.length === k.meals) {
-    return { names: k.mealNames, wins: k.mealWins };
-  }
-  if (k.meals === 1) return { names: ['Daily meal'], wins: [{ open: 720, due: 1230 }] };
-  if (k.meals === 2) return { names: ['Breakfast', 'Dinner'], wins: [MEAL_WINDOWS[0], MEAL_WINDOWS[2]] };
-  return { names: MEAL_NAMES.slice(0, k.meals), wins: MEAL_WINDOWS.slice(0, k.meals) };
+    names = k.mealNames; wins = k.mealWins;
+  } else if (k.meals === 1) { names = ['Daily meal']; wins = [{ open: 720, due: 1230 }]; }
+  else if (k.meals === 2) { names = ['Breakfast', 'Dinner']; wins = [MEAL_WINDOWS[0], MEAL_WINDOWS[2]]; }
+  else { names = MEAL_NAMES.slice(0, k.meals); wins = MEAL_WINDOWS.slice(0, k.meals); }
+  const proofs = Array.from({ length: k.meals }, (_, i) => {
+    const p = Array.isArray(k.mealProofs) ? k.mealProofs[i] : (k.photoProof === false ? 'check' : 'photo');
+    return p === 'check' ? 'check' : 'photo';
+  });
+  const dayTypes = Array.from({ length: k.meals }, (_, i) => {
+    const d = Array.isArray(k.mealDayTypes) ? k.mealDayTypes[i] : 'any';
+    return (d === 'training' || d === 'rest') ? d : 'any';
+  });
+  return { names, wins, proofs, dayTypes };
 }
 export function itemsFromKnobs(k) {
   const items = [];
-  const { names, wins } = resolveMeals(k);
-  const proof = k.photoProof === false ? 'check' : 'photo';
+  const { names, wins, proofs, dayTypes } = resolveMeals(k);
   const grace = Math.min(240, Math.max(0, +k.grace || 0));
   const latePolicy = (k.latePolicy === 'full' || k.latePolicy === 'none') ? k.latePolicy : null; // 'half' = default, omit
   names.forEach((t, i) => {
     const meal = {
       id: `meal-${i + 1}`, title: String(t || MEAL_NAMES[i] || `Meal ${i + 1}`).slice(0, 40),
-      kind: 'meal', proof, freq: { type: 'daily' }, window: { ...wins[i] },
+      kind: 'meal', proof: proofs[i], freq: { type: 'daily' }, window: { ...wins[i] },
     };
     // Part B: only write non-default rails so existing standards stay byte-identical.
     if (grace > 0) meal.grace = grace;
     if (latePolicy) meal.latePolicy = latePolicy;
     if (k.coachReview) meal.coachReview = true;
+    // dayType: only write when the coach tagged a meal training/rest — an 'any' meal stays
+    // untagged, so a standard with no tags is byte-identical to before (parity).
+    if (dayTypes[i] === 'training' || dayTypes[i] === 'rest') meal.dayType = dayTypes[i];
     // Snack-optional: mark the snack-slot meal (index 2, only meaningful at 4+ meals) as a bonus.
     if (k.snackOptional && k.meals >= 4 && i === 2) meal.snack = true;
     items.push(meal);
@@ -553,10 +586,16 @@ export function itemsFromKnobs(k) {
     id: 'lift', title: `Lift session`, kind: 'lift', proof: 'check',
     freq: { type: 'days', days: LIFT_DAYS[k.lifts], label: `${k.lifts}× / week` }, window: { due: 1230, label: 'After training' },
   });
-  if (k.weigh !== 'off') items.push({
-    id: 'weight', title: 'Morning Weight', kind: 'weigh', proof: 'scale',
-    freq: k.weigh === 'daily' ? { type: 'daily' } : { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' }, window: { due: 540 },
-  });
+  if (k.weigh !== 'off') {
+    const daily = k.weigh === 'daily';
+    // Arbitrary weekdays (Tier 2). 'mwf' from an older editor value maps to the same [1,3,5].
+    const days = (!daily && Array.isArray(k.weighDays) && k.weighDays.length)
+      ? [...new Set(k.weighDays.filter((x) => x >= 0 && x <= 6))].sort((a, b) => a - b) : [1, 3, 5];
+    items.push({
+      id: 'weight', title: 'Morning Weight', kind: 'weigh', proof: 'scale',
+      freq: daily ? { type: 'daily' } : { type: 'days', days, label: weighLabel(days) }, window: { due: 540 },
+    });
+  }
   if (k.hydration) {
     const oz = Math.min(999, Math.max(1, +k.hydrationOz || 120));
     items.push({ id: 'hydration', title: `Hydration · ${oz} oz`, kind: 'hydration', proof: 'counter',
@@ -630,7 +669,7 @@ export const coachPlanSet = {
     if (!KNOB || KNOB.key !== key) {
       KNOB = existing
         ? { key, ...knobsFromItems(existing.items) }
-        : { key, meals: 3, lifts: 0, weigh: 'mwf', hydration: true, hydrationOz: 120, recovery: true, checkin: true, photoProof: true };
+        : { key, meals: 3, lifts: 0, weigh: 'custom', weighDays: [1, 3, 5], hydration: true, hydrationOz: 120, recovery: true, checkin: true, photoProof: true };
     }
     // Slice F: position coaches and view-only staff SEE the governing standard but don't
     // edit it (founder matrix; 0078's set_team_requirements would bounce the save anyway).
@@ -673,7 +712,10 @@ export const coachPlanSet = {
       </div>`;
     const sumChip = (ic, html) => `<span class="std-sum">${icon(ic, 13)}${html}</span>`;
     const toHM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-    const { names, wins } = resolveMeals(KNOB);
+    const { names, wins, proofs, dayTypes } = resolveMeals(KNOB);
+    // Day-type tagging only bites once a training/rest week exists; surface it (with a link to set
+    // one up) only then, so the coach is never offered a control that silently does nothing.
+    const hasRestPattern = Array.isArray(RT.weekPattern) && RT.weekPattern.some((d) => d === 'rest');
     const PREV_IC = { breakfast: 'utensils', lunch: 'bowl', dinner: 'bowl', snack: 'utensils' };
     return `
     ${backHead(scopeName, kind === 'team' ? 'The starting standard for athletes without an override' : `Overrides your team standard for ${esc(value)}`, 'coach-plan')}
@@ -682,7 +724,7 @@ export const coachPlanSet = {
       <div class="std-summary">
         ${sumChip('utensils', `<b>${KNOB.meals}</b> meal${KNOB.meals === 1 ? '' : 's'}`)}
         ${KNOB.photoProof ? sumChip('camera', 'Photo proof') : ''}
-        ${KNOB.weigh !== 'off' ? sumChip('scale', KNOB.weigh === 'daily' ? 'Daily weigh' : 'MWF weigh') : ''}
+        ${KNOB.weigh !== 'off' ? sumChip('scale', KNOB.weigh === 'daily' ? 'Daily weigh' : `${weighLabel(KNOB.weighDays)} weigh`) : ''}
         ${KNOB.recovery ? sumChip('moon', 'Recovery') : ''}
         ${KNOB.hydration ? sumChip('droplet', `<b>${KNOB.hydrationOz}</b> oz`) : ''}
       </div>
@@ -691,20 +733,27 @@ export const coachPlanSet = {
         ${modHead('utensils', 'std-ic-g', 'Meals', 'The meals that count toward the daily score', `${KNOB.meals}/day`)}
         <div class="std-lbl">Meals per day</div>
         <div class="std-count">${[1, 2, 3, 4, 5, 6].map(n => chip(KNOB.meals === n, String(n), 'meals', n)).join('')}</div>
-        <div class="std-lbl mt">Names &amp; windows · these drive due-soon, overdue &amp; reminders</div>
+        <div class="std-lbl mt">Names, windows &amp; proof · these drive due-soon, overdue &amp; reminders</div>
         ${names.map((t, i) => `
-        <div class="std-meal">
-          <input class="mname std-name" data-meal="${i}" maxlength="40" value="${esc(t)}" aria-label="Meal ${i + 1} name" />
+        <div class="std-meal-card">
+          <div class="std-meal">
+            <input class="mname std-name" data-meal="${i}" maxlength="40" value="${esc(t)}" aria-label="Meal ${i + 1} name" />
+            <button type="button" class="std-proof-pill ${proofs[i] === 'check' ? 'check' : ''}" data-mealproof="${i}" aria-label="Meal ${i + 1} proof: ${proofs[i] === 'check' ? 'tap to check' : 'photo required'}">${icon(proofs[i] === 'check' ? 'check' : 'camera', 14)} ${proofs[i] === 'check' ? 'Check' : 'Photo'}</button>
+          </div>
           <div class="std-meal-times">
             <input type="time" class="mwin std-time" data-meal="${i}" data-edge="open" value="${wins[i].open != null ? toHM(wins[i].open) : ''}" aria-label="Meal ${i + 1} opens" />
             <span class="std-arrow">→</span>
             <input type="time" class="mwin std-time" data-meal="${i}" data-edge="due" value="${toHM(wins[i].due)}" aria-label="Meal ${i + 1} due" />
           </div>
+          ${hasRestPattern ? `<div class="std-daytype">
+            ${['any', 'training', 'rest'].map(dt => `<span class="std-daychip ${dayTypes[i] === dt ? 'on' : ''}" data-mealday="${i}:${dt}">${dt === 'any' ? 'Every day' : dt === 'training' ? 'Training only' : 'Rest only'}</span>`).join('')}
+          </div>` : ''}
         </div>`).join('')}
-        <div class="std-switch-row" style="margin-top:6px">
-          <div class="std-sw-m"><div class="std-sw-t">Photo proof</div><div class="std-sw-s">Off = tap-to-check, no photo required</div></div>
-          ${sw(KNOB.photoProof, 'photo')}
+        <div class="std-switch-row" style="margin-top:8px">
+          <div class="std-sw-m"><div class="std-sw-t">Photo proof on every meal</div><div class="std-sw-s">Sets all meals at once — tweak any one above. Off = tap-to-check.</div></div>
+          ${sw(proofs.every(p => p === 'photo'), 'photo')}
         </div>
+        ${hasRestPattern ? '' : `<div class="std-help" style="margin-top:6px">${icon('info', 12)} Want meals that only apply on training or rest days? <span class="link" data-go="week-pattern">Set your training week</span> first.</div>`}
         ${KNOB.meals >= 4 ? swRow('Snack is optional', 'Loggable for bonus, but never counts against the score', 'snack', KNOB.snackOptional) : ''}
       </section>
 
@@ -724,7 +773,9 @@ export const coachPlanSet = {
         <div class="std-lbl">Lift sessions / week</div>
         <div class="std-chips">${[0, 1, 2, 3, 4, 5, 6, 7].map(n => chip(KNOB.lifts === n, n === 0 ? 'Off' : String(n), 'lifts', n)).join('')}</div>
         <div class="std-lbl mt">Weigh-ins · season trend, tracked not scored</div>
-        <div class="std-chips">${chip(KNOB.weigh === 'off', 'Off', 'weigh', 'off')}${chip(KNOB.weigh === 'mwf', 'Mon / Wed / Fri', 'weigh', 'mwf')}${chip(KNOB.weigh === 'daily', 'Daily', 'weigh', 'daily')}</div>
+        <div class="std-chips">${chip(KNOB.weigh === 'off', 'Off', 'weigh', 'off')}${chip(KNOB.weigh === 'daily', 'Daily', 'weigh', 'daily')}${chip(KNOB.weigh === 'custom', 'Specific days', 'weigh', 'custom')}</div>
+        ${KNOB.weigh === 'custom' ? `<div class="std-weighdays">${[0, 1, 2, 3, 4, 5, 6].map(d => `<span class="std-daychip ${(KNOB.weighDays || []).includes(d) ? 'on' : ''}" data-weighday="${d}" role="button" aria-label="${DOW_SHORT[d]}${(KNOB.weighDays || []).includes(d) ? ' selected' : ''}">${DOW_1[d]}</span>`).join('')}</div>
+        <div class="std-help">${(KNOB.weighDays || []).length ? esc(weighLabel(KNOB.weighDays)) : 'Pick at least one day, or switch to Off.'}</div>` : ''}
       </section>
 
       <section class="std-mod">
@@ -775,23 +826,53 @@ export const coachPlanSet = {
       </section>
 
       ${(() => {
+        // Complete preview (Tier 2): every pillar the athlete gets, not just meals — built from
+        // the SAME itemsFromKnobs()/stdFromItems() the Save button publishes (via previewFromKnobs),
+        // so it's true parity, never a parallel description.
         const preview = previewFromKnobs(KNOB);
         if (!preview) return '';
-        const { std } = preview;
-        return `
-        <section class="std-preview">
-          <div class="std-prev-h">${icon('eye', 13)} What the athlete sees</div>
-          ${std.slots.map(slot => {
-            const title = std.titles[slot] || cap(String(slot).replace('-', ' '));
-            const due = std.deadlines[slot];
-            const g = std.grace && std.grace[slot];
-            return `
+        const { std, items } = preview;
+        const KIND_IC = { lift: 'bolt', weigh: 'scale', recovery: 'moon', checkin: 'clipboard', hydration: 'droplet' };
+        const scheduleLabel = (freq) => {
+          if (!freq) return '';
+          if (freq.type === 'daily') return 'Every day';
+          if (freq.type === 'weekly') return freq.label || 'Weekly';
+          if (freq.type === 'days') return freq.label || (Array.isArray(freq.days) ? weighLabel(freq.days) : '');
+          return '';
+        };
+        const mealItems = items.filter(it => it.kind === 'meal');
+        const mealRows = std.slots.map((slot, i) => {
+          const it = mealItems[i] || {};
+          const title = std.titles[slot] || cap(String(slot).replace('-', ' '));
+          const due = std.deadlines[slot];
+          const g = std.grace && std.grace[slot];
+          const bits = [due != null ? `Due by ${fmtMin(due)}` : 'No deadline set'];
+          if (g) bits.push(`${g} min grace`);
+          bits.push(it.proof === 'check' ? 'Tap to check' : 'Photo');
+          if (it.dayType === 'training') bits.push('Training days');
+          else if (it.dayType === 'rest') bits.push('Rest days');
+          if ((std.optional || []).includes(slot)) bits.push('Optional');
+          return `
           <div class="std-prev-row">
             <div class="std-prev-ic">${icon(PREV_IC[slot] || 'utensils', 15)}</div>
             <div style="flex:1;min-width:0"><div class="std-prev-t">${esc(title)}</div>
-            <div class="std-prev-s">${due != null ? `Due by ${fmtMin(due)}` : 'No deadline set'}${g ? ` · ${g} min grace` : ''}</div></div>
+            <div class="std-prev-s">${esc(bits.join(' · '))}</div></div>
           </div>`;
-          }).join('')}
+        }).join('');
+        const otherRows = items.filter(it => it.kind !== 'meal').map(it => {
+          const scored = it.kind === 'recovery' || it.kind === 'checkin';
+          const sub = [scheduleLabel(it.freq), scored ? 'Scored pillar' : 'Tracked, not scored'].filter(Boolean).join(' · ');
+          return `
+          <div class="std-prev-row">
+            <div class="std-prev-ic">${icon(KIND_IC[it.kind] || 'clipboard', 15)}</div>
+            <div style="flex:1;min-width:0"><div class="std-prev-t">${esc(it.title)}</div>
+            <div class="std-prev-s">${esc(sub)}</div></div>
+          </div>`;
+        }).join('');
+        return `
+        <section class="std-preview">
+          <div class="std-prev-h">${icon('eye', 13)} What the athlete sees</div>
+          ${mealRows}${otherRows}
           <div class="std-prev-foot"><b>${std.mealsRequired}</b> meal${std.mealsRequired === 1 ? '' : 's'} make the day’s nutrition score.</div>
         </section>`;
       })()}
@@ -827,10 +908,11 @@ export const coachPlanSet = {
     // Text/time inputs write straight into KNOB — NEVER window.__render() here, or a
     // full re-render mid-keystroke steals focus (the Slice A roster-search lesson).
     const materializeMeals = () => {
-      if (!Array.isArray(KNOB.mealNames) || KNOB.mealNames.length !== KNOB.meals
-          || !Array.isArray(KNOB.mealWins) || KNOB.mealWins.length !== KNOB.meals) {
-        const { names, wins } = resolveMeals(KNOB);
+      const need = (arr) => !Array.isArray(arr) || arr.length !== KNOB.meals;
+      if (need(KNOB.mealNames) || need(KNOB.mealWins) || need(KNOB.mealProofs) || need(KNOB.mealDayTypes)) {
+        const { names, wins, proofs, dayTypes } = resolveMeals(KNOB); // reads existing per-meal values element-wise
         KNOB.mealNames = [...names]; KNOB.mealWins = wins.map(w => ({ ...w }));
+        KNOB.mealProofs = [...proofs]; KNOB.mealDayTypes = [...dayTypes];
       }
     };
     root.querySelectorAll('.mname').forEach(el => el.addEventListener('change', () => {
@@ -845,17 +927,43 @@ export const coachPlanSet = {
       if (edge === 'open') { if (mins == null) delete KNOB.mealWins[i].open; else KNOB.mealWins[i].open = mins; }
       else { KNOB.mealWins[i].due = mins; }
     }));
+    // Per-meal proof pill: flip THIS meal photo<->check, then repaint (a button, not a text input,
+    // so a re-render steals no in-progress typing — a name edit blurs first and its change fires).
+    root.querySelectorAll('[data-mealproof]').forEach(el => el.addEventListener('click', () => {
+      materializeMeals();
+      const i = +el.getAttribute('data-mealproof');
+      KNOB.mealProofs[i] = KNOB.mealProofs[i] === 'check' ? 'photo' : 'check';
+      KNOB.photoProof = KNOB.mealProofs.every(p => p === 'photo');
+      window.__render();
+    }));
+    // Per-meal training/rest tag (only rendered when a rest week exists).
+    root.querySelectorAll('[data-mealday]').forEach(el => el.addEventListener('click', () => {
+      materializeMeals();
+      const [i, dt] = el.getAttribute('data-mealday').split(':');
+      KNOB.mealDayTypes[+i] = (dt === 'training' || dt === 'rest') ? dt : 'any';
+      window.__render();
+    }));
+    // Weigh-in weekday toggle (custom cadence): flip the day in/out of the set.
+    root.querySelectorAll('[data-weighday]').forEach(el => el.addEventListener('click', () => {
+      const d = +el.getAttribute('data-weighday');
+      const set = new Set(Array.isArray(KNOB.weighDays) ? KNOB.weighDays : []);
+      if (set.has(d)) set.delete(d); else set.add(d);
+      KNOB.weighDays = [...set].sort((a, b) => a - b);
+      window.__render();
+    }));
     root.querySelectorAll('[data-knob]').forEach(el => el.addEventListener('click', () => {
       const [k, arg] = el.getAttribute('data-knob').split(':');
-      if (k === 'meals') { KNOB.meals = +arg; delete KNOB.mealNames; delete KNOB.mealWins; }
+      if (k === 'meals') { KNOB.meals = +arg; delete KNOB.mealNames; delete KNOB.mealWins; delete KNOB.mealProofs; delete KNOB.mealDayTypes; }
       if (k === 'lifts') KNOB.lifts = +arg;
-      if (k === 'weigh') KNOB.weigh = arg;
+      // Weigh: off / daily / custom. Entering custom seeds days from the current selection (or M/W/F).
+      if (k === 'weigh') { KNOB.weigh = arg; if (arg === 'custom' && !(Array.isArray(KNOB.weighDays) && KNOB.weighDays.length)) KNOB.weighDays = [1, 3, 5]; }
       // Switch rows emit ":toggle" (flip); the legacy ":1"/":0" path is kept for safety.
       const tog = (v) => (arg === 'toggle' ? !v : arg === '1');
       if (k === 'recovery') KNOB.recovery = tog(KNOB.recovery);
       if (k === 'checkin') KNOB.checkin = tog(KNOB.checkin);
       if (k === 'hydration') KNOB.hydration = tog(KNOB.hydration);
-      if (k === 'photo') KNOB.photoProof = tog(KNOB.photoProof);
+      // Master photo switch: set EVERY meal at once (per-meal pills override individually after).
+      if (k === 'photo') { materializeMeals(); const allPhoto = KNOB.mealProofs.every(p => p === 'photo'); const nextP = allPhoto ? 'check' : 'photo'; KNOB.mealProofs = KNOB.mealProofs.map(() => nextP); KNOB.photoProof = nextP === 'photo'; }
       if (k === 'review') KNOB.coachReview = tog(KNOB.coachReview);
       if (k === 'snack') KNOB.snackOptional = tog(KNOB.snackOptional);
       if (k === 'hydoz') KNOB.hydrationOz = +arg;

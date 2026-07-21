@@ -328,12 +328,28 @@
 .std-switch.on { background:var(--green-surface); border-color:var(--green-border); }
 .std-switch.on::after { transform: translateX(20px); background:var(--green-bright); }
 
-/* Meal name + window rows — name gets its own full-width line, times labeled below */
-.std-meal { display:flex; flex-direction:column; gap:8px; padding:11px 0; border-top:1px solid var(--hairline-soft); }
-.std-meal:first-child { border-top:none; padding-top:2px; }
-.std-name { width:100%; box-sizing:border-box; background:var(--surface-2); border:1px solid var(--hairline);
+/* Meal name + window rows — per-meal card: name+proof line, times line, optional day-type line */
+.std-meal-card { display:flex; flex-direction:column; gap:8px; padding:11px 0; border-top:1px solid var(--hairline-soft); }
+.std-meal-card:first-child { border-top:none; padding-top:2px; }
+.std-meal { display:flex; align-items:center; gap:8px; }
+.std-name { flex:1; min-width:0; box-sizing:border-box; background:var(--surface-2); border:1px solid var(--hairline);
   border-radius:10px; padding:10px 12px; color:var(--text); font:700 14px var(--font); }
 .std-name:focus { outline:none; border-color:var(--blue-border); background:var(--surface-3); }
+/* Per-meal proof pill: photo (default, green) vs tap-to-check (neutral) */
+.std-proof-pill { flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; min-height:40px; padding:0 12px;
+  border-radius:10px; border:1px solid var(--green-border); background:var(--green-surface); color:var(--green-bright);
+  font:800 12px var(--font); cursor:pointer; white-space:nowrap; }
+.std-proof-pill.check { border-color:var(--hairline); background:var(--surface-2); color:var(--text-2); }
+.std-proof-pill:active { transform:scale(.96); }
+.std-proof-pill svg { display:block; }
+/* Small chips shared by per-meal day-type and weigh weekdays */
+.std-daytype, .std-weighdays { display:flex; flex-wrap:wrap; gap:6px; }
+.std-weighdays { margin-top:8px; }
+.std-daychip { min-height:34px; padding:0 11px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:9px; border:1px solid var(--hairline); background:var(--surface-2); color:var(--text-3);
+  font:800 12px var(--font); cursor:pointer; user-select:none; }
+.std-daychip.on { background:var(--blue-surface); border-color:var(--blue-border); color:var(--blue-bright); }
+.std-daychip:active { transform:scale(.95); }
 .std-meal-times { display:flex; align-items:center; gap:8px; }
 .std-tlabel { font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
   color:var(--text-3); flex:0 0 auto; }
