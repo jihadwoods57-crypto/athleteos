@@ -97,3 +97,7 @@ begin
       and not staff_scope_blocks(m.athlete_id)
     order by coalesce(p.full_name, ''), m.joined_at;
 end; $$;
+
+-- DROP wiped the execute grant (and 0035 revoked the default execute-to-authenticated on functions),
+-- so it MUST be re-granted or the client's rpc('team_roster') would fail permission-denied.
+grant execute on function team_roster(uuid) to authenticated;
