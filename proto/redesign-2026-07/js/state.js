@@ -193,7 +193,7 @@ const DEFAULT_RT = {
   coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots)
   coachNudged: {},       // coach device: athleteId -> ISO date of last nudge (one per athlete per day)
   coachSetup: {},        // coach first-run checklist: real per-step completion flags (sharedCode/standard/staff/group) marked when the coach actually does each step; reset per-account by _wipeUserScopedState
-  coachVoice: null,      // coach's AI-voice config {enabled,tone,level,approved:[],prohibited}; null → defaults. The AI edge fn consumes this once wired (server-deferred)
+  coachVoice: null,      // coach's AI-voice config {enabled,tone,level,approved:[],prohibited}; null → defaults. Consumed live by the coach-voice-nudge edge fn (home.js)
   theme: 'dark',         // 'dark' | 'light' | 'system' — dark is the shipped default (WS2b)
   haptics: true,         // device preference: light vibration on taps/logs (router buzz())
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread

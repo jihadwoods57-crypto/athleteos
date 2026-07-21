@@ -143,10 +143,24 @@ Deno.serve(async (req) => {
     const days = (daysRes.data ?? []) as DayLite[];
     const names = new Map((profRes.data ?? []).map((p) => [p.id, p.full_name ?? '']));
 
+    // 2b) Idempotency guard: a digest already sent for this owner in the last 6 days means the
+    // scheduler fired twice in the same window (manual re-trigger, misconfigured cron) — skip it
+    // rather than double-deliver. Reduces the risk without a hard DB constraint; the cron only
+    // fires weekly in practice, so a same-week re-fire is the one failure mode worth guarding.
+    let alreadySent = new Set<string>();
+    {
+      const { data: recentDigests, error: rdErr } = await svc.from('notifications')
+        .select('user_id').eq('kind', 'digest').gte('created_at', new Date(Date.now() - 6 * 86_400_000).toISOString())
+        .in('user_id', ownerIds);
+      if (!rdErr && recentDigests) alreadySent = new Set(recentDigests.map((r: { user_id: string }) => r.user_id));
+    }
+
     // 3) One digest per owner: in-app feed row + best-effort push to their devices.
     let sent = 0;
+    let deduped = 0;
     for (const [owner, athletes] of rosters) {
       if (optedOut.has(owner)) continue; // respect the owner's notifications-off preference
+      if (alreadySent.has(owner)) { deduped++; continue; } // this week's digest already landed
       const { title, body } = digestBody([...athletes], days, names);
       await svc.from('notifications').insert({ user_id: owner, kind: 'digest', title, body });
       const { data: toks } = await svc.from('device_tokens').select('token').eq('user_id', owner);
@@ -162,7 +176,7 @@ Deno.serve(async (req) => {
       }
       sent++;
     }
-    return json({ ok: true, digests: sent });
+    return json({ ok: true, digests: sent, deduped });
   } catch (e) {
     console.error('weekly-digest error:', e);
     return json({ error: 'digest failed' }, 500);

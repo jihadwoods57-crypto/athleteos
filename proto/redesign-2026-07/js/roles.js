@@ -493,6 +493,17 @@ export async function deleteRequirementTemplate(id) {
   try { const { error } = await c.from('requirement_templates').delete().eq('id', id); return { ok: !error }; }
   catch { return { ok: false }; }
 }
+/* Rename only — never touches `items`, so a rename can't accidentally redefine what applying
+   the template fills in. Same duplicate-name message as saveRequirementTemplate (same unique
+   index: team_id, lower(name)). */
+export async function renameRequirementTemplate(id, name) {
+  const c = sb(); if (!c || !id) return { ok: false, error: 'Offline' };
+  try {
+    const { error } = await c.from('requirement_templates').update({ name }).eq('id', id);
+    if (error) return { ok: false, error: /duplicate|unique/i.test(error.message || '') ? 'A template with that name already exists.' : error.message };
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
 
 /* ---- Announcements (Slice C, 0074): staff broadcast → feed rows server-side ---- */
 export async function postAnnouncement({ teamId, scopeKind = 'team', scopeValue = null, title, body }) {

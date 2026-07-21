@@ -217,8 +217,19 @@ Deno.serve(async (req) => {
   const { data: allowed, error: viewErr } = await caller.rpc('can_view', { athlete: athleteId });
   if (viewErr || allowed !== true) return json({ error: 'not authorized for this athlete' }, 403, cors);
 
-  // 2) Record the in-app notification (service role bypasses the self-only insert policy).
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+  // 1b) Idempotency guard: a retried client call or a double-tap on the same nudge button
+  // should not double-deliver. Skip if this athlete already got a 'nudge' in the last 2 minutes —
+  // long enough to absorb a retry/double-submit, short enough that a coach nudging again
+  // moments later (different reason) still goes through.
+  const DEDUPE_WINDOW_MS = 2 * 60_000;
+  const { data: recentNudge, error: dedupeErr } = await svc.from('notifications')
+    .select('id').eq('user_id', athleteId).eq('kind', 'nudge')
+    .gte('created_at', new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString()).limit(1).maybeSingle();
+  if (!dedupeErr && recentNudge) return json({ ok: true, pushed: 0, deduped: true }, 200, cors);
+
+  // 2) Record the in-app notification (service role bypasses the self-only insert policy).
   await svc.from('notifications').insert({ user_id: athleteId, kind: 'nudge', title, body: message });
 
   // 2b) Honor the athlete's notification preference for the PUSH. The in-app notification above is

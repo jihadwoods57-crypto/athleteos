@@ -1427,7 +1427,7 @@ export const trainerProfile = {
       <div class="lrow" id="manage-standard">
         <div class="lic">${icon('clipboard', 17)}</div>
         <div class="lm"><div class="lt">Default client standard</div><div class="ls">3 meals · nightly recovery check-in · weekly weigh-in — applied to every client</div></div>
-        <span class="status-pill p" id="manage-pill" style="cursor:pointer">Manage</span>
+        <span class="status-pill" style="opacity:0.7">Coming soon</span>
       </div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
@@ -1467,11 +1467,6 @@ export const trainerProfile = {
           setTimeout(() => { share.innerHTML = `${icon('share', 16)} Share invite`; }, 1600);
         }
       } catch { /* share sheet dismissed — no-op */ }
-    });
-    const managePill = root.querySelector('#manage-pill');
-    if (managePill) managePill.addEventListener('click', () => {
-      managePill.textContent = 'Coming soon';
-      setTimeout(() => { managePill.textContent = 'Manage'; }, 1600);
     });
   },
 };

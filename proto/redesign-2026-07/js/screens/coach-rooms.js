@@ -17,6 +17,7 @@ const rosterPositions = () => rosterRows().map((r) => (r.position || '').toUpper
 let BUSY = false;        // guards double-submit while a write + reload is in flight
 let STAFF = null;        // team staff list (for the owner picker), lazy-loaded in mount
 let OPEN_OWNER = null;   // roomId whose owner picker is expanded, or null
+let RENAMING = null;     // roomId currently showing its inline rename input, or null
 
 async function run(work) {
   if (BUSY) return;
@@ -32,6 +33,16 @@ const createRoom = (label) => run(async () => {
   if (r.ok) { try { act.markCoachSetup('group'); } catch { /* best-effort */ } await loadCoachRoster(true); }
 });
 const deleteRoom = (roomId) => run(async () => { if (await roles.deleteTeamRoom(roomId)) await loadCoachRoster(true); });
+// Rename reuses saveTeamRoom's existing update-by-id path (it already upserts on `id`) —
+// no new backend call needed. The room's key (used by position auto-assignment matching)
+// is deliberately left untouched by a rename; only the display label changes.
+const renameRoom = (room, label) => run(async () => {
+  const clean = String(label || '').trim().slice(0, 40);
+  if (!clean || clean === room.label) { RENAMING = null; return; }
+  const r = await roles.saveTeamRoom(teamId(), { id: room.id, key: room.key, label: clean });
+  RENAMING = null;
+  if (r.ok) await loadCoachRoster(true);
+});
 const assign = (athleteId, roomId) => run(async () => { const r = await roles.assignAthleteRoom(athleteId, roomId); if (r.ok) await loadCoachRoster(true); });
 
 export const coachRooms = {
@@ -46,12 +57,19 @@ export const coachRooms = {
       const members = byRoom.get(rm.id) || [];
       return `
       <section class="card" style="padding:6px 16px;margin-bottom:10px">
+        ${RENAMING === rm.id ? `
+        <div class="lrow" style="cursor:default;gap:8px">
+          <input class="ob-input room-rename-input" data-room-rename-input="${esc(rm.id)}" maxlength="40" value="${esc(rm.label)}" style="flex:1" />
+          <button class="btn sm" data-room-rename-save="${esc(rm.id)}" style="width:auto;padding:0 12px;height:34px">Save</button>
+          <button class="btn ghost sm" data-room-rename-cancel="1" style="width:auto;padding:0 12px;height:34px">Cancel</button>
+        </div>` : `
         <div class="lrow" style="cursor:default">
           <div class="lic" style="background:rgba(59,130,246,0.14);color:var(--blue-bright)">${icon('users', 17)}</div>
           <div class="lm"><div class="lt">${esc(rm.label)}</div><div class="ls">${members.length ? `${members.length} athlete${members.length === 1 ? '' : 's'}` : 'No one assigned yet'}</div></div>
+          <button class="btn ghost sm" data-room-rename="${esc(rm.id)}" aria-label="Rename room" style="width:34px;padding:0;height:30px;flex:none">${icon('edit', 15)}</button>
           <button class="btn ghost sm" data-go="coach-plan-set/position/${esc(String(rm.label).toUpperCase())}" style="width:auto;padding:0 12px;height:30px">Standard</button>
           <button class="btn ghost sm" data-room-del="${esc(rm.id)}" style="width:auto;padding:0 10px;height:30px;color:var(--red);margin-left:6px">Delete</button>
-        </div>
+        </div>`}
         <div class="lrow" data-owner-toggle="${esc(rm.id)}" style="cursor:pointer;padding-left:6px">
           <div class="xico sm gray" style="width:26px;height:26px">${icon('user', 15)}</div>
           <div class="lm"><div class="lt" style="font-size:13.5px">Room owner</div><div class="ls">${staffName(rm.staff_owner_id) ? esc(staffName(rm.staff_owner_id)) : 'Unassigned · tap to set'}</div></div>
@@ -130,6 +148,20 @@ export const coachRooms = {
     if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
     root.querySelectorAll('[data-room-add]').forEach((el) => el.addEventListener('click', () => createRoom(el.getAttribute('data-room-add'))));
     root.querySelectorAll('[data-room-del]').forEach((el) => el.addEventListener('click', () => deleteRoom(el.getAttribute('data-room-del'))));
+    root.querySelectorAll('[data-room-rename]').forEach((el) => el.addEventListener('click', () => {
+      RENAMING = el.getAttribute('data-room-rename'); OPEN_OWNER = null; window.__render();
+    }));
+    root.querySelectorAll('[data-room-rename-cancel]').forEach((el) => el.addEventListener('click', () => { RENAMING = null; window.__render(); }));
+    const submitRename = (roomId) => {
+      const room = ((CD.extras && CD.extras.rooms) || []).find((r) => r.id === roomId);
+      const input = root.querySelector(`[data-room-rename-input="${roomId}"]`);
+      if (room && input) renameRoom(room, input.value);
+    };
+    root.querySelectorAll('[data-room-rename-save]').forEach((el) => el.addEventListener('click', () => submitRename(el.getAttribute('data-room-rename-save'))));
+    root.querySelectorAll('[data-room-rename-input]').forEach((el) => el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitRename(el.getAttribute('data-room-rename-input'));
+      else if (e.key === 'Escape') { RENAMING = null; window.__render(); }
+    }));
     root.querySelectorAll('[data-room-unassign]').forEach((el) => el.addEventListener('click', () => assign(el.getAttribute('data-room-unassign'), null)));
     root.querySelectorAll('[data-assign]').forEach((el) => el.addEventListener('click', () => {
       const [athleteId, roomId] = el.getAttribute('data-assign').split('|');

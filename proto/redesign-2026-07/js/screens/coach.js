@@ -3,7 +3,7 @@ import { icon } from '../icons.js';
 import { backHead, titleHead, esc, composer, sparkline, emptyState, errorState, skeletonRows } from '../components.js';
 import { coachSetupState, coachSetupSteps } from './coach-home.js';
 import * as roles from '../roles.js';
-import { openingMessage, qualityBand, reactionGroups, threadMessages, privateNotes } from '../meal-intel.js';
+import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
 import { CD, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
@@ -582,6 +582,9 @@ export function previewFromKnobs(k) {
 let TPL = null;          // { teamId, rows } | null (not yet loaded)
 let tplLoading = false;
 let SHOW_TPL_SAVE = false;
+let SHOW_TPL_MANAGE = false; // Manage mode swaps apply-chips for rename/delete rows (never both at once)
+let TPL_RENAMING = null;     // template id whose inline rename input is open, or null
+let TPL_BUSY = false;        // guards double-submit on rename/delete
 async function loadTemplates(force) {
   const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
   if (!teamId || tplLoading) return;
@@ -740,6 +743,22 @@ export const coachPlanSet = {
 
       <section class="std-mod">
         ${modHead('clipboard', 'std-ic-b', 'Templates', 'Start from a proven draft, or save this one')}
+        ${SHOW_TPL_MANAGE ? `
+        <div class="std-tpl-manage">
+          ${(TPL && TPL.rows ? TPL.rows : []).map(t => TPL_RENAMING === t.id ? `
+          <div class="lrow" style="cursor:default;gap:8px;padding-left:0">
+            <input class="std-name tpl-rename-input" data-tpl-rename-input="${esc(t.id)}" maxlength="40" value="${esc(t.name)}" style="flex:1" ${TPL_BUSY ? 'disabled' : ''} />
+            <button class="btn sm" data-tpl-rename-save="${esc(t.id)}" style="width:auto;padding:0 12px;height:34px" ${TPL_BUSY ? 'disabled' : ''}>Save</button>
+            <button class="btn ghost sm" data-tpl-rename-cancel="1" style="width:auto;padding:0 12px;height:34px" ${TPL_BUSY ? 'disabled' : ''}>Cancel</button>
+          </div>` : `
+          <div class="lrow" style="cursor:default;padding-left:0">
+            <div class="lm"><div class="lt">${esc(t.name)}</div><div class="ls">${esc(templateLabel(t.kind))}</div></div>
+            <button class="btn ghost sm" data-tpl-rename="${esc(t.id)}" aria-label="Rename template" style="width:34px;padding:0;height:30px;flex:none" ${TPL_BUSY ? 'disabled' : ''}>${icon('edit', 15)}</button>
+            <button class="btn ghost sm" data-tpl-del="${esc(t.id)}" style="width:auto;padding:0 10px;height:30px;color:var(--red);margin-left:6px" ${TPL_BUSY ? 'disabled' : ''}>Delete</button>
+          </div>`).join('') || `<div class="ls" style="padding:6px 2px">No templates saved yet.</div>`}
+        </div>
+        <button class="btn ghost sm" data-knob="tplmanage:1" style="width:auto;padding:0 14px;margin-top:10px">Done managing</button>
+        ` : `
         <div class="std-chips">
           ${(TPL && TPL.rows ? TPL.rows : []).map(t => `<span class="std-chip" data-knob="tpl:${esc(t.id)}" title="${esc(templateLabel(t.kind))}">${esc(t.name)}</span>`).join('')}
           <span class="std-chip dashed" data-knob="tplsave:1">${icon('plus', 14)} Save current</span>
@@ -749,6 +768,8 @@ export const coachPlanSet = {
           <input class="std-name" id="tpl-name" maxlength="40" placeholder="Template name" style="flex:1" />
           <button class="btn green sm" id="tpl-save-btn" style="width:auto;padding:0 16px">Save</button>
         </div>` : ''}
+        ${(TPL && TPL.rows && TPL.rows.length) ? `<button class="btn ghost sm" data-knob="tplmanage:1" style="width:auto;padding:0 14px;margin-top:10px">Manage templates</button>` : ''}
+        `}
       </section>
 
       ${(() => {
@@ -845,7 +866,34 @@ export const coachPlanSet = {
         if (tpl) KNOB = { key: KNOB.key, ...knobsFromItems(tpl.items) };
       }
       if (k === 'tplsave') SHOW_TPL_SAVE = !SHOW_TPL_SAVE;
+      if (k === 'tplmanage') { SHOW_TPL_MANAGE = !SHOW_TPL_MANAGE; TPL_RENAMING = null; }
       window.__render();
+    }));
+    root.querySelectorAll('[data-tpl-rename]').forEach(el => el.addEventListener('click', () => {
+      TPL_RENAMING = el.getAttribute('data-tpl-rename'); window.__render();
+    }));
+    root.querySelectorAll('[data-tpl-rename-cancel]').forEach(el => el.addEventListener('click', () => { TPL_RENAMING = null; window.__render(); }));
+    const submitTplRename = async (id) => {
+      const input = root.querySelector(`[data-tpl-rename-input="${id}"]`);
+      const clean = ((input && input.value) || '').trim().slice(0, 40);
+      if (!clean || TPL_BUSY) { TPL_RENAMING = null; window.__render(); return; }
+      TPL_BUSY = true; window.__render();
+      const r = await roles.renameRequirementTemplate(id, clean);
+      TPL_BUSY = false; TPL_RENAMING = null;
+      if (r.ok) await loadTemplates(true); else { say(r.error || 'Could not rename it.', true); window.__render(); }
+    };
+    root.querySelectorAll('[data-tpl-rename-save]').forEach(el => el.addEventListener('click', () => submitTplRename(el.getAttribute('data-tpl-rename-save'))));
+    root.querySelectorAll('[data-tpl-rename-input]').forEach(el => el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitTplRename(el.getAttribute('data-tpl-rename-input'));
+      else if (e.key === 'Escape') { TPL_RENAMING = null; window.__render(); }
+    }));
+    root.querySelectorAll('[data-tpl-del]').forEach(el => el.addEventListener('click', async () => {
+      if (TPL_BUSY) return;
+      const id = el.getAttribute('data-tpl-del');
+      TPL_BUSY = true; window.__render();
+      const r = await roles.deleteRequirementTemplate(id);
+      TPL_BUSY = false;
+      if (r.ok) await loadTemplates(true); else { say('Could not delete it.', true); window.__render(); }
     }));
     const tplSaveBtn = root.querySelector('#tpl-save-btn');
     if (tplSaveBtn) tplSaveBtn.addEventListener('click', async () => {
@@ -1823,7 +1871,42 @@ export const coachMeal = {
       <div class="ph-grad"></div>
       <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${meal.protein != null ? `${meal.protein}g protein` : 'Logged'}${meal.source === 'gallery' ? ' · from gallery' : ''}${meal.source === 'manual' || meal.source === 'label' ? ' · no photo' : ''}</div></div>
       ${meal.quality != null ? `<div class="scorechip ${(qualityBand(meal.quality) || {}).cls || ''}"><span class="v">${meal.quality}</span><span class="k">Meal</span></div>` : ''}</div>
-    </div>` : ''}
+    </div>
+    ${(() => {
+      // Scoring explainability (Tier 2, coach side): the SAME rubric the athlete sees on their
+      // own log — pure function of this meal's own macros/fiber/timing, no scoring math added
+      // or changed here. Null quality (manual/legacy rows) shows nothing, same as athlete side.
+      if (meal.quality == null) return '';
+      const band = qualityBand(meal.quality);
+      const macros = { protein: meal.protein, carbs: meal.carbs, fat: meal.fat };
+      const reason = qualityReason(macros, meal.fiber, meal.detected);
+      const rub = scoreRubric({
+        // userNote isn't a persisted column (the athlete's review-step note only rides the
+        // analysis text) — null here, never a guess; the rubric's "photo submitted" fallback
+        // still reads correctly.
+        quality: meal.quality, minutesLate: meal.minutes_late, macros, fiber: meal.fiber,
+        detected: meal.detected, source: meal.source, userNote: null, photoQ: null,
+      });
+      const RUB_DOT = { met: 'g', partial: 'a', miss: 'r' };
+      return `
+      ${band ? `<div class="qual-line ${band.cls}">
+        <span class="qv">${meal.quality}<small>/100</small></span>
+        <div><div class="ql">Meal quality · ${band.label}</div>${reason ? `<div class="qr">${esc(reason)}</div>` : ''}</div>
+      </div>` : ''}
+      <details class="rub">
+        <summary>${esc(rub.headline)} ${icon('chevron', 13)}</summary>
+        <div class="rub-body">
+          ${rub.rows.map(r => `
+          <div class="rub-row">
+            <span class="bd-req-dot ${RUB_DOT[r.state] || 'muted'}"></span>
+            <span class="rk">${esc(r.k)}</span>
+            <span class="rn">${esc(r.note)}</span>
+            <span class="rx-tag">${r.exact ? 'exact' : 'estimated'}</span>
+          </div>`).join('')}
+          <div class="rub-fine">Exact items are facts (timing, what the athlete submitted). Estimated items come from the photo read.</div>
+        </div>
+      </details>`;
+    })()}` : ''}
 
     ${foods.length ? `<div class="eyebrow">Detected</div><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(typeof f === 'string' ? f : f.name)}</span>`).join('')}</div>` : ''}
 
@@ -2193,6 +2276,18 @@ export const trainer = {
   },
 };
 
+/* Quick check-in prompts (trainer/client depth, Tier 2): the brief's "between-sessions
+   accountability problem, not just competitive athletes" — copy stays goal-neutral (works for
+   a competitive athlete or an everyday client working toward weight/health goals), never
+   assumes a practice/game schedule. Prefills the note composer; sending is still one honest
+   push, never a separate silent channel. */
+const TRAINER_CHECKIN_PROMPTS = [
+  { label: 'How was the week?', text: "How did last week's plan feel — anything getting in the way?" },
+  { label: 'Any soreness/pain?', text: 'Any soreness, pain, or something feeling off I should know about?' },
+  { label: 'What would help?', text: "What's one thing that would make the next few days easier to stick with?" },
+  { label: 'Nice work', text: "Solid work this week — keep it up, and let me know if anything needs adjusting." },
+];
+
 /* ---------- Trainer → client detail: real day (RLS can_view); a note is a real push ---------- */
 export const trainerClient = {
   nav: 'trainer', tab: 'note',
@@ -2249,7 +2344,10 @@ export const trainerClient = {
     </div>
 
     <div class="eyebrow">Note to client</div>
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sends a real push to their notifications.</div>
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sends a real push to their notifications — a real cadence for the time between sessions, not just a one-off message.</div>
+    <div class="chip-row" id="tn-quick" style="margin:0 0 10px">
+      ${TRAINER_CHECKIN_PROMPTS.map((p, i) => `<span class="chp" data-tn-quick="${i}">${esc(p.label)}</span>`).join('')}
+    </div>
     ${composer({ inputId: 'tn-input', sendId: 'tn-send', placeholder: `Note for ${name}…`, sendLabel: 'Send note' })}
     <div id="tn-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     <div style="height:10px"></div>
@@ -2262,6 +2360,18 @@ export const trainerClient = {
     const input = root.querySelector('#tn-input');
     const send = root.querySelector('#tn-send');
     const status = root.querySelector('#tn-status');
+    // Quick check-in prompts (trainer/client depth — between-sessions accountability): tap to
+    // prefill the SAME free-text composer, never a separate send path — one honest message
+    // channel, just with a faster on-ramp for the recurring "how's it going" cadence a trainer
+    // actually needs between sessions.
+    root.querySelectorAll('[data-tn-quick]').forEach((chip) => chip.addEventListener('click', () => {
+      const p = TRAINER_CHECKIN_PROMPTS[+chip.getAttribute('data-tn-quick')];
+      if (!p || !input) return;
+      input.value = p.text;
+      input.focus();
+      const end = input.value.length;
+      if (input.setSelectionRange) input.setSelectionRange(end, end);
+    }));
     const submit = async () => {
       const text = (input.value || '').trim();
       if (!text) return;
