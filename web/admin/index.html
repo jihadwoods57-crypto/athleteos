@@ -2,66 +2,218 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OnStandard — Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0f1216; --card:#171b21; --line:#252b34; --ink:#e8ecf1; --mut:#8b96a5; --warn:#e5484d; --note:#e2a336; --ok:#3fb37f; --teal:#2fb6c4; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui,-apple-system,sans-serif; }
-  .wrap { max-width:1100px; margin:0 auto; padding:28px 22px 80px; }
-  h1 { font-size:20px; margin:0 0 2px; }
-  .sub { color:var(--mut); margin:0 0 20px; }
-  .hidden { display:none; }
-  input,button { font:inherit; }
-  input[type=text],input[type=password] { background:#0c0f13; border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:9px 11px; }
-  button { background:var(--teal); color:#04262b; border:0; border-radius:8px; padding:9px 15px; font-weight:700; cursor:pointer; }
-  button.ghost { background:transparent; color:var(--mut); border:1px solid var(--line); font-weight:500; }
-  #err,#loginerr { color:var(--warn); }
-  .brief { background:linear-gradient(90deg,#12313a,#141a20); border:1px solid var(--line); border-radius:12px; padding:16px 18px; font-size:16px; margin-bottom:18px; }
-  .attn { list-style:none; padding:0; margin:0 0 22px; }
-  .attn li { display:flex; gap:10px; align-items:flex-start; background:var(--card); border:1px solid var(--line); border-left:3px solid var(--mut); border-radius:10px; padding:11px 14px; margin-bottom:8px; }
-  .attn li.warn { border-left-color:var(--warn); }
-  .attn li.note { border-left-color:var(--note); }
-  .attn .lbl { font-weight:600; }
-  .attn .val { color:var(--mut); }
-  .attn .lnk { margin-left:auto; color:var(--teal); font-size:12px; white-space:nowrap; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
-  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); margin:0 0 12px; }
-  .row { display:flex; justify-content:space-between; padding:4px 0; }
-  .row .k { color:var(--mut); } .row .v { font-variant-numeric:tabular-nums; font-weight:600; }
-  .delta.up { color:var(--ok); } .delta.down { color:var(--warn); }
-  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
-  td,th { text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); font-weight:400; }
-  th { color:var(--mut); font-size:12px; }
-  .foot { color:var(--mut); font-size:12px; margin-top:24px; }
-  a { color:var(--teal); }
+  /* ===== Command Center — dark-premium, data-dense. Blue→teal is the brand signature. ===== */
+  :root {
+    --bg:#0a0d12; --bg2:#0d1118; --surface:#141a22; --surface2:#1a212c; --overlay:#10151d;
+    --line:#232c38; --line2:#2f3a48;
+    --ink:#eef2f7; --ink2:#aeb9c7; --mut:#7c8798;
+    --blue:#3b82f6; --teal:#33c6d6;
+    --warn:#f0616d; --warn-bg:#2a1518; --note:#e6a93c; --note-bg:#271f10; --ok:#3ecf8e; --ok-bg:#12241c;
+    --sig:linear-gradient(120deg,#3b82f6 0%,#33c6d6 100%);
+    --shadow:0 8px 30px -12px rgba(0,0,0,.6);
+    --r:14px; --r-sm:10px;
+    --mono:'Fira Code',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Fira Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(51,198,214,.06), transparent 60%),
+      radial-gradient(1000px 500px at -10% 0%, rgba(59,130,246,.06), transparent 55%),
+      var(--bg);
+    color:var(--ink); font:15px/1.55 var(--sans); letter-spacing:.1px; }
+  .num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  .hidden { display:none !important; }
+  a { color:var(--teal); text-decoration:none; }
+  ::selection { background:rgba(51,198,214,.25); }
+  :focus-visible { outline:2px solid var(--teal); outline-offset:2px; border-radius:6px; }
+
+  /* buttons */
+  button { font:inherit; cursor:pointer; border:0; border-radius:var(--r-sm); }
+  .btn { display:inline-flex; align-items:center; gap:7px; padding:9px 14px; font-weight:600; font-size:14px;
+    background:var(--surface2); color:var(--ink); border:1px solid var(--line2); transition:background .16s,border-color .16s,transform .06s; }
+  .btn:hover { background:#212a36; border-color:#3a4757; }
+  .btn:active { transform:translateY(1px); }
+  .btn.pri { background:var(--sig); color:#04222b; border:0; font-weight:700; }
+  .btn.pri:hover { filter:brightness(1.06); }
+  .btn.sm { padding:6px 10px; font-size:12.5px; border-radius:8px; }
+  .btn.ghost { background:transparent; }
+  .btn.icon { padding:8px; }
+  input { font:inherit; background:var(--bg2); border:1px solid var(--line2); color:var(--ink);
+    border-radius:var(--r-sm); padding:11px 13px; width:100%; }
+  input::placeholder { color:var(--mut); }
+  label.fld { display:block; font-size:12px; color:var(--ink2); margin:12px 0 5px; font-weight:500; }
+
+  /* topbar */
+  .top { position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:14px;
+    padding:14px 26px; background:rgba(10,13,18,.82); backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:center; gap:11px; font-weight:700; letter-spacing:.2px; }
+  .mark { width:26px; height:26px; border-radius:8px; background:var(--sig); box-shadow:0 4px 14px -4px rgba(51,198,214,.5); }
+  .brand small { display:block; font-weight:400; font-size:11px; color:var(--mut); letter-spacing:.3px; }
+  .spacer { flex:1; }
+  .stamp { font-size:12.5px; color:var(--mut); }
+  .stamp b { color:var(--ink2); font-weight:600; }
+  .top .actions { display:flex; gap:8px; align-items:center; }
+
+  .wrap { max-width:1240px; margin:0 auto; padding:24px 26px 90px; }
+  .err { color:var(--warn); font-size:13.5px; margin:8px 0; }
+
+  /* login */
+  .login { max-width:380px; margin:12vh auto; }
+  .login .card { padding:26px; }
+  .login h1 { font-size:19px; margin:0 0 4px; }
+  .login p { color:var(--ink2); font-size:13.5px; margin:0 0 6px; }
+
+  /* briefing hero */
+  .hero { position:relative; border:1px solid var(--line); border-radius:var(--r); overflow:hidden;
+    background:linear-gradient(180deg,#111823,#0e131b); box-shadow:var(--shadow); margin-bottom:18px; }
+  .hero::before { content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--sig); }
+  .hero .inner { padding:20px 24px 18px 26px; }
+  .hero .lead { font-size:19px; line-height:1.5; font-weight:500; color:var(--ink); }
+  .hero .lead b { color:var(--teal); font-weight:700; }
+  .since { margin-top:12px; font-size:13px; color:var(--mut); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .movers { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px;
+    background:var(--surface2); border:1px solid var(--line2); font-size:12.5px; }
+  .chip .mv { font-family:var(--mono); }
+  .chip.up-good .mv, .chip.down-good .mv { color:var(--ok); }
+  .chip.up-bad .mv, .chip.down-bad .mv { color:var(--warn); }
+  .chip .arw { font-size:11px; }
+
+  /* section headers */
+  .sec-h { display:flex; align-items:center; gap:10px; margin:24px 2px 12px; }
+  .sec-h h2 { font-size:12.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--mut); margin:0; font-weight:600; }
+  .sec-h .count { font-size:11.5px; color:var(--ink2); background:var(--surface2); border:1px solid var(--line2);
+    padding:1px 8px; border-radius:999px; }
+  .sec-h .line { flex:1; height:1px; background:var(--line); }
+
+  /* attention queue */
+  .attn { display:flex; flex-direction:column; gap:9px; }
+  .item { display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:var(--r);
+    background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--mut); transition:border-color .16s,background .16s; }
+  .item:hover { background:var(--surface2); }
+  .item.warn { border-left-color:var(--warn); }
+  .item.note { border-left-color:var(--note); }
+  .item .dot { width:8px; height:8px; border-radius:50%; background:var(--mut); flex:none; }
+  .item.warn .dot { background:var(--warn); box-shadow:0 0 0 4px rgba(240,97,109,.14); }
+  .item.note .dot { background:var(--note); box-shadow:0 0 0 4px rgba(230,169,60,.14); }
+  .item .body { flex:1; min-width:0; }
+  .item .lbl { font-weight:600; font-size:14.5px; }
+  .item .val { color:var(--ink2); font-size:13px; margin-top:1px; }
+  .sigma { font-family:var(--mono); font-size:11px; color:var(--note); border:1px solid var(--note); border-radius:6px; padding:0 5px; margin-left:8px; }
+  .item .acts { display:flex; gap:6px; flex:none; }
+  .item.handled { opacity:.55; border-left-color:var(--line2); }
+  .item.handled .lbl { text-decoration:none; }
+  .badge-h { font-size:11px; color:var(--mut); font-family:var(--mono); }
+  .allclear { display:flex; align-items:center; gap:12px; padding:16px; border-radius:var(--r);
+    background:var(--ok-bg); border:1px solid rgba(62,207,142,.25); color:var(--ok); font-weight:500; }
+
+  /* panel grid */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; }
+  .card .hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .card .hd h3 { font-size:12.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--mut); margin:0; font-weight:600; }
+  .card .hd .link { font-size:12px; color:var(--teal); cursor:pointer; }
+  .row { display:flex; align-items:baseline; justify-content:space-between; padding:5px 0; gap:12px; }
+  .row .k { color:var(--ink2); font-size:13px; }
+  .row .v { font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:500; font-size:14px; text-align:right; }
+  .row .v .d { font-size:12px; margin-left:7px; }
+  .d.up { color:var(--ok); } .d.down { color:var(--warn); } .d.flat { color:var(--mut); }
+  .big { font-family:var(--mono); font-size:26px; font-weight:600; letter-spacing:-.5px; }
+  .big.sig { background:var(--sig); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .cap { font-size:11.5px; color:var(--mut); margin-top:2px; }
+  svg.spark { display:block; margin-top:10px; width:100%; height:38px; overflow:visible; }
+
+  table { width:100%; border-collapse:collapse; margin-top:8px; }
+  th,td { text-align:left; padding:6px 6px; border-bottom:1px solid var(--line); font-size:12.5px; }
+  td.num, th.num { text-align:right; font-family:var(--mono); }
+  th { color:var(--mut); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+  tbody tr { cursor:default; }
+  tbody tr.click { cursor:pointer; }
+  tbody tr.click:hover td { background:var(--surface2); }
+  .empty { color:var(--mut); font-size:13px; padding:8px 0; }
+
+  /* skeleton */
+  .sk { background:linear-gradient(90deg,#161d27 25%,#1d2530 37%,#161d27 63%); background-size:400% 100%;
+    animation:sh 1.3s infinite; border-radius:8px; }
+  @keyframes sh { 0%{background-position:100% 0} 100%{background-position:-100% 0} }
+
+  /* modal */
+  .scrim { position:fixed; inset:0; background:rgba(4,7,11,.62); backdrop-filter:blur(3px); z-index:80;
+    display:flex; align-items:flex-start; justify-content:center; padding:8vh 16px 16px; }
+  .modal { width:100%; max-width:640px; background:var(--overlay); border:1px solid var(--line2);
+    border-radius:var(--r); box-shadow:var(--shadow); max-height:82vh; overflow:auto; animation:pop .18s ease-out; }
+  @keyframes pop { from{opacity:0; transform:translateY(8px) scale(.99)} to{opacity:1; transform:none} }
+  .modal .mh { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--overlay); }
+  .modal .mh h3 { margin:0; font-size:16px; }
+  .modal .mb { padding:16px 20px 22px; }
+
+  /* toast */
+  .toasts { position:fixed; bottom:22px; right:22px; z-index:100; display:flex; flex-direction:column; gap:8px; }
+  .toast { background:var(--surface2); border:1px solid var(--line2); border-left:3px solid var(--teal);
+    border-radius:var(--r-sm); padding:11px 15px; font-size:13.5px; box-shadow:var(--shadow); animation:pop .18s ease-out; max-width:340px; }
+  .toast.err { border-left-color:var(--warn); }
+
+  .foot { color:var(--mut); font-size:12px; margin-top:28px; line-height:1.6; }
+
+  @media (max-width:640px){ .wrap{ padding:16px 14px 80px; } .top{ padding:12px 14px; } .hero .lead{ font-size:16px; } .top .actions .lbl{ display:none; } }
+  @media (prefers-reduced-motion:reduce){ *{ animation:none !important; transition:none !important; } }
 </style></head>
 <body>
-  <div class="wrap">
-    <h1>OnStandard Command Center</h1>
-    <p class="sub">What needs attention today. Read-only · platform-admin only.</p>
-
-    <div id="login">
-      <p class="sub">Founder sign-in required. This page holds only the anon key + your login token.</p>
-      <p>
-        <input id="email" type="text" placeholder="email" autocomplete="username">
-        <input id="pw" type="password" placeholder="password" autocomplete="current-password">
-        <button id="signin">Sign in</button>
-      </p>
-      <p id="loginerr"></p>
-    </div>
-
-    <div id="app" class="hidden">
-      <p>
-        <button id="refresh" class="ghost">Refresh</button>
-        <a href="./flags.html" class="ghost" style="text-decoration:none;padding:9px 15px;border:1px solid var(--line);border-radius:8px;">Feature flags →</a>
-        <button id="signout" class="ghost" style="float:right;">Sign out</button>
-      </p>
-      <p id="err"></p>
-      <div class="brief" id="brief">Loading…</div>
-      <ul class="attn" id="attn"></ul>
-      <div class="grid" id="grid"></div>
-      <p class="foot" id="foot"></p>
+  <!-- login -->
+  <div id="login" class="login">
+    <div class="card">
+      <div class="brand" style="margin-bottom:14px"><span class="mark"></span><div>OnStandard<small>Command Center</small></div></div>
+      <h1>Founder sign-in</h1>
+      <p>Platform-admin only. This page holds only the publishable key + your login token — never a secret.</p>
+      <label class="fld" for="email">Email</label>
+      <input id="email" type="text" autocomplete="username" placeholder="you@onstandard.app">
+      <label class="fld" for="pw">Password</label>
+      <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
+      <div style="height:16px"></div>
+      <button id="signin" class="btn pri" style="width:100%; justify-content:center">Sign in</button>
+      <p id="loginerr" class="err"></p>
     </div>
   </div>
+
+  <!-- app -->
+  <div id="app" class="hidden">
+    <header class="top">
+      <div class="brand"><span class="mark"></span><div>OnStandard<small>Command Center</small></div></div>
+      <div class="spacer"></div>
+      <div class="stamp" id="stamp"></div>
+      <div class="actions">
+        <button id="ask" class="btn ghost sm"><span class="lbl">Ask</span></button>
+        <a href="./flags.html" class="btn ghost sm">Flags</a>
+        <button id="refresh" class="btn ghost sm">Refresh</button>
+        <button id="signout" class="btn ghost sm">Sign out</button>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <p id="err" class="err"></p>
+      <section class="hero"><div class="inner">
+        <div class="lead" id="brief"><span class="sk" style="display:inline-block;width:70%;height:19px"></span></div>
+        <div class="since" id="since"></div>
+        <div class="movers" id="movers"></div>
+      </div></section>
+
+      <div class="sec-h"><h2>Needs attention</h2><span class="count" id="attn-count">—</span><span class="line"></span></div>
+      <div class="attn" id="attn"></div>
+
+      <div class="sec-h"><h2>The business</h2><span class="line"></span></div>
+      <div class="grid" id="grid"></div>
+
+      <p class="foot" id="foot"></p>
+    </main>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+  <div id="modal-root"></div>
   <script type="module" src="./admin.js"></script>
 </body></html>
