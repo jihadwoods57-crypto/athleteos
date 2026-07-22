@@ -453,3 +453,8 @@ verify_jwt = false
 
 [functions.weekly-digest]
 verify_jwt = false
+
+# admin-mfa-recover authenticates the caller via their own aal1 Supabase JWT (proves the password before
+# a recovery code resets MFA), so it KEEPS verify_jwt on. Pinned so a redeploy can't drop the check.
+[functions.admin-mfa-recover]
+verify_jwt = true
