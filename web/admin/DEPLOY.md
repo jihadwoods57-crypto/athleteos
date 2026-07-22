@@ -76,69 +76,61 @@ The env badge (top bar) reads `admin_bootstrap().environment`. It currently retu
 
 ---
 
-## Phase 2 — MFA enforcement + monitoring (go-live runbook)
+## Phase 2 — MFA enforcement + monitoring (LIVE as of 2026-07-22)
 
-Migrations `0130` (the MFA gate) + `0131` (the monitor), 3 edge functions, and the client MFA flow.
-Verified on the local stack (`docs/audit/cc-auth-evidence.md`). Do the steps **in this order** — step 0
-prevents a lock-out. **Never `supabase config push`** (it regressed prod on 2026-07-22).
+Migrations `0130`/`0131`, all 3 edge functions, the cron monitor, and the re-hosted client are **already
+applied to production** (`ftwrvylzoyznhbzhgism`) — see `docs/audit/cc-auth-evidence.md` for the exact
+verification evidence. The Command Center is live at
+`https://onstandard-admin.gelatinous-twin.workers.dev`. What's below is what's actually left, plus the
+reference runbook for repeating any of these on a different environment.
 
-**0. Confirm prod MFA TOTP is ON** (a `config push` earlier today may have toggled it off). Bearer = the
-CLI token in Windows Credential Manager `Supabase CLI:supabase`:
+### What's left (only you can do these)
+
+1. **Sign in and enroll.** Go to `https://onstandard-admin.gelatinous-twin.workers.dev`, sign in with your
+   password — you'll land on **Enroll two-factor**. Scan the QR with your authenticator app, enter the
+   6-digit code, then **save the 10 recovery codes shown** (they're shown exactly once).
+2. **(Optional) Turn on email alerts.** No `RESEND_API_KEY` is set yet, so `admin-alert` currently sends
+   push only (once you have a push `device_token`) and skips email. Get a key from resend.com, then:
+   `supabase secrets set RESEND_API_KEY=re_xxx`.
+3. **(Optional) Instant MFA-code lockout.** The Management API rejected enabling
+   `hook_mfa_verification_attempt` with `402 — cannot be configured for this organization` (a Supabase
+   plan/tier limit, not a bug). The MFA *requirement* is fully enforced regardless; only the instant,
+   GoTrue-side lockout on repeated bad codes is unavailable — the monitor's ban-on-burst fallback covers
+   it with ~1 minute of lag instead of instantly. If you upgrade the org tier, re-run step 4 below.
+
+### Reference runbook (for a different project/environment)
+
+**Never `supabase config push`** (it regressed prod on 2026-07-22 — diffs the *entire* local `[auth]`
+block onto prod). All PATCHes below are single-field and safe.
+
+**0. Confirm target project's MFA TOTP is ON** first (skip if already known-good):
 ```sh
-curl -s https://api.supabase.com/v1/projects/ftwrvylzoyznhbzhgism/config/auth \
+curl -s https://api.supabase.com/v1/projects/<ref>/config/auth \
   -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" | grep -o '"mfa_totp_[a-z]*_enabled":[a-z]*'
-# both must be true; if not, PATCH them true (step 4 shows the PATCH shape) BEFORE step 1.
 ```
-
-**1. Apply the migrations** (direct, not `db push` — shared-tree divergence):
+**1. Apply migrations directly** (not `db push`): `supabase db query --linked -f supabase/migrations/0130_admin_auth_gate.sql` then `...0131_admin_auth_monitor.sql`.
+**2. Deploy functions:** `supabase functions deploy admin-mfa-recover|admin-alert|admin-auth-monitor`.
+**3. Set secrets:** `supabase secrets set ALERT_KEY=$(openssl rand -hex 24) MONITOR_KEY=$(openssl rand -hex 24) RESEND_API_KEY=re_xxx ADMIN_ALERT_EMAIL=you@onstandard.app` (optional `IPINFO_TOKEN`).
+**4. Enable the MFA-code hook** (may 402 depending on plan tier):
 ```sh
-supabase db query --linked -f supabase/migrations/0130_admin_auth_gate.sql
-supabase db query --linked -f supabase/migrations/0131_admin_auth_monitor.sql
-```
-After `0130`, your next Command Center sign-in routes you to **enroll** (bootstrap stays `aal1`-callable) —
-you are not locked out as long as step 0 is green.
-
-**2. Deploy the functions:**
-```sh
-supabase functions deploy admin-mfa-recover
-supabase functions deploy admin-alert
-supabase functions deploy admin-auth-monitor
-```
-
-**3. Set secrets:**
-```sh
-supabase secrets set ALERT_KEY=$(openssl rand -hex 24) MONITOR_KEY=$(openssl rand -hex 24) \
-  RESEND_API_KEY=re_xxx ADMIN_ALERT_EMAIL=you@onstandard.app
-# optional: IPINFO_TOKEN=xxx (enables country/ASN + impossible-travel; degrades gracefully without it)
-```
-
-**4. Enable the MFA-code lockout hook** (Management API PATCH — enables the `0131` hook function):
-```sh
-curl -s -X PATCH https://api.supabase.com/v1/projects/ftwrvylzoyznhbzhgism/config/auth \
+curl -s -X PATCH https://api.supabase.com/v1/projects/<ref>/config/auth \
   -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "content-type: application/json" \
   -d '{"hook_mfa_verification_attempt_enabled":true,
        "hook_mfa_verification_attempt_uri":"pg-functions://postgres/public/hook_mfa_verification_attempt"}'
 ```
-
-**5. Schedule the monitor** (~1 min; needs `pg_cron` + `pg_net`, already used by `schedule_admin_brief`):
+**5. Schedule the monitor:**
 ```sql
 select cron.schedule('admin-auth-monitor', '* * * * *', $$
-  select net.http_post(
-    url    := 'https://ftwrvylzoyznhbzhgism.functions.supabase.co/admin-auth-monitor',
-    headers:= jsonb_build_object('x-monitor-key','<the MONITOR_KEY from step 3>'))
+  select net.http_post(url:='https://<ref>.functions.supabase.co/admin-auth-monitor',
+    headers:=jsonb_build_object('x-monitor-key','<MONITOR_KEY>'))
 $$);
 ```
-
-**6. Host the client** — re-host `web/admin/` (now includes `reset.html`, `authflow.mjs`, `session.mjs`,
-`sections/security.js`). The `_headers` + CSP are unchanged (no new origins).
-
-**7. First sign-in:** enter your password → **enroll** your authenticator (scan the QR) → **save the 10
-recovery codes** (shown once) → you land on the shell. Confirm a push `device_token` exists for your
-account so alerts reach your phone.
-
-**8. Verify:** open **Security** in the rail (recent sign-ins appear within a minute); sign out and back in
-requiring the 6-digit code; a wrong code 5× shows the lockout message. Forgot-password + a recovery code
-both round-trip.
+**6. Re-host the client** (`cd web/admin && npx wrangler deploy`, `CLOUDFLARE_API_TOKEN` from `.env`).
+**7. Add the deployed origin to Supabase's `uri_allow_list`** (PATCH, preserving existing entries) —
+"Forgot password" silently fails otherwise: `https://<your-worker>.workers.dev` +
+`https://<your-worker>.workers.dev/reset.html`.
+**8. Verify:** Security panel shows sign-ins; wrong-code lockout message; forgot-password + a recovery
+code both round-trip; `net._http_response` shows real `200`s from the cron.
 
 ### Recovery if you ever lose your authenticator
 Sign in with your password → on the code screen tap **"Use a recovery code"** → enter one → MFA resets so

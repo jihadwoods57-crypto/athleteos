@@ -43,17 +43,50 @@ Integration — auth-log     (seed login → pull)      : pull_ok=true, ip=9.9.9
 column vs `platform_admins.user_id`); fixed by qualifying `platform_admins pa`. Unit tests missed it (they
 exercised the detector directly); the end-to-end auth-log read surfaced it.
 
-## Not automated here (founder go-live steps)
+## Go-live — DONE on production (2026-07-22, same session)
 
-- **Live TOTP round-trip** (enroll → scan with your authenticator → verify → shell): requires your real
-  device; it's the first step of go-live. The client uses Supabase's documented v2 MFA API
-  (`mfa.enroll/challenge/verify/listFactors/getAuthenticatorAssuranceLevel`).
-- **Prod apply of `0130`/`0131`, function deploys, the Management-API PATCH to enable the MFA hook, and
-  secrets** — all in `web/admin/DEPLOY.md`. `0130` is safe to apply before you enroll (bootstrap routes you
-  to the enroll screen), **provided prod MFA TOTP enroll/verify is ON** (re-confirm via the Management API —
-  a config-push regression on 2026-07-22 had toggled it off).
+Everything except your physical authenticator enrollment has been applied to the live
+`ftwrvylzoyznhbzhgism` (AthleteOS) project and verified against real data:
+
+1. **Confirmed safe before touching anything:** prod `mfa_totp_enroll_enabled`/`mfa_totp_verify_enabled`
+   were already `true` (not regressed) — applying the gate could not lock you out.
+2. **`0130`/`0131` applied directly** (`db query --linked -f`, not `db push`). Verified against your real
+   UUID: `is_platform_admin()` → `false`@aal1 / `true`@aal2; `admin_bootstrap()` → `is_admin:true,
+   mfa_enrolled:false, access_granted:false` (correctly withheld pending your enrollment).
+3. **All 3 edge functions deployed** (`admin-mfa-recover`, `admin-alert`, `admin-auth-monitor`).
+4. **Secrets set:** `ALERT_KEY`, `MONITOR_KEY`, `ADMIN_ALERT_EMAIL=jihadwoods57@gmail.com`.
+   **`RESEND_API_KEY` was NOT set** — no Resend account/key was available this session, so email alerts
+   currently no-op (`admin-alert` degrades gracefully); push still works once a `device_token` exists for
+   your account.
+5. **MFA-verification-attempt hook — BLOCKED, not a bug:** the Management API returned
+   `402 Payment Required: "HOOK_MFA_VERIFICATION_ATTEMPT cannot be configured for this organization"` — this
+   specific Supabase auth hook isn't available on the current plan/org tier. **The MFA requirement itself
+   (the actual invariant) is completely unaffected** — this only removes the *instant* GoTrue-side MFA-code
+   lockout. The documented fallback (§7 of the design spec: "MFA-verification hook unavailable → detect-
+   and-react (monitor bans on repeated MFA failures too)") is exactly what's deployed and running.
+6. **Monitor cron scheduled** (`cron.job` id 3, `* * * * *`) and **proven live**: 3 consecutive runs
+   returned real `200 {"processed":0,"banned":0}` via `net._http_response` (0 processed = no new admin
+   logins since the checkpoint, not an error).
+7. **Client re-hosted** to the real production URL, `https://onstandard-admin.gelatinous-twin.workers.dev`
+   — confirmed serving the new auth flow (`access_granted`/`nextScreen`/`startSessionWatch` in `admin.js`;
+   `#challenge #enroll #recovery #forgot` etc. in the real HTML at `/`). Excluded `*.test.mjs` from the
+   asset upload (`.assetsignore`) after noticing they'd been served as static files (harmless — no
+   secrets — but cleaned up).
+8. **Fixed a real gap found during verification:** Supabase's redirect allowlist (`uri_allow_list`) only
+   contained `onstandard.app` — the Command Center's actual origin was missing, so "Forgot password"
+   would have silently failed. Patched to add
+   `https://onstandard-admin.gelatinous-twin.workers.dev{,/reset.html}`, preserving the existing entries.
+
+**What's left — requires your physical device, not automatable:**
+- Sign in at `https://onstandard-admin.gelatinous-twin.workers.dev` → you'll land on **Enroll** → scan the
+  QR with your authenticator app → verify → **save the 10 recovery codes shown** (once).
+- Optional: get a Resend API key and `supabase secrets set RESEND_API_KEY=...` to turn email alerts on
+  (push already works once you have a `device_token`).
+- Optional: if you upgrade the Supabase org tier and want the instant MFA-code hook, re-run the PATCH in
+  `web/admin/DEPLOY.md` step 4 — everything else is already wired to support it.
 
 ## Commits
 
 `docs` specs+plans → `0130` gate → `admin-mfa-recover` → client flow → `0131` monitor → `admin-alert` +
-`admin-auth-monitor` → Security panel. All on `feat/founder-command-center`.
+`admin-auth-monitor` → Security panel → `.assetsignore` fix. All on `feat/founder-command-center`.
+Production apply done live in-session (see "Go-live" above) — not a separate deferred step.

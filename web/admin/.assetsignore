@@ -1,3 +1,4 @@
 DEPLOY.md
 wrangler.jsonc
 .assetsignore
+*.test.mjs
