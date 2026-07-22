@@ -1,12 +1,16 @@
-# Deploy Runbook — Feature Flags + Coach Voice v2 + Admin Command Center
+# Deploy Runbook — Feature Flags + Coach Voice v2 + Admin Command Center + Multi-Domain Exec
 
-**Date:** 2026-07-21
+**Date:** 2026-07-21, updated 2026-07-22 after the live deploy
 **Branch:** `compliance-fixes` (all commits present)
-**What's shipping:** 3 slices, all behind flags / read-only. Nothing changes for any user until you deploy AND flip a flag on.
+**What's shipping:** 4 slices, all behind flags / parity-safe. Nothing changes for any user until you deploy AND (for slice 4) push an OTA update AND flip a flag on.
 
-Migrations `0109` (feature flags + admin_audit_log), `0110` (coach voice version + `coach_voice_v2` flag), `0111` (admin command-center RPCs). Functions `flags` (new), `analyze-meal` (modified), `coach-voice-nudge` (modified). Web pages `web/admin/` (command center + flags panel).
+Migrations `0109` (feature flags + admin_audit_log), `0110` (coach voice version + `coach_voice_v2` flag), `0111` (admin command-center RPCs), `0112` (days.checked_tasks). Functions `flags` (new), `analyze-meal` (modified), `coach-voice-nudge` (modified). Web pages `web/admin/` (command center + flags panel). Proto changes (slice 4: multi-domain completion) live in `proto/redesign-2026-07/js/` — client-visible only after an OTA update (see §9).
 
-> Note: there is **no migration `0108`** — the number was reserved for the admin center then superseded (the admin RPCs are `0111` so they can read the `0109` audit log). The gap is intentional; `supabase db push` applies `0109/0110/0111` regardless.
+> Note: there is **no migration `0108`** — the number was reserved for the admin center then superseded (the admin RPCs are `0111` so they can read the `0109` audit log). The gap is intentional; `supabase db push` applies `0109`–`0112` regardless.
+
+> **STATUS (2026-07-22): steps 1–3 below are DONE on prod** (project `ftwrvylzoyznhbzhgism` / AthleteOS). Migrations 0104–0112 applied and verified; `flags`/`analyze-meal`/`coach-voice-nudge` deployed and smoke-tested; `web/admin/admin.js` + `flags.js` configured with the prod URL + publishable anon key. **Still open:** no `platform_admins` row exists yet on prod — nobody can sign into the command center or flags panel until one is added (§4a). The client-facing OTA push for slice 4 (§9) has NOT been run — it needs an explicit go/no-go since it changes behavior for every installed user on next launch.
+
+> **Correction to the original plan:** slice 4 (multi-domain completion) does **NOT** need a new App Store build/submission. `runtimeVersion` is pinned to `policy: "appVersion"` and the proto ships as a zip asset specifically designed for `eas update` (see `scripts/build-proto-zip.mjs`'s own comment). An OTA update is enough — see §9.
 
 ---
 
@@ -83,14 +87,16 @@ npx serve web/admin      # or: python -m http.server 8080 --directory web/admin
 
 ## 4. Confirm you're a platform admin
 
-The dashboard + flags panel + all admin RPCs gate on `is_platform_admin()`. Confirm your account is in `platform_admins` (you already are, for the analytics RPCs):
+The dashboard + flags panel + all admin RPCs gate on `is_platform_admin()`. **On the AthleteOS prod project (`ftwrvylzoyznhbzhgism`), `platform_admins` is currently EMPTY** — no account has been granted yet, and no account matching the founder's usual email exists in `auth.users` on this project either. This is a founder decision (which real account should hold admin), not something to guess or auto-create.
+
 ```bash
-supabase db query --linked "select user_id from platform_admins;"
-# if your uuid is missing:
-supabase db query --linked "insert into platform_admins(user_id) values ('<your-auth-uid>') on conflict do nothing;"
+supabase db query --linked "select pa.user_id, u.email from platform_admins pa join auth.users u on u.id = pa.user_id;"
+# once you've signed up / signed in through the app with the account you want as admin:
+supabase db query --linked "select id, email from auth.users where email = '<your-email>';"
+supabase db query --linked "insert into platform_admins(user_id) values ('<that-uuid>') on conflict do nothing;"
 ```
 
-Now sign in at `/index.html` (command center) and `/flags.html` (flags panel) with your OnStandard account. A non-admin — or a signed-out visitor — gets nothing.
+Now sign in at `/index.html` (command center) and `/flags.html` (flags panel) with that account. A non-admin — or a signed-out visitor — gets nothing.
 
 ---
 
@@ -120,6 +126,21 @@ Ship an app build only when you start gating client screens with `useFlag`. Unti
    ```
 
 ---
+
+## 9. Shipping slice 4 (multi-domain completion) — an OTA update, not an App Store build
+
+The `proto/redesign-2026-07/js/` changes (coach lift/custom items surfacing + one-tap complete) live in `assets/proto.zip`, extracted by the app at runtime. Because `runtimeVersion` is pinned to `policy: "appVersion"` (unchanged), this ships as an **OTA update** — no new binary, no App Store review, minutes not days, and reversible by publishing another update.
+
+**This is the one step in this whole batch that changes behavior for every installed user on their next app open** (once athletes are on a coach standard with lift/custom items, they'll now see + can complete them — tracked, not scored, so nothing about their score changes). Confirm before running:
+
+```bash
+node scripts/build-proto-zip.mjs   # rebuild assets/proto.zip from the current proto/ source
+eas update --branch production --message "multi-domain completion surfaces (tracked, not scored)"
+```
+
+**Rollback:** `eas update --branch production --message "revert" ` republishing the prior commit's build, or `eas channel:rollback` — an OTA push is not one-way.
+
+**Verify:** open the app as a coach-linked athlete on a standard with a `lift`/`custom` item; the item should now appear on Home/Plan and be completable ("Mark Done · coach sees it"); the Living Number must be unchanged before/after completing it.
 
 ## 7. Smoke checklist
 
