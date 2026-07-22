@@ -15,6 +15,8 @@
 //                                          an OnStandard Pay offer purchase into offer_payments
 //   * customer.subscription.updated     -> status/pause/cancel-at-period-end/plan changes
 //   * customer.subscription.deleted     -> canceled, tier back to preview
+//                                          -> OR (Task 3) stamps subscription_cancelled_at on every
+//                                          offer_payments ledger row for that subscription
 //   * invoice.payment_failed            -> past_due + payment_failed_at (dunning: the app
 //                                          shows "card failed on <date>, update it"; access
 //                                          continues through the grace window — isPro())
@@ -170,7 +172,7 @@ async function rewardReferrer(
 async function recordOfferPayment(
   svc: ReturnType<typeof createClient>,
   fields: {
-    practiceId: string; offerId: string | null; payerId: string | null;
+    practiceId: string; offerId: string | null; payerId: string | null; beneficiaryAthleteId: string | null;
     checkoutSessionId: string | null; paymentIntentId: string | null; subscriptionId: string | null;
     chargeId: string | null; amountCents: number; applicationFeeCents: number;
   },
@@ -183,6 +185,7 @@ async function recordOfferPayment(
     practice_id: fields.practiceId,
     offer_id: fields.offerId,
     payer_id: fields.payerId,
+    beneficiary_athlete_id: fields.beneficiaryAthleteId,
     stripe_checkout_session_id: fields.checkoutSessionId,
     stripe_payment_intent_id: fields.paymentIntentId,
     stripe_subscription_id: fields.subscriptionId,
@@ -201,6 +204,7 @@ async function handleOfferCheckout(svc: ReturnType<typeof createClient>, session
   const practiceId = session.metadata?.practice_id ?? '';
   const offerId = session.metadata?.offer_id ?? null;
   const payerId = session.metadata?.payer_id ?? session.client_reference_id ?? null;
+  const beneficiaryAthleteId = session.metadata?.beneficiary_athlete_id ?? null;
   if (!UUID_RE.test(practiceId)) {
     console.error('stripe-webhook: offer checkout with no valid practice_id', session.id);
     return;
@@ -212,7 +216,7 @@ async function handleOfferCheckout(svc: ReturnType<typeof createClient>, session
     const pi = await stripeClient().paymentIntents.retrieve(piId);
     const chargeId = typeof pi.latest_charge === 'string' ? pi.latest_charge : pi.latest_charge?.id ?? null;
     await recordOfferPayment(svc, {
-      practiceId, offerId, payerId,
+      practiceId, offerId, payerId, beneficiaryAthleteId,
       checkoutSessionId: session.id, paymentIntentId: pi.id, subscriptionId: null, chargeId,
       amountCents: pi.amount, applicationFeeCents: pi.application_fee_amount ?? 0,
     });
@@ -223,7 +227,7 @@ async function handleOfferCheckout(svc: ReturnType<typeof createClient>, session
     const invoice = sub.latest_invoice as Stripe.Invoice | null;
     const charge = invoice?.charge as Stripe.Charge | null | undefined;
     await recordOfferPayment(svc, {
-      practiceId, offerId, payerId,
+      practiceId, offerId, payerId, beneficiaryAthleteId,
       checkoutSessionId: session.id, paymentIntentId: null, subscriptionId: sub.id, chargeId: charge?.id ?? null,
       amountCents: invoice?.amount_paid ?? 0, applicationFeeCents: charge?.application_fee_amount ?? 0,
     });
@@ -236,7 +240,7 @@ async function handleOfferCheckout(svc: ReturnType<typeof createClient>, session
  *  a known offer subscription at all (i.e. it belongs to something else, or nothing). */
 async function handleOfferRenewal(svc: ReturnType<typeof createClient>, invoice: Stripe.Invoice, subId: string): Promise<boolean> {
   const { data: priorRow } = await svc.from('offer_payments')
-    .select('practice_id, offer_id, payer_id').eq('stripe_subscription_id', subId).limit(1).maybeSingle();
+    .select('practice_id, offer_id, payer_id, beneficiary_athlete_id').eq('stripe_subscription_id', subId).limit(1).maybeSingle();
   if (!priorRow) return false; // not an offer subscription at all
   if (invoice.billing_reason !== 'subscription_cycle') return true; // known, but not a NEW charge to record
 
@@ -248,6 +252,7 @@ async function handleOfferRenewal(svc: ReturnType<typeof createClient>, invoice:
   }
   await recordOfferPayment(svc, {
     practiceId: priorRow.practice_id, offerId: priorRow.offer_id, payerId: priorRow.payer_id,
+    beneficiaryAthleteId: priorRow.beneficiary_athlete_id ?? null,
     checkoutSessionId: null, paymentIntentId: null, subscriptionId: subId, chargeId,
     amountCents: invoice.amount_paid, applicationFeeCents,
   });
@@ -353,6 +358,16 @@ Deno.serve(async (req) => {
           })
           .eq('stripe_subscription_id', sub.id);
         if (error) throw error;
+
+        // OnStandard Pay: this sub id may instead (or additionally) belong to a recurring offer
+        // subscription (parent/client cancelled, or Stripe terminated it) rather than a platform
+        // plan — the update above only touches `subscriptions` and no-ops if it doesn't match.
+        // Stamp every ledger row for that subscription so "Funded plans" shows it stopped. Past
+        // paid charges keep status 'paid'.
+        const { error: offerError } = await svc.from('offer_payments')
+          .update({ subscription_cancelled_at: new Date().toISOString() })
+          .eq('stripe_subscription_id', sub.id).is('subscription_cancelled_at', null);
+        if (offerError) throw offerError;
         break;
       }
 
