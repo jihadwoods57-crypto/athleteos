@@ -62,6 +62,12 @@ export default {
         <div class="lm"><div class="lt">View connection</div><div class="ls">Exactly what ${esc(S.coach.nameMid)} can see</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
+      ${S.coach.kind === 'trainer' ? `
+      <div class="lrow" data-go="my-trainer-offers">
+        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Packages</div><div class="ls">Accountability packages from ${esc(S.coach.nameMid)}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>` : ''}
     </section>` : `
     <section class="card pad">
       <div style="font-size:15.5px;font-weight:800">Connect your coach or trainer</div>

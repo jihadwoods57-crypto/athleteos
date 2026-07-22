@@ -936,6 +936,68 @@ export async function setApplicationStatus(id, status) {
   try { const { error } = await c.from('trainer_applications').update({ status }).eq('id', id); return !error; } catch { return false; }
 }
 
+/* ---------------- OnStandard Pay (0119): Connect onboarding + offer checkout + payments ----------------
+   Edge functions (not RPCs — they call the Stripe API server-side) are invoked via a plain
+   fetch() with the session's own bearer token, the first time the proto has needed this pattern
+   (every prior server write went through supabase-js .rpc()/.from()). window.__SUPABASE carries
+   the project URL the native shell injects (see supabase.js); apikey is the same anon key sb was
+   built with. Every wrapper is best-effort and returns { error } on any failure — never throws. */
+async function callFn(name, body) {
+  const c = sb();
+  const cfg = window.__SUPABASE || {};
+  if (!c || !cfg.url || !cfg.anonKey) return { error: 'not configured' };
+  try {
+    const { data: { session } } = await c.auth.getSession();
+    const token = (session && session.access_token) || cfg.anonKey;
+    const res = await fetch(`${cfg.url}/functions/v1/${name}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: cfg.anonKey, Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body || {}),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: out.error || `request failed (${res.status})` };
+    return out;
+  } catch (e) {
+    return { error: String((e && e.message) || e) };
+  }
+}
+
+/** Mint/resume the trainer's Stripe Connect onboarding link. Returns { url } or { error }. */
+export async function startConnectOnboarding(practiceId) {
+  return callFn('connect-onboarding', { practiceId });
+}
+/** Create a Checkout Session for an offer (destination charge). Returns { url } or { error }. */
+export async function startOfferCheckout(offerId) {
+  return callFn('pay-offer-checkout', { offerId });
+}
+/** Refund one of the trainer's own recorded payments. Returns { ok:true } or { error }. */
+export async function refundOfferPayment(paymentId) {
+  return callFn('refund-payment', { paymentId });
+}
+
+export async function fetchConnectStatus(practiceId) {
+  const c = sb(); if (!c || !practiceId) return null;
+  try { const { data, error } = await c.rpc('my_connect_status', { p_practice: practiceId }); if (error) return null; const r = Array.isArray(data) ? data[0] : data; return r || null; } catch { return null; }
+}
+export async function fetchPracticePayments(practiceId) {
+  const c = sb(); if (!c || !practiceId) return [];
+  try { const { data } = await c.rpc('my_practice_payments', { p_practice: practiceId, p_limit: 30 }); return data || []; } catch { return []; }
+}
+/** The signed-in CLIENT's own connected trainer's payable offers (active Connect + active offer). */
+export async function fetchMyTrainerOffers() {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.rpc('my_trainer_offers'); return data || []; } catch { return []; }
+}
+
+/** Open a Stripe-hosted URL (Connect onboarding, Checkout) in the SYSTEM browser via the native
+ *  bridge — never navigate this WebView itself into it (see bridge.ts OPEN_URL for why). Falls
+ *  back to window.open for a plain-browser dev/preview session where the bridge doesn't exist. */
+export function openExternal(url) {
+  if (!url) return;
+  if (window.OnStandardNative && window.OnStandardNative.openUrl) window.OnStandardNative.openUrl(url);
+  else window.open(url, '_blank');
+}
+
 /* ---------------- pure roster projection (honest: no invented numbers) ---------------- */
 export function tierFlag(score) { return score == null ? '' : score >= 80 ? 'g' : score >= 60 ? 'y' : 'r'; }
 /** Merge a roster member (from the RPC) with today's real day row into a UI row.

@@ -7,7 +7,7 @@
 //
 // Injection is JSON-escaped (incl. U+2028/U+2029, which are valid JSON but break a JS string
 // literal) so a value can never break out of the injected call.
-import { Platform, Share } from 'react-native';
+import { Linking, Platform, Share } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as SecureStore from 'expo-secure-store';
 import type WebView from 'react-native-webview';
@@ -32,6 +32,7 @@ export type BridgeMessage =
   | { type: 'BIO_AVAILABLE'; id: number }
   | { type: 'NOTIFY_SYNC'; plan: import('../lib/notify/execSync').ExecPlanItem[] }
   | { type: 'PUSH_TOKEN'; id: number }
+  | { type: 'OPEN_URL'; url?: string }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -153,6 +154,15 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
     case 'BIO_AVAILABLE':
       resolve(ref, msg.id, await biometricsUsable());
       return true;
+    case 'OPEN_URL':
+      // Stripe's hosted Checkout/Connect-onboarding pages, and any other external link, open in
+      // the SYSTEM browser rather than navigating this WebView — the WebView has no navigation
+      // interceptor, so a raw in-page redirect would strand the proto's own app shell. https-only:
+      // never let injected/attacker-controlled content trigger an arbitrary custom-scheme launch.
+      if (typeof msg.url === 'string' && /^https:\/\//i.test(msg.url)) {
+        void Linking.openURL(msg.url).catch(() => undefined);
+      }
+      return true;
     case 'NOTIFY_SYNC':
       void syncExecNotifications(msg.plan ?? []);
       return true;
@@ -214,6 +224,7 @@ export const BRIDGE_SHIM = `
       available: function(){ return call('BIO_AVAILABLE', {}); }
     },
     notify: { sync: function(plan){ post({ type: 'NOTIFY_SYNC', plan: plan || [] }); } },
+    openUrl: function(url){ post({ type: 'OPEN_URL', url: String(url || '') }); },
     push: { token: function(){ return call('PUSH_TOKEN', {}); } },
   };
 

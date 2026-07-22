@@ -10,8 +10,8 @@ import * as roles from '../roles.js';
 const SHARE_BASE = 'https://onstandard.app/t?t=';
 
 // Local cache + light UI state (which offer is being edited). Repaint after any load/change.
-let G = { practiceId: null, page: null, offers: null, apps: null, loaded: false };
-let UI = { editing: null };  // null | 'new' | <offer id>
+let G = { practiceId: null, page: null, offers: null, apps: null, connect: null, payments: null, loaded: false };
+let UI = { editing: null, connecting: false };  // editing: null | 'new' | <offer id>
 
 function practiceId() { return (RT.practice && RT.practice.id) || G.practiceId || null; }
 
@@ -20,14 +20,47 @@ async function loadGrow(force) {
   let pid = practiceId();
   if (!pid) { const id = await roles.fetchMyPracticeIdentity(); if (id && id.id) { G.practiceId = pid = id.id; } }
   if (!pid) { G.loaded = true; if (window.__render) window.__render(); return; }
-  const [page, offers, apps] = await Promise.all([
+  const [page, offers, apps, connect, payments] = await Promise.all([
     roles.fetchMyTrainerPage(pid), roles.fetchMyOffers(pid), roles.fetchMyApplications(pid),
+    roles.fetchConnectStatus(pid), roles.fetchPracticePayments(pid),
   ]);
   G.page = page && !page.error ? page : (page && page.error ? G.page : null);
   G.offers = Array.isArray(offers) ? offers : [];
   G.apps = Array.isArray(apps) ? apps : [];
+  G.connect = connect || { status: 'none' };
+  G.payments = Array.isArray(payments) ? payments : [];
   G.loaded = true;
   if (window.__render) window.__render();
+}
+
+const CONNECT_LABEL = {
+  none: { pill: 'Not set up', color: 'var(--text-3)', cta: 'Connect Stripe to get paid', tone: 'green' },
+  pending: { pill: 'Setup in progress', color: 'var(--gold-bright)', cta: 'Continue setup', tone: 'ghost' },
+  active: { pill: 'Connected', color: 'var(--green-bright)', cta: 'Manage on Stripe', tone: 'ghost' },
+  restricted: { pill: 'Action needed', color: 'var(--red-bright)', cta: 'Fix on Stripe', tone: 'green' },
+};
+
+/* The one card that turns "have offers" into "can actually get paid for them" — a trainer with no
+   Connect account sees a single clear CTA; Stripe hosts 100% of the identity/bank-account
+   collection, so this screen never asks for any of that itself. */
+function connectSection() {
+  const status = (G.connect && G.connect.status) || 'none';
+  const meta = CONNECT_LABEL[status] || CONNECT_LABEL.none;
+  const sub = status === 'active'
+    ? 'Client payments for your offers deposit to your bank account on Stripe’s schedule.'
+    : status === 'pending'
+      ? 'Finish the steps Stripe asked for to start accepting payments.'
+      : status === 'restricted'
+        ? 'Stripe paused payouts — a document or detail needs attention.'
+        : 'Connect a Stripe account so clients can pay for your offers right in the app.';
+  return `
+    <div class="lrow" style="cursor:default;padding:0 0 10px">
+      <div class="lm"><div class="lt">Stripe account</div><div class="ls">${esc(sub)}</div></div>
+      <span class="status-pill" style="background:var(--surface-2);color:${meta.color}">${meta.pill}</span>
+    </div>
+    <button class="btn ${meta.tone} sm" id="tg-connect" style="width:auto;padding:0 16px;height:36px">${UI.connecting ? '…' : meta.cta}</button>
+    <span id="tg-connect-msg" class="ls" style="margin-left:10px"></span>
+  `;
 }
 
 function priceLabel(o) {
@@ -85,6 +118,11 @@ export const trainerGrow = {
       </div>
     </section>
 
+    <div class="eyebrow">Get paid</div>
+    <section class="card" style="padding:16px">
+      ${connectSection()}
+    </section>
+
     <div class="eyebrow">Your offers</div>
     <section class="card" style="padding:6px 16px">
       ${(G.offers || []).length ? (G.offers).map(o => UI.editing === o.id ? offerForm(o) : `
@@ -115,6 +153,17 @@ export const trainerGrow = {
       <div class="sidebox" style="margin:10px 0"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
         <div><div class="tt">Connect an accepted client</div><div class="ts">Send them your practice code <b>${esc(RT.practice.code)}</b> — they enter it after signing up to join your practice and unlock coaching.</div></div></div>` : ''}
     </section>
+
+    ${G.connect && G.connect.status === 'active' ? `
+    <div class="eyebrow">Payments</div>
+    <section class="card" style="padding:6px 16px">
+      ${(G.payments || []).length ? (G.payments).map(p => `
+      <div class="lrow" style="cursor:default">
+        <div class="lm"><div class="lt">$${(p.amount_cents / 100).toFixed(2)} <span class="ls">${p.status === 'refunded' ? '· refunded' : ''}</span></div>
+          <div class="ls">${timeAgo(p.created_at)} · fee $${(p.application_fee_cents / 100).toFixed(2)}</div></div>
+        ${p.status === 'paid' ? `<button class="btn ghost sm" data-tg="refund" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:30px">Refund</button>` : ''}
+      </div>`).join('') : `<div class="ls" style="padding:10px 0">No payments yet.</div>`}
+    </section>` : ''}
     <div style="height:16px"></div>
     <style>
       .tg-l{display:block;font-size:11px;color:var(--text-3);margin:12px 0 5px;letter-spacing:.02em}
@@ -129,6 +178,18 @@ export const trainerGrow = {
     const pid = practiceId();
     const $ = (id) => root.querySelector('#' + id);
     const msg = (t, err) => { const m = $('tg-msg'); if (m) { m.textContent = t; m.style.color = err ? 'var(--red-bright)' : 'var(--green-bright)'; } };
+
+    const connectBtn = $('tg-connect');
+    if (connectBtn) connectBtn.addEventListener('click', async () => {
+      const cmsg = $('tg-connect-msg');
+      const status = (G.connect && G.connect.status) || 'none';
+      if (status === 'active') { roles.openExternal('https://dashboard.stripe.com/express'); return; }
+      UI.connecting = true; if (window.__render) window.__render();
+      const r = await roles.startConnectOnboarding(pid);
+      UI.connecting = false;
+      if (r && r.url) { roles.openExternal(r.url); await loadGrow(true); }
+      else { if (cmsg) cmsg.textContent = (r && r.error) || 'Could not start setup'; if (window.__render) window.__render(); }
+    });
 
     const copyBtn = $('tg-copy');
     if (copyBtn) copyBtn.addEventListener('click', () => {
@@ -190,6 +251,13 @@ export const trainerGrow = {
       if (act === 'accept' || act === 'decline') {
         b.disabled = true; b.textContent = '…';
         await roles.setApplicationStatus(id, act === 'accept' ? 'accepted' : 'declined');
+        await loadGrow(true);
+      }
+      if (act === 'refund') {
+        if (!window.confirm('Refund this payment? This cannot be undone.')) return;
+        b.disabled = true; b.textContent = '…';
+        const r = await roles.refundOfferPayment(id);
+        if (!r || !r.ok) { b.disabled = false; b.textContent = 'Refund'; alert((r && r.error) || 'Refund failed'); return; }
         await loadGrow(true);
       }
     }));

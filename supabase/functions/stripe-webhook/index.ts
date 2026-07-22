@@ -11,19 +11,24 @@
 // Lifecycle handled here:
 //   * checkout.session.completed        -> plan becomes active (plan_id, seats, period end)
 //                                          + referral reward for the referrer (0042)
+//                                          -> OR (metadata.kind='offer_purchase', 0119) records
+//                                          an OnStandard Pay offer purchase into offer_payments
 //   * customer.subscription.updated     -> status/pause/cancel-at-period-end/plan changes
 //   * customer.subscription.deleted     -> canceled, tier back to preview
 //   * invoice.payment_failed            -> past_due + payment_failed_at (dunning: the app
 //                                          shows "card failed on <date>, update it"; access
 //                                          continues through the grace window — isPro())
 //   * invoice.paid                      -> recovery: clears the dunning flag
+//                                          -> OR (0119) an offer-subscription renewal invoice
+//                                          records a new offer_payments row
+//   * charge.refunded                   -> (0119) marks the matching offer_payments row refunded
 //
 // Deploy (JWT OFF — Stripe has no Supabase JWT; the endpoint authenticates itself via the
 // Stripe signature instead):
 //   supabase secrets set STRIPE_SECRET_KEY=sk_live_... STRIPE_WEBHOOK_SECRET=whsec_...
 //   supabase functions deploy stripe-webhook --no-verify-jwt
-// Then in Stripe: create a webhook to <project>/functions/v1/stripe-webhook for the five
-// events above.
+// Then in Stripe: create a webhook to <project>/functions/v1/stripe-webhook for the six events
+// above (Connect's own account.updated goes to the SEPARATE connect-webhook endpoint instead).
 //
 // OWNER RESOLUTION: billing-checkout sets the paying owner's profile id as
 // `client_reference_id` and mirrors it into subscription metadata. Renewals/cancellations
@@ -155,6 +160,100 @@ async function rewardReferrer(
   }
 }
 
+/**
+ * OnStandard Pay (0119): record ONE real charge into offer_payments. `source` is either the
+ * Checkout Session's PaymentIntent (one-time offer) or the resulting invoice's Charge (the first
+ * or a renewal payment on a recurring offer) — both expose the REAL amount/fee Stripe actually
+ * applied, never a value recomputed locally (avoids any drift from a fee change mid-flight).
+ * Idempotent on stripe_charge_id so a Stripe webhook retry can never double-record one charge.
+ */
+async function recordOfferPayment(
+  svc: ReturnType<typeof createClient>,
+  fields: {
+    practiceId: string; offerId: string | null; payerId: string | null;
+    checkoutSessionId: string | null; paymentIntentId: string | null; subscriptionId: string | null;
+    chargeId: string | null; amountCents: number; applicationFeeCents: number;
+  },
+): Promise<void> {
+  if (fields.chargeId) {
+    const { data: existing } = await svc.from('offer_payments').select('id').eq('stripe_charge_id', fields.chargeId).maybeSingle();
+    if (existing) return; // already recorded (Stripe retry) — never double-count
+  }
+  const { error } = await svc.from('offer_payments').insert({
+    practice_id: fields.practiceId,
+    offer_id: fields.offerId,
+    payer_id: fields.payerId,
+    stripe_checkout_session_id: fields.checkoutSessionId,
+    stripe_payment_intent_id: fields.paymentIntentId,
+    stripe_subscription_id: fields.subscriptionId,
+    stripe_charge_id: fields.chargeId,
+    amount_cents: fields.amountCents,
+    application_fee_cents: fields.applicationFeeCents,
+    status: 'paid',
+  });
+  if (error) throw error;
+}
+
+/** A completed Checkout Session for an OnStandard Pay offer (metadata.kind='offer_purchase') —
+ *  branches by mode to pull the REAL charged amount/fee off the resulting PaymentIntent (one-time)
+ *  or the first invoice's Charge (recurring), then records it. */
+async function handleOfferCheckout(svc: ReturnType<typeof createClient>, session: Stripe.Checkout.Session): Promise<void> {
+  const practiceId = session.metadata?.practice_id ?? '';
+  const offerId = session.metadata?.offer_id ?? null;
+  const payerId = session.metadata?.payer_id ?? session.client_reference_id ?? null;
+  if (!UUID_RE.test(practiceId)) {
+    console.error('stripe-webhook: offer checkout with no valid practice_id', session.id);
+    return;
+  }
+
+  if (session.mode === 'payment') {
+    const piId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+    if (!piId) return;
+    const pi = await stripeClient().paymentIntents.retrieve(piId);
+    const chargeId = typeof pi.latest_charge === 'string' ? pi.latest_charge : pi.latest_charge?.id ?? null;
+    await recordOfferPayment(svc, {
+      practiceId, offerId, payerId,
+      checkoutSessionId: session.id, paymentIntentId: pi.id, subscriptionId: null, chargeId,
+      amountCents: pi.amount, applicationFeeCents: pi.application_fee_amount ?? 0,
+    });
+  } else if (session.mode === 'subscription') {
+    const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+    if (!subId) return;
+    const sub = await stripeClient().subscriptions.retrieve(subId, { expand: ['latest_invoice.charge'] });
+    const invoice = sub.latest_invoice as Stripe.Invoice | null;
+    const charge = invoice?.charge as Stripe.Charge | null | undefined;
+    await recordOfferPayment(svc, {
+      practiceId, offerId, payerId,
+      checkoutSessionId: session.id, paymentIntentId: null, subscriptionId: sub.id, chargeId: charge?.id ?? null,
+      amountCents: invoice?.amount_paid ?? 0, applicationFeeCents: charge?.application_fee_amount ?? 0,
+    });
+  }
+}
+
+/** A renewal invoice (2nd+ payment) on an offer subscription. The FIRST invoice is already
+ *  recorded by handleOfferCheckout via checkout.session.completed — only `subscription_cycle`
+ *  (a real renewal), never `subscription_create`, reaches here. Returns false when `subId` isn't
+ *  a known offer subscription at all (i.e. it belongs to something else, or nothing). */
+async function handleOfferRenewal(svc: ReturnType<typeof createClient>, invoice: Stripe.Invoice, subId: string): Promise<boolean> {
+  const { data: priorRow } = await svc.from('offer_payments')
+    .select('practice_id, offer_id, payer_id').eq('stripe_subscription_id', subId).limit(1).maybeSingle();
+  if (!priorRow) return false; // not an offer subscription at all
+  if (invoice.billing_reason !== 'subscription_cycle') return true; // known, but not a NEW charge to record
+
+  const chargeId = typeof invoice.charge === 'string' ? invoice.charge : invoice.charge?.id ?? null;
+  let applicationFeeCents = 0;
+  if (chargeId) {
+    const charge = await stripeClient().charges.retrieve(chargeId);
+    applicationFeeCents = charge.application_fee_amount ?? 0;
+  }
+  await recordOfferPayment(svc, {
+    practiceId: priorRow.practice_id, offerId: priorRow.offer_id, payerId: priorRow.payer_id,
+    checkoutSessionId: null, paymentIntentId: null, subscriptionId: subId, chargeId,
+    amountCents: invoice.amount_paid, applicationFeeCents,
+  });
+  return true;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
 
@@ -191,6 +290,14 @@ Deno.serve(async (req) => {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // OnStandard Pay (0119): an offer purchase is a DIFFERENT concern from the platform's own
+        // owner-subscription billing below — branch off first and never fall through into it.
+        if (session.metadata?.kind === 'offer_purchase') {
+          await handleOfferCheckout(svc, session);
+          break;
+        }
+
         const ownerId = session.client_reference_id ?? '';
         if (!UUID_RE.test(ownerId)) {
           // No resolvable owner: acknowledge so Stripe doesn't retry forever, but do not guess.
@@ -269,12 +376,25 @@ Deno.serve(async (req) => {
         const invoice = event.data.object as Stripe.Invoice;
         const subId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
         if (subId) {
-          const { error } = await svc
+          const { data: updated, error } = await svc
             .from('subscriptions')
             .update({ status: 'active', payment_failed_at: null, updated_at: new Date().toISOString() })
-            .eq('stripe_subscription_id', subId);
+            .eq('stripe_subscription_id', subId)
+            .select('owner_id');
           if (error) throw error;
+          // OnStandard Pay (0119): no platform-subscription row matched — this may be a renewal on
+          // an OFFER subscription (destination-charge), a different concern entirely.
+          if (!updated || updated.length === 0) await handleOfferRenewal(svc, invoice, subId);
         }
+        break;
+      }
+
+      case 'charge.refunded': {
+        // OnStandard Pay (0119): mark the matching ledger row refunded. Never touches the platform
+        // owner-subscription tables — a refunded offer charge has no bearing on app access.
+        const charge = event.data.object as Stripe.Charge;
+        const { error } = await svc.from('offer_payments').update({ status: 'refunded' }).eq('stripe_charge_id', charge.id);
+        if (error) throw error;
         break;
       }
 
