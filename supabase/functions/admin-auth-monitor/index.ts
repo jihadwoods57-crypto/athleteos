@@ -17,6 +17,8 @@ const MONITOR_KEY = Deno.env.get('MONITOR_KEY') ?? '';
 const ALERT_KEY = Deno.env.get('ALERT_KEY') ?? '';
 const IPINFO_TOKEN = Deno.env.get('IPINFO_TOKEN') ?? '';
 const FUNCTIONS_BASE = Deno.env.get('FUNCTIONS_BASE') ?? `${SUPABASE_URL}/functions/v1`;
+const SECURITY_PANEL_URL = Deno.env.get('COMMAND_CENTER_URL')
+  ?? 'https://onstandard-admin.gelatinous-twin.workers.dev/#/security';
 
 async function geo(ip: string | null): Promise<{ country: string | null; asn: string | null }> {
   if (!ip || !IPINFO_TOKEN) return { country: null, asn: null };
@@ -27,13 +29,14 @@ async function geo(ip: string | null): Promise<{ country: string | null; asn: st
   } catch (_e) { return { country: null, asn: null }; }
 }
 
-async function alert(kind: string, subject: string, body: string) {
+type AlertDetail = { label: string; value: string };
+async function alert(kind: string, subject: string, body: string, details?: AlertDetail[], occurredAt?: string) {
   if (!ALERT_KEY) return;
   try {
     await fetch(`${FUNCTIONS_BASE}/admin-alert`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-alert-key': ALERT_KEY },
-      body: JSON.stringify({ kind, subject, body }),
+      body: JSON.stringify({ kind, subject, body, details, actionUrl: SECURITY_PANEL_URL, occurredAt }),
     });
   } catch (_e) { /* best-effort */ }
 }
@@ -74,7 +77,13 @@ Deno.serve(async (req: Request) => {
       p_country: g.country, p_asn: g.asn, p_user_agent: ev.user_agent, p_occurred_at: ev.occurred_at, p_flags: flags ?? [],
     });
     if ((flags ?? []).length) {
-      await alert('suspicious_login', 'Suspicious Command Center sign-in', describeFlags(flags, ev.ip, g.country));
+      const details: AlertDetail[] = [
+        { label: 'IP address', value: ev.ip || 'unknown' },
+        { label: 'Country', value: g.country || 'unknown' },
+        { label: 'Event', value: ev.event_type },
+        { label: 'Flags', value: (flags ?? []).map((f: string) => f.replace(/_/g, ' ')).join(', ') },
+      ];
+      await alert('suspicious_login', 'Suspicious Command Center sign-in', describeFlags(flags, ev.ip, g.country), details, ev.occurred_at);
     }
     suspects.add(ev.user_id);
   }
@@ -88,7 +97,8 @@ Deno.serve(async (req: Request) => {
         await svc.auth.admin.updateUserById(uid, { ban_duration: '30m' });
         banned.push(uid);
         await alert('account_locked', 'Command Center account temporarily locked',
-          `A failed-attempt burst locked the admin account for 30 minutes. If this was not you, reset your password.`);
+          'A burst of failed sign-in attempts locked this admin account for 30 minutes as a precaution.',
+          [{ label: 'Lock duration', value: '30 minutes' }, { label: 'Failed attempts (15 min)', value: String(failures ?? 0) }]);
       } catch (_e) { /* best-effort */ }
     }
   }

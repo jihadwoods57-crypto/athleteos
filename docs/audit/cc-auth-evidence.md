@@ -77,16 +77,40 @@ Everything except your physical authenticator enrollment has been applied to the
    would have silently failed. Patched to add
    `https://onstandard-admin.gelatinous-twin.workers.dev{,/reset.html}`, preserving the existing entries.
 
+## Email alerts — Resend wired + upgraded to a professional template (2026-07-22, same session)
+
+- `onstandard.app` was already a **verified** Resend sending domain (SPF via MX+TXT, DKIM — all green)
+  from a prior account, created 2026-07-03. No new DNS work needed for deliverability. Added a monitor-mode
+  DMARC record (`v=DMARC1; p=none; rua=mailto:jihadwoods57@gmail.com`) as a safe hardening step —
+  **blocked**: the Cloudflare API token in `.env` can list zones but lacks DNS-edit scope
+  (`/user/tokens/verify` → `Invalid API Token`). Not fixable without a broader-scoped token from the
+  founder; not a blocker for delivery (SPF+DKIM alone are sufficient for inbox placement).
+- `RESEND_API_KEY` set (the key from the account that owns the verified domain). `admin-alert` rebuilt
+  around one shared, brand-consistent HTML+text email template (`renderAlertEmail` in
+  `admin-alert/logic.mjs`): OnStandard header mark, severity badge (critical/warning/info → red/amber/blue),
+  clear headline + lead sentence, an escaped key/value details table, a single branded CTA button, and a
+  security footer. All interpolated values are **HTML-escaped** (details can originate from network data —
+  IP/geo lookups — so this isn't optional). Subject is prefixed `OnStandard Security: ...` and `reply_to`
+  is set to the founder's own address. `admin-auth-monitor` and `admin-mfa-recover` now pass structured
+  `details`/`actionUrl` (linking to the Security panel) instead of a bare sentence.
+- **Verified end-to-end on live infrastructure:** typechecked all 3 edge functions (`deno check`), 17/17
+  Node tests (8 new: escaping, per-kind severity, full render, Resend payload shape), redeployed all 3
+  functions, then called the **live** `admin-alert` function with a real test payload — response
+  `{"sent":true,"results":{"email":true,"push":"no-tokens"}}`. `email:true` = Resend accepted and queued
+  the send (from a verified domain, so real delivery, not a bounce). `push:"no-tokens"` is correct — no
+  `device_token` exists yet for the founder. **Please check jihadwoods57@gmail.com for the test email
+  ("Command Center alert template check") and confirm it looks right** — I can't see an inbox myself.
+
 **What's left — requires your physical device, not automatable:**
 - Sign in at `https://onstandard-admin.gelatinous-twin.workers.dev` → you'll land on **Enroll** → scan the
   QR with your authenticator app → verify → **save the 10 recovery codes shown** (once).
-- Optional: get a Resend API key and `supabase secrets set RESEND_API_KEY=...` to turn email alerts on
-  (push already works once you have a `device_token`).
+- Optional: confirm the test alert email in your inbox looks correct (subject, layout, CTA button).
+- Optional: give me a Cloudflare API token with DNS-edit scope if you want the DMARC record added.
 - Optional: if you upgrade the Supabase org tier and want the instant MFA-code hook, re-run the PATCH in
   `web/admin/DEPLOY.md` step 4 — everything else is already wired to support it.
 
 ## Commits
 
 `docs` specs+plans → `0130` gate → `admin-mfa-recover` → client flow → `0131` monitor → `admin-alert` +
-`admin-auth-monitor` → Security panel → `.assetsignore` fix. All on `feat/founder-command-center`.
-Production apply done live in-session (see "Go-live" above) — not a separate deferred step.
+`admin-auth-monitor` → Security panel → `.assetsignore` fix → GO-LIVE → professional email templates.
+All on `feat/founder-command-center`. Production apply done live in-session (see "Go-live" above).

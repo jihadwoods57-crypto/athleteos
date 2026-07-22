@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
   if (!ALERT_KEY || req.headers.get('x-alert-key') !== ALERT_KEY) return json(401, { error: 'unauthorized' });
   if (!SUPABASE_URL || !SERVICE_ROLE) return json(500, { error: 'misconfigured' });
 
-  const { kind, subject, body } = await req.json().catch(() => ({}));
+  const { kind, subject, body, details, actionUrl, occurredAt } = await req.json().catch(() => ({}));
   if (!kind || !subject || !body) return json(400, { error: 'kind, subject, body required' });
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -39,16 +39,20 @@ Deno.serve(async (req: Request) => {
 
   const results: Record<string, unknown> = {};
 
-  // email via Resend
+  // email via Resend — a proper branded HTML+text security email, not a bare plain-text line.
   if (RESEND_API_KEY && ALERT_EMAIL) {
     try {
-      const payload = buildResendPayload({ from: ALERT_FROM, to: ALERT_EMAIL, subject, body });
+      const payload = buildResendPayload({
+        from: ALERT_FROM, to: ALERT_EMAIL, replyTo: ALERT_EMAIL,
+        kind, subject, body, details, actionUrl, occurredAt,
+      });
       const r = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       results.email = r.ok;
+      if (!r.ok) results.email_error = await r.text().catch(() => '');
     } catch (_e) { results.email = false; }
   } else { results.email = 'skipped'; }
 
