@@ -153,6 +153,14 @@ max_indexes = 5
 # [storage.vector.buckets.documents-openai]
 
 [auth]
+# ⚠️  DO NOT run `supabase config push` — it syncs this ENTIRE [auth] block to prod and this file is
+# LOCAL-DEV config that DIVERGES from production. A push on 2026-07-22 regressed prod (disabled Apple
+# sign-in + MFA TOTP, loosened email rate-limit 60s→1s, shortened OTP 8→6, dropped the /reset redirect).
+# Change PRODUCTION auth via the Management API (surgical PATCH), NOT this file:
+#   PATCH https://api.supabase.com/v1/projects/<ref>/config/auth  (Bearer = the CLI token in
+#   Windows Credential Manager "Supabase CLI:supabase"). Prod's real values: enable_confirmations=true,
+#   external_apple_enabled=true, mfa_totp_enroll/verify=true, mailer_otp_length=8, smtp_max_frequency=60,
+#   site_url=https://onstandard.app. See docs/deploy + memory deploy-2026-07-22-batch-live.
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
