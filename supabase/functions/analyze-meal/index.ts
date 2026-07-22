@@ -211,15 +211,24 @@ interface OrderIn {
 
 interface AnalyzeReq {
   /** 'meal' estimates a plate; 'label' transcribes a panel; 'memory'/'order' reword prose. */
-  mode?: 'meal' | 'label' | 'memory' | 'order';
+  mode?: 'meal' | 'label' | 'memory' | 'order' | 'regen';
   mealType: 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
   goal: string | null;
   description?: string;
   photoBase64?: string;
-  /** Meal analysis phase: 'analyze' (default) may ask clarifying questions; 'finalize' must report. */
-  phase?: 'analyze' | 'finalize';
+  /** Meal analysis phase: 'analyze' (default) may ask clarifying questions; 'finalize' must report;
+   *  'verify' runs the gated second pass. */
+  phase?: 'analyze' | 'finalize' | 'verify';
   /** For meal 'finalize': the clarifying questions already asked and the athlete's answers. */
   clarifications?: { question: string; answer: string }[];
+  /** Second-pass verifier (item 6): which trigger fired, the athlete's severe restrictions, and
+   *  the first read's macros (to classify whether the re-detect moved anything). */
+  verifyTrigger?: 'allergen' | 'accuracy';
+  severeRestrictions?: string[];
+  firstResult?: { kcal?: number; protein?: number };
+  /** Mode 'regen': rewrite a coaching line to match the band; numbers unchanged. */
+  band?: 'low' | 'good';
+  text?: string;
   /** For mode 'memory': the deterministic insights to reword (prose only is returned). */
   insights?: MemoryInsightIn[];
   /** For mode 'order': the recommended-order explanations to reword (prose only is returned). */
@@ -607,6 +616,59 @@ function groundMacros<T>(analysis: T): T {
   return analysis;
 }
 
+// ── Second-pass verifier (item 6) ────────────────────────────────────────────────────────────
+const VERIFY_BUDGET = posIntCap('VERIFY_DAILY_BUDGET', 3);
+const REGEN_ENABLED = (Deno.env.get('VERIFY_REGEN_ENABLED') ?? 'true') !== 'false';
+
+const ALLERGEN_TOOL = {
+  name: 'report_allergens',
+  description: 'Report whether each named allergen is present in the photo. Detection only — do not score or estimate macros.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      allergens: {
+        type: 'array',
+        description: 'One entry per allergen asked about.',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            present: { type: 'boolean' },
+            confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+          },
+          required: ['name', 'present', 'confidence'],
+        },
+      },
+    },
+    required: ['allergens'],
+  },
+} as const;
+const VERIFY_ALLERGEN_SYSTEM =
+  'You re-examine an athlete meal photo ONLY to check for specific declared allergens. ' +
+  'For each allergen, say whether it is visibly present and your confidence. Detection only: never score the meal, never estimate macros, never guarantee safety.';
+const VERIFY_ACCURACY_SYSTEM = SYSTEM +
+  '\n\nThis is a SECOND look: the first read was low-confidence. Re-identify the foods and portions carefully. Detection only — the app computes the numbers.';
+
+const REGEN_TOOL = {
+  name: 'rewrite_coaching',
+  description: 'Rewrite a coaching line to match the meal band. Change no numbers.',
+  input_schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+} as const;
+const REGEN_SYSTEM =
+  'You rewrite one short coaching line so its tone matches the meal band. Keep every number identical. ' +
+  'A low band must not sound like praise; a good band must not sound damning. Output only the rewritten line.';
+
+// Mirror of proto classifyVerifyOutcome (accuracy path only — allergen is decided inline below).
+function classifyVerifyOutcomeServer(first: { kcal?: number; protein?: number }, second: Record<string, unknown>): string {
+  const moved = (a: unknown, b: unknown) => {
+    const x = Number(a) || 0, y = Number(b) || 0;
+    return Math.abs(y - x) / Math.max(1, x) > 0.15;
+  };
+  if (moved(first.kcal, second.kcal)) return 'macros_moved';
+  if (moved(first.protein, second.protein)) return 'macros_moved';
+  return 'no_change';
+}
+
 Deno.serve(async (request) => {
   const cors = corsFor(request);
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -628,8 +690,10 @@ Deno.serve(async (request) => {
   const isLabel = req?.mode === 'label';
   const isMemory = req?.mode === 'memory';
   const isOrder = req?.mode === 'order';
-  const isMeal = !isLabel && !isMemory && !isOrder;
+  const isRegen = req?.mode === 'regen';
+  const isMeal = !isLabel && !isMemory && !isOrder && !isRegen;
   const isFinalize = isMeal && req?.phase === 'finalize';
+  const isVerify = isMeal && req?.phase === 'verify' && (req.verifyTrigger === 'allergen' || req.verifyTrigger === 'accuracy');
 
   // Input guards: reject an oversized/missing photo before spending an Anthropic call.
   // A base64 JPEG over ~8MB raw (~6MB image) is almost certainly abuse and would risk a
@@ -668,7 +732,7 @@ Deno.serve(async (request) => {
     if (typeof req.photoBase64 !== 'string' || !req.photoBase64) {
       return new Response(JSON.stringify({ error: 'photo required for label scan' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
-  } else if (typeof req?.mealType !== 'string' || !req.mealType.trim()) {
+  } else if (!isRegen && (typeof req?.mealType !== 'string' || !req.mealType.trim())) {
     // The meal prompt needs the slot (and can infer a typical meal when no photo is sent).
     return new Response(JSON.stringify({ error: 'mealType required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
@@ -696,7 +760,7 @@ Deno.serve(async (request) => {
   // (DAILY_ANALYSIS_CAP) for a heavy logger. A signed-in athlete gets the per-athlete daily cap (fails
   // OPEN — never block a legit log on an infra hiccup); an anonymous caller gets a per-IP daily cap
   // that fails CLOSED — the only ceiling an anon caller has, so it must hold when the counter is down.
-  const countsAgainstDailyCap = !isMemory && !isOrder;
+  const countsAgainstDailyCap = !isMemory && !isOrder && !isRegen;
   // Resolve the caller once, up front: reused for the daily cap below AND for cost telemetry, so
   // it's a single auth round-trip. (memory/order don't hit the cap but are still attributed.)
   const userId = await resolveUserId(request);
@@ -714,6 +778,89 @@ Deno.serve(async (request) => {
       dailyUsed = cap.used;
     } else if (!(await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP, /* failOpen */ false))) {
       return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+  }
+
+  // ── regen: band-matched coaching rewrite (Haiku, toggleable). Exempt from the per-caller
+  // analysis cap (cheap prose, like memory/order); still behind the global backstop above.
+  if (isRegen) {
+    if (!REGEN_ENABLED) return new Response(JSON.stringify({ error: 'regen disabled' }), { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } });
+    const src = String(req.text ?? '').slice(0, 1200);
+    if (!src || (req.band !== 'low' && req.band !== 'good')) return new Response(JSON.stringify({ error: 'bad regen request' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+    const t0g = Date.now();
+    try {
+      const client = new Anthropic({ apiKey: key });
+      const msg = await client.messages.create({
+        model: TEXT_MODEL,
+        max_tokens: 300,
+        system: [{ type: 'text' as const, text: REGEN_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
+        tools: [{ ...REGEN_TOOL, cache_control: { type: 'ephemeral' as const } }],
+        tool_choice: { type: 'tool' as const, name: REGEN_TOOL.name },
+        messages: [{ role: 'user', content: `Band: ${req.band}. Rewrite: ${src}` }],
+      });
+      const used = msg.content.find((b) => b.type === 'tool_use');
+      const text = used && used.type === 'tool_use' ? String((used.input as { text?: unknown }).text ?? '') : '';
+      await recordAiCall({ fn: 'analyze-meal', mode: 'regen', userId, model: msg.model ?? TEXT_MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0g, ok: true });
+      if (!text) throw new Error('empty regen');
+      return new Response(JSON.stringify({ text }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    } catch (e) {
+      await recordAiCall({ fn: 'analyze-meal', mode: 'regen', userId, model: TEXT_MODEL, latencyMs: Date.now() - t0g, ok: false, errorCode: 'upstream_error' });
+      console.error('analyze-meal regen error:', e);
+      return new Response(JSON.stringify({ error: 'regen unavailable' }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+  }
+
+  // ── verify: gated second pass. Needs a photo; claims its own daily budget (separate from
+  // clarify) on top of the global backstop already checked above.
+  if (isVerify) {
+    if (typeof req.photoBase64 !== 'string' || !req.photoBase64) {
+      return new Response(JSON.stringify({ error: 'photo required for verify' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+    const vkey = userId ? `verify_user:${userId}` : `verify_ip:${clientIp(request)}`;
+    if (!(await withinKeyCap(vkey, VERIFY_BUDGET, /* failOpen */ false))) {
+      return new Response(JSON.stringify({ error: 'verify budget reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+    const t0v = Date.now();
+    try {
+      const client = new Anthropic({ apiKey: key });
+      if (req.verifyTrigger === 'allergen') {
+        const names = (Array.isArray(req.severeRestrictions) ? req.severeRestrictions : []).map(String).slice(0, 12);
+        const msg = await client.messages.create({
+          model: MODEL,
+          max_tokens: 512,
+          system: [{ type: 'text' as const, text: VERIFY_ALLERGEN_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
+          tools: [{ ...ALLERGEN_TOOL, cache_control: { type: 'ephemeral' as const } }],
+          tool_choice: { type: 'tool' as const, name: ALLERGEN_TOOL.name },
+          messages: [{ role: 'user', content: [
+            { type: 'image' as const, source: { type: 'base64' as const, media_type: photoMime, data: req.photoBase64 } },
+            { type: 'text' as const, text: `Check ONLY for these allergens: ${names.join(', ')}` },
+          ] }],
+        });
+        const used = msg.content.find((b) => b.type === 'tool_use');
+        const rows = used && used.type === 'tool_use' && Array.isArray((used.input as { allergens?: unknown }).allergens)
+          ? (used.input as { allergens: Array<{ name?: string; present?: boolean }> }).allergens : [];
+        const allergensFound = rows.filter((a) => a && a.present === true).map((a) => String(a.name)).filter(Boolean);
+        await recordAiCall({ fn: 'analyze-meal', mode: 'verify', phase: 'allergen', userId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0v, ok: true, outcome: allergensFound.length ? 'allergen_caught' : 'no_change' });
+        return new Response(JSON.stringify({ kind: 'verify', trigger: 'allergen', allergensFound }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+      const msg = await client.messages.create({
+        model: MODEL,
+        max_tokens: 1024,
+        system: [{ type: 'text' as const, text: VERIFY_ACCURACY_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
+        tools: [{ ...MEAL_TOOL, cache_control: { type: 'ephemeral' as const } }],
+        tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
+        messages: [{ role: 'user', content: userContent(req, photoMime) }],
+      });
+      const used = msg.content.find((b) => b.type === 'tool_use');
+      if (!used || used.type !== 'tool_use') throw new Error('no structured output');
+      const grounded = groundMacros(used.input) as Record<string, unknown>;
+      const outcome = classifyVerifyOutcomeServer(req.firstResult || {}, grounded);
+      await recordAiCall({ fn: 'analyze-meal', mode: 'verify', phase: 'accuracy', userId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0v, ok: true, outcome });
+      return new Response(JSON.stringify({ kind: 'verify', trigger: 'accuracy', ...grounded }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    } catch (e) {
+      await recordAiCall({ fn: 'analyze-meal', mode: 'verify', phase: req.verifyTrigger, userId, model: MODEL, latencyMs: Date.now() - t0v, ok: false, errorCode: 'upstream_error' });
+      console.error('analyze-meal verify error:', e);
+      return new Response(JSON.stringify({ error: 'verify unavailable' }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
   }
 
