@@ -289,8 +289,12 @@ async function handleSponsorSeats(svc: ReturnType<typeof createClient>, session:
       stripe_checkout_session_id: session.id, stripe_payment_intent_id: piId, amount_cents: amount,
     });
     if (!error) return;
-    if (!String(error.message || '').toLowerCase().includes('duplicate')) throw error;
-    if (String(error.message).includes('stripe_checkout_session_id')) return; // idempotent race — already inserted
+    // Distinguish the two unique constraints. supabase-js puts the CONSTRAINT NAME in .message and the
+    // column in .details, so check both blobs: a session-id collision means a concurrent delivery already
+    // inserted this batch (idempotent — return); a code collision means retry with a fresh code.
+    if (error.code !== '23505') throw error;
+    const blob = `${error.message || ''} ${(error as { details?: string }).details || ''}`;
+    if (blob.includes('sponsorships_session_uq') || blob.includes('stripe_checkout_session_id')) return;
   }
   throw new Error('sponsor code generation failed after retries');
 }

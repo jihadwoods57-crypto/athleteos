@@ -39,7 +39,7 @@ returns boolean language sql stable security definer set search_path = public as
   select exists(
     select 1 from subscriptions
     where owner_id = p_user and status in ('active','past_due')
-      and coalesce(tier,'') not in ('','preview','free','none','trial_expired')
+      and lower(coalesce(tier,'')) not in ('','preview','free','none','trial_expired')
   ) or exists(
     select 1 from sponsored_access where athlete_id = p_user and expires_at > now()
   );
