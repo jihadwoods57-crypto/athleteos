@@ -1037,6 +1037,30 @@ select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-00000000
            and (select count(*) from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')) = 0,
            '0103: an unlinked stranger gets zero rows from both weight doors');
 
+-- ================================================================ feature flags (0109)
+-- Two tables (feature_flags, admin_audit_log) are RPC/service-role ONLY. A normal authenticated
+-- user must not be able to read/write them directly, and the admin RPCs must reject non-admins.
+select _superuser();
+insert into platform_admins (user_id) values ('55555555-0000-0000-0000-000000000005') on conflict do nothing;
+
+-- rando (no links, not a platform admin): no direct table access, no admin RPCs.
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select count(*) from feature_flags $f$) <> 'ok', 'ff: rando cannot select feature_flags');
+select _ok(_try($f$ insert into feature_flags(name) values ('x') $f$) <> 'ok', 'ff: rando cannot insert feature_flags');
+select _ok(_try($f$ select count(*) from admin_audit_log $f$) <> 'ok', 'ff: rando cannot select admin_audit_log');
+select _ok(_try($f$ select admin_list_flags() $f$) <> 'ok', 'ff: rando denied admin_list_flags');
+select _ok(_try($f$ select admin_set_flag('x','',true,false,'{}','{}','{}') $f$) <> 'ok', 'ff: rando denied admin_set_flag');
+
+-- platform admin (55555555…005, registered above): can list, can set, and the write is audited.
+select _as('55555555-0000-0000-0000-000000000005');
+select _ok(_try($f$ select admin_list_flags() $f$) = 'ok', 'ff: admin can list flags');
+select _ok(_try($f$ select admin_set_flag('probe','p',true,false,'{}','{}','{}') $f$) = 'ok', 'ff: admin can set flag');
+select _superuser();
+select _ok((select count(*) from admin_audit_log where target = 'probe' and action = 'feature_flag.set') = 1,
+           'ff: admin_set_flag wrote exactly one audit row (before/after)');
+select _ok((select default_on from feature_flags where name = 'probe') = true,
+           'ff: admin_set_flag persisted the row');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
