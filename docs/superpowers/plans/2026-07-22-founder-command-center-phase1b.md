@@ -21,14 +21,18 @@
 ---
 
 ## Migrations (Phase 1B)
-`0119_cc_reauth` · `0120_cc_user_actions` · `0121_cc_view_as` · `0122_cc_payments` · `0123_cc_support` · `0124_cc_config` · `0125_cc_audit_append_only`.
+> **Numbering note:** a concurrent session shipped **OnStandard Pay** as `0119_onstandard_pay.sql` (Stripe Connect for trainer offers: `offer_payments` ledger, `pay_platform_config` fee, `refund-payment`/`connect-*`/`pay-offer-checkout` fns, expanded `stripe-webhook`). CC 1B migrations therefore start at **0120**.
+
+`0120_cc_reauth` · `0121_cc_user_actions` · `0122_cc_view_as` · `0123_cc_payments` · `0124_cc_support` · `0125_cc_config` · `0126_cc_audit_append_only`.
 Edge fns: `admin-refund`, `admin-credit`, `admin-change-plan`, `admin-cancel`, `admin-revoke-sessions`.
+
+**Reconcile with OnStandard Pay (do NOT duplicate):** OnStandard Pay handles *trainer→client offer* payments via Connect destination charges (platform takes `pay_platform_config.fee_percent`). My `payments` ledger (Task 4) is for *platform-subscription* revenue (Stripe subs + RevenueCat IAP) — a **different money flow**. The Command Center must surface **both**: reuse `offer_payments` (via a new founder-facing `admin_*` RPC over the existing table + its `application_fee_cents` = platform-fee revenue) and reuse `pay_platform_config` + `admin_get/set_platform_fee` for the fee control — build a duplicate of neither. `refund-payment` already refunds *offer* payments; my `admin-refund` is for *subscription* refunds only. When expanding `stripe-webhook`, **preserve the concurrent Connect changes** (rebase my additions onto theirs).
 
 ---
 
-## Task 1: Reauth foundation (`0119`) + client step-up modal
+## Task 1: Reauth foundation (`0120`) — ✅ SHIPPED (commit `cee82db`, renamed to 0120)
 
-**Files:** Create `supabase/migrations/0119_cc_reauth.sql`; Modify `web/admin/ui.js` (reauth modal + `withReauth` helper), `web/admin/sections/*` flag-write path (prove the seam via Configuration/flags first), `rls_authz_test.sql`, `admin_bootstrap` (report `reauth` capability state).
+**Files:** Create `supabase/migrations/0120_cc_reauth.sql`; Modify `web/admin/ui.js` (reauth modal + `withReauth` helper — deferred to Task 2 where the first mutation wires it), `rls_authz_test.sql`, `admin_bootstrap` (capability flips deferred per-task as actions land).
 
 **Interfaces — Produces:**
 - `admin_open_sensitive_window(p_scope text, p_single_use boolean default false) → uuid` (grant id) — **raises `reauth required`** unless the JWT's max `amr.timestamp` is within 300s.
