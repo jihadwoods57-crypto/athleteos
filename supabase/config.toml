@@ -458,3 +458,11 @@ verify_jwt = false
 # a recovery code resets MFA), so it KEEPS verify_jwt on. Pinned so a redeploy can't drop the check.
 [functions.admin-mfa-recover]
 verify_jwt = true
+
+# admin-alert + admin-auth-monitor authenticate via their OWN shared secrets (x-alert-key / x-monitor-key),
+# not a Supabase JWT — the monitor is cron-invoked. Pinned so a redeploy can't 401 them.
+[functions.admin-alert]
+verify_jwt = false
+
+[functions.admin-auth-monitor]
+verify_jwt = false

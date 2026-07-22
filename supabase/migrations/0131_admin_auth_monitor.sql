@@ -144,7 +144,49 @@ begin
            e.payload->'traits'->>'user_agent'
     from auth.audit_log_entries e
     where e.created_at > p_since
-      and nullif(e.payload->>'actor_id','')::uuid in (select user_id from platform_admins)
+      and nullif(e.payload->>'actor_id','')::uuid in (select pa.user_id from platform_admins pa)
     order by e.created_at asc;
 end $$;
 revoke execute on function public.admin_pull_auth_events(timestamptz) from anon, authenticated;
+
+-- ---------------------------------------------------------------- monitor write path (service_role)
+-- The admin-auth-monitor edge function calls ONLY these SECURITY DEFINER RPCs (never raw tables), so the
+-- deny-all posture holds and grants are explicit.
+create or replace function public.admin_get_checkpoint()
+returns timestamptz language sql stable security definer set search_path = public as $$
+  select last_seen_at from admin_monitor_checkpoint where id;
+$$;
+
+create or replace function public.admin_advance_checkpoint(p_ts timestamptz)
+returns void language plpgsql volatile security definer set search_path = public as $$
+begin update admin_monitor_checkpoint set last_seen_at = greatest(last_seen_at, p_ts) where id; end $$;
+
+create or replace function public.admin_ingest_login_event(
+  p_ext_id text, p_user uuid, p_event_type text, p_ip inet, p_country text, p_asn text,
+  p_user_agent text, p_occurred_at timestamptz, p_flags jsonb)
+returns void language plpgsql volatile security definer set search_path = public as $$
+begin
+  insert into admin_login_events(ext_id,user_id,event_type,ip,country,asn,user_agent,occurred_at,flags,alerted)
+  values (p_ext_id,p_user,p_event_type,p_ip,p_country,p_asn,p_user_agent,p_occurred_at,
+          coalesce(p_flags,'[]'::jsonb), jsonb_array_length(coalesce(p_flags,'[]'::jsonb)) > 0)
+  on conflict (ext_id) do nothing;
+end $$;
+
+-- Recent failed-auth count for an admin (burst detection input). event_type list is defensive across
+-- GoTrue action taxonomies.
+create or replace function public.admin_recent_failures(p_user uuid, p_mins int)
+returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from admin_login_events
+  where user_id = p_user and occurred_at > now() - make_interval(mins => p_mins)
+    and event_type in ('login_failed','user_invalid_password','mfa_challenge_failed');
+$$;
+
+-- Explicit service_role execute (the monitor's only DB surface).
+revoke execute on function public.admin_get_checkpoint(), public.admin_advance_checkpoint(timestamptz),
+  public.admin_ingest_login_event(text,uuid,text,inet,text,text,text,timestamptz,jsonb),
+  public.admin_recent_failures(uuid,int) from anon, authenticated;
+grant execute on function public.admin_get_checkpoint(), public.admin_advance_checkpoint(timestamptz),
+  public.admin_ingest_login_event(text,uuid,text,inet,text,text,text,timestamptz,jsonb),
+  public.admin_recent_failures(uuid,int),
+  public.admin_pull_auth_events(timestamptz),
+  public.admin_detect_login_anomalies(uuid,inet,text,text,timestamptz,text) to service_role;
