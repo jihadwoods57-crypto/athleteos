@@ -8,6 +8,10 @@
 // Injection is JSON-escaped (incl. U+2028/U+2029, which are valid JSON but break a JS string
 // literal) so a value can never break out of the injected call.
 import { Linking, Platform, Share } from 'react-native';
+// expo-file-system v57+ moved cacheDirectory/writeAsStringAsync/EncodingType (the classic
+// promise-based file API this bridge needs) to the `/legacy` subpath — the new default export
+// is object-oriented (File/Directory) and doesn't have these symbols.
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import * as SecureStore from 'expo-secure-store';
 import type WebView from 'react-native-webview';
@@ -22,6 +26,7 @@ type Ref = React.RefObject<WebView | null>;
 export type BridgeMessage =
   | { type: 'HAPTIC'; style?: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' }
   | { type: 'SHARE'; payload?: { title?: string; message?: string; url?: string } }
+  | { type: 'SHARE_IMAGE'; dataUrl?: string; caption?: string }
   | { type: 'SECURE_GET'; id: number; key: string }
   | { type: 'SECURE_SET'; id: number; key: string; value: string }
   | { type: 'SECURE_DELETE'; id: number; key: string }
@@ -102,6 +107,23 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         await Share.share({ title: p.title, message: p.message ?? '', url: p.url });
       } catch {
         /* user cancelled */
+      }
+      return true;
+    }
+    case 'SHARE_IMAGE': {
+      // The proto renders a report card to a PNG data URL; write it to a temp cache file and open the
+      // system share sheet. Accept ONLY base64 png/jpeg data URLs — never a remote/file path from the
+      // page. Best-effort; a share failure (user cancel, no file) is swallowed.
+      try {
+        const url = msg.dataUrl ?? '';
+        const m = /^data:image\/(png|jpe?g);base64,([A-Za-z0-9+/=]+)$/.exec(url);
+        if (!m) return true;
+        const ext = m[1].startsWith('jp') ? 'jpg' : 'png';
+        const path = `${FileSystem.cacheDirectory}onstandard-report-${Date.now()}.${ext}`;
+        await FileSystem.writeAsStringAsync(path, m[2], { encoding: FileSystem.EncodingType.Base64 });
+        await Share.share({ url: path, message: msg.caption });
+      } catch {
+        /* user cancelled / share unavailable — ignore */
       }
       return true;
     }
@@ -207,6 +229,7 @@ export const BRIDGE_SHIM = `
   window.OnStandardNative = {
     haptic: function(style){ post({ type:'HAPTIC', style: style || 'light' }); },
     share: function(payload){ post({ type:'SHARE', payload: payload || {} }); },
+    shareImage: function(dataUrl, caption){ post({ type:'SHARE_IMAGE', dataUrl: String(dataUrl||''), caption: caption||'' }); },
     secureStore: {
       getItem: function(key){ return call('SECURE_GET', { key: key }); },
       setItem: function(key, value){ return call('SECURE_SET', { key: key, value: String(value) }); },
