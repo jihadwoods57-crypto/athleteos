@@ -788,6 +788,24 @@
 .base-stats>div{flex:1;background:var(--surface-2);border:1px solid var(--hairline-soft);border-radius:13px;padding:10px 12px}
 .base-stats .k{font-size:10.5px;font-weight:800;letter-spacing:var(--track-key);text-transform:uppercase;color:var(--text-3)}
 .base-stats .v{font-size:17px;font-weight:800;letter-spacing:var(--num-tight);margin-top:2px;font-variant-numeric:tabular-nums}
+
+/* ----- Monthly report locked state: real stats stay visible, only the written "Coach's
+   take" narrative is gated. Blur = gated content, not decoration (honesty-over-pressure).
+   The skeleton is the module's own placeholder shape, never fabricated prose. The veil's own
+   background is opaque enough on its own that unsupported backdrop-filter still fully hides
+   the skeleton beneath — no motion here, so prefers-reduced-motion needs no override. */
+.mr-locked{position:relative;overflow:hidden;min-height:112px}
+.mr-skel{display:flex;flex-direction:column;gap:10px;padding:2px 2px 0}
+.mr-skel-line{height:12px;border-radius:7px;background:var(--surface-2)}
+.mr-veil{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:7px;text-align:center;padding:16px;background:rgba(11,15,20,0.86);backdrop-filter:blur(6px);
+}
+:root[data-theme="light"] .mr-veil{background:rgba(248,250,252,0.90)}
+.mr-veil-t{font-size:14px;font-weight:800;letter-spacing:-0.01em;max-width:240px}
+.mr-veil-s{font-size:12px;font-weight:600;color:var(--text-2);max-width:250px;line-height:1.4}
+.mr-or{text-align:center;font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin:14px 0}
+.mr-coderow{margin-top:2px}
 .cat-trend{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)}
 .cat-trend:last-child{border-bottom:none}
 .cat-trend .ct-k{width:118px;flex:none;font-size:12.5px;font-weight:700;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

@@ -7,8 +7,16 @@ import { icon } from '../icons.js';
 import { S } from '../state.js';
 import * as roles from '../roles.js';
 import { buildMonthPayload } from '../monthly.js';
+import { track, EVENTS } from '../analytics.js';
 
-let CACHE = { report: null, period: null, loaded: false };
+let CACHE = { report: null, period: null, loaded: false, payload: null, paywallFired: false };
+
+/* True when the server declined the report because the account isn't on a plan that includes
+   it (vs. a real fetch failure) — the one branch that gets the honest locked upsell instead of
+   a dead "unavailable" wall. */
+function isLockedReport(report) {
+  return !!(report && report.error && /requires a plan/i.test(String(report.error)));
+}
 
 /* The last fully-completed calendar month relative to today, as 'YYYY-MM'. The current,
    still-in-progress month never gets a report — there's nothing to summarize yet. */
@@ -38,9 +46,16 @@ async function load(force) {
   // excluded on purpose; buildMonthPayload only needs {date, score, weight}.
   const days = (S.history || []).map(h => ({ date: h.iso, score: h.score, weight: h.weight }));
   const payload = buildMonthPayload(days, period);
+  CACHE.payload = payload;
   CACHE.period = period;
   CACHE.report = await roles.fetchMonthlyReport(period, payload);
   CACHE.loaded = true;
+  // Exposure fires once the fetch has actually resolved to the locked state — never from
+  // mount() (which runs before this async call settles) and never twice per screen visit.
+  if (isLockedReport(CACHE.report) && !CACHE.paywallFired) {
+    CACHE.paywallFired = true;
+    track(EVENTS.PAYWALL_VIEWED, { variant: 'monthly_locked', cadence: 'annual' });
+  }
   if (window.__render) window.__render();
 }
 
@@ -111,19 +126,75 @@ function statBlock(k, v) {
   return `<div><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`;
 }
 
-function upgradeCard() {
+/* Shared by the locked and unlocked bodies so the two can never drift. */
+function weightChangeStr(report) {
+  return report.weightStart != null && report.weightEnd != null
+    ? `${report.weightEnd - report.weightStart > 0 ? '+' : ''}${(report.weightEnd - report.weightStart).toFixed(1)} lb`
+    : '—';
+}
+
+/* The real 4-cell stat grid — reused verbatim by lockedCard and reportBody. Degrades to
+   '—' placeholders on an empty/error month exactly like the unlocked body always has. */
+function baseStatsBlock(report) {
   return `
-  <div class="state-demo">
-    <div class="sd-ic">${icon('lock', 24)}</div>
-    <div class="sd-t">Premium report</div>
-    <div class="sd-s">Upgrade to unlock your monthly report.</div>
+  <div class="base-stats">
+    ${statBlock('Best day', report.bestDay ? `${dayLabel(report.bestDay.date)} · ${report.bestDay.score}` : '—')}
+    ${statBlock('Worst day', report.worstDay ? `${dayLabel(report.worstDay.date)} · ${report.worstDay.score}` : '—')}
+    ${statBlock('Weight change', weightChangeStr(report))}
+    ${statBlock('Best streak', report.streakBest != null ? `${report.streakBest} days` : '—')}
   </div>`;
 }
 
+/* Locked-state upsell: hands over every real number the athlete already earned this month
+   (same payload reportBody renders once unlocked) and locks only the genuinely-premium
+   written narrative, under a frosted veil — never fabricated prose, never a dead end. */
+function lockedCard(payload, period) {
+  const report = payload || {};
+  const monthWord = esc(monthLabel(period)).split(' ')[0];
+  return `
+  <section class="card pad">
+    <div class="bigstat"><span class="n">${report.avgScore != null ? report.avgScore : '—'}</span><span class="d">Average score</span></div>
+    <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(monthLabel(period))} · ${report.loggedDays || 0} day${report.loggedDays === 1 ? '' : 's'} logged</div>
+    ${report.loggedDays ? `<div style="height:8px"></div><span class="status-pill g">Your month, already counted</span>` : ''}
+  </section>
+
+  <div style="height:14px"></div>
+  ${baseStatsBlock(report)}
+
+  <div style="height:16px"></div>
+  <div class="eyebrow">Coach's take</div>
+  <section class="card pad mr-locked">
+    <div class="mr-skel" aria-hidden="true">
+      <div class="mr-skel-line" style="width:78%"></div>
+      <div class="mr-skel-line" style="width:94%"></div>
+      <div class="mr-skel-line" style="width:60%"></div>
+    </div>
+    <div class="mr-veil">
+      <span class="status-pill b" style="display:inline-flex;align-items:center;gap:5px" aria-label="Premium, locked">${icon('lock', 12)} Premium</span>
+      <div class="mr-veil-t">A written read on your ${monthWord}</div>
+      <div class="mr-veil-s">Your three biggest wins, one focus for next month, and a coach's-voice summary.</div>
+    </div>
+  </section>
+
+  <div style="height:16px"></div>
+  <div class="eyebrow">Unlock the full report</div>
+  <section class="card pad">
+    <button class="btn green" id="mr-trial" style="width:100%">Start free trial</button>
+    <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.4">Individual — free for 7 days, then $10.50/mo billed annually. No card today.</div>
+    <div class="mr-or">or unlock now</div>
+    <div class="sidebox mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('key', 17)}</div>
+      <div><div class="tt">Have a sponsor code?</div><div class="ts">Redeem it to unlock premium instantly</div></div>
+    </div>
+  </section>
+
+  <div style="height:14px"></div>
+  <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding:0 20px;line-height:1.4">Your stats are always yours. Premium adds the written coaching, not the numbers.</div>
+  <div style="height:10px"></div>
+  `;
+}
+
 function reportBody(report, period) {
-  const weightChange = report.weightStart != null && report.weightEnd != null
-    ? `${report.weightEnd - report.weightStart > 0 ? '+' : ''}${(report.weightEnd - report.weightStart).toFixed(1)} lb`
-    : '—';
   const wins = Array.isArray(report.wins) ? report.wins : (report.wins ? [report.wins] : []);
   const focus = Array.isArray(report.focus) ? report.focus : (report.focus ? [report.focus] : []);
   return `
@@ -133,12 +204,7 @@ function reportBody(report, period) {
   </section>
 
   <div style="height:14px"></div>
-  <div class="base-stats">
-    ${statBlock('Best day', report.bestDay ? `${dayLabel(report.bestDay.date)} · ${report.bestDay.score}` : '—')}
-    ${statBlock('Worst day', report.worstDay ? `${dayLabel(report.worstDay.date)} · ${report.worstDay.score}` : '—')}
-    ${statBlock('Weight change', weightChange)}
-    ${statBlock('Best streak', report.streakBest != null ? `${report.streakBest} days` : '—')}
-  </div>
+  ${baseStatsBlock(report)}
 
   ${report.headline || report.narrative ? `
   <div style="height:16px"></div>
@@ -177,9 +243,9 @@ export default {
     }
     const report = CACHE.report;
     const period = CACHE.period;
-    const isUpgrade = report && report.error && /requires a plan/i.test(String(report.error));
+    const locked = isLockedReport(report);
     return `${backHead('Monthly report', esc(monthLabel(period)), 'progress')}
-    ${isUpgrade ? upgradeCard() : report && !report.error ? reportBody(report, period) : `
+    ${locked ? lockedCard(CACHE.payload, period) : report && !report.error ? reportBody(report, period) : `
       <div class="state-demo"><div class="sd-ic">${icon('bolt', 24)}</div>
       <div class="sd-t">Report unavailable</div>
       <div class="sd-s">${esc((report && report.error) || 'Could not load your monthly report.')}</div></div>`}
@@ -187,7 +253,9 @@ export default {
   },
   mount(root) {
     load();
-    const btn = root.querySelector('#mr-share');
-    if (btn) btn.addEventListener('click', () => shareReport(CACHE.report, CACHE.period));
+    const share = root.querySelector('#mr-share');
+    if (share) share.addEventListener('click', () => shareReport(CACHE.report, CACHE.period));
+    const trial = root.querySelector('#mr-trial');
+    if (trial) trial.addEventListener('click', () => track(EVENTS.TRIAL_STARTED, { plan: 'individual', cadence: 'annual' }));
   },
 };
