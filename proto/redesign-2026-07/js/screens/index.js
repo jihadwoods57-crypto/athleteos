@@ -44,6 +44,8 @@ import signin from './signin.js';
 import reset from './reset.js';
 import { devices, recruiting, restrictions, teamDiet, injury, partner, coachVoice, trustPassPolicy, weekPattern, safety } from './features.js';
 import bioOptin from './bio-optin.js';
+import sponsor from './sponsor.js';
+import redeemCode from './redeem-code.js';
 
 export const screens = {
   home,
@@ -139,4 +141,6 @@ export const screens = {
   'week-pattern': weekPattern,
   safety,
   'bio-optin': bioOptin,
+  sponsor,
+  'redeem-code': redeemCode,
 };

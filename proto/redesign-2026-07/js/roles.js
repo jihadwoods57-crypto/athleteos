@@ -1021,6 +1021,20 @@ export function openExternal(url) {
   else window.open(url, '_blank');
 }
 
+/** Sponsor: start a Stripe checkout for N premium seats. Returns { url } or { error }. */
+export async function startSponsorCheckout(seats, label) { return callFn('sponsor-checkout', { seats, label }); }
+/** Sponsor: my purchased seat batches (code + claimed count). */
+export async function fetchMySponsorships() {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.from('sponsorships').select('*').order('created_at', { ascending: false }); return data || []; } catch { return []; }
+}
+/** Athlete: redeem a sponsor code. Returns the RPC row { ok, reason, label, expires_at } or { error }. */
+export async function redeemSponsorCode(code) {
+  const c = sb(); if (!c) return { error: 'not configured' };
+  try { const { data, error } = await c.rpc('redeem_sponsor_code', { p_code: code }); if (error) return { error: error.message }; return Array.isArray(data) ? data[0] : data; }
+  catch (e) { return { error: String((e && e.message) || e) }; }
+}
+
 /* ---------------- pure roster projection (honest: no invented numbers) ---------------- */
 export function tierFlag(score) { return score == null ? '' : score >= 80 ? 'g' : score >= 60 ? 'y' : 'r'; }
 /** Merge a roster member (from the RPC) with today's real day row into a UI row.
