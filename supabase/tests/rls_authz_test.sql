@@ -52,6 +52,20 @@ language plpgsql as $$ begin execute 'reset role'; end $$;
 grant execute on function _superuser() to authenticated, anon;
 grant execute on function _as(uuid) to authenticated, anon;
 
+-- become an actor whose password `amr` timestamp is p_age seconds ago — for step-up reauth tests
+create or replace function _as_amr(p_uid uuid, p_age int) returns void
+language plpgsql as $$
+begin
+  execute 'reset role';
+  perform set_config('request.jwt.claim.sub', p_uid::text, false);
+  perform set_config('request.jwt.claims', json_build_object(
+    'sub', p_uid, 'role', 'authenticated', 'session_id', '11111111-1111-1111-1111-111111111111',
+    'amr', json_build_array(json_build_object('method','password','timestamp',(extract(epoch from now())::bigint - p_age)))
+  )::text, false);
+  execute 'set role authenticated';
+end $$;
+grant execute on function _as_amr(uuid, int) to authenticated, anon;
+
 -- attempt a write AS THE CURRENT ACTOR (security invoker); report 'ok' or the denial
 create or replace function _try(p_sql text) returns text
 language plpgsql as $$
@@ -1089,6 +1103,16 @@ select _ok(_try($f$ select admin_list_users(null,null,null,0,10) $f$) = 'ok', 'c
 select _ok(_try($f$ select admin_list_orgs(null,0,10) $f$) = 'ok', 'cc: admin can list orgs');
 select _ok((select count(*) from admin_revenue()) = 1, 'cc: admin_revenue returns exactly one row');
 select _ok(_try($f$ select admin_failed_payments(10) $f$) = 'ok', 'cc: admin can list failed payments');
+
+-- Phase 1B reauth (0119) — grants are server-verified from the JWT amr timestamp, never self-granted.
+select _as_amr('55555555-0000-0000-0000-000000000005', 30);    -- authenticated 30s ago → fresh
+select _ok(_try($f$ select admin_open_sensitive_window('flags', false) $f$) = 'ok', 'cc: fresh reauth mints a grant');
+select _ok(admin_has_sensitive_grant('flags'), 'cc: grant is live for its scope + session');
+select _ok(not admin_has_sensitive_grant('financial'), 'cc: grant does not leak across scopes');
+select _as_amr('55555555-0000-0000-0000-000000000005', 1200);  -- authenticated 20m ago → stale
+select _ok(_try($f$ select admin_open_sensitive_window('financial', true) $f$) <> 'ok', 'cc: stale reauth is refused');
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select admin_open_sensitive_window('flags', false) $f$) <> 'ok', 'cc: rando denied open_sensitive_window');
 
 -- ================================================================ scoreboard
 select _superuser();
