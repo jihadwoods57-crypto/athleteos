@@ -163,6 +163,46 @@
 
   .foot { color:var(--mut); font-size:12px; margin-top:28px; line-height:1.6; }
 
+  /* ===== shell: left nav + top bar ===== */
+  #app { display:flex; min-height:100vh; }
+  .rail { width:212px; flex:none; padding:16px 12px; border-right:1px solid var(--line);
+    position:sticky; top:0; height:100vh; overflow:auto; background:var(--bg2); }
+  .railgroup { font-size:10.5px; text-transform:uppercase; letter-spacing:.11em; color:var(--mut);
+    font-weight:600; margin:16px 8px 6px; }
+  .railgroup:first-child { margin-top:2px; }
+  .railitem { display:block; padding:7px 10px; border-radius:8px; color:var(--ink2);
+    font-size:13.5px; font-weight:500; }
+  .railitem:hover { background:var(--surface); color:var(--ink); }
+  .railitem.active { background:var(--surface2); color:var(--ink); box-shadow:inset 2px 0 0 var(--teal); }
+  .maincol { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .search-wrap { position:relative; flex:1; max-width:400px; }
+  .search-wrap input { padding:8px 12px; font-size:13.5px; }
+  .searchdrop { position:absolute; top:calc(100% + 6px); left:0; right:0; background:var(--overlay);
+    border:1px solid var(--line2); border-radius:var(--r-sm); box-shadow:var(--shadow); z-index:60; overflow:hidden; }
+  .searchdrop:empty { display:none; }
+  .searchrow { display:flex; gap:9px; align-items:baseline; padding:9px 12px; font-size:13px; color:var(--ink2); }
+  a.searchrow:hover { background:var(--surface2); color:var(--ink); }
+  .skind { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--teal);
+    border:1px solid var(--line2); border-radius:5px; padding:0 5px; flex:none; }
+  .ssub { color:var(--mut); margin-left:auto; font-size:11.5px; }
+  .envbadge { font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--teal); border:1px solid var(--teal); border-radius:999px; padding:2px 9px; }
+  .envbadge.nonprod { color:var(--note); border-color:var(--note); }
+  .identity { font-size:12px; color:var(--mut); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .badge { display:inline-flex; align-items:center; font-size:10.5px; font-weight:600; letter-spacing:.02em;
+    padding:1px 7px; border-radius:999px; background:var(--surface2); border:1px solid var(--line2); color:var(--ink2); margin-left:6px; }
+  .badge.warn { color:var(--warn); border-color:var(--warn); }
+  .badge.note { color:var(--note); border-color:var(--note); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); }
+
+  @media (max-width:900px){
+    #app { display:block; }
+    .rail { position:static; width:auto; height:auto; display:flex; flex-wrap:wrap; gap:4px;
+      border-right:0; border-bottom:1px solid var(--line); }
+    .railgroup { display:none; }
+    .search-wrap { max-width:none; }
+    .identity { display:none; }
+  }
   @media (max-width:640px){ .wrap{ padding:16px 14px 80px; } .top{ padding:12px 14px; } .hero .lead{ font-size:16px; } .top .actions .lbl{ display:none; } }
   @media (prefers-reduced-motion:reduce){ *{ animation:none !important; transition:none !important; } }
 </style></head>
@@ -185,34 +225,26 @@
 
   <!-- app -->
   <div id="app" class="hidden">
-    <header class="top">
-      <div class="brand"><span class="mark"></span><div>OnStandard<small>Command Center</small></div></div>
-      <div class="spacer"></div>
-      <div class="stamp" id="stamp"></div>
-      <div class="actions">
-        <button id="ask" class="btn ghost sm"><span class="lbl">Ask</span></button>
-        <a href="./flags.html" class="btn ghost sm">Flags</a>
-        <button id="refresh" class="btn ghost sm">Refresh</button>
-        <button id="signout" class="btn ghost sm">Sign out</button>
-      </div>
-    </header>
-
-    <main class="wrap">
-      <p id="err" class="err"></p>
-      <section class="hero"><div class="inner">
-        <div class="lead" id="brief"><span class="sk" style="display:inline-block;width:70%;height:19px"></span></div>
-        <div class="since" id="since"></div>
-        <div class="movers" id="movers"></div>
-      </div></section>
-
-      <div class="sec-h"><h2>Needs attention</h2><span class="count" id="attn-count">—</span><span class="line"></span></div>
-      <div class="attn" id="attn"></div>
-
-      <div class="sec-h"><h2>The business</h2><span class="line"></span></div>
-      <div class="grid" id="grid"></div>
-
-      <p class="foot" id="foot"></p>
-    </main>
+    <nav class="rail" id="rail"></nav>
+    <div class="maincol">
+      <header class="top">
+        <div class="brand"><span class="mark"></span><div>OnStandard<small>Command Center</small></div></div>
+        <div class="search-wrap">
+          <input id="search" type="text" placeholder="Search users, audit…" autocomplete="off" spellcheck="false">
+          <div class="searchdrop" id="searchdrop"></div>
+        </div>
+        <div class="spacer"></div>
+        <span class="envbadge" id="envbadge">production</span>
+        <span class="identity" id="identity"></span>
+        <div class="stamp" id="stamp"></div>
+        <div class="actions">
+          <a href="./flags.html" class="btn ghost sm">Flags</a>
+          <button id="refresh" class="btn ghost sm">Refresh</button>
+          <button id="signout" class="btn ghost sm">Sign out</button>
+        </div>
+      </header>
+      <main class="wrap" id="view"></main>
+    </div>
   </div>
 
   <div class="toasts" id="toasts"></div>
