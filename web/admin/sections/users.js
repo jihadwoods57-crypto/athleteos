@@ -93,7 +93,8 @@ async function openProfile(uid, ctx = {}) {
       try { await rpc('admin_tag_user_for_review', { p_user: uid, p_note: 'flagged from command center' }); toast('Tagged for review · audited'); }
       catch (e) { toast('Failed: ' + e.message, true); }
     } });
-    nodes.push(h('div', { style: 'display:flex; gap:8px; flex-wrap:wrap; margin-top:6px' }, [pauseBtn, tagBtn]));
+    const viewAsBtn = h('button', { class: 'btn ghost', text: 'View as user', onclick: () => viewAs(uid) });
+    nodes.push(h('div', { style: 'display:flex; gap:8px; flex-wrap:wrap; margin-top:6px' }, [pauseBtn, viewAsBtn, tagBtn]));
     nodes.push(h('p', { class: 'cap', style: 'margin-top:12px', text: 'Role change and pause/reactivate require re-entering your password (step-up) and are audited. Session revoke, password reset, resend invite, and hard-suspension enforcement arrive with the GoTrue admin edge function.' }));
     openModal('User profile', nodes);
   } catch (e) { openModal('User', [emptyState(e.message)]); }
@@ -125,6 +126,57 @@ async function doAction(uid, fn, okMsg, newSuspended, ctx) {
     try { await rpc(fn, { p_user: uid }); toast(okMsg + ' · audited'); openProfile(uid, { ...ctx, suspended: newSuspended }); load(); }
     catch (e) { toast('Failed: ' + e.message, true); }
   });
+}
+
+// Read-only View-as-User: reason required → step-up reauth → audited projected snapshot + expiry banner.
+function viewAs(uid) {
+  const reason = h('input', { type: 'text', placeholder: 'Reason (required, audited)…' });
+  const err = h('p', { class: 'err' });
+  openModal('View as user', [
+    h('p', { class: 'cap', text: 'Read-only impersonation — no session assumption, no writes. Requires a reason + re-authentication; every view is audited.' }),
+    h('label', { class: 'fld', text: 'Reason' }), reason, err,
+    h('div', { style: 'height:12px' }),
+    h('button', { class: 'btn pri', text: 'Continue', onclick: () => {
+      if (reason.value.trim().length < 3) { err.textContent = 'A reason is required.'; return; }
+      withReauth('view_as', async () => {
+        try { const snap = one2(await rpc('admin_view_as', { p_user: uid, p_reason: reason.value.trim() })); renderViewAs(snap, reason.value.trim()); }
+        catch (e) { toast('View-as failed: ' + e.message, true); }
+      });
+    } }),
+  ]);
+}
+
+// admin_view_as returns a single jsonb object (not a row set)
+const one2 = (v) => (Array.isArray(v) ? (v[0] || {}) : (v || {}));
+
+function renderViewAs(snap, reason) {
+  let secs = 300;
+  const countdown = h('span', { class: 'num', text: '5:00' });
+  const banner = h('div', { class: 'allclear', style: 'background:var(--warn-bg); border-color:var(--warn); color:var(--warn); justify-content:space-between' }, [
+    h('span', { text: `🔒 Viewing as ${snap.is_minor ? 'a minor user (name redacted)' : (snap.name || String(snap.user_id).slice(0, 8) + '…')} — READ-ONLY` }),
+    h('span', {}, ['expires in ', countdown]),
+  ]);
+  const today = snap.today || null;
+  const recent = (snap.recent_scores || []).length
+    ? tbl(['date', { t: 'score', num: 1 }, 'grade'], snap.recent_scores.map((d) => [d.date, d.score == null ? '—' : d.score, d.grade || '—']))
+    : emptyState('No recent scored days.');
+  openModal('View as user', [
+    banner,
+    h('p', { class: 'cap', style: 'margin:8px 0', text: `reason: ${reason}` }),
+    row('Role', snap.role || '—'),
+    row('Subscription', snap.subscription ? `${snap.subscription.tier || '—'} · ${snap.subscription.status || '—'}` : 'none'),
+    row('Today', today ? `${today.score == null ? '—' : today.score} (${today.grade || '—'}) · ${today.date}` : 'no day yet'),
+    row('Meals · 7d', num(snap.meals_7d)),
+    h('div', { class: 'sec-h', style: 'margin:14px 0 8px' }, [h('h2', { text: 'Recent days' }), h('span', { class: 'line' })]),
+    recent,
+  ]);
+  const timer = setInterval(() => {
+    if (!document.body.contains(countdown)) { clearInterval(timer); return; } // modal closed manually
+    secs -= 1;
+    const m = Math.floor(secs / 60), s = secs % 60;
+    countdown.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    if (secs <= 0) { clearInterval(timer); closeModal(); toast('View-as session expired'); }
+  }, 1000);
 }
 
 let dt;

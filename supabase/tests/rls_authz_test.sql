@@ -1123,6 +1123,15 @@ select _ok(_try($f$ select admin_correct_primary_role('99999999-0000-0000-0000-0
 select _superuser();
 select _ok((select count(*) from admin_audit_log where action='user.correct_role' and target='99999999-0000-0000-0000-000000000009') = 1, 'cc: role change audited exactly once');
 
+-- Phase 1B view-as (0123) — grant required + non-empty reason required + audited as impersonation.
+select _as_amr('55555555-0000-0000-0000-000000000005', 30);
+select _ok(_try($f$ select admin_view_as('99999999-0000-0000-0000-000000000009','support case #12') $f$) <> 'ok', 'cc: view-as without a grant is refused');
+select admin_open_sensitive_window('view_as', false);
+select _ok(_try($f$ select admin_view_as('99999999-0000-0000-0000-000000000009','') $f$) <> 'ok', 'cc: view-as requires a reason');
+select _ok(_try($f$ select admin_view_as('99999999-0000-0000-0000-000000000009','support case #12') $f$) = 'ok', 'cc: view-as with grant + reason works');
+select _superuser();
+select _ok((select count(*) from admin_audit_log where action='user.view_as' and (after->>'impersonation')='true') >= 1, 'cc: view-as is audited as impersonation');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
