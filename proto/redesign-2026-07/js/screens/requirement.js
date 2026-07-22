@@ -1,7 +1,8 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
-import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, deriveAssigned } from '../requirements.js';
+import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, deriveAssigned, catalogFromItems } from '../requirements.js';
+import { DAY } from '../day.js';
 
 /* Requirement Detail — every rule in the system is legible: what it is, when,
    what proof, what it touches, and the coach's why. One screen serves the whole
@@ -11,7 +12,9 @@ export default {
   render({ sub }) {
     const id = sub || 'dinner';
     const assigned = RT.assigned.find(a => a.id === id);
-    const req = assigned ? deriveAssigned(assigned) : CATALOG.find(r => r.id === id);
+    // Resolve from the built-in CATALOG first, then the coach's standing set items (lift/custom/extra
+    // hydration/weigh), so a coach NON-MEAL requirement opens a real detail screen, not "not found".
+    const req = assigned ? deriveAssigned(assigned) : (CATALOG.find(r => r.id === id) || catalogFromItems(RT.stdItems).find(r => r.id === id));
     // Unknown id (stale deep-link, removed assigned task): a legible empty state with a
     // forward path, not a bare "Nothing here" dead end.
     if (!req) return `${backHead('Requirement', 'Not found', 'plan')}
@@ -24,14 +27,22 @@ export default {
 
     const proof = PROOF[req.proof] || PROOF.check;
     const impact = IMPACT_LABEL[req.impact.kind === 'component' ? req.impact.comp : req.impact.kind];
-    const done = assigned ? assigned.done : false;
+    // A standing NON-MEAL check requirement (coach lift/custom) completes one-tap into the per-day
+    // checked store — tracked, not scored. Its done-state reads from DAY.checkedTasks (toggle to undo).
+    const isStandingCheck = !assigned && req.proof === 'check';
+    const checkDone = isStandingCheck && !!(DAY.checkedTasks && DAY.checkedTasks[id]);
+    const done = assigned ? assigned.done : checkDone;
 
     const actionBtn = assigned
       ? (done
         ? `<div class="day-done"><div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
            <div><div class="tt">Done. ${assigned.from} can see it.</div><div class="ts">Completed tonight.</div></div></div>`
         : `<button class="btn green" data-act="completeAssigned:${id}" data-then="requirement/${id}">${icon('check', 19)} Mark Done · coach sees it</button>`)
-      : `<button class="btn primary" data-go="${req.route || proof.route || 'home'}">${icon(req.icon, 19)} ${proof.verb} ${req.title}</button>`;
+      : isStandingCheck
+        ? (checkDone
+          ? `<button class="btn ghost" data-act="completeCheck:${id}" data-then="requirement/${id}" style="width:100%">${icon('check', 19)} Done · coach sees it · tap to undo</button>`
+          : `<button class="btn green" data-act="completeCheck:${id}" data-then="requirement/${id}">${icon('check', 19)} Mark Done · coach sees it</button>`)
+        : `<button class="btn primary" data-go="${req.route || proof.route || 'home'}">${icon(req.icon, 19)} ${proof.verb} ${req.title}</button>`;
 
     return `
     ${backHead(req.title, assigned ? `Assigned by ${assigned.from}` : freqLabel(req.freq), 'home')}

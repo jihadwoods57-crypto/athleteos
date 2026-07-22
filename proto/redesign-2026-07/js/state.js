@@ -7,13 +7,13 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType } from './requirements.js';
+import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems } from './requirements.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
-  dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal,
+  dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, setDayGoalConfig, checkinReal,
 } from './day.js';
@@ -521,20 +521,33 @@ function applyGoalToDay() {
    byte-identical. Shared by the live exec getter AND tomorrow's pre-scheduled reminder plan. */
 function execCatalog() {
   const std = RT.stdMeals;
-  if (!std) return CATALOG;
-  const mealItems = reqMealSlots().map((k) => {
-    const base = CATALOG.find(c => c.id === k);
-    return {
-      id: k, title: (std.titles && std.titles[k]) || (base ? base.title : cap(k.replace('-', ' '))),
-      icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
-      freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k), grace: slotGrace(k) },
-      // Snack-optional (0100/0086): a snack slot is loggable but not required — it never reads
-      // overdue and drops out of the denominator. Every other slot stays required (parity).
-      required: !(std.optional && std.optional.includes(k)),
-      impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: base ? base.note : '',
-    };
-  });
-  return [...mealItems, ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id))];
+  let base;
+  if (!std) {
+    base = CATALOG;
+  } else {
+    const mealItems = reqMealSlots().map((k) => {
+      const b = CATALOG.find(c => c.id === k);
+      return {
+        id: k, title: (std.titles && std.titles[k]) || (b ? b.title : cap(k.replace('-', ' '))),
+        icon: b ? b.icon : 'utensils', accent: b ? b.accent : 'g', proof: 'photo',
+        freq: { type: 'daily' }, window: { ...(b ? b.window : {}), due: slotDeadline(k), grace: slotGrace(k) },
+        // Snack-optional (0100/0086): a snack slot is loggable but not required — it never reads
+        // overdue and drops out of the denominator. Every other slot stays required (parity).
+        required: !(std.optional && std.optional.includes(k)),
+        impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: b ? b.note : '',
+      };
+    });
+    base = [...mealItems, ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id))];
+  }
+  // Coach standing NON-MEAL items (lift/custom/extra hydration/weigh) — surfaced to the athlete's
+  // list, TRACKED not scored. Drop any 'component' item (meals/recovery/checkin feed the score and
+  // are already handled above) and dedupe by id, so this only ADDS the coach's plan/focus/trend
+  // requirements and never alters an existing scored one. RT.stdItems null (no coach set) → coach
+  // is [] → base returned unchanged, so a no-coach day stays byte-identical.
+  const coach = catalogFromItems(RT.stdItems).filter(r => r && r.impact && r.impact.kind !== 'component');
+  if (!coach.length) return base;
+  const seen = new Set(base.map(r => r.id));
+  return [...base, ...coach.filter(r => !seen.has(r.id))];
 }
 
 /* An assignment's due time as minutes-from-midnight, ONLY when its real due_at lands on the
@@ -1209,6 +1222,14 @@ export const act = {
       if (a.real) completeAssignmentRemote(a.id); // best-effort; _loadAssignmentsIntoRt self-heals
     }
   },
+  /* Complete/undo a standing NON-MEAL check requirement for today (coach lift/custom). Tracked, not
+     scored: it rides into days.tasks for the coach but never touches the score. Optimistic + persisted. */
+  completeCheck(id) {
+    if (!id) return;
+    const done = !(DAY.checkedTasks && DAY.checkedTasks[id]);
+    dayCheckTask(RT.userId, id, done);
+    save();
+  },
   seeAssigned() { RT.assigned.forEach(a => { a.seen = true; }); save(); },
   primeCamera() { RT.camPrimed = true; save(); },
   /* WS6: persist a Home collapse-section's open state so re-renders don't reset it. */
@@ -1643,13 +1664,17 @@ export const act = {
     // type of the day being scored. No pattern → dayType 'any' → items pass through untouched, so
     // the scored day is byte-identical for every team without a pattern (parity contract).
     const dayType = dayTypeFor(RT.weekPattern, String(DAY.date));
-    let std = stdFromItems(set && filterItemsByDayType(set.items, dayType));
+    const govItems = set ? filterItemsByDayType(set.items, dayType) : null;
+    let std = stdFromItems(govItems);
     // Independent (no governing coach set): a NEW solo athlete's chosen personal standard governs
     // their scored day. Gated on RT.activationDate — stamped only by this build's onboarding — so
     // EXISTING solo athletes are never silently re-scored against a different meal count (they
     // keep the classic 4-meal day). Coach-linked athletes always resolve `set` first, unaffected.
     if (!std && RT.activationDate) std = stdFromSolo((RT.profile && RT.profile.standard) || (RT.ob && RT.ob.standard));
     RT.stdMeals = std;
+    // Raw governing items (all kinds) so execCatalog can surface the coach's NON-MEAL standing
+    // requirements (lift/custom/etc). Null when no coach set governs — keeps execCatalog byte-identical.
+    RT.stdItems = Array.isArray(govItems) ? govItems : null;
     setDayStandard(RT.stdMeals);
   },
   /* Athlete: redeem a coach team code (or a trainer practice code) from the Connect screen.
@@ -2556,6 +2581,11 @@ export const S = {
       recovery: { done: DAY.ciSubmitted },
     };
     if (std) for (const k of reqMealSlots()) status[k] = mstat(k);
+    // Standing check items (coach lift/custom) take their done-state from the per-day checked store —
+    // tracked, not scored. Only fill ids not already sourced above (meals/weight/hydration/recovery).
+    for (const it of catalog) {
+      if (it && it.proof === 'check' && !(it.id in status)) status[it.id] = { done: !!(DAY.checkedTasks && DAY.checkedTasks[it.id]) };
+    }
     return deriveExec({
       nowMin: minutesNow(),
       dow: new Date().getDay(),

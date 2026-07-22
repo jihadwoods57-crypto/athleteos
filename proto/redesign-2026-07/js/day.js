@@ -236,6 +236,7 @@ export const DAY = {
   mealLoggedAt: {},
   slotMacros: {},
   quickAdded: [false, false, false],
+  checkedTasks: {}, // standing NON-MEAL check items completed today { id: true } — tracked, not scored
   hydrationL: 0,
   dailyCommitment: null,
   commitmentFocus: null, // the athlete's written intention for today (rides the checkin jsonb)
@@ -394,6 +395,14 @@ function projectRowToDay(row) {
       DAY.quickAdded[i] = !!(DAY.quickAdded[i] || row.quick_added[i]);
     }
   } else if (DAY.quickAdded.some(Boolean)) localAhead = true;
+  // Standing check-item completions merge as a UNION: a local tap outranks a server gap; a server
+  // completion this device lacks is adopted. Tracked, not scored (never touches computeComponents).
+  {
+    const rc = (row.checked_tasks && typeof row.checked_tasks === 'object') ? row.checked_tasks : {};
+    if (!DAY.checkedTasks) DAY.checkedTasks = {};
+    for (const id of Object.keys(DAY.checkedTasks)) { if (DAY.checkedTasks[id] && !rc[id]) localAhead = true; }
+    for (const id of Object.keys(rc)) { if (rc[id]) DAY.checkedTasks[id] = true; }
+  }
   if (DAY.currentWeight != null && row.current_weight == null) localAhead = true;
   DAY.currentWeight = DAY.currentWeight ?? row.current_weight ?? null;
   const ck = row.checkin || {};
@@ -419,7 +428,7 @@ function projectRowToDay(row) {
 /* The days columns the client may SELECT directly after 0103's column-split grant — everything
    except current_weight, which only the weight_series RPC returns. Keep in sync with the 0103
    grant list (and add any future days column to BOTH). */
-export const DAY_SELECT_COLS = 'id,athlete_id,date,meals,hydration_l,tasks,quick_added,checkin,score,grade,computed_at,updated_at';
+export const DAY_SELECT_COLS = 'id,athlete_id,date,meals,hydration_l,tasks,checked_tasks,quick_added,checkin,score,grade,computed_at,updated_at';
 
 /** The athlete's weight-by-date map via the 0103 weight_series RPC (is_self always passes;
  *  a restricted viewer gets zero rows, never an error). Pre-apply fallback: before 0103 lands
@@ -492,7 +501,8 @@ export async function loadDay(userId) {
 /** True when the in-memory day carries any real logged progress. */
 function hasLoggedAnything() {
   return MEAL_KEYS.some((k) => DAY.meals[k]) || DAY.quickAdded.some(Boolean)
-    || DAY.hydrationL > 0 || DAY.ciSubmitted || DAY.dailyCommitment != null || DAY.currentWeight != null;
+    || DAY.hydrationL > 0 || DAY.ciSubmitted || DAY.dailyCommitment != null || DAY.currentWeight != null
+    || Object.keys(DAY.checkedTasks || {}).length > 0;
 }
 
 /** Flush a pending debounced push immediately (app going to background / being killed —
@@ -548,6 +558,7 @@ export function pushDay(userId, immediate) {
     const row = {
       athlete_id: userId, date: DAY.date,
       meals: DAY.meals, hydration_l: DAY.hydrationL, quick_added: DAY.quickAdded,
+      checked_tasks: DAY.checkedTasks,
       current_weight: DAY.currentWeight,
       checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros },
       score: s, grade: gradeFor(s),
@@ -570,7 +581,7 @@ export function pushDay(userId, immediate) {
 export function dayResetLocal() {
   DAY.meals = { breakfast: false, lunch: false, snack: false, dinner: false };
   seedStandardSlots(); // a governing standard's extra slots (meal-5/meal-6) survive the reset
-  DAY.mealLoggedAt = {}; DAY.slotMacros = {}; DAY.quickAdded = [false, false, false];
+  DAY.mealLoggedAt = {}; DAY.slotMacros = {}; DAY.quickAdded = [false, false, false]; DAY.checkedTasks = {};
   DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.commitmentFocus = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
   DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.trustPass = null;
 }
@@ -614,6 +625,14 @@ export function daySetFocus(userId, text) { DAY.commitmentFocus = text || null; 
 export function dayAddWaterOz(userId, oz) { DAY.hydrationL = Math.min(6, DAY.hydrationL + oz * 0.0295735); pushDay(userId); }
 export function dayLogWeight(userId, lb) { if (lb) DAY.currentWeight = Math.round(lb); pushDay(userId); }
 export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[i]; pushDay(userId); }
+/* Complete (or un-complete) a standing NON-MEAL check requirement for today (lift / custom). Tracked,
+   not scored: it rides into days.tasks so the coach sees it, but never touches computeComponents. */
+export function dayCheckTask(userId, id, done = true) {
+  if (!id) return;
+  if (!DAY.checkedTasks) DAY.checkedTasks = {};
+  if (done) DAY.checkedTasks[id] = true; else delete DAY.checkedTasks[id];
+  pushDay(userId);
+}
 
 /** Insert a real row into the `meals` table (mirrors the RN insertMeal / mapMealToRow) so a coach
  *  can review and comment on the plate. The proto otherwise only writes `days`; coach review +
