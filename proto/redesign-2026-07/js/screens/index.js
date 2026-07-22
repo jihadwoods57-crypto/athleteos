@@ -33,6 +33,7 @@ import { obAthlete } from './ob2-athlete.js';
 import { obClient } from './ob2-client.js';
 import { trainerGrow } from './trainer-grow.js';
 import myTrainerOffers from './my-trainer-offers.js';
+import monthlyReport from './monthly-report.js';
 import fundPlan from './fund-plan.js';
 import fundedPlans from './funded-plans.js';
 import { obCoach } from './ob2-coach.js';
@@ -60,6 +61,7 @@ export const screens = {
   recovery,
   'recovery-confirm': recoveryConfirm,
   progress,
+  'monthly-report': monthlyReport,
   profile,
   connect,
   guardian,

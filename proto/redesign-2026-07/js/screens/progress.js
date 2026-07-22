@@ -134,6 +134,12 @@ export default {
 
     ${weightCard()}
 
+    <div style="height:10px"></div>
+    <div class="sidebox" data-go="monthly-report" style="cursor:pointer">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">Monthly report</div><div class="ts">Your month in review</div></div>
+    </div>
+
     ${insight ? `
     <div class="eyebrow">Your biggest opportunity</div>
     <div class="insight">

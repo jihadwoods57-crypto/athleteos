@@ -1007,6 +1007,11 @@ export async function cancelFundedSubscription(paymentId) {
   return callFn('cancel-offer-subscription', { paymentId });
 }
 
+/** Generate/fetch the athlete's monthly report. Returns the report object or { error }. */
+export async function fetchMonthlyReport(period, data) {
+  return callFn('monthly-report', { period, data });
+}
+
 /** Open a Stripe-hosted URL (Connect onboarding, Checkout) in the SYSTEM browser via the native
  *  bridge — never navigate this WebView itself into it (see bridge.ts OPEN_URL for why). Falls
  *  back to window.open for a plain-browser dev/preview session where the bridge doesn't exist. */
