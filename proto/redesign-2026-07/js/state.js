@@ -1105,6 +1105,9 @@ export const act = {
     if (!r) return null;
     DAY.slotMacros[slot] = r.meta;
     pushDay(RT.userId);
+    // Quality metrics (item 8b): counts-only signal that a photo read needed a fix — no macro
+    // values, no free text. Feeds the correction-rate side of admin_meal_quality_metrics.
+    track(EVENTS.MEAL_CORRECTED, { kind: String((correction && correction.kind) || 'other').slice(0, 24) });
     // Mirror the corrected numbers onto the meals row the coach reads (athlete owns the row —
     // meals_update RLS). The original stays in the day meta's `orig`; the note carries the trail.
     const sb = window.sb;
