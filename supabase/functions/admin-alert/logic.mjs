@@ -14,7 +14,9 @@ const KIND_META = {
   account_locked: { severity: 'critical', headline: 'Your admin account was temporarily locked', actionLabel: 'Review sign-in activity' },
   recovery_used: { severity: 'critical', headline: 'Two-factor authentication was reset', actionLabel: 'Review account security' },
 };
-const SEVERITY_COLOR = { critical: '#d92d3c', warning: '#b3760a', info: '#1d6fd6' };
+// Darkened from the original palette to clear WCAG AA (4.5:1) at badge text size (11.5px) - the lighter
+// originals (#d92d3c/#b3760a/#1d6fd6) measured 3.5-4.3:1 against their tinted backgrounds, which fails.
+const SEVERITY_COLOR = { critical: '#b3273a', warning: '#92400e', info: '#1257a8' };
 const SEVERITY_BG = { critical: '#fdecee', warning: '#fdf3e0', info: '#e9f2fd' };
 const SEVERITY_LABEL = { critical: 'Security alert', warning: 'Security notice', info: 'Notice' };
 
@@ -63,7 +65,7 @@ export function renderAlertEmail({ kind, subject, body, details, actionUrl, occu
           <table role="presentation" cellpadding="0" cellspacing="0"><tr>
             <td style="width:26px;height:26px;border-radius:8px;background:linear-gradient(120deg,#3b82f6,#33c6d6)">&nbsp;</td>
             <td style="padding-left:11px;font-size:15px;font-weight:700;color:#161b22;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">OnStandard
-              <div style="font-size:11px;font-weight:400;color:#7c8798;letter-spacing:.02em">Command Center</div>
+              <div style="font-size:11px;font-weight:400;color:#6b7280;letter-spacing:.02em">Command Center</div>
             </td>
           </tr></table>
         </td></tr>
@@ -79,10 +81,10 @@ export function renderAlertEmail({ kind, subject, body, details, actionUrl, occu
         <tr><td style="padding:0 32px">${detailsBlock}${ctaBlock}</td></tr>
         <tr><td style="padding:28px 32px 0"><div style="height:1px;background:#eef0f3"></div></td></tr>
         <tr><td style="padding:16px 32px 28px">
-          <p style="margin:0 0 4px;font-size:12px;line-height:1.6;color:#9aa3af;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+          <p style="margin:0 0 4px;font-size:12px;line-height:1.6;color:#6b7280;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
             Automated security notification for your OnStandard Command Center admin account &middot; ${escapeHtml(when)} UTC
           </p>
-          <p style="margin:0;font-size:12px;line-height:1.6;color:#9aa3af;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+          <p style="margin:0;font-size:12px;line-height:1.6;color:#6b7280;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
             If this wasn't you, sign in and change your password immediately.
           </p>
         </td></tr>

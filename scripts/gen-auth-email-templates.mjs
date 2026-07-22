@@ -16,15 +16,21 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 const OUT_DIR = new URL('../supabase/email-templates/', import.meta.url);
 mkdirSync(OUT_DIR, { recursive: true });
 
+// Button/mark gradient colors (large surfaces - contrast vs. their own dark text is separately fine).
 const GREEN = '#37D586';
 const GREEN_DEEP = '#16A34A';
 const INK = '#161B22';
 const INK2 = '#5B6470';
-const MUT = '#9AA3AF';
+// MUT and the two badge-text colors are chosen to clear WCAG AA (4.5:1) against their backgrounds at
+// small sizes (11.5-12px) - verified: MUT 4.83:1, GREEN_BADGE_TEXT 4.99:1, WARN_BADGE_TEXT 6.44:1.
+// The brighter GREEN/GREEN_DEEP above stay reserved for large surfaces (buttons, the mark) where their
+// own paired text (#05130B) is separately high-contrast; they are NOT used for small badge text.
+const MUT = '#6B7280';
+const GREEN_BADGE_TEXT = '#0F7A38';
 const CREAM = '#F6F4EE';
 const LINE = '#EDEBE3';
 
-function shell({ badge, badgeColor = GREEN_DEEP, badgeBg = '#E9F9F0', headline, bodyHtml, ctaLabel, ctaUrl, codeToken, footerNote }) {
+function shell({ badge, badgeColor = GREEN_BADGE_TEXT, badgeBg = '#E9F9F0', headline, bodyHtml, ctaLabel, ctaUrl, codeToken, footerNote }) {
   const cta = ctaUrl ? `
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:26px 0 6px">
       <tr><td style="border-radius:10px" bgcolor="${GREEN}">
@@ -79,7 +85,7 @@ function shell({ badge, badgeColor = GREEN_DEEP, badgeBg = '#E9F9F0', headline, 
 </body></html>`;
 }
 
-const WARN_BADGE = { badgeColor: '#B3760A', badgeBg: '#FDF3E0' };
+const WARN_BADGE = { badgeColor: '#92400E', badgeBg: '#FDF3E0' };
 
 const TEMPLATES = {
   confirmation: shell({
