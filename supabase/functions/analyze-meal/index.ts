@@ -33,6 +33,9 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
+import { buildVoiceDirective, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
+import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
+import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 // Cost sweep (audit item 20): memory/order are pure PROSE rephrases whose every number is re-verified
@@ -86,6 +89,31 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 // anonymous/preview call (the shared anon key, or backend not wired) — those skip the
 // per-athlete cap and stay governed by the per-minute IP limit alone. Verifying via
 // auth.getUser() (not a raw JWT decode) means a forged `sub` can't buy extra calls.
+// Coach Voice v2 plumbing. A service client + a single-flag evaluator — this is the feature-flag
+// system's first real consumer. flagOn reads the one flag row and applies the shared pure evaluator
+// for this athlete's context; any failure resolves to false (voice simply stays off).
+function svcClient(): { from: (t: string) => any } | null {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+}
+async function flagOn(
+  sb: { from: (t: string) => any },
+  name: string,
+  ctx: { userId?: string | null; role?: string | null; orgId?: string | null },
+): Promise<boolean> {
+  try {
+    const { data } = await sb
+      .from('feature_flags')
+      .select('name, default_on, kill_switch, enabled_user_ids, enabled_roles, enabled_org_ids')
+      .eq('name', name)
+      .maybeSingle();
+    if (!data) return false;
+    return evaluateFlag(data as FlagRow, ctx);
+  } catch {
+    return false;
+  }
+}
+
 async function resolveUserId(req: Request): Promise<string | null> {
   const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
   if (!token || token === SUPABASE_ANON_KEY) return null;
@@ -864,8 +892,23 @@ Deno.serve(async (request) => {
     }
   }
 
-  const system = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
+  const baseSystem = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
   const content = isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req, photoMime) : userContent(req, photoMime);
+
+  // Coach Voice v2 (flag-gated, meal path only): when coach_voice_v2 is on for this athlete AND
+  // their team has an enabled Voice config, prepend the coach's voice directive so the note/analysis
+  // read in the coach's tone. Deterministic authority (macros/score/timing) is untouched — the
+  // directive's hard rails forbid changing any figure. Flag off / no team config -> byte-identical
+  // to today. voiceCfg is also used below to re-check banned words on the generated text.
+  let voiceCfg: VoiceConfig | null = null;
+  if (isMeal && userId) {
+    const sb = svcClient();
+    if (sb && (await flagOn(sb, 'coach_voice_v2', { userId }))) {
+      const loaded = await loadVoice(sb, userId);
+      if (loaded) voiceCfg = loaded.cfg;
+    }
+  }
+  const system = voiceCfg ? buildVoiceDirective(voiceCfg) + '\n\n' + baseSystem : baseSystem;
 
   // Tool set + choice. Meal phase 'analyze' may EITHER finalize or ask a clarifying question, so it
   // offers both tools and lets the model choose. Every other path (label/memory/order, and meal
@@ -932,7 +975,34 @@ Deno.serve(async (request) => {
         if (questions.length === 0) throw new Error('empty clarifying questions');
         return new Response(JSON.stringify({ kind: 'questions', questions }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
-      const grounded = groundMacros(used.input) as Record<string, unknown>;
+      let input = used.input as Record<string, unknown>;
+      // Coach Voice safety: a banned word must never ship. If voice was applied and the free-text
+      // note/analysis trips the guard (rare — the directive already forbids them), re-run the report
+      // ONCE without the voice directive and use that. A required field can't be nulled the way a
+      // nudge can, so the fallback is a clean re-generation on the safe base prompt.
+      if (voiceCfg) {
+        const note = typeof input.note === 'string' ? input.note : '';
+        const analysis = typeof input.analysis === 'string' ? input.analysis : '';
+        if (violatesProhibited(note + ' ' + analysis, voiceCfg.prohibited)) {
+          const t0f = Date.now();
+          const retry = await client.messages.create({
+            model: MODEL,
+            max_tokens: 1024,
+            system: [{ type: 'text' as const, text: baseSystem, cache_control: { type: 'ephemeral' as const } }],
+            tools: [{ ...MEAL_TOOL, cache_control: { type: 'ephemeral' as const } }],
+            tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
+            messages: [{ role: 'user', content }],
+          });
+          await recordAiCall({
+            fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+            model: retry.model ?? intendedModel, ...usageFrom(retry.usage),
+            latencyMs: Date.now() - t0f, ok: true, outcome: 'voice_banned_fallback',
+          });
+          const rused = retry.content.find((b) => b.type === 'tool_use');
+          if (rused && rused.type === 'tool_use') input = rused.input as Record<string, unknown>;
+        }
+      }
+      const grounded = groundMacros(input) as Record<string, unknown>;
       return new Response(JSON.stringify({ kind: 'result', ...grounded }), { headers: { ...cors, 'Content-Type': 'application/json' } });
     }
 
