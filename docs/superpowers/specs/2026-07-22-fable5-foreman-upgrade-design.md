@@ -92,8 +92,11 @@ RunPlan {
 ```
 
 Validation rule: `"audit"` is always first in `phases` (every run starts by
-understanding the repo/vision) — the Foreman cannot omit it. All other inclusion/order
-decisions are free.
+understanding the repo/vision) — the Foreman cannot omit it. Beyond that, `phases` is a
+subset of the fixed relative order `audit, design, plan, build, qa` — the Foreman
+chooses which of design/plan/build/qa to include, but does not reorder them (e.g. Build
+can never precede Plan when both are present). If an included phase's persona key is
+omitted, it defaults to `generalist`.
 
 ## Persona library
 
