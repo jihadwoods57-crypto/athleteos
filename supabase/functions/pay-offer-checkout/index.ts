@@ -119,10 +119,19 @@ Deno.serve(async (req) => {
     payer_id: user.id,
   };
 
+  // This platform account has Stripe "Managed Payments" enabled by default, which is incompatible
+  // with Connect application fees (Stripe rejects application_fee_amount / application_fee_percent
+  // otherwise). We are the merchant of record doing a destination charge, so we opt out per request
+  // — Stripe then performs the platform-fee split as intended. Applies to BOTH one-time and
+  // recurring; it's a harmless no-op on accounts where Managed Payments is off. Not yet in the SDK's
+  // TypeScript types, so it's injected via a typed-loose spread.
+  const managedPaymentsOptOut = { managed_payments: { enabled: false } } as Record<string, unknown>;
+
   try {
     const isRecurring = offer.cadence === 'month' || offer.cadence === 'week';
     const session = await stripe.checkout.sessions.create({
       mode: isRecurring ? 'subscription' : 'payment',
+      ...managedPaymentsOptOut,
       client_reference_id: user.id,
       customer_email: user.email ?? undefined,
       line_items: [{

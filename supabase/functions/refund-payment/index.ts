@@ -95,7 +95,17 @@ Deno.serve(async (req) => {
   if (!payment.stripe_charge_id) return json({ error: 'no charge on this payment to refund' }, 400, cors);
 
   try {
-    await stripe.refunds.create({ charge: payment.stripe_charge_id });
+    // This is a DESTINATION charge: the client's money already flowed to the trainer's connected
+    // account (minus our fee). A bare refund would repay the client out of the PLATFORM's balance
+    // while the trainer kept their share — the platform would eat the whole refund. Since this is
+    // the trainer's own decision ("their client, their money"), reverse the transfer so the refund
+    // comes out of the TRAINER's balance, and refund our application fee too (no platform cut on a
+    // sale that was fully undone). Net: client made whole, trainer bears it, platform nets zero.
+    await stripe.refunds.create({
+      charge: payment.stripe_charge_id,
+      reverse_transfer: true,
+      refund_application_fee: true,
+    });
     // Optimistic — charge.refunded (stripe-webhook) will independently confirm the same state.
     await svc.from('offer_payments').update({ status: 'refunded' }).eq('id', paymentId);
     return json({ ok: true }, 200, cors);

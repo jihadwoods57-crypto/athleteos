@@ -175,11 +175,11 @@ async function recordOfferPayment(
     chargeId: string | null; amountCents: number; applicationFeeCents: number;
   },
 ): Promise<void> {
-  if (fields.chargeId) {
-    const { data: existing } = await svc.from('offer_payments').select('id').eq('stripe_charge_id', fields.chargeId).maybeSingle();
-    if (existing) return; // already recorded (Stripe retry) — never double-count
-  }
-  const { error } = await svc.from('offer_payments').insert({
+  // Idempotent on stripe_charge_id via the unique index added in 0121 — ON CONFLICT DO NOTHING, so
+  // a duplicate OR concurrent Stripe delivery of the same event can never double-record one charge
+  // (the old select-then-insert was a check-then-act race). NULL charge ids stay distinct, so a
+  // charge-less row is never collapsed into another.
+  const { error } = await svc.from('offer_payments').upsert({
     practice_id: fields.practiceId,
     offer_id: fields.offerId,
     payer_id: fields.payerId,
@@ -190,7 +190,7 @@ async function recordOfferPayment(
     amount_cents: fields.amountCents,
     application_fee_cents: fields.applicationFeeCents,
     status: 'paid',
-  });
+  }, { onConflict: 'stripe_charge_id', ignoreDuplicates: true });
   if (error) throw error;
 }
 
@@ -392,9 +392,15 @@ Deno.serve(async (req) => {
       case 'charge.refunded': {
         // OnStandard Pay (0119): mark the matching ledger row refunded. Never touches the platform
         // owner-subscription tables — a refunded offer charge has no bearing on app access.
+        // Stripe fires charge.refunded on ANY refund including partial; the charge.refunded boolean
+        // is only true once the FULL amount is returned. Our own refund-payment always refunds in
+        // full, so gate on that — a PARTIAL refund issued straight from the Stripe Dashboard must
+        // not flip a still-mostly-paid sale to 'refunded'.
         const charge = event.data.object as Stripe.Charge;
-        const { error } = await svc.from('offer_payments').update({ status: 'refunded' }).eq('stripe_charge_id', charge.id);
-        if (error) throw error;
+        if (charge.refunded === true) {
+          const { error } = await svc.from('offer_payments').update({ status: 'refunded' }).eq('stripe_charge_id', charge.id);
+          if (error) throw error;
+        }
         break;
       }
 
