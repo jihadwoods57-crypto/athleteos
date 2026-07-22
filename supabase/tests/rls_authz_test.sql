@@ -1159,6 +1159,17 @@ select _ok(_try($f$ select admin_set_config('ai_daily_budget_usd','50'::jsonb) $
 select _superuser();
 select _ok((select version from app_config where key='ai_daily_budget_usd') >= 2, 'cc: config version bumps on set');
 
+-- Phase 1B payments (0127) — founder views over offer_payments (reused); financial grant is SINGLE-USE.
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select admin_offer_payments(30,10) $f$) <> 'ok', 'cc: rando denied admin_offer_payments');
+select _ok(_try($f$ select admin_consume_financial_grant() $f$) <> 'ok', 'cc: rando denied financial grant consume');
+select _as_amr('55555555-0000-0000-0000-000000000005', 30);
+select _ok(_try($f$ select admin_offer_fee_revenue(30) $f$) = 'ok', 'cc: admin can read OnStandard Pay fee revenue');
+select _ok(_try($f$ select admin_consume_financial_grant() $f$) <> 'ok', 'cc: financial action without a grant is refused');
+select admin_open_sensitive_window('financial', true);
+select _ok(_try($f$ select admin_consume_financial_grant() $f$) = 'ok', 'cc: financial grant consumed once');
+select _ok(_try($f$ select admin_consume_financial_grant() $f$) <> 'ok', 'cc: single-use financial grant cannot be reused');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
