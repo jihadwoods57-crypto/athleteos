@@ -23,6 +23,7 @@ const NAVS = {
   ],
   trainer: [
     { id: 'clients', route: 'trainer',         label: 'Clients', icon: 'heart' },
+    { id: 'grow',    route: 'trainer-grow',    label: 'Grow',    icon: 'bars' },
     { id: 'note',    route: 'trainer-client',  label: '',        icon: 'message', fab: true },
     { id: 'profile', route: 'trainer-profile', label: 'Profile', icon: 'user' },
   ],
@@ -51,14 +52,14 @@ function tabbar(activeTab, nav = 'athlete') {
       return `<div class="tab"><div class="fab" role="button" tabindex="0" aria-label="${fabLabel}" data-go="${t.route}" style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
     }
     const on = t.id === activeTab ? `active ${t.id === 'home' || t.id === 'team' || t.id === 'clients' ? 'home' : ''}` : '';
-    // Coach Inbox badge: pending joins + unopened logs (real counts, hidden at zero).
+    // Tab badge: any screen exposing badge() → live count, hidden at zero (Coach Inbox pending
+    // joins/unopened logs; Trainer Grow new applications). Route-driven so it works for every role.
     let badge = '';
-    if (t.id === 'inbox') {
-      try {
-        const n = (screens['coach-inbox'] && screens['coach-inbox'].badge) ? screens['coach-inbox'].badge() : 0;
-        if (n) badge = `<span style="position:absolute;top:-3px;right:50%;margin-right:-16px;min-width:15px;height:15px;border-radius:999px;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;padding:0 3px;border:2px solid var(--bg)">${n > 9 ? '9+' : n}</span>`;
-      } catch { /* pre-auth render */ }
-    }
+    try {
+      const scr = screens[t.route];
+      const n = scr && scr.badge ? scr.badge() : 0;
+      if (n) badge = `<span style="position:absolute;top:-3px;right:50%;margin-right:-16px;min-width:15px;height:15px;border-radius:999px;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;padding:0 3px;border:2px solid var(--bg)">${n > 9 ? '9+' : n}</span>`;
+    } catch { /* pre-auth render */ }
     return `<div class="tab ${on}" ${on ? 'aria-current="page"' : ''} data-go="${t.route}" style="position:relative">${badge}${icon(t.icon, 23)}<span>${t.label}</span></div>`;
   }).join('')}</nav>`;
 }
@@ -84,7 +85,7 @@ const ROOT_TAB = {
   coach: 'home', 'coach-home': 'home', 'coach-roster': 'roster',
   'coach-inbox': 'inbox', 'coach-insights': 'insights', 'coach-profile': 'profile',
   'coach-plan': 'roster',
-  trainer: 'clients', 'trainer-profile': 'profile',
+  trainer: 'clients', 'trainer-grow': 'grow', 'trainer-profile': 'profile',
 };
 let NAV = (() => {
   try {

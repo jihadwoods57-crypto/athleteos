@@ -31,6 +31,7 @@ import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from
 import { ob2Role } from './ob2-role.js';
 import { obAthlete } from './ob2-athlete.js';
 import { obClient } from './ob2-client.js';
+import { trainerGrow } from './trainer-grow.js';
 import { obCoach } from './ob2-coach.js';
 import { obTrainer } from './ob2-trainer.js';
 import { obParent } from './ob2-parent.js';
@@ -79,6 +80,7 @@ export const screens = {
   'coach-inbox': coachInbox,
   copilot,
   trainer,
+  'trainer-grow': trainerGrow,
   'trainer-client': trainerClient,
   parent,
   'invite-parent': inviteParent,

@@ -888,6 +888,54 @@ export async function declineClient(practiceId, clientId) {
   try { const { error } = await c.from('practice_clients').delete().eq('practice_id', practiceId).eq('client_id', clientId); return !error; } catch { return false; }
 }
 
+/* ---------------- Trainer monetization wedge (0114): public page + offers + applications ----------------
+   Same best-effort, RLS-scoped shape as every read above — owner_id/owns_practice is the real authz,
+   so no explicit owner filter; failures fall to a null/[]/{error} sentinel and never throw. */
+export async function fetchMyTrainerPage(practiceId) {
+  const c = sb(); if (!c || !practiceId) return null;
+  try { const { data } = await c.from('trainer_public_pages').select('*').eq('practice_id', practiceId).maybeSingle(); return data || null; } catch { return { error: true }; }
+}
+export async function saveMyTrainerPage(practiceId, fields) {
+  const c = sb(); if (!c || !practiceId) return { error: 'no practice' };
+  try {
+    const { error } = await c.from('trainer_public_pages')
+      .upsert({ practice_id: practiceId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'practice_id' });
+    return { ok: !error, error: error && error.message };
+  } catch (e) { return { error: String(e) }; }
+}
+export async function publishMyTrainerPage(practiceId, publish) {
+  const c = sb(); if (!c || !practiceId) return { error: 'no practice' };
+  try {
+    const { data, error } = await c.rpc('publish_trainer_page', { p_practice: practiceId, p_publish: publish });
+    if (error) return { error: error.message };
+    return { ok: true, page: Array.isArray(data) ? data[0] : data };
+  } catch (e) { return { error: String(e) }; }
+}
+export async function fetchMyOffers(practiceId) {
+  const c = sb(); if (!c || !practiceId) return [];
+  try { const { data } = await c.from('offers').select('*').eq('practice_id', practiceId).order('sort').order('created_at'); return data || []; } catch { return []; }
+}
+export async function saveOffer(offer) {
+  const c = sb(); if (!c) return { error: 'no client' };
+  try {
+    const { id, ...row } = offer; row.updated_at = new Date().toISOString();
+    const { error } = id ? await c.from('offers').update(row).eq('id', id) : await c.from('offers').insert(row);
+    return { ok: !error, error: error && error.message };
+  } catch (e) { return { error: String(e) }; }
+}
+export async function deleteOffer(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('offers').delete().eq('id', id); return !error; } catch { return false; }
+}
+export async function fetchMyApplications(practiceId) {
+  const c = sb(); if (!c || !practiceId) return [];
+  try { const { data } = await c.from('trainer_applications').select('*').eq('practice_id', practiceId).order('created_at', { ascending: false }); return data || []; } catch { return []; }
+}
+export async function setApplicationStatus(id, status) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('trainer_applications').update({ status }).eq('id', id); return !error; } catch { return false; }
+}
+
 /* ---------------- pure roster projection (honest: no invented numbers) ---------------- */
 export function tierFlag(score) { return score == null ? '' : score >= 80 ? 'g' : score >= 60 ? 'y' : 'r'; }
 /** Merge a roster member (from the RPC) with today's real day row into a UI row.
