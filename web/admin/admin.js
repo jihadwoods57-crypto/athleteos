@@ -5,10 +5,15 @@ import { sb, bootstrap } from './api.js';
 import { show, h, $ } from './ui.js';
 import { mountShell, refreshActive } from './shell.js';
 import home from './sections/home.js';
+import users from './sections/users.js';
+import orgs from './sections/orgs.js';
+import revenue from './sections/revenue.js';
+import ai from './sections/ai.js';
+import errors from './sections/errors.js';
+import audit from './sections/audit.js';
 
-// Registry — nav order follows this list, grouped by each section's rail. More sections land here as
-// they are built (users, orgs, revenue, ai, errors, audit).
-const SECTIONS = [home];
+// Registry — nav order follows this list, grouped by each section's rail (Phase 1A read-only set).
+const SECTIONS = [home, users, orgs, revenue, ai, errors, audit];
 
 async function gate() {
   const { data } = await sb.auth.getSession();

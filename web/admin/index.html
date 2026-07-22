@@ -195,6 +195,16 @@
   .badge.note { color:var(--note); border-color:var(--note); }
   .badge.ok { color:var(--ok); border-color:var(--ok); }
 
+  /* ===== section chrome: filter bar, select, pager, json ===== */
+  .filterbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:0 2px 14px; }
+  .sel { font:inherit; background:var(--bg2); border:1px solid var(--line2); color:var(--ink);
+    border-radius:var(--r-sm); padding:8px 10px; }
+  .pager { display:flex; gap:10px; align-items:center; margin-top:16px; }
+  .pager .cap { margin-right:auto; }
+  .btn[disabled] { opacity:.4; pointer-events:none; }
+  .jsonpre { font-family:var(--mono); font-size:12px; color:var(--ink2); background:var(--bg2);
+    border:1px solid var(--line); border-radius:var(--r-sm); padding:10px 12px; overflow:auto; max-height:40vh; white-space:pre-wrap; word-break:break-word; }
+
   @media (max-width:900px){
     #app { display:block; }
     .rail { position:static; width:auto; height:auto; display:flex; flex-wrap:wrap; gap:4px;
