@@ -49,6 +49,7 @@
     "jest": "^30.4.2",
     "jest-expo": "~57.0.1",
     "jsdom": "^20.0.3",
+    "tsx": "^4.23.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -58,6 +59,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "jest",
+    "eval": "tsx eval/run-eval.ts",
     "lint:xss": "node scripts/lint-innerhtml-esc.mjs",
     "bundle": "expo export -p ios --output-dir .aos-export",
     "verify": "npm run lint:xss && npm run typecheck && npm run test && npm run bundle",
