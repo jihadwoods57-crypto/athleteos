@@ -1,9 +1,15 @@
-// OnStandard — generates the 12 Supabase Auth transactional email templates as branded HTML, matching
-// the app's real consumer identity (green checkmark mark + "OnStandard" wordmark, cream/white light
-// theme — see docs/legal/public/reset.html, the shipped post-reset landing page these emails link to).
+// OnStandard — generates the 13 Supabase Auth transactional email templates as branded HTML, matching
+// the ACTUAL app brand (docs/brand/LOGO.md + src/brand/Logo.tsx + src/ui/tokens.ts — the founder-ratified
+// source of truth), not a guess from one page. Primary accent is "Athlete Blue" #2563EB (tokens.ts
+// `accent`); the signature sweep gradient (founder-ratified 2026-07-14) is green->teal->blue
+// #34D399 -> #22D3EE -> #3B82F6; the wordmark is "On" in ink #0F172A + "Standard" in the blue accent —
+// exactly as LOGO.md specifies. Green/success color is semantic-only in the real app (tokens.ts
+// `success`), never the brand identity — an earlier version of this file wrongly generalized from a
+// single success-checkmark icon on one page into "green is the brand," which was incorrect.
+//
 // Table-based layout + inline styles for Gmail/Outlook/Apple Mail compatibility (same discipline as the
-// admin-alert template in supabase/functions/admin-alert/logic.mjs, which uses the ADMIN blue-teal brand
-// — these are deliberately different themes for two different audiences: real end users vs. the founder).
+// admin-alert template in supabase/functions/admin-alert/logic.mjs, which uses the ADMIN dark blue-teal
+// theme — deliberately a different look for a different audience: the founder, not real end users).
 //
 // Supabase renders these server-side as Go templates — {{ .Field }} placeholders below are NOT touched
 // by this script; they pass through verbatim into the final content Supabase stores and executes.
@@ -16,51 +22,53 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 const OUT_DIR = new URL('../supabase/email-templates/', import.meta.url);
 mkdirSync(OUT_DIR, { recursive: true });
 
-// Button/mark gradient colors (large surfaces - contrast vs. their own dark text is separately fine).
-const GREEN = '#37D586';
-const GREEN_DEEP = '#16A34A';
-const INK = '#161B22';
-const INK2 = '#5B6470';
-// MUT and the two badge-text colors are chosen to clear WCAG AA (4.5:1) against their backgrounds at
-// small sizes (11.5-12px) - verified: MUT 4.83:1, GREEN_BADGE_TEXT 4.99:1, WARN_BADGE_TEXT 6.44:1.
-// The brighter GREEN/GREEN_DEEP above stay reserved for large surfaces (buttons, the mark) where their
-// own paired text (#05130B) is separately high-contrast; they are NOT used for small badge text.
-const MUT = '#6B7280';
-const GREEN_BADGE_TEXT = '#0F7A38';
-const CREAM = '#F6F4EE';
-const LINE = '#EDEBE3';
+// Real brand tokens (src/ui/tokens.ts, light palette) + the ratified signature sweep (docs/brand/LOGO.md).
+const ACCENT = '#2563EB';       // tokens.ts `accent` - "Athlete Blue", the real primary
+const ACCENT_LIGHT = '#3B82F6'; // tokens.ts `accentLight`
+const ACCENT_SURFACE = '#EFF6FF'; // tokens.ts `accentSurface` - used for the default badge bg
+const SWEEP = `linear-gradient(120deg,#34D399,#22D3EE,${ACCENT_LIGHT})`; // the ratified signature sweep
+const INK = '#0F172A';          // tokens.ts `text`
+const INK2 = '#475569';         // tokens.ts `slate600` - verified 7.58:1 on white
+const MUT = '#6B7280';          // verified 4.83:1 on white (WCAG AA)
+// Badge text colors, chosen to clear WCAG AA (4.5:1) against their tinted backgrounds at 11.5px:
+// ACCENT_BADGE_TEXT 4.75:1 on ACCENT_SURFACE; WARN_BADGE_TEXT (amber, matches tokens.ts `warningDeep`
+// family) 6.44:1 on its tint. Warning stays amber (a real semantic distinct from brand blue), matching
+// the app's own warning token - it was never the green/blue question.
+const ACCENT_BADGE_TEXT = ACCENT;
+const BG = '#F8FAFC';           // tokens.ts `bg`
+const LINE = '#E2E8F0';         // tokens.ts `hairline`-ish
 
-function shell({ badge, badgeColor = GREEN_BADGE_TEXT, badgeBg = '#E9F9F0', headline, bodyHtml, ctaLabel, ctaUrl, codeToken, footerNote }) {
+function shell({ badge, badgeColor = ACCENT_BADGE_TEXT, badgeBg = ACCENT_SURFACE, headline, bodyHtml, ctaLabel, ctaUrl, codeToken, footerNote }) {
   const cta = ctaUrl ? `
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:26px 0 6px">
-      <tr><td style="border-radius:10px" bgcolor="${GREEN}">
-        <a href="${ctaUrl}" target="_blank" style="display:inline-block;padding:13px 24px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:${'#05130B'};text-decoration:none;border-radius:10px;background:linear-gradient(150deg,${GREEN},${GREEN_DEEP})">${ctaLabel}</a>
+      <tr><td style="border-radius:10px" bgcolor="${ACCENT}">
+        <a href="${ctaUrl}" target="_blank" style="display:inline-block;padding:13px 24px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;background:linear-gradient(150deg,${ACCENT_LIGHT},${ACCENT})">${ctaLabel}</a>
       </td></tr>
     </table>` : '';
 
   const code = codeToken ? `
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 6px">
-      <tr><td style="background:${CREAM};border:1px solid ${LINE};border-radius:10px;padding:16px 22px">
+      <tr><td style="background:${BG};border:1px solid ${LINE};border-radius:10px;padding:16px 22px">
         <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:28px;font-weight:700;letter-spacing:.12em;color:${INK}">${codeToken}</div>
       </td></tr>
     </table>` : '';
 
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${headline}</title></head>
-<body style="margin:0;padding:0;background:${CREAM};font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};padding:36px 16px">
+<body style="margin:0;padding:0;background:${BG};font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BG};padding:36px 16px">
     <tr><td align="center">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.08)">
-        <tr><td style="height:4px;background:linear-gradient(150deg,${GREEN},${GREEN_DEEP});line-height:0;font-size:0">&nbsp;</td></tr>
+        <tr><td style="height:4px;background:${ACCENT};background:${SWEEP};line-height:0;font-size:0">&nbsp;</td></tr>
         <tr><td style="padding:30px 34px 0">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-            <td style="width:30px;height:30px;border-radius:9px;background:linear-gradient(150deg,${GREEN},${GREEN_DEEP})">
+            <td style="width:30px;height:30px;border-radius:9px;background:${ACCENT};background:${SWEEP}">
               <table role="presentation" width="30" height="30" cellpadding="0" cellspacing="0"><tr><td align="center" valign="middle">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#05130B" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
               </td></tr></table>
             </td>
             <td style="padding-left:10px;font-size:17px;font-weight:800;letter-spacing:-.3px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
-              <span style="color:${GREEN_DEEP}">On</span><span style="color:${INK}">Standard</span>
+              <span style="color:${INK}">On</span><span style="color:${ACCENT}">Standard</span>
             </td>
           </tr></table>
         </td></tr>

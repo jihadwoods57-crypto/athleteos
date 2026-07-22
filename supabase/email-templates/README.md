@@ -15,10 +15,21 @@ this project's config, so it would never fire; enabling it would just be inert. 
 have no app-code trigger (staff invites use a custom join-code system; no magic-link flow exists) but got
 the same content upgrade for completeness/future-proofing.
 
-Brand: the real consumer identity (green checkmark mark + "OnStandard" wordmark, cream/white light theme)
-established in `docs/legal/public/reset.html` — deliberately different from the **admin** Command Center's
-dark blue-teal theme (`supabase/functions/admin-alert/logic.mjs`), since these go to real end users, not
-the founder.
+## Brand
+
+Uses the **real, founder-ratified** brand — `docs/brand/LOGO.md`, `src/brand/Logo.tsx`, `src/ui/tokens.ts` —
+not a guess. Primary accent is **"Athlete Blue" `#2563EB`** (tokens.ts `accent`); the top accent bar and
+mark use the ratified signature sweep `#34D399 -> #22D3EE -> #3B82F6` (green->teal->blue, LOGO.md); the
+wordmark is "On" in ink `#0F172A` + "Standard" in the blue accent, exactly as LOGO.md specifies. Warning
+badges stay amber (a real semantic, matching tokens.ts `warning`) — that was never in question.
+
+An earlier version of this file used **green** as the primary color, reasoning from a single
+success-checkmark icon on `docs/legal/public/reset.html` (a password-reset-success page) into "green is
+the brand." That was wrong — green there is the same semantic-success-only color the app uses everywhere
+(tokens.ts `success`), never the brand identity. Founder caught this ("why is it green? should it be the
+colors of the app?") and it was corrected same-day. Deliberately different from the **admin** Command
+Center's dark blue-teal theme (`supabase/functions/admin-alert/logic.mjs`) — same blue family, different
+audience (real end users here, the founder there).
 
 ## Regenerating
 
