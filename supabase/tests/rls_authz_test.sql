@@ -1075,6 +1075,21 @@ select _ok((admin_bootstrap() -> 'capabilities' ->> 'mutate_users') = 'false', '
 select _ok(_try($f$ select admin_global_search('a', 5) $f$) = 'ok', 'cc: admin can global_search');
 select _ok(_try($f$ select admin_audit_search(null, null, 5) $f$) = 'ok', 'cc: admin can audit_search');
 
+-- Phase 1A section RPCs (0116 users, 0117 orgs, 0118 revenue) — gate + basic shape.
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select admin_list_users(null,null,null,0,10) $f$) <> 'ok', 'cc: rando denied admin_list_users');
+select _ok(_try($f$ select admin_athlete_profile('55555555-0000-0000-0000-000000000005') $f$) <> 'ok', 'cc: rando denied admin_athlete_profile');
+select _ok(_try($f$ select admin_list_orgs(null,0,10) $f$) <> 'ok', 'cc: rando denied admin_list_orgs');
+select _ok(_try($f$ select admin_org_health('00000000-0000-0000-0000-000000000000') $f$) <> 'ok', 'cc: rando denied admin_org_health');
+select _ok(_try($f$ select admin_revenue() $f$) <> 'ok', 'cc: rando denied admin_revenue');
+select _ok(_try($f$ select admin_failed_payments(10) $f$) <> 'ok', 'cc: rando denied admin_failed_payments');
+
+select _as('55555555-0000-0000-0000-000000000005');
+select _ok(_try($f$ select admin_list_users(null,null,null,0,10) $f$) = 'ok', 'cc: admin can list users');
+select _ok(_try($f$ select admin_list_orgs(null,0,10) $f$) = 'ok', 'cc: admin can list orgs');
+select _ok((select count(*) from admin_revenue()) = 1, 'cc: admin_revenue returns exactly one row');
+select _ok(_try($f$ select admin_failed_payments(10) $f$) = 'ok', 'cc: admin can list failed payments');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
