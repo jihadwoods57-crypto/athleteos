@@ -7,8 +7,8 @@
 // anon (publishable) key is safe to ship here; the service-role key must NEVER appear on this page.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const SUPABASE_URL = ''; // TODO(founder): project URL, e.g. https://xxxx.supabase.co
-const SUPABASE_ANON_KEY = ''; // TODO(founder): anon / publishable key — NOT the service role key
+const SUPABASE_URL = 'https://ftwrvylzoyznhbzhgism.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_W_h82SgYL7_XE5SqGnNp1A_tYXap0TJ'; // publishable — safe to ship
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const $ = (id) => document.getElementById(id);
