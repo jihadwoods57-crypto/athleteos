@@ -1148,6 +1148,17 @@ select _ok(_try($f$ select admin_support_queue('open',null) $f$) = 'ok', 'cc: ad
 select _superuser();
 select _ok((select priority from support_tickets where category='safety' order by created_at desc limit 1) = 'urgent', 'cc: safety ticket is auto-urgent');
 
+-- Phase 1B typed config (0126) — validated + versioned; set requires a 'config' grant.
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select admin_get_config() $f$) <> 'ok', 'cc: rando denied admin_get_config');
+select _as_amr('55555555-0000-0000-0000-000000000005', 30);
+select _ok(_try($f$ select admin_set_config('ai_daily_budget_usd','50'::jsonb) $f$) <> 'ok', 'cc: config set without a grant is refused');
+select admin_open_sensitive_window('config', false);
+select _ok(_try($f$ select admin_set_config('ai_daily_budget_usd','"nan"'::jsonb) $f$) <> 'ok', 'cc: config set validates value type');
+select _ok(_try($f$ select admin_set_config('ai_daily_budget_usd','50'::jsonb) $f$) = 'ok', 'cc: config set with grant + valid type works');
+select _superuser();
+select _ok((select version from app_config where key='ai_daily_budget_usd') >= 2, 'cc: config version bumps on set');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$

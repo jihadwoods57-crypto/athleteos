@@ -12,9 +12,10 @@ import ai from './sections/ai.js';
 import errors from './sections/errors.js';
 import audit from './sections/audit.js';
 import support from './sections/support.js';
+import config from './sections/config.js';
 
 // Registry — nav order follows this list, grouped by each section's rail.
-const SECTIONS = [home, users, orgs, revenue, ai, errors, support, audit];
+const SECTIONS = [home, users, orgs, revenue, ai, errors, support, audit, config];
 
 async function gate() {
   const { data } = await sb.auth.getSession();
