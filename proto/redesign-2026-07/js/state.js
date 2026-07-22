@@ -2690,7 +2690,7 @@ export const S = {
     const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     return (DAY.scoreHistory || []).slice().reverse().map(h => {
       const d = new Date(h.date + 'T00:00:00');
-      return { iso: h.date, day: DOW[d.getDay()], date: `${MON[d.getMonth()]} ${d.getDate()}`, score: h.score || 0, tier: tier(h.score || 0).name, meals: [] };
+      return { iso: h.date, day: DOW[d.getDay()], date: `${MON[d.getMonth()]} ${d.getDate()}`, score: h.score || 0, weight: h.weight ?? null, tier: tier(h.score || 0).name, meals: [] };
     });
   },
   /* This calendar week, Monday→Sunday (spec §14.3): real scores, standard hit/missed,

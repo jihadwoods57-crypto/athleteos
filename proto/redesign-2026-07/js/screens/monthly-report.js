@@ -36,7 +36,7 @@ async function load(force) {
   // Same real day-row source Progress reads from (S.history — past days derived from
   // DAY.scoreHistory, newest first). Today is never in a completed past month, so it's
   // excluded on purpose; buildMonthPayload only needs {date, score, weight}.
-  const days = (S.history || []).map(h => ({ date: h.iso, score: h.score }));
+  const days = (S.history || []).map(h => ({ date: h.iso, score: h.score, weight: h.weight }));
   const payload = buildMonthPayload(days, period);
   CACHE.period = period;
   CACHE.report = await roles.fetchMonthlyReport(period, payload);
