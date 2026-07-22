@@ -6,6 +6,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 export const SUPABASE_URL = 'https://ftwrvylzoyznhbzhgism.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_W_h82SgYL7_XE5SqGnNp1A_tYXap0TJ'; // publishable — safe to ship
 export const PROJECT_REF = 'ftwrvylzoyznhbzhgism';
+export const FUNCTIONS_URL = 'https://ftwrvylzoyznhbzhgism.functions.supabase.co';
 export const VERSION = 'phase-1a';
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
