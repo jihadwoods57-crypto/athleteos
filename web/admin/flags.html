@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OnStandard — Feature Flags</title>
+<style>
+  body { font: 15px system-ui, -apple-system, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #111; }
+  h1 { font-size: 22px; }
+  .hidden { display: none; }
+  .row { border-bottom: 1px solid #eee; padding: 14px 0; }
+  .row b { font-size: 16px; }
+  .row label { display: inline-block; margin-right: 18px; }
+  .row .field { margin-top: 6px; }
+  .row .field input[type=text] { width: 60%; box-sizing: border-box; }
+  .muted { color: #666; }
+  .kill { color: #b00; font-weight: 700; }
+  button { padding: 8px 14px; cursor: pointer; }
+  input, button { font: inherit; }
+  #loginerr { color: #b00; }
+</style></head>
+<body>
+  <h1>Feature Flags</h1>
+  <div id="login">
+    <p class="muted">Founder sign-in required. This page holds only the anon key + your login token — never the service-role key.</p>
+    <p>
+      <input id="email" type="text" placeholder="email" autocomplete="username">
+      <input id="pw" type="password" placeholder="password" autocomplete="current-password">
+      <button id="signin">Sign in</button>
+    </p>
+    <p id="loginerr"></p>
+  </div>
+  <div id="app" class="hidden">
+    <p><button id="signout">Sign out</button> <span class="muted">Changes are audited (admin_audit_log). Client apps pick them up on next launch.</span></p>
+    <div id="rows">Loading…</div>
+  </div>
+  <script type="module" src="./flags.js"></script>
+</body></html>
