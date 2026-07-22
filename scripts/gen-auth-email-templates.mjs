@@ -42,7 +42,7 @@ function shell({ badge, badgeColor = ACCENT_BADGE_TEXT, badgeBg = ACCENT_SURFACE
   const cta = ctaUrl ? `
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:26px 0 6px">
       <tr><td style="border-radius:10px" bgcolor="${ACCENT}">
-        <a href="${ctaUrl}" target="_blank" style="display:inline-block;padding:13px 24px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;background:linear-gradient(150deg,${ACCENT_LIGHT},${ACCENT})">${ctaLabel}</a>
+        <a href="${ctaUrl}" target="_blank" style="display:inline-block;padding:13px 24px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;background:${ACCENT}">${ctaLabel}</a>
       </td></tr>
     </table>` : '';
 

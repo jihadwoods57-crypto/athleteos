@@ -256,6 +256,10 @@ export default {
     const share = root.querySelector('#mr-share');
     if (share) share.addEventListener('click', () => shareReport(CACHE.report, CACHE.period));
     const trial = root.querySelector('#mr-trial');
-    if (trial) trial.addEventListener('click', () => track(EVENTS.TRIAL_STARTED, { plan: 'individual', cadence: 'annual' }));
+    if (trial) trial.addEventListener('click', () => {
+      track(EVENTS.TRIAL_STARTED, { plan: 'individual', cadence: 'annual' });
+      trial.disabled = true;
+      trial.textContent = "We'll notify you when trials open";
+    });
   },
 };
