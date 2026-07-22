@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OnStandard — Command Center</title>
+<style>
+  :root { --bg:#0f1216; --card:#171b21; --line:#252b34; --ink:#e8ecf1; --mut:#8b96a5; --warn:#e5484d; --note:#e2a336; --ok:#3fb37f; --teal:#2fb6c4; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui,-apple-system,sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:28px 22px 80px; }
+  h1 { font-size:20px; margin:0 0 2px; }
+  .sub { color:var(--mut); margin:0 0 20px; }
+  .hidden { display:none; }
+  input,button { font:inherit; }
+  input[type=text],input[type=password] { background:#0c0f13; border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:9px 11px; }
+  button { background:var(--teal); color:#04262b; border:0; border-radius:8px; padding:9px 15px; font-weight:700; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--mut); border:1px solid var(--line); font-weight:500; }
+  #err,#loginerr { color:var(--warn); }
+  .brief { background:linear-gradient(90deg,#12313a,#141a20); border:1px solid var(--line); border-radius:12px; padding:16px 18px; font-size:16px; margin-bottom:18px; }
+  .attn { list-style:none; padding:0; margin:0 0 22px; }
+  .attn li { display:flex; gap:10px; align-items:flex-start; background:var(--card); border:1px solid var(--line); border-left:3px solid var(--mut); border-radius:10px; padding:11px 14px; margin-bottom:8px; }
+  .attn li.warn { border-left-color:var(--warn); }
+  .attn li.note { border-left-color:var(--note); }
+  .attn .lbl { font-weight:600; }
+  .attn .val { color:var(--mut); }
+  .attn .lnk { margin-left:auto; color:var(--teal); font-size:12px; white-space:nowrap; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); margin:0 0 12px; }
+  .row { display:flex; justify-content:space-between; padding:4px 0; }
+  .row .k { color:var(--mut); } .row .v { font-variant-numeric:tabular-nums; font-weight:600; }
+  .delta.up { color:var(--ok); } .delta.down { color:var(--warn); }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  td,th { text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); font-weight:400; }
+  th { color:var(--mut); font-size:12px; }
+  .foot { color:var(--mut); font-size:12px; margin-top:24px; }
+  a { color:var(--teal); }
+</style></head>
+<body>
+  <div class="wrap">
+    <h1>OnStandard Command Center</h1>
+    <p class="sub">What needs attention today. Read-only · platform-admin only.</p>
+
+    <div id="login">
+      <p class="sub">Founder sign-in required. This page holds only the anon key + your login token.</p>
+      <p>
+        <input id="email" type="text" placeholder="email" autocomplete="username">
+        <input id="pw" type="password" placeholder="password" autocomplete="current-password">
+        <button id="signin">Sign in</button>
+      </p>
+      <p id="loginerr"></p>
+    </div>
+
+    <div id="app" class="hidden">
+      <p>
+        <button id="refresh" class="ghost">Refresh</button>
+        <a href="./flags.html" class="ghost" style="text-decoration:none;padding:9px 15px;border:1px solid var(--line);border-radius:8px;">Feature flags →</a>
+        <button id="signout" class="ghost" style="float:right;">Sign out</button>
+      </p>
+      <p id="err"></p>
+      <div class="brief" id="brief">Loading…</div>
+      <ul class="attn" id="attn"></ul>
+      <div class="grid" id="grid"></div>
+      <p class="foot" id="foot"></p>
+    </div>
+  </div>
+  <script type="module" src="./admin.js"></script>
+</body></html>
