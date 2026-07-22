@@ -23,6 +23,7 @@ import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { buildVoiceSystem, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
+import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 
@@ -72,33 +73,14 @@ async function resolveUserId(req: Request): Promise<string | null> {
 
 // The athlete's active team + that team's enabled Coach Voice config, read under service role.
 // Returns null when the athlete has no active team, the team has no config, or Voice is disabled —
-// every one of which means "no nudge, use the deterministic copy".
+// every one of which means "no nudge, use the deterministic copy". Delegates to the shared loader
+// (also used by analyze-meal) and keeps this function's VoiceConfig-only contract for the caller.
 async function loadVoiceForAthlete(uid: string): Promise<VoiceConfig | null> {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data: mem } = await sb
-      .from('team_members')
-      .select('team_id')
-      .eq('athlete_id', uid)
-      .eq('status', 'active')
-      .limit(1)
-      .maybeSingle();
-    const teamId = mem?.team_id;
-    if (!teamId) return null;
-    const { data: row } = await sb
-      .from('coach_voice_config')
-      .select('enabled, config')
-      .eq('team_id', teamId)
-      .maybeSingle();
-    if (!row || row.enabled === false) return null;
-    const cfg = (row.config ?? {}) as Record<string, unknown>;
-    return {
-      tone: typeof cfg.tone === 'string' ? cfg.tone : 'direct',
-      level: typeof cfg.level === 'string' ? cfg.level : 'balanced',
-      approved: Array.isArray(cfg.approved) ? cfg.approved.filter((p) => typeof p === 'string').slice(0, 12) : [],
-      prohibited: typeof cfg.prohibited === 'string' ? cfg.prohibited : '',
-    };
+    const loaded = await loadVoice(sb, uid);
+    return loaded ? loaded.cfg : null;
   } catch {
     return null;
   }
