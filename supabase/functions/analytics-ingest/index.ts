@@ -36,6 +36,8 @@ const ALLOWED = new Set([
   "paywall_viewed", "plan_selected", "trial_started",
   // Deterministic-scoring cutover (2026-07-21) — AI-vs-app score delta + tone-conflict signals.
   "meal_score_delta", "meal_text_conflict",
+  // Quality metrics (item 8b, 2026-07-21) — correction-rate signal; counts-only, no macros/text.
+  "meal_corrected",
 ]);
 const ENUM_RE = /^[a-z0-9_.:-]{1,24}$/;
 const SID_RE = /^[a-z0-9_.:-]{1,64}$/i;
