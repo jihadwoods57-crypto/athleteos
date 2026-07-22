@@ -18,7 +18,7 @@ const ALERT_KEY = Deno.env.get('ALERT_KEY') ?? '';
 const IPINFO_TOKEN = Deno.env.get('IPINFO_TOKEN') ?? '';
 const FUNCTIONS_BASE = Deno.env.get('FUNCTIONS_BASE') ?? `${SUPABASE_URL}/functions/v1`;
 const SECURITY_PANEL_URL = Deno.env.get('COMMAND_CENTER_URL')
-  ?? 'https://onstandard-admin.gelatinous-twin.workers.dev/#/security';
+  ?? 'https://admin.onstandard.app/#/security';
 
 async function geo(ip: string | null): Promise<{ country: string | null; asn: string | null }> {
   if (!ip || !IPINFO_TOKEN) return { country: null, asn: null };

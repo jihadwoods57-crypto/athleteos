@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
           kind: 'recovery_used', subject: 'Command Center recovery code used',
           body: 'A recovery code was used to reset two-factor authentication on your admin account. Your authenticator app has been unlinked — set up a new one the next time you sign in.',
           details: [{ label: 'Account', value: u.user.email ?? u.user.id }],
-          actionUrl: 'https://onstandard-admin.gelatinous-twin.workers.dev/',
+          actionUrl: 'https://admin.onstandard.app/',
         }),
       });
     } catch (_e) { /* alerting is best-effort */ }

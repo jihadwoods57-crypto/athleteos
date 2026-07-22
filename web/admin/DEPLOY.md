@@ -1,5 +1,10 @@
 # Command Center — deploy & bootstrap runbook
 
+**Live at: `https://admin.onstandard.app`** (custom domain, attached 2026-07-22 via the Cloudflare Workers
+Custom Domains API — cert auto-provisioned). The original `https://onstandard-admin.gelatinous-twin.workers.dev`
+still works as a fallback but isn't the one to bookmark. Not linked from the public landing page by design
+(`noindex`'d, private admin surface).
+
 The Command Center (`web/admin/`) is a **static, zero-build** surface (vanilla ESM, no framework). It holds only the Supabase **publishable/anon key** + your login JWT — never a service-role key. All data crosses through `is_platform_admin()`-gated SECURITY DEFINER RPCs.
 
 ---
