@@ -43,7 +43,9 @@ language plpgsql as $$
 begin
   execute 'reset role';
   perform set_config('request.jwt.claim.sub', p_uid::text, false);
-  perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, false);
+  -- aal2: sessions in this suite model a fully-authenticated (MFA-verified) user. aal is read only by
+  -- is_platform_admin() (Command Center gate, migration 0130); every other boundary is aal-agnostic.
+  perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated', 'aal', 'aal2')::text, false);
   execute 'set role authenticated';
 end $$;
 
@@ -59,7 +61,7 @@ begin
   execute 'reset role';
   perform set_config('request.jwt.claim.sub', p_uid::text, false);
   perform set_config('request.jwt.claims', json_build_object(
-    'sub', p_uid, 'role', 'authenticated', 'session_id', '11111111-1111-1111-1111-111111111111',
+    'sub', p_uid, 'role', 'authenticated', 'aal', 'aal2', 'session_id', '11111111-1111-1111-1111-111111111111',
     'amr', json_build_array(json_build_object('method','password','timestamp',(extract(epoch from now())::bigint - p_age)))
   )::text, false);
   execute 'set role authenticated';
