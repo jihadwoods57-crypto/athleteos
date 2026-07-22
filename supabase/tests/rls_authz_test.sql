@@ -1061,6 +1061,20 @@ select _ok((select count(*) from admin_audit_log where target = 'probe' and acti
 select _ok((select default_on from feature_flags where name = 'probe') = true,
            'ff: admin_set_flag persisted the row');
 
+-- ================================================================ command center phase 1A (0115)
+-- admin_bootstrap is the ONLY admin RPC that RETURNS for a non-admin (is_admin=false) so the client can
+-- render "access denied"; the search RPCs keep the raise-gate. Reuses the 55555…005 admin seeded above.
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok((admin_bootstrap() ->> 'is_admin') = 'false', 'cc: bootstrap reports non-admin is_admin=false');
+select _ok(_try($f$ select admin_global_search('a', 5) $f$) <> 'ok', 'cc: rando denied admin_global_search');
+select _ok(_try($f$ select admin_audit_search(null, null, 5) $f$) <> 'ok', 'cc: rando denied admin_audit_search');
+
+select _as('55555555-0000-0000-0000-000000000005');
+select _ok((admin_bootstrap() ->> 'is_admin') = 'true', 'cc: bootstrap reports admin is_admin=true');
+select _ok((admin_bootstrap() -> 'capabilities' ->> 'mutate_users') = 'false', 'cc: bootstrap caps are read-only in 1A');
+select _ok(_try($f$ select admin_global_search('a', 5) $f$) = 'ok', 'cc: admin can global_search');
+select _ok(_try($f$ select admin_audit_search(null, null, 5) $f$) = 'ok', 'cc: admin can audit_search');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
