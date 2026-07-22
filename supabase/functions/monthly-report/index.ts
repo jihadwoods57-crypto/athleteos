@@ -8,7 +8,6 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
-import { isPremiumUnlocked } from '../_shared/entitlement.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
@@ -100,8 +99,8 @@ Deno.serve(async (req) => {
 
   // Entitlement gate (secret flip).
   if (REQUIRES_PLAN) {
-    const { data: sub } = await svc.from('subscriptions').select('status, tier').eq('owner_id', userId).maybeSingle();
-    if (!isPremiumUnlocked(sub)) return json({ error: 'monthly report requires a plan' }, 402, cors);
+    const { data: hasAccess } = await svc.rpc('has_premium_access', { p_user: userId });
+    if (hasAccess !== true) return json({ error: 'monthly report requires a plan' }, 402, cors);
   }
 
   // Cache: a completed month's report is final — return the stored one, no AI spend, no cap claim.

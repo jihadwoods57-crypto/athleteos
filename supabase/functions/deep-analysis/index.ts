@@ -19,7 +19,6 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
-import { isPremiumUnlocked } from '../_shared/entitlement.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const REQUIRES_PLAN = Deno.env.get('DEEP_REQUIRES_PLAN') === '1';
@@ -157,8 +156,8 @@ Deno.serve(async (req) => {
   // Paywall seam: once billing is live (DEEP_REQUIRES_PLAN=1), a caller with no unlocked
   // subscription row gets an honest 402. Free preview: open, still weekly-capped.
   if (REQUIRES_PLAN) {
-    const { data: sub } = await svc.from('subscriptions').select('status, tier').eq('owner_id', userId).maybeSingle();
-    if (!isPremiumUnlocked(sub)) return json({ error: 'deep analysis requires a plan' }, 402, cors);
+    const { data: hasAccess } = await svc.rpc('has_premium_access', { p_user: userId });
+    if (hasAccess !== true) return json({ error: 'deep analysis requires a plan' }, 402, cors);
   }
 
   // The weekly cap — the whole cost model. Fail CLOSED here (unlike the daily loggers):
