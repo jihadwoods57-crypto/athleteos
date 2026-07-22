@@ -1132,6 +1132,11 @@ select _ok(_try($f$ select admin_view_as('99999999-0000-0000-0000-000000000009',
 select _superuser();
 select _ok((select count(*) from admin_audit_log where action='user.view_as' and (after->>'impersonation')='true') >= 1, 'cc: view-as is audited as impersonation');
 
+-- Phase 1B append-only audit (0124) — UPDATE/DELETE blocked even for a superuser (append-only ledger).
+select _superuser();
+select _ok(_try($f$ update admin_audit_log set action='tampered' where id = (select id from admin_audit_log order by id limit 1) $f$) <> 'ok', 'cc: admin_audit_log UPDATE is blocked (append-only)');
+select _ok(_try($f$ delete from admin_audit_log where id = (select id from admin_audit_log order by id limit 1) $f$) <> 'ok', 'cc: admin_audit_log DELETE is blocked (append-only)');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
