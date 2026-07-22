@@ -25,7 +25,7 @@ import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
 import {
   groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
-  mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions,
+  mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions, shouldVerify,
 } from './meal-intel.js';
 import { groundMealFromFoods, groundMealTotals, gapFoods } from './nutrition.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
@@ -989,6 +989,60 @@ export const act = {
       ...(MEAL.userNote ? { athleteNote: MEAL.userNote } : {}),
     };
   },
+  /* Second-pass verifier (item 6). Runs PRE-LOG, best-effort: after the first grounded result,
+     if a high-stakes trigger fires and the daily verify budget allows, ask the server for a
+     focused re-check. An allergen catch is stored for the meal screen's severe alert; an accuracy
+     re-detect replaces the pre-log estimate the athlete is about to review. NEVER throws — a
+     failure just leaves the first read + the free deterministic guards in place. */
+  async _maybeVerify() {
+    try {
+      const sb = window.sb;
+      const r = MEAL.result;
+      if (!sb || !r || !MEAL.photoBase64) return;
+      const severe = (RT.allergies || [])
+        .filter((n) => /severe/i.test(String(n)))
+        .map((n) => String(n).split('·')[0].trim())
+        .filter(Boolean).slice(0, 12);
+      const gate = shouldVerify({
+        detected: Array.isArray(r.detectedRich) ? r.detectedRich : r.detected,
+        quality: r.quality,
+        source: 'photo',
+        severeRestrictions: severe,
+        budgetLeft: this._verifyBudgetLeft(),
+      });
+      if (!gate.fire) return;
+      this._verifyBudgetSpend();
+      const { data } = await sb.functions.invoke('analyze-meal', { body: {
+        ...this._analysisBody(),
+        phase: 'verify',
+        verifyTrigger: gate.trigger,
+        severeRestrictions: severe,
+        firstResult: { kcal: r.kcal, protein: r.protein },
+      } });
+      if (!data || data.kind !== 'verify') return;
+      if (data.trigger === 'allergen' && Array.isArray(data.allergensFound) && data.allergensFound.length) {
+        MEAL.result.verifyAllergens = data.allergensFound.slice(0, 8);
+        save(); saveMeal();
+      } else if (data.trigger === 'accuracy' && typeof data.kcal === 'number') {
+        MEAL.result = groundResult(data);
+        save(); saveMeal();
+      }
+    } catch (e) { /* best-effort — never break the meal flow on verify */ }
+  },
+  /* Client-side daily verify counter (RT-backed). The SERVER enforces the real budget
+     (VERIFY_DAILY_BUDGET, default 3); this just avoids pointless calls once it's spent. Falls
+     back to "budget available" on any hiccup — the server is the authoritative gate. */
+  _verifyBudgetLeft() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (RT.verifyDay !== today) return 3;
+    return Math.max(0, 3 - (Number(RT.verifyUsed) || 0));
+  },
+  _verifyBudgetSpend() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (RT.verifyDay !== today) { RT.verifyDay = today; RT.verifyUsed = 0; }
+    RT.verifyUsed = (Number(RT.verifyUsed) || 0) + 1;
+    save();
+  },
   /* Phase 'analyze'. THE CLARIFYING MOMENT: when the model is genuinely unsure about something
      that would move the macros, it returns questions — we surface them ({ok, kind:'questions'})
      so the athlete answers what the camera can't see, rather than discarding them and forcing a
@@ -1006,7 +1060,7 @@ export const act = {
         // Model asked but sent nothing usable — finalize straight through rather than dead-end.
         return this.finalizeAnalysis([]);
       }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); saveMeal(); return { ok: true, kind: 'result' }; }
+      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' }; }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
@@ -1021,7 +1075,7 @@ export const act = {
     try {
       const { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...this._analysisBody(), phase: 'finalize', clarifications } });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); MEAL.questions = null; save(); saveMeal(); return { ok: true, kind: 'result' }; }
+      if (data && data.kind === 'result') { MEAL.result = groundResult(data); MEAL.questions = null; save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' }; }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
