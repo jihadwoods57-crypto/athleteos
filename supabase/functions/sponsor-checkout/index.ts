@@ -66,13 +66,18 @@ Deno.serve(async (req) => {
   const label = typeof body.label === 'string' ? body.label.slice(0, 80) : '';
 
   const metadata = { kind: 'sponsor_seats', sponsor_id: user.id, seats: String(seats), label };
+  // This account has Stripe "Managed Payments" on by default, which requires a product tax_code for
+  // ad-hoc price_data line items. We opt out per request (same as the other checkout functions) since
+  // we set our own price. Not in the SDK's TS types yet, so injected via a typed-loose spread.
+  const managedPaymentsOptOut = { managed_payments: { enabled: false } } as Record<string, unknown>;
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      ...managedPaymentsOptOut,
       client_reference_id: user.id,
       customer_email: user.email ?? undefined,
       line_items: [{
-        price_data: { currency: 'usd', product_data: { name: `OnStandard premium — ${seats} seat${seats === 1 ? '' : 's'}` }, unit_amount: SEAT_PRICE },
+        price_data: { currency: 'usd', product_data: { name: `OnStandard premium - ${seats} seat${seats === 1 ? '' : 's'}` }, unit_amount: SEAT_PRICE },
         quantity: seats,
       }],
       metadata,
