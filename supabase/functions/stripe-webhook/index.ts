@@ -13,6 +13,8 @@
 //                                          + referral reward for the referrer (0042)
 //                                          -> OR (metadata.kind='offer_purchase', 0119) records
 //                                          an OnStandard Pay offer purchase into offer_payments
+//                                          -> OR (metadata.kind='sponsor_seats', Task 4) records a
+//                                          sponsorships row with a generated redemption code
 //   * customer.subscription.updated     -> status/pause/cancel-at-period-end/plan changes
 //   * customer.subscription.deleted     -> canceled, tier back to preview
 //                                          -> OR (Task 3) stamps subscription_cancelled_at on every
@@ -259,6 +261,40 @@ async function handleOfferRenewal(svc: ReturnType<typeof createClient>, invoice:
   return true;
 }
 
+// Short, unambiguous redemption code (no 0/O/1/I). Not a secret on its own — the sponsorship row's
+// unique index + the [1,500]-seat cap bound guessing; collisions retry.
+function sponsorCode(): string {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 8; i++) s += A[Math.floor(Math.random() * A.length)];
+  return `SP-${s.slice(0, 4)}-${s.slice(4)}`;
+}
+
+async function handleSponsorSeats(svc: ReturnType<typeof createClient>, session: Stripe.Checkout.Session): Promise<void> {
+  const sponsorId = session.metadata?.sponsor_id ?? session.client_reference_id ?? '';
+  if (!UUID_RE.test(sponsorId)) { console.error('stripe-webhook: sponsor_seats with no sponsor_id', session.id); return; }
+  // Idempotent — a Stripe retry must not create a second batch for the same checkout.
+  const { data: existing } = await svc.from('sponsorships').select('id').eq('stripe_checkout_session_id', session.id).maybeSingle();
+  if (existing) return;
+  const seats = Math.max(1, Math.floor(Number(session.metadata?.seats ?? '1')) || 1);
+  const label = (session.metadata?.label ?? '').toString().slice(0, 80);
+  const months = Math.max(1, Math.floor(Number(Deno.env.get('SPONSOR_MONTHS') ?? '12')) || 12);
+  const piId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null;
+  let amount: number | null = null;
+  if (piId) { try { const pi = await stripeClient().paymentIntents.retrieve(piId); amount = pi.amount ?? null; } catch { /* best-effort */ } }
+  // Insert with a fresh code; on the rare unique-code collision, retry a couple of times.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { error } = await svc.from('sponsorships').insert({
+      sponsor_id: sponsorId, sponsor_label: label, code: sponsorCode(), seats, months,
+      stripe_checkout_session_id: session.id, stripe_payment_intent_id: piId, amount_cents: amount,
+    });
+    if (!error) return;
+    if (!String(error.message || '').toLowerCase().includes('duplicate')) throw error;
+    if (String(error.message).includes('stripe_checkout_session_id')) return; // idempotent race — already inserted
+  }
+  throw new Error('sponsor code generation failed after retries');
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
 
@@ -300,6 +336,11 @@ Deno.serve(async (req) => {
         // owner-subscription billing below — branch off first and never fall through into it.
         if (session.metadata?.kind === 'offer_purchase') {
           await handleOfferCheckout(svc, session);
+          break;
+        }
+
+        if (session.metadata?.kind === 'sponsor_seats') {
+          await handleSponsorSeats(svc, session);
           break;
         }
 
