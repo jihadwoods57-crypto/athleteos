@@ -47,9 +47,19 @@ export function violatesProhibited(text: string, prohibited: string): boolean {
   });
 }
 
-/** Build the system prompt for one nudge from the coach's configured voice. The hard rails are
- *  constant and non-negotiable; the coach only tunes tone, accountability, and phrasing within them. */
-export function buildVoiceSystem(cfg: VoiceConfig): string {
+// The nudge-specific tail: a length constraint that fits a one-line nudge (but NOT a multi-sentence
+// meal analysis) plus the forced-tool instruction. Kept out of buildVoiceDirective so other callers
+// (analyze-meal) can apply the coach's voice without capping their own output length or tool choice.
+const NUDGE_TAIL = [
+  '- One or two short sentences. No hype, no em dashes, no emoji.',
+  'Always answer by calling report_nudge.',
+].join('\n');
+
+/** Build the shared voice DIRECTIVE from the coach's config: tone, accountability, approved phrases,
+ *  banned words, and the constant safety rails. This is the reusable core — it does NOT impose an
+ *  output length or a tool call, so any AI surface (nudge, meal analysis) can prepend it and add its
+ *  own output instruction. The hard rails are non-negotiable; the coach only tunes within them. */
+export function buildVoiceDirective(cfg: VoiceConfig): string {
   const tone = TONE_DIRECTIVE[cfg.tone] ?? TONE_DIRECTIVE.direct;
   const level = LEVEL_DIRECTIVE[cfg.level] ?? LEVEL_DIRECTIVE.balanced;
   const approved = (cfg.approved || []).filter((p) => typeof p === 'string' && p.trim()).slice(0, 12);
@@ -76,8 +86,12 @@ export function buildVoiceSystem(cfg: VoiceConfig): string {
     '- Never introduce a number, name, statistic, or fact not present in the data; never change or reinterpret a figure.',
     '- Never create a requirement, change a deadline, alter a score, or give medical, injury, weight-loss, or dietary-restriction advice.',
     '- Reinforce the standard the coach already set; do not invent new rules or consequences.',
-    '- One or two short sentences. No hype, no em dashes, no emoji.',
-    'Always answer by calling report_nudge.',
   );
   return lines.join('\n');
+}
+
+/** Build the system prompt for one NUDGE: the shared voice directive plus the nudge-specific length
+ *  cap and forced-tool instruction. Byte-identical to the prior single-function implementation. */
+export function buildVoiceSystem(cfg: VoiceConfig): string {
+  return buildVoiceDirective(cfg) + '\n' + NUDGE_TAIL;
 }
