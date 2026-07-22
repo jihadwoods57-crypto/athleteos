@@ -4,13 +4,16 @@ These 13 files are the **actual content** live on the `ftwrvylzoyznhbzhgism` pro
 mailer config (`mailer_templates_<type>_content`), applied 2026-07-22 to replace Supabase's bare default
 templates. They cover every email GoTrue can send for this project:
 
-**Active today** (users hit these paths now): `confirmation`, `recovery`, `email_change`. Kept ready but
-currently dormant (either unused by the app's own flows, or the notification is switched off):
-`invite`, `magic_link`, `reauthentication` (no app flow triggers these); `password_changed_notification`,
-`email_changed_notification`, `phone_changed_notification`, `mfa_factor_enrolled_notification`,
-`mfa_factor_unenrolled_notification`, `identity_linked_notification`, `identity_unlinked_notification`
-(exist but `mailer_notifications_*_enabled=false` — a founder decision, since enabling them changes
-notification volume for the whole user base, not just content).
+**Active today**: `confirmation`, `recovery`, `email_change` (real app flows) plus, as of 2026-07-22,
+6 of the 7 notification types are now **enabled** per founder request ("turn on the ones you recommend"):
+`password_changed_notification`, `email_changed_notification`, `mfa_factor_enrolled_notification`,
+`mfa_factor_unenrolled_notification`, `identity_linked_notification`, `identity_unlinked_notification`.
+Rationale: password/email-changed are standard security hygiene; MFA enroll/unenroll ties directly to the
+Command Center hardening work; identity linked/unlinked matters because Apple Sign-In is live on prod.
+**`phone_changed_notification` deliberately left OFF** — phone-based auth/MFA is disabled everywhere in
+this project's config, so it would never fire; enabling it would just be inert. `invite` and `magic_link`
+have no app-code trigger (staff invites use a custom join-code system; no magic-link flow exists) but got
+the same content upgrade for completeness/future-proofing.
 
 Brand: the real consumer identity (green checkmark mark + "OnStandard" wordmark, cream/white light theme)
 established in `docs/legal/public/reset.html` — deliberately different from the **admin** Command Center's
