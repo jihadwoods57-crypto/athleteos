@@ -2,7 +2,7 @@
 // (the client never decides who is admin), mounts the nav shell, and wires sign-in/out + refresh. Every
 // section is a self-contained module; the data + rendering live there. Publishable key + login JWT only.
 import { sb, bootstrap } from './api.js';
-import { show, h, $ } from './ui.js';
+import { show, h, $, setIdentity } from './ui.js';
 import { mountShell, refreshActive } from './shell.js';
 import home from './sections/home.js';
 import users from './sections/users.js';
@@ -25,6 +25,7 @@ async function gate() {
     return;
   }
   show($('login'), false); showDenied(false); show($('app'), true);
+  setIdentity(boot.email);
   mountShell(SECTIONS, boot);
 }
 

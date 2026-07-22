@@ -1085,7 +1085,7 @@ select _ok(_try($f$ select admin_audit_search(null, null, 5) $f$) <> 'ok', 'cc: 
 
 select _as('55555555-0000-0000-0000-000000000005');
 select _ok((admin_bootstrap() ->> 'is_admin') = 'true', 'cc: bootstrap reports admin is_admin=true');
-select _ok((admin_bootstrap() -> 'capabilities' ->> 'mutate_users') = 'false', 'cc: bootstrap caps are read-only in 1A');
+select _ok((admin_bootstrap() -> 'capabilities' ->> 'financial') = 'false', 'cc: bootstrap financial capability still gated (pre-payments)');
 select _ok(_try($f$ select admin_global_search('a', 5) $f$) = 'ok', 'cc: admin can global_search');
 select _ok(_try($f$ select admin_audit_search(null, null, 5) $f$) = 'ok', 'cc: admin can audit_search');
 
@@ -1113,6 +1113,15 @@ select _as_amr('55555555-0000-0000-0000-000000000005', 1200);  -- authenticated 
 select _ok(_try($f$ select admin_open_sensitive_window('financial', true) $f$) <> 'ok', 'cc: stale reauth is refused');
 select _as('99999999-0000-0000-0000-000000000009');
 select _ok(_try($f$ select admin_open_sensitive_window('flags', false) $f$) <> 'ok', 'cc: rando denied open_sensitive_window');
+
+-- Phase 1B user mutations (0122) — is_platform_admin AND a live 'user_mutation' grant, both required.
+select _ok(_try($f$ select admin_correct_primary_role('55555555-0000-0000-0000-000000000005','coach') $f$) <> 'ok', 'cc: rando denied correct_role');
+select _as_amr('55555555-0000-0000-0000-000000000005', 30);
+select _ok(_try($f$ select admin_pause_account('99999999-0000-0000-0000-000000000009') $f$) <> 'ok', 'cc: mutation without a grant is refused');
+select admin_open_sensitive_window('user_mutation', false);
+select _ok(_try($f$ select admin_correct_primary_role('99999999-0000-0000-0000-000000000009','coach') $f$) = 'ok', 'cc: mutation with a live grant succeeds');
+select _superuser();
+select _ok((select count(*) from admin_audit_log where action='user.correct_role' and target='99999999-0000-0000-0000-000000000009') = 1, 'cc: role change audited exactly once');
 
 -- ================================================================ scoreboard
 select _superuser();

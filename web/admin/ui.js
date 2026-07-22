@@ -1,6 +1,7 @@
 // OnStandard — Command Center shared UI vocabulary. Pure DOM + formatting helpers, extracted from the
 // original single-file admin.js so every section reuses the SAME primitives. All dynamic values go
 // through textContent (the 'html' key in h() is intentionally a no-op) — no data path can inject markup.
+import { sb, rpc } from './api.js';
 
 export const $ = (id) => document.getElementById(id);
 export const show = (el, on) => el && el.classList.toggle('hidden', !on);
@@ -120,3 +121,35 @@ export function openModal(title, bodyNodes) {
 }
 function escClose(e) { if (e.key === 'Escape') closeModal(); }
 export function closeModal() { $('modal-root').textContent = ''; document.removeEventListener('keydown', escClose); }
+
+// ---------- step-up reauth ----------
+let _identityEmail = null;
+export function setIdentity(email) { _identityEmail = email; }
+
+// Gate a sensitive action behind SERVER-VERIFIED step-up: re-enter password (fresh amr) → open a grant
+// (single-use for financial) → run the action. The server enforces the grant; this is the UX for it.
+// Resolves only on success; on failure it keeps the modal open. Closing the modal simply cancels.
+export function withReauth(scope, actionFn, opts = {}) {
+  return new Promise((resolve) => {
+    const pw = h('input', { type: 'password', placeholder: 'Re-enter your password', autocomplete: 'current-password' });
+    const err = h('p', { class: 'err' });
+    let busy = false;
+    const confirm = h('button', { class: 'btn pri', text: opts.label || 'Confirm', onclick: async () => {
+      if (busy) return; busy = true; err.textContent = '';
+      try {
+        const { error: e1 } = await sb.auth.signInWithPassword({ email: _identityEmail, password: pw.value });
+        if (e1) { err.textContent = 'Re-authentication failed: ' + e1.message; busy = false; return; }
+        await rpc('admin_open_sensitive_window', { p_scope: scope, p_single_use: !!opts.single });
+        closeModal();
+        resolve(await actionFn());
+      } catch (e) { err.textContent = String((e && e.message) || e); busy = false; }
+    } });
+    pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirm.click(); });
+    openModal('Confirm your identity', [
+      h('p', { class: 'cap', text: `This ${scope.replace(/_/g, ' ')} action needs you to re-enter your password.` }),
+      h('label', { class: 'fld', text: 'Password' }), pw, err,
+      h('div', { style: 'height:12px' }), confirm,
+    ]);
+    setTimeout(() => { try { pw.focus(); } catch (_) { /* noop */ } }, 60);
+  });
+}
