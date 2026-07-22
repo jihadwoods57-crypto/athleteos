@@ -1137,6 +1137,17 @@ select _superuser();
 select _ok(_try($f$ update admin_audit_log set action='tampered' where id = (select id from admin_audit_log order by id limit 1) $f$) <> 'ok', 'cc: admin_audit_log UPDATE is blocked (append-only)');
 select _ok(_try($f$ delete from admin_audit_log where id = (select id from admin_audit_log order by id limit 1) $f$) <> 'ok', 'cc: admin_audit_log DELETE is blocked (append-only)');
 
+-- Phase 1B support (0125) — validated + rate-limited intake, safety=urgent, gated founder queue.
+select _as('55555555-0000-0000-0000-000000000005');
+select _ok(_try($f$ select create_support_ticket('nonsense','hi','x') $f$) <> 'ok', 'cc: support intake rejects invalid category');
+select _ok(_try($f$ select create_support_ticket('safety','Concern about a DM','the body') $f$) = 'ok', 'cc: user can file a support ticket');
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select admin_support_queue(null,null) $f$) <> 'ok', 'cc: non-admin denied admin_support_queue');
+select _as('55555555-0000-0000-0000-000000000005');
+select _ok(_try($f$ select admin_support_queue('open',null) $f$) = 'ok', 'cc: admin can read support queue');
+select _superuser();
+select _ok((select priority from support_tickets where category='safety' order by created_at desc limit 1) = 'urgent', 'cc: safety ticket is auto-urgent');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
