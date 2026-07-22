@@ -21,11 +21,14 @@ function priceLabel(o) {
   return `$${n}${per}`;
 }
 
+// One group per (child, practice) — a child can be an active client of more than one trainer, and
+// each trainer's packages must render under THAT trainer's name, never merged under the first seen.
 function groupByChild(rows) {
   const map = new Map();
   for (const r of (rows || [])) {
-    if (!map.has(r.child_id)) map.set(r.child_id, { child_id: r.child_id, child_name: r.child_name, trainer_name: r.trainer_name, offers: [] });
-    map.get(r.child_id).offers.push(r);
+    const key = `${r.child_id}|${r.practice_id}`;
+    if (!map.has(key)) map.set(key, { child_id: r.child_id, child_name: r.child_name, practice_id: r.practice_id, trainer_name: r.trainer_name, offers: [] });
+    map.get(key).offers.push(r);
   }
   return [...map.values()];
 }
