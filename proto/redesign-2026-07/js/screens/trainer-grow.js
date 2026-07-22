@@ -160,7 +160,7 @@ export const trainerGrow = {
       ${(G.payments || []).length ? (G.payments).map(p => `
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">$${(p.amount_cents / 100).toFixed(2)} <span class="ls">${p.status === 'refunded' ? '· refunded' : ''}</span></div>
-          <div class="ls">${timeAgo(p.created_at)} · fee $${(p.application_fee_cents / 100).toFixed(2)}</div></div>
+          <div class="ls">${timeAgo(p.created_at)} · fee $${(p.application_fee_cents / 100).toFixed(2)}${p.beneficiary_name ? ` · parent-funded for ${esc(p.beneficiary_name)}` : ''}</div></div>
         ${p.status === 'paid' ? `<button class="btn ghost sm" data-tg="refund" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:30px">Refund</button>` : ''}
       </div>`).join('') : `<div class="ls" style="padding:10px 0">No payments yet.</div>`}
     </section>` : ''}

@@ -2612,6 +2612,16 @@ export const parent = {
     <div style="height:12px"></div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="parent-link"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Link an athlete</div><div class="ls">Enter the invite code they gave you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="fund-plan">
+        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Fund a plan</div><div class="ls">Pay for your child’s coaching package</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="funded-plans">
+        <div class="lic" style="background:var(--surface-2)">${icon('lock', 17)}</div>
+        <div class="lm"><div class="lt">Funded plans</div><div class="ls">What you’re paying for</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
       <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
     </section>
     <div style="height:10px"></div>

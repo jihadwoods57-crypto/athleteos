@@ -988,6 +988,24 @@ export async function fetchMyTrainerOffers() {
   const c = sb(); if (!c) return [];
   try { const { data } = await c.rpc('my_trainer_offers'); return data || []; } catch { return []; }
 }
+/** A guardian's children's trainers' payable offers (active guardianship + active client + active Connect). */
+export async function fetchFundedOffers() {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.rpc('my_funded_offers'); return data || []; } catch { return []; }
+}
+/** The guardian's own funded plans (for the Funded plans list). */
+export async function fetchFundedPlans() {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.rpc('my_funded_plans', { p_limit: 50 }); return data || []; } catch { return []; }
+}
+/** Start Checkout for an offer on behalf of a child. Returns { url } or { error }. */
+export async function startFundedCheckout(offerId, beneficiaryAthleteId) {
+  return callFn('pay-offer-checkout', { offerId, beneficiaryAthleteId });
+}
+/** Cancel a recurring funded plan (by an offer_payments row id). Returns { ok:true } or { error }. */
+export async function cancelFundedSubscription(paymentId) {
+  return callFn('cancel-offer-subscription', { paymentId });
+}
 
 /** Open a Stripe-hosted URL (Connect onboarding, Checkout) in the SYSTEM browser via the native
  *  bridge — never navigate this WebView itself into it (see bridge.ts OPEN_URL for why). Falls
