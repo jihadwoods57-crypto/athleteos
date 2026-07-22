@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
   const user = await resolveUser(req);
   if (!user) return json({ error: 'sign in required' }, 401, cors);
 
-  let body: { offerId?: unknown };
+  let body: { offerId?: unknown; beneficiaryAthleteId?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -87,6 +87,8 @@ Deno.serve(async (req) => {
   }
   const offerId = typeof body.offerId === 'string' ? body.offerId : '';
   if (!UUID_RE.test(offerId)) return json({ error: 'bad request' }, 400, cors);
+  const beneficiaryAthleteId = typeof body.beneficiaryAthleteId === 'string' ? body.beneficiaryAthleteId : '';
+  if (beneficiaryAthleteId && !UUID_RE.test(beneficiaryAthleteId)) return json({ error: 'bad request' }, 400, cors);
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -105,9 +107,20 @@ Deno.serve(async (req) => {
 
   // The buyer must be an ACTIVE client of this exact practice — never let a stranger buy a
   // stranger's offer just by guessing an id.
-  const { data: link } = await svc.from('practice_clients')
-    .select('status').eq('practice_id', offer.practice_id).eq('client_id', user.id).maybeSingle();
-  if (!link || link.status !== 'active') return json({ error: 'connect with this trainer first' }, 403, cors);
+  if (beneficiaryAthleteId) {
+    // Parent funding for their child: the caller must be the child's ACTIVE guardian, and the child
+    // must be an ACTIVE client of this exact practice. Never let a stranger fund a stranger's plan.
+    const { data: guard } = await svc.from('guardianships')
+      .select('status').eq('athlete_id', beneficiaryAthleteId).eq('guardian_id', user.id).maybeSingle();
+    if (!guard || guard.status !== 'active') return json({ error: 'not your dependent' }, 403, cors);
+    const { data: clink } = await svc.from('practice_clients')
+      .select('status').eq('practice_id', offer.practice_id).eq('client_id', beneficiaryAthleteId).maybeSingle();
+    if (!clink || clink.status !== 'active') return json({ error: 'this athlete is not a client of this trainer' }, 403, cors);
+  } else {
+    const { data: link } = await svc.from('practice_clients')
+      .select('status').eq('practice_id', offer.practice_id).eq('client_id', user.id).maybeSingle();
+    if (!link || link.status !== 'active') return json({ error: 'connect with this trainer first' }, 403, cors);
+  }
 
   const { data: feeRow } = await svc.from('pay_platform_config').select('fee_percent').eq('id', true).maybeSingle();
   const feePercent = Number(feeRow?.fee_percent ?? 15);
@@ -117,6 +130,7 @@ Deno.serve(async (req) => {
     offer_id: offer.id,
     practice_id: offer.practice_id,
     payer_id: user.id,
+    ...(beneficiaryAthleteId ? { beneficiary_athlete_id: beneficiaryAthleteId } : {}),
   };
 
   // This platform account has Stripe "Managed Payments" enabled by default, which is incompatible
