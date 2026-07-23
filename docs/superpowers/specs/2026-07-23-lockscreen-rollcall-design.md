@@ -27,14 +27,20 @@ moving**, never "back to sleep."
 3. **Recording mechanism: a signed one-time code carried in the reminder** (below), verified by a new
    public endpoint. Server is the source of truth; the phone never needs a live login at 5 AM.
 4. **Confirmation reinforces being up**, never rest.
-5. **Non-response escalates** — the existing reminder cron keeps nudging only the people who haven't
-   answered, and they stay lit on the coach's board.
+5. **Non-response escalates on a ladder** (folded in from the upgrade pass) — not just a repeated
+   polite nudge. See "Escalation ladder" below.
+6. **Apple Watch is a first-class surface** (folded in) — "I'm Up" answerable from the wrist, mostly
+   via notification mirroring. See "Apple Watch" below.
 
 ## Non-goals
 
 - No persistent lock-screen **widget** in this phase (that is phase 2 — it reuses this endpoint).
 - No new scheduling UI, no change to the daily 0–100 score or the separate Accountability score.
 - No decline/snooze/excuse flow from the lock screen.
+- No tap-and-sleep "proof of awake" step in this phase (considered, parked — arrival already carries
+  the real credit).
+- No **standalone** (phone-out-of-range) watchOS app in this phase — the Watch tap relays through the
+  paired iPhone. A native watch app is a later enhancement.
 
 ## Architecture
 
@@ -60,8 +66,10 @@ Five pieces:
    codes. Idempotent.
 4. **Optimistic confirm + retry** — the tap handler flips the notification to "Logged, you're up"
    immediately and posts the code; on failure it queues the code and retries.
-5. **Escalation** — unchanged: `claim_due_commitment_reminders` only ever selects still-`pending`
-   responses, so answered athletes are never pinged again and non-responders keep getting nudged.
+5. **Escalation ladder** — a deadline-crossing pass turns silence into progressively louder action
+   (critical alert → coach → optional guardian). Detailed below. Still built on
+   `claim_due_commitment_reminders` only selecting `pending` rows, so anyone who answered drops off
+   every rung immediately.
 
 ## The signed code
 
@@ -97,6 +105,8 @@ widget also cannot safely hold a login.
    - Extend `claim_due_commitment_reminders` to also return `action_label` and `respond_by_at` so the
      reminder fn can label the button and sign the deadline. (It already returns
      `athlete_id, instance_id, title, body, offset_min`.)
+   - Add the `escalation` config to `commitments` and a claim function for deadline-crossed,
+     still-`pending` rows to drive the ladder (L2–L4). See "Escalation ladder".
 2. **`commitment-reminders/index.ts`:** for each due row, mint the code and add to the push message:
    `categoryId` (derived from `action_label`, see client note), `data.code`, `data.instance_id`
    (already present via `route`), `data.action_label`. Feature-flag and cron-key behaviour unchanged.
@@ -126,6 +136,48 @@ notification layer (`src/proto/ProtoApp.tsx`, `src/core/reminders.ts`, `src/lib/
 3. **Optimistic + offline queue** — show the confirmation immediately; if the POST fails (offline,
    Expo/edge hiccup), enqueue the code in local storage and retry on connectivity and on next app
    foreground. Codes are idempotent, so a double-send is safe.
+4. **Apple Watch** — see below; the same `ACK` action carries to the wrist for free via mirroring.
+
+## Escalation ladder
+
+The point of a roll call is to catch oversleeping, so silence has to get louder, not stay polite.
+The ladder runs off the deadline (`respond_by_at`), for responses still `pending` at each rung. It is
+a small extension of the existing reminder cron, not a new subsystem.
+
+| Rung | When | What fires | Notes |
+|---|---|---|---|
+| **L1 nudge** | before deadline (today's behavior) | normal reminder push, only to `pending` | unchanged |
+| **L2 break-through** | at `respond_by_at` | one **time-sensitive** push (iOS `interruptionLevel: 'time-sensitive'`; Android high-importance, optionally full-screen) | punches past a Focus/summary; still respects the OS Do Not Disturb the user set |
+| **L3 coach** | at `respond_by_at` + short lag | the coach's board flips the row red (`status = 'missed'`, already the model) and the coach gets one push naming who did not answer | aggregate per instance, not one-per-athlete |
+| **L4 guardian (optional)** | configurable | a linked parent/guardian is notified for a missed roll call | guardianship + consent already exist; **off by default**, coach opt-in per commitment |
+
+- **Config lives on the commitment** — add a small `escalation` jsonb (or discrete columns) to
+  `commitments`: `{ breakthrough: bool, notify_coach_on_miss: bool, notify_guardian_on_miss: bool }`.
+  Render-time defaults when null, same coach-authored-only rule as the rest of the feature.
+- **Server work** — extend the reminder pass (or a sibling cron function) to select rows that have
+  crossed the deadline and are still `pending`, and drive L2–L4. Claim-and-mark so overlapping ticks
+  can't double-fire a rung (same guard `claim_due_commitment_reminders` already uses).
+- **Critical vs time-sensitive (honest):** a truly silent-mode-piercing **critical alert** needs an
+  Apple entitlement and App Review approval. Default to **time-sensitive** (no approval, already
+  breaks through summaries/most Focus modes). Critical is an optional later upgrade behind the
+  entitlement.
+- **Buddy rung** (another athlete as accountability partner) is noted as a future rung; not in this
+  build.
+
+## Apple Watch
+
+watchOS **mirrors the paired iPhone's notifications, including their action buttons**. Because L1/L2
+are ordinary notifications with the `ACK` action, "I'm Up" shows on the wrist with no separate watch
+app: the athlete taps it on the Watch, and watchOS relays the action to the iPhone, which runs the
+same handler and posts the same signed code. So the Watch surface is mostly **QA + making sure the
+background action path works when the phone is charging in another room** (the Watch relays over
+Bluetooth/Wi-Fi).
+
+- **In scope:** the mirrored notification action on the Watch, verified on a real device.
+- **Out of scope (later):** a standalone watchOS app that fires the code itself when the phone is out
+  of range or off — that is native watch work, same class as the phase-2 widget.
+- **Honest edge:** if the phone is unreachable from the Watch, the tap can't relay; the athlete is
+  covered by the escalation ladder until the phone reconnects.
 
 ## Data flow
 
@@ -162,18 +214,28 @@ inside grace in the normal case; genuinely late only if offline past the grace w
   `categoryId` on the push is caught (a silent rename = a dead button).
 - **Client (jest):** `ACK` action → posts code; POST failure → queued + retried; success → notification
   updated. Mock `fetch` and the notifications module.
+- **Escalation (`deno test` + authz):** at deadline a still-`pending` row fires L2 once (claim-marked,
+  no double-fire on overlapping ticks); L3 marks the board row `missed` and produces one coach push;
+  L4 fires only when `notify_guardian_on_miss` is on; an athlete who answered before the deadline
+  triggers no rung.
 - **On device (cannot be exercised on Windows/jest — QA checklist):** backgrounded tap records
   immediately (iOS + Android); force-quit iOS defers to next open; offline tap queues then lands;
-  confirmation replaces the original notification.
+  confirmation replaces the original notification; **L2 time-sensitive push breaks through Focus**;
+  **Apple Watch mirrored "I'm Up" records with the phone nearby**, and relays when the phone is in
+  another room.
 
 ## Phasing
 
-- **Phase 1 (this spec):** notification action + `roll-call-ack` + signed code. Cross-platform. Ships
-  on a normal EAS build (categories are JS runtime).
+- **Phase 1 (this spec):** notification action + `roll-call-ack` + signed code, **plus the escalation
+  ladder (L1–L4) and the mirrored Apple Watch action**. Cross-platform. Ships on a normal EAS build
+  (notification categories are JS runtime; the Watch action needs no separate watch app).
+  Suggested build order inside phase 1: (a) signed code + endpoint + migration, (b) notification
+  action + client handler + confirm/queue, (c) escalation ladder, (d) Watch QA.
 - **Phase 2 (later, iPhone):** the authored `ios-widget/OnStandardWidget.swift` gains a native App
   Intent that calls the **same** `roll-call-ack` endpoint with a signed code, giving a persistent
-  lock-screen button and closing the force-quit / swiped-away gaps. No server rework — the endpoint
-  and code format are shared. (Widget wiring is the Mac-only work described in `ios-widget/README.md`.)
+  lock-screen button and closing the force-quit / swiped-away gaps. A standalone **watchOS** app
+  (fires the code when the phone is out of range) is the same class of native work. No server rework —
+  the endpoint and code format are shared. (Widget wiring is the Mac-only work in `ios-widget/README.md`.)
 
 ## Open questions / founder calls
 
@@ -181,3 +243,7 @@ inside grace in the normal case; genuinely late only if offline past the grace w
   grace? (Default: reuse 10 min.)
 - **Action-label length cap** for iOS action buttons — pick a max in the coach composer.
 - **Sub-flag name** — `rollcall_lockscreen` assumed; confirm.
+- **Escalation defaults:** breakthrough (L2) and coach-on-miss (L3) on by default? guardian (L4)
+  stays off-by-default, coach opt-in. Confirm.
+- **Critical alerts:** ship time-sensitive now; pursue the Apple critical-alert entitlement later, or
+  not at all? (Default: time-sensitive only for now.)
