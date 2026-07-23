@@ -2635,11 +2635,15 @@ export const S = {
   // revisiting a logged slot; otherwise an HONEST empty state (never demo steak-and-potatoes).
   get logging() {
     const slot = MEAL.key || nextOpenSlot() || 'dinner';
+    // Coach-aware deadline label: honor the coach standard's per-slot window (slotDeadline)
+    // instead of the hardcoded SLOT_DUE map, so the camera header matches every other deadline
+    // surface (breakdown, requirement rows, timing pill) for the same slot.
+    const dueLabel = (s) => { const dl = slotDeadline(s); return dl != null ? `Due by ${fmtClock(dl)}` : (s === 'snack' ? 'Optional' : 'Log when ready'); };
     if (MEAL.result) {
       const r = MEAL.result;
       return {
         name: MEAL.mealType || cap(slot),
-        due: SLOT_DUE[slot] || 'Log when ready', remaining: 'Captured just now',
+        due: dueLabel(slot), remaining: 'Captured just now',
         img: MEAL.photoDataUrl || null, score: r.quality,
         foods: r.detected.length ? r.detected : ['Your meal'],
         macros: { protein: r.protein, carbs: r.carbs, fat: r.fat, cals: r.kcal },
@@ -2656,7 +2660,7 @@ export const S = {
     const meta = DAY.slotMacros[slot];
     if (meta && DAY.meals[slot]) {
       return {
-        name: cap(slot), due: SLOT_DUE[slot] || '', remaining: 'Logged',
+        name: cap(slot), due: dueLabel(slot), remaining: 'Logged',
         img: slotImage(slot),
         score: meta.quality != null ? meta.quality : null,
         foods: Array.isArray(meta.foods) && meta.foods.length ? meta.foods : ['Your logged meal'],
@@ -2669,7 +2673,7 @@ export const S = {
     }
     // Nothing captured or analyzed yet — honest empty state, never steak-and-potatoes constants.
     return {
-      name: cap(slot), due: SLOT_DUE[slot] || 'Log when ready', remaining: 'Take a photo to analyze',
+      name: cap(slot), due: dueLabel(slot), remaining: 'Take a photo to analyze',
       img: null, score: null, foods: [],
       macros: { protein: 0, carbs: 0, fat: 0, cals: 0 },
       planMatch: { verdict: 'Not analyzed yet', detail: 'Capture your meal and the AI reads it — real macros from your photo, no guesses.', level: 'b' },

@@ -6,6 +6,13 @@ import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 
 let UI = { code: '', busy: false, result: null }; // result: { ok, reason, label, expires_at } | { error } | null
+// Leaving the screen clears the last result so a return visit starts fresh — otherwise a stale
+// "That code isn't valid." (or a success card) from a prior visit would greet the athlete.
+if (typeof window !== 'undefined') {
+  window.addEventListener('hashchange', () => {
+    if ((location.hash || '').slice(1).split('/')[0] !== 'redeem-code') UI = { code: '', busy: false, result: null };
+  });
+}
 
 function reasonMessage(r) {
   if (r && r.error) return r.error;

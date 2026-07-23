@@ -605,9 +605,10 @@ export function itemsFromKnobs(k) {
   if (k.weigh !== 'off') {
     const daily = k.weigh === 'daily';
     // Arbitrary weekdays (Tier 2). 'mwf' from an older editor value maps to the same [1,3,5].
-    const days = (!daily && Array.isArray(k.weighDays) && k.weighDays.length)
-      ? [...new Set(k.weighDays.filter((x) => x >= 0 && x <= 6))].sort((a, b) => a - b) : [1, 3, 5];
-    items.push({
+    const days = daily ? null : [...new Set((k.weighDays || []).filter((x) => x >= 0 && x <= 6))].sort((a, b) => a - b);
+    // Custom mode with zero days selected = no weigh-in — honor the coach deselecting every day
+    // (the editor tells them to "pick at least one day, or switch to Off"); never silently re-add MWF.
+    if (daily || (days && days.length)) items.push({
       id: 'weight', title: 'Morning Weight', kind: 'weigh', proof: 'scale',
       freq: daily ? { type: 'daily' } : { type: 'days', days, label: weighLabel(days) }, window: { due: 540 },
     });
@@ -1683,14 +1684,16 @@ function relTime(iso) {
   const t = new Date(iso).getTime();
   if (!isFinite(t)) return '';
   const ms = Date.now() - t;
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
+  const future = ms < 0;                       // a due date in the future must not read "just now"
+  const m = Math.floor(Math.abs(ms) / 60000);
+  const fmt = (v, u) => future ? `in ${v}${u}` : `${v}${u} ago`;
+  if (m < 1) return future ? 'soon' : 'just now';
+  if (m < 60) return fmt(m, 'm');
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return fmt(h, 'h');
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
-  return `${Math.floor(d / 7)}w ago`;
+  if (d < 7) return fmt(d, 'd');
+  return fmt(Math.floor(d / 7), 'w');
 }
 
 /* ---------- Activity pane (Task 6): a merged, reverse-chronological timeline built ONLY from

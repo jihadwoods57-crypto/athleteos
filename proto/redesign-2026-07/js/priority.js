@@ -60,7 +60,7 @@ export function buildPriorities({ nowMin, nowMs = /** @type {number | null} */ (
     const overdueN = (status.openItems || []).filter(i => i.state === 'overdue').length;
     cards.push({
       athleteId: row.athleteId, name: row.name, unit: row.unit || '',
-      tier, reasons: reasons(row, status, nowMs), detail: status.detail, score: row.score,
+      tier, statusKey: status.key, reasons: reasons(row, status, nowMs), detail: status.detail, score: row.score,
       suggestedAction: suggestion(tier, status), reasonKey: key,
       _sort: TIER_RANK[tier] * 1000 - overdueN * 10 - (row.score != null ? (100 - row.score) / 100 : 0.5),
     });

@@ -1,5 +1,5 @@
 import { act } from '../state.js';
-import { DAY } from '../day.js';
+import { DAY, PROFILE_WEIGHTS } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 
@@ -24,8 +24,12 @@ export default {
     const ans = DAY.dailyCommitment;
     const focus = DAY.commitmentFocus || '';
     const chosen = CHOICES.find(c => c.v === ans);
+    // Commitment weight is profile-dependent (athlete/general 15%, gain 10%) — derive the real
+    // percentage + points instead of hardcoding 15/9, which lied to gain-goal athletes.
+    const cmtPct = Math.round(((PROFILE_WEIGHTS[DAY.scoringProfile] || PROFILE_WEIGHTS.athlete).commitment) * 100);
+    const ptsFor = (v) => v === 'yes' ? cmtPct : v === 'partial' ? Math.round(cmtPct * 0.6) : 0;
     return `
-    ${backHead('Daily Commitment', 'Intent in the morning. Truth at night. 15% of your score.')}
+    ${backHead('Daily Commitment', `Intent in the morning. Truth at night. ${cmtPct}% of your score.`)}
 
     <section class="card" style="margin-top:4px">
       <div class="eyebrow" style="margin:0 0 10px">Today's commitment</div>
@@ -43,15 +47,15 @@ export default {
             <div class="t">${c.t}</div>
             <div class="s">${c.s}</div>
           </div>
-          <span class="cmt-pts ${c.cls}">${c.pts ? `+${c.pts}` : '0'} pts</span>
+          <span class="cmt-pts ${c.cls}">${ptsFor(c.v) ? `+${ptsFor(c.v)}` : '0'} pts</span>
         </div>`).join('')}
-      ${chosen ? `<div class="cmt-done">${icon('check', 15)} Reflection saved — ${chosen.pts ? `+${chosen.pts} points earned` : 'an honest zero, and your record stays true'}. You can change it until midnight.</div>` : ''}
+      ${chosen ? `<div class="cmt-done">${icon('check', 15)} Reflection saved — ${ptsFor(chosen.v) ? `+${ptsFor(chosen.v)} points earned` : 'an honest zero, and your record stays true'}. You can change it until midnight.</div>` : ''}
     </section>
 
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('target', 19)}</div>
       <div>
-        <div class="tt">Why this is worth 15%</div>
+        <div class="tt">Why this is worth ${cmtPct}%</div>
         <div class="ts">Anyone can log a meal. Closing every day with an honest read on intent vs. execution is the habit coaches actually trust — and the one that compounds.</div>
       </div>
     </div>

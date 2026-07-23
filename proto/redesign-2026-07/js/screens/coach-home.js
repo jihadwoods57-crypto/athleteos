@@ -246,7 +246,9 @@ function pulseCard(rows, statuses) {
 /* Ranked priority — calm hierarchy, one primary action by tier, the rest subordinate. */
 function priorityCard(c, i, nudgedToday) {
   const tier = c.tier === 'critical' ? 'critical' : c.tier === 'below' ? 'below' : 'due';
-  const tierLbl = { critical: 'Critical', below: 'Below standard', due: 'Due soon' }[tier];
+  // needs_review also tiers as 'below', but "Below standard" would contradict its own reason
+  // line ("logged today — score pending"). Name it honestly when that's the actual status.
+  const tierLbl = c.statusKey === 'needs_review' ? 'Needs review' : { critical: 'Critical', below: 'Below standard', due: 'Due soon' }[tier];
   const scoreCol = c.score == null ? '' : c.score >= 80 ? 'var(--green-bright)' : c.score >= 60 ? 'var(--amber-bright)' : '#FF9B9B';
   const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
   const nudgeCls = !openPrimary ? (tier === 'critical' ? 'primary warn' : 'primary') : '';

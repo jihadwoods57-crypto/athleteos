@@ -216,8 +216,8 @@ export const privacy = {
     }
     if (S.consent.minor || (RT.consent && RT.consent.guardianEmail)) {
       rows.push({
-        ic: 'heart', t: RT.consent && RT.consent.guardianEmail ? `Guardian · ${RT.consent.guardianEmail}` : 'Parent / guardian', pill: 'Limited access',
-        s: 'Consent status and account controls — not your day-to-day logs',
+        ic: 'heart', t: 'Parent / guardian', pill: 'Limited access',
+        s: RT.consent && RT.consent.guardianEmail ? `${RT.consent.guardianEmail} · consent + account controls` : 'Consent status and account controls — not your day-to-day logs',
         detail: [
           ['Can do', 'Approve your account, request your data, or request deletion — legal guardian rights for minors.'],
           ['Cannot see', 'Your meal photos and daily logs are not mirrored to a guardian view.'],
@@ -244,7 +244,7 @@ export const privacy = {
           <summary class="lrow">
             <div class="lic">${icon(r.ic, 17)}</div>
             <div class="lm"><div class="lt">${esc(r.t)}</div><div class="ls">${esc(r.s)}</div></div>
-            <span class="status-pill ${i === 0 ? 'g' : 'b'}">${r.pill}</span>
+            <span class="status-pill ${r.pill === 'View access' ? 'g' : 'b'}">${r.pill}</span>
           </summary>
           <div class="pv-detail">
             ${r.detail.map(([k, v]) => `<div class="pv-line"><b>${esc(k)}</b>${esc(v)}</div>`).join('')}

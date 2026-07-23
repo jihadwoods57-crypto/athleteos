@@ -193,7 +193,7 @@ function weekSection() {
   <section class="card" style="padding:var(--s3) var(--s4)">
     ${outcomes.unlocked
       ? `${dotLine(outcomes.text, 'b')}${(outcomes.byKind || []).map(k => dotLine(`${humanizeKind(k.kind)} · ${k.n} use${k.n === 1 ? '' : 's'} · ${k.avgLift >= 0 ? '+' : ''}${k.avgLift} avg lift`, 'b')).join('')}`
-      : `<div style="display:flex;gap:10px;align-items:flex-start"><span style="flex:none;color:var(--text-3);margin-top:1px">${icon('lock', 15)}</span><span style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.5">Intervention tracking started ${esc(sinceLabel)} — outcomes unlock after two weeks of history.</span></div>`}
+      : `<div style="display:flex;gap:10px;align-items:flex-start"><span style="flex:none;color:var(--text-3);margin-top:1px">${icon('lock', 15)}</span><span style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.5">Intervention tracking started ${esc(sinceLabel)} — outcomes unlock once there's enough tracked history.</span></div>`}
   </section>`);
 
   return sections.join('');

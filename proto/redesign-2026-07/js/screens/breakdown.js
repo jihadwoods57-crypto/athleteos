@@ -89,14 +89,14 @@ export default {
       <div class="reach-proj">Projected: ${S.score} → ${anyVariable ? `up to ${upTotal}` : upTotal}</div>
       ${anyVariable ? `<div class="reach-fine">“Up to” totals assume on-time logs that reach your protein target and your best check-in answers.</div>` : ''}
       <div style="padding-top:12px">
-        <button class="btn ${reach.rows[0].accent === 'p' ? 'primary' : 'green'} sm" data-go="${reach.rows[0].route}">${icon(reach.rows[0].accent === 'p' ? 'moon' : 'camera', 19)} ${esc(reach.rows[0].label)} now</button>
+        <button class="btn ${reach.rows[0].accent === 'p' ? 'primary' : 'green'} sm" data-go="${reach.rows[0].route}">${icon(reach.rows[0].accent === 'p' ? 'moon' : reach.rows[0].accent === 'g' ? 'camera' : 'check', 19)} ${esc(reach.rows[0].label)} now</button>
       </div>
     </section>` : `
     <div class="eyebrow">Day complete</div>
     <div class="day-done">
       <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
       <div><div class="tt">Every point that was on the table is in.</div>
-      <div class="ts">${S.score} of 100. This is what OnStandard looks like.</div></div>
+      <div class="ts">${S.score} of 100. ${S.score >= 80 ? 'This is what OnStandard looks like.' : 'Every requirement is in — meal quality is what lifts it toward the standard.'}</div></div>
     </div>`}
     <div style="height:8px"></div>
     `;

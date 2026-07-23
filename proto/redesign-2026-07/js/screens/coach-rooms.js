@@ -72,7 +72,7 @@ export const coachRooms = {
         </div>`}
         <div class="lrow" data-owner-toggle="${esc(rm.id)}" style="cursor:pointer;padding-left:6px">
           <div class="xico sm gray" style="width:26px;height:26px">${icon('user', 15)}</div>
-          <div class="lm"><div class="lt" style="font-size:13.5px">Room owner</div><div class="ls">${staffName(rm.staff_owner_id) ? esc(staffName(rm.staff_owner_id)) : 'Unassigned · tap to set'}</div></div>
+          <div class="lm"><div class="lt" style="font-size:13.5px">Room owner</div><div class="ls">${rm.staff_owner_id ? (staffName(rm.staff_owner_id) ? esc(staffName(rm.staff_owner_id)) : 'Assigned') : 'Unassigned · tap to set'}</div></div>
           ${icon('chevron', 16, 'style="color:var(--text-3)"')}
         </div>
         ${OPEN_OWNER === rm.id ? `<div class="chip-row" style="margin:2px 0 8px 6px">
