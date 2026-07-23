@@ -2125,6 +2125,22 @@ select _ok((select count(*) from days
             where athlete_id='7a000000-0000-0000-0000-0000000000c1' and plan_style is not null) = 0,
            '0142: a stranger cannot even read another athlete''s day stamp');
 
+-- ============ roll-call-ack (0144) ============
+-- ack_commitment_by_token must be service-role only: a normal authenticated client cannot call it.
+select _superuser();
+do $$
+declare ok boolean := false;
+begin
+  set local role authenticated;
+  begin
+    perform ack_commitment_by_token(gen_random_uuid(), gen_random_uuid());
+  exception when insufficient_privilege then ok := true;
+  end;
+  reset role;
+  if not ok then raise exception 'FAIL: authenticated could call ack_commitment_by_token'; end if;
+  raise notice 'PASS: ack_commitment_by_token is not callable by authenticated';
+end $$;
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
