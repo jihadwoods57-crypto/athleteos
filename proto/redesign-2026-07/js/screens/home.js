@@ -7,7 +7,7 @@ import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment } from '../commitments.js';
 import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
-import { commitmentCard, mountCommitmentCard } from './roll-call.js';
+import { commitmentCard, mountCommitmentCard, commitmentOfflineCard } from './roll-call.js';
 import { armIfPermitted } from './location-consent.js';
 
 /* Verified Commitments on Home. Renders every commitment the athlete has today that is currently
@@ -23,7 +23,10 @@ function paintCommitments(root) {
     const html = VC.today(vcToday())
       .map((r) => commitmentCard(deriveCommitment(r, now)))
       .filter(Boolean).join('');
-    slot.innerHTML = html;
+    // An outage must never render as "you have nothing scheduled". For an athlete whose coach is
+    // counting on a 5:15 AM response, silence and a failed fetch look identical and mean opposite
+    // things — so when the fetch failed and we have nothing cached, say so.
+    slot.innerHTML = html || (VC.mineError ? commitmentOfflineCard() : '');
     if (html) mountCommitmentCard(slot, () => paintCommitments(root));
   };
   paint();                       // instant repaint from cache

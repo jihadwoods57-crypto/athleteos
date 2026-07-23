@@ -1816,6 +1816,118 @@ select _ok((select count(*) from claim_due_commitment_reminders(10)
              where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 0,
   '0140: an athlete who already responded is never reminded');
 
+-- ================================================================ payload contract (0138-0141)
+-- The client engine reads these jsonb keys BY NAME. Nothing else in the suite would notice a
+-- renamed or dropped key: RLS would still pass, the RPC would still return 200, and the athlete
+-- would just see a blank card. These probes are the contract between the SQL and
+-- proto/js/commitments.js — if you rename a key, this fails here rather than on a phone at 4:45 AM.
+select _superuser();
+update commitment_responses set status = 'pending', acknowledged_at = null
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((
+  with e as (select jsonb_array_elements(my_commitments(current_date, current_date)) o limit 1)
+  select bool_and(jsonb_exists(e.o, k)) from e, unnest(array[
+    'instance_id','occurs_on','type','title','message','action_label',
+    'starts_at','ends_at','respond_by_at','arrive_by_at',
+    'opens_min','starts_min','respond_by_min','arrive_by_min','min_dwell_min',
+    'reminder_offsets_min','repeat_days','starts_on','ends_on','timezone',
+    'instance_status','linked_title','linked_starts_min','asks_arrival','location_name',
+    'coach_name','status','acknowledged_at','arrived_at','completed_at',
+    'arrival_source','unverified_reason','disputed_at','excused_reason'
+  ]) k),
+  'contract: my_commitments returns every key the athlete card reads');
+
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((
+  with e as (select jsonb_array_elements(
+      commitment_board('77777777-1111-0000-0000-000000000001', null, current_date)) o limit 1)
+  select bool_and(jsonb_exists(e.o, k)) from e, unnest(array[
+    'instance_id','commitment_id','type','title','message','action_label',
+    'starts_at','respond_by_at','arrive_by_at','starts_min','respond_by_min','timezone',
+    'instance_status','audience_kind','audience_label','linked_title','linked_starts_min',
+    'asks_arrival','location_name','rows'
+  ]) k),
+  'contract: commitment_board returns every key the coach board reads');
+
+select _ok((
+  with e as (select jsonb_array_elements(
+      commitment_board('77777777-1111-0000-0000-000000000001', null, current_date)) o limit 1),
+       r as (select jsonb_array_elements(e.o -> 'rows') ro from e limit 1)
+  select bool_and(jsonb_exists(r.ro, k)) from r, unnest(array[
+    'response_id','athlete_id','name','status','acknowledged_at','arrived_at','completed_at',
+    'arrival_source','unverified_reason','excused_reason','corrected_by_name',
+    'disputed_at','dispute_note'
+  ]) k),
+  'contract: each board row returns every key the roster breakdown reads');
+
+-- The SQL rollup and the client engine must agree on the founder weighting, or the athlete's
+-- screen and the coach's screen quietly disagree about the same day.
+select _superuser();
+update commitment_responses set status = 'acknowledged', acknowledged_at = now()
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((athlete_accountability('eeee0000-0000-0000-0000-0000000000e1',
+              current_date, current_date) ->> 'wake_done')::int >= 1,
+  'contract: a recorded response counts toward the wake signal');
+select _ok((athlete_accountability('eeee0000-0000-0000-0000-0000000000e1',
+              current_date, current_date) ->> 'earned')::int
+           % 10 = 0,
+  'contract: earned points are multiples of the 10/30/60 weighting');
+
+-- ================================================================ kill switch (0141)
+-- The switch has to be IN THE PATH, not advisory. With it flipped, an athlete's card and a
+-- coach's board go quiet and no reminder is claimed — for every client version in the field.
+select _superuser();
+update public.feature_flags set kill_switch = true where name = 'verified_commitments';
+
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(jsonb_array_length(my_commitments(current_date, current_date)) = 0,
+  'kill switch: the athlete sees no commitments');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(jsonb_array_length(commitment_board(
+    '77777777-1111-0000-0000-000000000001', null, current_date)) = 0,
+  'kill switch: the coach board is empty');
+select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
+    'team_id','77777777-1111-0000-0000-000000000001','type','practice','title','while off',
+    'audience_kind','team','repeat_days',jsonb_build_array(1),'starts_min',360)) $f$) <> 'ok',
+  'kill switch: a coach cannot schedule into a switched-off feature');
+select _ok(ensure_commitment_instances(
+    '77777777-1111-0000-0000-000000000001', null, current_date, current_date) = 0,
+  'kill switch: nothing materializes');
+
+select _superuser();
+update commitment_responses set status = 'pending', acknowledged_at = null, reminded_offsets = '{}'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+update commitment_instances set respond_by_at = now() + interval '5 minutes'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1';
+select _ok((select count(*) from claim_due_commitment_reminders(10)) = 0,
+  'kill switch: no reminder is claimed, so no 4:45 AM push goes out');
+
+-- and it comes back
+update public.feature_flags set kill_switch = false where name = 'verified_commitments';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(jsonb_array_length(my_commitments(current_date, current_date)) > 0,
+  'kill switch: flipping it back restores the feature immediately');
+
+-- staged rollout: default_on = false + an allowlist wakes only the pilot
+select _superuser();
+update public.feature_flags
+   set default_on = false, enabled_user_ids = array['eeee0000-0000-0000-0000-0000000000e1'::uuid]
+ where name = 'verified_commitments';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(jsonb_array_length(my_commitments(current_date, current_date)) > 0,
+  'staged rollout: an allowlisted athlete still sees their commitments');
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok(jsonb_array_length(my_commitments(current_date, current_date)) = 0,
+  'staged rollout: an athlete outside the allowlist sees nothing');
+select _superuser();
+update public.feature_flags set default_on = true, enabled_user_ids = '{}'
+ where name = 'verified_commitments';
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$

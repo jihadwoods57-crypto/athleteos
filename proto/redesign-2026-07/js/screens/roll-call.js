@@ -11,6 +11,7 @@
    the place; "Completed" is a separate signal. A failed verification reads "Couldn't verify",
    never "Missed", and always offers a way to say so. */
 import { icon } from '../icons.js';
+import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
 import { deriveCommitment, TYPE_LABEL } from '../commitments.js';
 import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment } from '../commitment-data.js';
@@ -99,6 +100,17 @@ export function commitmentCard(d) {
   </section>`;
 }
 
+/** Shown instead of an empty slot when the fetch failed. "Nothing scheduled" and "we couldn't
+ *  reach the server" mean opposite things to an athlete at 4:40 AM, and the app must not confuse
+ *  them. Deliberately does NOT claim they're checked in, and points at the one thing that helps. */
+export function commitmentOfflineCard() {
+  return `<div class="xrow-item" data-go="home" style="border-color:var(--amber-border)">
+    <div class="xico sm" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('bolt', 16)}</div>
+    <div class="xr"><div class="xa">Can’t reach OnStandard</div>
+    <div class="xb">If your coach scheduled a check-in, it isn’t loading — try again when you have signal.</div></div>
+  </div>`;
+}
+
 /** Wire the card's actions. Called by whichever screen rendered it; re-renders on success so the
  *  card collapses to its receipt immediately.
  *
@@ -116,14 +128,27 @@ export function mountCommitmentCard(root, rerender) {
       if (rerender) rerender();
     });
   });
-  go('data-vc-ack', (id) => ackCommitment(id).then(Boolean));
+  go('data-vc-ack', (id) => {
+    const row = VC.instance(id) || {};
+    return ackCommitment(id).then((at) => {
+      if (at) track(EVENTS.VC_ACKNOWLEDGED, {
+        type: row.type,
+        // How early they answered, in minutes — the signal that says whether a deadline is set
+        // somewhere useful or whether everyone is scrambling at the buzzer.
+        minsEarly: row.respond_by_at
+          ? Math.round((Date.parse(row.respond_by_at) - Date.parse(at)) / 60000) : null,
+      });
+      return !!at;
+    });
+  });
   go('data-vc-complete', (id) => completeCommitment(id, 'manual').then(Boolean));
   // "I'm here": one fix, compared on device, verdict written server-side. A NEGATIVE verdict is
   // recorded too — as 'unverified' with a reason, never as 'missed' — so the coach sees an honest
   // "couldn't confirm" instead of silence, and the athlete gets a dispute button.
   go('data-vc-arrive', (id) => tapToVerify(id).then((r) => loadMine(true).then(() => {
-    if (!r || r.within) return true;
+    if (r && r.within) { track(EVENTS.VC_ARRIVED, { source: 'manual' }); return true; }
     LAST_VERIFY_REASON = (r && r.reason) || null;
+    track(EVENTS.VC_UNVERIFIED, { reason: LAST_VERIFY_REASON || 'unknown' });
     return true;
   })));
   root.querySelectorAll('[data-vc-open]').forEach((el) => el.addEventListener('click', (ev) => {
@@ -200,7 +225,7 @@ export default {
     if (dis) dis.addEventListener('click', async () => {
       dis.disabled = true; dis.textContent = 'Sending…';
       const ok = await disputeResponse(sub, 'Athlete reports this record is wrong.');
-      if (ok) { window.__render && window.__render(); }
+      if (ok) { track(EVENTS.VC_DISPUTED, {}); window.__render && window.__render(); }
       else { dis.disabled = false; dis.textContent = 'Something wrong? Tell your coach'; }
     });
   },

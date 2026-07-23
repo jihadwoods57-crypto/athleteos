@@ -51,6 +51,18 @@ export const EVENTS = Object.freeze({
   COACH_CONNECTED: 'coach_connected',         // {kind}
   CODE_JOIN_FAILED: 'code_join_failed',
   APP_ERROR: 'app_error',                     // {where} — crash/unhandled rejection (truncated)
+  // Verified Commitments (0138–0141). The funnel a founder needs to answer "is anyone using
+  // this?" — coach adoption, athlete response, and the two honesty signals that matter most:
+  // how often verification FAILS, and how often an athlete says the record is wrong. If
+  // VC_UNVERIFIED climbs, geofences are too tight or permissions aren't sticking; if VC_DISPUTED
+  // climbs, the feature is accusing people wrongly and should be turned off.
+  VC_SCHEDULED: 'vc_scheduled',               // {type, audience, hasLocation} — a coach created one
+  VC_CARD_SHOWN: 'vc_card_shown',             // {type} — exposure; response rate is meaningless without it
+  VC_ACKNOWLEDGED: 'vc_acknowledged',         // {type, secondsEarly}
+  VC_ARRIVED: 'vc_arrived',                   // {source:'geofence'|'manual'}
+  VC_UNVERIFIED: 'vc_unverified',             // {reason} — verification could not be confirmed
+  VC_DISPUTED: 'vc_disputed',                 // athlete says the record is wrong
+  VC_REMINDED: 'vc_reminded',                 // {n} — coach pushed the non-responders
 });
 const EVENT_SET = new Set(Object.values(EVENTS));
 

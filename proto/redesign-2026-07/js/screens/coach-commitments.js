@@ -11,6 +11,7 @@
    nav:'operator' — one module renders for a coach's team AND a trainer's practice. */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
+import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
 import { CD, bookId } from '../coach-data.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
@@ -40,6 +41,14 @@ const canSchedule = () => {
  *  has never used this feature sees no change at all. */
 export function commitmentBoardCard() {
   const rows = VC.board;
+  // Same honesty rule as the athlete card: a coach must never read "all in" when the truth is
+  // "we couldn't load the board". A wrong count is worse than no count.
+  if ((!rows || !rows.length) && VC.boardError) {
+    return `<section class="card pad" style="border-color:var(--amber-border);margin-bottom:10px">
+      <div class="tt">Roll call didn’t load</div>
+      <div class="ts" style="padding-top:4px">This isn’t a count of zero — we couldn’t reach the server. Pull to refresh in a moment.</div>
+    </section>`;
+  }
   if (!rows || !rows.length) return '';
   return rows.map((inst) => {
     const c = boardCounts(inst.rows || []);
@@ -191,6 +200,7 @@ export const coachCommitments = {
     if (remind) remind.addEventListener('click', async () => {
       remind.disabled = true; remind.textContent = 'Sending…';
       const n = await remindMissing(sub);
+      if (n) track(EVENTS.VC_REMINDED, { n });
       remind.textContent = n ? `Reminded ${n}` : 'Couldn’t send — try again';
       if (!n) remind.disabled = false;
     });
@@ -622,6 +632,9 @@ export const coachCommitEdit = {
       };
       const newId = await saveCommitment(payload);
       if (!newId) { save.disabled = false; save.textContent = 'Couldn’t save — try again'; return; }
+      track(EVENTS.VC_SCHEDULED, {
+        type: d.type, audience: d.audience_kind, hasLocation: !!d.location_id,
+      });
       DRAFT = null;
       if (owner) {
         RT.vcCommitments = await loadCommitments(owner, CD.kind, true);

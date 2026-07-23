@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import {
   TYPE_LABEL, occursOn, opensMinFor, deriveCommitment, boardCounts, missingFrom,
   WEIGHTS, signalsAsked, accountability, morningReadiness, commitmentStreak,
-  commitmentReminders,
+  commitmentReminders, zoneOffsetMin,
 } from './commitments.js';
 
 /* America/New_York in July. Passed explicitly everywhere. */
@@ -149,6 +149,35 @@ test('a cancelled instance disappears rather than reading as missed', () => {
     '2026-07-22T09:30:00Z', EDT);
   assert.equal(d.visible, false);
   assert.equal(d.stage, 'hidden');
+});
+
+/* ---------------------------------------------------------------- timezone */
+
+test('zoneOffsetMin is DST-correct for a real zone', () => {
+  assert.equal(zoneOffsetMin('America/New_York', '2026-07-22T12:00:00Z'), -240); // EDT
+  assert.equal(zoneOffsetMin('America/New_York', '2026-01-22T12:00:00Z'), -300); // EST
+  assert.equal(zoneOffsetMin('UTC', '2026-07-22T12:00:00Z'), 0);
+  assert.equal(zoneOffsetMin('Not/AZone', '2026-07-22T12:00:00Z'), null);
+  assert.equal(zoneOffsetMin(null, '2026-07-22T12:00:00Z'), null);
+});
+
+test('stamps render in the TEAM’s clock, not the phone’s', () => {
+  // The coach set 5:15 AM meaning 5:15 in New York. An athlete whose phone is in Los Angeles must
+  // still read "Checked in at 4:48 AM" — the same clock the deadline is quoted in — or the card
+  // contradicts itself.
+  const row = { ...rollCall, timezone: 'America/New_York',
+    status: 'acknowledged', acknowledged_at: '2026-07-22T08:48:00Z' };
+  const d = deriveCommitment(row, '2026-07-22T08:52:00Z');   // no explicit offset
+  assert.equal(d.confirmLine, 'Checked in at 4:48 AM');
+  assert.equal(d.deadlineLine, 'Respond by 5:15 AM');
+});
+
+test('an explicit offset still wins, and a missing timezone falls back to the device', () => {
+  const row = { ...rollCall, timezone: 'America/New_York',
+    status: 'acknowledged', acknowledged_at: '2026-07-22T08:48:00Z' };
+  assert.equal(deriveCommitment(row, '2026-07-22T08:52:00Z', 0).confirmLine, 'Checked in at 8:48 AM');
+  const noTz = { ...rollCall, status: 'acknowledged', acknowledged_at: '2026-07-22T08:48:00Z' };
+  assert.equal(typeof deriveCommitment(noTz, '2026-07-22T08:52:00Z').confirmLine, 'string');
 });
 
 /* ---------------------------------------------------------------- board */

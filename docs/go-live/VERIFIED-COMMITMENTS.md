@@ -20,8 +20,8 @@ Slice 1 is useful on its own: a coach gets verified wake-ups the day it lands.
 ## Apply
 
 ```bash
-supabase db push          # 0138, 0139, 0140
-npm run test:rls          # expect 369/369
+supabase db push          # 0138, 0139, 0140, 0141
+npm run test:rls          # expect 382/382
 
 # Server-side reminders (0140). Without this, reminders only reach athletes whose
 # device has no push token — the client plan is a fallback, not the primary path.
@@ -31,8 +31,9 @@ supabase db query --linked "select schedule_commitment_reminders(
   'https://<project>.supabase.co/functions/v1/commitment-reminders', '<the same key>');"
 ```
 
-All three migrations are forward-only and idempotent. 0138 creates every table; 0139 adds arrival
-behaviour; 0140 is the reliability pass (server reminders, range excuse, roster reconciliation).
+All four migrations are forward-only and idempotent. 0138 creates every table; 0139 adds arrival
+behaviour; 0140 is the reliability pass (server reminders, range excuse, roster reconciliation); 0141 is
+the production pass (server-side kill switch, herd guard, hot-path indexes).
 `0137` was taken by a concurrent change (`0137_practice_rollups`) — that is why these start at
 0138.
 
@@ -56,6 +57,29 @@ code actually does:
 Every clause is enforced in code, not policy: `my_armable_geofences` (0139) will not return an
 instance outside its window, `verify_arrival` takes a boolean rather than a position, and no table
 in the feature has a coordinate column for an athlete.
+
+## The kill switch
+
+`feature_flags.verified_commitments` (0141) is checked by the **server**, inside the read,
+materialize and reminder paths. It is not a client flag a stale app can ignore and not an env var
+needing a rebuild.
+
+```sql
+-- stop everything, instantly, for every client version in the field
+update feature_flags set kill_switch = true where name = 'verified_commitments';
+
+-- staged rollout: pilot team only
+update feature_flags set default_on = false,
+       enabled_user_ids = array['<athlete-uuid>'::uuid, ...]
+ where name = 'verified_commitments';
+```
+
+With it off: athlete cards go quiet, the coach board empties, nothing materializes, no coach can
+schedule, and — the one that matters at 4:45 AM — **no reminder is claimed, so no push goes out.**
+Flipping it back restores everything on the next load. There are RLS probes for each of those.
+
+Existing records are never deleted by the switch. Turning it off hides the feature; it does not
+erase what athletes already earned.
 
 ## Founder switches
 
@@ -94,8 +118,8 @@ in the feature has a coordinate column for an athlete.
 npm run lint:xss     clean
 npm run typecheck    clean
 npx jest             2407/2407 (201 suites)
-npm run test:proto   green (41 new assertions)
-npm run test:rls     369/369 (49 new probes)
+npm run test:proto   green (44 new assertions)
+npm run test:rls     382/382 (62 new probes)
 ```
 
 Plus: the proto module graph resolves, and the proto boots headlessly in Chromium with no console

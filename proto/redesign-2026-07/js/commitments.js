@@ -41,6 +41,36 @@ const DEFAULT_ACTION = {
  *  device so screens don't have to thread it. */
 export function localOffsetMin() { return -new Date().getTimezoneOffset(); }
 
+/** The UTC offset of an IANA zone at a given instant, in minutes. Null for an unknown zone.
+ *  DST-correct by construction, because it asks Intl what the wall clock actually reads there
+ *  at that moment rather than assuming a fixed offset. */
+export function zoneOffsetMin(tz, iso) {
+  if (!tz) return null;
+  try {
+    const d = new Date(iso);
+    if (isNaN(d)) return null;
+    const parts = {};
+    for (const p of new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(d)) parts[p.type] = p.value;
+    const asUTC = Date.UTC(+parts.year, +parts.month - 1, +parts.day,
+      +parts.hour, +parts.minute, +parts.second);
+    return Math.round((asUTC - d.getTime()) / 60000);
+  } catch { return null; }
+}
+
+/** Which clock a commitment's times should be READ in. The coach set 5:15 AM meaning 5:15 in the
+ *  team's zone, so a stamp must render in that zone too — otherwise an athlete on a road trip
+ *  sees "Respond by 5:15 AM" (team wall clock, from respond_by_min) next to "Checked in at
+ *  2:48 AM" (their phone), which reads like a bug even though both are technically true. */
+function offsetFor(row, nowISO, override) {
+  if (typeof override === 'number') return override;
+  const z = row && row.timezone ? zoneOffsetMin(row.timezone, nowISO || new Date().toISOString()) : null;
+  return z == null ? localOffsetMin() : z;
+}
+
 /** Minute-of-day of an ISO instant, in the target zone. Null for a missing/invalid timestamp. */
 export function localMin(iso, offMin) {
   const t = Date.parse(iso || '');
@@ -108,8 +138,9 @@ const STAGE_LABEL = { acknowledged: 'Acknowledged', arrived: 'Arrived', complete
  *  Resolution order matters: 'cancelled', 'excused' and 'unverified' are checked BEFORE any
  *  deadline comparison, because a signal that could not be verified must never be silently
  *  converted into a failure. That is the honesty rule this whole feature rests on. */
-export function deriveCommitment(row, nowISO, offMin = localOffsetMin()) {
+export function deriveCommitment(row, nowISO, offMinOverride) {
   const r = row || {};
+  const offMin = offsetFor(r, nowISO, offMinOverride);
   const asks = signalsAsked(r);
   const nowT = Date.parse(nowISO || '') || 0;
   const nowMin = localMin(nowISO, offMin);
