@@ -914,3 +914,34 @@
 .rx-add .input{flex:1;height:42px}
 .rx-add .rx-add-btn{width:auto;flex:none;padding:0 16px;height:42px}
 .chp.rx-chip.on{background:var(--green-surface);border-color:var(--green-border);color:var(--green-bright);font-weight:800}
+
+/* ---- Verified Commitments (0138): roll-call card + stage strip ---------------------------
+   The card reuses .xnow so a coach-scheduled commitment reads as the NOW action it is at
+   4:45 AM, rather than introducing a second visual language on Home. */
+.vc-ctx{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text-2);margin-top:10px}
+.vc-ctx svg{flex:none;color:var(--text-3)}
+.vc-stages{display:flex;gap:6px;margin-top:12px}
+.vc-stage{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:var(--r-card-sm);background:var(--surface-2);border:1px solid var(--hairline)}
+.vc-stage.on{background:var(--green-surface);border-color:var(--green-border)}
+.vc-stage .vc-dot{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
+.vc-stage.on .vc-dot{background:var(--green-bright);color:var(--bg-0);border-color:transparent}
+.vc-sl{font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.vc-stage.on .vc-sl{color:var(--green-bright)}
+.vc-st{font-size:10.5px;font-weight:700;color:var(--text-2)}
+.vc-line{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--hairline)}
+.vc-line:last-child{border-bottom:0}
+.vc-line .vc-dot{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
+.vc-line.on .vc-dot{background:var(--green-bright);color:var(--bg-0);border-color:transparent}
+.vc-la{font-size:13.5px;font-weight:700}
+.vc-lb{font-size:12px;color:var(--text-3);margin-top:1px}
+.vc-line.on .vc-lb{color:var(--green-bright);font-weight:700}
+.vc-mr{padding:9px 0}
+.vc-mr-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.vc-mr-l{font-size:13px;font-weight:700}
+.vc-mr-n{font-size:12.5px;font-weight:800;color:var(--text-2)}
+.vc-mr-track{height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden}
+.vc-mr-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--green-bright),var(--blue-bright))}
+.vc-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.vc-stat{background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px}
+.vc-sv{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--green-bright)}
+.vc-sk{font-size:11px;font-weight:700;color:var(--text-3);margin-top:2px}

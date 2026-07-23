@@ -38,17 +38,23 @@ export function normalizeRole(role) {
      position coach— assign, message, nudge in their room
      nutritionist  — targets & meal plans (standards/diet surfaces) + messaging
      readonly      — nothing (view only)                                          */
+// 'commitments' (Verified Commitments, 0138) tracks 'schedule' exactly. It MUST stay in step with
+// the role list inside upsert_commitment() — a role offered the button here and refused by the
+// server is worse than no button at all. Deliberately NOT given to position_coach (who still SEES
+// their room's board), nor yet to athletic_trainer / nutritionist: rehab and nutrition
+// appointments are plainly their work, but widening who can schedule is a founder call, not a
+// side effect of shipping this feature.
 const CREATE_CAPS = {
-  head_coach:       ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule', 'add_athlete', 'invite_staff'],
-  coordinator:      ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule'],
+  head_coach:       ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule', 'commitments', 'add_athlete', 'invite_staff'],
+  coordinator:      ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule', 'commitments'],
   position_coach:   ['assign', 'announce', 'message_athlete', 'message_group'],
   nutritionist:     ['announce', 'message_athlete', 'message_group', 'standards', 'team_diet'],
   // v1 (pre per-category permissions): S&C and Team Admin get coordinator-level write; the
   // Athletic Trainer assigns/messages in their scope without owning the nutrition standard.
   // Finer differences (Team Admin staff management, exports) land with the capability model.
-  s_and_c:          ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule'],
+  s_and_c:          ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule', 'commitments'],
   athletic_trainer: ['assign', 'announce', 'message_athlete', 'message_group'],
-  team_admin:       ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule'],
+  team_admin:       ['assign', 'announce', 'message_athlete', 'message_group', 'standards', 'schedule', 'commitments'],
   readonly:         [],
 };
 

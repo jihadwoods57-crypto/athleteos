@@ -74,6 +74,11 @@ function trainingCard() {
       <div class="lm"><div class="lt">Training log</div><div class="ls">Your sessions &amp; notes — tracked, not scored</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>
+    <div class="lrow" data-go="accountability">
+      <div class="lic">${icon('sun', 17)}</div>
+      <div class="lm"><div class="lt">Morning Readiness</div><div class="ls">Wake-ups, arrivals &amp; sessions — a separate record from your score</div></div>
+      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+    </div>
   </section>`;
 }
 

@@ -445,6 +445,24 @@ begin
   return n;
 end $$;
 
+-- The athlete's own path into materialization. Home is often the first thing open at 4:30 AM,
+-- and the client has no reason to know its team or practice uuid — it just needs today's card.
+-- Loops both link types because an athlete can be on a team AND a trainer's client.
+create or replace function ensure_my_commitment_instances(p_from date, p_to date) returns integer
+language plpgsql security definer set search_path = public as $$
+declare v_n integer := 0; t uuid; p uuid;
+begin
+  for t in select team_id from team_members
+            where athlete_id = auth.uid() and status = 'active' loop
+    v_n := v_n + ensure_commitment_instances(t, null, p_from, p_to);
+  end loop;
+  for p in select practice_id from practice_clients
+            where client_id = auth.uid() and status = 'active' loop
+    v_n := v_n + ensure_commitment_instances(null, p, p_from, p_to);
+  end loop;
+  return v_n;
+end $$;
+
 -- ---------------------------------------------------------------- ack_commitment
 -- The wake-up response. The SERVER clock stamps it — a client-supplied time is not a verification.
 -- coalesce() makes a double-tap idempotent: the first response stands, always.
@@ -710,6 +728,7 @@ do $$ declare f text; begin
     'instance_owner_is_staff(uuid)',
     'has_commitment_row(uuid)',
     'ensure_commitment_instances(uuid,uuid,date,date)',
+    'ensure_my_commitment_instances(date,date)',
     'commitment_board(uuid,uuid,date)',
     'my_commitments(date,date)',
     'ack_commitment(uuid)',

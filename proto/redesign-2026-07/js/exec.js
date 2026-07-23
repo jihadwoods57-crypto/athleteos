@@ -58,7 +58,7 @@ const ROUTE = {
  * Weekly Check-In is deliberately excluded (untracked in v1 — its completion isn't wired;
  * the Action Hub shows it as a navigational row on Sundays only, outside this engine).
  */
-export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'accountable', score = 0, possible = 0, streak = 0, catalog = CATALOG, dateISO = '', prefs = null, coachName = null, activationMin = /** @type {number | null} */ (null) }) {
+export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'accountable', score = 0, possible = 0, streak = 0, catalog = CATALOG, dateISO = '', prefs = null, coachName = null, activationMin = /** @type {number | null} */ (null), commitments = [] }) {
   const rows = catalog.filter((r) => r.id !== 'weekly' && runsToday(r, dow));
   const items = rows.map((req) => {
     const st = status[req.id] || {};
@@ -164,6 +164,9 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     reqs: rows.filter((r) => r.required && !doneIds.has(r.id) && !notReqIds.has(r.id)),
     assigned: assigned.map((a) => ({ id: a.id, title: a.title, from: a.from, done: !!a.done, dueAtMin: a.dueAtMin })),
     pressure, prefs, celebration, score, streak, coachName,
+    // Verified Commitments (0138): pre-shaped reminder entries from commitments.js. Empty for
+    // every athlete without coach-scheduled commitments, so the plan is unchanged for them.
+    commitments,
   });
 
   return { items: all, now, next, later, doneItems, overdue, met, total, score, possible, celebration, plan, decided };

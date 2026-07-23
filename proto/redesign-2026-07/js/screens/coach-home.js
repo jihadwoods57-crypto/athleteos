@@ -6,6 +6,7 @@ import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope,
 import { buildPriorities } from '../priority.js';
 import { teamPulse } from '../status.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
+import { paintBoard } from './coach-commitments.js';
 
 /* This screen is nav:'operator' — it renders for a coach's team AND a trainer's practice, so it
    must load whichever book the signed-in role owns. Calling loadCoachRoster() here would fetch
@@ -333,6 +334,7 @@ export const coachHome = {
     ${SHOW_SCOPES ? scopeSheet() : ''}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div><span style="color:var(--text-3)">›</span></div>` : ''}
     ${entries === null ? '' : pulseCard(rows, statuses)}
+    <div id="vc-board-slot"></div>
 
     ${(() => {
       // Setup guidance persists (collapsed) after the first athlete joins — it no longer vanishes
@@ -374,6 +376,10 @@ export const coachHome = {
   },
   mount(root) {
     loadMyBook().then(() => loadActivity());
+    // Verified Commitments (0138): the live "9 of 11 in" card, injected async into its own slot so
+    // a board fetch never delays the priority queue. An operator who has scheduled nothing gets an
+    // empty slot and this screen is byte-identical to before.
+    paintBoard(root);
     // Empty-state invite card: Copy + native Share of the athlete code (present only before any
     // athlete has joined).
     const code = RT.team && RT.team.code;

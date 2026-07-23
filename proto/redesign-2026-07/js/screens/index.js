@@ -51,6 +51,10 @@ import progressPhotos from './progress-photos.js';
 import progressCompare from './progress-compare.js';
 import logTraining from './log-training.js';
 import trainingHistory from './training-history.js';
+import rollCall from './roll-call.js';
+import accountability from './accountability.js';
+import verifiedDiscipline from './verified-discipline.js';
+import { coachCommitments, coachCommitEdit } from './coach-commitments.js';
 
 export const screens = {
   home,
@@ -156,4 +160,11 @@ export const screens = {
   'progress-compare': progressCompare,
   'log-training': logTraining,
   'training-history': trainingHistory,
+  // Verified Commitments (0138). Athlete: the roll-call detail + the Accountability rollup +
+  // the athlete-controlled recruit profile. Operator: the live board + the composer.
+  'roll-call': rollCall,
+  accountability,
+  'verified-discipline': verifiedDiscipline,
+  'coach-commitments': coachCommitments,
+  'coach-commit-edit': coachCommitEdit,
 };

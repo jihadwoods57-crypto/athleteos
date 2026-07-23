@@ -20,6 +20,7 @@ import {
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
 import { normalizePrefs } from './notify-plan.js';
+import { commitmentReminders } from './commitments.js';
 import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
 import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
@@ -2634,6 +2635,9 @@ export const S = {
       dateISO: String(DAY.date),
       prefs: RT.notifPrefs,
       coachName: this.coach.hasCoach && this.coach.isNamed ? this.coach.name : null,
+      // Verified Commitments (0138). RT.vcRows is filled by commitment-data's loadMine on Home;
+      // an athlete with no coach-scheduled commitments has [] and the plan is unchanged.
+      commitments: commitmentReminders(RT.vcRows || [], String(DAY.date)),
     });
   },
 

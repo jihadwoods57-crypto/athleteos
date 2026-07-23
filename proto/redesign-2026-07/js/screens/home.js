@@ -5,6 +5,36 @@ import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
+import { deriveCommitment } from '../commitments.js';
+import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
+import { commitmentCard, mountCommitmentCard } from './roll-call.js';
+
+/* Verified Commitments on Home. Renders every commitment the athlete has today that is currently
+   visible — usually zero or one, occasionally a roll call plus an afternoon study hall.
+   commitmentCard() escapes every coach-authored string, so assigning its return value is the same
+   discipline the rest of this file follows for rendered markup. */
+function paintCommitments(root) {
+  const slot = root.querySelector('#vc-slot');
+  if (!slot) return;
+  const paint = () => {
+    if (!slot.isConnected) return;
+    const now = new Date().toISOString();
+    const html = VC.today(vcToday())
+      .map((r) => commitmentCard(deriveCommitment(r, now)))
+      .filter(Boolean).join('');
+    slot.innerHTML = html;
+    if (html) mountCommitmentCard(slot, () => paintCommitments(root));
+  };
+  paint();                       // instant repaint from cache
+  loadMine().then((rows) => {    // then reconcile with the server
+    // Hand the rows to RT so state.js's exec derivation can plan commitment reminders. This is the
+    // one place they cross over: commitment-data.js deliberately never imports state.js (the same
+    // module cycle coach-data.js documents, which makes RT undefined at eval time in an ESM
+    // WebView), so the screen that owns the fetch is what publishes the result.
+    RT.vcRows = rows;
+    paint();
+  });
+}
 
 // Coach Voice nudge (0094 consumer): at most one in-flight request; the resolved text is cached on
 // RT (persisted) keyed by the slipping-state signature, so we ask the model once per distinct state
@@ -518,6 +548,7 @@ export default {
     ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
     ${outcomeBand()}
     <div id="seen-row"></div>
+    <div id="vc-slot"></div>
     ${attention}
     <div id="cv-nudge">${cachedNudge(e)}</div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
@@ -532,6 +563,10 @@ export default {
   mount(root) {
     animateRing(root);
     act.syncNotifications();
+    // Verified Commitments (0138): injected async into #vc-slot rather than rendered inline, so a
+    // slow network never delays the score hero — the same seam #seen-row uses. An athlete with no
+    // coach-scheduled commitments has an empty slot and Home is byte-identical to before.
+    paintCommitments(root);
     // Coach Voice nudge: best-effort, fire-and-forget over today's deterministic exec state.
     maybeCoachNudge(S.exec);
     // Resolve today's stored meal photos (signed URLs) so Recent Results shows the real

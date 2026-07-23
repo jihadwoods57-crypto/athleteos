@@ -201,6 +201,7 @@ export function planNotifications({
   nowMin, dateISO = '', dayOffset = 0,
   reqs = [], assigned = [], pressure = 'accountable',
   prefs: rawPrefs = null, celebration = false, score = 0, streak = 0, coachName = null,
+  commitments = [],
 }) {
   const prefs = normalizePrefs(rawPrefs);
   if (!prefs.enabled) return [];
@@ -306,6 +307,29 @@ export function planNotifications({
       .slice(0, capN)
       .sort((a, b) => a.fireAtMin - b.fireAtMin);
   }
+
+  /* ---- Verified Commitments (0138): scheduled events, not nudges ----
+     These are appended AFTER quiet-hours placement, coalescing and the daily cap, and are subject
+     to none of them. That is deliberate, not an oversight:
+       · Default quiet hours are 22:00–07:00. A 4:45 AM roll call sits squarely inside them, so
+         routing it through placed() would shift it to 7:00 AM or drop it — and the feature would
+         quietly not work at all. The athlete is told this at enrolment, and the phone's own Do Not
+         Disturb still wins over everything the app schedules.
+       · The daily cap exists to stop the app inventing too many nudges. A commitment reminder was
+         not invented by the app: a coach scheduled it, for a specific event, and only athletes who
+         have NOT responded receive it (commitmentReminders filters on status).
+     Entries arrive pre-shaped from commitments.js; here they only get planner fields. */
+  const vc = Array.isArray(commitments) ? commitments : [];
+  for (const c of vc) {
+    if (!c || typeof c.at !== 'number' || c.at <= nowMin) continue;
+    out.push({
+      id: `vc:${c.instanceId || c.instance_id || ''}:${c.at}`,
+      fireAtMin: c.at, dayOffset, immediate: false, stage: 'commitment',
+      route: `roll-call/${c.instanceId || c.instance_id || ''}`,
+      title: c.title, body: c.body,
+    });
+  }
+  out.sort((a, b) => a.fireAtMin - b.fireAtMin);
 
   // Strip planner internals; what remains is exactly what the native seam schedules.
   return out.map(({ dueMin, reqTitle, ...keep }) => keep);
