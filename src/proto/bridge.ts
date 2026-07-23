@@ -18,6 +18,7 @@ import type WebView from 'react-native-webview';
 import { isAppleAuthAvailable, requestAppleIdentityToken } from '../lib/auth/apple';
 import { isGoogleAuthAvailable, requestGoogleIdToken } from '../lib/auth/google';
 import { biometricsUsable } from '../lib/auth/biometrics';
+import { isIapAvailable, purchaseConsumer, restoreConsumer } from '../lib/iap';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { getPushToken } from '../lib/notify';
 
@@ -38,6 +39,9 @@ export type BridgeMessage =
   | { type: 'NOTIFY_SYNC'; plan: import('../lib/notify/execSync').ExecPlanItem[] }
   | { type: 'PUSH_TOKEN'; id: number }
   | { type: 'OPEN_URL'; url?: string }
+  | { type: 'IAP_AVAILABLE'; id: number }
+  | { type: 'IAP_PURCHASE'; id: number; productId?: string; appUserId?: string }
+  | { type: 'IAP_RESTORE'; id: number; appUserId?: string }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -188,6 +192,28 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
     case 'NOTIFY_SYNC':
       void syncExecNotifications(msg.plan ?? []);
       return true;
+    case 'IAP_AVAILABLE':
+      // Whether the consumer store paywall can transact. False until the founder installs
+      // react-native-purchases + creates store products (src/lib/iap). The proto uses this
+      // to keep the paywall honest — plan cards read "Available at launch", never a dead CTA.
+      resolve(ref, msg.id, isIapAvailable);
+      return true;
+    case 'IAP_PURCHASE':
+      // Present the store purchase sheet for a consumer product. On success RevenueCat's
+      // webhook writes the `consumer` subscription row; the proto then re-pulls entitlement.
+      try {
+        resolve(ref, msg.id, await purchaseConsumer(String(msg.productId ?? ''), String(msg.appUserId ?? '')));
+      } catch (e) {
+        resolve(ref, msg.id, { ok: false, reason: 'error', message: String((e as Error)?.message ?? e) });
+      }
+      return true;
+    case 'IAP_RESTORE':
+      try {
+        resolve(ref, msg.id, await restoreConsumer(String(msg.appUserId ?? '')));
+      } catch (e) {
+        resolve(ref, msg.id, { ok: false, reason: 'error', message: String((e as Error)?.message ?? e) });
+      }
+      return true;
     case 'PUSH_TOKEN':
       // Expo push token for coach→athlete nudges (registered server-side by the proto via
       // register_device_token). Null when permission is denied / no EAS project / web.
@@ -249,6 +275,11 @@ export const BRIDGE_SHIM = `
     notify: { sync: function(plan){ post({ type: 'NOTIFY_SYNC', plan: plan || [] }); } },
     openUrl: function(url){ post({ type: 'OPEN_URL', url: String(url || '') }); },
     push: { token: function(){ return call('PUSH_TOKEN', {}); } },
+    iap: {
+      available: function(){ return call('IAP_AVAILABLE', {}); },
+      purchase: function(productId, appUserId){ return call('IAP_PURCHASE', { productId: String(productId||''), appUserId: String(appUserId||'') }); },
+      restore: function(appUserId){ return call('IAP_RESTORE', { appUserId: String(appUserId||'') }); }
+    },
   };
 
   // navigator.vibrate does not exist in WKWebView; route it (and navigator.share) to native.

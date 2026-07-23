@@ -435,6 +435,9 @@
 .xhero .xrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .xhero .xh-line{font-size:12.5px;font-weight:600;color:var(--text-2);font-variant-numeric:tabular-nums;letter-spacing:-.005em;white-space:nowrap}
 .xhero .xh-line b{color:var(--text);font-weight:800}
+/* Prose companion line (in-progress / not-scored heroes): a full sentence, so it WRAPS —
+   never the tabular one-liner treatment that clipped "…your day is still open". */
+.xhero .xh-flow{font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4}
 .xhero .xh-line .sep{color:var(--text-3);margin:0 1px}
 .xh-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
 .xh-delta.up{color:var(--green-bright)} .xh-delta.down{color:var(--amber-bright)}
@@ -806,6 +809,23 @@
 .mr-veil-s{font-size:12px;font-weight:600;color:var(--text-2);max-width:250px;line-height:1.4}
 .mr-or{text-align:center;font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin:14px 0}
 .mr-coderow{margin-top:2px}
+
+/* ---- Consumer paywall (#paywall) ---- */
+.pw-toggle{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:14px;padding:4px;margin:2px 0 14px}
+.pw-seg{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:none;background:transparent;border-radius:10px;font-size:13.5px;font-weight:800;color:var(--text-2);cursor:pointer}
+.pw-seg.on{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.18)}
+.pw-save{font-size:10px;font-weight:800;letter-spacing:0.02em;color:#04140b;background:var(--green-bright);border-radius:999px;padding:2px 7px}
+.pw-plans{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.pw-plan{background:var(--surface);border:1.5px solid var(--hairline);border-radius:16px;padding:14px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.pw-plan.on{border-color:var(--green-bright);box-shadow:0 0 0 1px var(--green-bright), var(--sh-green)}
+.pw-plan-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.pw-plan-name{font-size:15.5px;font-weight:800;letter-spacing:-0.01em}
+.pw-plan-price{white-space:nowrap}
+.pw-plan-price .n{font-size:18px;font-weight:800}
+.pw-plan-price .per{font-size:12px;font-weight:700;color:var(--text-3);margin-left:2px}
+.pw-plan-sub{font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:2px}
+.pw-plan-blurb{font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:7px;line-height:1.4}
+.pw-note{text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:9px;line-height:1.45}
 .cat-trend{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)}
 .cat-trend:last-child{border-bottom:none}
 .cat-trend .ct-k{width:118px;flex:none;font-size:12.5px;font-weight:700;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

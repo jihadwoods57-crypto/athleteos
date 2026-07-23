@@ -255,11 +255,12 @@ export default {
     load();
     const share = root.querySelector('#mr-share');
     if (share) share.addEventListener('click', () => shareReport(CACHE.report, CACHE.period));
+    // The locked-report CTA now opens the real membership paywall (App Store / Play IAP via
+    // RevenueCat, with the sponsor-code path alongside) instead of the old inert stub.
     const trial = root.querySelector('#mr-trial');
     if (trial) trial.addEventListener('click', () => {
-      track(EVENTS.TRIAL_STARTED, { plan: 'individual', cadence: 'annual' });
-      trial.disabled = true;
-      trial.textContent = "We'll notify you when trials open";
+      track(EVENTS.PAYWALL_CTA ? EVENTS.PAYWALL_CTA : EVENTS.TRIAL_STARTED, { plan: 'individual', cadence: 'annual', from: 'monthly_locked' });
+      if (window.__go) window.__go('paywall'); else location.hash = '#paywall';
     });
   },
 };

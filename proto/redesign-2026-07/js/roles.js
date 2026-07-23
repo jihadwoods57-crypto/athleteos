@@ -1035,6 +1035,52 @@ export async function redeemSponsorCode(code) {
   catch (e) { return { error: String((e && e.message) || e) }; }
 }
 
+/* ---------------- consumer subscription (App Store / Play IAP via RevenueCat) ----------------
+   The native store rail. `iapAvailable()` is false in a browser/preview session and until the
+   founder wires react-native-purchases (src/lib/iap) — the paywall stays honest either way. */
+
+/** Whether the native store paywall can transact right now. */
+export async function iapAvailable() {
+  try {
+    if (window.OnStandardNative && window.OnStandardNative.iap) return !!(await window.OnStandardNative.iap.available());
+  } catch { /* bridge missing / preview */ }
+  return false;
+}
+
+/** Present the store purchase sheet for a product id. appUserId MUST be the profile UUID so the
+    RevenueCat webhook can attribute the subscription. Returns { ok:true } | { ok:false, reason, message }. */
+export async function purchaseConsumerPlan(productId, appUserId) {
+  try {
+    if (window.OnStandardNative && window.OnStandardNative.iap) return await window.OnStandardNative.iap.purchase(productId, appUserId);
+  } catch (e) { return { ok: false, reason: 'error', message: String((e && e.message) || e) }; }
+  return { ok: false, reason: 'unavailable' };
+}
+
+/** Restore a prior store purchase (Apple requires this). Same result shape as purchase. */
+export async function restoreConsumerPurchases(appUserId) {
+  try {
+    if (window.OnStandardNative && window.OnStandardNative.iap) return await window.OnStandardNative.iap.restore(appUserId);
+  } catch (e) { return { ok: false, reason: 'error', message: String((e && e.message) || e) }; }
+  return { ok: false, reason: 'unavailable' };
+}
+
+/** The caller's own subscription row for the Plan & billing screen (owner-RLS). Selects only
+    columns present since 0042, so it's safe whether or not the consumer-IAP migration 0102 is live.
+    Returns { tier, status, plan_id, current_period_end, cancel_at_period_end } | null. */
+export async function fetchMySubscription() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data: u } = await c.auth.getUser();
+    const uid = u && u.user && u.user.id;
+    if (!uid) return null;
+    const { data, error } = await c.from('subscriptions')
+      .select('tier,status,plan_id,current_period_end,cancel_at_period_end')
+      .eq('owner_id', uid).maybeSingle();
+    if (error) return null;
+    return data || null;
+  } catch { return null; }
+}
+
 /* ---------------- pure roster projection (honest: no invented numbers) ---------------- */
 export function tierFlag(score) { return score == null ? '' : score >= 80 ? 'g' : score >= 60 ? 'y' : 'r'; }
 /** Merge a roster member (from the RPC) with today's real day row into a UI row.

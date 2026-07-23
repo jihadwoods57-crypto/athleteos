@@ -4,6 +4,8 @@ import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
 import { normalizeCoachPrefs } from '../coach-notify-plan.js';
 import { backHead, esc } from '../components.js';
+import * as roles from '../roles.js';
+import { planById } from '../pricing.js';
 
 /* Reminder-pressure chips: restore the athlete's REAL saved pressure and persist taps into
    RT.ob.standard.pressure (the same field onboarding writes, which drives the exec engine's
@@ -300,15 +302,102 @@ export const privacy = {
   },
 };
 
-/* ---------- Plan & billing — HIDDEN until billing is functional (spec §21.1). ----------
-   No entry point renders in any profile; this route only exists so a stale deep link
-   (old notification, bookmark) lands safely on the owner's profile instead of a 404. */
+/* ---------- Plan & billing ----------
+   Consumer membership status + management. Subscriptions are store-managed (App Store / Play
+   IAP), so we never render a cancel button we can't honor — we deep-link to the store's own
+   subscription manager (Apple's rule) and offer Restore. Free accounts get an honest upsell to
+   the paywall. CACHE/load pattern mirrors monthly-report: fetch the row, then repaint. */
+const BILL = { sub: null, loaded: false };
+async function loadBilling() {
+  BILL.sub = await roles.fetchMySubscription();
+  BILL.loaded = true;
+  if (window.__render) window.__render();
+}
+function isPaid(sub) {
+  if (!sub) return false;
+  const okStatus = sub.status === 'active' || sub.status === 'past_due';
+  const t = String(sub.tier || '').toLowerCase();
+  const freeTier = t === '' || t === 'preview' || t === 'free' || t === 'none' || t === 'trial_expired';
+  return okStatus && !freeTier;
+}
+function planLabel(sub) {
+  if (!isPaid(sub)) return 'Free';
+  const p = sub.plan_id ? planById(sub.plan_id) : null;
+  if (p) return p.name;
+  return sub.tier === 'team' ? 'Team' : 'Premium';
+}
+function renewLine(sub) {
+  if (!isPaid(sub)) return 'You have the free plan. Your stats are always yours; membership adds the written coaching.';
+  const when = sub.current_period_end ? (() => { try { return new Date(sub.current_period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch { return ''; } })() : '';
+  if (sub.status === 'past_due') return `Payment issue — update your payment method in the store to keep premium${when ? ` (grace ends ${when})` : ''}.`;
+  if (sub.cancel_at_period_end) return when ? `Cancels ${when}. You keep premium until then.` : 'Set to cancel at period end.';
+  return when ? `Renews ${when}.` : 'Active.';
+}
+function storeSubUrl() {
+  return /android/i.test(navigator.userAgent || '')
+    ? 'https://play.google.com/store/account/subscriptions'
+    : 'https://apps.apple.com/account/subscriptions';
+}
+
 export const billing = {
   tab: 'profile',
   get nav() { return roleNav(); },
   render() {
-    location.hash = '#' + roleProfileRoute();
-    return '';
+    const back = roleProfileRoute();
+    if (!BILL.loaded) {
+      return `${backHead('Plan & billing', 'Your membership', back)}
+      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading your plan…</div></div></div>`;
+    }
+    const sub = BILL.sub;
+    const paid = isPaid(sub);
+    return `${backHead('Plan & billing', 'Your membership', back)}
+
+    <section class="card pad">
+      <div class="bigstat"><span class="n" style="font-size:26px">${esc(planLabel(sub))}</span><span class="d">${paid ? 'Your plan' : 'Current plan'}</span></div>
+      <div style="height:6px"></div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">${esc(renewLine(sub))}</div>
+      ${paid ? `<div style="height:8px"></div><span class="status-pill g">Premium unlocked</span>` : ''}
+    </section>
+
+    <div style="height:12px"></div>
+    ${paid ? `
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" id="bill-manage" role="button">
+        <div class="lic">${icon('gear', 18)}</div>
+        <div class="lm"><div class="lt">Manage subscription</div><div class="ls">Change plan or cancel in the ${/android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store'}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" id="bill-restore" role="button">
+        <div class="lic">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Restore purchases</div><div class="ls">Moved devices? Restore your membership</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+    </section>` : `
+    <section class="card pad">
+      <button class="btn green" id="bill-upsell" style="width:100%">See membership plans</button>
+      <div style="height:10px"></div>
+      <div class="lrow" data-go="redeem-code" style="cursor:pointer"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Have a sponsor code?</div><div class="ls">Redeem it to unlock premium instantly</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" id="bill-restore" role="button" style="cursor:pointer"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Restore purchases</div><div class="ls">Already a member on another device?</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+    </section>`}
+
+    <div id="bill-msg" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:12px"></div>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root) {
+    if (!BILL.loaded) loadBilling();
+    const msg = root.querySelector('#bill-msg');
+    const manage = root.querySelector('#bill-manage');
+    if (manage) manage.addEventListener('click', () => roles.openExternal(storeSubUrl()));
+    const upsell = root.querySelector('#bill-upsell');
+    if (upsell) upsell.addEventListener('click', () => { if (window.__go) window.__go('paywall'); else location.hash = '#paywall'; });
+    const restore = root.querySelector('#bill-restore');
+    if (restore) restore.addEventListener('click', async () => {
+      if (msg) msg.textContent = 'Restoring…';
+      const res = await roles.restoreConsumerPurchases(RT.userId);
+      if (res && res.ok) { if (msg) { msg.style.color = 'var(--green-bright)'; msg.textContent = 'Membership restored.'; } BILL.loaded = false; loadBilling(); }
+      else if (msg) { msg.style.color = 'var(--text-3)'; msg.textContent = res && res.reason === 'unavailable' ? 'Purchases restore once memberships are live.' : 'Nothing to restore on this account.'; }
+    });
   },
 };
 
