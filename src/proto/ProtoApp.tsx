@@ -10,6 +10,7 @@ import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
 import { registerGeofenceTask } from '../lib/location';
+import { postRollCallAck, queueAck, drainAckQueue } from '../lib/notify/rollcall';
 
 const BG = '#080B0A';
 
@@ -144,14 +145,34 @@ export function ProtoApp() {
     // Lazy require so web/test environments never load the native notifications module.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const Notifications = require('expo-notifications') as typeof import('expo-notifications');
+    // A notification response is either a lock-screen "I'm Up" quick action (actionIdentifier
+    // 'ACK') or a plain tap that should route into the WebView. Handle both from one place so the
+    // cold-start path and the live listener behave identically. ACK records the roll call without
+    // opening the app and MUST return before deliverRoute, so an ack never doubles as a deep link.
+    const handleResponse = (resp: unknown): void => {
+      const r = resp as
+        | { actionIdentifier?: string; notification?: { request?: { content?: { data?: { route?: unknown; code?: unknown } } } } }
+        | null
+        | undefined;
+      const data = r?.notification?.request?.content?.data;
+      if (r?.actionIdentifier === 'ACK' && typeof data?.code === 'string' && data.code) {
+        const code = data.code;
+        // Best-effort: record now, queue for a foreground/reconnect retry if the network isn't there.
+        postRollCallAck(code).then((ok) => { if (!ok) return queueAck(code); }).catch(() => {});
+        return; // do not also route into the WebView
+      }
+      deliverRoute(data?.route);
+    };
     Notifications.getLastNotificationResponseAsync()
-      .then((resp) => deliverRoute(resp?.notification?.request?.content?.data?.route))
+      .then((resp) => handleResponse(resp))
       .catch(() => undefined);
-    const sub = Notifications.addNotificationResponseReceivedListener((resp) =>
-      deliverRoute(resp?.notification?.request?.content?.data?.route),
-    );
+    const sub = Notifications.addNotificationResponseReceivedListener((resp) => handleResponse(resp));
     return () => sub.remove();
   }, [deliverRoute]);
+
+  // Drain any offline "I'm Up" acks that were queued while the phone was offline — a lock-screen
+  // tap in a dead zone still lands the moment the athlete opens the app on connectivity. Native only.
+  React.useEffect(() => { if (Platform.OS !== 'web') { void drainAckQueue(); } }, []);
 
   const onWebLoadEnd = React.useCallback(() => {
     webLoaded.current = true;
