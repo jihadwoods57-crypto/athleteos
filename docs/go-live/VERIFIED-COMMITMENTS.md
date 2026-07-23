@@ -20,13 +20,26 @@ Slice 1 is useful on its own: a coach gets verified wake-ups the day it lands.
 ## Apply
 
 ```bash
-supabase db push          # 0138 then 0139
-npm run test:rls          # expect 356/356
+supabase db push          # 0138, 0139, 0140
+npm run test:rls          # expect 369/369
+
+# Server-side reminders (0140). Without this, reminders only reach athletes whose
+# device has no push token — the client plan is a fallback, not the primary path.
+supabase secrets set COMMITMENT_CRON_KEY=<long random string>
+supabase functions deploy commitment-reminders --use-api --no-verify-jwt
+supabase db query --linked "select schedule_commitment_reminders(
+  'https://<project>.supabase.co/functions/v1/commitment-reminders', '<the same key>');"
 ```
 
-Both migrations are forward-only and idempotent. 0138 creates every table; 0139 adds only
-behaviour. `0137` was taken by a concurrent change (`0137_practice_rollups`) — that is why these
-are 0138/0139 and not 0137/0138.
+All three migrations are forward-only and idempotent. 0138 creates every table; 0139 adds arrival
+behaviour; 0140 is the reliability pass (server reminders, range excuse, roster reconciliation).
+`0137` was taken by a concurrent change (`0137_practice_rollups`) — that is why these start at
+0138.
+
+**The cron runs every 5 minutes.** Reminder offsets are minute-grained, so a coarser tick would
+drift a "5 minutes left" warning past the deadline it is warning about. Claiming and marking happen
+in one statement, so two overlapping ticks cannot double-send — there is an RLS probe for exactly
+that, because a duplicate 4:45 AM alarm is the kind of bug that gets an app deleted.
 
 ## App Store review note (slice 2)
 
@@ -82,7 +95,7 @@ npm run lint:xss     clean
 npm run typecheck    clean
 npx jest             2407/2407 (201 suites)
 npm run test:proto   green (41 new assertions)
-npm run test:rls     356/356 (36 new probes)
+npm run test:rls     369/369 (49 new probes)
 ```
 
 Plus: the proto module graph resolves, and the proto boots headlessly in Chromium with no console
