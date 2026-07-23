@@ -435,9 +435,10 @@ ScoringContext(athlete,date) = resolve( active_plan_version, weight_set[season>t
    AI/track signals, not daily-score components — else "one number" dilutes.
 5. **Profile vocabulary cadence (§11b "design for many, ship two").** Stay at `athlete | general` until the
    loop retains? (Recommend yes — build the weight-set/profile *seam*, populate only two.)
-6. **`general` weight set sign-off.** `scoringProfiles.ts` flags `general` (`.55/.2/.15/.1`) + its
-   calorie-adherence numbers as pending RD sign-off. The governance model above is the mechanism to ratify
-   them as a published platform weight set.
+6. **`general` weight set sign-off.** Ratified 2026-07-23 — see
+   `docs/council/2026-07-23-general-profile-weights.md`. `gain` (`.55/.25/.1/.1`) remains an unreviewed
+   v1 guess. The governance model above is the mechanism to formally publish either as a platform weight
+   set once/if a licensed RD reviews them.
 
 ---
 
