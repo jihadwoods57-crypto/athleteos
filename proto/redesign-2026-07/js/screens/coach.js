@@ -2656,7 +2656,7 @@ export const parent = {
   hideTabs: true,
   render() {
     return `
-    ${titleHead('Your athletes', 'Scores & streaks')}
+    ${titleHead('Your athletes', 'Daily scores')}
 
     <div id="par-list"><div class="sd-s" style="text-align:center;padding:28px 10px">Loading…</div></div>
 
@@ -2664,7 +2664,7 @@ export const parent = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
       <div><div class="tt">What you can see</div>
-      <div class="ts">Scores, streaks, and daily completion only. Meal photos, weight, and check-in answers stay between your athlete and their coach.</div></div>
+      <div class="ts">Their daily score and grade, and the date of their latest logged day &mdash; that's the whole view. Meal photos, weight, and check-in answers stay between your athlete and their coach.</div></div>
     </div>
 
     <div style="height:12px"></div>
@@ -2695,7 +2695,7 @@ export const parent = {
       <div class="state-demo">
         <div class="sd-ic">${icon('users', 24)}</div>
         <div class="sd-t">No athletes linked yet</div>
-        <div class="sd-s">When your athlete sends you an invite and you accept it, their score and streak show up here — never their photos, weight, or check-in answers.</div>
+        <div class="sd-s">When your athlete sends you an invite and you accept it, their daily score and grade show up here — never their photos, weight, or check-in answers.</div>
       </div>`;
       return;
     }

@@ -1020,3 +1020,39 @@ html.pre-up #pre {
   transition: transform .55s cubic-bezier(0.87, 0, 0.13, 1);
 }
 @media (prefers-reduced-motion: reduce) { #pre { display: none !important; } }
+
+/* ---------- HOW IT WORKS: a numbered step paired with the real screen ----------
+   Added for the mechanics rewrite. Every step names a concrete user ACTION (.loop-do) and the
+   concrete system RESPONSE (.loop-get), next to the actual app screenshot of that step.
+   Follows the .shots conventions: same figure/phone treatment, same 860px carousel breakpoint. */
+.loop {
+  margin-top: clamp(40px, 5vw, 68px);
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(20px, 2.4vw, 34px); align-items: start;
+}
+.loop-step { display: grid; gap: 13px; }
+.loop-txt { display: grid; gap: 7px; }
+.loop-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  font-size: 12.5px; font-weight: 800; letter-spacing: 0;
+  color: var(--gold); background: var(--gold-surface); border: 1px solid var(--gold-border);
+}
+.loop-do { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); line-height: 1.35; }
+.loop-get { color: var(--text-2); font-size: 13px; line-height: 1.6; }
+.loop-get b { color: var(--text); font-weight: 700; }
+@media (max-width: 1080px) { .loop { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .loop { grid-template-columns: 1fr; gap: 34px; } }
+
+/* A single mechanic shown large: screenshot beside a short explanation. */
+.duo {
+  margin-top: clamp(36px, 4.5vw, 60px);
+  display: grid; grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: clamp(26px, 4vw, 60px); align-items: center;
+}
+.duo.flip .duo-shot { order: 2; }
+.duo-shot { display: grid; justify-items: center; }
+.duo-body h3 { font-size: clamp(20px, 2.2vw, 27px); font-weight: 800; letter-spacing: -0.02em; }
+.duo-body p { color: var(--text-2); font-size: clamp(14px, 1.05vw, 15.5px); line-height: 1.65; margin-top: 10px; max-width: 58ch; }
+.duo-body p b { color: var(--text); font-weight: 700; }
+@media (max-width: 860px) { .duo, .duo.flip { grid-template-columns: 1fr; } .duo.flip .duo-shot { order: 0; } }

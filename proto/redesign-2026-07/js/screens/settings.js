@@ -226,12 +226,18 @@ export const privacy = {
       });
     }
     if (S.coach.hasCoach && S.coach.kind === 'coach') {
+      /* Teammates genuinely see NOTHING today: there is no athlete-facing leaderboard and no
+         coach control to enable one (see the note in state.js — the Squad screen is an honest
+         "coming soon" with no backend). This row previously promised "leaderboard score only,
+         when your coach turns the board on", which described a feature that does not exist and
+         understated the athlete's actual privacy. If a board ever ships, change this row IN THE
+         SAME commit that ships it. */
       rows.push({
-        ic: 'grid', t: 'Teammates', pill: 'Score only',
-        s: 'Leaderboard score only — when your coach turns the board on',
+        ic: 'grid', t: 'Teammates', pill: 'No access',
+        s: 'Teammates cannot see anything about your day',
         detail: [
-          ['Can see', 'Your daily score on the team leaderboard, if your coach enables it.'],
-          ['Cannot see', 'Meals, photos, weight, and check-ins are never visible to teammates.'],
+          ['Can see', 'Nothing. There is no team feed and no leaderboard — nobody on your team is shown your number.'],
+          ['Cannot see', 'Your score, meals, photos, weight, and check-ins are never visible to teammates.'],
         ],
       });
     }
