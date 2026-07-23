@@ -16,10 +16,12 @@
 //   supabase functions deploy commitment-reminders --use-api --no-verify-jwt
 // Then: select schedule_commitment_reminders('<fn url>', '<the same key>');
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { signRollCallCode } from '../_shared/rollcall-code.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const CRON_KEY = Deno.env.get('COMMITMENT_CRON_KEY') ?? '';
+const ACK_SECRET = Deno.env.get('ROLLCALL_ACK_SECRET') ?? '';
 
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
@@ -41,7 +43,14 @@ type Due = {
   title: string;
   body: string;
   offset_min: number;
+  action_label: string | null;
+  respond_by_at: string | null; // ISO
 };
+
+// Slug an action label into a stable category id. MUST match rollCallCategoryId in
+// src/core/rollcall.ts (Task 5) — Deno can't import RN's src/, so the two are kept in sync by hand.
+const categoryIdFor = (label: string | null): string =>
+  'RC::' + (label ?? 'Im Up').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
@@ -78,23 +87,34 @@ Deno.serve(async (req: Request) => {
   const byAthlete = new Map<string, Due>();
   for (const d of due) if (!byAthlete.has(d.athlete_id)) byAthlete.set(d.athlete_id, d);
 
-  const messages = (toks ?? [])
-    .map((t: { token: string; user_id: string }) => {
-      const d = byAthlete.get(t.user_id);
-      if (!d) return null;
-      return {
-        to: t.token,
-        title: d.title,
-        body: d.body,
-        // The tap lands on the commitment itself, not Home — the last inch of the loop.
-        data: { route: `roll-call/${d.instance_id}` },
-        // A coach-scheduled commitment is a scheduled event, not a nudge: it is allowed to break
-        // through at 4:45 AM. The phone's own Do Not Disturb still wins.
-        priority: 'high',
-        sound: 'default',
-      };
-    })
-    .filter(Boolean);
+  const messages: Array<Record<string, unknown>> = [];
+  for (const t of (toks ?? []) as Array<{ token: string; user_id: string }>) {
+    const d = byAthlete.get(t.user_id);
+    if (!d) continue;
+    // The signed code proves one athlete + one instance, only inside the response window — minted
+    // fresh per push so a stale/replayed notification can't ack a different roll call.
+    const deadlineMs = d.respond_by_at ? Date.parse(d.respond_by_at) : Date.now();
+    const code = ACK_SECRET
+      ? await signRollCallCode(ACK_SECRET, {
+          instanceId: d.instance_id, athleteId: d.athlete_id, deadlineMs, iatMs: Date.now(),
+        })
+      : '';
+    messages.push({
+      to: t.token,
+      title: d.title,
+      body: d.body,
+      // The tap lands on the commitment itself, not Home — the last inch of the loop. `code` lets
+      // a lock-screen action button ack without opening the app; empty when the secret isn't set.
+      data: { route: `roll-call/${d.instance_id}`, code, action_label: d.action_label ?? 'I\'m Up' },
+      // Expo maps categoryId -> iOS notification category / Android action set. Only offer the
+      // quick-action affordance when we actually minted a verifiable code.
+      categoryId: code ? categoryIdFor(d.action_label) : undefined,
+      // A coach-scheduled commitment is a scheduled event, not a nudge: it is allowed to break
+      // through at 4:45 AM. The phone's own Do Not Disturb still wins.
+      priority: 'high',
+      sound: 'default',
+    });
+  }
 
   let pushed = 0;
   for (let i = 0; i < messages.length; i += 100) {
