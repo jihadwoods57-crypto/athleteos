@@ -55,7 +55,7 @@ import rollCall from './roll-call.js';
 import locationConsent from './location-consent.js';
 import accountability from './accountability.js';
 import verifiedDiscipline from './verified-discipline.js';
-import { coachCommitments, coachCommitEdit } from './coach-commitments.js';
+import { coachCommitments, coachCommitEdit, coachCommitManage } from './coach-commitments.js';
 
 export const screens = {
   home,
@@ -169,4 +169,5 @@ export const screens = {
   'verified-discipline': verifiedDiscipline,
   'coach-commitments': coachCommitments,
   'coach-commit-edit': coachCommitEdit,
+  'coach-commit-manage': coachCommitManage,
 };

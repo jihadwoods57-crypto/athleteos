@@ -174,6 +174,29 @@ export async function reportArrival(
   }
 }
 
+/* ---------------------------------------------------------------- coach: capture a place */
+
+/** The one function in this file that RETURNS a coordinate, and the distinction matters:
+ *  a coach standing in their own weight room, deliberately recording it as a scheduled place.
+ *  That is someone naming a building, not the app observing where a person goes. It needs only
+ *  foreground permission, and the value is written to commitment_locations by the coach's own
+ *  save — it is never derived from anyone's movement. */
+export async function capturePlace(): Promise<{ lat: number; lng: number; accuracyM: number } | null> {
+  if (!Location) return null;
+  try {
+    const fg = await Location.requestForegroundPermissionsAsync();
+    if (!fg.granted) return null;
+    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    return {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracyM: Math.round(pos.coords.accuracy ?? 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /* ---------------------------------------------------------------- the background task */
 
 /** Registered once at app start. Safe to call repeatedly and safe on a build without the modules. */

@@ -21,7 +21,7 @@ const OPTIONS = [
   { key: 'schedule',        cap: 'exceptions',     icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster' },
   // Verified Commitments (0138). Distinct from 'schedule' above, which excuses an athlete for a
   // stretch of days; this SCHEDULES the thing they're accountable for in the first place.
-  { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Schedule a commitment', sub: 'Roll call, lift, study hall — verified', go: 'coach-commit-edit' },
+  { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Schedule a commitment', sub: 'Roll call, lift, study hall — verified', go: 'coach-commit-manage' },
   { key: 'add_athlete',     cap: null,             icon: 'user',      title: 'Add an athlete',        sub: 'Share your team code',              go: 'coach-profile/code' },
   { key: 'invite_staff',    cap: 'staffRoles',     icon: 'users',     title: 'Invite staff',          sub: 'Coordinator, room, or view-only',   go: 'coach-profile/staff' },
   { key: 'team_diet',       cap: 'recruiting',     icon: 'heart',     title: 'Team diet',             sub: 'Meal-plan tools',                   go: 'team-diet' },

@@ -17,8 +17,8 @@ import { allowedCreateKeys, isReadonly } from '../staff-access.js';
 import { boardCounts, missingFrom, TYPE_LABEL } from '../commitments.js';
 import { fmtMin } from '../requirements.js';
 import {
-  VC, loadBoard, loadCommitments, loadLocations, saveCommitment,
-  setResponse, remindMissing, todayISO,
+  VC, loadBoard, loadCommitments, loadLocations, saveCommitment, saveLocation,
+  setResponse, remindMissing, excuseAthlete, setCommitmentActive, todayISO, shiftISO,
 } from '../commitment-data.js';
 
 const hhmm = (iso) => {
@@ -108,7 +108,7 @@ function athleteRow(r, asksArrival) {
     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
       <span class="xpill ${cls}">${esc(label)}</span>
       <div style="display:flex;gap:6px">
-        ${r.status !== 'excused' ? `<button class="chip" data-vc-excuse="${esc(r.response_id)}">Excuse</button>` : ''}
+        ${r.status !== 'excused' ? `<button class="chip" data-vc-excuse="${esc(r.athlete_id)}">Excuse</button>` : ''}
         ${r.status === 'pending' || r.status === 'unverified' || r.status === 'missed'
           ? `<button class="chip" data-vc-mark="${esc(r.response_id)}">${asksArrival ? 'Mark arrived' : 'Mark in'}</button>` : ''}
       </div>
@@ -195,18 +195,44 @@ export const coachCommitments = {
       if (!n) remind.disabled = false;
     });
 
-    const act = async (btn, status, reason) => {
-      btn.disabled = true; btn.textContent = '…';
-      const ok = await setResponse(btn.getAttribute(status === 'excused' ? 'data-vc-excuse' : 'data-vc-mark'), status, reason);
-      if (!ok) { btn.disabled = false; btn.textContent = status === 'excused' ? 'Excuse' : 'Mark in'; return; }
+    const repaint = async () => {
       const bid = bookId();
       if (bid) await loadBoard(bid, CD.kind, todayISO(), true);
       window.__render && window.__render();
     };
-    root.querySelectorAll('[data-vc-excuse]').forEach((b) =>
-      b.addEventListener('click', () => act(b, 'excused', 'Excused by staff')));
-    root.querySelectorAll('[data-vc-mark]').forEach((b) =>
-      b.addEventListener('click', () => act(b, 'acknowledged', null)));
+
+    root.querySelectorAll('[data-vc-mark]').forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = '…';
+      const ok = await setResponse(b.getAttribute('data-vc-mark'), 'acknowledged', null);
+      if (!ok) { b.disabled = false; b.textContent = 'Mark in'; return; }
+      await repaint();
+    }));
+
+    // Excusing is almost never about ONE morning — it's travel, illness, a funeral. Tapping
+    // Excuse asks how long, and the range writes athlete_exceptions so every other coach surface
+    // agrees, instead of the coach clearing the same athlete again tomorrow.
+    root.querySelectorAll('[data-vc-excuse]').forEach((b) => b.addEventListener('click', () => {
+      const athleteId = b.getAttribute('data-vc-excuse');
+      const wrap = b.parentElement;
+      if (!wrap) return;
+      const opts = [['Today', 0], ['3 days', 2], ['A week', 6]];
+      wrap.replaceChildren(...opts.map(([label, addDays]) => {
+        const el = document.createElement('button');
+        el.className = 'chip';
+        el.textContent = label;
+        el.addEventListener('click', async () => {
+          el.disabled = true; el.textContent = '…';
+          const today = todayISO();
+          const n = await excuseAthlete(
+            athleteId, today, shiftISO(today, addDays),
+            addDays ? `Excused ${label.toLowerCase()}` : 'Excused by staff',
+            bookId(), CD.kind);
+          if (!n) { el.disabled = false; el.textContent = label; return; }
+          await repaint();
+        });
+        return el;
+      }));
+    }));
   },
 };
 
@@ -227,6 +253,8 @@ const STARTERS = {
   rehab: ['Rehab today — don’t skip it, it’s how you get back.'],
 };
 
+/* The commitment currently being edited, or null for a new one. Set by the manage screen so the
+   composer can prefill; cleared on save so the next "Schedule a commitment" starts clean. */
 let DRAFT = null;
 const blankDraft = () => ({
   type: 'morning_roll_call', title: TYPE_LABEL.morning_roll_call, message: '',
@@ -241,6 +269,112 @@ const timeInput = (id, label, val) => `
     <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">${esc(label)}</div>
     <input class="ob-input" id="${id}" type="time" value="${esc(val == null ? '' : `${String(Math.floor(val / 60)).padStart(2, '0')}:${String(val % 60).padStart(2, '0')}`)}" />
   </div>`;
+
+/* ---------------------------------------------------------------- manage standing commitments */
+
+const DOW_FULL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const daysLabel = (days) => {
+  const d = (days || []).map(Number).sort();
+  if (!d.length) return 'Never';
+  if (d.length === 7) return 'Every day';
+  if (d.join() === '1,2,3,4,5') return 'Weekdays';
+  if (d.join() === '0,6') return 'Weekends';
+  return d.map((n) => DOW_FULL[n]).join(' · ');
+};
+
+/** Load a saved commitment into the composer. Exported so the manage screen can hand one over. */
+export function editCommitment(row) {
+  DRAFT = {
+    id: row.id, type: row.type, title: row.title || '', message: row.message || '',
+    action_label: row.action_label || '', audience_kind: row.audience_kind,
+    audience_value: row.audience_value || null,
+    repeat_days: Array.isArray(row.repeat_days) ? row.repeat_days.map(Number) : [],
+    starts_min: row.starts_min, ends_min: row.ends_min,
+    respond_by_min: row.respond_by_min, opens_min: row.opens_min,
+    location_id: row.location_id || null, arrive_by_min: row.arrive_by_min,
+    min_dwell_min: row.min_dwell_min,
+    linked_commitment_id: row.linked_commitment_id || null,
+    reminder_offsets_min: row.reminder_offsets_min || [15, 5],
+    active: row.active !== false,
+  };
+}
+
+export const coachCommitManage = {
+  nav: 'operator', tab: 'home',
+  render() {
+    const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
+    const rows = RT.vcCommitments || [];
+    const live = rows.filter((r) => r.active !== false);
+    const paused = rows.filter((r) => r.active === false);
+
+    const card = (r) => `
+      <div class="lrow" style="align-items:flex-start">
+        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('clock', 17)}</div>
+        <div class="lm" style="flex:1">
+          <div class="lt">${esc(r.title || TYPE_LABEL[r.type] || 'Commitment')}</div>
+          <div class="ls">${esc(daysLabel(r.repeat_days))} · ${esc(fmtMin(r.starts_min))}${
+            r.location_id ? ' · location verified' : ''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <button class="chip" data-vc-edit="${esc(r.id)}">Edit</button>
+          <button class="chip" data-vc-toggle="${esc(r.id)}">${r.active === false ? 'Resume' : 'Pause'}</button>
+        </div>
+      </div>`;
+
+    return `
+    ${backHead('Commitments', 'Everything you have standing', back)}
+    ${!rows.length ? `
+      <div class="sidebox">
+        <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
+        <div><div class="tt">Nothing scheduled yet</div>
+        <div class="ts">Schedule a morning roll call, a lift, or a study hall and it'll live here — editable, pausable, and never silently deleted.</div></div>
+      </div>` : ''}
+    ${live.length ? `<div class="eyebrow">Running</div>
+      <section class="card" style="padding:2px 16px">${live.map(card).join('')}</section>` : ''}
+    ${paused.length ? `<div class="eyebrow">Paused</div>
+      <section class="card" style="padding:2px 16px">${paused.map(card).join('')}</section>
+      <div class="ts" style="padding-top:8px">Paused commitments stop appearing for athletes tomorrow. Everything already recorded against them stays exactly as it is.</div>` : ''}
+    <div style="height:14px"></div>
+    <button class="btn green" id="vc-new" style="width:100%">${icon('plus', 18)} Schedule a commitment</button>
+    <div style="height:20px"></div>`;
+  },
+
+  mount(root) {
+    const id = bookId();
+    if (id) loadCommitments(id, CD.kind, true).then((rows) => {
+      RT.vcCommitments = rows;
+      if (root.isConnected) window.__render && window.__render();
+    });
+
+    const create = root.querySelector('#vc-new');
+    if (create) create.addEventListener('click', () => {
+      DRAFT = null;                       // a fresh sheet, not the last thing edited
+      location.hash = '#/coach-commit-edit';
+    });
+
+    root.querySelectorAll('[data-vc-edit]').forEach((b) => b.addEventListener('click', () => {
+      const row = (RT.vcCommitments || []).find((r) => r.id === b.getAttribute('data-vc-edit'));
+      if (!row) return;
+      editCommitment(row);
+      location.hash = '#/coach-commit-edit';
+    }));
+
+    root.querySelectorAll('[data-vc-toggle]').forEach((b) => b.addEventListener('click', async () => {
+      const row = (RT.vcCommitments || []).find((r) => r.id === b.getAttribute('data-vc-toggle'));
+      if (!row) return;
+      b.disabled = true; b.textContent = '…';
+      const owner = bookId();
+      const ok = await setCommitmentActive({
+        ...row,
+        team_id: CD.kind === 'practice' ? null : owner,
+        practice_id: CD.kind === 'practice' ? owner : null,
+      }, row.active === false);
+      if (!ok) { b.disabled = false; b.textContent = row.active === false ? 'Resume' : 'Pause'; return; }
+      RT.vcCommitments = await loadCommitments(owner, CD.kind, true);
+      window.__render && window.__render();
+    }));
+  },
+};
 
 export const coachCommitEdit = {
   nav: 'operator', tab: 'home', transient: true,
@@ -304,6 +438,40 @@ export const coachCommitEdit = {
       <div class="ts" style="padding-top:10px">A reminder goes out 15 and 5 minutes before the deadline — only to athletes who haven’t responded.</div>
     </section>
 
+    <div class="eyebrow">Where <span style="text-transform:none;letter-spacing:0">· optional</span></div>
+    <section class="card pad">
+      <div class="ts" style="padding-bottom:10px">Attach a place and OnStandard confirms athletes actually got there. Leave it off and this stays a check-in only.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-place">
+        <button class="chip ${!d.location_id ? 'on' : ''}" data-place="">No location</button>
+        ${(VC.locations || []).map((l) => `<button class="chip ${d.location_id === l.id ? 'on' : ''}" data-place="${esc(l.id)}">${esc(l.name)}</button>`).join('')}
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn ghost sm" id="vc-newplace" style="width:100%">${icon('target', 16)} Add the place I'm standing in</button>
+      <div id="vc-placeform" hidden>
+        <div style="height:12px"></div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Call it what your athletes call it</div>
+        <input class="ob-input" id="vc-placename" maxlength="60" placeholder="e.g. Football Facility" />
+        <div style="height:10px"></div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">How close counts <span style="color:var(--text-3);font-weight:600">· metres</span></div>
+        <input class="ob-input" id="vc-placeradius" type="number" min="50" max="1000" step="10" value="120" />
+        <div class="ts" style="padding-top:6px">120m covers a field and its building. Below 50m a phone's own GPS error starts marking honest athletes absent, so that's the floor.</div>
+        <div style="height:10px"></div>
+        <button class="btn green" id="vc-saveplace" style="width:100%">${icon('check', 17)} Use my current location</button>
+        <div id="vc-placemsg" class="ts" style="padding-top:8px"></div>
+      </div>
+      ${d.location_id ? `
+      <div style="height:14px"></div>
+      <div style="display:flex;gap:10px">
+        ${timeInput('vc-arrive', 'Arrive by', d.arrive_by_min)}
+        <div style="flex:1">
+          <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Stay at least <span style="color:var(--text-3);font-weight:600">· min</span></div>
+          <input class="ob-input" id="vc-dwell" type="number" min="0" max="480" step="5" value="${d.min_dwell_min == null ? '' : esc(String(d.min_dwell_min))}" placeholder="45" />
+        </div>
+      </div>
+      <div class="ts" style="padding-top:10px">Arriving counts when their phone reaches the place inside this window. It does not prove the work got done — completing the session is a separate signal, and nothing in OnStandard claims otherwise.</div>
+      ` : ''}
+    </section>
+
     <div class="eyebrow">Linked event <span style="text-transform:none;letter-spacing:0">· optional</span></div>
     <section class="card pad">
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What is this roll call for?</div>
@@ -325,7 +493,12 @@ export const coachCommitEdit = {
   mount(root) {
     const id = bookId();
     if (id) {
-      loadLocations(id, CD.kind);
+      // Both repaint when they land: the place chips and the linked-event list are rendered from
+      // these, so without the re-render a coach sees an empty picker until something else
+      // happens to repaint the screen.
+      loadLocations(id, CD.kind).then((rows) => {
+        if (root.isConnected && rows.length) window.__render && window.__render();
+      });
       loadCommitments(id, CD.kind).then((rows) => {
         RT.vcCommitments = rows;
         if (root.isConnected && rows.length) window.__render && window.__render();
@@ -345,6 +518,11 @@ export const coachCommitEdit = {
       const s = minOf(val('#vc-start')); if (s != null) d.starts_min = s;
       d.respond_by_min = minOf(val('#vc-respond'));
       d.linked_commitment_id = val('#vc-link') || null;
+      if (d.location_id) {
+        d.arrive_by_min = minOf(val('#vc-arrive'));
+        const dw = parseInt(val('#vc-dwell'), 10);
+        d.min_dwell_min = isFinite(dw) && dw >= 0 ? Math.min(480, dw) : null;
+      }
     };
 
     root.querySelectorAll('[data-type]').forEach((b) => b.addEventListener('click', () => {
@@ -374,6 +552,57 @@ export const coachCommitEdit = {
       window.__render && window.__render();
     }));
 
+    root.querySelectorAll('[data-place]').forEach((b) => b.addEventListener('click', () => {
+      capture();
+      d.location_id = b.getAttribute('data-place') || null;
+      // Sensible starting points the coach can override: be there 5 minutes before it starts,
+      // and stay for the length of the session if they gave one.
+      if (d.location_id && d.arrive_by_min == null) d.arrive_by_min = Math.max(0, d.starts_min - 5);
+      window.__render && window.__render();
+    }));
+
+    const newPlace = root.querySelector('#vc-newplace');
+    if (newPlace) newPlace.addEventListener('click', () => {
+      const form = root.querySelector('#vc-placeform');
+      if (form) form.hidden = !form.hidden;
+    });
+
+    const savePlace = root.querySelector('#vc-saveplace');
+    if (savePlace) savePlace.addEventListener('click', async () => {
+      const msg = root.querySelector('#vc-placemsg');
+      const name = ((root.querySelector('#vc-placename') || {}).value || '').trim();
+      if (!name) { if (msg) msg.textContent = 'Give the place a name first.'; return; }
+      const radius = Math.max(50, Math.min(1000, parseInt((root.querySelector('#vc-placeradius') || {}).value, 10) || 120));
+      const nat = typeof window !== 'undefined' && window.OnStandardNative && window.OnStandardNative.location;
+      if (!nat || !nat.place) {
+        if (msg) msg.textContent = 'Capturing a location needs the phone app — this build can’t do it.';
+        return;
+      }
+      savePlace.disabled = true; savePlace.textContent = 'Getting your location…';
+      const pos = await nat.place().catch(() => null);
+      if (!pos) {
+        savePlace.disabled = false; savePlace.textContent = 'Use my current location';
+        if (msg) msg.textContent = 'Couldn’t get a location. Check that location access is allowed, and try again standing outside.';
+        return;
+      }
+      capture();
+      const owner = bookId();
+      const row = await saveLocation({
+        name, lat: pos.lat, lng: pos.lng, radius_m: radius,
+        team_id: CD.kind === 'practice' ? null : owner,
+        practice_id: CD.kind === 'practice' ? owner : null,
+      });
+      if (!row) {
+        savePlace.disabled = false; savePlace.textContent = 'Use my current location';
+        if (msg) msg.textContent = 'Couldn’t save that place. Try again in a moment.';
+        return;
+      }
+      await loadLocations(owner, CD.kind, true);
+      d.location_id = row.id;
+      if (d.arrive_by_min == null) d.arrive_by_min = Math.max(0, d.starts_min - 5);
+      window.__render && window.__render();
+    });
+
     const save = root.querySelector('#vc-save');
     if (save) save.addEventListener('click', async () => {
       if (save.disabled) return;
@@ -394,8 +623,11 @@ export const coachCommitEdit = {
       const newId = await saveCommitment(payload);
       if (!newId) { save.disabled = false; save.textContent = 'Couldn’t save — try again'; return; }
       DRAFT = null;
-      if (owner) await loadBoard(owner, CD.kind, todayISO(), true);
-      location.hash = '#/coach-commitments';
+      if (owner) {
+        RT.vcCommitments = await loadCommitments(owner, CD.kind, true);
+        await loadBoard(owner, CD.kind, todayISO(), true);
+      }
+      location.hash = '#/coach-commit-manage';
     });
   },
 };

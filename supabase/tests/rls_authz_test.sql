@@ -1694,6 +1694,128 @@ select _ok((select disputed_at is not null and arrived_at is null
                                    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2')),
   'vc2: a dispute flags the record without marking the athlete present');
 
+-- ================================================================ reliability pass (0140)
+-- #5 roster reconciliation, #3 range excuse, #2 server-side reminder claiming.
+select _superuser();
+
+-- #5: an athlete who joins AFTER the instance was materialized still gets a row
+insert into auth.users (id, email) values ('eeee0000-0000-0000-0000-0000000000e5','vclate@x.io');
+insert into profiles (id, full_name, email, primary_role)
+values ('eeee0000-0000-0000-0000-0000000000e5','VC Latecomer','vclate@x.io','athlete')
+on conflict (id) do update set full_name = excluded.full_name;
+insert into athlete_profiles (athlete_id, base_age, sport)
+values ('eeee0000-0000-0000-0000-0000000000e5', 19, 'football') on conflict (athlete_id) do nothing;
+insert into team_members (team_id, athlete_id, status)
+values ('77777777-1111-0000-0000-000000000001','eeee0000-0000-0000-0000-0000000000e5','active')
+on conflict (team_id, athlete_id) do update set status = 'active';
+
+select _as('11111111-0000-0000-0000-000000000001');
+select _try($f$ select ensure_commitment_instances(
+  '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+select _superuser();
+select _ok(exists (select 1 from commitment_responses r
+                     join commitment_instances i on i.id = r.instance_id
+                    where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+                      and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e5'),
+  '0140: an athlete who joined after materialization is backfilled into the roll call');
+
+-- #5: leaving the roster removes an UNTOUCHED row, but never one carrying a real response
+select _superuser();
+update team_members set status = 'removed'
+ where team_id = '77777777-1111-0000-0000-000000000001'
+   and athlete_id = 'eeee0000-0000-0000-0000-0000000000e5';
+select _as('11111111-0000-0000-0000-000000000001');
+select _try($f$ select ensure_commitment_instances(
+  '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+select _superuser();
+select _ok(not exists (select 1 from commitment_responses r
+                         join commitment_instances i on i.id = r.instance_id
+                        where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+                          and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e5'),
+  '0140: an untouched row for someone who left the roster is cleared');
+select _ok(exists (select 1 from commitment_responses r
+                     join commitment_instances i on i.id = r.instance_id
+                    where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+                      and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+                      and r.acknowledged_at is not null),
+  '0140: a row carrying a real response is never cleared');
+
+-- #3: one call excuses a stretch AND writes the athlete_exceptions primitive
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select staff_excuse_athlete(
+    'eeee0000-0000-0000-0000-0000000000e2', current_date, current_date + 6,
+    'Family travel', '77777777-1111-0000-0000-000000000001', null) $f$) = 'ok',
+  '0140: staff can excuse an athlete across a date range');
+select _superuser();
+select _ok(exists (select 1 from athlete_exceptions
+                    where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+                      and team_id = '77777777-1111-0000-0000-000000000001'
+                      and ends_on = current_date + 6),
+  '0140: a range excuse writes athlete_exceptions, not just the response');
+select _ok((select bool_and(r.status = 'excused') from commitment_responses r
+              join commitment_instances i on i.id = r.instance_id
+             where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+               and i.occurs_on = current_date),
+  '0140: every commitment in the range is marked excused');
+
+-- #3: an athlete already excused is never left "awaiting response" on a fresh materialization
+select _superuser();
+delete from commitment_responses r using commitment_instances i
+ where r.instance_id = i.id
+   and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+   and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _as('11111111-0000-0000-0000-000000000001');
+select _try($f$ select ensure_commitment_instances(
+  '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+select _superuser();
+select _ok((select r.status = 'excused' from commitment_responses r
+              join commitment_instances i on i.id = r.instance_id
+             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+               and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0140: an existing exception marks a newly seeded row excused, not awaiting');
+
+-- a stranger cannot excuse on someone else's team
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select staff_excuse_athlete(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date, current_date,
+    'nope', '77777777-1111-0000-0000-000000000001', null) $f$) <> 'ok',
+  '0140: a stranger coach cannot excuse on another team');
+
+-- #2: reminder claiming is service-role only, and claims exactly once
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select claim_due_commitment_reminders(10) $f$) <> 'ok',
+  '0140: an athlete cannot claim reminders');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select claim_due_commitment_reminders(10) $f$) <> 'ok',
+  '0140: a coach cannot claim reminders either (service role only)');
+
+select _superuser();
+-- force one response pending with a deadline five minutes out, and a 5-minute offset
+update commitment_responses set status = 'pending', acknowledged_at = null, reminded_offsets = '{}'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1');
+update commitment_instances set respond_by_at = now() + interval '5 minutes'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitments set reminder_offsets_min = '{5}'
+ where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+select _ok((select count(*) from claim_due_commitment_reminders(10)
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 1,
+  '0140: a due reminder is claimed once');
+select _ok((select count(*) from claim_due_commitment_reminders(10)
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 0,
+  '0140: the same reminder is never claimed twice (no double 4:45 AM alarm)');
+
+-- an athlete who already responded is never reminded
+select _superuser();
+update commitment_responses set status = 'acknowledged', acknowledged_at = now(), reminded_offsets = '{}'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1');
+select _ok((select count(*) from claim_due_commitment_reminders(10)
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 0,
+  '0140: an athlete who already responded is never reminded');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$

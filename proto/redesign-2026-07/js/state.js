@@ -2635,9 +2635,13 @@ export const S = {
       dateISO: String(DAY.date),
       prefs: RT.notifPrefs,
       coachName: this.coach.hasCoach && this.coach.isNamed ? this.coach.name : null,
-      // Verified Commitments (0138). RT.vcRows is filled by commitment-data's loadMine on Home;
-      // an athlete with no coach-scheduled commitments has [] and the plan is unchanged.
-      commitments: commitmentReminders(RT.vcRows || [], String(DAY.date)),
+      // Verified Commitments. The SERVER owns commitment reminders (0140 + the
+      // commitment-reminders function): a plan built here only exists once Home has been opened,
+      // which is useless for the 4:45 AM roll call of an athlete who hasn't opened the app since
+      // yesterday. This local plan is therefore a FALLBACK ONLY — scheduled when this device has
+      // no push token registered, so a device that can't be reached by push still gets its
+      // reminder, and one that can never gets two alarms at 4:45 AM.
+      commitments: PUSH_TOKEN_VALUE ? [] : commitmentReminders(RT.vcRows || [], String(DAY.date)),
     });
   },
 

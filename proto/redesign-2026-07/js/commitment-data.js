@@ -26,6 +26,7 @@ const RTC = {
   mine: [], mineDay: null, mineAt: 0, mineError: false,
   board: [], boardDay: null, boardAt: 0, boardError: false,
   locations: [], locationsAt: 0,
+  commitments: [], commitmentsAt: 0,
 };
 
 export const VC = {
@@ -162,16 +163,21 @@ export async function loadBoard(ownerId, kind, dayISO = null, force = false) {
   } catch { RTC.boardError = true; return RTC.board; }
 }
 
-/** Every standing commitment in this book — what the composer lists and edits. */
-export async function loadCommitments(ownerId, kind) {
+/** Every standing commitment in this book — what the manage screen lists and the composer edits.
+ *  PAUSED ones are included: a coach has to be able to find and resume them, which they can't do
+ *  if the only screen that lists commitments filters them out. */
+export async function loadCommitments(ownerId, kind, force = false) {
   const c = sb(); if (!c || !ownerId) return [];
+  if (!force && RTC.commitments.length && Date.now() - RTC.commitmentsAt < FRESH_MS) return RTC.commitments;
   const col = kind === 'practice' ? 'practice_id' : 'team_id';
   try {
     const { data, error } = await c.from('commitments')
-      .select('*').eq(col, ownerId).eq('active', true).order('starts_min');
-    if (error) return [];
-    return data || [];
-  } catch { return []; }
+      .select('*').eq(col, ownerId).order('active', { ascending: false }).order('starts_min');
+    if (error) return RTC.commitments;
+    RTC.commitments = data || [];
+    RTC.commitmentsAt = Date.now();
+    return RTC.commitments;
+  } catch { return RTC.commitments; }
 }
 
 export async function loadLocations(ownerId, kind, force = false) {
@@ -200,7 +206,8 @@ export async function saveCommitment(payload) {
   try {
     const { data, error } = await c.rpc('upsert_commitment', { p: payload });
     if (error) return null;
-    RTC.boardAt = 0; // force the next board read
+    RTC.boardAt = 0;        // force the next board read
+    RTC.commitmentsAt = 0;  // and the next manage-screen read
     return data || null;
   } catch { return null; }
 }
@@ -225,6 +232,31 @@ export async function setResponse(responseId, status, reason) {
     RTC.boardAt = 0;
     return true;
   } catch { return false; }
+}
+
+/** Excuse an athlete across a DATE RANGE. Writes athlete_exceptions — the same primitive every
+ *  other coach surface already understands as "excused" — and clears every commitment in the
+ *  range in one call, so a week of family travel isn't eleven separate taps. */
+export async function excuseAthlete(athleteId, fromISO, toISO, reason, ownerId, kind) {
+  const c = sb(); if (!c || !athleteId) return 0;
+  try {
+    const { data, error } = await c.rpc('staff_excuse_athlete', {
+      p_athlete: athleteId, p_from: fromISO, p_to: toISO,
+      p_reason: reason || null,
+      p_team: kind === 'practice' ? null : ownerId,
+      p_practice: kind === 'practice' ? ownerId : null,
+    });
+    if (error) return 0;
+    RTC.boardAt = 0;
+    return Number(data) || 0;
+  } catch { return 0; }
+}
+
+/** Pause, resume, or retire a standing commitment. Retiring is `active = false`, never a delete:
+ *  the instances and responses already recorded against it are history a coach acted on. */
+export async function setCommitmentActive(commitment, active) {
+  if (!commitment || !commitment.id) return null;
+  return saveCommitment({ ...commitment, active: !!active });
 }
 
 /** Reaches ONLY athletes who have not responded. Returns how many were notified. */

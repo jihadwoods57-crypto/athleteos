@@ -22,7 +22,7 @@ import { isIapAvailable, purchaseConsumer, restoreConsumer } from '../lib/iap';
 import { isHealthAvailable, healthConnected, connectHealth, readRecoverySample } from '../lib/health';
 import {
   isLocationAvailable, getPermissionState, requestPermission,
-  refreshGeofences, disarmAll, checkArrival, reportArrival,
+  refreshGeofences, disarmAll, checkArrival, reportArrival, capturePlace,
 } from '../lib/location';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { getPushToken } from '../lib/notify';
@@ -59,6 +59,11 @@ export type BridgeMessage =
   | { type: 'LOCATION_ARM'; id: number }
   | { type: 'LOCATION_DISARM'; id: number }
   | { type: 'LOCATION_CHECK'; id: number; instanceId?: string; report?: boolean }
+  // The ONE place a coordinate legitimately crosses this bridge: a COACH standing at their own
+  // facility, deliberately capturing it as a scheduled place. That is the coach recording a
+  // location they chose, not the app observing where a person goes — the opposite of what the
+  // athlete-side messages above are careful never to do.
+  | { type: 'LOCATION_PLACE'; id: number }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -308,6 +313,15 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, { within: false, reason: 'Something went wrong' }, String((e as Error)?.message ?? e));
       }
       return true;
+    case 'LOCATION_PLACE':
+      // "Use where I'm standing" in the coach's composer. Foreground permission only — capturing
+      // a facility is a one-shot action the coach initiated, and needs nothing in the background.
+      try {
+        resolve(ref, msg.id, await capturePlace());
+      } catch (e) {
+        resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
+      }
+      return true;
     case 'PUSH_TOKEN':
       // Expo push token for coach→athlete nudges (registered server-side by the proto via
       // register_device_token). Null when permission is denied / no EAS project / web.
@@ -387,7 +401,9 @@ export const BRIDGE_SHIM = `
       request: function(background){ return call('LOCATION_PERMISSION', { background: !!background }); },
       arm: function(){ return call('LOCATION_ARM', {}); },
       disarm: function(){ return call('LOCATION_DISARM', {}); },
-      check: function(instanceId, report){ return call('LOCATION_CHECK', { instanceId: String(instanceId||''), report: report !== false }); }
+      check: function(instanceId, report){ return call('LOCATION_CHECK', { instanceId: String(instanceId||''), report: report !== false }); },
+      // Coach-only: capture the facility they're standing in as a scheduled place.
+      place: function(){ return call('LOCATION_PLACE', {}); }
     },
   };
 
