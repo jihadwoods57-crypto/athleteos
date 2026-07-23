@@ -2141,6 +2141,37 @@ begin
   raise notice 'PASS: ack_commitment_by_token is not callable by authenticated';
 end $$;
 
+-- ============ commitment escalation (0145) ============
+-- claim_missed_commitments and rollcall_digest are service-role only: a normal authenticated client
+-- must not be able to mass-mark responses 'missed', nor read a whole instance's non-responder names.
+select _superuser();
+do $$
+declare ok boolean := false;
+begin
+  set local role authenticated;
+  begin
+    perform claim_missed_commitments(10);
+  exception when insufficient_privilege then ok := true;
+  end;
+  reset role;
+  if not ok then raise exception 'FAIL: authenticated could call claim_missed_commitments'; end if;
+  raise notice 'PASS: claim_missed_commitments is not callable by authenticated';
+end $$;
+
+select _superuser();
+do $$
+declare ok boolean := false;
+begin
+  set local role authenticated;
+  begin
+    perform rollcall_digest(gen_random_uuid());
+  exception when insufficient_privilege then ok := true;
+  end;
+  reset role;
+  if not ok then raise exception 'FAIL: authenticated could call rollcall_digest'; end if;
+  raise notice 'PASS: rollcall_digest is not callable by authenticated';
+end $$;
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
