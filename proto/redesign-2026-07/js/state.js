@@ -198,7 +198,6 @@ const DEFAULT_RT = {
   haptics: true,         // device preference: light vibration on taps/logs (router buzz())
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
   planUpdate: null,      // coach-published plan update; REALLY lands in Plan·Notes + notifications
-  squadScope: 'position',// coach-controlled leaderboard scope: 'team' | 'position' | 'off'
   trainerNotes: [],      // trainer->client notes; REALLY land in the athlete's notifications
   camPrimed: false,      // Apple-style camera permission priming shown once
   homeOpenSections: {},  // WS6: per-section open state for Home's collapsible groups (Later/Done)
@@ -207,8 +206,7 @@ const DEFAULT_RT = {
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
   restrictions: null,    // structured (spec §18.1): {allergies:[{name,severity}], intolerances:[], preferences:[]}
   injured: false,        // injury mode: the Standard adapts (rehab replaces recovery emphasis)
-  partnerNudged: false,  // peer accountability: one nudge sent tonight
-  wearable: false,       // v1 has NO wearable integration — never show fabricated hardware data
+  wearable: false,       // reserved; #devices gates on the live native health probe, not this flag
   // --- real auth (Supabase session drives these; null until signed in) ---
   userId: null,
   email: null,
@@ -1264,7 +1262,6 @@ export const act = {
     save();
   },
   setAuthRole(role) { RT.authRole = role; save(); },
-  nudgePartner() { RT.partnerNudged = true; save(); },
   toggleInjury() {
     RT.injured = !RT.injured;
     const rehabIdx = RT.assigned.findIndex(a => a.id === 'rehab');
@@ -2522,7 +2519,7 @@ export const S = {
     if (RT.hydrationOz > 0) a.push({ time: 'Today', type: 'Hydration', icon: 'droplet', value: `${RT.hydrationOz} oz`, vClass: 'b', img: null, route: 'log' });
     if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', icon: 'scale', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });
     a.push(DAY.ciSubmitted
-      ? { time: 'Today', type: 'Recovery Check-In', icon: 'moon', value: 'Submitted', vClass: 'g', img: null, route: 'recovery-confirm' }
+      ? { time: 'Today', type: 'Recovery Check-In', icon: 'moon', value: 'Submitted', vClass: 'g', img: null, route: 'recovery' }
       : { time: 'Tonight', type: 'Recovery Check-In', icon: 'moon', value: 'Upcoming', vClass: 'muted', img: null, dim: true, route: 'recovery' });
     return a;
   },

@@ -6,7 +6,7 @@ import { analyzing, mealQuestions, analysis, confirm, detail, thread } from './m
 import weight from './weight.js';
 import recovery, { recoveryConfirm } from './recovery.js';
 import progress from './progress.js';
-import profile, { editProfile, squad } from './profile.js';
+import profile, { editProfile } from './profile.js';
 import connect from './connect.js';
 import guardian from './guardian.js';
 import notifications from './notifications.js';
@@ -42,7 +42,7 @@ import { obParent } from './ob2-parent.js';
 import { obNutrition } from './ob2-nutrition.js';
 import signin from './signin.js';
 import reset from './reset.js';
-import { devices, recruiting, restrictions, teamDiet, injury, partner, coachVoice, trustPassPolicy, weekPattern, safety } from './features.js';
+import { devices, recruiting, restrictions, teamDiet, injury, coachVoice, trustPassPolicy, weekPattern, safety } from './features.js';
 import bioOptin from './bio-optin.js';
 import sponsor from './sponsor.js';
 import redeemCode from './redeem-code.js';
@@ -128,7 +128,6 @@ export const screens = {
   'coach-profile': coachProfile,
   'trainer-profile': trainerProfile,
   'edit-profile': editProfile,
-  squad,
   'notif-settings': notifSettings,
   'coach-notif-settings': coachNotifSettings,
   'delete-account': deleteAccount,
@@ -138,7 +137,6 @@ export const screens = {
   restrictions,
   'team-diet': teamDiet,
   injury,
-  partner,
   'coach-voice': coachVoice,
   'trust-pass-policy': trustPassPolicy,
   'week-pattern': weekPattern,

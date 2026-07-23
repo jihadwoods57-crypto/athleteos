@@ -61,7 +61,7 @@ export default {
       ${hasTrend ? sparkline(W.history) : `<div style="font-size:13px;font-weight:600;color:var(--text-3);padding:14px 0 6px">Log a few days and your trend line shows up here.</div>`}
       <div style="display:flex;justify-content:space-between;margin-top:8px">
         <div><div class="tiny" style="font-size:11px;font-weight:700">CURRENT</div><div style="font-size:17px;font-weight:800">${W.current != null ? W.current + ' lb' : '—'}</div></div>
-        ${W.deltaMonth ? `<div><div class="tiny" style="font-size:11px;font-weight:700">CHANGE</div><div style="font-size:17px;font-weight:800;color:var(--green-bright)">${W.deltaMonth}</div></div>` : ''}
+        ${W.deltaMonth ? `<div><div class="tiny" style="font-size:11px;font-weight:700">CHANGE</div><div style="font-size:17px;font-weight:800;color:var(--text-2)">${W.deltaMonth}</div></div>` : ''}
         <div style="text-align:right"><div class="tiny" style="font-size:11px;font-weight:700">TARGET</div><div style="font-size:17px;font-weight:800">${W.target} lb</div></div>
       </div>
     </section>` : `

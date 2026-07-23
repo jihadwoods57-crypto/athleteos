@@ -98,7 +98,7 @@ export default {
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="recruiting">
-        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div>
+        <div class="lic"${S.coach.hasCoach ? ' style="background:var(--green-surface);color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
         <div class="lm"><div class="lt">Discipline record</div><div class="ls">${S.coach.hasCoach ? `${S.coach.kind === 'trainer' ? 'Trainer' : 'Coach'}-verified · proof of the work` : 'Not verified yet · connect a coach to verify'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
@@ -358,10 +358,4 @@ export const editProfile = {
       }, { capture: true });
     });
   },
-};
-
-/* ---------- Squad · HIDDEN until a real roster/leaderboard exists (spec §1.6) ---------- */
-export const squad = {
-  tab: 'profile',
-  render() { location.hash = '#profile'; return ''; },
 };

@@ -261,8 +261,10 @@ function inProgressHero(e) {
     <div class="xh-main">
       ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       <div class="xh-body">
+        <div class="xh-k">Daily Score</div>
         <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">In progress</span></div>
-        <div class="xh-line">${esc(`${e.met} of ${e.total} done · ${toGo}`)}</div>
+        <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> done</div>
+        <div class="xh-flow">${esc(toGo)}</div>
       </div>
     </div>
   </section>`;
@@ -318,7 +320,7 @@ function celebration(e) {
       ${scoreRing({ score: e.score, delta: (S.scoreYesterday != null && e.score > S.scoreYesterday) ? `+${e.score - S.scoreYesterday} pts` : null, streak: S.streakDays > 0 ? `${S.streakDays} day streak` : null, tierName: S.tier.name, tierCls: S.tier.cls })}
     </section>
     <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
-    <div style="font-size:12.5px;color:var(--text-2);line-height:1.55;max-width:34ch;margin-top:5px">Every requirement is in. Day <b>${S.streakDays}</b> of your streak locks at midnight.</div>
+    <div style="font-size:12.5px;color:var(--text-2);line-height:1.55;max-width:34ch;margin-top:5px">Every requirement is in.${S.streakDays > 0 ? ` Day <b>${S.streakDays}</b> of your streak locks at midnight.` : ' Your streak starts the moment today locks at midnight.'}</div>
     <div style="height:14px"></div>
     <div class="eyebrow" style="align-self:flex-start">Today's record</div>
     <div class="xrecord" style="width:100%;box-sizing:border-box">
@@ -347,7 +349,7 @@ function notScoredHero() {
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
         <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">Not scored yet</span></div>
-        <div class="xh-line">Ready to begin — your score starts with your next action.</div>
+        <div class="xh-flow">Ready to begin — your score starts with your next action.</div>
       </div>
     </div>
   </section>`;
@@ -390,7 +392,10 @@ export default {
     if (S.notYetScored) {
       const first = e.now;
       const done = e.doneItems;
-      const upcoming = e.later.filter((i) => i.state !== 'not_required' && i.id !== 'hydration');
+      // e.next (the 2nd actionable item) lives in neither e.now nor e.later — without this it
+      // vanished from the activation-day screen entirely (not in Start here, Later, Logged, or
+      // Not counted). Surface it under "Later today", framed positively like the rest of day one.
+      const upcoming = [...(e.next ? [e.next] : []), ...e.later].filter((i) => i.state !== 'not_required' && i.id !== 'hydration');
       const excused = e.items.filter((i) => i.state === 'not_required');
       const grp = (label, rows, opts) => rows.length
         ? `<div class="xgrp">${label}</div><div class="xgroup">${rows.map((i) => grow(i, opts || {})).join('')}</div>` : '';
@@ -410,6 +415,13 @@ export default {
 
     if (RT.day0 && !RT.day0Breakfast) {
       const rest = e.items.filter((i) => i.id !== 'breakfast');
+      // A required window that already closed is NOT "Upcoming" — it split into its own
+      // honestly-labeled, color-coded group (amber "Late" while the day is live, red "Missed"
+      // once decided), exactly like the main Home render. Only items still ahead of the athlete
+      // (open / not-yet-open / optional) stay under the literal "Upcoming" header.
+      const lateRows = rest.filter((i) => i.required && i.state === 'overdue')
+        .sort((a, b) => (a.window ? a.window.due : 1e9) - (b.window ? b.window.due : 1e9));
+      const upcoming = rest.filter((i) => !(i.required && i.state === 'overdue'));
       return `
       ${appHead(headSub(e), trustShield())}
       ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
@@ -421,8 +433,9 @@ export default {
         <div style="height:10px"></div>
         <button class="xcta" data-go="camera">${icon('camera', 18)} Log First Meal</button>
       </section>
-      <div class="xgrp">Upcoming</div>
-      <div class="xgroup">${rest.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>
+      ${lateRows.length ? `<div class="xgrp">${e.decided ? 'Missed today' : 'Late — still counts'}</div>${lateRows.map(row).join('')}` : ''}
+      ${upcoming.length ? `<div class="xgrp">Upcoming</div>
+      <div class="xgroup">${upcoming.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>` : ''}
       <div class="eyebrow">Recent Results</div>
       <div class="state-demo"><div class="sd-ic">${icon('camera', 24)}</div><div class="sd-t">No logs yet</div>
       <div class="sd-s">Your proof trail builds here as you log. Take a photo to begin today's standard.</div></div>

@@ -2,6 +2,7 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import * as roles from '../roles.js';
+import * as CD from '../coach-data.js';
 
 /* ============================================================
    The 11 approved ideas, made walkable. Live where possible,
@@ -268,29 +269,83 @@ export const restrictions = {
         preferences: names('#rx-preferences'),
       };
       window.__act.saveRestrictions(structured);
+      // Sync to the server so the coach's Team Dietary Sheet gets the real declaration (0134).
+      try { roles.saveDietaryRestrictions(RT.userId, RT.restrictions); } catch { /* best-effort */ }
       window.__back('profile');
     });
+
+    // Cross-device hydrate: if this device has no local declaration, pull the server copy once.
+    const hasLocal = RT.restrictions && ((RT.restrictions.allergies || []).length || (RT.restrictions.intolerances || []).length || (RT.restrictions.preferences || []).length);
+    if (!hasLocal) {
+      roles.fetchMyDietary().then((server) => {
+        if (server && ((server.allergies && server.allergies.length) || (server.intolerances && server.intolerances.length) || (server.preferences && server.preferences.length))) {
+          RT.restrictions = server;
+          if (window.__render) window.__render();
+        }
+      }).catch(() => { /* offline — local stays authoritative */ });
+    }
   },
 };
 
 /* ---------- #team-diet · Coach's team dietary sheet ----------
-   HONEST: athletes' restriction declarations don't sync to the server yet, so a coach has no
-   real data to show here. This is a safety surface — a coach could order team meals off it —
-   so it must NEVER render invented allergies. Coming-soon until the sync exists. */
+   Now REAL (0134): athletes' declarations sync to the server, so a coach sees every athlete who
+   has declared, severity-flagged. This is a SAFETY surface — a coach could order team meals off
+   it — so it renders ONLY real declarations (roles.fetchTeamDietary), never invented allergies,
+   and honestly shows how many athletes have not declared. */
+let TD = { loaded: false, entries: [], byId: {} };
+async function loadTeamDiet() {
+  try {
+    await CD.loadCoachRoster();
+    const entries = CD.entriesFor(CD.getScope()) || [];
+    const ids = entries.map((e) => e.row && e.row.athleteId).filter(Boolean);
+    const rows = await roles.fetchTeamDietary(ids);
+    const byId = {};
+    for (const r of rows) if (r && r.athlete_id) byId[r.athlete_id] = r.data || {};
+    TD = { loaded: true, entries, byId };
+  } catch { TD = { loaded: true, entries: [], byId: {} }; }
+  if (window.__render) window.__render();
+}
+function dietHasAny(d) {
+  return !!(d && ((Array.isArray(d.allergies) && d.allergies.length)
+    || (Array.isArray(d.intolerances) && d.intolerances.length)
+    || (Array.isArray(d.preferences) && d.preferences.length)));
+}
+function dietRow(name, d) {
+  const allergyPills = (d.allergies || []).map((a) => {
+    const nm = (a && a.name) || a;
+    const severe = a && a.severity === 'severe';
+    const style = severe ? 'background:var(--red-surface);color:var(--red)' : 'background:rgba(245,165,36,0.16);color:var(--amber-bright)';
+    return `<span class="status-pill" style="${style}">${esc(nm)}${a && a.severity ? ` · ${esc(a.severity)}` : ''}</span>`;
+  }).join(' ');
+  const other = [...(d.intolerances || []), ...(d.preferences || [])].map((x) => `<span class="status-pill">${esc(x)}</span>`).join(' ');
+  return `<section class="card pad" style="margin-bottom:8px">
+    <div style="font-size:14.5px;font-weight:800">${esc(name)}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${allergyPills}${other}</div>
+  </section>`;
+}
 export const teamDiet = {
   nav: 'coach', tab: 'roster',
   render() {
-    return `
-    ${backHead('Team Dietary Sheet', 'Every restriction, one screen. Travel-ready.', 'coach-home')}
-
-    <div class="state-demo">
-      <div class="sd-ic">${icon('bell', 24)}</div>
-      <div class="sd-t">Declarations are coming</div>
-      <div class="sd-s">When your athletes declare restrictions and allergies in their profile, every one of them lands here — severity-flagged, one screen, travel-ready. Nothing shows until it's their real declaration; a dietary sheet is the last place for placeholder data.</div>
-    </div>
-    <div style="height:10px"></div>
-    `;
+    const head = backHead('Team Dietary Sheet', 'Every restriction, one screen. Travel-ready.', 'coach-home');
+    if (!TD.loaded) {
+      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Loading declarations…</div></div></div>`;
+    }
+    const declared = TD.entries.filter((e) => dietHasAny(TD.byId[e.row && e.row.athleteId]));
+    const undeclared = TD.entries.length - declared.length;
+    if (!declared.length) {
+      return `${head}
+      <div class="state-demo"><div class="sd-ic">${icon('bell', 24)}</div>
+      <div class="sd-t">No declarations yet</div>
+      <div class="sd-s">When your athletes declare restrictions and allergies in their profile, every one lands here — severity-flagged, one screen, travel-ready. Nothing shows until it's their real declaration; a dietary sheet is the last place for placeholder data.</div></div>
+      <div style="height:10px"></div>`;
+    }
+    return `${head}
+    <div class="eyebrow">Declared · ${declared.length} of ${TD.entries.length}</div>
+    ${declared.map((e) => dietRow(e.row.name, TD.byId[e.row.athleteId])).join('')}
+    ${undeclared ? `<div style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);margin:6px 0 4px">${undeclared} athlete${undeclared === 1 ? '' : 's'} ${undeclared === 1 ? 'has' : 'have'} not declared restrictions</div>` : ''}
+    <div style="height:10px"></div>`;
   },
+  mount() { loadTeamDiet(); },
 };
 
 /* ---------- #injury · Injury Mode (spec §19): role boundaries enforced ----------
@@ -350,12 +405,6 @@ export const injury = {
     <div style="height:10px"></div>
     `;
   },
-};
-
-/* ---------- #partner · HIDDEN until coach pairing is real (spec §1.6) ---------- */
-export const partner = {
-  tab: 'home',
-  render() { location.hash = '#home'; return ''; },
 };
 
 /* ---------- #coach-voice · configure how the AI reinforces YOUR standards ---------- */

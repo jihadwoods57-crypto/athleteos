@@ -322,6 +322,37 @@ export async function healthRead() {
   try { if (window.OnStandardNative && window.OnStandardNative.health) return await window.OnStandardNative.health.read(); } catch { /* no bridge */ }
   return null;
 }
+
+/* ---------------- dietary declarations (0134) — athlete-declared, coach-readable ---------------- */
+/** Push the athlete's structured restrictions to the server (owner-write). Best-effort. */
+export async function saveDietaryRestrictions(userId, data) {
+  const c = sb(); if (!c || !userId) return false;
+  try {
+    const { error } = await c.from('dietary_restrictions')
+      .upsert({ athlete_id: userId, data: data || {}, updated_at: new Date().toISOString() });
+    return !error;
+  } catch { return false; }
+}
+/** The caller's own declaration (for cross-device hydrate). Returns the data object or null. */
+export async function fetchMyDietary() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data: u } = await c.auth.getUser(); const uid = u && u.user && u.user.id; if (!uid) return null;
+    const { data, error } = await c.from('dietary_restrictions').select('data').eq('athlete_id', uid).maybeSingle();
+    if (error) return null;
+    return (data && data.data) || null;
+  } catch { return null; }
+}
+/** Coach read: declarations for a set of roster athletes (RLS gates to those they can_view).
+    Returns [{ athlete_id, data }] — only athletes who have actually declared. */
+export async function fetchTeamDietary(athleteIds) {
+  const c = sb(); if (!c || !athleteIds || !athleteIds.length) return [];
+  try {
+    const { data, error } = await c.from('dietary_restrictions').select('athlete_id,data').in('athlete_id', athleteIds);
+    if (error) return [];
+    return data || [];
+  } catch { return []; }
+}
 /** The ATHLETE side of the 0043 receipt loop: who actually opened MY day. RLS
     (coach_views_read) scopes rows to athlete_id = auth.uid() or the viewer's own receipts;
     the explicit athlete_id filter keeps a coach's client from pulling receipts they wrote

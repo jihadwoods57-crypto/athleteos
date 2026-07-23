@@ -112,7 +112,7 @@ export const streak = {
       </div>
       <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-top:4px">days at 80 or better</div>
       ${S.score >= 80
-        ? `<div style="font-size:12.5px;font-weight:600;color:var(--green-bright);margin-top:10px">Today is above the bar. Day ${S.streakDays} locks at midnight.</div>`
+        ? `<div style="font-size:12.5px;font-weight:600;color:var(--green-bright);margin-top:10px">Today is above the bar.${S.streakDays > 0 ? ` Day ${S.streakDays} locks at midnight.` : ' Your streak starts when today locks at midnight.'}</div>`
         : `<div style="font-size:12.5px;font-weight:600;color:var(--amber-bright);margin-top:10px">Today is still live. Reach 80 before the day closes to continue your streak.</div>`}
       <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:8px">Weekly grace available: ${graceAvailable}${graceAvailable ? '' : ` · used ${S.streak.label.replace('grace used ', '')}`}</div>
     </section>

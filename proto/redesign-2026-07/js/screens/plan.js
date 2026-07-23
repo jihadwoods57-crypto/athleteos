@@ -108,7 +108,7 @@ const overview = () => {
   <div class="eyebrow">Plan Summary</div>
   <div class="tiles2">
     <div class="tile"><div class="k">Goal</div><div class="v">${esc(S.planGoalLabel || '—')}</div></div>
-    <div class="tile"><div class="k">Target weight</div><div class="v">${S.weight.target != null ? S.weight.target + ' lb' : '—'}</div></div>
+    <div class="tile"><div class="k">Target weight</div><div class="v">${(T && T.weight != null) ? T.weight + ' lb' : (S.weight.target != null ? S.weight.target + ' lb' : '—')}</div></div>
     <div class="tile"><div class="k">Current</div><div class="v">${S.weight.current != null ? S.weight.current + ' lb' : '—'}</div></div>
     <div class="tile"><div class="k">Protein target</div><div class="v">${T && T.protein != null ? T.protein + 'g' : '—'}</div></div>
   </div>

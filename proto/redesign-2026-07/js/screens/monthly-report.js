@@ -141,7 +141,7 @@ function baseStatsBlock(report) {
     ${statBlock('Best day', report.bestDay ? `${dayLabel(report.bestDay.date)} · ${report.bestDay.score}` : '—')}
     ${statBlock('Worst day', report.worstDay ? `${dayLabel(report.worstDay.date)} · ${report.worstDay.score}` : '—')}
     ${statBlock('Weight change', weightChangeStr(report))}
-    ${statBlock('Best streak', report.streakBest != null ? `${report.streakBest} days` : '—')}
+    ${statBlock('Best streak', report.streakBest != null ? `${report.streakBest} day${report.streakBest === 1 ? '' : 's'}` : '—')}
   </div>`;
 }
 

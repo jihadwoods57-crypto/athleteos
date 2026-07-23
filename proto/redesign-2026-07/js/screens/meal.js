@@ -589,12 +589,12 @@ export const thread = {
     <div class="day-done" style="margin-top:16px">
       <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
       <div><div class="tt">That's everything. You're OnStandard at ${e.score}.</div>
-      <div class="ts">All requirements in. Day ${S.streakDays} locks at midnight.</div></div>
+      <div class="ts">All requirements in.${S.streakDays > 0 ? ` Day ${S.streakDays} locks at midnight.` : ' Your streak starts when today locks at midnight.'}</div></div>
     </div>` : n ? `
     <div class="eyebrow" style="margin-top:16px">Next Action</div>
     <div class="xrow-item" data-go="${n.route}">
       <div class="xico sm ${n.color}">${icon(n.icon, 17)}</div>
-      <div class="xr"><div class="xa">${esc(n.title)}${n.state === 'overdue' ? ' overdue' : ''}</div>
+      <div class="xr"><div class="xa">${esc(n.title)}</div>
       <div class="xb">${n.state === 'overdue' ? 'Log now for partial credit — late still counts'
         : `${n.countdown ? `⏱ ${esc(n.countdown)} · ` : ''}${esc(n.dueLabel)}`} · ${e.score} → ${e.possible}</div></div>
       <span class="xpill ${n.color}">${n.pill}</span>
