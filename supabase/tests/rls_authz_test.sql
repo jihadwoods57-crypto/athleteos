@@ -1550,6 +1550,150 @@ select _ok(_try($f$ select accountability_raw(
     'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) <> 'ok',
   'vc: accountability_raw is not callable by an authenticated user');
 
+-- ================================================================ arrival verification (0139)
+-- The consent gate is the promise made to a parent, so it is probed from both directions:
+-- refused without consent, allowed with it, refused again after revocation.
+select _superuser();
+
+-- A dedicated minor + guardian. Section 8 above revokes parent_p's guardianship (to prove
+-- revocation cuts access immediately), so is_guardian_of(minor_m) is false by the time we get
+-- here — reusing that pair would test the consent gate against an already-broken link.
+insert into auth.users (id, email) values
+  ('eeee0000-0000-0000-0000-0000000000e3','vcminor@x.io'),
+  ('eeee0000-0000-0000-0000-0000000000e4','vcparent@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('eeee0000-0000-0000-0000-0000000000e3','VC Minor','vcminor@x.io','athlete'),
+  ('eeee0000-0000-0000-0000-0000000000e4','VC Parent','vcparent@x.io','parent')
+on conflict (id) do update set full_name = excluded.full_name, primary_role = excluded.primary_role;
+insert into athlete_profiles (athlete_id, base_age, sport)
+values ('eeee0000-0000-0000-0000-0000000000e3', 15, 'football')
+on conflict (athlete_id) do update set base_age = 15;
+insert into team_members (team_id, athlete_id, status)
+values ('77777777-1111-0000-0000-000000000001','eeee0000-0000-0000-0000-0000000000e3','active')
+on conflict (team_id, athlete_id) do update set status = 'active';
+insert into guardianships (athlete_id, guardian_id, relationship, status)
+values ('eeee0000-0000-0000-0000-0000000000e3','eeee0000-0000-0000-0000-0000000000e4','parent','active')
+on conflict do nothing;
+
+-- a located commitment for T1
+insert into commitment_locations (id, team_id, name, lat, lng, radius_m)
+values ('aaaa1111-0000-0000-0000-0000000000f1','77777777-1111-0000-0000-000000000001',
+        'Football Facility', 28.6024, -81.2001, 120);
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
+    'id','ccccdddd-0000-0000-0000-0000000000c2',
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'type','strength','title','Morning Lift','audience_kind','team',
+    'repeat_days', jsonb_build_array(0,1,2,3,4,5,6),
+    'starts_min', 360, 'ends_min', 480, 'arrive_by_min', 355, 'min_dwell_min', 30,
+    'location_id','aaaa1111-0000-0000-0000-0000000000f1')) $f$) = 'ok',
+  'vc2: coach can schedule a located commitment');
+select _try($f$ select ensure_commitment_instances(
+  '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+
+-- the minor (base_age 15) is refused until consent exists
+select _as('eeee0000-0000-0000-0000-0000000000e3');
+select _ok(_try($f$ select verify_arrival((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual', true, null) $f$)
+  like '%consent%',
+  'vc2: a minor cannot verify arrival without consent');
+
+-- an adult on the same commitment is not gated
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual', true, null) $f$) = 'ok',
+  'vc2: an adult athlete verifies arrival without a consent row');
+
+-- the guardian grants; the minor is now allowed
+select _as('eeee0000-0000-0000-0000-0000000000e4');
+select _ok(_try($f$ select grant_verification_consent(
+    'eeee0000-0000-0000-0000-0000000000e3', 'guardian', null, 'parent approved') $f$) = 'ok',
+  'vc2: a verified guardian can grant consent');
+select _as('eeee0000-0000-0000-0000-0000000000e3');
+select _ok(_try($f$ select verify_arrival((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual', true, null) $f$) = 'ok',
+  'vc2: with consent the minor can verify arrival');
+
+-- a stranger cannot grant consent for someone else's child
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select grant_verification_consent(
+    'eeee0000-0000-0000-0000-0000000000e3', 'guardian', null, 'nope') $f$) <> 'ok',
+  'vc2: a non-guardian cannot grant guardian consent');
+select _ok(_try($f$ select grant_verification_consent(
+    'eeee0000-0000-0000-0000-0000000000e3', 'institutional',
+    '77777777-1111-0000-0000-000000000001', 'nope') $f$) <> 'ok',
+  'vc2: a non-staff user cannot assert institutional consent');
+
+-- a failed verification is UNVERIFIED, never MISSED
+select _superuser();
+update commitment_responses set arrived_at = null, arrival_source = null, status = 'pending'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2');
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _try($f$ select verify_arrival((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual', false, 'GPS too weak') $f$);
+select _superuser();
+select _ok((select status = 'unverified' from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+               and instance_id = (select id from commitment_instances
+                                   where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2')),
+  'vc2: a failed verification records unverified, never missed');
+
+-- completion is a SEPARATE signal: dwell cannot fire before the coach's minimum time on site
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select complete_commitment((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'dwell') $f$)
+  like '%minimum time%',
+  'vc2: dwell completion is refused before the minimum time on site');
+select _ok(_try($f$ select complete_commitment((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual') $f$) = 'ok',
+  'vc2: the athlete can still complete manually');
+
+-- a roll call has nothing to "complete"
+select _ok(_try($f$ select complete_commitment((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'), 'manual') $f$) <> 'ok',
+  'vc2: a roll call cannot be "completed" — responding is the whole commitment');
+
+-- the device is only ever told about events that are armed right now, and only the COACH's place
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((select bool_and(k in ('instance_id','starts_at','ends_at','arrive_by_at',
+                                  'min_dwell_min','name','lat','lng','radius_m'))
+              from jsonb_array_elements(my_armable_geofences(16)) e,
+                   jsonb_object_keys(e) k),
+  'vc2: armable geofences expose only the scheduled place, never an athlete position');
+
+-- revocation cuts it off again
+select _as('eeee0000-0000-0000-0000-0000000000e3');
+select _ok(_try($f$ select revoke_verification_consent('eeee0000-0000-0000-0000-0000000000e3') $f$) = 'ok',
+  'vc2: an athlete can revoke their own consent');
+select _superuser();
+update commitment_responses set arrived_at = null, arrival_source = null, status = 'pending'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e3'
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2');
+select _as('eeee0000-0000-0000-0000-0000000000e3');
+select _ok(_try($f$ select verify_arrival((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual', true, null) $f$)
+  like '%consent%',
+  'vc2: after revocation location verification is refused again');
+select _ok((select count(*) from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e3') > 0,
+  'vc2: revoking consent does not erase the athlete''s existing record');
+
+-- a dispute flags the row for staff but never rewrites it
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok(_try($f$ select dispute_response((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'I was in the weight room') $f$) = 'ok',
+  'vc2: an athlete can dispute a verification');
+select _superuser();
+select _ok((select disputed_at is not null and arrived_at is null
+              from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+               and instance_id = (select id from commitment_instances
+                                   where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2')),
+  'vc2: a dispute flags the record without marking the athlete present');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
