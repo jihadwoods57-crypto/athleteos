@@ -2,11 +2,12 @@
 // posts the signed code to roll-call-ack, and persists an offline retry queue. Native only.
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { rollCallCategoryId, enqueueAck, dropAck, type QueuedAck } from '@/core/rollcall';
+import { rollCallCategoryId, enqueueAck, dropAck, mergeLabels, type QueuedAck } from '@/core/rollcall';
 
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
 const ACK_ENDPOINT = supaUrl ? `${supaUrl}/functions/v1/roll-call-ack` : '';
 const QUEUE_KEY = 'os:rollcall:ackQueue';
+const LABELS_KEY = 'os:rollcall:labels';
 
 /** Register (idempotently) the notification category whose single action records "I'm Up" without
  *  opening the app. Returns the category id so the caller can match a push's categoryId. */
@@ -53,4 +54,27 @@ export async function drainAckQueue(): Promise<void> {
     if (await postRollCallAck(item.code)) q = dropAck(q, item.code);
   }
   await writeQueue(q);
+}
+
+async function readLabels(): Promise<string[]> {
+  try { return JSON.parse((await AsyncStorage.getItem(LABELS_KEY)) ?? '[]') as string[]; } catch { return []; }
+}
+
+/** Register the default category plus every coach label seen before, so pushed roll calls carry the
+ *  "I'm Up" action even when the app is later killed. Call once at startup. Native only, best-effort. */
+export async function ensureRollCallCategories(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  await registerRollCallCategory(null); // the default RC::im-up
+  for (const label of await readLabels()) await registerRollCallCategory(label);
+}
+
+/** Remember a coach label from an incoming roll-call push and register it now, so its custom button
+ *  survives to the next launch. */
+export async function rememberRollCallLabel(label: string | null): Promise<void> {
+  if (Platform.OS === 'web' || !label) return;
+  try {
+    const next = mergeLabels(await readLabels(), label);
+    await AsyncStorage.setItem(LABELS_KEY, JSON.stringify(next));
+    await registerRollCallCategory(label);
+  } catch { /* best effort */ }
 }

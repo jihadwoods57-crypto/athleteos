@@ -10,7 +10,7 @@ import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
 import { registerGeofenceTask } from '../lib/location';
-import { postRollCallAck, queueAck, drainAckQueue } from '../lib/notify/rollcall';
+import { postRollCallAck, queueAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel } from '../lib/notify/rollcall';
 
 const BG = '#080B0A';
 
@@ -151,10 +151,15 @@ export function ProtoApp() {
     // opening the app and MUST return before deliverRoute, so an ack never doubles as a deep link.
     const handleResponse = (resp: unknown): void => {
       const r = resp as
-        | { actionIdentifier?: string; notification?: { request?: { content?: { data?: { route?: unknown; code?: unknown } } } } }
+        | { actionIdentifier?: string; notification?: { request?: { content?: { data?: { route?: unknown; code?: unknown; action_label?: unknown } } } } }
         | null
         | undefined;
       const data = r?.notification?.request?.content?.data;
+      // A roll-call push (tapped or ACK'd) carries a code — remember its label so the custom "I'm Up"
+      // button is registered for the next launch, even if the app is later killed. Best-effort.
+      if (typeof data?.code === 'string' && data.code) {
+        void rememberRollCallLabel(typeof data?.action_label === 'string' ? data.action_label : null);
+      }
       if (r?.actionIdentifier === 'ACK' && typeof data?.code === 'string' && data.code) {
         const code = data.code;
         // Best-effort: record now, queue for a foreground/reconnect retry if the network isn't there.
@@ -172,7 +177,15 @@ export function ProtoApp() {
 
   // Drain any offline "I'm Up" acks that were queued while the phone was offline — a lock-screen
   // tap in a dead zone still lands the moment the athlete opens the app on connectivity. Native only.
-  React.useEffect(() => { if (Platform.OS !== 'web') { void drainAckQueue(); } }, []);
+  // Also (re-)register the roll-call notification categories at startup so a pushed roll call shows
+  // its "I'm Up" action button — iOS only surfaces action buttons for categories registered on a
+  // prior launch, so this must run every startup, not just on first push.
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') {
+      void drainAckQueue();
+      void ensureRollCallCategories();
+    }
+  }, []);
 
   const onWebLoadEnd = React.useCallback(() => {
     webLoaded.current = true;

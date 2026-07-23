@@ -19,3 +19,9 @@ export function enqueueAck(q: QueuedAck[], code: string, now: number): QueuedAck
 export function dropAck(q: QueuedAck[], code: string): QueuedAck[] {
   return q.filter((x) => x.code !== code);
 }
+
+/** Merge a coach action-label into the persisted set: dedupe, drop empties, keep the most recent `cap`. */
+export function mergeLabels(existing: string[], label: string, cap = 20): string[] {
+  if (!label || existing.includes(label)) return existing;
+  return [...existing, label].slice(-cap);
+}

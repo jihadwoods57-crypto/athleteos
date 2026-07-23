@@ -1,4 +1,4 @@
-import { rollCallCategoryId, enqueueAck, dropAck } from './rollcall';
+import { rollCallCategoryId, enqueueAck, dropAck, mergeLabels } from './rollcall';
 
 describe('rollCallCategoryId', () => {
   it('slugs the coach label, stable + bounded', () => {
@@ -18,5 +18,23 @@ describe('ack queue', () => {
   it('drops by code', () => {
     const q = enqueueAck(enqueueAck([], 'c1', 1), 'c2', 2);
     expect(dropAck(q, 'c1').map((x) => x.code)).toEqual(['c2']);
+  });
+});
+
+describe('mergeLabels', () => {
+  it('appends a new label and dedupes', () => {
+    expect(mergeLabels([], "I'm Up")).toEqual(["I'm Up"]);
+    expect(mergeLabels(["I'm Up"], "I'm Up")).toEqual(["I'm Up"]);
+    expect(mergeLabels(["I'm Up"], 'Here')).toEqual(["I'm Up", 'Here']);
+  });
+  it('ignores empty labels', () => {
+    expect(mergeLabels(['Here'], '')).toEqual(['Here']);
+  });
+  it('caps to the most recent N', () => {
+    const many = Array.from({ length: 20 }, (_, i) => 'L' + i);
+    const out = mergeLabels(many, 'NEW', 20);
+    expect(out).toHaveLength(20);
+    expect(out[out.length - 1]).toBe('NEW');
+    expect(out.includes('L0')).toBe(false);
   });
 });
