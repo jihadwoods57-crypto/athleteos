@@ -604,10 +604,14 @@ export async function setMyCoachName(name) {
 }
 
 /* ---------------- requirements engine (0055) ---------------- */
-/** The team's standing requirement sets (RLS: staff + active members). Best-effort []. */
-export async function fetchRequirementSets(teamId) {
-  const c = sb(); if (!c || !teamId) return [];
-  try { const { data } = await c.from('requirement_sets').select('*').eq('team_id', teamId); return data || []; } catch { return []; }
+/** Which owner column a book kind writes/reads (0136 dual-owner columns). A coach's book is a
+    team, a trainer's is a practice; exactly one is ever set on a row. */
+export const ownerCol = (kind) => (kind === 'practice' ? 'practice_id' : 'team_id');
+
+/** The book's standing requirement sets (RLS: staff/owner + active members/clients). []. */
+export async function fetchRequirementSets(bookId, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
+  try { const { data } = await c.from('requirement_sets').select('*').eq(ownerCol(kind), bookId); return data || []; } catch { return []; }
 }
 /** The signed-in ATHLETE's assignments: everything open plus anything closed recently
     (so a just-completed task still shows Done tonight). Best-effort []. */
@@ -643,34 +647,39 @@ export async function markMyNotificationsRead() {
 /** Coach saves a standing requirement set (team / position / athlete scope). `effectiveDate`
     ('YYYY-MM-DD' or null) makes the change prospective — null is the always-in-effect base
     (team creation / apply-now), a future date leaves today and past days untouched (0085). */
-export async function setTeamRequirements(teamId, scopeKind, scopeValue, items, effectiveDate = null) {
+export async function setTeamRequirements(bookId, scopeKind, scopeValue, items, effectiveDate = null, kind = 'team') {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  const practice = kind === 'practice';
   try {
-    const { error } = await c.rpc('set_team_requirements', {
-      p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null, p_items: items,
-      p_effective_date: effectiveDate || null,
-    });
+    const { error } = await c.rpc(practice ? 'set_practice_requirements' : 'set_team_requirements',
+      practice
+        ? { p_practice: bookId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null, p_items: items, p_effective_date: effectiveDate || null }
+        : { p_team: bookId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null, p_items: items, p_effective_date: effectiveDate || null });
     return error ? { ok: false, error: error.message || 'Could not save the standard.' } : { ok: true };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the standard.' }; }
 }
 /** Remove a scope override so it falls back to the team default (0058). */
-export async function clearTeamRequirements(teamId, scopeKind, scopeValue) {
+export async function clearTeamRequirements(bookId, scopeKind, scopeValue, kind = 'team') {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  const practice = kind === 'practice';
   try {
-    const { error } = await c.rpc('clear_team_requirements', {
-      p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null,
-    });
+    const { error } = await c.rpc(practice ? 'clear_practice_requirements' : 'clear_team_requirements',
+      practice
+        ? { p_practice: bookId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null }
+        : { p_team: bookId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null });
     return error ? { ok: false, error: error.message || 'Could not reset it.' } : { ok: true };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not reset it.' }; }
 }
 
 /** Coach + button → assign_requirement RPC (fans out one row per athlete + push row each).
     Returns { ok, count?, error? } with the server's message surfaced verbatim. */
-export async function assignRequirement({ teamId, scopeKind, scopeValue, title, proof, dueAt, dueLabel, note }) {
+export async function assignRequirement({ teamId, scopeKind, scopeValue, title, proof, dueAt, dueLabel, note, kind = 'team' }) {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  const practice = kind === 'practice';
+  const owner = practice ? { p_practice: teamId } : { p_team: teamId };
   try {
-    const { data, error } = await c.rpc('assign_requirement', {
-      p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null,
+    const { data, error } = await c.rpc(practice ? 'assign_practice_requirement' : 'assign_requirement', {
+      ...owner, p_scope_kind: scopeKind, p_scope_value: scopeValue || null,
       p_title: title, p_proof: proof || 'check', p_due_at: dueAt || null,
       p_due_label: dueLabel || null, p_note: note || null,
     });
@@ -742,34 +751,36 @@ export async function fetchAnnouncements(teamId, limit = 10) {
 
 /* ---------------- Coach OS core (0071): interventions, groups, exceptions ---------------- */
 /** Log a coach action (nudge/message/assign/handled). The queue and Insights both read this. */
-export async function logIntervention({ teamId, athleteId, kind, reasonKey, tier, note }) {
+export async function logIntervention({ teamId, athleteId, kind, reasonKey, tier, note, book = 'team' }) {
   const c = sb(); if (!c || !teamId || !athleteId || !kind) return false;
+  // `kind` is the INTERVENTION kind (nudge/message/assign/handled); `book` is which owner column
+  // the row hangs off (0136). Exactly one of team_id/practice_id may be set — the CHECK enforces it.
   try {
     const { error } = await c.from('coach_interventions').insert({
-      team_id: teamId, athlete_id: athleteId, kind, day: todayISO(),
+      [ownerCol(book)]: teamId, athlete_id: athleteId, kind, day: todayISO(),
       reason_key: reasonKey || null, tier: tier || null, note: note || null,
     });
     return !error;
   } catch { return false; }
 }
 /** Today's interventions for the team (priority queue filters on these). Best-effort []. */
-export async function fetchTodayInterventions(teamId) {
-  const c = sb(); if (!c || !teamId) return [];
+export async function fetchTodayInterventions(bookId, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
   try {
     const { data } = await c.from('coach_interventions')
       .select('athlete_id,kind,reason_key,tier,created_at')
-      .eq('team_id', teamId).eq('day', todayISO()).limit(400);
+      .eq(ownerCol(kind), bookId).eq('day', todayISO()).limit(400);
     return data || [];
   } catch { return []; }
 }
-export async function fetchCoachGroups(teamId) {
-  const c = sb(); if (!c || !teamId) return [];
-  try { const { data } = await c.from('coach_groups').select('id,name,athlete_ids').eq('team_id', teamId).order('name'); return data || []; } catch { return []; }
+export async function fetchCoachGroups(bookId, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
+  try { const { data } = await c.from('coach_groups').select('id,name,athlete_ids').eq(ownerCol(kind), bookId).order('name'); return data || []; } catch { return []; }
 }
-export async function saveCoachGroup(teamId, { id, name, athleteIds }) {
-  const c = sb(); if (!c || !teamId) return { ok: false, error: 'You need a connection for this.' };
+export async function saveCoachGroup(bookId, { id, name, athleteIds }, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return { ok: false, error: 'You need a connection for this.' };
   try {
-    const row = { team_id: teamId, name, athlete_ids: athleteIds || [], updated_at: new Date().toISOString() };
+    const row = { [ownerCol(kind)]: bookId, name, athlete_ids: athleteIds || [], updated_at: new Date().toISOString() };
     const q = id ? c.from('coach_groups').update(row).eq('id', id) : c.from('coach_groups').insert(row);
     const { error } = await q;
     return error ? { ok: false, error: error.message || 'Could not save the group.' } : { ok: true };
@@ -827,21 +838,21 @@ export async function assignAthleteRoom(athleteId, roomId) {
   try { const { error } = await c.rpc('assign_athlete_room', { p_athlete: athleteId, p_room: roomId || null }); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
 }
 /** Exceptions whose window covers today. Best-effort []. */
-export async function fetchActiveExceptions(teamId) {
-  const c = sb(); if (!c || !teamId) return [];
+export async function fetchActiveExceptions(bookId, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
   try {
     const t = todayISO();
     const { data } = await c.from('athlete_exceptions')
       .select('id,athlete_id,starts_on,ends_on,reason')
-      .eq('team_id', teamId).lte('starts_on', t).gte('ends_on', t);
+      .eq(ownerCol(kind), bookId).lte('starts_on', t).gte('ends_on', t);
     return data || [];
   } catch { return []; }
 }
-export async function saveAthleteException(teamId, athleteId, startsOn, endsOn, reason) {
-  const c = sb(); if (!c || !teamId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
+export async function saveAthleteException(bookId, athleteId, startsOn, endsOn, reason, kind = 'team') {
+  const c = sb(); if (!c || !bookId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
   try {
     const { error } = await c.from('athlete_exceptions').insert({
-      team_id: teamId, athlete_id: athleteId, starts_on: startsOn, ends_on: endsOn, reason: reason || null,
+      [ownerCol(kind)]: bookId, athlete_id: athleteId, starts_on: startsOn, ends_on: endsOn, reason: reason || null,
     });
     return error ? { ok: false, error: error.message || 'Could not mark that.' } : { ok: true };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not mark that.' }; }
@@ -904,19 +915,19 @@ export async function setStaffRole(teamId, staffId, role) {
 }
 
 /* ---------------- Coach OS Slice B: profile helpers ---------------- */
-export async function fetchCoachNotes(teamId, athleteId) {
-  const c = sb(); if (!c || !teamId || !athleteId) return [];
+export async function fetchCoachNotes(bookId, athleteId, kind = 'team') {
+  const c = sb(); if (!c || !bookId || !athleteId) return [];
   try {
     const { data } = await c.from('coach_notes').select('id,author_id,body,created_at')
-      .eq('team_id', teamId).eq('athlete_id', athleteId)
+      .eq(ownerCol(kind), bookId).eq('athlete_id', athleteId)
       .order('created_at', { ascending: false }).limit(100);
     return data || [];
   } catch { return []; }
 }
-export async function postCoachNote(teamId, athleteId, body) {
-  const c = sb(); if (!c || !teamId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
+export async function postCoachNote(bookId, athleteId, body, kind = 'team') {
+  const c = sb(); if (!c || !bookId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
   try {
-    const { error } = await c.from('coach_notes').insert({ team_id: teamId, athlete_id: athleteId, body });
+    const { error } = await c.from('coach_notes').insert({ [ownerCol(kind)]: bookId, athlete_id: athleteId, body });
     return error ? { ok: false, error: error.message || 'Could not save the note.' } : { ok: true };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the note.' }; }
 }
@@ -924,11 +935,11 @@ export async function deleteCoachNote(id) {
   const c = sb(); if (!c || !id) return false;
   try { const { error } = await c.from('coach_notes').delete().eq('id', id); return !error; } catch { return false; }
 }
-export async function fetchAthleteInterventions(teamId, athleteId, sinceISO) {
-  const c = sb(); if (!c || !teamId || !athleteId) return [];
+export async function fetchAthleteInterventions(bookId, athleteId, sinceISO, kind = 'team') {
+  const c = sb(); if (!c || !bookId || !athleteId) return [];
   try {
     let q = c.from('coach_interventions').select('kind,reason_key,tier,note,created_at')
-      .eq('team_id', teamId).eq('athlete_id', athleteId);
+      .eq(ownerCol(kind), bookId).eq('athlete_id', athleteId);
     if (sinceISO) q = q.gte('day', sinceISO);
     const { data } = await q.order('created_at', { ascending: false }).limit(100);
     return data || [];

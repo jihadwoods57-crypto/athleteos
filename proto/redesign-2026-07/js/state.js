@@ -1642,9 +1642,13 @@ export const act = {
     const real = rows.map(r => assignedFromRow(r, coachName)).filter(Boolean)
       .map(a => ({ ...a, seen: prevSeen.has(a.id) || a.done }));
     RT.assigned = [...RT.assigned.filter(a => !a.real), ...real];
-    // the team's standing requirement sets govern the athlete's scored day (WS3 slice 2)
+    // The standing requirement sets that govern this athlete's scored day (WS3 slice 2). A
+    // TEAM link also resolves the weekly pattern and the athlete's room; a PRACTICE link (0136)
+    // has neither by design — rooms and week patterns are team concepts — so a trainer's client
+    // resolves practice-default vs per-client scope only. Before 0136 a client loaded NO sets at
+    // all, which is why plan.js used to attribute the app's built-in defaults to a named trainer.
     if (RT.myCoach && RT.myCoach.teamId) {
-      RT.reqSets = await fetchRequirementSets(RT.myCoach.teamId);
+      RT.reqSets = await fetchRequirementSets(RT.myCoach.teamId, 'team');
       // The team's weekly pattern (0100) resolves this athlete's day-type. Best-effort; a null
       // (no pattern / not-applied table / offline) leaves day-type 'any' — no gating.
       try { RT.weekPattern = await fetchTeamWeekPattern(RT.myCoach.teamId); } catch { /* best-effort */ }
@@ -1652,6 +1656,8 @@ export const act = {
       // instead of their raw position. null (unassigned — every athlete until a coach assigns) = the
       // exact prior behavior. Best-effort.
       try { RT.myRoomLabel = await fetchMyRoomLabel(RT.myCoach.teamId); } catch { /* best-effort */ }
+    } else if (RT.myTrainer && RT.myTrainer.practiceId) {
+      RT.reqSets = await fetchRequirementSets(RT.myTrainer.practiceId, 'practice');
     }
     this._applyStandardFromSets();
     save();

@@ -100,7 +100,7 @@ function wireGroupSheet(root, teamId) {
     const name = ((root.querySelector('#group-name') || {}).value || '').trim();
     if (!name) { status('Name the group first.', true); return; }
     b.disabled = true;
-    const r = await roles.saveCoachGroup(teamId, { name, athleteIds: [...SEL] });
+    const r = await roles.saveCoachGroup(teamId, { name, athleteIds: [...SEL] }, CD.kind);
     if (r.ok) { act.markCoachSetup('group'); SEL.clear(); SELECTING = false; SHOW_GROUPS = false; await loadMyBook(true); }
     else { b.disabled = false; status(r.error || 'Could not save the group — check your connection.', true); }
   }));
@@ -109,7 +109,7 @@ function wireGroupSheet(root, teamId) {
     if (!g) return;
     b.disabled = true;
     const merged = [...new Set([...(g.athlete_ids || []), ...SEL])];
-    const r = await roles.saveCoachGroup(teamId, { id: g.id, name: g.name, athleteIds: merged });
+    const r = await roles.saveCoachGroup(teamId, { id: g.id, name: g.name, athleteIds: merged }, CD.kind);
     if (r.ok) { SEL.clear(); SELECTING = false; await loadMyBook(true); }
     else { b.disabled = false; status(r.error || 'Could not update the group.', true); }
   }));
@@ -144,7 +144,7 @@ function wireAbsenceSheet(root, teamId) {
     let failed = 0;
     try {
       for (const id of [...SEL]) {
-        const r = await roles.saveAthleteException(teamId, id, roles.todayISO(), endISO, reason);
+        const r = await roles.saveAthleteException(teamId, id, roles.todayISO(), endISO, reason, CD.kind);
         if (!r.ok) failed++;
       }
     } finally {

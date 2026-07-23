@@ -80,14 +80,17 @@ assert.strictEqual(navFor(OPERATOR, undefined), 'coach');
     assert.ok(navAdmits(mod, 'trainer'), `'${route}' must admit a trainer`);
     assert.strictEqual(navFor(mod, 'trainer'), 'trainer', `'${route}' must paint the trainer shell`);
   }
-  // ...and a trainer must still be locked out of the coach-only surfaces.
-  for (const route of ['coach-insights', 'coach-rooms', 'coach-announce', 'coach-plan-set']) {
+  // 0136 gave a practice its own standards, so the standards editor (coach-plan-set) and the
+  // assign composer are operator screens now. What stays coach-only is what is TEAM-shaped by
+  // design (rooms, broadcast announcements) or still un-mirrored server-side (insights → 0137).
+  for (const route of ['coach-insights', 'coach-rooms', 'coach-announce']) {
     const mod = screens[route];
     assert.ok(mod, `${route} missing`);
     assert.strictEqual(navAdmits(mod, 'trainer'), false, `a trainer must not render '${route}'`);
   }
   // The shared operator screens serve a coach exactly as before.
-  for (const route of ['coach-home', 'coach-roster', 'coach-create', 'coach-inbox', 'coach-athlete']) {
+  for (const route of ['coach-home', 'coach-roster', 'coach-create', 'coach-inbox', 'coach-athlete',
+                       'coach-plan', 'coach-plan-set', 'coach-assign', 'coach-meal']) {
     assert.ok(navAdmits(screens[route], 'coach'), `a coach must still render '${route}'`);
     assert.strictEqual(navFor(screens[route], 'coach'), 'coach');
     assert.strictEqual(navAdmits(screens[route], 'athlete'), false, `an athlete must not render '${route}'`);

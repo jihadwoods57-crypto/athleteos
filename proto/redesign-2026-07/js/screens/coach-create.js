@@ -26,7 +26,14 @@ const OPTIONS = [
 
 /* A trainer's create menu points at their own routes for the two options that survive. */
 const TRAINER_GO = { message_athlete: 'trainer-roster', add_athlete: 'trainer-profile' };
-const TRAINER_SUB = { add_athlete: 'Share your practice code' };
+/* A practice has no rooms or groups, so the team-shaped sub-copy would describe scopes that
+   don't exist on this book (assign_practice_requirement refuses anything but all-or-one). */
+const TRAINER_SUB = {
+  add_athlete: 'Share your practice code',
+  message_athlete: 'Pick from your clients',
+  assign: 'All clients, or just one',
+  standards: 'Meals, windows, and check-ins',
+};
 
 export const coachCreate = {
   nav: 'operator', tab: 'create', transient: true,

@@ -813,6 +813,142 @@ select _ok((select jsonb_array_length(items) from requirement_sets
             where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='VER' and effective_date is null) = 1,
            'versioning: the base version is untouched — today is unchanged');
 
+-- 8d. PRACTICE/OPERATOR PARITY (0136): a trainer's practice owns the same coaching artifacts a
+--     team does, via dual-owner (team_id | practice_id) columns. Runs BEFORE section 8's
+--     revocations, while trainer T ⇄ client A is still an active link.
+select _superuser();
+-- A second practice, owned by rando, so "another operator's practice" is a real boundary and not
+-- just an absent row.
+insert into practices (id, owner_id, name, join_code) values
+  ('88888888-0000-0000-0000-000000000002','99999999-0000-0000-0000-000000000009','P2','P2CODE');
+insert into practice_clients (practice_id, client_id, status) values
+  ('88888888-0000-0000-0000-000000000002','bbbbbbbb-0000-0000-0000-000000000002','active');
+
+-- --- the one-owner invariant (data integrity, probed as superuser: writes here are RPC-only) ---
+select _ok(_try($q$insert into requirement_sets (team_id, practice_id, scope_kind, items, created_by)
+                   values ('77777777-1111-0000-0000-000000000001','88888888-0000-0000-0000-000000000001','team',
+                           '[{"id":"m1","title":"B","kind":"meal","proof":"photo"}]'::jsonb,
+                           '11111111-0000-0000-0000-000000000001')$q$) <> 'ok',
+           '0136: a requirement_set cannot name BOTH a team and a practice');
+select _ok(_try($q$insert into requirement_sets (scope_kind, items, created_by)
+                   values ('team','[{"id":"m1","title":"B","kind":"meal","proof":"photo"}]'::jsonb,
+                           '11111111-0000-0000-0000-000000000001')$q$) <> 'ok',
+           '0136: a requirement_set must name an owner — neither is refused');
+
+-- --- standards: the practice owner writes; nobody else does ---
+select _as('44444444-0000-0000-0000-000000000004');  -- trainer T, owns P1
+select _ok(_try($q$select set_practice_requirements('88888888-0000-0000-0000-000000000001','team',null,
+                     '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) = 'ok',
+           '0136: trainer T CAN set their own practice standard');
+select _ok(_try($q$select set_practice_requirements('88888888-0000-0000-0000-000000000002','team',null,
+                     '[{"id":"m1","title":"X","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) <> 'ok',
+           '0136: trainer T CANNOT set another practice''s standard');
+select _ok(_try($q$select set_practice_requirements('88888888-0000-0000-0000-000000000001','position','LB',
+                     '[{"id":"m1","title":"X","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) <> 'ok',
+           '0136: a practice standard refuses position scope (practice_roster has no position)');
+select _ok(_try($q$select set_team_requirements('77777777-1111-0000-0000-000000000001','team',null,
+                     '[{"id":"m1","title":"X","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) <> 'ok',
+           '0136: trainer T CANNOT set a TEAM standard through the coach RPC');
+select _as('99999999-0000-0000-0000-000000000009');  -- rando owns P2, not P1
+select _ok(_try($q$select set_practice_requirements('88888888-0000-0000-0000-000000000001','team',null,
+                     '[{"id":"m1","title":"X","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) <> 'ok',
+           '0136: a non-owner CANNOT set P1''s standard');
+
+-- --- ⚠ THE UNIQUE-INDEX TRAP: with team_id nullable, every practice row's NULL team_id would be
+--     "distinct" under the old key, so re-saving would DUPLICATE instead of replacing and the
+--     client resolver would become non-deterministic about which set governs.
+select _as('44444444-0000-0000-0000-000000000004');
+select set_practice_requirements('88888888-0000-0000-0000-000000000001','team',null,
+  '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},{"id":"m2","title":"D","kind":"meal","proof":"photo"}]'::jsonb, null);
+select _ok((select count(*) from requirement_sets
+            where practice_id='88888888-0000-0000-0000-000000000001' and scope_kind='team') = 1,
+           '0136: re-saving a practice standard REPLACES it — the rebuilt unique index still bites');
+select _ok((select jsonb_array_length(items) from requirement_sets
+            where practice_id='88888888-0000-0000-0000-000000000001' and scope_kind='team') = 2,
+           '0136: the replacement kept the newer items');
+-- ...and versioning still works per-practice (same prospective-date semantics as a team).
+select set_practice_requirements('88888888-0000-0000-0000-000000000001','team',null,
+  '[{"id":"m1","title":"B","kind":"meal","proof":"photo"}]'::jsonb, current_date + 1);
+select _ok((select count(*) from requirement_sets
+            where practice_id='88888888-0000-0000-0000-000000000001' and scope_kind='team') = 2,
+           '0136: a future-dated practice standard adds a version beside the base');
+
+-- --- the coach side is UNCHANGED by the index rebuild (the regression this migration risks) ---
+select _as('11111111-0000-0000-0000-000000000001');  -- head coach of T1
+select _ok(_try($q$select set_team_requirements('77777777-1111-0000-0000-000000000001','position','REG',
+                     '[{"id":"m1","title":"B","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) = 'ok',
+           '0136: set_team_requirements still works after the ON CONFLICT target was rebuilt');
+select set_team_requirements('77777777-1111-0000-0000-000000000001','position','REG',
+  '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},{"id":"m2","title":"D","kind":"meal","proof":"photo"}]'::jsonb, null);
+select _ok((select count(*) from requirement_sets
+            where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='REG') = 1,
+           '0136: a coach re-save still REPLACES rather than duplicating');
+select _ok((select count(*) from requirement_sets where practice_id is not null) = 0,
+           '0136: a coach cannot see ANY practice-owned standard');
+
+-- --- the member read: this is what stops the client Plan screen attributing built-in defaults
+--     to a named trainer. The client must read the practice standard that governs THEM.
+select _as('aaaaaaaa-0000-0000-0000-000000000001');  -- client A of practice P1
+select _ok((select count(*) from requirement_sets
+            where practice_id='88888888-0000-0000-0000-000000000001') >= 1,
+           '0136: client A CAN read the practice standard governing them');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');  -- B is a client of P2, a stranger to P1
+select _ok((select count(*) from requirement_sets
+            where practice_id='88888888-0000-0000-0000-000000000001') = 0,
+           '0136: a stranger CANNOT read another practice''s standard');
+
+-- --- assignments fan out from practice_clients and reach the client ---
+select _as('44444444-0000-0000-0000-000000000004');
+select _ok((select assign_practice_requirement('88888888-0000-0000-0000-000000000001','team',null,
+              'Extra shake','check',null,null,null)) = 1,
+           '0136: assign_practice_requirement fans out to the practice''s active clients');
+select _ok(_try($q$select assign_practice_requirement('88888888-0000-0000-0000-000000000002','team',null,
+                     'Nope','check',null,null,null)$q$) <> 'ok',
+           '0136: trainer T CANNOT assign into another practice');
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok((select count(*) from requirement_assignments
+            where practice_id='88888888-0000-0000-0000-000000000001' and athlete_id = auth.uid()) = 1,
+           '0136: the client reads their own practice assignment');
+select _ok((select count(*) from notifications
+            where user_id = auth.uid() and title like 'New from your trainer:%') = 1,
+           '0136: the assignment notification names the TRAINER, not a coach');
+
+-- --- interventions / notes / groups / exceptions: practice-owned, owner-only ---
+select _as('44444444-0000-0000-0000-000000000004');
+select _ok(_try($q$insert into coach_interventions (practice_id, athlete_id, kind)
+                   values ('88888888-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','nudge')$q$) = 'ok',
+           '0136: trainer T CAN log an intervention on their own practice');
+select _ok(_try($q$insert into coach_interventions (practice_id, athlete_id, kind)
+                   values ('88888888-0000-0000-0000-000000000002','bbbbbbbb-0000-0000-0000-000000000002','nudge')$q$) <> 'ok',
+           '0136: trainer T CANNOT log an intervention on another practice');
+select _ok(_try($q$insert into coach_notes (practice_id, athlete_id, body)
+                   values ('88888888-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','private')$q$) = 'ok',
+           '0136: trainer T CAN write a private note on their own client');
+select _ok(_try($q$insert into coach_groups (practice_id, name) values ('88888888-0000-0000-0000-000000000001','Morning')$q$) = 'ok',
+           '0136: trainer T CAN create a practice group');
+select _ok(_try($q$insert into athlete_exceptions (practice_id, athlete_id)
+                   values ('88888888-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001')$q$) = 'ok',
+           '0136: trainer T CAN excuse their own client');
+-- The 0073 invariant, re-asserted on the practice branch: a note is ABOUT the athlete and the
+-- athlete must NEVER read it. (This is why cn_staff_read is is_practice_staff, not can_view.)
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok((select count(*) from coach_notes where practice_id='88888888-0000-0000-0000-000000000001') = 0,
+           '0136: the client CANNOT read a private note written about them');
+select _ok((select count(*) from athlete_exceptions
+            where practice_id='88888888-0000-0000-0000-000000000001' and athlete_id = auth.uid()) = 1,
+           '0136: the client CAN see their own excused window (ae_athlete_read still applies)');
+-- A coach must not reach across into practice-owned rows, and vice versa.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select count(*) from coach_notes where practice_id is not null) = 0,
+           '0136: a coach CANNOT read practice-owned notes');
+select _ok((select count(*) from coach_interventions where practice_id is not null) = 0,
+           '0136: a coach CANNOT read practice-owned interventions');
+select _as('44444444-0000-0000-0000-000000000004');
+select _ok((select count(*) from coach_notes where team_id is not null) = 0,
+           '0136: a trainer CANNOT read team-owned notes');
+select _ok((select count(*) from requirement_sets where team_id is not null) = 0,
+           '0136: a trainer CANNOT read team-owned standards');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'

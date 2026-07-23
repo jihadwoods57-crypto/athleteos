@@ -136,14 +136,20 @@ for (const kind of ['team', 'practice']) {
     assert.ok(Array.isArray(CD.extras[k]), `${kind}: extras.${k} must be an array, never undefined`);
   }
   if (kind === 'practice') {
-    // Team-owned tables are not fetched for a practice — the shape survives, the data is honestly empty.
-    assert.deepStrictEqual(CD.extras.sets, [], 'a practice has no requirement sets until 0136');
+    // 0136: a practice owns its own standards now, so `sets` is a REAL read (the stub answers
+    // with the same fixture either way). What stays team-only keeps its honest empty shape.
     assert.deepStrictEqual(CD.extras.rooms, [], 'rooms are a team concept');
     assert.strictEqual(CD.extras.myRole, null, 'staff roles are a team concept');
-    assert.strictEqual(CD.caps.standards, 0);
+    assert.strictEqual(CD.caps.standards, 1, '0136 gave a practice its own standards');
+    assert.strictEqual(CD.caps.interventions, 1, '0136 gave a practice its own interventions');
+    assert.strictEqual(CD.caps.notes, 1, '0136 gave a practice its own notes');
+    assert.strictEqual(CD.caps.templates, 0, 'requirement_templates was NOT one of the six tables 0136 converted');
+    assert.strictEqual(CD.caps.trustPass, 0, 'grant_trust_pass never authorizes is_trainer_of');
+    assert.strictEqual(CD.caps.rollups, 0, 'practice rollups land in 0137');
     assert.strictEqual(CD.caps.offers, 1, 'a trainer keeps their monetization surface');
   } else {
     assert.strictEqual(CD.caps.standards, 1);
+    assert.strictEqual(CD.caps.templates, 1);
     assert.strictEqual(CD.caps.offers, 0, 'a coach must not get the trainer monetization surface');
   }
 
@@ -250,12 +256,18 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
   // explanatory sidebox mentions announcements by name while correctly not offering them.
   const teamMenu = snapshots.team['coach-create'];
   const practiceMenu = snapshots.practice['coach-create'];
-  for (const route of ['coach-announce', 'coach-assign', 'coach-plan', 'coach-profile/staff']) {
+  // Still coach-only: TEAM-shaped by design (broadcast announcements, staff roles).
+  for (const route of ['coach-announce', 'coach-profile/staff']) {
     assert.ok(teamMenu.includes(`data-go="${route}"`), `a coach must be offered ${route}`);
-    assert.ok(!practiceMenu.includes(`data-go="${route}"`), `a trainer must NOT be offered ${route} (no practice-owned table until 0136)`);
+    assert.ok(!practiceMenu.includes(`data-go="${route}"`), `a trainer must NOT be offered ${route} — it is a team concept`);
+  }
+  // 0136 opened these to a practice: assignments and standing standards are dual-owner now.
+  for (const route of ['coach-assign', 'coach-plan']) {
+    assert.ok(teamMenu.includes(`data-go="${route}"`), `a coach must be offered ${route}`);
+    assert.ok(practiceMenu.includes(`data-go="${route}"`), `0136: a trainer must now be offered ${route}`);
   }
   assert.ok(practiceMenu.includes('data-go="trainer-roster"'), 'a trainer keeps "message a client"');
-  assert.ok(practiceMenu.includes('Built for teams'), 'a trainer must be told WHY the menu is shorter, not just handed a stub');
+  assert.ok(practiceMenu.includes('Built for teams'), 'a trainer must still be told which tools stay team-only');
   // Position/unit only exists on a team book.
   assert.ok(snapshots.team['coach-roster'].includes('LB'), 'a team roster shows units');
 
@@ -265,9 +277,12 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
      card would just never clear. The button must not exist on a practice book at all. */
   const teamHome = snapshots.team['coach-home'];
   const practiceHome = snapshots.practice['coach-home'];
-  assert.ok(teamHome.includes('data-passign='), 'a coach keeps the Assign action');
-  assert.ok(!practiceHome.includes('data-passign='), 'a trainer must NOT be shown Assign before 0136');
-  // Nudge is a push, not a team-table write — it survives on both.
+  // 0136 made requirement_assignments and coach_interventions dual-owner, so the full priority
+  // action bar (Open / Nudge / Assign / Handled) now works on either book.
+  assert.ok(teamHome.includes('data-passign=') && practiceHome.includes('data-passign='),
+    '0136: Assign now works on a practice book');
+  assert.ok(teamHome.includes('data-phandle=') && practiceHome.includes('data-phandle='),
+    '0136: Handled now works on a practice book');
   assert.ok(teamHome.includes('data-pnudge=') && practiceHome.includes('data-pnudge='),
     'Nudge is role-agnostic and must survive on both books');
 
@@ -281,16 +296,11 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
   assert.ok(practiceHome.includes('Rivera Strength'), 'the practice name heads the trainer dashboard');
   assert.ok(teamHome.includes('Northside Prep'), 'the team name heads the coach dashboard');
 
-  /* Every OTHER control backed by a team-owned table must be absent on a practice book too.
-     Each of these would otherwise write a practice uuid into a `team_id` column that FKs to
-     teams, and roles.js swallows the resulting error — so the user gets a phantom
-     "check your connection" instead of a real one. */
-  // Roster: the group control is in the default render. (The bulk-action bar only paints in
-  // multi-select mode; its Assign/Group/Excuse buttons carry the same CD.caps guards.)
+  // Roster: groups are dual-owner since 0136, so the ＋ Group control works on both books.
   const teamRoster = snapshots.team['coach-roster'];
   const practiceRoster = snapshots.practice['coach-roster'];
-  assert.ok(teamRoster.includes('data-groups'), 'a coach keeps the ＋ Group control');
-  assert.ok(!practiceRoster.includes('data-groups'), 'a trainer must NOT be shown ＋ Group before 0136');
+  assert.ok(teamRoster.includes('data-groups') && practiceRoster.includes('data-groups'),
+    '0136: a practice owns its own client groups');
   assert.ok(practiceRoster.includes('data-selmode'), 'multi-select still works on a practice book');
   // Roster vocabulary follows the book too.
   assert.ok(practiceRoster.includes('Search clients') && !practiceRoster.includes('Search athletes'),
@@ -300,13 +310,24 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
   // The athlete deep-dive drops the two sections whose tables are team-owned.
   const teamAthlete = snapshots.team['coach-athlete'];
   const practiceAthlete = snapshots.practice['coach-athlete'];
-  for (const sec of ['requirements', 'notes']) {
+  // 0136 gave a practice its own requirement sets and coach notes, so the deep dive is now the
+  // SAME seven sections on either book — the trainer's client page is finally at coach caliber.
+  for (const sec of ['overview', 'today', 'score', 'activity', 'conversation', 'requirements', 'notes']) {
     assert.ok(teamAthlete.includes(`data-psec="${sec}"`), `a coach keeps the ${sec} section`);
-    assert.ok(!practiceAthlete.includes(`data-psec="${sec}"`), `a trainer must NOT get the ${sec} section before 0136`);
+    assert.ok(practiceAthlete.includes(`data-psec="${sec}"`), `0136: a trainer must now get the ${sec} section`);
   }
-  for (const sec of ['overview', 'today', 'score', 'activity', 'conversation']) {
-    assert.ok(practiceAthlete.includes(`data-psec="${sec}"`), `a trainer must keep the ${sec} section (can_view already grants it)`);
+  // Trust Pass is the one action that stays team-only FOREVER — grant_trust_pass (0099) checks
+  // is_team_coach_of and never is_trainer_of, so a trainer's tap could only ever be refused.
+  assert.ok(teamAthlete.includes('id="tp-btn"'), 'a coach keeps the Trust Pass action');
+  assert.ok(!practiceAthlete.includes('id="tp-btn"'), 'a trainer must never be shown Trust Pass — the server refuses it');
+  // ...but the three actions 0136 DID open are present on both.
+  for (const marker of ['data-anudge=', 'data-go="coach-assign/', 'data-go="coach-plan/']) {
+    assert.ok(teamAthlete.includes(marker) && practiceAthlete.includes(marker),
+      `both books keep the ${marker} action`);
   }
+  assert.ok(practiceAthlete.includes('trainer view') && !practiceAthlete.includes('coach view'),
+    'the deep dive must not call itself a coach view for a trainer');
+  assert.ok(teamAthlete.includes('coach view'), 'the coach deep-dive subtitle is unchanged');
 }
 
 /* ---- Slice B: the standalone "note to client" screen is retired, not aliased.

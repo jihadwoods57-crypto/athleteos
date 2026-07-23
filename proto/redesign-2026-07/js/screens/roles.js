@@ -1424,10 +1424,10 @@ export const trainerProfile = {
 
     <div class="eyebrow">Practice settings</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" id="manage-standard">
+      <div class="lrow" data-go="coach-plan-set/team" style="cursor:pointer">
         <div class="lic">${icon('clipboard', 17)}</div>
-        <div class="lm"><div class="lt">Default client standard</div><div class="ls">3 meals · nightly recovery check-in · weekly weigh-in — applied to every client</div></div>
-        <span class="status-pill" style="opacity:0.7">Coming soon</span>
+        <div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals, windows, and check-ins — applied to every client</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
@@ -1438,7 +1438,11 @@ export const trainerProfile = {
       <div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px">${icon('lock', 15)} Founder-gated sections</div>
       <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:5px 0 13px;line-height:1.45">Built and reviewed one slice at a time. Shown honestly as locked until they're real.</div>
       <div class="hq-roadmap-grid">
-        ${['Business health', 'Client health', 'AI assistant', 'Analytics', 'Branding', 'Integrations'].map((t) => `<div class="hq-ritem">${icon('lock', 14)}<span>${t}</span></div>`).join('')}
+        ${/* 'Client health' left this list when the trainer Home dashboard shipped — a locked tile
+              for something that already works is the same dishonesty as a "Coming soon" pill over
+              a live feature. 'Analytics' goes when practice rollups land (0137). */
+          ['Business health', 'AI assistant', 'Analytics', 'Branding', 'Integrations']
+            .map((t) => `<div class="hq-ritem">${icon('lock', 14)}<span>${t}</span></div>`).join('')}
       </div>
     </section>
     <div style="height:10px"></div>

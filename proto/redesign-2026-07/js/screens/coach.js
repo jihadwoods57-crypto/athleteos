@@ -37,21 +37,27 @@ const PROOF_CHOICES = [
 ];
 
 export const coachAssign = {
-  nav: 'coach', tab: 'create',
+  nav: 'operator', tab: 'create',
   render({ sub } = {}) {
     // deep-link: coach-assign/<athleteId> pre-targets one athlete (from the athlete screen)
     const rows = CD.roster ? CD.roster.rows : [];
+    const practice = CD.kind === 'practice';
     if (sub && ASSIGN.scopeKind !== 'athlete') { ASSIGN.scopeKind = 'athlete'; ASSIGN.scopeValue = sub; }
-    const positions = [...new Set(rows.map(r => (r.unit || '').trim().toUpperCase()).filter(Boolean))];
+    // A practice roster carries no position (practice_roster hardcodes it null) and
+    // assign_practice_requirement refuses position scope outright — so a stale 'position'
+    // selection carried over from a coach session must fall back to the whole book.
+    if (practice && ASSIGN.scopeKind === 'position') { ASSIGN.scopeKind = 'team'; ASSIGN.scopeValue = null; }
+    const positions = practice ? [] : [...new Set(rows.map(r => (r.unit || '').trim().toUpperCase()).filter(Boolean))];
     const target = ASSIGN.scopeKind === 'athlete' ? rows.find(r => r.athleteId === ASSIGN.scopeValue) : null;
+    const everyone = practice ? 'All clients' : 'Whole team';
     const chip = (on, label, act, arg) =>
       `<span class="chp ${on ? 'on' : ''}" data-assign="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
     return `
-    ${backHead('Assign', 'Put something on someone’s plate', 'coach-home')}
+    ${backHead('Assign', 'Put something on someone’s plate', practice ? 'trainer' : 'coach-home')}
 
     <div class="eyebrow">Who</div>
     <div class="chip-row" id="as-who">
-      ${chip(ASSIGN.scopeKind === 'team', `Whole team${rows.length ? ` · ${rows.length}` : ''}`, 'team')}
+      ${chip(ASSIGN.scopeKind === 'team', `${everyone}${rows.length ? ` · ${rows.length}` : ''}`, 'team')}
       ${positions.map(p => {
         const n = rows.filter(r => (r.unit || '').trim().toUpperCase() === p).length;
         return chip(ASSIGN.scopeKind === 'position' && ASSIGN.scopeValue === p, `${esc(p)} room · ${n}`, 'position', p);
@@ -61,7 +67,7 @@ export const coachAssign = {
     <div class="chip-row" id="as-ath" style="margin-top:6px">
       ${rows.slice(0, 12).map(r => chip(ASSIGN.scopeKind === 'athlete' && ASSIGN.scopeValue === r.athleteId, esc(r.name.split(' ')[0] || r.name), 'athlete', r.athleteId)).join('')}
     </div>` : `
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:2px 2px 0">Roster loading… team-wide works right away.</div>`}
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:2px 2px 0">${practice ? 'Clients loading… everyone works right away.' : 'Roster loading… team-wide works right away.'}</div>`}
 
     <div class="eyebrow">What</div>
     <input id="as-title" class="ob-input" maxlength="80" placeholder="e.g. Extra shake after lift" value="${esc(ASSIGN.title || '')}" />
@@ -86,7 +92,7 @@ export const coachAssign = {
     `;
   },
   mount(root) {
-    loadCoachRoster();
+    loadBook(false, bookKindFor(RT.authRole));
     const say = (msg, isErr) => {
       const el = root.querySelector('#as-status');
       if (el) { el.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; el.textContent = msg; }
@@ -121,10 +127,11 @@ export const coachAssign = {
         dueAt: dueAt ? dueAt.toISOString() : null,
         dueLabel: dueAt ? due.label.replace(' · ', ' ') : null,
         note: ASSIGN.note.trim() || null,
+        kind: CD.kind,
       });
       send.disabled = false;
       if (!r.ok) { say(r.error || 'Could not send — try again.', true); return; }
-      if (!r.count) { say('No athletes matched — check who you picked.', true); return; }
+      if (!r.count) { say(`No ${CD.kind === 'practice' ? 'clients' : 'athletes'} matched — check who you picked.`, true); return; }
       ASSIGN.title = ''; ASSIGN.note = '';
       say(r.count === 1 ? 'Sent — it’s on their list now.' : `Sent — it’s on ${r.count} lists now.`);
     });
@@ -171,12 +178,14 @@ function suggestTargets(targetWeight, baseWeight) {
 let SETS = null;            // team's requirement_sets, or null (loading) / {offline:true}
 let setsLoading = false;
 async function loadSets(force) {
-  const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-  if (!teamId || setsLoading) return;
-  if (SETS && !force) return;
+  // Reads the CURRENT book's sets — 0136 gave requirement_sets dual-owner columns, so the
+  // owner column follows CD.kind rather than always being team_id.
+  const bookId = CD.roster && CD.roster.book[0] && CD.roster.book[0].id;
+  if (!bookId || setsLoading) return;
+  if (SETS && SETS.bookId === bookId && !force) return;
   setsLoading = true;
-  try { SETS = { rows: await roles.fetchRequirementSets(teamId) }; }
-  catch { SETS = { rows: [] }; }
+  try { SETS = { bookId, rows: await roles.fetchRequirementSets(bookId, CD.kind) }; }
+  catch { SETS = { bookId, rows: [] }; }
   finally { setsLoading = false; }
   if (location.hash.startsWith('#coach-plan')) window.__render();
 }
@@ -214,17 +223,31 @@ export const coachPlan = {
     const who = rosterName(athleteId);
     const noun = CD.kind === 'practice' ? 'trainer' : 'coach';
     const head = backHead('Nutrition targets', `${esc(who.name)} · ${noun} owns the plan`, athleteId ? `coach-athlete/${esc(athleteId)}` : 'coach-plan');
-    // A practice has no team-wide standards/rooms/trust-passes yet (0136/0137) — the "no athlete
-    // id" branch below is entirely team-shaped, so a trainer gets a reduced program page instead
-    // of a home full of dead links. The per-athlete editor further down works for either book —
-    // coach_set_goals (0054) already authorizes is_trainer_of.
+    // The team program home below is room/staff/trust-pass shaped. A practice has none of those
+    // (rooms and Trust Pass are team concepts by design — see CAPS), so it gets its own page:
+    // the practice-wide standard (real since 0136) plus per-client targets.
     if (!athleteId && CD.kind === 'practice') {
       const rows = CD.roster ? CD.roster.rows : null;
+      const sets = SETS && SETS.rows ? SETS.rows : null;
+      const practiceSet = sets && sets.find(x => x.scope_kind === 'team');
       if (CD.roster && CD.roster.offline) {
-        return `${titleHead('Plan', 'Targets, per client')}${errorState({ title: "Can't reach your clients", body: 'Their targets are safe — reconnect and they load right here.', retryId: 'plan-retry' })}`;
+        return `${titleHead('Plan', 'Your standard, client by client')}${errorState({ title: "Can't reach your clients", body: 'Your standard and their targets are safe — reconnect and they load right here.', retryId: 'plan-retry' })}`;
       }
       return `
-      ${titleHead('Plan', 'Targets, per client')}
+      ${titleHead('Plan', 'Your standard, client by client')}
+
+      <div class="eyebrow">Standard · what every day asks</div>
+      ${sets === null && rows === null ? skeletonRows(2, 'Loading your standard') : `
+      <section class="card" style="padding:6px 16px">
+        <div class="lrow" data-go="coach-plan-set/team">
+          <div class="lic" style="background:var(--surface-3);color:var(--text-2);font-weight:800;font-size:12px">CL</div>
+          <div class="lm"><div class="lt">Your Client Standard${rows && rows.length ? ` <small style="color:var(--text-3);font-weight:700">· ${rows.length}</small>` : ''}</div>
+          <div class="ls">${practiceSet ? esc(setSummary(practiceSet.items)) : 'Built-in · 3 meals, recovery, weekly check-in'}</div></div>
+          ${practiceSet ? '<span class="status-pill b">Custom</span>' : ''}
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>
+      </section>`}
+
       <div class="eyebrow">Targets · per client</div>
       ${rows === null ? skeletonRows(3, 'Loading your clients') : rows.length ? `
       <section class="card" style="padding:6px 16px">
@@ -237,11 +260,12 @@ export const coachPlan = {
         </div>`).join('')}
       </section>` : `
       ${emptyState({ icon: 'target', title: 'No clients yet', body: 'Per-client protein, calorie, and target-weight numbers open here the moment someone joins.', action: { label: 'Invite a client', go: 'trainer-profile' } })}`}
+
       <div style="height:12px"></div>
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
         <div><div class="tt">Built for teams</div>
-        <div class="ts">Standing standards, rooms, and Trust Pass are team tools today. Per-client targets already work — set them from a client's own page.</div></div>
+        <div class="ts">Position rooms and Trust Pass stay team tools — a practice is 1:1, and a Trust Pass is granted through a team link. Everything else here is yours.</div></div>
       </div>
       <div style="height:10px"></div>`;
     }
@@ -468,13 +492,13 @@ export const coachPlan = {
     // Skip both fetches on a practice book rather than querying a table that will only ever hand
     // back rows scoped to a team id this book doesn't have.
     loadBook(false, bookKindFor(RT.authRole)).then(() => {
-      if (!CD.caps.standards) return;
-      loadSets();
+      if (CD.caps.standards) loadSets();
       if (!sub && CD.caps.trustPass) loadTrust();
     });
     // GS-2 offline retry (the program page's honest error state) — refetch and repaint.
     const planRetry = root.querySelector('#plan-retry');
     if (planRetry) planRetry.addEventListener('click', () => { planRetry.disabled = true; loadBook(true, bookKindFor(RT.authRole)).then(() => { if (CD.caps.standards) loadSets(true); window.__render(); }); });
+
     // Trust pass grant/end on the Plan home (server-enforced eligibility, honest errors)
     root.querySelectorAll('[data-tp]').forEach(b => b.addEventListener('click', async () => {
       const [what, id] = b.getAttribute('data-tp').split(':');
@@ -704,7 +728,10 @@ let SHOW_TPL_MANAGE = false; // Manage mode swaps apply-chips for rename/delete 
 let TPL_RENAMING = null;     // template id whose inline rename input is open, or null
 let TPL_BUSY = false;        // guards double-submit on rename/delete
 async function loadTemplates(force) {
-  const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+  // Team-only (0074): a practice book would pass a practice uuid into a team_id column, and the
+  // first-open seed below would fire seven doomed inserts against a teams FK.
+  if (!CD.caps.templates) return;
+  const teamId = CD.roster && CD.roster.book[0] && CD.roster.book[0].id;
   if (!teamId || tplLoading) return;
   if (TPL && TPL.teamId === teamId && !force) return;
   tplLoading = true;
@@ -734,7 +761,7 @@ async function loadTemplates(force) {
 }
 
 export const coachPlanSet = {
-  nav: 'coach', tab: 'roster',
+  nav: 'operator', tab: 'roster',
   render({ sub }) {
     // Split on the FIRST slash only — a room label can legitimately contain "/" ("DB/S", "WR/TE")
     // and a naive split truncated the scope value to "DB", silently scoping the standard elsewhere.
@@ -742,7 +769,12 @@ export const coachPlanSet = {
     const rawVal = restVal.length ? restVal.join('/') : undefined;
     const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
     const key = `${kind}:${value || ''}`;
-    const scopeName = kind === 'team' ? 'Your Team Standard' : `${value} room`;
+    // 'team' scope on a PRACTICE book means "the practice default" — the literal scope_kind is
+    // kept as 'team' on purpose so resolveRequirementSet needs no change (0136). Only the label
+    // differs. A practice never reaches the room branch: rooms are a team concept.
+    const scopeName = kind === 'team'
+      ? (CD.kind === 'practice' ? 'Your Client Standard' : 'Your Team Standard')
+      : `${value} room`;
     const sets = SETS && SETS.rows ? SETS.rows : [];
     const existing = sets.find(s => s.scope_kind === kind && String(s.scope_value || '').trim().toUpperCase() === (value || '').toUpperCase())
       || (kind === 'team' ? sets.find(s => s.scope_kind === 'team') : null);
@@ -753,7 +785,9 @@ export const coachPlanSet = {
     }
     // Slice F: position coaches and view-only staff SEE the governing standard but don't
     // edit it (founder matrix; 0078's set_team_requirements would bounce the save anyway).
-    if (CD.extras && !canEditStandards(CD.extras.myRole)) {
+    // Staff roles are a team concept — a trainer owns their practice outright and is never
+    // a view-only staffer, so the read-only branch is skipped entirely on a practice book.
+    if (CD.kind !== 'practice' && CD.extras && !canEditStandards(CD.extras.myRole)) {
       const preview = previewFromKnobs(KNOB);
       return `
       ${backHead(scopeName, 'View only — standards are set by the head coach', 'coach-plan')}
@@ -798,7 +832,9 @@ export const coachPlanSet = {
     const hasRestPattern = Array.isArray(RT.weekPattern) && RT.weekPattern.some((d) => d === 'rest');
     const PREV_IC = { breakfast: 'utensils', lunch: 'bowl', dinner: 'bowl', snack: 'utensils' };
     return `
-    ${backHead(scopeName, kind === 'team' ? 'The starting standard for athletes without an override' : `Overrides your team standard for ${esc(value)}`, 'coach-plan')}
+    ${backHead(scopeName, kind === 'team'
+      ? (CD.kind === 'practice' ? 'The starting standard for clients without an override' : 'The starting standard for athletes without an override')
+      : `Overrides your team standard for ${esc(value)}`, 'coach-plan')}
     <div class="std-wrap">
 
       <div class="std-summary">
@@ -880,6 +916,7 @@ export const coachPlanSet = {
         ${KNOB.hydration ? `<div class="std-lbl mt">Daily target</div><div class="std-chips">${[80, 100, 120, 150].map(n => chip(KNOB.hydrationOz === n, `${n} oz`, 'hydoz', n)).join('')}</div>` : ''}
       </section>
 
+      ${CD.caps.templates ? `
       <section class="std-mod">
         ${modHead('clipboard', 'std-ic-b', 'Templates', 'Start from a proven draft, or save this one')}
         ${SHOW_TPL_MANAGE ? `
@@ -909,7 +946,7 @@ export const coachPlanSet = {
         </div>` : ''}
         ${(TPL && TPL.rows && TPL.rows.length) ? `<button class="btn ghost sm" data-knob="tplmanage:1" style="width:auto;padding:0 14px;margin-top:10px">Manage templates</button>` : ''}
         `}
-      </section>
+      </section>` : ''}
 
       ${(() => {
         // Complete preview (Tier 2): every pillar the athlete gets, not just meals — built from
@@ -983,7 +1020,7 @@ export const coachPlanSet = {
     `;
   },
   mount(root, { sub }) {
-    loadCoachRoster().then(() => { loadSets(); loadTemplates(); });
+    loadBook(false, bookKindFor(RT.authRole)).then(() => { loadSets(); loadTemplates(); });
     // Split on the FIRST slash only — a room label can legitimately contain "/" ("DB/S", "WR/TE")
     // and a naive split truncated the scope value to "DB", silently scoping the standard elsewhere.
     const [kind, ...restVal] = (sub || 'team').split('/');
@@ -1143,7 +1180,7 @@ export const coachPlanSet = {
         effDate = dv;
       } else effDate = isoOffset(1);
       save.disabled = true; say('Saving…');
-      const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB), effDate);
+      const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB), effDate, CD.kind);
       save.disabled = false;
       if (!r.ok) { say(r.error || 'Could not save — try again.', true); return; }
       act.markCoachSetup('standard'); // real "reviewed your standard" signal for the setup checklist
@@ -1157,7 +1194,7 @@ export const coachPlanSet = {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (!teamId) return;
       clear.disabled = true; say('Resetting…');
-      const r = await roles.clearTeamRequirements(teamId, kind, value);
+      const r = await roles.clearTeamRequirements(teamId, kind, value, CD.kind);
       clear.disabled = false;
       if (!r.ok) { say(r.error || 'Could not reset — try again.', true); return; }
       KNOB = null;
@@ -1949,16 +1986,18 @@ export const coachAthlete = {
     // Overview rather than rendering a permanently empty panel.
     if (!profileSections().some(([k]) => k === PSECTION)) PSECTION = 'overview';
     const who = rosterName(athleteId);
-    if (!athleteId) return `${backHead('Athlete', 'coach view', 'coach-roster')}<div class="state-demo"><div class="sd-t">No athlete selected</div></div>`;
+    const opView = CD.kind === 'practice' ? 'trainer view' : 'coach view';
+    const opBack = CD.kind === 'practice' ? 'trainer-roster' : 'coach-roster';
+    if (!athleteId) return `${backHead(CD.kind === 'practice' ? 'Client' : 'Athlete', opView, opBack)}<div class="state-demo"><div class="sd-t">No ${CD.kind === 'practice' ? 'client' : 'athlete'} selected</div></div>`;
     const P = CD.profile;
     if (!P || P.athleteId !== athleteId) {
-      return `${backHead(who.name, (who.unit ? `${esc(who.unit)} · ` : '') + 'coach view', 'coach-roster')}
+      return `${backHead(who.name, (who.unit ? `${esc(who.unit)} · ` : '') + opView, opBack)}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('user', 17)}</div>
       <div><div class="tt">Loading their profile…</div><div class="ts">Pulling today's real score and logged meals.</div></div></div>`;
     }
     const name = (P.row && P.row.name) || who.name;
     const position = (P.row && P.row.position) || who.unit;
-    const head = backHead(name, (position ? `${position} · ` : '') + 'coach view', 'coach-roster');
+    const head = backHead(name, (position ? `${position} · ` : '') + opView, opBack);
     if (P.offline) {
       return `${head}
       <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
@@ -1989,7 +2028,7 @@ export const coachAthlete = {
       <button class="co-act" data-anudge="${esc(athleteId)}">${icon('bell', 18)}<span class="lbl">Nudge</span></button>
       <button class="co-act" data-go="coach-assign/${esc(athleteId)}">${icon('clipboard', 18)}<span class="lbl">Assign</span></button>
       <button class="co-act" data-go="coach-plan/${esc(athleteId)}">${icon('edit', 18)}<span class="lbl">Targets</span></button>
-      <button class="co-act ${P.trustPass ? 'hero' : ''}" id="tp-btn">${icon('shield', 18)}<span class="lbl">${P.trustPass ? 'End pass' : 'Trust'}</span></button>
+      ${CD.caps.trustPass ? `<button class="co-act ${P.trustPass ? 'hero' : ''}" id="tp-btn">${icon('shield', 18)}<span class="lbl">${P.trustPass ? 'End pass' : 'Trust'}</span></button>` : ''}
     </div>
     <div id="tp-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:0"></div>
 
@@ -2048,7 +2087,7 @@ export const coachAthlete = {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (!teamId) { if (cnErr) cnErr.textContent = "Couldn't save — no team found."; return; }
       cnSave.disabled = true;
-      const r = await roles.postCoachNote(teamId, athleteId, body);
+      const r = await roles.postCoachNote(teamId, athleteId, body, CD.kind);
       cnSave.disabled = false;
       if (!r.ok) { if (cnErr) cnErr.textContent = r.error || "Couldn't save — try again."; return; }
       cnInput.value = '';

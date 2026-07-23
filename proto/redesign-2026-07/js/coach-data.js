@@ -25,27 +25,31 @@ function resolvePos(row) {
 }
 
 /* What an operator can actually DO with their book. Pure data, no imports.
-   Three distinct reasons a practice cap is 0, and the distinction must stay legible — someone
+   Two distinct reasons a practice cap is 0, and the distinction must stay legible — someone
    reading this later will otherwise "fix" the permanent ones:
-     · reachable today  — can_view (0081) already includes is_trainer_of, and owns_practice
-                          gates the practice's own tables. No server work.
-     · until 0136/0137  — the table is `team_id uuid not null references teams(id)`, or the RPC
-                          gates is_team_staff. Needs the dual-owner migration.
-     · never            — position rooms, staff scopes, practice/game-day patterns and 1-to-many
-                          broadcast are TEAM concepts. A trainer with 12 clients works 1:1. */
+     · until 0137 — the RPC gates is_team_staff and has no practice mirror yet.
+     · never      — position rooms, staff scopes, practice/game-day patterns and 1-to-many
+                    broadcast are TEAM concepts. A trainer with 12 clients works 1:1. And
+                    trustPass is server-refused outright: grant_trust_pass (0099) checks
+                    is_team_coach_of only — unlike coach_set_goals (0054), it never accepts
+                    is_trainer_of, so this one is a product decision, not a missing migration. */
 const CAPS = {
   team: {
     roster: 1, activity: 1, inbox: 1, athleteProfile: 1, targets: 1, approvals: 1,
     interventions: 1, notes: 1, exceptions: 1, groups: 1, standards: 1, assignments: 1, rollups: 1,
+    templates: 1,
     rooms: 1, staffRoles: 1, weekPattern: 1, announcements: 1, recruiting: 1, trustPass: 1,
     offers: 0, payments: 0, packages: 0,
   },
   practice: {
     roster: 1, activity: 1, inbox: 1, athleteProfile: 1, targets: 1, approvals: 1,
-    interventions: 0, notes: 0, exceptions: 0, groups: 0, standards: 0, assignments: 0, // → 0136
+    // 0136 gave these six tables dual-owner (team_id | practice_id) columns, so a practice now
+    // owns its own standards, assignments, interventions, notes, exceptions and groups.
+    interventions: 1, notes: 1, exceptions: 1, groups: 1, standards: 1, assignments: 1,
+    // requirement_templates (0074) was NOT one of 0136's six dual-owner tables — a practice
+    // writes its standard directly instead of browsing team template drafts.
+    templates: 0,
     rollups: 0,                                                                          // → 0137
-    // trustPass is never planned: grant_trust_pass (0099) gates on is_team_coach_of only, not
-    // is_trainer_of — unlike coach_set_goals, a trainer isn't authorized server-side at all.
     rooms: 0, staffRoles: 0, weekPattern: 0, announcements: 0, recruiting: 0, trustPass: 0, // never
     offers: 1, payments: 1, packages: 1,
   },
@@ -185,29 +189,28 @@ export function can(cap) { return !!(CD.caps && CD.caps[cap]); }
 export function bookId() { return (ROSTER && ROSTER.book && ROSTER.book[0] && ROSTER.book[0].id) || null; }
 
 /** Log an operator action against the CURRENT book — the ONE choke point for it.
-    coach_interventions.team_id FKs to teams, so on a practice book an un-guarded call violates
-    the FK; roles.logIntervention swallows that error and returns false, which callers surface as
-    a phantom "check your connection". Here a practice is a successful NO-OP instead, so the
-    caller's real action (the push, the navigation) is never blocked by bookkeeping that cannot
-    exist yet. Becomes a real write for practices at migration 0136. */
+    Since 0136 both books own their interventions (dual-owner team_id | practice_id), so this
+    now resolves the right owner column instead of no-opping on a practice. It still returns a
+    successful no-op when the capability is off, so a caller's real action (the push, the
+    navigation) is never blocked by bookkeeping. */
 export async function logBookIntervention(args) {
   if (!CD.caps.interventions) return true;
   const id = bookId();
   if (!id) return false;
-  return roles.logIntervention({ ...args, teamId: id });
+  return roles.logIntervention({ ...args, teamId: id, book: KIND });
 }
 
 async function loadExtras(bookId) {
   const c = CD.caps;
-  // Each fetch is capability-gated, but the RESULTING SHAPE is identical either way — `sets` is
-  // [] not undefined. That is what lets entriesFor stay untouched: resolveRequirementSet([]) is
-  // null, so a practice book falls through to the built-in CATALOG, which is the honest answer
-  // until 0136 gives a practice its own standards. Asserted in operator.test.mjs.
+  // Each fetch is capability-gated, and passes the book KIND so it reads the right owner column
+  // (0136). The resulting SHAPE is identical either way — `sets` is [] not undefined — which is
+  // what lets entriesFor stay untouched: resolveRequirementSet([]) is null, so a book with no
+  // configured standard falls through to the built-in CATALOG. Asserted in operator.test.mjs.
   const [sets, groups, exceptions, interventions, access, rooms] = await Promise.all([
-    c.standards ? roles.fetchRequirementSets(bookId) : [],
-    c.groups ? roles.fetchCoachGroups(bookId) : [],
-    c.exceptions ? roles.fetchActiveExceptions(bookId) : [],
-    c.interventions ? roles.fetchTodayInterventions(bookId) : [],
+    c.standards ? roles.fetchRequirementSets(bookId, KIND) : [],
+    c.groups ? roles.fetchCoachGroups(bookId, KIND) : [],
+    c.exceptions ? roles.fetchActiveExceptions(bookId, KIND) : [],
+    c.interventions ? roles.fetchTodayInterventions(bookId, KIND) : [],
     c.staffRoles ? roles.fetchMyStaffAccess(bookId) : null,
     c.rooms ? roles.fetchTeamRooms(bookId) : [],
   ]);
@@ -328,9 +331,9 @@ export async function loadAthleteProfile(athleteId, force) {
       roles.fetchDay(athleteId, roles.todayISO()),
       roles.fetchRecentMeals(athleteId, since30),
       roles.fetchActiveTrustPass(athleteId),
-      c.interventions ? roles.fetchAthleteInterventions(bookId, athleteId, since30) : [],
+      c.interventions ? roles.fetchAthleteInterventions(bookId, athleteId, since30, KIND) : [],
       c.assignments ? roles.fetchAthleteAssignments(athleteId, since30) : [],
-      c.notes ? roles.fetchCoachNotes(bookId, athleteId) : [],
+      c.notes ? roles.fetchCoachNotes(bookId, athleteId, KIND) : [],
       roles.fetchAthleteBasics(athleteId), // base_goal/base_weight/targets → the score breakdown's nutrition config
       roles.fetchAthleteWeights(athleteId, 30), // 0103: empty map for weight-restricted roles — surfaces just go absent
     ]);
