@@ -22,6 +22,17 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
   const shift = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n);
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
 
+  // A meal-photo storage path -> the real shipped proto plate. No regex (escaping inside this
+  // injected template string is a trap): plain string ops only.
+  const mealAsset = (p) => {
+    const parts = String(p).split('/');
+    let base = parts[parts.length - 1];                       // 'lunch.jpg' or 'meal-breakfast'
+    if (base.slice(-4).toLowerCase() === '.jpg') base = base.slice(0, -4);
+    if (base.slice(0, 5) === 'meal-') base = base.slice(5);   // 'lunch' or 'breakfast'
+    const known = (base === 'breakfast' || base === 'lunch' || base === 'dinner') ? base : 'lunch';
+    return '/assets/meal-' + known + '.jpg';
+  };
+
   // ---- days: 7 days of history per athlete, today included only when they logged today ----
   const DAYS = [];
   for (const a of ATHLETES) {
@@ -92,10 +103,13 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     ensure_my_commitment_instances: () => null,
     ensure_commitment_instances: () => null,
     // window.__VC_MODE picks which moment we're capturing: 'open' = the card the athlete is about
-    // to press; 'earned' = a trailing record so the Accountability rollup shows real percentages
-    // instead of an honest-but-useless 0%.
+    // to press; 'earned' = a trailing record so the Accountability rollup shows real percentages.
+    // DEFAULT is 'none' (no commitments) so the roll-call card only appears on the VC-specific
+    // shots — otherwise it leaks onto every generic Home/how-it-works step, showing a stray missed
+    // commitment on screens that aren't about that feature.
     my_commitments: (p) => {
-      const mode = window.__VC_MODE || 'open';
+      const mode = window.__VC_MODE || 'none';
+      if (mode === 'none') return [];
       const rollCall = (dayISO, ackAt) => ({
         instance_id: 'rc-' + dayISO, commitment_id: 'cmt-1', occurs_on: dayISO,
         type: 'morning_roll_call', title: '5 AM Club', action_label: 'I’m Up',
@@ -171,10 +185,15 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     removeChannel: () => {},
     functions: { invoke: () => Promise.resolve({ data: null, error: { message: 'offline fixture' } }) },
     storage: { from: () => ({
-      createSignedUrl: (p) => Promise.resolve({ data: { signedUrl: '/assets/' + String(p).replace(/^.*\\//, '') + '.jpg' }, error: null }),
-      createSignedUrls: (ps) => Promise.resolve({ data: ps.map(p => ({ path: p, signedUrl: '/assets/' + String(p).replace(/^.*\\//, '') + '.jpg' })), error: null }),
+      // Map any meal-photo path to a REAL proto asset. Two shapes reach here: the meal-detail
+      // path '<uid>/<date>/<slot>.jpg' and the activity-feed path 'meal-<slot>'. Both resolve to
+      // the shipped proto plate (assets/meal-{breakfast,lunch,dinner}.jpg). Snack has no asset, so
+      // it borrows lunch. The old code appended a second '.jpg' and never mapped the slot, which
+      // is why the meal-detail photo rendered as an empty box.
+      createSignedUrl: (p) => Promise.resolve({ data: { signedUrl: mealAsset(p) }, error: null }),
+      createSignedUrls: (ps) => Promise.resolve({ data: ps.map(p => ({ path: p, signedUrl: mealAsset(p) })), error: null }),
       upload: () => Promise.resolve({ data: null, error: null }),
-      getPublicUrl: (p) => ({ data: { publicUrl: '/assets/' + p + '.jpg' } }),
+      getPublicUrl: (p) => ({ data: { publicUrl: mealAsset(p) } }),
     }) },
     auth: {
       getSession: () => Promise.resolve({ data: { session: SESSION }, error: null }),

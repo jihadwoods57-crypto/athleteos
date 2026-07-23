@@ -64,11 +64,12 @@
   addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
-  /* ---------- reveals (IO + scroll sweep fallback) ---------- */
-  const revealables = [...document.querySelectorAll('.reveal, .an-row')].filter((el) => !el.closest('.hero'));
-  if (reduced) {
-    revealables.forEach((el) => el.classList.add('in'));
-  } else {
+  /* ---------- reveals (IO + scroll sweep fallback) ----------
+     Runs under reduce-motion too: the reveal is a gentle OPACITY fade (the CSS drops the 26px
+     slide under reduce-motion, so nothing translates). Fading content in on scroll is not a
+     vestibular trigger, and it's the difference between "alive" and "frozen". */
+  {
+    const revealables = [...document.querySelectorAll('.reveal, .an-row')].filter((el) => !el.closest('.hero'));
     const pending = new Set(revealables);
     const show = (el) => { el.classList.add('in'); pending.delete(el); io.unobserve(el); };
     const io = new IntersectionObserver((entries) => {
@@ -241,19 +242,18 @@
     const [key, label] = tierFor(n);
     if (tierEl.dataset.tier !== key) { tierEl.dataset.tier = key; tierEl.textContent = label; }
   };
-  const finish = () => { dial.p = dial.target; dial.done = true; paintSVG(dial.p); paintNum(TARGET); };
-
   if (dialStage) {
-    if (reduced) {
-      finish();
-    } else {
+    // The count-up runs under reduce-motion too — a number ticking in place, plus a gauge ring
+    // filling within its own widget, is not a vestibular trigger. Only the WebGL 3D dial below
+    // stays off under reduce-motion (that one tilts and parallaxes).
+    {
       paintSVG(0);
       paintNum(0); // markup ships 94 for no-JS visitors; animation starts from 0
       let started = false;
       const start = () => {
         if (started) return; started = true;
-        const t0 = performance.now() + 350;
-        const DUR = 2400;
+        const t0 = performance.now() + (reduced ? 120 : 350);
+        const DUR = reduced ? 1400 : 2400;
         const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
         const step = (now) => {
           const t = Math.min(1, Math.max(0, (now - t0) / DUR));

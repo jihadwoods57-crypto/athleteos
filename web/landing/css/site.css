@@ -957,13 +957,16 @@ details[open] .fx::after { transform: scaleY(0); }
 /* ---------- reveal system ---------- */
 /* Hero entrances autoplay via CSS so the LCP text never waits on JS. */
 @keyframes rise { from { transform: translateY(24px); } to { transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 .hero .reveal { opacity: 1; transform: none; animation: rise .8s var(--ease) both; }
 .hero .reveal.d1 { animation-delay: .08s; }
 .hero .reveal.d2 { animation-delay: .16s; }
 .hero .reveal.d3 { animation-delay: .24s; }
 .hero .reveal.d4 { animation-delay: .32s; }
 .hero .reveal.d5 { animation-delay: .4s; }
-@media (prefers-reduced-motion: reduce) { .hero .reveal { animation: none; opacity: 1; } }
+/* Reduce-motion: keep a gentle OPACITY fade (no spatial slide, which is the vestibular trigger),
+   rather than snapping instantly. The .dN animation-delay lines above still stagger the fade. */
+@media (prefers-reduced-motion: reduce) { .hero .reveal { animation: fade .8s var(--ease) both; transform: none; } }
 
 .reveal { opacity: 0; transform: translateY(26px); }
 .reveal.in {
@@ -977,12 +980,14 @@ details[open] .fx::after { transform: scaleY(0); }
 .reveal.d5.in { transition-delay: .4s; }
 
 @media (prefers-reduced-motion: reduce) {
-  .reveal { opacity: 1; transform: none; transition: none; }
-  .an-fill { transform: scaleX(1); transition: none; }
+  /* Scroll reveals still fade in on scroll — only the 26px slide is dropped (opacity is not a
+     vestibular trigger). JS observes them either way; the CSS decides whether they translate. */
+  .reveal { transform: none; }
+  .an-fill { transition: none; }               /* bars fill instantly; the row still fades in */
   .btn, .btn-primary:hover { transition: none; transform: none; }
   body::after { display: none; }
   .role:hover, .plan:hover { transform: none; }
-  .hero-dust { display: none; }
+  .hero-dust { display: none; }                /* drifting particles — off (continuous motion) */
 }
 
 /* ---------- boot preloader ("The Number") ----------
