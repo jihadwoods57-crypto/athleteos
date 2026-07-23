@@ -11,8 +11,11 @@ function tabs(active) {
     `<div class="pt ${k === active ? 'on' : ''}" data-go="plan/${k}">${l}</div>`).join('')}</div>`;
 }
 
-const HEAD_SUBTITLE = (who) => ({
-  set: `Targets set by your ${who}`,
+// Intuitive plans surface no numeric targets, so "Targets set by your coach" would contradict
+// the body copy — say "Plan style set by …" instead. `hasTargets` is the same showCalories/
+// showMacros surface gate the style turns off.
+const HEAD_SUBTITLE = (who, hasTargets) => ({
+  set: hasTargets ? `Targets set by your ${who}` : `Plan style set by your ${who}`,
   loading: 'Loading your targets…',
   offline: 'Targets will show when you reconnect',
   unset: `Log meals — your ${who} can set targets any time`,
@@ -24,7 +27,7 @@ function head() {
   <div style="display:flex;align-items:center;justify-content:space-between">
     <div>
       <div style="font-size:16px;font-weight:800">Your nutrition plan</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">${HEAD_SUBTITLE(S.coach.noun)[S.planTargetsState]}</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">${HEAD_SUBTITLE(S.coach.noun, S.planStyle.showMacros || S.planStyle.showCalories)[S.planTargetsState]}</div>
     </div>
     ${goal ? `<span class="status-pill b">${esc(goal)}</span>` : ''}
   </div>`;
