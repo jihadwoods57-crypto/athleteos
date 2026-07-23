@@ -49,6 +49,8 @@ import redeemCode from './redeem-code.js';
 import paywall from './paywall.js';
 import progressPhotos from './progress-photos.js';
 import progressCompare from './progress-compare.js';
+import logTraining from './log-training.js';
+import trainingHistory from './training-history.js';
 
 export const screens = {
   home,
@@ -147,4 +149,6 @@ export const screens = {
   paywall,
   'progress-photos': progressPhotos,
   'progress-compare': progressCompare,
+  'log-training': logTraining,
+  'training-history': trainingHistory,
 };

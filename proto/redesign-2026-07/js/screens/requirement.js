@@ -33,7 +33,12 @@ export default {
     const checkDone = isStandingCheck && !!(DAY.checkedTasks && DAY.checkedTasks[id]);
     const done = assigned ? assigned.done : checkDone;
 
-    const actionBtn = assigned
+    // Training/lift (0135): the standing lift item opens a lightweight log (title + how'd it go +
+    // notes) instead of a one-tap check. Carries the coach's programmed session (title/desc).
+    const stdItem = (RT.stdItems || []).find((i) => i.id === id) || null;
+    const isTraining = !assigned && stdItem && stdItem.kind === 'lift';
+
+    let actionBtn = assigned
       ? (done
         ? `<div class="day-done"><div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
            <div><div class="tt">Done. ${assigned.from} can see it.</div><div class="ts">Completed tonight.</div></div></div>`
@@ -43,6 +48,11 @@ export default {
           ? `<button class="btn ghost" data-act="completeCheck:${id}" data-then="requirement/${id}" style="width:100%">${icon('check', 19)} Done · coach sees it · tap to undo</button>`
           : `<button class="btn green" data-act="completeCheck:${id}" data-then="requirement/${id}">${icon('check', 19)} Mark Done · coach sees it</button>`)
         : `<button class="btn primary" data-go="${req.route || proof.route || 'home'}">${icon(req.icon, 19)} ${proof.verb} ${req.title}</button>`;
+
+    // Training override: route to the lightweight session log rather than a one-tap check.
+    if (isTraining) actionBtn = checkDone
+      ? `<button class="btn ghost" data-go="log-training/${id}" style="width:100%">${icon('check', 19)} Logged today · tap to update</button>`
+      : `<button class="btn green" data-go="log-training/${id}">${icon('bolt', 19)} Log this session</button>`;
 
     return `
     ${backHead(req.title, assigned ? `Assigned by ${assigned.from}` : freqLabel(req.freq), 'home')}
@@ -79,6 +89,10 @@ export default {
       })()}
       ${req.note ? `<p>“${esc(req.note)}”</p>` : ''}
     </div>
+
+    ${isTraining && stdItem.desc ? `
+    <div class="eyebrow">The session</div>
+    <div class="coachnote"><p>${esc(stdItem.desc)}</p></div>` : ''}
 
     <div style="height:18px"></div>
     ${actionBtn}

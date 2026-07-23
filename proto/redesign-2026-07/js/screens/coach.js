@@ -529,6 +529,10 @@ export function knobsFromItems(items) {
   return {
     meals,
     lifts: lift ? Math.min(7, (lift.freq && lift.freq.days && lift.freq.days.length) || 3) : 0,
+    // Optional coach-programmed session name + free-text description (0135). Empty when the coach
+    // left the default "Lift session" — so an untouched standard stays byte-identical.
+    liftTitle: (lift && lift.title && lift.title !== 'Lift session') ? lift.title : '',
+    liftDesc: (lift && lift.desc) ? lift.desc : '',
     // Weigh cadence: off / daily / custom weekdays. A pre-existing MWF (or any days-based) standard
     // reads back as 'custom' with its exact days selected — same schedule, now editable per-day.
     weigh: weigh ? (weighDaily ? 'daily' : 'custom') : 'off',
@@ -598,10 +602,18 @@ export function itemsFromKnobs(k) {
     if (k.snackOptional && k.meals >= 4 && i === 2) meal.snack = true;
     items.push(meal);
   });
-  if (k.lifts > 0) items.push({
-    id: 'lift', title: `Lift session`, kind: 'lift', proof: 'check',
-    freq: { type: 'days', days: LIFT_DAYS[k.lifts], label: `${k.lifts}× / week` }, window: { due: 1230, label: 'After training' },
-  });
+  if (k.lifts > 0) {
+    const lift = {
+      id: 'lift',
+      title: (k.liftTitle && String(k.liftTitle).trim()) ? String(k.liftTitle).trim().slice(0, 80) : `Lift session`,
+      kind: 'lift', proof: 'check',
+      freq: { type: 'days', days: LIFT_DAYS[k.lifts], label: `${k.lifts}× / week` }, window: { due: 1230, label: 'After training' },
+    };
+    // Optional free-text program (exercise list) the athlete sees + logs against. Extra key —
+    // validate_requirement_items ignores it (only id/title/kind/proof are required).
+    if (k.liftDesc && String(k.liftDesc).trim()) lift.desc = String(k.liftDesc).trim().slice(0, 400);
+    items.push(lift);
+  }
   if (k.weigh !== 'off') {
     const daily = k.weigh === 'daily';
     // Arbitrary weekdays (Tier 2). 'mwf' from an older editor value maps to the same [1,3,5].
@@ -789,6 +801,12 @@ export const coachPlanSet = {
         ${modHead('bolt', 'std-ic-a', 'Training &amp; body', 'Lifting cadence and weigh-in schedule')}
         <div class="std-lbl">Lift sessions / week</div>
         <div class="std-chips">${[0, 1, 2, 3, 4, 5, 6, 7].map(n => chip(KNOB.lifts === n, n === 0 ? 'Off' : String(n), 'lifts', n)).join('')}</div>
+        ${KNOB.lifts > 0 ? `
+        <div class="std-lbl mt">Session name <span style="color:var(--text-3);font-weight:600">· optional</span></div>
+        <input class="ob-input lift-title" maxlength="80" placeholder="e.g. Lower Body A" value="${esc(KNOB.liftTitle || '')}" />
+        <div class="std-lbl mt">What to do <span style="color:var(--text-3);font-weight:600">· optional</span></div>
+        <textarea class="ob-input lift-desc" maxlength="400" rows="2" style="min-height:56px;resize:vertical" placeholder="Squat 3×5, RDL 3×8, lunges, core">${esc(KNOB.liftDesc || '')}</textarea>
+        <div class="std-help">Your athletes see this on their training day and log a quick note against it. Tracked, not scored.</div>` : ''}
         <div class="std-lbl mt">Weigh-ins · season trend, tracked not scored</div>
         <div class="std-chips">${chip(KNOB.weigh === 'off', 'Off', 'weigh', 'off')}${chip(KNOB.weigh === 'daily', 'Daily', 'weigh', 'daily')}${chip(KNOB.weigh === 'custom', 'Specific days', 'weigh', 'custom')}</div>
         ${KNOB.weigh === 'custom' ? `<div class="std-weighdays">${[0, 1, 2, 3, 4, 5, 6].map(d => `<span class="std-daychip ${(KNOB.weighDays || []).includes(d) ? 'on' : ''}" data-weighday="${d}" role="button" aria-label="${DOW_SHORT[d]}${(KNOB.weighDays || []).includes(d) ? ' selected' : ''}">${DOW_1[d]}</span>`).join('')}</div>
@@ -936,6 +954,10 @@ export const coachPlanSet = {
       materializeMeals();
       KNOB.mealNames[+el.getAttribute('data-meal')] = el.value;
     }));
+    // Coach-programmed session name + description (0135). `change` (blur), not `input` — a chip
+    // re-render never steals in-progress typing (the blur fires its change first).
+    root.querySelectorAll('.lift-title').forEach(el => el.addEventListener('change', () => { KNOB.liftTitle = el.value; }));
+    root.querySelectorAll('.lift-desc').forEach(el => el.addEventListener('change', () => { KNOB.liftDesc = el.value; }));
     root.querySelectorAll('.mwin').forEach(el => el.addEventListener('change', () => {
       materializeMeals();
       const i = +el.getAttribute('data-meal');
@@ -1705,8 +1727,20 @@ function relTime(iso) {
      - coach actions: P.interventions, but only kind 'nudge'/'handled' — kind 'assign' is just a
        bookkeeping twin of the row already sitting in P.assignments (which carries the real
        requirement TITLE), so assignments render from there instead of the technical reason_key */
+// Athlete training logs (0135) for the profile activity timeline — fetched per-athlete in the
+// coachAthlete mount, keyed so a re-render never re-fetches or shows the wrong athlete's logs.
+let TLOGS = { id: null, rows: [] };
+
 function activitySection(P) {
   const items = [];
+  for (const l of (TLOGS.rows || [])) {
+    if (!l || !l.log_date) continue;
+    let when = l.log_date, ts = 0;
+    try { const d = new Date(l.log_date + 'T12:00:00'); ts = d.getTime(); when = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch { /* keep raw */ }
+    const feelW = l.feel ? ['', 'rough', 'tough', 'ok', 'good', 'great'][l.feel] : '';
+    const detail = l.note ? `· “${esc(l.note.slice(0, 80))}${l.note.length > 80 ? '…' : ''}”` : (feelW ? `· felt ${feelW}` : '');
+    items.push({ ts: isFinite(ts) ? ts : 0, cls: 'i-coach', when, what: `Training: ${esc(l.title || 'Workout')}${detail ? ` <span class="sub">${detail}</span>` : ''}` });
+  }
   for (const m of (P.meals || [])) {
     if (!m || !m.id || !m.logged_at) continue;
     items.push({ ts: new Date(m.logged_at).getTime(), cls: 'i-meal', go: `coach-meal/${m.id}`,
@@ -1926,6 +1960,12 @@ export const coachAthlete = {
     const athleteId = sub;
     loadCoachRoster(); // ensure the name is available
     loadAthleteProfile(athleteId);
+    // Training logs (0135) for the Activity timeline — fetch once per athlete open (mount re-runs
+    // on every render; the id guard stops a re-fetch loop and clears stale rows on athlete switch).
+    if (TLOGS.id !== athleteId) {
+      TLOGS = { id: athleteId, rows: [] };
+      roles.listTrainingLogs(athleteId).then((rows) => { if (TLOGS.id === athleteId) { TLOGS = { id: athleteId, rows: rows || [] }; if (window.__render) window.__render(); } }).catch(() => { /* best-effort */ });
+    }
     // coachMeal now resolves its own meal via roles.fetchMeal (Task 6 Part C) — it no longer
     // depends on this screen keeping the legacy ATH cache warm, so the double-fetch is gone.
     // Day-view receipt: written HERE, not the loader — this is where a real viewer id (RT.userId)

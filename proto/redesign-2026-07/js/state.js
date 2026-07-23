@@ -1228,6 +1228,13 @@ export const act = {
     dayCheckTask(RT.userId, id, done);
     save();
   },
+  /* Idempotently mark a standing check requirement done (never toggles off) — used when logging a
+     training session (0135), so re-logging an already-done session keeps it done, not flips it. */
+  markCheckDone(id) {
+    if (!id) return;
+    dayCheckTask(RT.userId, id, true);
+    save();
+  },
   seeAssigned() { RT.assigned.forEach(a => { a.seen = true; }); save(); },
   primeCamera() { RT.camPrimed = true; save(); },
   /* WS6: persist a Home collapse-section's open state so re-renders don't reset it. */

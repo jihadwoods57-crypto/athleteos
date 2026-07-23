@@ -353,6 +353,55 @@ export async function fetchTeamDietary(athleteIds) {
     return data || [];
   } catch { return []; }
 }
+
+/* ---------------- training logs (0135) — lightweight session + notes, tracked-not-scored ---------------- */
+/** Record a training session. A coach-requirement log is one-per-session-per-day (re-logging
+    replaces today's entry); a self-log always adds a new row. Best-effort — returns the row or null. */
+export async function saveTrainingLog(userId, opts) {
+  const c = sb(); if (!c || !userId) return null;
+  const o = opts || {};
+  const today = o.logDate || new Date().toISOString().slice(0, 10);
+  try {
+    const row = {
+      athlete_id: userId, log_date: today,
+      title: o.title ? String(o.title).slice(0, 80) : null,
+      note: o.note ? String(o.note).slice(0, 1000) : null,
+      feel: (o.feel != null && o.feel !== '') ? Math.max(1, Math.min(5, Math.round(+o.feel))) : null,
+      source: o.source === 'coach' ? 'coach' : 'self',
+      requirement_id: o.requirementId || null,
+    };
+    // Replace any existing same-day entry for this programmed session so "update" never duplicates.
+    if (o.requirementId) {
+      try { await c.from('training_logs').delete().eq('athlete_id', userId).eq('requirement_id', o.requirementId).eq('log_date', today); } catch { /* best-effort */ }
+    }
+    const { data, error } = await c.from('training_logs').insert(row).select().maybeSingle();
+    if (error) return null;
+    return data || null;
+  } catch { return null; }
+}
+/** An athlete's training logs, newest first (self by default; a coach passes an athleteId they
+    can_view). Returns [{ id, log_date, title, note, feel, source, requirement_id }]. */
+export async function listTrainingLogs(athleteId) {
+  const c = sb(); if (!c) return [];
+  try {
+    let uid = athleteId;
+    if (!uid) { const { data: u } = await c.auth.getUser(); uid = u && u.user && u.user.id; }
+    if (!uid) return [];
+    const { data, error } = await c.from('training_logs')
+      .select('id,log_date,title,note,feel,source,requirement_id')
+      .eq('athlete_id', uid)
+      .order('log_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(60);
+    if (error) return [];
+    return data || [];
+  } catch { return []; }
+}
+/** Delete a training log (owner-RLS). */
+export async function deleteTrainingLog(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('training_logs').delete().eq('id', id); return !error; } catch { return false; }
+}
 /** The ATHLETE side of the 0043 receipt loop: who actually opened MY day. RLS
     (coach_views_read) scopes rows to athlete_id = auth.uid() or the viewer's own receipts;
     the explicit athlete_id filter keeps a coach's client from pulling receipts they wrote

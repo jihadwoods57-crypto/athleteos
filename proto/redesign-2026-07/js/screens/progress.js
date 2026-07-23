@@ -63,6 +63,20 @@ function photoCard() {
   </section>`;
 }
 
+/* Entry to the training log (0135). Quiet link-out; sessions live in #training-history. Tracked,
+   not scored — same as weight/photos. */
+function trainingCard() {
+  return `
+  <div class="eyebrow">Training</div>
+  <section class="card" style="padding:6px 16px">
+    <div class="lrow" data-go="training-history">
+      <div class="lic">${icon('bolt', 17)}</div>
+      <div class="lm"><div class="lt">Training log</div><div class="ls">Your sessions &amp; notes — tracked, not scored</div></div>
+      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+    </div>
+  </section>`;
+}
+
 export default {
   tab: 'progress',
   render() {
@@ -87,6 +101,7 @@ export default {
       <div style="height:4px"></div>
       ${weightCard()}
     ${photoCard()}
+    ${trainingCard()}
       <div style="height:10px"></div>`;
     }
 
@@ -153,6 +168,7 @@ export default {
 
     ${weightCard()}
     ${photoCard()}
+    ${trainingCard()}
 
     <div style="height:10px"></div>
     <div class="sidebox" data-go="monthly-report" style="cursor:pointer">
