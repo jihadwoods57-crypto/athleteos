@@ -94,10 +94,13 @@ test('meal-count change resets names/windows to defaults for the new count', () 
 
 describe('snack-optional round-trip (0086 item.snack)', () => {
   const four = { ...base, meals: 4, mealNames: undefined, mealWins: undefined };
-  test('snackOptional true marks the snack-slot meal (index 2) as a snack', () => {
+  test('snackOptional true marks the snack-slot meal (index 3 — the 4th meal) as a snack', () => {
     const meals = itemsFromKnobs({ ...four, snackOptional: true }).filter((i: any) => i.kind === 'meal');
     expect(meals.length).toBe(4);
-    expect(meals[2].snack).toBe(true);
+    // A 4-meal day reads Breakfast / Lunch / Dinner / Snack, so the SNACK is the bonus slot.
+    expect(meals.map((m: any) => m.title)).toEqual(['Breakfast', 'Lunch', 'Dinner', 'Snack']);
+    expect(meals[3].snack).toBe(true);
+    expect(meals[2].snack).toBeUndefined();   // regression guard: Dinner must never be the optional one
     expect(meals[0].snack).toBeUndefined();
   });
   test('PARITY: snackOptional false writes no snack flag on any meal', () => {

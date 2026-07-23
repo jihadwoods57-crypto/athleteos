@@ -67,7 +67,7 @@ export const coachRooms = {
           <div class="lic" style="background:rgba(59,130,246,0.14);color:var(--blue-bright)">${icon('users', 17)}</div>
           <div class="lm"><div class="lt">${esc(rm.label)}</div><div class="ls">${members.length ? `${members.length} athlete${members.length === 1 ? '' : 's'}` : 'No one assigned yet'}</div></div>
           <button class="btn ghost sm" data-room-rename="${esc(rm.id)}" aria-label="Rename room" style="width:34px;padding:0;height:30px;flex:none">${icon('edit', 15)}</button>
-          <button class="btn ghost sm" data-go="coach-plan-set/position/${esc(String(rm.label).toUpperCase())}" style="width:auto;padding:0 12px;height:30px">Standard</button>
+          <button class="btn ghost sm" data-go="coach-plan-set/position/${esc(String(rm.label).trim().toUpperCase())}" style="width:auto;padding:0 12px;height:30px">Standard</button>
           <button class="btn ghost sm" data-room-del="${esc(rm.id)}" style="width:auto;padding:0 10px;height:30px;color:var(--red);margin-left:6px">Delete</button>
         </div>`}
         <div class="lrow" data-owner-toggle="${esc(rm.id)}" style="cursor:pointer;padding-left:6px">

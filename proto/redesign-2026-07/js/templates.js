@@ -28,7 +28,8 @@ export function templateLabel(kind) {
   return LABELS[kind] || 'Custom';
 }
 
-const MEAL_NAMES = ['Breakfast', 'Lunch', 'Dinner', 'Meal 4', 'Meal 5', 'Meal 6'];
+// 4-meal day is Breakfast / Lunch / Dinner / Snack (founder call) — keep in step with coach.js.
+const MEAL_NAMES = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Meal 5', 'Meal 6'];
 const STANDARD_MEAL_WINDOWS = [{ open: 420, due: 570 }, { open: 720, due: 840 }, { open: 1080, due: 1230 }];
 const TRAVEL_MEAL_WINDOWS = [{ open: 480, due: 630 }, { open: 780, due: 900 }, { open: 1140, due: 1290 }];
 const LIFT_DAYS = { 1: [2], 2: [2, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 4, 5], 6: [1, 2, 3, 4, 5, 6], 7: [0, 1, 2, 3, 4, 5, 6] };

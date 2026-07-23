@@ -504,7 +504,9 @@ export const coachPlan = {
    Knobs → catalog-shaped items (0055-validated rails: meals 1–6, lifts 0–7) →
    set_team_requirements. A position room can reset to the team default (0058). */
 const LIFT_DAYS = { 1: [2], 2: [2, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 4, 5], 6: [1, 2, 3, 4, 5, 6], 7: [0, 1, 2, 3, 4, 5, 6] };
-const MEAL_NAMES = ['Breakfast', 'Lunch', 'Dinner', 'Meal 4', 'Meal 5', 'Meal 6'];
+// 4-meal day is Breakfast / Lunch / Dinner / Snack (founder call) — so slot 4 (index 3) IS the
+// snack, which is what the "snack is optional" toggle marks as a bonus.
+const MEAL_NAMES = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Meal 5', 'Meal 6'];
 const MEAL_WINDOWS = [{ open: 420, due: 570 }, { open: 720, due: 840 }, { open: 1080, due: 1230 }, { due: 1290 }, { due: 1320 }, { due: 1350 }];
 let KNOB = null; // { key, meals, lifts, weigh, hydration, recovery, checkin }
 
@@ -555,9 +557,10 @@ export function knobsFromItems(items) {
     grace: typeof (mealItems[0] || {}).grace === 'number' ? mealItems[0].grace : 0,
     latePolicy: ((mealItems[0] || {}).latePolicy === 'full' || (mealItems[0] || {}).latePolicy === 'none') ? mealItems[0].latePolicy : 'half',
     coachReview: !!(mealItems[0] || {}).coachReview,
-    // Snack-optional: the meal on the snack slot (index 2, present only at 4+ meals) is bonus, not
-    // required. Read back from that item's flag so the toggle reflects the saved standard.
-    snackOptional: mealItems.length >= 4 && !!(mealItems[2] || {}).snack,
+    // Snack-optional: the meal on the snack slot (index 3 — the 4th meal, Breakfast/Lunch/Dinner/
+    // Snack, present only at 4+ meals) is bonus, not required. Read back from that item's flag so
+    // the toggle reflects the saved standard.
+    snackOptional: mealItems.length >= 4 && !!(mealItems[3] || {}).snack,
   };
 }
 // Shared fallback logic for meal names/windows/proof/day-type — render() uses this too, so what's
@@ -598,8 +601,9 @@ export function itemsFromKnobs(k) {
     // dayType: only write when the coach tagged a meal training/rest — an 'any' meal stays
     // untagged, so a standard with no tags is byte-identical to before (parity).
     if (dayTypes[i] === 'training' || dayTypes[i] === 'rest') meal.dayType = dayTypes[i];
-    // Snack-optional: mark the snack-slot meal (index 2, only meaningful at 4+ meals) as a bonus.
-    if (k.snackOptional && k.meals >= 4 && i === 2) meal.snack = true;
+    // Snack-optional: mark the snack-slot meal as a bonus. That's index 3 — the 4th meal — because
+    // a 4-meal day reads Breakfast / Lunch / Dinner / Snack; marking index 2 made "Dinner" optional.
+    if (k.snackOptional && k.meals >= 4 && i === 3) meal.snack = true;
     items.push(meal);
   });
   if (k.lifts > 0) {
@@ -688,7 +692,10 @@ async function loadTemplates(force) {
 export const coachPlanSet = {
   nav: 'coach', tab: 'roster',
   render({ sub }) {
-    const [kind, rawVal] = (sub || 'team').split('/');
+    // Split on the FIRST slash only — a room label can legitimately contain "/" ("DB/S", "WR/TE")
+    // and a naive split truncated the scope value to "DB", silently scoping the standard elsewhere.
+    const [kind, ...restVal] = (sub || 'team').split('/');
+    const rawVal = restVal.length ? restVal.join('/') : undefined;
     const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
     const key = `${kind}:${value || ''}`;
     const scopeName = kind === 'team' ? 'Your Team Standard' : `${value} room`;
@@ -933,7 +940,10 @@ export const coachPlanSet = {
   },
   mount(root, { sub }) {
     loadCoachRoster().then(() => { loadSets(); loadTemplates(); });
-    const [kind, rawVal] = (sub || 'team').split('/');
+    // Split on the FIRST slash only — a room label can legitimately contain "/" ("DB/S", "WR/TE")
+    // and a naive split truncated the scope value to "DB", silently scoping the standard elsewhere.
+    const [kind, ...restVal] = (sub || 'team').split('/');
+    const rawVal = restVal.length ? restVal.join('/') : undefined;
     const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
     const say = (msg, isErr) => {
       const el = root.querySelector('#set-status');

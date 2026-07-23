@@ -2406,16 +2406,10 @@ export const S = {
   },
 
   get requirements() {
-    if (RT.day0) {
-      return [
-        { id: 'breakfast', title: 'Breakfast', icon: 'utensils', accent: RT.day0Breakfast ? 'g' : 'a', status: RT.day0Breakfast ? 'Logged' : 'Open', statusColor: RT.day0Breakfast ? 'g' : 'a',
-          sub: RT.day0Breakfast ? 'Logged just now' : 'Photo proof', subColor: RT.day0Breakfast ? 'g' : 'a', meta: RT.day0Breakfast ? 'First log' : 'Start here', done: RT.day0Breakfast, route: RT.day0Breakfast ? 'meal-detail' : 'camera' },
-        { id: 'lunch', title: 'Lunch', icon: 'bowl', accent: 'b', status: 'Upcoming', statusColor: 'b', sub: 'Due by 2:00 PM', subColor: 'b', meta: 'Photo proof', done: false, route: 'camera' },
-        { id: 'dinner', title: 'Dinner', icon: 'bowl', accent: 'b', status: 'Upcoming', statusColor: 'b', sub: 'Due by 8:00 PM', subColor: 'b', meta: 'Photo proof', done: false, route: 'camera' },
-        { id: 'recovery', title: 'Recovery Check-In', icon: 'moon', accent: 'p', status: 'Later', statusColor: 'p', sub: 'Before bed', subColor: 'p', meta: 'Recovery · 25%', done: false, route: 'recovery' },
-      ];
-    }
-    /* ---- ENGINE-DERIVED: today's list from the catalog + REAL runtime (DAY) ---- */
+    /* ---- ENGINE-DERIVED: today's list from the catalog + REAL runtime (DAY) ----
+       (A hardcoded day-0 branch used to sit here returning "Lunch · Upcoming · Due by 2:00 PM"
+       regardless of the real clock or the athlete's standard. It had no consumer, so it never
+       rendered — deleted rather than left as a landmine for whoever wires this up next.) */
     const lateMeal = (k) => DAY.mealLoggedAt[k] != null && DAY.mealLoggedAt[k] > slotDeadline(k);
     const resolve = (id) => {
       switch (id) {
