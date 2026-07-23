@@ -20,13 +20,14 @@ import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import {
-  defineFlow, choiceGrid, chipRow, simChip, mirrorCard, countStat,
+  defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
   phoneCard, testimonial, planCard, PLANS, chatSim,
 } from '../ob2.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { showConfirmPending } from '../ob-helpers.js';
+import { track, EVENTS } from '../analytics.js';
 
 /* ---------- band midpoints (guarded: every read works with an empty RT.ob) ---------- */
 const COUNT_MID = { 5: 5, 10: 10, 20: 20, 30: 30 };
@@ -395,6 +396,9 @@ const steps = [
     },
   },
 
+  /* Peak-intent email capture — see saveProgressStep() in ob2.js. */
+  saveProgressStep(3),
+
   /* ==================== ch4 · Start ==================== */
   {
     id: 'proof', ch: 4, cta: 'Next',
@@ -433,7 +437,10 @@ const steps = [
   },
   {
     id: 'code', ch: 4, cta: 'Continue',
-    back: 'obt/code', /* back is neutralized post-account — there’s no un-creating the account */
+    /* Post-account, back can't return to the signup form — but pointing it at itself made the
+       chevron a control that visibly does nothing. Exit to the dashboard instead, the way the
+       coach flow's code screen does. */
+    back: 'trainer',
     title: () => 'Your client code.',
     sub: () => 'Send it to your clients. They enter it once and their work starts counting toward your view.',
     body: () => {
@@ -478,12 +485,18 @@ const steps = [
         ${PLANS.pro.map((p, i) => planCard({ ...p, on: o.plan ? o.plan === p.id : i === 0 })).join('')}
       </div>
       <div class="ob-foot" style="margin-top:18px">
-        <button class="btn primary" data-go="trainer">Start free — no card today</button>
+        <button class="btn primary" id="obt-start" data-go="trainer">Start free — no card today</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Invite your first client from your dashboard.</div>
       </div>`,
     mount(root, ctx) {
       // The visual default is a real selection: capture it so RT.ob.plan is set for go-live.
       if (!(ctx.ob || {}).plan) ctx.capture({ plan: (PLANS.pro[0] || {}).id });
+      const planNow = () => ((RT.ob || {}).plan) || (PLANS.pro[0] || {}).id;
+      track(EVENTS.PAYWALL_VIEWED, { variant: 'pro' });
+      root.querySelectorAll('.ob2-plan[data-val]').forEach((el) => el.addEventListener('click',
+        () => track(EVENTS.PLAN_SELECTED, { plan: el.getAttribute('data-val') })));
+      const b = root.querySelector('#obt-start');
+      if (b) b.addEventListener('click', () => track(EVENTS.TRIAL_STARTED, { plan: planNow() }));
     },
   },
 ];

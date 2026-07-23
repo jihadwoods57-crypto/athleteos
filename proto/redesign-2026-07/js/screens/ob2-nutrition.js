@@ -11,13 +11,14 @@ import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import {
-  defineFlow, choiceGrid, chipRow, simChip, mirrorCard, countStat, chatSim,
+  defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat, chatSim,
   phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta,
 } from '../ob2.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { showConfirmPending } from '../ob-helpers.js';
+import { track, EVENTS } from '../analytics.js';
 
 /* ---------- discovery bands / labels (single source for math + mirrors) ---------- */
 const CLIENT_BANDS = [
@@ -452,6 +453,9 @@ const steps = [
     },
   },
 
+  /* Peak-intent email capture — see saveProgressStep() in ob2.js. */
+  saveProgressStep(3),
+
   /* ================= ch4 · Start ================= */
   {
     id: 'proof', ch: 4, cta: 'Continue',
@@ -472,7 +476,29 @@ const steps = [
       })}`,
   },
   {
-    id: 'plans', ch: 4, cta: 'Start free — no card today',
+    /* Account BEFORE the seat picker (2026-07-23). This flow used to price the seat first —
+       the only one of the six that did — which put a number in front of a professional before
+       anything was saved. `obn` is in router AUTH_ROUTES, so a freshly signed-in pro is not
+       bounced off `obn/*` and the plans step below renders normally. */
+    id: 'account', ch: 4, noFoot: true,
+    title: () => 'Create your account.',
+    sub: () => 'Your practice, client code, and review queue live on it — ready for its first client.',
+    body: () => `
+      ${accountBody({ terms: 'tob' })}
+      <div class="ob-foot" style="margin-top:18px"><button id="su-go" class="btn primary" disabled>Create account &amp; Start reviewing</button></div>`,
+    mount(root, ctx) {
+      wireAccount(root, {
+        role: 'trainer',
+        onSession: async (live) => {
+          if (live) { await act.persistTrainerOnboarding(); ctx.go('obn/plans'); return; }
+          showConfirmPending(root, { email: RT.email });
+        },
+      });
+    },
+  },
+  {
+    id: 'plans', ch: 4, noFoot: true, next: () => null,
+    back: 'trainer', /* no un-creating the account — back exits to the dashboard */
     title: () => 'Pick your seat.',
     sub: () => 'Nothing charges today — billing turns on at launch, and you can change plans anytime.',
     body: (o) => {
@@ -481,27 +507,19 @@ const steps = [
       <div class="ob2-plans" data-obkey="plan">
         ${PLANS.seat.map((p) => planCard({ ...p, on: p.id === sel })).join('')}
       </div>
-      <div class="ob2-scan-note">Both seats include the review queue, corrections, trends, and flags from day one.</div>`;
+      <div class="ob2-scan-note">Both seats include the review queue, corrections, trends, and flags from day one.</div>
+      <div class="ob-foot" style="margin-top:auto">
+        <button class="btn primary" id="obn-start" data-go="trainer">Start free — no card today</button>
+        <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Your review queue is ready for its first client.</div>
+      </div>`;
     },
-    mount() {
-      if (!ob().plan) capture({ plan: 'pro_solo' });
-    },
-  },
-  {
-    id: 'account', ch: 4, noFoot: true,
-    title: () => 'Create your account.',
-    sub: () => 'Your practice, client code, and review queue live on it — ready for its first client.',
-    body: () => `
-      ${accountBody({ terms: 'tob' })}
-      <div class="ob-foot" style="margin-top:18px"><button id="su-go" class="btn primary" disabled>Create account &amp; Start reviewing</button></div>`,
     mount(root) {
-      wireAccount(root, {
-        role: 'trainer',
-        onSession: async (live) => {
-          if (live) { await act.persistTrainerOnboarding(); window.__go('trainer'); return; }
-          showConfirmPending(root, { email: RT.email });
-        },
-      });
+      if (!ob().plan) capture({ plan: 'pro_solo' });
+      track(EVENTS.PAYWALL_VIEWED, { variant: 'seat' });
+      root.querySelectorAll('.ob2-plan[data-val]').forEach((el) => el.addEventListener('click',
+        () => track(EVENTS.PLAN_SELECTED, { plan: el.getAttribute('data-val') })));
+      const b = root.querySelector('#obn-start');
+      if (b) b.addEventListener('click', () => track(EVENTS.TRIAL_STARTED, { plan: ob().plan || 'pro_solo' }));
     },
   },
 ];

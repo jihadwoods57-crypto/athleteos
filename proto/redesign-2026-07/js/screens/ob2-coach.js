@@ -20,11 +20,12 @@ import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import {
-  defineFlow, ob, capture, gateCta, meter, countStat, mirrorCard, simChip,
+  defineFlow, saveProgressStep, ob, capture, gateCta, meter, countStat, mirrorCard, simChip,
   chatSim, notifCard, phoneCard, testimonial, planCard, choiceGrid, chipRow, PLANS,
 } from '../ob2.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { showConfirmPending } from '../ob-helpers.js';
+import { track, EVENTS } from '../analytics.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { setMyTeamCode } from '../roles.js';
 import { roleLabel, normalizeRole } from '../staff-access.js';
@@ -46,22 +47,46 @@ const TRACK_PHRASE = {
   none: 'by memory',
 };
 const REQ_LABEL = { meals: 'Meal photos', protein: 'Protein target', lift: 'Lift log', weigh: 'Weigh-in' };
-const ROOM_LABEL = { team: 'the whole team', qb: 'the QB room', ol: 'the OL room', skill: 'the Skill room', bigs: 'the Bigs room' };
 const VIS_LABEL = { scores: 'scores only', alerts: 'scores + alerts', detail: 'full detail' };
 
-/* Simulated completion board — first names only, mixed done/miss,
-   cell count follows the coach's own dailyExpectations answer. */
-const BOARD_ROSTER = [
-  ['Jaylen', 'QB'], ['Marcus', 'RB'], ['DeShawn', 'WR'], ['Tyler', 'OL'],
-  ['Malik', 'LB'], ['Jordan', 'DB'], ['Trey', 'TE'], ['Chris', 'WR'],
-];
-function boardRows(cells) {
-  return BOARD_ROSTER.map(([name, pos], i) => {
+/* Position rooms per sport (2026-07-23). These used to be football-only — a basketball
+   coach who had just answered "Basketball" two screens earlier was offered "the QB room",
+   which breaks the mirror-back promise at the exact moment the flow is proving it listens.
+   `team` is prepended everywhere; unknown/Other sports get neutral groupings. */
+const SPORT_ROOMS = {
+  Football: [['qb', 'QB room'], ['ol', 'OL room'], ['skill', 'Skill'], ['bigs', 'Bigs']],
+  Basketball: [['guards', 'Guards'], ['wings', 'Wings'], ['bigs', 'Bigs']],
+  Baseball: [['pitchers', 'Pitchers'], ['catchers', 'Catchers'], ['infield', 'Infield'], ['outfield', 'Outfield']],
+  Soccer: [['keepers', 'Keepers'], ['backs', 'Backs'], ['mid', 'Midfield'], ['forwards', 'Forwards']],
+  Track: [['sprints', 'Sprints'], ['distance', 'Distance'], ['throws', 'Throws'], ['jumps', 'Jumps']],
+  Other: [['starters', 'Starters'], ['group-a', 'Group A'], ['group-b', 'Group B']],
+};
+const roomsFor = (o) => SPORT_ROOMS[o.sport] || SPORT_ROOMS.Other;
+/* Label for a captured room value — 'the QB room' / 'the whole team'. */
+function roomLabel(o, val) {
+  if (!val || val === 'team') return 'the whole team';
+  const hit = roomsFor(o).find(([v]) => String(v) === String(val));
+  return hit ? `the ${hit[1]}` : 'the team';
+}
+
+/* Simulated completion board — first names only, mixed done/miss, cell count follows the
+   coach's own dailyExpectations answer, position tags follow their sport. */
+const BOARD_NAMES = ['Jaylen', 'Marcus', 'DeShawn', 'Tyler', 'Malik', 'Jordan', 'Trey', 'Chris'];
+const SPORT_POS = {
+  Football: ['QB', 'RB', 'WR', 'OL', 'LB', 'DB', 'TE', 'WR'],
+  Basketball: ['PG', 'SG', 'SF', 'PF', 'C', 'SG', 'SF', 'C'],
+  Baseball: ['P', 'C', '1B', 'SS', 'OF', 'OF', '2B', '3B'],
+  Soccer: ['GK', 'CB', 'CB', 'LB', 'CM', 'CM', 'LW', 'ST'],
+  Track: ['100m', '400m', '800m', '1600m', 'Shot', 'Long', 'HH', '4×1'],
+};
+function boardRows(cells, sport) {
+  const pos = SPORT_POS[sport] || [];
+  return BOARD_NAMES.map((name, i) => {
     const dots = Array.from({ length: cells }, (_, j) => {
       const miss = (i + j) % 5 === 3;
       return `<i class="${miss ? 'miss' : 'ok'}">${icon(miss ? 'x' : 'check', 10)}</i>`;
     }).join('');
-    return `<div class="br"><div class="bn">${esc(name)}</div><div class="bp">${esc(pos)}</div><div class="bd">${dots}</div></div>`;
+    return `<div class="br"><div class="bn">${esc(name)}</div><div class="bp">${esc(pos[i] || '')}</div><div class="bd">${dots}</div></div>`;
   }).join('');
 }
 
@@ -170,7 +195,18 @@ const steps = [
     id: 'sport', ch: 0, cta: 'Next',
     title: () => 'Your sport.',
     sub: () => 'Positions, rooms, and templates follow it.',
-    body: () => chipRow('sport', ['Football', 'Basketball', 'Baseball', 'Track', 'Other']),
+    /* Soccer was missing here while the athlete flow offered it — a soccer program's coach
+       was "Other" while their own athletes were "Soccer". */
+    body: () => chipRow('sport', ['Football', 'Basketball', 'Baseball', 'Soccer', 'Track', 'Other']),
+    mount(root) {
+      /* Rooms downstream are derived from this answer and a room id from another sport
+         would render as a stale label, so any sport tap clears the room pick. (The engine's
+         own capture listener runs before this mount, so comparing against RT.ob.sport here
+         would always see the NEW value — clearing unconditionally is the honest version.
+         req-assign is data-req, so the coach re-picks there regardless.) */
+      root.querySelectorAll('[data-obkey="sport"] [data-val]').forEach((el) =>
+        el.addEventListener('click', () => capture({ sampleAssign: null })));
+    },
   },
   {
     id: 'team-size', ch: 0, cta: 'Next',
@@ -247,27 +283,27 @@ const steps = [
     id: 'req-assign', ch: 1, cta: 'Assign it',
     title: () => 'Now point it at a room.',
     sub: (o) => `${REQ_LABEL[o.sampleReq] || 'Your requirement'} can hit the whole team or one position room.`,
-    body: () => `${chipRow('sampleAssign', [
-      { v: 'team', t: 'Whole team' }, { v: 'qb', t: 'QB room' }, { v: 'ol', t: 'OL room' },
-      { v: 'skill', t: 'Skill' }, { v: 'bigs', t: 'Bigs' },
+    body: (o) => `${chipRow('sampleAssign', [
+      { v: 'team', t: 'Whole team' },
+      ...roomsFor(o).map(([v, t]) => ({ v, t })),
     ])}
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:14px 2px 0;line-height:1.5">Rooms come from the positions your athletes pick — one tap and the requirement lands on everyone in it.</div>`,
   },
   {
     id: 'board', ch: 1, cta: 'How’s a score built?',
     title: () => 'Tuesday, 8:40 pm.',
-    sub: (o) => `${REQ_LABEL[o.sampleReq] || 'Your standard'} on ${ROOM_LABEL[o.sampleAssign] || 'the team'} — every athlete, without sending a single text.`,
+    sub: (o) => `${REQ_LABEL[o.sampleReq] || 'Your standard'} on ${roomLabel(o, o.sampleAssign)} — every athlete, without sending a single text.`,
     body: (o) => `${simChip('Simulated roster — your real board fills as athletes join')}
-      ${phoneCard('Completion board', `<div class="ob2-board">${boardRows(expectationsOf(o))}</div>`)}
+      ${phoneCard('Completion board', `<div class="ob2-board">${boardRows(expectationsOf(o), o.sport)}</div>`)}
       <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:12px 2px 0;line-height:1.5">${icon('check', 10)} done · ${icon('x', 10)} missed — one column per daily expectation.</div>`,
   },
   {
     id: 'breakdown', ch: 1, cta: 'Next',
     title: () => 'Tap a name. See the why.',
     sub: () => 'Every score opens the same honest breakdown — the real weights, not a vibe.',
-    body: () => `${simChip('Simulated athlete — real breakdowns come from real logs')}
+    body: (o) => `${simChip('Simulated athlete — real breakdowns come from real logs')}
       <div class="lrow" id="obk-open" role="button" aria-label="Open Marcus’s breakdown" style="border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px 14px;background:var(--surface-1)">
-        <div class="lm"><div class="lt">Marcus · RB</div><div class="ls">Today’s score — the honest weights</div></div>
+        <div class="lm"><div class="lt">Marcus${(SPORT_POS[o.sport] || [])[1] ? ` · ${esc((SPORT_POS[o.sport] || [])[1])}` : ''}</div><div class="ls">Today’s score — the honest weights</div></div>
         <div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--green-bright)">91</div>
       </div>
       <div id="obk-detail" style="display:block;margin-top:12px">
@@ -373,6 +409,9 @@ const steps = [
       });
     },
   },
+
+  /* Peak-intent email capture — see saveProgressStep() in ob2.js. */
+  saveProgressStep(3),
 
   /* ================= ch4 — START ================= */
   {
@@ -556,6 +595,7 @@ const steps = [
         <button class="btn primary" data-go="coach-home">Open Coach Dashboard</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Your rooms are next.</div>
       </div>`,
+    mount() { track(EVENTS.PAYWALL_VIEWED, { variant: 'staff_covered' }); },
   },
   {
     id: 'plans', ch: 4, noFoot: true, back: 'obk/code',
@@ -568,9 +608,18 @@ const steps = [
       </div>
       <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px;line-height:1.5">No card today. You’ll confirm before anything ever charges.</div>
       <div class="ob-foot" style="margin-top:auto">
-        <button class="btn primary" data-go="coach-home">Start free — no card today</button>
+        <button class="btn primary" id="obk-start" data-go="coach-home">Start free — no card today</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Your rooms are next.</div>
       </div>`,
+    mount(root) {
+      /* The visual default is a real selection — capture it so RT.ob.plan holds intent for go-live. */
+      if (!ob().plan) capture({ plan: 'org_starter' });
+      track(EVENTS.PAYWALL_VIEWED, { variant: 'org' });
+      root.querySelectorAll('.ob2-plan[data-val]').forEach((el) => el.addEventListener('click',
+        () => track(EVENTS.PLAN_SELECTED, { plan: el.getAttribute('data-val') })));
+      const b = root.querySelector('#obk-start');
+      if (b) b.addEventListener('click', () => track(EVENTS.TRIAL_STARTED, { plan: ob().plan || 'org_starter' }));
+    },
   },
 ];
 

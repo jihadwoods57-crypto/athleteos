@@ -26,7 +26,7 @@ import { commitButton, wireCommit } from '../ob-commit.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { track, EVENTS } from '../analytics.js';
 import {
-  defineFlow, choiceGrid, chipRow, scale10, meter, mirrorCard, simChip,
+  defineFlow, saveProgressStep, choiceGrid, chipRow, scale10, meter, mirrorCard, simChip, countStat,
   phoneCard, testimonial, planCard, paywallVariant, PLANS, capture,
 } from '../ob2.js';
 import { mealDemoSteps } from '../ob2-meal.js';
@@ -143,20 +143,21 @@ const steps = [
       { v: 'performance', t: 'Perform', s: 'Fuel training · recover hard', ic: 'bolt', tint: 'rgba(168,85,247,0.18)', color: 'var(--purple-bright)' },
     ]),
   },
+
+  /* ============================== ch1 · See it ==============================
+     Ordering (2026-07-23): the live meal demo used to sit at screen 12, behind seven
+     discovery screens. It is the strongest thing the product does and it now runs at
+     screen 7 — right after goal, which is the only answer the demo itself consumes.
+     The remaining discovery (obstacles, supporters, the two ratings) moved BELOW the
+     demo: seeing the analysis work earns the right to ask more, and every one of those
+     answers is spent later (plan mirrors, aha meters) rather than up front. */
+
+  /* Interactive meal demo — 5 steps (demo, demo-scan, demo-result, demo-score,
+     demo-chat). Called once; coach voice by default (see header voice note). */
+  ...mealDemoSteps({ route: R, voice: 'coach', computeScore }),
+
   {
-    id: 'goal-rate', ch: 0, cta: 'Next',
-    title: () => 'How much does this goal matter?',
-    sub: () => 'Be honest. This number comes back in a minute.',
-    body: () => scale10('goalImportance'),
-  },
-  {
-    id: 'acct-rate', ch: 0, cta: 'Next',
-    title: () => 'How strong is your current accountability system?',
-    sub: () => 'The thing that catches you when motivation dips — not how motivated you feel today.',
-    body: () => scale10('accountabilityRating'),
-  },
-  {
-    id: 'obstacle', ch: 0, cta: 'Next',
+    id: 'obstacle', ch: 1, cta: 'Next',
     title: () => 'Where do your hours leak?',
     sub: () => 'Pick everything that actually happens. Your plan targets these.',
     body: () => chipRow('obstacles', [
@@ -164,7 +165,7 @@ const steps = [
     ], { multi: true }),
   },
   {
-    id: 'support', ch: 0, cta: 'Next',
+    id: 'support', ch: 1, cta: 'Next',
     title: () => 'Who holds you to it?',
     sub: () => 'These are the people your score can reach.',
     body: () => chipRow('supporters', [
@@ -187,30 +188,45 @@ const steps = [
     },
   },
 
-  /* ============================== ch1 · See it ============================== */
   {
-    id: 'aha', ch: 1, cta: 'Close the gap',
-    title: () => 'Your own numbers',
+    /* Two consecutive 1–10 screens were rating fatigue, and the second one ("how strong is
+       your current accountability system") is founder language a 16-year-old doesn't parse.
+       One screen, two scales, plain questions, and end-labels that actually fit what each
+       scale measures. Keys are unchanged so every downstream read still works. */
+    id: 'rate', ch: 1, cta: 'Next',
+    title: () => 'Two quick reads',
+    sub: () => 'Be honest — both numbers come back on the next screen.',
+    body: () => `
+      ${scale10('goalImportance', { label: 'How much does this goal matter to you?', lo: 'Not much', hi: 'It’s everything' })}
+      <div style="height:22px"></div>
+      ${scale10('accountabilityRating', { label: 'When you skip a meal, does anyone notice?', lo: 'Nobody notices', hi: 'I always hear about it' })}`,
+  },
+  {
+    id: 'aha', ch: 1, cta: 'Build my plan',
+    title: () => 'The hours nobody sees',
     body: (o) => {
       const n = clamp10(o.goalImportance);
       const m = clamp10(o.accountabilityRating);
+      /* The other five flows open their aha with a number the user's own answers produce
+         (coach: roster × expectations × 7; client: 165 hours). The athlete's used to open
+         with a self-rating comparison — a quiz, not an argument. Lead with the same kind of
+         arithmetic the `why` screen set up, THEN land the personal gap. */
       const verdict = (!n && !m)
-        ? 'Rate your goal and your current system on the previous two screens — the gap between them is exactly what OnStandard closes.'
+        ? 'Rate both scales on the previous screen — the gap between them is exactly what OnStandard closes.'
         : m >= n
-          ? `Your accountability system (<b>${m}/10</b>) already keeps pace with how much this goal matters (<b>${n}/10</b>). That is rare — OnStandard makes it visible, every day, to the people who back you.`
-          : `You rated your goal <b>${n}/10</b> but your accountability system <b>${m}/10</b>. That gap is exactly what OnStandard closes.`;
+          ? `You rated this goal <b>${n}/10</b> and you say people notice at <b>${m}/10</b>. Good — that only holds while someone is watching. OnStandard makes it hold every day, on the record.`
+          : `You rated this goal <b>${n}/10</b> — but when you skip, notice lands at <b>${m}/10</b>. That gap is where the 140 hours go, and it is exactly what OnStandard closes.`;
       return `
+        ${countStat('140 hrs', 'a week between practices — where your goal is actually won or lost',
+          '~20 unseen hours a day × 7 days')}
+        <div style="height:18px"></div>
         <div class="ob2-gap">
-          ${meter(n * 10, { value: String(n), label: 'Your goal', uid: 'gap-g' })}
-          ${meter(m * 10, { value: String(m), label: 'Your system', uid: 'gap-s', muted: m < n })}
+          ${meter(n * 10, { value: String(n), label: 'The goal', uid: 'gap-g' })}
+          ${meter(m * 10, { value: String(m), label: 'Gets noticed', uid: 'gap-s', muted: m < n })}
         </div>
         <div class="ob2-gap-verdict">${verdict}</div>`;
     },
   },
-
-  /* Interactive meal demo — 5 steps (demo, demo-scan, demo-result, demo-score,
-     demo-chat). Called once; coach voice by default (see header voice note). */
-  ...mealDemoSteps({ route: R, voice: 'coach', computeScore }),
 
   /* ============================== ch2 · Your plan ============================== */
   {
@@ -293,6 +309,9 @@ const steps = [
     },
   },
 
+  /* Peak-intent email capture — see saveProgressStep() in ob2.js. */
+  saveProgressStep(3),
+
   /* ============================== ch4 · Start ============================== */
   {
     id: 'proof', ch: 4, cta: 'Next',
@@ -305,16 +324,51 @@ const steps = [
   },
   {
     id: 'connect', ch: 4, cta: 'Connect', skip: true,
+    /* Reachable twice: once in the normal run (→ dob → account), and again from the
+       paywall's "I have a code" link AFTER the account exists. In that second case the
+       signup form is behind us — resolve straight back to the coverage screen the code
+       just earned, or to plans if it didn't. (Same guard the client flow already had.) */
+    next: () => (RT.userId
+      ? (paywallVariant('athlete') === 'team_covered' ? 'covered' : 'plans')
+      : 'dob'),
     title: () => 'Got a team code?',
     sub: () => 'Your coach hands it out. It puts your score on their board from day one — and your team covers your access.',
     body: (o) => `
       <input id="tc-code" class="ob-input" placeholder="Team code" aria-label="Team code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" value="${esc(o.join && o.join.kind === 'team' ? o.join.code || '' : '')}" />
-      <div class="ob2-scan-note" style="text-align:left">4–12 letters and numbers. No code? Skip — you can connect any time from Profile.</div>`,
+      <div id="tc-note" class="ob2-scan-note" style="text-align:left;min-height:18px">4–12 letters and numbers. No code? Skip — you can connect any time from Profile.</div>`,
     mount(root) {
       const el = root.querySelector('#tc-code');
+      const note = root.querySelector('#tc-note');
       const btn = root.querySelector('#ob2-next');
       const CODE_RE = /^[A-Z0-9]{4,12}$/;
+      const HINT = '4–12 letters and numbers. No code? Skip — you can connect any time from Profile.';
       if (btn) btn.setAttribute('data-gate-extra', '#tc-code.ok');
+      /* A well-FORMED code is not a REAL code. Without this lookup a typo still flipped
+         paywallVariant to team_covered, so the next screen promised "your team covers your
+         access" for a code that redeems into nothing at persistOnboarding — the athlete
+         landed in the app uncovered, having never been shown a plan. Debounced, best-effort:
+         offline or directory-down keeps the code and the honest generic note. */
+      let seq = 0, timer = null;
+      const preview = (code) => {
+        if (timer) clearTimeout(timer);
+        const my = ++seq;
+        timer = setTimeout(async () => {
+          try {
+            const { dir } = await import('../ob-directory.js');
+            const { match } = await dir.previewCode(code);
+            if (my !== seq || el.value.trim().toUpperCase() !== code) return; /* stale */
+            if (match && match.kind === 'team') {
+              capture({ join: { kind: 'team', code, teamId: match.id, teamName: match.name } });
+              note.innerHTML = `Connected: <b>${esc(match.name || 'your team')}</b>`;
+            } else {
+              capture({ join: null });
+              el.classList.remove('ok');
+              note.textContent = 'That code didn’t match a team — check it with your coach, or skip and connect later.';
+              if (btn) btn.disabled = true;
+            }
+          } catch { /* directory unreachable — the code stays captured, note stays honest */ }
+        }, 350);
+      };
       const sync = () => {
         const v = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
         if (el.value !== v) el.value = v;
@@ -324,6 +378,9 @@ const steps = [
         capture({ join: ok ? { kind: 'team', code: v } : null });
         el.classList.toggle('ok', ok);
         if (btn) btn.disabled = !ok;
+        if (!ok) { note.textContent = HINT; return; }
+        note.textContent = 'Checking that code…';
+        preview(v);
       };
       el.addEventListener('input', sync);
       sync();
@@ -331,7 +388,13 @@ const steps = [
   },
   {
     id: 'dob', ch: 4, cta: 'Next',
-    next: (o) => (o.dobBlocked ? 'blocked' : 'account'),
+    /* `account` is the normal target; the RT.userId branch only matters if this step is
+       reached with a session already in hand (deep link / back-nav after signup). */
+    next: (o) => {
+      if (o.dobBlocked) return 'blocked';
+      if (RT.userId) return paywallVariant('athlete') === 'team_covered' ? 'covered' : 'plans';
+      return 'account';
+    },
     title: () => 'Your birth date',
     sub: () => 'Asked once — it verifies you are old enough to use OnStandard.',
     body: (o) => {
@@ -427,11 +490,15 @@ const steps = [
     id: 'covered', ch: 4, noFoot: true, next: () => null,
     when: () => paywallVariant('athlete') === 'team_covered',
     body: (o) => {
-      const code = (o.join && o.join.code) || '';
+      const j = o.join || {};
+      const code = j.code || '';
+      /* Name the team when the directory confirmed it — a named team is proof the code
+         actually resolved, not merely that it was well-formed. */
+      const team = (j.teamName || '').trim();
       return `
         <div class="ob2-covered">
           <div class="halo"><div class="core">${icon('check', 34)}</div></div>
-          <div class="ob-title" style="margin-top:18px">Covered by your team</div>
+          <div class="ob-title" style="margin-top:18px">Covered by ${team ? esc(team) : 'your team'}</div>
           <div class="ob-sub" style="padding:0 8px">Your team code${code ? ` <b>${esc(code)}</b>` : ''} covers your access — no plans, no card, nothing to pay. Your coach's board is waiting for your first score.</div>
         </div>
         <div class="ob-foot" style="margin-top:auto">
@@ -457,7 +524,9 @@ const steps = [
       const cad = o.cadence || 'annual';
       const plan = o.plan || PLANS.individual[0].id;
       return `
-      ${testimonial({ quote: 'My coach stopped asking if I ate. He just checks the board. I put on 9 lb over the season without one nagging text.', name: 'Marcus', role: 'RB · high school senior', initials: 'M', stat: '+9 lb', statKey: 'in a season' })}
+      ${/* Deliberately NOT the Marcus quote from `proof` three screens back — the same
+            words twice reads as one customer, not as proof. Launch placeholder either way. */''}
+      ${testimonial({ quote: 'The photo takes five seconds. Knowing my trainer sees the score is what actually changed my weekends.', name: 'Dani', role: 'Soccer · college sophomore', initials: 'D', stat: '41 days', statKey: 'logging streak' })}
       <div class="ob2-cadence" role="tablist" aria-label="Billing period">
         <button class="cad ${cad === 'annual' ? 'on' : ''}" data-cad="annual" role="tab" aria-selected="${cad === 'annual'}">Annual<small>Save 30%</small></button>
         <button class="cad ${cad === 'monthly' ? 'on' : ''}" data-cad="monthly" role="tab" aria-selected="${cad === 'monthly'}">Monthly</button>

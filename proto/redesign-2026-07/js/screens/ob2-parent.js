@@ -13,10 +13,11 @@ import { act } from '../state.js';
 import { icon } from '../icons.js';
 import { esc, sparkline } from '../components.js';
 import {
-  defineFlow, ob, capture, gateCta, choiceGrid, chipRow,
+  defineFlow, saveProgressStep, ob, capture, gateCta, choiceGrid, chipRow,
   simChip, mirrorCard, notifCard, phoneCard,
 } from '../ob2.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
+import { track, EVENTS } from '../analytics.js';
 import { accountBody, wireAccount } from './ob-account.js';
 
 /* Athlete first name, guarded. Raw for helpers that esc() internally
@@ -303,6 +304,9 @@ const steps = [
     },
   },
 
+  /* Peak-intent email capture — see saveProgressStep() in ob2.js. */
+  saveProgressStep(3),
+
   /* ================= ch4 · Start (connect → free → account LAST) ================= */
   {
     id: 'connect', ch: 4, cta: 'Continue', skip: true,
@@ -339,6 +343,9 @@ const steps = [
       </div>
       <div style="height:8px"></div>
       ${mirrorCard('shield', `Watching the effort is free for parents, full stop. If that ever changes, you'll hear it from us — never from a charge.`)}`,
+    /* The parent's coverage screen IS their paywall variant — track the exposure so the
+       six flows share one funnel shape instead of parent silently having none. */
+    mount() { track(EVENTS.PAYWALL_VIEWED, { variant: 'free' }); },
   },
   {
     id: 'account', ch: 4, noFoot: true,

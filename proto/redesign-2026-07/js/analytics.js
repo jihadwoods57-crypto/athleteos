@@ -24,6 +24,11 @@ export const EVENTS = Object.freeze({
   APP_OPEN: 'app_open',
   ONBOARDING_STARTED: 'onboarding_started',   // Get Started tapped
   ONBOARDING_ROLE: 'onboarding_role',         // a role was picked  {role}
+  // Step-level funnel (2026-07-23). ONBOARDING_ROLE → ONBOARDING_COMPLETED left ~26 screens
+  // unmeasured, so "where does onboarding bleed?" was unanswerable. The OB2 engine fires this
+  // once per step view for EVERY role flow, so drop-off is readable per screen without
+  // hand-placing calls in six files. {route:'oba'|'obf'|'obk'|'obt'|'obp'|'obn', step, ch}
+  ONBOARDING_STEP: 'onboarding_step',
   GOAL_SELECTED: 'goal_selected',             // {goal}
   AGE_BLOCKED: 'age_blocked',                 // under-13 gate hit (a real, invisible drop)
   ONBOARDING_COMPLETED: 'onboarding_completed', // account created  {role}

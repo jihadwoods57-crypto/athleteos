@@ -23,11 +23,12 @@ import { RT, act, computeScore } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import {
-  defineFlow, choiceGrid, chipRow, scale10, countStat, mirrorCard,
+  defineFlow, saveProgressStep, choiceGrid, chipRow, scale10, countStat, mirrorCard,
   phoneCard, testimonial, planCard, paywallVariant, PLANS,
   capture, ob, gateCta,
 } from '../ob2.js';
 import { mealDemoSteps } from '../ob2-meal.js';
+import { track, EVENTS } from '../analytics.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { showConfirmPending } from '../ob-helpers.js';
@@ -251,6 +252,9 @@ const steps = [
       if (done) done.addEventListener('click', () => ctx.next());
     } },
 
+  /* Peak-intent email capture — see saveProgressStep() in ob2.js. */
+  saveProgressStep(3),
+
   /* ==================== ch4 · Start ==================== */
 
   { id: 'proof', ch: 4, cta: 'Continue',
@@ -373,6 +377,7 @@ const steps = [
         </div>`;
     },
     mount(root) {
+      track(EVENTS.PAYWALL_VIEWED, { variant: 'trainer_covered' });
       const b = root.querySelector('#ob2-finish');
       if (b) b.addEventListener('click', finishToApp);
     } },
@@ -394,8 +399,14 @@ const steps = [
       /* Card selection is wired by the engine (data-obkey="plan") — intent capture only,
          the checkout rail is go-live gated. Default intent: Individual. */
       if (!ob().plan) capture({ plan: 'individual' });
+      track(EVENTS.PAYWALL_VIEWED, { variant: paywallVariant('client') });
+      root.querySelectorAll('.ob2-plan[data-val]').forEach((el) => el.addEventListener('click',
+        () => track(EVENTS.PLAN_SELECTED, { plan: el.getAttribute('data-val') })));
       const b = root.querySelector('#ob2-finish');
-      if (b) b.addEventListener('click', finishToApp);
+      if (b) b.addEventListener('click', () => {
+        track(EVENTS.TRIAL_STARTED, { plan: ob().plan || 'individual' });
+        finishToApp();
+      });
     } },
 ];
 

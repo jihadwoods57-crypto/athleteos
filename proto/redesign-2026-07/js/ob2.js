@@ -15,24 +15,47 @@
 import { RT, act } from './state.js';
 import { icon } from './icons.js';
 import { esc } from './components.js';
+import { track, EVENTS } from './analytics.js';
 
 export const CHAPTERS = ['Discover', 'See it', 'Your plan', 'Commit', 'Start'];
 
 export const ob = () => RT.ob || {};
 export const capture = (patch) => act.captureOb(patch);
 
-/* ---------- chapter progress (5 segments, fill = position within chapter) ---------- */
+/* ---------- chapter progress (5 segments, WEIGHTED by step count) ----------
+   Equal-width segments made the bar move at wildly different speeds per chapter
+   (athlete ch0 is ~8 steps, ch2 is 2), so progress visibly stalled in exactly the
+   long discovery block where drop-off is worst. Each segment now flexes to its own
+   step count, so one step always advances the bar by the same distance. */
 function chapterProgress(steps, idx) {
   const cur = steps[idx].ch;
+  const counts = CHAPTERS.map((_, c) => steps.filter((s) => s.ch === c).length);
   const inCh = steps.filter((s) => s.ch === cur);
   const pos = inCh.indexOf(steps[idx]) + 1;
   const pct = Math.round((pos / inCh.length) * 100);
+  const total = steps.length;
+  const doneSteps = steps.slice(0, idx + 1).length;
   const segs = CHAPTERS.map((_, c) => {
-    if (c < cur) return '<div class="seg done"><i></i></div>';
-    if (c === cur) return `<div class="seg"><i style="width:${pct}%"></i></div>`;
-    return '<div class="seg"><i></i></div>';
+    /* flex-grow = steps in this chapter; empty chapters keep a hairline presence */
+    const w = ` style="flex:${counts[c] || 0.001}"`;
+    if (c < cur) return `<div class="seg done"${w}><i></i></div>`;
+    if (c === cur) return `<div class="seg"${w}><i style="width:${pct}%"></i></div>`;
+    return `<div class="seg"${w}><i></i></div>`;
   }).join('');
-  return `<div class="ob2-prog" role="progressbar" aria-label="Chapter ${cur + 1} of 5 — ${CHAPTERS[cur]}" aria-valuenow="${cur + 1}" aria-valuemax="5">${segs}</div><div class="ob2-ch-label">${CHAPTERS[cur]}</div>`;
+  return `<div class="ob2-prog" role="progressbar" aria-label="Step ${doneSteps} of ${total} — ${CHAPTERS[cur]}" aria-valuenow="${doneSteps}" aria-valuemin="0" aria-valuemax="${total}">${segs}</div><div class="ob2-ch-label">${CHAPTERS[cur]}</div>`;
+}
+
+/* ---------- step-view funnel ----------
+   Fired once per step ARRIVAL for every flow. Deduped on (route, step) because
+   several steps call window.__render() to repaint after a selection, which
+   re-runs mount() — without this, those screens would double-count and read as
+   the funnel's healthiest. */
+let lastStepKey = null;
+export function trackStep(route, step, ch) {
+  const key = `${route}/${step}`;
+  if (key === lastStepKey) return;
+  lastStepKey = key;
+  track(EVENTS.ONBOARDING_STEP, { route, step, ch });
 }
 
 /* ---------- flow factory → router screen module ---------- */
@@ -77,6 +100,11 @@ export function defineFlow({ route, steps }) {
     mount(root, { sub }) {
       const { vis, idx } = resolve(sub);
       const s = vis[idx];
+      trackStep(route, s.id, s.ch);
+      /* Resume crumb: where this person actually got to. Read by the role screen so a
+         drop-out returns to their own step instead of re-walking the whole flow.
+         Cleared by act.persistOnboarding* once the account exists. */
+      if (!RT.userId) capture({ obResume: `${route}/${s.id}` });
       const ctx = {
         ob: ob(), capture,
         nextRoute: nextRoute(vis, idx),
@@ -144,11 +172,52 @@ export function chipRow(key, opts, { multi = false, req = true } = {}) {
     return `<div class="chp ${on(v) ? 'on' : ''}" data-val="${esc(v)}" role="button">${esc(t)}</div>`;
   }).join('')}</div>`;
 }
-export function scale10(key) {
+/* `lo`/`hi` label the ends of the scale. They default to the original wording, but a scale
+   measuring something other than intensity (e.g. "does anyone notice?") needs its own
+   anchors or the numbers mean nothing. `label` names the scale when two share a screen. */
+export function scale10(key, { lo = 'Not close', hi = 'All the way', label = '' } = {}) {
   const cur = ob()[key];
-  return `<div class="ob2-scale" data-obkey="${key}" data-req role="group" aria-label="Rate from 1 to 10">${
+  return `${label ? `<div class="eyebrow" style="margin:0 2px 10px">${esc(label)}</div>` : ''}
+  <div class="ob2-scale" data-obkey="${key}" data-req role="group" aria-label="${esc(label || 'Rate from 1 to 10')}">${
     Array.from({ length: 10 }, (_, i) => `<div class="sc ${cur === i + 1 ? 'on' : ''}" data-val="${i + 1}" role="button" aria-label="${i + 1}">${i + 1}</div>`).join('')
-  }</div><div class="ob2-scale-keys"><span>Not close</span><span>All the way</span></div>`;
+  }</div><div class="ob2-scale-keys"><span>${esc(lo)}</span><span>${esc(hi)}</span></div>`;
+}
+
+/* ---------- shared "save your progress" step (every flow, right after commit) ----------
+   Until now the ONLY email capture was the final account screen, so anyone who dropped at
+   screen 18 of 26 was unrecoverable — no address, no way back. This sits at peak intent
+   (they just held a button to commit) and writes RT.ob.email, which `accountBody` already
+   reads and prefills, so it pays for itself immediately even before any send rail exists.
+
+   COPY DISCIPLINE: it must NOT promise "we'll email you a link to finish" — there is no
+   abandoned-onboarding send rail yet, and this flow never promises what can't happen. When
+   that rail ships, this is the address it uses, and the sub-copy can make the promise then. */
+export function saveProgressStep(ch = 3) {
+  return {
+    id: 'save', ch, cta: 'Save it', skip: true,
+    title: () => 'Where should we save this?',
+    sub: () => 'Add your email now and your account is one password away.',
+    body: (o) => `
+      <input id="ob2-email" class="ob-input" type="email" inputmode="email" autocapitalize="none"
+        autocorrect="off" spellcheck="false" placeholder="Email" aria-label="Email" value="${esc(o.email || '')}" />
+      <div class="ob2-scan-note" style="text-align:left">Skip it if you'd rather — nothing is lost. Your answers stay on this device either way.</div>`,
+    mount(root) {
+      const el = root.querySelector('#ob2-email');
+      const btn = root.querySelector('#ob2-next');
+      if (!el) return;
+      if (btn) btn.setAttribute('data-gate-extra', '#ob2-email.ok');
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+      const sync = () => {
+        const v = el.value.trim();
+        const ok = EMAIL_RE.test(v);
+        capture({ email: ok ? v : '' });
+        el.classList.toggle('ok', ok);
+        if (btn) btn.disabled = !ok;
+      };
+      el.addEventListener('input', sync);
+      sync();
+    },
+  };
 }
 
 /* ---------- Standard Meter (signature element) ----------
