@@ -1,6 +1,7 @@
 import { S, RT, act, tier, checkinProjection } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
+import * as roles from '../roles.js';
 
 export const recoveryConfirm = {
   tab: 'home',
@@ -97,6 +98,14 @@ export default {
     <button class="btn primary" id="rec-submit" style="background:linear-gradient(150deg, var(--purple-bright), #7e22ce); box-shadow: 0 10px 30px rgba(168,85,247,0.35)">
       ${icon('check', 19)} Submit Check-In
     </button>
+
+    <!-- Wearable connect: hidden unless Apple Health / Health Connect is actually available on
+         this build (probed in mount) — device sleep/HRV is shown for CONTEXT on #devices and
+         never changes the score. Keeps zero reachable "coming soon" until the module is wired. -->
+    <div id="rec-connect" class="sidebox" data-go="devices" role="button" style="display:none;margin-top:14px;cursor:pointer">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('moon', 17)}</div>
+      <div><div class="tt">Connect Apple Health</div><div class="ts">Bring last night's sleep, HRV &amp; resting HR in for context</div></div>
+    </div>
     <div style="height:8px"></div>
     `;
   },
@@ -128,5 +137,12 @@ export default {
       act.submitRecovery(answers);
       window.__go('recovery-confirm');
     });
+    // Reveal the wearable-connect row only if Apple Health / Health Connect is really available
+    // on this build (false in browser/preview and until the founder wires the module).
+    roles.healthAvailable().then((ok) => {
+      if (!ok) return;
+      const row = root.querySelector('#rec-connect');
+      if (row) row.style.display = '';
+    }).catch(() => { /* no bridge — stays hidden */ });
   },
 };

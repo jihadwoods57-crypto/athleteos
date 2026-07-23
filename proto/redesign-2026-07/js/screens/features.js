@@ -1,17 +1,71 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
+import * as roles from '../roles.js';
 
 /* ============================================================
    The 11 approved ideas, made walkable. Live where possible,
    honestly framed as preview where the backend must exist first.
    ============================================================ */
 
-/* ---------- #devices · HIDDEN until wearable integrations are real (spec §1.6) ----------
-   No entry point renders; a stale deep link lands safely on Profile. */
+/* ---------- #devices · Connect Apple Health / Health Connect (0134-adjacent, display-only) ----------
+   Reads sleep / HRV / resting HR for CONTEXT on the recovery check-in — it never changes the
+   score (self-report stays authoritative; the blend path is founder-gated). The screen self-gates
+   on the live native probe: until the founder wires the health module (src/lib/health), the
+   connect affordance stays hidden everywhere and a stale #devices deep link redirects to Profile,
+   so there is no reachable "coming soon". Lights up automatically once the module is wired. */
+let DEV = { checked: false, available: false, connected: false, sample: null, busy: false };
+async function probeHealth() {
+  DEV.available = await roles.healthAvailable();
+  if (!DEV.available) { DEV.checked = true; location.hash = '#profile'; return; } // safe landing
+  DEV.connected = await roles.healthConnected();
+  if (DEV.connected) DEV.sample = await roles.healthRead();
+  DEV.checked = true;
+  if (window.__render) window.__render();
+}
+function fmtSleep(h) { if (h == null) return '—'; const H = Math.floor(h), M = Math.round((h - H) * 60); return `${H}h${M ? ` ${M}m` : ''}`; }
+function readingRow(icn, label, val) {
+  return `<div class="lrow" style="cursor:default"><div class="lic">${icon(icn, 17)}</div><div class="lm"><div class="lt">${esc(label)}</div></div><span class="lv">${esc(val)}</span></div>`;
+}
 export const devices = {
   tab: 'profile',
-  render() { location.hash = '#profile'; return ''; },
+  render() {
+    const head = backHead('Connect a device', 'Apple Health & Health Connect', 'profile');
+    if (!DEV.checked || !DEV.available) {
+      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('moon', 17)}</div><div><div class="tt">Checking your device…</div></div></div>`;
+    }
+    if (!DEV.connected) {
+      return `${head}
+      <section class="card pad">
+        <div style="font-size:15.5px;font-weight:800">Bring your recovery data in</div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:6px;line-height:1.5">Connect and your last-night <b>sleep</b>, <b>HRV</b>, and <b>resting heart rate</b> show up here as context for your recovery check-in. Read-only — it never changes your score.</div>
+        <button class="btn green" id="dev-connect" style="width:100%;margin-top:14px" ${DEV.busy ? 'disabled' : ''}>${DEV.busy ? 'Connecting…' : 'Connect Apple Health / Health Connect'}</button>
+      </section>`;
+    }
+    const s = DEV.sample || {};
+    const any = s.sleepHours != null || s.hrvMs != null || s.restingHr != null;
+    return `${head}
+    <section class="card pad"><span class="status-pill g">Connected</span>
+      <div style="height:10px"></div>
+      ${any ? `<div class="eyebrow" style="margin:2px 0 4px">Last night</div>
+      ${s.sleepHours != null ? readingRow('moon', 'Sleep', fmtSleep(s.sleepHours)) : ''}
+      ${s.hrvMs != null ? readingRow('bolt', 'HRV', `${Math.round(s.hrvMs)} ms`) : ''}
+      ${s.restingHr != null ? readingRow('bolt', 'Resting HR', `${Math.round(s.restingHr)} bpm`) : ''}`
+      : `<div style="font-size:13px;font-weight:600;color:var(--text-2)">Connected — no reading yet. Your next sync will show last night's sleep, HRV, and resting heart rate here.</div>`}
+    </section>
+    <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:12px;padding:0 20px;line-height:1.4">Shown for context. Your recovery score still comes from your own check-in.</div>`;
+  },
+  mount(root) {
+    if (!DEV.checked) probeHealth();
+    const c = root.querySelector('#dev-connect');
+    if (c) c.addEventListener('click', async () => {
+      DEV.busy = true; if (window.__render) window.__render();
+      const r = await roles.healthConnect();
+      DEV.busy = false;
+      if (r && r.connected) { DEV.connected = true; DEV.sample = await roles.healthRead(); }
+      if (window.__render) window.__render();
+    });
+  },
 };
 
 /* ---------- #recruiting · Discipline Record (spec §17) ---------- */

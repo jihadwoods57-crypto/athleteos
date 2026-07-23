@@ -19,6 +19,7 @@ import { isAppleAuthAvailable, requestAppleIdentityToken } from '../lib/auth/app
 import { isGoogleAuthAvailable, requestGoogleIdToken } from '../lib/auth/google';
 import { biometricsUsable } from '../lib/auth/biometrics';
 import { isIapAvailable, purchaseConsumer, restoreConsumer } from '../lib/iap';
+import { isHealthAvailable, healthConnected, connectHealth, readRecoverySample } from '../lib/health';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { getPushToken } from '../lib/notify';
 
@@ -42,6 +43,10 @@ export type BridgeMessage =
   | { type: 'IAP_AVAILABLE'; id: number }
   | { type: 'IAP_PURCHASE'; id: number; productId?: string; appUserId?: string }
   | { type: 'IAP_RESTORE'; id: number; appUserId?: string }
+  | { type: 'HEALTH_AVAILABLE'; id: number }
+  | { type: 'HEALTH_CONNECTED'; id: number }
+  | { type: 'HEALTH_CONNECT'; id: number }
+  | { type: 'HEALTH_READ'; id: number }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -214,6 +219,35 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, { ok: false, reason: 'error', message: String((e as Error)?.message ?? e) });
       }
       return true;
+    case 'HEALTH_AVAILABLE':
+      // Whether Apple Health / Health Connect can be read on this build. False until the founder
+      // wires the native module (src/lib/health) — the #devices connect affordance stays hidden.
+      resolve(ref, msg.id, isHealthAvailable);
+      return true;
+    case 'HEALTH_CONNECTED':
+      try {
+        resolve(ref, msg.id, await healthConnected());
+      } catch (e) {
+        resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'HEALTH_CONNECT':
+      // Request read permission for sleep / HRV / resting HR. Returns { connected, reason }.
+      try {
+        resolve(ref, msg.id, await connectHealth());
+      } catch (e) {
+        resolve(ref, msg.id, { connected: false, reason: 'error' }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'HEALTH_READ':
+      // Latest recovery sample ({ sleepHours?, hrvMs?, restingHr? }) or null. DISPLAY-only in v1 —
+      // it never changes the recovery sub-score (self-report stays authoritative).
+      try {
+        resolve(ref, msg.id, await readRecoverySample());
+      } catch (e) {
+        resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
+      }
+      return true;
     case 'PUSH_TOKEN':
       // Expo push token for coach→athlete nudges (registered server-side by the proto via
       // register_device_token). Null when permission is denied / no EAS project / web.
@@ -279,6 +313,12 @@ export const BRIDGE_SHIM = `
       available: function(){ return call('IAP_AVAILABLE', {}); },
       purchase: function(productId, appUserId){ return call('IAP_PURCHASE', { productId: String(productId||''), appUserId: String(appUserId||'') }); },
       restore: function(appUserId){ return call('IAP_RESTORE', { appUserId: String(appUserId||'') }); }
+    },
+    health: {
+      available: function(){ return call('HEALTH_AVAILABLE', {}); },
+      connected: function(){ return call('HEALTH_CONNECTED', {}); },
+      connect: function(){ return call('HEALTH_CONNECT', {}); },
+      read: function(){ return call('HEALTH_READ', {}); }
     },
   };
 

@@ -301,6 +301,27 @@ export async function signedProgressPhotoUrl(path) {
   const c = sb(); if (!c || !path) return null;
   try { const { data } = await c.storage.from('progress-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
 }
+
+/* ---------------- health / wearables (Apple Health, Health Connect) — DISPLAY-only in v1 ----------------
+   All false/null in a browser/preview or until the founder wires the native health module
+   (src/lib/health). Device data never changes the score; it's shown for context. */
+export async function healthAvailable() {
+  try { if (window.OnStandardNative && window.OnStandardNative.health) return !!(await window.OnStandardNative.health.available()); } catch { /* no bridge */ }
+  return false;
+}
+export async function healthConnected() {
+  try { if (window.OnStandardNative && window.OnStandardNative.health) return !!(await window.OnStandardNative.health.connected()); } catch { /* no bridge */ }
+  return false;
+}
+export async function healthConnect() {
+  try { if (window.OnStandardNative && window.OnStandardNative.health) return await window.OnStandardNative.health.connect(); } catch (e) { return { connected: false, reason: 'error' }; }
+  return { connected: false, reason: 'unavailable' };
+}
+/** Latest recovery sample { sleepHours?, hrvMs?, restingHr? } or null. */
+export async function healthRead() {
+  try { if (window.OnStandardNative && window.OnStandardNative.health) return await window.OnStandardNative.health.read(); } catch { /* no bridge */ }
+  return null;
+}
 /** The ATHLETE side of the 0043 receipt loop: who actually opened MY day. RLS
     (coach_views_read) scopes rows to athlete_id = auth.uid() or the viewer's own receipts;
     the explicit athlete_id filter keeps a coach's client from pulling receipts they wrote
