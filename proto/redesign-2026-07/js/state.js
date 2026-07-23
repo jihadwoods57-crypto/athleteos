@@ -2304,6 +2304,21 @@ export const S = {
     return (g === 'lose' || g === 'maintain') ? 'client' : 'athlete';
   },
 
+  /* Which SURFACES render — as opposed to `experience`, which only picks a tone. `experience`
+     classifies on base_goal, a GOAL, to answer a RELATIONSHIP question, and gets it backwards in
+     both directions: a client who hired a trainer to GAIN 15 lb reads as 'athlete' and gets asked
+     for a sport/school; a team athlete cutting to make weight reads as 'client' and loses the
+     team frame. The honest key is the LINK itself (S.coach.kind), which is already server truth.
+     Unconnected (no coach, no trainer) falls back to the goal-derived voice — there's no link to
+     be honest about yet. Coach-before-trainer mirrors S.coach's own precedence (state.js:2128):
+     someone linked to both gets the higher-stakes team frame. */
+  get audience() {
+    const kind = this.coach.kind;
+    if (kind === 'trainer') return 'client';
+    if (kind === 'coach') return 'athlete';
+    return this.experience;
+  },
+
   // How many meals today's standard requires (coach standard 1–6, classic 3) — the one number
   // Plan copy should quote instead of a hardcoded "three" (WS7 audit fix).
   get mealsRequiredCount() { return reqMealSlots().length; },

@@ -82,6 +82,31 @@ function resCard(a) {
 // Results are things that HAPPENED — a not-yet-submitted check-in isn't one.
 // Lateral snap rail (founder call 2026-07-16): cards share one anatomy and height, the
 // next card peeks at the screen edge, and scroll snaps card-to-card.
+/* Client Home leads with the OUTCOME they hired a trainer for (a team athlete leads with the
+   score ring + team frame instead — see hero() above). Entirely derived from S.weight, which
+   the Progress screen already computes from real logged/historical rows — no new fetch, no
+   invented number. Renders nothing until there's a real current AND a real starting point;
+   never a placeholder "0.0 lb" on day one. Direction is never colored by sign (progress.js's
+   own rule, `S.weight.pace` is the honest signal — a gain can be the goal or the setback
+   depending on what the client is working toward). */
+function outcomeBand() {
+  if (S.audience !== 'client') return '';
+  const W = S.weight;
+  if (W.current == null || W.start == null) return '';
+  const delta = Number(W.current) - W.start;
+  const deltaLabel = Math.abs(delta) < 0.05 ? 'No change yet' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)} lb since you started`;
+  const days = S.streakDays;
+  return `<section class="card pad" data-go="progress" style="cursor:pointer;margin-top:12px">
+    <div class="eyebrow" style="margin:0 0 8px">Your progress</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <div class="bigstat"><span class="n" style="font-size:30px">${esc(W.current)}<small style="font-size:13px;font-weight:700;color:var(--text-3)"> lb</small></span></div>
+      ${W.pace ? `<span class="status-pill ${W.pace === 'On pace' ? 'g' : 'a'}">${W.pace}</span>` : ''}
+    </div>
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(deltaLabel)}${W.target != null ? ` · goal ${W.target} lb` : ''}</div>
+    ${days > 0 ? `<div style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:var(--amber-bright);margin-top:8px">${icon('flame', 14)}${days}-day streak</div>` : ''}
+  </section>`;
+}
+
 const recentResults = () => {
   const rows = S.activity.filter((a) => !a.dim);
   return rows.length ? `
@@ -446,6 +471,7 @@ export default {
       return `
       ${appHead(headSub(e), trustShield())}
       ${celebration(e)}
+      ${outcomeBand()}
       <div id="seen-row" style="width:100%"></div>
       ${recentResults()}
       <div style="height:20px"></div>`;
@@ -490,6 +516,7 @@ export default {
     return `
     ${appHead(headSub(e), trustShield())}
     ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
+    ${outcomeBand()}
     <div id="seen-row"></div>
     ${attention}
     <div id="cv-nudge">${cachedNudge(e)}</div>

@@ -57,7 +57,7 @@ function photoCard() {
   <section class="card" style="padding:6px 16px">
     <div class="lrow" data-go="progress-photos">
       <div class="lic">${icon('camera', 17)}</div>
-      <div class="lm"><div class="lt">Progress photos</div><div class="ls">Your before &amp; after — private to you &amp; your coach</div></div>
+      <div class="lm"><div class="lt">Progress photos</div><div class="ls">Your before &amp; after — private to you &amp; your ${esc(S.coach.noun)}</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>
   </section>`;
@@ -131,9 +131,8 @@ export default {
     const ddir = wd > 0 ? ' up' : wd < 0 ? ' down' : '';
     const trends = S.categoryTrends;
     const insight = S.progressInsight;
-    return `
-    <div class="screen-title">Progress</div>
-    ${streakRow}
+
+    const scoreTrendSection = `
     <div class="eyebrow">Score Trend</div>
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
@@ -164,10 +163,19 @@ export default {
           <span class="ct-v">${t.now}%</span>
           <span class="ct-d ${t.delta > 0 ? 'up' : t.delta < 0 ? 'down' : ''}">${t.delta > 0 ? `↑ ${t.delta}` : t.delta < 0 ? `↓ ${Math.abs(t.delta)}` : '–'}</span>
         </div>`).join('')}
-    </section>` : ''}
+    </section>` : ''}`;
 
-    ${weightCard()}
-    ${photoCard()}
+    const bodySection = `${weightCard()}${photoCard()}`;
+
+    // A client is chasing a body outcome, not a sport standard — their Progress tab leads with
+    // weight + photos; a team athlete keeps the score-first order (unchanged). Same sections,
+    // same helpers, just reordered — see brainstorm decision "body outcome + trainer
+    // accountability" and plan.md §C.
+    const isClient = S.audience === 'client';
+    return `
+    <div class="screen-title">Progress</div>
+    ${streakRow}
+    ${isClient ? bodySection + scoreTrendSection : scoreTrendSection + bodySection}
     ${trainingCard()}
 
     <div style="height:10px"></div>

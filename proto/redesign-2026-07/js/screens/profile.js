@@ -25,7 +25,7 @@ export default {
       </div>
       <div style="flex:1">
         <div class="nm">${esc(S.athlete.name)}</div>
-        ${S.experience === 'client' ? `
+        ${S.audience === 'client' ? `
         <div class="meta">${esc(S.planGoalLabel || 'Personal plan')}</div>
         ${S.coach.kind === 'trainer' && S.coach.team ? `<div class="meta" style="margin-top:1px">${esc(S.coach.team)}</div>` : ''}` : `
         <div class="meta"${[S.athlete.sport, S.athlete.position].filter(Boolean).length ? '' : ' style="color:var(--text-3)"'}>${esc([S.athlete.sport, S.athlete.position].filter(Boolean).join(' · ') || 'Add your sport')}</div>
@@ -62,12 +62,6 @@ export default {
         <div class="lm"><div class="lt">View connection</div><div class="ls">Exactly what ${esc(S.coach.nameMid)} can see</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      ${S.coach.kind === 'trainer' ? `
-      <div class="lrow" data-go="my-trainer-offers">
-        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
-        <div class="lm"><div class="lt">Packages</div><div class="ls">Accountability packages from ${esc(S.coach.nameMid)}</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>` : ''}
     </section>` : `
     <section class="card pad">
       <div style="font-size:15.5px;font-weight:800">Connect your coach or trainer</div>
@@ -97,11 +91,17 @@ export default {
         <div class="lm"><div class="lt">Weekly check-in</div><div class="ls">${S.weekly.status}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
+      ${S.audience === 'client' && S.coach.kind === 'trainer' ? `
+      <div class="lrow" data-go="my-trainer-offers">
+        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Packages</div><div class="ls">Accountability packages${S.coach.isNamed ? ` from ${esc(S.coach.nameMid)}` : ''}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>` : `
       <div class="lrow" data-go="recruiting">
         <div class="lic"${S.coach.hasCoach ? ' style="background:var(--green-surface);color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
-        <div class="lm"><div class="lt">Discipline record</div><div class="ls">${S.coach.hasCoach ? `${S.coach.kind === 'trainer' ? 'Trainer' : 'Coach'}-verified · proof of the work` : 'Not verified yet · connect a coach to verify'}</div></div>
+        <div class="lm"><div class="lt">Discipline record</div><div class="ls">${S.coach.hasCoach ? 'Coach-verified · proof of the work' : 'Not verified yet · connect a coach to verify'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
+      </div>`}
     </section>
 
     <div class="eyebrow">Health & safety</div>
