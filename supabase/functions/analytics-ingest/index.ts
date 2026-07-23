@@ -38,6 +38,15 @@ const ALLOWED = new Set([
   "meal_score_delta", "meal_text_conflict",
   // Quality metrics (item 8b, 2026-07-21) — correction-rate signal; counts-only, no macros/text.
   "meal_corrected",
+  // Meal-logging edge signals (2026-07-21) — gallery usage, duplicate-photo blocks, stale EXIF.
+  "meal_gallery_logged", "meal_dup_blocked", "meal_stale_photo",
+  // Verified Commitments (0138–0141, shipped 2026-07-23). Without these the whole VC funnel —
+  // including the two honesty signals, vc_unverified and vc_disputed — reported zero.
+  "vc_scheduled", "vc_card_shown", "vc_acknowledged", "vc_arrived",
+  "vc_unverified", "vc_disputed", "vc_reminded",
+  // OB2 step-level onboarding funnel (2026-07-23). {route, step, ch} — the per-screen drop-off
+  // signal; the flows fire ~26 of these per completed run, so this is the highest-volume name.
+  "onboarding_step",
 ]);
 const ENUM_RE = /^[a-z0-9_.:-]{1,24}$/;
 const SID_RE = /^[a-z0-9_.:-]{1,64}$/i;

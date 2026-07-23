@@ -132,6 +132,11 @@ export function wireChoices(root) {
       let v = el.getAttribute('data-val');
       if (/^-?\d+$/.test(v)) v = Number(v);
       capture({ [key]: v });
+      /* admin_onboarding_funnel (0052) reads its third stage from goal_selected, which only
+         ever fired in the LEGACY onboarding — so that stage read zero for every OB2 user.
+         The goal group is `data-obkey="goal"` in both consumer flows, so emitting here covers
+         athlete + client without touching either file. */
+      if (key === 'goal') track(EVENTS.GOAL_SELECTED, { goal: String(v) });
       gateCta(root);
     }));
   });

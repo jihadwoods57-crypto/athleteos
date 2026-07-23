@@ -85,3 +85,33 @@ describe('takeBatch — flush split', () => {
     expect(rest).toHaveLength(0);
   });
 });
+
+/**
+ * INGEST PARITY (2026-07-23): the client vocabulary and the analytics-ingest edge function's
+ * server-side whitelist are two hand-maintained lists that must agree. They had drifted THREE
+ * times — the meal edge signals, the entire Verified Commitments funnel, and the OB2 step
+ * funnel were all being fired by the app and silently dropped by the server, so those metrics
+ * read zero while looking wired. Nothing surfaced it, because a dropped event is indistinguishable
+ * from an event that never happened. This test is the tripwire: add a name to EVENTS and this
+ * fails until analytics-ingest is updated and redeployed.
+ */
+describe('client EVENTS ⊆ analytics-ingest ALLOWED', () => {
+  const fs = require('fs') as typeof import('fs');
+  const path = require('path') as typeof import('path');
+  const src = fs.readFileSync(
+    path.join(__dirname, '../../supabase/functions/analytics-ingest/index.ts'), 'utf8',
+  );
+  const allowed = new Set(
+    (src.split('const ALLOWED = new Set([')[1] || '').split(']);')[0]
+      .match(/"([a-z0-9_]+)"/g)?.map((s) => s.replace(/"/g, '')) ?? [],
+  );
+
+  test('the ingest whitelist parsed', () => {
+    expect(allowed.size).toBeGreaterThan(20);
+  });
+
+  test('every event the client can fire is accepted server-side', () => {
+    const dropped = Object.values(EVENTS as Record<string, string>).filter((n) => !allowed.has(n));
+    expect(dropped).toEqual([]);
+  });
+});
