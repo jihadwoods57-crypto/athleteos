@@ -20,6 +20,10 @@ import { isGoogleAuthAvailable, requestGoogleIdToken } from '../lib/auth/google'
 import { biometricsUsable } from '../lib/auth/biometrics';
 import { isIapAvailable, purchaseConsumer, restoreConsumer } from '../lib/iap';
 import { isHealthAvailable, healthConnected, connectHealth, readRecoverySample } from '../lib/health';
+import {
+  isLocationAvailable, getPermissionState, requestPermission,
+  refreshGeofences, disarmAll, checkArrival, reportArrival,
+} from '../lib/location';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { getPushToken } from '../lib/notify';
 
@@ -47,6 +51,14 @@ export type BridgeMessage =
   | { type: 'HEALTH_CONNECTED'; id: number }
   | { type: 'HEALTH_CONNECT'; id: number }
   | { type: 'HEALTH_READ'; id: number }
+  // Verified Commitments (0139). Note what is absent: no message carries a coordinate in either
+  // direction. LOCATION_CHECK returns a boolean — the comparison to the coach's circle happens in
+  // src/lib/location and the position is discarded there.
+  | { type: 'LOCATION_AVAILABLE'; id: number }
+  | { type: 'LOCATION_PERMISSION'; id: number; background?: boolean }
+  | { type: 'LOCATION_ARM'; id: number }
+  | { type: 'LOCATION_DISARM'; id: number }
+  | { type: 'LOCATION_CHECK'; id: number; instanceId?: string; report?: boolean }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -248,6 +260,54 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
       }
       return true;
+    case 'LOCATION_AVAILABLE':
+      // False on any binary built before slice 2 shipped — an OTA update can land on such a build,
+      // and the arrival affordance simply stays hidden rather than throwing.
+      try {
+        resolve(ref, msg.id, { available: isLocationAvailable(), state: await getPermissionState() });
+      } catch (e) {
+        resolve(ref, msg.id, { available: false, state: 'unavailable' }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_PERMISSION':
+      // Foreground first, background only when the athlete has seen the explainer and asked for it.
+      try {
+        resolve(ref, msg.id, await requestPermission(!!msg.background));
+      } catch (e) {
+        resolve(ref, msg.id, 'unavailable', String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_ARM':
+      // Register geofences for whatever is inside its window right now. `capped` is surfaced so
+      // the UI can tell the athlete which commitments need a tap instead of leaving them
+      // silently unverified (iOS caps an app at 20 monitored regions).
+      try {
+        resolve(ref, msg.id, await refreshGeofences());
+      } catch (e) {
+        resolve(ref, msg.id, { armed: 0, capped: 0, state: 'unavailable' }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_DISARM':
+      try {
+        await disarmAll();
+        resolve(ref, msg.id, true);
+      } catch (e) {
+        resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_CHECK':
+      // The "I'm here" tap: one fix, compared natively, boolean out. When `report` is set the
+      // verdict is written straight to verify_arrival — including a NEGATIVE verdict, which the
+      // RPC records as 'unverified' with a reason and never as 'missed'.
+      try {
+        const id = String(msg.instanceId || '');
+        const out = await checkArrival(id);
+        if (msg.report !== false && id) await reportArrival(id, 'manual', out.within, out.reason);
+        resolve(ref, msg.id, out);
+      } catch (e) {
+        resolve(ref, msg.id, { within: false, reason: 'Something went wrong' }, String((e as Error)?.message ?? e));
+      }
+      return true;
     case 'PUSH_TOKEN':
       // Expo push token for coach→athlete nudges (registered server-side by the proto via
       // register_device_token). Null when permission is denied / no EAS project / web.
@@ -319,6 +379,15 @@ export const BRIDGE_SHIM = `
       connected: function(){ return call('HEALTH_CONNECTED', {}); },
       connect: function(){ return call('HEALTH_CONNECT', {}); },
       read: function(){ return call('HEALTH_READ', {}); }
+    },
+    // Verified Commitments. check() returns { within, reason } — a boolean and a sentence.
+    // No coordinate crosses this boundary in either direction, by construction.
+    location: {
+      available: function(){ return call('LOCATION_AVAILABLE', {}); },
+      request: function(background){ return call('LOCATION_PERMISSION', { background: !!background }); },
+      arm: function(){ return call('LOCATION_ARM', {}); },
+      disarm: function(){ return call('LOCATION_DISARM', {}); },
+      check: function(instanceId, report){ return call('LOCATION_CHECK', { instanceId: String(instanceId||''), report: report !== false }); }
     },
   };
 

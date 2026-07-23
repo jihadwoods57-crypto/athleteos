@@ -412,6 +412,33 @@ export interface Database {
       regenerate_my_team_code: { Args: Record<string, never>; Returns: string };
       set_my_practice_code: { Args: { new_code: string }; Returns: string };
       regenerate_my_practice_code: { Args: Record<string, never>; Returns: string };
+      // Verified Commitments (0139). Only the two the NATIVE layer calls are typed here — the
+      // proto WebView reaches the rest through supabase-js untyped, exactly like every other
+      // proto RPC. Note that verify_arrival takes a BOOLEAN, not a position: the comparison to
+      // the coach's geofence happens on device and the coordinate is discarded there.
+      my_armable_geofences: {
+        Args: { p_limit?: number | null };
+        Returns: {
+          instance_id: string;
+          starts_at: string;
+          ends_at: string | null;
+          arrive_by_at: string | null;
+          min_dwell_min: number | null;
+          name: string;
+          lat: number;
+          lng: number;
+          radius_m: number;
+        }[];
+      };
+      verify_arrival: {
+        Args: { p_instance: string; p_source: string; p_within: boolean; p_reason?: string | null };
+        Returns: {
+          status: string;
+          arrived_at: string | null;
+          arrival_source: string | null;
+          unverified_reason: string | null;
+        };
+      };
       coach_set_goals: {
         Args: {
           athlete: string;

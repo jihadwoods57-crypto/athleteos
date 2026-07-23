@@ -9,6 +9,7 @@ import { ensureProtoExtracted, PROTO_ROOT_DIR } from './protoBundle';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
+import { registerGeofenceTask } from '../lib/location';
 
 const BG = '#080B0A';
 
@@ -117,6 +118,13 @@ export function ProtoApp() {
     const sub = Linking.addEventListener('url', ({ url }) => deliverCode(parseInviteCode(url)));
     return () => sub.remove();
   }, [deliverCode]);
+
+  // Verified Commitments (0139): define the geofence task at startup so a region crossing can wake
+  // the app and record the arrival even when the WebView isn't alive — which is the whole point,
+  // since the athlete this feature serves is the one who hasn't opened the app at 5:43 AM.
+  // No-ops on a binary without expo-location, and registers nothing with the OS by itself:
+  // regions are only armed once the athlete grants background permission (LOCATION_ARM).
+  React.useEffect(() => { registerGeofenceTask(); }, []);
 
   // Reminder deep links: an exec reminder ("Dinner closes in 45") carries its in-app route in
   // notification data — tapping it must land the WebView on that exact screen, not Home. The

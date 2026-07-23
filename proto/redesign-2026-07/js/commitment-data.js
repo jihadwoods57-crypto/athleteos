@@ -262,6 +262,34 @@ export async function loadVerifiedDiscipline(athleteId, fromISO, toISO) {
   } catch { return null; }
 }
 
+/* ---------------------------------------------------------------- consent (0139) */
+
+/** Ask the SERVER whether this athlete may have their location verified. Deliberately not derived
+ *  client-side: state.js's _isProvableMinor() treats an unknown age as an ADULT (the 0050 live-beta
+ *  ruling), while has_verification_consent() fails CLOSED and treats it as a minor. Guessing here
+ *  would show an athlete a switch the server then refuses. Returns true/false, or null if we
+ *  couldn't ask — a null must render as "we don't know yet", never as "you're allowed". */
+export async function loadVerificationConsent() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data: u } = await c.auth.getUser();
+    const uid = u && u.user && u.user.id;
+    if (!uid) return null;
+    const { data, error } = await c.rpc('has_verification_consent', { p_athlete: uid });
+    if (error) return null;
+    return data === true;
+  } catch { return null; }
+}
+
+/** Ask a guardian to approve location verification. Rides the existing guardian request flow. */
+export async function requestVerificationConsent(email) {
+  const c = sb(); if (!c) return false;
+  try {
+    const { error } = await c.rpc('request_guardian_consent', { guardian_email: email });
+    return !error;
+  } catch { return false; }
+}
+
 /** The athlete's own share switch. Only the athlete can move it. */
 export async function setShareDiscipline(on) {
   const c = sb(); if (!c) return false;

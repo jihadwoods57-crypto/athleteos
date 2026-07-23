@@ -8,6 +8,7 @@ import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment } from '../commitments.js';
 import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard } from './roll-call.js';
+import { armIfPermitted } from './location-consent.js';
 
 /* Verified Commitments on Home. Renders every commitment the athlete has today that is currently
    visible — usually zero or one, occasionally a roll call plus an afternoon study hall.
@@ -33,6 +34,10 @@ function paintCommitments(root) {
     // WebView), so the screen that owns the fetch is what publishes the result.
     RT.vcRows = rows;
     paint();
+    // Keep the OS watching only what is inside its window right now. No-op without background
+    // permission (and on any build without expo-location), and it registers nothing for an
+    // athlete with no located commitments today.
+    if (rows.some((r) => r.asks_arrival)) armIfPermitted();
   });
 }
 

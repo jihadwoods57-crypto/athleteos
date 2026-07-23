@@ -14,6 +14,11 @@ import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import { deriveCommitment, TYPE_LABEL } from '../commitments.js';
 import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment } from '../commitment-data.js';
+import { tapToVerify, armIfPermitted } from './location-consent.js';
+
+/* The most recent "couldn't confirm" reason, so the card can say WHY rather than just failing.
+   Cleared on the next successful verification. */
+let LAST_VERIFY_REASON = null;
 
 const ICON_FOR = {
   morning_roll_call: 'sun', practice: 'bolt', strength: 'bolt', speed: 'bolt',
@@ -53,10 +58,14 @@ export function commitmentCard(d) {
   }
 
   if (d.stage === 'missed' || d.stage === 'unverified') {
+    // Never the word "missed" on a verification failure — an absence of evidence is not evidence
+    // of absence, and the detail screen offers a one-tap "I was there".
+    const line = d.stage === 'unverified' && LAST_VERIFY_REASON
+      ? `Couldn’t verify — ${LAST_VERIFY_REASON}` : d.confirmLine;
     return `<div class="xrow-item" data-go="roll-call/${id}" style="border-color:var(--amber-border)">
       <div class="xico sm" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('bolt', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
-      <div class="xb">${esc(d.confirmLine)}</div></div>
+      <div class="xb">${esc(line)}</div></div>
       <span class="xpill gold">${d.stage === 'unverified' ? 'Unverified' : 'No response'}</span>
     </div>`;
   }
@@ -109,6 +118,14 @@ export function mountCommitmentCard(root, rerender) {
   });
   go('data-vc-ack', (id) => ackCommitment(id).then(Boolean));
   go('data-vc-complete', (id) => completeCommitment(id, 'manual').then(Boolean));
+  // "I'm here": one fix, compared on device, verdict written server-side. A NEGATIVE verdict is
+  // recorded too — as 'unverified' with a reason, never as 'missed' — so the coach sees an honest
+  // "couldn't confirm" instead of silence, and the athlete gets a dispute button.
+  go('data-vc-arrive', (id) => tapToVerify(id).then((r) => loadMine(true).then(() => {
+    if (!r || r.within) return true;
+    LAST_VERIFY_REASON = (r && r.reason) || null;
+    return true;
+  })));
   root.querySelectorAll('[data-vc-open]').forEach((el) => el.addEventListener('click', (ev) => {
     if (ev.target.closest('button')) return;
     location.hash = `#/roll-call/${el.getAttribute('data-vc-open')}`;
@@ -161,7 +178,9 @@ export default {
         <div class="tt">What arrival actually proves</div>
         <div class="ts">Your phone reached ${esc(row.location_name || 'the facility')} during the scheduled window — that's it. It does not mean the work got done, and nobody is claiming it does. Your location is checked only around this event and never stored.</div>
       </div>
-    </div>` : ''}
+    </div>
+    <div style="height:10px"></div>
+    <button class="btn ghost" data-go="location-consent" style="width:100%">${icon('target', 17)} How arrival check-in works</button>` : ''}
 
     ${(d.stage === 'unverified' || d.stage === 'missed' || row.arrived_at) && !row.disputed_at ? `
       <div style="height:14px"></div>

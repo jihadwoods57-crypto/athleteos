@@ -19,7 +19,12 @@
         "NSCameraUsageDescription": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
         "NSPhotoLibraryUsageDescription": "OnStandard needs photo library access so you can pick an existing meal photo to log and analyze.",
         "NSPhotoLibraryAddUsageDescription": "OnStandard can save a meal photo back to your library after you log it.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "OnStandard confirms you arrived at practices, workouts and other commitments your coach scheduled. It checks your location only during a scheduled event window, records only whether you arrived and when, and never stores where you go.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "OnStandard can confirm you arrived at a scheduled commitment without you opening the app. It watches only the specific place your coach scheduled, only during that event window, and stores only whether you arrived and when — never a history of where you go.",
+        "UIBackgroundModes": [
+          "location"
+        ]
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
@@ -66,7 +71,10 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
       ]
     },
     "web": {
@@ -118,6 +126,16 @@
           "imageWidth": 240,
           "resizeMode": "contain",
           "backgroundColor": "#1E50D6"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "OnStandard confirms you arrived at practices, workouts and other commitments your coach scheduled. It checks your location only during a scheduled event window, records only whether you arrived and when, and never stores where you go.",
+          "locationAlwaysAndWhenInUsePermission": "OnStandard can confirm you arrived at a scheduled commitment without you opening the app. It watches only the specific place your coach scheduled, only during that event window, and stores only whether you arrived and when — never a history of where you go.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": false
         }
       ],
       "./plugins/withDeferredAppleSignIn"

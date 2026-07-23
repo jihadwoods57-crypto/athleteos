@@ -52,6 +52,7 @@ import progressCompare from './progress-compare.js';
 import logTraining from './log-training.js';
 import trainingHistory from './training-history.js';
 import rollCall from './roll-call.js';
+import locationConsent from './location-consent.js';
 import accountability from './accountability.js';
 import verifiedDiscipline from './verified-discipline.js';
 import { coachCommitments, coachCommitEdit } from './coach-commitments.js';
@@ -163,6 +164,7 @@ export const screens = {
   // Verified Commitments (0138). Athlete: the roll-call detail + the Accountability rollup +
   // the athlete-controlled recruit profile. Operator: the live board + the composer.
   'roll-call': rollCall,
+  'location-consent': locationConsent,
   accountability,
   'verified-discipline': verifiedDiscipline,
   'coach-commitments': coachCommitments,
