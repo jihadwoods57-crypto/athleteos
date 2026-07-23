@@ -66,8 +66,17 @@ convention elsewhere in the commitments system) but it means the feature is live
 code deploys, not the moment the flag row is inserted. Insert the row before deploying if a staged
 rollout matters, not after.
 
-Once the row exists, `default_on` / `enabled_user_ids` gate `roll-call-ack` per athlete the normal
-way, and `kill_switch = true` stops both paths instantly:
+Once the row exists, `default_on` / `enabled_user_ids` stage the WHOLE ladder per athlete:
+
+- `roll-call-ack` gates per athlete the normal way — a non-enabled athlete's ack returns `flag_off`
+  and records nothing.
+- `commitment-escalation` now honors the same staging. With `default_on = false`, only the athletes
+  in `enabled_user_ids` are eligible to be marked `missed` (the cron passes them as `p_only` to
+  `claim_missed_commitments`), so the missed-marking and both L2/L3 pushes reach only the pilot. Flip
+  `default_on = true` and the whole ladder goes global in one switch — that is the single flag flip a
+  full rollout needs. A missing flag row means global on deploy (fail open, see above).
+
+`kill_switch = true` stops both paths instantly regardless of the staging:
 
 - `roll-call-ack` returns `flag_off` and records nothing.
 - `commitment-escalation` returns `{ skipped: 'flag off' }` and neither marks anything `missed` nor

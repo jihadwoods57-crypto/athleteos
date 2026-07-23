@@ -2158,6 +2158,23 @@ begin
   raise notice 'PASS: claim_missed_commitments is not callable by authenticated';
 end $$;
 
+-- The new 2-arg staged signature (0146: p_grace_min, p_only) is also service-role only. Seed our own
+-- actor id array so this probe does not depend on any prior section's fixtures.
+select _superuser();
+do $$
+declare ok boolean := false;
+declare pilots uuid[] := array[gen_random_uuid(), gen_random_uuid()];
+begin
+  set local role authenticated;
+  begin
+    perform claim_missed_commitments(10, pilots);
+  exception when insufficient_privilege then ok := true;
+  end;
+  reset role;
+  if not ok then raise exception 'FAIL: authenticated could call claim_missed_commitments(int, uuid[])'; end if;
+  raise notice 'PASS: claim_missed_commitments(int, uuid[]) is not callable by authenticated';
+end $$;
+
 select _superuser();
 do $$
 declare ok boolean := false;

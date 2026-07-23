@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
       body: d.body,
       // The tap lands on the commitment itself, not Home — the last inch of the loop. `code` lets
       // a lock-screen action button ack without opening the app; empty when the secret isn't set.
-      data: { route: `roll-call/${d.instance_id}`, code, action_label: d.action_label ?? 'I\'m Up' },
+      data: { route: `roll-call/${d.instance_id}`, code, action_label: d.action_label },
       // Expo maps categoryId -> iOS notification category / Android action set. Only offer the
       // quick-action affordance when we actually minted a verifiable code.
       categoryId: code ? categoryIdFor(d.action_label) : undefined,

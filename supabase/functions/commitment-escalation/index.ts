@@ -65,11 +65,18 @@ Deno.serve(async (req: Request) => {
   // kill_switch = true stops the ladder. This mirrors the reminder fn's stance — the coach-scheduled
   // event is allowed to escalate by default; the switch exists solely to halt it.
   const { data: flag } = await svc
-    .from('feature_flags').select('kill_switch').eq('name', 'rollcall_lockscreen').maybeSingle();
+    .from('feature_flags').select('kill_switch,default_on,enabled_user_ids')
+    .eq('name', 'rollcall_lockscreen').maybeSingle();
   if (flag && flag.kill_switch) return json({ skipped: 'flag off' });
 
+  // Per-athlete staging. FAIL OPEN: a missing row OR default_on => global (only=null). Only an
+  // explicit default_on=false narrows the missed-marking to the staged pilot athletes, so flipping
+  // default_on=true is the single switch that takes the whole ladder global.
+  let only: string[] | null = null;
+  if (flag && flag.default_on === false) only = Array.isArray(flag.enabled_user_ids) ? flag.enabled_user_ids : [];
+
   // Claim deadline-crossed, still-pending responses (marks them 'missed'). Anything returned is ours.
-  const { data: missed, error } = await svc.rpc('claim_missed_commitments', { p_grace_min: 10 });
+  const { data: missed, error } = await svc.rpc('claim_missed_commitments', { p_grace_min: 10, p_only: only });
   if (error) return json({ error: error.message }, 500);
   const rows = (Array.isArray(missed) ? missed : []) as Missed[];
   if (!rows.length) return json({ missed: 0, breakthrough: 0, digests: 0 });

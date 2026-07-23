@@ -38,8 +38,10 @@ Deno.serve(async (req: Request) => {
     p_instance: v.claims.instanceId, p_athlete: v.claims.athleteId,
   });
   if (error) {
-    // "no commitment for this athlete on this instance" -> the row is gone / not theirs.
-    return json({ ok: false, error: 'no_row' }, httpStatusFor('no_row'));
+    // The RPC raises "no commitment for this athlete on this instance" when the row is gone / not
+    // theirs (a 404). Any other error is a real DB failure and must surface as 500, not be masked.
+    const reason = /no commitment/i.test(error.message ?? '') ? 'no_row' : 'db_error';
+    return json({ ok: false, error: reason }, httpStatusFor(reason));
   }
   return json({ ok: true, acknowledged_at: data });
 });

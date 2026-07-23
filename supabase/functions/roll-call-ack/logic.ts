@@ -1,7 +1,7 @@
 // supabase/functions/roll-call-ack/logic.ts
 // Pure status mapping for the roll-call-ack edge fn. ZERO framework imports on purpose: loaded
 // by both Deno (edge) and jest (babel) — same rule tested from one implementation.
-export type AckFailure = 'malformed' | 'bad_sig' | 'expired' | 'flag_off' | 'no_row';
+export type AckFailure = 'malformed' | 'bad_sig' | 'expired' | 'flag_off' | 'no_row' | 'db_error';
 
 export function httpStatusFor(reason: AckFailure): number {
   switch (reason) {
@@ -10,5 +10,6 @@ export function httpStatusFor(reason: AckFailure): number {
     case 'expired': return 410;
     case 'flag_off': return 403;
     case 'no_row': return 404;
+    case 'db_error': return 500;
   }
 }

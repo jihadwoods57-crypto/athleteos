@@ -15,4 +15,7 @@ describe('httpStatusFor', () => {
   it('no_row -> 404', () => {
     expect(httpStatusFor('no_row')).toBe(404);
   });
+  it('db_error -> 500', () => {
+    expect(httpStatusFor('db_error')).toBe(500);
+  });
 });
