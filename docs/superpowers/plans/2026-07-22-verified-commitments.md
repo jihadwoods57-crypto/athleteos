@@ -32,8 +32,8 @@
 
 | Path | Responsibility |
 |---|---|
-| `supabase/migrations/0137_verified_commitments.sql` | all five tables, RLS, grants, slice-1 RPCs |
-| `supabase/migrations/0138_commitment_verification.sql` | arrival/completion RPCs + consent enforcement |
+| `supabase/migrations/0138_verified_commitments.sql` | all five tables, RLS, grants, slice-1 RPCs |
+| `supabase/migrations/0139_commitment_verification.sql` | arrival/completion RPCs + consent enforcement |
 | `supabase/tests/verified_commitments_test.sql` | RLS + grant probes |
 | `proto/redesign-2026-07/js/commitments.js` | **pure engine**: recurrence, times, status, scoring |
 | `proto/redesign-2026-07/js/commitments.test.mjs` | Node tests for the engine |
@@ -70,7 +70,7 @@
 ### Task 1: Schema — tables, RLS, grants
 
 **Files:**
-- Create: `supabase/migrations/0137_verified_commitments.sql`
+- Create: `supabase/migrations/0138_verified_commitments.sql`
 
 **Interfaces:**
 - Produces: tables `commitment_locations`, `commitments`, `commitment_instances`, `commitment_responses`, `verification_consent`; column `profiles.share_verified_discipline`; helper `commitment_owner_is_staff(uuid, uuid) returns boolean`.
@@ -198,7 +198,7 @@ Expected: no syntax errors, five tables covered.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/0137_verified_commitments.sql
+git add supabase/migrations/0138_verified_commitments.sql
 git commit -m "feat(db): verified commitments schema — commitments, instances, responses, consent"
 ```
 
@@ -207,7 +207,7 @@ git commit -m "feat(db): verified commitments schema — commitments, instances,
 ### Task 2: Schema — slice-1 RPCs
 
 **Files:**
-- Modify: `supabase/migrations/0137_verified_commitments.sql` (append)
+- Modify: `supabase/migrations/0138_verified_commitments.sql` (append)
 
 **Interfaces:**
 - Produces: `upsert_commitment(jsonb) returns uuid`, `ensure_commitment_instances(uuid, uuid, date, date) returns integer`, `commitment_board(uuid, uuid, date) returns jsonb`, `my_commitments(date, date) returns jsonb`, `ack_commitment(uuid) returns timestamptz`, `staff_set_response(uuid, text, text) returns void`, `remind_missing(uuid) returns integer`, `athlete_accountability(uuid, date, date) returns jsonb`, `verified_discipline(uuid, date, date) returns jsonb`.
@@ -590,7 +590,7 @@ end $$;
 - [ ] **Step 8: Commit**
 
 ```bash
-git add supabase/migrations/0137_verified_commitments.sql
+git add supabase/migrations/0138_verified_commitments.sql
 git commit -m "feat(db): verified commitments RPCs — schedule, materialize, board, ack, accountability"
 ```
 
@@ -1141,7 +1141,7 @@ git commit -m "feat(proto): commitment reminders + Morning Readiness rollup"
 ### Task 10: Arrival RPCs + consent enforcement
 
 **Files:**
-- Create: `supabase/migrations/0138_commitment_verification.sql`
+- Create: `supabase/migrations/0139_commitment_verification.sql`
 - Modify: `supabase/tests/verified_commitments_test.sql`
 
 **Interfaces:**
@@ -1175,7 +1175,7 @@ Run: `npm run test:rls`
 Expected: 275 + 8 passing.
 
 ```bash
-git add supabase/migrations/0138_commitment_verification.sql supabase/tests/verified_commitments_test.sql
+git add supabase/migrations/0139_commitment_verification.sql supabase/tests/verified_commitments_test.sql
 git commit -m "feat(db): arrival verification RPCs + minor consent gate"
 ```
 
@@ -1394,7 +1394,7 @@ Expected: jest ≥ 2398, proto tests green, RLS ≥ 283, bundle succeeds.
 - [ ] **Step 2: Write the go-live note**
 
 `docs/go-live/VERIFIED-COMMITMENTS.md`: which slice ships OTA vs. needs a build, the migrations
-to apply (`0137`, `0138`), the App Store review note justifying background location, and the
+to apply (`0138`, `0139`), the App Store review note justifying background location, and the
 founder switches (institutional consent, per-team enablement).
 
 - [ ] **Step 3: Commit**

@@ -214,6 +214,34 @@ alter table commitment_instances  enable row level security;
 alter table commitment_responses  enable row level security;
 alter table verification_consent  enable row level security;
 
+-- ⚠ RECURSION. The natural way to write these policies is for commitment_instances to ask
+-- "does this athlete hold a response?" and for commitment_responses to ask "is this caller staff
+-- over the parent instance?" — which makes each policy evaluate the other's table and Postgres
+-- raises "infinite recursion detected in policy for relation commitment_instances". (The same
+-- trap 0075 hit between meal_plans and plan_assignments.) The fix is these three SECURITY DEFINER
+-- helpers: running as the table owner they bypass RLS, so no policy ever evaluates another
+-- policy. The suite probes the boundary itself, not the mechanism, so the shortcut is safe.
+create or replace function has_commitment_response(p_instance uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from commitment_responses r
+                  where r.instance_id = p_instance and r.athlete_id = auth.uid());
+$$;
+
+create or replace function instance_owner_is_staff(p_instance uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from commitment_instances i
+                   join commitments c on c.id = i.commitment_id
+                  where i.id = p_instance
+                    and commitment_owner_is_staff(c.team_id, c.practice_id));
+$$;
+
+create or replace function has_commitment_row(p_commitment uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from commitment_instances i
+                   join commitment_responses r on r.instance_id = i.id
+                  where i.commitment_id = p_commitment and r.athlete_id = auth.uid());
+$$;
+
 drop policy if exists cl_read on commitment_locations;
 create policy cl_read on commitment_locations for select
   using (commitment_owner_is_staff(team_id, practice_id));
@@ -222,38 +250,17 @@ create policy cl_read on commitment_locations for select
 -- one of its instances — which is precisely the set aimed at them, and nothing else.
 drop policy if exists cm_read on commitments;
 create policy cm_read on commitments for select
-  using (
-    commitment_owner_is_staff(team_id, practice_id)
-    or exists (
-      select 1 from commitment_instances i
-      join commitment_responses r on r.instance_id = i.id
-      where i.commitment_id = commitments.id and r.athlete_id = auth.uid()
-    )
-  );
+  using (commitment_owner_is_staff(team_id, practice_id) or has_commitment_row(id));
 
 drop policy if exists cin_read on commitment_instances;
 create policy cin_read on commitment_instances for select
-  using (
-    exists (select 1 from commitments c
-             where c.id = commitment_instances.commitment_id
-               and commitment_owner_is_staff(c.team_id, c.practice_id))
-    or exists (select 1 from commitment_responses r
-             where r.instance_id = commitment_instances.id and r.athlete_id = auth.uid())
-  );
+  using (instance_owner_is_staff(id) or has_commitment_response(id));
 
 -- The athlete sees ONLY their own row. There is no path by which one athlete reads another
 -- athlete's response — no public list, no leaderboard, nothing that embarrasses anyone.
 drop policy if exists cr_read on commitment_responses;
 create policy cr_read on commitment_responses for select
-  using (
-    athlete_id = auth.uid()
-    or exists (
-      select 1 from commitment_instances i
-      join commitments c on c.id = i.commitment_id
-      where i.id = commitment_responses.instance_id
-        and commitment_owner_is_staff(c.team_id, c.practice_id)
-    )
-  );
+  using (athlete_id = auth.uid() or instance_owner_is_staff(instance_id));
 
 drop policy if exists vc_read on verification_consent;
 create policy vc_read on verification_consent for select
@@ -293,12 +300,16 @@ begin
     end if;
   end if;
 
-  -- An edit must not be able to walk a commitment into another coach's book.
-  if v_id is not null and not exists (
-    select 1 from commitments c where c.id = v_id
-      and c.team_id is not distinct from v_team
-      and c.practice_id is not distinct from v_practice
-  ) then
+  -- An EDIT must not be able to walk a commitment into another coach's book. This only applies
+  -- when the id already exists: a client is free to mint the uuid for a NEW commitment, and an
+  -- unconditional guard here would reject every such create.
+  if v_id is not null
+     and exists (select 1 from commitments where id = v_id)
+     and not exists (
+       select 1 from commitments c where c.id = v_id
+         and c.team_id is not distinct from v_team
+         and c.practice_id is not distinct from v_practice
+     ) then
     raise exception 'commitment does not belong to this team or practice';
   end if;
 
@@ -466,7 +477,7 @@ returns jsonb language sql stable security definer set search_path = public as $
       'instance_status', i.status,
       'audience_kind', c.audience_kind,
       'audience_label', case
-        when c.audience_kind = 'room'  then (select r.name from team_rooms r where r.id = c.audience_value)
+        when c.audience_kind = 'room'  then (select r.label from team_rooms r where r.id = c.audience_value)
         when c.audience_kind = 'group' then (select g.name from coach_groups g where g.id = c.audience_value)
         when c.audience_kind = 'athlete' then (select p.full_name from profiles p where p.id = c.audience_value)
         else null end,
@@ -593,7 +604,7 @@ begin
   return coalesce(v_n, 0);
 end $$;
 
--- ---------------------------------------------------------------- athlete_accountability
+-- ---------------------------------------------------------------- accountability
 -- The weighted rollup: acknowledge 10 / arrive on time 30 / complete 60 (founder weighting —
 -- small, moderate, greatest). Mirrors accountability() in proto js/commitments.js, which is the
 -- source of truth for DISPLAY; this exists for ranges too large to ship to the client.
@@ -603,7 +614,14 @@ end $$;
 --      roll call but standing on the field at 5:50 loses 10 and keeps 90.
 --   2. 'excused' leaves the row entirely; 'unverified' removes only the signals it could not
 --      verify. Neither is ever counted as a failure.
-create or replace function athlete_accountability(p_athlete uuid, p_from date, p_to date)
+--
+-- ⚠ AUTHORIZATION LIVES IN THE CALLERS, NOT HERE. accountability_raw does NO auth check and is
+-- deliberately NOT granted to authenticated — only the two definer functions below call it.
+-- Filtering rows by auth.uid() *inside* this computation was the original shape and was wrong:
+-- verified_discipline (which gates on the athlete's own share switch) would then have every row
+-- filtered away for the very recruiter it had just authorized, and silently return nulls. Two
+-- different gates, two different callers, one shared arithmetic.
+create or replace function accountability_raw(p_athlete uuid, p_from date, p_to date)
 returns jsonb language sql stable security definer set search_path = public as $$
   with r as (
     select cr.status, cr.acknowledged_at, cr.arrived_at, cr.completed_at,
@@ -619,7 +637,6 @@ returns jsonb language sql stable security definer set search_path = public as $
        and ci.occurs_on between p_from and p_to
        and ci.status = 'scheduled'
        and cr.status <> 'excused'
-       and (cr.athlete_id = auth.uid() or commitment_owner_is_staff(c.team_id, c.practice_id))
   ), s as (
     select *,
       (arrived_at is not null and (arrive_by_at is null or arrived_at <= arrive_by_at)) as on_time
@@ -643,6 +660,17 @@ returns jsonb language sql stable security definer set search_path = public as $
   ) from s;
 $$;
 
+-- The athlete themselves, or staff who can already see this athlete (can_view — 0002/0081,
+-- which covers team coach, trainer and guardian). Anyone else gets nothing.
+create or replace function athlete_accountability(p_athlete uuid, p_from date, p_to date)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  if not can_view(p_athlete) then
+    raise exception 'not authorized to read this athlete''s accountability';
+  end if;
+  return accountability_raw(p_athlete, p_from, p_to);
+end $$;
+
 -- ---------------------------------------------------------------- verified_discipline
 -- The recruit-facing aggregate. Percentages and counts ONLY: this function is structurally
 -- incapable of returning an event, a location, a class name, a time of day, or a schedule.
@@ -656,7 +684,7 @@ begin
     raise exception 'this athlete has not shared their discipline profile';
   end if;
 
-  a := athlete_accountability(p_athlete, p_from, p_to);
+  a := accountability_raw(p_athlete, p_from, p_to);
 
   return jsonb_build_object(
     'on_time_arrival_pct', case when (a->>'arrival_total')::int > 0
@@ -670,10 +698,17 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------- function grants
+-- accountability_raw is deliberately absent: it performs no authorization of its own and is
+-- reachable only from the two definer functions above.
+revoke all on function accountability_raw(uuid, date, date) from public, anon, authenticated;
+
 do $$ declare f text; begin
   foreach f in array array[
     'upsert_commitment(jsonb)',
     'commitment_audience(uuid)',
+    'has_commitment_response(uuid)',
+    'instance_owner_is_staff(uuid)',
+    'has_commitment_row(uuid)',
     'ensure_commitment_instances(uuid,uuid,date,date)',
     'commitment_board(uuid,uuid,date)',
     'my_commitments(date,date)',

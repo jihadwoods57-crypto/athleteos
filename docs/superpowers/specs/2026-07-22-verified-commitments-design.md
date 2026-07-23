@@ -54,10 +54,10 @@ reshaping, no client branching (the client renders from `type_label`, defaulting
 
 ## 3. Data model
 
-**`0137_verified_commitments.sql`** creates **all five tables** plus the slice-1 RPCs. The
+**`0138_verified_commitments.sql`** creates **all five tables** plus the slice-1 RPCs. The
 arrival and consent *columns* land here too — they are inert until slice 2 writes to them, and
 shipping the full shape once avoids a second structural migration.
-**`0138_commitment_verification.sql`** (slice 2) adds only *behavior*: the arrival/completion
+**`0139_commitment_verification.sql`** (slice 2) adds only *behavior*: the arrival/completion
 RPCs and consent enforcement.
 
 Every table follows the established repo conventions:
@@ -478,13 +478,13 @@ attendance, academic commitment consistency, current streak.
 ## 11. Build order
 
 **Slice 1 — ships over the air.**
-Migration 0137; `commitments.js` engine; composer; athlete Home card + roll-call screen; coach
+Migration 0138; `commitments.js` engine; composer; athlete Home card + roll-call screen; coach
 board card + roster breakdown; remind / excuse / correct; notification planner integration;
 Accountability score + Morning Readiness; `verified_discipline` aggregate.
 Useful alone: a coach gets verified wake-ups the day it lands.
 
 **Slice 2 — rides the next native build.**
-Migration 0138 (arrival/completion RPCs + consent enforcement); `expo-location`; bridge
+Migration 0139 (arrival/completion RPCs + consent enforcement); `expo-location`; bridge
 messages; permission explainer + consent gate; geofenced arrival; tap fallback; dwell
 completion; disputes.
 

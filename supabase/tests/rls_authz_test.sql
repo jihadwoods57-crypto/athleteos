@@ -1391,6 +1391,165 @@ select admin_open_sensitive_window('financial', true);
 select _ok(_try($f$ select admin_consume_financial_grant() $f$) = 'ok', 'cc: financial grant consumed once');
 select _ok(_try($f$ select admin_consume_financial_grant() $f$) <> 'ok', 'cc: single-use financial grant cannot be reused');
 
+-- ================================================================ verified commitments (0138)
+-- The promises this feature makes to an athlete and a parent, probed as adversarially as the
+-- rest of the suite: no athlete can read another athlete's record, no stranger coach can read a
+-- board, no client can back-date a wake-up, and an unshared discipline profile stays private.
+select _superuser();
+select set_config('request.jwt.claim.sub', '', false);
+
+-- Two dedicated athletes on T1. Section 8 above REMOVES athlete A from the team (to prove
+-- revocation cuts access immediately), so A is no longer in any T1 audience and coach_1 can no
+-- longer can_view them — reusing A here would silently test nothing.
+insert into auth.users (id, email) values
+  ('eeee0000-0000-0000-0000-0000000000e1','vc1@x.io'),
+  ('eeee0000-0000-0000-0000-0000000000e2','vc2@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('eeee0000-0000-0000-0000-0000000000e1','VC Athlete One','vc1@x.io','athlete'),
+  ('eeee0000-0000-0000-0000-0000000000e2','VC Athlete Two','vc2@x.io','athlete')
+on conflict (id) do update set full_name = excluded.full_name, email = excluded.email;
+insert into athlete_profiles (athlete_id, base_age, sport) values
+  ('eeee0000-0000-0000-0000-0000000000e1', 19, 'football'),
+  ('eeee0000-0000-0000-0000-0000000000e2', 19, 'football')
+on conflict (athlete_id) do nothing;
+insert into team_members (team_id, athlete_id, status) values
+  ('77777777-1111-0000-0000-000000000001','eeee0000-0000-0000-0000-0000000000e1','active'),
+  ('77777777-1111-0000-0000-000000000001','eeee0000-0000-0000-0000-0000000000e2','active')
+on conflict (team_id, athlete_id) do update set status = 'active';
+
+-- coach_1 schedules a roll call for all of T1. The id is passed explicitly so later probes can
+-- name it without capturing a return value across a role switch.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
+    'id','ccccdddd-0000-0000-0000-0000000000c1',
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'type','morning_roll_call','title','Morning Roll Call','message','Everyone up?',
+    'audience_kind','team',
+    'repeat_days', jsonb_build_array(0,1,2,3,4,5,6),
+    'starts_min', 285, 'respond_by_min', 315)) $f$) = 'ok',
+  'vc: head coach can schedule a commitment for their own team');
+
+-- a coach from another team is a stranger here
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'type','practice','title','Not yours','audience_kind','team',
+    'repeat_days', jsonb_build_array(1), 'starts_min', 360)) $f$) <> 'ok',
+  'vc: a stranger coach cannot schedule on another team');
+
+-- materialize today
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select ensure_commitment_instances(
+    '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$) = 'ok',
+  'vc: staff can materialize instances');
+-- idempotent: calling it again must not duplicate
+select _try($f$ select ensure_commitment_instances(
+    '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+
+select _superuser();
+select _ok((select count(*) from commitment_instances
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1') = 1,
+  'vc: re-materializing the same window creates no duplicate instance');
+select _ok((select count(*) from commitment_responses r
+              join commitment_instances i on i.id = r.instance_id
+             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1')
+           = (select count(*) from team_members
+               where team_id = '77777777-1111-0000-0000-000000000001' and status = 'active'),
+  'vc: one response row seeded per active team member');
+
+-- the athlete acknowledges; the SERVER clock stamps it
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select ack_commitment((select id from commitment_instances
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1')) $f$) = 'ok',
+  'vc: an athlete can acknowledge their own commitment');
+select _superuser();
+select _ok((select abs(extract(epoch from (now() - r.acknowledged_at))) < 60
+              from commitment_responses r join commitment_instances i on i.id = r.instance_id
+             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+               and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  'vc: the response time comes from the server clock');
+
+-- ⚠ the grants probe. RLS alone would not catch a missing grant, and a missing grant would let
+-- nothing through at all; conversely a stray write grant would let an athlete back-date a wake-up.
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ update commitment_responses set acknowledged_at = now() - interval '3 hours'
+    where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' $f$) <> 'ok',
+  'vc: an athlete cannot back-date their own response with a direct write');
+select _ok(_try($f$ insert into commitment_responses (instance_id, athlete_id)
+    values ((select id from commitment_instances
+              where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'),
+            'eeee0000-0000-0000-0000-0000000000e1') $f$) <> 'ok',
+  'vc: direct insert into commitment_responses is refused (writes are RPC-only)');
+select _ok(_try($f$ update commitments set title = 'hacked'
+    where id = 'ccccdddd-0000-0000-0000-0000000000c1' $f$) <> 'ok',
+  'vc: an athlete cannot rewrite the coach''s commitment');
+
+-- NO PUBLIC LIST: a teammate on the SAME team, in the SAME roll call, still cannot read
+-- another athlete's response. This is the probe that guards "no list that embarrasses anyone".
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((select count(*) from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 0,
+  'vc: a teammate cannot read another athlete''s response (no public list)');
+select _ok((select count(*) from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2') = 1,
+  'vc: but a teammate does read their OWN response');
+
+-- a complete stranger sees neither the response nor the commitment
+select _as('bbbbbbbb-0000-0000-0000-000000000002');
+select _ok((select count(*) from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 0,
+  'vc: an outside athlete cannot read another athlete''s response');
+select _ok((select count(*) from commitments
+             where id = 'ccccdddd-0000-0000-0000-0000000000c1') = 0,
+  'vc: an athlete outside the audience cannot read the commitment');
+
+-- board scope
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(jsonb_array_length(commitment_board(
+    '77777777-1111-0000-0000-000000000001', null, current_date)) = 1,
+  'vc: the coach sees their own board');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(jsonb_array_length(commitment_board(
+    '77777777-1111-0000-0000-000000000001', null, current_date)) = 0,
+  'vc: a stranger coach sees an empty board for another team');
+
+-- accountability + the recruit profile gate
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select athlete_accountability(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) = 'ok',
+  'vc: the athlete''s own coach can read their accountability');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select athlete_accountability(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) <> 'ok',
+  'vc: a stranger coach cannot read an athlete''s accountability');
+
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select verified_discipline(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) <> 'ok',
+  'vc: an unshared Verified Discipline profile is refused');
+select _superuser();
+update profiles set share_verified_discipline = true
+  where id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select verified_discipline(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) = 'ok',
+  'vc: a shared Verified Discipline profile is readable');
+-- and once shared it still returns ONLY percentages and counts — never an event or a place
+select _ok((select bool_and(k in ('on_time_arrival_pct','commitments_completed',
+                                  'morning_response_pct','accountability_pct'))
+              from jsonb_object_keys(verified_discipline(
+                'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date)) k),
+  'vc: the shared profile exposes no location, schedule or per-event detail');
+-- the recruiter really does see the numbers (the share gate must not blank its own payload)
+select _ok((verified_discipline('eeee0000-0000-0000-0000-0000000000e1',
+              current_date - 30, current_date) ->> 'morning_response_pct') = '100',
+  'vc: a shared profile returns real numbers, not nulls');
+
+-- raw arithmetic is not directly reachable
+select _ok(_try($f$ select accountability_raw(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) <> 'ok',
+  'vc: accountability_raw is not callable by an authenticated user');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
