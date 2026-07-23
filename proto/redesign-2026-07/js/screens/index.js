@@ -47,6 +47,8 @@ import bioOptin from './bio-optin.js';
 import sponsor from './sponsor.js';
 import redeemCode from './redeem-code.js';
 import paywall from './paywall.js';
+import progressPhotos from './progress-photos.js';
+import progressCompare from './progress-compare.js';
 
 export const screens = {
   home,
@@ -145,4 +147,6 @@ export const screens = {
   sponsor,
   'redeem-code': redeemCode,
   paywall,
+  'progress-photos': progressPhotos,
+  'progress-compare': progressCompare,
 };

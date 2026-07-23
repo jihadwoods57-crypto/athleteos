@@ -455,7 +455,7 @@
 .xf-bar i.g{background:linear-gradient(90deg,#16a34a,var(--green-bright))}
 .xf-bar i.p{background:linear-gradient(90deg,#7e22ce,var(--purple-bright))}
 .xf-bar i.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
-.xhero .xh-next{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:11px;padding-top:10px;border-top:1px solid var(--hairline-soft);white-space:nowrap}
+.xhero .xh-next{display:flex;align-items:flex-start;gap:6px;font-size:12px;font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:11px;padding-top:10px;border-top:1px solid var(--hairline-soft)}
 .xhero .xh-next svg{color:var(--blue-bright);flex:none}
 .xhero .xh-next b{color:var(--text);font-weight:800}
 /* coach-seen receipt — proof a real person opened the day; injected only when true */
@@ -826,6 +826,30 @@
 .pw-plan-sub{font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:2px}
 .pw-plan-blurb{font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:7px;line-height:1.4}
 .pw-note{text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:9px;line-height:1.45}
+
+/* ---- Progress photos (#progress-photos) ---- */
+.pp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.pp-cell{position:relative;border-radius:14px;overflow:hidden;background:var(--surface-2);aspect-ratio:3/4}
+.pp-cell-img{width:100%;height:100%;object-fit:cover;display:block}
+.pp-cell-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
+.pp-cell-meta{position:absolute;left:0;right:0;bottom:0;padding:16px 10px 8px;font-size:11.5px;font-weight:700;color:#fff;background:linear-gradient(transparent, rgba(0,0,0,0.62))}
+.pp-del{position:absolute;top:6px;right:6px;height:24px;min-width:24px;padding:0 6px;border:none;border-radius:8px;background:rgba(6,10,14,0.6);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.pp-del.arm{background:var(--red);color:#fff}
+
+/* ---- Before/after compare (#progress-compare) ---- */
+.cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cmp-panel{background:var(--surface);border:1px solid var(--hairline);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.cmp-lab{font-size:11px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3);padding:8px 10px 4px}
+.cmp-img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block}
+.cmp-empty{width:100%;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;color:var(--text-3);background:var(--surface-2)}
+.cmp-sub{font-size:11.5px;font-weight:700;color:var(--text-2);padding:6px 10px 9px;text-align:center}
+.cmp-delta{text-align:center;font-size:13px;font-weight:700;color:var(--text-2);margin-top:12px}
+.cmp-delta b{font-size:17px;font-weight:800;color:var(--text)}
+.cmp-strip{display:flex;gap:7px;overflow-x:auto;padding:8px 2px;-webkit-overflow-scrolling:touch}
+.cmp-thumb{flex:none;width:52px;height:68px;border-radius:9px;overflow:hidden;border:2px solid transparent;background:var(--surface-2);padding:0;cursor:pointer}
+.cmp-thumb.on{border-color:var(--green-bright)}
+.cmp-thumb-img{width:100%;height:100%;object-fit:cover;display:block}
+.cmp-thumb-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
 .cat-trend{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)}
 .cat-trend:last-child{border-bottom:none}
 .cat-trend .ct-k{width:118px;flex:none;font-size:12.5px;font-weight:700;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

@@ -48,13 +48,31 @@ function weightCard() {
   </section>`;
 }
 
+/* Entry to the progress-photo timeline (0133). A quiet link-out card — the real grid/compare live
+   in #progress-photos. Photos are private to the athlete and any linked coach; they never touch
+   the daily score, same as weight. */
+function photoCard() {
+  return `
+  <div class="eyebrow">Progress Photos</div>
+  <section class="card" style="padding:6px 16px">
+    <div class="lrow" data-go="progress-photos">
+      <div class="lic">${icon('camera', 17)}</div>
+      <div class="lm"><div class="lt">Progress photos</div><div class="ls">Your before &amp; after — private to you &amp; your coach</div></div>
+      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+    </div>
+  </section>`;
+}
+
 export default {
   tab: 'progress',
   render() {
     const P = S.progress;
     // Day one / early days: a REAL baseline (spec §8.2) — score, streak, best, days logged,
     // and the exact unlock rule. Never a dashed "come back later" card.
-    if (RT.day0 || !P.hasHistory) {
+    // Gate on the real 3-day trend-unlock window, NOT RT.day0 — RT.day0 just means "nothing
+    // logged yet today" and goes true every morning for established athletes, which used to show
+    // them the "Progress starts today" baseline right beside "Days logged: 30".
+    if (P.daysLogged < P.unlockNeed) {
       return `
       <div class="screen-title">Progress</div>
       <div style="height:10px"></div>
@@ -68,6 +86,7 @@ export default {
       </div>` : ''}
       <div style="height:4px"></div>
       ${weightCard()}
+    ${photoCard()}
       <div style="height:10px"></div>`;
     }
 
@@ -133,6 +152,7 @@ export default {
     </section>` : ''}
 
     ${weightCard()}
+    ${photoCard()}
 
     <div style="height:10px"></div>
     <div class="sidebox" data-go="monthly-report" style="cursor:pointer">

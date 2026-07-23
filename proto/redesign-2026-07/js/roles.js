@@ -241,6 +241,66 @@ export async function signedMealPhotoUrl(path) {
   const c = sb(); if (!c || !path) return null;
   try { const { data } = await c.storage.from('meal-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
 }
+
+/* ---------------- progress photos (before/after body-composition timeline, 0133) ---------------- */
+/** Upload a progress photo (raw base64 jpeg) to the private progress-photos bucket and record a
+    row. Path MUST start with the athlete's id (storage RLS). Best-effort — returns the new row or null. */
+export async function uploadProgressPhoto(userId, base64, meta) {
+  const c = sb(); if (!c || !userId || !base64) return null;
+  const m = meta || {};
+  const path = `${userId}/${Date.now()}.jpg`;
+  try {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const up = await c.storage.from('progress-photos').upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
+    if (up.error) return null;
+    const row = {
+      athlete_id: userId, photo_path: path,
+      weight_lb: (m.weightLb != null && m.weightLb !== '') ? Math.round(+m.weightLb) : null,
+      pose: m.pose || null, note: m.note || null,
+    };
+    if (m.takenOn) row.taken_on = m.takenOn;
+    const { data, error } = await c.from('progress_photos').insert(row).select().maybeSingle();
+    if (error) return null;
+    return data || null;
+  } catch { return null; }
+}
+
+/** An athlete's progress photos, newest first (self by default; a coach passes an athleteId they
+    can_view). Returns [{ id, photo_path, taken_on, weight_lb, pose, note }]. */
+export async function listProgressPhotos(athleteId) {
+  const c = sb(); if (!c) return [];
+  try {
+    let uid = athleteId;
+    if (!uid) { const { data: u } = await c.auth.getUser(); uid = u && u.user && u.user.id; }
+    if (!uid) return [];
+    const { data, error } = await c.from('progress_photos')
+      .select('id,photo_path,taken_on,weight_lb,pose,note')
+      .eq('athlete_id', uid)
+      .order('taken_on', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(60);
+    if (error) return [];
+    return data || [];
+  } catch { return []; }
+}
+
+/** Delete a progress photo (owner-RLS); best-effort object cleanup after the row goes. */
+export async function deleteProgressPhoto(id, path) {
+  const c = sb(); if (!c || !id) return false;
+  try {
+    const { error } = await c.from('progress_photos').delete().eq('id', id);
+    if (error) return false;
+    if (path) { try { await c.storage.from('progress-photos').remove([path]); } catch { /* orphan cleanup best-effort */ } }
+    return true;
+  } catch { return false; }
+}
+
+export async function signedProgressPhotoUrl(path) {
+  const c = sb(); if (!c || !path) return null;
+  try { const { data } = await c.storage.from('progress-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
+}
 /** The ATHLETE side of the 0043 receipt loop: who actually opened MY day. RLS
     (coach_views_read) scopes rows to athlete_id = auth.uid() or the viewer's own receipts;
     the explicit athlete_id filter keeps a coach's client from pulling receipts they wrote
