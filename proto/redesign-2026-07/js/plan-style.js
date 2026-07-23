@@ -460,8 +460,7 @@ export function styleLabel(style) {
 export function styleSourceLabel(res, proNoun) {
   const who = proNoun || 'coach';
   if (!res) return '';
-  if (res.source === 'team') return `Set by your ${res.lockedBy || who}`;
-  if (res.source === 'pro') return `Set by your ${res.lockedBy || who}`;
+  if (res.source === 'team' || res.source === 'pro') return res.lockedBy ? `Set by ${res.lockedBy}` : `Set by your ${who}`;
   if (res.source === 'preference') return 'Your preference — pending confirmation';
   if (res.source === 'legacy') return 'Your original plan style';
   if (res.source === 'self') return 'You chose this';

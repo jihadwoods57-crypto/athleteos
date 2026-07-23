@@ -777,7 +777,7 @@ export const planStylePicker = {
     // When someone else owns the setting, the chips pick a PREFERENCE, not the plan itself.
     const selected = choosing ? current : (PS.preference || current);
     return `
-    ${backHead('Plan style', choosing ? 'How much structure helps you succeed' : `Set by your ${esc(PS.lockedBy || S.coach.noun)}`, 'settings')}
+    ${backHead('Plan style', choosing ? 'How much structure helps you succeed' : (PS.lockedBy ? `Set by ${esc(PS.lockedBy)}` : `Set by your ${esc(S.coach.noun)}`), 'settings')}
 
     ${planStyleCard(PS, { compact: true })}
 

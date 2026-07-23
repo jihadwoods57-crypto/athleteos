@@ -320,7 +320,7 @@ export function mealMedia(hue = '20', h = 96) {
 export function planStyleCard(style, { onChange = null, compact = false } = {}) {
   if (!style) return '';
   const pref = style.preferenceDiffers && style.preferenceName
-    ? `<div class="ps-pref">Your preference: <b>${esc(style.preferenceName)}</b> · shared with your ${esc(style.lockedBy || 'coach')}</div>`
+    ? `<div class="ps-pref">Your preference: <b>${esc(style.preferenceName)}</b> · shared with ${esc(style.lockedBy || 'your coach')}</div>`
     : '';
   const change = onChange && style.canChoose
     ? `<button class="btn ghost sm" data-go="${esc(onChange)}">Change</button>`
