@@ -1,0 +1,94 @@
+# Verified Commitments — go-live
+
+**Branch:** `feat/founder-command-center` · **Spec:** [`docs/superpowers/specs/2026-07-22-verified-commitments-design.md`](../superpowers/specs/2026-07-22-verified-commitments-design.md)
+
+Coaches verify that athletes **acknowledge**, **arrive for**, and **complete** scheduled
+responsibilities — without counting replies in a group chat and without tracking anyone.
+
+---
+
+## What ships when
+
+| Slice | Contents | Needs |
+|---|---|---|
+| **1 — Morning Roll Call** | migration 0138, athlete card + detail, coach board + roster + composer, reminders, Accountability / Morning Readiness, Verified Discipline aggregate | `supabase db push` + an **OTA update**. No App Store review. |
+| **2 — Arrival verification** | migration 0139, `expo-location`, geofence manager, `LOCATION_*` bridge, consent explainer | `supabase db push` + a **new native build**. Cannot ship OTA. |
+| **3 — Widget** | `ios-widget/` | Authored, **not enabled**, never compiled. Mac only — see [`ios-widget/README.md`](../../ios-widget/README.md). |
+
+Slice 1 is useful on its own: a coach gets verified wake-ups the day it lands.
+
+## Apply
+
+```bash
+supabase db push          # 0138 then 0139
+npm run test:rls          # expect 356/356
+```
+
+Both migrations are forward-only and idempotent. 0138 creates every table; 0139 adds only
+behaviour. `0137` was taken by a concurrent change (`0137_practice_rollups`) — that is why these
+are 0138/0139 and not 0137/0138.
+
+## App Store review note (slice 2)
+
+Apple will ask why the app requests **Always** location. The honest answer, which matches what the
+code actually does:
+
+> OnStandard confirms that athletes arrived at practices and other commitments their coach
+> scheduled. The app registers a geofence around a single coach-specified location, only during
+> that event's scheduled window, and removes it when the window closes. Between events no region
+> is monitored. The app stores only whether the athlete arrived and at what time — no coordinates
+> are transmitted or stored, and there is no movement history. Athletes who decline background
+> location check in with a button instead, so the feature is fully usable without it.
+
+Every clause is enforced in code, not policy: `my_armable_geofences` (0139) will not return an
+instance outside its window, `verify_arrival` takes a boolean rather than a position, and no table
+in the feature has a coordinate column for an athlete.
+
+## Founder switches
+
+- **Who can schedule** — head coach, coordinator, S&C, team admin (`CREATE_CAPS` in
+  `staff-access.js`, mirrored by the role check inside `upsert_commitment`). Position coaches see
+  their room's board but cannot schedule. **Open call:** athletic trainers and nutritionists cannot
+  schedule either, though rehab and nutrition appointments are plainly their work. Widening this
+  means editing both places in step.
+- **Institutional consent** — an athletic director can assert a program already holds parental
+  consent, which satisfies the gate team-wide and writes an `admin_audit_log` row naming them.
+  There is no UI for this yet; it is `grant_verification_consent(athlete, 'institutional', team,
+  note)`.
+- **Recruit profile** — off for every athlete until they turn it on themselves, in Settings →
+  Verified Discipline profile.
+
+## Behaviour worth knowing before support calls
+
+- **Reminders break quiet hours.** Default quiet hours are 22:00–07:00, so a 4:45 AM roll call
+  would otherwise be silently swallowed. Commitment reminders are exempt from quiet hours and from
+  the daily notification cap, and go **only** to athletes who have not responded. The phone's own
+  Do Not Disturb still wins.
+- **"Unverified" is not "missed".** A dead battery, revoked permission, weak GPS indoors or a moved
+  session all read *"Couldn't verify"* and are removed from the accountability denominator rather
+  than counted as failures. Only a coach can mark someone missed, and every correction is
+  attributed.
+- **A missed wake-up doesn't cascade.** Sleeping through roll call but arriving on time costs 10 of
+  100 points, not the day.
+- **iOS monitors at most 20 regions.** The app arms 16. An athlete with more concurrent located
+  commitments than that falls back to tap-to-verify, and is told which ones.
+- **The daily 0–100 score is untouched.** Accountability is a separate number, and the athlete's
+  screen says so.
+
+## Verification at time of writing
+
+```
+npm run lint:xss     clean
+npm run typecheck    clean
+npx jest             2407/2407 (201 suites)
+npm run test:proto   green (41 new assertions)
+npm run test:rls     356/356 (36 new probes)
+```
+
+Plus: the proto module graph resolves, and the proto boots headlessly in Chromium with no console
+errors.
+
+**Not verified anywhere:** the geofence itself. Region monitoring cannot be exercised on Windows,
+in jest, or in a headless browser — it needs a device that can physically cross a boundary. The
+pure selection logic (which events, how many, in what order) has 9 tests; the OS call it wraps has
+none. Walk into a facility with a test build before trusting it in front of a team.
