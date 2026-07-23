@@ -282,6 +282,22 @@ select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, ro
 select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values ('e0000000-0000-0000-0000-00000000000b','bbbbbbbb-0000-0000-0000-000000000002','11111111-0000-0000-0000-000000000001','coach','drive-by')$q$) <> 'ok',
            'coach_1 CANNOT comment on stranger B''s meal');
 
+-- progress photos (0133) + dietary declarations (0134): owner-write, coach-read via can_view
+-- (same trust tier as meals — coach_1 can_view A is proven just above; B/coach_2 are strangers).
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok(_try($q$insert into progress_photos(athlete_id,photo_path,pose) values ('aaaaaaaa-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001/1.jpg','front')$q$) = 'ok', 'progress_photos: athlete inserts own');
+select _ok(_try($q$insert into progress_photos(athlete_id,photo_path) values ('bbbbbbbb-0000-0000-0000-000000000002','bbbbbbbb-0000-0000-0000-000000000002/x.jpg')$q$) <> 'ok', 'progress_photos: athlete cannot insert for another');
+select _ok((select count(*) from progress_photos where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=1, 'progress_photos: owner reads own');
+select _ok(_try($q$insert into dietary_restrictions(athlete_id,data) values ('aaaaaaaa-0000-0000-0000-000000000001','{"allergies":[{"name":"Peanuts","severity":"severe"}]}'::jsonb)$q$) = 'ok', 'dietary: athlete writes own');
+select _ok(_try($q$insert into dietary_restrictions(athlete_id,data) values ('bbbbbbbb-0000-0000-0000-000000000002','{}'::jsonb)$q$) <> 'ok', 'dietary: athlete cannot write for another');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');  -- stranger
+select _ok((select count(*) from progress_photos where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=0, 'progress_photos: stranger sees none');
+select _ok((select count(*) from dietary_restrictions where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=0, 'dietary: stranger sees none');
+select _ok(_try($q$delete from progress_photos where athlete_id='aaaaaaaa-0000-0000-0000-000000000001'$q$) = 'ok', 'progress_photos: stranger delete is RLS-filtered (no error, no effect)');
+select _as('11111111-0000-0000-0000-000000000001');  -- coach_1 (can_view A)
+select _ok((select count(*) from progress_photos where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=1, 'progress_photos: linked coach reads via can_view (stranger delete changed nothing)');
+select _ok((select count(*) from dietary_restrictions where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=1, 'dietary: linked coach reads via can_view');
+
 select _as('22222222-0000-0000-0000-000000000002');  -- coach_2 (stranger coach)
 select _ok((select count(*) from meals where athlete_id in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004')) = 0,
            'stranger coach_2 sees none of A''s or minor M''s meals');
