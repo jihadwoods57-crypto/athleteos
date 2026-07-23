@@ -42,7 +42,7 @@ export default {
           <div class="ls">${esc(priceLabel(o))}${o.blurb ? ' · ' + esc(o.blurb) : ''}</div>
           ${(o.features || []).length ? `<div class="ls" style="margin-top:4px">${(o.features || []).map(f => esc(f)).join(' · ')}</div>` : ''}
         </div>
-        <button class="btn green sm" data-pay="${esc(o.offer_id)}" style="width:auto;padding:0 14px;height:34px;flex:none">${UI.paying === o.offer_id ? '…' : 'Pay'}</button>
+        ${o.price_cents != null ? `<button class="btn green sm" data-pay="${esc(o.offer_id)}" style="width:auto;padding:0 14px;height:34px;flex:none">${UI.paying === o.offer_id ? '…' : 'Pay'}</button>` : ''}
       </div>`).join('')}
     </section>
     <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>

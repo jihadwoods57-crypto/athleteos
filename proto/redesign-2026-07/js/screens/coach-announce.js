@@ -57,7 +57,7 @@ export const coachAnnounce = {
       `<span class="chp ${on ? 'on' : ''}" data-ann="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
     const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
     const histRows = HIST && HIST.teamId === teamId ? HIST.rows : null;
-    const sendLabel = target ? `Send to ${esc(target.name)}`
+    const sendLabel = ANN.scopeKind === 'athlete' ? `Send to ${esc(target ? target.name : 'this athlete')}`
       : ANN.scopeKind === 'position' ? `Send to the ${esc(ANN.scopeValue || '')} room`
       : ANN.scopeKind === 'group' ? `Send to ${esc(group ? group.name : 'the group')}`
       : 'Send to the whole team';

@@ -42,7 +42,7 @@ export default {
         ? `<div class="nhead"><span class="nsummary"><span class="cnt">${S.unreadNotifs}</span> unread</span><button class="markread" data-act="readNotifs" data-then="notifications">Mark all read</button></div>`
         : `<div class="nhead"><span class="nsummary allclear">${icon('checkCircle', 16)} All caught up</span><button class="markread" disabled>Mark all read</button></div>`) : ''}
 
-    ${N.new.length ? `<div class="eyebrow">New</div>${N.new.map(row).join('')}` : ''}
+    ${N.new.length ? `<div class="eyebrow">${rowsRead ? 'Recent' : 'New'}</div>${N.new.map(row).join('')}` : ''}
 
     ${N.earlier.length ? `<div class="eyebrow">Earlier</div>${N.earlier.map(row).join('')}` : ''}
 

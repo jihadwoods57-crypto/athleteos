@@ -15,7 +15,7 @@ export const trust = {
       return `${backHead('Trust Pass', 'Not earned yet')}
       <div class="state-demo">
         <div class="sd-ic">${icon('shield', 24)}</div>
-        <div class="sd-t">Earn it with 7 on-standard days</div>
+        <div class="sd-t">Earn it with ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} on-standard days</div>
         <div class="sd-s">Show the pattern with photos first. Then your coach can grant camera-free days credited from your real history.</div>
       </div>`;
     }
@@ -30,7 +30,7 @@ export const trust = {
     // Where the athlete's credit actually sits on the decay slope (same formula as pts).
     const youY = 74 - (t.day <= 10 ? 1 : Math.max(0, 1 - (t.day - 10) * 0.05)) * 54;
     // Next camera spot-check derived from the real current day — never a frozen "day 5".
-    const nextCheck = t.day < 5 ? 5 : t.day < 10 ? 10 : null;
+    const nextCheck = t.day < 5 && t.length >= 5 ? 5 : t.day < 10 && t.length >= 10 ? 10 : null;
     return `
     ${backHead('Trust Pass', `Day ${t.day} of ${t.length} · camera-free, honestly`)}
 
@@ -39,7 +39,7 @@ export const trust = {
         <div class="req-icon p" style="width:52px;height:52px;border-radius:16px">${icon('shield', 26)}</div>
         <div style="flex:1">
           <div style="font-size:17px;font-weight:800">Active · earned, not given</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Granted by ${esc(S.coach.nameMid)} after 7 on-standard days with photo proof.</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Granted by ${esc(S.coach.nameMid)} after ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} on-standard days with photo proof.</div>
         </div>
       </div>
       <div class="pass-days">

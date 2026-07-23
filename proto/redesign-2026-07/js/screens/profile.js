@@ -40,7 +40,7 @@ export default {
       <div class="ic">${icon('shield', 20)}</div>
       <div style="flex:1">
         <div class="tt">Trust Pass active · day ${t.day} of ${t.length}</div>
-        <div class="ts">Earned with 7 on-standard days. Tap for the rules.</div>
+        <div class="ts">Earned with ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} on-standard days. Tap for the rules.</div>
       </div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : ''}

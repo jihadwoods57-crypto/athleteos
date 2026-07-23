@@ -77,7 +77,7 @@ export default {
         const init = who.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
         return `<div class="who"><div class="av">${esc(init)}</div><div><div class="nm">${esc(who)}</div><div class="rl">${assigned ? 'On this task' : 'On this requirement'}</div></div></div>`;
       })()}
-      <p>“${esc(req.note)}”</p>
+      ${req.note ? `<p>“${esc(req.note)}”</p>` : ''}
     </div>
 
     <div style="height:18px"></div>

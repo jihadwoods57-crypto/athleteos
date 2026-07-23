@@ -73,7 +73,7 @@ function groupSheet(groups) {
     <div class="eyebrow" style="margin:0 0 8px">Custom groups</div>
     ${groups.map(g => `
     <div class="lrow" style="cursor:default">
-      <div class="lm"><div class="lt">${esc(g.name)}</div><div class="ls">${(g.athlete_ids || []).length} athletes</div></div>
+      <div class="lm"><div class="lt">${esc(g.name)}</div><div class="ls">${(g.athlete_ids || []).length} athlete${(g.athlete_ids || []).length === 1 ? '' : 's'}</div></div>
       ${SEL.size ? `<button class="btn ghost sm" data-gadd="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px">Add ${SEL.size}</button>` : ''}
       <button class="btn ghost sm" data-gdel="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px;margin-left:6px;color:var(--red)">Delete</button>
     </div>`).join('') || `<div style="font-size:12px;font-weight:600;color:var(--text-3)">No groups yet.</div>`}
@@ -113,7 +113,7 @@ function wireGroupSheet(root, teamId) {
 function absenceSheet() {
   return `
   <section class="card" style="padding:13px 16px">
-    <div class="eyebrow" style="margin:0 0 8px">Excuse ${SEL.size} athlete${SEL.size > 1 ? 's' : ''}</div>
+    <div class="eyebrow" style="margin:0 0 8px">Excuse ${SEL.size} athlete${SEL.size === 1 ? '' : 's'}</div>
     <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused athletes drop out of the priority queue and today's completion math — and nothing pings them while excused.</div>
     <input class="ob-input" id="abs-reason" maxlength="120" placeholder="Reason (travel, injury, family…)" style="height:36px" />
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">

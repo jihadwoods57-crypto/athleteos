@@ -134,7 +134,7 @@ export const trainerGrow = {
       ${UI.editing === 'new' ? offerForm(null) : `<div style="padding:10px 0"><button class="btn ghost sm" data-tg="add" style="width:auto;padding:0 14px;height:34px">${icon('plus', 15)} Add an offer</button></div>`}
     </section>
 
-    <div class="eyebrow">Applications ${newApps() ? `<span class="status-pill" style="background:var(--red-surface);color:var(--red-bright);margin-left:6px">${newApps()} new</span>` : ''}</div>
+    <div class="eyebrow">Applications ${newApps() ? `<span class="status-pill" style="background:rgba(59,130,246,0.14);color:var(--blue-bright);margin-left:6px">${newApps()} new</span>` : ''}</div>
     <section class="card" style="padding:6px 16px">
       ${(G.apps || []).length ? (G.apps).map(a => `
       <div class="lrow" style="cursor:default;align-items:flex-start">

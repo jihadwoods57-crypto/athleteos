@@ -203,7 +203,7 @@ const setSummary = (items) => {
   const weigh = items.find(i => i.kind === 'weigh');
   const bits = [`${meals} meal${meals === 1 ? '' : 's'}`];
   if (lift) bits.push((lift.freq && lift.freq.label) ? `lifts ${lift.freq.label}` : 'lifts');
-  if (weigh) bits.push(weigh.freq && weigh.freq.type === 'daily' ? 'weigh daily' : 'weigh MWF');
+  if (weigh) bits.push(weigh.freq && weigh.freq.type === 'daily' ? 'weigh daily' : `weigh ${(weigh.freq && weigh.freq.label) || (weigh.freq && Array.isArray(weigh.freq.days) ? weighLabel(weigh.freq.days) : 'MWF')}`);
   return bits.join(' · ');
 };
 
@@ -440,8 +440,8 @@ export const coachPlan = {
       const say = (msg, isErr) => { if (status) { status.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; status.textContent = msg; } };
       b.disabled = true; say(what === 'grant' ? 'Granting…' : 'Ending…');
       if (what === 'grant') {
-        const r = await roles.grantTrustPass(id, 10);
-        if (!r.ok) { b.disabled = false; say(r.error && /standard|photo|eligib/i.test(r.error) ? 'Not eligible yet — needs 7 photo-logged days on standard.' : (r.error || 'Could not grant it.'), true); return; }
+        const r = await roles.grantTrustPass(id, (RT.trustPolicy || { length_days: 10 }).length_days);
+        if (!r.ok) { b.disabled = false; say(r.error && /standard|photo|eligib/i.test(r.error) ? `Not eligible yet — needs ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days on standard.` : (r.error || 'Could not grant it.'), true); return; }
         say('Granted — camera-free days start now.');
       } else {
         const ok = await roles.endTrustPass(id);
@@ -1397,7 +1397,7 @@ export const copilot = {
     const summary = rows.length === 0
       ? 'No athletes on your roster yet. Share your team code to get started.'
       : `${rows.length} athlete${rows.length > 1 ? 's' : ''} on your roster. `
-        + (attention.length ? `${attention.length} need attention (no logs or off standard). ` : 'Everyone who logged is on standard. ')
+        + (attention.length ? `${attention.length} need attention (no logs or off standard). ` : belowBar.length ? `${belowBar.length} logged below the standard today. ` : 'Everyone who logged is on standard. ')
         + (notLogged.length ? `${notLogged.length} haven't logged today.` : 'Everyone has logged today.');
     return `
     ${backHead('Copilot', 'Deterministic reads over your real roster', 'coach-home')}

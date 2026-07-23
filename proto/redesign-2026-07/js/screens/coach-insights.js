@@ -231,7 +231,7 @@ export const coachInsights = {
     const r = cnt(k => k === 'overdue'), d = cnt(k => k === 'no_activity' || k === 'excused');
     const seg = (cls, c) => c ? `<span class="seg ${cls}" style="flex:${c}"></span>` : '';
     const leg = (cls, c, l) => c ? `<span class="it"><span class="dot ${cls}"></span><b>${c}</b> ${l}</span>` : '';
-    const lineDot = (l) => /overdue|no activity/i.test(l) ? 'r' : /below|waiting|review/i.test(l) ? 'a' : /leads/i.test(l) ? 'g' : 'b';
+    const lineDot = (l) => /overdue/i.test(l) ? 'r' : /no activity/i.test(l) ? 'd' : /below|waiting|review/i.test(l) ? 'a' : /leads/i.test(l) ? 'g' : 'b';
     return `${head}
     ${entries.length ? `<div class="co-eyebrow tight">Where the team stands</div>
     <section class="card" style="padding:var(--s4)">
