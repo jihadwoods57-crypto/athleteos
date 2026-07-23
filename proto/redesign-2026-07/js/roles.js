@@ -90,7 +90,12 @@ export async function requestGuardianConsent(email) {
 export async function fetchMyTeamIdentity() {
   const c = sb(); if (!c) return null;
   try {
-    const { data } = await c.from('teams').select('id,name,join_code').limit(1).maybeSingle();
+    // supabase-js resolves a network/RLS failure into { error } WITHOUT throwing, so the catch
+    // below never sees it. Inspecting `error` here is what makes the { error: true } sentinel
+    // this function documents actually reachable — otherwise a flaky connection returned null,
+    // which callers read as "no team yet" and showed "Setting up" forever.
+    const { data, error } = await c.from('teams').select('id,name,join_code').limit(1).maybeSingle();
+    if (error) return { error: true };
     if (!data) return null;
     return { id: data.id, name: data.name || '', code: data.join_code || '' };
   } catch { return { error: true }; }
@@ -1001,7 +1006,11 @@ export async function fetchMyPractices() {
 export async function fetchMyPracticeIdentity() {
   const c = sb(); if (!c) return null;
   try {
-    const { data } = await c.from('practices').select('id,name,join_code,owner_id,handle').limit(1).maybeSingle();
+    // See fetchMyTeamIdentity: supabase-js returns { error } without throwing, so this must be
+    // inspected explicitly or the { error: true } sentinel above is unreachable and Practice HQ
+    // shows "Your client code is being created" forever on a flaky connection.
+    const { data, error } = await c.from('practices').select('id,name,join_code,owner_id,handle').limit(1).maybeSingle();
+    if (error) return { error: true };
     if (!data) return null;
     return { id: data.id, name: data.name || '', code: data.join_code || '', handle: data.handle || null };
   } catch { return { error: true }; }
@@ -1273,6 +1282,45 @@ export function buildRosterRow(member, dayRow, extras = {}) {
   };
 }
 
+/** Distinct athlete ids across a book's member lists, in first-seen order. */
+function athleteIdsOf(perBook) {
+  const seen = new Set(); const ids = [];
+  for (const members of perBook) for (const m of members) {
+    if (m && m.athlete_id && !seen.has(m.athlete_id)) { seen.add(m.athlete_id); ids.push(m.athlete_id); }
+  }
+  return ids;
+}
+
+/** PURE projection shared by both books: members + day rows + recent meals + timezones → sorted UI
+    rows. No fetches, so each loader keeps its own parallelism. A coach's team book and a trainer's
+    practice book differ only in which RPC produced `perBook` — every downstream engine (status,
+    priority, inbox) then reads the same row shape. */
+function projectRows(perBook, days, recentMeals, tzByAthlete) {
+  const today = todayISO();
+  const dayByAthlete = {}, histByAthlete = {}, lastMealBy = {};
+  for (const d of (days || [])) {
+    if (d.date === today) dayByAthlete[d.athlete_id] = d;
+    (histByAthlete[d.athlete_id] = histByAthlete[d.athlete_id] || []).push({ date: d.date, score: d.score });
+  }
+  for (const h of Object.values(histByAthlete)) h.sort((a, b) => a.date < b.date ? -1 : 1);
+  for (const m of (recentMeals || [])) {
+    if (!lastMealBy[m.athlete_id] || m.logged_at > lastMealBy[m.athlete_id]) lastMealBy[m.athlete_id] = m.logged_at;
+  }
+  const seen = new Set(); const rows = [];
+  for (const members of perBook) {
+    for (const m of members) {
+      if (seen.has(m.athlete_id)) continue; seen.add(m.athlete_id);
+      rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id], {
+        scoreHistory: histByAthlete[m.athlete_id] || [],
+        lastMealAt: lastMealBy[m.athlete_id] || null,
+        timezone: (tzByAthlete || {})[m.athlete_id] || null,
+      }));
+    }
+  }
+  rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  return rows;
+}
+
 /** Full coach roster: teams → members (RPC) → merged with today's linked day rows. */
 export async function loadCoachRoster() {
   const teams = await fetchMyTeams();
@@ -1286,54 +1334,25 @@ export async function loadCoachRoster() {
   // Athlete timezones (0088) so coach "overdue"/"due soon" is judged in each athlete's local day.
   // Best-effort: a pre-migration DB or missing tz leaves the map empty and every row uses the
   // coach clock (today's behavior). Resolved after perTeam since the ids come from the roster.
-  const tzIds = []; { const s = new Set(); for (const members of perTeam) for (const m of members) if (m && m.athlete_id && !s.has(m.athlete_id)) { s.add(m.athlete_id); tzIds.push(m.athlete_id); } }
-  const tzByAthlete = await fetchProfileTimezones(tzIds);
-  const today = todayISO();
-  const dayByAthlete = {}, histByAthlete = {}, lastMealBy = {};
-  for (const d of days) {
-    if (d.date === today) dayByAthlete[d.athlete_id] = d;
-    (histByAthlete[d.athlete_id] = histByAthlete[d.athlete_id] || []).push({ date: d.date, score: d.score });
-  }
-  for (const h of Object.values(histByAthlete)) h.sort((a, b) => a.date < b.date ? -1 : 1);
-  for (const m of recentMeals) {
-    if (!lastMealBy[m.athlete_id] || m.logged_at > lastMealBy[m.athlete_id]) lastMealBy[m.athlete_id] = m.logged_at;
-  }
-  const seen = new Set(); const rows = [];
-  for (const members of perTeam) {
-    for (const m of members) {
-      if (seen.has(m.athlete_id)) continue; seen.add(m.athlete_id);
-      rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id], {
-        scoreHistory: histByAthlete[m.athlete_id] || [],
-        lastMealAt: lastMealBy[m.athlete_id] || null,
-        timezone: tzByAthlete[m.athlete_id] || null,
-      }));
-    }
-  }
-  rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-  return { teams, rows };
+  const tzByAthlete = await fetchProfileTimezones(athleteIdsOf(perTeam));
+  return { teams, rows: projectRows(perTeam, days, recentMeals, tzByAthlete) };
 }
 
-/** Trainer book: practices → clients (RPC) → merged with today's linked day rows. */
+/** Trainer book: practices → clients (RPC) → merged with today's linked day rows.
+    Identical depth to the coach roster above — 7 days of history (sparklines), recent meals
+    (staleness), and timezones. Every one of those reads is `can_view`-scoped (0081 includes
+    is_trainer_of), so parity here needs no server change. */
 export async function loadTrainerBook() {
   const practices = await fetchMyPractices();
   if (practices.error) throw new Error('book-fetch-failed'); // caller renders honest offline
   if (!practices.length) return { practices: [], rows: [] };
-  const [perPractice, days] = await Promise.all([
+  const [perPractice, days, recentMeals] = await Promise.all([
     Promise.all(practices.map(p => fetchPracticeRoster(p.id))),
-    fetchLinkedDaysSince(daysAgoISO(1)),
+    fetchLinkedDaysSince(daysAgoISO(7)),
+    fetchTeamActivity(daysAgoISO(2), 400),
   ]);
-  const today = todayISO();
-  const dayByAthlete = {};
-  for (const d of days) { if (d.date === today) dayByAthlete[d.athlete_id] = d; }
-  const seen = new Set(); const rows = [];
-  for (const clients of perPractice) {
-    for (const m of clients) {
-      if (seen.has(m.athlete_id)) continue; seen.add(m.athlete_id);
-      rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id]));
-    }
-  }
-  rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-  return { practices, rows };
+  const tzByAthlete = await fetchProfileTimezones(athleteIdsOf(perPractice));
+  return { practices, rows: projectRows(perPractice, days, recentMeals, tzByAthlete) };
 }
 
 /* ---------------- Slice E team insights reads (0076) ---------------- */

@@ -73,7 +73,7 @@ function priceLabel(o) {
 function newApps() { return (G.apps || []).filter(a => a.status === 'new').length; }
 
 export const trainerGrow = {
-  nav: 'trainer', tab: 'grow',
+  nav: 'trainer', tab: 'insights',
   badge() { return newApps(); },
   render() {
     if (!G.loaded) {

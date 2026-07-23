@@ -5,7 +5,7 @@ import { coachSetupState, coachSetupSteps } from './coach-home.js';
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
-import { CD, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin } from '../requirements.js';
 import { dayFromHistoryRow, minutesNow, MEAL_KEYS } from '../day.js';
@@ -1164,11 +1164,14 @@ async function loadInboxData(teamId, athleteIds, force) {
   // nowMs/sinceISO from the caller). 7 days is enough runway for a thread to still be "recent".
   const sinceISO = new Date(Date.now() - 7 * 864e5).toISOString();
   try {
+    // Meal threads are athlete-scoped (can_view) and work on either book — that's the inbox's
+    // core value. Interventions and staff are team-owned tables; a practice book skips them
+    // rather than issuing queries that RLS will answer with nothing. Real for practices at 0136.
     const [comments, interventions, staff, staffInvites] = await Promise.all([
       roles.fetchTeamMealComments(athleteIds, sinceISO),
-      roles.fetchRecentInterventions(teamId, sinceISO),
-      roles.fetchTeamStaff(teamId),
-      roles.fetchOpenStaffInvites(teamId),
+      CD.caps.interventions ? roles.fetchRecentInterventions(teamId, sinceISO) : [],
+      CD.caps.staffRoles ? roles.fetchTeamStaff(teamId) : [],
+      CD.caps.staffRoles ? roles.fetchOpenStaffInvites(teamId) : [],
     ]);
     INBOX_DATA = { teamId, comments, interventions, staff, staffInvites };
   } finally { inboxLoadingId = null; }
@@ -1301,7 +1304,7 @@ const INBOX_EMPTY_ACTION = {
 };
 
 export const coachInbox = {
-  nav: 'coach', tab: 'inbox',
+  nav: 'operator', tab: 'inbox',
   badge() {
     if (!CD.roster || CD.roster.offline) return 0;
     return inboxOut().counts.needsResponse;
@@ -1384,21 +1387,25 @@ export const coachInbox = {
     `;
   },
   mount(root) {
-    loadCoachRoster().then(() => {
+    loadBook(false, bookKindFor(RT.authRole)).then(() => {
       loadActivity();
-      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      if (teamId) {
-        loadAnnouncements(teamId);
+      const bookId = CD.roster && CD.roster.book[0] && CD.roster.book[0].id;
+      if (bookId) {
+        // Announcements and coach_interventions are team-owned until 0136 — a practice book
+        // skips them rather than reading nothing and calling it an empty inbox.
+        if (CD.caps.announcements) loadAnnouncements(bookId);
         const athleteIds = (CD.roster.rows || []).map(r => r.athleteId).filter(Boolean);
-        loadInboxData(teamId, athleteIds);
+        loadInboxData(bookId, athleteIds);
       }
     });
     root.querySelectorAll('[data-jr]').forEach(b => b.addEventListener('click', async () => {
-      const team = b.getAttribute('data-team'), ath = b.getAttribute('data-ath');
+      const bookId = b.getAttribute('data-team'), ath = b.getAttribute('data-ath');
+      const approve = b.getAttribute('data-jr') === 'approve';
+      const practice = CD.kind === 'practice';
       b.disabled = true; b.textContent = '…';
-      if (b.getAttribute('data-jr') === 'approve') await roles.approveMember(team, ath);
-      else await roles.declineMember(team, ath);
-      await loadCoachRoster(true);
+      if (approve) await (practice ? roles.approveClient(bookId, ath) : roles.approveMember(bookId, ath));
+      else await (practice ? roles.declineClient(bookId, ath) : roles.declineMember(bookId, ath));
+      await loadBook(true, bookKindFor(RT.authRole));
     }));
     root.querySelectorAll('[data-icat]').forEach(el => el.addEventListener('click', () => {
       INBOX_CAT = el.getAttribute('data-icat');
@@ -1458,9 +1465,9 @@ export const copilot = {
     `;
   },
   mount(root) {
-    loadCoachRoster();
+    loadBook(false, bookKindFor(RT.authRole));
     const cRetry = root && root.querySelector('#copilot-retry');
-    if (cRetry) cRetry.addEventListener('click', () => { cRetry.disabled = true; loadCoachRoster(true).then(() => window.__render()); });
+    if (cRetry) cRetry.addEventListener('click', () => { cRetry.disabled = true; loadBook(true, bookKindFor(RT.authRole)).then(() => window.__render()); });
   },
 };
 
@@ -1517,10 +1524,15 @@ let PSEC_FOR = null;
 // chip switch (mount() re-runs on every window.__render()). Track which athlete we've already
 // recorded a receipt for; reset naturally happens by comparing against the new athleteId.
 let VIEWED_FOR = null;
-const PROFILE_SECTIONS = [
-  ['overview', 'Overview'], ['today', 'Today'], ['score', 'Score'], ['activity', 'Activity'],
-  ['conversation', 'Conversation'], ['requirements', 'Requirements'], ['notes', 'Notes'],
+/* Each section names the book capability it needs (null = works on any book). Requirements and
+   Notes read team-owned tables, so on a practice book they'd render permanently empty and the
+   Notes composer would fail every save — better to not offer the chip at all until 0136. */
+const ALL_PROFILE_SECTIONS = [
+  ['overview', 'Overview', null], ['today', 'Today', null], ['score', 'Score', null],
+  ['activity', 'Activity', null], ['conversation', 'Conversation', null],
+  ['requirements', 'Requirements', 'standards'], ['notes', 'Notes', 'notes'],
 ];
+const profileSections = () => ALL_PROFILE_SECTIONS.filter(([, , cap]) => !cap || CD.caps[cap]);
 
 /* Coach-side score explainability (Tier 2, 2026-07-21): the SAME per-category breakdown the
    athlete sees on their own Score screen — why this athlete's day scores what it does — built
@@ -1911,10 +1923,13 @@ function notesSection(P) {
 }
 
 export const coachAthlete = {
-  nav: 'coach', tab: 'roster',
+  nav: 'operator', tab: 'roster',
   render({ sub }) {
     const athleteId = sub;
     if (athleteId !== PSEC_FOR) { PSECTION = 'overview'; PSEC_FOR = athleteId; }
+    // A section the current book can't serve (a stale chip from a coach session) falls back to
+    // Overview rather than rendering a permanently empty panel.
+    if (!profileSections().some(([k]) => k === PSECTION)) PSECTION = 'overview';
     const who = rosterName(athleteId);
     if (!athleteId) return `${backHead('Athlete', 'coach view', 'coach-roster')}<div class="state-demo"><div class="sd-t">No athlete selected</div></div>`;
     const P = CD.profile;
@@ -1961,7 +1976,7 @@ export const coachAthlete = {
     <div id="tp-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:0"></div>
 
     <div class="co-seg co-scroll" id="psec-row">
-      ${PROFILE_SECTIONS.map(([key, label]) => `<button class="co-chip ${PSECTION === key ? 'on' : ''}" data-psec="${key}">${esc(label)}</button>`).join('')}
+      ${profileSections().map(([key, label]) => `<button class="co-chip ${PSECTION === key ? 'on' : ''}" data-psec="${key}">${esc(label)}</button>`).join('')}
     </div>
 
     ${body}
@@ -1970,7 +1985,7 @@ export const coachAthlete = {
   },
   mount(root, { sub }) {
     const athleteId = sub;
-    loadCoachRoster(); // ensure the name is available
+    loadBook(false, bookKindFor(RT.authRole)); // ensure the name is available
     loadAthleteProfile(athleteId);
     // Training logs (0135) for the Activity timeline — fetch once per athlete open (mount re-runs
     // on every render; the id guard stops a re-fetch loop and clears stale rows on athlete switch).
@@ -1998,7 +2013,7 @@ export const coachAthlete = {
       const status = root.querySelector('#tp-status');
       el.disabled = true; if (status) { status.style.color = 'var(--text-3)'; status.textContent = 'Sending nudge…'; }
       const ok = await roles.nudgePush(id, `${S.coachIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
-      if (ok) { try { act.markNudged(id); } catch { /* best-effort */ } try { const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id; await roles.logIntervention({ teamId, athleteId: id, kind: 'nudge' }); } catch { /* best-effort */ } }
+      if (ok) { try { act.markNudged(id); } catch { /* best-effort */ } try { await logBookIntervention({ athleteId: id, kind: 'nudge' }); } catch { /* best-effort */ } }
       el.disabled = false;
       if (status) { status.style.color = ok ? 'var(--green-bright)' : 'var(--red)'; status.textContent = ok ? 'Nudge sent — it lands on their phone.' : "Couldn't send it — check your connection."; }
     }));
@@ -2349,7 +2364,7 @@ export const coachMeal = {
       // be 'meal:'+sub (the exact convention the categorizer keys on).
       try {
         const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-        if (teamId) roles.logIntervention({ teamId, athleteId, kind: 'message', reasonKey: 'meal:' + sub }).catch(() => {});
+        logBookIntervention({ athleteId, kind: 'message', reasonKey: 'meal:' + sub }).catch(() => {});
       } catch { /* best-effort */ }
       await loadMealComments(sub, true);
     };
@@ -2368,7 +2383,7 @@ export const coachMeal = {
         if (resolveNote) resolveNote.textContent = "Couldn't resolve — try again.";
         return;
       }
-      const ok = await roles.logIntervention({ teamId, athleteId: athleteId0, kind: 'handled', reasonKey: 'meal:' + sub });
+      const ok = await logBookIntervention({ athleteId: athleteId0, kind: 'handled', reasonKey: 'meal:' + sub });
       if (!ok) {
         if (resolveNote) resolveNote.textContent = "Couldn't resolve — try again.";
         return;
@@ -2437,105 +2452,16 @@ export const coachMeal = {
   },
 };
 
-/* ---------- Trainer view: real client book (practice_roster), scoped by RLS to owned practices ---------- */
-let BOOK = null;
-let bookLoading = false;
-export async function loadTrainerBook(force) {
-  if (bookLoading) return;
-  if (BOOK && !force) return;
-  bookLoading = true;
-  try {
-    const r = await roles.loadTrainerBook();
-    const pending = [];
-    for (const p of r.practices) {
-      const reqs = await roles.pendingPracticeRequests(p.id);
-      for (const q of reqs) pending.push({ practiceId: p.id, clientId: q.client_id, clientName: q.client_name });
-    }
-    r.pending = pending;
-    r.offline = false;
-    BOOK = r;
-  } catch {
-    // Same honest-offline pattern as loadCoachRoster: a thrown fetch must never read as
-    // "No clients yet" — a trainer with a full book, merely offline, was told they had zero.
-    BOOK = { practices: [], rows: [], pending: [], offline: true };
-  } finally {
-    bookLoading = false; // always clear so a retry can re-run
-  }
-  // trainer-client deep links resolve their header name from this book — repaint it too,
-  // or a cold open shows "Client" forever (role walkthrough 2026-07-15).
-  if (location.hash === '#trainer' || location.hash.startsWith('#trainer-client')) window.__render();
-}
+/* ---------- Trainer view ----------
+   The trainer's Home/Clients/Create/Inbox are now the SAME operator modules the coach renders
+   (screens/index.js maps trainer-* → coachHome/coachRoster/coachCreate/coachInbox), reading the
+   one shared cache in coach-data.js. The private `let BOOK` second cache that used to live here
+   is gone: it fetched a single day with no history, no staleness and no timezones, which is why
+   the trainer had no sparklines, no priority queue and no inbox. */
 function bookName(athleteId) {
-  const r = BOOK && BOOK.rows.find(x => x.athleteId === athleteId);
+  const r = CD.roster && CD.roster.rows.find(x => x.athleteId === athleteId);
   return r ? r.name : 'Client';
 }
-export const trainer = {
-  nav: 'trainer', tab: 'clients',
-  render() {
-    const rows = BOOK ? BOOK.rows : null;
-    return `
-    ${titleHead('Trainer view', 'Your clients · recovery & nutrition consistency')}
-
-    ${BOOK && BOOK.pending && BOOK.pending.length ? `
-    <div class="eyebrow">Client requests</div>
-    <section class="card" style="padding:6px 16px">
-      ${BOOK.pending.map(q => `
-        <div class="lrow" style="cursor:default">
-          <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
-          <div class="lm"><div class="lt">${esc(q.clientName || 'Client')}</div><div class="ls">Wants to join your practice</div></div>
-          <button class="btn ghost sm" data-cr="decline" data-p="${esc(q.practiceId)}" data-c="${esc(q.clientId)}" style="width:auto;padding:0 12px;height:32px">Decline</button>
-          <button class="btn green sm" data-cr="approve" data-p="${esc(q.practiceId)}" data-c="${esc(q.clientId)}" style="width:auto;padding:0 12px;height:32px;margin-left:6px">Approve</button>
-        </div>`).join('')}
-    </section>` : ''}
-
-    ${rows === null ? `
-    <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
-    <div><div class="tt">Loading your clients…</div></div></div>`
-    : (BOOK && BOOK.offline) ? `
-    <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
-    <div class="sd-t">Can't reach your clients</div>
-    <div class="sd-s">We couldn't load today's scores — check your connection. Reopen this tab to retry; nothing is lost.</div></div>`
-    : rows.length === 0 ? `
-    <div class="state-demo" data-go="trainer-profile" style="cursor:pointer"><div class="sd-ic">${icon('heart', 24)}</div>
-    <div class="sd-t">No clients yet</div><div class="sd-s">Share your practice code so athletes can connect. Their real scores show up here.</div>
-    ${RT.practice && RT.practice.code ? `<div class="sd-cta" style="display:flex;gap:8px;justify-content:center;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.practice.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>`
-      : `<div class="sd-cta"><button class="btn green sm" style="width:auto;padding:0 14px">Get your code</button></div>`}</div>`
-    : `<section class="card" style="padding:2px 0">${rows.map(r => `
-      <div class="roster-row" data-go="trainer-client/${esc(r.athleteId)}">
-        <div class="flagdot ${r.flag}"></div>
-        <div class="rn"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.note)}</div></div>
-        <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>
-      </div>`).join('')}</section>`}
-
-    <div style="height:14px"></div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
-      <div><div class="tt">Trainer scope</div>
-      <div class="ts">You see your clients' day score, recovery, and nutrition — the same can_view data a coach sees. Team leaderboards and coach-only notes stay in the coach lane.</div></div>
-    </div>
-
-    <div style="height:12px"></div>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="trainer-profile">
-        <div class="lic" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce);color:#fff;font-weight:800;font-size:13px">T</div>
-        <div class="lm"><div class="lt">Trainer profile & client code</div><div class="ls">Practice, share code, scope</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-    </section>
-    <div style="height:10px"></div>
-    `;
-  },
-  mount(root) {
-    loadTrainerBook();
-    root.querySelectorAll('[data-cr]').forEach(b => b.addEventListener('click', async () => {
-      const p = b.getAttribute('data-p'), c = b.getAttribute('data-c');
-      b.disabled = true; b.textContent = '…';
-      if (b.getAttribute('data-cr') === 'approve') await roles.approveClient(p, c);
-      else await roles.declineClient(p, c);
-      await loadTrainerBook(true);
-    }));
-  },
-};
 
 /* Quick check-in prompts (trainer/client depth, Tier 2): the brief's "between-sessions
    accountability problem, not just competitive athletes" — copy stays goal-neutral (works for
@@ -2551,19 +2477,20 @@ const TRAINER_CHECKIN_PROMPTS = [
 
 /* ---------- Trainer → client detail: real day (RLS can_view); a note is a real push ---------- */
 export const trainerClient = {
-  nav: 'trainer', tab: 'note',
+  nav: 'operator', tab: 'roster',
   render({ sub }) {
     const athleteId = sub;
     const name = bookName(athleteId);
-    const head = backHead(esc(name), 'Client · recovery & nutrition', 'trainer');
+    const head = backHead(esc(name), 'Client · recovery & nutrition', 'trainer-roster');
     if (!athleteId) {
-      // The tab-bar FAB lands here with no client — a picker, never a dead end (role
+      // Reachable without a client from a stale deep link — a picker, never a dead end (role
       // walkthrough 2026-07-15). Same honest loading/offline/empty states as the client list.
-      const rows = BOOK ? BOOK.rows : null;
+      const book = CD.roster;
+      const rows = book ? book.rows : null;
       const body = rows === null ? `
         <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
         <div><div class="tt">Loading your clients…</div></div></div>`
-        : (BOOK && BOOK.offline) ? `
+        : (book && book.offline) ? `
         <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
         <div class="sd-t">Can't reach your clients</div>
         <div class="sd-s">We couldn't load your book — check your connection. Reopen this tab to retry; nothing is lost.</div></div>`
@@ -2578,7 +2505,7 @@ export const trainerClient = {
             <div class="rn"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.note)}</div></div>
             <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>
           </div>`).join('')}</section>`;
-      return `${backHead('Send a note', 'Pick a client · it lands as a real push', 'trainer')}${body}`;
+      return `${backHead('Send a note', 'Pick a client · it lands as a real push', 'trainer-roster')}${body}`;
     }
     if (!ATH || ATH.athleteId !== athleteId) {
       return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
@@ -2615,7 +2542,7 @@ export const trainerClient = {
     `;
   },
   mount(root, { sub }) {
-    loadTrainerBook();
+    loadBook(false, 'practice');
     if (!sub) return; // picker mode — nothing below applies without a client
     loadAthlete(sub, RT.userId, S.athlete.name);
     const input = root.querySelector('#tn-input');

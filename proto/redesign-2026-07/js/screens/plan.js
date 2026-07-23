@@ -153,8 +153,16 @@ const nutrition = () => `
 
   <div style="height:10px"></div>`;
 
+/* Attribute the rules to a person ONLY when that person actually set them. Having a coach or
+   trainer is not enough: RT.reqSets is only loaded for a team link, so a trainer's client saw
+   "The rules, set by Sam" over the app's BUILT-IN defaults their trainer has never seen. Gate on
+   real requirement rows and the sentence is true in every case. */
+const rulesEyebrow = () => ((RT.reqSets || []).length && S.coach.hasCoach
+  ? `The rules, set by ${esc(S.coach.nameMid)}`
+  : 'The rules of your Standard');
+
 const schedule = () => `
-  <div class="eyebrow">${S.coach.hasCoach ? `The rules, set by ${esc(S.coach.nameMid)}` : 'The rules of your Standard'} · tap one for the why</div>
+  <div class="eyebrow">${rulesEyebrow()} · tap one for the why</div>
   <section class="card" style="padding:6px 16px">
     ${S.scheduleCatalog.map(r => {
       const impact = IMPACT_LABEL[r.impact.kind === 'component' ? r.impact.comp : r.impact.kind];

@@ -21,13 +21,32 @@ const NAVS = {
     { id: 'inbox',    route: 'coach-inbox',    label: 'Inbox',    icon: 'message' },
     { id: 'insights', route: 'coach-insights', label: 'Insights', icon: 'bars' },
   ],
+  // Same five tab IDS as coach, so ROOT_TAB below extends rather than forks and every
+  // operator-shared screen lights the right tab for either role. Only the routes and the
+  // fifth tab differ: a trainer's business surface (Grow) sits where a coach has Insights.
   trainer: [
-    { id: 'clients', route: 'trainer',         label: 'Clients', icon: 'heart' },
-    { id: 'grow',    route: 'trainer-grow',    label: 'Grow',    icon: 'bars' },
-    { id: 'note',    route: 'trainer-client',  label: '',        icon: 'message', fab: true },
-    { id: 'profile', route: 'trainer-profile', label: 'Profile', icon: 'user' },
+    { id: 'home',     route: 'trainer',        label: 'Home',    icon: 'home' },
+    { id: 'roster',   route: 'trainer-roster', label: 'Clients', icon: 'heart' },
+    { id: 'create',   route: 'trainer-create', label: '',        icon: 'plus', fab: true },
+    { id: 'inbox',    route: 'trainer-inbox',  label: 'Inbox',   icon: 'message' },
+    { id: 'insights', route: 'trainer-grow',   label: 'Grow',    icon: 'bars' },
   ],
 };
+
+/** Which tab bar a screen renders. `nav: 'operator'` means "whichever operator is signed in" —
+ *  one screen module, two role shells. Anything else is a literal nav name.
+ *  Exported for the router matrix test: both guards below `return` after setting location.hash,
+ *  so a wrong answer here is a silent redirect loop with nothing in the console. */
+export function navFor(mod, role) {
+  if (!mod) return 'athlete';
+  return mod.nav === 'operator' ? (role === 'trainer' ? 'trainer' : 'coach') : (mod.nav || 'athlete');
+}
+/** Roles allowed to render this screen. An operator screen admits both; anything else admits
+ *  exactly the role it names. */
+export function navAdmits(mod, role) {
+  if (mod.nav === 'operator') return role === 'coach' || role === 'trainer';
+  return (mod.nav || 'athlete') === role;
+}
 
 function statusbar() {
   // The phone's own status bar (real clock, real battery) renders above the WebView —
@@ -48,10 +67,10 @@ function tabbar(activeTab, nav = 'athlete') {
           dot = e.celebration ? '' : `<span class="fab-dot ${e.overdue.length ? 'red' : 'gold'}"></span>`;
         } catch { /* pre-auth render — no dot */ }
       }
-      const fabLabel = nav === 'athlete' ? 'Log a meal' : nav === 'coach' ? 'Create' : 'Add';
+      const fabLabel = nav === 'athlete' ? 'Log a meal' : 'Create';
       return `<div class="tab"><div class="fab" role="button" tabindex="0" aria-label="${fabLabel}" data-go="${t.route}" style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
     }
-    const on = t.id === activeTab ? `active ${t.id === 'home' || t.id === 'team' || t.id === 'clients' ? 'home' : ''}` : '';
+    const on = t.id === activeTab ? `active ${t.id === 'home' ? 'home' : ''}` : '';
     // Tab badge: any screen exposing badge() → live count, hidden at zero (Coach Inbox pending
     // joins/unopened logs; Trainer Grow new applications). Route-driven so it works for every role.
     let badge = '';
@@ -85,7 +104,8 @@ const ROOT_TAB = {
   coach: 'home', 'coach-home': 'home', 'coach-roster': 'roster',
   'coach-inbox': 'inbox', 'coach-insights': 'insights', 'coach-profile': 'profile',
   'coach-plan': 'roster',
-  trainer: 'clients', 'trainer-grow': 'grow', 'trainer-profile': 'profile',
+  trainer: 'home', 'trainer-roster': 'roster', 'trainer-create': 'create',
+  'trainer-inbox': 'inbox', 'trainer-grow': 'insights', 'trainer-profile': 'profile',
 };
 let NAV = (() => {
   try {
@@ -166,12 +186,14 @@ function render() {
   // Landing on Welcome (sign-out, fresh boot) drops every stack — the next account starts clean.
   if (route === 'welcome' && (NAV.tab !== 'home' || Object.keys(NAV.stacks).length)) { NAV = emptyNav(); navSave(); }
   const mod = screens[route] || screens.home;
-  // Role-route guard: a screen declaring a coach/trainer nav belongs to that role's dashboard.
+  // Role-route guard: a screen declaring an operator nav belongs to an operator's dashboard.
   // A signed-in user of another role must not render its chrome (RLS still scopes the data, but
   // the shell is wrong — a role-integrity leak). Redirect to their own home. Only fires when the
   // role is KNOWN (authRole set) so a pre-hydrate session is never bounced off its own dashboard;
-  // shared/auth/athlete screens (no coach/trainer nav) are unaffected.
-  if (RT.userId && RT.authRole && (mod.nav === 'coach' || mod.nav === 'trainer') && RT.authRole !== mod.nav) {
+  // shared/auth/athlete screens are unaffected. `nav:'operator'` admits BOTH coach and trainer —
+  // that is the one screen module, two role shells seam.
+  if (RT.userId && RT.authRole && (mod.nav === 'coach' || mod.nav === 'trainer' || mod.nav === 'operator')
+    && !navAdmits(mod, RT.authRole)) {
     location.hash = '#' + routeForRole(RT.authRole);
     return;
   }
@@ -188,7 +210,7 @@ function render() {
   // screen inherits the ORIGIN tab from the stack, so a detail opened from Profile keeps
   // Profile lit (spec §10.4). mod.tab remains the fallback for direct/deep links.
   if (ROOT_TAB[route] && !sub) NAV.tab = ROOT_TAB[route];
-  const navRole = mod.nav || 'athlete';
+  const navRole = navFor(mod, RT.authRole);
   const roleTabs = (NAVS[navRole] || NAVS.athlete).map((t) => t.id);
   const activeTab = roleTabs.includes(NAV.tab) ? NAV.tab : (mod.tab || route);
   const device = document.getElementById('device');
@@ -206,7 +228,7 @@ function render() {
       <div class="viewport ${mod.bleed ? 'bleed' : ''}" id="viewport">
         <div class="view" id="view">${body}</div>
       </div>
-      ${mod.hideTabs ? '' : tabbar(activeTab, mod.nav || 'athlete')}
+      ${mod.hideTabs ? '' : tabbar(activeTab, navRole)}
     </div>`;
 
   // haptic feedback where the platform supports it (Android web; no-op elsewhere);

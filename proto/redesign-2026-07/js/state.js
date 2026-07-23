@@ -724,9 +724,11 @@ export const act = {
      the next open replaces everything, bounding staleness to one day. Best-effort. */
   syncNotifications() {
     void this.registerPushToken(); // piggyback: same permission moment, once per session
-    // COACH devices schedule the COACH plan (roster-derived), NOT the generic athlete meal
-    // reminders. This early-return leaves the athlete/trainer/parent path below byte-identical.
-    if (RT.authRole === 'coach') { this._syncCoachNotifications(); return; }
+    // OPERATOR devices (coach AND trainer) schedule the roster-derived operator plan, NOT the
+    // generic athlete meal reminders. A trainer used to fall through to the athlete path, which
+    // meant their own phone scheduled "log your breakfast" reminders for a person who logs
+    // nothing — the plan is built from entriesFor(), which is role-agnostic.
+    if (RT.authRole === 'coach' || RT.authRole === 'trainer') { this._syncCoachNotifications(); return; }
     try {
       let plan = S.exec.plan;
       // Celebration already posted today: strip it so a post-celebration score change (snack
@@ -2181,6 +2183,19 @@ export const S = {
       hasIdentity: !!realName && !!realPractice,
       state,
     };
+  },
+
+  /* The signed-in OPERATOR's own identity — coach or trainer, ONE shape, so a shared operator
+     screen greets the right person with the right noun instead of calling a trainer "Coach".
+     Mirrors S.coach, which is the ATHLETE's view of their operator; this is the operator's view
+     of themselves. `bookName` is the team or the practice — whichever they run. */
+  get operatorIdentity() {
+    if (RT.authRole === 'trainer') {
+      const t = this.trainerIdentity;
+      return { kind: 'practice', handle: t.name, initials: t.initials, bookName: t.practiceName, code: t.code, state: t.state, hasIdentity: t.hasIdentity };
+    }
+    const c = this.coachIdentity;
+    return { kind: 'team', handle: c.handle, initials: c.initials, bookName: c.teamName, code: c.code, state: c.state, hasIdentity: c.hasIdentity };
   },
 
   // Real on-device clock + greeting (the status bar renders S.now; on iOS this is the system

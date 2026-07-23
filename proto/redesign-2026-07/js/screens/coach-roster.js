@@ -7,8 +7,18 @@ import { RT, S, act } from '../state.js';
 import { icon } from '../icons.js';
 import { avatarHead, esc, sparkline, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
-import { CD, loadCoachRoster, entriesFor } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, entriesFor, logBookIntervention } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
+
+/* nav:'operator' — load whichever book the signed-in role owns (see coach-home.js). */
+const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
+
+/* Operator vocabulary — a trainer manages CLIENTS, not a roster of athletes. */
+const VOCAB = {
+  team: { title: 'Roster', search: 'Search athletes', loading: 'Loading the roster', offlineTitle: "Can't reach the roster", offlineBody: 'Your team and their scores are safe — reconnect and the roster loads right here.' },
+  practice: { title: 'Clients', search: 'Search clients', loading: 'Loading your clients', offlineTitle: "Can't reach your clients", offlineBody: 'Your clients and their scores are safe — reconnect and the list loads right here.' },
+};
+const vocab = () => VOCAB[CD.kind] || VOCAB.team;
 
 let Q = '', SORT = 'score', FILTER = { kind: 'all', value: null };
 let SELECTING = false; const SEL = new Set();
@@ -91,7 +101,7 @@ function wireGroupSheet(root, teamId) {
     if (!name) { status('Name the group first.', true); return; }
     b.disabled = true;
     const r = await roles.saveCoachGroup(teamId, { name, athleteIds: [...SEL] });
-    if (r.ok) { act.markCoachSetup('group'); SEL.clear(); SELECTING = false; SHOW_GROUPS = false; await loadCoachRoster(true); }
+    if (r.ok) { act.markCoachSetup('group'); SEL.clear(); SELECTING = false; SHOW_GROUPS = false; await loadMyBook(true); }
     else { b.disabled = false; status(r.error || 'Could not save the group — check your connection.', true); }
   }));
   root.querySelectorAll('[data-gadd]').forEach(b => b.addEventListener('click', async () => {
@@ -100,13 +110,13 @@ function wireGroupSheet(root, teamId) {
     b.disabled = true;
     const merged = [...new Set([...(g.athlete_ids || []), ...SEL])];
     const r = await roles.saveCoachGroup(teamId, { id: g.id, name: g.name, athleteIds: merged });
-    if (r.ok) { SEL.clear(); SELECTING = false; await loadCoachRoster(true); }
+    if (r.ok) { SEL.clear(); SELECTING = false; await loadMyBook(true); }
     else { b.disabled = false; status(r.error || 'Could not update the group.', true); }
   }));
   root.querySelectorAll('[data-gdel]').forEach(b => b.addEventListener('click', async () => {
     b.disabled = true;
     const ok = await roles.deleteCoachGroup(b.getAttribute('data-gdel'));
-    if (ok) { if (FILTER.kind === 'group') FILTER = { kind: 'all', value: null }; await loadCoachRoster(true); }
+    if (ok) { if (FILTER.kind === 'group') FILTER = { kind: 'all', value: null }; await loadMyBook(true); }
     else { b.disabled = false; status('Could not delete it — check your connection.', true); }
   }));
 }
@@ -149,7 +159,7 @@ function wireAbsenceSheet(root, teamId) {
       return;
     }
     SEL.clear(); SELECTING = false; SHOW_ABSENCE = false;
-    await loadCoachRoster(true);
+    await loadMyBook(true);
   }));
 }
 
@@ -173,14 +183,19 @@ function patchList(root) {
 }
 
 export const coachRoster = {
-  nav: 'coach', tab: 'roster',
+  nav: 'operator', tab: 'roster',
   render() {
-    const initials = (S.coachIdentity.handle || 'C').replace(/coach\s*/i, '').slice(0, 2).toUpperCase();
-    const head = avatarHead('Roster', CD.roster && CD.roster.teams[0] ? CD.roster.teams[0].name : '', initials);
+    // A coach's avatar initials come from their HANDLE with the "Coach " prefix stripped
+    // ("Coach Baker" → BA), which is not the same as name-initials — keep that exact derivation.
+    // A trainer has no handle, so theirs come from their name.
+    const initials = CD.kind === 'practice'
+      ? S.operatorIdentity.initials
+      : (S.coachIdentity.handle || 'C').replace(/coach\s*/i, '').slice(0, 2).toUpperCase();
+    const head = avatarHead(vocab().title, CD.roster && CD.roster.book[0] ? CD.roster.book[0].name : '', initials);
     // Audit G-4: offline is checked BEFORE the loading gate — CD.extras stays null on a cold
     // offline load, so gating loading on !CD.extras first (as before) hid this card forever.
-    if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: "Can't reach the roster", body: 'Your team and their scores are safe — reconnect and the roster loads right here.', retryId: 'roster-retry' })}`;
-    if (CD.roster === null || !CD.extras) return `${head}${skeletonRows(5, 'Loading the roster')}`;
+    if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: vocab().offlineTitle, body: vocab().offlineBody, retryId: 'roster-retry' })}`;
+    if (CD.roster === null || !CD.extras) return `${head}${skeletonRows(5, vocab().loading)}`;
     const entries = entriesFor({ kind: 'team', value: null }) || [];
     if (!entries.length) return `${head}
       <div class="state-demo">
@@ -202,13 +217,13 @@ export const coachRoster = {
     };
     return `${head}
     <div style="display:flex;gap:var(--s2);margin-bottom:var(--s3)">
-      <input class="ob-input" id="roster-q" placeholder="Search athletes" value="${esc(Q)}" style="flex:1;height:38px" />
+      <input class="ob-input" id="roster-q" placeholder="${esc(vocab().search)}" value="${esc(Q)}" style="flex:1;height:38px" />
       <button class="btn ghost sm" data-sort style="width:auto;padding:0 12px;height:38px">${{ score: 'Score ↓', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
       <button class="btn ${SELECTING ? 'green' : 'ghost'} sm" data-selmode style="width:auto;padding:0 12px;height:38px">${SELECTING ? 'Done' : 'Select'}</button>
     </div>
     <div class="co-seg co-scroll">
       ${fchip('all', '', 'All')}${STATUS_ORDER.map(k => fchip('status', k, STATUS_META[k].label, STATUS_META[k].color)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
-      <button class="co-chip" data-groups>＋ Group</button>
+      ${CD.caps.groups ? '<button class="co-chip" data-groups>＋ Group</button>' : ''}
     </div>
     ${SHOW_GROUPS ? groupSheet(groups) : ''}
     ${SHOW_ABSENCE ? absenceSheet() : ''}
@@ -216,18 +231,18 @@ export const coachRoster = {
     ${SELECTING && SEL.size ? `
     <div class="card" style="position:sticky;bottom:calc(96px + env(safe-area-inset-bottom, 0px) + 8px);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px;z-index:20">
       <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Nudge ${SEL.size}</button>
-      <button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Assign</button>
-      <button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">→ Group</button>
-      <button class="btn ghost sm" data-bulk="absence" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Excuse</button>
+      ${CD.caps.assignments ? `<button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Assign</button>` : ''}
+      ${CD.caps.groups ? `<button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">→ Group</button>` : ''}
+      ${CD.caps.exceptions ? `<button class="btn ghost sm" data-bulk="absence" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Excuse</button>` : ''}
     </div>` : ''}
     ${BULK_STATUS ? `<div id="bulk-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:4px">${esc(BULK_STATUS)}</div>` : ''}
     <div style="height:10px"></div>`;
   },
   mount(root) {
-    loadCoachRoster();
+    loadMyBook();
     BULK_STATUS = ''; // a stale "Nudged N." must not survive a tab revisit
     const rosterRetry = root.querySelector('#roster-retry');
-    if (rosterRetry) rosterRetry.addEventListener('click', () => { rosterRetry.disabled = true; loadCoachRoster(true).then(() => window.__render()); });
+    if (rosterRetry) rosterRetry.addEventListener('click', () => { rosterRetry.disabled = true; loadMyBook(true).then(() => window.__render()); });
     const q = root.querySelector('#roster-q');
     if (q) q.addEventListener('input', () => { Q = q.value; patchList(root); });
     root.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => {
@@ -254,8 +269,8 @@ export const coachRoster = {
         let sent = 0, failed = 0;
         try {
           for (const id of toSend) {
-            const ok = await roles.nudgePush(id, `${S.coachIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
-            if (ok) { act.markNudged(id); await roles.logIntervention({ teamId, athleteId: id, kind: 'nudge' }); sent++; }
+            const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
+            if (ok) { act.markNudged(id); await logBookIntervention({ athleteId: id, kind: 'nudge' }); sent++; }
             else failed++;
           }
         } finally {

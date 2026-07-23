@@ -61,8 +61,9 @@
     "test": "jest",
     "eval": "tsx eval/run-eval.ts",
     "lint:xss": "node scripts/lint-innerhtml-esc.mjs",
+    "test:proto": "node --test \"proto/redesign-2026-07/js/**/*.test.mjs\"",
     "bundle": "expo export -p ios --output-dir .aos-export",
-    "verify": "npm run lint:xss && npm run typecheck && npm run test && npm run bundle",
+    "verify": "npm run lint:xss && npm run typecheck && npm run test && npm run test:proto && npm run bundle",
     "preflight": "node scripts/preflight.mjs",
     "ship": "node scripts/preflight.mjs && eas build --platform ios --profile production --non-interactive && eas submit --platform ios --profile production --latest --non-interactive",
     "test:rls": "bash supabase/tests/run.sh"
