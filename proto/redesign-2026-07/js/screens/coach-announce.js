@@ -65,7 +65,7 @@ export const coachAnnounce = {
     return `
     ${backHead('Announcement', 'Lands in every selected athlete’s feed', 'coach-create')}
 
-    ${target ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sending to <b style="color:var(--text-1)">${esc(target.name)}</b> only.</div>` : ''}
+    ${target ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sending to <b style="color:var(--text)">${esc(target.name)}</b> only.</div>` : ''}
 
     <div class="eyebrow">Who</div>
     <div class="chip-row" id="an-who">

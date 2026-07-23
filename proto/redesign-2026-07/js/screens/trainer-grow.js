@@ -95,7 +95,7 @@ export const trainerGrow = {
     return `${titleHead('Grow', 'Your page, offers & applications')}
 
     <div class="eyebrow">Your public page</div>
-    <section class="card" style="padding:16px">
+    <section class="card tg-page" style="padding:16px">
       <div class="lrow" style="cursor:default;padding:0 0 10px">
         <div class="lm"><div class="lt">Acquisition page</div>
           <div class="ls">${published ? 'Live — anyone with your link can apply' : 'Draft — publish to get a shareable link'}</div></div>
@@ -167,8 +167,18 @@ export const trainerGrow = {
     <div style="height:16px"></div>
     <style>
       .tg-l{display:block;font-size:11px;color:var(--text-3);margin:12px 0 5px;letter-spacing:.02em}
-      #trainer-grow input,#trainer-grow textarea,.tg-of input,.tg-of textarea,.tg-of select{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text-1);border-radius:10px;padding:10px 12px;font:inherit}
-      .tg-of{padding:12px 0;border-top:1px solid var(--line)}
+      /* Two compounding bugs, not a style choice: (1) this rule was scoped to #trainer-grow, an
+         id that exists NOWHERE in the DOM (the router wraps screens in id="view"), so the "Your
+         public page" fields (tg-name/tg-spec/tg-head/tg-bio/tg-cta) never matched this rule at
+         all — only .tg-of (the offer form) is a real class. (2) even where it matched, --line
+         and --text-1 aren't real tokens (see css/tokens.css), so the browser fell back to
+         invalid/inherited values. Fixed: scoped to the real .tg-page class on the page-form card,
+         using --hairline/--text — the actual border/foreground tokens every other input uses. */
+      .tg-page input,.tg-page textarea,.tg-of input,.tg-of textarea,.tg-of select{width:100%;background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);border-radius:12px;padding:10px 12px;font-size:14px;font-weight:600;font-family:var(--font);outline:none}
+      .tg-page input:focus,.tg-page textarea:focus,.tg-of input:focus,.tg-of textarea:focus,.tg-of select:focus{border-color:var(--blue-bright)}
+      .tg-page textarea{min-height:84px;resize:vertical}
+      .tg-page input::placeholder,.tg-page textarea::placeholder,.tg-of input::placeholder,.tg-of textarea::placeholder{color:var(--text-3);font-weight:600}
+      .tg-of{padding:12px 0;border-top:1.5px solid var(--hairline)}
       .tg-of .row2{display:flex;gap:8px}
     </style>
     `;
