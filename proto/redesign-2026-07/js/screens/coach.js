@@ -559,8 +559,10 @@ export function knobsFromItems(items) {
     coachReview: !!(mealItems[0] || {}).coachReview,
     // Snack-optional: the meal on the snack slot (index 3 — the 4th meal, Breakfast/Lunch/Dinner/
     // Snack, present only at 4+ meals) is bonus, not required. Read back from that item's flag so
-    // the toggle reflects the saved standard.
-    snackOptional: mealItems.length >= 4 && !!(mealItems[3] || {}).snack,
+    // the toggle reflects the saved standard. Index 2 is also accepted for BACK-COMPAT: standards
+    // saved before the slot fix carry the flag there (which wrongly made Dinner optional), so the
+    // toggle still reads ON for them and the next save migrates it onto the real Snack.
+    snackOptional: mealItems.length >= 4 && (!!(mealItems[3] || {}).snack || !!(mealItems[2] || {}).snack),
   };
 }
 // Shared fallback logic for meal names/windows/proof/day-type — render() uses this too, so what's
