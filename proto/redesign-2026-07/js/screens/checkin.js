@@ -10,6 +10,10 @@ import { backHead } from '../components.js';
    form. Every 1–5 scale carries worded anchors; soreness scores in the correct direction
    (5 = severe → engine inverts). */
 
+/* The full question bank. Which of these actually RENDER is decided by DAY.ciConfig — the same
+   per-athlete gate the Recovery screen and the engine use — so a plan style that tracks body
+   signals (Guided, Intuitive) adds its questions here without a second form. `digestion` and
+   `cravings` are off for everyone until a style turns them on. */
 const WEEKLY_FIELDS = [
   { key: 'energy', k: 'Energy this week', lo: '1 · Very low', hi: '5 · Excellent' },
   { key: 'recovery', k: 'Recovery', lo: '1 · Poor', hi: '5 · Excellent' },
@@ -17,7 +21,14 @@ const WEEKLY_FIELDS = [
   { key: 'confidence', k: 'Confidence', lo: '1 · Very low', hi: '5 · Very high' },
   { key: 'soreness', k: 'Soreness', lo: '1 · None', hi: '5 · Severe' },
   { key: 'motivation', k: 'Motivation', lo: '1 · Very low', hi: '5 · Very high' },
+  { key: 'digestion', k: 'Digestion', lo: '1 · Rough', hi: '5 · Comfortable' },
+  { key: 'cravings', k: 'Cravings', lo: '1 · None', hi: '5 · Constant' },
 ];
+/** The questions this athlete actually answers. Legacy behavior preserved: an athlete with no
+ *  ciConfig at all still gets the original six. */
+const weeklyFields = () => (DAY.ciConfig
+  ? WEEKLY_FIELDS.filter((f) => DAY.ciConfig[f.key] || (DAY.ciConfig[f.key] === undefined && f.key !== 'digestion' && f.key !== 'cravings'))
+  : WEEKLY_FIELDS.filter((f) => f.key !== 'digestion' && f.key !== 'cravings'));
 
 export default {
   tab: 'home',
@@ -68,7 +79,7 @@ export default {
     return `
     ${backHead('Weekly Check-In', 'Open today · worth 10 of your 100')}
     <section class="card" style="padding:4px 18px 8px" id="wk-form">
-      ${WEEKLY_FIELDS.map(f => `
+      ${weeklyFields().map(f => `
         <div class="rec-field" data-ci-key="${f.key}">
           <div class="rec-top"><span class="rec-name">${f.k}</span><span class="rec-ends">${f.lo} → ${f.hi}</span></div>
           <div class="chips5" role="radiogroup" aria-label="${f.k}">
@@ -105,8 +116,10 @@ export default {
     const btn = root.querySelector('#wk-submit');
     const err = root.querySelector('#wk-err');
     btn.addEventListener('click', () => {
-      if (Object.keys(answers).length < WEEKLY_FIELDS.length) {
-        err.textContent = 'Answer all six — it takes under a minute.';
+      const need = weeklyFields().length;
+      if (Object.keys(answers).length < need) {
+        // Never a hardcoded "six" — a Guided/Intuitive athlete answers more than a classic one.
+        err.textContent = `Answer all ${need} — it takes under a minute.`;
         return;
       }
       act.submitRecovery(answers); // the ONE check-in engine: recovery + weekly both update

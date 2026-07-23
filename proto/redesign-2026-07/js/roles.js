@@ -489,6 +489,30 @@ export async function coachSetGoals(athleteId, targets) {
   const c = sb(); if (!c || !athleteId) return false;
   try { const { error } = await c.rpc('coach_set_goals', { athlete: athleteId, new_targets: targets, new_season_goal: null }); return !error; } catch { return false; }
 }
+/** The athlete's own stated plan-style PREFERENCE (0142) — always readable by a connected
+ *  coach/trainer/nutrition pro (profiles_read: connected(id)), even when a team standard or
+ *  their own assignment governs the effective style. This is the "3 athletes prefer more
+ *  flexibility" signal: never a dead end for a locked athlete's answer. */
+export async function fetchAthletePlanPreference(athleteId) {
+  const c = sb(); if (!c || !athleteId) return null;
+  try {
+    const { data } = await c.from('profiles').select('plan_style_preference').eq('id', athleteId).maybeSingle();
+    return (data && data.plan_style_preference) || null;
+  } catch { return null; }
+}
+/** A coach/trainer/nutrition pro assigns (or clears) a plan style + optional knob overrides for
+ *  one athlete (set_athlete_plan_style RPC — server enforces is_team_coach_of/is_trainer_of and
+ *  validates the overrides shape). Returns false on any rejection (auth, invalid style/overrides,
+ *  offline) — the caller shows an honest error rather than assuming success. */
+export async function setAthletePlanStyle(athleteId, style, overrides, reason) {
+  const c = sb(); if (!c || !athleteId || !style) return false;
+  try {
+    const { error } = await c.rpc('set_athlete_plan_style', {
+      p_athlete: athleteId, p_style: style, p_overrides: overrides || null, p_reason: reason || null,
+    });
+    return !error;
+  } catch { return false; }
+}
 // Coach OS Slice D — Inbox v2. Ask meal-chat (draft mode) for FOUR candidate coach-voice
 // replies about a meal. The edge fn persists NOTHING here; these are drafts the coach edits
 // and sends manually. Same vendored-supabase-js error-parse idiom as screens/meal.js (~818):

@@ -6,6 +6,11 @@
 // they can be imported by the Node parity test. All Supabase / localStorage I/O is inside
 // functions guarded for a non-browser environment.
 
+import {
+  LEGACY_STYLE, knobsFor, weightsFor, resolveStyleKey,
+  rangeAdherence, fuelingAdequacy, awarenessScore, answeredSignals,
+} from './plan-style.js';
+
 /* ---------------- engine constants (ported exactly) ---------------- */
 export const PROFILE_WEIGHTS = {
   athlete: { nutrition: 0.50, recovery: 0.25, commitment: 0.15, checkin: 0.10 },
@@ -18,7 +23,14 @@ const QUICK_G = [18, 30, 22]; // Greek yogurt / protein shake / turkey roll-ups 
 const QUICK_K = [150, 160, 120]; // kcal, index-aligned with QUICK_G (mirrors constants.ts QUICK_FOODS)
 const PROTEIN_TARGET = 180;
 const CAL_TARGET = 3200;
-const CI_KEYS = ['energy', 'recovery', 'sleep', 'confidence', 'soreness', 'motivation'];
+/* Check-in keys the recovery sub-score averages. `digestion` and `cravings` (0142) are the
+   check-in-scoped BODY SIGNALS a Guided/Intuitive plan tracks; like every key here they are
+   gated by ciConfig, and both default OFF (DEFAULT_CICFG) — so an existing athlete's recovery
+   number is byte-identical until a plan style turns them on. */
+const CI_KEYS = ['energy', 'recovery', 'sleep', 'confidence', 'soreness', 'motivation', 'digestion', 'cravings'];
+/* Keys whose HIGH value is the negative pole — the engine inverts them so the stored answer
+   always stays honest to what was actually asked (5 chips of cravings = constant cravings). */
+const CI_INVERSE = { soreness: true, cravings: true };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -143,16 +155,73 @@ function calorieFloorAdherence(kcal, target) {
   return (ratio - 0.6) / 0.4;
 }
 
-/** Profile-aware nutrition sub-score (0..100) — a byte-for-byte port of profileNutritionScore:
- *   - athlete: protein 65 + on-time meals 35 (the shipped formula, unchanged).
+/* ---- Plan style (0142 → the SPECTRUM of structure; Structured / Guided / Intuitive) ----
+   A third axis alongside the goal profile and the coach standard. The GOAL sets the direction
+   (which way the calorie curve leans, what the targets are), the STANDARD reshapes the day
+   (slots, windows, denominator), and the STYLE sets how tightly all of it is measured.
+
+   Null = the shipped classic scoring, byte-identical: `structured` on the `legacy` formula IS
+   the per-profile formula below, so every existing account and every parity test is untouched. */
+let PSTYLE = null;   // resolved style key, or null for the shipped default
+let PKNOBS = null;   // the resolved knob set (preset + any professional overrides)
+
+/** Apply the athlete's resolved plan style to the live day. Mirrors setDayGoalConfig /
+ *  setDayStandard: not persisted in the row, always re-derived on hydrate — except for the
+ *  per-day STAMP (day.planStyle), which is written so history is never rescored. */
+export function setDayPlanStyle(style, knobs) {
+  PSTYLE = resolveStyleKey(style);
+  PKNOBS = PSTYLE ? (knobs || knobsFor(PSTYLE, null)) : null;
+  DAY.planStyle = PSTYLE;
+  DAY.planKnobs = PKNOBS;
+}
+export function dayPlanStyle() { return PSTYLE; }
+export function dayPlanKnobs() { return PKNOBS; }
+
+/** The style governing THIS day object: its own stamp first (so a reconstructed history day is
+ *  graded by the style that actually governed it), then the live runtime, then the shipped
+ *  default. Pure — a Node test can drive it with no runtime state. */
+export function styleOf(day) {
+  return resolveStyleKey(day && day.planStyle) || PSTYLE || LEGACY_STYLE;
+}
+/** The knobs governing THIS day object, same precedence. */
+export function knobsOf(day) {
+  if (day && day.planKnobs) return day.planKnobs;
+  const s = styleOf(day);
+  if (PKNOBS && s === PSTYLE) return PKNOBS;
+  return knobsFor(s, null);
+}
+
+/** Hydration credit (0..1) against the day's target. 3.0 L is the shipped default; a coach
+ *  standard's hydration item target (oz) overrides it via day.hydrationTargetL. */
+const HYDRATION_TARGET_L = 3.0;
+function hydrationFrac(day) {
+  const t = day.hydrationTargetL > 0 ? day.hydrationTargetL : HYDRATION_TARGET_L;
+  return clamp((day.hydrationL || 0) / t, 0, 1);
+}
+
+/** Plate-quality credit (0..1): the mean of the AI quality reads (0..100) already stored per
+ *  scored slot by dayLogMeal. Slots with no quality read are simply not counted — a missing
+ *  signal never costs the athlete. No plates read at all → falls back to meal consistency, so
+ *  quality can never strand points on a day that was otherwise executed. */
+function qualityFrac(day, std, mealsFrac) {
+  let sum = 0, n = 0;
+  for (const k of scoredSlotKeys(std)) {
+    if (!mealScored(day, k)) continue;
+    const q = day.slotMacros && day.slotMacros[k] && day.slotMacros[k].quality;
+    if (typeof q === 'number' && isFinite(q)) { sum += clamp(q, 0, 100); n++; }
+  }
+  return n ? sum / (n * 100) : mealsFrac;
+}
+
+/** The shipped per-goal-profile nutrition formula — a byte-for-byte port of
+ *  profileNutritionScore, UNCHANGED:
+ *   - athlete: protein 65 + on-time meals 35 (the shipped formula).
  *   - general: calorie adherence 45 + protein 25 + meal consistency 30 (a lose/maintain client).
  *   - gain:    calorie floor 40 + protein 35 + meal consistency 25 (surplus + protein led).
- *  The platform owns these weights; the coach/trainer owns the targets (Scoring Contract). */
-function nutritionScore(day, std = STD) {
-  const pt = day.proteinTarget > 0 ? day.proteinTarget : PROTEIN_TARGET;
-  const proteinFrac = pt > 0 ? Math.min(proteinToday(day, std), pt) / pt : 0;
-  // Denominator = the coach standard's meal count (1–6) when one governs; classic 4 otherwise.
-  const mealsFrac = clamp(effectiveMeals(day, std) / ((std && std.mealsRequired) || 4), 0, 1);
+ *  The platform owns these weights; the coach/trainer owns the targets (Scoring Contract).
+ *  This is what `structured` scores on by default, which is what grandfathers every existing
+ *  account: their number does not move on release day. */
+function legacyNutritionScore(day, std, proteinFrac, mealsFrac) {
   const profile = day.scoringProfile || 'athlete';
   if (profile === 'general') {
     const ct = day.calTarget > 0 ? day.calTarget : CAL_TARGET;
@@ -165,6 +234,64 @@ function nutritionScore(day, std = STD) {
   return Math.min(100, Math.round(proteinFrac * 65 + mealsFrac * 35));
 }
 
+/** The composition path (Guided, Intuitive, and any customized style): each enabled part earns
+ *  its share of 100. The parts are already normalized to sum to 100 by knobsFor, and a part whose
+ *  knob is off is already zeroed there — so this is a straight weighted sum with no stranded
+ *  points. Which CURVE prices calories and protein is the style's own choice:
+ *
+ *    calorie: 'exact'    → the two-sided goal curve (Structured's tightness)
+ *             'range'    → full credit inside the band, forgiving falloff (Guided)
+ *             'adequacy' → a generous one-sided floor; over is never penalized (Intuitive)
+ *    protein: 'exact'    → fraction of target      'range' → band credit      'off' → not scored
+ */
+function partsNutritionScore(day, std, knobs, proteinFrac, mealsFrac) {
+  const parts = knobs.parts;
+  const n = knobs.nutrition;
+  const pt = day.proteinTarget > 0 ? day.proteinTarget : PROTEIN_TARGET;
+  const ct = day.calTarget > 0 ? day.calTarget : CAL_TARGET;
+  const kcal = kcalToday(day, std);
+  const profile = day.scoringProfile || 'athlete';
+
+  let calorieCredit = 0;
+  if (n.calorie === 'exact') {
+    calorieCredit = profile === 'gain' ? calorieFloorAdherence(kcal, ct) : calorieAdherence(kcal, ct);
+  } else if (n.calorie === 'range') {
+    calorieCredit = rangeAdherence(kcal, ct, n.calorieBand);
+  } else if (n.calorie === 'adequacy') {
+    calorieCredit = fuelingAdequacy(kcal, ct);
+  }
+
+  let proteinCredit = 0;
+  if (n.protein === 'exact') proteinCredit = proteinFrac;
+  else if (n.protein === 'range') proteinCredit = rangeAdherence(proteinToday(day, std), pt, n.proteinBand);
+
+  const awareCredit = n.awarenessScored
+    ? awarenessScore(answeredSignals(day, checkinReal(day)), knobs, day.signalWeekRate)
+    : 0;
+
+  const total = parts.protein * proteinCredit
+    + parts.calorie * calorieCredit
+    + parts.timing * mealsFrac
+    + parts.hydration * hydrationFrac(day)
+    + parts.quality * qualityFrac(day, std, mealsFrac)
+    + parts.awareness * awareCredit;
+  return clamp(Math.round(total), 0, 100);
+}
+
+/** Style- and profile-aware nutrition sub-score (0..100). Routes to the legacy passthrough (the
+ *  shipped formula, unchanged) or the parts composition — see knobsFor()'s `formula`. */
+function nutritionScore(day, std = STD) {
+  const pt = day.proteinTarget > 0 ? day.proteinTarget : PROTEIN_TARGET;
+  const proteinFrac = pt > 0 ? Math.min(proteinToday(day, std), pt) / pt : 0;
+  // Denominator = the coach standard's meal count (1–6) when one governs; classic 4 otherwise.
+  const mealsFrac = clamp(effectiveMeals(day, std) / ((std && std.mealsRequired) || 4), 0, 1);
+  const knobs = knobsOf(day);
+  if (!knobs || !knobs.nutrition || knobs.nutrition.formula !== 'parts') {
+    return legacyNutritionScore(day, std, proteinFrac, mealsFrac);
+  }
+  return partsNutritionScore(day, std, knobs, proteinFrac, mealsFrac);
+}
+
 function recoveryParts(day) {
   if (day.ciSubmitted) {
     let sum = 0, count = 0;
@@ -172,7 +299,7 @@ function recoveryParts(day) {
       if (!(day.ciConfig && day.ciConfig[key])) continue;
       const raw = day.ci ? day.ci[key] : undefined;
       if (typeof raw !== 'number' || !isFinite(raw)) continue;
-      sum += key === 'soreness' ? 10 - raw : raw; // soreness has inverse polarity
+      sum += CI_INVERSE[key] ? 10 - raw : raw; // soreness / cravings have inverse polarity
       count++;
     }
     if (count > 0) return { score: clamp(Math.round((sum / (count * 10)) * 100), 0, 100), isReal: true };
@@ -201,8 +328,15 @@ export function computeComponents(day, std = STD) {
   };
 }
 
+/** The headline mix for a day: its plan style crossed with its goal profile. Every style row is
+ *  capped so the 0041 evidence ceiling still bounds the result (planStyleCaps.test.ts), and the
+ *  `structured` row IS PROFILE_WEIGHTS — so a classic day weighs exactly what it always did. */
+export function weightsForDay(day) {
+  return weightsFor(styleOf(day), day.scoringProfile);
+}
+
 export function scoreFor(day, std = STD) {
-  const w = PROFILE_WEIGHTS[day.scoringProfile] || PROFILE_WEIGHTS.athlete;
+  const w = weightsForDay(day);
   const c = computeComponents(day, std);
   return clamp(Math.round(w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin), 0, 100);
 }
@@ -227,8 +361,10 @@ function todayISO() { const d = new Date(); return `${d.getFullYear()}-${String(
 function addDaysISO(iso, n) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function minutesNow() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
 
-const DEFAULT_CI = { energy: 8, recovery: 7, sleep: 8, confidence: 9, soreness: 4, motivation: 8 };
-const DEFAULT_CICFG = { energy: true, recovery: true, sleep: true, confidence: true, soreness: false, motivation: false };
+const DEFAULT_CI = { energy: 8, recovery: 7, sleep: 8, confidence: 9, soreness: 4, motivation: 8, digestion: 7, cravings: 4 };
+/* digestion/cravings default OFF: they only switch on when a plan style asks for them
+   (styleCheckinConfig in state.js), so nobody's existing recovery number moves. */
+const DEFAULT_CICFG = { energy: true, recovery: true, sleep: true, confidence: true, soreness: false, motivation: false, digestion: false, cravings: false };
 
 export const DAY = {
   date: todayISO(),
@@ -247,6 +383,11 @@ export const DAY = {
   proteinTarget: 180,
   calTarget: 3200,
   scoringProfile: 'athlete',
+  planStyle: null,       // 0142 — the style governing today; STAMPED into the row so history is never rescored
+  planKnobs: null,       // the resolved knob set (preset + professional overrides); re-derived, not persisted
+  signals: {},           // { slotKey: { hunger, fullness, satisfaction } } — the 2-tap post-meal prompt
+  signalWeekRate: null,  // 0..1 trailing-week signal answer rate, so one skipped day barely moves awareness
+  hydrationTargetL: 0,   // 0 = the shipped 3.0 L default; a coach hydration item overrides it
   currentWeight: null,
   scoreHistory: [],      // [{date, score}] past days, for streak/trend
   trustPass: null,       // { granted_date, length_days } from trust_passes, or null (real, coach-granted)
@@ -283,6 +424,13 @@ export function dayFromHistoryRow(r, cfg) {
     proteinTarget: c.proteinTarget != null ? c.proteinTarget : DAY.proteinTarget,
     calTarget: c.calTarget != null ? c.calTarget : DAY.calTarget,
     scoringProfile: c.scoringProfile != null ? c.scoringProfile : DAY.scoringProfile,
+    // The STAMP the row carried, not today's style: a day is always graded by the style that
+    // actually governed it (founder decision — a style switch never rewrites history). Rows
+    // written before 0142 have no stamp and fall through to the shipped classic scoring.
+    planStyle: resolveStyleKey(r.planStyle) || null,
+    planKnobs: c.planKnobs || null,
+    signals: ck.signals || {},
+    hydrationTargetL: c.hydrationTargetL || 0,
     currentWeight: r.weight ?? null,
     scoreHistory: [],
   };
@@ -405,6 +553,18 @@ function projectRowToDay(row) {
   }
   if (DAY.currentWeight != null && row.current_weight == null) localAhead = true;
   DAY.currentWeight = DAY.currentWeight ?? row.current_weight ?? null;
+  // Body signals merge per slot as a UNION, local-wins-on-conflict — the same shape as the
+  // check-item merge above. A pre-0142 row carries no `signals`, so this is a no-op for it.
+  {
+    const rs = (row.signals && typeof row.signals === 'object') ? row.signals : {};
+    if (!DAY.signals) DAY.signals = {};
+    for (const slot of Object.keys(rs)) {
+      const local = DAY.signals[slot] || {};
+      const remote = rs[slot] || {};
+      for (const k of Object.keys(local)) { if (remote[k] == null) localAhead = true; }
+      DAY.signals[slot] = { ...remote, ...local };
+    }
+  }
   const ck = row.checkin || {};
   // Check-in answers: a locally SUBMITTED check-in outranks unsubmitted server answers.
   if (DAY.ciSubmitted && !ck.submitted) {
@@ -428,7 +588,7 @@ function projectRowToDay(row) {
 /* The days columns the client may SELECT directly after 0103's column-split grant — everything
    except current_weight, which only the weight_series RPC returns. Keep in sync with the 0103
    grant list (and add any future days column to BOTH). */
-export const DAY_SELECT_COLS = 'id,athlete_id,date,meals,hydration_l,tasks,checked_tasks,quick_added,checkin,score,grade,computed_at,updated_at';
+export const DAY_SELECT_COLS = 'id,athlete_id,date,meals,hydration_l,tasks,checked_tasks,quick_added,checkin,score,grade,plan_style,signals,computed_at,updated_at';
 
 /** The athlete's weight-by-date map via the 0103 weight_series RPC (is_self always passes;
  *  a restricted viewer gets zero rows, never an error). Pre-apply fallback: before 0103 lands
@@ -474,7 +634,7 @@ export async function loadDay(userId) {
       sb.from('days').select(DAY_SELECT_COLS).eq('athlete_id', userId).eq('date', DAY.date).maybeSingle(),
       // meals + checkin jsonb ride along so Progress can compute REAL per-category trends
       // (computeComponents over reconstructed past days) — never fabricated category numbers.
-      sb.from('days').select('date,score,meals,checkin,hydration_l,quick_added').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date'),
+      sb.from('days').select('date,score,meals,checkin,hydration_l,quick_added,plan_style,signals').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date'),
       fetchWeightSeries(sb, userId, 60),
     ]);
     if (data && weights.has(String(data.date))) data.current_weight = weights.get(String(data.date));
@@ -483,6 +643,9 @@ export async function loadDay(userId) {
       date: r.date, score: r.score ?? 0, weight: weights.has(String(r.date)) ? weights.get(String(r.date)) : null,
       meals: r.meals || null, checkin: r.checkin || null,
       hydrationL: Number(r.hydration_l) || 0, quickAdded: Array.isArray(r.quick_added) ? r.quick_added : [],
+      // The style STAMP each past day carried — Progress bands the timeline by it, and
+      // dayFromHistoryRow grades each day by the style that actually governed it.
+      planStyle: r.plan_style || null, signals: r.signals || null,
     }));
     // Real active Trust Pass (coach-granted; migration 0033/0039). Null if none / not applied.
     try {
@@ -562,6 +725,11 @@ export function pushDay(userId, immediate) {
       current_weight: DAY.currentWeight,
       checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros },
       score: s, grade: gradeFor(s),
+      // The per-day STAMP: which style graded this day. Written every push so a style change
+      // takes effect going forward and never rewrites a settled day. Null until a style resolves
+      // (a pre-0142 account), which reads as the shipped classic scoring — exactly what it was.
+      plan_style: DAY.planStyle || null,
+      signals: DAY.signals || {},
       // Only include tasks when we actually derived them — the column defaults to '[]', and 0041's
       // evidence ceiling reads meals/checkin/trust_passes, NOT tasks, so this never moves a score.
       ...(tasks ? { tasks } : {}),
@@ -584,6 +752,20 @@ export function dayResetLocal() {
   DAY.mealLoggedAt = {}; DAY.slotMacros = {}; DAY.quickAdded = [false, false, false]; DAY.checkedTasks = {};
   DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.commitmentFocus = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
   DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.trustPass = null;
+  // The resolved style/knobs SURVIVE a local reset (they describe the athlete, not the day) —
+  // state.js re-applies them on hydrate anyway. Today's captured signals do not.
+  DAY.signals = {}; DAY.signalWeekRate = null;
+}
+
+/** Record a body signal for one meal slot (the 2-tap post-meal prompt). Values are 1..5 chips;
+ *  anything else is ignored rather than stored, so a malformed tap can never reach awareness. */
+export function daySetMealSignal(userId, slot, key, value) {
+  if (!slot || !key) return;
+  const v = Number(value);
+  if (!isFinite(v) || v < 1 || v > 5) return;
+  if (!DAY.signals) DAY.signals = {};
+  DAY.signals[slot] = { ...(DAY.signals[slot] || {}), [key]: Math.round(v) };
+  pushDay(userId);
 }
 
 /* ---- mutators (each persists) ---- */
@@ -608,6 +790,9 @@ export function dayLogMeal(userId, key, macros, meta) {
     if (meta.live === false) m.live = false;
     if (meta.source) m.source = meta.source;          // 'live' | 'gallery' | 'manual' | 'label'
     if (meta.analysis) m.analysis = String(meta.analysis).slice(0, 1200);
+    // 0142 — the plan style the SERVER wrote this prose for. The client shows server prose only
+    // when this matches its own resolved style, so an old deploy (no stamp) keeps suppressing.
+    if (meta.styleApplied) m.styleApplied = String(meta.styleApplied);
     if (meta.takenAt) m.takenAt = meta.takenAt;       // EXIF capture time of a gallery pick
   }
   if (Object.keys(m).length) DAY.slotMacros[key] = m;

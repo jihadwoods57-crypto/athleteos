@@ -9,6 +9,19 @@ import { avatarHead, esc, sparkline, errorState, skeletonRows } from '../compone
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, logBookIntervention } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
+import { styleLabel } from '../plan-style.js';
+
+/* Plan-style pill (0142): a one-letter chip naming the style a TEAM STANDARD governs for this
+   row — S/G/I, or nothing when no standard sets one (most rosters, most of the time). This is
+   deliberately the ONLY plan-style fact the roster shows per row; a per-athlete assignment or
+   their own stated preference only becomes cheap to read once a coach opens that one athlete
+   (see coach.js's coach-plan/<id> editor), never for a whole roster at once. */
+const STYLE_LETTER = { structured: 'S', guided: 'G', intuitive: 'I' };
+function stylePill(style) {
+  if (!style) return '';
+  const l = styleLabel(style);
+  return `<span class="status-pill b" style="margin-left:6px;padding:1px 7px;font-size:10.5px" title="${esc(l.name)} standard">${STYLE_LETTER[style] || '?'}</span>`;
+}
 
 /* nav:'operator' — load whichever book the signed-in role owns (see coach-home.js). */
 const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
@@ -73,7 +86,7 @@ function rosterRow(e) {
       <div class="s" style="color:var(--text-2)">${esc(meta.label)} <span style="color:var(--text-3)">· ${esc(lastActivityLabel(r.lastMealAt))}</span></div>
     </div>
     ${sparkline(r.scoreHistory)}
-    <span class="rs" style="color:${scoreCol};margin-left:8px">${r.score != null ? r.score : '—'}</span>
+    <span class="rs" style="color:${scoreCol};margin-left:8px">${r.score != null ? r.score : '—'}</span>${stylePill(e.planStyle)}
   </div>`;
 }
 

@@ -13,9 +13,22 @@
    boot failure that reproduces on device and not in preview. The book kind is always passed in
    by the caller, never read off RT. */
 import * as roles from './roles.js';
-import { CATALOG, resolveRequirementSet, catalogFromItems } from './requirements.js';
+import { CATALOG, resolveRequirementSet, catalogFromItems, planStyleFromItems } from './requirements.js';
 import { athleteStatus } from './status.js';
 import { effectiveRoomLabel } from './rooms.js';
+
+/** The plan style a TEAM STANDARD governs for one roster row, or null when none does (0142).
+ *  Reuses the SAME resolveRequirementSet() call every status computation already makes — CD.extras.sets
+ *  is loaded once for the whole book, so this costs nothing extra. Deliberately does NOT know
+ *  about a per-athlete assignment (athlete_profiles.targets.style) or the athlete's own
+ *  preference — those only exist on the ONE athlete a coach has opened (PROFILE.basics.targets /
+ *  a dedicated preference fetch), never cheaply for a whole roster. */
+export function governingPlanStyle(row) {
+  if (!row || !CD.extras) return null;
+  const set = resolveRequirementSet(CD.extras.sets, row.athleteId, resolvePos(row));
+  const item = set ? planStyleFromItems(set.items) : null;
+  return item ? item.style : null;
+}
 
 /* The position value a roster row resolves its standard against: the athlete's ASSIGNED room label
    (0101) when set, else their raw position. Unassigned (every athlete until a coach assigns) → raw
@@ -306,6 +319,7 @@ export function entriesFor(scope) {
         excused: excusedIds.has(row.athleteId),
         needsReview: false, // slice D wires flagged-meal review state
       }),
+      planStyle: set ? planStyleFromItems(set.items)?.style || null : null,
     };
   });
 }
@@ -355,13 +369,14 @@ export async function loadAthleteProfile(athleteId, force) {
     // status depends on CD.extras (requirement sets) being loaded — when it isn't, leave
     // status null rather than throwing into the offline catch below.
     let status = null;
+    let set = null;
     if (row && CD.extras) {
       const now = new Date(); const nowMs = now.getTime();
       // Mirrors entriesFor's resolveRequirementSet → catalogFromItems shape exactly, including
       // its CATALOG fallback when no requirement set governs this athlete/position, and the same
       // athlete-local clock (their timezone; coach clock when none) so the profile header's status
       // agrees with the roster chip instead of drifting on the coach's device time.
-      const set = resolveRequirementSet(CD.extras.sets, row.athleteId, resolvePos(row));
+      set = resolveRequirementSet(CD.extras.sets, row.athleteId, resolvePos(row));
       const reqs = set ? catalogFromItems(set.items) : CATALOG;
       const lc = localClock(row.timezone, nowMs)
         || { nowMin: now.getHours() * 60 + now.getMinutes(), nowDow: now.getDay() };
@@ -373,7 +388,9 @@ export async function loadAthleteProfile(athleteId, force) {
     }
     if (gen !== profileGen) return;                    // a newer load superseded us
     PROFILE = { athleteId, day, meals: meals || [], photos, trustPass,
-      interventions, assignments, notes, exceptions, row, status, basics, offline: false };
+      interventions, assignments, notes, exceptions, row, status, basics, offline: false,
+      planStyle: set ? planStyleFromItems(set.items)?.style || null : null,
+    };
     // Receipt moved to the screen's mount(), where a real viewer id (RT.userId/S.coachIdentity)
     // is actually available — this loader has no viewer identity to write, so a call here was
     // a silent no-op (markDayViewed short-circuits without viewerId). See coach.js coachAthlete.mount.

@@ -27,9 +27,10 @@ import { accountBody, wireAccount } from './ob-account.js';
 import { track, EVENTS } from '../analytics.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, scale10, meter, mirrorCard, simChip, countStat,
-  phoneCard, testimonial, planCard, paywallVariant, PLANS, capture,
+  phoneCard, testimonial, planCard, paywallVariant, PLANS, capture, structureStep,
 } from '../ob2.js';
 import { mealDemoSteps } from '../ob2-meal.js';
+import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 
 const R = 'oba';
 
@@ -143,6 +144,10 @@ const steps = [
       { v: 'performance', t: 'Perform', s: 'Fuel training · recover hard', ic: 'bolt', tint: 'rgba(168,85,247,0.18)', color: 'var(--purple-bright)' },
     ]),
   },
+  /* 0142 — an independent athlete chooses their own plan style; a team athlete's answer
+     still rides through as a preference their coach sees, but never overrides the
+     standard (act.setPlanStyle / resolvePlanStyle enforce that regardless of this value). */
+  structureStep({ mode: 'self' }),
 
   /* ============================== ch1 · See it ==============================
      Ordering (2026-07-23): the live meal demo used to sit at screen 12, behind seven
@@ -240,8 +245,10 @@ const steps = [
       const supLabel = { coach: 'your coach', trainer: 'your trainer', parents: 'your parents', teammates: 'your teammates' };
       const sup = Array.isArray(o.supporters) ? o.supporters.filter((s) => s !== 'nobody') : [];
       const supNames = sup.length ? sup.map((s) => supLabel[s] || s).join(', ') : null;
+      const style = styleLabel(styleForStructureAnswer(o.structurePref));
       return `
         ${mirrorCard('target', `You said <b>${esc(goal)}</b> — so every meal is scored against that goal, not a generic diet.`)}
+        ${mirrorCard('clipboard', `Your plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. If you connect a coach, they can adjust this — you can always change it yourself in Settings.`)}
         ${obs ? mirrorCard('flame', `Your risk zone: <b>${esc(obs)}</b>. Reminders and check-ins aim exactly there.`) : ''}
         ${supNames
           ? mirrorCard('users', `Your circle: <b>${esc(supNames)}</b>. They see the score you earn — the invisible hours finally count.`)
@@ -476,6 +483,12 @@ const steps = [
           await act.persistOnboarding();
           if (live) {
             act.startDay0();
+            // 0142 — apply the recommended plan style as both their self-choice and their
+            // stated preference. Safe even for a team athlete: resolvePlanStyle's precedence
+            // (team > pro > self) means a governing standard ignores this the moment one
+            // exists, so this can never be how an athlete escapes a required standard.
+            const o = RT.ob || {};
+            if (o.structurePref) { try { await act.setPlanStyle(styleForStructureAnswer(o.structurePref)); } catch { /* best-effort */ } }
             /* Signed-in users may remain on `oba/*` (AUTH_ROUTES) — continue
                in-flow to the coverage/paywall step per the spec's ch4 order. */
             ctx.go(`${R}/${paywallVariant('athlete') === 'team_covered' ? 'covered' : 'plans'}`);

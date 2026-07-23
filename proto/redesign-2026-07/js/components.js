@@ -304,3 +304,38 @@ export function mealMedia(hue = '20', h = 96) {
     </svg>
   </div>`;
 }
+
+/* ---------------- Plan style card (0142) ----------------
+   ONE component for "what plan style am I on, who set it, and can I change it" — used on Plan,
+   Settings, and the professional's roster so the answer can never differ between two screens.
+
+   The honesty rules it encodes:
+     * a LOCKED athlete still sees their own stated preference, marked as shared with the person
+       who owns the setting. Never a dead end, never a silently-ignored answer.
+     * `customized` is disclosed. A client on "Guided" whose RD tightened the bands is not on the
+       same plan as a client on stock Guided, and the card says so.
+     * the source line always names a real person or an honest generic — never a fabricated one.
+
+   `style` is the S.planStyle shape. `onChange` is a data-go route, omitted when locked. */
+export function planStyleCard(style, { onChange = null, compact = false } = {}) {
+  if (!style) return '';
+  const pref = style.preferenceDiffers && style.preferenceName
+    ? `<div class="ps-pref">Your preference: <b>${esc(style.preferenceName)}</b> · shared with your ${esc(style.lockedBy || 'coach')}</div>`
+    : '';
+  const change = onChange && style.canChoose
+    ? `<button class="btn ghost sm" data-go="${esc(onChange)}">Change</button>`
+    : (style.locked ? `<span class="status-pill a">Set for you</span>` : '');
+  return `
+  <section class="card ps-card" style="padding:14px 16px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+      <div style="min-width:0">
+        <div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.02em">PLAN STYLE</div>
+        <div style="font-size:17px;font-weight:800;margin-top:2px">${esc(style.name)}${style.customized ? ' <span style="font-size:12.5px;font-weight:700;color:var(--text-3)">(customized)</span>' : ''}</div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(style.sourceLabel)}</div>
+      </div>
+      ${change}
+    </div>
+    ${compact ? '' : `<div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:10px;line-height:1.55">${esc(style.how)}</div>`}
+    ${pref}
+  </section>`;
+}

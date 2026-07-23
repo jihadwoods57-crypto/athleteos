@@ -16,6 +16,7 @@ import { RT, act } from './state.js';
 import { icon } from './icons.js';
 import { esc } from './components.js';
 import { track, EVENTS } from './analytics.js';
+import { STRUCTURE_ANSWERS } from './plan-style.js';
 
 export const CHAPTERS = ['Discover', 'See it', 'Your plan', 'Commit', 'Start'];
 
@@ -169,6 +170,45 @@ export function choiceGrid(key, opts, { multi = false, req = true, current = nul
       <div class="ct">${esc(o.t)}</div>${o.s ? `<div class="cs">${esc(o.s)}</div>` : ''}
     </div>`).join('')}</div>`;
 }
+/* ---------- plan style (0142): the shared "how much structure" question ----------
+   ONE step definition so all six role flows ask it identically and share the same
+   recommendation logic — "I want clear numbers" means the same thing whoever answers it.
+   `mode` only changes the framing/copy and (in the calling flow) what happens with the
+   answer: 'self' chooses their own plan; 'propose' (a trainer's client) applies
+   provisionally until the trainer confirms; 'child' (a parent, on behalf of an athlete)
+   is informational only — a parent never sets an athlete's plan; 'assign' (coach/
+   trainer/nutrition pro) seeds their own default for people they'll onboard later, never
+   written to any one athlete. `who` is an optional (o) => string for a name/noun the
+   copy needs (e.g. the athlete's first name, or "your roster"). */
+const STRUCTURE_OPTIONS = STRUCTURE_ANSWERS.map((a) => ({ v: a.id, t: a.label }));
+const STRUCTURE_COPY = {
+  self: {
+    title: () => 'How much nutrition structure helps you succeed?',
+    sub: () => 'There is no wrong answer — you can change this any time.',
+  },
+  propose: {
+    title: () => 'How much nutrition structure helps you succeed?',
+    sub: () => 'Your trainer can confirm or adjust this once you connect.',
+  },
+  child: {
+    title: (o, who) => `How much structure does ${who ? who(o) : 'your athlete'} need?`,
+    sub: () => 'Answer as best you can for them — this is a starting point, not a lock.',
+  },
+  assign: {
+    title: (o, who) => `What's your default plan style for ${who ? who(o) : 'the people you support'}?`,
+    sub: () => "You set it per person from your roster — this just seeds where you start.",
+  },
+};
+export function structureStep({ mode = 'self', who } = {}) {
+  const c = STRUCTURE_COPY[mode] || STRUCTURE_COPY.self;
+  return {
+    id: 'structure', ch: 0, cta: 'Next',
+    title: (o) => c.title(o, who),
+    sub: (o) => c.sub(o, who),
+    body: () => choiceGrid('structurePref', STRUCTURE_OPTIONS),
+  };
+}
+
 export function chipRow(key, opts, { multi = false, req = true } = {}) {
   const cur = ob()[key];
   const on = (v) => (multi ? (Array.isArray(cur) && cur.map(String).includes(String(v))) : String(cur) === String(v));

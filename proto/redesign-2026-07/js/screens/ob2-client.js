@@ -25,9 +25,10 @@ import { esc } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, scale10, countStat, mirrorCard,
   phoneCard, testimonial, planCard, paywallVariant, PLANS,
-  capture, ob, gateCta,
+  capture, ob, gateCta, structureStep,
 } from '../ob2.js';
 import { mealDemoSteps } from '../ob2-meal.js';
+import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { track, EVENTS } from '../analytics.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
@@ -129,6 +130,9 @@ const steps = [
       { v: 'build', t: 'Build', s: 'Calorie floor · never under-fueled', ic: 'plus', tint: 'var(--green-surface)', color: 'var(--green-bright)' },
       { v: 'health', t: 'Health', s: 'Energy, sleep, habits that hold', ic: 'heart', tint: 'var(--red-surface)', color: 'var(--red)' },
     ]) },
+  // 0142 — applies right away (a client isn't blocked waiting on their trainer); once a
+  // trainer confirms/adjusts a style, THAT wins (act.setPlanStyle / resolvePlanStyle).
+  structureStep({ mode: 'propose' }),
 
   { id: 'trainer-status', ch: 0, cta: 'Next',
     title: () => 'Do you work with a trainer?',
@@ -190,10 +194,12 @@ const steps = [
       const goal = GOALS[o.goal];
       const slips = Array.isArray(o.betweenSessions) ? o.betweenSessions.filter((s) => BETWEEN[s]) : [];
       const slip = slips.length ? BETWEEN[slips[0]] : null;
+      const style = styleLabel(styleForStructureAnswer(o.structurePref));
       const mirrors = [
         mirrorCard('target', goal
           ? `You said your goal is <b>${esc(goal)}</b> — so every meal is scored against it, not against a generic diet.`
           : 'Your goal sets the scoring — every meal is graded against it, not a generic diet.'),
+        mirrorCard('clipboard', `Your plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. Your trainer can confirm or adjust it once you connect.`),
         mirrorCard('clock', slip
           ? `You said <b>${esc(slip)}</b> — so your score runs all seven days. Weekends count the same as Tuesdays.`
           : 'Your score runs all seven days. Weekends count the same as Tuesdays.'),
@@ -351,7 +357,14 @@ const steps = [
         role: 'athlete',
         onSession: async (live) => {
           await act.persistOnboarding();
-          if (live) { act.startDay0(); ctx.next(); return; }
+          if (live) {
+            act.startDay0();
+            // 0142 — applies as their own effective style unless/until their trainer
+            // assigns one; resolvePlanStyle's precedence handles the handoff automatically.
+            const o = RT.ob || {};
+            if (o.structurePref) { try { await act.setPlanStyle(styleForStructureAnswer(o.structurePref)); } catch { /* best-effort */ } }
+            ctx.next(); return;
+          }
           showConfirmPending(root, { email: RT.email });
         },
       });

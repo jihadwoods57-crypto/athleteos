@@ -36,6 +36,10 @@ import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { buildVoiceDirective, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
 import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
+import {
+  composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
+} from '../_shared/plan-style.ts';
+import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 // Cost sweep (audit item 20): memory/order are pure PROSE rephrases whose every number is re-verified
@@ -92,7 +96,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 // Coach Voice v2 plumbing. A service client + a single-flag evaluator — this is the feature-flag
 // system's first real consumer. flagOn reads the one flag row and applies the shared pure evaluator
 // for this athlete's context; any failure resolves to false (voice simply stays off).
-function svcClient(): { from: (t: string) => any } | null {
+function svcClient(): { from: (t: string) => any; rpc: (fn: string, args?: Record<string, unknown>) => any } | null {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 }
@@ -893,7 +897,10 @@ Deno.serve(async (request) => {
   }
 
   const baseSystem = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
-  const content = isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req, photoMime) : userContent(req, photoMime);
+  // Typed once here: the *Content builders return unknown[], which the SDK's ContentBlockParam[]
+  // rejects at every call site that passes it. Casting at the source fixes the primary call and
+  // both fallback re-runs together, instead of three separate casts.
+  const content = (isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req, photoMime) : userContent(req, photoMime)) as unknown as Anthropic.ContentBlockParam[];
 
   // Coach Voice v2 (flag-gated, meal path only): when coach_voice_v2 is on for this athlete AND
   // their team has an enabled Voice config, prepend the coach's voice directive so the note/analysis
@@ -901,14 +908,28 @@ Deno.serve(async (request) => {
   // directive's hard rails forbid changing any figure. Flag off / no team config -> byte-identical
   // to today. voiceCfg is also used below to re-check banned words on the generated text.
   let voiceCfg: VoiceConfig | null = null;
+  // Plan style (0142): the athlete's resolved Structured/Guided/Intuitive, which decides what is
+  // SAYABLE (coach voice only decides how it sounds). Null = no directive = today's prompt byte
+  // for byte — and never a silent downgrade for an Intuitive athlete, because Intuitive can only
+  // come from an explicit row the loader reads. See plan-style-load.ts's header.
+  let planStyle: PlanStyle | null = null;
+  let styleSource: string | null = null;
   if (isMeal && userId) {
     const sb = svcClient();
-    if (sb && (await flagOn(sb, 'coach_voice_v2', { userId }))) {
-      const loaded = await loadVoice(sb, userId);
-      if (loaded) voiceCfg = loaded.cfg;
+    if (sb) {
+      if (await flagOn(sb, 'coach_voice_v2', { userId })) {
+        const loaded = await loadVoice(sb, userId);
+        if (loaded) voiceCfg = loaded.cfg;
+      }
+      const st = await loadPlanStyleForAthlete(sb, userId);
+      if (st) { planStyle = st.style; styleSource = st.source; }
     }
   }
-  const system = voiceCfg ? buildVoiceDirective(voiceCfg) + '\n\n' + baseSystem : baseSystem;
+  // Voice -> style -> base. `styledBase` is the prompt WITHOUT the coach voice but WITH the style:
+  // the voice fallback below re-runs on it, so dropping a banned word can never also drop the
+  // style rail (which would hand an Intuitive athlete a macro-quoting prompt to fix a tone slip).
+  const styledBase = composeSystem(baseSystem, '', planStyle);
+  const system = composeSystem(baseSystem, voiceCfg ? buildVoiceDirective(voiceCfg) : '', planStyle);
 
   // Tool set + choice. Meal phase 'analyze' may EITHER finalize or ask a clarifying question, so it
   // offers both tools and lets the model choose. Every other path (label/memory/order, and meal
@@ -930,7 +951,11 @@ Deno.serve(async (request) => {
   // of paying full price for it on every single meal photo.
   const cachedTools = tools.map((t, i) =>
     i === tools.length - 1 ? { ...t, cache_control: { type: 'ephemeral' as const } } : t
-  );
+  ) as unknown as Anthropic.Tool[];
+  // ONE typed tools array for the two fallback re-runs below (voice + plan style). MEAL_TOOL is
+  // `as const`, so its input_schema.required is a readonly tuple the SDK's mutable string[]
+  // rejects — TS tolerates that at one call site but not at several.
+  const mealToolOnly = [{ ...MEAL_TOOL, cache_control: { type: 'ephemeral' as const } }] as unknown as Anthropic.Tool[];
 
   // Cost/latency telemetry (item 8a): time the paid call and record it once, best-effort. On
   // success `model` is the AUTHORITATIVE string the API reports back. A billed-but-malformed
@@ -988,8 +1013,9 @@ Deno.serve(async (request) => {
           const retry = await client.messages.create({
             model: MODEL,
             max_tokens: 1024,
-            system: [{ type: 'text' as const, text: baseSystem, cache_control: { type: 'ephemeral' as const } }],
-            tools: [{ ...MEAL_TOOL, cache_control: { type: 'ephemeral' as const } }],
+            // styledBase, NOT baseSystem: drop the coach's voice, KEEP the plan-style rail.
+            system: [{ type: 'text' as const, text: styledBase, cache_control: { type: 'ephemeral' as const } }],
+            tools: mealToolOnly,
             tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
             messages: [{ role: 'user', content }],
           });
@@ -1002,8 +1028,85 @@ Deno.serve(async (request) => {
           if (rused && rused.type === 'tool_use') input = rused.input as Record<string, unknown>;
         }
       }
+
+      // Plan-style safety (0142). THE INVERTED FALLBACK — read the header of _shared/plan-style.ts
+      // before touching this. Coach voice recovers by dropping its directive because the base
+      // prompt is the safe one; plan style CANNOT, because for Intuitive the directive IS the
+      // safety. So the ladder is: correct-and-retry (style still applied), then deterministic
+      // safe copy. A bare base-prompt re-run here would confidently produce a worse violation.
+      let styleApplied: PlanStyle | null = planStyle;
+      if (planStyle === 'intuitive') {
+        const prose = (o: Record<string, unknown>) => [
+          typeof o.note === 'string' ? o.note : '',
+          typeof o.analysis === 'string' ? o.analysis : '',
+          typeof o.reconcile === 'string' ? o.reconcile : '',
+          Array.isArray(o.highlights) ? o.highlights.filter((h) => typeof h === 'string').join(' ') : '',
+          o.substitution && typeof o.substitution === 'object'
+            ? String((o.substitution as { suggestion?: unknown }).suggestion ?? '') : '',
+        ].join(' ');
+
+        let v = violatesStyleLanguage(prose(input), planStyle);
+        if (v) {
+          const t0s = Date.now();
+          const retry = await client.messages.create({
+            model: MODEL,
+            max_tokens: 1024,
+            system: [{ type: 'text' as const, text: styledBase, cache_control: { type: 'ephemeral' as const } }],
+            tools: mealToolOnly,
+            tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
+            // Replay the model's OWN bad output, then reject it with the specific reason. Handing
+            // back the exact text it just wrote corrects far more reliably than re-asking cold.
+            messages: [
+              { role: 'user', content },
+              {
+                role: 'assistant',
+                content: [{ type: 'tool_use' as const, id: used.id, name: used.name, input: used.input as Record<string, unknown> }],
+              },
+              {
+                role: 'user',
+                content: [{ type: 'tool_result' as const, tool_use_id: used.id, content: styleCorrectionMessage(v), is_error: true }],
+              },
+            ],
+          });
+          await recordAiCall({
+            fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+            model: retry.model ?? intendedModel, ...usageFrom(retry.usage),
+            latencyMs: Date.now() - t0s, ok: true, outcome: `style_${v.kind}_retry`,
+          });
+          const rused = retry.content.find((b) => b.type === 'tool_use');
+          if (rused && rused.type === 'tool_use') {
+            const candidate = rused.input as Record<string, unknown>;
+            v = violatesStyleLanguage(prose(candidate), planStyle);
+            if (!v) input = candidate;
+          }
+          if (v) {
+            // Step 3: the corrected retry still breached. Replace ONLY the athlete-facing prose
+            // with copy that is safe about any plate. The macros are untouched and still ride
+            // through to the pro — suppression is presentation, never data.
+            input = {
+              ...input,
+              note: SAFE_INTUITIVE.note,
+              analysis: SAFE_INTUITIVE.analysis,
+              highlights: [],
+            };
+            delete input.reconcile;
+            delete input.substitution;
+            styleApplied = 'intuitive';
+            await recordAiCall({
+              fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+              model: intendedModel, latencyMs: 0, ok: true, outcome: 'style_safe_copy',
+            });
+          }
+        }
+      }
       const grounded = groundMacros(input) as Record<string, unknown>;
-      return new Response(JSON.stringify({ kind: 'result', ...grounded }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      // Stamp the style this prose was actually written for. The client trusts its own resolved
+      // style over this, but uses the stamp to know whether server prose is safe to SHOW: an old
+      // deploy (no stamp) means the client keeps suppressing, so a stale function can never leak.
+      return new Response(
+        JSON.stringify({ kind: 'result', ...grounded, ...(styleApplied ? { styleApplied, styleSource } : {}) }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } },
+      );
     }
 
     // Label facts + memory/order prose are returned as-is (the CLIENT bounds the numbers).

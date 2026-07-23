@@ -1,6 +1,6 @@
-import { S, RT } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, composer } from '../components.js';
+import { esc, composer, planStyleCard } from '../components.js';
 import { PROOF, IMPACT_LABEL, freqLabel, fmtMin } from '../requirements.js';
 
 const P = S.plan;
@@ -45,11 +45,36 @@ function targetsRow() {
     <div class="sd-cta"><button class="btn ghost sm" data-act="retryProfile">Retry</button></div></div>`;
   }
   const T = S.planTargets || {};
+  const PS = S.planStyle;
+
+  // INTUITIVE: no calorie or macro number reaches the athlete. The targets still EXIST and the
+  // professional still sees them (catching genuine under-fueling is a safety concern) — this is
+  // a presentation gate, never a data one. What the athlete gets instead is what their plan
+  // actually measures: the signals they're tracking and their hydration.
+  if (!PS.showMacros && !PS.showCalories) {
+    const tracked = (S.trackedSignalLabels || []).join(' · ');
+    return `<div class="macro-row">
+      <div class="macro"><div class="mv">${esc(String(S.hydrationTargetLabel || '—'))}</div><div class="mk">Hydration</div></div>
+      <div class="macro" style="flex:2"><div class="mv" style="font-size:15px;line-height:1.35">${tracked ? esc(tracked) : 'Body signals'}</div><div class="mk">What you're tracking</div></div>
+    </div>
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.5">Your plan doesn't set calorie or macro targets. Your ${esc(S.coach.noun)} can still see the full numbers.</div>`;
+  }
+
+  // GUIDED: the same targets expressed as the RANGE the plan actually scores, so the number the
+  // athlete reads is the number they're measured against — not a point they'll always miss.
+  const band = PS.knobs && PS.knobs.nutrition;
+  const asRange = (v, b) => (v == null ? '—' : (b > 0
+    ? `${Math.round(v * (1 - b))}–${Math.round(v * (1 + b))}`
+    : String(v)));
+  const rangeMode = band && (band.protein === 'range' || band.calorie === 'range');
+  const protein = band && band.protein === 'range' ? asRange(T.protein, band.proteinBand) : (T.protein != null ? esc(T.protein) + 'g' : '—');
+  const calories = band && band.calorie === 'range' ? asRange(T.calories, band.calorieBand) : (T.calories != null ? esc(T.calories) : '—');
   return `<div class="macro-row">
-    <div class="macro"><div class="mv">${T.protein != null ? esc(T.protein) + 'g' : '—'}</div><div class="mk">Protein</div></div>
-    <div class="macro"><div class="mv">${T.calories != null ? esc(T.calories) : '—'}</div><div class="mk">Calories</div></div>
+    <div class="macro"><div class="mv">${esc(String(protein))}</div><div class="mk">Protein${rangeMode ? ' range' : ''}</div></div>
+    <div class="macro"><div class="mv">${esc(String(calories))}</div><div class="mk">Calories${rangeMode ? ' range' : ''}</div></div>
     <div class="macro"><div class="mv">${T.weight != null ? esc(T.weight) + ' lb' : '—'}</div><div class="mk">Target wt</div></div>
-  </div>`;
+  </div>
+  ${rangeMode ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.5">Anywhere in the range scores full credit — that's the point of a flexible plan.</div>` : ''}`;
 }
 
 // Objective-card copy per honest state — loading/offline never assert the coach set nothing.
@@ -61,9 +86,15 @@ const mealsPhrase = () => {
   return `${MEAL_WORD[n] || n} meal${n === 1 ? '' : 's'} with photo proof`;
 };
 const OBJECTIVE_COPY = {
-  set: (who) => ({
+  set: (who) => (!S.planStyle.showMacros ? {
+    title: 'Fuel well, log every meal',
+    // An Intuitive plan has no targets to "hit" — promising some would be the one dishonest
+    // sentence on the screen.
+    body: `Your plan tracks how food leaves you feeling rather than numbers. Nutrition is ${S.nutritionWeightPct}% of your score — showing up consistently is the win.`,
+  } : {
     title: 'Hit your targets, log every meal',
-    body: `Your ${who} set your targets — they're in the summary below. Nutrition is 50% of your score — consistency is the win.`,
+    // Never a hardcoded 50%: the nutrition weight moves with the athlete's style x goal profile.
+    body: `Your ${who} set your targets — they're in the summary below. Nutrition is ${S.nutritionWeightPct}% of your score — consistency is the win.`,
   }),
   loading: () => ({
     title: 'Log every meal, on time',
@@ -87,6 +118,27 @@ const COACH_TARGETS_NOTE = (who) => ({
   unset: `No targets set yet — your ${who} can add them any time.`,
 });
 
+/* One-time "plan styles exist now" prompt (0142 release mechanics) — shown ONLY to a
+ * grandfathered account (S.planStyle.source === 'legacy': real scored history, never made an
+ * explicit style choice) so existing athletes learn the new spectrum without their score moving
+ * a single point on release day. Dismissible and never reappears once dismissed OR once the
+ * athlete engages the picker — this is an announcement, not a recurring nag. Deliberately lives
+ * here rather than on Home: Home enforces exactly one attention card (sync/injury), and this is
+ * lower-priority than either. */
+function legacyStylePrompt() {
+  if (RT.planStylePromptSeen || S.planStyle.source !== 'legacy') return '';
+  return `
+  <div class="lrow" id="ps-intro" style="margin-bottom:10px;background:rgba(59,130,246,0.08);border:1px solid var(--hairline);border-radius:14px;padding:12px 13px;cursor:default">
+    <div class="xico sm" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('sparkle', 16)}</div>
+    <div class="xr"><div class="xa">Your plan style: Structured</div>
+    <div class="xb">OnStandard now supports Guided and Intuitive too — different ways of measuring the same standard. Your score hasn't changed.</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn primary sm" id="ps-intro-explore" style="width:auto;padding:0 14px;height:32px">Explore styles</button>
+      <button class="btn ghost sm" id="ps-intro-dismiss" style="width:auto;padding:0 14px;height:32px">Not now</button>
+    </div></div>
+  </div>`;
+}
+
 const overview = () => {
   const state = S.planTargetsState;
   const T = S.planTargets;
@@ -96,6 +148,8 @@ const overview = () => {
   // the full targets row lives on the Nutrition tab only (it used to render on BOTH tabs,
   // and protein/goal appeared up to 3× on this screen).
   return `
+  ${legacyStylePrompt()}
+  ${planStyleCard(S.planStyle, { onChange: 'plan-style' })}
   <div class="eyebrow">Today's Objective</div>
   <section class="card pad" style="display:flex;gap:14px;align-items:flex-start">
     <div class="req-icon b" style="width:44px;height:44px;border-radius:14px">${icon('bolt', 21)}</div>
@@ -110,7 +164,9 @@ const overview = () => {
     <div class="tile"><div class="k">Goal</div><div class="v">${esc(S.planGoalLabel || '—')}</div></div>
     <div class="tile"><div class="k">Target weight</div><div class="v">${(T && T.weight != null) ? T.weight + ' lb' : (S.weight.target != null ? S.weight.target + ' lb' : '—')}</div></div>
     <div class="tile"><div class="k">Current</div><div class="v">${S.weight.current != null ? S.weight.current + ' lb' : '—'}</div></div>
-    <div class="tile"><div class="k">Protein target</div><div class="v">${T && T.protein != null ? T.protein + 'g' : '—'}</div></div>
+    ${S.planStyle.showMacros
+      ? `<div class="tile"><div class="k">Protein target</div><div class="v">${T && T.protein != null ? T.protein + 'g' : '—'}</div></div>`
+      : `<div class="tile"><div class="k">Hydration</div><div class="v">${esc(String(S.hydrationTargetLabel))}</div></div>`}
   </div>
   ${note ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0">${note}</div>` : ''}
 
@@ -127,7 +183,7 @@ const overview = () => {
 const NUTRITION_EYEBROW_SUFFIX = { set: '', loading: ' · loading…', offline: ' · offline', unset: ' · not set yet' };
 
 const nutrition = () => `
-  <div class="eyebrow">Macro Targets${NUTRITION_EYEBROW_SUFFIX[S.planTargetsState]}</div>
+  <div class="eyebrow">${S.planStyle.showMacros ? 'Macro Targets' : 'What Your Plan Tracks'}${NUTRITION_EYEBROW_SUFFIX[S.planTargetsState]}</div>
   ${targetsRow()}
 
   <div class="eyebrow">Build Your Plate</div>
@@ -231,5 +287,9 @@ export default {
       const { wireComposer } = await import('./settings.js');
       wireComposer(root, 'ai', 'OnStandard AI', 'Based on your plan: yes, that fits — keep protein on target and get your water in before practice.');
     }
+    const explore = root.querySelector('#ps-intro-explore');
+    const dismiss = root.querySelector('#ps-intro-dismiss');
+    if (explore) explore.addEventListener('click', () => { act.dismissPlanStylePrompt(); window.__navigate('plan-style'); });
+    if (dismiss) dismiss.addEventListener('click', () => { act.dismissPlanStylePrompt(); window.__render(); });
   },
 };

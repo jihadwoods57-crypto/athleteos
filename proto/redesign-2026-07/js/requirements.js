@@ -144,6 +144,15 @@ export function resolveRequirementSet(sets, athleteId, position, asOfDate = /** 
   return govern(sets.filter(s => s.scope_kind === 'team'));
 }
 
+/** The plan-style item (0142) out of a governing requirement set's items, or null when the
+ *  standard doesn't set one. Mirrors the server's athlete_governing_plan_style: the SAME
+ *  resolveRequirementSet precedence has already picked the set, so this only reads the item.
+ *  Shape out: { style, overrides } — the resolvePlanStyle `teamStandard` argument. */
+export function planStyleFromItems(items, setBy) {
+  const it = Array.isArray(items) ? items.find(i => i && i.kind === 'plan_style' && i.style) : null;
+  return it ? { style: it.style, overrides: it.overrides || null, setBy: setBy || null } : null;
+}
+
 /* Physical slot order for a standard of M meals — maps onto the classic keys first so the
    camera, meal-detail, and server jsonb all keep working; 5th/6th are new slot keys. */
 export const STD_SLOT_MAP = {

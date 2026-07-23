@@ -82,6 +82,19 @@ function trainingCard() {
   </section>`;
 }
 
+/* Plan-style bands on the score timeline (0142). A style change moves what the number MEASURES,
+   so a trend break across one has to be explained rather than left looking like a slump. Renders
+   nothing when the athlete has only ever been on one style — which is most of them. */
+function styleBandRow() {
+  const bands = S.styleBands;
+  if (!bands || bands.length < 2) return '';
+  return `
+  <div class="ps-band" aria-label="Plan style history">
+    ${bands.map(b => `<span class="seg s-${esc(b.style)}"><i></i>${esc(b.name)} · ${b.days}d · avg ${b.avg}</span>`).join('')}
+  </div>
+  <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.45">Your plan style changed during this stretch — each style measures your day differently, so compare within a band, not across.</div>`;
+}
+
 export default {
   tab: 'progress',
   render() {
@@ -149,6 +162,7 @@ export default {
             <span class="d">${P.weekDayLabels[i] || ''}</span>
           </div>`).join('')}
       </div>
+      ${styleBandRow()}
     </section>
 
     <div style="height:16px"></div>

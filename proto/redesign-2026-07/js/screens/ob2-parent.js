@@ -14,8 +14,9 @@ import { icon } from '../icons.js';
 import { esc, sparkline } from '../components.js';
 import {
   defineFlow, saveProgressStep, ob, capture, gateCta, choiceGrid, chipRow,
-  simChip, mirrorCard, notifCard, phoneCard,
+  simChip, mirrorCard, notifCard, phoneCard, structureStep,
 } from '../ob2.js';
+import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { track, EVENTS } from '../analytics.js';
 import { accountBody, wireAccount } from './ob-account.js';
@@ -168,6 +169,11 @@ const steps = [
       { v: 'away', t: 'They are away at school' },
     ], { multi: true }),
   },
+  /* 0142 — a parent's read on their athlete's plan style is INFORMATIONAL ONLY: a parent
+     never sets it (they aren't the athlete, and doing so from here would let a parent
+     override an athlete's own coach/trainer). Captured for the reflection on the next
+     screen and to compare notes with whoever actually runs the athlete's plan. */
+  structureStep({ mode: 'child', who: (o) => nmEsc(o) }),
 
   /* ================= ch1 · See it ================= */
   {
@@ -267,8 +273,10 @@ const steps = [
         milestones: `<b>Milestones only</b>: the wins reach you the moment they happen.`,
         'milestones-missed': `<b>Milestones + missed days</b> — missed-day alerts start only when ${nmEsc(o)} turns them on too.`,
       }[o.parentDigest];
+      const style = o.structurePref ? styleLabel(styleForStructureAnswer(o.structurePref)) : null;
       return `
         ${worry ? mirrorCard('heart', `You said you think about <b>${esc(worry)}</b> — the weekly summary answers that with a trend, not an interrogation.`) : ''}
+        ${style ? mirrorCard('clipboard', `You said ${nmEsc(o)} needs <b>${esc(style.name)}</b> — ${esc(style.short.toLowerCase())}. Their coach or trainer sets what actually governs their plan; this is worth sharing with them.`) : ''}
         ${sees ? mirrorCard('eye', sees) : ''}
         ${digest ? mirrorCard('bell', digest) : ''}
         <div class="ob2-gap-verdict">The deal: <b>${nmEsc(o)} owns the work. You get the trendline.</b></div>`;

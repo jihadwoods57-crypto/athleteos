@@ -945,3 +945,26 @@
 .vc-stat{background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px}
 .vc-sv{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--green-bright)}
 .vc-sk{font-size:11px;font-weight:700;color:var(--text-3);margin-top:2px}
+
+/* ---------------- Plan style (0142) ---------------- */
+/* The athlete's stated preference, shown even when someone else owns the setting — a locked
+   athlete must always be able to see that their answer was recorded and shared, not discarded. */
+.ps-pref{
+  margin-top:10px;padding:9px 11px;border-radius:10px;
+  background:var(--surface-2);border:1px solid var(--border);
+  font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;
+}
+.ps-pref b{color:var(--text-1);font-weight:800}
+
+/* Progress: the style bands + change markers on the score timeline, so a trend break reads as
+   "the plan changed here", never as an unexplained drop. */
+.ps-band{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.ps-band .seg{
+  display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;
+  background:var(--surface-2);border:1px solid var(--border);
+  font-size:11.5px;font-weight:700;color:var(--text-2);white-space:nowrap;
+}
+.ps-band .seg i{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block}
+.ps-band .seg.s-structured i{background:var(--blue-bright,#60a5fa)}
+.ps-band .seg.s-guided i{background:var(--accent)}
+.ps-band .seg.s-intuitive i{background:var(--green-bright,#4ade80)}

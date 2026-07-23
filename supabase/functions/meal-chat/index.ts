@@ -17,6 +17,10 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import {
+  composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
+} from '../_shared/plan-style.ts';
+import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const DAILY_CAP = Math.max(1, Math.floor(Number(Deno.env.get('MEAL_CHAT_DAILY_CAP') ?? '10')) || 10);
@@ -182,6 +186,19 @@ Deno.serve(async (req) => {
 
     const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
+    // Plan style (0142) resolves for the MEAL OWNER, never the caller. In draft and coach-support
+    // mode the caller is the COACH — but the person who reads the words is the athlete, so it is
+    // their style that decides what may be said. Getting this backwards would let a coach
+    // unknowingly send macro figures to an athlete who is deliberately not tracking them.
+    const planStyle: PlanStyle | null =
+      (await loadPlanStyleForAthlete(service, mealRow.athlete_id))?.style ?? null;
+    const styleSafe = (text: string): string => {
+      // Shared tail of both call sites below: one corrected retry is handled inline by the
+      // caller; this is the final rail that guarantees nothing unsafe is ever persisted.
+      const v = violatesStyleLanguage(text, planStyle);
+      return v ? SAFE_INTUITIVE.reply : text;
+    };
+
     // ---- draft mode: four candidate coach-voice replies, PERSIST NOTHING ----
     if (draftMode) {
       // New rate-limit keys so drafting never consumes the coachSupport / athlete-chat budget.
@@ -194,7 +211,7 @@ Deno.serve(async (req) => {
       const msg = await anthropic.messages.create({
         model: MODEL,
         max_tokens: 700, // 4 drafts x ~60 words + tool-call JSON; headroom so the 4th draft never truncates into a 502
-        system: [{ type: 'text', text: DRAFT_SYSTEM, cache_control: { type: 'ephemeral' } }],
+        system: [{ type: 'text', text: composeSystem(DRAFT_SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
         tools: [DRAFT_TOOL],
         tool_choice: { type: 'tool', name: 'draft_replies' },
         messages: [{
@@ -214,8 +231,19 @@ Deno.serve(async (req) => {
           byStance.set(stance, text.split(/\s+/).slice(0, 60).join(' '));
         }
       }
-      const drafts = DRAFT_STANCES.map((stance) => ({ stance, text: byStance.get(stance) ?? '' }));
+      let drafts = DRAFT_STANCES.map((stance) => ({ stance, text: byStance.get(stance) ?? '' }));
       if (drafts.some((d) => !d.text)) return bad(502, 'unavailable', cors);
+      // Plan-style rail on a COACH-facing surface: these drafts are sent verbatim to the athlete,
+      // so an Intuitive breach here is the same harm as one in the athlete's own feed. A drafting
+      // coach can see the safe replacement and edit it, so a single deterministic swap is the
+      // right cost here — no paid retry for a draft the coach is about to rewrite anyway.
+      if (planStyle === 'intuitive') {
+        const swapped = drafts.map((d) => ({ ...d, text: styleSafe(d.text) }));
+        if (swapped.some((d, i) => d.text !== drafts[i].text)) {
+          await recordAiCall({ fn: 'meal-chat', mode: 'draft', userId: callerId, model: MODEL, latencyMs: 0, ok: true, outcome: 'style_safe_copy' });
+        }
+        drafts = swapped;
+      }
       // PERSIST NOTHING — no meal_comments insert. The coach edits and sends these manually.
       return new Response(JSON.stringify({ drafts }), { headers: { ...cors, 'Content-Type': 'application/json' } });
     }
@@ -236,12 +264,16 @@ Deno.serve(async (req) => {
 
     // ---- the model call: prose only, forced tool ----
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+    // ONE typed tools array for the reply call and its style retry. REPLY_TOOL is `as const`, so
+    // its input_schema.required is a readonly tuple the SDK's mutable string[] rejects — tolerated
+    // at a single call site, not at two.
+    const replyTools = [REPLY_TOOL] as unknown as Anthropic.Tool[];
     const t0r = Date.now();
     const msg = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 400,
-      system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
-      tools: [REPLY_TOOL],
+      system: [{ type: 'text', text: composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
+      tools: replyTools,
       tool_choice: { type: 'tool', name: 'reply' },
       messages: [{
         role: 'user',
@@ -252,8 +284,40 @@ Deno.serve(async (req) => {
     });
     await recordAiCall({ fn: 'meal-chat', mode: 'reply', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
     const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: { message?: string } } | undefined;
-    const reply = String(tool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
+    let reply = String(tool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
     if (!reply) return bad(502, 'unavailable', cors);
+
+    // Plan-style rail (0142) — the INVERTED fallback (see _shared/plan-style.ts's header): correct
+    // and retry WITH the style still applied, never a bare re-ask. This reply is persisted as an
+    // unforgeable 'ai' row the athlete will read forever, so it gets the paid retry the throwaway
+    // coach drafts above do not.
+    {
+      const v = violatesStyleLanguage(reply, planStyle);
+      if (v) {
+        const t0s = Date.now();
+        const retry = await anthropic.messages.create({
+          model: MODEL,
+          max_tokens: 400,
+          system: [{ type: 'text', text: composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
+          tools: replyTools,
+          tool_choice: { type: 'tool', name: 'reply' },
+          messages: [
+            { role: 'user', content: `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}` },
+            { role: 'assistant', content: `<discarded>${reply}</discarded>` },
+            { role: 'user', content: styleCorrectionMessage(v) },
+          ],
+        });
+        await recordAiCall({
+          fn: 'meal-chat', mode: 'reply', userId: callerId, model: retry.model ?? MODEL,
+          ...usageFrom(retry.usage), latencyMs: Date.now() - t0s, ok: true, outcome: `style_${v.kind}_retry`,
+        });
+        const rtool = retry.content.find((b) => b.type === 'tool_use') as { input?: { message?: string } } | undefined;
+        const candidate = String(rtool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
+        // styleSafe is the final rail: a corrected retry that STILL breaches falls to safe copy
+        // rather than persisting a violation into the athlete's permanent thread.
+        reply = candidate ? styleSafe(candidate) : SAFE_INTUITIVE.reply;
+      }
+    }
 
     // ---- persist as the unforgeable 'ai' row (service role) ----
     // `kind` ships in a later migration (post-0048); insert WITH it first and on error retry

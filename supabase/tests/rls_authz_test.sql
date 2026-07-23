@@ -1928,6 +1928,203 @@ select _superuser();
 update public.feature_flags set default_on = true, enabled_user_ids = '{}'
  where name = 'verified_commitments';
 
+-- ================================================================ 13. PLAN STYLES (0142)
+-- Structured / Guided / Intuitive as a spectrum of structure. The boundary that matters most:
+-- "athletes should not be able to switch modes to avoid required team standards" must be a
+-- SERVER rule, not a client convention — so an athlete under a team standard can state a
+-- preference all day long and still never move their own effective style.
+--
+-- Seeds its OWN cast (a team, an athlete, a practice, a professional, a solo adult) rather than
+-- reusing sections 1-12's actors: section 8 deliberately revokes several of those links, and a
+-- plan-style assertion must fail for plan-style reasons only.
+select _superuser();
+
+insert into auth.users (id, email) values
+  ('7a000000-0000-0000-0000-0000000000c0','psc@x.io'), ('7a000000-0000-0000-0000-0000000000a0','psa@x.io'),
+  ('7a000000-0000-0000-0000-0000000000a1','psp@x.io'), ('7a000000-0000-0000-0000-0000000000c1','pscl@x.io'),
+  ('7a000000-0000-0000-0000-0000000000b0','pssolo@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('7a000000-0000-0000-0000-0000000000c0','PS Coach','psc@x.io','coach'),
+  ('7a000000-0000-0000-0000-0000000000a0','PS Athlete','psa@x.io','athlete'),
+  ('7a000000-0000-0000-0000-0000000000a1','PS Nutrition Pro','psp@x.io','trainer'),
+  ('7a000000-0000-0000-0000-0000000000c1','PS Client','pscl@x.io','athlete'),
+  ('7a000000-0000-0000-0000-0000000000b0','PS Solo Adult','pssolo@x.io','athlete')
+on conflict (id) do update set full_name = excluded.full_name, primary_role = excluded.primary_role;
+insert into teams (id, name, join_code, created_by) values
+  ('7a777777-0000-0000-0000-000000000001','PS Team','PSCODE','7a000000-0000-0000-0000-0000000000c0');
+insert into team_staff (team_id, staff_id, role, status) values
+  ('7a777777-0000-0000-0000-000000000001','7a000000-0000-0000-0000-0000000000c0','head_coach','active');
+insert into team_members (team_id, athlete_id, status) values
+  ('7a777777-0000-0000-0000-000000000001','7a000000-0000-0000-0000-0000000000a0','active');
+insert into practices (id, owner_id, name, join_code) values
+  ('7a888888-0000-0000-0000-0000000000a1','7a000000-0000-0000-0000-0000000000a1','RD Practice','RDCODE');
+insert into practice_clients (practice_id, client_id, status) values
+  ('7a888888-0000-0000-0000-0000000000a1','7a000000-0000-0000-0000-0000000000c1','active');
+
+-- --- the standard's item schema (validate_requirement_items, extended by 0142) ---
+select _ok(_try($q$insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+             ('7a777777-0000-0000-0000-000000000001','position',
+              '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},
+                {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"nonsense"}]'::jsonb,
+              '7a000000-0000-0000-0000-0000000000c0', null)$q$) <> 'ok',
+           '0142: a plan_style item with an unknown style is refused by the check constraint');
+select _ok(_try($q$insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+             ('7a777777-0000-0000-0000-000000000001','position',
+              '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},
+                {"id":"ps1","title":"A","kind":"plan_style","proof":"check","style":"guided"},
+                {"id":"ps2","title":"B","kind":"plan_style","proof":"check","style":"intuitive"}]'::jsonb,
+              '7a000000-0000-0000-0000-0000000000c0', null)$q$) <> 'ok',
+           '0142: a standard cannot carry TWO plan_style items — "what am I on?" stays answerable');
+select _ok(_try($q$insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+             ('7a777777-0000-0000-0000-000000000001','position',
+              '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},
+                {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"guided",
+                 "overrides":{"nutrition":{"calorieBand":9}}}]'::jsonb,
+              '7a000000-0000-0000-0000-0000000000c0', null)$q$) <> 'ok',
+           '0142: an out-of-range override band is refused (calorieBand must be 0..0.5)');
+select _ok(_try($q$insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+             ('7a777777-0000-0000-0000-000000000001','position',
+              '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},
+                {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"guided",
+                 "overrides":{"weights":{"nutrition":0.9}}}]'::jsonb,
+              '7a000000-0000-0000-0000-0000000000c0', null)$q$) <> 'ok',
+           '0142: a standard cannot override WEIGHTS — the 0041 evidence ceiling stays untouchable');
+select _ok((select validate_requirement_items(
+             '[{"id":"m1","title":"B","kind":"meal","proof":"photo"}]'::jsonb)),
+           '0142: an existing meals-only standard still validates unchanged');
+
+-- The real team standard governing the PS athlete: Structured, set team-wide.
+insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+  ('7a777777-0000-0000-0000-000000000001','team',
+   '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"},
+     {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"structured"}]'::jsonb,
+   '7a000000-0000-0000-0000-0000000000c0', null);
+
+select _ok(athlete_governing_plan_style('7a000000-0000-0000-0000-0000000000a0') = 'structured',
+           '0142: the team standard governs the team athlete''s plan style');
+select _ok(athlete_governing_plan_style('7a000000-0000-0000-0000-0000000000b0') is null,
+           '0142: an athlete on no team is governed by no standard');
+
+-- A future-dated switch (Structured preseason -> Intuitive offseason) does NOT take effect today.
+insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+  ('7a777777-0000-0000-0000-000000000001','team',
+   '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"},
+     {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"intuitive"}]'::jsonb,
+   '7a000000-0000-0000-0000-0000000000c0', current_date + 30);
+select _ok(athlete_governing_plan_style('7a000000-0000-0000-0000-0000000000a0') = 'structured',
+           '0142: a future-dated style change never rescopes today (0085 versioning honored)');
+
+-- ...and an athlete-scoped standard outranks the team-wide one (0055 precedence).
+insert into requirement_sets (team_id, scope_kind, scope_value, items, created_by, effective_date) values
+  ('7a777777-0000-0000-0000-000000000001','athlete','7a000000-0000-0000-0000-0000000000a0',
+   '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"},
+     {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"guided"}]'::jsonb,
+   '7a000000-0000-0000-0000-0000000000c0', null);
+select _ok(athlete_governing_plan_style('7a000000-0000-0000-0000-0000000000a0') = 'guided',
+           '0142: an athlete-scoped standard outranks the team-wide one');
+
+-- --- the athlete's own write (set_my_plan_style) ---
+select _as('7a000000-0000-0000-0000-0000000000a0');
+select _ok(set_my_plan_style('intuitive','intuitive') = 'guided',
+           '0142: a governed athlete CANNOT switch style to escape the team standard');
+select _superuser();
+select _ok((select plan_style_preference from profiles where id='7a000000-0000-0000-0000-0000000000a0') = 'intuitive',
+           '0142: ...but their stated preference still lands — a locked athlete is never a dead end');
+select _ok((select plan_style from profiles where id='7a000000-0000-0000-0000-0000000000a0') is null,
+           '0142: the governed athlete''s own style column was never written');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000a0') = 0,
+           '0142: a refused switch logs no change event');
+
+-- An UNGOVERNED adult owns their own setting outright.
+select _as('7a000000-0000-0000-0000-0000000000b0');
+select _ok(set_my_plan_style('intuitive', null) = 'intuitive',
+           '0142: an independent adult sets their own style');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000b0' and to_style='intuitive') = 1,
+           '0142: the change is logged for the Progress timeline');
+select _ok(set_my_plan_style('intuitive', null) = 'intuitive',
+           '0142: re-setting the same style is idempotent');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000b0') = 1,
+           '0142: ...and logs no duplicate event');
+select _ok(_try($q$select set_my_plan_style('paleo', null)$q$) <> 'ok',
+           '0142: an unknown style is refused outright');
+
+-- --- the change log is read-scoped and forge-proof ---
+select _ok((select count(*) from plan_style_events) = 1,
+           '0142: an athlete reads their OWN style history');
+select _ok(_try($q$insert into plan_style_events (athlete_id, to_style, actor_role)
+             values ('7a000000-0000-0000-0000-0000000000a0','guided','coach')$q$) <> 'ok',
+           '0142: nobody can forge a style-change event (RPC-only, no DML grant)');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000b0') = 0,
+           '0142: an unconnected athlete cannot read someone else''s style history');
+
+-- --- the professional's write (set_athlete_plan_style) ---
+select _as('7a000000-0000-0000-0000-0000000000a1');
+select set_athlete_plan_style('7a000000-0000-0000-0000-0000000000c1','guided',
+  '{"nutrition":{"calorieBand":0.08},"signals":{"satisfaction":true}}'::jsonb, 'in-season');
+select _ok(athlete_assigned_plan_style('7a000000-0000-0000-0000-0000000000c1') = 'guided',
+           '0142: a nutrition professional assigns a style to their client');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000c1') = 1,
+           '0142: the professional reads their client''s style history (can_view)');
+select _superuser();
+select _ok((select targets->'styleOverrides'->'nutrition'->>'calorieBand' from athlete_profiles
+            where athlete_id='7a000000-0000-0000-0000-0000000000c1') = '0.08',
+           '0142: ...and their per-knob customization rides along');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000c1'
+              and to_style='guided' and actor_role='trainer' and reason='in-season') = 1,
+           '0142: the assignment is logged with actor, role and reason');
+
+select _as('7a000000-0000-0000-0000-0000000000a1');
+select _ok(_try($q$select set_athlete_plan_style('7a000000-0000-0000-0000-0000000000c1','guided',
+             '{"nutrition":{"calorieBand":9}}'::jsonb)$q$) <> 'ok',
+           '0142: a professional cannot save an out-of-range override');
+select _ok(_try($q$select set_athlete_plan_style('7a000000-0000-0000-0000-0000000000c1','keto')$q$) <> 'ok',
+           '0142: a professional cannot invent a style');
+
+select _as('7a000000-0000-0000-0000-0000000000b0');
+select _ok(_try($q$select set_athlete_plan_style('7a000000-0000-0000-0000-0000000000c1','structured')$q$) <> 'ok',
+           '0142: an unrelated user cannot set someone else''s plan style');
+select _as('7a000000-0000-0000-0000-0000000000c1');
+select _ok(_try($q$select set_athlete_plan_style('7a000000-0000-0000-0000-0000000000c1','structured')$q$) <> 'ok',
+           '0142: a client cannot self-assign around their professional');
+select _ok(set_my_plan_style('intuitive','intuitive') = 'guided',
+           '0142: a client under a professional assignment keeps the assigned style');
+select _superuser();
+select _ok((select plan_style_preference from profiles where id='7a000000-0000-0000-0000-0000000000c1') = 'intuitive',
+           '0142: ...and their preference still reaches the professional');
+
+-- --- the targets door is guarded too (coach_set_goals carries style in the same JSONB) ---
+select _as('7a000000-0000-0000-0000-0000000000a1');
+select _ok(_try($q$select coach_set_goals('7a000000-0000-0000-0000-0000000000c1',
+             '{"protein":180,"style":"paleo"}'::jsonb, null)$q$) <> 'ok',
+           '0142: coach_set_goals refuses an unknown style smuggled through targets');
+select _ok(_try($q$select coach_set_goals('7a000000-0000-0000-0000-0000000000c1',
+             '{"protein":180,"styleOverrides":{"parts":{"protein":900}}}'::jsonb, null)$q$) <> 'ok',
+           '0142: coach_set_goals refuses malformed style overrides through targets');
+select _ok(_try($q$select coach_set_goals('7a000000-0000-0000-0000-0000000000c1',
+             '{"protein":180,"calories":3000}'::jsonb, null)$q$) = 'ok',
+           '0142: an ordinary targets save is unaffected');
+
+-- --- the per-day stamp ---
+select _as('7a000000-0000-0000-0000-0000000000c1');
+select _ok(_try($q$insert into days (athlete_id, date, plan_style, signals)
+             values ('7a000000-0000-0000-0000-0000000000c1', current_date, 'guided',
+                     '{"breakfast":{"hunger":3,"fullness":4}}'::jsonb)$q$) = 'ok',
+           '0142: an athlete stamps their own day with its style and signals');
+select _ok(_try($q$update days set plan_style = 'keto'
+             where athlete_id='7a000000-0000-0000-0000-0000000000c1' and date = current_date$q$) <> 'ok',
+           '0142: a tampered day style is refused by the check constraint');
+select _as('7a000000-0000-0000-0000-0000000000b0');
+select _ok((select count(*) from days
+            where athlete_id='7a000000-0000-0000-0000-0000000000c1' and plan_style is not null) = 0,
+           '0142: a stranger cannot even read another athlete''s day stamp');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$

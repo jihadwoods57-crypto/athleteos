@@ -408,6 +408,25 @@ export const thread = {
       </div>
     </section>`;
 
+    // ---- 1b. BODY SIGNALS — the 2-tap prompt (0142). Only appears when the athlete's plan
+    // style actually tracks them (Guided: hunger + fullness; Intuitive: all three). Always
+    // skippable and never scored on its VALUE: a 1 counts exactly as much as a 5, because what
+    // earns credit is noticing, not what you noticed. Nothing renders on Structured.
+    const sigFields = S.mealSignals(M.slot);
+    const signalCard = !sigFields.length ? '' : `
+    <section class="card" style="padding:14px 16px" id="meal-signals">
+      <div style="font-size:14px;font-weight:800">How did this meal land?</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:2px;line-height:1.5">Two taps, no wrong answer — this is for spotting your own patterns.</div>
+      ${sigFields.map(f => `
+        <div class="rec-field" data-sig-key="${f.key}" style="margin-top:12px">
+          <div class="rec-top"><span class="rec-name">${esc(f.label)}</span><span class="rec-ends">${esc(f.lo)} → ${esc(f.hi)}</span></div>
+          <div class="chips5" role="radiogroup" aria-label="${esc(f.label)}">
+            ${[1, 2, 3, 4, 5].map(n => `<div class="c5 ${f.value === n ? 'on' : ''}" data-n="${n}" role="radio" aria-checked="${f.value === n ? 'true' : 'false'}" aria-label="${esc(f.label)}: ${n} of 5">${n}</div>`).join('')}
+          </div>
+        </div>`).join('')}
+    </section>
+    <div style="height:10px"></div>`;
+
     // ---- 2. PHOTO + MEAL QUALITY (feedback 2026-07-16: quality is a separate concept from
     // compliance — banded color, its own label, and a one-line WHY so 58 never reads as green
     // success or an arbitrary number). Provenance badges live here; name/timing not repeated.
@@ -468,7 +487,18 @@ export const thread = {
       ['Calories', M.macros.cals, T.calories, ''],
     ].filter(([, , target]) => target);
     const corrLog = (M.corrections || []).length;
-    const breakdown = `
+
+    // INTUITIVE (0142): no macro or calorie figure reaches the athlete. The plate itself, what
+    // was on it, and how it landed still do — the composition IS the feedback. Every number is
+    // still computed and still stored (the professional needs them, and under-fueling is a
+    // safety signal); this gate is presentation only. `showMacros` is the athlete's own
+    // opt-in-able switch, so someone who WANTS their numbers back can have them.
+    const showNums = S.planStyle.showMacros;
+    const breakdown = !showNums ? `
+    <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
+    ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
+    ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
+    <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>` : `
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Meal Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
     <div class="macro-row five" style="margin-top:10px">
@@ -532,9 +562,21 @@ export const thread = {
       quality: M.score, macros: M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal,
       detected: M.detectedRich, source: M.source, deadlineClock: M.deadlineLabel,
       day: dayP,
+      // Plan style (0142): an Intuitive read never quotes a macro figure and never grades the
+      // plate — the AI's job there is to help the athlete notice a pattern, not to hand them a
+      // number. Same analysis underneath; the professional still sees all of it.
+      numbers: S.planStyle.showMacros, tone: S.planStyle.tone,
     });
+    // The long-form read is the edge function's own prose (M.analysis). Two ways it may be shown:
+    // the style permits numbers at all, OR the server STAMPED it as written for this exact style
+    // (analyze-meal's styleApplied, slice 8 — which also enforces the language rail server-side).
+    // Anything else — an old deploy with no stamp, or a stamp from a style the athlete has since
+    // left — is suppressed rather than regex-scrubbed: a half-redacted paragraph reads worse than
+    // the honest short summary, and a stale stamp is not evidence about today's prose.
+    const styleSafeProse = S.planStyle.showMacros || M.styleApplied === S.planStyle.key;
     const fullText = openingMessage({
-      name: M.name, quality: M.score, note: M.note, analysis: M.analysis,
+      name: M.name, quality: M.score, note: M.note,
+      analysis: styleSafeProse ? M.analysis : null,
       highlights: M.highlights, goal, coachTargets: S.planTargets, late: M.late, minutesLate: M.minutesLate,
       detected: M.detectedRich, source: M.source, day: dayP, patterns,
       impact: S.mealScoreImpact(M.slot),
@@ -607,7 +649,7 @@ export const thread = {
       <span class="xpill gray">Upcoming</span>
     </div>` : '';
 
-    return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
+    return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${signalCard}${photoBlock}${breakdown}${discussion}${next}
     <div style="height:18px"></div>
     <button class="btn green" style="width:100%" data-go="home" aria-label="Done — back to home">${icon('check', 18)} Done</button>
     <div style="height:16px"></div>`;
@@ -626,6 +668,22 @@ export const thread = {
       if (RT.lastMove) RT.lastMove._played = true;
     }
     if (!M.logged) return;
+
+    // Body-signal chips (0142): each tap persists immediately (days.signals) — no submit button,
+    // because a prompt you have to confirm is a prompt people stop answering. Re-tapping a
+    // different chip just overwrites; the paint updates in place without a full re-render, so
+    // answering one signal never scrolls the athlete away from the next.
+    root.querySelectorAll('#meal-signals [data-sig-key]').forEach((field) => {
+      const key = field.getAttribute('data-sig-key');
+      const chips = field.querySelectorAll('.c5');
+      chips.forEach((ch) => ch.addEventListener('click', () => {
+        chips.forEach((x) => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
+        ch.classList.add('on');
+        ch.setAttribute('aria-checked', 'true');
+        act.setMealSignal(M.slot, key, +ch.getAttribute('data-n'));
+      }));
+    });
+
     const roles = await import('../roles.js');
     // Delegation target for render-injected content (the fq bubble, the analysis expander):
     // #view is REPLACED on every render, so listeners attached here die with the paint —

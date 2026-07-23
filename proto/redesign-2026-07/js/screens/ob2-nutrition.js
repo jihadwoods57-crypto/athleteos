@@ -12,8 +12,9 @@ import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat, chatSim,
-  phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta,
+  phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep,
 } from '../ob2.js';
+import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
@@ -228,6 +229,9 @@ const steps = [
       { v: 'quiet', t: 'Clients who go quiet' }, { v: 'late', t: 'Late logs' },
     ], { multi: true }),
   },
+  /* 0142 — sets the nutrition professional's own default for NEW clients (full knob
+     customization per client comes from the practice dashboard, not this screen). */
+  structureStep({ mode: 'assign', who: () => 'new clients' }),
 
   /* ================= ch1 · See it ================= */
   {
@@ -401,7 +405,9 @@ const steps = [
       const slips = (Array.isArray(o.slips) ? o.slips : []).map((s) => SLIP_LABEL[String(s)]).filter(Boolean);
       const wf = WORKFLOW_LABEL[String((o || {}).currentWorkflow)] || null;
       const hrs = HOURS_LABEL[String((o || {}).reviewHours)] || null;
+      const style = styleLabel(styleForStructureAnswer(o.structurePref));
       const mirrors = [
+        mirrorCard('sparkle', `Default plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. You have full knob control per client from your dashboard.`),
         b ? mirrorCard('users', `You said you carry <b>${esc(b.t)} clients</b> — so every meal they log is pre-read and scored before it reaches you.`) : '',
         slips.length ? mirrorCard('flame', `You said clients slip on <b>${esc(slips.join(', '))}</b> — so the queue flags exactly those patterns instead of waiting for you to catch them.`) : '',
         wf ? mirrorCard('message', `You said reviews live in <b>${esc(wf)}</b> — so everything lands in one queue with the history attached.`) : '',

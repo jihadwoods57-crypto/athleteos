@@ -205,7 +205,7 @@
   font-family: inherit; font-size: 13.5px; font-weight: 800; color: var(--text-2);
   transition: all var(--dur-1) var(--ease-out); }
 .ob2-cadence .cad small { font-size: 10px; font-weight: 800; color: var(--green-bright); letter-spacing: 0.01em; }
-.ob2-cadence .cad.on { background: rgba(59,130,246,0.12); color: var(--text-1); box-shadow: 0 1px 6px rgba(59,130,246,0.14); }
+.ob2-cadence .cad.on { background: rgba(59,130,246,0.12); color: var(--text); box-shadow: 0 1px 6px rgba(59,130,246,0.14); }
 .ob2-fine { font-size: 11px; font-weight: 600; color: var(--text-3); line-height: 1.45; text-align: center; padding-top: 10px; }
 
 /* Covered-by-team confirmation */

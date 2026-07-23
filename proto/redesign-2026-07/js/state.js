@@ -7,7 +7,8 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems } from './requirements.js';
+import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems, planStyleFromItems } from './requirements.js';
+import { resolvePlanStyle, SIGNAL_KEYS, CHECKIN_SIGNAL_KEYS, styleLabel, styleSourceLabel } from './plan-style.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
@@ -16,6 +17,7 @@ import {
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, setDayGoalConfig, checkinReal,
+  setDayPlanStyle, daySetMealSignal, weightsForDay,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
@@ -401,6 +403,7 @@ export function mealDetail(slot) {
     orig: meta.orig || null,         // the AI's original estimate, frozen at first correction
     photoQ: meta.photoQ || null,     // measured capture quality {luma, sharpness} (or null)
     analysis: meta.analysis || '',   // the AI's detailed paragraph (0062), '' pre-migration
+    styleApplied: meta.styleApplied || null, // 0142 — which plan style the server wrote it for
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
     fiber: meta.fiber || 0,
     highlights: Array.isArray(meta.highlights) ? meta.highlights : [],
@@ -498,6 +501,76 @@ export function nutritionConfigForGoal(goal, bodyweightLb, targets) {
     calTarget: t.calories > 0 ? +t.calories : derived.calTarget,
   };
 }
+/* ---------------- Plan style → the live day (0142) ----------------
+   The THIRD axis: goal sets direction, standard reshapes the day, style sets how much structure
+   the athlete is held to. One resolution, shared by the athlete's own hydrate and every surface
+   that has to explain it, so "what am I on and who set it?" always has one answer.
+
+   The role decides who CONTROLS it, not what it is: a team athlete's coach owns the setting, a
+   trainer client proposes, an independent adult chooses. The stated preference is carried
+   through in every case — see plan-style.js resolvePlanStyle. */
+function planStyleRoleFor() {
+  const p = RT.profile || {};
+  if (RT.myCoach && RT.myCoach.teamId) return 'athlete';   // on a team → the coach's call
+  if (RT.myTrainer || p.trainerId) return 'client';        // a practice client → propose
+  const r = p.primaryRole || (RT.ob && RT.ob.role) || null;
+  if (r === 'coach' || r === 'trainer' || r === 'nutrition') return r;
+  return 'solo';                                           // an independent adult chooses freely
+}
+
+/** The athlete's resolved plan style — the ONE derivation every surface reads. */
+export function resolveMyPlanStyle() {
+  const p = RT.profile || {};
+  const teamStandard = planStyleFromItems(RT.stdItems, (RT.myCoach && RT.myCoach.name) || null);
+  const targets = p.targets || {};
+  return resolvePlanStyle({
+    role: planStyleRoleFor(),
+    teamStandard,
+    proAssignment: targets.style
+      ? { style: targets.style, styleOverrides: targets.styleOverrides || null, setBy: (RT.myCoach && RT.myCoach.name) || (RT.myTrainer && RT.myTrainer.name) || null }
+      : null,
+    selfChoice: p.planStyle || null,
+    preference: p.planStylePreference || (RT.ob && RT.ob.structurePref) || null,
+    // Grandfather (founder decision): an account that already has scored history keeps today's
+    // exact formula rather than being moved to the new Guided default on release day.
+    hasHistory: Array.isArray(DAY.scoreHistory) && DAY.scoreHistory.length > 0,
+  });
+}
+
+/* A style's tracked body signals become check-in QUESTIONS (digestion/cravings) through the
+   SAME ciConfig gate every other check-in field uses — no second form, no second engine. Only
+   the two check-in-scoped signals are touched; the athlete's other toggles are left alone. */
+function applyStyleCheckinConfig(knobs) {
+  if (!DAY.ciConfig) return;
+  for (const key of CHECKIN_SIGNAL_KEYS) {
+    DAY.ciConfig[key] = !!(knobs && knobs.signals && knobs.signals[key]);
+  }
+}
+
+/** The trailing-week rate at which this athlete answered their signal prompts (0..1). Feeds
+ *  awarenessScore so one skipped day barely moves the number. Real data only — computed from
+ *  the signals actually stored on the last 7 day rows; null when there is no history to read. */
+function signalWeekRate() {
+  const hist = Array.isArray(DAY.scoreHistory) ? DAY.scoreHistory.slice(-7) : [];
+  if (!hist.length) return null;
+  let answered = 0;
+  for (const h of hist) {
+    const sig = (h && h.checkin && h.checkin.signals) || (h && h.signals) || null;
+    if (sig && Object.keys(sig).some(slot => sig[slot] && Object.keys(sig[slot]).length)) answered++;
+  }
+  return answered / hist.length;
+}
+
+/** Push the resolved style onto the live DAY: the scoring branch, the check-in questions, and
+   the awareness week-rate. Idempotent — safe on every hydrate, exactly like applyGoalToDay. */
+function applyPlanStyleToDay() {
+  const res = resolveMyPlanStyle();
+  RT.planStyle = res;
+  setDayPlanStyle(res.style, res.knobs);
+  applyStyleCheckinConfig(res.knobs);
+  DAY.signalWeekRate = signalWeekRate();
+}
+
 /* Derive the athlete's scoring profile + calorie/protein targets from their real goal (server
    baseGoal, else the onboarding scratch) and body weight, and push them onto the live DAY so the
    score honors what they signed up for. A coach/trainer-set target (athlete_profiles.targets)
@@ -593,7 +666,7 @@ export const act = {
     const meta = MEAL.result
       ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note, name: MEAL.result.name || MEAL.mealType,
           fiber: MEAL.result.fiber || 0, highlights: MEAL.result.highlights || [], detectedRich: MEAL.result.detectedRich || [],
-          analysis: MEAL.result.analysis || '', ...(userNote ? { userNote } : {}), ...integrity }
+          analysis: MEAL.result.analysis || '', ...(MEAL.result.styleApplied ? { styleApplied: MEAL.result.styleApplied } : {}), ...(userNote ? { userNote } : {}), ...integrity }
       : { name: MEAL.mealType || cap(slot), ...(userNote ? { userNote } : {}), ...integrity };
     const macros = loggingMacros();
     dayLogMeal(RT.userId, slot, macros, meta);
@@ -697,6 +770,46 @@ export const act = {
     track(EVENTS.RECOVERY_SUBMITTED);
     this.syncNotifications();
   },
+  /* Set the athlete's plan style (0142). ALWAYS records their stated preference — that is theirs
+     and it reaches their professional's roster either way. The effective style only moves when
+     nobody else governs it; the server (set_my_plan_style) is the authority on that, and it
+     returns the style that actually applies, so a governed athlete's optimistic paint is
+     corrected by the real answer rather than left showing a switch that didn't happen. */
+  async setPlanStyle(style) {
+    const key = String(style || '');
+    const p = RT.profile || (RT.profile = {});
+    p.planStylePreference = key;
+    if (S.planStyle.canChoose) p.planStyle = key;   // `planStyle` is an S getter, not an act method
+    applyPlanStyleToDay();
+    save();
+    const sb = window.sb;
+    if (!sb || !RT.userId) return;                       // offline: the local choice stands and re-syncs
+    try {
+      const { data, error } = await sb.rpc('set_my_plan_style', { p_style: key, p_preference: key });
+      if (!error && data) {
+        // The server's word, not ours: a governed athlete gets their standard back here.
+        p.planStyle = S.planStyle.canChoose ? data : null;
+        applyPlanStyleToDay();
+        save();
+        window.__render && window.__render();
+      }
+    } catch { /* offline — the local preference is kept and pushed on the next hydrate */ }
+  },
+
+  /* The 2-tap post-meal body-signal prompt (0142). Answering is what earns awareness credit on
+     an Intuitive plan — the VALUE answered never does, so there is no wrong answer to give and
+     nothing to game. Skipping costs nothing on Structured/Guided, and on Intuitive it is one
+     day against a trailing-week rate. */
+  setMealSignal(slot, key, value) {
+    daySetMealSignal(RT.userId, slot, key, value);
+    DAY.signalWeekRate = signalWeekRate();
+    save();
+  },
+  /* One-time "plan styles exist now" announcement (0142 release mechanics) — dismissed once,
+     locally, and never shown again regardless of which button ended it (exploring the picker
+     counts as having seen it too). Local-only like RT.theme/RT.notifsRead: this is a UI nag
+     flag, not athlete data, so it doesn't need a server round trip or a fresh-device carry. */
+  dismissPlanStylePrompt() { RT.planStylePromptSeen = true; save(); },
   logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); track(EVENTS.WEIGHT_LOGGED); this.syncNotifications(); },
   addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); this.syncNotifications(); },
   readNotifs() {
@@ -1213,7 +1326,7 @@ export const act = {
     saveMeal();
   },
 
-  startDay0() { RT.lastMove = null; dayResetLocal(); applyGoalToDay(); this._applyStandardFromSets(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
+  startDay0() { RT.lastMove = null; dayResetLocal(); applyGoalToDay(); this._applyStandardFromSets(); applyPlanStyleToDay(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
   // Coach→athlete assignments: real rows (0055) sync completion to the server; local-only
   // items (injury-mode rehab) stay local. Optimistic — server truth reasserts on next hydrate.
   completeAssigned(id) {
@@ -1411,6 +1524,9 @@ export const act = {
       // surplus floor for a gainer, the shipped formula for a performance athlete) now that
       // baseGoal / baseWeight / coach-set targets are hydrated.
       applyGoalToDay();
+      // ...then the plan style (0142), which needs the hydrated targets/preference AND is
+      // re-applied by _applyStandardFromSets once a governing team standard resolves.
+      applyPlanStyleToDay();
       RT.profileLoading = false; save();
       return !!ap;
     } catch {
@@ -1689,6 +1805,9 @@ export const act = {
     // requirements (lift/custom/etc). Null when no coach set governs — keeps execCatalog byte-identical.
     RT.stdItems = Array.isArray(govItems) ? govItems : null;
     setDayStandard(RT.stdMeals);
+    // The governing set can also carry the team's PLAN STYLE (0142 kind:'plan_style'), which
+    // outranks any self choice — so the style is re-resolved every time the standard does.
+    applyPlanStyleToDay();
   },
   /* Athlete: redeem a coach team code (or a trainer practice code) from the Connect screen.
      The server re-validates the code and creates the membership (SECURITY DEFINER RPCs from
@@ -2119,6 +2238,80 @@ export const S = {
     };
   },
   // The athlete's REAL linked coach — from their active team membership + the head coach's
+  /* ---------- PLAN STYLE (0142) — the ONE surface every screen reads ----------
+     Style, its knobs, who set it, whether it's locked, and the athlete's own stated preference.
+     `showCalories`/`showMacros` are the presentation gate an Intuitive plan turns off: the
+     numbers are still COMPUTED and still visible to the professional (an under-fueling read is a
+     safety signal), they are simply not shown to the athlete. Suppression is presentation, never
+     data — no surface should ever skip computing a number because of a style. */
+  get planStyle() {
+    const res = RT.planStyle || resolveMyPlanStyle();
+    const label = styleLabel(res.style);
+    return {
+      key: res.style,
+      name: label.name,
+      short: label.short,
+      how: label.how,
+      knobs: res.knobs,
+      source: res.source,
+      sourceLabel: styleSourceLabel(res, this.coach.noun),
+      locked: res.locked,
+      lockedBy: res.lockedBy,
+      canChoose: res.canChoose,
+      preference: res.preference,
+      preferenceName: res.preference ? styleLabel(res.preference).name : null,
+      // true when the athlete wants something other than what governs them — the honest signal
+      // the professional's roster surfaces, and the reason the athlete sees "preference shared".
+      preferenceDiffers: !!(res.preference && res.preference !== res.style),
+      customized: !!(res.knobs && res.knobs.customized),
+      showCalories: !!(res.knobs && res.knobs.surface.showCalories),
+      showMacros: !!(res.knobs && res.knobs.surface.showMacros),
+      tone: (res.knobs && res.knobs.surface.tone) || 'guidance',
+    };
+  },
+  /** The nutrition component's real share of this athlete's score, as a whole percent. Every
+   *  surface that explains the score reads this instead of hardcoding 50 — the share moves with
+   *  the style x goal profile, and a number the athlete can check has to be the true one. */
+  get nutritionWeightPct() { return Math.round(weightsForDay(DAY).nutrition * 100); },
+
+  /** The score timeline banded by the style that governed each stretch, newest last.
+   *  [{ style, name, days, from, to, avg }] — Progress renders these so a trend break reads as
+   *  "the plan changed here", never as an unexplained drop. Days with no stamp (pre-0142 history)
+   *  are attributed to Structured, which is exactly how they were scored. Real rows only. */
+  get styleBands() {
+    const hist = Array.isArray(DAY.scoreHistory) ? DAY.scoreHistory : [];
+    const rows = [...hist.map(h => ({ date: h.date, score: h.score || 0, style: h.planStyle || 'structured' })),
+      { date: DAY.date, score: this.score, style: DAY.planStyle || 'structured' }];
+    const bands = [];
+    for (const r of rows) {
+      const last = bands[bands.length - 1];
+      if (last && last.style === r.style) { last.days++; last.to = r.date; last._sum += r.score; }
+      else bands.push({ style: r.style, name: styleLabel(r.style).name, days: 1, from: r.date, to: r.date, _sum: r.score });
+    }
+    return bands.map(b => ({ ...b, avg: Math.round(b._sum / b.days) }));
+  },
+
+  /** Plain-English names of the body signals this plan tracks (for the Plan/Progress copy). */
+  get trackedSignalLabels() {
+    const knobs = this.planStyle.knobs;
+    return SIGNAL_KEYS.filter(s => knobs && knobs.signals && knobs.signals[s.key]).map(s => s.label);
+  },
+
+  /** The hydration target this athlete is actually scored against, in the unit they drink in. */
+  get hydrationTargetLabel() {
+    const l = DAY.hydrationTargetL > 0 ? DAY.hydrationTargetL : 3;
+    return `${Math.round(l * 33.814)} oz`;
+  },
+
+  /** The body signals this style asks for, and what's been answered for one meal slot today. */
+  mealSignals(slot) {
+    const knobs = this.planStyle.knobs;
+    const answered = (DAY.signals && DAY.signals[slot]) || {};
+    return SIGNAL_KEYS
+      .filter(s => s.where === 'meal' && knobs && knobs.signals && knobs.signals[s.key])
+      .map(s => ({ ...s, value: typeof answered[s.key] === 'number' ? answered[s.key] : null }));
+  },
+
   // display name. NEVER a fabricated persona: with no link, hasCoach is false and every
   // coach-specific surface must gate on it; `name`/`nameMid` degrade to honest generic copy.
   get coach() {
@@ -2697,6 +2890,7 @@ export const S = {
           : MEAL.source === 'manual' ? 'Entered by you — the plate you actually built.'
           : 'Logged from your photo.'),
         analysis: r.analysis || '',            // the ONE detailed AI read (0062); note is the fallback
+        styleApplied: r.styleApplied || null,  // 0142 — which plan style the server wrote it for
         capturedAtMin: MEAL.capturedAtMin,     // for the timing pill on the analysis hero
         empty: false, live: MEAL.live !== false,
       };
@@ -2712,7 +2906,7 @@ export const S = {
         macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
         planMatch: { verdict: 'Logged', detail: meta.note || 'Analyzed from your photo.', level: 'b' },
         ai: meta.note || 'Logged from your photo.',
-        analysis: meta.analysis || '', capturedAtMin: null,
+        analysis: meta.analysis || '', styleApplied: meta.styleApplied || null, capturedAtMin: null,
         empty: false,
       };
     }
@@ -2822,6 +3016,9 @@ export const S = {
       { key: 'confidence', k: 'Confidence',    lo: 'Shaky',   hi: 'Dialed in' },
       { key: 'soreness',   k: 'Soreness',      lo: 'None',    hi: 'Very sore' },
       { key: 'motivation', k: 'Motivation',    lo: 'Flat',    hi: 'Fired up' },
+      // Body signals (0142) — enabled by a Guided/Intuitive plan style, off for everyone else.
+      { key: 'digestion',  k: 'Digestion',     lo: 'Rough',   hi: 'Comfortable' },
+      { key: 'cravings',   k: 'Cravings',      lo: 'None',    hi: 'Constant' },
     ];
     // 5 chips map to the engine's 0–10 scale as 2/4/6/8/10; initial selection reflects the
     // day's current values so reopening the form shows what will actually be submitted.

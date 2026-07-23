@@ -21,8 +21,9 @@ import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
-  phoneCard, testimonial, planCard, PLANS, chatSim,
+  phoneCard, testimonial, planCard, PLANS, chatSim, structureStep,
 } from '../ob2.js';
+import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
@@ -190,6 +191,9 @@ const steps = [
       { v: '100-200', t: '$100–$200' }, { v: '200plus', t: '$200+' },
     ]),
   },
+  /* 0142 — seeds the trainer's own default for new clients; set per-client, never a write
+     to any one client from here. */
+  structureStep({ mode: 'assign', who: () => 'new clients' }),
 
   /* ==================== ch1 · See it ==================== */
   {
@@ -349,8 +353,10 @@ const steps = [
     id: 'plan', ch: 2, cta: 'Next',
     title: () => 'Your practice, systemized.',
     body: (o) => {
+      const style = styleLabel(styleForStructureAnswer(o.structurePref));
       const mirrors = [];
       if (o.clientCount) mirrors.push(mirrorCard('users', `You said you train <b>~${esc(o.clientCount)} clients</b> — one code connects every one of them to your standard.`));
+      mirrors.push(mirrorCard('sparkle', `Default plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. You'll set this per client — anyone can propose a different one when they connect.`));
       if (o.followupHours) mirrors.push(mirrorCard('clock', `You said <b>${esc(o.followupHours === 'more' ? 'more than 10' : o.followupHours)} hrs a week</b> goes to chasing — the daily queue and drafted replies take that back.`));
       const pains = Array.isArray(o.pains) ? o.pains : [];
       const p0 = pains.find((p) => PAIN_LABEL[p]);

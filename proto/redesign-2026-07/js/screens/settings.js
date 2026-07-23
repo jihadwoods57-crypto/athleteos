@@ -3,7 +3,8 @@ import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
 import { normalizeCoachPrefs } from '../coach-notify-plan.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, planStyleCard } from '../components.js';
+import { STYLE_KEYS, styleLabel } from '../plan-style.js';
 import * as roles from '../roles.js';
 import { planById } from '../pricing.js';
 
@@ -749,3 +750,59 @@ export function wireToggles(root) {
     syncAria();
   });
 }
+
+/* ---------- Plan style picker (0142) ----------
+   Where an athlete who OWNS their setting changes it, and where an athlete who doesn't sees
+   exactly who does — plus the preference they stated, marked as shared rather than discarded.
+
+   Honesty rules this screen carries:
+     * a locked athlete still gets to change their PREFERENCE. It reaches their coach's roster.
+       Silently storing an answer nobody ever sees is the thing this is built to avoid.
+     * the copy never implies a style is better. Structured is not "serious mode"; Intuitive is
+       not "easy mode". They measure different things.
+     * changing style is disclosed as forward-only — past days keep the score they earned. */
+export const planStylePicker = {
+  tab: 'profile',
+  hideTabs: true,
+  render() {
+    const PS = S.planStyle;
+    const choosing = PS.canChoose;
+    const current = PS.key;
+    // When someone else owns the setting, the chips pick a PREFERENCE, not the plan itself.
+    const selected = choosing ? current : (PS.preference || current);
+    return `
+    ${backHead('Plan style', choosing ? 'How much structure helps you succeed' : `Set by your ${esc(PS.lockedBy || S.coach.noun)}`, 'settings')}
+
+    ${planStyleCard(PS, { compact: true })}
+
+    <div class="eyebrow">${choosing ? 'Choose your style' : 'Tell your ' + esc(S.coach.noun) + ' what you prefer'}</div>
+    ${!choosing ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 10px;line-height:1.5">Your ${esc(S.coach.noun)} sets the plan you're scored on. What you pick here is shared with them — it doesn't change your scoring on its own.</div>` : ''}
+
+    <section class="card" style="padding:6px 16px" id="ps-options">
+      ${STYLE_KEYS.map((k) => {
+        const L = styleLabel(k);
+        const on = selected === k;
+        return `
+        <div class="lrow" data-ps-pick="${k}" role="radio" aria-checked="${on ? 'true' : 'false'}">
+          <div class="lic">${icon(k === 'structured' ? 'clipboard' : k === 'guided' ? 'target' : 'heart', 17)}</div>
+          <div class="lm"><div class="lt">${esc(L.name)}${on ? ' <span class="status-pill g" style="margin-left:6px">Selected</span>' : ''}</div>
+          <div class="ls">${esc(L.how)}</div></div>
+        </div>`;
+      }).join('')}
+    </section>
+
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:12px;padding:0 2px;line-height:1.5">
+      Changing your style applies from today forward. Days you've already scored keep the score you earned — they were measured by the plan you were on then.
+    </div>
+
+    <div style="height:16px"></div>
+    <button class="btn ghost" data-back="settings">Done</button>
+    <div style="height:10px"></div>`;
+  },
+  mount(root) {
+    root.querySelectorAll('[data-ps-pick]').forEach((el) => el.addEventListener('click', () => {
+      act.setPlanStyle(el.getAttribute('data-ps-pick'));
+      window.__render && window.__render();
+    }));
+  },
+};

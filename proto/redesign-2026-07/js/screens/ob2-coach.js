@@ -21,8 +21,9 @@ import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import {
   defineFlow, saveProgressStep, ob, capture, gateCta, meter, countStat, mirrorCard, simChip,
-  chatSim, notifCard, phoneCard, testimonial, planCard, choiceGrid, chipRow, PLANS,
+  chatSim, notifCard, phoneCard, testimonial, planCard, choiceGrid, chipRow, PLANS, structureStep,
 } from '../ob2.js';
+import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { showConfirmPending } from '../ob-helpers.js';
 import { track, EVENTS } from '../analytics.js';
@@ -253,6 +254,10 @@ const steps = [
       { v: 'injured', t: 'Injured guys' }, { v: 'travel', t: 'Travel' }, { v: 'freshmen', t: 'Freshmen' },
     ], { multi: true }),
   },
+  /* 0142 — a coach's answer seeds their OWN default for the team standard they build later
+     (the Requirements editor pre-selects it, per athlete never forced) — it is never
+     written to any individual athlete from here. */
+  structureStep({ mode: 'assign', who: () => 'your roster' }),
 
   /* ================= ch1 — SEE IT ================= */
   {
@@ -364,8 +369,10 @@ const steps = [
       const ts = teamSizeOf(o), de = expectationsOf(o);
       const BLIND = { home: 'nutrition at home', weekends: 'weekends', injured: 'injured guys', travel: 'travel', freshmen: 'freshmen' };
       const blinds = (Array.isArray(o.blindspots) ? o.blindspots : []).map((b) => BLIND[b]).filter(Boolean);
+      const style = styleLabel(styleForStructureAnswer(o.structurePref));
       return `
       ${o.teamSize ? mirrorCard('users', `You said <b>${esc(ts)} athletes</b> — the board tracks every one, daily.`) : ''}
+      ${mirrorCard('sparkle', `Default plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. This seeds your standard — you set it per athlete, and any athlete can share a different preference.`)}
       ${o.dailyExpectations ? mirrorCard('clipboard', `Your <b>${esc(de)} daily non-negotiables</b> become requirements with proof, not reminders in a chat.`) : ''}
       ${blinds.length ? mirrorCard('eye', `Your blind spots — <b>${esc(blinds.join(', '))}</b> — are exactly what alerts and the board make visible.`) : mirrorCard('eye', `The hours you can’t see — home, weekends, travel — are exactly what the board makes visible.`)}
       <div style="height:8px"></div>

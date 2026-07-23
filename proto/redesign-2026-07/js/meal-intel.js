@@ -348,11 +348,53 @@ export function qualityReason(macros, fiber, detected) {
  * with the full openingMessage() paragraph behind a "View full analysis" expander.
  * Derived from the same stored meal data as openingMessage, so it can't drift from it.
  */
+/* The Intuitive read: what was on the plate and what to notice about it — never a calorie or
+   macro figure, never a food graded good or bad, never a fix to apply. An athlete on this plan is
+   building the skill of reading their own signals, and a number handed to them short-circuits
+   exactly the thing the plan is trying to teach. Same inputs, different vocabulary. */
+function intuitiveSummary({ detected, fiber, late, deadlineClock, highlights } = {}) {
+  const names = (Array.isArray(detected) ? detected : [])
+    .map((d) => clean(String(d && d.name != null ? d.name : d))).filter(Boolean);
+  const hasProtein = names.some((n) => /salmon|chicken|beef|steak|turkey|egg|fish|tuna|pork|shrimp|tofu|yogurt|cottage|bean|lentil/i.test(n));
+  const hasProduce = hasVisibleProduce(detected) || Math.max(0, Number(fiber) || 0) >= 5;
+
+  const good = [];
+  if (late === false) good.push(deadlineClock ? `You logged before your ${deadlineClock} deadline` : 'Logged on time');
+  else if (late === true) good.push('You got it logged, and late still beats hidden');
+  if (hasProtein && hasProduce) good.push('this plate has a protein anchor and something fresh on it');
+  else if (hasProtein) good.push('there is a real protein anchor here');
+  else if (hasProduce) good.push('there is something fresh on the plate');
+  else {
+    const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean);
+    if (hl.length) good.push(hl[0].charAt(0).toLowerCase() + hl[0].slice(1));
+  }
+
+  return {
+    wentWell: good.length ? `${good.join(', and ')}.` : '',
+    // An observation to sit with, not a deficiency to correct.
+    opportunity: hasProtein && hasProduce
+      ? 'Worth noticing how full and how steady you feel a couple of hours from now.'
+      : hasProtein
+        ? 'Worth noticing whether this one holds you, or whether hunger comes back early.'
+        : 'Worth noticing how long this one carries you before you are hungry again.',
+    next: 'No fix needed — just log how it left you feeling. That is the pattern worth having.',
+  };
+}
+
+/** @param {{quality?: number, macros?: any, fiber?: number, highlights?: string[],
+ *  late?: boolean | null, goal?: string, detected?: any[], source?: string,
+ *  deadlineClock?: string, day?: any, numbers?: boolean, tone?: string}} [o]
+ *  (explicit because two bindings carry defaults, which narrows TS's inference of the rest) */
 export function openingSummary({
   quality, macros, fiber, highlights, late, goal,
   // Upgrade 2026-07-16 — all optional; absent context is omitted, never invented:
   detected, source, deadlineClock, day,
+  // Plan style (0142): 'numbers' false suppresses every macro FIGURE for the athlete, and
+  // 'signals' tone drops good/bad plate language for pattern language. The read itself is
+  // unchanged — the same plate, described the way this athlete's plan talks about food.
+  numbers = true, tone = 'guidance',
 } = {}) {
+  if (!numbers || tone === 'signals') return intuitiveSummary({ detected, fiber, late, deadlineClock, highlights });
   const m = macros || {};
   const p = Math.max(0, Number(m.protein) || 0);
   const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean);

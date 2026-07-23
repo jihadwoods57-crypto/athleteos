@@ -7,7 +7,8 @@ import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups
 import { openImageViewer } from '../image-viewer.js';
 import { CD, loadBook, bookKindFor, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
-import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin } from '../requirements.js';
+import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin, planStyleFromItems } from '../requirements.js';
+import { STYLE_KEYS, styleLabel, knobsFor, resolveStyleKey } from '../plan-style.js';
 import { dayFromHistoryRow, minutesNow, MEAL_KEYS } from '../day.js';
 import { explainCategories } from '../breakdown-model.js';
 import { seedTemplates, templateLabel } from '../templates.js';
@@ -148,12 +149,13 @@ async function loadTargets(athleteId) {
   // Audit G-3: a throw here previously left tgtLoadingId set with no finally, permanently wedging
   // this athlete on "Loading their targets…" for the session. catch → honest offline; finally clears.
   try {
-    const [targets, basics] = await Promise.all([
+    const [targets, basics, preference] = await Promise.all([
       roles.fetchAthleteTargets(athleteId),
       roles.fetchAthleteBasics(athleteId),
+      roles.fetchAthletePlanPreference(athleteId), // 0142 — always readable, even when locked
     ]);
-    TGT = { athleteId, targets: targets || {}, basics: basics || null };
-  } catch { TGT = { athleteId, targets: {}, basics: null, offline: true }; }
+    TGT = { athleteId, targets: targets || {}, basics: basics || null, preference: preference || null };
+  } catch { TGT = { athleteId, targets: {}, basics: null, preference: null, offline: true }; }
   finally { tgtLoadingId = null; }
   if (location.hash.startsWith('#coach-plan')) window.__render();
 }
@@ -204,6 +206,95 @@ async function loadTrust(force) {
   } catch { TP = { map: {} }; }
   finally { tpLoading = false; }
   if (location.hash.startsWith('#coach-plan')) window.__render();
+}
+
+/** The plan style a TEAM STANDARD governs for one athlete, from the ALREADY-loaded SETS
+ *  (loadSets — same rows the room/program editors use), resolved with the SAME precedence
+ *  (athlete > position > team) and effective-date versioning the server enforces
+ *  (athlete_governing_plan_style). Returns null when no standard sets one — the common case,
+ *  where the coach's per-athlete assignment (or the shipped default) governs instead. */
+function teamGoverningPlanStyle(athleteId, position) {
+  if (!SETS || !SETS.rows || !SETS.rows.length) return null;
+  const set = resolveRequirementSet(SETS.rows, athleteId, position, roles.todayISO());
+  const item = set ? planStyleFromItems(set.items) : null;
+  return item ? item.style : null;
+}
+
+/* Plan-style assignment + override editor (0142) — the coach/trainer/nutrition-pro side of
+   Structured/Guided/Intuitive. Lives on the same per-athlete screen as their nutrition
+   targets, because a style is what decides HOW those targets are measured.
+
+   Three states, never fudged into one:
+     locked      a TEAM STANDARD already sets a style — a per-athlete override here would be
+                 silently ignored by the athlete's own device (resolvePlanStyle: team > pro >
+                 self), so the picker is replaced by an honest pointer to the Standards editor.
+     assigned    this coach/trainer has set (or is about to set) the athlete's style directly.
+     unset       nobody has — shown as exactly that, never a guessed value, since which shipped
+                 default applies (grandfathered Structured vs. new-signup Guided) depends on
+                 history this screen doesn't have. */
+const STYLE_ICON = { structured: 'clipboard', guided: 'target', intuitive: 'heart' };
+function planStyleSection(athleteId, who, targets) {
+  const teamStyle = teamGoverningPlanStyle(athleteId, TGT.basics && TGT.basics.position);
+  const assigned = resolveStyleKey(targets.style);
+  const pref = TGT.preference ? resolveStyleKey(TGT.preference) : null;
+  const effective = teamStyle || assigned;
+  const prefLine = pref && pref !== effective
+    ? `<div class="ps-pref">${esc(who.name.split(' ')[0])}'s preference: <b>${esc(styleLabel(pref).name)}</b> — differs from ${effective ? 'what they\'re on' : 'the default'}.</div>`
+    : (pref ? `<div class="ps-pref">${esc(who.name.split(' ')[0])}'s preference: <b>${esc(styleLabel(pref).name)}</b> — matches what they're on.</div>` : '');
+
+  if (teamStyle) {
+    const l = styleLabel(teamStyle);
+    return `
+    <section class="card" style="padding:14px 16px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div><div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.02em">PLAN STYLE</div>
+        <div style="font-size:17px;font-weight:800;margin-top:2px">${esc(l.name)}</div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">Set by your team standard</div></div>
+        <button class="btn ghost sm" data-go="coach-plan" style="width:auto;padding:0 14px">Edit standard</button>
+      </div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:10px;line-height:1.55">${esc(l.how)}</div>
+      ${prefLine}
+    </section>
+    <div style="height:12px"></div>`;
+  }
+
+  const knobs = knobsFor(assigned || 'guided', targets.styleOverrides);
+  return `
+  <section class="card" style="padding:14px 16px" id="ps-editor">
+    <div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.02em">PLAN STYLE</div>
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${assigned ? `Assigned by you` : 'Not set — pick one to start scoring their nutrition against it'}</div>
+    <div style="display:flex;gap:8px;margin-top:12px" id="ps-pick">
+      ${STYLE_KEYS.map((k) => {
+        const l = styleLabel(k);
+        const on = assigned === k;
+        return `<div class="choice ${on ? 'on' : ''}" data-ps="${k}" role="button" style="flex:1;padding:12px 8px;text-align:center">
+          <div class="cic" style="margin:0 auto 6px;background:var(--blue-surface);color:var(--blue-bright)">${icon(STYLE_ICON[k], 16)}</div>
+          <div class="ct" style="font-size:13px">${esc(l.name)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${prefLine}
+    <div id="ps-detail" style="margin-top:10px">${assigned ? planStyleDetail(assigned, knobs) : ''}</div>
+    <div id="ps-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
+  </section>
+  <div style="height:12px"></div>`;
+}
+
+/* Compact per-knob overrides — the pieces that actually change what gets measured. Everything
+   else (surface tone, exact part weights) stays at the style's shipped default; a founder who
+   wants more granular per-athlete control extends this panel, not the underlying engine. */
+function planStyleDetail(style, knobs) {
+  const n = knobs.nutrition;
+  const CAL_OPTS = [['exact', 'Exact'], ['range', 'Range'], ['adequacy', 'Adequacy']];
+  const PRO_OPTS = [['exact', 'Exact'], ['range', 'Range'], ['off', 'Off']];
+  const seg = (key, opts, cur) => `<div class="seg" data-psk="${key}" style="width:auto">${opts.map(([v, t]) =>
+    `<button class="${cur === v ? 'on' : ''}" data-psv="${v}">${t}</button>`).join('')}</div>`;
+  return `
+  <div style="border-top:1px solid var(--hairline-soft);padding-top:10px">
+    <div class="lrow" style="cursor:default;padding:6px 0"><div class="lm"><div class="lt" style="font-size:12.5px">Calories</div></div>${seg('calorie', CAL_OPTS, n.calorie)}</div>
+    <div class="lrow" style="cursor:default;padding:6px 0"><div class="lm"><div class="lt" style="font-size:12.5px">Protein</div></div>${seg('protein', PRO_OPTS, n.protein)}</div>
+    <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:4px;line-height:1.4">${styleLabel(style).name} defaults shown — change either and Save applies it just to this athlete.</div>
+  </div>`;
 }
 
 const setSummary = (items) => {
@@ -423,6 +514,7 @@ export const coachPlan = {
       return `${head}${errorState({ title: "Couldn't load their targets", body: 'Their plan is safe — reconnect and it loads right here.', retryId: 'tgt-retry' })}`;
     }
     const t = TGT.targets || {};
+    const planStyleCard = planStyleSection(athleteId, who, t);
     // Per-field visibility (0103): a role outside [head coach, athletic trainer, S&C] neither
     // sees nor edits weight — the server RPC already strips it, so rendering a "180" here would
     // be a fabricated default, not their real target. Fail CLOSED while the role loads.
@@ -436,6 +528,8 @@ export const coachPlan = {
       ...(seeWeight ? [['Target weight', 'tg-weight', t.weight != null ? t.weight : 180, ' lb', 1]] : [])];
     return `
     ${head}
+
+    ${planStyleCard}
 
     <div class="eyebrow">Targets${unset ? ' · not set yet' : ''}</div>
     ${unset ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Starting points, not saved. Adjust and Save to set ${esc(who.name.split(' ')[0])}'s real targets.</div>` : ''}
@@ -563,6 +657,43 @@ export const coachPlan = {
       if (ok) { if (status) status.textContent = 'Saved to their plan.'; TGT = null; setTimeout(() => { location.hash = `#coach-athlete/${sub}`; }, 600); }
       else { save.disabled = false; if (status) status.textContent = 'Could not save — check the connection.'; }
     });
+
+    // Plan style assignment + overrides (0142) — every tap writes immediately (set_athlete_plan_style),
+    // the same auto-apply pattern the athlete's own picker uses. Absent entirely when a team
+    // standard governs (planStyleSection renders no #ps-editor in that case).
+    const psEditor = root.querySelector('#ps-editor');
+    if (psEditor) {
+      const psStatus = root.querySelector('#ps-status');
+      const psSay = (msg, bad) => { if (psStatus) { psStatus.style.color = bad ? 'var(--red)' : 'var(--text-3)'; psStatus.textContent = msg; } };
+      const currentOverrides = () => {
+        const detail = root.querySelector('#ps-detail');
+        const calBtn = detail && detail.querySelector('[data-psk="calorie"] button.on');
+        const proBtn = detail && detail.querySelector('[data-psk="protein"] button.on');
+        if (!calBtn && !proBtn) return null;
+        return { nutrition: { ...(calBtn ? { calorie: calBtn.getAttribute('data-psv') } : {}), ...(proBtn ? { protein: proBtn.getAttribute('data-psv') } : {}) } };
+      };
+      const saveStyle = async (style, overrides) => {
+        psSay('Saving…');
+        const ok = await roles.setAthletePlanStyle(sub, style, overrides);
+        if (ok) { psSay('Saved to their plan.'); TGT = null; loadTargets(sub); }
+        else psSay('Could not save — check the connection.', true);
+      };
+      const wireDetailToggles = () => {
+        root.querySelectorAll('#ps-detail [data-psk] button').forEach((b) => b.addEventListener('click', () => {
+          b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+          const active = psEditor.querySelector('[data-ps].on');
+          if (active) saveStyle(active.getAttribute('data-ps'), currentOverrides());
+        }));
+      };
+      psEditor.querySelectorAll('[data-ps]').forEach((el) => el.addEventListener('click', () => {
+        const style = el.getAttribute('data-ps');
+        psEditor.querySelectorAll('[data-ps]').forEach((x) => x.classList.toggle('on', x === el));
+        const detail = root.querySelector('#ps-detail');
+        if (detail) { detail.innerHTML = planStyleDetail(style, knobsFor(style, null)); wireDetailToggles(); }
+        saveStyle(style, null); // a freshly-picked style starts from its own defaults, not a stale override
+      }));
+      wireDetailToggles();
+    }
   },
 };
 
