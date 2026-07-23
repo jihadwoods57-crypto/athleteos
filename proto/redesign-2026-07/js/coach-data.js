@@ -37,14 +37,16 @@ const CAPS = {
   team: {
     roster: 1, activity: 1, inbox: 1, athleteProfile: 1, targets: 1, approvals: 1,
     interventions: 1, notes: 1, exceptions: 1, groups: 1, standards: 1, assignments: 1, rollups: 1,
-    rooms: 1, staffRoles: 1, weekPattern: 1, announcements: 1, recruiting: 1,
+    rooms: 1, staffRoles: 1, weekPattern: 1, announcements: 1, recruiting: 1, trustPass: 1,
     offers: 0, payments: 0, packages: 0,
   },
   practice: {
     roster: 1, activity: 1, inbox: 1, athleteProfile: 1, targets: 1, approvals: 1,
     interventions: 0, notes: 0, exceptions: 0, groups: 0, standards: 0, assignments: 0, // → 0136
     rollups: 0,                                                                          // → 0137
-    rooms: 0, staffRoles: 0, weekPattern: 0, announcements: 0, recruiting: 0,            // never
+    // trustPass is never planned: grant_trust_pass (0099) gates on is_team_coach_of only, not
+    // is_trainer_of — unlike coach_set_goals, a trainer isn't authorized server-side at all.
+    rooms: 0, staffRoles: 0, weekPattern: 0, announcements: 0, recruiting: 0, trustPass: 0, // never
     offers: 1, payments: 1, packages: 1,
   },
 };
@@ -113,7 +115,6 @@ export async function loadBook(force, kind) {
   const h = location.hash;
   if (h === '#coach' || h === '#copilot' || h === '#coach-inbox' || h === '#trainer'
     || h.startsWith('#coach-athlete') || h.startsWith('#coach-assign') || h.startsWith('#coach-plan')
-    || h.startsWith('#trainer-client')
     || h === '#coach-home' || h === '#coach-roster' || h === '#coach-create' || h === '#coach-insights') window.__render();
   // Operator data just became ready (roster + extras). Re-run the notification sync so this
   // operator's device now schedules the OPERATOR plan from live roster status — the boot-time sync
@@ -377,6 +378,6 @@ export async function loadAthleteProfile(athleteId, force) {
     };
   } finally {
     if (gen === profileGen) profileLoadingId = null;
-    if (location.hash === `#coach-athlete/${athleteId}` || location.hash === `#trainer-client/${athleteId}`) window.__render();
+    if (location.hash === `#coach-athlete/${athleteId}`) window.__render();
   }
 }

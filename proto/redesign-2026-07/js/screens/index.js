@@ -15,7 +15,7 @@ import auth from './auth.js';
 import onboarding from './onboarding.js';
 import checkin from './checkin.js';
 import commitment from './commitment.js';
-import { coachAthlete, coachMeal, coachAssign, coachPlan, coachPlanSet, coachInbox, copilot, trainerClient, parent, inviteParent, parentLink } from './coach.js';
+import { coachAthlete, coachMeal, coachAssign, coachPlan, coachPlanSet, coachInbox, copilot, parent, inviteParent, parentLink } from './coach.js';
 import { coachHome } from './coach-home.js';
 import { coachRoster } from './coach-roster.js';
 import { coachRooms } from './coach-rooms.js';
@@ -102,7 +102,6 @@ export const screens = {
   'my-trainer-offers': myTrainerOffers,
   'fund-plan': fundPlan,
   'funded-plans': fundedPlans,
-  'trainer-client': trainerClient,
   parent,
   'invite-parent': inviteParent,
   'parent-link': parentLink,

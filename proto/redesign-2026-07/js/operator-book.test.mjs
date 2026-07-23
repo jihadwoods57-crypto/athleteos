@@ -12,7 +12,7 @@ const el = () => ({
   querySelectorAll: () => [], querySelector: () => null, appendChild() {}, remove() {}, insertAdjacentHTML() {},
 });
 const store = new Map();
-globalThis.window = { location: { hash: '' }, addEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {}, addListener() {} }) };
+globalThis.window = { location: { hash: '' }, addEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {}, addListener() {} }), __render() {} };
 globalThis.document = Object.assign(el(), { createElement: el, getElementById: () => null, documentElement: el(), body: el(), head: el() });
 globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) };
 globalThis.sessionStorage = globalThis.localStorage;
@@ -41,6 +41,7 @@ const DAYS = [
   { athlete_id: 'a2', date: YESTERDAY, score: 74, grade: 'C', tasks: [] },
 ];
 const MEALS = [{ id: 'm1', athlete_id: 'a1', day_date: TODAY, type: 'breakfast', logged_at: `${TODAY}T08:12:00Z`, photo_path: null, name: 'Eggs', protein: 30, kcal: 420, quality: 4 }];
+const PLAN_META = [{ base_weight: 165, targets: { protein: 190, calories: 2600, weight: 165 } }];
 
 let KIND = 'team';   // flipped per pass; the stub answers as that book
 
@@ -53,6 +54,10 @@ function table(name) {
     if (name === 'days') return DAYS;
     if (name === 'meals') return MEALS;
     if (name === 'profiles') return [{ id: 'a1', timezone: 'America/New_York' }, { id: 'a2', timezone: null }];
+    // A coach's own staff row — head_coach is in WEIGHT_VIEW_ROLES (staff-access.js), so the
+    // team-book weight-visibility assertions below exercise the SAME grant a trainer gets a
+    // different way (is_trainer_of), rather than accidentally testing two different code paths.
+    if (name === 'team_staff') return KIND === 'team' ? [{ role: 'head_coach', scope_kind: null, scope_value: null }] : [];
     return [];
   };
   const b = {
@@ -73,6 +78,8 @@ globalThis.window.sb = {
   async rpc(fn) {
     if (fn === 'team_roster') return { data: TEAM_MEMBERS, error: null };
     if (fn === 'practice_roster') return { data: PRACTICE_MEMBERS.map(m => ({ client_id: m.athlete_id, client_name: m.athlete_name })), error: null };
+    if (fn === 'athlete_plan_meta') return { data: PLAN_META, error: null };
+    if (fn === 'coach_set_goals') return { data: null, error: null };
     return { data: [], error: null };
   },
   auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) },
@@ -179,6 +186,55 @@ for (const kind of ['team', 'practice']) {
   // Real names must reach the screen — proof it rendered the BOOK, not an empty state.
   assert.ok(snapshots[kind]['coach-roster'].includes('Devin Cole'), `${kind}: the roster must show real names`);
   assert.ok(snapshots[kind]['coach-athlete'].includes('Devin Cole'), `${kind}: the profile must show the real athlete`);
+
+  /* ---- Slice B: the macro-target editor. coach_set_goals (0054) authorizes is_trainer_of, so
+     this must render identically (including the weight field) on either book — the "permanently
+     unset targets" complaint was a screen-routing gap, not a schema gap. ---- */
+  location.hash = '#coach-plan/a1';
+  screens['coach-plan'].mount(el(), { sub: 'a1' });
+  await new Promise((r) => setTimeout(r, 30));
+  const planHtml = screens['coach-plan'].render({ sub: 'a1', S });
+  snapshots[kind]['coach-plan'] = planHtml;
+  assert.ok(planHtml.includes('Protein') && planHtml.includes('Calories'), `${kind}: target editor must render protein/calories`);
+  assert.ok(planHtml.includes('Target weight'), `${kind}: is_trainer_of grants weight visibility unconditionally (0103) — a trainer must see it too`);
+  assert.ok(!/managed by allowed roles/.test(planHtml), `${kind}: must not show the role-restricted stub when weight IS visible`);
+  assert.ok(!/undefined|\[object Object\]|NaN/.test(planHtml), `${kind}: target editor leaked a raw value into the DOM`);
+
+  // The no-athlete-id branch, in contrast, is genuinely team-shaped — a practice gets a reduced page.
+  const planHomeHtml = screens['coach-plan'].render({ sub: null, S });
+  if (kind === 'practice') {
+    assert.ok(planHomeHtml.includes('Built for teams'), 'a trainer must be told why the program home is reduced');
+    assert.ok(!planHomeHtml.includes('Trust passes'), 'trust passes must not appear on a practice program home (never authorized)');
+  } else {
+    assert.ok(planHomeHtml.includes('Trust passes'), 'the coach program home is unchanged');
+  }
+
+  /* ---- Slice B: inbox category cross-role bleed, same class as Slice A's scope-key bug.
+     A device that persisted 'staff' (a coach's Staff category, or a stale pre-Slice-B value)
+     must not hand a trainer session a permanently-empty category whose empty-state action is a
+     dead link to a coach-only screen. ---- */
+  location.hash = '#coach-inbox';
+  screens['coach-inbox'].mount(el());
+  await new Promise((r) => setTimeout(r, 30));
+  const inboxHtml = screens['coach-inbox'].render({ S });
+  if (kind === 'practice') {
+    assert.ok(!inboxHtml.includes('data-icat="staff"'), 'a trainer must not be offered the Staff inbox category before 0136');
+    assert.ok(!inboxHtml.includes('data-icat="announcements"'), 'a trainer must not be offered Announcements before 0137');
+  } else {
+    assert.ok(inboxHtml.includes('data-icat="staff"') && inboxHtml.includes('data-icat="announcements"'),
+      'the coach inbox categories are unchanged');
+  }
+
+  /* ---- Slice B: meal-thread replies. meal_comments RLS is can_view-gated end to end (read,
+     insert as role='coach'), so the thread screen needs no capability gating at all. ---- */
+  location.hash = '#coach-meal/m1';
+  screens['coach-meal'].mount(el(), { sub: 'm1' });
+  await new Promise((r) => setTimeout(r, 30));
+  const mealHtml = screens['coach-meal'].render({ sub: 'm1', S });
+  snapshots[kind]['coach-meal'] = mealHtml;
+  assert.ok(mealHtml.includes('Breakfast'), `${kind}: the meal thread must resolve the real meal`);
+  assert.ok(mealHtml.includes('Comment on this meal') || mealHtml.includes('cm-input'), `${kind}: the composer must render`);
+  assert.ok(!/undefined|\[object Object\]|NaN/.test(mealHtml), `${kind}: meal thread leaked a raw value into the DOM`);
 }
 
 /* ---- THE core invariant: identical athlete data scores identically on either book ----
@@ -252,5 +308,11 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
     assert.ok(practiceAthlete.includes(`data-psec="${sec}"`), `a trainer must keep the ${sec} section (can_view already grants it)`);
   }
 }
+
+/* ---- Slice B: the standalone "note to client" screen is retired, not aliased.
+   Nothing in the live UI ever linked to it (the roster row always routes to coach-athlete/<id>
+   for either book), so a stale deep link should fall through the router's normal unknown-route
+   handling rather than mounting a screen with dead internal hash checks. ---- */
+assert.strictEqual(screens['trainer-client'], undefined, 'trainer-client must not be a registered route');
 
 console.log('operator book (team + practice): all assertions passed');

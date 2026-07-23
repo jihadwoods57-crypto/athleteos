@@ -208,11 +208,43 @@ const setSummary = (items) => {
 };
 
 export const coachPlan = {
-  nav: 'coach', tab: 'roster',
+  nav: 'operator', tab: 'roster',
   render({ sub }) {
     const athleteId = sub;
     const who = rosterName(athleteId);
-    const head = backHead('Nutrition targets', `${esc(who.name)} · coach owns the plan`, athleteId ? `coach-athlete/${esc(athleteId)}` : 'coach-plan');
+    const noun = CD.kind === 'practice' ? 'trainer' : 'coach';
+    const head = backHead('Nutrition targets', `${esc(who.name)} · ${noun} owns the plan`, athleteId ? `coach-athlete/${esc(athleteId)}` : 'coach-plan');
+    // A practice has no team-wide standards/rooms/trust-passes yet (0136/0137) — the "no athlete
+    // id" branch below is entirely team-shaped, so a trainer gets a reduced program page instead
+    // of a home full of dead links. The per-athlete editor further down works for either book —
+    // coach_set_goals (0054) already authorizes is_trainer_of.
+    if (!athleteId && CD.kind === 'practice') {
+      const rows = CD.roster ? CD.roster.rows : null;
+      if (CD.roster && CD.roster.offline) {
+        return `${titleHead('Plan', 'Targets, per client')}${errorState({ title: "Can't reach your clients", body: 'Their targets are safe — reconnect and they load right here.', retryId: 'plan-retry' })}`;
+      }
+      return `
+      ${titleHead('Plan', 'Targets, per client')}
+      <div class="eyebrow">Targets · per client</div>
+      ${rows === null ? skeletonRows(3, 'Loading your clients') : rows.length ? `
+      <section class="card" style="padding:6px 16px">
+        ${rows.slice(0, 12).map(r => `
+        <div class="lrow" data-go="coach-plan/${esc(r.athleteId)}">
+          <div class="lic">${icon('target', 17)}</div>
+          <div class="lm"><div class="lt">${esc(r.name)}</div>
+          <div class="ls">Protein · calories · target weight</div></div>
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>`).join('')}
+      </section>` : `
+      ${emptyState({ icon: 'target', title: 'No clients yet', body: 'Per-client protein, calorie, and target-weight numbers open here the moment someone joins.', action: { label: 'Invite a client', go: 'trainer-profile' } })}`}
+      <div style="height:12px"></div>
+      <div class="sidebox">
+        <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+        <div><div class="tt">Built for teams</div>
+        <div class="ts">Standing standards, rooms, and Trust Pass are team tools today. Per-client targets already work — set them from a client's own page.</div></div>
+      </div>
+      <div style="height:10px"></div>`;
+    }
     if (!athleteId) {
       const rows = CD.roster ? CD.roster.rows : null;
       const positions = rows ? [...new Set(rows.map(r => (r.unit || '').trim().toUpperCase()).filter(Boolean))] : [];
@@ -370,7 +402,9 @@ export const coachPlan = {
     // Per-field visibility (0103): a role outside [head coach, athletic trainer, S&C] neither
     // sees nor edits weight — the server RPC already strips it, so rendering a "180" here would
     // be a fabricated default, not their real target. Fail CLOSED while the role loads.
-    const seeWeight = canViewWeight(CD.extras && CD.extras.myRole);
+    // can_view_weight (0103:56) grants a TRAINER unconditionally — is_trainer_of is checked
+    // BEFORE the team_staff role branch, unlike a coach whose visibility depends on their scope.
+    const seeWeight = CD.kind === 'practice' || canViewWeight(CD.extras && CD.extras.myRole);
     // Distinguish "no targets set yet" (starter defaults shown as a starting point) from real
     // saved values — a coach shouldn't think targets already exist when they're just placeholders.
     const unset = t.protein == null && t.calories == null && (!seeWeight || t.weight == null);
@@ -418,8 +452,8 @@ export const coachPlan = {
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
-      <div><div class="tt">Coach owns the numbers</div>
-      <div class="ts">Saving writes these to the athlete's plan (athlete_profiles.targets) via the coach_set_goals RPC. Their nutrition scoring is unaffected — the score is always the four honest components.</div></div>
+      <div><div class="tt">${cap(noun)} owns the numbers</div>
+      <div class="ts">Saving writes these to their plan (athlete_profiles.targets) via the coach_set_goals RPC. Their nutrition scoring is unaffected — the score is always the four honest components.</div></div>
     </div>
 
     <div style="height:16px"></div>
@@ -429,10 +463,18 @@ export const coachPlan = {
     `;
   },
   mount(root, { sub }) {
-    loadCoachRoster().then(() => { loadSets(); if (!sub) loadTrust(); });
+    // Standing standards and trust passes are team-owned (0136 gives a practice its own
+    // standards; trust passes stay team-only — grant_trust_pass never authorizes is_trainer_of).
+    // Skip both fetches on a practice book rather than querying a table that will only ever hand
+    // back rows scoped to a team id this book doesn't have.
+    loadBook(false, bookKindFor(RT.authRole)).then(() => {
+      if (!CD.caps.standards) return;
+      loadSets();
+      if (!sub && CD.caps.trustPass) loadTrust();
+    });
     // GS-2 offline retry (the program page's honest error state) — refetch and repaint.
     const planRetry = root.querySelector('#plan-retry');
-    if (planRetry) planRetry.addEventListener('click', () => { planRetry.disabled = true; loadCoachRoster(true).then(() => { loadSets(true); window.__render(); }); });
+    if (planRetry) planRetry.addEventListener('click', () => { planRetry.disabled = true; loadBook(true, bookKindFor(RT.authRole)).then(() => { if (CD.caps.standards) loadSets(true); window.__render(); }); });
     // Trust pass grant/end on the Plan home (server-enforced eligibility, honest errors)
     root.querySelectorAll('[data-tp]').forEach(b => b.addEventListener('click', async () => {
       const [what, id] = b.getAttribute('data-tp').split(':');
@@ -1181,7 +1223,7 @@ async function loadInboxData(teamId, athleteIds, force) {
 /* Category switcher state — which of the six buckets is showing. Persisted so a coach who
    was reading "Meal reviews" doesn't get bounced back to "Needs response" on reopen. */
 const INBOX_CAT_KEY = 'onstd-inbox-cat-v1';
-const INBOX_CATEGORIES = [
+const ALL_INBOX_CATEGORIES = [
   ['needsResponse', 'Needs response'],
   ['athletes', 'Athletes'],
   ['mealReviews', 'Meal reviews'],
@@ -1189,10 +1231,15 @@ const INBOX_CATEGORIES = [
   ['announcements', 'Announcements'],
   ['resolved', 'Resolved'],
 ];
+// Staff and Announcements are team-owned (0136/0137 give a practice its own). Their empty-state
+// actions route to coach-only screens (coach-profile/staff, coach-announce) — a trainer must
+// never be a tap away from a category that's always empty AND dead-ends.
+const inboxCategories = () => ALL_INBOX_CATEGORIES.filter(([key]) =>
+  (key !== 'staff' || CD.caps.staffRoles) && (key !== 'announcements' || CD.caps.announcements));
 let INBOX_CAT = 'needsResponse';
 try {
   const savedCat = localStorage.getItem(INBOX_CAT_KEY);
-  if (savedCat && INBOX_CATEGORIES.some(([key]) => key === savedCat)) INBOX_CAT = savedCat;
+  if (savedCat && ALL_INBOX_CATEGORIES.some(([key]) => key === savedCat)) INBOX_CAT = savedCat;
 } catch { /* default stands */ }
 
 /* categorizeInbox's staff param wants {id, name, email?, role, created_at?} — team_staff_list
@@ -1341,6 +1388,11 @@ export const coachInbox = {
       <div style="height:10px"></div>`;
     }
 
+    // A device that visited a coach's Staff/Announcements category (or a stale pre-Slice-B
+    // value) persists INBOX_CAT_KEY across role switches on the same device — the same class of
+    // cross-role bleed the roster scope key had (Slice A). Coerce to a category this book
+    // actually offers rather than showing a permanently-empty bucket with a dead-end tap.
+    if (!inboxCategories().some(([key]) => key === INBOX_CAT)) INBOX_CAT = 'needsResponse';
     const out = inboxOut();
     const needsMe = out.counts.needsResponse;
     const isNeedsResponse = INBOX_CAT === 'needsResponse';
@@ -1363,7 +1415,7 @@ export const coachInbox = {
     </section>` : ''}
 
     <div class="co-seg co-scroll" id="inbox-cat-row">
-      ${INBOX_CATEGORIES.map(([key, label]) => `<button class="co-chip ${INBOX_CAT === key ? 'on' : ''}" data-icat="${key}">${esc(label)} <span class="cnt">${out.counts[key]}</span></button>`).join('')}
+      ${inboxCategories().map(([key, label]) => `<button class="co-chip ${INBOX_CAT === key ? 'on' : ''}" data-icat="${key}">${esc(label)} <span class="cnt">${out.counts[key]}</span></button>`).join('')}
     </div>
 
     ${isNeedsResponse && pending.length ? `
@@ -1472,43 +1524,9 @@ export const copilot = {
 };
 
 /* ---------- Coach → athlete review: real day + meals, RLS-scoped; a "seen" receipt on open ---------- */
-let ATH = null;           // { athleteId, day, meals } for the athlete being reviewed
-let athLoadingId = null;
 function rosterName(athleteId) {
   const r = CD.roster && CD.roster.rows.find(x => x.athleteId === athleteId);
   return r ? { name: r.name, unit: r.unit } : { name: 'Athlete', unit: '' };
-}
-let athGen = 0;            // navigation generation: a stale fetch must never clobber the screen
-async function loadAthlete(athleteId, viewerId, viewerName) {
-  if (!athleteId) return;
-  // Already showing this athlete: do nothing. Without this guard every repaint re-fetched,
-  // which re-rendered, which re-fetched — an infinite refetch/repaint loop (photos re-signing,
-  // flicker, scroll jumps). This WAS the "super buggy" athlete page.
-  if (ATH && ATH.athleteId === athleteId) return;
-  if (athLoadingId === athleteId) return; // this athlete's fetch is already in flight
-  const myGen = ++athGen;
-  athLoadingId = athleteId;
-  try {
-    const today = roles.todayISO();
-    const [day, meals, pass] = await Promise.all([
-      roles.fetchDay(athleteId, today),
-      roles.fetchRecentMeals(athleteId, roles.daysAgoISO(14)),
-      roles.fetchActiveTrustPass(athleteId),
-    ]);
-    // Sign photo URLs in PARALLEL, and only the most recent handful the screen shows —
-    // the old serial loop signed every meal in 14 days one round-trip at a time.
-    await Promise.all(meals.filter(m => m.photo_path).slice(0, 10)
-      .map(async (m) => { m._url = await roles.signedMealPhotoUrl(m.photo_path); }));
-    if (myGen !== athGen) return; // coach tapped another athlete mid-flight — drop this result
-    ATH = { athleteId, day, meals, pass };
-    roles.markDayViewed(athleteId, today, viewerId, viewerName); // fire-and-forget "coach saw your day"
-  } finally {
-    if (myGen === athGen) athLoadingId = null;
-  }
-  // Repaint whichever detail screen is waiting on this fetch — trainer-client shares this
-  // loader, and matching only #coach-athlete left the trainer's client page stuck on
-  // "Loading their day…" forever (role walkthrough 2026-07-15).
-  if (location.hash.startsWith('#coach-athlete') || location.hash.startsWith('#trainer-client')) window.__render();
 }
 const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
 
@@ -1516,8 +1534,8 @@ const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
    adds Activity + Conversation; Requirements/Notes land in Task 7). PSECTION is the active chip;
    PSEC_FOR tracks which athlete it belongs to so opening a DIFFERENT athlete always starts back
    on Overview instead of leaving a stale section showing. Loads ONLY loadAthleteProfile — the
-   legacy ATH/loadAthlete double-fetch is gone (Task 6 Part C): coachMeal now resolves its own
-   meal standalone via roles.fetchMeal, so this screen no longer needs to keep ATH warm. ---------- */
+   legacy ATH/loadAthlete double-fetch (the trainer's separate "note to a client" screen that used
+   to keep it warm) is gone; coachMeal resolves its own meal standalone via roles.fetchMeal. ---------- */
 let PSECTION = 'overview';
 let PSEC_FOR = null;
 // Day-view receipt de-dupe: markDayViewed only needs to fire once per athlete open, not on every
@@ -2088,18 +2106,13 @@ async function loadMealComments(mealId, force) {
   mcLoadingId = null;
   if (location.hash.startsWith('#coach-meal')) window.__render();
 }
-/* Standalone meal cache (Task 6 Part C): coachMeal no longer DEPENDS on the shared ATH cache
-   being pre-populated by some other screen's mount — it resolves its own meal via
-   roles.fetchMeal(mealId) (added Task 2), signs the photo itself, and keeps a tiny cache keyed
-   by mealId. Fast path: if ATH already happens to have this meal (trainerClient still warms it
-   for its own screen, and a coach could open a meal moments after that), reuse it instantly with
-   no extra round-trip — same behavior as before, just no longer the ONLY path. */
+/* Standalone meal cache (Task 6 Part C): coachMeal resolves its own meal via
+   roles.fetchMeal(mealId), signs the photo itself, and keeps a tiny cache keyed by mealId —
+   no dependency on any other screen's mount having run first. */
 let MEAL = null;           // { id, row }
 let mealLoadingId = null;
 async function loadMeal(mealId) {
   if (!mealId) return;
-  const fast = ATH && ATH.meals.find(m => m.id === mealId);
-  if (fast) { MEAL = { id: mealId, row: fast }; return; }
   if (MEAL && MEAL.id === mealId) return;
   if (mealLoadingId === mealId) return;
   mealLoadingId = mealId;
@@ -2117,8 +2130,7 @@ async function loadMeal(mealId) {
   if (location.hash.startsWith('#coach-meal')) window.__render();
 }
 function mealById(mealId) {
-  if (MEAL && MEAL.id === mealId) return MEAL.row;
-  return ATH && ATH.meals.find(m => m.id === mealId);
+  return MEAL && MEAL.id === mealId ? MEAL.row : null;
 }
 /* Suggested replies (Coach OS Slice D, Task 4): AI drafts four stance-labeled candidates, the
    coach taps one to PREFILL the composer, edits, and sends manually — the AI never auto-sends.
@@ -2126,12 +2138,12 @@ function mealById(mealId) {
 let DRAFTS = { mealId: null, items: [], loading: false, error: null };
 const STANCE_LABEL = { supportive: 'Supportive', direct: 'Direct', context: 'Ask for context', followup: 'Set a follow-up' };
 export const coachMeal = {
-  nav: 'coach', tab: 'roster',
+  nav: 'operator', tab: 'roster',
   render({ sub }) {
     const mealId = sub;
     const meal = mealById(mealId);
     const title = meal ? cap(meal.type || 'Meal') : 'Meal';
-    const backTo = (meal && meal.athlete_id) ? `coach-athlete/${meal.athlete_id}` : (ATH ? `coach-athlete/${ATH.athleteId}` : 'coach-home');
+    const backTo = (meal && meal.athlete_id) ? `coach-athlete/${meal.athlete_id}` : (RT.authRole === 'trainer' ? 'trainer' : 'coach-home');
     const head = backHead(title, 'Your comment lands on the athlete’s log', backTo);
     if (!MC || MC.mealId !== mealId) {
       return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('message', 17)}</div>
@@ -2327,12 +2339,13 @@ export const coachMeal = {
     // Thread caps (0059, founder-ratified): coach 2 / athlete 3 messages per meal. The DB
     // trigger is the real wall; this is the honest UI for it.
     const coachN = coachMsgCount(MC && MC.comments);
+    const capNoun = CD.kind === 'practice' ? 'Trainer' : 'Coach';
     if (coachN >= 2) {
-      if (input) { input.disabled = true; input.placeholder = 'Coach cap reached'; }
+      if (input) { input.disabled = true; input.placeholder = `${capNoun} cap reached`; }
       if (send) send.disabled = true;
-      if (cmNote) { cmNote.style.color = 'var(--text-3)'; cmNote.textContent = 'You’ve made your point — 2 coach messages per meal. Reactions are always open.'; }
+      if (cmNote) { cmNote.style.color = 'var(--text-3)'; cmNote.textContent = `You’ve made your point — 2 ${capNoun.toLowerCase()} messages per meal. Reactions are always open.`; }
     } else if (coachN === 1 && cmNote) {
-      cmNote.style.color = 'var(--text-3)'; cmNote.textContent = '1 of 2 coach messages used on this meal.';
+      cmNote.style.color = 'var(--text-3)'; cmNote.textContent = `1 of 2 ${capNoun.toLowerCase()} messages used on this meal.`;
     }
     const submit = async () => {
       const text = (input.value || '').trim();
@@ -2361,11 +2374,9 @@ export const coachMeal = {
       } catch { /* skipped or unavailable — the coach's message already landed */ }
       // Log the intervention for Inbox v2's categorizer (Slice D): fire-and-forget, never blocks
       // or breaks the send — the coach's message already landed by this point. reason_key MUST
-      // be 'meal:'+sub (the exact convention the categorizer keys on).
-      try {
-        const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-        logBookIntervention({ athleteId, kind: 'message', reasonKey: 'meal:' + sub }).catch(() => {});
-      } catch { /* best-effort */ }
+      // be 'meal:'+sub (the exact convention the categorizer keys on). No-ops on a practice book
+      // (team-owned table, see logBookIntervention) — the message itself still landed above.
+      logBookIntervention({ athleteId, kind: 'message', reasonKey: 'meal:' + sub }).catch(() => {});
       await loadMealComments(sub, true);
     };
     if (send) send.addEventListener('click', submit);
@@ -2457,120 +2468,15 @@ export const coachMeal = {
    (screens/index.js maps trainer-* → coachHome/coachRoster/coachCreate/coachInbox), reading the
    one shared cache in coach-data.js. The private `let BOOK` second cache that used to live here
    is gone: it fetched a single day with no history, no staleness and no timezones, which is why
-   the trainer had no sparklines, no priority queue and no inbox. */
-function bookName(athleteId) {
-  const r = CD.roster && CD.roster.rows.find(x => x.athleteId === athleteId);
-  return r ? r.name : 'Client';
-}
+   the trainer had no sparklines, no priority queue and no inbox.
 
-/* Quick check-in prompts (trainer/client depth, Tier 2): the brief's "between-sessions
-   accountability problem, not just competitive athletes" — copy stays goal-neutral (works for
-   a competitive athlete or an everyday client working toward weight/health goals), never
-   assumes a practice/game schedule. Prefills the note composer; sending is still one honest
-   push, never a separate silent channel. */
-const TRAINER_CHECKIN_PROMPTS = [
-  { label: 'How was the week?', text: "How did last week's plan feel — anything getting in the way?" },
-  { label: 'Any soreness/pain?', text: 'Any soreness, pain, or something feeling off I should know about?' },
-  { label: 'What would help?', text: "What's one thing that would make the next few days easier to stick with?" },
-  { label: 'Nice work', text: "Solid work this week — keep it up, and let me know if anything needs adjusting." },
-];
-
-/* ---------- Trainer → client detail: real day (RLS can_view); a note is a real push ---------- */
-export const trainerClient = {
-  nav: 'operator', tab: 'roster',
-  render({ sub }) {
-    const athleteId = sub;
-    const name = bookName(athleteId);
-    const head = backHead(esc(name), 'Client · recovery & nutrition', 'trainer-roster');
-    if (!athleteId) {
-      // Reachable without a client from a stale deep link — a picker, never a dead end (role
-      // walkthrough 2026-07-15). Same honest loading/offline/empty states as the client list.
-      const book = CD.roster;
-      const rows = book ? book.rows : null;
-      const body = rows === null ? `
-        <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
-        <div><div class="tt">Loading your clients…</div></div></div>`
-        : (book && book.offline) ? `
-        <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
-        <div class="sd-t">Can't reach your clients</div>
-        <div class="sd-s">We couldn't load your book — check your connection. Reopen this tab to retry; nothing is lost.</div></div>`
-        : rows.length === 0 ? `
-        <div class="state-demo" data-go="trainer-profile" style="cursor:pointer"><div class="sd-ic">${icon('heart', 24)}</div>
-        <div class="sd-t">No clients yet</div><div class="sd-s">Share your practice code first — once a client joins, you can send them a note from here.</div>
-        ${RT.practice && RT.practice.code ? `<div class="sd-cta" style="display:flex;gap:8px;justify-content:center;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.practice.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>` : ''}</div>`
-        : `<div class="eyebrow">Pick a client</div>
-        <section class="card" style="padding:2px 0">${rows.map(r => `
-          <div class="roster-row" data-go="trainer-client/${esc(r.athleteId)}">
-            <div class="flagdot ${r.flag}"></div>
-            <div class="rn"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.note)}</div></div>
-            <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>
-          </div>`).join('')}</section>`;
-      return `${backHead('Send a note', 'Pick a client · it lands as a real push', 'trainer-roster')}${body}`;
-    }
-    if (!ATH || ATH.athleteId !== athleteId) {
-      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
-      <div><div class="tt">Loading their day…</div></div></div>`;
-    }
-    const day = ATH.day;
-    const ci = (day && day.checkin) || {};
-    const score = day && day.score != null ? day.score : null;
-    const readiness = ci.submitted && ci.recovery != null ? Math.round(ci.recovery) : null;
-    return `
-    ${head}
-
-    <div class="coach-stats">
-      <div class="coach-stat"><div class="v" style="color:${scoreColor(score)}">${score != null ? score : '—'}</div><div class="k">Score today</div></div>
-      <div class="coach-stat"><div class="v" style="color:var(--blue-bright)">${readiness != null ? readiness : '—'}</div><div class="k">Readiness</div></div>
-      <div class="coach-stat"><div class="v" style="color:${ci.submitted ? 'var(--green-bright)' : 'var(--amber-bright)'}">${ci.submitted ? 'In' : 'Open'}</div><div class="k">Recovery</div></div>
-    </div>
-
-    <div style="height:14px"></div>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
-      <div><div class="tt">Recovery trend</div>
-      <div class="ts">Per-client recovery patterns show up here once there's enough real check-in history — no invented bars until then.</div></div>
-    </div>
-
-    <div class="eyebrow">Note to client</div>
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sends a real push to their notifications — a real cadence for the time between sessions, not just a one-off message.</div>
-    <div class="chip-row" id="tn-quick" style="margin:0 0 10px">
-      ${TRAINER_CHECKIN_PROMPTS.map((p, i) => `<span class="chp" data-tn-quick="${i}">${esc(p.label)}</span>`).join('')}
-    </div>
-    ${composer({ inputId: 'tn-input', sendId: 'tn-send', placeholder: `Note for ${name}…`, sendLabel: 'Send note' })}
-    <div id="tn-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
-    <div style="height:10px"></div>
-    `;
-  },
-  mount(root, { sub }) {
-    loadBook(false, 'practice');
-    if (!sub) return; // picker mode — nothing below applies without a client
-    loadAthlete(sub, RT.userId, S.athlete.name);
-    const input = root.querySelector('#tn-input');
-    const send = root.querySelector('#tn-send');
-    const status = root.querySelector('#tn-status');
-    // Quick check-in prompts (trainer/client depth — between-sessions accountability): tap to
-    // prefill the SAME free-text composer, never a separate send path — one honest message
-    // channel, just with a faster on-ramp for the recurring "how's it going" cadence a trainer
-    // actually needs between sessions.
-    root.querySelectorAll('[data-tn-quick]').forEach((chip) => chip.addEventListener('click', () => {
-      const p = TRAINER_CHECKIN_PROMPTS[+chip.getAttribute('data-tn-quick')];
-      if (!p || !input) return;
-      input.value = p.text;
-      input.focus();
-      const end = input.value.length;
-      if (input.setSelectionRange) input.setSelectionRange(end, end);
-    }));
-    const submit = async () => {
-      const text = (input.value || '').trim();
-      if (!text) return;
-      input.value = '';
-      const ok = await roles.nudgePush(sub, `Note from ${S.athlete.name}`, text);
-      if (status) status.textContent = ok ? 'Sent to their notifications.' : 'Could not send — check the connection.';
-    };
-    if (send) send.addEventListener('click', submit);
-    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
-  },
-};
+   Slice B: the old standalone "note to a client" screen (route trainer-client) is gone too. It
+   was a permanent "Recovery trend … no invented bars until then" stub over 3 stat tiles, while
+   the real athlete deep-dive (coachAthlete, below) already has a live recovery/activity section,
+   a real meal thread, and now a working target editor — all reachable by a trainer via
+   coach-athlete/<id>. Nothing in the UI ever linked to trainer-client directly (the roster row
+   always routed to coach-athlete/<id> for either book), so the route is retired rather than
+   aliased — a stale bookmark now falls through the router's normal unknown-route handling. */
 
 /* ---------- Parent view — the child's scores/streaks via the guardian_* RPCs (migration 0081).
    A guardian reads ONLY score/grade/day here; meal photos, weight, and check-ins are closed
