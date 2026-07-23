@@ -1061,3 +1061,93 @@ html.pre-up #pre {
 .duo-body p { color: var(--text-2); font-size: clamp(14px, 1.05vw, 15.5px); line-height: 1.65; margin-top: 10px; max-width: 58ch; }
 .duo-body p b { color: var(--text); font-weight: 700; }
 @media (max-width: 860px) { .duo, .duo.flip { grid-template-columns: 1fr; } .duo.flip .duo-shot { order: 0; } }
+
+/* ---------- plan styles: interactive spectrum comparison ----------
+   Left: a structure->autonomy rail + three selectable tabs (only the active one
+   expands, to cut reading). Right: one phone whose light app screen morphs per
+   style. Density itself carries the spectrum: Structured is packed with exact
+   numbers, Guided softens to ranges, Intuitive is airy and number-free. The
+   app's blue -> cyan -> green signature marks position on the spectrum. */
+.pstyles {
+  margin-top: clamp(42px, 5.5vw, 76px);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.86fr);
+  gap: clamp(30px, 5vw, 78px); align-items: center;
+}
+
+/* --- left: spectrum axis --- */
+.pstyles-axis { display: flex; align-items: center; gap: 14px; margin-bottom: clamp(20px, 2.4vw, 30px); }
+.pstyles-axis-cap { font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
+.pstyles-axis-track {
+  position: relative; flex: 1; height: 6px; border-radius: 999px; overflow: hidden;
+  background: linear-gradient(90deg, rgba(59,130,246,0.4), rgba(34,211,238,0.4), rgba(52,211,153,0.4));
+}
+.pstyles-glide {
+  position: absolute; top: 0; bottom: 0; left: 0; width: calc(100% / 3); border-radius: 999px;
+  transform: translateX(calc(var(--pos, 0) * 100%));
+  transition: transform .55s var(--ease), background .55s var(--ease), box-shadow .55s var(--ease);
+}
+.pstyles[data-active="structured"] .pstyles-glide { background: #3B82F6; box-shadow: 0 0 16px rgba(59,130,246,0.6); }
+.pstyles[data-active="guided"]     .pstyles-glide { background: #22D3EE; box-shadow: 0 0 16px rgba(34,211,238,0.6); }
+.pstyles[data-active="intuitive"]  .pstyles-glide { background: #34D399; box-shadow: 0 0 16px rgba(52,211,153,0.6); }
+
+/* --- left: selectable tabs (accordion) --- */
+.pstyle-tab {
+  display: block; width: 100%; text-align: left;
+  padding: clamp(16px, 1.6vw, 22px) clamp(18px, 1.8vw, 24px);
+  border-radius: 18px; border: 1px solid transparent; background: transparent;
+  opacity: 0.46; cursor: pointer;
+  transition: opacity .4s var(--ease), background .4s var(--ease), border-color .4s var(--ease);
+}
+.pstyle-tab + .pstyle-tab { margin-top: 8px; }
+@media (pointer: fine) { .pstyle-tab:hover { opacity: 0.82; } }
+.pstyle-tab.on { opacity: 1; background: rgba(232, 180, 74, 0.045); border-color: var(--hairline); }
+.pstyle-head { display: flex; align-items: center; gap: 12px; }
+.pstyle-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transition: box-shadow .4s var(--ease); }
+.pstyle-tab[data-style="structured"] .pstyle-dot { background: #3B82F6; }
+.pstyle-tab[data-style="guided"]     .pstyle-dot { background: #22D3EE; }
+.pstyle-tab[data-style="intuitive"]  .pstyle-dot { background: #34D399; }
+.pstyle-tab.on[data-style="structured"] .pstyle-dot { box-shadow: 0 0 0 5px rgba(59,130,246,0.18); }
+.pstyle-tab.on[data-style="guided"]     .pstyle-dot { box-shadow: 0 0 0 5px rgba(34,211,238,0.18); }
+.pstyle-tab.on[data-style="intuitive"]  .pstyle-dot { box-shadow: 0 0 0 5px rgba(52,211,153,0.18); }
+.pstyle-name { font-family: var(--display); text-transform: uppercase; font-weight: 900; font-size: clamp(17px, 1.6vw, 21px); letter-spacing: 0.004em; line-height: 1; }
+.pstyle-rank { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--text-3); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.pstyle-detail { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .45s var(--ease), opacity .35s var(--ease); }
+.pstyle-detail > span { overflow: hidden; min-height: 0; }
+.pstyle-tab.on .pstyle-detail { grid-template-rows: 1fr; opacity: 1; margin-top: 10px; }
+.pstyle-line { display: block; color: var(--text-2); font-size: clamp(13.5px, 1.05vw, 15px); line-height: 1.55; }
+.pstyle-bestfor { display: block; margin-top: 10px; color: var(--text-2); font-size: 13.5px; line-height: 1.5; }
+.pstyle-bestfor b { display: inline; color: var(--text-3); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; margin-right: 7px; }
+
+/* --- right: the morphing phone --- */
+.pstyles-stage { display: grid; justify-items: center; }
+.phone.lg {
+  width: min(342px, 84vw); border-radius: 44px; padding: 9px; position: relative; justify-self: center;
+  border: 1px solid rgba(216, 190, 140, 0.16); background: var(--surface-1);
+  box-shadow: 0 44px 100px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.phone.lg::before {
+  content: ''; position: absolute; top: 17px; left: 50%; transform: translateX(-50%);
+  width: 74px; height: 18px; border-radius: 999px; background: #050403; z-index: 3;
+}
+.phone-scr {
+  position: relative; border-radius: 35px; overflow: hidden; aspect-ratio: 390 / 844; background: #0A0C10;
+}
+/* Real dark-mode app screenshots, cross-faded on tab select (one phone, not three). */
+.pshot {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  opacity: 0; transform: scale(1.012); pointer-events: none;
+  transition: opacity .5s var(--ease), transform .6s var(--ease);
+}
+.pshot.on { opacity: 1; transform: none; }
+
+/* no-JS: expand every tab's copy so the section is fully readable without switching */
+body:not(.js) .pstyle-detail { grid-template-rows: 1fr; opacity: 1; margin-top: 10px; }
+
+@media (max-width: 900px) {
+  .pstyles { grid-template-columns: 1fr; gap: clamp(30px, 7vw, 46px); }
+  .pstyles-panel { order: 1; }
+  .pstyles-stage { order: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pstyles-glide, .pshot, .pstyle-detail, .pstyle-tab { transition: none; }
+}

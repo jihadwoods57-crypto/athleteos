@@ -29,7 +29,7 @@ sessionStorage.setItem('os:preloaded','1');
 document.documentElement.classList.add('pre');
 window.__preT=setTimeout(function(){document.documentElement.classList.remove('pre','pre-up');},3500);
 }catch(e){}})();</script>
-<link rel="stylesheet" href="css/site.css?v=12">
+<link rel="stylesheet" href="css/site.css?v=13">
 <noscript><style>.reveal, .an-row { opacity: 1 !important; transform: none !important; } .an-fill { transform: scaleX(1) !important; } .ticker-track { animation: none; flex-wrap: wrap; width: auto; row-gap: 12px; } .ticker-track span[aria-hidden="true"] { display: none; }</style></noscript>
 <script type="application/ld+json">
 {
@@ -162,7 +162,7 @@ window.__preT=setTimeout(function(){document.documentElement.classList.remove('p
       <div class="hero-visual reveal d2" id="hero-visual" aria-hidden="true">
         <div class="p3d-float pf-back">
           <div class="p3d p3d-back">
-            <div class="p3d-screen"><img src="assets/product/loop-3-meal-read.webp" width="390" height="700" loading="lazy" decoding="async" alt=""></div>
+            <div class="p3d-screen"><img src="assets/product/coach-1-home.webp" width="390" height="700" loading="lazy" decoding="async" alt=""></div>
           </div>
         </div>
         <div class="p3d-float pf-front">
@@ -438,21 +438,52 @@ window.__preT=setTimeout(function(){document.documentElement.classList.remove('p
     <div class="wrap">
       <p class="kicker reveal">Plan styles</p>
       <h2 id="styles-h" class="h2 reveal d1">Not everyone should be scored on&nbsp;macros.</h2>
-      <p class="lede reveal d2" style="max-width:70ch">A 17&#8209;year&#8209;old lineman eating to a number and a 45&#8209;year&#8209;old rebuilding a relationship with food should not be measured the same way. So the same score runs on three levels of structure. Your professional assigns one &mdash; and the app tells you, in plain words, which one governs you and who chose it.</p>
+      <p class="lede reveal d2" style="max-width:60ch">A lineman eating to a number and someone rebuilding a healthy relationship with food should not be scored the same way. One score, three levels of structure. Your professional assigns one, and the app tells you which governs today.</p>
 
-      <div class="shots reveal d2">
-        <figure>
-          <div class="phone sm"><img src="assets/product/style-structured.webp" width="390" height="844" loading="lazy" decoding="async" alt="An OnStandard plan on the Structured style: exact calorie, protein, meal-timing and hydration targets."></div>
-          <figcaption><b>Structured</b> Exact calorie, protein, meal&#8209;timing and hydration targets. The score leans on completing them. For someone who wants clear numbers.</figcaption>
-        </figure>
-        <figure>
-          <div class="phone sm"><img src="assets/product/style-guided.webp" width="390" height="844" loading="lazy" decoding="async" alt="An OnStandard plan on the Guided style: flexible ranges instead of exact numbers, plus meal quality."></div>
-          <figcaption><b>Guided</b> Flexible ranges instead of exact numbers, plus meal quality and light hunger and energy awareness. <b>Where most people start.</b></figcaption>
-        </figure>
-        <figure>
-          <div class="phone sm"><img src="assets/product/style-intuitive.webp" width="390" height="844" loading="lazy" decoding="async" alt="An OnStandard plan on the Intuitive style: no calorie or macro targets, scored on awareness and adequate fueling."></div>
-          <figcaption><b>Intuitive</b> No calorie or macro targets &mdash; the app doesn't show them. Scored on noticing hunger, fullness and energy, fueling enough, hydration and consistency. <b>Never on restriction.</b></figcaption>
-        </figure>
+      <div class="pstyles reveal d2" id="pstyles" data-active="structured">
+        <div class="pstyles-panel">
+          <div class="pstyles-axis" aria-hidden="true">
+            <span class="pstyles-axis-cap">Structure</span>
+            <span class="pstyles-axis-track"><span class="pstyles-glide"></span></span>
+            <span class="pstyles-axis-cap">Autonomy</span>
+          </div>
+
+          <div class="pstyles-tabs" role="tablist" aria-label="Choose a plan style">
+            <button type="button" class="pstyle-tab on" role="tab" id="pstab-structured" aria-selected="true" aria-controls="psview" data-style="structured">
+              <span class="pstyle-head"><span class="pstyle-dot"></span><span class="pstyle-name">Structured</span><span class="pstyle-rank">01</span></span>
+              <span class="pstyle-detail"><span>
+                <span class="pstyle-line">Exact calories, protein, hydration and meal timing. The score leans on hitting the numbers.</span>
+                <span class="pstyle-bestfor"><b>Best for</b>an athlete eating to a number who wants a clear target.</span>
+              </span></span>
+            </button>
+
+            <button type="button" class="pstyle-tab" role="tab" id="pstab-guided" aria-selected="false" aria-controls="psview" data-style="guided" tabindex="-1">
+              <span class="pstyle-head"><span class="pstyle-dot"></span><span class="pstyle-name">Guided</span><span class="pstyle-rank">02</span></span>
+              <span class="pstyle-detail"><span>
+                <span class="pstyle-line">Flexible ranges instead of exact numbers, plus meal quality, consistency and a light awareness prompt.</span>
+                <span class="pstyle-bestfor"><b>Best for</b>most people. Where the app suggests you start.</span>
+              </span></span>
+            </button>
+
+            <button type="button" class="pstyle-tab" role="tab" id="pstab-intuitive" aria-selected="false" aria-controls="psview" data-style="intuitive" tabindex="-1">
+              <span class="pstyle-head"><span class="pstyle-dot"></span><span class="pstyle-name">Intuitive</span><span class="pstyle-rank">03</span></span>
+              <span class="pstyle-detail"><span>
+                <span class="pstyle-line">No calories, macros or target weight. Scored on hunger, fullness, energy, fueling enough, hydration and consistency. Never on restriction.</span>
+                <span class="pstyle-bestfor"><b>Best for</b>rebuilding a steady, healthy relationship with food.</span>
+              </span></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="pstyles-stage">
+          <div class="phone lg" id="psview" role="tabpanel" aria-live="polite">
+            <div class="phone-scr">
+              <img class="pshot on" data-style="structured" src="assets/product/style-structured.webp" width="390" height="844" loading="lazy" decoding="async" alt="An OnStandard Plan screen on the Structured style: exact calorie, protein, meal-timing and hydration targets, set by the coach.">
+              <img class="pshot" data-style="guided" src="assets/product/style-guided.webp" width="390" height="844" loading="lazy" decoding="async" alt="An OnStandard Plan screen on the Guided style: flexible ranges instead of exact numbers, plus meal quality and awareness.">
+              <img class="pshot" data-style="intuitive" src="assets/product/style-intuitive.webp" width="390" height="844" loading="lazy" decoding="async" alt="An OnStandard Plan screen on the Intuitive style: no calorie or macro targets, scored on awareness and adequate fueling.">
+            </div>
+          </div>
+        </div>
       </div>
 
       <ul class="whatis-clar reveal d2" style="margin-top:34px">
@@ -740,6 +771,6 @@ window.__preT=setTimeout(function(){document.documentElement.classList.remove('p
   ]
 }
 </script>
-<script src="js/site.js?v=12" defer></script>
+<script src="js/site.js?v=13" defer></script>
 </body>
 </html>

@@ -214,6 +214,50 @@
     }));
   }
 
+  /* ---------- plan styles: interactive spectrum comparison ----------
+     Left tabs drive one morphing phone. The spectrum glide + data-active carry
+     the structure->autonomy read. Gently auto-advances the first time it scrolls
+     into view, and stops for good the moment the visitor takes over. */
+  const ps = document.getElementById('pstyles');
+  if (ps) {
+    const tabs = [...ps.querySelectorAll('.pstyle-tab')];
+    const screens = [...ps.querySelectorAll('.pshot')];
+    let idx = 0, auto = 0, touched = false;
+    const select = (i, focus) => {
+      idx = (i + tabs.length) % tabs.length;
+      const style = tabs[idx].dataset.style;
+      ps.dataset.active = style;
+      ps.style.setProperty('--pos', idx);
+      tabs.forEach((t, n) => {
+        const on = n === idx;
+        t.classList.toggle('on', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+      });
+      screens.forEach((s) => s.classList.toggle('on', s.dataset.style === style));
+      if (focus) tabs[idx].focus();
+    };
+    const stop = () => { if (auto) { clearInterval(auto); auto = 0; } };
+    const take = () => { touched = true; stop(); };
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => { take(); select(i); });
+      t.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); take(); select(idx + 1, true); }
+        else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); take(); select(idx - 1, true); }
+        else if (e.key === 'Home') { e.preventDefault(); take(); select(0, true); }
+        else if (e.key === 'End') { e.preventDefault(); take(); select(tabs.length - 1, true); }
+      });
+    });
+    select(0);
+    if (!reduced) {
+      new IntersectionObserver((es) => {
+        const seen = es.some((e) => e.isIntersecting);
+        if (seen && !touched && !auto) auto = setInterval(() => { if (!touched) select(idx + 1); }, 3400);
+        else if (!seen) stop();
+      }, { threshold: 0.45 }).observe(ps);
+    }
+  }
+
   /* ---------- dial (score section) ---------- */
   const TARGET = 94;
   const SPAN = 306;
