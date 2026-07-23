@@ -31,6 +31,8 @@ moving**, never "back to sleep."
    polite nudge. See "Escalation ladder" below.
 6. **Apple Watch is a first-class surface** (folded in) — "I'm Up" answerable from the wrist, mostly
    via notification mirroring. See "Apple Watch" below.
+7. **Coach "who's up" digest** (folded in) — one summary push to the coach when the roll call closes:
+   counts plus who didn't answer. This *is* the ladder's coach rung (L3), not a second ping.
 
 ## Non-goals
 
@@ -106,7 +108,8 @@ widget also cannot safely hold a login.
      reminder fn can label the button and sign the deadline. (It already returns
      `athlete_id, instance_id, title, body, offset_min`.)
    - Add the `escalation` config to `commitments` and a claim function for deadline-crossed,
-     still-`pending` rows to drive the ladder (L2–L4). See "Escalation ladder".
+     still-`pending` rows to drive the ladder (L2–L4). The L3 coach digest reuses the existing
+     `commitment_board` payload for counts and names — no new read model. See "Escalation ladder".
 2. **`commitment-reminders/index.ts`:** for each due row, mint the code and add to the push message:
    `categoryId` (derived from `action_label`, see client note), `data.code`, `data.instance_id`
    (already present via `route`), `data.action_label`. Feature-flag and cron-key behaviour unchanged.
@@ -148,8 +151,14 @@ a small extension of the existing reminder cron, not a new subsystem.
 |---|---|---|---|
 | **L1 nudge** | before deadline (today's behavior) | normal reminder push, only to `pending` | unchanged |
 | **L2 break-through** | at `respond_by_at` | one **time-sensitive** push (iOS `interruptionLevel: 'time-sensitive'`; Android high-importance, optionally full-screen) | punches past a Focus/summary; still respects the OS Do Not Disturb the user set |
-| **L3 coach** | at `respond_by_at` + short lag | the coach's board flips the row red (`status = 'missed'`, already the model) and the coach gets one push naming who did not answer | aggregate per instance, not one-per-athlete |
+| **L3 coach digest** | at `respond_by_at` (+ short lag) | board rows finalize (`status = 'missed'` for no-answers) and the coach gets **one "who's up" push** for the instance: counts + who didn't answer | one push per instance per coach; this digest *is* the coach rung — no separate ping |
 | **L4 guardian (optional)** | configurable | a linked parent/guardian is notified for a missed roll call | guardianship + consent already exist; **off by default**, coach opt-in per commitment |
+
+**Coach "who's up" digest (L3), spelled out.** When the window closes, the coach gets a single push
+like *"5 AM Club — 17/20 up. 3 didn't answer: Marcus, Dee, Sol."* Tapping it opens the commitment
+board (the deep link already exists). It reuses the `commitment_board` payload for counts and names,
+so there is no new read model. One push per instance per coach; batching multiple instances that
+close together into a single coach push is a future nicety, noted below.
 
 - **Config lives on the commitment** — add a small `escalation` jsonb (or discrete columns) to
   `commitments`: `{ breakthrough: bool, notify_coach_on_miss: bool, notify_guardian_on_miss: bool }`.
@@ -215,9 +224,10 @@ inside grace in the normal case; genuinely late only if offline past the grace w
 - **Client (jest):** `ACK` action → posts code; POST failure → queued + retried; success → notification
   updated. Mock `fetch` and the notifications module.
 - **Escalation (`deno test` + authz):** at deadline a still-`pending` row fires L2 once (claim-marked,
-  no double-fire on overlapping ticks); L3 marks the board row `missed` and produces one coach push;
-  L4 fires only when `notify_guardian_on_miss` is on; an athlete who answered before the deadline
-  triggers no rung.
+  no double-fire on overlapping ticks); the L3 coach digest fires **once per instance** with correct
+  counts and the right non-responder names, and marks board rows `missed`; L4 fires only when
+  `notify_guardian_on_miss` is on; an athlete who answered before the deadline triggers no rung and is
+  counted "up" in the digest.
 - **On device (cannot be exercised on Windows/jest — QA checklist):** backgrounded tap records
   immediately (iOS + Android); force-quit iOS defers to next open; offline tap queues then lands;
   confirmation replaces the original notification; **L2 time-sensitive push breaks through Focus**;
@@ -230,7 +240,8 @@ inside grace in the normal case; genuinely late only if offline past the grace w
   ladder (L1–L4) and the mirrored Apple Watch action**. Cross-platform. Ships on a normal EAS build
   (notification categories are JS runtime; the Watch action needs no separate watch app).
   Suggested build order inside phase 1: (a) signed code + endpoint + migration, (b) notification
-  action + client handler + confirm/queue, (c) escalation ladder, (d) Watch QA.
+  action + client handler + confirm/queue, (c) escalation ladder incl. the L3 coach digest,
+  (d) Watch QA.
 - **Phase 2 (later, iPhone):** the authored `ios-widget/OnStandardWidget.swift` gains a native App
   Intent that calls the **same** `roll-call-ack` endpoint with a signed code, giving a persistent
   lock-screen button and closing the force-quit / swiped-away gaps. A standalone **watchOS** app
@@ -247,3 +258,6 @@ inside grace in the normal case; genuinely late only if offline past the grace w
   stays off-by-default, coach opt-in. Confirm.
 - **Critical alerts:** ship time-sensitive now; pursue the Apple critical-alert entitlement later, or
   not at all? (Default: time-sensitive only for now.)
+- **Coach digest timing:** fire at the roll-call deadline (default), or at a coach-set morning time?
+  And batch multiple roll calls that close together into one coach push, or one push each? (Default:
+  at each deadline, one push per instance; batching later.)
