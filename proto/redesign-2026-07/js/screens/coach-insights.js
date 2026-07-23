@@ -1,8 +1,11 @@
-import { S } from '../state.js';
+import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { avatarHead, esc, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
-import { CD, loadCoachRoster, entriesFor, getScope, scopeFilter } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, entriesFor, getScope, scopeFilter } from '../coach-data.js';
+
+/* nav:'operator' — load whichever book the signed-in role owns (see coach-home.js). */
+const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
 import { CATALOG, resolveRequirementSet, catalogFromItems } from '../requirements.js';
 import { weekWindows, weeklyBrief, athletesToWatch, mostMissed, weekVsMonth, interventionOutcomes } from '../insights.js';
 
@@ -28,10 +31,11 @@ async function loadInsights(teamId, force) {
   insightsLoadingId = teamId;
   const today = roles.todayISO();
   const { monthFrom } = weekWindows(today);
+  const kind = CD.kind;
   try {
     const [rollup, outcomes] = await Promise.all([
-      roles.fetchTeamDayRollup(teamId, monthFrom, today),
-      roles.fetchInterventionOutcomes(teamId, roles.daysAgoISO(56)),
+      roles.fetchTeamDayRollup(teamId, monthFrom, today, kind),
+      roles.fetchInterventionOutcomes(teamId, roles.daysAgoISO(56), kind),
     ]);
     INSIGHTS_DATA = { teamId, rollup, outcomes };
   } catch { INSIGHTS_DATA = { teamId, rollup: [], outcomes: [], offline: true }; } // audit G-3: honest error, not perpetual "Reading the week…"
@@ -79,7 +83,8 @@ function humanizeKind(k) {
    keeps its own small copy of this, same as coach-announce.js's variant); getScope()'s shape
    is the shared contract, not this rendering. */
 function scopeLabel(scope) {
-  if (!scope || scope.kind === 'team') return 'Entire team';
+  const everyone = CD.kind === 'practice' ? 'All clients' : 'Entire team';
+  if (!scope || scope.kind === 'team') return everyone;
   if (scope.kind === 'position') return `${scope.value} room`;
   if (scope.kind === 'group') {
     const g = ((CD.extras && CD.extras.groups) || []).find(x => x.id === scope.value);
@@ -87,9 +92,9 @@ function scopeLabel(scope) {
   }
   if (scope.kind === 'athlete') {
     const r = CD.roster && CD.roster.rows.find(x => x.athleteId === scope.value);
-    return r ? r.name : 'One athlete';
+    return r ? r.name : (CD.kind === 'practice' ? 'One client' : 'One athlete');
   }
-  return 'Entire team';
+  return everyone;
 }
 
 const dotLine = (text, cls) => `<div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:13.5px;font-weight:600;color:var(--text);line-height:1.5"><span class="dot ${cls}" style="width:7px;height:7px;border-radius:50%;margin-top:7px;flex:none"></span><span>${esc(text)}</span></div>`;
@@ -200,13 +205,13 @@ function weekSection() {
 }
 
 export const coachInsights = {
-  nav: 'coach', tab: 'insights',
+  nav: 'operator', tab: 'insights',
   render() {
-    const initials = (S.coachIdentity.handle || 'C').replace(/coach\s*/i, '').slice(0, 2).toUpperCase();
-    const head = avatarHead('Insights', 'What the numbers say', initials);
+    const me = S.operatorIdentity;
+    const head = avatarHead('Insights', 'What the numbers say', me.initials);
     // Audit G-4: offline before the loading gate (CD.extras is null on a cold offline load too),
     // so an offline coach gets an honest retry instead of a permanent "Reading the day…".
-    if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: "Can't reach insights", body: "Your team's numbers are safe — reconnect and the read loads right here.", retryId: 'insights-retry' })}`;
+    if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: "Can't reach insights", body: `Your ${CD.kind === 'practice' ? "clients'" : "team's"} numbers are safe — reconnect and the read loads right here.`, retryId: 'insights-retry' })}`;
     if (CD.roster === null || !CD.extras) return `${head}${skeletonRows(3, 'Reading the day')}`;
     const entries = entriesFor({ kind: 'team', value: null }) || [];
     const by = (k) => entries.filter(e => e.status.key === k);
@@ -219,7 +224,7 @@ export const coachInsights = {
     if (top) lines.push(`${top.row.name} leads the day at ${top.row.score}.`);
     if (!lines.length) {
       const logged = entries.filter(e => e.row.loggedToday).length;
-      lines.push(!entries.length ? 'No athletes on the roster yet.'
+      lines.push(!entries.length ? `No ${CD.kind === 'practice' ? 'clients' : 'athletes'} on the roster yet.`
         : logged ? `${logged} of ${entries.length} ${logged === 1 ? 'has' : 'have'} logged today — nothing needs your attention right now.`
         : 'Quiet so far — no logs yet today.');
     }
@@ -249,17 +254,17 @@ export const coachInsights = {
     <div class="co-bottom"></div>`;
   },
   mount(root) {
-    loadCoachRoster().then(() => {
-      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      if (teamId) loadInsights(teamId);
+    loadMyBook().then(() => {
+      const bookId = CD.roster && CD.roster.book[0] && CD.roster.book[0].id;
+      if (bookId) loadInsights(bookId);
     });
     // Audit G-4/G-3 retries: the top gate refetches the roster; the week section refetches the rollup.
     const iRetry = root && root.querySelector('#insights-retry');
-    if (iRetry) iRetry.addEventListener('click', () => { iRetry.disabled = true; loadCoachRoster(true).then(() => window.__render()); });
+    if (iRetry) iRetry.addEventListener('click', () => { iRetry.disabled = true; loadMyBook(true).then(() => window.__render()); });
     const wRetry = root && root.querySelector('#insights-week-retry');
     if (wRetry) wRetry.addEventListener('click', () => {
-      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      if (teamId) { wRetry.disabled = true; loadInsights(teamId, true); }
+      const bookId = CD.roster && CD.roster.book[0] && CD.roster.book[0].id;
+      if (bookId) { wRetry.disabled = true; loadInsights(bookId, true); }
     });
   },
 };

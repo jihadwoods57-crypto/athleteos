@@ -73,13 +73,29 @@ function table(name) {
   };
   return b;
 }
+/* Slice D: a rollup with real evidence, spanning BOTH weeklyBrief's "this week" and "previous
+   week" windows (weekWindows: this = today-6..today, prev = today-13..today-7) — weeklyBrief
+   only emits a line when BOTH windows have n>0, so a fixture with just today+yesterday renders
+   Most-missed/Week-vs-month but never the scope-labeled "This week" comparison line itself. */
+const EIGHT_DAYS_AGO = iso(new Date(Date.now() - 8 * 864e5));
+const ROLLUP = [
+  { athlete_id: 'a1', day: TODAY, position: null, score: 62, meals_logged: 1, tasks_done: ['breakfast'], checkin_done: false, weight_logged: false },
+  { athlete_id: 'a1', day: YESTERDAY, position: null, score: 88, meals_logged: 2, tasks_done: ['breakfast', 'dinner'], checkin_done: true, weight_logged: true },
+  { athlete_id: 'a1', day: EIGHT_DAYS_AGO, position: null, score: 70, meals_logged: 1, tasks_done: ['breakfast'], checkin_done: false, weight_logged: false },
+  { athlete_id: 'a2', day: TODAY, position: null, score: 91, meals_logged: 1, tasks_done: ['breakfast'], checkin_done: false, weight_logged: false },
+  { athlete_id: 'a2', day: YESTERDAY, position: null, score: 74, meals_logged: 1, tasks_done: [], checkin_done: false, weight_logged: false },
+  { athlete_id: 'a2', day: EIGHT_DAYS_AGO, position: null, score: 65, meals_logged: 1, tasks_done: ['breakfast'], checkin_done: false, weight_logged: false },
+];
 globalThis.window.sb = {
   from: table,
-  async rpc(fn) {
+  async rpc(fn, args) {
     if (fn === 'team_roster') return { data: TEAM_MEMBERS, error: null };
     if (fn === 'practice_roster') return { data: PRACTICE_MEMBERS.map(m => ({ client_id: m.athlete_id, client_name: m.athlete_name })), error: null };
     if (fn === 'athlete_plan_meta') return { data: PLAN_META, error: null };
     if (fn === 'coach_set_goals') return { data: null, error: null };
+    if (fn === 'team_day_rollup') { assert.ok(args && args.p_team, 'team_day_rollup must be called with p_team'); return { data: ROLLUP, error: null }; }
+    if (fn === 'practice_day_rollup') { assert.ok(args && args.p_practice, 'practice_day_rollup must be called with p_practice'); return { data: ROLLUP, error: null }; }
+    if (fn === 'team_intervention_outcomes' || fn === 'practice_intervention_outcomes') return { data: [], error: null };
     return { data: [], error: null };
   },
   auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) },
@@ -145,7 +161,7 @@ for (const kind of ['team', 'practice']) {
     assert.strictEqual(CD.caps.notes, 1, '0136 gave a practice its own notes');
     assert.strictEqual(CD.caps.templates, 0, 'requirement_templates was NOT one of the six tables 0136 converted');
     assert.strictEqual(CD.caps.trustPass, 0, 'grant_trust_pass never authorizes is_trainer_of');
-    assert.strictEqual(CD.caps.rollups, 0, 'practice rollups land in 0137');
+    assert.strictEqual(CD.caps.rollups, 1, '0137 gave a practice its own insights rollup');
     assert.strictEqual(CD.caps.offers, 1, 'a trainer keeps their monetization surface');
   } else {
     assert.strictEqual(CD.caps.standards, 1);
@@ -241,6 +257,19 @@ for (const kind of ['team', 'practice']) {
   assert.ok(mealHtml.includes('Breakfast'), `${kind}: the meal thread must resolve the real meal`);
   assert.ok(mealHtml.includes('Comment on this meal') || mealHtml.includes('cm-input'), `${kind}: the composer must render`);
   assert.ok(!/undefined|\[object Object\]|NaN/.test(mealHtml), `${kind}: meal thread leaked a raw value into the DOM`);
+
+  /* ---- Slice D: practice rollups (0137). coach-insights is nav:'operator' and its "This week"
+     section must call the CORRECT rollup RPC (asserted inside the rpc() stub above) and render
+     real trend content — not the "trends unlock as history builds" placeholder — on EITHER book. */
+  location.hash = '#coach-insights';
+  screens['coach-insights'].mount(el());
+  await new Promise((r) => setTimeout(r, 30));
+  const insightsHtml = screens['coach-insights'].render({ S });
+  snapshots[kind]['coach-insights'] = insightsHtml;
+  assert.ok(!insightsHtml.includes('Trends unlock as history builds'),
+    `${kind}: 0137 gave this book real rollup data — the empty placeholder must not show`);
+  assert.ok(insightsHtml.includes('This week'), `${kind}: the weekly brief must render`);
+  assert.ok(!/undefined|\[object Object\]|NaN/.test(insightsHtml), `${kind}: Insights leaked a raw value into the DOM`);
 }
 
 /* ---- THE core invariant: identical athlete data scores identically on either book ----
@@ -295,6 +324,14 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
     'the coach vocabulary is unchanged');
   assert.ok(practiceHome.includes('Rivera Strength'), 'the practice name heads the trainer dashboard');
   assert.ok(teamHome.includes('Northside Prep'), 'the team name heads the coach dashboard');
+
+  // Insights vocabulary follows the book too — "Entire team" over a practice's numbers would be
+  // the exact class of leak S.operatorIdentity/vocab() exist to prevent.
+  const teamInsights = snapshots.team['coach-insights'];
+  const practiceInsights = snapshots.practice['coach-insights'];
+  assert.ok(practiceInsights.includes('All clients'), 'a trainer sees "All clients" in the week scope label');
+  assert.ok(!/\bEntire team\b/.test(practiceInsights), 'no "Entire team" label may leak onto a practice book');
+  assert.ok(teamInsights.includes('Entire team'), 'the coach Insights scope label is unchanged');
 
   // Roster: groups are dual-owner since 0136, so the ＋ Group control works on both books.
   const teamRoster = snapshots.team['coach-roster'];

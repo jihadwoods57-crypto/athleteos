@@ -25,14 +25,16 @@ function resolvePos(row) {
 }
 
 /* What an operator can actually DO with their book. Pure data, no imports.
-   Two distinct reasons a practice cap is 0, and the distinction must stay legible — someone
-   reading this later will otherwise "fix" the permanent ones:
-     · until 0137 — the RPC gates is_team_staff and has no practice mirror yet.
-     · never      — position rooms, staff scopes, practice/game-day patterns and 1-to-many
-                    broadcast are TEAM concepts. A trainer with 12 clients works 1:1. And
-                    trustPass is server-refused outright: grant_trust_pass (0099) checks
-                    is_team_coach_of only — unlike coach_set_goals (0054), it never accepts
-                    is_trainer_of, so this one is a product decision, not a missing migration. */
+   Every practice cap that is still 0 is 0 PERMANENTLY, by design — not a pending migration:
+     · position rooms, staff scopes, practice/game-day patterns and 1-to-many broadcast are
+       TEAM concepts. A trainer with 12 clients works 1:1, so rooms/staffRoles/weekPattern/
+       announcements/recruiting have no practice equivalent to build.
+     · trustPass is server-refused outright: grant_trust_pass (0099) checks is_team_coach_of
+       only — unlike coach_set_goals (0054), it never accepts is_trainer_of.
+     · templates (0074 requirement_templates) was not one of 0136's six dual-owner tables;
+       a practice writes its standard directly instead of browsing team template drafts.
+   Everything migration-gated has landed: standards/assignments/interventions/notes/
+   exceptions/groups (0136) and rollups (0137). */
 const CAPS = {
   team: {
     roster: 1, activity: 1, inbox: 1, athleteProfile: 1, targets: 1, approvals: 1,
@@ -49,7 +51,9 @@ const CAPS = {
     // requirement_templates (0074) was NOT one of 0136's six dual-owner tables — a practice
     // writes its standard directly instead of browsing team template drafts.
     templates: 0,
-    rollups: 0,                                                                          // → 0137
+    // 0137 mirrors team_day_rollup/team_intervention_outcomes as practice_day_rollup/
+    // practice_intervention_outcomes — Insights now reads real per-day-per-client history.
+    rollups: 1,
     rooms: 0, staffRoles: 0, weekPattern: 0, announcements: 0, recruiting: 0, trustPass: 0, // never
     offers: 1, payments: 1, packages: 1,
   },

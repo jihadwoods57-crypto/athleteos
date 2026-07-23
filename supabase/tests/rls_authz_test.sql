@@ -949,6 +949,63 @@ select _ok((select count(*) from coach_notes where team_id is not null) = 0,
 select _ok((select count(*) from requirement_sets where team_id is not null) = 0,
            '0136: a trainer CANNOT read team-owned standards');
 
+-- 8e. PRACTICE ROLLUPS (0137): the trainer mirror of team_day_rollup / team_intervention_outcomes.
+select _superuser();
+-- A second day row for client A so the window has >1 day (mirrors the team rollup's own shape).
+insert into days (athlete_id, date, score) values ('aaaaaaaa-0000-0000-0000-000000000001', current_date - 1, 70);
+
+select _as('44444444-0000-0000-0000-000000000004');  -- trainer T, owns P1
+select _ok((select count(*) from practice_day_rollup(
+             '88888888-0000-0000-0000-000000000001', current_date - 7, current_date)
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') = 2,
+           '0137: the rollup carries both of client A''s day rows');
+-- Compared against the ACTUALLY-STORED score, not the seeded literal: the 0041 evidence-ceiling
+-- trigger clamps a bare days row (no meals/checkin/commitment evidence) below what was inserted,
+-- same as the team rollup's own probe does above. This still proves the rollup passes through
+-- whatever the table holds — never a fabricated/rounded number of its own.
+select _ok((select score from practice_day_rollup(
+             '88888888-0000-0000-0000-000000000001', current_date, current_date)
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001')
+         = (select score from days where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001' and date = current_date),
+           '0137: the rollup carries A''s real (evidence-clamped) score, not a fabricated one');
+select _ok((select "position" from practice_day_rollup(
+             '88888888-0000-0000-0000-000000000001', current_date, current_date)
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') is null,
+           '0137: position is honestly null on a practice rollup (practice_roster has none)');
+select _ok(_try($q$select practice_day_rollup('88888888-0000-0000-0000-000000000002', current_date - 7, current_date)$q$)
+             like '%not authorized%',
+           '0137: trainer T CANNOT read another practice''s day rollup');
+select _ok(_try($q$select practice_day_rollup('88888888-0000-0000-0000-000000000001', current_date - 100, current_date)$q$)
+             like '%0-62 days%',
+           '0137: the 62-day window cap is enforced on a practice rollup same as a team''s');
+-- A practice id is refused by the TEAM rollup RPC's own gate, and vice versa.
+select _ok(_try($q$select team_day_rollup('88888888-0000-0000-0000-000000000001', current_date - 7, current_date)$q$)
+             like '%not authorized%',
+           '0137: a practice id is refused by the TEAM rollup RPC (is_team_staff denies it)');
+select _as('99999999-0000-0000-0000-000000000009');  -- rando owns P2, not P1
+select _ok(_try($q$select practice_day_rollup('88888888-0000-0000-0000-000000000001', current_date - 7, current_date)$q$)
+             like '%not authorized%',
+           '0137: a non-owner CANNOT read P1''s rollup');
+select _as('11111111-0000-0000-0000-000000000001');  -- head coach of T1, not any practice
+select _ok(_try($q$select practice_day_rollup('88888888-0000-0000-0000-000000000001', current_date - 7, current_date)$q$)
+             like '%not authorized%',
+           '0137: a coach CANNOT read a practice''s rollup');
+
+-- Intervention outcomes: reuses the coach_interventions row 8d logged (trainer T, kind 'nudge',
+-- athlete A) — practice_intervention_outcomes must resolve it with a before/after score window.
+select _as('44444444-0000-0000-0000-000000000004');
+select _ok((select count(*) from practice_intervention_outcomes(
+             '88888888-0000-0000-0000-000000000001', current_date - 30)
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') >= 1,
+           '0137: the outcomes read finds the intervention 8d logged on this practice');
+select _ok(_try($q$select practice_intervention_outcomes('88888888-0000-0000-0000-000000000002', current_date - 30)$q$)
+             like '%not authorized%',
+           '0137: trainer T CANNOT read another practice''s intervention outcomes');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($q$select practice_intervention_outcomes('88888888-0000-0000-0000-000000000001', current_date - 30)$q$)
+             like '%not authorized%',
+           '0137: a coach CANNOT read a practice''s intervention outcomes');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'

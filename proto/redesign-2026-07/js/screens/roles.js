@@ -1438,10 +1438,11 @@ export const trainerProfile = {
       <div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px">${icon('lock', 15)} Founder-gated sections</div>
       <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:5px 0 13px;line-height:1.45">Built and reviewed one slice at a time. Shown honestly as locked until they're real.</div>
       <div class="hq-roadmap-grid">
-        ${/* 'Client health' left this list when the trainer Home dashboard shipped — a locked tile
-              for something that already works is the same dishonesty as a "Coming soon" pill over
-              a live feature. 'Analytics' goes when practice rollups land (0137). */
-          ['Business health', 'AI assistant', 'Analytics', 'Branding', 'Integrations']
+        ${/* 'Client health' left this list when the trainer Home dashboard shipped, and
+              'Analytics' left when practice rollups (0137) reached Insights — a locked tile
+              for something that already works is the same dishonesty as a "Coming soon" pill
+              over a live feature. Only truly unbuilt sections stay here. */
+          ['Business health', 'AI assistant', 'Branding', 'Integrations']
             .map((t) => `<div class="hq-ritem">${icon('lock', 14)}<span>${t}</span></div>`).join('')}
       </div>
     </section>

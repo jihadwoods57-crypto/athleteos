@@ -1366,18 +1366,22 @@ export async function loadTrainerBook() {
   return { practices, rows: projectRows(perPractice, days, recentMeals, tzByAthlete) };
 }
 
-/* ---------------- Slice E team insights reads (0076) ---------------- */
-export async function fetchTeamDayRollup(teamId, fromISO, toISO) {
-  const c = sb(); if (!c || !teamId) return [];
+/* ---------------- Slice E team insights reads (0076); practice mirror (0137) ---------------- */
+export async function fetchTeamDayRollup(bookId, fromISO, toISO, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
+  const practice = kind === 'practice';
   try {
-    const { data, error } = await c.rpc('team_day_rollup', { p_team: teamId, p_from: fromISO, p_to: toISO });
+    const { data, error } = await c.rpc(practice ? 'practice_day_rollup' : 'team_day_rollup',
+      practice ? { p_practice: bookId, p_from: fromISO, p_to: toISO } : { p_team: bookId, p_from: fromISO, p_to: toISO });
     return error ? [] : (data || []);
   } catch { return []; }
 }
-export async function fetchInterventionOutcomes(teamId, fromISO) {
-  const c = sb(); if (!c || !teamId) return [];
+export async function fetchInterventionOutcomes(bookId, fromISO, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
+  const practice = kind === 'practice';
   try {
-    const { data, error } = await c.rpc('team_intervention_outcomes', { p_team: teamId, p_from: fromISO });
+    const { data, error } = await c.rpc(practice ? 'practice_intervention_outcomes' : 'team_intervention_outcomes',
+      practice ? { p_practice: bookId, p_from: fromISO } : { p_team: bookId, p_from: fromISO });
     return error ? [] : (data || []);
   } catch { return []; }
 }
