@@ -1,0 +1,26 @@
+# Files uploaded to EAS Build. Mirrors .gitignore semantics. Excludes content the
+# native iOS/Android build never needs, to shrink the archive (was 439 MB).
+#
+# DO NOT ignore: assets/ (holds proto.zip + app icons/splash), src/, ios-certs/
+# (local build credentials), supabase/, proto/ (kept for safety), or any app config.
+
+# Marketing website + its heavy PNG/WEBP/MP4 sources — a separate static site, not the app.
+web/
+
+# Screenshots, QA captures, audit + design artifacts.
+_media/
+qc/
+sim/
+docs/
+
+# Claude Code tooling. The skills symlink farm can break the EAS tarball; nothing here
+# is part of the build.
+.claude/
+
+# Loose QA/marketing images dropped at the repo root (root-anchored so app assets are safe).
+/*.jpeg
+/*.jpg
+/a1-*.jpeg
+/qa-*.jpeg
+/art4-final.png
+/ob2-role.jpeg
