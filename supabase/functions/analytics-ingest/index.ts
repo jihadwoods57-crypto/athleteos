@@ -17,6 +17,7 @@
 //   (SERVICE_ROLE + URL are auto-injected). Then set EXPO_PUBLIC_ANALYTICS_URL to this function's
 //   URL and ship an app build — until then the client seam is inert and this never receives calls.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -81,7 +82,7 @@ function limited(ip: string, max = 120, windowMs = 60_000): boolean {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "bad_request" }, 400);
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIpFrom(req);
   if (limited(ip)) return json({ error: "rate_limited" }, 429);
 
   const body = await req.json().catch(() => null) as { events?: unknown } | null;

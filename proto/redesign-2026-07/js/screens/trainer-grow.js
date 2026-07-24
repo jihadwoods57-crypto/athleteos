@@ -35,9 +35,9 @@ async function loadGrow(force) {
 
 const CONNECT_LABEL = {
   none: { pill: 'Not set up', color: 'var(--text-3)', cta: 'Connect Stripe to get paid', tone: 'green' },
-  pending: { pill: 'Setup in progress', color: 'var(--gold-bright)', cta: 'Continue setup', tone: 'ghost' },
+  pending: { pill: 'Setup in progress', color: 'var(--amber-bright)', cta: 'Continue setup', tone: 'ghost' },
   active: { pill: 'Connected', color: 'var(--green-bright)', cta: 'Manage on Stripe', tone: 'ghost' },
-  restricted: { pill: 'Action needed', color: 'var(--red-bright)', cta: 'Fix on Stripe', tone: 'green' },
+  restricted: { pill: 'Action needed', color: 'var(--red)', cta: 'Fix on Stripe', tone: 'green' },
 };
 
 /* The one card that turns "have offers" into "can actually get paid for them" — a trainer with no
@@ -187,7 +187,7 @@ export const trainerGrow = {
     loadGrow();
     const pid = practiceId();
     const $ = (id) => root.querySelector('#' + id);
-    const msg = (t, err) => { const m = $('tg-msg'); if (m) { m.textContent = t; m.style.color = err ? 'var(--red-bright)' : 'var(--green-bright)'; } };
+    const msg = (t, err) => { const m = $('tg-msg'); if (m) { m.textContent = t; m.style.color = err ? 'var(--red)' : 'var(--green-bright)'; } };
 
     const connectBtn = $('tg-connect');
     if (connectBtn) connectBtn.addEventListener('click', async () => {
@@ -292,7 +292,7 @@ function offerForm(o) {
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn green sm" data-tg="osave" data-id="${esc(o.id || 'new')}" style="width:auto;padding:0 16px;height:34px">Save offer</button>
       <button class="btn ghost sm" data-tg="cancel" style="width:auto;padding:0 14px;height:34px">Cancel</button>
-      ${o.id ? `<button class="btn ghost sm" data-tg="del" data-id="${esc(o.id)}" style="width:auto;padding:0 12px;height:34px;color:var(--red-bright);margin-left:auto">Delete</button>` : ''}
+      ${o.id ? `<button class="btn ghost sm" data-tg="del" data-id="${esc(o.id)}" style="width:auto;padding:0 12px;height:34px;color:var(--red);margin-left:auto">Delete</button>` : ''}
     </div>
   </div>`;
 }

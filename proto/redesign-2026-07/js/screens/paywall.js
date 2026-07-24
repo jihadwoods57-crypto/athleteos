@@ -56,7 +56,7 @@ function statusBanner() {
       <div><div class="tt">You're a member</div><div class="ts">Premium is unlocked. Your report and Deep Dive are ready.</div></div></div>`;
   }
   if (s.kind === 'error') {
-    return `<div style="color:var(--red-bright);font-size:13px;font-weight:600;margin-top:10px;text-align:center">${esc(s.message || "Something went wrong. You weren't charged.")}</div>`;
+    return `<div style="color:var(--red);font-size:13px;font-weight:600;margin-top:10px;text-align:center">${esc(s.message || "Something went wrong. You weren't charged.")}</div>`;
   }
   return '';
 }

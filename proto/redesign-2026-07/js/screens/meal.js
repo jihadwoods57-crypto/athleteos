@@ -541,7 +541,7 @@ export const thread = {
           <div class="fx-other"><input class="input" id="fx-other" maxlength="160" placeholder="Anything else the photo can't show…" style="height:40px"/><button class="btn ghost sm" id="fx-other-add" style="width:auto;flex:none;padding:0 14px;height:40px">Add</button></div>
         </div>
         <div id="fx-note" style="font-size:12px;font-weight:700;color:var(--green-bright);min-height:16px;margin-top:6px"></div>
-        <div class="rub-fine">Corrections update the estimate with rule-based kitchen math, keep the AI's original for the record, and your coach sees the corrected numbers.</div>
+        <div class="rub-fine">Corrections update the estimate with rule-based kitchen math, keep the AI's original for the record, and ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} sees the corrected numbers` : 'the corrected numbers are what your log keeps'}.</div>
       </section>
     </div>`;
 
@@ -611,7 +611,7 @@ export const thread = {
           <div class="fq-chips">${fq.chips.map(c => `<button class="fx-chip" data-fq="${esc(fq.kind)}" data-val="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>
         </div></div>
       </div>` : ''}
-      <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : 'Syncs when connected — your coach sees this log either way.'}</div>
+      <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : (S.coach.hasCoach ? `Syncs when connected — your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected — this log is saved either way.')}</div>
     </div>
     ${M.mealId ? `
     <div class="qa-row">
@@ -917,7 +917,7 @@ export const thread = {
       // Thread cap (0059, coach-ratified): 3 athlete messages per meal — the DB trigger is
       // the wall; say so up front instead of letting the send bounce.
       const mine = (Array.isArray(comments) ? comments : []).filter((c) => c.role === 'athlete' && (c.kind || 'message') === 'message').length;
-      if (mine >= 3) { setNote('Thread cap: 3 messages per meal. Your coach saw them.'); return; }
+      if (mine >= 3) { setNote(`Thread cap: 3 messages per meal. ${S.coach.hasCoach ? `Your ${S.coach.noun} saw them.` : 'They\'re saved to this meal.'}`); return; }
       busy = true; setNote('');
       input.value = '';
       const posted = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', text);

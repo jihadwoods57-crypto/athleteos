@@ -35,7 +35,7 @@ export default {
     </section>` : `<div class="state-demo"><div class="sd-ic">${icon('bolt', 24)}</div>
       <div class="sd-t">No funded plans yet</div>
       <div class="sd-s">Plans you pay for your child show up here.</div></div>`}
-    <p id="fpl-err" class="ls" style="color:var(--red-bright);padding:10px 16px"></p>`;
+    <p id="fpl-err" class="ls" style="color:var(--red);padding:10px 16px"></p>`;
   },
   mount(root) {
     load();

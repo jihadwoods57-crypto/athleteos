@@ -1,4 +1,4 @@
-import { S, RT, act, tier, checkinProjection } from '../state.js';
+import { S, RT, act, tier, checkinProjection, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import * as roles from '../roles.js';
@@ -71,7 +71,7 @@ export default {
     const R = S.recovery;
     const P = checkinProjection();
     return `
-    ${backHead('Recovery Check-In', 'Before bed · Refreshes Recovery (25% of score)')}
+    ${backHead('Recovery Check-In', `Before bed · Refreshes Recovery (${liveWeightPct('recovery')}% of score)`)}
 
     <section class="card" style="padding: 4px 18px 8px">
       ${R.fields.map(f => `
@@ -127,7 +127,7 @@ export default {
           const g = root.querySelector('#rec-gain');
           if (g) {
             const p = checkinProjection(answers);
-            g.textContent = p.gain > 0 ? `Worth +${p.gain} tonight → ${p.to}` : 'Refreshes Recovery (25% of your score)';
+            g.textContent = p.gain > 0 ? `Worth +${p.gain} tonight → ${p.to}` : `Refreshes Recovery (${liveWeightPct('recovery')}% of your score)`;
           }
         });
       });

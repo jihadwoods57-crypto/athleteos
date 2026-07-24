@@ -5,7 +5,7 @@
    Weighting (founder call 2026-07-22): responding is a SMALL signal (10), arriving on time is
    MODERATE (30), completing the commitment is the GREATEST (60). A missed wake-up does not
    cascade; excused and unverified leave the denominator instead of counting as failures. */
-import { RT } from '../state.js';
+import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import { morningReadiness, commitmentStreak } from '../commitments.js';
@@ -39,7 +39,9 @@ export default {
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
         <div><div class="tt">Nothing to show yet</div>
-        <div class="ts">When your coach schedules a roll call, a lift, or a study hall, your responses and arrivals build this record. It's separate from your daily score.</div></div>
+        <div class="ts">${S.coach.hasCoach
+          ? `When your ${esc(S.coach.noun)} schedules a roll call, a lift, or a study hall`
+          : 'When a roll call, a lift, or a study hall is scheduled for you'}, your responses and arrivals build this record. It's separate from your daily score.</div></div>
       </div>`;
     }
 
@@ -49,7 +51,7 @@ export default {
     <section class="card pad" style="text-align:center">
       <div style="font-size:44px;font-weight:800;letter-spacing:-.03em;line-height:1;color:var(--green-bright)">
         ${loading ? '—' : (m.pct == null ? '—' : `${m.pct}%`)}</div>
-      <div class="ts" style="padding-top:8px">Accountability across every commitment your coach scheduled</div>
+      <div class="ts" style="padding-top:8px">Accountability across every commitment ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} scheduled` : 'scheduled for you'}</div>
       ${streak ? `<div style="height:12px"></div>
       <span class="xpill green">${streak} day${streak === 1 ? '' : 's'} clean</span>` : ''}
     </section>

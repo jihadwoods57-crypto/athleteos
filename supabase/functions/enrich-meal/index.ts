@@ -17,6 +17,7 @@
 // Deploy: supabase functions deploy enrich-meal   (uses the same USDA_API_KEY secret as food-lookup)
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { resolveByQuery } from '../_shared/food-resolve.ts';
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -42,7 +43,7 @@ const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '20');
 const RL_WINDOW_MS = 60_000;
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIpFrom(req);
   const now = Date.now();
   const e = rlHits.get(ip);
   if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS }); return false; }

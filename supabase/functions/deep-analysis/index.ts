@@ -23,6 +23,7 @@ import {
 } from '../_shared/plan-style.ts';
 import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const REQUIRES_PLAN = Deno.env.get('DEEP_REQUIRES_PLAN') === '1';
@@ -50,7 +51,7 @@ function corsFor(req: Request): Record<string, string> {
 const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '10');
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIpFrom(req);
   const now = Date.now();
   const e = rlHits.get(ip);
   if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + 60_000 }); return false; }

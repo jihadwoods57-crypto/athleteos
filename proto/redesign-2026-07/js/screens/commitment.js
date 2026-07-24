@@ -1,21 +1,23 @@
 import { act } from '../state.js';
-import { DAY, PROFILE_WEIGHTS } from '../day.js';
+import { DAY, weightsForDay } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 
-/* Daily Commitment (spec §2.5) — the substance behind 15% of the score.
+/* Daily Commitment (spec §2.5) — the substance behind the commitment slice of the score
+   (10–15%, set by the plan style x goal profile; the screen prints the real number).
    Two honest halves:
      1. Set today's personal commitment (a short intention, written in the athlete's words —
         persisted with the day so the coach sees intent, not just outcomes).
      2. Close the day with an end-of-day reflection: did you execute? The ANSWER sets the
-        points (engine: yes=100, partial=60, no=0 → ×15%). An honest "off day" earns 0 and
+        points (engine: yes=100, partial=60, no=0 → × the commitment weight). An honest "off day" earns 0 and
         keeps the record true — that honesty is the behavior being trained.
    One implementation, engine-scored — never a decorative tap. */
 
 const CHOICES = [
-  { v: 'yes', t: 'I executed my plan', s: 'Meals, recovery, the work — today matched the intent.', pts: 15, cls: 'g' },
-  { v: 'partial', t: 'Partially', s: 'Some of it happened. Honest counts more than perfect.', pts: 9, cls: 'a' },
-  { v: 'no', t: 'Off day', s: 'It didn’t happen today. Logging it keeps your record real.', pts: 0, cls: 'r' },
+  // No `pts` here on purpose — the points are derived from the live weight in render (ptsFor).
+  { v: 'yes', t: 'I executed my plan', s: 'Meals, recovery, the work — today matched the intent.', cls: 'g' },
+  { v: 'partial', t: 'Partially', s: 'Some of it happened. Honest counts more than perfect.', cls: 'a' },
+  { v: 'no', t: 'Off day', s: 'It didn’t happen today. Logging it keeps your record real.', cls: 'r' },
 ];
 
 export default {
@@ -24,9 +26,10 @@ export default {
     const ans = DAY.dailyCommitment;
     const focus = DAY.commitmentFocus || '';
     const chosen = CHOICES.find(c => c.v === ans);
-    // Commitment weight is profile-dependent (athlete/general 15%, gain 10%) — derive the real
-    // percentage + points instead of hardcoding 15/9, which lied to gain-goal athletes.
-    const cmtPct = Math.round(((PROFILE_WEIGHTS[DAY.scoringProfile] || PROFILE_WEIGHTS.athlete).commitment) * 100);
+    // Commitment weight depends on BOTH the plan style and the goal profile (e.g. guided+gain is
+    // 12%, structured+gain 10%, most rows 15%) — read the engine's own mix, never a constant and
+    // never a profile-only lookup, which lied to Guided athletes as well as gain-goal ones.
+    const cmtPct = Math.round(weightsForDay(DAY).commitment * 100);
     const ptsFor = (v) => v === 'yes' ? cmtPct : v === 'partial' ? Math.round(cmtPct * 0.6) : 0;
     return `
     ${backHead('Daily Commitment', `Intent in the morning. Truth at night. ${cmtPct}% of your score.`)}

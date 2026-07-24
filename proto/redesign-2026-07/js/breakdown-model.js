@@ -9,7 +9,7 @@
    points depend on plate protein, answer quality, or timing. */
 
 import {
-  computeComponents, scoreFor, PROFILE_WEIGHTS, slotDeadline, mealScored, slotGrace, slotLateCredit,
+  computeComponents, scoreFor, weightsForDay, slotDeadline, mealScored, slotGrace, slotLateCredit,
 } from './day.js';
 
 /* Lateness copy that matches the coach's real late policy (T-01) — never a hardcoded "half". */
@@ -17,7 +17,9 @@ function lateBadge(credit) { return credit >= 1 ? 'late (full credit)' : credit 
 function lateHint(credit) { return credit >= 1 ? 'log late, still full credit' : credit <= 0 ? 'logging late earns no credit now' : 'log late for half credit'; }
 
 const clone = (day) => JSON.parse(JSON.stringify(day));
-const weightsFor = (day) => PROFILE_WEIGHTS[day.scoringProfile] || PROFILE_WEIGHTS.athlete;
+/* The headline mix is STYLE x profile aware — weightsForDay(day) is the same lookup the engine
+   scores with (day.js). A profile-only lookup would under-report Guided/Intuitive weights. */
+const weightsFor = (day) => weightsForDay(day);
 
 export function dayScoreOf(day) {
   const c = computeComponents(day);

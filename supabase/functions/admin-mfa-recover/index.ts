@@ -8,6 +8,7 @@
 //   supabase functions deploy admin-mfa-recover
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { parseRecoverBody } from './logic.mjs';
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
@@ -28,7 +29,7 @@ function corsFor(req: Request): Record<string, string> {
 }
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIpFrom(req);
   const now = Date.now();
   const e = rlHits.get(ip);
   if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + 60_000 }); return false; }

@@ -1,5 +1,9 @@
-/* Pure onboarding helpers — no DOM, no state, no imports. Unit-tested from
-   src/core/obHelpers.test.ts (same proto-ESM import pattern as scoreParity). */
+/* Pure onboarding helpers — no DOM, no state. Unit-tested from
+   src/core/obHelpers.test.ts (same proto-ESM import pattern as scoreParity).
+   The ONE import is plan-style.js, itself pure (no DOM/state/Date/imports): the score weights
+   printed during onboarding must come from the same table the engine scores with. */
+
+import { weightsFor, DEFAULT_STYLE } from './plan-style.js';
 
 export const TOS_VERSION = '2026-07-09';
 
@@ -114,11 +118,14 @@ export function reqHeadTint(iconName) {
   return M[iconName] || ['var(--surface-2)', 'var(--text-2)'];
 }
 
-export function standardForGoal(goal, mealsPerDay, profile = 'athlete') {
+export function standardForGoal(goal, mealsPerDay, profile = 'athlete', style = DEFAULT_STYLE) {
   const meals = Math.min(4, Math.max(2, Math.round(mealsPerDay || 3)));
-  const W = profile === 'general'
-    ? { n: 55, r: 20, c: 15, w: 10 }
-    : { n: 50, r: 25, c: 15, w: 10 };
+  // The headline mix is style x profile aware (plan-style.js is the one source of truth). During
+  // onboarding no day exists yet, so we preview the style the account will actually land on —
+  // never a hardcoded row, which showed new Guided users weights they'd never be scored on.
+  const w = weightsFor(style, profile);
+  const pct = (k) => Math.round(w[k] * 100);
+  const W = { n: pct('nutrition'), r: pct('recovery'), c: pct('commitment'), w: pct('checkin') };
   return {
     meals,
     focus: GOAL_EMPHASIS[goal] || GOAL_EMPHASIS.maintain,

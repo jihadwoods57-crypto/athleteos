@@ -89,7 +89,10 @@ const mealsPhrase = () => {
   return `${MEAL_WORD[n] || n} meal${n === 1 ? '' : 's'} with photo proof`;
 };
 const OBJECTIVE_COPY = {
-  set: (who) => (!S.planStyle.showMacros ? {
+  // Same gate as head() and targetsRow(): "no numbers reach the athlete" is showMacros OR
+  // showCalories being off — gating on showMacros alone contradicted the other two whenever a
+  // pro override left calories on with macros hidden.
+  set: (who) => (!S.planStyle.showMacros && !S.planStyle.showCalories ? {
     title: 'Fuel well, log every meal',
     // An Intuitive plan has no targets to "hit" — promising some would be the one dishonest
     // sentence on the screen.

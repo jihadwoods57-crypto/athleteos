@@ -154,7 +154,7 @@ export default {
     <div class="eyebrow">Score Trend</div>
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} days on standard (≥80) · best streak ${P.bestStreak}d</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} day${P.onDays === 1 ? '' : 's'} on standard (≥80) · best streak ${P.bestStreak}d</div>
       <div class="weekbars">
         ${P.weekScores.map((v, i) => `
           <div class="wb ${v >= 80 ? 'hi' : ''}">

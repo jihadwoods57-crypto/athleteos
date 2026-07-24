@@ -40,6 +40,7 @@ import {
   composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
 } from '../_shared/plan-style.ts';
 import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 // Cost sweep (audit item 20): memory/order are pure PROSE rephrases whose every number is re-verified
@@ -171,9 +172,9 @@ async function withinKeyCap(key: string, limit: number, failOpen = true): Promis
   }
 }
 
-// The caller's client IP (first hop of x-forwarded-for), for the per-IP limits.
+// The caller's client IP (trusted edge hop, not the client-supplied leftmost XFF), for the per-IP limits.
 function clientIp(req: Request): string {
-  return (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  return clientIpFrom(req);
 }
 
 // Magic-byte sniff of a base64 image: return the real MIME, or null for anything we don't accept.

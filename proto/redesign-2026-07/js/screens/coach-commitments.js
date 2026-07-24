@@ -65,7 +65,7 @@ export function commitmentBoardCard() {
       <div class="eyebrow" style="margin:0 0 6px">${esc(inst.title || TYPE_LABEL[inst.type] || 'Commitment')}</div>
       <div class="ts" style="padding-bottom:10px">${esc(ctx)}</div>
       <div style="display:flex;align-items:baseline;gap:10px">
-        <div style="font-size:26px;font-weight:800;letter-spacing:-.02em;color:${allIn ? 'var(--green-bright)' : 'var(--text-1)'}">
+        <div style="font-size:26px;font-weight:800;letter-spacing:-.02em;color:${allIn ? 'var(--green-bright)' : 'var(--text)'}">
           ${c.responded} of ${c.total}</div>
         <div style="font-size:13px;font-weight:700;color:var(--text-2)">in</div>
         <div style="flex:1"></div>
@@ -156,7 +156,7 @@ export const coachCommitments = {
 
     <section class="card pad">
       <div style="display:flex;align-items:baseline;gap:10px">
-        <div style="font-size:30px;font-weight:800;letter-spacing:-.02em;color:${c.awaiting ? 'var(--text-1)' : 'var(--green-bright)'}">${c.responded} of ${c.total}</div>
+        <div style="font-size:30px;font-weight:800;letter-spacing:-.02em;color:${c.awaiting ? 'var(--text)' : 'var(--green-bright)'}">${c.responded} of ${c.total}</div>
         <div style="font-size:14px;font-weight:700;color:var(--text-2)">in</div>
         <div style="flex:1"></div>
         <span class="xpill ${c.awaiting ? 'gold' : 'green'}">${c.awaiting ? `${c.awaiting} awaiting` : 'All in'}</span>

@@ -1,4 +1,4 @@
-import { S, RT, act, roleNav, roleProfileRoute } from '../state.js';
+import { S, RT, act, roleNav, roleProfileRoute, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
@@ -34,7 +34,10 @@ export function smartReply(text, fallback) {
   if (/(late|miss|forgot|skip)/.test(t)) return 'Honest answer: a late meal counts at half weight for punctuality, and a missed one just stays missed. Log it anyway — the trend matters more than one slot, and your coach respects a truthful log over a blank.';
   if (/(protein|macro)/.test(t)) return 'Aim protein-forward at every meal — a solid protein source plus a slow carb hits your plan. If a meal slot is still open, that’s where to close any gap.';
   if (/(eat out|restaurant|chipotle|fast food|on the go)/.test(t)) return 'From your plan’s approved list: Chipotle bowl (double chicken, rice, beans), a grilled sandwich, or a rice bowl. Order protein first, add the carb, skip nothing green.';
-  if (/(score|point|tier)/.test(t)) return `Your score is four honest parts: Nutrition 50%, Recovery 25%, Commitment 15%, Weekly check-in 10%. Right now you’re at ${S.score}; finishing what’s still open tonight takes you toward ${S.possible}.`;
+  // Never hardcode the split: the four weights move with the athlete's plan style x goal
+  // profile, and the assistant quoting a different mix than the score screens is exactly
+  // the contradiction this app can least afford.
+  if (/(score|point|tier)/.test(t)) return `Your score is four honest parts: Nutrition ${liveWeightPct('nutrition')}%, Recovery ${liveWeightPct('recovery')}%, Commitment ${liveWeightPct('commitment')}%, Weekly check-in ${liveWeightPct('checkin')}%. Right now you’re at ${S.score}; finishing what’s still open tonight takes you toward ${S.possible}.`;
   return fallback;
 }
 
@@ -777,7 +780,7 @@ export const planStylePicker = {
     // When someone else owns the setting, the chips pick a PREFERENCE, not the plan itself.
     const selected = choosing ? current : (PS.preference || current);
     return `
-    ${backHead('Plan style', choosing ? 'How much structure helps you succeed' : (PS.lockedBy ? `Set by ${esc(PS.lockedBy)}` : `Set by your ${esc(S.coach.noun)}`), 'settings')}
+    ${backHead('Plan style', choosing ? 'How much structure helps you succeed' : esc(PS.sourceLabel), 'settings')}
 
     ${planStyleCard(PS, { compact: true })}
 

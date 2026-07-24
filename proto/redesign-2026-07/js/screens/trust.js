@@ -103,7 +103,7 @@ export const streak = {
     const cal = S.streakCalendar; // Monday→Sunday, real scores, grace marker
     const graceAvailable = S.streak.graceUsedRecently ? 0 : 1;
     return `
-    ${backHead('Streak', `${S.streakDays} days on standard`, 'progress')}
+    ${backHead('Streak', `${S.streakDays} day${S.streakDays === 1 ? '' : 's'} on standard`, 'progress')}
 
     <section class="card pad" style="text-align:center">
       <div style="display:inline-flex;align-items:center;gap:10px">

@@ -7,7 +7,7 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems, planStyleFromItems } from './requirements.js';
+import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems, planStyleFromItems, setImpactWeightsProvider } from './requirements.js';
 import { resolvePlanStyle, SIGNAL_KEYS, CHECKIN_SIGNAL_KEYS, styleLabel, styleSourceLabel } from './plan-style.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
@@ -150,6 +150,16 @@ export function groundResult(d) {
   };
 }
 
+/* The engine's own headline mix for TODAY (style x goal profile — plan-style.js weightsFor via
+   day.js weightsForDay). Every surface that PRINTS a weight must read this, never a constant. */
+export function liveWeights() { return weightsForDay(DAY); }
+/** Whole-number weight for one component, for display copy ("Nutrition · 52% of score"). */
+export function liveWeightPct(comp) { return Math.round((liveWeights()[comp] || 0) * 100); }
+setImpactWeightsProvider(liveWeights);
+
+/* Legacy athlete/structured mix. KEPT because computeScore() below is the proto's parity path
+   with the shipped engine and changing it would move computed numbers — it is NOT a display
+   source. Nothing may print a percentage from here; use liveWeightPct(). */
 export const WEIGHTS = { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
 
 /* Weight's due time — read from the one catalog truth, never a second hardcoded copy. */
@@ -2567,16 +2577,19 @@ export const S = {
       : commit === 'partial' ? 'Reflection complete — a partial day, honestly logged'
       : commit === 'no' ? 'Reflection complete — an off day, honestly logged'
       : 'End-of-day reflection still open — your honest answer earns it';
+    // Weights come from the ENGINE's live style x profile mix — never 50/25/15/10 constants.
+    const w = liveWeights();
+    const pct = (k) => Math.round(w[k] * 100);
     return [
-      { key: 'Nutrition', earned: Math.round(WEIGHTS.nutrition * c.nutrition), possible: 50,
-        note: nutriNote, accent: 'g', weightPct: 50 },
-      { key: 'Recovery', earned: Math.round(WEIGHTS.recovery * c.recovery), possible: 25,
+      { key: 'Nutrition', earned: Math.round(w.nutrition * c.nutrition), possible: pct('nutrition'),
+        note: nutriNote, accent: 'g', weightPct: pct('nutrition') },
+      { key: 'Recovery', earned: Math.round(w.recovery * c.recovery), possible: pct('recovery'),
         note: DAY.ciSubmitted ? 'Tonight’s check-in submitted'
-          : (DAY.ciLast ? 'Carried from your last check-in; tonight refreshes it' : 'No check-in yet — submit tonight to earn this'), accent: 'p', weightPct: 25 },
-      { key: 'Daily commitment', earned: Math.round(WEIGHTS.commitment * c.commitment), possible: 15,
-        note: commitNote, accent: 'b', weightPct: 15 },
-      { key: 'Weekly check-in', earned: Math.round(WEIGHTS.checkin * c.checkin), possible: 10,
-        note: c.checkin ? 'Checked in this week — full points held' : 'No check-in in the last 7 days — tonight’s earns it', accent: 'g', weightPct: 10 },
+          : (DAY.ciLast ? 'Carried from your last check-in; tonight refreshes it' : 'No check-in yet — submit tonight to earn this'), accent: 'p', weightPct: pct('recovery') },
+      { key: 'Daily commitment', earned: Math.round(w.commitment * c.commitment), possible: pct('commitment'),
+        note: commitNote, accent: 'b', weightPct: pct('commitment') },
+      { key: 'Weekly check-in', earned: Math.round(w.checkin * c.checkin), possible: pct('checkin'),
+        note: c.checkin ? 'Checked in this week — full points held' : 'No check-in in the last 7 days — tonight’s earns it', accent: 'g', weightPct: pct('checkin') },
     ];
   },
 

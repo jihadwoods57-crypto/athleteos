@@ -51,7 +51,7 @@ export default {
     <div class="state-demo"><div class="sd-ic">${icon('bolt', 24)}</div>
     <div class="sd-t">No packages yet</div>
     <div class="sd-s">Your trainer hasn't published any paid packages, or hasn't finished setting up payments yet.</div></div>`}
-    <p id="mto-err" class="ls" style="color:var(--red-bright);padding:10px 16px"></p>
+    <p id="mto-err" class="ls" style="color:var(--red);padding:10px 16px"></p>
     `;
   },
   mount(root) {

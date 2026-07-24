@@ -18,10 +18,27 @@ export const PROOF = {
   check:   { label: 'One-tap check', route: null,       verb: 'Mark done' }, // completes on its detail screen
 };
 
+/* The headline mix is style + goal-profile aware (plan-style.js weightsFor), so the impact copy
+   can never be a constant — a Guided general adult sees Nutrition 52%, not 50%. requirements.js
+   stays import-free by design, so state.js REGISTERS a provider that returns the live weights;
+   until it does we fall back to the shipped structured/athlete row. Every consumer keeps reading
+   IMPACT_LABEL[key] — the values are getters, so they re-read the weights on every access. */
+let weightsProvider = null;
+export function setImpactWeightsProvider(fn) { weightsProvider = typeof fn === 'function' ? fn : null; }
+
+const FALLBACK_WEIGHTS = { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
+function impactWeights() {
+  let w = null;
+  try { w = weightsProvider ? weightsProvider() : null; } catch (_) { w = null; }
+  return w && typeof w.nutrition === 'number' ? w : FALLBACK_WEIGHTS;
+}
+/** The live whole-number weight for one component, for display copy. */
+export function weightPct(comp) { return Math.round((impactWeights()[comp] || 0) * 100); }
+
 export const IMPACT_LABEL = {
-  nutrition: 'Nutrition · 50% of score',
-  recovery:  'Recovery · 25% of score',
-  checkin:   'Weekly check-in · 10% of score',
+  get nutrition() { return `Nutrition · ${weightPct('nutrition')}% of score`; },
+  get recovery()  { return `Recovery · ${weightPct('recovery')}% of score`; },
+  get checkin()   { return `Weekly check-in · ${weightPct('checkin')}% of score`; },
   trend:     'Season trend · not scored',
   focus:     "This week's focus · coach sees it",
   plan:      'Part of your plan · commitment covers it',

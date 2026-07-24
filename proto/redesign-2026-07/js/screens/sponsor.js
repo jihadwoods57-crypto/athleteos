@@ -29,7 +29,7 @@ export default {
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Label (optional)</div>
       <input class="ob-input" id="sp-label" value="${esc(UI.label)}" placeholder="e.g. Fall roster, Jones family" />
       <div style="height:14px"></div>
-      <div id="sp-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px"></div>
+      <div id="sp-err" style="color:var(--red);font-size:13px;font-weight:600;min-height:18px"></div>
       <button class="btn primary" id="sp-buy" ${UI.buying ? 'disabled style="opacity:.6"' : ''}>${icon('bolt', 18)} ${UI.buying ? 'Starting checkout…' : 'Buy seats'}</button>
     </section>
     <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>

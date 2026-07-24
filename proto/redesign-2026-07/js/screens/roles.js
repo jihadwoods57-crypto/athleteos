@@ -9,6 +9,7 @@ import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { setMyTeamCode, regenerateMyTeamCode, fetchTeamStaff, createStaffInvite, revokeStaff, setStaffScope } from '../roles.js';
 import { roleLabel, scopeText, normalizeRole, RESPONSIBILITIES } from '../staff-access.js';
 import { seedTemplates, templateLabel } from '../templates.js';
+import { weightsFor, styleForStructureAnswer, DEFAULT_STYLE } from '../plan-style.js';
 
 /* Staff & collaborators (0061): cached per profile visit. */
 let STAFF = null;
@@ -235,13 +236,17 @@ const coachSteps = {
     const chosen = sel === 'default' ? null : seeds.find((s) => s.kind === sel);
     const KIND_ICON = { meal: 'utensils', lift: 'bolt', hydration: 'droplet', recovery: 'moon', weigh: 'scale', checkin: 'clipboard', custom: 'clipboard' };
     const PROOF_LABEL = { photo: 'photo proof', form: 'quick form', scale: 'scale', counter: 'count it', check: 'check it off' };
+    // Team athletes land on the default plan style with the `athlete` goal profile — read that
+    // row from the engine's weight table rather than restating it, so this preview can't drift.
+    const dw = weightsFor(DEFAULT_STYLE, 'athlete');
+    const dpct = (k) => Math.round(dw[k] * 100);
     const rows = chosen
       ? chosen.items.map((it) => [KIND_ICON[it.kind] || 'clipboard', it.title,
           [(it.freq && it.freq.label) || (it.freq && it.freq.type === 'daily' ? 'Daily' : ''), PROOF_LABEL[it.proof] || ''].filter(Boolean).join(' · ')])
       : [
-        ['utensils', 'Three meals · photo proof', 'Nutrition · 50% of score'],
-        ['moon', 'Recovery check-in · nightly', 'Recovery · 25%'],
-        ['clipboard', 'Weekly check-in · Sundays', 'Check-in · 10%'],
+        ['utensils', 'Three meals · photo proof', `Nutrition · ${dpct('nutrition')}% of score`],
+        ['moon', 'Recovery check-in · nightly', `Recovery · ${dpct('recovery')}%`],
+        ['clipboard', 'Weekly check-in · Sundays', `Check-in · ${dpct('checkin')}%`],
         ['scale', 'Weight · Mon / Wed / Fri', 'Season trend · not scored'],
         ['droplet', 'Hydration · 120 oz', 'Focus item · optional'],
       ];
@@ -805,7 +810,10 @@ const clientSteps = {
   5: () => {
     const ob = RT.ob || {};
     const join = ob.join && ob.join.kind === 'practice' ? ob.join : null;
-    const std = standardForGoal(ob.goal, ob.standard && ob.standard.mealsPerDay, 'general');
+    // Preview the weights of the style this client will actually land on (their structure answer,
+    // else the shipped default) — not a constant row.
+    const std = standardForGoal(ob.goal, ob.standard && ob.standard.mealsPerDay, 'general',
+      ob.structurePref ? styleForStructureAnswer(ob.structurePref) : DEFAULT_STYLE);
     const committed = !!ob.committedAt;
     // Plain text here — frame() escapes title/sub wholesale (no inner esc, or it double-escapes).
     const trainerFirst = join && join.trainerName ? join.trainerName.trim().split(/\s+/)[0] : null;

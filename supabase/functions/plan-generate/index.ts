@@ -9,6 +9,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 
@@ -101,9 +102,9 @@ async function withinKeyCap(key: string, limit: number, failOpen = true): Promis
   }
 }
 
-// The caller's client IP (first hop of x-forwarded-for), for the per-IP anon cap.
+// The caller's client IP (trusted edge hop, not the client-supplied leftmost XFF), for the per-IP anon cap.
 function clientIp(req: Request): string {
-  return (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  return clientIpFrom(req);
 }
 
 // Security hardening (audit G4). CORS: reflect the request Origin ONLY if it's on the allowlist.
@@ -132,7 +133,7 @@ const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '20');
 const RL_WINDOW_MS = 60_000;
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIpFrom(req);
   const now = Date.now();
   const e = rlHits.get(ip);
   if (!e || now > e.resetAt) {

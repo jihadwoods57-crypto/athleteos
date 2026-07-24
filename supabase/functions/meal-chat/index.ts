@@ -21,6 +21,7 @@ import {
   composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
 } from '../_shared/plan-style.ts';
 import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const DAILY_CAP = Math.max(1, Math.floor(Number(Deno.env.get('MEAL_CHAT_DAILY_CAP') ?? '10')) || 10);
@@ -76,7 +77,7 @@ const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '30');
 const RL_WINDOW_MS = 60_000;
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIpFrom(req);
   const now = Date.now();
   const e = rlHits.get(ip);
   if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS }); return false; }

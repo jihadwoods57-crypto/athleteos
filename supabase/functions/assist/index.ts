@@ -12,6 +12,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 // Cost sweep (audit item 20): default to Sonnet 5 (strictly better AND cheaper than the stale
 // sonnet-4-6). The old client-selectable Opus "deep" path was removed — narration is a <=512-token
@@ -88,7 +89,7 @@ async function withinKeyCap(key: string, limit: number, failOpen: boolean): Prom
 }
 
 function clientIp(req: Request): string {
-  return (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  return clientIpFrom(req);
 }
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
@@ -109,7 +110,7 @@ const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '30');
 const RL_WINDOW_MS = 60_000;
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIpFrom(req);
   const now = Date.now();
   const e = rlHits.get(ip);
   if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS }); return false; }

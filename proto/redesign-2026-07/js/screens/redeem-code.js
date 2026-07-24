@@ -41,7 +41,7 @@ export default {
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Sponsor code</div>
       <input class="ob-input" id="rc-code" value="${esc(UI.code)}" placeholder="Enter code" autocapitalize="characters" autocomplete="off" />
       <div style="height:14px"></div>
-      <div id="rc-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px">${!success && r ? esc(reasonMessage(r)) : ''}</div>
+      <div id="rc-err" style="color:var(--red);font-size:13px;font-weight:600;min-height:18px">${!success && r ? esc(reasonMessage(r)) : ''}</div>
       <button class="btn primary" id="rc-redeem" ${UI.busy ? 'disabled style="opacity:.6"' : ''}>${icon('key', 18)} ${UI.busy ? 'Redeeming…' : 'Redeem'}</button>
     </section>
 

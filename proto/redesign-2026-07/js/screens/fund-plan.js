@@ -59,7 +59,7 @@ export default {
     : `<div class="state-demo"><div class="sd-ic">${icon('bolt', 24)}</div>
       <div class="sd-t">Nothing to fund yet</div>
       <div class="sd-s">When your child connects with a trainer who accepts payments, their packages show up here.</div></div>`}
-    <p id="fp-err" class="ls" style="color:var(--red-bright);padding:10px 16px"></p>`;
+    <p id="fp-err" class="ls" style="color:var(--red);padding:10px 16px"></p>`;
   },
   mount(root) {
     load();

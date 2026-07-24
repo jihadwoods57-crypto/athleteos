@@ -9,6 +9,7 @@
 //   supabase functions deploy refund-payment
 import Stripe from 'npm:stripe@^17';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -35,7 +36,7 @@ function corsFor(req: Request): Record<string, string> {
 const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '10');
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIpFrom(req);
   const now = Date.now();
   const e = rlHits.get(ip);
   if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + 60_000 }); return false; }

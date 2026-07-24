@@ -69,11 +69,11 @@ function routeFor(req) {
   return req.route || 'home';
 }
 
-/** '45 minutes' · '1 hour' · '2 hours'. */
+/** '45 minutes' · '1 minute' · '1 hour' · '2 hours'. */
 function fmtLeft(mins) {
   if (mins >= 90) return `${Math.round(mins / 60)} hours`;
   if (mins >= 55) return '1 hour';
-  return `${mins} minutes`;
+  return `${mins} minute${mins === 1 ? '' : 's'}`;
 }
 
 /** Small deterministic hash — variant rotation only, not crypto. */

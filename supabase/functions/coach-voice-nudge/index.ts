@@ -24,6 +24,7 @@ import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { buildVoiceSystem, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 
@@ -103,7 +104,7 @@ const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '30');
 const RL_WINDOW_MS = 60_000;
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIpFrom(req);
   const now = Date.now();
   const e = rlHits.get(ip);
   if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS }); return false; }

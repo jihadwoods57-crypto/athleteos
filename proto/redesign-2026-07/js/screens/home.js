@@ -1,4 +1,4 @@
-import { S, RT, act, slotHasPhoto } from '../state.js';
+import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { appHead, scoreRing, animateRing, esc, safeImg, collapseSection } from '../components.js';
 import { DAY, MEAL_KEYS } from '../day.js';
@@ -492,7 +492,7 @@ export default {
       <section class="xnow">
         <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>
         <div class="xmain"><div class="xico gold">${icon('camera', 21)}</div>
-        <div><div class="xt">Log First Meal</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · 50% of score.</b></div></div></div>
+        <div><div class="xt">Log First Meal</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · ${liveWeightPct('nutrition')}% of score.</b></div></div></div>
         <div style="height:10px"></div>
         <button class="xcta" data-go="camera">${icon('camera', 18)} Log First Meal</button>
       </section>
