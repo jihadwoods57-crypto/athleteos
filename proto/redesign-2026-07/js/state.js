@@ -157,20 +157,30 @@ export function liveWeights() { return weightsForDay(DAY); }
 export function liveWeightPct(comp) { return Math.round((liveWeights()[comp] || 0) * 100); }
 setImpactWeightsProvider(liveWeights);
 
-/* Legacy athlete/structured mix. KEPT because computeScore() below is the proto's parity path
-   with the shipped engine and changing it would move computed numbers — it is NOT a display
-   source. Nothing may print a percentage from here; use liveWeightPct(). */
+/* The Structured x athlete mix, kept ONLY as the documented grandfathering baseline and for
+   tests that pin it. It is identical to STYLE_WEIGHTS.structured.athlete, which is what makes
+   the alignment in computeScore() below a no-op for that population.
+   Nothing may print a percentage from here; use liveWeightPct(). */
 export const WEIGHTS = { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
 
 /* Weight's due time — read from the one catalog truth, never a second hardcoded copy. */
 const WEIGHT_DUE = CATALOG.find((r) => r.id === 'weight').window.due;
 
+/* Headline score for TODAY. Reads the SAME style x profile mix the engine scores with
+   (day.js scoreFor -> weightsForDay), so S.score can no longer disagree with the breakdown
+   that explains it — the contradiction this product can least afford.
+
+   This is NOT a scoring change: STYLE_WEIGHTS.structured.athlete is identical to WEIGHTS
+   above, so a Structured athlete's number is byte-for-byte unchanged (grandfathering holds).
+   For every other style/profile the engine ALREADY scored them on these weights; only the
+   proto's displayed number was stale. */
 export function computeScore(c) {
+  const w = liveWeights();
   return Math.round(
-    WEIGHTS.nutrition * c.nutrition +
-    WEIGHTS.recovery  * c.recovery +
-    WEIGHTS.commitment* c.commitment +
-    WEIGHTS.checkin   * c.checkin
+    w.nutrition * c.nutrition +
+    w.recovery  * c.recovery +
+    w.commitment* c.commitment +
+    w.checkin   * c.checkin
   );
 }
 
