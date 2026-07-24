@@ -136,10 +136,15 @@ $$;
 revoke execute on function is_team_creator(uuid) from public, anon, authenticated;
 grant  execute on function is_team_creator(uuid) to authenticated;  -- referenced by the policies below
 
+-- SELECT is deliberately NOT redefined here: 0002:129 already ships
+--   ts_read ... for select using (staff_id = auth.uid() or is_team_staff(team_id))
+-- which is correct (and slightly broader — a staffer can always see their own row). Dropping
+-- ts_manage therefore removes only the WRITE grant; reads keep working through ts_read.
 drop policy if exists ts_manage on team_staff;
 
-create policy ts_read on team_staff for select
-  using (is_team_staff(team_id));
+drop policy if exists ts_insert on team_staff;
+drop policy if exists ts_update on team_staff;
+drop policy if exists ts_delete on team_staff;
 
 create policy ts_insert on team_staff for insert
   with check (is_head_coach_of(team_id) or is_team_creator(team_id));
