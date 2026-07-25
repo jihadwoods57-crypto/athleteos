@@ -14,6 +14,7 @@ import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
+import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
 
 // Cost sweep (audit item 20): default to Sonnet 5 (strictly better AND cheaper than the stale
 // sonnet-4-6). The old client-selectable Opus "deep" path was removed — narration is a <=512-token
@@ -30,7 +31,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 // of defense on paid spend must hold, not silently disable (audit 2026-07-11 P2; deep-analysis
 // precedent). Per-user fairness caps elsewhere stay fail-open; the global bill backstop doesn't.
 const GLOBAL_CAP = (() => {
-  const n = Math.floor(Number(Deno.env.get('ASSIST_GLOBAL_CAP') ?? '5000'));
+  const n = Math.floor(Number(Deno.env.get('ASSIST_GLOBAL_CAP') ?? '750'));
   return Number.isFinite(n) && n > 0 ? n : 5000;
 })();
 // ANONYMOUS callers only (capacity audit F1) — a signed-in caller must never be denied by this
@@ -208,6 +209,14 @@ Deno.serve(async (request) => {
   // tracked against a monthly tier-budget signal instead (never blocks).
   if (!uid && !(await withinGlobalCap())) {
     return new Response(JSON.stringify({ narration: null, error: 'service at capacity' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
+  // (1b) THE DOLLAR CEILING (0152). Everything above counts CALLS; this counts MONEY. Applies to
+  // signed-in callers too: if the day's spend is at the wall, continuing to spend helps no one.
+  // Fail-closed — a spend brake that disables itself when the plumbing breaks is decorative.
+  const spend = await checkSpend(EST_USD.text);
+  if (!spend.allowed) {
+    console.log(JSON.stringify({ evt: 'ai_spend_block', fn: 'assist', reason: spend.reason }));
+    return new Response(JSON.stringify({ narration: null, error: spendMessage(spend) }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
   // Per-caller cap (fairness/anti-spam). A signed-in coach draws down a per-user daily slot (fails
   // open); an anonymous caller a per-IP slot that fails closed, so the public anon key can't drive

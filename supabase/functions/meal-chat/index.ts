@@ -26,6 +26,7 @@ import {
 import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
+import { checkSpend, EST_USD } from '../_shared/spend-gate.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const DAILY_CAP = Math.max(1, Math.floor(Number(Deno.env.get('MEAL_CHAT_DAILY_CAP') ?? '10')) || 10);
@@ -206,6 +207,12 @@ Deno.serve(async (req) => {
       // fail-CLOSED global counter has no anon-abuse to guard against and would only risk denying
       // a paying coach (capacity audit F2). Tracked against the monthly tier-budget signal instead.
       if (!(await withinKeyCap(`meal_draft:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
+      // THE DOLLAR CEILING (0152): the caps above count CALLS, this counts MONEY. Fail-closed.
+      const spendDraft = await checkSpend(EST_USD.text);
+      if (!spendDraft.allowed) {
+        console.log(JSON.stringify({ evt: 'ai_spend_block', fn: 'meal-chat:draft', reason: spendDraft.reason }));
+        return bad(429, 'capacity', cors);
+      }
       void trackAuthedAiSpend(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, callerId, 'meal-chat');
 
       const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
@@ -265,6 +272,12 @@ Deno.serve(async (req) => {
     // (meal_chat_global) protected against traffic that cannot reach this endpoint, while being
     // the thing most likely to 429 a paying coach's whole roster at once. Tracked instead. ----
     if (!(await withinKeyCap(coachSupport ? `meal_chat_support:${callerId}` : `meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
+    // THE DOLLAR CEILING (0152): the caps above count CALLS, this counts MONEY. Fail-closed.
+    const spendChat = await checkSpend(EST_USD.text);
+    if (!spendChat.allowed) {
+      console.log(JSON.stringify({ evt: 'ai_spend_block', fn: 'meal-chat', reason: spendChat.reason }));
+      return bad(429, 'capacity', cors);
+    }
     void trackAuthedAiSpend(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, callerId, 'meal-chat');
 
     // ---- the model call: prose only, forced tool ----

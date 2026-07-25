@@ -40,6 +40,7 @@ import {
   composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
 } from '../_shared/plan-style.ts';
 import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
+import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 
@@ -76,7 +77,17 @@ function posIntCap(name: string, fallback: number): number {
 //   * ANON_IP_CAP — paid calls/day per IP for ANONYMOUS (anon-key-only) callers, who skip the
 //     per-athlete cap. Both are backed by claim_ai_usage_key (migration 0030) and fail OPEN.
 // Tune both up as real traffic grows; defaults are generous for an early-stage roster.
-const GLOBAL_CAP = posIntCap('GLOBAL_ANALYSIS_CAP', 5000);
+// GLOBAL_CAP lowered 5000 -> 750. 5000 anonymous paid vision calls a day is far beyond any real
+// anon need (an anon call is a not-yet-signed-in user trying the onboarding demo, roughly one per
+// signup) and was simply a large number, not a reasoned one. 750 still covers ~12 full teams
+// onboarding in a single day. The real backstop is now the DOLLAR ceiling at (1b), which binds
+// regardless of what a call happens to cost.
+//
+// ANON_IP_CAP deliberately STAYS at 60. It is tempting to cut it hard, but this product is sold to
+// teams and schools: 60 athletes onboarding on one school wifi share one NAT'd IP. A tight per-IP
+// cap would break the core sales motion — a coach onboarding their roster in one room — while
+// barely inconveniencing an attacker, who rotates IPs anyway.
+const GLOBAL_CAP = posIntCap('GLOBAL_ANALYSIS_CAP', 750);
 const ANON_IP_CAP = posIntCap('ANON_IP_ANALYSIS_CAP', 60);
 // MARGIN GUARDRAIL. The clarifying-questions flow (analyze -> ask -> finalize) is the only
 // path that spends TWO paid vision calls on one meal, so it is offered only for a signed-in
@@ -792,6 +803,18 @@ Deno.serve(async (request) => {
   // ceiling.
   if (!userId && !(await withinKeyCap('global_anon', GLOBAL_CAP, /* failOpen */ false))) {
     return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
+  // (1b) THE DOLLAR CEILING (0152). Every guard above counts CALLS; this one counts MONEY, which
+  // is the unit the bill is actually denominated in. It applies to signed-in callers too — the
+  // count caps deliberately exempt them so a paying athlete is never denied their own meal log,
+  // but if the day's spend is genuinely at the wall, continuing to spend is not a kindness to
+  // anyone. Set the cap high enough that this only ever fires on abuse or a runaway loop.
+  // Fail-closed: a missing service key or a broken RPC denies, because a spend brake that
+  // disables itself when the plumbing breaks is decorative.
+  const spend = await checkSpend(EST_USD.vision);
+  if (!spend.allowed) {
+    console.log(JSON.stringify({ evt: 'ai_spend_block', reason: spend.reason, spent: spend.spentUsd, cap: spend.capUsd }));
+    return new Response(JSON.stringify({ error: spendMessage(spend) }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
   // (2) PER-CALLER daily cap — fairness/anti-spam. memory/order are exempt (cheap Haiku prose); every
   // paid meal/label VISION call counts, INCLUDING meal 'finalize'. finalize used to be exempt, on the
