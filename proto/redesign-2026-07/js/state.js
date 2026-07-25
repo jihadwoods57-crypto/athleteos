@@ -289,7 +289,13 @@ export function routeForRole(role) {
    They must render inside the SIGNED-IN role's chrome and route "back"/"Done" to that role's
    own profile — a hardcoded nav/'profile' put a coach inside the athlete tab bar. */
 export function roleNav() {
-  return RT.authRole === 'coach' ? 'coach' : RT.authRole === 'trainer' ? 'trainer' : 'athlete';
+  return RT.authRole === 'coach' ? 'coach'
+    : RT.authRole === 'trainer' ? 'trainer'
+    // A parent has no tab bar of its own, so this used to fall through to 'athlete' — which both
+    // painted the athlete tab bar on shared screens AND made navAdmits() refuse a parent, so a
+    // parent could not open #delete-account at all. 'parent' is admitted and renders no tabs.
+    : RT.authRole === 'parent' ? 'parent'
+    : 'athlete';
 }
 export function roleProfileRoute() {
   return RT.authRole === 'coach' ? 'coach-profile' : RT.authRole === 'trainer' ? 'trainer-profile' : 'profile';

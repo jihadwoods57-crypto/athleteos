@@ -39,7 +39,14 @@ const NAVS = {
  *  so a wrong answer here is a silent redirect loop with nothing in the console. */
 export function navFor(mod, role) {
   if (!mod) return 'athlete';
-  return mod.nav === 'operator' ? (role === 'trainer' ? 'trainer' : 'coach') : (mod.nav || 'athlete');
+  if (mod.nav === 'operator') return role === 'trainer' ? 'trainer' : 'coach';
+  if (mod.nav) return mod.nav;
+  // No declared nav = a shared/utility screen. Render it in the SIGNED-IN role's chrome instead
+  // of defaulting to athlete: a parent opening "Fund a plan" or "Funded plans" was handed the
+  // ATHLETE tab bar (Home/Plan/Camera/Progress/Profile) under a parent screen — five tabs to
+  // places a parent has no account for. Parents have no tab bar of their own, and tabbar()
+  // now renders nothing for a nav it has no tabs for.
+  return role === 'parent' ? 'parent' : 'athlete';
 }
 /** Roles allowed to render this screen. An operator screen admits both; anything else admits
  *  exactly the role it names. */
@@ -55,7 +62,11 @@ function statusbar() {
 }
 
 function tabbar(activeTab, nav = 'athlete') {
-  const tabs = NAVS[nav] || NAVS.athlete;
+  // A nav with no tab set renders NO tab bar. Falling back to NAVS.athlete meant an unknown or
+  // tab-less role (parent) silently inherited someone else's navigation — failing to nothing is
+  // correct here, failing to another role's chrome is not.
+  const tabs = NAVS[nav];
+  if (!tabs) return '';
   return `<nav class="tabbar" style="grid-template-columns: repeat(${tabs.length}, 1fr)">${tabs.map(t => {
     if (t.fab) {
       // Athlete camera FAB carries the exec status dot (gold = actionable, red = overdue,

@@ -652,6 +652,11 @@ export const coachNotifSettings = {
 
 /* ---------- Delete account (Apple requires in-app deletion) ---------- */
 export const deleteAccount = {
+  // Without this a coach or trainer could not delete their account AT ALL. The screen is linked
+  // from privacy and terms (both reachable by every role), but its nav defaulted to 'athlete',
+  // so the mirror guard (router.js:204) bounced any operator straight back to #coach/#trainer.
+  // Same fix already used by settings, billing and notif-settings above.
+  get nav() { return roleNav(); },
   hideTabs: true,
   render() {
     return `

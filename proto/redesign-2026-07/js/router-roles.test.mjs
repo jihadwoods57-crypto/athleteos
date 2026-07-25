@@ -47,6 +47,18 @@ assert.strictEqual(navFor(TRAINER_ONLY, 'trainer'), 'trainer');
 assert.strictEqual(navFor(ATHLETE, 'athlete'), 'athlete');
 assert.strictEqual(navFor(BARE, 'athlete'), 'athlete');
 assert.strictEqual(navFor(null, 'coach'), 'athlete', 'a missing module must not throw');
+
+/* A PARENT must never inherit the athlete shell. `fund-plan`, `funded-plans` and
+   `my-trainer-offers` declare no nav, and the old `mod.nav || 'athlete'` default handed a parent
+   the athlete tab bar — Home/Plan/Camera/Progress/Profile, five tabs to places a parent has no
+   account for — rendered under a parent screen. Neither role guard covers parents (both only
+   bounce coach/trainer), so nothing caught it. */
+assert.strictEqual(navFor(BARE, 'parent'), 'parent',
+  'a shared screen must render in the parent shell for a parent, never the athlete one');
+for (const route of ['fund-plan', 'funded-plans', 'my-trainer-offers']) {
+  assert.strictEqual(navFor(screens[route], 'parent'), 'parent',
+    `${route} must not paint the athlete tab bar for a parent`);
+}
 // Pre-hydrate: authRole is null before the profile lands. An operator screen must fall back to
 // the coach shell rather than crashing or painting the athlete bar.
 assert.strictEqual(navFor(OPERATOR, null), 'coach');
@@ -117,6 +129,29 @@ assert.strictEqual(navFor(OPERATOR, undefined), 'coach');
     }
   }
   assert.deepStrictEqual(orphans, [], 'a declared tab must exist in the shell that renders it');
+}
+
+/* ---------------- every role can reach account deletion ----------------
+   `delete-account` is linked from privacy and terms, which every role can open. It declared no
+   nav, so it resolved to the athlete shell and the mirror guard (router.js:204) bounced any
+   signed-in coach or trainer back to their own root — meaning an operator could not delete
+   their account from the UI at all. That is a data-rights problem, not a cosmetic one. */
+{
+  const del = screens['delete-account'];
+  assert.ok(del, 'delete-account must stay registered');
+  // Its nav is a getter over roleNav(), which reads the SIGNED-IN role — so drive that, the way
+  // the running app does, rather than asserting against a null session.
+  const { RT } = await import('./state.js');
+  const before = RT.authRole;
+  try {
+    for (const role of ROLES) {
+      RT.authRole = role;
+      assert.ok(navAdmits(del, role),
+        `a signed-in ${role} must be able to render delete-account`);
+    }
+  } finally {
+    RT.authRole = before;
+  }
 }
 
 console.log('router role matrix: all assertions passed');
