@@ -123,6 +123,12 @@ export const mealQuestions = {
     <div class="mq-note">${icon('lock', 12)} Your answers only sharpen this meal's numbers. Nothing else changes.</div>`;
   },
   mount(root) {
+    // render() bails to #camera when there is nothing to ask, but the router calls mount()
+    // unconditionally (router.js:280) — so without this guard a stale/deep-link entry threw
+    // "Cannot read properties of null" and left the screen dead.
+    const goBtn = root.querySelector('#mq-go');
+    const skipBtn = root.querySelector('#mq-skip');
+    if (!goBtn || !skipBtn) return;
     const inputs = () => Array.from(root.querySelectorAll('.mq-input'));
     const answers = () => {
       const a = [];
@@ -152,8 +158,8 @@ export const mealQuestions = {
       }
       err.querySelector('span').textContent = r.error || 'Analysis failed. Try again.';
     };
-    root.querySelector('#mq-go').addEventListener('click', () => finish(answers()));
-    root.querySelector('#mq-skip').addEventListener('click', () => finish([]));
+    goBtn.addEventListener('click', () => finish(answers()));
+    skipBtn.addEventListener('click', () => finish([]));
     // Enter on the last field submits; Enter elsewhere advances to the next field.
     inputs().forEach((el, i, arr) => el.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
@@ -595,9 +601,9 @@ export const thread = {
         <div class="av">${icon('sparkle', 15)}</div>
         <div><div class="who">AI Nutritionist</div>
         <div class="bubble ai-sum">
-          ${sum.wentWell ? `<div class="sr"><span class="sk">What went well</span>${esc(sum.wentWell)}</div>` : ''}
-          ${sum.opportunity ? `<div class="sr"><span class="sk">Biggest opportunity</span>${esc(sum.opportunity)}</div>` : ''}
-          ${sum.next ? `<div class="sr"><span class="sk">Next time</span>${esc(sum.next)}</div>` : ''}
+          ${sum.wentWell ? `<div class="sr"><span class="ai-k">What went well</span>${esc(sum.wentWell)}</div>` : ''}
+          ${sum.opportunity ? `<div class="sr"><span class="ai-k">Biggest opportunity</span>${esc(sum.opportunity)}</div>` : ''}
+          ${sum.next ? `<div class="sr"><span class="ai-k">Next time</span>${esc(sum.next)}</div>` : ''}
           ${fullText ? `<button class="ai-full-toggle" id="ai-full-toggle" aria-expanded="false">View full analysis</button>
           <div class="ai-full" id="ai-full" hidden>${esc(fullText)}</div>` : ''}
         </div></div>

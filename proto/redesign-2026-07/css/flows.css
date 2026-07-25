@@ -246,7 +246,9 @@
 .wel-arrow { font-weight: 800; }
 .wel-signin {
   margin-top: 14px; width: 100%; min-height: 44px; padding: 10px;
-  display: flex; align-items: center; justify-content: center;
+  /* `gap` is load-bearing: flex discards the whitespace between the text node and <b>Sign in</b>,
+     which rendered as "account?Sign in" on the very first screen of the app. */
+  display: flex; align-items: center; justify-content: center; gap: 0.32em;
   background: none; border: none; cursor: pointer;
   font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--text-2);
   transition: opacity var(--dur-1) var(--ease-out);

@@ -692,7 +692,9 @@
 /* AI Nutritionist structured opener + full-analysis expander */
 .ai-sum .sr{margin-bottom:9px}
 .ai-sum .sr:last-of-type{margin-bottom:0}
-.ai-sum .sk{display:block;font-size:10px;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;color:var(--blue-bright);margin-bottom:2px}
+/* `.ai-k`, not `.sk` — `.sk` is the skeleton-shimmer primitive (see above), and since this rule
+   never reset background/animation these labels inherited an infinite loading shimmer. */
+.ai-sum .ai-k{display:block;font-size:10px;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;color:var(--blue-bright);margin-bottom:2px}
 .ai-full-toggle{display:block;margin-top:10px;background:none;border:none;padding:2px 0;font-family:var(--font);font-size:12px;font-weight:800;color:var(--blue-bright);cursor:pointer}
 .ai-full{margin-top:9px;padding-top:9px;border-top:1px solid var(--hairline-soft);font-size:13px;font-weight:600;line-height:1.5;color:var(--text-2)}
 /* chat mechanics: timestamps + quick actions */
