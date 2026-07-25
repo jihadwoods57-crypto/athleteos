@@ -104,6 +104,9 @@ Deno.serve(async (request) => {
     .update({ status: 'verified', verified_at: new Date().toISOString() })
     .eq('token', token)
     .eq('status', 'pending')
+    // Expiry is enforced here (0149): a pending-but-expired token matches nothing and falls
+    // through to the honest "Link expired" branch below — the copy is now truthful.
+    .gt('expires_at', new Date().toISOString())
     .select('id')
     .maybeSingle();
 

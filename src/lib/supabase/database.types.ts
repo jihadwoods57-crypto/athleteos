@@ -276,6 +276,7 @@ export type GuardianConsentRequestRow = {
   token: string;
   requested_at: string;
   verified_at: string | null;
+  expires_at: string; // 0149 — non-null; approval links expire 14 days after (re)send
 }
 
 // Helper: a table definition matching the `supabase gen types` shape (incl. the
