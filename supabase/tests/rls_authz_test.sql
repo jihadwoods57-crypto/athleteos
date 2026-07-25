@@ -1591,6 +1591,20 @@ select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
 select _try($f$ select ensure_commitment_instances(
   '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
 
+-- Pin the generated instance relative to now(). The commitment is authored at a FIXED 6:00-8:00
+-- AM (starts_min 360 / ends_min 480), but the geofence and dwell assertions below only hold
+-- inside my_armable_geofences()'s window of [starts_at - 2h, ends_at + 30m] — i.e. 04:00-08:30.
+-- Run at any other hour the function correctly returns [], and `bool_and()` over zero rows is
+-- NULL rather than true, so two checks failed for a reason that has nothing to do with
+-- authorization. That made the whole suite a 4.5-hour-a-day test and trained readers to expect
+-- "417/419". Anchoring the instance to now() keeps the assertions honest at any hour.
+select _superuser();
+update commitment_instances
+   set starts_at    = now() - interval '10 minutes',
+       arrive_by_at = now() - interval '15 minutes',
+       ends_at      = now() + interval '110 minutes'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2';
+
 -- the minor (base_age 15) is refused until consent exists
 select _as('eeee0000-0000-0000-0000-0000000000e3');
 select _ok(_try($f$ select verify_arrival((select id from commitment_instances
