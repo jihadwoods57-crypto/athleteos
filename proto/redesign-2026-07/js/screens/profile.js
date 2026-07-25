@@ -143,7 +143,7 @@ export default {
       const idCard = root.querySelector('.id-card');
       const err = document.createElement('div');
       err.id = 'avatar-err';
-      err.style.cssText = 'color:#f87171;font-size:13px;font-weight:600;min-height:18px;text-align:center;margin-top:8px';
+      err.style.cssText = 'color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;text-align:center;margin-top:8px';
       idCard?.insertAdjacentElement('afterend', err);
 
       let busy = false;
@@ -248,7 +248,7 @@ export const editProfile = {
     </div>
 
     <div style="height:16px"></div>
-    <div id="ep-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;text-align:center"></div>
+    <div id="ep-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;text-align:center"></div>
     <button class="btn primary" id="ep-save" disabled style="opacity:.5">${icon('check', 19)} Save</button>
     <div style="height:10px"></div>
     `;

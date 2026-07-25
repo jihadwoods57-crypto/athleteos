@@ -183,7 +183,7 @@
 .mq-actions .btn { width: 100%; }
 .mq-skip { background: none; border: none; color: var(--text-2); font-family: var(--font); font-size: 13.5px; font-weight: 700; cursor: pointer; min-height: 44px; }
 .mq-err { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 11px 13px; border-radius: 13px;
-  background: var(--red-surface); border: 1px solid var(--red-border); color: #FF9B9B; font-size: 13px; font-weight: 700; }
+  background: var(--red-surface); border: 1px solid var(--red-border); color: var(--red-bright); font-size: 13px; font-weight: 700; }
 .mq-note { display: flex; align-items: center; gap: 6px; justify-content: center; margin-top: 16px; font-size: 11.5px; font-weight: 600; color: var(--text-3); }
 
 /* ----- Confirmation ----- */
@@ -816,7 +816,9 @@
 .pw-toggle{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:14px;padding:4px;margin:2px 0 14px}
 .pw-seg{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:none;background:transparent;border-radius:10px;font-size:13.5px;font-weight:800;color:var(--text-2);cursor:pointer}
 .pw-seg.on{background:var(--surface-1);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.18)}
-.pw-save{font-size:10px;font-weight:800;letter-spacing:0.02em;color:#04140b;background:var(--green-bright);border-radius:999px;padding:2px 7px}
+/* Ink must flip with the theme: --green-bright is light in dark theme and DEEP in light theme,
+   so a fixed near-black ink measured 3.77:1 on the light build. --ink-on-accent flips. */
+.pw-save{font-size:10px;font-weight:800;letter-spacing:0.02em;color:var(--ink-on-accent);background:var(--green-bright);border-radius:999px;padding:2px 7px}
 .pw-plans{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
 .pw-plan{background:var(--surface-1);border:1.5px solid var(--hairline);border-radius:16px;padding:14px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
 .pw-plan.on{border-color:var(--green-bright);box-shadow:0 0 0 1px var(--green-bright), var(--sh-green)}

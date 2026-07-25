@@ -43,7 +43,7 @@ export default {
       <div style="height:14px"></div>
       <div class="eyebrow">Haven't heard back? Send a reminder — or fix the email.</div>
       <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
-      <div id="gd-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
+      <div id="gd-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
       <button class="btn ghost" id="gd-send">Send reminder</button>
       <div style="height:10px"></div>`;
     }
@@ -52,7 +52,7 @@ export default {
       ${backHead('Parent Approval', 'Approval was removed', 'home')}
 
       <div class="sidebox">
-        <div class="req-icon" style="width:38px;height:38px;background:rgba(248,113,113,0.16);color:#f87171">${icon('lock', 17)}</div>
+        <div class="req-icon" style="width:38px;height:38px;background:rgba(248,113,113,0.16);color:var(--red-bright)">${icon('lock', 17)}</div>
         <div><div class="tt">Your guardian removed approval</div>
         <div class="ts">${c.guardianEmail ? esc(c.guardianEmail) : 'Your parent or guardian'} revoked consent, so your day stopped syncing and your coach can no longer see it. Everything you log now stays on this phone — nothing you've already logged is lost. Ask them to approve again to reconnect.</div></div>
       </div>
@@ -60,7 +60,7 @@ export default {
       <div style="height:16px"></div>
       <div class="eyebrow">Send a new approval request</div>
       <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
-      <div id="gd-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
+      <div id="gd-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
       <button class="btn" id="gd-send">Ask for approval again</button>
       <div style="height:10px"></div>`;
     }
@@ -76,7 +76,7 @@ export default {
     <div style="height:16px"></div>
     <div class="eyebrow">Send the approval request</div>
     <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" placeholder="Parent or guardian email" />
-    <div id="gd-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
+    <div id="gd-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
     <button class="btn" id="gd-send">Ask for approval</button>
 
     <div style="height:14px"></div>

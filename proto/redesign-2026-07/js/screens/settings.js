@@ -304,7 +304,7 @@ export const privacy = {
       if (note) { note.style.color = ''; note.textContent = 'Preparing your export…'; }
       const r = await act.exportMyData();
       if (note) {
-        note.style.color = r.ok ? 'var(--green-bright)' : '#f87171';
+        note.style.color = r.ok ? 'var(--green-bright)' : 'var(--red-bright)';
         note.textContent = r.ok ? 'Export downloaded.' : (r.error || 'Export failed.');
       }
       busy = false;
@@ -685,7 +685,7 @@ export const deleteAccount = {
       // Never claim the account is gone if the SERVER delete failed — that would tell the user
       // their data is erased while it's intact server-side. Local session is always signed out.
       if (serverOk === false) {
-        if (status) { status.style.color = '#f87171'; status.textContent = "Couldn't reach the server — you're signed out, but your account may still exist. Try again online."; }
+        if (status) { status.style.color = 'var(--red-bright)'; status.textContent = "Couldn't reach the server — you're signed out, but your account may still exist. Try again online."; }
         btn.disabled = false; btn.textContent = 'Delete account'; armed = false;
         return;
       }

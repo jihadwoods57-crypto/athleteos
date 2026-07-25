@@ -269,7 +269,7 @@ function priorityCard(c, i, nudgedToday) {
   // needs_review also tiers as 'below', but "Below standard" would contradict its own reason
   // line ("logged today — score pending"). Name it honestly when that's the actual status.
   const tierLbl = c.statusKey === 'needs_review' ? 'Needs review' : { critical: 'Critical', below: 'Below standard', due: 'Due soon' }[tier];
-  const scoreCol = c.score == null ? '' : c.score >= 80 ? 'var(--green-bright)' : c.score >= 60 ? 'var(--amber-bright)' : '#FF9B9B';
+  const scoreCol = c.score == null ? '' : c.score >= 80 ? 'var(--green-bright)' : c.score >= 60 ? 'var(--amber-bright)' : 'var(--red-bright)';
   const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
   const nudgeCls = !openPrimary ? (tier === 'critical' ? 'primary warn' : 'primary') : '';
   return `

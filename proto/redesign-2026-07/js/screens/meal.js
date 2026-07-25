@@ -249,7 +249,7 @@ export const analysis = {
       if (severeHits.length) return `
       <div style="display:flex;gap:10px;padding:13px 14px;border-radius:var(--r-tile);background:var(--red-surface);border:1.5px solid var(--red-border)">
         ${icon('bell', 17, 'style="color:var(--red);flex:none;margin-top:1px"')}
-        <div><div style="font-size:13.5px;font-weight:800;color:#FF9B9B">Possible severe allergen: ${esc(severeHits.join(', '))}</div>
+        <div><div style="font-size:13.5px;font-weight:800;color:var(--red-bright)">Possible severe allergen: ${esc(severeHits.join(', '))}</div>
         <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:3px;line-height:1.45">A detected food may contain it — the read can't see every ingredient or cross-contact. Check the label or ask staff before you eat or log this.</div></div>
       </div>`;
       if (cf.moderate.length || cf.noted.length) return `

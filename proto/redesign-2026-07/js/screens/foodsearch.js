@@ -178,7 +178,7 @@ export const labelScan = {
       <div class="ts">You copy the numbers off the real panel; we just multiply by your servings. No guessing a packaged food — and no fake scan.</div></div>
     </div>
 
-    <div id="ls-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
+    <div id="ls-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
     ${!slot
       ? `<button class="btn ghost" data-back="home">All meals logged · Done</button>`
       : `<button class="btn green" id="ls-log">${icon('check', 19)} Add to ${slotName}</button>`}

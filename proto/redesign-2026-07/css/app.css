@@ -272,7 +272,7 @@ body {
 .status-pill.p { color: var(--purple-bright);border-color: var(--purple-border);background: transparent; }
 /* Honest treatment for the starting tier ("Off Standard") — was unstyled (falls through to
    the base .status-pill's transparent border/bg), reading as plain white text with no signal. */
-.status-pill.r { color: #FF9B9B; border-color: var(--red-border); background: var(--red-surface); }
+.status-pill.r { color: var(--red-bright); border-color: var(--red-border); background: var(--red-surface); }
 /* Neutral provenance pill (gallery upload, informational only — §5.7): no signal color. */
 .status-pill.muted { color: var(--text-2); border-color: var(--hairline); background: rgba(7,11,20,0.55); }
 /* Light theme: the dark translucent fill above turns dark-on-dark (the "Simulated/Sample"

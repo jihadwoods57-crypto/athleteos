@@ -54,8 +54,10 @@
 .sheet-row .sv { font-size: 13px; font-weight: 800; }
 .water-btns { display: flex; gap: 8px; }
 .water-btns .wb2 {
-  padding: 8px 13px; border-radius: var(--r-chip); background: var(--cyan-surface); color: var(--cyan);
-  font-size: 13px; font-weight: 800; cursor: pointer; border: 1px solid rgba(56,189,248,0.3);
+  /* --cyan-bright, not --cyan: this is text on a tinted ground, and --cyan measured 4.1:1 on the
+     light canvas — under AA for 13px. The -bright variant is the deeper light-theme value. */
+  padding: 8px 13px; border-radius: var(--r-chip); background: var(--cyan-surface); color: var(--cyan-bright);
+  font-size: 13px; font-weight: 800; cursor: pointer; border: 1px solid var(--cyan-border);
   /* 44px tap floor (a11y) without changing the visual pill much */
   display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
 }
@@ -298,9 +300,9 @@
 .si-eye .eye-hide { display: none; }
 .si-eye.on .eye-show { display: none; }
 .si-eye.on .eye-hide { display: flex; }
-.si-field-err { font-size: 12.5px; font-weight: 600; color: #f87171; min-height: 15px; margin: 6px 0 0 2px; }
+.si-field-err { font-size: 12.5px; font-weight: 600; color: var(--red-bright); min-height: 15px; margin: 6px 0 0 2px; }
 .si-field-hint { font-size: 12px; font-weight: 600; color: var(--amber-bright); margin: 6px 0 0 2px; }
-.si-err { font-size: 13px; font-weight: 600; color: #f87171; min-height: 18px; margin-top: 12px; text-align: center; }
+.si-err { font-size: 13px; font-weight: 600; color: var(--red-bright); min-height: 18px; margin-top: 12px; text-align: center; }
 
 .si .btn.primary.si-cta {
   margin-top: 22px;

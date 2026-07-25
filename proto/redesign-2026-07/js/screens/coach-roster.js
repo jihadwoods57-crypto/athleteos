@@ -75,7 +75,7 @@ function rosterRow(e) {
   const sel = SEL.has(r.athleteId);
   // One calm status signal: a colored dot on the left. The label reads in quiet text-2,
   // not saturated body text — a roster full of red type reads as panic, not information.
-  const scoreCol = r.score == null ? 'var(--text-3)' : r.score >= 80 ? 'var(--green-bright)' : r.score >= 60 ? 'var(--amber-bright)' : '#FF9B9B';
+  const scoreCol = r.score == null ? 'var(--text-3)' : r.score >= 80 ? 'var(--green-bright)' : r.score >= 60 ? 'var(--amber-bright)' : 'var(--red-bright)';
   return `
   <div class="roster-row" ${SELECTING ? `data-sel="${esc(r.athleteId)}"` : `data-go="coach-athlete/${esc(r.athleteId)}"`}>
     ${SELECTING

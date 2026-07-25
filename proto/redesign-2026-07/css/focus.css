@@ -1,0 +1,58 @@
+/* ============================================================
+   FOCUS — keyboard visibility (a11y)
+   ============================================================
+   Loaded LAST, deliberately. This is a design-system layer that must win the cascade: the app
+   contains 9 rules that set `outline: none`, several at a specificity this layer would otherwise
+   lose to (`.composer input`, `.std-name:focus`). Ordering it last means the explicit overrides
+   below beat same-specificity suppressors without resorting to `!important`.
+
+   Before this file the app had 4 `:focus-visible` rules against 82 interactive affordances, and
+   `.composer input` (screens.css:224) had no focus indication of any kind. Every chip, tile, tab,
+   card, FAB and icon button was invisible to keyboard and switch-control users.
+
+   `:focus-visible` rather than `:focus` — pointer users never see a ring, so the touch UI is
+   unchanged. Only keyboard/AT navigation surfaces it. */
+
+/* ---- The broad affordance list ----
+   `:where()` keeps this at zero specificity so any component can deliberately restyle its own
+   focus state without an arms race. The inputs that actively suppress outlines are handled
+   explicitly below, where beating them is the whole point. */
+:where(
+  a, button, summary,
+  [role="button"], [role="tab"], [role="switch"], [role="link"],
+  [tabindex]:not([tabindex="-1"]),
+  .tap, .tab, .chip, .chp, .choice, .lrow, .sheet-row, .co-chip, .hchip, .tile, .seg > *
+):focus-visible {
+  outline: 2px solid var(--blue-bright);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* ---- Text fields ----
+   Each of these sets `outline: none` on its base rule, which applies in every state including
+   focus. Adding `:focus-visible` to the same class raises specificity by one pseudo-class, so
+   these win. The ring sits flush (offset 0) and inherits the field's own radius, so it reads as
+   the field lighting up rather than a rectangle floating around a rounded input. */
+.ob-input:focus-visible,
+.mq-input:focus-visible,
+.input:focus-visible,
+.fr-in:focus-visible,
+.std-name:focus-visible,
+.std-time:focus-visible,
+.composer input:focus-visible,
+.hn-custom input:focus-visible,
+.cc-details textarea:focus-visible {
+  outline: 2px solid var(--blue-bright);
+  outline-offset: 0;
+  border-color: var(--blue-border);
+}
+
+/* Generic backstop for any field this list has not caught yet. */
+:where(input, textarea, select):focus-visible {
+  outline: 2px solid var(--blue-bright);
+  outline-offset: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(a, button, [role="button"], [tabindex]):focus-visible { transition: none; }
+}

@@ -95,7 +95,7 @@ export default {
       <div class="ts">Your readiness summary will appear after you complete this week's check-in.</div></div>
     </div>
     <div style="height:14px"></div>
-    <div id="wk-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;text-align:center"></div>
+    <div id="wk-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;text-align:center"></div>
     <button class="btn primary" id="wk-submit">${icon('check', 19)} Submit Check-In</button>
     <div style="height:10px"></div>`;
   },

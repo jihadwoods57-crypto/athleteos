@@ -38,7 +38,7 @@ export default {
     const btn = root.querySelector('#rs-go');
     const submit = async () => {
       if (btn.disabled) return; // Enter on the email field must not silently re-fire mid-send
-      msg.style.color = '#f87171';
+      msg.style.color = 'var(--red-bright)';
       const email = (emailEl.value || '').trim().toLowerCase();
       if (!email) { msg.textContent = 'Enter your email.'; return; }
       btn.disabled = true;

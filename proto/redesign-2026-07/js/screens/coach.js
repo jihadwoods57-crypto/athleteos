@@ -1819,7 +1819,7 @@ function coTrend(hist) {
   const line = xy.map((c, i) => `${i ? 'L' : 'M'}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' ');
   const area = `M0,${h} L${xy.map(c => `${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' L')} L${w},${h} Z`;
   const up = pts[pts.length - 1].score >= pts[0].score;
-  const stroke = up ? 'var(--green-bright)' : '#FF9B9B';
+  const stroke = up ? 'var(--green-bright)' : 'var(--red-bright)';
   const lp = xy[xy.length - 1];
   return `<div class="co-trend">
     <div class="co-trend-top"><span class="lbl">Last ${pts.length} logged days</span><span class="rng">${min}–${max}</span></div>
@@ -2435,7 +2435,7 @@ export const coachMeal = {
       return `${errLine}<div class="qa-row" style="margin-top:8px"><button class="qa" id="cm-draft">✍️ Draft a reply</button></div>`;
     })()}
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment' })}
-    <div id="cm-note" style="font-size:12.5px;font-weight:600;color:#f87171;margin:6px 2px 0;min-height:16px"></div>
+    <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>
 
     ${(() => {
       // Private notes (0068): coach-only margin notes the athlete NEVER sees (RLS-enforced).
