@@ -62,11 +62,25 @@ Deno.serve(async (req: Request) => {
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
   // Claim + mark in one call. Anything returned here is ours to deliver and will not be
-  // returned to a concurrent run.
-  const { data, error } = await svc.rpc('claim_due_commitment_reminders', { p_grace_min: 10 });
-  if (error) return json({ error: error.message }, 500);
-
-  const due = (Array.isArray(data) ? data : []) as Due[];
+  // returned to a concurrent run. `p_limit` (migration 0148, capacity audit F8) bounds each
+  // call, so a burst that crosses more due reminders than one page could ever hold no longer
+  // marks rows delivered that this invocation never actually saw — page until a call returns
+  // fewer than p_limit rows (fully drained). PAGE_CAP is a hard backstop against a runaway loop
+  // outrunning the function's own wall clock; hitting it just means the next 5-minute tick picks
+  // up where this one left off (claim_due_commitment_reminders is safe to call again — anything
+  // still due and not yet reminded stays eligible).
+  const CLAIM_LIMIT = 500;
+  const PAGE_CAP = 20; // up to 10,000 reminders per invocation
+  const due: Due[] = [];
+  for (let page = 0; page < PAGE_CAP; page++) {
+    const { data, error } = await svc.rpc('claim_due_commitment_reminders', {
+      p_grace_min: 10, p_limit: CLAIM_LIMIT,
+    });
+    if (error) return json({ error: error.message, claimed: due.length }, 500);
+    const rows = (Array.isArray(data) ? data : []) as Due[];
+    due.push(...rows);
+    if (rows.length < CLAIM_LIMIT) break;
+  }
   if (!due.length) return json({ sent: 0, pushed: 0 });
 
   // In-app notification rows first: they are the durable record. A push that fails (stale token,

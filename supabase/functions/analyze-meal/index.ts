@@ -41,6 +41,7 @@ import {
 } from '../_shared/plan-style.ts';
 import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
+import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 // Cost sweep (audit item 20): memory/order are pure PROSE rephrases whose every number is re-verified
@@ -773,14 +774,23 @@ Deno.serve(async (request) => {
   // Spend ceilings, in two independent tiers. Checked after the input guards so a malformed
   // request never burns a slot.
   //
-  // (1) GLOBAL daily bill backstop — applies to EVERY paid model call, no exceptions. `phase` is
-  // client-controlled, so a caller can send `phase:'finalize'` (a full paid VISION call) WITHOUT
-  // ever sending 'analyze' — previously that skipped every ceiling and let the public anon key
-  // drive unbounded vision spend. memory/order are cheaper (Haiku) but still paid, so they count
-  // too. A legitimate two-call meal (analyze + finalize) counts twice here, which is correct: it
-  // really is two paid calls against the day's bill. This is the hard backstop the constitution
-  // requires ("AI spend caps and the daily cap stay in force").
-  if (!(await withinKeyCap('global', GLOBAL_CAP, /* failOpen */ false))) {
+  // Resolve the caller once, up front: which ceiling applies depends on it, and it's reused for
+  // the daily cap below AND for cost telemetry (a single auth round-trip).
+  const userId = await resolveUserId(request);
+  //
+  // (1) GLOBAL bill backstop — ANONYMOUS callers ONLY. `phase` is client-controlled, so a caller
+  // can send `phase:'finalize'` (a full paid VISION call) WITHOUT ever sending 'analyze' —
+  // unguarded, that lets the public anon key drive unbounded vision spend. memory/order are
+  // cheaper (Haiku) but still paid, so they count too. This fails CLOSED because it is the anon
+  // caller's ONLY ceiling.
+  //
+  // A SIGNED-IN caller is never blocked here (capacity audit F1, docs/scale/CAPACITY-AUDIT.md):
+  // their own per-athlete DAILY_CAP below already bounds their spend, and a platform-wide
+  // fail-closed counter must never be the thing that denies a paying athlete's meal log. They are
+  // tracked against a monthly tier-budget SIGNAL instead (see trackAuthedAiSpend below) — it never
+  // blocks, it only raises a Command Center flag once a caller crosses 80% of the configured
+  // ceiling.
+  if (!userId && !(await withinKeyCap('global_anon', GLOBAL_CAP, /* failOpen */ false))) {
     return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
   // (2) PER-CALLER daily cap — fairness/anti-spam. memory/order are exempt (cheap Haiku prose); every
@@ -794,9 +804,6 @@ Deno.serve(async (request) => {
   // OPEN — never block a legit log on an infra hiccup); an anonymous caller gets a per-IP daily cap
   // that fails CLOSED — the only ceiling an anon caller has, so it must hold when the counter is down.
   const countsAgainstDailyCap = !isMemory && !isOrder && !isRegen;
-  // Resolve the caller once, up front: reused for the daily cap below AND for cost telemetry, so
-  // it's a single auth round-trip. (memory/order don't hit the cap but are still attributed.)
-  const userId = await resolveUserId(request);
   // Captured for the clarify budget below: whether this is a signed-in athlete and how many paid
   // calls they've made today. Anonymous callers (userId null) never get the 2-call clarify path.
   let signedIn = false;
@@ -809,6 +816,7 @@ Deno.serve(async (request) => {
         return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
       }
       dailyUsed = cap.used;
+      void trackAuthedAiSpend(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId, 'analyze-meal');
     } else if (!(await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP, /* failOpen */ false))) {
       return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
     }

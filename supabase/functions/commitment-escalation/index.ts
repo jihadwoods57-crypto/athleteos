@@ -75,10 +75,23 @@ Deno.serve(async (req: Request) => {
   let only: string[] | null = null;
   if (flag && flag.default_on === false) only = Array.isArray(flag.enabled_user_ids) ? flag.enabled_user_ids : [];
 
-  // Claim deadline-crossed, still-pending responses (marks them 'missed'). Anything returned is ours.
-  const { data: missed, error } = await svc.rpc('claim_missed_commitments', { p_grace_min: 10, p_only: only });
-  if (error) return json({ error: error.message }, 500);
-  const rows = (Array.isArray(missed) ? missed : []) as Missed[];
+  // Claim deadline-crossed, still-pending responses (marks them 'missed'). Anything returned is
+  // ours. `p_limit` (migration 0148, capacity audit F8) bounds each call — page until a call
+  // returns fewer than p_limit rows so a burst of misses larger than one page can't get marked
+  // 'missed' without this invocation ever seeing (and escalating on) the surplus. PAGE_CAP backs
+  // off a runaway loop; anything left over stays 'pending' and is picked up crossed-again next tick.
+  const CLAIM_LIMIT = 500;
+  const PAGE_CAP = 20; // up to 10,000 misses per invocation
+  const rows: Missed[] = [];
+  for (let page = 0; page < PAGE_CAP; page++) {
+    const { data: missed, error } = await svc.rpc('claim_missed_commitments', {
+      p_grace_min: 10, p_only: only, p_limit: CLAIM_LIMIT,
+    });
+    if (error) return json({ error: error.message, missed: rows.length }, 500);
+    const page_rows = (Array.isArray(missed) ? missed : []) as Missed[];
+    rows.push(...page_rows);
+    if (page_rows.length < CLAIM_LIMIT) break;
+  }
   if (!rows.length) return json({ missed: 0, breakthrough: 0, digests: 0 });
 
   // -------------------------------------------------------------- L2 breakthrough

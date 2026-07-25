@@ -24,9 +24,21 @@ export async function fetchTeamRoster(teamId) {
   const c = sb(); if (!c || !teamId) return [];
   try { const { data } = await c.rpc('team_roster', { team: teamId }); return data || []; } catch { return []; }
 }
-export async function fetchLinkedDaysSince(sinceISO) {
+/** Days since `sinceISO` for the caller's linked roster. Pass `athleteIds` (the roster is
+ *  already known by every real caller, resolved a few lines before this runs) so the query can
+ *  use the existing days(athlete_id, date desc) index — without it, `date >= sinceISO` alone is
+ *  unusable against that index and Postgres falls back to a full table scan of `days` PLUS a
+ *  per-row can_view() RLS check on every row in the table, not just the caller's roster
+ *  (capacity audit F4, docs/scale/CAPACITY-AUDIT.md). Omitting athleteIds keeps the old
+ *  RLS-only, unscoped, .limit(2000) behavior for any caller that doesn't have a roster yet. */
+export async function fetchLinkedDaysSince(sinceISO, athleteIds) {
   const c = sb(); if (!c) return [];
-  try { const { data } = await c.from('days').select('athlete_id,date,score,grade,tasks').gte('date', sinceISO).limit(2000); return data || []; } catch { return []; }
+  try {
+    let q = c.from('days').select('athlete_id,date,score,grade,tasks').gte('date', sinceISO);
+    q = Array.isArray(athleteIds) && athleteIds.length ? q.in('athlete_id', athleteIds) : q.limit(2000);
+    const { data } = await q;
+    return data || [];
+  } catch { return []; }
 }
 /** Athlete IANA timezones for the coach roster (0088), keyed by id. Best-effort and RLS-safe: a
  *  coach reads these through the SAME profiles access they already have (connected → can_view, the
@@ -142,13 +154,19 @@ export async function regenerateMyTeamCode() {
 }
 
 /* ---------------- coach: roster-wide activity feed (WS4) ---------------- */
-/** Recent meals across every linked athlete (RLS can_view scopes rows). Best-effort []. */
-export async function fetchTeamActivity(sinceISO, limit = 24) {
+/** Recent meals across every linked athlete (RLS can_view scopes rows). Best-effort [].
+ *  Pass `athleteIds` when the roster is already known (same reasoning as
+ *  fetchLinkedDaysSince above): without it, `day_date >= sinceISO` can't use the
+ *  meals(athlete_id, day_date desc) index and the ORDER BY forces a full sort of every
+ *  matching row in the table before the limit applies (capacity audit F6). */
+export async function fetchTeamActivity(sinceISO, limit = 24, athleteIds) {
   const c = sb(); if (!c) return [];
   try {
-    const { data } = await c.from('meals')
+    let q = c.from('meals')
       .select('id,athlete_id,day_date,type,photo_path,name,protein,kcal,quality,logged_at')
-      .gte('day_date', sinceISO).order('logged_at', { ascending: false }).limit(limit);
+      .gte('day_date', sinceISO);
+    if (Array.isArray(athleteIds) && athleteIds.length) q = q.in('athlete_id', athleteIds);
+    const { data } = await q.order('logged_at', { ascending: false }).limit(limit);
     return data || [];
   } catch { return []; }
 }
@@ -1356,37 +1374,46 @@ function projectRows(perBook, days, recentMeals, tzByAthlete) {
   return rows;
 }
 
-/** Full coach roster: teams → members (RPC) → merged with today's linked day rows. */
+/** Full coach roster: teams → members (RPC) → merged with today's linked day rows.
+ *  The roster resolves FIRST, then days/meals/timezones read in parallel scoped to those
+ *  athlete ids — not because it changes the roster's own cost, but because fetchLinkedDaysSince
+ *  and fetchTeamActivity can only use their existing indexes when they know which athletes to
+ *  ask for (capacity audit F4/F6). The old ordering (roster + unscoped days/meals in parallel,
+ *  timezones after) ran the two expensive unscoped scans BEFORE the ids that would have scoped
+ *  them were even available. */
 export async function loadCoachRoster() {
   const teams = await fetchMyTeams();
   if (teams.error) throw new Error('roster-fetch-failed'); // caller renders honest offline
   if (!teams.length) return { teams: [], rows: [] };
-  const [perTeam, days, recentMeals] = await Promise.all([
-    Promise.all(teams.map(t => fetchTeamRoster(t.id))),
-    fetchLinkedDaysSince(daysAgoISO(7)),
-    fetchTeamActivity(daysAgoISO(2), 400),
+  const perTeam = await Promise.all(teams.map(t => fetchTeamRoster(t.id)));
+  const athleteIds = athleteIdsOf(perTeam);
+  const [days, recentMeals, tzByAthlete] = await Promise.all([
+    fetchLinkedDaysSince(daysAgoISO(7), athleteIds),
+    fetchTeamActivity(daysAgoISO(2), 400, athleteIds),
+    // Athlete timezones (0088) so coach "overdue"/"due soon" is judged in each athlete's local
+    // day. Best-effort: a pre-migration DB or missing tz leaves the map empty and every row uses
+    // the coach clock (today's behavior).
+    fetchProfileTimezones(athleteIds),
   ]);
-  // Athlete timezones (0088) so coach "overdue"/"due soon" is judged in each athlete's local day.
-  // Best-effort: a pre-migration DB or missing tz leaves the map empty and every row uses the
-  // coach clock (today's behavior). Resolved after perTeam since the ids come from the roster.
-  const tzByAthlete = await fetchProfileTimezones(athleteIdsOf(perTeam));
   return { teams, rows: projectRows(perTeam, days, recentMeals, tzByAthlete) };
 }
 
 /** Trainer book: practices → clients (RPC) → merged with today's linked day rows.
     Identical depth to the coach roster above — 7 days of history (sparklines), recent meals
     (staleness), and timezones. Every one of those reads is `can_view`-scoped (0081 includes
-    is_trainer_of), so parity here needs no server change. */
+    is_trainer_of), so parity here needs no server change. Same roster-first ordering as
+    loadCoachRoster, for the same reason (capacity audit F4/F6). */
 export async function loadTrainerBook() {
   const practices = await fetchMyPractices();
   if (practices.error) throw new Error('book-fetch-failed'); // caller renders honest offline
   if (!practices.length) return { practices: [], rows: [] };
-  const [perPractice, days, recentMeals] = await Promise.all([
-    Promise.all(practices.map(p => fetchPracticeRoster(p.id))),
-    fetchLinkedDaysSince(daysAgoISO(7)),
-    fetchTeamActivity(daysAgoISO(2), 400),
+  const perPractice = await Promise.all(practices.map(p => fetchPracticeRoster(p.id)));
+  const athleteIds = athleteIdsOf(perPractice);
+  const [days, recentMeals, tzByAthlete] = await Promise.all([
+    fetchLinkedDaysSince(daysAgoISO(7), athleteIds),
+    fetchTeamActivity(daysAgoISO(2), 400, athleteIds),
+    fetchProfileTimezones(athleteIds),
   ]);
-  const tzByAthlete = await fetchProfileTimezones(athleteIdsOf(perPractice));
   return { practices, rows: projectRows(perPractice, days, recentMeals, tzByAthlete) };
 }
 

@@ -55,8 +55,7 @@ export async function trackAuthedAiSpend(
       await sb.from('admin_audit_log').insert({
         actor_id: null,
         action: 'alert.ai_budget_authed',
-        target_type: 'user',
-        target_id: userId,
+        target: `user:${userId}`,
         after: { used, limit: TIER_MONTHLY_CAP, fn },
       });
     }
