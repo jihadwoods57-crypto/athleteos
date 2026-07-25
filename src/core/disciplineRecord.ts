@@ -6,7 +6,7 @@
 // ONLY from real logged history (score days, streaks, weight arc), earned in-app, so a
 // recruiter reading it knows it wasn't self-typed. Nothing is fabricated: a short history
 // renders honestly as a short history, and an empty one refuses to render a record at all.
-import { COMPLIANCE_THRESHOLD, currentStreak, daysOnStandard, longestStreak } from './history';
+import { COMPLIANCE_THRESHOLD, daysOnStandard, longestStreak } from './history';
 import type { DayScore, WeightPoint } from './types';
 
 export interface DisciplineRecord {
@@ -40,6 +40,14 @@ export function disciplineRecord(
   liveScore: number,
   weightHistory: WeightPoint[] = [],
   threshold: number = COMPLIANCE_THRESHOLD,
+  /** The athlete's CURRENT streak, passed in — never recomputed here.
+   *
+   *  This used to call a second streak implementation that disagreed with the one the app shows
+   *  (see the note in history.ts). A recruiting record that prints a different "current streak"
+   *  from the athlete's own screen is worse than one that prints none, so the number is supplied
+   *  by the caller from the single source: proto/redesign-2026-07/js/day.js streakInfo().
+   *  Omitted -> the record simply reports 0 rather than inventing a second answer. */
+  currentStreakDays: number = 0,
 ): DisciplineRecord | null {
   const real = history.filter((h) => typeof h.score === 'number' && Number.isFinite(h.score));
   if (real.length < RECORD_MIN_DAYS) return null;
@@ -56,7 +64,7 @@ export function disciplineRecord(
     daysOnStandard: onStd,
     onStandardPct: Math.round((onStd / real.length) * 100),
     longestStreak: longestStreak(real, threshold),
-    currentStreak: currentStreak(real, liveScore, threshold),
+    currentStreak: Math.max(0, Math.trunc(currentStreakDays)),
     avgScore: avg,
     since,
     weightDelta,
