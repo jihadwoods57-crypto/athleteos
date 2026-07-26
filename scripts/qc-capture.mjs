@@ -167,13 +167,33 @@ const AUDIT_JS = `(() => {
     if (r.width > vw + 1 || r.right > vw + 1.5) out.wideEls.push({ el: label(el), w: Math.round(r.width), right: Math.round(r.right) });
   }
 
-  // 3. touch targets below the 44x44 accessibility floor
+  // 3. touch targets below the 44x44 accessibility floor.
+  //
+  // Measures the EFFECTIVE hit area, not the painted box. The app expands small controls with a
+  // centred absolutely-positioned ::after carrying min-width/min-height, so the pill stays small
+  // while the target is full size. Measuring getBoundingClientRect alone would report those as
+  // failures forever, and a metric that can never go green gets ignored — which is the exact
+  // normalisation that let a red security suite sit unnoticed.
   const TAP = 'a,button,[role=button],input,select,textarea,[tabindex]:not([tabindex="-1"]),.tap,.tab,.chip';
+  const hitBox = (el, r) => {
+    let w = r.width, h = r.height;
+    const a = getComputedStyle(el, '::after');
+    if (a && a.content && a.content !== 'none' && a.position === 'absolute') {
+      const mw = parseFloat(a.minWidth) || 0;
+      const mh = parseFloat(a.minHeight) || 0;
+      // An absolutely-positioned ::after carrying an explicit min-width/min-height is a hit
+      // expander; a decorative dot has neither. Do NOT test left === '50%' — getComputedStyle
+      // resolves percentage offsets to pixels, so that check silently never matches.
+      if (mw > 0 || mh > 0) { w = Math.max(w, mw); h = Math.max(h, mh); }
+    }
+    return { w, h };
+  };
   for (const el of document.querySelectorAll(TAP)) {
     const r = vis(el);
     if (!r) continue;
     out.tapTotal++;
-    if (r.width < 44 || r.height < 44) out.smallTargets.push({ el: label(el), w: Math.round(r.width), h: Math.round(r.height) });
+    const { w, h } = hitBox(el, r);
+    if (w < 44 || h < 44) out.smallTargets.push({ el: label(el), w: Math.round(w), h: Math.round(h) });
   }
 
   // 4. text clipped by its container (truncation that loses meaning)

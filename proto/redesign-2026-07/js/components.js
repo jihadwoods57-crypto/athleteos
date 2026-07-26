@@ -243,7 +243,7 @@ export function titleHead(title, sub) {
 export function avatarHead(title, sub, initials) {
   return `<div class="back-head" style="align-items:center">
     <div style="flex:1;min-width:0"><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
-    <div role="button" aria-label="Your profile" data-go="coach-profile"
+    <div class="hd-avatar" role="button" aria-label="Your profile" data-go="coach-profile"
       style="width:40px;height:40px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);display:grid;place-items:center;font-size:13px;font-weight:800;letter-spacing:0.02em;flex:none;cursor:pointer">${esc(initials || 'C')}</div>
   </div>`;
 }
