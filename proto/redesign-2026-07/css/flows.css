@@ -9,19 +9,19 @@
   font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
   padding: 5px 13px; border-radius: var(--r-pill); border: 1px solid transparent;
 }
-.tier-chip.g { color: var(--green-bright); background: rgba(52,211,153,0.12); border-color: var(--green-border); box-shadow: 0 0 18px rgba(52,211,153,0.25); }
-.tier-chip.b { color: var(--blue-bright); background: rgba(59,130,246,0.12); border-color: var(--blue-border); }
-.tier-chip.a { color: var(--amber-bright); background: rgba(245,165,36,0.12); border-color: var(--amber-border); }
+.tier-chip.g { color: var(--green-bright); background: rgba(var(--green-rgb), 0.12); border-color: var(--green-border); box-shadow: 0 0 18px rgba(var(--green-rgb), 0.25); }
+.tier-chip.b { color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.12); border-color: var(--blue-border); }
+.tier-chip.a { color: var(--amber-bright); background: rgba(var(--amber-rgb), 0.12); border-color: var(--amber-border); }
 .tier-chip.r { color: var(--red); background: var(--red-surface); border-color: var(--red-border); }
 
 /* ----- Next-action CTA under the hero ----- */
 .next-cta { margin-top: 16px; }
 .next-cta .btn { height: 58px; font-size: 16.5px; }
-.next-cta .btn.p-accent { background: linear-gradient(150deg, var(--purple-bright), #7e22ce); color: #fff; box-shadow: 0 10px 30px rgba(168,85,247,0.35); }
+.next-cta .btn.p-accent { background: linear-gradient(150deg, var(--purple), var(--purple-deep)); color: #fff; box-shadow: 0 10px 30px rgba(var(--purple-rgb), 0.35); }
 .day-done {
   display: flex; align-items: center; gap: 13px; margin-top: 16px;
   padding: 16px; border-radius: var(--r-card);
-  background: linear-gradient(100deg, rgba(52,211,153,0.16), rgba(34,211,238,0.06));
+  background: linear-gradient(100deg, rgba(var(--green-rgb), 0.16), rgba(var(--teal-rgb), 0.06));
   border: 1px solid var(--green-border);
 }
 .day-done .tt { font-size: 15.5px; font-weight: 800; }
@@ -70,7 +70,7 @@
 .scanline {
   position: absolute; left: 0; right: 0; height: 3px;
   background: linear-gradient(90deg, transparent, var(--green-bright), var(--cyan), transparent);
-  box-shadow: 0 0 22px rgba(52,211,153,0.8); animation: scan 1.6s ease-in-out infinite;
+  box-shadow: 0 0 22px rgba(var(--green-rgb), 0.8); animation: scan 1.6s ease-in-out infinite;
 }
 @keyframes scan { 0%,100% { top: 8%; } 50% { top: 90%; } }
 .analyzing .phase { margin-top: 22px; font-size: 16.5px; font-weight: 800; }
@@ -110,7 +110,7 @@
   padding: 17px 15px; border-radius: 18px; background: var(--surface-1); border: 1px solid var(--hairline);
   cursor: pointer; transition: all var(--dur-1) var(--ease-out);
 }
-.choice.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.10); box-shadow: 0 0 18px rgba(59,130,246,0.18); }
+.choice.on { border-color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.10); box-shadow: 0 0 18px rgba(var(--blue-rgb), 0.18); }
 .choice .ct { font-size: 15px; font-weight: 800; margin-top: 9px; }
 .choice .cs { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top: 3px; line-height: 1.35; }
 .choice .cic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; }
@@ -121,8 +121,8 @@
   /* 44px tap floor (a11y) — inline-flex keeps a soft chip shape while guaranteeing the height */
   display: inline-flex; align-items: center; min-height: 44px;
 }
-.chip-row .chp.on { border-color: var(--blue-bright); background: rgba(59,130,246,0.12); color: var(--blue-bright);
-  box-shadow: inset 0 0 0 1px var(--blue-border), 0 0 16px rgba(59,130,246,0.22); }
+.chip-row .chp.on { border-color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.12); color: var(--blue-bright);
+  box-shadow: inset 0 0 0 1px var(--blue-border), 0 0 16px rgba(var(--blue-rgb), 0.22); }
 /* Non-color affordance (WCAG 1.4.1): a filled dot marks the selected chip, not color alone. */
 .chip-row .chp.on::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--blue-bright); margin-left: 8px; flex: 0 0 auto; }
 /* Press feedback on tappable chips/choices. */
@@ -139,12 +139,12 @@
 .standard-set { text-align: center; padding-top: 30px; }
 .standard-set .halo {
   width: 130px; height: 130px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center; position: relative;
-  background: radial-gradient(closest-side, rgba(52,211,153,0.22), transparent 75%);
+  background: radial-gradient(closest-side, rgba(var(--green-rgb), 0.22), transparent 75%);
 }
 .standard-set .halo .core {
-  width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; color: #04140b;
-  background: linear-gradient(155deg, var(--green-bright), #16a34a);
-  box-shadow: 0 0 50px rgba(52,211,153,0.5); animation: popIn 600ms var(--ease-out) both;
+  width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-on-accent);
+  background: linear-gradient(155deg, var(--green), var(--green-deep));
+  box-shadow: 0 0 50px rgba(var(--green-rgb), 0.5); animation: popIn 600ms var(--ease-out) both;
 }
 
 /* ----- Auth / welcome ----- */
@@ -152,7 +152,7 @@
 .logo-wrap {
   width: 104px; height: 104px; margin: 0 auto 24px;
   /* dual glow matches the arc's green→teal→blue sweep (founder-ratified in the mark) */
-  filter: drop-shadow(0 0 34px rgba(52,211,153,0.28)) drop-shadow(0 0 60px rgba(59,130,246,0.24));
+  filter: drop-shadow(0 0 34px rgba(var(--green-rgb), 0.28)) drop-shadow(0 0 60px rgba(var(--blue-rgb), 0.24));
   animation: logoIn 800ms var(--ease-out) both;
 }
 @keyframes logoIn { from { transform: scale(0.7) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -195,11 +195,11 @@
 .wel-logo {
   position: relative; width: 104px; height: 104px; margin: 0 auto 16px;
   /* subtle teal→blue ambient glow behind the mark; the rest stays near-black */
-  filter: drop-shadow(0 0 24px rgba(34,211,238,0.22)) drop-shadow(0 0 54px rgba(37,99,235,0.20));
+  filter: drop-shadow(0 0 24px rgba(var(--teal-rgb), 0.22)) drop-shadow(0 0 54px rgba(37,99,235,0.20));
 }
 .wel-logo::before {
   content: ''; position: absolute; inset: -44px; z-index: -1; pointer-events: none;
-  background: radial-gradient(closest-side, rgba(34,211,238,0.15), rgba(37,99,235,0.09) 52%, transparent 74%);
+  background: radial-gradient(closest-side, rgba(var(--teal-rgb), 0.15), rgba(37,99,235,0.09) 52%, transparent 74%);
 }
 /* The payoff arc draws itself in on entry — the score climbing to the standard.
    Arc length measured ≈88.85 (getTotalLength); dasharray 89 covers it exactly.
@@ -231,7 +231,7 @@
 /* Light theme: bright cyan drops below 3:1 on the light canvas, so the payoff line
    uses a deeper blue→teal that stays legible. */
 :root[data-theme="light"] .wel-head .accent {
-  background: linear-gradient(96deg, var(--blue-deep) 4%, #0E7490 92%);
+  background: linear-gradient(96deg, var(--blue-deep) 4%, var(--teal-deep) 92%);
   /* re-assert the text clip: the `background` shorthand above resets background-clip
      to border-box, which would paint a solid bar instead of clipping to the glyphs. */
   -webkit-background-clip: text; background-clip: text;
@@ -241,8 +241,8 @@
 /* Primary CTA on welcome: deep blue→teal fill keeps white text ≥4.5:1 (the bright
    teal lives in the bloom, not under the label); reuses the .btn.primary base. */
 .wel .btn.primary {
-  background: linear-gradient(133deg, var(--blue-deep), #0E7490);
-  box-shadow: var(--sh-blue), 0 8px 36px rgba(34,211,238,0.26);
+  background: linear-gradient(133deg, var(--blue-deep), var(--teal-deep));
+  box-shadow: var(--sh-blue), 0 8px 36px rgba(var(--teal-rgb), 0.26);
 }
 .wel .btn.primary:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }
 .wel-arrow { font-weight: 800; }
@@ -276,11 +276,11 @@
 }
 .si-logo {
   position: relative; width: 60px; height: 60px; margin: 0 auto 12px;
-  filter: drop-shadow(0 0 20px rgba(34,211,238,0.22)) drop-shadow(0 0 44px rgba(37,99,235,0.20));
+  filter: drop-shadow(0 0 20px rgba(var(--teal-rgb), 0.22)) drop-shadow(0 0 44px rgba(37,99,235,0.20));
 }
 .si-logo::before {
   content: ''; position: absolute; inset: -36px; z-index: -1; pointer-events: none;
-  background: radial-gradient(closest-side, rgba(34,211,238,0.15), rgba(37,99,235,0.09) 52%, transparent 74%);
+  background: radial-gradient(closest-side, rgba(var(--teal-rgb), 0.15), rgba(37,99,235,0.09) 52%, transparent 74%);
 }
 .si-mark { font-size: 28px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; color: var(--blue-bright); }
 .si-mark .on { color: var(--text); }
@@ -306,8 +306,8 @@
 
 .si .btn.primary.si-cta {
   margin-top: 22px;
-  background: linear-gradient(133deg, var(--blue-deep), #0E7490);
-  box-shadow: var(--sh-blue), 0 8px 36px rgba(34,211,238,0.26);
+  background: linear-gradient(133deg, var(--blue-deep), var(--teal-deep));
+  box-shadow: var(--sh-blue), 0 8px 36px rgba(var(--teal-rgb), 0.26);
 }
 .si .btn.primary.si-cta:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }
 .si-cta.loading .si-arrow { display: none; }
@@ -322,9 +322,9 @@
 
 /* ----- Coach dashboard ----- */
 .flagdot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
-.flagdot.g { background: var(--green-bright); box-shadow: 0 0 10px rgba(52,211,153,0.55); }
-.flagdot.y { background: var(--amber-bright); box-shadow: 0 0 10px rgba(245,165,36,0.5); }
-.flagdot.r { background: var(--red); box-shadow: 0 0 10px rgba(246,87,87,0.55); }
+.flagdot.g { background: var(--green-bright); box-shadow: 0 0 10px rgba(var(--green-rgb), 0.55); }
+.flagdot.y { background: var(--amber-bright); box-shadow: 0 0 10px rgba(var(--amber-rgb), 0.5); }
+.flagdot.r { background: var(--red); box-shadow: 0 0 10px rgba(var(--red-rgb), 0.55); }
 .coach-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
 .coach-stat { text-align: center; padding: 15px 6px; border-radius: var(--r-tile); background: var(--surface-1); border: 1px solid var(--hairline); }
 .coach-stat .v { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; min-height: 30px; display: flex; align-items: center; justify-content: center; }
@@ -347,7 +347,7 @@
 /* ----- Finish Today v2 ----- */
 .finish-segs { display: flex; gap: 6px; margin: 2px 0 14px; }
 .finish-segs .fseg { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-3); }
-.finish-segs .fseg.on { background: linear-gradient(90deg, #16a34a, var(--green-bright)); box-shadow: 0 0 10px rgba(52,211,153,0.3); }
+.finish-segs .fseg.on { background: linear-gradient(90deg, var(--green-deep), var(--green)); box-shadow: 0 0 10px rgba(var(--green-rgb), 0.3); }
 .finish-score-line { display: flex; align-items: center; gap: 12px; }
 .finish-score-line .fs-now { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; }
 .finish-score-line .fs-goal { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: var(--green-bright); }
@@ -369,8 +369,8 @@
 /* ----- Trust Pass day dots ----- */
 .pass-days { display: flex; gap: 6px; margin-top: 4px; }
 .pass-days .pd { flex: 1; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 9.5px; font-weight: 800; background: var(--surface-3); color: var(--text-3); }
-.pass-days .pd.done { background: rgba(168,85,247,0.25); color: var(--purple-bright); }
-.pass-days .pd.check { border: 1.5px dashed var(--amber-border); color: var(--amber-bright); background: rgba(245,165,36,0.08); }
+.pass-days .pd.done { background: rgba(var(--purple-rgb), 0.25); color: var(--purple-bright); }
+.pass-days .pd.check { border: 1.5px dashed var(--amber-border); color: var(--amber-bright); background: rgba(var(--amber-rgb), 0.08); }
 
 /* ----- Plan phase progress ----- */
 .phase-bar { display: flex; gap: 5px; margin-top: 10px; }
