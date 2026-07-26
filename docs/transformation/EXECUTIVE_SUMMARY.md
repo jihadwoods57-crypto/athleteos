@@ -1,7 +1,7 @@
 # OnStandard — Production Transformation, Executive Summary
 
 Branch: `feat/production-transformation` (off `feat/founder-command-center`)
-Date: 2026-07-25
+Date: 2026-07-25 (updated 2026-07-26)
 
 ---
 
@@ -32,7 +32,7 @@ The real problems are not the ones the brief anticipated. They are:
 | 5 | **The security suite was red 81% of the day** and nobody knew. | Two checks depended on wall-clock time. "417/419" had become the expected result — which is exactly how a real hole gets missed. |
 | 6 | **107 registered routes** across ~8 roles, including hard orphans and dead aliases. | Surface area far beyond what a mobile product this age should carry. |
 | 7 | **~19,400 LOC of provably dead code** (`src/screens/**` and friends), still shipped inside the IPA. | Nothing reachable from the app entry point imports it. |
-| 8 | **The streak algorithm exists twice, already drifted**, with each side's tests asserting contradictory semantics. | The green suite is certifying two different answers to "what is my streak?". Not yet fixed — see KNOWN_RISKS. |
+| 8 | **The streak algorithm exists twice, already drifted**, with each side's tests asserting contradictory semantics. | The green suite was certifying two different answers to "what is my streak?". **Now fixed** — one implementation, guarded. |
 
 **Bottom line:** the engineering discipline here is well above average. The gap is not care — it
 is that the design system was authored once and then bypassed 249 times, and that whole classes
@@ -43,7 +43,8 @@ recurred silently. The work below closes the guards, not just the instances.
 
 ## 2. What changed
 
-Eight commits, each independently verified. Nothing was merged to `master`; nothing was deployed.
+Thirteen commits across two passes, each independently verified. Nothing was merged to `master`;
+nothing was deployed.
 
 | Commit | Change |
 |---|---|
@@ -53,7 +54,11 @@ Eight commits, each independently verified. Nothing was merged to `master`; noth
 | `7e542e7` | **Migration 0151** — revoked `TRUNCATE`/`TRIGGER`/`REFERENCES` from `anon` and `authenticated` across 62 tables. |
 | `47069ac` | **RLS suite time-anchoring** — 417/419 → **419/419** at any hour. |
 | `b8d9f18` | **Design system foundation** — `--red-bright`, `--cyan-bright`, `--ink-on-accent`, `--cyan-border`, a 10-step type scale, and a dedicated focus layer. Light-mode contrast failures **5 → 0**. |
-| `(nav)` | **Role-chrome leaks** — parents no longer inherit the athlete tab bar; every role can now reach account deletion. |
+| `bf31b74` | **Role-chrome leaks** — parents no longer inherit the athlete tab bar; every role can now reach account deletion. |
+| `70ae9e8` | **Streak unified** — proto semantics made canonical, the contradictory TS copy deleted along with 17,949 LOC of unreachable `src/screens/**`, guarded by a single-source test. |
+| `22c8209` | **Migration 0152** — an ENFORCED dollar ceiling on AI spend plus a kill switch, wired into the four highest-volume paid functions; `plan-generate`'s global cap made anon-only. |
+| `b7f3763` | **Light mode finished** — brand hues as RGB triples, `--hue-deep` for gradient fills, `--ink-on-accent` adopted. 249 literals → 92, contrast failures → 0. |
+| `bffca9c` | **Touch targets** — 59 under the 44px floor → 0, via hit-area expansion that preserves the visual design. The QC harness was fixed to measure effective hit area. |
 
 Detail in `PRODUCT_DECISIONS.md`, `SECURITY_CHANGES.md`, `UX_CHANGES.md`.
 
