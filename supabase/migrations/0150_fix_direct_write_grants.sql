@@ -34,20 +34,14 @@ grant select, insert, update on team_week_pattern to authenticated;
 -- `using (user_id = auth.uid())`) already confines the delete to the caller's own rows.
 grant delete on device_tokens to authenticated;
 
--- ---------------------------------------------------------------- 4. commitment_locations (0138) — NOT YET ON PROD
--- js/commitment-data.js:218 inserts (a coach saving a geofence location), reached from
--- js/screens/coach-commitments.js:600. 0138 created the table with a cl_read SELECT policy and a
--- SELECT-only grant — there is no insert policy AND no insert grant, so saveLocation() can never
--- succeed and always returns null. Verified Commitments would have shipped with its
--- location-creation path dead.
+-- ---------------------------------------------------------------- 4. commitment_locations (0138)
+-- MOVED OUT to 0153. Verified against live prod on 2026-07-26: commitment_locations does NOT
+-- exist there, because 0138 (Verified Commitments) is authored-but-not-applied along with the
+-- rest of 0133-0146. Granting on it here would abort this whole migration on prod and block the
+-- three LIVE fixes above, which are the urgent ones.
 --
--- The insert policy mirrors cl_read's authorization exactly (same helper, same arguments), so a
--- coach may create a location only for a team/practice they actually staff.
-grant insert on commitment_locations to authenticated;
-
-drop policy if exists cl_staff_insert on commitment_locations;
-create policy cl_staff_insert on commitment_locations for insert
-  with check (commitment_owner_is_staff(team_id, practice_id));
+-- 0153 carries that grant + policy instead. It still sorts after 0138, so a fresh database and a
+-- future prod push both get it in the right order.
 
 -- ----------------------------------------------------------------
 -- Idempotent: re-granting is a no-op and the policy is drop-if-exists first, so this is safe to
@@ -57,5 +51,3 @@ create policy cl_staff_insert on commitment_locations for insert
 --   revoke insert, update, delete on team_rooms           from authenticated;
 --   revoke insert, update         on team_week_pattern    from authenticated;
 --   revoke delete                 on device_tokens        from authenticated;
---   revoke insert                 on commitment_locations from authenticated;
---   drop policy if exists cl_staff_insert on commitment_locations;
