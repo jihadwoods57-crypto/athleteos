@@ -238,10 +238,16 @@ function trustShield() {
 }
 
 /* One line under the greeting that orients before the number does. */
+/* The greeting's second line. It deliberately does NOT restate progress: the score card owns
+   that fact, and Home used to state it three times above the fold — here, "N of M done", and
+   "N to go — your day is still open". Saying it once and giving the athlete their bearings
+   instead is worth more than saying it three ways. */
 function headSub(e) {
   if (e.celebration) return 'Locked in for today';
-  const left = e.total - e.met;
-  return `${left} requirement${left === 1 ? '' : 's'} remaining today`;
+  const d = new Date();
+  const day = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()];
+  const team = RT.myCoach && RT.myCoach.teamName;
+  return team ? `${day} · ${team}` : day;
 }
 
 /* The single next move, named inside the score card. It deliberately repeats what the NOW
@@ -297,7 +303,7 @@ function hero(e) {
   lastHomeScore = e.score;
   return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${scoreRing({ score: e.score, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
@@ -319,16 +325,24 @@ function hero(e) {
    (home render gates this) or once a passing tier is earned. */
 function inProgressHero(e) {
   const left = e.total - e.met;
-  const toGo = left > 0 ? `${left} to go — your day is still open` : 'Log your first requirement to start your score';
+  // ONE line, not two. This used to render "<b>N</b> of <b>M</b> done" and, beneath it,
+  // "N to go — your day is still open" — the same fact twice, under a header that had already
+  // said it a third time. The reassurance ("still open") is the part worth keeping; the count
+  // carries it.
+  // The "In progress" chip above already carries the reassurance that the day is not lost, so
+  // this line is the count and nothing else. Home previously said it three ways above the fold.
+  const line = e.met === 0 && left > 0
+    ? 'Log your first requirement to start your score'
+    : `<b>${e.met}</b> of <b>${e.total}</b> done today`;
   return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${scoreRing({ score: e.score, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
-        <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">In progress</span></div>
-        <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> done</div>
-        <div class="xh-flow">${esc(toGo)}</div>
+        <div class="xrow"><span class="status-pill inprog">In progress</span></div>
+        <div class="xh-flow">${line}</div>
       </div>
+      <span class="xstrip-chev">${icon('chevron', 16)}</span>
     </div>
   </section>`;
 }

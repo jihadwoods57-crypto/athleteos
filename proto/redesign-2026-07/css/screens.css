@@ -425,30 +425,38 @@
    screen. Ring + labeled facts up top, the four-part formula bar spanning the card below
    (same numbers/accents as the breakdown screen), next move last; the whole card opens
    the breakdown. ---- */
-.xhero{display:flex;flex-direction:column;background:var(--surface-1);border:1px solid var(--hairline);border-radius:22px;padding:15px 15px 13px 13px;cursor:pointer;box-shadow:var(--sh-card);transition:transform var(--dur-1) var(--ease-out);position:relative;overflow:hidden}
+/* THE SCORE OWNS THE SCREEN.
+   It used to sit in a bordered, shadowed card with a 31px numeral, directly above a full-bleed
+   amber CTA — so the product's signature number was visually outranked by the button beneath it.
+   Card chrome removed: hierarchy here comes from SIZE and SPACE, not from another box. The tap
+   affordance survives as the chevron plus a press state, which is what carried it anyway. */
+.xhero{display:flex;flex-direction:column;background:none;border:none;border-radius:22px;padding:4px 2px 2px;cursor:pointer;box-shadow:none;transition:transform var(--dur-1) var(--ease-out);position:relative}
 .xhero:active{transform:scale(0.985)}
 .xhero .xh-main{display:flex;align-items:center;gap:14px;position:relative}
 .xhero .ring-wrap{flex:0 0 auto}
-.xhero .ring-center.num .score{font-size:31px;font-weight:800;letter-spacing:var(--num-tight);color:var(--text);text-shadow:none}
-.xhero .xh-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
-.xhero .xh-k{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3)}
+.xhero .ring-center.num .score{font-size:var(--t-hero);font-weight:800;letter-spacing:var(--num-tight);color:var(--text);text-shadow:none;line-height:1;margin-top:0}
+.xhero .xh-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+.xhero .xh-k{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3)}
 .xhero .xrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.xhero .xh-line{font-size:12.5px;font-weight:600;color:var(--text-2);font-variant-numeric:tabular-nums;letter-spacing:-.005em;white-space:nowrap}
+.xhero .xh-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);font-variant-numeric:tabular-nums;letter-spacing:-.005em;white-space:nowrap}
 .xhero .xh-line b{color:var(--text);font-weight:800}
 /* Prose companion line (in-progress / not-scored heroes): a full sentence, so it WRAPS —
    never the tabular one-liner treatment that clipped "…your day is still open". */
-.xhero .xh-flow{font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4}
+.xhero .xh-flow{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45}
+.xhero .xh-flow b{color:var(--text);font-weight:800}
+/* Neutral 'In progress' chip — a live day has no verdict yet, so it must not borrow a tier colour. */
+.status-pill.inprog{background:var(--surface-2);color:var(--text-2);border-color:transparent}
 .xhero .xh-line .sep{color:var(--text-3);margin:0 1px}
 .xh-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
 .xh-delta.up{color:var(--green-bright)} .xh-delta.down{color:var(--amber-bright)}
 .xh-delta .m{color:var(--text-3);font-weight:700}
 .xh-delta svg{width:11px;height:11px;flex:none}
 /* honest "+N" when a log just moved the number — floats up off the ring, then retires */
-.xh-float{position:absolute;left:76px;top:4px;font-size:15px;font-weight:800;color:var(--green-bright);text-shadow:0 0 16px rgba(var(--green-rgb), 0.5);pointer-events:none;animation:xh-float 1.7s var(--ease-out) forwards}
+.xh-float{position:absolute;left:88px;top:4px;font-size:15px;font-weight:800;color:var(--green-bright);text-shadow:0 0 16px rgba(var(--green-rgb), 0.5);pointer-events:none;animation:xh-float 1.7s var(--ease-out) forwards}
 @keyframes xh-float{0%{opacity:0;transform:translateY(9px)}18%{opacity:1;transform:translateY(0)}72%{opacity:1}100%{opacity:0;transform:translateY(-9px)}}
 /* formula: the same four parts the breakdown screen shows, as one stacked /100 bar.
    Segment growth runs on the ring's own clock so the score visibly assembles. */
-.xhero .xh-formula{margin-top:11px}
+.xhero .xh-formula{margin-top:14px}
 .xf-bar{display:flex;gap:3px;height:8px;border-radius:5px;background:var(--surface-3);overflow:hidden}
 .xf-bar i{height:100%;border-radius:4px;transform-origin:left;animation:xf-grow var(--dur-ring) var(--ease-out)}
 @keyframes xf-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
@@ -616,7 +624,10 @@
 /* ---- premium pass (2026-07-16): light, not shadow. A 1px inner top highlight + a
    whisper of a top-lit gradient makes dark cards read as machined material. Flat cards
    get both; cards that already carry a tinted gradient keep it and get the edge only. ---- */
-.xhero,.xgroup,.res-card{
+/* .xhero is deliberately EXCLUDED: it no longer has a surface to machine. The score sits on the
+   canvas so that size and space carry the hierarchy — giving it an edge highlight would put the
+   box straight back. */
+.xgroup,.res-card{
   background-image:linear-gradient(180deg,rgba(255,255,255,0.018),rgba(255,255,255,0) 42%);
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),var(--sh-card);
 }
