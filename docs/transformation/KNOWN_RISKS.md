@@ -3,81 +3,44 @@
 Ranked. Each entry states what is wrong, the evidence, and what it would take to close.
 Nothing here is hidden behind optimistic language.
 
----
-
-## P0 — blocks a general launch
-
-### 1. The streak algorithm exists twice and has already drifted
-
-`src/core/history.ts:341` and `proto/redesign-2026-07/js/day.js:469` implement `streakInfo()` with
-**contradictory semantics**, and each side's tests assert the opposite of the other:
-
-| | `history.ts` | `day.js` (shipped) |
-|---|---|---|
-| Incomplete today | **zeroes the streak** (`:350`) | never zeroes it (`:482`) — comment: *"the old behavior punished the exact moment retention is decided"* |
-| Grace | one forgiven day in a fixed trailing 7 | one miss per **rolling** 7, repeatable |
-| Activation day | not modelled | excluded |
-| Return shape | `{days, graceUsed, atRisk}` | `{days, todayCounted, graceDate}` |
-
-`history.test.ts:536` asserts a streak of 0 where `protoStreakGrace.test.mjs` asserts a non-zero
-run. **The suite is green while certifying two different answers to "what is my streak?"** — in a
-product whose promise is that the score never lies.
-
-*To close:* founder decision on which semantics win (the proto's reasoning is better and it is
-what athletes actually see), delete the loser, add a third entry to the parity-test family.
-Deleting the dead `src/` tree removes `history.ts` from the build but not the ambiguity.
+**Update 2026-07-26** — the four items previously listed as P0/P1 blockers are now CLOSED. See
+§ "Closed" at the bottom for what was done and how it was verified.
 
 ---
 
-## P1 — documented and justified, not shipped
+## P1 — open, documented, justified
 
-### 2. Unbounded anonymous AI spend
-
-`analyze-meal/index.ts:79` sets `GLOBAL_ANALYSIS_CAP = 5000` and `ANON_IP_ANALYSIS_CAP = 60`. The
-anon key ships in the app bundle and satisfies `verify_jwt`, so ~84 rotating IPs exhaust the daily
-anon budget — real Anthropic spend, every day, and a 429 for every genuine not-yet-signed-in user
-for the rest of the UTC day. There is **no Anthropic-side spend cap anywhere in the repo**; the
-tier-budget helper documents itself as *"a SIGNAL, not a gate — it never denies the call"*
-(`_shared/ai-tier-budget.ts:14`).
-
-*To close:* a hard dollar ceiling with a kill-switch flag, plus attestation or a signed
-first-launch token before an unauthenticated analysis is allowed.
-
-### 3. Light mode is stubbed, not shipped
-
-The three measured contrast failures are fixed and verified. What remains: **249 hardcoded colour
-literals** outside the token file against **8** light-theme override rules; 101 brand-hue washes
-frozen at dark values (30 distinct green alphas alone); 15 gradients that invert direction because
-`--green-bright` is *darker* than its hardcoded partner on light; 9 "premium" highlight rules that
-are white-on-white and simply evaporate.
-
-*To close:* either finish the migration to `-surface`/`-border` tokens, or ship dark-only and
-remove the theme toggle. Shipping a half-migrated light mode is the worst of the three.
-
-### 4. ~19,400 LOC of dead code is compiled into the binary
-
-`src/screens/**` (17,896 LOC across 49 files) is provably unreachable — its only importer is
-`src/Root.tsx`, which nothing imports. It is still pulled into the bundle through the
-`src/core/index.ts` barrel. ~47 further core modules are exercised by nothing but their own unit
-tests.
-
-*To close:* delete `src/screens/**`, `src/Root.tsx`, `src/core/reminders.ts` (its successor
-declares it retired), then kill the barrel and convert four `src/lib` imports to deep type-only
-imports. Caveat: eight dead screens import proto JS, so deleting proto files first would break a
-typecheck of code that can never run.
-
-### 5. 59 touch targets below the 44px floor
-
-Measured across 61 screens. Worst: `.chip` at **20px tall** ("Last 7 days"), `.ai-full-toggle` at
-**19px** ("View full analysis"), `.si-forgot` 24px, `.si-link` 26px, `.btn.ghost` at 30–38px, the
-coach filter chips at 40px, and Back at 33–41px wide. Not fixed in this pass — it needs a shared
-tap-floor utility rather than 59 individual patches, and that is a design-system change best made
-alongside the type-scale migration.
-
-### 6. `monthly-report` has no timeout on its loading state
+### 1. `monthly-report` has no timeout on its loading state
 
 Renders "Building your report…" indefinitely when the fetch never resolves. Caught by the QC
-sweep as a THIN screen. Needs a timeout, an error state and a retry.
+sweep as a THIN screen on every run. Needs a timeout, an error state and a retry — the same
+treatment the meal-analysis failure path already has.
+
+### 2. `coach-commitments` fails to render in the QC harness
+
+Times out at 45s on every sweep. Not yet diagnosed: it may be a harness fixture gap (the screen
+waits on data the Supabase stub does not serve) rather than a product bug. It must be resolved
+either way, because a screen the harness cannot render is a screen nothing verifies.
+
+### 3. The edge functions do not typecheck
+
+`deno check` reports 6 pre-existing errors across the paid functions (readonly tool schemas vs the
+Anthropic SDK's mutable `string[]`). `npm run verify` does not typecheck `supabase/functions` at
+all, so this is invisible in CI. Confirmed pre-existing — the counts are identical before and
+after this pass's edits — but it means an edge function can ship with a type error today.
+
+### 4. Component duplication remains
+
+11 stat-tile implementations, 15 progress-bar primitives, 21 pill classes, 6 empty-state systems,
+4 button systems, 3 skeleton systems, 46 card class names. The type scale that makes consolidating
+them possible now exists but is barely adopted; the box-heavy look persists until it is.
+
+### 5. 92 hardcoded colour literals remain (down from 249)
+
+The remainder are deliberate: the desktop preview bezel (`.device`, not shipped inside the
+WebView), pure-black shadow alphas, and `#fff` on fixed-dark surfaces. These are cosmetic
+inconsistencies rather than legibility failures — no measured contrast failure remains in either
+theme.
 
 ---
 
@@ -91,24 +54,78 @@ sweep as a THIN screen. Needs a timeout, an error state and a retry.
   function has a `commitment_owner_is_staff` gate.
 - **`progress-photos` bucket** lacks the `file_size_limit` / `allowed_mime_types` that `0029` set
   on `meal-photos`.
-- **`plan-generate:287`** checks its global cap before the signed-in branch, so anon abuse can
-  429 paying coaches.
 - **`roll-call-ack`** is not pinned `verify_jwt = false` in `config.toml` — a deploy that forgets
   the flag silently breaks it.
-- **Sync-by-comment across boundaries** — grades, tiers, evidence ceiling, pricing (4 copies,
-  money) and `styleShowsNumbers` are kept in step by comments. Each is a future incident. The
-  cheap fix is to extend the existing `planStyleParity.test.ts` pattern; each is <30 lines.
+- **Sync-by-comment across boundaries** — grades (3 copies incl. plpgsql), tier bands (3 copies),
+  pricing (**4 copies, money**) and `styleShowsNumbers` are kept in step by comments. Each is a
+  future incident. The cheap fix is to extend the existing `planStyleParity.test.ts` pattern; each
+  is under 30 lines.
 - **107 routes** with three hard orphans (`safety`, `states`, `copilot`) and two dead entries
   (`legacy-role`, `meal-confirm`).
-- **No staging environment.** The proto's fallback config points directly at the production
-  Supabase project. All database work in this pass ran against a local instance; no UI work
-  authenticated against production.
+- **No staging environment.** The proto's fallback config points at the production Supabase
+  project. All database work ran against a local instance; no UI work authenticated against
+  production.
+- **Screen-by-screen design work has not started.** Athlete Home still states the same fact three
+  ways above the fold, and the daily score — the product's signature — is visually outranked by
+  the CTA beneath it. See DESIGN_DIRECTION.md.
+- **Performance was never measured.** See PERFORMANCE_RESULTS.md.
 
 ---
 
-## Process risk
+## Closed in this pass
 
-**The RLS suite was red 81% of the day and this was normalised.** It is fixed, but the lesson
+### ✅ Streak drift (was P0)
+
+Two implementations disagreed on whether an incomplete today zeroes the run, on grace, and on
+activation day — and both were green-tested against contradictory expectations.
+
+**Resolved:** the proto's semantics are canonical (an incomplete today does not zero a run at 9am,
+which is when retention is decided). The TS copy is deleted along with `src/screens/**`, its only
+caller — 17,949 lines of unreachable code that was still compiled into the binary.
+`disciplineRecord` now *receives* the streak instead of recomputing it, so a recruiting record
+cannot print a different number from the athlete's own screen.
+**Guarded by** `streakSingleSource.test.ts`, which fails the build if a second implementation
+appears and pins the three rules that define the surviving semantics.
+
+### ✅ Uncapped AI spend (was P1)
+
+**Resolved:** migration 0152 adds an enforced dollar ceiling and a kill switch, over the cost data
+0105 already computes. Wired into the four highest-volume paid functions, fail-closed. Unlike the
+call-count caps it applies to signed-in callers too, because if the bill is at the wall,
+continuing to spend helps no one.
+
+Also: `plan-generate`'s global cap is now anon-only (it previously let anon abuse 429 every paying
+coach), and anon global ceilings dropped 5000 → 750. `ANON_IP_CAP` deliberately stays at 60 — a
+team of 60 onboarding on one school wifi shares one NAT'd IP, and cutting it would break the core
+sales motion while barely inconveniencing an attacker who rotates IPs.
+
+**Verified** against a local database: default allows, kill switch and exhausted cap both refuse
+with the right reason, and `anon`/`authenticated` cannot execute either function.
+
+### ✅ Light mode (was P1)
+
+**Resolved, not hidden.** 249 hardcoded literals → 92. Brand hues became RGB triples so any alpha
+flips with the theme (102 washes); gradient fills now pair `--hue` with a new `--hue-deep` so they
+stop inverting on light (15 gradients); `--ink-on-accent` and `--teal-deep` retired the seven ad-hoc
+inks and an undefined brand colour.
+
+**Verified:** 0 contrast failures across all 61 screens in both themes, and inspected visually.
+
+### ✅ Touch targets (was P1)
+
+**Resolved:** 59 → **0** across 122 captures in both themes. Form fields grow; everything else
+keeps its visual size and expands only its hit area via a centred pseudo-element.
+
+The measuring instrument was fixed too — it measured the painted box, so it could never have shown
+this green. A metric that cannot go green gets ignored, which is the same normalisation that let a
+red security suite sit unnoticed for months.
+
+---
+
+## Process risk (unchanged, and the most important entry here)
+
+**The RLS suite was red 81% of the day and this had been normalised.** It is fixed, but the lesson
 generalises: this codebase's recurring failure mode is not carelessness, it is *defects with no
-automated guard* — table grants (three recurrences), role chrome (three instances in one fix),
-time-dependent tests. Every fix in this pass ships with a guard for that reason.
+automated guard* — table grants (three recurrences), role chrome (three instances found in one
+fix), time-dependent tests, and a streak that drifted in plain sight while both suites stayed
+green. Every fix in this pass ships with a guard for that reason.

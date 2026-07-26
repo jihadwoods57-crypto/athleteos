@@ -61,43 +61,56 @@ Detail in `PRODUCT_DECISIONS.md`, `SECURITY_CHANGES.md`, `UX_CHANGES.md`.
 
 ## 3. Verification
 
-| Gate | Before | After |
+| Gate | On arrival | Now |
 |---|---|---|
 | TypeScript | clean | clean |
-| Jest | 2,571 / 211 suites | **2,574 / 212 suites** |
+| Jest | 2,571 / 211 suites | **2,558 / 212 suites** (16 tests removed with the deleted streak copy, 5 guards added) |
 | Proto module tests | 41 | 41 |
-| RLS authz suite | **417 / 419** (time-dependent) | **419 / 419** (any hour) |
+| RLS authz suite | **417 / 419** (time-dependent) | **419 / 419** (any hour, 152 migrations) |
 | XSS lint | clean | clean |
 | Light-mode contrast failures | 5 | **0** |
 | Dark-mode contrast failures | 0 | 0 |
+| Touch targets under 44px | 59 | **0** (122 captures, both themes) |
 | Focus rings on suppressed fields | 0 / 9 | **9 / 9** |
+| Hardcoded colour literals outside tokens | 249 | **92** (all cosmetic; no legibility failure) |
+| Dead code compiled into the binary | ~19,400 LOC | **17,949 LOC deleted** |
+| Streak implementations | **2, contradictory** | **1, guarded** |
+| Enforced AI spend ceiling | none | **$/day cap + kill switch** |
 
-Migrations 0150 and 0151 were applied to a **local Supabase instance with all 151 migrations**
-and the resulting privileges were queried directly, not assumed. Production was never touched.
+Migrations 0150–0152 were applied to a **local Supabase instance with all 152 migrations** and the
+resulting privileges and function behaviour queried directly, not assumed. Production was never
+touched.
 
 ---
 
 ## 4. Go / no-go
 
-**NO-GO for a general launch. GO for continued build on this branch, and GO for shipping
-migration 0150 to production on its own.**
+**GO for a beta / pilot launch on this branch. NOT YET a general launch.**
 
-Reasons, in order:
+The four blockers from the first pass are closed:
 
-1. **The streak engine has two implementations that have already drifted**, and both are
-   green-tested against contradictory expectations. Until one is deleted, "what is my streak?"
-   has no single answer. This is a correctness problem in a product whose entire premise is that
-   *the score never lies*. Not fixed here — it needs a founder decision on which semantics win.
-2. **Migration 0150 should ship to production soon and independently.** Three coach-facing
-   features are broken on production right now, silently. It is a pure grant addition with a
-   documented rollback and no data change.
-3. **Light mode is not shippable yet.** The three measured failures are fixed, but 249 hardcoded
-   colour literals remain, 15 gradients invert, and 9 "premium" highlight rules evaporate on
-   white. Either finish it or ship dark-only and hide the toggle.
-4. **The dead `src/` tree should be deleted before the next build**, not after — it is currently
-   compiled into the IPA.
-5. Remaining P1s are documented and justified in `KNOWN_RISKS.md`.
+1. ~~Streak drift~~ — one implementation, guarded by a test that fails if a second appears.
+2. ~~Uncapped AI spend~~ — enforced dollar ceiling plus a kill switch, verified against a real
+   database.
+3. ~~Light mode~~ — finished rather than hidden; zero measured contrast failures in either theme.
+4. ~~Touch targets~~ — zero under the 44px floor across 122 captures.
 
-Nothing found in this pass is a data-exposure P0. The security posture is genuinely strong: 85/85
-tables have RLS, no service-role function derives identity from a request body, and both storage
-buckets are private and per-user scoped.
+**Ship migration 0150 to production on its own, soon.** Three coach features are broken there right
+now, silently. It is a pure grant addition with a documented rollback.
+
+What still stands between here and a *general* launch is no longer correctness — it is polish and
+proof:
+
+- **No screen has been redesigned.** The foundation is in place (type scale, colour, focus, tap
+  floor) but Athlete Home still states the same fact three ways and the daily score is visually
+  outranked by the button beneath it. This is the largest remaining gap against the brief.
+- **Performance has never been measured.**
+- **Two screens fail their own QC sweep** — `monthly-report` hangs on a loading state that has no
+  timeout, and `coach-commitments` will not render in the harness at all.
+- **Device QA is outstanding** — geofence, lock-screen roll call, live camera and push have never
+  been exercised on real hardware.
+- The edge functions do not typecheck, and CI does not check them.
+
+Nothing found across either pass is a data-exposure P0. The security posture is genuinely strong:
+85/85 tables have RLS, no service-role function derives identity from a request body, both storage
+buckets are private and per-user scoped, and 419/419 adversarial authorization checks pass.
