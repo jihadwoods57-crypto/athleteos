@@ -303,7 +303,7 @@ function hero(e) {
   lastHomeScore = e.score;
   return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
@@ -336,7 +336,7 @@ function inProgressHero(e) {
     : `<b>${e.met}</b> of <b>${e.total}</b> done today`;
   return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
         <div class="xrow"><span class="status-pill inprog">In progress</span></div>

@@ -76,12 +76,21 @@ export function nonLiveBadge() {
 /* Signature score ring — cinematic, uncontained. Layers:
    rotating aurora (CSS) → under-glow arc → thick gradient band → inner echo
    ring → comet tip + lens sparkle → center stack (label / N / /100 / delta / streak). */
-export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false } = {}) {
+export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null } = {}) {
   const r = (size - stroke) / 2 - 14;
   const rEcho = Math.max(0, r - stroke/2 - 8);
   const cx = size / 2, cy = size / 2;
   const C = 2 * Math.PI * r;
   const off = C * (1 - score / 100);
+  // Ceiling arc: the points STILL REACHABLE today, drawn as a dim continuation of the same band
+  // from `score` to `possible`. The number was already on the card ("max today 71") but the ring
+  // only ever showed what had been earned, so a bad morning read as an empty ring with no way
+  // back. Renders nothing once the day is decided (possible === score) or when no ceiling is
+  // passed, which is every other call site.
+  const ceil = (possible != null && possible > score) ? {
+    span: C * ((possible - score) / 100),
+    rot: -90 + (score / 100) * 360,   // DEGREES — tipA below is radians, do not copy it
+  } : null;
   // comet tip position (start at top, clockwise)
   const tipA = -Math.PI / 2 + (score / 100) * 2 * Math.PI;
   const tipX = cx + Math.cos(tipA) * r, tipY = cy + Math.sin(tipA) * r;
@@ -119,6 +128,14 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
         transform="rotate(-90 ${cx} ${cy})"/>
       <!-- track: dotted "ready" style below score 6 so an empty day reads as unstarted, not broken -->
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(148,176,224,0.10)" stroke-width="${stroke}"${score < 6 ? ' stroke-dasharray="1.4 5"' : ''}/>
+      <!-- ceiling: sits between the track and the main band so the band's round cap paints over
+           the seam. butt cap, not round — a round cap would bulge past the comet tip and read as
+           a second competing band. animateRing() drives it like any other .ring-arc. -->
+      ${ceil ? `<circle class="ring-arc ring-ceil" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
+        stroke-width="${stroke}" stroke-linecap="butt"
+        stroke-dasharray="${ceil.span.toFixed(1)} ${(C - ceil.span).toFixed(1)}"
+        stroke-dashoffset="${ceil.span.toFixed(1)}" data-off="0"
+        transform="rotate(${ceil.rot.toFixed(2)} ${cx} ${cy})"/>` : ''}
       <!-- main band -->
       <circle class="ring-arc" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke}" stroke-linecap="round"

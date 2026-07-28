@@ -180,6 +180,11 @@ body {
   animation: breathe 4.5s ease-in-out infinite;
 }
 @keyframes breathe { 0%,100% { opacity: 0.65; } 50% { opacity: 1; } }
+/* The still-reachable stretch: present enough to read as a path, quiet enough that it can never
+   be mistaken for points already earned. (SVG presentation attributes can't take var(), so the
+   dimming lives here rather than on the element.) */
+.ring-arc.ring-ceil { opacity: 0.32; }
+:root[data-theme="light"] .ring-arc.ring-ceil { opacity: 0.38; }
 .ring-tip.pulse { animation: tipPulse 2.4s ease-in-out infinite; }
 @keyframes tipPulse { 0%,100% { opacity: 0.8; } 50% { opacity: 1; } }
 .ring-svg { position: relative; z-index: 1; display: block; }
