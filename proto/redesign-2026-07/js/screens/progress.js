@@ -1,6 +1,7 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
+import { scoreBand } from '../score-band.js';
 
 /* Progress (spec §8): day one is a real baseline, never an empty tab; populated stays
    athlete-friendly — one score trend, one consistency summary, one category breakdown,
@@ -155,10 +156,10 @@ export default {
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
       <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} day${P.onDays === 1 ? '' : 's'} on standard (≥80) · best streak ${P.bestStreak}d</div>
-      <div class="weekbars">
+      <div class="weekbars" role="img" aria-label="Last ${P.weekScores.length} days: ${P.weekScores.map((v, i) => `${P.weekDayLabels[i] || ''} ${v}`).join(', ')}. The standard is 80.">
         ${P.weekScores.map((v, i) => `
-          <div class="wb ${v >= 80 ? 'hi' : ''}">
-            <div class="bar" style="height:${Math.round((v / 100) * 86)}px"></div>
+          <div class="wb b-${scoreBand(v) || 'off'}">
+            <div class="track"><div class="bar" style="height:${Math.max(0, Math.min(100, v))}%"></div></div>
             <span class="d">${P.weekDayLabels[i] || ''}</span>
           </div>`).join('')}
       </div>
