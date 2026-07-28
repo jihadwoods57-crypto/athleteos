@@ -36,12 +36,9 @@ contained a genuine syntax error (an apostrophe closing a single-quoted string);
 stale cache and only the deploy bundler caught it. `deno check --reload` reproduces it. Any CI
 wiring must pass `--reload` or it will provide false assurance.
 
-The 6 pre-existing readonly-tool-schema errors remain.
-
-`deno check` reports 6 pre-existing errors across the paid functions (readonly tool schemas vs the
-Anthropic SDK's mutable `string[]`). `npm run verify` does not typecheck `supabase/functions` at
-all, so this is invisible in CI. Confirmed pre-existing — the counts are identical before and
-after this pass's edits — but it means an edge function can ship with a type error today.
+Separately, `deno check` reports 6 pre-existing errors across the paid functions (readonly tool
+schemas vs the Anthropic SDK's mutable `string[]`), and `npm run verify` does not typecheck
+`supabase/functions` at all — so both problems are invisible in CI today.
 
 ### 4. Component duplication remains
 
