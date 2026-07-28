@@ -3,7 +3,9 @@ import { DAY, MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg } from '../components.js';
 import { cachedMealPhoto, warmMealPhotos, resolveMealPhoto } from '../photo-store.js';
-import { fetchRecentMeals, daysAgoISO } from '../roles.js';
+import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment } from '../roles.js';
+import { threadMessages } from '../meal-intel.js';
+import { composer } from '../components.js';
 import { openImageViewer } from '../image-viewer.js';
 
 /* ---------- Trust Pass detail: the earned camera-free reward, rules visible ---------- */
@@ -249,10 +251,79 @@ export const history = {
 /* ---------- Read-only meal view for PAST days (spec §15.3) ----------
    Renders the fetched meals row: photo (full-screen viewer), quality, foods, macros, the
    AI analysis, and the athlete's note. Today's meals use the live thread instead. */
+/* A meal fetched directly by id. The AI's daily follow-up deep-links straight here from a push,
+   which can land long before the history cache is warm — without this the athlete taps a message
+   about their dinner and gets "Couldn't open this meal". */
+let DIRECT = { id: null, row: null };
+async function fetchMealById(id) {
+  if (!id || !window.sb || DIRECT.id === id) return;
+  try {
+    const { data } = await window.sb.from('meals')
+      .select('id,athlete_id,type,name,quality,protein,carbs,fat,kcal,detected,note,analysis,photo_path,day_date,logged_at,minutes_late')
+      .eq('id', id).maybeSingle();
+    DIRECT = { id, row: data || null };
+    if (data) window.__render && window.__render();
+  } catch { /* the empty state below is honest */ }
+}
+
+/* The conversation on a past meal. Same rows as the live thread (meal_comments), same rules —
+   the AI reply is written server-side by meal-chat, so we post the athlete's message and REFETCH
+   rather than appending a reply the server has not confirmed. */
+function mountThread(root, mealId, meal) {
+  const threadEl = root.querySelector('#mv-thread');
+  const input = root.querySelector('#mv-msg');
+  const send = root.querySelector('#mv-send');
+  const note = root.querySelector('#mv-note');
+  if (!threadEl) return;
+  let rows = [];
+
+  const paint = () => {
+    const msgs = threadMessages(rows);
+    threadEl.innerHTML = msgs.length
+      ? msgs.map((c) => `
+        <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
+          ${c.role !== 'athlete' ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : 'C'}</div>` : ''}
+          <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'AI Nutritionist' : 'Coach'}</div>` : ''}
+          <div class="bubble">${esc(String(c.text || ''))}</div></div>
+        </div>`).join('')
+      : '<div class="msg-status">No messages on this meal yet.</div>';
+  };
+
+  const refresh = async () => {
+    rows = await fetchMealComments(mealId).catch(() => []);
+    if (root.isConnected) paint();
+  };
+  void refresh();
+
+  let busy = false;
+  const submit = async () => {
+    const text = input && input.value.trim();
+    if (!text || busy) return;
+    busy = true;
+    if (note) note.textContent = '';
+    const ok = await postMealComment(mealId, meal.athlete_id || RT.userId, RT.userId, 'athlete', text).catch(() => false);
+    if (!ok) { busy = false; if (note) note.textContent = "Couldn't send that. Try again when you're back online."; return; }
+    if (input) input.value = '';
+    await refresh();
+    try {
+      await window.sb.functions.invoke('meal-chat', { body: { mealId, question: text, context: {
+        meal: { name: meal.name || meal.type, slot: meal.type, quality: meal.quality,
+                macros: { protein: meal.protein, carbs: meal.carbs, fat: meal.fat, cals: meal.kcal }, note: meal.note },
+        plan: { goal: RT.primaryGoal || null, allergies: RT.allergies },
+        thread: threadMessages(rows).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
+      } } });
+      await refresh();
+    } catch { if (note) note.textContent = 'Sent. The reply will appear when the connection is back.'; }
+    busy = false;
+  };
+  if (send) send.addEventListener('click', submit);
+  if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } });
+}
+
 export const mealView = {
   tab: 'progress',
   render({ sub }) {
-    const m = histMealById(sub);
+    const m = histMealById(sub) || (DIRECT.id === sub ? DIRECT.row : null);
     if (!m) {
       return `${backHead('Meal', 'Not available', 'history')}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
@@ -289,11 +360,19 @@ export const mealView = {
       <div class="av">${icon('sparkle', 18)}</div>
       <div><div class="who">AI Analysis</div><p>${esc(m.analysis || m.note)}</p></div>
     </div>` : ''}
+    <div class="eyebrow" style="margin-top:16px">Conversation</div>
+    <div class="thread" id="mv-thread">
+      <div class="msg-status">Loading…</div>
+    </div>
+    ${composer({ inputId: 'mv-msg', sendId: 'mv-send', placeholder: 'Reply about this meal…', sendLabel: 'Send' })}
+    <div id="mv-note" style="min-height:18px"></div>
     <div style="height:10px"></div>`;
   },
   mount(root, { sub }) {
-    const m = histMealById(sub);
-    if (!m || !m.photo_path) return;
+    const m = histMealById(sub) || (DIRECT.id === sub ? DIRECT.row : null);
+    if (!m) { void fetchMealById(sub); return; }
+    mountThread(root, sub, m);
+    if (!m.photo_path) return;
     resolveMealPhoto(m.photo_path).then((url) => {
       if (!url || !root.isConnected) return;
       const hero = root.querySelector('#mv-hero');
