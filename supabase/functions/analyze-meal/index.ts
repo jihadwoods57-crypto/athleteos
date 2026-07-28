@@ -35,11 +35,13 @@ import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { buildVoiceDirective, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
-import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
+import { flagOn } from '../_shared/feature-flags.ts';
 import {
   composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
 } from '../_shared/plan-style.ts';
 import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
+import { loadMemoryForAthlete } from '../_shared/memory-load.ts';
+import { memoryBlock, avoidFromFacts, type MemoryFact } from '../_shared/memory.ts';
 import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
@@ -112,23 +114,6 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 function svcClient(): { from: (t: string) => any; rpc: (fn: string, args?: Record<string, unknown>) => any } | null {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-}
-async function flagOn(
-  sb: { from: (t: string) => any },
-  name: string,
-  ctx: { userId?: string | null; role?: string | null; orgId?: string | null },
-): Promise<boolean> {
-  try {
-    const { data } = await sb
-      .from('feature_flags')
-      .select('name, default_on, kill_switch, enabled_user_ids, enabled_roles, enabled_org_ids')
-      .eq('name', name)
-      .maybeSingle();
-    if (!data) return false;
-    return evaluateFlag(data as FlagRow, ctx);
-  } catch {
-    return false;
-  }
 }
 
 async function resolveUserId(req: Request): Promise<string | null> {
@@ -929,11 +914,6 @@ Deno.serve(async (request) => {
   }
 
   const baseSystem = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
-  // Typed once here: the *Content builders return unknown[], which the SDK's ContentBlockParam[]
-  // rejects at every call site that passes it. Casting at the source fixes the primary call and
-  // both fallback re-runs together, instead of three separate casts.
-  const content = (isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req, photoMime) : userContent(req, photoMime)) as unknown as Anthropic.ContentBlockParam[];
-
   // Coach Voice v2 (flag-gated, meal path only): when coach_voice_v2 is on for this athlete AND
   // their team has an enabled Voice config, prepend the coach's voice directive so the note/analysis
   // read in the coach's tone. Deterministic authority (macros/score/timing) is untouched — the
@@ -946,6 +926,7 @@ Deno.serve(async (request) => {
   // come from an explicit row the loader reads. See plan-style-load.ts's header.
   let planStyle: PlanStyle | null = null;
   let styleSource: string | null = null;
+  let memFacts: MemoryFact[] = [];
   if (isMeal && userId) {
     const sb = svcClient();
     if (sb) {
@@ -955,13 +936,42 @@ Deno.serve(async (request) => {
       }
       const st = await loadPlanStyleForAthlete(sb, userId);
       if (st) { planStyle = st.style; styleSource = st.source; }
+      // ATHLETE MEMORY (0019). Confirmed facts only — what this athlete's own corrections have
+      // taught us about how to read their plates. Flag-gated; absent, the prompt is byte-identical
+      // to before.
+      if (await flagOn(sb, 'ai_memory', { userId })) {
+        memFacts = await loadMemoryForAthlete(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, userId);
+        // Confirmed allergies/dislikes join the avoid-list the model is already told to honour.
+        // Server-verified, so it holds even when an older client sends nothing.
+        const memAvoid = avoidFromFacts(memFacts);
+        if (memAvoid.length) {
+          const seen = new Set((req.avoid || []).map((x) => String(x).toLowerCase()));
+          req.avoid = (req.avoid || []).concat(memAvoid.filter((x) => !seen.has(x))).slice(0, 20);
+        }
+      }
     }
   }
   // Voice -> style -> base. `styledBase` is the prompt WITHOUT the coach voice but WITH the style:
   // the voice fallback below re-runs on it, so dropping a banned word can never also drop the
   // style rail (which would hand an Intuitive athlete a macro-quoting prompt to fix a tone slip).
+  // Built AFTER the per-athlete loads above: the memory block merges confirmed allergies and
+  // dislikes into req.avoid, and userContent() renders that into the prompt text. Building it any
+  // earlier silently dropped them.
+  // Typed once here: the *Content builders return unknown[], which the SDK's ContentBlockParam[]
+  // rejects at every call site that passes it. Casting at the source fixes the primary call and
+  // both fallback re-runs together, instead of three separate casts.
+  const content = (isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req, photoMime) : userContent(req, photoMime)) as unknown as Anthropic.ContentBlockParam[];
+
   const styledBase = composeSystem(baseSystem, '', planStyle);
-  const system = composeSystem(baseSystem, voiceCfg ? buildVoiceDirective(voiceCfg) : '', planStyle);
+  let system = composeSystem(baseSystem, voiceCfg ? buildVoiceDirective(voiceCfg) : '', planStyle);
+  // Memory rides the SYSTEM prompt, appended last so it can inform the read without competing with
+  // the style rail or the voice directive above it. Framed explicitly as data, not instructions —
+  // the values are athlete-authored text (sanitized in memory-load.ts), so they are never allowed
+  // to read as commands.
+  const memBlock = memFacts.length ? memoryBlock(memFacts) : '';
+  if (memBlock) system = `${system}
+
+${memBlock}`;
 
   // Tool set + choice. Meal phase 'analyze' may EITHER finalize or ask a clarifying question, so it
   // offers both tools and lets the model choose. Every other path (label/memory/order, and meal

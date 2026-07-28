@@ -27,6 +27,9 @@ import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 import { checkSpend, EST_USD } from '../_shared/spend-gate.ts';
+import { loadMemoryForAthlete } from '../_shared/memory-load.ts';
+import { memoryBlock } from '../_shared/memory.ts';
+import { flagOn } from '../_shared/feature-flags.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const DAILY_CAP = Math.max(1, Math.floor(Number(Deno.env.get('MEAL_CHAT_DAILY_CAP') ?? '10')) || 10);
@@ -192,6 +195,13 @@ Deno.serve(async (req) => {
     // unknowingly send macro figures to an athlete who is deliberately not tracking them.
     const planStyle: PlanStyle | null =
       (await loadPlanStyleForAthlete(service, mealRow.athlete_id))?.style ?? null;
+    // ATHLETE MEMORY (0019), for the MEAL OWNER — same reasoning as plan style: the person the
+    // words are about is the athlete, not whoever is asking. Confirmed facts only. Loaded
+    // server-side rather than merged into the client `context` blob, which is clamped at 8KB and
+    // would silently drop them.
+    const memBlock = (await flagOn(service, 'ai_memory', { userId: mealRow.athlete_id }))
+      ? memoryBlock(await loadMemoryForAthlete(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, mealRow.athlete_id))
+      : '';
     const styleSafe = (text: string): string => {
       // Shared tail of both call sites below: one corrected retry is handled inline by the
       // caller; this is the final rail that guarantees nothing unsafe is ever persisted.
@@ -290,7 +300,9 @@ Deno.serve(async (req) => {
     const msg = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 400,
-      system: [{ type: 'text', text: composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: memBlock ? `${composeSystem(SYSTEM, '', planStyle)}
+
+${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
       tools: replyTools,
       tool_choice: { type: 'tool', name: 'reply' },
       messages: [{

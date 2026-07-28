@@ -27,6 +27,7 @@ import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-noti
 import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
 import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs } from './meal-outbox.js';
+import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './memory.js';
 import {
   groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
   mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions, shouldVerify,
@@ -42,6 +43,7 @@ import {
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
   fetchTrustPassPolicy, fetchTeamWeekPattern, fetchCoachSetupState, fetchMyRoomLabel,
+  fetchMyMemoryFacts, upsertMemoryFact, setMemoryFactStatus,
   todayISO,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
@@ -975,6 +977,71 @@ export const act = {
     void this.drainMealOutbox();
   },
 
+  /* ---------------------------------------------------------------------------------------
+     MEMORY. Turn corrections into durable facts about this athlete (0019, live on prod and — until
+     now — read by nothing). Safety kinds land as `pending_confirmation` and only bind when the
+     athlete confirms them in the thread; nothing inferred can put a word in the model's mouth.
+     --------------------------------------------------------------------------------------- */
+
+  /** At most this many fact writes per day, so a correction spree can't flood the table. */
+  _memoryBudgetLeft() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (RT.memDay !== today) return 5;
+    return Math.max(0, 5 - (Number(RT.memUsed) || 0));
+  },
+  _memoryBudgetSpend() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (RT.memDay !== today) { RT.memDay = today; RT.memUsed = 0; }
+    RT.memUsed = (Number(RT.memUsed) || 0) + 1;
+    save();
+  },
+
+  async _writeMemoryCandidates(cands) {
+    if (!RT.userId || !window.sb || !cands || !cands.length) return;
+    const existing = await fetchMyMemoryFacts(RT.userId).catch(() => []);
+    for (const c of cands) {
+      if (!c || !c.value) continue;
+      if (this._memoryBudgetLeft() <= 0) return;
+      const prior = existing.find((e) => sameFact(e, c));
+      const ok = await upsertMemoryFact(RT.userId, c, prior).catch(() => false);
+      if (ok) this._memoryBudgetSpend();
+    }
+  },
+
+  /** Pending facts awaiting the athlete's yes/no. Cached per render pass by the thread. */
+  async pendingMemoryFacts() {
+    if (!RT.userId || !window.sb) return [];
+    const all = await fetchMyMemoryFacts(RT.userId).catch(() => []);
+    return all.filter((f) => f && f.status === 'pending_confirmation');
+  },
+
+  /** The confirmation itself — the ONLY thing that lets an inferred safety fact reach a prompt. */
+  async confirmMemoryFact(id, keep) {
+    if (!RT.userId) return false;
+    const ok = await setMemoryFactStatus(RT.userId, id, keep ? 'active' : 'rejected').catch(() => false);
+    if (ok) { track(EVENTS.MEMORY_FACT_CONFIRMED, { keep: !!keep }); window.__render && window.__render(); }
+    return ok;
+  },
+
+  async _learnFromCorrection(correction) {
+    try {
+      const kind = correction && correction.kind;
+      const value = correction && correction.value;
+      await this._writeMemoryCandidates(factsFromCorrection(kind, value));
+    } catch { /* never break a correction on memory */ }
+  },
+
+  /** Food-level edits made on the review screen, harvested once at log time (not per keystroke). */
+  async _learnFromFoodEdits(result) {
+    try {
+      if (!result || !result.detectedRich) return;
+      const after = result.detectedRich;
+      const before = Array.isArray(result.origDetected) ? result.origDetected : null;
+      if (!before) return;
+      await this._writeMemoryCandidates(candidateFactsFromFoodChange(before, after));
+    } catch { /* best-effort */ }
+  },
+
   /* Post-log macro enrichment (background, fire-and-forget). Resolves the foods the curated table
      couldn't ground (gapFoods) against USDA/OFF via the enrich-meal function, so the NEXT time this
      population logs the same branded/restaurant food it grounds on real data — and seeds the
@@ -1498,6 +1565,10 @@ export const act = {
     // Quality metrics (item 8b): counts-only signal that a photo read needed a fix — no macro
     // values, no free text. Feeds the correction-rate side of admin_meal_quality_metrics.
     track(EVENTS.MEAL_CORRECTED, { kind: String((correction && correction.kind) || 'other').slice(0, 24) });
+    // TEACH THE MODEL. A correction is evidence about this athlete, not just about this plate:
+    // "portion was double" repeated is a calibration prior worth more than any single fix.
+    // Fire-and-forget — memory must never be able to break a correction.
+    void this._learnFromCorrection(correction);
     // Mirror the corrected numbers onto the meals row the coach reads (athlete owns the row —
     // meals_update RLS). The original stays in the day meta's `orig`; the note carries the trail.
     const sb = window.sb;

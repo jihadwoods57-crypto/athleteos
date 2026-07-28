@@ -1437,4 +1437,55 @@ export async function fetchInterventionOutcomes(bookId, fromISO, kind = 'team') 
   } catch { return []; }
 }
 
+/* ---------------- Athlete memory (0019) ----------------
+   What the athlete's corrections teach the AI about them. RLS `mem_self` gives an athlete full
+   control of their own rows, so these are plain client writes — no RPC needed. Every call is
+   best-effort and never throws: memory is an enhancement, and a failure here must never break a
+   correction the athlete just made. */
+
+/** Active + pending facts for the signed-in athlete. */
+export async function fetchMyMemoryFacts(uid) {
+  const c = sb(); if (!c || !uid) return [];
+  try {
+    const { data } = await c.from('athlete_memory_facts')
+      .select('id,kind,value,confidence,evidence_n,status')
+      .eq('athlete_id', uid).in('status', ['active', 'pending_confirmation']).limit(120);
+    return data || [];
+  } catch { return []; }
+}
+
+/** Insert a new fact, or accrue evidence on the one that already says the same thing. */
+export async function upsertMemoryFact(uid, fact, existing) {
+  const c = sb(); if (!c || !uid || !fact) return false;
+  try {
+    if (existing && existing.id) {
+      const { error } = await c.from('athlete_memory_facts').update({
+        evidence_n: (Number(existing.evidence_n) || 1) + 1,
+        confidence: Math.min(1, (Number(existing.confidence) || 0.3) + 0.15),
+        last_seen: new Date().toISOString(),
+      }).eq('id', existing.id).eq('athlete_id', uid);
+      return !error;
+    }
+    const { error } = await c.from('athlete_memory_facts').insert({
+      athlete_id: uid, kind: fact.kind, value: fact.value,
+      confidence: fact.confidence == null ? 0.3 : fact.confidence,
+      source: fact.source || 'inferred_correction',
+      evidence_n: fact.evidence_n || 1, status: fact.status || 'pending_confirmation',
+    });
+    return !error;
+  } catch { return false; }
+}
+
+/** The athlete confirming or rejecting a pending fact. This is the only thing that makes an
+ *  inferred safety fact bind. */
+export async function setMemoryFactStatus(uid, id, status) {
+  const c = sb(); if (!c || !uid || !id) return false;
+  try {
+    const { error } = await c.from('athlete_memory_facts')
+      .update({ status, last_seen: new Date().toISOString() })
+      .eq('id', id).eq('athlete_id', uid);
+    return !error;
+  } catch { return false; }
+}
+
 export { cap };

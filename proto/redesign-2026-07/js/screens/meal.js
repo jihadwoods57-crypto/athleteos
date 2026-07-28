@@ -19,6 +19,18 @@ async function warmRecent(rolesMod, uid) {
   RECENT = { uid, rows: (rows || []).slice().reverse(), at: Date.now() }; // ascending for mealPatterns
   if (location.hash.startsWith('#meal-')) window.__render && window.__render();
 }
+/* Pending memory facts (0019): things the athlete's corrections SUGGEST but which must never bind
+   until they say so. Cached with the same idiom as RECENT/RECEIPT; the thread renders at most one
+   confirmation at a time, so a correction spree can't turn into an interrogation. */
+let PENDING_FACTS = { uid: null, rows: [], at: 0 };
+async function warmPendingFacts(uid) {
+  if (!uid) return;
+  if (PENDING_FACTS.uid === uid && Date.now() - PENDING_FACTS.at < 60000) return;
+  const rows = await act.pendingMemoryFacts().catch(() => []);
+  PENDING_FACTS = { uid, rows: rows || [], at: Date.now() };
+  if (location.hash.startsWith('#meal-')) window.__render && window.__render();
+}
+
 /* Coach day-receipt (0043) for the athlete-visible "Reviewed by Coach" state — same cache idiom. */
 let RECEIPT = { uid: null, date: null, reviewed: false, at: 0 };
 async function warmReceipt(rolesMod, uid, dateISO) {
@@ -221,6 +233,27 @@ export function openingBlockHtml(M, { sum, fullText, fq } = {}) {
           <div style="margin-top:4px;color:var(--text-2)">Logged and counting. The breakdown lands here in a few seconds — you don't have to wait on this screen.</div>`, 'analysis-pending');
   }
 
+  // ONE pending-fact confirmation, and only when it is about a food on THIS plate — an inferred
+  // dislike is weak evidence, so it is worth a single tap in context, never a queue of prompts.
+  const plate = new Set((M && Array.isArray(M.detectedRich) ? M.detectedRich : [])
+    .map((d) => String((d && d.name) || '').toLowerCase()).filter(Boolean));
+  const askFact = (PENDING_FACTS.rows || []).find((f) => f && f.kind === 'dislike' && plate.has(String(f.value).toLowerCase()))
+    || (PENDING_FACTS.rows || [])[0] || null;
+  const confirmRow = askFact ? `
+      <div class="msg ai" id="fact-confirm">
+        <div class="av">${icon('sparkle', 15)}</div>
+        <div><div class="who">AI Nutritionist</div>
+        <div class="bubble">
+          ${esc(askFact.kind === 'dislike'
+            ? `Noted — you took ${askFact.value} off a plate. Skip it in future reads?`
+            : `Should I remember: ${askFact.kind.replace(/_/g, ' ')} — ${askFact.value}?`)}
+          <div class="fq-chips">
+            <button class="fx-chip" data-fact="${esc(askFact.id)}" data-keep="1">Yes, remember</button>
+            <button class="fx-chip" data-fact="${esc(askFact.id)}" data-keep="0">No, one-off</button>
+          </div>
+        </div></div>
+      </div>` : '';
+
   return `
       <div class="msg ai">
         <div class="av">${icon('sparkle', 15)}</div>
@@ -241,7 +274,8 @@ export function openingBlockHtml(M, { sum, fullText, fq } = {}) {
           ${esc(fq.q)}
           <div class="fq-chips">${fq.chips.map(c => `<button class="fx-chip" data-fq="${esc(fq.kind)}" data-val="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>
         </div></div>
-      </div>` : ''}`;
+      </div>` : ''}
+      ${confirmRow}`;
 }
 
 /* ---------- Meal Analysis (AI, pre-log) ----------
@@ -770,6 +804,7 @@ export const thread = {
     // Real history for patterns + the coach day-receipt for the status line (both cached,
     // both repaint-once). Fired in the background — the screen never waits on them.
     void warmRecent(roles, RT.userId);
+    void warmPendingFacts(RT.userId);
     void warmReceipt(roles, RT.userId, String(DAY.date)).then(() => {
       const el = root.querySelector('#coach-status');
       if (el && el.textContent === 'Sent to Coach' && RECEIPT.reviewed) el.textContent = 'Reviewed by Coach';
@@ -945,6 +980,14 @@ export const thread = {
     // Pending-read controls. Delegated on the root because openingBlockHtml re-renders these rows
     // on every repaint — a direct listener would be lost the first time the thread refreshed.
     root.addEventListener('click', (ev) => {
+      // Memory confirmation: the athlete's tap is the ONLY thing that lets an inferred fact bind.
+      const fx = ev.target && ev.target.closest ? ev.target.closest('[data-fact]') : null;
+      if (fx) {
+        const id = fx.getAttribute('data-fact');
+        PENDING_FACTS = { uid: PENDING_FACTS.uid, rows: (PENDING_FACTS.rows || []).filter((f) => f.id !== id), at: Date.now() };
+        void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
+        return;
+      }
       const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis') : null;
       if (!t) return;
       if (t.id === 'mt-retry-analysis') { act.retryAnalysis(M.slot); return; }
