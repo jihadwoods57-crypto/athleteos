@@ -75,14 +75,18 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
-  /* Bottom pad must clear the 96px tabbar on EVERY screen; a big home-indicator inset
+  /* Bottom pad must clear the tabbar on EVERY screen; a big home-indicator inset
      grows the clearance instead of eating it (nav must never cover the last action). */
-  padding: 4px var(--pad-screen) calc(128px + max(0px, env(safe-area-inset-bottom, 0px) - 22px));
+  padding: 4px var(--pad-screen) calc(var(--nav-h) + 32px + max(0px, env(safe-area-inset-bottom, 0px) - 22px));
   scroll-behavior: smooth;
 }
 .viewport::-webkit-scrollbar { display: none; }
 /* full-bleed screens (camera) opt out of padding */
 .viewport.bleed { padding: 0 0 0 0; }
+/* A screen that renders no tab bar has nothing to clear. These carried the full nav clearance
+   anyway — ~104px of dead scroll under the last button on the meal result, settings, recovery
+   and 12 other screens. */
+.viewport.notabs { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 
 /* view fade-in */
 .view { animation: viewIn var(--dur-2) var(--ease-out); }
@@ -350,9 +354,38 @@ body {
 /* ===== Bottom tab bar ===== */
 .tabbar {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 50;
-  height: 96px; padding: 0 18px 22px;
+  /* Grow with the home-indicator inset rather than eating our own content box: the phone-native
+     media query below raises padding-bottom to the inset, which used to squeeze the icons and
+     labels from 74px of room down to 62px on a notched device. */
+  height: calc(var(--nav-h) + max(0px, env(safe-area-inset-bottom, 0px) - 22px));
+  padding: 0 18px 22px;
   display: grid; grid-template-columns: repeat(5, 1fr); align-items: center;
-  background: linear-gradient(180deg, transparent 0%, var(--bg) 45%);
+  /* Content scrolls UNDER the bar by design, but the old two-stop ramp stayed translucent most of
+     the way down the bar, so a big numeral (the 187.4 on Progress) sat half-lit behind the tab
+     labels and read as sliced. Fade fast: a soft top edge, then fully covered by 40% — the
+     scroll-under look survives, the "is that broken?" moment doesn't. */
+  background: linear-gradient(180deg,
+    rgba(var(--bg-rgb), 0)    0%,
+    rgba(var(--bg-rgb), 0.60) 14%,
+    rgba(var(--bg-rgb), 0.94) 28%,
+    var(--bg)                 40%);
+}
+/* The FAB overhangs the bar by 19px, so it sits in the fully-transparent top of that ramp with
+   nothing behind it — list rows ran straight into a hard-edged opaque disc. This scrim gives it
+   its own local fade. It lives on the SLOT, not on .fab: .fab:active scales, which creates a
+   stacking context and would make a negative-z child vanish mid-press. */
+.tabbar .fabslot { position: relative; }
+.tabbar .fabslot::before {
+  content: ''; position: absolute; left: 50%; top: calc(50% - 14px);
+  width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%;
+  pointer-events: none;
+  /* Opaque through the disc itself (the FAB is 57px, so ~46% of 150px covers it plus its glow
+     ring) and only then fading out — a partial wash still let text read through the overhang. */
+  background: radial-gradient(closest-side,
+    var(--bg)                 0%,
+    var(--bg)                 46%,
+    rgba(var(--bg-rgb), 0.72) 68%,
+    rgba(var(--bg-rgb), 0)    100%);
 }
 .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 44px; color: var(--text-3); cursor: pointer; font-size: 10.5px; font-weight: 700; letter-spacing: 0.01em; }
 .tab.active { color: var(--blue-bright); }

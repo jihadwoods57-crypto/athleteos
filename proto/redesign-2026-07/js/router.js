@@ -79,7 +79,9 @@ function tabbar(activeTab, nav = 'athlete') {
         } catch { /* pre-auth render — no dot */ }
       }
       const fabLabel = nav === 'athlete' ? 'Log a meal' : 'Create';
-      return `<div class="tab"><div class="fab" role="button" tabindex="0" aria-label="${fabLabel}" data-go="${t.route}" style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
+      // .fabslot carries the scrim that keeps scrolling content from colliding with the FAB's
+      // hard edge — see .tabbar .fabslot::before in app.css.
+      return `<div class="tab fabslot"><div class="fab" role="button" tabindex="0" aria-label="${fabLabel}" data-go="${t.route}" style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
     }
     const on = t.id === activeTab ? `active ${t.id === 'home' ? 'home' : ''}` : '';
     // Tab badge: any screen exposing badge() → live count, hidden at zero (Coach Inbox pending
@@ -236,7 +238,7 @@ function render() {
     <div class="island"></div>
     <div class="screen">
       ${statusbar()}
-      <div class="viewport ${mod.bleed ? 'bleed' : ''}" id="viewport">
+      <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}" id="viewport">
         <div class="view" id="view">${body}</div>
       </div>
       ${mod.hideTabs ? '' : tabbar(activeTab, navRole)}

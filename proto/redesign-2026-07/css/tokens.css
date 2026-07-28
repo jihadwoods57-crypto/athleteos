@@ -53,6 +53,10 @@
      froze them at DARK values — on the light canvas they stayed mint-green on white. Triples fix
      the whole class at once without inventing an alpha scale (there were 18 distinct green alphas
      alone; that is a continuum, not a system, and enumerating it would have entrenched it). */
+  /* The canvas itself as a triple. The tab bar fades content out against it and the FAB needs a
+     scrim in the same colour; both must flip with the theme or the scrim shows as a grey disc. */
+  --bg-rgb:     7, 11, 20;
+
   --green-rgb:  52, 211, 153;
   --blue-rgb:   59, 130, 246;
   --amber-rgb:  245, 165, 36;
@@ -133,6 +137,10 @@
 
   --pad-screen: 20px;
 
+  /* Bottom tab bar height. Written in three places before this (the bar, the viewport's bottom
+     clearance, and the roster's sticky bulk bar) — three chances to disagree. */
+  --nav-h: 96px;
+
   /* ---- Elevation ---- */
   --sh-card: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.36);
   --sh-raised: 0 14px 40px rgba(0,0,0,0.48);
@@ -188,6 +196,7 @@
 
 
   /* Same triples, light values — see the note in the dark block. */
+  --bg-rgb:     248, 250, 252;
   --green-rgb:  22, 163, 74;
   --blue-rgb:   37, 99, 235;
   --amber-rgb:  217, 119, 6;
