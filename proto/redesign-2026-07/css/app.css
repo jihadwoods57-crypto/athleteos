@@ -443,6 +443,10 @@ body {
 .tile { padding: 15px 16px; border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); }
 .tile .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); letter-spacing: var(--track-key); text-transform: uppercase; }
 .tile .v { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-top: 5px; }
+/* An absent value should read as absent. The em-dash it replaces rendered at the same weight and
+   contrast as a real number, so a blank tile looked like data. */
+.tile.unset { background: transparent; border-style: dashed; border-color: var(--hairline); }
+.tile.unset .v { font-size: 13.5px; font-weight: 700; color: var(--text-3); letter-spacing: 0; line-height: 1.35; }
 
 /* macro chips */
 .macro-row { display: flex; gap: 10px; }

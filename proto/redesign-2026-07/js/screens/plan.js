@@ -18,7 +18,9 @@ const HEAD_SUBTITLE = (who, hasTargets) => ({
   set: hasTargets ? `Targets set by your ${who}` : `Plan style set by your ${who}`,
   loading: 'Loading your targets…',
   offline: 'Targets will show when you reconnect',
-  unset: `Log meals — your ${who} can set targets any time`,
+  // An unlinked athlete has no one who "can set targets any time" — don't name a person who
+  // doesn't exist. Same rule as the Ask buttons below.
+  unset: S.coach.hasCoach ? `Log meals — your ${who} can set targets any time` : 'Log meals — your score works without targets',
 });
 function head() {
   const goal = S.planGoalLabel;
@@ -112,7 +114,7 @@ const OBJECTIVE_COPY = {
   }),
   unset: (who) => ({
     title: 'Log every meal, on time',
-    body: `Your ${who} hasn’t set targets yet. Consistency is the plan: ${mealsPhrase()} and your recovery check-in each day.`,
+    body: `${S.coach.hasCoach ? `Your ${who} hasn’t set targets yet.` : 'No targets are set.'} Consistency is the plan: ${mealsPhrase()} and your recovery check-in each day.`,
   }),
 };
 // Footnote under the Coach Targets card — stays silent for loading/offline since targetsRow()
@@ -121,7 +123,7 @@ const COACH_TARGETS_NOTE = (who) => ({
   set: `Set by your ${who}. Live progress lives on Home.`,
   loading: '',
   offline: '',
-  unset: `No targets set yet — your ${who} can add them any time.`,
+  unset: S.coach.hasCoach ? `No targets set yet — your ${who} can add them any time.` : 'No targets set yet. Your score is built from the standard itself.',
 });
 
 /* One-time "plan styles exist now" prompt (0142 release mechanics) — shown ONLY to a
@@ -149,7 +151,6 @@ const overview = () => {
   const state = S.planTargetsState;
   const T = S.planTargets;
   const obj = OBJECTIVE_COPY[state](S.coach.noun);
-  const note = COACH_TARGETS_NOTE(S.coach.noun)[state];
   // ONE home per number (WS7/WS8 dedup): the summary tiles carry goal/weight/protein here;
   // the full targets row lives on the Nutrition tab only (it used to render on BOTH tabs,
   // and protein/goal appeared up to 3× on this screen).
@@ -165,26 +166,86 @@ const overview = () => {
     </div>
   </section>
 
-  <div class="eyebrow">Plan Summary</div>
-  <div class="tiles2">
-    <div class="tile"><div class="k">Goal</div><div class="v">${esc(S.planGoalLabel || '—')}</div></div>
-    ${S.planStyle.showMacros
-      ? `<div class="tile"><div class="k">Target weight</div><div class="v">${(T && T.weight != null) ? T.weight + ' lb' : (S.weight.target != null ? S.weight.target + ' lb' : '—')}</div></div>`
-      : ''}
-    <div class="tile"><div class="k">Current</div><div class="v">${S.weight.current != null ? S.weight.current + ' lb' : '—'}</div></div>
-    ${S.planStyle.showMacros
-      ? `<div class="tile"><div class="k">Protein target</div><div class="v">${T && T.protein != null ? T.protein + 'g' : '—'}</div></div>`
-      : `<div class="tile"><div class="k">Hydration</div><div class="v">${esc(String(S.hydrationTargetLabel))}</div></div>`}
-  </div>
-  ${note ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0">${note}</div>` : ''}
+  ${planSummary(state, T)}
 
-  <div class="eyebrow">Need clarity?</div>
-  <div class="btn-row">
-    <button class="btn ghost sm" style="flex:1" data-go="messages">${icon('message', 17)} Ask ${S.coach.noun === 'trainer' ? 'Trainer' : 'Coach'}</button>
-    <button class="btn primary sm" style="flex:1" data-go="plan/notes">${icon('sparkle', 17)} Ask AI</button>
-  </div>
+  ${everythingUnset(state)
+    ? ''
+    : `<div class="eyebrow">Need clarity?</div>
+  <div class="btn-row">${askButtons()}</div>`}
   <div style="height:10px"></div>`;
 };
+
+/* A tile with nothing in it should say so, not render an em-dash at the same 20px/800 weight as
+   a real number. `Not set yet` is a state noun, deliberately not the imperative "Set" — the
+   athlete isn't the one who sets these. */
+const tile = (k, value) => value == null
+  ? `<div class="tile unset"><div class="k">${k}</div><div class="v">Not set yet</div></div>`
+  : `<div class="tile"><div class="k">${k}</div><div class="v">${value}</div></div>`;
+
+/* Every summary value is absent AND the absence is real (not merely un-hydrated). The weight is
+   self-logged and independent of the coach, so a logged weight alone keeps the grid. */
+function everythingUnset(state) {
+  return state === 'unset'
+    && !S.planGoalLabel
+    && S.weight.current == null
+    && S.weight.target == null
+    && !(S.planTargets && (S.planTargets.weight != null || S.planTargets.protein != null));
+}
+
+/* No dangling controls: "Ask Coach" used to render for an athlete with no coach and no trainer,
+   pointing at a person who doesn't exist. Gate on hasCoach, not on the noun. */
+function askButtons() {
+  const linked = S.coach.hasCoach;
+  const Who = S.coach.noun === 'trainer' ? 'Trainer' : 'Coach';
+  return `${linked ? `<button class="btn ghost sm" style="flex:1" data-go="messages">${icon('message', 17)} Ask ${Who}</button>` : ''}
+    <button class="btn primary sm" style="flex:1" data-go="plan/notes">${icon('sparkle', 17)} Ask AI</button>`;
+}
+
+/* Overview used to render the tile grid with em-dash fallbacks in ALL FOUR target states, so an
+   athlete who was merely offline saw exactly what one whose coach had set nothing saw. The
+   Nutrition tab's targetsRow() has resolved these states honestly for a while; this mirrors it. */
+function planSummary(state, T) {
+  if (state === 'loading') {
+    return `<div class="eyebrow">Plan Summary</div>
+    <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+    <div><div class="tt">Loading your plan…</div><div class="ts">Reading what your ${S.coach.noun} set.</div></div></div>`;
+  }
+  if (state === 'offline') {
+    return `<div class="eyebrow">Plan Summary</div>
+    <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+    <div class="sd-t">Can't reach your plan</div>
+    <div class="sd-s">Your targets will show when you reconnect — nothing is lost.</div>
+    <div class="sd-cta"><button class="btn ghost sm" data-act="retryProfile">Retry</button></div></div>`;
+  }
+  if (everythingUnset(state)) {
+    const who = S.coach.noun;
+    return `<div class="eyebrow">Plan Summary</div>
+    <section class="state-demo">
+      <div class="sd-ic">${icon('clipboard', 24)}</div>
+      <div class="sd-t">No targets yet</div>
+      <div class="sd-s">${S.coach.hasCoach
+        ? `Your ${who} hasn't set numbers yet. Keep logging — your score doesn't wait for them, and they'll appear here the moment they land.`
+        : `You're not linked to a coach or trainer yet. Keep logging — OnStandard scores your day against the standard itself, with or without numbers.`}</div>
+      <div class="sd-cta" style="display:flex;gap:8px;margin-top:16px">${askButtons()}</div>
+    </section>`;
+  }
+  const w = (T && T.weight != null) ? T.weight : S.weight.target;
+  return `<div class="eyebrow">Plan Summary</div>
+  <div class="tiles2">
+    ${tile('Goal', S.planGoalLabel ? esc(S.planGoalLabel) : null)}
+    ${S.planStyle.showMacros ? tile('Target weight', w != null ? w + ' lb' : null) : ''}
+    ${tile('Current', S.weight.current != null ? S.weight.current + ' lb' : null)}
+    ${S.planStyle.showMacros
+      ? tile('Protein target', T && T.protein != null ? T.protein + 'g' : null)
+      : tile('Hydration', esc(String(S.hydrationTargetLabel)))}
+  </div>
+  ${noteFor(state)}`;
+}
+
+function noteFor(state) {
+  const n = COACH_TARGETS_NOTE(S.coach.noun)[state];
+  return n ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0">${n}</div>` : '';
+}
 
 // Nutrition-tab eyebrow suffix per honest state — the false "not set yet" claim only ever
 // shows for a genuinely unset coach, never while loading or offline.
