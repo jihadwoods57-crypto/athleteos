@@ -5,6 +5,7 @@ import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { teamPulse } from '../status.js';
+import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
 
@@ -269,7 +270,8 @@ function priorityCard(c, i, nudgedToday) {
   // needs_review also tiers as 'below', but "Below standard" would contradict its own reason
   // line ("logged today — score pending"). Name it honestly when that's the actual status.
   const tierLbl = c.statusKey === 'needs_review' ? 'Needs review' : { critical: 'Critical', below: 'Below standard', due: 'Due soon' }[tier];
-  const scoreCol = c.score == null ? '' : c.score >= 80 ? 'var(--green-bright)' : c.score >= 60 ? 'var(--amber-bright)' : 'var(--red-bright)';
+  // Empty string, not --text-3, when there's no score: .co-pri supplies its own colour there.
+  const scoreCol = c.score == null ? '' : scoreColor(c.score);
   const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
   const nudgeCls = !openPrimary ? (tier === 'critical' ? 'primary warn' : 'primary') : '';
   return `

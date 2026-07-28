@@ -92,6 +92,20 @@
 .co-seg {
   display: flex; gap: var(--s2); padding: 2px 0 var(--s2); margin: 0 -2px;
 }
+/* The scrolling chip rail. It used to stop 20px inside the physical screen edge and hard-cut the
+   last chip mid-word ("Nee") with nothing to say the row continued. Full-bleed plus a trailing
+   fade — the same treatment .hscroll and .res-rail already use.
+   Written as the combined selector because both classes land on ONE element (all three call
+   sites are `class="co-seg co-scroll"`), so a bare .co-scroll rule loses to .co-seg's padding
+   further down this file and the first chip ends up flush against the screen edge. */
+.co-seg.co-scroll {
+  margin: 0 calc(-1 * var(--pad-screen));
+  padding: 2px var(--pad-screen) var(--s2);
+  /* Left ramp finishes at 12px, inside the 20px screen padding, so the first chip is fully
+     painted at rest and only fades once the rail is actually scrolled. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 30px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 30px), transparent 100%);
+}
 .co-seg .co-chip {
   flex: none; height: 40px; padding: 0 15px; border-radius: var(--r-chip);
   background: var(--surface-1); border: 1px solid var(--hairline);

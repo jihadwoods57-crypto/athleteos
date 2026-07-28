@@ -5,6 +5,7 @@
    Every call is best-effort: on a missing client, a not-applied table/RPC, or any error it
    returns []/null so role screens render an HONEST empty state, never a fabricated one.
    No new endpoints — the exact tables/RPCs the RN app already uses. */
+import { scoreBand, BAND_FLAG } from './score-band.js';
 
 function sb() { return window.sb; }
 function iso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
@@ -1313,7 +1314,7 @@ export async function fetchMySubscription() {
 }
 
 /* ---------------- pure roster projection (honest: no invented numbers) ---------------- */
-export function tierFlag(score) { return score == null ? '' : score >= 80 ? 'g' : score >= 60 ? 'y' : 'r'; }
+export function tierFlag(score) { const b = scoreBand(score); return b ? BAND_FLAG[b] : ''; }
 /** Merge a roster member (from the RPC) with today's real day row into a UI row.
     A member with no day row today is honestly "No logs today" — never a made-up score. */
 export function buildRosterRow(member, dayRow, extras = {}) {

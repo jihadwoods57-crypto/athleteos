@@ -1,6 +1,7 @@
 /* Shared UI pieces */
 import { S } from './state.js';
 import { icon } from './icons.js';
+import { scoreColor } from './score-band.js';
 
 /* Every screen is rendered by concatenating template literals into device.innerHTML
    (router.js), so any interpolated value that can carry user- or cross-user-authored text
@@ -265,13 +266,32 @@ export function avatarHead(title, sub, initials) {
   </div>`;
 }
 
+/* Seven-day score line for a roster row. ALWAYS the same box: this used to collapse to a bare
+   em-dash below two data points, which changed the row's width and broke the list's rhythm —
+   and it was only the rows that DID have a line that got squeezed into a mid-word ellipsis.
+   A constant box means every row measures the same.
+   Domain is fixed 0-100 on purpose. Auto-zooming to [min,max] would make a 92->94 wiggle and a
+   40->45 wiggle look identical; the coach's question is where this athlete sits against the
+   standard, which only a fixed domain answers. The reference line is what makes a flat line
+   readable, not rescaling. */
 export function sparkline(hist) {
   const pts = (hist || []).filter(h => h.score != null).slice(-7);
-  if (pts.length < 2) return `<span style="font-size:10px;color:var(--text-3);font-weight:700">—</span>`;
-  const w = 44, h = 16, min = 0, max = 100;
-  const xy = pts.map((p, i) => `${(i / (pts.length - 1)) * w},${h - ((p.score - min) / (max - min)) * h}`).join(' ');
-  const up = pts[pts.length - 1].score >= pts[0].score;
-  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${xy}" fill="none" stroke="${up ? 'var(--green-bright)' : 'var(--red)'}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/></svg>`;
+  const w = 34, h = 16;
+  const y = (s) => h - (s / 100) * h;
+  const ref = `<line x1="0" y1="${y(80).toFixed(1)}" x2="${w}" y2="${y(80).toFixed(1)}" stroke="var(--hairline)" stroke-width="1" stroke-dasharray="2 3"/>`;
+  let mark;
+  if (pts.length === 0) {
+    // No history is not a flat line at zero — say "nothing yet" without drawing a claim.
+    mark = `<line x1="0" y1="${(h - 0.75).toFixed(2)}" x2="${w}" y2="${(h - 0.75).toFixed(2)}" stroke="var(--text-3)" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.55"/>`;
+  } else if (pts.length === 1) {
+    mark = `<circle cx="${w / 2}" cy="${y(pts[0].score).toFixed(1)}" r="2" fill="${scoreColor(pts[0].score)}"/>`;
+  } else {
+    const xy = pts.map((p, i) => `${((i / (pts.length - 1)) * w).toFixed(1)},${y(p.score).toFixed(1)}`).join(' ');
+    // Banded by where the athlete IS, not by whether they drifted up since last week — the old
+    // rule painted a 44 -> 46 slide green.
+    mark = `<polyline points="${xy}" fill="none" stroke="${scoreColor(pts[pts.length - 1].score)}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>`;
+  }
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${ref}${mark}</svg>`;
 }
 
 /* Shared composer (text input + send) markup — the single source for every "ask/comment/note"

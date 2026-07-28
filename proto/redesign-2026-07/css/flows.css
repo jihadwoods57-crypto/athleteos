@@ -329,12 +329,20 @@
 .coach-stat { text-align: center; padding: 15px 6px; border-radius: var(--r-tile); background: var(--surface-1); border: 1px solid var(--hairline); }
 .coach-stat .v { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; min-height: 30px; display: flex; align-items: center; justify-content: center; }
 .coach-stat .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top: 3px; text-transform: uppercase; letter-spacing: var(--track-key); }
-.roster-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
+.roster-row { display: flex; align-items: center; gap: 10px; padding: 14px 14px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
 .roster-row:last-child { border-bottom: none; }
 .roster-row .rn { flex: 1; min-width: 0; }
 .roster-row .rn .t { font-size: 15px; font-weight: 800; }
 .roster-row .rn .s { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.roster-row .rs { font-size: 18px; font-weight: 800; width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+/* A truncated NAME is fine ("Marcus Reed · …"); a truncated status line is not. The name had no
+   overflow rule at all, so a long one pushed the meaning-bearing sub-line into the ellipsis. */
+.roster-row .rn .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Fixed-width right cluster. The sparkline used to sit as a free flex child, so it stole width
+   from .rn — which is why ONLY the rows that had a line ellipsised mid-word. Grouping the line,
+   the score and the style pill means .rn deterministically gets the remainder. */
+.roster-row .rr { flex: none; display: flex; align-items: center; gap: 6px; }
+/* min-width, not width: a 3-digit score overflowed a hard 34px box. */
+.roster-row .rs { font-size: 18px; font-weight: 800; min-width: 2.6ch; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
 .roster-row .rl { font-size: 11.5px; font-weight: 700; color: var(--text-3); width: 30px; text-align: right; }
 
 /* honest delivery status line in threads */
