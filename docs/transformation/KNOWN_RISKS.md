@@ -6,6 +6,13 @@ Nothing here is hidden behind optimistic language.
 **Update 2026-07-26** — the four items previously listed as P0/P1 blockers are now CLOSED. See
 § "Closed" at the bottom for what was done and how it was verified.
 
+**Update 2026-07-28** — the meal-loop upgrade shipped (see MEAL_LOOP_UPGRADE.md). It closed two
+further items: the photo-durability gap (an app killed mid-analysis lost the photo; an offline log
+lost its meals row permanently) and the AI's inability to decline medical questions. It also found
+and fixed a NEW production issue: `anon` held INSERT/UPDATE/DELETE on 52 tables (migration 0154,
+applied). Two AI features shipped behind flags that are currently OFF — `ai_memory` and
+`ai_followups`.
+
 ---
 
 ## P1 — open, documented, justified
@@ -22,7 +29,14 @@ Times out at 45s on every sweep. Not yet diagnosed: it may be a harness fixture 
 waits on data the Supabase stub does not serve) rather than a product bug. It must be resolved
 either way, because a screen the harness cannot render is a screen nothing verifies.
 
-### 3. The edge functions do not typecheck
+### 3. The edge functions do not typecheck — and `deno check` can lie
+
+Upgraded from a note to a real risk. During slice 4, `deno check` reported a file clean while it
+contained a genuine syntax error (an apostrophe closing a single-quoted string); it was serving a
+stale cache and only the deploy bundler caught it. `deno check --reload` reproduces it. Any CI
+wiring must pass `--reload` or it will provide false assurance.
+
+The 6 pre-existing readonly-tool-schema errors remain.
 
 `deno check` reports 6 pre-existing errors across the paid functions (readonly tool schemas vs the
 Anthropic SDK's mutable `string[]`). `npm run verify` does not typecheck `supabase/functions` at
