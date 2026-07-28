@@ -407,8 +407,14 @@ export const BRIDGE_SHIM = `
     },
   };
 
-  // navigator.vibrate does not exist in WKWebView; route it (and navigator.share) to native.
-  navigator.vibrate = function(){ window.OnStandardNative.haptic('light'); return true; };
+  // navigator.vibrate does not exist in WKWebView. It is a NO-OP here rather than a haptic: the
+  // capture-phase listener below is the single source of tap feedback, and routing vibrate()
+  // there too meant every [data-go]/[data-act] tap fired TWO light impacts. A doubled light
+  // impact reads as one heavier, mushier buzz — which is why a genuine 'success' notification
+  // could never feel different from an ordinary tap. The proto's own buzz() calls stay and
+  // become inert under the shell; on web there is no ReactNativeWebView, this shim never
+  // installs, and the real navigator.vibrate still fires exactly once.
+  navigator.vibrate = function(){ return true; };
   try { navigator.share = function(data){ window.OnStandardNative.share({ title:data&&data.title, message:data&&data.text, url:data&&data.url }); return Promise.resolve(); }; } catch(e){}
 
   // Light haptic on every real interaction (the proto delegates via [data-go]/[data-act]).

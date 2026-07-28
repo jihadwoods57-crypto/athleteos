@@ -90,3 +90,38 @@ test('PUSH_TOKEN resolves null when no token is available (denied / no EAS proje
 test('shim exposes push.token', () => {
   expect(BRIDGE_SHIM).toContain('PUSH_TOKEN');
 });
+
+test('HAPTIC success routes to the notification generator, not an impact', async () => {
+  const Haptics = jest.requireMock('expo-haptics') as {
+    impactAsync: jest.Mock; notificationAsync: jest.Mock;
+    NotificationFeedbackType: { Success: number };
+  };
+  Haptics.impactAsync.mockClear();
+  Haptics.notificationAsync.mockClear();
+  const { ref } = fakeRef();
+  const handled = await handleBridgeMessage(ref, { type: 'HAPTIC', style: 'success' } as never);
+  expect(handled).toBe(true);
+  expect(Haptics.notificationAsync).toHaveBeenCalledWith(Haptics.NotificationFeedbackType.Success);
+  expect(Haptics.impactAsync).not.toHaveBeenCalled();
+});
+
+test('HAPTIC light is an impact, so the two are distinguishable on device', async () => {
+  const Haptics = jest.requireMock('expo-haptics') as {
+    impactAsync: jest.Mock; notificationAsync: jest.Mock;
+    ImpactFeedbackStyle: { Light: number };
+  };
+  Haptics.impactAsync.mockClear();
+  Haptics.notificationAsync.mockClear();
+  const { ref } = fakeRef();
+  await handleBridgeMessage(ref, { type: 'HAPTIC', style: 'light' } as never);
+  expect(Haptics.impactAsync).toHaveBeenCalledWith(Haptics.ImpactFeedbackStyle.Light);
+  expect(Haptics.notificationAsync).not.toHaveBeenCalled();
+});
+
+// The shim's capture-phase click listener is the SINGLE source of tap feedback. navigator.vibrate
+// used to route to haptic('light') as well, so every tap fired two impacts and a real 'success'
+// notification could never read as different. Keep the stub inert.
+test('navigator.vibrate is a no-op so taps fire exactly one haptic', () => {
+  expect(BRIDGE_SHIM).toMatch(/navigator\.vibrate\s*=\s*function\(\)\{\s*return true;\s*\}/);
+  expect(BRIDGE_SHIM).not.toContain("navigator.vibrate = function(){ window.OnStandardNative.haptic('light')");
+});

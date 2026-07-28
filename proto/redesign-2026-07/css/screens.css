@@ -144,10 +144,15 @@
 .photo-hero .ph-s { font-size: 12.5px; font-weight: 700; color: var(--green-bright); margin-top: 2px; }
 .scorechip {
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  width: 62px; height: 62px; border-radius: 50%;
-  background: rgba(7,11,20,0.65); backdrop-filter: blur(8px); border: 2.5px solid var(--green-bright);
+  width: 62px; height: 62px; border-radius: 50%; position: relative;
+  background: rgba(7,11,20,0.65); backdrop-filter: blur(8px); border: none;
   box-shadow: 0 0 20px rgba(var(--green-rgb), 0.35);
 }
+/* The solid 2.5px border became a drawn arc: the meal score is the moment the whole product is
+   built around, and it used to arrive as static text. Same geometry, same weight — it just
+   reveals. animateRing() drives it (r=29.5 → C=185.35). */
+.scorechip .sc-ring { position: absolute; inset: 0; }
+.scorechip .sc-arc { stroke: var(--green-bright); }
 .scorechip .v { font-size: 21px; font-weight: 800; color: var(--green-bright); line-height: 1; }
 .scorechip .k { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-2); text-transform: uppercase; margin-top: 2px; }
 .foodchips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -705,9 +710,11 @@
 .mt-confirm .prog-line .xsegs{flex:1}
 .mt-confirm .prog-line .pk{font-size:11px;font-weight:700;color:var(--text-2);white-space:nowrap}
 /* Meal quality — its own concept and color; a 58 is amber, never success green. */
-.scorechip.mid{border-color:var(--amber-bright);box-shadow:0 0 20px rgba(var(--amber-rgb), 0.3)}
+.scorechip.mid{box-shadow:0 0 20px rgba(var(--amber-rgb), 0.3)}
+.scorechip.mid .sc-arc{stroke:var(--amber-bright)}
 .scorechip.mid .v{color:var(--amber-bright)}
-.scorechip.low{border-color:var(--red);box-shadow:0 0 20px rgba(var(--red-rgb), 0.3)}
+.scorechip.low{box-shadow:0 0 20px rgba(var(--red-rgb), 0.3)}
+.scorechip.low .sc-arc{stroke:var(--red)}
 .scorechip.low .v{color:var(--red)}
 .qual-line{display:flex;align-items:center;gap:13px;margin-top:10px;padding:11px 14px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline)}
 .qual-line .qv{font-size:24px;font-weight:800;letter-spacing:var(--num-tight);flex:none;font-variant-numeric:tabular-nums}

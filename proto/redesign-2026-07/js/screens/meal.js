@@ -1,13 +1,17 @@
 import { S, RT, tier, act, MEAL, mealDetail, fmtClock } from '../state.js';
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
+import { backHead, esc, safeImg, nonLiveBadge, composer, animateRing } from '../components.js';
 import {
   openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages,
   contextForChat, applyFoodEdit, hasUserEdits, restrictionConflicts,
   estimateConfidence, estRange, mealPatterns, scoreRubric, followUpQuestion, coachThreadStatus,
 } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
+
+/* Which meal's score has already been revealed this session, so re-entering the thread doesn't
+   replay the moment (or re-buzz) every time. */
+let REVEALED = null;
 
 /* Recent same-athlete meals (14d) for REAL historical patterns in the AI opening — module
    cache, one fetch per minute per user; the mount repaints once when rows land. */
@@ -559,7 +563,15 @@ export const thread = {
       <img id="meal-photo" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
       <div class="ph-grad"></div>
       <div class="ph-meta"><div>${M.live === false ? `<div>${nonLiveBadge()}</div>` : '<div></div>'}</div>
-      ${M.score != null ? `<div class="scorechip ${band ? band.cls : ''}"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}</div>
+      ${M.score != null ? `<div class="scorechip ${band ? band.cls : ''}" id="meal-scorechip">
+        <svg class="sc-ring" width="62" height="62" viewBox="0 0 62 62" aria-hidden="true">
+          <circle cx="31" cy="31" r="29.5" fill="none" stroke="var(--hairline)" stroke-width="2.5"/>
+          <circle class="ring-arc sc-arc" cx="31" cy="31" r="29.5" fill="none" stroke-width="2.5" stroke-linecap="round"
+            stroke-dasharray="185.4" stroke-dashoffset="${(185.4 * (1 - M.score / 100)).toFixed(1)}" data-off="${(185.4 * (1 - M.score / 100)).toFixed(1)}"
+            transform="rotate(-90 31 31)"/>
+        </svg>
+        <span class="v" data-count="${M.score}">${M.score}</span><span class="k">Meal</span>
+      </div>` : ''}</div>
     </div>
     ${band ? `<div class="qual-line ${band.cls}">
       <span class="qv">${M.score}<small>/100</small></span>
@@ -780,6 +792,36 @@ export const thread = {
       if (RT.lastMove) RT.lastMove._played = true;
     }
     if (!M.logged) return;
+
+    // The score arrives. This chip is the moment the product is built around, and it sat there
+    // as static text. It also sits ~1100px down the thread — below the fold on a 390x844 — so
+    // revealing it in mount() would spend the moment off-screen. Wait until it is actually
+    // looked at, then draw the arc, count the number up, and fire the one non-'light' haptic in
+    // the app. Once per logged meal per session; the slot prefix keeps the key stable while
+    // mealId is still null on a locally-logged, not-yet-synced meal.
+    const chip = root.querySelector('#meal-scorechip');
+    const revealKey = `${M.slot}:${M.mealId || ''}`;
+    if (chip && REVEALED !== revealKey && typeof IntersectionObserver === 'function') {
+      const io = new IntersectionObserver((entries) => {
+        if (!entries.some((en) => en.intersectionRatio >= 0.6)) return;
+        io.disconnect();
+        REVEALED = revealKey;
+        // The markup already carries the FINAL score and a filled arc, so a re-render (this
+        // screen repaints when the thread loads) can never flash a 0 or an empty ring. Wind it
+        // back to the start only for the one reveal, then let animateRing play it forward.
+        const arc = chip.querySelector('.sc-arc');
+        const num = chip.querySelector('[data-count]');
+        if (arc) arc.style.strokeDashoffset = '185.4';
+        if (num) num.textContent = '0';
+        requestAnimationFrame(() => animateRing(chip));
+        // Respects the athlete's haptics preference like every other buzz in the app, and is
+        // wrapped because OnStandardNative doesn't exist on web or in the QC harness.
+        try {
+          if (RT.haptics !== false && window.OnStandardNative) window.OnStandardNative.haptic('success');
+        } catch { /* no bridge — silent */ }
+      }, { threshold: [0, 0.6] });
+      io.observe(chip);
+    }
 
     // Body-signal chips (0142): each tap persists immediately (days.signals) — no submit button,
     // because a prompt you have to confirm is a prompt people stop answering. Re-tapping a
