@@ -17,6 +17,7 @@
 //   (SERVICE_ROLE + URL are auto-injected). Then set EXPO_PUBLIC_ANALYTICS_URL to this function's
 //   URL and ship an app build — until then the client seam is inert and this never receives calls.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -32,6 +33,21 @@ const ALLOWED = new Set([
   "onboarding_completed", "meal_logged", "meal_analysis_failed", "commitment_set",
   "recovery_submitted", "checkin_submitted", "weight_logged", "coach_connected",
   "code_join_failed", "app_error",
+  // Paywall funnel (2026-07-21) — surface events; must match proto analytics.js EVENTS.
+  "paywall_viewed", "plan_selected", "trial_started",
+  // Deterministic-scoring cutover (2026-07-21) — AI-vs-app score delta + tone-conflict signals.
+  "meal_score_delta", "meal_text_conflict",
+  // Quality metrics (item 8b, 2026-07-21) — correction-rate signal; counts-only, no macros/text.
+  "meal_corrected",
+  // Meal-logging edge signals (2026-07-21) — gallery usage, duplicate-photo blocks, stale EXIF.
+  "meal_gallery_logged", "meal_dup_blocked", "meal_stale_photo",
+  // Verified Commitments (0138–0141, shipped 2026-07-23). Without these the whole VC funnel —
+  // including the two honesty signals, vc_unverified and vc_disputed — reported zero.
+  "vc_scheduled", "vc_card_shown", "vc_acknowledged", "vc_arrived",
+  "vc_unverified", "vc_disputed", "vc_reminded",
+  // OB2 step-level onboarding funnel (2026-07-23). {route, step, ch} — the per-screen drop-off
+  // signal; the flows fire ~26 of these per completed run, so this is the highest-volume name.
+  "onboarding_step",
 ]);
 const ENUM_RE = /^[a-z0-9_.:-]{1,24}$/;
 const SID_RE = /^[a-z0-9_.:-]{1,64}$/i;
@@ -66,7 +82,7 @@ function limited(ip: string, max = 120, windowMs = 60_000): boolean {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "bad_request" }, 400);
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIpFrom(req);
   if (limited(ip)) return json({ error: "rate_limited" }, 429);
 
   const body = await req.json().catch(() => null) as { events?: unknown } | null;

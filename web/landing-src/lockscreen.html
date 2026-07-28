@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=390, initial-scale=1">
+<title>OnStandard — lock-screen roll call</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+  :root {
+    --ink:#0d0f13;
+    font-family:-apple-system,"SF Pro Display","SF Pro Text","Segoe UI",system-ui,sans-serif;
+  }
+  html,body { width:390px; height:844px; }
+  .scr {
+    position:relative; width:390px; height:844px; overflow:hidden;
+    color:#fff;
+    background:
+      radial-gradient(120% 70% at 50% 108%, rgba(34,211,153,.16), transparent 60%),
+      radial-gradient(90% 55% at 78% 6%, rgba(96,165,250,.10), transparent 55%),
+      radial-gradient(80% 60% at 20% 30%, rgba(34,211,238,.05), transparent 60%),
+      linear-gradient(180deg,#080b10 0%,#05070a 55%,#04060a 100%);
+  }
+  /* faint film grain so the wallpaper reads like a real photo backdrop, not a flat fill */
+  .grain { position:absolute; inset:0; opacity:.05; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+
+  /* ---- status bar ---- */
+  .status { position:absolute; top:0; left:0; right:0; height:54px; display:flex;
+    align-items:center; justify-content:flex-end; padding:0 26px 0 30px; }
+  .status .sig { display:flex; align-items:center; gap:6px; opacity:.92; }
+  .bars { display:flex; align-items:flex-end; gap:2px; height:11px; }
+  .bars i { width:3px; background:#fff; border-radius:1px; }
+  .bars i:nth-child(1){ height:5px } .bars i:nth-child(2){ height:7px }
+  .bars i:nth-child(3){ height:9px } .bars i:nth-child(4){ height:11px }
+  .wifi { width:16px; height:12px; }
+  .batt { width:25px; height:12px; border:1.3px solid rgba(255,255,255,.55); border-radius:3px; position:relative; }
+  .batt::after { content:""; position:absolute; right:-3px; top:3.2px; width:1.6px; height:5px; background:rgba(255,255,255,.55); border-radius:1px; }
+  .batt i { position:absolute; inset:1.6px; width:66%; background:#fff; border-radius:1.4px; }
+
+  /* ---- clock block ---- */
+  .lock { position:absolute; top:96px; left:0; right:0; text-align:center; }
+  .lock .pad { width:15px; height:19px; margin:0 auto 20px; opacity:.6; }
+  .date { font-size:16px; font-weight:600; letter-spacing:.1px; color:rgba(255,255,255,.92); }
+  .time { font-size:88px; line-height:.98; font-weight:590; letter-spacing:-2px; margin-top:2px;
+    color:#fff; font-variant-numeric:tabular-nums;
+    text-shadow:0 2px 30px rgba(0,0,0,.35); }
+
+  /* ---- notification stack (lower third) ---- */
+  .notes { position:absolute; left:14px; right:14px; bottom:132px; }
+  /* the peeking stacked card behind, hinting there is a stack */
+  .stack { position:absolute; left:14px; right:14px; bottom:120px; height:26px; border-radius:24px;
+    background:rgba(238,240,244,.42); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    box-shadow:0 -1px 0 rgba(255,255,255,.25) inset; }
+
+  .note { position:relative; border-radius:26px; overflow:hidden;
+    background:rgba(246,247,249,.86); backdrop-filter:blur(22px) saturate(180%);
+    -webkit-backdrop-filter:blur(22px) saturate(180%);
+    box-shadow:0 18px 50px rgba(0,0,0,.38), 0 0 0 .5px rgba(255,255,255,.35) inset;
+    color:#111; }
+  .note .body { padding:14px 15px 13px; }
+  .nhead { display:flex; align-items:center; gap:9px; }
+  .appicon { width:38px; height:38px; border-radius:10px; flex:none;
+    background:radial-gradient(120% 120% at 50% 15%, #12161d, #0a0c11);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 1px 2px rgba(0,0,0,.25), 0 0 0 .5px rgba(255,255,255,.06) inset; }
+  .appname { font-size:13px; font-weight:600; letter-spacing:.2px; color:#4a4a4f; text-transform:none; }
+  .ago { margin-left:auto; font-size:13px; font-weight:400; color:#8a8a8e; }
+  .title { font-size:16px; font-weight:700; color:#0c0c0d; margin-top:9px; letter-spacing:-.1px; }
+  .msg { font-size:15px; font-weight:400; color:#3a3a3c; margin-top:2px; line-height:1.34; }
+
+  .action { display:flex; align-items:center; justify-content:center; gap:8px;
+    height:50px; border-top:.5px solid rgba(60,60,67,.16);
+    background:linear-gradient(90deg, rgba(52,211,153,.09), rgba(34,211,238,.08) 50%, rgba(96,165,250,.09));
+    font-size:16.5px; font-weight:650; letter-spacing:.1px; }
+  .action .txt { background:linear-gradient(90deg,#0f9d6f,#12a6bf 52%,#2f7fe0);
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .action .chk { width:19px; height:19px; }
+
+  /* ---- bottom affordances ---- */
+  .round { position:absolute; bottom:46px; width:48px; height:48px; border-radius:50%;
+    background:rgba(20,22,26,.55); backdrop-filter:blur(6px);
+    display:flex; align-items:center; justify-content:center; }
+  .round.l { left:34px; } .round.r { right:34px; }
+  .round svg { opacity:.92; }
+  .home { position:absolute; bottom:9px; left:50%; transform:translateX(-50%);
+    width:134px; height:5px; border-radius:3px; background:rgba(255,255,255,.55); }
+</style>
+</head>
+<body>
+  <div class="scr">
+    <div class="grain"></div>
+
+    <!-- status bar -->
+    <div class="status">
+      <div class="sig">
+        <span class="bars"><i></i><i></i><i></i><i></i></span>
+        <svg class="wifi" viewBox="0 0 16 12" fill="none"><path d="M8 10.6a1.3 1.3 0 100-2.6 1.3 1.3 0 000 2.6z" fill="#fff"/><path d="M3.4 6.1a6.5 6.5 0 019.2 0M5.4 8a3.7 3.7 0 015.2 0" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span class="batt"><i></i></span>
+      </div>
+    </div>
+
+    <!-- clock -->
+    <div class="lock">
+      <svg class="pad" viewBox="0 0 15 19" fill="none"><rect x="1" y="8" width="13" height="10" rx="2.6" fill="#fff"/><path d="M3.5 8V5.2a4 4 0 018 0V8" stroke="#fff" stroke-width="1.7"/></svg>
+      <div class="date" id="date">Thursday, July 23</div>
+      <div class="time">5:00</div>
+    </div>
+
+    <!-- notification stack -->
+    <div class="stack"></div>
+    <div class="notes">
+      <div class="note">
+        <div class="body">
+          <div class="nhead">
+            <span class="appicon">
+              <svg viewBox="0 0 100 100" width="25" height="25" fill="none">
+                <defs><linearGradient id="d" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#34D399"/><stop offset="50%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#60A5FA"/>
+                </linearGradient></defs>
+                <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(216,190,140,.22)" stroke-width="12" stroke-linecap="round"/>
+                <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#d)" stroke-width="12" stroke-linecap="round"/>
+                <circle cx="50" cy="18" r="10.5" fill="#0B0A08"/><circle cx="50" cy="18" r="6" fill="#F5F1E8"/>
+              </svg>
+            </span>
+            <span class="appname">OnStandard</span>
+            <span class="ago">now</span>
+          </div>
+          <div class="title">5 AM Club</div>
+          <div class="msg">15 minutes left to respond.</div>
+        </div>
+        <div class="action">
+          <svg class="chk" viewBox="0 0 20 20" fill="none"><path d="M4 10.5l4 4 8-9" stroke="#12a6bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="txt">I'm Up</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- bottom affordances -->
+    <div class="round l"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 2v1M4.9 4.9l.7.7M2 12h1M21 12h1M18.4 5.6l.7-.7M8 14a5 5 0 118 0c-1 1-1.5 1.6-1.5 3h-5c0-1.4-.5-2-1.5-3z"/></svg></div>
+    <div class="round r"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L8 6H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-4l-1.5-2z"/><circle cx="12" cy="12.5" r="3.2"/></svg></div>
+    <div class="home"></div>
+  </div>
+  <script>
+    // Correct weekday for the frozen shoot date (2026-07-23), formatted like iOS.
+    document.getElementById('date').textContent =
+      new Date(2026,6,23).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  </script>
+</body>
+</html>

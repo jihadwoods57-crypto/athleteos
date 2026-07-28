@@ -25,7 +25,7 @@ export default {
       </div>
       <div style="flex:1">
         <div class="nm">${esc(S.athlete.name)}</div>
-        ${S.experience === 'client' ? `
+        ${S.audience === 'client' ? `
         <div class="meta">${esc(S.planGoalLabel || 'Personal plan')}</div>
         ${S.coach.kind === 'trainer' && S.coach.team ? `<div class="meta" style="margin-top:1px">${esc(S.coach.team)}</div>` : ''}` : `
         <div class="meta"${[S.athlete.sport, S.athlete.position].filter(Boolean).length ? '' : ' style="color:var(--text-3)"'}>${esc([S.athlete.sport, S.athlete.position].filter(Boolean).join(' · ') || 'Add your sport')}</div>
@@ -40,7 +40,7 @@ export default {
       <div class="ic">${icon('shield', 20)}</div>
       <div style="flex:1">
         <div class="tt">Trust Pass active · day ${t.day} of ${t.length}</div>
-        <div class="ts">Earned with 7 on-standard days. Tap for the rules.</div>
+        <div class="ts">Earned with ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} on-standard days. Tap for the rules.</div>
       </div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : ''}
@@ -91,11 +91,17 @@ export default {
         <div class="lm"><div class="lt">Weekly check-in</div><div class="ls">${S.weekly.status}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      <div class="lrow" data-go="recruiting">
-        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div>
-        <div class="lm"><div class="lt">Discipline record</div><div class="ls">${S.coach.hasCoach ? `${S.coach.kind === 'trainer' ? 'Trainer' : 'Coach'}-verified · proof of the work` : 'Not verified yet · connect a coach to verify'}</div></div>
+      ${S.audience === 'client' && S.coach.kind === 'trainer' ? `
+      <div class="lrow" data-go="my-trainer-offers">
+        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Packages</div><div class="ls">Accountability packages${S.coach.isNamed ? ` from ${esc(S.coach.nameMid)}` : ''}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
+      </div>` : `
+      <div class="lrow" data-go="recruiting">
+        <div class="lic"${S.coach.hasCoach ? ' style="background:var(--green-surface);color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
+        <div class="lm"><div class="lt">Discipline record</div><div class="ls">${S.coach.hasCoach ? 'Coach-verified · proof of the work' : 'Not verified yet · connect a coach to verify'}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>`}
     </section>
 
     <div class="eyebrow">Health & safety</div>
@@ -114,7 +120,10 @@ export default {
 
     <div class="eyebrow">Settings</div>
     <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="billing"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan &amp; billing</div><div class="ls">Your membership &amp; premium features</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="invite-parent"><div class="lic">${icon('users', 17)}</div><div class="lm"><div class="lt">Invite a parent</div><div class="ls">Let a parent see your score &amp; streak</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="redeem-code"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Redeem a code</div><div class="ls">Unlock premium with a sponsor code</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="sponsor"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Sponsor access</div><div class="ls">Fund premium for a group</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy & visibility</div><div class="ls">Who sees what · download your data</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & appearance</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms & privacy policy</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
@@ -349,10 +358,4 @@ export const editProfile = {
       }, { capture: true });
     });
   },
-};
-
-/* ---------- Squad · HIDDEN until a real roster/leaderboard exists (spec §1.6) ---------- */
-export const squad = {
-  tab: 'profile',
-  render() { location.hash = '#profile'; return ''; },
 };

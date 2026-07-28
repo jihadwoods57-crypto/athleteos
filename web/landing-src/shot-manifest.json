@@ -1,0 +1,16 @@
+[
+  {
+    "name": "state-privacy",
+    "kb": 70,
+    "thin": false,
+    "use": "Who sees what, shown in-app",
+    "head": "Privacy & visibility Who sees what — nothing is public James Brooks Daily score, requireme"
+  },
+  {
+    "name": "parent-1-dashboard",
+    "kb": 61,
+    "thin": false,
+    "use": "Score, grade, latest day — never photos, weight, or check-ins",
+    "head": "Your athletes Daily scores Marcus Reed Latest day: 2026-07-23 94 A What you can see Their "
+  }
+]

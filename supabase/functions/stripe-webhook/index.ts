@@ -11,19 +11,28 @@
 // Lifecycle handled here:
 //   * checkout.session.completed        -> plan becomes active (plan_id, seats, period end)
 //                                          + referral reward for the referrer (0042)
+//                                          -> OR (metadata.kind='offer_purchase', 0119) records
+//                                          an OnStandard Pay offer purchase into offer_payments
+//                                          -> OR (metadata.kind='sponsor_seats', Task 4) records a
+//                                          sponsorships row with a generated redemption code
 //   * customer.subscription.updated     -> status/pause/cancel-at-period-end/plan changes
 //   * customer.subscription.deleted     -> canceled, tier back to preview
+//                                          -> OR (Task 3) stamps subscription_cancelled_at on every
+//                                          offer_payments ledger row for that subscription
 //   * invoice.payment_failed            -> past_due + payment_failed_at (dunning: the app
 //                                          shows "card failed on <date>, update it"; access
 //                                          continues through the grace window — isPro())
 //   * invoice.paid                      -> recovery: clears the dunning flag
+//                                          -> OR (0119) an offer-subscription renewal invoice
+//                                          records a new offer_payments row
+//   * charge.refunded                   -> (0119) marks the matching offer_payments row refunded
 //
 // Deploy (JWT OFF — Stripe has no Supabase JWT; the endpoint authenticates itself via the
 // Stripe signature instead):
 //   supabase secrets set STRIPE_SECRET_KEY=sk_live_... STRIPE_WEBHOOK_SECRET=whsec_...
 //   supabase functions deploy stripe-webhook --no-verify-jwt
-// Then in Stripe: create a webhook to <project>/functions/v1/stripe-webhook for the five
-// events above.
+// Then in Stripe: create a webhook to <project>/functions/v1/stripe-webhook for the six events
+// above (Connect's own account.updated goes to the SEPARATE connect-webhook endpoint instead).
 //
 // OWNER RESOLUTION: billing-checkout sets the paying owner's profile id as
 // `client_reference_id` and mirrors it into subscription metadata. Renewals/cancellations
@@ -155,6 +164,141 @@ async function rewardReferrer(
   }
 }
 
+/**
+ * OnStandard Pay (0119): record ONE real charge into offer_payments. `source` is either the
+ * Checkout Session's PaymentIntent (one-time offer) or the resulting invoice's Charge (the first
+ * or a renewal payment on a recurring offer) — both expose the REAL amount/fee Stripe actually
+ * applied, never a value recomputed locally (avoids any drift from a fee change mid-flight).
+ * Idempotent on stripe_charge_id so a Stripe webhook retry can never double-record one charge.
+ */
+async function recordOfferPayment(
+  svc: ReturnType<typeof createClient>,
+  fields: {
+    practiceId: string; offerId: string | null; payerId: string | null; beneficiaryAthleteId: string | null;
+    checkoutSessionId: string | null; paymentIntentId: string | null; subscriptionId: string | null;
+    chargeId: string | null; amountCents: number; applicationFeeCents: number;
+  },
+): Promise<void> {
+  // Idempotent on stripe_charge_id via the unique index added in 0121 — ON CONFLICT DO NOTHING, so
+  // a duplicate OR concurrent Stripe delivery of the same event can never double-record one charge
+  // (the old select-then-insert was a check-then-act race). NULL charge ids stay distinct, so a
+  // charge-less row is never collapsed into another.
+  const { error } = await svc.from('offer_payments').upsert({
+    practice_id: fields.practiceId,
+    offer_id: fields.offerId,
+    payer_id: fields.payerId,
+    beneficiary_athlete_id: fields.beneficiaryAthleteId,
+    stripe_checkout_session_id: fields.checkoutSessionId,
+    stripe_payment_intent_id: fields.paymentIntentId,
+    stripe_subscription_id: fields.subscriptionId,
+    stripe_charge_id: fields.chargeId,
+    amount_cents: fields.amountCents,
+    application_fee_cents: fields.applicationFeeCents,
+    status: 'paid',
+  }, { onConflict: 'stripe_charge_id', ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+/** A completed Checkout Session for an OnStandard Pay offer (metadata.kind='offer_purchase') —
+ *  branches by mode to pull the REAL charged amount/fee off the resulting PaymentIntent (one-time)
+ *  or the first invoice's Charge (recurring), then records it. */
+async function handleOfferCheckout(svc: ReturnType<typeof createClient>, session: Stripe.Checkout.Session): Promise<void> {
+  const practiceId = session.metadata?.practice_id ?? '';
+  const offerId = session.metadata?.offer_id ?? null;
+  const payerId = session.metadata?.payer_id ?? session.client_reference_id ?? null;
+  const beneficiaryAthleteId = session.metadata?.beneficiary_athlete_id ?? null;
+  if (!UUID_RE.test(practiceId)) {
+    console.error('stripe-webhook: offer checkout with no valid practice_id', session.id);
+    return;
+  }
+
+  if (session.mode === 'payment') {
+    const piId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+    if (!piId) return;
+    const pi = await stripeClient().paymentIntents.retrieve(piId);
+    const chargeId = typeof pi.latest_charge === 'string' ? pi.latest_charge : pi.latest_charge?.id ?? null;
+    await recordOfferPayment(svc, {
+      practiceId, offerId, payerId, beneficiaryAthleteId,
+      checkoutSessionId: session.id, paymentIntentId: pi.id, subscriptionId: null, chargeId,
+      amountCents: pi.amount, applicationFeeCents: pi.application_fee_amount ?? 0,
+    });
+  } else if (session.mode === 'subscription') {
+    const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+    if (!subId) return;
+    const sub = await stripeClient().subscriptions.retrieve(subId, { expand: ['latest_invoice.charge'] });
+    const invoice = sub.latest_invoice as Stripe.Invoice | null;
+    const charge = invoice?.charge as Stripe.Charge | null | undefined;
+    await recordOfferPayment(svc, {
+      practiceId, offerId, payerId, beneficiaryAthleteId,
+      checkoutSessionId: session.id, paymentIntentId: null, subscriptionId: sub.id, chargeId: charge?.id ?? null,
+      amountCents: invoice?.amount_paid ?? 0, applicationFeeCents: charge?.application_fee_amount ?? 0,
+    });
+  }
+}
+
+/** A renewal invoice (2nd+ payment) on an offer subscription. The FIRST invoice is already
+ *  recorded by handleOfferCheckout via checkout.session.completed — only `subscription_cycle`
+ *  (a real renewal), never `subscription_create`, reaches here. Returns false when `subId` isn't
+ *  a known offer subscription at all (i.e. it belongs to something else, or nothing). */
+async function handleOfferRenewal(svc: ReturnType<typeof createClient>, invoice: Stripe.Invoice, subId: string): Promise<boolean> {
+  const { data: priorRow } = await svc.from('offer_payments')
+    .select('practice_id, offer_id, payer_id, beneficiary_athlete_id').eq('stripe_subscription_id', subId).limit(1).maybeSingle();
+  if (!priorRow) return false; // not an offer subscription at all
+  if (invoice.billing_reason !== 'subscription_cycle') return true; // known, but not a NEW charge to record
+
+  const chargeId = typeof invoice.charge === 'string' ? invoice.charge : invoice.charge?.id ?? null;
+  let applicationFeeCents = 0;
+  if (chargeId) {
+    const charge = await stripeClient().charges.retrieve(chargeId);
+    applicationFeeCents = charge.application_fee_amount ?? 0;
+  }
+  await recordOfferPayment(svc, {
+    practiceId: priorRow.practice_id, offerId: priorRow.offer_id, payerId: priorRow.payer_id,
+    beneficiaryAthleteId: priorRow.beneficiary_athlete_id ?? null,
+    checkoutSessionId: null, paymentIntentId: null, subscriptionId: subId, chargeId,
+    amountCents: invoice.amount_paid, applicationFeeCents,
+  });
+  return true;
+}
+
+// Short, unambiguous redemption code (no 0/O/1/I). Not a secret on its own — the sponsorship row's
+// unique index + the [1,500]-seat cap bound guessing; collisions retry.
+function sponsorCode(): string {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 8; i++) s += A[Math.floor(Math.random() * A.length)];
+  return `SP-${s.slice(0, 4)}-${s.slice(4)}`;
+}
+
+async function handleSponsorSeats(svc: ReturnType<typeof createClient>, session: Stripe.Checkout.Session): Promise<void> {
+  const sponsorId = session.metadata?.sponsor_id ?? session.client_reference_id ?? '';
+  if (!UUID_RE.test(sponsorId)) { console.error('stripe-webhook: sponsor_seats with no sponsor_id', session.id); return; }
+  // Idempotent — a Stripe retry must not create a second batch for the same checkout.
+  const { data: existing } = await svc.from('sponsorships').select('id').eq('stripe_checkout_session_id', session.id).maybeSingle();
+  if (existing) return;
+  const seats = Math.max(1, Math.floor(Number(session.metadata?.seats ?? '1')) || 1);
+  const label = (session.metadata?.label ?? '').toString().slice(0, 80);
+  const months = Math.max(1, Math.floor(Number(Deno.env.get('SPONSOR_MONTHS') ?? '12')) || 12);
+  const piId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null;
+  let amount: number | null = null;
+  if (piId) { try { const pi = await stripeClient().paymentIntents.retrieve(piId); amount = pi.amount ?? null; } catch { /* best-effort */ } }
+  // Insert with a fresh code; on the rare unique-code collision, retry a couple of times.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { error } = await svc.from('sponsorships').insert({
+      sponsor_id: sponsorId, sponsor_label: label, code: sponsorCode(), seats, months,
+      stripe_checkout_session_id: session.id, stripe_payment_intent_id: piId, amount_cents: amount,
+    });
+    if (!error) return;
+    // Distinguish the two unique constraints. supabase-js puts the CONSTRAINT NAME in .message and the
+    // column in .details, so check both blobs: a session-id collision means a concurrent delivery already
+    // inserted this batch (idempotent — return); a code collision means retry with a fresh code.
+    if (error.code !== '23505') throw error;
+    const blob = `${error.message || ''} ${(error as { details?: string }).details || ''}`;
+    if (blob.includes('sponsorships_session_uq') || blob.includes('stripe_checkout_session_id')) return;
+  }
+  throw new Error('sponsor code generation failed after retries');
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
 
@@ -191,6 +335,19 @@ Deno.serve(async (req) => {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // OnStandard Pay (0119): an offer purchase is a DIFFERENT concern from the platform's own
+        // owner-subscription billing below — branch off first and never fall through into it.
+        if (session.metadata?.kind === 'offer_purchase') {
+          await handleOfferCheckout(svc, session);
+          break;
+        }
+
+        if (session.metadata?.kind === 'sponsor_seats') {
+          await handleSponsorSeats(svc, session);
+          break;
+        }
+
         const ownerId = session.client_reference_id ?? '';
         if (!UUID_RE.test(ownerId)) {
           // No resolvable owner: acknowledge so Stripe doesn't retry forever, but do not guess.
@@ -246,6 +403,16 @@ Deno.serve(async (req) => {
           })
           .eq('stripe_subscription_id', sub.id);
         if (error) throw error;
+
+        // OnStandard Pay: this sub id may instead (or additionally) belong to a recurring offer
+        // subscription (parent/client cancelled, or Stripe terminated it) rather than a platform
+        // plan — the update above only touches `subscriptions` and no-ops if it doesn't match.
+        // Stamp every ledger row for that subscription so "Funded plans" shows it stopped. Past
+        // paid charges keep status 'paid'.
+        const { error: offerError } = await svc.from('offer_payments')
+          .update({ subscription_cancelled_at: new Date().toISOString() })
+          .eq('stripe_subscription_id', sub.id).is('subscription_cancelled_at', null);
+        if (offerError) throw offerError;
         break;
       }
 
@@ -269,10 +436,29 @@ Deno.serve(async (req) => {
         const invoice = event.data.object as Stripe.Invoice;
         const subId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
         if (subId) {
-          const { error } = await svc
+          const { data: updated, error } = await svc
             .from('subscriptions')
             .update({ status: 'active', payment_failed_at: null, updated_at: new Date().toISOString() })
-            .eq('stripe_subscription_id', subId);
+            .eq('stripe_subscription_id', subId)
+            .select('owner_id');
+          if (error) throw error;
+          // OnStandard Pay (0119): no platform-subscription row matched — this may be a renewal on
+          // an OFFER subscription (destination-charge), a different concern entirely.
+          if (!updated || updated.length === 0) await handleOfferRenewal(svc, invoice, subId);
+        }
+        break;
+      }
+
+      case 'charge.refunded': {
+        // OnStandard Pay (0119): mark the matching ledger row refunded. Never touches the platform
+        // owner-subscription tables — a refunded offer charge has no bearing on app access.
+        // Stripe fires charge.refunded on ANY refund including partial; the charge.refunded boolean
+        // is only true once the FULL amount is returned. Our own refund-payment always refunds in
+        // full, so gate on that — a PARTIAL refund issued straight from the Stripe Dashboard must
+        // not flip a still-mostly-paid sale to 'refunded'.
+        const charge = event.data.object as Stripe.Charge;
+        if (charge.refunded === true) {
+          const { error } = await svc.from('offer_payments').update({ status: 'refunded' }).eq('stripe_charge_id', charge.id);
           if (error) throw error;
         }
         break;

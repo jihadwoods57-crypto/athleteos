@@ -71,3 +71,4 @@ web/landing-src/deploy/.wrangler/
 .claude/skills/
 .agents/skills/
 skills-lock.json
+scripts/.security-baseline.json

@@ -1,4 +1,4 @@
-import { S, RT, act } from '../state.js';
+import { S, RT, act, liveWeightPct } from '../state.js';
 import { DAY } from '../day.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
@@ -99,7 +99,7 @@ export default {
       ${DAY.dailyCommitment == null ? `
       <div class="sheet-row" data-go="commitment">
         <div class="si" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('target', 19)}</div>
-        <div class="st"><div class="t">Daily Commitment</div><div class="s">End-of-day reflection · 15% of your score</div></div>
+        <div class="st"><div class="t">Daily Commitment</div><div class="s">End-of-day reflection · ${liveWeightPct('commitment')}% of your score</div></div>
         <span class="xpill gray">Open</span>
       </div>` : ''}
       <div class="xgrp" style="margin:4px 2px 7px">Forms &amp; check-ins</div>

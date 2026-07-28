@@ -18,11 +18,27 @@ describe('item state boundaries', () => {
   test('overdue one minute past due', () => expect(get(at(570 + 1), 'breakfast').state).toBe('overdue'));
   test('done beats time', () =>
     expect(get(at(11 * 60, { breakfast: { done: true, late: true } }), 'breakfast').state).toBe('done_late'));
-  test('colors follow the 4-state mapping', () => {
+  test('past-window required item is amber "Late" while the day is still live', () => {
+    // 8:00 AM-ish: breakfast (due 9:30) already overdue, but lunch & dinner windows are still ahead
     const e = at(570 + 1, { lunch: { done: true, late: false } });
-    expect(get(e, 'breakfast').color).toBe('red');
-    expect(get(e, 'lunch').color).toBe('green');
-    expect(get(e, 'dinner').color).toBe('gray');
+    const b = get(e, 'breakfast');
+    expect(b.state).toBe('overdue');   // internal state name is unchanged (ordering/denominator)
+    expect(b.color).toBe('gold');      // was 'red' — a savable day is not painted as failure
+    expect(b.pill).toBe('Late');
+    expect(e.decided).toBe(false);
+    expect(get(e, 'lunch').color).toBe('green'); // done wins, unchanged
+    expect(get(e, 'dinner').color).toBe('gray'); // still locked, unchanged
+  });
+
+  test('past-window required item is red "Missed" once the day is decided', () => {
+    // Tuesday 11:45 PM: breakfast/lunch/dinner/recovery (last-closing window, 23:30) all closed,
+    // nothing done → the day is over. (11:00 PM is too early — recovery is still due_soon then.)
+    const e = deriveExec({ nowMin: 23 * 60 + 45, dow: 2, status: FRESH });
+    expect(e.decided).toBe(true);
+    const b = get(e, 'breakfast');
+    expect(b.state).toBe('overdue');
+    expect(b.color).toBe('red');
+    expect(b.pill).toBe('Missed');
   });
   test('optional hydration never renders overdue', () => {
     const e = at(22 * 60); // past hydration's 21:30 target — optional items cap at 'ready'

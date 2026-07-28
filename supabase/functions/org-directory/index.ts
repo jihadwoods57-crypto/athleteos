@@ -4,6 +4,7 @@
 // guarded by a per-IP rate limit. It never returns created_by or a join_code: knowing a code
 // is the only capability, and preview only confirms a code the caller already has.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -33,7 +34,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     if (req.method !== "POST") return json({ error: "bad_request" }, 400);
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIpFrom(req);
     if (limited(ip)) return json({ error: "rate_limited" }, 429);
 
     const body = await req.json().catch(() => null);
@@ -87,8 +88,9 @@ Deno.serve(async (req) => {
     if (body.op === "preview_code") {
       const code = String(body.code ?? "").trim().toUpperCase();
       if (!/^[A-Z0-9]{4,12}$/.test(code)) return json({ match: null });
-      // Enumeration guard (audit 2026-07-11): the per-minute limiter above is per-isolate and
-      // trusts x-forwarded-for, so sustained code-guessing (which harvests coach names + school
+      // Enumeration guard (audit 2026-07-11): the per-minute limiter above is per-isolate
+      // (the IP itself now comes from the trusted edge hop via _shared/client-ip.ts, so it is
+      // no longer client-spoofable), so sustained code-guessing (which harvests coach names + school
       // affiliations) needs a DURABLE ceiling. Reuse the DB-backed keyed day counter (0030,
       // service-role-only). The cap is ~30x what a legitimate onboarding ever previews.
       // Fail-open on a counter hiccup — the per-minute limiter still applies, and a real

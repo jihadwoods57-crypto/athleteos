@@ -24,14 +24,31 @@ export const EVENTS = Object.freeze({
   APP_OPEN: 'app_open',
   ONBOARDING_STARTED: 'onboarding_started',   // Get Started tapped
   ONBOARDING_ROLE: 'onboarding_role',         // a role was picked  {role}
+  // Step-level funnel (2026-07-23). ONBOARDING_ROLE → ONBOARDING_COMPLETED left ~26 screens
+  // unmeasured, so "where does onboarding bleed?" was unanswerable. The OB2 engine fires this
+  // once per step view for EVERY role flow, so drop-off is readable per screen without
+  // hand-placing calls in six files. {route:'oba'|'obf'|'obk'|'obt'|'obp'|'obn', step, ch}
+  ONBOARDING_STEP: 'onboarding_step',
   GOAL_SELECTED: 'goal_selected',             // {goal}
   AGE_BLOCKED: 'age_blocked',                 // under-13 gate hit (a real, invisible drop)
   ONBOARDING_COMPLETED: 'onboarding_completed', // account created  {role}
+  // Paywall funnel (2026-07-21) — the surface events the report insists on. PAYWALL_VIEWED is the
+  // exposure signal (fire the moment the screen is visible, or conversion readouts undercount).
+  // The lagging events (trial→paid, renewal, refund) are server truth from App Store Server
+  // Notifications / Play RTDN, NOT client events — see docs/paywall/event-schema.md.
+  PAYWALL_VIEWED: 'paywall_viewed',           // {variant, cadence} — plans OR covered screen shown
+  PLAN_SELECTED: 'plan_selected',             // {plan, cadence} — a plan card tapped
+  TRIAL_STARTED: 'trial_started',             // {plan, cadence} — "Start free" tapped (intent; billing go-live gated)
   MEAL_LOGGED: 'meal_logged',                 // {slot, source}
   MEAL_ANALYSIS_FAILED: 'meal_analysis_failed', // {reason}  — the client-only signal 0037 can't see
+  // Deterministic-scoring cutover (2026-07-21): the app computes meal quality; the AI's own
+  // number is only this cross-check so drift between the two is measurable post-ship.
+  MEAL_SCORE_DELTA: 'meal_score_delta',       // {ai, det, delta} — AI estimate vs deterministic score
+  MEAL_TEXT_CONFLICT: 'meal_text_conflict',   // {det} — AI prose disagreed with the band; deterministic copy shown
   MEAL_GALLERY_LOGGED: 'meal_gallery_logged', // {slot} — gallery photos score now; measure usage
   MEAL_DUP_BLOCKED: 'meal_dup_blocked',       // {stage:'precheck'|'insert'} — reuse attempt caught
   MEAL_STALE_PHOTO: 'meal_stale_photo',       // {slot} — gallery pick with an old EXIF capture time
+  MEAL_CORRECTED: 'meal_corrected',           // {kind} — athlete fixed what the photo couldn't show
   COMMITMENT_SET: 'commitment_set',           // {answer}
   RECOVERY_SUBMITTED: 'recovery_submitted',
   CHECKIN_SUBMITTED: 'checkin_submitted',
@@ -39,6 +56,18 @@ export const EVENTS = Object.freeze({
   COACH_CONNECTED: 'coach_connected',         // {kind}
   CODE_JOIN_FAILED: 'code_join_failed',
   APP_ERROR: 'app_error',                     // {where} — crash/unhandled rejection (truncated)
+  // Verified Commitments (0138–0141). The funnel a founder needs to answer "is anyone using
+  // this?" — coach adoption, athlete response, and the two honesty signals that matter most:
+  // how often verification FAILS, and how often an athlete says the record is wrong. If
+  // VC_UNVERIFIED climbs, geofences are too tight or permissions aren't sticking; if VC_DISPUTED
+  // climbs, the feature is accusing people wrongly and should be turned off.
+  VC_SCHEDULED: 'vc_scheduled',               // {type, audience, hasLocation} — a coach created one
+  VC_CARD_SHOWN: 'vc_card_shown',             // {type} — exposure; response rate is meaningless without it
+  VC_ACKNOWLEDGED: 'vc_acknowledged',         // {type, secondsEarly}
+  VC_ARRIVED: 'vc_arrived',                   // {source:'geofence'|'manual'}
+  VC_UNVERIFIED: 'vc_unverified',             // {reason} — verification could not be confirmed
+  VC_DISPUTED: 'vc_disputed',                 // athlete says the record is wrong
+  VC_REMINDED: 'vc_reminded',                 // {n} — coach pushed the non-responders
 });
 const EVENT_SET = new Set(Object.values(EVENTS));
 

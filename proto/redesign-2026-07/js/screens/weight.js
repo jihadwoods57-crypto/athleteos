@@ -1,6 +1,20 @@
 import { S } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
+import { freqLabel, fmtMin } from '../requirements.js';
+
+/* The schedule this screen states must be the SAME row Plan → Schedule renders — the weigh-in
+   frequency and deadline are coach-configurable, so a hardcoded "Mon / Wed / Fri · 9:00 AM"
+   lies the moment a coach moves it. No row (nothing scheduled) → neutral copy, never a claim. */
+function weighSubtitle() {
+  try {
+    const r = (S.scheduleCatalog || []).find(x => x.proof === 'scale');
+    if (r && r.freq && r.window) {
+      return `${freqLabel(r.freq)} · ${r.window.label || `Due by ${fmtMin(r.window.due)}`}`;
+    }
+  } catch { /* honest default below */ }
+  return 'Same time, same conditions — we read the trend';
+}
 
 function sparkline(hist, w = 300, h = 70) {
   const min = Math.min(...hist), max = Math.max(...hist);
@@ -38,7 +52,7 @@ export default {
       isLate = !!wItem && (wItem.state === 'overdue' || wItem.state === 'done_late');
     } catch { /* honest default: no late claim */ }
     return `
-    ${backHead('Morning Weight', 'Required Mon / Wed / Fri · Due by 9:00 AM')}
+    ${backHead('Morning Weight', weighSubtitle())}
 
     <section class="card" style="padding: 8px 18px 20px">
       <div class="weight-display">
@@ -61,7 +75,7 @@ export default {
       ${hasTrend ? sparkline(W.history) : `<div style="font-size:13px;font-weight:600;color:var(--text-3);padding:14px 0 6px">Log a few days and your trend line shows up here.</div>`}
       <div style="display:flex;justify-content:space-between;margin-top:8px">
         <div><div class="tiny" style="font-size:11px;font-weight:700">CURRENT</div><div style="font-size:17px;font-weight:800">${W.current != null ? W.current + ' lb' : '—'}</div></div>
-        ${W.deltaMonth ? `<div><div class="tiny" style="font-size:11px;font-weight:700">CHANGE</div><div style="font-size:17px;font-weight:800;color:var(--green-bright)">${W.deltaMonth}</div></div>` : ''}
+        ${W.deltaMonth ? `<div><div class="tiny" style="font-size:11px;font-weight:700">CHANGE</div><div style="font-size:17px;font-weight:800;color:var(--text-2)">${W.deltaMonth}</div></div>` : ''}
         <div style="text-align:right"><div class="tiny" style="font-size:11px;font-weight:700">TARGET</div><div style="font-size:17px;font-weight:800">${W.target} lb</div></div>
       </div>
     </section>` : `

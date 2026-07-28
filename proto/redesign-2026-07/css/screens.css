@@ -435,6 +435,9 @@
 .xhero .xrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .xhero .xh-line{font-size:12.5px;font-weight:600;color:var(--text-2);font-variant-numeric:tabular-nums;letter-spacing:-.005em;white-space:nowrap}
 .xhero .xh-line b{color:var(--text);font-weight:800}
+/* Prose companion line (in-progress / not-scored heroes): a full sentence, so it WRAPS —
+   never the tabular one-liner treatment that clipped "…your day is still open". */
+.xhero .xh-flow{font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4}
 .xhero .xh-line .sep{color:var(--text-3);margin:0 1px}
 .xh-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
 .xh-delta.up{color:var(--green-bright)} .xh-delta.down{color:var(--amber-bright)}
@@ -452,7 +455,7 @@
 .xf-bar i.g{background:linear-gradient(90deg,#16a34a,var(--green-bright))}
 .xf-bar i.p{background:linear-gradient(90deg,#7e22ce,var(--purple-bright))}
 .xf-bar i.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
-.xhero .xh-next{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:11px;padding-top:10px;border-top:1px solid var(--hairline-soft);white-space:nowrap}
+.xhero .xh-next{display:flex;align-items:flex-start;gap:6px;font-size:12px;font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:11px;padding-top:10px;border-top:1px solid var(--hairline-soft)}
 .xhero .xh-next svg{color:var(--blue-bright);flex:none}
 .xhero .xh-next b{color:var(--text);font-weight:800}
 /* coach-seen receipt — proof a real person opened the day; injected only when true */
@@ -788,6 +791,69 @@
 .base-stats>div{flex:1;background:var(--surface-2);border:1px solid var(--hairline-soft);border-radius:13px;padding:10px 12px}
 .base-stats .k{font-size:10.5px;font-weight:800;letter-spacing:var(--track-key);text-transform:uppercase;color:var(--text-3)}
 .base-stats .v{font-size:17px;font-weight:800;letter-spacing:var(--num-tight);margin-top:2px;font-variant-numeric:tabular-nums}
+
+/* ----- Monthly report locked state: real stats stay visible, only the written "Coach's
+   take" narrative is gated. Blur = gated content, not decoration (honesty-over-pressure).
+   The skeleton is the module's own placeholder shape, never fabricated prose. The veil's own
+   background is opaque enough on its own that unsupported backdrop-filter still fully hides
+   the skeleton beneath — no motion here, so prefers-reduced-motion needs no override. */
+.mr-locked{position:relative;overflow:hidden;min-height:112px}
+.mr-skel{display:flex;flex-direction:column;gap:10px;padding:2px 2px 0}
+.mr-skel-line{height:12px;border-radius:7px;background:var(--surface-2)}
+.mr-veil{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:7px;text-align:center;padding:16px;background:rgba(11,15,20,0.86);backdrop-filter:blur(6px);
+}
+:root[data-theme="light"] .mr-veil{background:rgba(248,250,252,0.90)}
+.mr-veil-t{font-size:14px;font-weight:800;letter-spacing:-0.01em;max-width:240px}
+.mr-veil-s{font-size:12px;font-weight:600;color:var(--text-2);max-width:250px;line-height:1.4}
+.mr-or{text-align:center;font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin:14px 0}
+.mr-coderow{margin-top:2px}
+
+/* ---- Consumer paywall (#paywall) ---- */
+.pw-toggle{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:14px;padding:4px;margin:2px 0 14px}
+.pw-seg{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:none;background:transparent;border-radius:10px;font-size:13.5px;font-weight:800;color:var(--text-2);cursor:pointer}
+.pw-seg.on{background:var(--surface-1);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.18)}
+.pw-save{font-size:10px;font-weight:800;letter-spacing:0.02em;color:#04140b;background:var(--green-bright);border-radius:999px;padding:2px 7px}
+.pw-plans{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.pw-plan{background:var(--surface-1);border:1.5px solid var(--hairline);border-radius:16px;padding:14px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.pw-plan.on{border-color:var(--green-bright);box-shadow:0 0 0 1px var(--green-bright), var(--sh-green)}
+.pw-plan-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.pw-plan-name{font-size:15.5px;font-weight:800;letter-spacing:-0.01em}
+.pw-plan-price{white-space:nowrap}
+.pw-plan-price .n{font-size:18px;font-weight:800}
+.pw-plan-price .per{font-size:12px;font-weight:700;color:var(--text-3);margin-left:2px}
+.pw-plan-sub{font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:2px}
+.pw-plan-blurb{font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:7px;line-height:1.4}
+.pw-note{text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:9px;line-height:1.45}
+
+/* ---- Progress photos (#progress-photos) ---- */
+.pp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.pp-cell{position:relative;border-radius:14px;overflow:hidden;background:var(--surface-2);aspect-ratio:3/4}
+.pp-cell-img{width:100%;height:100%;object-fit:cover;display:block}
+.pp-cell-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
+.pp-cell-meta{position:absolute;left:0;right:0;bottom:0;padding:16px 10px 8px;font-size:11.5px;font-weight:700;color:#fff;background:linear-gradient(transparent, rgba(0,0,0,0.62))}
+.pp-del{position:absolute;top:6px;right:6px;height:24px;min-width:24px;padding:0 6px;border:none;border-radius:8px;background:rgba(6,10,14,0.6);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.pp-del.arm{background:var(--red);color:#fff}
+
+/* ---- Training log delete (#training-history) ---- */
+.tl-del{background:none;border:none;color:var(--text-3);font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px}
+.tl-del.arm{color:var(--red)}
+
+/* ---- Before/after compare (#progress-compare) ---- */
+.cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cmp-panel{background:var(--surface-1);border:1px solid var(--hairline);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.cmp-lab{font-size:11px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3);padding:8px 10px 4px}
+.cmp-img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block}
+.cmp-empty{width:100%;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;color:var(--text-3);background:var(--surface-2)}
+.cmp-sub{font-size:11.5px;font-weight:700;color:var(--text-2);padding:6px 10px 9px;text-align:center}
+.cmp-delta{text-align:center;font-size:13px;font-weight:700;color:var(--text-2);margin-top:12px}
+.cmp-delta b{font-size:17px;font-weight:800;color:var(--text)}
+.cmp-strip{display:flex;gap:7px;overflow-x:auto;padding:8px 2px;-webkit-overflow-scrolling:touch}
+.cmp-thumb{flex:none;width:52px;height:68px;border-radius:9px;overflow:hidden;border:2px solid transparent;background:var(--surface-2);padding:0;cursor:pointer}
+.cmp-thumb.on{border-color:var(--green-bright)}
+.cmp-thumb-img{width:100%;height:100%;object-fit:cover;display:block}
+.cmp-thumb-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
 .cat-trend{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)}
 .cat-trend:last-child{border-bottom:none}
 .cat-trend .ct-k{width:118px;flex:none;font-size:12.5px;font-weight:700;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -848,3 +914,57 @@
 .rx-add .input{flex:1;height:42px}
 .rx-add .rx-add-btn{width:auto;flex:none;padding:0 16px;height:42px}
 .chp.rx-chip.on{background:var(--green-surface);border-color:var(--green-border);color:var(--green-bright);font-weight:800}
+
+/* ---- Verified Commitments (0138): roll-call card + stage strip ---------------------------
+   The card reuses .xnow so a coach-scheduled commitment reads as the NOW action it is at
+   4:45 AM, rather than introducing a second visual language on Home. */
+.vc-ctx{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text-2);margin-top:10px}
+.vc-ctx svg{flex:none;color:var(--text-3)}
+.vc-stages{display:flex;gap:6px;margin-top:12px}
+.vc-stage{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:var(--r-card-sm);background:var(--surface-2);border:1px solid var(--hairline)}
+.vc-stage.on{background:var(--green-surface);border-color:var(--green-border)}
+.vc-stage .vc-dot{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
+.vc-stage.on .vc-dot{background:var(--green-bright);color:var(--bg);border-color:transparent}
+.vc-sl{font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.vc-stage.on .vc-sl{color:var(--green-bright)}
+.vc-st{font-size:10.5px;font-weight:700;color:var(--text-2)}
+.vc-line{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--hairline)}
+.vc-line:last-child{border-bottom:0}
+.vc-line .vc-dot{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
+.vc-line.on .vc-dot{background:var(--green-bright);color:var(--bg);border-color:transparent}
+.vc-la{font-size:13.5px;font-weight:700}
+.vc-lb{font-size:12px;color:var(--text-3);margin-top:1px}
+.vc-line.on .vc-lb{color:var(--green-bright);font-weight:700}
+.vc-mr{padding:9px 0}
+.vc-mr-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.vc-mr-l{font-size:13px;font-weight:700}
+.vc-mr-n{font-size:12.5px;font-weight:800;color:var(--text-2)}
+.vc-mr-track{height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden}
+.vc-mr-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--green-bright),var(--blue-bright))}
+.vc-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.vc-stat{background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px}
+.vc-sv{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--green-bright)}
+.vc-sk{font-size:11px;font-weight:700;color:var(--text-3);margin-top:2px}
+
+/* ---------------- Plan style (0142) ---------------- */
+/* The athlete's stated preference, shown even when someone else owns the setting — a locked
+   athlete must always be able to see that their answer was recorded and shared, not discarded. */
+.ps-pref{
+  margin-top:10px;padding:9px 11px;border-radius:10px;
+  background:var(--surface-2);border:1px solid var(--hairline);
+  font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;
+}
+.ps-pref b{color:var(--text);font-weight:800}
+
+/* Progress: the style bands + change markers on the score timeline, so a trend break reads as
+   "the plan changed here", never as an unexplained drop. */
+.ps-band{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.ps-band .seg{
+  display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;
+  background:var(--surface-2);border:1px solid var(--hairline);
+  font-size:11.5px;font-weight:700;color:var(--text-2);white-space:nowrap;
+}
+.ps-band .seg i{width:7px;height:7px;border-radius:50%;background:var(--cyan);display:inline-block}
+.ps-band .seg.s-structured i{background:var(--blue-bright,#60a5fa)}
+.ps-band .seg.s-guided i{background:var(--cyan)}
+.ps-band .seg.s-intuitive i{background:var(--green-bright,#4ade80)}

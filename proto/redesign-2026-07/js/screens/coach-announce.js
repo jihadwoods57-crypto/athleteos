@@ -57,7 +57,7 @@ export const coachAnnounce = {
       `<span class="chp ${on ? 'on' : ''}" data-ann="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
     const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
     const histRows = HIST && HIST.teamId === teamId ? HIST.rows : null;
-    const sendLabel = target ? `Send to ${esc(target.name)}`
+    const sendLabel = ANN.scopeKind === 'athlete' ? `Send to ${esc(target ? target.name : 'this athlete')}`
       : ANN.scopeKind === 'position' ? `Send to the ${esc(ANN.scopeValue || '')} room`
       : ANN.scopeKind === 'group' ? `Send to ${esc(group ? group.name : 'the group')}`
       : 'Send to the whole team';
@@ -65,7 +65,7 @@ export const coachAnnounce = {
     return `
     ${backHead('Announcement', 'Lands in every selected athlete’s feed', 'coach-create')}
 
-    ${target ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sending to <b style="color:var(--text-1)">${esc(target.name)}</b> only.</div>` : ''}
+    ${target ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sending to <b style="color:var(--text)">${esc(target.name)}</b> only.</div>` : ''}
 
     <div class="eyebrow">Who</div>
     <div class="chip-row" id="an-who">

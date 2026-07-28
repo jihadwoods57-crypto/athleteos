@@ -9,6 +9,7 @@ import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { setMyTeamCode, regenerateMyTeamCode, fetchTeamStaff, createStaffInvite, revokeStaff, setStaffScope } from '../roles.js';
 import { roleLabel, scopeText, normalizeRole, RESPONSIBILITIES } from '../staff-access.js';
 import { seedTemplates, templateLabel } from '../templates.js';
+import { weightsFor, styleForStructureAnswer, DEFAULT_STYLE } from '../plan-style.js';
 
 /* Staff & collaborators (0061): cached per profile visit. */
 let STAFF = null;
@@ -235,13 +236,17 @@ const coachSteps = {
     const chosen = sel === 'default' ? null : seeds.find((s) => s.kind === sel);
     const KIND_ICON = { meal: 'utensils', lift: 'bolt', hydration: 'droplet', recovery: 'moon', weigh: 'scale', checkin: 'clipboard', custom: 'clipboard' };
     const PROOF_LABEL = { photo: 'photo proof', form: 'quick form', scale: 'scale', counter: 'count it', check: 'check it off' };
+    // Team athletes land on the default plan style with the `athlete` goal profile — read that
+    // row from the engine's weight table rather than restating it, so this preview can't drift.
+    const dw = weightsFor(DEFAULT_STYLE, 'athlete');
+    const dpct = (k) => Math.round(dw[k] * 100);
     const rows = chosen
       ? chosen.items.map((it) => [KIND_ICON[it.kind] || 'clipboard', it.title,
           [(it.freq && it.freq.label) || (it.freq && it.freq.type === 'daily' ? 'Daily' : ''), PROOF_LABEL[it.proof] || ''].filter(Boolean).join(' · ')])
       : [
-        ['utensils', 'Three meals · photo proof', 'Nutrition · 50% of score'],
-        ['moon', 'Recovery check-in · nightly', 'Recovery · 25%'],
-        ['clipboard', 'Weekly check-in · Sundays', 'Check-in · 10%'],
+        ['utensils', 'Three meals · photo proof', `Nutrition · ${dpct('nutrition')}% of score`],
+        ['moon', 'Recovery check-in · nightly', `Recovery · ${dpct('recovery')}%`],
+        ['clipboard', 'Weekly check-in · Sundays', `Check-in · ${dpct('checkin')}%`],
         ['scale', 'Weight · Mon / Wed / Fri', 'Season trend · not scored'],
         ['droplet', 'Hydration · 120 oz', 'Focus item · optional'],
       ];
@@ -805,7 +810,10 @@ const clientSteps = {
   5: () => {
     const ob = RT.ob || {};
     const join = ob.join && ob.join.kind === 'practice' ? ob.join : null;
-    const std = standardForGoal(ob.goal, ob.standard && ob.standard.mealsPerDay, 'general');
+    // Preview the weights of the style this client will actually land on (their structure answer,
+    // else the shipped default) — not a constant row.
+    const std = standardForGoal(ob.goal, ob.standard && ob.standard.mealsPerDay, 'general',
+      ob.structurePref ? styleForStructureAnswer(ob.structurePref) : DEFAULT_STYLE);
     const committed = !!ob.committedAt;
     // Plain text here — frame() escapes title/sub wholesale (no inner esc, or it double-escapes).
     const trainerFirst = join && join.trainerName ? join.trainerName.trim().split(/\s+/)[0] : null;
@@ -1424,10 +1432,10 @@ export const trainerProfile = {
 
     <div class="eyebrow">Practice settings</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" id="manage-standard">
+      <div class="lrow" data-go="coach-plan-set/team" style="cursor:pointer">
         <div class="lic">${icon('clipboard', 17)}</div>
-        <div class="lm"><div class="lt">Default client standard</div><div class="ls">3 meals · nightly recovery check-in · weekly weigh-in — applied to every client</div></div>
-        <span class="status-pill p" id="manage-pill" style="cursor:pointer">Manage</span>
+        <div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals, windows, and check-ins — applied to every client</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
@@ -1438,7 +1446,12 @@ export const trainerProfile = {
       <div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px">${icon('lock', 15)} Founder-gated sections</div>
       <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:5px 0 13px;line-height:1.45">Built and reviewed one slice at a time. Shown honestly as locked until they're real.</div>
       <div class="hq-roadmap-grid">
-        ${['Business health', 'Client health', 'AI assistant', 'Analytics', 'Branding', 'Integrations'].map((t) => `<div class="hq-ritem">${icon('lock', 14)}<span>${t}</span></div>`).join('')}
+        ${/* 'Client health' left this list when the trainer Home dashboard shipped, and
+              'Analytics' left when practice rollups (0137) reached Insights — a locked tile
+              for something that already works is the same dishonesty as a "Coming soon" pill
+              over a live feature. Only truly unbuilt sections stay here. */
+          ['Business health', 'AI assistant', 'Branding', 'Integrations']
+            .map((t) => `<div class="hq-ritem">${icon('lock', 14)}<span>${t}</span></div>`).join('')}
       </div>
     </section>
     <div style="height:10px"></div>
@@ -1467,11 +1480,6 @@ export const trainerProfile = {
           setTimeout(() => { share.innerHTML = `${icon('share', 16)} Share invite`; }, 1600);
         }
       } catch { /* share sheet dismissed — no-op */ }
-    });
-    const managePill = root.querySelector('#manage-pill');
-    if (managePill) managePill.addEventListener('click', () => {
-      managePill.textContent = 'Coming soon';
-      setTimeout(() => { managePill.textContent = 'Manage'; }, 1600);
     });
   },
 };

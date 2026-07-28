@@ -191,11 +191,22 @@ test('_syncSession with UNKNOWN authRole fetches primary_role before the boot ga
 test('_syncSession keeps a KNOWN authRole without refetching', async () => {
   act._wipeUserScopedState();
   RT.userId = 'user-a'; RT.authRole = 'trainer';
-  let fetched = false;
-  (dom.window as any).sb = { ...sbStub('user-a'), from: () => { fetched = true; return chain(); } };
+  // The role refetch is a `.select(...)`; the best-effort timezone capture (0088) is a
+  // `.from('profiles').update(...)`. Flag ONLY a select so the legitimate tz write is allowed —
+  // the invariant under test is "a known role is not re-read", not "no writes happen".
+  let roleFetched = false;
+  const spyChain = (): any => new Proxy(function () { /* callable */ }, {
+    get(_t, prop) {
+      if (prop === 'then') return (resolve: (v: unknown) => void) => resolve({ data: null, error: null });
+      if (prop === 'select') return () => { roleFetched = true; return spyChain(); };
+      return () => spyChain();
+    },
+    apply() { return spyChain(); },
+  });
+  (dom.window as any).sb = { ...sbStub('user-a'), from: () => spyChain() };
   await act._syncSession({ id: 'user-a', email: 'a@example.com' });
   expect(RT.authRole).toBe('trainer');
-  expect(fetched).toBe(false);
+  expect(roleFetched).toBe(false);
 });
 
 test('deleteAccount wipes everything including the pending scratch', async () => {

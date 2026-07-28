@@ -1,0 +1,376 @@
+/* End-to-end for the operator book: run the REAL loadBook against a stub supabase client, once
+   as a coach's team and once as a trainer's practice, then render every shared operator screen
+   off the result. This is the regression net for the generalization — it proves the coach path
+   is unchanged and the trainer path produces the same row shape rather than a degraded one. */
+import assert from 'node:assert';
+
+/* ---- DOM + storage stubs (module-eval only; no screen is mounted) ---- */
+const el = () => ({
+  style: { setProperty() {}, removeProperty() {} },
+  classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+  setAttribute() {}, getAttribute: () => null, addEventListener() {},
+  querySelectorAll: () => [], querySelector: () => null, appendChild() {}, remove() {}, insertAdjacentHTML() {},
+});
+const store = new Map();
+globalThis.window = { location: { hash: '' }, addEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {}, addListener() {} }), __render() {} };
+globalThis.document = Object.assign(el(), { createElement: el, getElementById: () => null, documentElement: el(), body: el(), head: el() });
+globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) };
+globalThis.sessionStorage = globalThis.localStorage;
+globalThis.location = globalThis.window.location;
+
+/* Must match roles.js `iso()` — LOCAL date parts, not toISOString(). On a machine behind UTC the
+   two disagree and "today's row" silently resolves to yesterday's score. */
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const TODAY = iso(new Date());
+const YESTERDAY = iso(new Date(Date.now() - 864e5));
+
+/* ---- Fixtures: the same two athletes reachable either way. A practice roster carries NO
+       position (practice_roster hardcodes it null), which is the shape difference that matters. ---- */
+const TEAM_MEMBERS = [
+  { athlete_id: 'a1', athlete_name: 'Devin Cole', position: 'LB', room_id: null },
+  { athlete_id: 'a2', athlete_name: 'Sam Rivera', position: 'WR', room_id: null },
+];
+const PRACTICE_MEMBERS = [
+  { athlete_id: 'a1', athlete_name: 'Devin Cole', position: null, room_id: null },
+  { athlete_id: 'a2', athlete_name: 'Sam Rivera', position: null, room_id: null },
+];
+const DAYS = [
+  { athlete_id: 'a1', date: TODAY, score: 62, grade: 'C', tasks: [{ id: 'breakfast', done: true }, { id: 'dinner', done: false }] },
+  { athlete_id: 'a1', date: YESTERDAY, score: 88, grade: 'B', tasks: [] },
+  { athlete_id: 'a2', date: TODAY, score: 91, grade: 'A', tasks: [{ id: 'breakfast', done: true }] },
+  { athlete_id: 'a2', date: YESTERDAY, score: 74, grade: 'C', tasks: [] },
+];
+const MEALS = [{ id: 'm1', athlete_id: 'a1', day_date: TODAY, type: 'breakfast', logged_at: `${TODAY}T08:12:00Z`, photo_path: null, name: 'Eggs', protein: 30, kcal: 420, quality: 4 }];
+const PLAN_META = [{ base_weight: 165, targets: { protein: 190, calories: 2600, weight: 165 } }];
+
+let KIND = 'team';   // flipped per pass; the stub answers as that book
+
+/* Minimal chainable stand-in for supabase-js: every filter returns `this`, and awaiting the
+   builder resolves { data, error }. Enough for roles.js's read paths. */
+function table(name) {
+  const rowsFor = () => {
+    if (name === 'teams') return KIND === 'team' ? [{ id: 't1', name: 'Northside Prep', join_code: 'NPREP' }] : [];
+    if (name === 'practices') return KIND === 'practice' ? [{ id: 'p1', name: 'Rivera Strength', join_code: 'RIV77', owner_id: 'u1', handle: 'rivera' }] : [];
+    if (name === 'days') return DAYS;
+    if (name === 'meals') return MEALS;
+    if (name === 'profiles') return [{ id: 'a1', timezone: 'America/New_York' }, { id: 'a2', timezone: null }];
+    // A coach's own staff row — head_coach is in WEIGHT_VIEW_ROLES (staff-access.js), so the
+    // team-book weight-visibility assertions below exercise the SAME grant a trainer gets a
+    // different way (is_trainer_of), rather than accidentally testing two different code paths.
+    if (name === 'team_staff') return KIND === 'team' ? [{ role: 'head_coach', scope_kind: null, scope_value: null }] : [];
+    return [];
+  };
+  const b = {
+    select() { return b; }, eq() { return b; }, gte() { return b; }, lte() { return b; },
+    in() { return b; }, is() { return b; }, not() { return b; }, neq() { return b; },
+    order() { return b; }, limit() { return b; },
+    maybeSingle() { return Promise.resolve({ data: rowsFor()[0] || null, error: null }); },
+    insert() { return Promise.resolve({ data: null, error: null }); },
+    update() { return Promise.resolve({ data: null, error: null }); },
+    delete() { return Promise.resolve({ data: null, error: null }); },
+    upsert() { return Promise.resolve({ data: null, error: null }); },
+    then(res, rej) { return Promise.resolve({ data: rowsFor(), error: null }).then(res, rej); },
+  };
+  return b;
+}
+/* Slice D: a rollup with real evidence, spanning BOTH weeklyBrief's "this week" and "previous
+   week" windows (weekWindows: this = today-6..today, prev = today-13..today-7) — weeklyBrief
+   only emits a line when BOTH windows have n>0, so a fixture with just today+yesterday renders
+   Most-missed/Week-vs-month but never the scope-labeled "This week" comparison line itself. */
+const EIGHT_DAYS_AGO = iso(new Date(Date.now() - 8 * 864e5));
+const ROLLUP = [
+  { athlete_id: 'a1', day: TODAY, position: null, score: 62, meals_logged: 1, tasks_done: ['breakfast'], checkin_done: false, weight_logged: false },
+  { athlete_id: 'a1', day: YESTERDAY, position: null, score: 88, meals_logged: 2, tasks_done: ['breakfast', 'dinner'], checkin_done: true, weight_logged: true },
+  { athlete_id: 'a1', day: EIGHT_DAYS_AGO, position: null, score: 70, meals_logged: 1, tasks_done: ['breakfast'], checkin_done: false, weight_logged: false },
+  { athlete_id: 'a2', day: TODAY, position: null, score: 91, meals_logged: 1, tasks_done: ['breakfast'], checkin_done: false, weight_logged: false },
+  { athlete_id: 'a2', day: YESTERDAY, position: null, score: 74, meals_logged: 1, tasks_done: [], checkin_done: false, weight_logged: false },
+  { athlete_id: 'a2', day: EIGHT_DAYS_AGO, position: null, score: 65, meals_logged: 1, tasks_done: ['breakfast'], checkin_done: false, weight_logged: false },
+];
+globalThis.window.sb = {
+  from: table,
+  async rpc(fn, args) {
+    if (fn === 'team_roster') return { data: TEAM_MEMBERS, error: null };
+    if (fn === 'practice_roster') return { data: PRACTICE_MEMBERS.map(m => ({ client_id: m.athlete_id, client_name: m.athlete_name })), error: null };
+    if (fn === 'athlete_plan_meta') return { data: PLAN_META, error: null };
+    if (fn === 'coach_set_goals') return { data: null, error: null };
+    if (fn === 'team_day_rollup') { assert.ok(args && args.p_team, 'team_day_rollup must be called with p_team'); return { data: ROLLUP, error: null }; }
+    if (fn === 'practice_day_rollup') { assert.ok(args && args.p_practice, 'practice_day_rollup must be called with p_practice'); return { data: ROLLUP, error: null }; }
+    if (fn === 'team_intervention_outcomes' || fn === 'practice_intervention_outcomes') return { data: [], error: null };
+    return { data: [], error: null };
+  },
+  auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) },
+  storage: { from: () => ({ createSignedUrl: async () => ({ data: null }) }) },
+  functions: { invoke: async () => ({ data: null, error: null }) },
+};
+
+const { screens } = await import('./screens/index.js');
+const { S, RT } = await import('./state.js');
+const { CD, loadBook, loadAthleteProfile, entriesFor, getScope } = await import('./coach-data.js');
+
+RT.userId = 'u1';
+
+/* Shared operator modules — each must render for a coach AND a trainer. */
+const OPERATOR_SCREENS = ['coach-home', 'coach-roster', 'coach-create', 'coach-inbox', 'coach-athlete'];
+const snapshots = {};
+const snapshotStatus = {};
+
+for (const kind of ['team', 'practice']) {
+  KIND = kind;
+  RT.authRole = kind === 'practice' ? 'trainer' : 'coach';
+  await loadBook(true, kind);
+
+  /* ---- the book itself ---- */
+  assert.strictEqual(CD.kind, kind, `CD.kind must be ${kind}`);
+  assert.ok(CD.roster, `${kind}: roster must load`);
+  assert.strictEqual(CD.roster.offline, false, `${kind}: a good fetch must not read as offline`);
+  assert.strictEqual(CD.roster.kind, kind);
+
+  // THE ALIAS: teams and book must be the SAME array object, or every shipped coach screen's
+  // CD.roster.teams[0].id read silently returns undefined on one of the two paths.
+  assert.strictEqual(CD.roster.teams, CD.roster.book, `${kind}: teams must alias book (same reference)`);
+  assert.strictEqual(CD.roster.book.length, 1, `${kind}: exactly one book`);
+  assert.strictEqual(CD.roster.book[0].id, kind === 'team' ? 't1' : 'p1');
+
+  /* ---- rows: a practice book must be as rich as a team book ---- */
+  assert.strictEqual(CD.roster.rows.length, 2, `${kind}: both athletes present`);
+  const devin = CD.roster.rows.find(r => r.athleteId === 'a1');
+  assert.ok(devin, `${kind}: Devin must be in the book`);
+  assert.strictEqual(devin.score, 62, `${kind}: today's real score`);
+  assert.strictEqual(devin.loggedToday, true);
+  // These four were ALL missing from the trainer book before Slice A.
+  assert.ok(Array.isArray(devin.scoreHistory) && devin.scoreHistory.length >= 2,
+    `${kind}: scoreHistory drives the sparkline — a 1-day fetch left it empty`);
+  assert.strictEqual(devin.scoreHistory[0].date, YESTERDAY, `${kind}: history must be oldest-first`);
+  assert.strictEqual(devin.lastMealAt, `${TODAY}T08:12:00Z`, `${kind}: lastMealAt drives staleness`);
+  assert.strictEqual(devin.timezone, 'America/New_York', `${kind}: timezone drives athlete-local overdue`);
+  // Rows sort by score descending, both books.
+  assert.deepStrictEqual(CD.roster.rows.map(r => r.score), [91, 62], `${kind}: rows sort by score`);
+
+  /* ---- capability gating actually took effect ---- */
+  assert.ok(CD.extras, `${kind}: extras must be populated`);
+  for (const k of ['sets', 'groups', 'exceptions', 'interventions', 'rooms']) {
+    assert.ok(Array.isArray(CD.extras[k]), `${kind}: extras.${k} must be an array, never undefined`);
+  }
+  if (kind === 'practice') {
+    // 0136: a practice owns its own standards now, so `sets` is a REAL read (the stub answers
+    // with the same fixture either way). What stays team-only keeps its honest empty shape.
+    assert.deepStrictEqual(CD.extras.rooms, [], 'rooms are a team concept');
+    assert.strictEqual(CD.extras.myRole, null, 'staff roles are a team concept');
+    assert.strictEqual(CD.caps.standards, 1, '0136 gave a practice its own standards');
+    assert.strictEqual(CD.caps.interventions, 1, '0136 gave a practice its own interventions');
+    assert.strictEqual(CD.caps.notes, 1, '0136 gave a practice its own notes');
+    assert.strictEqual(CD.caps.templates, 0, 'requirement_templates was NOT one of the six tables 0136 converted');
+    assert.strictEqual(CD.caps.trustPass, 0, 'grant_trust_pass never authorizes is_trainer_of');
+    assert.strictEqual(CD.caps.rollups, 1, '0137 gave a practice its own insights rollup');
+    assert.strictEqual(CD.caps.offers, 1, 'a trainer keeps their monetization surface');
+  } else {
+    assert.strictEqual(CD.caps.standards, 1);
+    assert.strictEqual(CD.caps.templates, 1);
+    assert.strictEqual(CD.caps.offers, 0, 'a coach must not get the trainer monetization surface');
+  }
+
+  /* ---- the status engine runs on either book ---- */
+  const KNOWN = ['excused', 'overdue', 'needs_review', 'below_standard', 'due_soon', 'no_activity', 'on_standard'];
+  const entries = entriesFor(getScope());
+  assert.ok(Array.isArray(entries) && entries.length === 2, `${kind}: entriesFor must resolve both athletes`);
+  for (const e of entries) {
+    assert.ok(e.status && KNOWN.includes(e.status.key), `${kind}: unknown status '${e.status && e.status.key}'`);
+    assert.ok(e.status.label && e.status.detail, `${kind}: every status needs a label and a detail`);
+  }
+  // Which key wins is clock-dependent, so record it and compare the two books below — that
+  // equality is the real invariant: the same data must score the same either way.
+  snapshotStatus[kind] = Object.fromEntries(entries.map(e => [e.row.athleteId, e.status.key]));
+
+  /* ---- every shared screen renders ---- */
+  // The deep dive renders a skeleton until its profile lands, so load it for real first —
+  // that also exercises loadAthleteProfile's own capability gating on either book.
+  await loadAthleteProfile('a1', true);
+  assert.ok(CD.profile && CD.profile.athleteId === 'a1', `${kind}: the athlete profile must load`);
+  assert.strictEqual(CD.profile.offline, false, `${kind}: a good profile fetch must not read as offline`);
+  if (kind === 'practice') {
+    assert.deepStrictEqual(CD.profile.notes, [], 'a practice must not fetch team-owned coach notes');
+    assert.deepStrictEqual(CD.profile.interventions, [], 'a practice must not fetch team-owned interventions');
+  }
+  snapshots[kind] = {};
+  for (const route of OPERATOR_SCREENS) {
+    const mod = screens[route];
+    let html;
+    try {
+      html = mod.render({ sub: route === 'coach-athlete' ? 'a1' : null, S });
+    } catch (e) {
+      assert.fail(`${kind}/${route} threw during render: ${e.message}`);
+    }
+    assert.strictEqual(typeof html, 'string', `${kind}/${route} must render a string`);
+    assert.ok(html.length > 200, `${kind}/${route} rendered suspiciously little (${html.length} chars)`);
+    assert.ok(!/undefined|\[object Object\]|NaN/.test(html), `${kind}/${route} leaked a raw undefined/NaN into the DOM`);
+    snapshots[kind][route] = html;
+  }
+  // Real names must reach the screen — proof it rendered the BOOK, not an empty state.
+  assert.ok(snapshots[kind]['coach-roster'].includes('Devin Cole'), `${kind}: the roster must show real names`);
+  assert.ok(snapshots[kind]['coach-athlete'].includes('Devin Cole'), `${kind}: the profile must show the real athlete`);
+
+  /* ---- Slice B: the macro-target editor. coach_set_goals (0054) authorizes is_trainer_of, so
+     this must render identically (including the weight field) on either book — the "permanently
+     unset targets" complaint was a screen-routing gap, not a schema gap. ---- */
+  location.hash = '#coach-plan/a1';
+  screens['coach-plan'].mount(el(), { sub: 'a1' });
+  await new Promise((r) => setTimeout(r, 30));
+  const planHtml = screens['coach-plan'].render({ sub: 'a1', S });
+  snapshots[kind]['coach-plan'] = planHtml;
+  assert.ok(planHtml.includes('Protein') && planHtml.includes('Calories'), `${kind}: target editor must render protein/calories`);
+  assert.ok(planHtml.includes('Target weight'), `${kind}: is_trainer_of grants weight visibility unconditionally (0103) — a trainer must see it too`);
+  assert.ok(!/managed by allowed roles/.test(planHtml), `${kind}: must not show the role-restricted stub when weight IS visible`);
+  assert.ok(!/undefined|\[object Object\]|NaN/.test(planHtml), `${kind}: target editor leaked a raw value into the DOM`);
+
+  // The no-athlete-id branch, in contrast, is genuinely team-shaped — a practice gets a reduced page.
+  const planHomeHtml = screens['coach-plan'].render({ sub: null, S });
+  if (kind === 'practice') {
+    assert.ok(planHomeHtml.includes('Built for teams'), 'a trainer must be told why the program home is reduced');
+    assert.ok(!planHomeHtml.includes('Trust passes'), 'trust passes must not appear on a practice program home (never authorized)');
+  } else {
+    assert.ok(planHomeHtml.includes('Trust passes'), 'the coach program home is unchanged');
+  }
+
+  /* ---- Slice B: inbox category cross-role bleed, same class as Slice A's scope-key bug.
+     A device that persisted 'staff' (a coach's Staff category, or a stale pre-Slice-B value)
+     must not hand a trainer session a permanently-empty category whose empty-state action is a
+     dead link to a coach-only screen. ---- */
+  location.hash = '#coach-inbox';
+  screens['coach-inbox'].mount(el());
+  await new Promise((r) => setTimeout(r, 30));
+  const inboxHtml = screens['coach-inbox'].render({ S });
+  if (kind === 'practice') {
+    assert.ok(!inboxHtml.includes('data-icat="staff"'), 'a trainer must not be offered the Staff inbox category before 0136');
+    assert.ok(!inboxHtml.includes('data-icat="announcements"'), 'a trainer must not be offered Announcements before 0137');
+  } else {
+    assert.ok(inboxHtml.includes('data-icat="staff"') && inboxHtml.includes('data-icat="announcements"'),
+      'the coach inbox categories are unchanged');
+  }
+
+  /* ---- Slice B: meal-thread replies. meal_comments RLS is can_view-gated end to end (read,
+     insert as role='coach'), so the thread screen needs no capability gating at all. ---- */
+  location.hash = '#coach-meal/m1';
+  screens['coach-meal'].mount(el(), { sub: 'm1' });
+  await new Promise((r) => setTimeout(r, 30));
+  const mealHtml = screens['coach-meal'].render({ sub: 'm1', S });
+  snapshots[kind]['coach-meal'] = mealHtml;
+  assert.ok(mealHtml.includes('Breakfast'), `${kind}: the meal thread must resolve the real meal`);
+  assert.ok(mealHtml.includes('Comment on this meal') || mealHtml.includes('cm-input'), `${kind}: the composer must render`);
+  assert.ok(!/undefined|\[object Object\]|NaN/.test(mealHtml), `${kind}: meal thread leaked a raw value into the DOM`);
+
+  /* ---- Slice D: practice rollups (0137). coach-insights is nav:'operator' and its "This week"
+     section must call the CORRECT rollup RPC (asserted inside the rpc() stub above) and render
+     real trend content — not the "trends unlock as history builds" placeholder — on EITHER book. */
+  location.hash = '#coach-insights';
+  screens['coach-insights'].mount(el());
+  await new Promise((r) => setTimeout(r, 30));
+  const insightsHtml = screens['coach-insights'].render({ S });
+  snapshots[kind]['coach-insights'] = insightsHtml;
+  assert.ok(!insightsHtml.includes('Trends unlock as history builds'),
+    `${kind}: 0137 gave this book real rollup data — the empty placeholder must not show`);
+  assert.ok(insightsHtml.includes('This week'), `${kind}: the weekly brief must render`);
+  assert.ok(!/undefined|\[object Object\]|NaN/.test(insightsHtml), `${kind}: Insights leaked a raw value into the DOM`);
+}
+
+/* ---- THE core invariant: identical athlete data scores identically on either book ----
+   A practice has no requirement sets, so it resolves the built-in CATALOG; a team here has none
+   configured either, so it resolves the same one. Same inputs, same verdict. If this ever
+   diverges, a trainer and a coach looking at the same athlete would disagree. */
+assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
+  'the same athlete data must produce the same status on a team book and a practice book');
+
+/* ---- cross-book differences that SHOULD exist ---- */
+{
+  // The create menu is capability-filtered. Assert on the ROUTE, not the prose — the trainer's
+  // explanatory sidebox mentions announcements by name while correctly not offering them.
+  const teamMenu = snapshots.team['coach-create'];
+  const practiceMenu = snapshots.practice['coach-create'];
+  // Still coach-only: TEAM-shaped by design (broadcast announcements, staff roles).
+  for (const route of ['coach-announce', 'coach-profile/staff']) {
+    assert.ok(teamMenu.includes(`data-go="${route}"`), `a coach must be offered ${route}`);
+    assert.ok(!practiceMenu.includes(`data-go="${route}"`), `a trainer must NOT be offered ${route} — it is a team concept`);
+  }
+  // 0136 opened these to a practice: assignments and standing standards are dual-owner now.
+  for (const route of ['coach-assign', 'coach-plan']) {
+    assert.ok(teamMenu.includes(`data-go="${route}"`), `a coach must be offered ${route}`);
+    assert.ok(practiceMenu.includes(`data-go="${route}"`), `0136: a trainer must now be offered ${route}`);
+  }
+  assert.ok(practiceMenu.includes('data-go="trainer-roster"'), 'a trainer keeps "message a client"');
+  assert.ok(practiceMenu.includes('Built for teams'), 'a trainer must still be told which tools stay team-only');
+  // Position/unit only exists on a team book.
+  assert.ok(snapshots.team['coach-roster'].includes('LB'), 'a team roster shows units');
+
+  /* RISK E.1 — the priority card's Assign button writes into requirement_assignments, whose
+     team_id FKs to teams. On a practice book the id is a practice uuid, so the insert would
+     violate the FK — and logIntervention swallows the error, so it would fail SILENTLY and the
+     card would just never clear. The button must not exist on a practice book at all. */
+  const teamHome = snapshots.team['coach-home'];
+  const practiceHome = snapshots.practice['coach-home'];
+  // 0136 made requirement_assignments and coach_interventions dual-owner, so the full priority
+  // action bar (Open / Nudge / Assign / Handled) now works on either book.
+  assert.ok(teamHome.includes('data-passign=') && practiceHome.includes('data-passign='),
+    '0136: Assign now works on a practice book');
+  assert.ok(teamHome.includes('data-phandle=') && practiceHome.includes('data-phandle='),
+    '0136: Handled now works on a practice book');
+  assert.ok(teamHome.includes('data-pnudge=') && practiceHome.includes('data-pnudge='),
+    'Nudge is role-agnostic and must survive on both books');
+
+  /* Operator vocabulary — a trainer must never be addressed as a coach or told they have a team. */
+  assert.ok(practiceHome.includes('All clients'), 'a trainer sees client vocabulary');
+  assert.ok(practiceHome.includes('Client priorities'), 'a trainer sees "Client priorities"');
+  assert.ok(!/Entire team|Coach priorities|setting up your team/.test(practiceHome),
+    'no team vocabulary may leak onto a practice book');
+  assert.ok(teamHome.includes('Entire team') && teamHome.includes('Coach priorities'),
+    'the coach vocabulary is unchanged');
+  assert.ok(practiceHome.includes('Rivera Strength'), 'the practice name heads the trainer dashboard');
+  assert.ok(teamHome.includes('Northside Prep'), 'the team name heads the coach dashboard');
+
+  // Insights vocabulary follows the book too — "Entire team" over a practice's numbers would be
+  // the exact class of leak S.operatorIdentity/vocab() exist to prevent.
+  const teamInsights = snapshots.team['coach-insights'];
+  const practiceInsights = snapshots.practice['coach-insights'];
+  assert.ok(practiceInsights.includes('All clients'), 'a trainer sees "All clients" in the week scope label');
+  assert.ok(!/\bEntire team\b/.test(practiceInsights), 'no "Entire team" label may leak onto a practice book');
+  assert.ok(teamInsights.includes('Entire team'), 'the coach Insights scope label is unchanged');
+
+  // Roster: groups are dual-owner since 0136, so the ＋ Group control works on both books.
+  const teamRoster = snapshots.team['coach-roster'];
+  const practiceRoster = snapshots.practice['coach-roster'];
+  assert.ok(teamRoster.includes('data-groups') && practiceRoster.includes('data-groups'),
+    '0136: a practice owns its own client groups');
+  assert.ok(practiceRoster.includes('data-selmode'), 'multi-select still works on a practice book');
+  // Roster vocabulary follows the book too.
+  assert.ok(practiceRoster.includes('Search clients') && !practiceRoster.includes('Search athletes'),
+    'a trainer searches clients, not athletes');
+  assert.ok(teamRoster.includes('Search athletes'), 'the coach roster copy is unchanged');
+
+  // The athlete deep-dive drops the two sections whose tables are team-owned.
+  const teamAthlete = snapshots.team['coach-athlete'];
+  const practiceAthlete = snapshots.practice['coach-athlete'];
+  // 0136 gave a practice its own requirement sets and coach notes, so the deep dive is now the
+  // SAME seven sections on either book — the trainer's client page is finally at coach caliber.
+  for (const sec of ['overview', 'today', 'score', 'activity', 'conversation', 'requirements', 'notes']) {
+    assert.ok(teamAthlete.includes(`data-psec="${sec}"`), `a coach keeps the ${sec} section`);
+    assert.ok(practiceAthlete.includes(`data-psec="${sec}"`), `0136: a trainer must now get the ${sec} section`);
+  }
+  // Trust Pass is the one action that stays team-only FOREVER — grant_trust_pass (0099) checks
+  // is_team_coach_of and never is_trainer_of, so a trainer's tap could only ever be refused.
+  assert.ok(teamAthlete.includes('id="tp-btn"'), 'a coach keeps the Trust Pass action');
+  assert.ok(!practiceAthlete.includes('id="tp-btn"'), 'a trainer must never be shown Trust Pass — the server refuses it');
+  // ...but the three actions 0136 DID open are present on both.
+  for (const marker of ['data-anudge=', 'data-go="coach-assign/', 'data-go="coach-plan/']) {
+    assert.ok(teamAthlete.includes(marker) && practiceAthlete.includes(marker),
+      `both books keep the ${marker} action`);
+  }
+  assert.ok(practiceAthlete.includes('trainer view') && !practiceAthlete.includes('coach view'),
+    'the deep dive must not call itself a coach view for a trainer');
+  assert.ok(teamAthlete.includes('coach view'), 'the coach deep-dive subtitle is unchanged');
+}
+
+/* ---- Slice B: the standalone "note to client" screen is retired, not aliased.
+   Nothing in the live UI ever linked to it (the roster row always routes to coach-athlete/<id>
+   for either book), so a stale deep link should fall through the router's normal unknown-route
+   handling rather than mounting a screen with dead internal hash checks. ---- */
+assert.strictEqual(screens['trainer-client'], undefined, 'trainer-client must not be a registered route');
+
+console.log('operator book (team + practice): all assertions passed');

@@ -20,12 +20,24 @@ describe('catalog shape', () => {
     expect(planById('family')).toMatchObject({ monthly: 39.99, seatLimit: 4, rail: 'iap' });
     expect(planById('enterprise')?.custom).toBe(true);
   });
-  it('annual is ~2 months free (10x monthly) for priced plans', () => {
+  it('every priced plan gives a real annual discount', () => {
     for (const p of PLAN_CATALOG) {
       if (p.custom) continue;
       expect(annualSavings(p)).toBeGreaterThan(0);
-      // within a dollar of "pay for 10 months"
-      expect(Math.abs(p.annual - p.monthly * 10)).toBeLessThanOrEqual(1);
+      expect(p.annual).toBeLessThan(p.monthly * 12);
+    }
+  });
+  it('consumer plans anchor annual at ~30% off; pro/org keep ~2 months free', () => {
+    for (const p of PLAN_CATALOG) {
+      if (p.custom) continue;
+      const discount = 1 - p.annual / (p.monthly * 12);
+      if (p.audience === 'individual') {
+        expect(discount).toBeGreaterThan(0.28); // ~30% consumer anchor
+        expect(discount).toBeLessThan(0.32);
+      } else {
+        // within a dollar of "pay for 10 months" (2 months free)
+        expect(Math.abs(p.annual - p.monthly * 10)).toBeLessThanOrEqual(1);
+      }
     }
   });
 });

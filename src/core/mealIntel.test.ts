@@ -1,6 +1,6 @@
 // Proto is plain ESM JS (allowJs) — same import pattern as obHelpers/exec tests.
 // @ts-ignore
-import { normalizeDetected, groundExtras, openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages, contextForChat } from '../../proto/redesign-2026-07/js/meal-intel.js';
+import { normalizeDetected, groundExtras, openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages, contextForChat, weightedConfidence, shouldVerify, classifyVerifyOutcome } from '../../proto/redesign-2026-07/js/meal-intel.js';
 // @ts-ignore
 import { DAY, dayLogMeal } from '../../proto/redesign-2026-07/js/day.js';
 
@@ -261,5 +261,65 @@ describe('contextForChat', () => {
     const expectedTail = input.slice(input.length - survivingNames.length).map((m) => m.name);
     expect(survivingNames).toEqual(expectedTail);
     expect(survivingNames[survivingNames.length - 1]).toBe('Meal 199');
+  });
+});
+
+describe('weightedConfidence', () => {
+  test('a low-confidence garnish does not drag a well-read plate to low', () => {
+    const detected = [
+      { name: 'chicken', kcal: 400, confidence: 'high' },
+      { name: 'rice', kcal: 300, confidence: 'high' },
+      { name: 'garnish', kcal: 20, confidence: 'low' },
+    ];
+    expect(weightedConfidence(detected)).toBe('high');
+  });
+  test('low confidence on the calorie-dominant food is low overall', () => {
+    const detected = [
+      { name: 'mystery stew', kcal: 600, confidence: 'low' },
+      { name: 'bread', kcal: 100, confidence: 'high' },
+    ];
+    expect(weightedConfidence(detected)).toBe('low');
+  });
+  test('empty or missing kcal falls back to medium (never crashes)', () => {
+    expect(weightedConfidence([])).toBe('medium');
+    expect(weightedConfidence([{ name: 'x', confidence: 'low' }])).toBe('low');
+  });
+});
+
+describe('shouldVerify', () => {
+  const base = { detected: [{ name: 'chicken', kcal: 500, confidence: 'high' }], quality: 80, source: 'photo', severeRestrictions: [], budgetLeft: 3 };
+  test('severe-restriction athlete + any low-confidence food -> allergen', () => {
+    const r = shouldVerify({ ...base, detected: [{ name: 'sauce', kcal: 50, confidence: 'low' }], severeRestrictions: ['peanut'] });
+    expect(r).toEqual({ fire: true, trigger: 'allergen' });
+  });
+  test('weighted-low confidence + quality<50 -> accuracy', () => {
+    const r = shouldVerify({ ...base, detected: [{ name: 'stew', kcal: 600, confidence: 'low' }], quality: 40 });
+    expect(r).toEqual({ fire: true, trigger: 'accuracy' });
+  });
+  test('no fire when confident + on-plan', () => {
+    expect(shouldVerify(base)).toEqual({ fire: false, trigger: null });
+  });
+  test('no fire when budget exhausted', () => {
+    const r = shouldVerify({ ...base, detected: [{ name: 'stew', kcal: 600, confidence: 'low' }], quality: 40, budgetLeft: 0 });
+    expect(r).toEqual({ fire: false, trigger: null });
+  });
+  test('allergen takes precedence over accuracy', () => {
+    const r = shouldVerify({ detected: [{ name: 'stew', kcal: 600, confidence: 'low' }], quality: 40, source: 'photo', severeRestrictions: ['dairy'], budgetLeft: 3 });
+    expect(r).toEqual({ fire: true, trigger: 'allergen' });
+  });
+});
+
+describe('classifyVerifyOutcome', () => {
+  test('allergen found in second read but not first -> allergen_caught', () => {
+    expect(classifyVerifyOutcome({ kcal: 500, protein: 40, allergensFound: [] }, { kcal: 500, protein: 40, allergensFound: ['peanut'] })).toBe('allergen_caught');
+  });
+  test('kcal moved beyond 15% -> macros_moved', () => {
+    expect(classifyVerifyOutcome({ kcal: 500, protein: 40 }, { kcal: 700, protein: 40 })).toBe('macros_moved');
+  });
+  test('protein moved beyond 15% -> macros_moved', () => {
+    expect(classifyVerifyOutcome({ kcal: 500, protein: 40 }, { kcal: 500, protein: 60 })).toBe('macros_moved');
+  });
+  test('within tolerance and no allergen -> no_change', () => {
+    expect(classifyVerifyOutcome({ kcal: 500, protein: 40 }, { kcal: 520, protein: 41 })).toBe('no_change');
   });
 });

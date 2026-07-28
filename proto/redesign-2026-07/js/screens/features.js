@@ -1,17 +1,72 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
+import * as roles from '../roles.js';
+import * as CD from '../coach-data.js';
 
 /* ============================================================
    The 11 approved ideas, made walkable. Live where possible,
    honestly framed as preview where the backend must exist first.
    ============================================================ */
 
-/* ---------- #devices · HIDDEN until wearable integrations are real (spec §1.6) ----------
-   No entry point renders; a stale deep link lands safely on Profile. */
+/* ---------- #devices · Connect Apple Health / Health Connect (0134-adjacent, display-only) ----------
+   Reads sleep / HRV / resting HR for CONTEXT on the recovery check-in — it never changes the
+   score (self-report stays authoritative; the blend path is founder-gated). The screen self-gates
+   on the live native probe: until the founder wires the health module (src/lib/health), the
+   connect affordance stays hidden everywhere and a stale #devices deep link redirects to Profile,
+   so there is no reachable "coming soon". Lights up automatically once the module is wired. */
+let DEV = { checked: false, available: false, connected: false, sample: null, busy: false };
+async function probeHealth() {
+  DEV.available = await roles.healthAvailable();
+  if (!DEV.available) { DEV.checked = true; location.hash = '#profile'; return; } // safe landing
+  DEV.connected = await roles.healthConnected();
+  if (DEV.connected) DEV.sample = await roles.healthRead();
+  DEV.checked = true;
+  if (window.__render) window.__render();
+}
+function fmtSleep(h) { if (h == null) return '—'; const H = Math.floor(h), M = Math.round((h - H) * 60); return `${H}h${M ? ` ${M}m` : ''}`; }
+function readingRow(icn, label, val) {
+  return `<div class="lrow" style="cursor:default"><div class="lic">${icon(icn, 17)}</div><div class="lm"><div class="lt">${esc(label)}</div></div><span class="lv">${esc(val)}</span></div>`;
+}
 export const devices = {
   tab: 'profile',
-  render() { location.hash = '#profile'; return ''; },
+  render() {
+    const head = backHead('Connect a device', 'Apple Health & Health Connect', 'profile');
+    if (!DEV.checked || !DEV.available) {
+      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('moon', 17)}</div><div><div class="tt">Checking your device…</div></div></div>`;
+    }
+    if (!DEV.connected) {
+      return `${head}
+      <section class="card pad">
+        <div style="font-size:15.5px;font-weight:800">Bring your recovery data in</div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:6px;line-height:1.5">Connect and your last-night <b>sleep</b>, <b>HRV</b>, and <b>resting heart rate</b> show up here as context for your recovery check-in. Read-only — it never changes your score.</div>
+        <button class="btn green" id="dev-connect" style="width:100%;margin-top:14px" ${DEV.busy ? 'disabled' : ''}>${DEV.busy ? 'Connecting…' : 'Connect Apple Health / Health Connect'}</button>
+      </section>`;
+    }
+    const s = DEV.sample || {};
+    const any = s.sleepHours != null || s.hrvMs != null || s.restingHr != null;
+    return `${head}
+    <section class="card pad"><span class="status-pill g">Connected</span>
+      <div style="height:10px"></div>
+      ${any ? `<div class="eyebrow" style="margin:2px 0 4px">Last night</div>
+      ${s.sleepHours != null ? readingRow('moon', 'Sleep', fmtSleep(s.sleepHours)) : ''}
+      ${s.hrvMs != null ? readingRow('bolt', 'HRV', `${Math.round(s.hrvMs)} ms`) : ''}
+      ${s.restingHr != null ? readingRow('bolt', 'Resting HR', `${Math.round(s.restingHr)} bpm`) : ''}`
+      : `<div style="font-size:13px;font-weight:600;color:var(--text-2)">Connected — no reading yet. Your next sync will show last night's sleep, HRV, and resting heart rate here.</div>`}
+    </section>
+    <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:12px;padding:0 20px;line-height:1.4">Shown for context. Your recovery score still comes from your own check-in.</div>`;
+  },
+  mount(root) {
+    if (!DEV.checked) probeHealth();
+    const c = root.querySelector('#dev-connect');
+    if (c) c.addEventListener('click', async () => {
+      DEV.busy = true; if (window.__render) window.__render();
+      const r = await roles.healthConnect();
+      DEV.busy = false;
+      if (r && r.connected) { DEV.connected = true; DEV.sample = await roles.healthRead(); }
+      if (window.__render) window.__render();
+    });
+  },
 };
 
 /* ---------- #recruiting · Discipline Record (spec §17) ---------- */
@@ -214,29 +269,83 @@ export const restrictions = {
         preferences: names('#rx-preferences'),
       };
       window.__act.saveRestrictions(structured);
+      // Sync to the server so the coach's Team Dietary Sheet gets the real declaration (0134).
+      try { roles.saveDietaryRestrictions(RT.userId, RT.restrictions); } catch { /* best-effort */ }
       window.__back('profile');
     });
+
+    // Cross-device hydrate: if this device has no local declaration, pull the server copy once.
+    const hasLocal = RT.restrictions && ((RT.restrictions.allergies || []).length || (RT.restrictions.intolerances || []).length || (RT.restrictions.preferences || []).length);
+    if (!hasLocal) {
+      roles.fetchMyDietary().then((server) => {
+        if (server && ((server.allergies && server.allergies.length) || (server.intolerances && server.intolerances.length) || (server.preferences && server.preferences.length))) {
+          RT.restrictions = server;
+          if (window.__render) window.__render();
+        }
+      }).catch(() => { /* offline — local stays authoritative */ });
+    }
   },
 };
 
 /* ---------- #team-diet · Coach's team dietary sheet ----------
-   HONEST: athletes' restriction declarations don't sync to the server yet, so a coach has no
-   real data to show here. This is a safety surface — a coach could order team meals off it —
-   so it must NEVER render invented allergies. Coming-soon until the sync exists. */
+   Now REAL (0134): athletes' declarations sync to the server, so a coach sees every athlete who
+   has declared, severity-flagged. This is a SAFETY surface — a coach could order team meals off
+   it — so it renders ONLY real declarations (roles.fetchTeamDietary), never invented allergies,
+   and honestly shows how many athletes have not declared. */
+let TD = { loaded: false, entries: [], byId: {} };
+async function loadTeamDiet() {
+  try {
+    await CD.loadCoachRoster();
+    const entries = CD.entriesFor(CD.getScope()) || [];
+    const ids = entries.map((e) => e.row && e.row.athleteId).filter(Boolean);
+    const rows = await roles.fetchTeamDietary(ids);
+    const byId = {};
+    for (const r of rows) if (r && r.athlete_id) byId[r.athlete_id] = r.data || {};
+    TD = { loaded: true, entries, byId };
+  } catch { TD = { loaded: true, entries: [], byId: {} }; }
+  if (window.__render) window.__render();
+}
+function dietHasAny(d) {
+  return !!(d && ((Array.isArray(d.allergies) && d.allergies.length)
+    || (Array.isArray(d.intolerances) && d.intolerances.length)
+    || (Array.isArray(d.preferences) && d.preferences.length)));
+}
+function dietRow(name, d) {
+  const allergyPills = (d.allergies || []).map((a) => {
+    const nm = (a && a.name) || a;
+    const severe = a && a.severity === 'severe';
+    const style = severe ? 'background:var(--red-surface);color:var(--red)' : 'background:rgba(245,165,36,0.16);color:var(--amber-bright)';
+    return `<span class="status-pill" style="${style}">${esc(nm)}${a && a.severity ? ` · ${esc(a.severity)}` : ''}</span>`;
+  }).join(' ');
+  const other = [...(d.intolerances || []), ...(d.preferences || [])].map((x) => `<span class="status-pill">${esc(x)}</span>`).join(' ');
+  return `<section class="card pad" style="margin-bottom:8px">
+    <div style="font-size:14.5px;font-weight:800">${esc(name)}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${allergyPills}${other}</div>
+  </section>`;
+}
 export const teamDiet = {
   nav: 'coach', tab: 'roster',
   render() {
-    return `
-    ${backHead('Team Dietary Sheet', 'Every restriction, one screen. Travel-ready.', 'coach-home')}
-
-    <div class="state-demo">
-      <div class="sd-ic">${icon('bell', 24)}</div>
-      <div class="sd-t">Declarations are coming</div>
-      <div class="sd-s">When your athletes declare restrictions and allergies in their profile, every one of them lands here — severity-flagged, one screen, travel-ready. Nothing shows until it's their real declaration; a dietary sheet is the last place for placeholder data.</div>
-    </div>
-    <div style="height:10px"></div>
-    `;
+    const head = backHead('Team Dietary Sheet', 'Every restriction, one screen. Travel-ready.', 'coach-home');
+    if (!TD.loaded) {
+      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Loading declarations…</div></div></div>`;
+    }
+    const declared = TD.entries.filter((e) => dietHasAny(TD.byId[e.row && e.row.athleteId]));
+    const undeclared = TD.entries.length - declared.length;
+    if (!declared.length) {
+      return `${head}
+      <div class="state-demo"><div class="sd-ic">${icon('bell', 24)}</div>
+      <div class="sd-t">No declarations yet</div>
+      <div class="sd-s">When your athletes declare restrictions and allergies in their profile, every one lands here — severity-flagged, one screen, travel-ready. Nothing shows until it's their real declaration; a dietary sheet is the last place for placeholder data.</div></div>
+      <div style="height:10px"></div>`;
+    }
+    return `${head}
+    <div class="eyebrow">Declared · ${declared.length} of ${TD.entries.length}</div>
+    ${declared.map((e) => dietRow(e.row.name, TD.byId[e.row.athleteId])).join('')}
+    ${undeclared ? `<div style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);margin:6px 0 4px">${undeclared} athlete${undeclared === 1 ? '' : 's'} ${undeclared === 1 ? 'has' : 'have'} not declared restrictions</div>` : ''}
+    <div style="height:10px"></div>`;
   },
+  mount() { loadTeamDiet(); },
 };
 
 /* ---------- #injury · Injury Mode (spec §19): role boundaries enforced ----------
@@ -296,12 +405,6 @@ export const injury = {
     <div style="height:10px"></div>
     `;
   },
-};
-
-/* ---------- #partner · HIDDEN until coach pairing is real (spec §1.6) ---------- */
-export const partner = {
-  tab: 'home',
-  render() { location.hash = '#home'; return ''; },
 };
 
 /* ---------- #coach-voice · configure how the AI reinforces YOUR standards ---------- */
@@ -372,6 +475,92 @@ export const coachVoice = {
     }));
     const prohibited = root.querySelector('#cv-prohibited');
     if (prohibited) prohibited.addEventListener('change', () => act.setCoachVoice({ prohibited: prohibited.value.trim() }));
+  },
+};
+
+/* ---------- #trust-pass-policy · the team defaults grant_trust_pass reads (0097/0099) ---------- */
+export const trustPassPolicy = {
+  nav: 'coach', tab: 'profile',
+  render() {
+    const p = RT.trustPolicy || { length_days: 10, eligibility_days: 7 };
+    const stepper = (label, key, val, lo, hi, unit) => `
+    <div class="eyebrow">${label}</div>
+    <section class="card" style="padding:10px 16px">
+      <div class="lrow" style="cursor:default">
+        <div class="lm"><div class="lt">${val} ${unit}</div><div class="ls">Range ${lo}–${hi}</div></div>
+        <div class="seg" style="width:104px" data-tpp="${key}">
+          <button data-step="-1" aria-label="Decrease ${label}">−</button>
+          <button data-step="1" aria-label="Increase ${label}">+</button>
+        </div>
+      </div>
+    </section>`;
+    return `
+    ${backHead('Trust Pass', 'The default reward every grant on your team uses.', 'coach-profile')}
+
+    ${stepper('Pass length', 'length_days', p.length_days, 1, 60, p.length_days === 1 ? 'day' : 'days')}
+    ${stepper('Earned after', 'eligibility_days', p.eligibility_days, 1, 30, 'photo-logged days')}
+
+    <div style="height:10px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div><div class="tt">How a Trust Pass works</div>
+      <div class="ts">A pass lets a proven athlete one-tap their trailing nutrition median instead of a photo, for <b>${p.length_days}</b> ${p.length_days === 1 ? 'day' : 'days'}. You grant it by hand from an athlete’s profile, and only after they’ve photo-logged a meal on <b>${p.eligibility_days}</b> separate days — the server checks that every time, so a pass can never be earned from nothing.</div></div>
+    </div>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root) {
+    root.querySelectorAll('[data-tpp]').forEach((seg) => {
+      const key = seg.getAttribute('data-tpp');
+      seg.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => {
+        const cur = (RT.trustPolicy || { length_days: 10, eligibility_days: 7 })[key];
+        act.setTrustPolicy({ [key]: cur + Number(b.getAttribute('data-step')) });
+        window.__render();
+      }));
+    });
+  },
+};
+
+/* ---------- #week-pattern · which weekdays are training vs rest (0100 → day-type scoring) ---------- */
+const WP_DAYS = [[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'Thursday'], [5, 'Friday'], [6, 'Saturday'], [0, 'Sunday']];
+export const weekPattern = {
+  nav: 'coach', tab: 'profile',
+  render() {
+    const p = Array.isArray(RT.weekPattern) && RT.weekPattern.length === 7
+      ? RT.weekPattern : ['training', 'training', 'training', 'training', 'training', 'training', 'training'];
+    const rows = WP_DAYS.map(([dow, label]) => {
+      const rest = p[dow] === 'rest';
+      return `
+      <div class="lrow" style="cursor:default">
+        <div class="lm"><div class="lt">${label}</div></div>
+        <div class="seg" style="width:150px" data-wp="${dow}">
+          <button class="${rest ? '' : 'on'}" data-wt="training">Training</button>
+          <button class="${rest ? 'on' : ''}" data-wt="rest">Rest</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `
+    ${backHead('Training week', 'Mark rest days so day-only requirements don’t count against them.', 'coach-profile')}
+
+    <section class="card" style="padding:6px 16px">${rows}</section>
+
+    <div style="height:10px"></div>
+    <div class="sidebox">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
+      <div><div class="tt">How this is used</div>
+      <div class="ts">A requirement you tag as <b>training-only</b> or <b>rest-only</b> in the standards editor applies only on those days. On a rest day, training-only meals simply aren’t required — they don’t count against the athlete’s score. Leave every day “Training” for no change.</div></div>
+    </div>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root) {
+    root.querySelectorAll('[data-wp]').forEach((seg) => {
+      const dow = Number(seg.getAttribute('data-wp'));
+      seg.querySelectorAll('[data-wt]').forEach((b) => b.addEventListener('click', () => {
+        act.setWeekPattern(dow, b.getAttribute('data-wt'));
+        window.__render();
+      }));
+    });
   },
 };
 

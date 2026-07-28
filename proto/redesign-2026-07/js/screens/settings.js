@@ -1,9 +1,12 @@
-import { S, RT, act, roleNav, roleProfileRoute } from '../state.js';
+import { S, RT, act, roleNav, roleProfileRoute, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
 import { normalizeCoachPrefs } from '../coach-notify-plan.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, planStyleCard } from '../components.js';
+import { STYLE_KEYS, styleLabel } from '../plan-style.js';
+import * as roles from '../roles.js';
+import { planById } from '../pricing.js';
 
 /* Reminder-pressure chips: restore the athlete's REAL saved pressure and persist taps into
    RT.ob.standard.pressure (the same field onboarding writes, which drives the exec engine's
@@ -31,7 +34,10 @@ export function smartReply(text, fallback) {
   if (/(late|miss|forgot|skip)/.test(t)) return 'Honest answer: a late meal counts at half weight for punctuality, and a missed one just stays missed. Log it anyway — the trend matters more than one slot, and your coach respects a truthful log over a blank.';
   if (/(protein|macro)/.test(t)) return 'Aim protein-forward at every meal — a solid protein source plus a slow carb hits your plan. If a meal slot is still open, that’s where to close any gap.';
   if (/(eat out|restaurant|chipotle|fast food|on the go)/.test(t)) return 'From your plan’s approved list: Chipotle bowl (double chicken, rice, beans), a grilled sandwich, or a rice bowl. Order protein first, add the carb, skip nothing green.';
-  if (/(score|point|tier)/.test(t)) return `Your score is four honest parts: Nutrition 50%, Recovery 25%, Commitment 15%, Weekly check-in 10%. Right now you’re at ${S.score}; finishing what’s still open tonight takes you toward ${S.possible}.`;
+  // Never hardcode the split: the four weights move with the athlete's plan style x goal
+  // profile, and the assistant quoting a different mix than the score screens is exactly
+  // the contradiction this app can least afford.
+  if (/(score|point|tier)/.test(t)) return `Your score is four honest parts: Nutrition ${liveWeightPct('nutrition')}%, Recovery ${liveWeightPct('recovery')}%, Commitment ${liveWeightPct('commitment')}%, Weekly check-in ${liveWeightPct('checkin')}%. Right now you’re at ${S.score}; finishing what’s still open tonight takes you toward ${S.possible}.`;
   return fallback;
 }
 
@@ -214,8 +220,8 @@ export const privacy = {
     }
     if (S.consent.minor || (RT.consent && RT.consent.guardianEmail)) {
       rows.push({
-        ic: 'heart', t: RT.consent && RT.consent.guardianEmail ? `Guardian · ${RT.consent.guardianEmail}` : 'Parent / guardian', pill: 'Limited access',
-        s: 'Consent status and account controls — not your day-to-day logs',
+        ic: 'heart', t: 'Parent / guardian', pill: 'Limited access',
+        s: RT.consent && RT.consent.guardianEmail ? `${RT.consent.guardianEmail} · consent + account controls` : 'Consent status and account controls — not your day-to-day logs',
         detail: [
           ['Can do', 'Approve your account, request your data, or request deletion — legal guardian rights for minors.'],
           ['Cannot see', 'Your meal photos and daily logs are not mirrored to a guardian view.'],
@@ -223,12 +229,18 @@ export const privacy = {
       });
     }
     if (S.coach.hasCoach && S.coach.kind === 'coach') {
+      /* Teammates genuinely see NOTHING today: there is no athlete-facing leaderboard and no
+         coach control to enable one (see the note in state.js — the Squad screen is an honest
+         "coming soon" with no backend). This row previously promised "leaderboard score only,
+         when your coach turns the board on", which described a feature that does not exist and
+         understated the athlete's actual privacy. If a board ever ships, change this row IN THE
+         SAME commit that ships it. */
       rows.push({
-        ic: 'grid', t: 'Teammates', pill: 'Score only',
-        s: 'Leaderboard score only — when your coach turns the board on',
+        ic: 'grid', t: 'Teammates', pill: 'No access',
+        s: 'Teammates cannot see anything about your day',
         detail: [
-          ['Can see', 'Your daily score on the team leaderboard, if your coach enables it.'],
-          ['Cannot see', 'Meals, photos, weight, and check-ins are never visible to teammates.'],
+          ['Can see', 'Nothing. There is no team feed and no leaderboard — nobody on your team is shown your number.'],
+          ['Cannot see', 'Your score, meals, photos, weight, and check-ins are never visible to teammates.'],
         ],
       });
     }
@@ -242,7 +254,7 @@ export const privacy = {
           <summary class="lrow">
             <div class="lic">${icon(r.ic, 17)}</div>
             <div class="lm"><div class="lt">${esc(r.t)}</div><div class="ls">${esc(r.s)}</div></div>
-            <span class="status-pill ${i === 0 ? 'g' : 'b'}">${r.pill}</span>
+            <span class="status-pill ${r.pill === 'View access' ? 'g' : 'b'}">${r.pill}</span>
           </summary>
           <div class="pv-detail">
             ${r.detail.map(([k, v]) => `<div class="pv-line"><b>${esc(k)}</b>${esc(v)}</div>`).join('')}
@@ -300,15 +312,102 @@ export const privacy = {
   },
 };
 
-/* ---------- Plan & billing — HIDDEN until billing is functional (spec §21.1). ----------
-   No entry point renders in any profile; this route only exists so a stale deep link
-   (old notification, bookmark) lands safely on the owner's profile instead of a 404. */
+/* ---------- Plan & billing ----------
+   Consumer membership status + management. Subscriptions are store-managed (App Store / Play
+   IAP), so we never render a cancel button we can't honor — we deep-link to the store's own
+   subscription manager (Apple's rule) and offer Restore. Free accounts get an honest upsell to
+   the paywall. CACHE/load pattern mirrors monthly-report: fetch the row, then repaint. */
+const BILL = { sub: null, loaded: false };
+async function loadBilling() {
+  BILL.sub = await roles.fetchMySubscription();
+  BILL.loaded = true;
+  if (window.__render) window.__render();
+}
+function isPaid(sub) {
+  if (!sub) return false;
+  const okStatus = sub.status === 'active' || sub.status === 'past_due';
+  const t = String(sub.tier || '').toLowerCase();
+  const freeTier = t === '' || t === 'preview' || t === 'free' || t === 'none' || t === 'trial_expired';
+  return okStatus && !freeTier;
+}
+function planLabel(sub) {
+  if (!isPaid(sub)) return 'Free';
+  const p = sub.plan_id ? planById(sub.plan_id) : null;
+  if (p) return p.name;
+  return sub.tier === 'team' ? 'Team' : 'Premium';
+}
+function renewLine(sub) {
+  if (!isPaid(sub)) return 'You have the free plan. Your stats are always yours; membership adds the written coaching.';
+  const when = sub.current_period_end ? (() => { try { return new Date(sub.current_period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch { return ''; } })() : '';
+  if (sub.status === 'past_due') return `Payment issue — update your payment method in the store to keep premium${when ? ` (grace ends ${when})` : ''}.`;
+  if (sub.cancel_at_period_end) return when ? `Cancels ${when}. You keep premium until then.` : 'Set to cancel at period end.';
+  return when ? `Renews ${when}.` : 'Active.';
+}
+function storeSubUrl() {
+  return /android/i.test(navigator.userAgent || '')
+    ? 'https://play.google.com/store/account/subscriptions'
+    : 'https://apps.apple.com/account/subscriptions';
+}
+
 export const billing = {
   tab: 'profile',
   get nav() { return roleNav(); },
   render() {
-    location.hash = '#' + roleProfileRoute();
-    return '';
+    const back = roleProfileRoute();
+    if (!BILL.loaded) {
+      return `${backHead('Plan & billing', 'Your membership', back)}
+      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading your plan…</div></div></div>`;
+    }
+    const sub = BILL.sub;
+    const paid = isPaid(sub);
+    return `${backHead('Plan & billing', 'Your membership', back)}
+
+    <section class="card pad">
+      <div class="bigstat"><span class="n" style="font-size:26px">${esc(planLabel(sub))}</span><span class="d">${paid ? 'Your plan' : 'Current plan'}</span></div>
+      <div style="height:6px"></div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">${esc(renewLine(sub))}</div>
+      ${paid ? `<div style="height:8px"></div><span class="status-pill g">Premium unlocked</span>` : ''}
+    </section>
+
+    <div style="height:12px"></div>
+    ${paid ? `
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" id="bill-manage" role="button">
+        <div class="lic">${icon('gear', 18)}</div>
+        <div class="lm"><div class="lt">Manage subscription</div><div class="ls">Change plan or cancel in the ${/android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store'}</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" id="bill-restore" role="button">
+        <div class="lic">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Restore purchases</div><div class="ls">Moved devices? Restore your membership</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+    </section>` : `
+    <section class="card pad">
+      <button class="btn green" id="bill-upsell" style="width:100%">See membership plans</button>
+      <div style="height:10px"></div>
+      <div class="lrow" data-go="redeem-code" style="cursor:pointer"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Have a sponsor code?</div><div class="ls">Redeem it to unlock premium instantly</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" id="bill-restore" role="button" style="cursor:pointer"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Restore purchases</div><div class="ls">Already a member on another device?</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+    </section>`}
+
+    <div id="bill-msg" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:12px"></div>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root) {
+    if (!BILL.loaded) loadBilling();
+    const msg = root.querySelector('#bill-msg');
+    const manage = root.querySelector('#bill-manage');
+    if (manage) manage.addEventListener('click', () => roles.openExternal(storeSubUrl()));
+    const upsell = root.querySelector('#bill-upsell');
+    if (upsell) upsell.addEventListener('click', () => { if (window.__go) window.__go('paywall'); else location.hash = '#paywall'; });
+    const restore = root.querySelector('#bill-restore');
+    if (restore) restore.addEventListener('click', async () => {
+      if (msg) msg.textContent = 'Restoring…';
+      const res = await roles.restoreConsumerPurchases(RT.userId);
+      if (res && res.ok) { if (msg) { msg.style.color = 'var(--green-bright)'; msg.textContent = 'Membership restored.'; } BILL.loaded = false; loadBilling(); }
+      else if (msg) { msg.style.color = 'var(--text-3)'; msg.textContent = res && res.reason === 'unavailable' ? 'Purchases restore once memberships are live.' : 'Nothing to restore on this account.'; }
+    });
   },
 };
 
@@ -615,6 +714,7 @@ export const terms = {
       ${ext('https://onstandard.app/terms', 'clipboard', 'Terms of Service', 'The full agreement')}
       ${ext('https://onstandard.app/privacy', 'lock', 'Privacy Policy', 'What we collect and why')}
       <div class="lrow" data-go="privacy"><div class="lic">${icon('share', 16)}</div><div class="lm"><div class="lt">Data export</div><div class="ls">Download everything you own, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="verified-discipline"><div class="lic">${icon('shield', 16)}</div><div class="lm"><div class="lt">Verified Discipline profile</div><div class="ls">See exactly what a recruiter would — off until you say so</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('x', 16)}</div><div class="lm"><div class="lt">Account deletion</div><div class="ls">Permanent, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
       ${ext('mailto:support@onstandard.app', 'message', 'Contact & support', 'support@onstandard.app')}
     </section>
@@ -659,3 +759,59 @@ export function wireToggles(root) {
     syncAria();
   });
 }
+
+/* ---------- Plan style picker (0142) ----------
+   Where an athlete who OWNS their setting changes it, and where an athlete who doesn't sees
+   exactly who does — plus the preference they stated, marked as shared rather than discarded.
+
+   Honesty rules this screen carries:
+     * a locked athlete still gets to change their PREFERENCE. It reaches their coach's roster.
+       Silently storing an answer nobody ever sees is the thing this is built to avoid.
+     * the copy never implies a style is better. Structured is not "serious mode"; Intuitive is
+       not "easy mode". They measure different things.
+     * changing style is disclosed as forward-only — past days keep the score they earned. */
+export const planStylePicker = {
+  tab: 'profile',
+  hideTabs: true,
+  render() {
+    const PS = S.planStyle;
+    const choosing = PS.canChoose;
+    const current = PS.key;
+    // When someone else owns the setting, the chips pick a PREFERENCE, not the plan itself.
+    const selected = choosing ? current : (PS.preference || current);
+    return `
+    ${backHead('Plan style', choosing ? 'How much structure helps you succeed' : esc(PS.sourceLabel), 'settings')}
+
+    ${planStyleCard(PS, { compact: true })}
+
+    <div class="eyebrow">${choosing ? 'Choose your style' : 'Tell your ' + esc(S.coach.noun) + ' what you prefer'}</div>
+    ${!choosing ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 10px;line-height:1.5">Your ${esc(S.coach.noun)} sets the plan you're scored on. What you pick here is shared with them — it doesn't change your scoring on its own.</div>` : ''}
+
+    <section class="card" style="padding:6px 16px" id="ps-options">
+      ${STYLE_KEYS.map((k) => {
+        const L = styleLabel(k);
+        const on = selected === k;
+        return `
+        <div class="lrow" data-ps-pick="${k}" role="radio" aria-checked="${on ? 'true' : 'false'}">
+          <div class="lic">${icon(k === 'structured' ? 'clipboard' : k === 'guided' ? 'target' : 'heart', 17)}</div>
+          <div class="lm"><div class="lt">${esc(L.name)}${on ? ' <span class="status-pill g" style="margin-left:6px">Selected</span>' : ''}</div>
+          <div class="ls">${esc(L.how)}</div></div>
+        </div>`;
+      }).join('')}
+    </section>
+
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:12px;padding:0 2px;line-height:1.5">
+      Changing your style applies from today forward. Days you've already scored keep the score you earned — they were measured by the plan you were on then.
+    </div>
+
+    <div style="height:16px"></div>
+    <button class="btn ghost" data-back="settings">Done</button>
+    <div style="height:10px"></div>`;
+  },
+  mount(root) {
+    root.querySelectorAll('[data-ps-pick]').forEach((el) => el.addEventListener('click', () => {
+      act.setPlanStyle(el.getAttribute('data-ps-pick'));
+      window.__render && window.__render();
+    }));
+  },
+};

@@ -7,23 +7,30 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo } from './requirements.js';
+import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems, planStyleFromItems, setImpactWeightsProvider } from './requirements.js';
+import { resolvePlanStyle, SIGNAL_KEYS, CHECKIN_SIGNAL_KEYS, styleLabel, styleSourceLabel } from './plan-style.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
-  dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal,
+  dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, setDayGoalConfig, checkinReal,
+  setDayPlanStyle, daySetMealSignal, weightsForDay,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
 import { normalizePrefs } from './notify-plan.js';
+import { commitmentReminders } from './commitments.js';
 import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
 import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
-import { groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts } from './meal-intel.js';
+import {
+  groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
+  mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions, shouldVerify,
+} from './meal-intel.js';
+import { groundMealFromFoods, groundMealTotals, gapFoods } from './nutrition.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
 import { cachedMealPhoto, todayMealPhotoPath } from './photo-store.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
@@ -33,6 +40,7 @@ import {
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
+  fetchTrustPassPolicy, fetchTeamWeekPattern, fetchCoachSetupState, fetchMyRoomLabel,
   todayISO,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
@@ -80,39 +88,99 @@ function loadMeal() {
 }
 loadMeal(); // restore an in-flight capture across a reload, before the first render
 
-/** Bound the AI's macros to sane per-meal ranges (Atwater fallback for calories) so a mis-read
-   can never spike the score — a lightweight port of macroGrounding for v1. */
-function groundResult(d) {
+/** Ground the AI result into numbers the APP owns (Tier 1 invariants, 2026-07-21):
+    1. NUTRITION — per-food macros bounded against the curated food DB (nutrition.js); totals
+       are the SUM of the per-food numbers, so removing a food later subtracts exactly its
+       share. Payloads from older edge deploys (no per-food macros) fall back to meal-level
+       DB bounding. The old hard caps stay as the outermost belt-and-braces.
+    2. SCORING — quality is computed HERE by mealQualityScore (deterministic, same evaluation
+       the rubric displays). The AI's own quality survives only as aiQuality, feeding the
+       meal_score_delta cross-check analytic — it is never shown and never stored as the score.
+    3. LANGUAGE — the AI paragraph rides along only when its tone can sit next to the computed
+       band; on conflict the deterministic qualityReason line speaks instead.
+    Exported for protoGroundResult.test.ts — the payload-compat gate that feeds real old-shape
+    (no per-food macros) and new-shape wire payloads through this exact function. */
+export function groundResult(d) {
   const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(v || 0)));
   // Belt-and-braces: the AI response is untrusted text. Strip angle brackets at the source so a
   // crafted analyze-meal payload can never inject markup (render sites still escape as well).
   const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
-  const protein = clampN(d.protein, 120), carbs = clampN(d.carbs, 250), fat = clampN(d.fat, 150);
-  const kcal = clampN(d.kcal || (4 * protein + 4 * carbs + 9 * fat), 2200);
   const extras = groundExtras(d);
+
+  // ---- nutrition: per-food attribution when the payload carries it; totals fallback otherwise
+  const perFood = extras.detectedRich.some((f) => f && f.per);
+  let detectedRich = extras.detectedRich;
+  let totals;
+  if (perFood) {
+    const g = groundMealFromFoods(extras.detectedRich);
+    detectedRich = g.foods;
+    totals = g.totals;
+  } else {
+    totals = groundMealTotals(d, extras.detectedNames).totals;
+  }
+  const protein = clampN(totals.protein, 120), carbs = clampN(totals.carbs, 250), fat = clampN(totals.fat, 150);
+  const kcal = clampN(totals.kcal || (4 * protein + 4 * carbs + 9 * fat), 2200);
+  const gm = { protein, carbs, fat, kcal };
+
+  // ---- scoring: deterministic, timing measured on the athlete's clock at capture
+  const timing = analysisTiming(MEAL.capturedAtMin != null ? MEAL.capturedAtMin : minutesNow(), slotDeadline(MEAL.key || 'dinner'));
+  const quality = mealQualityScore({ macros: gm, fiber: extras.fiber, detected: detectedRich, minutesLate: timing ? timing.minutesLate : 0 });
+  const aiQuality = d.quality != null ? clampN(d.quality, 100) : null;
+  if (quality != null && aiQuality != null) track(EVENTS.MEAL_SCORE_DELTA, { ai: aiQuality, det: quality, delta: quality - aiQuality });
+
+  // ---- language: score and words must agree (one evaluation result)
+  const band = qualityBand(quality);
+  let analysis = extras.analysis;
+  let note = clean(d.note);
+  if (!analysisAgreesWithBand(analysis, band) || !analysisAgreesWithBand(note, band)) {
+    track(EVENTS.MEAL_TEXT_CONFLICT, { det: quality != null ? quality : -1 });
+    analysis = '';
+    note = qualityReason(gm, extras.fiber, detectedRich) || 'Logged. The breakdown shows how this plate reads.';
+  }
+
   return {
-    name: clean(d.name) || 'Meal', quality: clampN(d.quality, 100),
+    name: clean(d.name) || 'Meal', quality, aiQuality,
     protein, carbs, fat, kcal,
     fiber: extras.fiber,
     highlights: extras.highlights,
-    detected: extras.detectedNames,      // legacy consumers keep plain names
-    detectedRich: extras.detectedRich,   // confidence-aware renderers use this (now with quantity)
-    note: clean(d.note),
-    analysis: extras.analysis,           // detailed coach paragraph (0062); '' from an old edge fn
+    detected: detectedRich.map((f) => f.name), // legacy consumers keep plain names
+    detectedRich,                              // confidence-aware renderers (now with per-food macros)
+    note,
+    analysis,                                  // detailed coach paragraph (0062); '' from an old edge fn
   };
 }
 
+/* The engine's own headline mix for TODAY (style x goal profile — plan-style.js weightsFor via
+   day.js weightsForDay). Every surface that PRINTS a weight must read this, never a constant. */
+export function liveWeights() { return weightsForDay(DAY); }
+/** Whole-number weight for one component, for display copy ("Nutrition · 52% of score"). */
+export function liveWeightPct(comp) { return Math.round((liveWeights()[comp] || 0) * 100); }
+setImpactWeightsProvider(liveWeights);
+
+/* The Structured x athlete mix, kept ONLY as the documented grandfathering baseline and for
+   tests that pin it. It is identical to STYLE_WEIGHTS.structured.athlete, which is what makes
+   the alignment in computeScore() below a no-op for that population.
+   Nothing may print a percentage from here; use liveWeightPct(). */
 export const WEIGHTS = { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
 
 /* Weight's due time — read from the one catalog truth, never a second hardcoded copy. */
 const WEIGHT_DUE = CATALOG.find((r) => r.id === 'weight').window.due;
 
+/* Headline score for TODAY. Reads the SAME style x profile mix the engine scores with
+   (day.js scoreFor -> weightsForDay), so S.score can no longer disagree with the breakdown
+   that explains it — the contradiction this product can least afford.
+
+   This is NOT a scoring change: STYLE_WEIGHTS.structured.athlete is identical to WEIGHTS
+   above, so a Structured athlete's number is byte-for-byte unchanged (grandfathering holds).
+   For every other style/profile the engine ALREADY scored them on these weights; only the
+   proto's displayed number was stale. */
 export function computeScore(c) {
+  const w = liveWeights();
   return Math.round(
-    WEIGHTS.nutrition * c.nutrition +
-    WEIGHTS.recovery  * c.recovery +
-    WEIGHTS.commitment* c.commitment +
-    WEIGHTS.checkin   * c.checkin
+    w.nutrition * c.nutrition +
+    w.recovery  * c.recovery +
+    w.commitment* c.commitment +
+    w.checkin   * c.checkin
   );
 }
 
@@ -148,12 +216,11 @@ const DEFAULT_RT = {
   coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots)
   coachNudged: {},       // coach device: athleteId -> ISO date of last nudge (one per athlete per day)
   coachSetup: {},        // coach first-run checklist: real per-step completion flags (sharedCode/standard/staff/group) marked when the coach actually does each step; reset per-account by _wipeUserScopedState
-  coachVoice: null,      // coach's AI-voice config {enabled,tone,level,approved:[],prohibited}; null → defaults. The AI edge fn consumes this once wired (server-deferred)
+  coachVoice: null,      // coach's AI-voice config {enabled,tone,level,approved:[],prohibited}; null → defaults. Consumed live by the coach-voice-nudge edge fn (home.js)
   theme: 'dark',         // 'dark' | 'light' | 'system' — dark is the shipped default (WS2b)
   haptics: true,         // device preference: light vibration on taps/logs (router buzz())
   coachComments: [],     // coach->athlete comments; REALLY land in the athlete's meal thread
   planUpdate: null,      // coach-published plan update; REALLY lands in Plan·Notes + notifications
-  squadScope: 'position',// coach-controlled leaderboard scope: 'team' | 'position' | 'off'
   trainerNotes: [],      // trainer->client notes; REALLY land in the athlete's notifications
   camPrimed: false,      // Apple-style camera permission priming shown once
   homeOpenSections: {},  // WS6: per-section open state for Home's collapsible groups (Later/Done)
@@ -162,8 +229,7 @@ const DEFAULT_RT = {
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
   restrictions: null,    // structured (spec §18.1): {allergies:[{name,severity}], intolerances:[], preferences:[]}
   injured: false,        // injury mode: the Standard adapts (rehab replaces recovery emphasis)
-  partnerNudged: false,  // peer accountability: one nudge sent tonight
-  wearable: false,       // v1 has NO wearable integration — never show fabricated hardware data
+  wearable: false,       // reserved; #devices gates on the live native health probe, not this flag
   // --- real auth (Supabase session drives these; null until signed in) ---
   userId: null,
   email: null,
@@ -357,6 +423,7 @@ export function mealDetail(slot) {
     orig: meta.orig || null,         // the AI's original estimate, frozen at first correction
     photoQ: meta.photoQ || null,     // measured capture quality {luma, sharpness} (or null)
     analysis: meta.analysis || '',   // the AI's detailed paragraph (0062), '' pre-migration
+    styleApplied: meta.styleApplied || null, // 0142 — which plan style the server wrote it for
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
     fiber: meta.fiber || 0,
     highlights: Array.isArray(meta.highlights) ? meta.highlights : [],
@@ -389,12 +456,22 @@ export function syncRtFromDay() {
   save();
 }
 
-/* The athlete's activation stamp for the first-day (no-retroactive-failure) rules. Primary:
-   RT.activationDate, stamped locally at onboarding commit — covers the exact signup→dashboard
-   moment on the same device. Backstop: the server committed_at hydrated into RT.profile.committedAt
-   (cross-device). Null (existing/pre-change users) ⇒ fully active, so nobody is affected retroactively. */
+/* The athlete's activation stamp for the first-day (no-retroactive-failure) rules. The account's
+   SERVER birthday (profiles.created_at, hydrated into RT.profile.createdAt) is the authoritative,
+   tamper-proof anchor — it can't be stale because the row didn't exist until the account did. A
+   commit stamp (RT.activationDate / RT.profile.committedAt) only refines the minute-of-day, and
+   only when it lands on the birthday; a stale cross-day carry (the founder's 11-day-old stamp) is
+   ignored. No server birthday (older clients) ⇒ prior commit-stamp behavior, so nobody regresses. */
 function activationStamp() {
-  return RT.activationDate || (RT.profile && RT.profile.committedAt) || null;
+  const created = (RT.profile && RT.profile.createdAt) || null;
+  const committed = RT.activationDate || (RT.profile && RT.profile.committedAt) || null;
+  if (created) {
+    const cd = parseActivation(created);
+    const md = committed ? parseActivation(committed) : null;
+    if (cd && md && md.date === cd.date) return committed; // same-day: keep the finer minute
+    if (cd) return created;                                 // reject a stale cross-day commit
+  }
+  return committed;
 }
 /** The activation calendar date only ('YYYY-MM-DD'), or null. */
 function activationDateOnly() {
@@ -428,6 +505,92 @@ function goalDerivedTargets(goal, bodyweightLb) {
     default:                        return { proteinTarget: GOAL_PROTEIN_DEFAULT, calTarget: GOAL_CAL_DEFAULT };
   }
 }
+/* The athlete's nutrition scoring config from their goal + bodyweight + coach-set targets — the
+   ONE source both the athlete's own hydrate (applyGoalToDay) and the coach-side score breakdown
+   read, so a coach viewing an athlete grades their day exactly as the athlete is graded. A
+   coach/trainer target (athlete_profiles.targets) wins over the goal-derived default; no goal →
+   the shipped athlete defaults (never another athlete's device values). Pure + exported for the
+   coach reconstruction. */
+export function nutritionConfigForGoal(goal, bodyweightLb, targets) {
+  if (!goal) return { scoringProfile: 'athlete', proteinTarget: GOAL_PROTEIN_DEFAULT, calTarget: GOAL_CAL_DEFAULT };
+  const derived = goalDerivedTargets(goal, bodyweightLb > 0 ? +bodyweightLb : GOAL_BW_DEFAULT);
+  const t = targets || {};
+  return {
+    scoringProfile: scoringProfileForGoal(goal),
+    proteinTarget: t.protein > 0 ? +t.protein : derived.proteinTarget,
+    calTarget: t.calories > 0 ? +t.calories : derived.calTarget,
+  };
+}
+/* ---------------- Plan style → the live day (0142) ----------------
+   The THIRD axis: goal sets direction, standard reshapes the day, style sets how much structure
+   the athlete is held to. One resolution, shared by the athlete's own hydrate and every surface
+   that has to explain it, so "what am I on and who set it?" always has one answer.
+
+   The role decides who CONTROLS it, not what it is: a team athlete's coach owns the setting, a
+   trainer client proposes, an independent adult chooses. The stated preference is carried
+   through in every case — see plan-style.js resolvePlanStyle. */
+function planStyleRoleFor() {
+  const p = RT.profile || {};
+  if (RT.myCoach && RT.myCoach.teamId) return 'athlete';   // on a team → the coach's call
+  if (RT.myTrainer || p.trainerId) return 'client';        // a practice client → propose
+  const r = p.primaryRole || (RT.ob && RT.ob.role) || null;
+  if (r === 'coach' || r === 'trainer' || r === 'nutrition') return r;
+  return 'solo';                                           // an independent adult chooses freely
+}
+
+/** The athlete's resolved plan style — the ONE derivation every surface reads. */
+export function resolveMyPlanStyle() {
+  const p = RT.profile || {};
+  const teamStandard = planStyleFromItems(RT.stdItems, (RT.myCoach && RT.myCoach.name) || null);
+  const targets = p.targets || {};
+  return resolvePlanStyle({
+    role: planStyleRoleFor(),
+    teamStandard,
+    proAssignment: targets.style
+      ? { style: targets.style, styleOverrides: targets.styleOverrides || null, setBy: (RT.myCoach && RT.myCoach.name) || (RT.myTrainer && RT.myTrainer.name) || null }
+      : null,
+    selfChoice: p.planStyle || null,
+    preference: p.planStylePreference || (RT.ob && RT.ob.structurePref) || null,
+    // Grandfather (founder decision): an account that already has scored history keeps today's
+    // exact formula rather than being moved to the new Guided default on release day.
+    hasHistory: Array.isArray(DAY.scoreHistory) && DAY.scoreHistory.length > 0,
+  });
+}
+
+/* A style's tracked body signals become check-in QUESTIONS (digestion/cravings) through the
+   SAME ciConfig gate every other check-in field uses — no second form, no second engine. Only
+   the two check-in-scoped signals are touched; the athlete's other toggles are left alone. */
+function applyStyleCheckinConfig(knobs) {
+  if (!DAY.ciConfig) return;
+  for (const key of CHECKIN_SIGNAL_KEYS) {
+    DAY.ciConfig[key] = !!(knobs && knobs.signals && knobs.signals[key]);
+  }
+}
+
+/** The trailing-week rate at which this athlete answered their signal prompts (0..1). Feeds
+ *  awarenessScore so one skipped day barely moves the number. Real data only — computed from
+ *  the signals actually stored on the last 7 day rows; null when there is no history to read. */
+function signalWeekRate() {
+  const hist = Array.isArray(DAY.scoreHistory) ? DAY.scoreHistory.slice(-7) : [];
+  if (!hist.length) return null;
+  let answered = 0;
+  for (const h of hist) {
+    const sig = (h && h.checkin && h.checkin.signals) || (h && h.signals) || null;
+    if (sig && Object.keys(sig).some(slot => sig[slot] && Object.keys(sig[slot]).length)) answered++;
+  }
+  return answered / hist.length;
+}
+
+/** Push the resolved style onto the live DAY: the scoring branch, the check-in questions, and
+   the awareness week-rate. Idempotent — safe on every hydrate, exactly like applyGoalToDay. */
+function applyPlanStyleToDay() {
+  const res = resolveMyPlanStyle();
+  RT.planStyle = res;
+  setDayPlanStyle(res.style, res.knobs);
+  applyStyleCheckinConfig(res.knobs);
+  DAY.signalWeekRate = signalWeekRate();
+}
+
 /* Derive the athlete's scoring profile + calorie/protein targets from their real goal (server
    baseGoal, else the onboarding scratch) and body weight, and push them onto the live DAY so the
    score honors what they signed up for. A coach/trainer-set target (athlete_profiles.targets)
@@ -439,11 +602,9 @@ function applyGoalToDay() {
   const bw = (p.baseWeight != null ? +p.baseWeight : 0)
     || (RT.ob && RT.ob.currentWeight ? +RT.ob.currentWeight : 0)
     || (DAY.currentWeight != null ? +DAY.currentWeight : 0) || GOAL_BW_DEFAULT;
-  const derived = goalDerivedTargets(goal, bw);
-  const t = p.targets || {};
-  const proteinTarget = (t.protein > 0 ? +t.protein : derived.proteinTarget);
-  const calTarget = (t.calories > 0 ? +t.calories : derived.calTarget);
-  setDayGoalConfig(scoringProfileForGoal(goal), proteinTarget, calTarget);
+  // ONE derivation, shared with the coach breakdown (nutritionConfigForGoal) so they never drift.
+  const cfg = nutritionConfigForGoal(goal, bw, p.targets);
+  setDayGoalConfig(cfg.scoringProfile, cfg.proteinTarget, cfg.calTarget);
 }
 
 /* ---------------- Actions ---------------- */
@@ -452,17 +613,33 @@ function applyGoalToDay() {
    byte-identical. Shared by the live exec getter AND tomorrow's pre-scheduled reminder plan. */
 function execCatalog() {
   const std = RT.stdMeals;
-  if (!std) return CATALOG;
-  const mealItems = reqMealSlots().map((k) => {
-    const base = CATALOG.find(c => c.id === k);
-    return {
-      id: k, title: (std.titles && std.titles[k]) || (base ? base.title : cap(k.replace('-', ' '))),
-      icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
-      freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k), grace: slotGrace(k) }, required: true,
-      impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: base ? base.note : '',
-    };
-  });
-  return [...mealItems, ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id))];
+  let base;
+  if (!std) {
+    base = CATALOG;
+  } else {
+    const mealItems = reqMealSlots().map((k) => {
+      const b = CATALOG.find(c => c.id === k);
+      return {
+        id: k, title: (std.titles && std.titles[k]) || (b ? b.title : cap(k.replace('-', ' '))),
+        icon: b ? b.icon : 'utensils', accent: b ? b.accent : 'g', proof: 'photo',
+        freq: { type: 'daily' }, window: { ...(b ? b.window : {}), due: slotDeadline(k), grace: slotGrace(k) },
+        // Snack-optional (0100/0086): a snack slot is loggable but not required — it never reads
+        // overdue and drops out of the denominator. Every other slot stays required (parity).
+        required: !(std.optional && std.optional.includes(k)),
+        impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', note: b ? b.note : '',
+      };
+    });
+    base = [...mealItems, ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id))];
+  }
+  // Coach standing NON-MEAL items (lift/custom/extra hydration/weigh) — surfaced to the athlete's
+  // list, TRACKED not scored. Drop any 'component' item (meals/recovery/checkin feed the score and
+  // are already handled above) and dedupe by id, so this only ADDS the coach's plan/focus/trend
+  // requirements and never alters an existing scored one. RT.stdItems null (no coach set) → coach
+  // is [] → base returned unchanged, so a no-coach day stays byte-identical.
+  const coach = catalogFromItems(RT.stdItems).filter(r => r && r.impact && r.impact.kind !== 'component');
+  if (!coach.length) return base;
+  const seen = new Set(base.map(r => r.id));
+  return [...base, ...coach.filter(r => !seen.has(r.id))];
 }
 
 /* An assignment's due time as minutes-from-midnight, ONLY when its real due_at lands on the
@@ -509,7 +686,7 @@ export const act = {
     const meta = MEAL.result
       ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note, name: MEAL.result.name || MEAL.mealType,
           fiber: MEAL.result.fiber || 0, highlights: MEAL.result.highlights || [], detectedRich: MEAL.result.detectedRich || [],
-          analysis: MEAL.result.analysis || '', ...(userNote ? { userNote } : {}), ...integrity }
+          analysis: MEAL.result.analysis || '', ...(MEAL.result.styleApplied ? { styleApplied: MEAL.result.styleApplied } : {}), ...(userNote ? { userNote } : {}), ...integrity }
       : { name: MEAL.mealType || cap(slot), ...(userNote ? { userNote } : {}), ...integrity };
     const macros = loggingMacros();
     dayLogMeal(RT.userId, slot, macros, meta);
@@ -532,6 +709,10 @@ export const act = {
         // coach staff, urgency by classification — fires exactly once, on the FRESH insert
         // (a dup never notifies; a retry can't reach here twice for the same slot).
         this._notifyCoachMealLogged(slot, meta);
+        // Background macro enrichment (fire-and-forget): resolve the foods the curated table
+        // couldn't ground against USDA/OFF so FUTURE meals ground on real data + seed the eval
+        // corpus. Fires once on the fresh insert (never a dup); never touches THIS logged meal.
+        this._enrichMeal(meta);
       }
     });
     // Reflect the just-logged meal into every RT flag the UI reads. Beyond the legacy
@@ -550,6 +731,21 @@ export const act = {
       if (age != null && age >= 60) track(EVENTS.MEAL_STALE_PHOTO, { slot });
     }
     this.syncNotifications();
+  },
+  /* Post-log macro enrichment (background, fire-and-forget). Resolves the foods the curated table
+     couldn't ground (gapFoods) against USDA/OFF via the enrich-meal function, so the NEXT time this
+     population logs the same branded/restaurant food it grounds on real data — and seeds the
+     de-identified eval corpus. Forward-only: it NEVER re-touches this logged meal or its score
+     (post-log immutability; a silent retroactive score change is a trust break). De-identified —
+     only food names + the AI's per-food macros leave the device. Best-effort; failure is silent. */
+  _enrichMeal(meta) {
+    try {
+      const sb = window.sb;
+      if (!sb || !sb.functions) return;
+      const foods = gapFoods((meta && meta.detectedRich) || []);
+      if (!foods.length) return;
+      void sb.functions.invoke('enrich-meal', { body: { foods } }).then(() => {}, () => {});
+    } catch { /* enrichment is best-effort — it must never affect the logged meal */ }
   },
   /** Classified coach notification for a fresh meal insert (never for dups/retries).
    *  'logged' = quiet in-app record; 'review'/'action' also push. Copy per spec:
@@ -594,6 +790,46 @@ export const act = {
     track(EVENTS.RECOVERY_SUBMITTED);
     this.syncNotifications();
   },
+  /* Set the athlete's plan style (0142). ALWAYS records their stated preference — that is theirs
+     and it reaches their professional's roster either way. The effective style only moves when
+     nobody else governs it; the server (set_my_plan_style) is the authority on that, and it
+     returns the style that actually applies, so a governed athlete's optimistic paint is
+     corrected by the real answer rather than left showing a switch that didn't happen. */
+  async setPlanStyle(style) {
+    const key = String(style || '');
+    const p = RT.profile || (RT.profile = {});
+    p.planStylePreference = key;
+    if (S.planStyle.canChoose) p.planStyle = key;   // `planStyle` is an S getter, not an act method
+    applyPlanStyleToDay();
+    save();
+    const sb = window.sb;
+    if (!sb || !RT.userId) return;                       // offline: the local choice stands and re-syncs
+    try {
+      const { data, error } = await sb.rpc('set_my_plan_style', { p_style: key, p_preference: key });
+      if (!error && data) {
+        // The server's word, not ours: a governed athlete gets their standard back here.
+        p.planStyle = S.planStyle.canChoose ? data : null;
+        applyPlanStyleToDay();
+        save();
+        window.__render && window.__render();
+      }
+    } catch { /* offline — the local preference is kept and pushed on the next hydrate */ }
+  },
+
+  /* The 2-tap post-meal body-signal prompt (0142). Answering is what earns awareness credit on
+     an Intuitive plan — the VALUE answered never does, so there is no wrong answer to give and
+     nothing to game. Skipping costs nothing on Structured/Guided, and on Intuitive it is one
+     day against a trailing-week rate. */
+  setMealSignal(slot, key, value) {
+    daySetMealSignal(RT.userId, slot, key, value);
+    DAY.signalWeekRate = signalWeekRate();
+    save();
+  },
+  /* One-time "plan styles exist now" announcement (0142 release mechanics) — dismissed once,
+     locally, and never shown again regardless of which button ended it (exploring the picker
+     counts as having seen it too). Local-only like RT.theme/RT.notifsRead: this is a UI nag
+     flag, not athlete data, so it doesn't need a server round trip or a fresh-device carry. */
+  dismissPlanStylePrompt() { RT.planStylePromptSeen = true; save(); },
   logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); track(EVENTS.WEIGHT_LOGGED); this.syncNotifications(); },
   addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); this.syncNotifications(); },
   readNotifs() {
@@ -622,9 +858,11 @@ export const act = {
      the next open replaces everything, bounding staleness to one day. Best-effort. */
   syncNotifications() {
     void this.registerPushToken(); // piggyback: same permission moment, once per session
-    // COACH devices schedule the COACH plan (roster-derived), NOT the generic athlete meal
-    // reminders. This early-return leaves the athlete/trainer/parent path below byte-identical.
-    if (RT.authRole === 'coach') { this._syncCoachNotifications(); return; }
+    // OPERATOR devices (coach AND trainer) schedule the roster-derived operator plan, NOT the
+    // generic athlete meal reminders. A trainer used to fall through to the athlete path, which
+    // meant their own phone scheduled "log your breakfast" reminders for a person who logs
+    // nothing — the plan is built from entriesFor(), which is role-agnostic.
+    if (RT.authRole === 'coach' || RT.authRole === 'trainer') { this._syncCoachNotifications(); return; }
     try {
       let plan = S.exec.plan;
       // Celebration already posted today: strip it so a post-celebration score change (snack
@@ -765,6 +1003,53 @@ export const act = {
       }
     } catch { /* best-effort */ }
   },
+  /* Trust Pass policy (0097): the per-team pass length + eligibility the grant reads. Local RT is the
+     fast path for the editor; best-effort server upsert (staff RLS) — a missing table or offline
+     no-ops. Values are clamped to the table's own bounds so the DB check can never reject them. */
+  setTrustPolicy(patch) {
+    const cur = RT.trustPolicy || { length_days: 10, eligibility_days: 7 };
+    const clamp = (n, lo, hi, d) => { n = Math.round(Number(n)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+    const next = {
+      length_days: clamp(patch.length_days != null ? patch.length_days : cur.length_days, 1, 60, 10),
+      eligibility_days: clamp(patch.eligibility_days != null ? patch.eligibility_days : cur.eligibility_days, 1, 30, 7),
+    };
+    RT.trustPolicy = next;
+    save();
+    try {
+      if (window.sb && RT.team && RT.team.id) {
+        void window.sb.from('trust_pass_policy').upsert(
+          { team_id: RT.team.id, length_days: next.length_days, eligibility_days: next.eligibility_days, updated_by: RT.userId || null, updated_at: new Date().toISOString() },
+          { onConflict: 'team_id' });
+      }
+    } catch { /* best-effort */ }
+  },
+  /* Team weekly training/rest pattern (0100): set one weekday's type and persist. `dow` is 0=Sun..
+     6=Sat (JS getDay()). Local RT drives the editor + the athlete's day-type resolution; best-effort
+     staff upsert. Seeds an all-training week the first time a coach touches it. */
+  setWeekPattern(dow, type) {
+    if (dow < 0 || dow > 6) return;
+    const t = (type === 'rest' || type === 'training') ? type : 'training';
+    const next = Array.isArray(RT.weekPattern) && RT.weekPattern.length === 7
+      ? RT.weekPattern.slice()
+      : ['training', 'training', 'training', 'training', 'training', 'training', 'training'];
+    next[dow] = t;
+    RT.weekPattern = next;
+    save();
+    try {
+      if (window.sb && RT.team && RT.team.id) {
+        void window.sb.from('team_week_pattern').upsert(
+          { team_id: RT.team.id, pattern: next, updated_by: RT.userId || null, updated_at: new Date().toISOString() },
+          { onConflict: 'team_id' });
+      }
+    } catch { /* best-effort */ }
+  },
+  /* Cache the resolved Coach Voice nudge (0094 consumer) keyed by the slipping-state signature, so
+     the model is asked at most once per distinct state per day. A null text (Voice off / no nudge)
+     is cached too, to suppress repeat calls. Persisted with RT. */
+  setVoiceNudge(sig, text) {
+    RT.voiceNudge = { sig, text: text || null };
+    save();
+  },
   /* Register this device's push token (coach→athlete nudges) via the bridge, once per
      session, after sign-in. Fire-and-forget; a denial or missing seam is a silent no-op. */
   async registerPushToken() {
@@ -851,6 +1136,60 @@ export const act = {
       ...(MEAL.userNote ? { athleteNote: MEAL.userNote } : {}),
     };
   },
+  /* Second-pass verifier (item 6). Runs PRE-LOG, best-effort: after the first grounded result,
+     if a high-stakes trigger fires and the daily verify budget allows, ask the server for a
+     focused re-check. An allergen catch is stored for the meal screen's severe alert; an accuracy
+     re-detect replaces the pre-log estimate the athlete is about to review. NEVER throws — a
+     failure just leaves the first read + the free deterministic guards in place. */
+  async _maybeVerify() {
+    try {
+      const sb = window.sb;
+      const r = MEAL.result;
+      if (!sb || !r || !MEAL.photoBase64) return;
+      const severe = (RT.allergies || [])
+        .filter((n) => /severe/i.test(String(n)))
+        .map((n) => String(n).split('·')[0].trim())
+        .filter(Boolean).slice(0, 12);
+      const gate = shouldVerify({
+        detected: Array.isArray(r.detectedRich) ? r.detectedRich : r.detected,
+        quality: r.quality,
+        source: 'photo',
+        severeRestrictions: severe,
+        budgetLeft: this._verifyBudgetLeft(),
+      });
+      if (!gate.fire) return;
+      this._verifyBudgetSpend();
+      const { data } = await sb.functions.invoke('analyze-meal', { body: {
+        ...this._analysisBody(),
+        phase: 'verify',
+        verifyTrigger: gate.trigger,
+        severeRestrictions: severe,
+        firstResult: { kcal: r.kcal, protein: r.protein },
+      } });
+      if (!data || data.kind !== 'verify') return;
+      if (data.trigger === 'allergen' && Array.isArray(data.allergensFound) && data.allergensFound.length) {
+        MEAL.result.verifyAllergens = data.allergensFound.slice(0, 8);
+        save(); saveMeal();
+      } else if (data.trigger === 'accuracy' && typeof data.kcal === 'number') {
+        MEAL.result = groundResult(data);
+        save(); saveMeal();
+      }
+    } catch (e) { /* best-effort — never break the meal flow on verify */ }
+  },
+  /* Client-side daily verify counter (RT-backed). The SERVER enforces the real budget
+     (VERIFY_DAILY_BUDGET, default 3); this just avoids pointless calls once it's spent. Falls
+     back to "budget available" on any hiccup — the server is the authoritative gate. */
+  _verifyBudgetLeft() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (RT.verifyDay !== today) return 3;
+    return Math.max(0, 3 - (Number(RT.verifyUsed) || 0));
+  },
+  _verifyBudgetSpend() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (RT.verifyDay !== today) { RT.verifyDay = today; RT.verifyUsed = 0; }
+    RT.verifyUsed = (Number(RT.verifyUsed) || 0) + 1;
+    save();
+  },
   /* Phase 'analyze'. THE CLARIFYING MOMENT: when the model is genuinely unsure about something
      that would move the macros, it returns questions — we surface them ({ok, kind:'questions'})
      so the athlete answers what the camera can't see, rather than discarding them and forcing a
@@ -868,7 +1207,7 @@ export const act = {
         // Model asked but sent nothing usable — finalize straight through rather than dead-end.
         return this.finalizeAnalysis([]);
       }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); saveMeal(); return { ok: true, kind: 'result' }; }
+      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' }; }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
@@ -883,7 +1222,7 @@ export const act = {
     try {
       const { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...this._analysisBody(), phase: 'finalize', clarifications } });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); MEAL.questions = null; save(); saveMeal(); return { ok: true, kind: 'result' }; }
+      if (data && data.kind === 'result') { MEAL.result = groundResult(data); MEAL.questions = null; save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' }; }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
@@ -913,6 +1252,9 @@ export const act = {
     if (!r) return null;
     DAY.slotMacros[slot] = r.meta;
     pushDay(RT.userId);
+    // Quality metrics (item 8b): counts-only signal that a photo read needed a fix — no macro
+    // values, no free text. Feeds the correction-rate side of admin_meal_quality_metrics.
+    track(EVENTS.MEAL_CORRECTED, { kind: String((correction && correction.kind) || 'other').slice(0, 24) });
     // Mirror the corrected numbers onto the meals row the coach reads (athlete owns the row —
     // meals_update RLS). The original stays in the day meta's `orig`; the note carries the trail.
     const sb = window.sb;
@@ -942,6 +1284,47 @@ export const act = {
     }
     return r;
   },
+  /* Pre-log edit propagation (Tier 1 session isolation, 2026-07-21): called right after every
+     successful applyFoodEdit. A removed food must leave EVERYTHING — totals, score inputs, and
+     prose — not just the food list. Totals + quality recompute deterministically from the
+     remaining per-food grounded macros; possible only when every remaining food is priced
+     (per-food AI attribution, or a DB match for a user-added item). When a food can't be
+     priced (older edge payloads, unknown user adds) the AI totals stay and the UI keeps the
+     honest "macros stay the AI's estimate" hint — recomputed=false says which world we're in. */
+  recomputeStagedMeal(op) {
+    const r = MEAL.result;
+    if (!r) return;
+    // Prose isolation runs regardless of pricing: text can never mention an absent food.
+    if (op && op.kind === 'remove' && op.name) {
+      r.analysis = stripFoodMentions(r.analysis, op.name);
+      r.note = stripFoodMentions(r.note, op.name);
+      r.highlights = (r.highlights || []).map((h) => stripFoodMentions(h, op.name)).filter(Boolean);
+    }
+    const g = groundMealFromFoods(r.detectedRich || []);
+    const canRecompute = (r.detectedRich || []).length === 0 || (g.foods.length > 0 && g.unpriced === 0);
+    if (canRecompute) {
+      r.detectedRich = g.foods;
+      r.detected = g.foods.map((f) => f.name);
+      const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(v || 0)));
+      r.protein = clampN(g.totals.protein, 120); r.carbs = clampN(g.totals.carbs, 250);
+      r.fat = clampN(g.totals.fat, 150);
+      r.kcal = clampN(g.totals.kcal || (4 * r.protein + 4 * r.carbs + 9 * r.fat), 2200);
+      const timing = analysisTiming(MEAL.capturedAtMin != null ? MEAL.capturedAtMin : minutesNow(), slotDeadline(MEAL.key || 'dinner'));
+      const gm = { protein: r.protein, carbs: r.carbs, fat: r.fat, kcal: r.kcal };
+      r.quality = mealQualityScore({ macros: gm, fiber: r.fiber, detected: r.detectedRich, minutesLate: timing ? timing.minutesLate : 0 });
+      // The score moved — re-check that the surviving prose still agrees with the new band.
+      const band = qualityBand(r.quality);
+      if (!analysisAgreesWithBand(r.analysis, band) || !analysisAgreesWithBand(r.note, band)) {
+        r.analysis = '';
+        r.note = qualityReason(gm, r.fiber, r.detectedRich) || 'Logged. The breakdown shows how this plate reads.';
+      }
+      r.recomputed = true;
+    } else {
+      r.recomputed = false;
+    }
+    save(); saveMeal();
+  },
+
   /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
      the actual macros the athlete assembled, not a demo constant. No AI "quality" is invented.
      `source` distinguishes 'manual' (search-built plate) from 'label' (typed off the panel —
@@ -963,7 +1346,7 @@ export const act = {
     saveMeal();
   },
 
-  startDay0() { RT.lastMove = null; dayResetLocal(); applyGoalToDay(); this._applyStandardFromSets(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
+  startDay0() { RT.lastMove = null; dayResetLocal(); applyGoalToDay(); this._applyStandardFromSets(); applyPlanStyleToDay(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
   // Coach→athlete assignments: real rows (0055) sync completion to the server; local-only
   // items (injury-mode rehab) stay local. Optimistic — server truth reasserts on next hydrate.
   completeAssigned(id) {
@@ -972,6 +1355,21 @@ export const act = {
       a.done = true; a.seen = true; save(); this.syncNotifications();
       if (a.real) completeAssignmentRemote(a.id); // best-effort; _loadAssignmentsIntoRt self-heals
     }
+  },
+  /* Complete/undo a standing NON-MEAL check requirement for today (coach lift/custom). Tracked, not
+     scored: it rides into days.tasks for the coach but never touches the score. Optimistic + persisted. */
+  completeCheck(id) {
+    if (!id) return;
+    const done = !(DAY.checkedTasks && DAY.checkedTasks[id]);
+    dayCheckTask(RT.userId, id, done);
+    save();
+  },
+  /* Idempotently mark a standing check requirement done (never toggles off) — used when logging a
+     training session (0135), so re-logging an already-done session keeps it done, not flips it. */
+  markCheckDone(id) {
+    if (!id) return;
+    dayCheckTask(RT.userId, id, true);
+    save();
   },
   seeAssigned() { RT.assigned.forEach(a => { a.seen = true; }); save(); },
   primeCamera() { RT.camPrimed = true; save(); },
@@ -1007,7 +1405,6 @@ export const act = {
     save();
   },
   setAuthRole(role) { RT.authRole = role; save(); },
-  nudgePartner() { RT.partnerNudged = true; save(); },
   toggleInjury() {
     RT.injured = !RT.injured;
     const rehabIdx = RT.assigned.findIndex(a => a.id === 'rehab');
@@ -1104,23 +1501,39 @@ export const act = {
     const hadTargets = !!(RT.profile && RT.profile.targets);
     RT.profileLoading = true; save();
     try {
-      const { data: prof } = await sb.from('profiles').select('full_name,committed_at').eq('id', userId).maybeSingle();
+      const { data: prof } = await sb.from('profiles').select('full_name,committed_at,created_at').eq('id', userId).maybeSingle();
       // SETTLED sentinel: supabase-js resolves network/RLS failures into `{error}` without
       // throwing — destructure it so a real fetch failure is never misread as "no targets".
-      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_weight,base_goal,season_goal,targets,dob,standard').eq('athlete_id', userId).maybeSingle();
+      // Weight visibility (0103): base_weight + targets left the direct SELECT grant — they come
+      // through the athlete_plan_meta RPC (is_self always passes, so the athlete gets both in
+      // full). Pre-apply fallback below keeps this client shippable AHEAD of the migration.
+      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_goal,season_goal,dob,standard').eq('athlete_id', userId).maybeSingle();
+      let meta = null;
+      try {
+        const { data: pm, error: pmErr } = await sb.rpc('athlete_plan_meta', { athlete: userId });
+        if (!pmErr && Array.isArray(pm) && pm[0]) meta = pm[0];
+        else if (pmErr) {
+          // Pre-0103: the RPC doesn't exist yet but the columns are still directly readable.
+          const { data: legacy } = await sb.from('athlete_profiles').select('base_weight,targets').eq('athlete_id', userId).maybeSingle();
+          if (legacy) meta = legacy;
+        }
+      } catch { /* offline — cached values survive untouched below */ }
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
       // Cross-device activation backstop: the server's committed_at is the first-day anchor when
       // this device never ran onboarding (RT.activationDate is local-only).
       if (prof && prof.committed_at) patch.committedAt = prof.committed_at;
+      if (prof && prof.created_at) patch.createdAt = prof.created_at; // server birthday: the activation anchor
       if (ap) {
         if (ap.sport) patch.sport = ap.sport; if (ap.position) patch.position = ap.position; if (ap.level) patch.level = ap.level;
-        if (ap.base_weight != null) patch.baseWeight = ap.base_weight;
         if (ap.base_goal) patch.baseGoal = ap.base_goal;
         if (ap.season_goal && typeof ap.season_goal === 'object') patch.seasonGoal = ap.season_goal;
-        if (ap.targets && typeof ap.targets === 'object') patch.targets = ap.targets;
         if (ap.dob) patch.dob = ap.dob; // drives the client-side minor gate (mirrors 0050's is_provable_minor)
         if (ap.standard && typeof ap.standard === 'object') patch.standard = ap.standard; // solo personal standard (mealsPerDay)
+      }
+      if (meta) {
+        if (meta.base_weight != null) patch.baseWeight = meta.base_weight;
+        if (meta.targets && typeof meta.targets === 'object') patch.targets = meta.targets;
       }
       // The patch above only ever touches RT.profile.targets when `ap` actually came back, so a
       // previously-cached target (hadTargets) survives an errored fetch untouched — the athlete
@@ -1131,6 +1544,9 @@ export const act = {
       // surplus floor for a gainer, the shipped formula for a performance athlete) now that
       // baseGoal / baseWeight / coach-set targets are hydrated.
       applyGoalToDay();
+      // ...then the plan style (0142), which needs the hydrated targets/preference AND is
+      // re-applied by _applyStandardFromSets once a governing team standard resolves.
+      applyPlanStyleToDay();
       RT.profileLoading = false; save();
       return !!ap;
     } catch {
@@ -1229,6 +1645,23 @@ export const act = {
     }
     RT.teamLoading = false;
     save();
+    // Trust Pass policy (0097) into RT for the editor + grant copy. Best-effort; a missing row or
+    // not-yet-applied table falls back to the shipped defaults. Never blocks team load.
+    if (RT.team && RT.team.id) {
+      try {
+        const pol = await fetchTrustPassPolicy(RT.team.id);
+        RT.trustPolicy = pol && pol.length_days != null
+          ? { length_days: pol.length_days, eligibility_days: pol.eligibility_days }
+          : (RT.trustPolicy || { length_days: 10, eligibility_days: 7 });
+        const wp = await fetchTeamWeekPattern(RT.team.id);
+        if (wp) RT.weekPattern = wp; // for the coach's weekly-pattern editor
+        // T-21: resume first-run setup after a reinstall / on a new device. UNION the server's
+        // completed steps with anything marked locally this session — never un-complete a step.
+        const remote = await fetchCoachSetupState(RT.team.id);
+        RT.coachSetup = { ...remote, ...(RT.coachSetup || {}) };
+        save();
+      } catch { /* best-effort */ }
+    }
   },
   /* Athlete guardian-consent state (the client half of 0050): hydrate the newest request's
      status, then arm/disarm the day-sync gate. A PROVABLE minor (dob says <18 — the same rule
@@ -1346,8 +1779,23 @@ export const act = {
     const real = rows.map(r => assignedFromRow(r, coachName)).filter(Boolean)
       .map(a => ({ ...a, seen: prevSeen.has(a.id) || a.done }));
     RT.assigned = [...RT.assigned.filter(a => !a.real), ...real];
-    // the team's standing requirement sets govern the athlete's scored day (WS3 slice 2)
-    if (RT.myCoach && RT.myCoach.teamId) RT.reqSets = await fetchRequirementSets(RT.myCoach.teamId);
+    // The standing requirement sets that govern this athlete's scored day (WS3 slice 2). A
+    // TEAM link also resolves the weekly pattern and the athlete's room; a PRACTICE link (0136)
+    // has neither by design — rooms and week patterns are team concepts — so a trainer's client
+    // resolves practice-default vs per-client scope only. Before 0136 a client loaded NO sets at
+    // all, which is why plan.js used to attribute the app's built-in defaults to a named trainer.
+    if (RT.myCoach && RT.myCoach.teamId) {
+      RT.reqSets = await fetchRequirementSets(RT.myCoach.teamId, 'team');
+      // The team's weekly pattern (0100) resolves this athlete's day-type. Best-effort; a null
+      // (no pattern / not-applied table / offline) leaves day-type 'any' — no gating.
+      try { RT.weekPattern = await fetchTeamWeekPattern(RT.myCoach.teamId); } catch { /* best-effort */ }
+      // The athlete's assigned room label (0101): when set, their standard resolves against the ROOM
+      // instead of their raw position. null (unassigned — every athlete until a coach assigns) = the
+      // exact prior behavior. Best-effort.
+      try { RT.myRoomLabel = await fetchMyRoomLabel(RT.myCoach.teamId); } catch { /* best-effort */ }
+    } else if (RT.myTrainer && RT.myTrainer.practiceId) {
+      RT.reqSets = await fetchRequirementSets(RT.myTrainer.practiceId, 'practice');
+    }
     this._applyStandardFromSets();
     save();
   },
@@ -1356,15 +1804,30 @@ export const act = {
   _applyStandardFromSets() {
     // Resolve the version governing the day being scored (DAY.date), so a coach's future-dated
     // standard edit never rescopes today or a past day (prospective effective dates, 0085).
-    const set = resolveRequirementSet(RT.reqSets || [], RT.userId, (RT.profile || {}).position, String(DAY.date));
-    let std = stdFromItems(set && set.items);
+    // Room-scoped standard (0101): an athlete assigned to a room resolves against the ROOM's label;
+    // unassigned (RT.myRoomLabel null — every athlete until a coach assigns) falls back to their raw
+    // position, byte-identical to before.
+    const resolvePosition = RT.myRoomLabel || (RT.profile || {}).position;
+    const set = resolveRequirementSet(RT.reqSets || [], RT.userId, resolvePosition, String(DAY.date));
+    // Day-type gating (0100): with the team's weekly pattern, drop items that don't apply to the
+    // type of the day being scored. No pattern → dayType 'any' → items pass through untouched, so
+    // the scored day is byte-identical for every team without a pattern (parity contract).
+    const dayType = dayTypeFor(RT.weekPattern, String(DAY.date));
+    const govItems = set ? filterItemsByDayType(set.items, dayType) : null;
+    let std = stdFromItems(govItems);
     // Independent (no governing coach set): a NEW solo athlete's chosen personal standard governs
     // their scored day. Gated on RT.activationDate — stamped only by this build's onboarding — so
     // EXISTING solo athletes are never silently re-scored against a different meal count (they
     // keep the classic 4-meal day). Coach-linked athletes always resolve `set` first, unaffected.
     if (!std && RT.activationDate) std = stdFromSolo((RT.profile && RT.profile.standard) || (RT.ob && RT.ob.standard));
     RT.stdMeals = std;
+    // Raw governing items (all kinds) so execCatalog can surface the coach's NON-MEAL standing
+    // requirements (lift/custom/etc). Null when no coach set governs — keeps execCatalog byte-identical.
+    RT.stdItems = Array.isArray(govItems) ? govItems : null;
     setDayStandard(RT.stdMeals);
+    // The governing set can also carry the team's PLAN STYLE (0142 kind:'plan_style'), which
+    // outranks any self choice — so the style is re-resolved every time the standard does.
+    applyPlanStyleToDay();
   },
   /* Athlete: redeem a coach team code (or a trainer practice code) from the Connect screen.
      The server re-validates the code and creates the membership (SECURITY DEFINER RPCs from
@@ -1541,7 +2004,11 @@ export const act = {
     // First-day activation anchor: stamped once, at signup, from the hold-to-commit moment (or now).
     // Everything scored before this instant is "Not required" — the athlete is never punished for
     // windows that closed before their account existed. Idempotent (set once; retries never move it).
-    if (!RT.activationDate) { RT.activationDate = ob.committedAt || new Date().toISOString(); save(); }
+    if (!RT.activationDate) {
+      const c = ob.committedAt ? parseActivation(ob.committedAt) : null;
+      RT.activationDate = (c && c.date === todayISO()) ? ob.committedAt : new Date().toISOString();
+      save();
+    }
     // local identity first (always — cheap, idempotent)
     this.saveProfile({ name, sport: ob.sport || '', position: ob.position || '', level: ob.level || '' });
     this.saveAllergies(ob.allergies || RT.allergies || []);
@@ -1568,7 +2035,7 @@ export const act = {
     }
     // phase 3: consent + commitment stamps (profiles_self_write; 0048 columns, best-effort)
     if (!synced.stamps && sb && RT.userId) {
-      synced.stamps = await this._stampConsent(ob.committedAt);
+      synced.stamps = await this._stampConsent(RT.activationDate || ob.committedAt);
     }
     // phase 4: redeem the validated join code (server re-validates; idempotent)
     if (!synced.join) {
@@ -1791,6 +2258,80 @@ export const S = {
     };
   },
   // The athlete's REAL linked coach — from their active team membership + the head coach's
+  /* ---------- PLAN STYLE (0142) — the ONE surface every screen reads ----------
+     Style, its knobs, who set it, whether it's locked, and the athlete's own stated preference.
+     `showCalories`/`showMacros` are the presentation gate an Intuitive plan turns off: the
+     numbers are still COMPUTED and still visible to the professional (an under-fueling read is a
+     safety signal), they are simply not shown to the athlete. Suppression is presentation, never
+     data — no surface should ever skip computing a number because of a style. */
+  get planStyle() {
+    const res = RT.planStyle || resolveMyPlanStyle();
+    const label = styleLabel(res.style);
+    return {
+      key: res.style,
+      name: label.name,
+      short: label.short,
+      how: label.how,
+      knobs: res.knobs,
+      source: res.source,
+      sourceLabel: styleSourceLabel(res, this.coach.noun),
+      locked: res.locked,
+      lockedBy: res.lockedBy,
+      canChoose: res.canChoose,
+      preference: res.preference,
+      preferenceName: res.preference ? styleLabel(res.preference).name : null,
+      // true when the athlete wants something other than what governs them — the honest signal
+      // the professional's roster surfaces, and the reason the athlete sees "preference shared".
+      preferenceDiffers: !!(res.preference && res.preference !== res.style),
+      customized: !!(res.knobs && res.knobs.customized),
+      showCalories: !!(res.knobs && res.knobs.surface.showCalories),
+      showMacros: !!(res.knobs && res.knobs.surface.showMacros),
+      tone: (res.knobs && res.knobs.surface.tone) || 'guidance',
+    };
+  },
+  /** The nutrition component's real share of this athlete's score, as a whole percent. Every
+   *  surface that explains the score reads this instead of hardcoding 50 — the share moves with
+   *  the style x goal profile, and a number the athlete can check has to be the true one. */
+  get nutritionWeightPct() { return Math.round(weightsForDay(DAY).nutrition * 100); },
+
+  /** The score timeline banded by the style that governed each stretch, newest last.
+   *  [{ style, name, days, from, to, avg }] — Progress renders these so a trend break reads as
+   *  "the plan changed here", never as an unexplained drop. Days with no stamp (pre-0142 history)
+   *  are attributed to Structured, which is exactly how they were scored. Real rows only. */
+  get styleBands() {
+    const hist = Array.isArray(DAY.scoreHistory) ? DAY.scoreHistory : [];
+    const rows = [...hist.map(h => ({ date: h.date, score: h.score || 0, style: h.planStyle || 'structured' })),
+      { date: DAY.date, score: this.score, style: DAY.planStyle || 'structured' }];
+    const bands = [];
+    for (const r of rows) {
+      const last = bands[bands.length - 1];
+      if (last && last.style === r.style) { last.days++; last.to = r.date; last._sum += r.score; }
+      else bands.push({ style: r.style, name: styleLabel(r.style).name, days: 1, from: r.date, to: r.date, _sum: r.score });
+    }
+    return bands.map(b => ({ ...b, avg: Math.round(b._sum / b.days) }));
+  },
+
+  /** Plain-English names of the body signals this plan tracks (for the Plan/Progress copy). */
+  get trackedSignalLabels() {
+    const knobs = this.planStyle.knobs;
+    return SIGNAL_KEYS.filter(s => knobs && knobs.signals && knobs.signals[s.key]).map(s => s.label);
+  },
+
+  /** The hydration target this athlete is actually scored against, in the unit they drink in. */
+  get hydrationTargetLabel() {
+    const l = DAY.hydrationTargetL > 0 ? DAY.hydrationTargetL : 3;
+    return `${Math.round(l * 33.814)} oz`;
+  },
+
+  /** The body signals this style asks for, and what's been answered for one meal slot today. */
+  mealSignals(slot) {
+    const knobs = this.planStyle.knobs;
+    const answered = (DAY.signals && DAY.signals[slot]) || {};
+    return SIGNAL_KEYS
+      .filter(s => s.where === 'meal' && knobs && knobs.signals && knobs.signals[s.key])
+      .map(s => ({ ...s, value: typeof answered[s.key] === 'number' ? answered[s.key] : null }));
+  },
+
   // display name. NEVER a fabricated persona: with no link, hasCoach is false and every
   // coach-specific surface must gate on it; `name`/`nameMid` degrade to honest generic copy.
   get coach() {
@@ -1864,6 +2405,19 @@ export const S = {
     };
   },
 
+  /* The signed-in OPERATOR's own identity — coach or trainer, ONE shape, so a shared operator
+     screen greets the right person with the right noun instead of calling a trainer "Coach".
+     Mirrors S.coach, which is the ATHLETE's view of their operator; this is the operator's view
+     of themselves. `bookName` is the team or the practice — whichever they run. */
+  get operatorIdentity() {
+    if (RT.authRole === 'trainer') {
+      const t = this.trainerIdentity;
+      return { kind: 'practice', handle: t.name, initials: t.initials, bookName: t.practiceName, code: t.code, state: t.state, hasIdentity: t.hasIdentity };
+    }
+    const c = this.coachIdentity;
+    return { kind: 'team', handle: c.handle, initials: c.initials, bookName: c.teamName, code: c.code, state: c.state, hasIdentity: c.hasIdentity };
+  },
+
   // Real on-device clock + greeting (the status bar renders S.now; on iOS this is the system
   // clock — here it's the browser's, never a frozen 7:12).
   get now() {
@@ -1893,6 +2447,9 @@ export const S = {
   // yet" and doesn't grade/streak — full scoring resumes the next local day.
   get activation() { return activationInfo(activationStamp(), String(DAY.date)); },
   get notYetScored() { return this.activation.notYetScored; },
+  // A day is "decided" once no required window is still open on time — the point at which a
+  // negative verdict (Off Standard / a red Missed pill) is honest. Derived from exec, no recompute.
+  get dayDecided() { return this.exec.decided; },
   // Guardian-consent surface (athlete side of 0050). `needed` gates the Home banner + the
   // sync pill copy; a verified minor and every adult read as not-needed.
   get consent() {
@@ -1961,6 +2518,21 @@ export const S = {
     return (g === 'lose' || g === 'maintain') ? 'client' : 'athlete';
   },
 
+  /* Which SURFACES render — as opposed to `experience`, which only picks a tone. `experience`
+     classifies on base_goal, a GOAL, to answer a RELATIONSHIP question, and gets it backwards in
+     both directions: a client who hired a trainer to GAIN 15 lb reads as 'athlete' and gets asked
+     for a sport/school; a team athlete cutting to make weight reads as 'client' and loses the
+     team frame. The honest key is the LINK itself (S.coach.kind), which is already server truth.
+     Unconnected (no coach, no trainer) falls back to the goal-derived voice — there's no link to
+     be honest about yet. Coach-before-trainer mirrors S.coach's own precedence (state.js:2128):
+     someone linked to both gets the higher-stakes team frame. */
+  get audience() {
+    const kind = this.coach.kind;
+    if (kind === 'trainer') return 'client';
+    if (kind === 'coach') return 'athlete';
+    return this.experience;
+  },
+
   // How many meals today's standard requires (coach standard 1–6, classic 3) — the one number
   // Plan copy should quote instead of a hardcoded "three" (WS7 audit fix).
   get mealsRequiredCount() { return reqMealSlots().length; },
@@ -2015,16 +2587,19 @@ export const S = {
       : commit === 'partial' ? 'Reflection complete — a partial day, honestly logged'
       : commit === 'no' ? 'Reflection complete — an off day, honestly logged'
       : 'End-of-day reflection still open — your honest answer earns it';
+    // Weights come from the ENGINE's live style x profile mix — never 50/25/15/10 constants.
+    const w = liveWeights();
+    const pct = (k) => Math.round(w[k] * 100);
     return [
-      { key: 'Nutrition', earned: Math.round(WEIGHTS.nutrition * c.nutrition), possible: 50,
-        note: nutriNote, accent: 'g', weightPct: 50 },
-      { key: 'Recovery', earned: Math.round(WEIGHTS.recovery * c.recovery), possible: 25,
+      { key: 'Nutrition', earned: Math.round(w.nutrition * c.nutrition), possible: pct('nutrition'),
+        note: nutriNote, accent: 'g', weightPct: pct('nutrition') },
+      { key: 'Recovery', earned: Math.round(w.recovery * c.recovery), possible: pct('recovery'),
         note: DAY.ciSubmitted ? 'Tonight’s check-in submitted'
-          : (DAY.ciLast ? 'Carried from your last check-in; tonight refreshes it' : 'No check-in yet — submit tonight to earn this'), accent: 'p', weightPct: 25 },
-      { key: 'Daily commitment', earned: Math.round(WEIGHTS.commitment * c.commitment), possible: 15,
-        note: commitNote, accent: 'b', weightPct: 15 },
-      { key: 'Weekly check-in', earned: Math.round(WEIGHTS.checkin * c.checkin), possible: 10,
-        note: c.checkin ? 'Checked in this week — full points held' : 'No check-in in the last 7 days — tonight’s earns it', accent: 'g', weightPct: 10 },
+          : (DAY.ciLast ? 'Carried from your last check-in; tonight refreshes it' : 'No check-in yet — submit tonight to earn this'), accent: 'p', weightPct: pct('recovery') },
+      { key: 'Daily commitment', earned: Math.round(w.commitment * c.commitment), possible: pct('commitment'),
+        note: commitNote, accent: 'b', weightPct: pct('commitment') },
+      { key: 'Weekly check-in', earned: Math.round(w.checkin * c.checkin), possible: pct('checkin'),
+        note: c.checkin ? 'Checked in this week — full points held' : 'No check-in in the last 7 days — tonight’s earns it', accent: 'g', weightPct: pct('checkin') },
     ];
   },
 
@@ -2084,16 +2659,10 @@ export const S = {
   },
 
   get requirements() {
-    if (RT.day0) {
-      return [
-        { id: 'breakfast', title: 'Breakfast', icon: 'utensils', accent: RT.day0Breakfast ? 'g' : 'a', status: RT.day0Breakfast ? 'Logged' : 'Open', statusColor: RT.day0Breakfast ? 'g' : 'a',
-          sub: RT.day0Breakfast ? 'Logged just now' : 'Photo proof', subColor: RT.day0Breakfast ? 'g' : 'a', meta: RT.day0Breakfast ? 'First log' : 'Start here', done: RT.day0Breakfast, route: RT.day0Breakfast ? 'meal-detail' : 'camera' },
-        { id: 'lunch', title: 'Lunch', icon: 'bowl', accent: 'b', status: 'Upcoming', statusColor: 'b', sub: 'Due by 2:00 PM', subColor: 'b', meta: 'Photo proof', done: false, route: 'camera' },
-        { id: 'dinner', title: 'Dinner', icon: 'bowl', accent: 'b', status: 'Upcoming', statusColor: 'b', sub: 'Due by 8:00 PM', subColor: 'b', meta: 'Photo proof', done: false, route: 'camera' },
-        { id: 'recovery', title: 'Recovery Check-In', icon: 'moon', accent: 'p', status: 'Later', statusColor: 'p', sub: 'Before bed', subColor: 'p', meta: 'Recovery · 25%', done: false, route: 'recovery' },
-      ];
-    }
-    /* ---- ENGINE-DERIVED: today's list from the catalog + REAL runtime (DAY) ---- */
+    /* ---- ENGINE-DERIVED: today's list from the catalog + REAL runtime (DAY) ----
+       (A hardcoded day-0 branch used to sit here returning "Lunch · Upcoming · Due by 2:00 PM"
+       regardless of the real clock or the athlete's standard. It had no consumer, so it never
+       rendered — deleted rather than left as a landmine for whoever wires this up next.) */
     const lateMeal = (k) => DAY.mealLoggedAt[k] != null && DAY.mealLoggedAt[k] > slotDeadline(k);
     const resolve = (id) => {
       switch (id) {
@@ -2150,7 +2719,8 @@ export const S = {
           const title = (RT.stdMeals.titles && RT.stdMeals.titles[k]) || (base ? base.title : cap(k.replace('-', ' ')));
           return {
             id: k, title, icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
-            freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) }, required: true,
+            freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) },
+            required: !(RT.stdMeals.optional && RT.stdMeals.optional.includes(k)), // snack slot = optional
             impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
             note: base ? base.note : 'Photo proof — part of your room standard.',
           };
@@ -2203,7 +2773,7 @@ export const S = {
     if (RT.hydrationOz > 0) a.push({ time: 'Today', type: 'Hydration', icon: 'droplet', value: `${RT.hydrationOz} oz`, vClass: 'b', img: null, route: 'log' });
     if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', icon: 'scale', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });
     a.push(DAY.ciSubmitted
-      ? { time: 'Today', type: 'Recovery Check-In', icon: 'moon', value: 'Submitted', vClass: 'g', img: null, route: 'recovery-confirm' }
+      ? { time: 'Today', type: 'Recovery Check-In', icon: 'moon', value: 'Submitted', vClass: 'g', img: null, route: 'recovery' }
       : { time: 'Tonight', type: 'Recovery Check-In', icon: 'moon', value: 'Upcoming', vClass: 'muted', img: null, dim: true, route: 'recovery' });
     return a;
   },
@@ -2262,6 +2832,11 @@ export const S = {
       recovery: { done: DAY.ciSubmitted },
     };
     if (std) for (const k of reqMealSlots()) status[k] = mstat(k);
+    // Standing check items (coach lift/custom) take their done-state from the per-day checked store —
+    // tracked, not scored. Only fill ids not already sourced above (meals/weight/hydration/recovery).
+    for (const it of catalog) {
+      if (it && it.proof === 'check' && !(it.id in status)) status[it.id] = { done: !!(DAY.checkedTasks && DAY.checkedTasks[it.id]) };
+    }
     return deriveExec({
       nowMin: minutesNow(),
       dow: new Date().getDay(),
@@ -2276,6 +2851,13 @@ export const S = {
       dateISO: String(DAY.date),
       prefs: RT.notifPrefs,
       coachName: this.coach.hasCoach && this.coach.isNamed ? this.coach.name : null,
+      // Verified Commitments. The SERVER owns commitment reminders (0140 + the
+      // commitment-reminders function): a plan built here only exists once Home has been opened,
+      // which is useless for the 4:45 AM roll call of an athlete who hasn't opened the app since
+      // yesterday. This local plan is therefore a FALLBACK ONLY — scheduled when this device has
+      // no push token registered, so a device that can't be reached by push still gets its
+      // reminder, and one that can never gets two alarms at 4:45 AM.
+      commitments: PUSH_TOKEN_VALUE ? [] : commitmentReminders(RT.vcRows || [], String(DAY.date)),
     });
   },
 
@@ -2314,11 +2896,15 @@ export const S = {
   // revisiting a logged slot; otherwise an HONEST empty state (never demo steak-and-potatoes).
   get logging() {
     const slot = MEAL.key || nextOpenSlot() || 'dinner';
+    // Coach-aware deadline label: honor the coach standard's per-slot window (slotDeadline)
+    // instead of the hardcoded SLOT_DUE map, so the camera header matches every other deadline
+    // surface (breakdown, requirement rows, timing pill) for the same slot.
+    const dueLabel = (s) => { const dl = slotDeadline(s); return dl != null ? `Due by ${fmtClock(dl)}` : (s === 'snack' ? 'Optional' : 'Log when ready'); };
     if (MEAL.result) {
       const r = MEAL.result;
       return {
         name: MEAL.mealType || cap(slot),
-        due: SLOT_DUE[slot] || 'Log when ready', remaining: 'Captured just now',
+        due: dueLabel(slot), remaining: 'Captured just now',
         img: MEAL.photoDataUrl || null, score: r.quality,
         foods: r.detected.length ? r.detected : ['Your meal'],
         macros: { protein: r.protein, carbs: r.carbs, fat: r.fat, cals: r.kcal },
@@ -2327,6 +2913,7 @@ export const S = {
           : MEAL.source === 'manual' ? 'Entered by you — the plate you actually built.'
           : 'Logged from your photo.'),
         analysis: r.analysis || '',            // the ONE detailed AI read (0062); note is the fallback
+        styleApplied: r.styleApplied || null,  // 0142 — which plan style the server wrote it for
         capturedAtMin: MEAL.capturedAtMin,     // for the timing pill on the analysis hero
         empty: false, live: MEAL.live !== false,
       };
@@ -2335,20 +2922,20 @@ export const S = {
     const meta = DAY.slotMacros[slot];
     if (meta && DAY.meals[slot]) {
       return {
-        name: cap(slot), due: SLOT_DUE[slot] || '', remaining: 'Logged',
+        name: cap(slot), due: dueLabel(slot), remaining: 'Logged',
         img: slotImage(slot),
         score: meta.quality != null ? meta.quality : null,
         foods: Array.isArray(meta.foods) && meta.foods.length ? meta.foods : ['Your logged meal'],
         macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
         planMatch: { verdict: 'Logged', detail: meta.note || 'Analyzed from your photo.', level: 'b' },
         ai: meta.note || 'Logged from your photo.',
-        analysis: meta.analysis || '', capturedAtMin: null,
+        analysis: meta.analysis || '', styleApplied: meta.styleApplied || null, capturedAtMin: null,
         empty: false,
       };
     }
     // Nothing captured or analyzed yet — honest empty state, never steak-and-potatoes constants.
     return {
-      name: cap(slot), due: SLOT_DUE[slot] || 'Log when ready', remaining: 'Take a photo to analyze',
+      name: cap(slot), due: dueLabel(slot), remaining: 'Take a photo to analyze',
       img: null, score: null, foods: [],
       macros: { protein: 0, carbs: 0, fat: 0, cals: 0 },
       planMatch: { verdict: 'Not analyzed yet', detail: 'Capture your meal and the AI reads it — real macros from your photo, no guesses.', level: 'b' },
@@ -2366,7 +2953,7 @@ export const S = {
     const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     return (DAY.scoreHistory || []).slice().reverse().map(h => {
       const d = new Date(h.date + 'T00:00:00');
-      return { iso: h.date, day: DOW[d.getDay()], date: `${MON[d.getMonth()]} ${d.getDate()}`, score: h.score || 0, tier: tier(h.score || 0).name, meals: [] };
+      return { iso: h.date, day: DOW[d.getDay()], date: `${MON[d.getMonth()]} ${d.getDate()}`, score: h.score || 0, weight: h.weight ?? null, tier: tier(h.score || 0).name, meals: [] };
     });
   },
   /* This calendar week, Monday→Sunday (spec §14.3): real scores, standard hit/missed,
@@ -2452,6 +3039,9 @@ export const S = {
       { key: 'confidence', k: 'Confidence',    lo: 'Shaky',   hi: 'Dialed in' },
       { key: 'soreness',   k: 'Soreness',      lo: 'None',    hi: 'Very sore' },
       { key: 'motivation', k: 'Motivation',    lo: 'Flat',    hi: 'Fired up' },
+      // Body signals (0142) — enabled by a Guided/Intuitive plan style, off for everyone else.
+      { key: 'digestion',  k: 'Digestion',     lo: 'Rough',   hi: 'Comfortable' },
+      { key: 'cravings',   k: 'Cravings',      lo: 'None',    hi: 'Constant' },
     ];
     // 5 chips map to the engine's 0–10 scale as 2/4/6/8/10; initial selection reflects the
     // day's current values so reopening the form shows what will actually be submitted.

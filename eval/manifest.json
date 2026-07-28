@@ -1,0 +1,16 @@
+[
+  {
+    "id": "clear-01",
+    "photo": "clear-01.jpeg",
+    "caseType": "clear",
+    "expectedFoods": [
+      { "foodDbId": "salmon", "servings": 1.5 },
+      { "foodDbId": "white-rice", "servings": 1 },
+      { "foodDbId": "green-beans", "servings": 1 },
+      { "foodDbId": "bread-whole-wheat", "servings": 1 }
+    ],
+    "hasSevereAllergen": false,
+    "expectVerify": "none",
+    "notes": "Real plate: baked/blackened salmon, white rice, roasted asparagus, dinner roll — well-lit, single plate, foods clearly visible; verify must stay quiet. FOOD_DB has no asparagus or dinner-roll entries, so green-beans (closest vegetable) and bread-whole-wheat (closest starch) stand in as nutritional proxies. Servings reverse-engineered to roughly match the app's own prior real analysis of this exact meal (46g protein / 62g carbs / 22g fat / 620 kcal) — reconstructs to ~47.5p/66c/22f/665kcal, fat exact. SOURCE NOTE: this file is an app screenshot (has status bar + confirm-screen UI chrome baked into the pixels), not a clean raw camera capture — replace with a real un-cropped device photo when the team adds one; it still exercises the full harness end-to-end."
+  }
+]

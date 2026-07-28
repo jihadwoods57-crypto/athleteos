@@ -5,6 +5,7 @@
 import { CATALOG, runsToday, fmtMin, IMPACT_LABEL } from './requirements.js';
 import { planNotifications } from './notify-plan.js';
 import { windowPreActivation } from './activation.js';
+import { dayDecided } from './dayverdict.js';
 
 export const DUE_SOON_MIN = 90;
 
@@ -57,7 +58,7 @@ const ROUTE = {
  * Weekly Check-In is deliberately excluded (untracked in v1 — its completion isn't wired;
  * the Action Hub shows it as a navigational row on Sundays only, outside this engine).
  */
-export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'accountable', score = 0, possible = 0, streak = 0, catalog = CATALOG, dateISO = '', prefs = null, coachName = null, activationMin = /** @type {number | null} */ (null) }) {
+export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'accountable', score = 0, possible = 0, streak = 0, catalog = CATALOG, dateISO = '', prefs = null, coachName = null, activationMin = /** @type {number | null} */ (null), commitments = [] }) {
   const rows = catalog.filter((r) => r.id !== 'weekly' && runsToday(r, dow));
   const items = rows.map((req) => {
     const st = status[req.id] || {};
@@ -105,6 +106,19 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
   }));
 
   const all = [...items, ...assignedItems];
+
+  // Verdict timing: a required window past its close is "Late" (amber, still savable) while the day
+  // is live, and only becomes "Missed" (red) once the day is DECIDED — no required window still open.
+  // The internal state stays 'overdue' so NOW ordering and the denominator are untouched; only the
+  // display (color/pill) changes. Done/optional/not_required items are never re-treated.
+  const decided = dayDecided(all);
+  for (const i of all) {
+    if (i.required && i.state === 'overdue') {
+      i.color = decided ? 'red' : 'gold';
+      i.pill = decided ? 'Missed' : 'Late';
+    }
+  }
+
   const byDue = (arr) => arr.slice().sort((a, b) => (a.window ? a.window.due : 1e9) - (b.window ? b.window.due : 1e9));
   const doneItems = all.filter((i) => i.state === 'done' || i.state === 'done_late');
   const overdue = byDue(all.filter((i) => i.required && i.state === 'overdue'));
@@ -150,7 +164,10 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     reqs: rows.filter((r) => r.required && !doneIds.has(r.id) && !notReqIds.has(r.id)),
     assigned: assigned.map((a) => ({ id: a.id, title: a.title, from: a.from, done: !!a.done, dueAtMin: a.dueAtMin })),
     pressure, prefs, celebration, score, streak, coachName,
+    // Verified Commitments (0138): pre-shaped reminder entries from commitments.js. Empty for
+    // every athlete without coach-scheduled commitments, so the plan is unchanged for them.
+    commitments,
   });
 
-  return { items: all, now, next, later, doneItems, overdue, met, total, score, possible, celebration, plan };
+  return { items: all, now, next, later, doneItems, overdue, met, total, score, possible, celebration, plan, decided };
 }

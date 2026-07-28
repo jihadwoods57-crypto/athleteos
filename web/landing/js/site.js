@@ -64,11 +64,12 @@
   addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
-  /* ---------- reveals (IO + scroll sweep fallback) ---------- */
-  const revealables = [...document.querySelectorAll('.reveal, .an-row')].filter((el) => !el.closest('.hero'));
-  if (reduced) {
-    revealables.forEach((el) => el.classList.add('in'));
-  } else {
+  /* ---------- reveals (IO + scroll sweep fallback) ----------
+     Runs under reduce-motion too: the reveal is a gentle OPACITY fade (the CSS drops the 26px
+     slide under reduce-motion, so nothing translates). Fading content in on scroll is not a
+     vestibular trigger, and it's the difference between "alive" and "frozen". */
+  {
+    const revealables = [...document.querySelectorAll('.reveal, .an-row')].filter((el) => !el.closest('.hero'));
     const pending = new Set(revealables);
     const show = (el) => { el.classList.add('in'); pending.delete(el); io.unobserve(el); };
     const io = new IntersectionObserver((entries) => {
@@ -213,6 +214,50 @@
     }));
   }
 
+  /* ---------- plan styles: interactive spectrum comparison ----------
+     Left tabs drive one morphing phone. The spectrum glide + data-active carry
+     the structure->autonomy read. Gently auto-advances the first time it scrolls
+     into view, and stops for good the moment the visitor takes over. */
+  const ps = document.getElementById('pstyles');
+  if (ps) {
+    const tabs = [...ps.querySelectorAll('.pstyle-tab')];
+    const screens = [...ps.querySelectorAll('.pshot')];
+    let idx = 0, auto = 0, touched = false;
+    const select = (i, focus) => {
+      idx = (i + tabs.length) % tabs.length;
+      const style = tabs[idx].dataset.style;
+      ps.dataset.active = style;
+      ps.style.setProperty('--pos', idx);
+      tabs.forEach((t, n) => {
+        const on = n === idx;
+        t.classList.toggle('on', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+      });
+      screens.forEach((s) => s.classList.toggle('on', s.dataset.style === style));
+      if (focus) tabs[idx].focus();
+    };
+    const stop = () => { if (auto) { clearInterval(auto); auto = 0; } };
+    const take = () => { touched = true; stop(); };
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => { take(); select(i); });
+      t.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); take(); select(idx + 1, true); }
+        else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); take(); select(idx - 1, true); }
+        else if (e.key === 'Home') { e.preventDefault(); take(); select(0, true); }
+        else if (e.key === 'End') { e.preventDefault(); take(); select(tabs.length - 1, true); }
+      });
+    });
+    select(0);
+    if (!reduced) {
+      new IntersectionObserver((es) => {
+        const seen = es.some((e) => e.isIntersecting);
+        if (seen && !touched && !auto) auto = setInterval(() => { if (!touched) select(idx + 1); }, 3400);
+        else if (!seen) stop();
+      }, { threshold: 0.45 }).observe(ps);
+    }
+  }
+
   /* ---------- dial (score section) ---------- */
   const TARGET = 94;
   const SPAN = 306;
@@ -241,19 +286,18 @@
     const [key, label] = tierFor(n);
     if (tierEl.dataset.tier !== key) { tierEl.dataset.tier = key; tierEl.textContent = label; }
   };
-  const finish = () => { dial.p = dial.target; dial.done = true; paintSVG(dial.p); paintNum(TARGET); };
-
   if (dialStage) {
-    if (reduced) {
-      finish();
-    } else {
+    // The count-up runs under reduce-motion too — a number ticking in place, plus a gauge ring
+    // filling within its own widget, is not a vestibular trigger. Only the WebGL 3D dial below
+    // stays off under reduce-motion (that one tilts and parallaxes).
+    {
       paintSVG(0);
       paintNum(0); // markup ships 94 for no-JS visitors; animation starts from 0
       let started = false;
       const start = () => {
         if (started) return; started = true;
-        const t0 = performance.now() + 350;
-        const DUR = 2400;
+        const t0 = performance.now() + (reduced ? 120 : 350);
+        const DUR = reduced ? 1400 : 2400;
         const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
         const step = (now) => {
           const t = Math.min(1, Math.max(0, (now - t0) / DUR));

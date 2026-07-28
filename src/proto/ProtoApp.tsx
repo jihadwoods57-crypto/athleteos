@@ -9,6 +9,8 @@ import { ensureProtoExtracted, PROTO_ROOT_DIR } from './protoBundle';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
+import { registerGeofenceTask } from '../lib/location';
+import { postRollCallAck, queueAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel } from '../lib/notify/rollcall';
 
 const BG = '#080B0A';
 
@@ -118,6 +120,13 @@ export function ProtoApp() {
     return () => sub.remove();
   }, [deliverCode]);
 
+  // Verified Commitments (0139): define the geofence task at startup so a region crossing can wake
+  // the app and record the arrival even when the WebView isn't alive — which is the whole point,
+  // since the athlete this feature serves is the one who hasn't opened the app at 5:43 AM.
+  // No-ops on a binary without expo-location, and registers nothing with the OS by itself:
+  // regions are only armed once the athlete grants background permission (LOCATION_ARM).
+  React.useEffect(() => { registerGeofenceTask(); }, []);
+
   // Reminder deep links: an exec reminder ("Dinner closes in 45") carries its in-app route in
   // notification data — tapping it must land the WebView on that exact screen, not Home. The
   // route strings are authored by our own exec engine, but validate the shape anyway before
@@ -136,14 +145,47 @@ export function ProtoApp() {
     // Lazy require so web/test environments never load the native notifications module.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const Notifications = require('expo-notifications') as typeof import('expo-notifications');
+    // A notification response is either a lock-screen "I'm Up" quick action (actionIdentifier
+    // 'ACK') or a plain tap that should route into the WebView. Handle both from one place so the
+    // cold-start path and the live listener behave identically. ACK records the roll call without
+    // opening the app and MUST return before deliverRoute, so an ack never doubles as a deep link.
+    const handleResponse = (resp: unknown): void => {
+      const r = resp as
+        | { actionIdentifier?: string; notification?: { request?: { content?: { data?: { route?: unknown; code?: unknown; action_label?: unknown } } } } }
+        | null
+        | undefined;
+      const data = r?.notification?.request?.content?.data;
+      // A roll-call push (tapped or ACK'd) carries a code — remember its label so the custom "I'm Up"
+      // button is registered for the next launch, even if the app is later killed. Best-effort.
+      if (typeof data?.code === 'string' && data.code) {
+        void rememberRollCallLabel(typeof data?.action_label === 'string' ? data.action_label : null);
+      }
+      if (r?.actionIdentifier === 'ACK' && typeof data?.code === 'string' && data.code) {
+        const code = data.code;
+        // Best-effort: record now, queue for a foreground/reconnect retry if the network isn't there.
+        postRollCallAck(code).then((ok) => { if (!ok) return queueAck(code); }).catch(() => {});
+        return; // do not also route into the WebView
+      }
+      deliverRoute(data?.route);
+    };
     Notifications.getLastNotificationResponseAsync()
-      .then((resp) => deliverRoute(resp?.notification?.request?.content?.data?.route))
+      .then((resp) => handleResponse(resp))
       .catch(() => undefined);
-    const sub = Notifications.addNotificationResponseReceivedListener((resp) =>
-      deliverRoute(resp?.notification?.request?.content?.data?.route),
-    );
+    const sub = Notifications.addNotificationResponseReceivedListener((resp) => handleResponse(resp));
     return () => sub.remove();
   }, [deliverRoute]);
+
+  // Drain any offline "I'm Up" acks that were queued while the phone was offline — a lock-screen
+  // tap in a dead zone still lands the moment the athlete opens the app on connectivity. Native only.
+  // Also (re-)register the roll-call notification categories at startup so a pushed roll call shows
+  // its "I'm Up" action button — iOS only surfaces action buttons for categories registered on a
+  // prior launch, so this must run every startup, not just on first push.
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') {
+      void drainAckQueue();
+      void ensureRollCallCategories();
+    }
+  }, []);
 
   const onWebLoadEnd = React.useCallback(() => {
     webLoaded.current = true;

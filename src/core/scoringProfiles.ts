@@ -14,8 +14,10 @@
 //               your surplus, no penalty for going over) so a diligent gainer can't green-score
 //               a week where they never ate enough to grow.
 //
-// NOTE: the `general`/`gain` numbers are v1 DEFAULTS pending founder/RD sign-off. They are tunable
-// constants — changing them is a one-line edit, not a rebuild.
+// NOTE: the `general`/`gain` numbers are v1 defaults, both founder-ratified — see
+// docs/council/2026-07-23-general-profile-weights.md and docs/council/2026-07-23-gain-profile-weights.md
+// for the nutrition-science rationale. Both are tunable constants — changing them is a one-line edit,
+// not a rebuild.
 import type { BaseGoal, ScoringProfile } from './types';
 
 export interface ProfileWeights {
@@ -29,8 +31,8 @@ export interface ProfileWeights {
 /** Headline mix per profile. Athlete is the shipped .50/.25/.15/.10 (do not change). */
 export const PROFILE_WEIGHTS: Record<ScoringProfile, ProfileWeights> = {
   athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
-  general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 }, // v1 default, pending sign-off
-  gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 }, // recovery matters more for hypertrophy
+  general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 }, // founder-ratified, see docs/council/2026-07-23-general-profile-weights.md
+  gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 }, // recovery held at athlete-level for hypertrophy; founder-ratified, see docs/council/2026-07-23-gain-profile-weights.md
 };
 
 /** Map a user's GOAL to the platform-owned scoring profile. A solo client never gets a coach to

@@ -18,10 +18,27 @@ export const PROOF = {
   check:   { label: 'One-tap check', route: null,       verb: 'Mark done' }, // completes on its detail screen
 };
 
+/* The headline mix is style + goal-profile aware (plan-style.js weightsFor), so the impact copy
+   can never be a constant — a Guided general adult sees Nutrition 52%, not 50%. requirements.js
+   stays import-free by design, so state.js REGISTERS a provider that returns the live weights;
+   until it does we fall back to the shipped structured/athlete row. Every consumer keeps reading
+   IMPACT_LABEL[key] — the values are getters, so they re-read the weights on every access. */
+let weightsProvider = null;
+export function setImpactWeightsProvider(fn) { weightsProvider = typeof fn === 'function' ? fn : null; }
+
+const FALLBACK_WEIGHTS = { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
+function impactWeights() {
+  let w = null;
+  try { w = weightsProvider ? weightsProvider() : null; } catch (_) { w = null; }
+  return w && typeof w.nutrition === 'number' ? w : FALLBACK_WEIGHTS;
+}
+/** The live whole-number weight for one component, for display copy. */
+export function weightPct(comp) { return Math.round((impactWeights()[comp] || 0) * 100); }
+
 export const IMPACT_LABEL = {
-  nutrition: 'Nutrition · 50% of score',
-  recovery:  'Recovery · 25% of score',
-  checkin:   'Weekly check-in · 10% of score',
+  get nutrition() { return `Nutrition · ${weightPct('nutrition')}% of score`; },
+  get recovery()  { return `Recovery · ${weightPct('recovery')}% of score`; },
+  get checkin()   { return `Weekly check-in · ${weightPct('checkin')}% of score`; },
   trend:     'Season trend · not scored',
   focus:     "This week's focus · coach sees it",
   plan:      'Part of your plan · commitment covers it',
@@ -144,6 +161,15 @@ export function resolveRequirementSet(sets, athleteId, position, asOfDate = /** 
   return govern(sets.filter(s => s.scope_kind === 'team'));
 }
 
+/** The plan-style item (0142) out of a governing requirement set's items, or null when the
+ *  standard doesn't set one. Mirrors the server's athlete_governing_plan_style: the SAME
+ *  resolveRequirementSet precedence has already picked the set, so this only reads the item.
+ *  Shape out: { style, overrides } — the resolvePlanStyle `teamStandard` argument. */
+export function planStyleFromItems(items, setBy) {
+  const it = Array.isArray(items) ? items.find(i => i && i.kind === 'plan_style' && i.style) : null;
+  return it ? { style: it.style, overrides: it.overrides || null, setBy: setBy || null } : null;
+}
+
 /* Physical slot order for a standard of M meals — maps onto the classic keys first so the
    camera, meal-detail, and server jsonb all keep working; 5th/6th are new slot keys. */
 export const STD_SLOT_MAP = {
@@ -167,6 +193,10 @@ export function stdFromItems(items) {
   const titles = /** @type {Record<string, string>} */ ({});
   const grace = /** @type {Record<string, number>} */ ({});
   const latePolicy = /** @type {Record<string, string>} */ ({});
+  // Snack-optional (0086 item.snack): slot keys that are loggable but NOT required — they earn
+  // credit when logged (day.js numerator) yet never count against the athlete (out of the
+  // denominator, and required:false in the exec catalog so they can't read overdue).
+  const optional = /** @type {string[]} */ ([]);
   slots.forEach((k, i) => {
     const it = mealItems[i] || {};
     if (it.window && it.window.due != null) deadlines[k] = it.window.due;
@@ -175,8 +205,44 @@ export function stdFromItems(items) {
     // engine (day.js slotGrace/slotLateCredit). Absent = the classic on-time/half-credit rule.
     if (typeof it.grace === 'number' && it.grace >= 0) grace[k] = Math.min(240, Math.round(it.grace));
     if (it.latePolicy === 'full' || it.latePolicy === 'none' || it.latePolicy === 'half') latePolicy[k] = it.latePolicy;
+    if (it.snack === true) optional.push(k);
   });
-  return { mealsRequired: m, slots, deadlines, titles, grace, latePolicy };
+  // Denominator = the REQUIRED meals only. PARITY: no snack-flagged item → requiredCount === m, so
+  // mealsRequired is byte-identical to before. A standard that marks every meal a snack keeps 1
+  // required (never divide by zero).
+  const requiredCount = mealItems.filter(it => it.snack !== true).length;
+  const mealsRequired = Math.min(6, Math.max(1, requiredCount || m));
+  return { mealsRequired, slots, deadlines, titles, grace, latePolicy, optional };
+}
+
+/* ---- Day-type resolution (0086 item.dayType + 0100 team_week_pattern) ----
+   A coach can mark a requirement item to apply on training days, rest days, or any day, and set a
+   weekly training/rest pattern for the team. These two PURE helpers turn that into "which items
+   govern the day being scored". Parity is the contract: with no team pattern (dayType 'any'),
+   NOTHING is filtered and stdFromItems is byte-identical to before. */
+
+/** The type of a given day from a team's weekly pattern. `pattern` is a 7-element array of
+ *  'training' | 'rest', indexed by JS getDay() (0 = Sunday). A missing/malformed pattern, or a
+ *  slot that isn't training/rest, resolves to 'any' — i.e. no day-type gating. */
+export function dayTypeFor(pattern, dayOrISO) {
+  if (!Array.isArray(pattern) || pattern.length !== 7) return 'any';
+  let dow;
+  if (typeof dayOrISO === 'number') dow = dayOrISO;
+  else { const d = new Date(String(dayOrISO) + 'T12:00:00'); if (isNaN(d)) return 'any'; dow = d.getDay(); }
+  const t = pattern[dow];
+  return (t === 'training' || t === 'rest') ? t : 'any';
+}
+
+/** Keep only the items that apply on a day of the given type. An item with no dayType (or 'any')
+ *  ALWAYS applies, so every existing set — none of which carry dayType — is returned unchanged.
+ *  When dayType is 'any' (no pattern), nothing is filtered at all. */
+export function filterItemsByDayType(items, dayType) {
+  if (!Array.isArray(items)) return items;
+  if (dayType !== 'training' && dayType !== 'rest') return items; // 'any' / unknown → no gating
+  return items.filter((it) => {
+    const d = it && it.dayType;
+    return d == null || d === 'any' || d === dayType;
+  });
 }
 
 /** An independent (no-coach) athlete's personal standard → the same scored-day shape a coach

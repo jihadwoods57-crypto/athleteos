@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, useColorScheme, useWindowDimensions } from 'react-native';
+import { AppState, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import {
 import { darkColors, lightColors, DEVICE_MAX_WIDTH } from '@/ui/tokens';
 import { ThemeProvider } from '@/ui/theme';
 import { useStore } from '@/store';
+import { useFlagsStore } from '@/store/flagsStore';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -44,6 +45,18 @@ export default function RootLayout() {
   const frameMaxWidth = isOversight && width >= 900 ? 760 : DEVICE_MAX_WIDTH;
 
   // Local reminders are exec-driven now: the proto posts NOTIFY_SYNC via the bridge.
+
+  // Runtime feature flags: hydrate the cached map at launch, then fetch the caller's evaluated
+  // flags, and re-fetch on foreground resume so a kill-switch/flip is picked up. Fire-and-forget —
+  // never blocks render; on failure the last cache (or safe defaults) stands.
+  React.useEffect(() => {
+    const flags = useFlagsStore.getState();
+    flags.hydrate().then(() => flags.refresh());
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') useFlagsStore.getState().refresh();
+    });
+    return () => sub.remove();
+  }, []);
 
   if (!loaded) {
     return <View style={{ flex: 1, backgroundColor: palette.bg }} />;

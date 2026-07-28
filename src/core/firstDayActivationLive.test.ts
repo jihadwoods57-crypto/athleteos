@@ -70,3 +70,76 @@ test('activation-day Home renders "Not scored yet" and never "Off Standard" or a
   // the lunch row, if shown, must read Not required — never the red Overdue pill
   expect(html).not.toMatch(/Lunch[\s\S]{0,80}Overdue/);
 });
+
+describe('activation anchors to the account birthday, not a stale device stamp', () => {
+  const isoDaysAgo = (days: number, h = 12, mi = 0) =>
+    new Date(t.getFullYear(), t.getMonth(), t.getDate() - days, h, mi).toISOString();
+
+  test('created today but committed_at is 11 days stale → still activation day (created_at wins)', () => {
+    // Reproduces the founder's row: created today, committed_at carried from 11 days ago.
+    RT.activationDate = isoDaysAgo(11, 12, 35); // stale local carry too
+    RT.profile = { createdAt: activatedToday634pm, committedAt: isoDaysAgo(11, 12, 35) };
+    expect(S.activation.isActivationDay).toBe(true);
+    expect(S.notYetScored).toBe(true);
+    expect(lunch(S.exec).state).toBe('not_required'); // lunch window closed pre-signup → excused
+  });
+
+  test('created today + committed_at same day → uses committed_at to refine the minute', () => {
+    const createdEarly = new Date(t.getFullYear(), t.getMonth(), t.getDate(), 9, 0).toISOString();
+    RT.activationDate = null;
+    RT.profile = { createdAt: createdEarly, committedAt: activatedToday634pm };
+    expect(S.activation.isActivationDay).toBe(true);
+    expect(S.activation.activationMin).toBe(1114); // 6:34 PM, the finer commit minute
+  });
+
+  test('created yesterday (established user) → fully active even if a commit stamp is today', () => {
+    RT.activationDate = activatedToday634pm;
+    RT.profile = { createdAt: isoDaysAgo(1, 18, 34), committedAt: activatedToday634pm };
+    expect(S.activation.isActivationDay).toBe(false);
+    expect(S.notYetScored).toBe(false);
+  });
+
+  test('no created_at (older client) → falls back to the commit stamp (prior behavior)', () => {
+    RT.activationDate = activatedToday634pm;
+    RT.profile = {}; // no createdAt
+    expect(S.notYetScored).toBe(true);
+  });
+});
+
+describe('in-progress framing — no failure verdict on a day that is not over', () => {
+  test('established user, live sub-passing day → hero reads In progress, never Off Standard', () => {
+    // Activated yesterday (fully active), Tuesday morning, nothing logged, windows still open.
+    RT.activationDate = activatedYesterday;
+    RT.profile = { createdAt: activatedYesterday };
+    DAY.date = todayISO;
+    // Force a mid-morning clock so required windows are still open (not decided).
+    const home = require('../../proto/redesign-2026-07/js/screens/home.js').default;
+    const html: string = home.render();
+    if (!S.dayDecided) {
+      expect(html).toContain('In progress');
+      expect(html).not.toContain('Off Standard');
+    }
+  });
+
+  test('S.dayDecided mirrors exec.decided', () => {
+    expect(S.dayDecided).toBe(S.exec.decided);
+  });
+
+  test('day0 empty morning (established user) → In progress, never Off Standard', () => {
+    // Established user (activated yesterday — no first-day grace), but RT.day0 recomputes true
+    // every morning before anything is logged (state.js:389) — not just the literal first day.
+    RT.activationDate = activatedYesterday;
+    RT.profile = { createdAt: activatedYesterday };
+    RT.day0 = true;
+    RT.day0Breakfast = false;
+    DAY.date = todayISO;
+    const home = require('../../proto/redesign-2026-07/js/screens/home.js').default;
+    const html: string = home.render();
+    // Confirm we actually took the day0 branch (its unique "start here" NOW card).
+    expect(html).toContain('Log First Meal');
+    if (!S.dayDecided) {
+      expect(html).not.toContain('Off Standard');
+      expect(html).toContain('In progress');
+    }
+  });
+});

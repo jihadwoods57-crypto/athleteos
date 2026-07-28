@@ -32,6 +32,16 @@
 // the panel verbatim, so they need no grounding.
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
+import { buildVoiceDirective, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
+import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
+import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
+import {
+  composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
+} from '../_shared/plan-style.ts';
+import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
+import { clientIpFrom } from '../_shared/client-ip.ts';
+import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 // Cost sweep (audit item 20): memory/order are pure PROSE rephrases whose every number is re-verified
@@ -85,6 +95,31 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 // anonymous/preview call (the shared anon key, or backend not wired) — those skip the
 // per-athlete cap and stay governed by the per-minute IP limit alone. Verifying via
 // auth.getUser() (not a raw JWT decode) means a forged `sub` can't buy extra calls.
+// Coach Voice v2 plumbing. A service client + a single-flag evaluator — this is the feature-flag
+// system's first real consumer. flagOn reads the one flag row and applies the shared pure evaluator
+// for this athlete's context; any failure resolves to false (voice simply stays off).
+function svcClient(): { from: (t: string) => any; rpc: (fn: string, args?: Record<string, unknown>) => any } | null {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+}
+async function flagOn(
+  sb: { from: (t: string) => any },
+  name: string,
+  ctx: { userId?: string | null; role?: string | null; orgId?: string | null },
+): Promise<boolean> {
+  try {
+    const { data } = await sb
+      .from('feature_flags')
+      .select('name, default_on, kill_switch, enabled_user_ids, enabled_roles, enabled_org_ids')
+      .eq('name', name)
+      .maybeSingle();
+    if (!data) return false;
+    return evaluateFlag(data as FlagRow, ctx);
+  } catch {
+    return false;
+  }
+}
+
 async function resolveUserId(req: Request): Promise<string | null> {
   const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
   if (!token || token === SUPABASE_ANON_KEY) return null;
@@ -138,9 +173,9 @@ async function withinKeyCap(key: string, limit: number, failOpen = true): Promis
   }
 }
 
-// The caller's client IP (first hop of x-forwarded-for), for the per-IP limits.
+// The caller's client IP (trusted edge hop, not the client-supplied leftmost XFF), for the per-IP limits.
 function clientIp(req: Request): string {
-  return (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  return clientIpFrom(req);
 }
 
 // Magic-byte sniff of a base64 image: return the real MIME, or null for anything we don't accept.
@@ -210,15 +245,24 @@ interface OrderIn {
 
 interface AnalyzeReq {
   /** 'meal' estimates a plate; 'label' transcribes a panel; 'memory'/'order' reword prose. */
-  mode?: 'meal' | 'label' | 'memory' | 'order';
+  mode?: 'meal' | 'label' | 'memory' | 'order' | 'regen';
   mealType: 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
   goal: string | null;
   description?: string;
   photoBase64?: string;
-  /** Meal analysis phase: 'analyze' (default) may ask clarifying questions; 'finalize' must report. */
-  phase?: 'analyze' | 'finalize';
+  /** Meal analysis phase: 'analyze' (default) may ask clarifying questions; 'finalize' must report;
+   *  'verify' runs the gated second pass. */
+  phase?: 'analyze' | 'finalize' | 'verify';
   /** For meal 'finalize': the clarifying questions already asked and the athlete's answers. */
   clarifications?: { question: string; answer: string }[];
+  /** Second-pass verifier (item 6): which trigger fired, the athlete's severe restrictions, and
+   *  the first read's macros (to classify whether the re-detect moved anything). */
+  verifyTrigger?: 'allergen' | 'accuracy';
+  severeRestrictions?: string[];
+  firstResult?: { kcal?: number; protein?: number };
+  /** Mode 'regen': rewrite a coaching line to match the band; numbers unchanged. */
+  band?: 'low' | 'good';
+  text?: string;
   /** For mode 'memory': the deterministic insights to reword (prose only is returned). */
   insights?: MemoryInsightIn[];
   /** For mode 'order': the recommended-order explanations to reword (prose only is returned). */
@@ -257,15 +301,19 @@ const MEAL_TOOL = {
       fat: { type: 'integer', description: 'Estimated grams of fat.' },
       detected: {
         type: 'array',
-        description: 'Foods identified in the photo, each with your confidence in the identification.',
+        description: 'Foods identified in the photo, each with your confidence in the identification and its own macro estimate. The per-food protein/kcal/carbs/fat MUST sum to the meal-level totals — the app subtracts a food\'s numbers when the athlete removes it, so an unattributed calorie would survive the deletion.',
         items: {
           type: 'object',
           properties: {
             name: { type: 'string', description: 'The food, e.g. "Grilled chicken".' },
             confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'high = clearly visible; medium = probable; low = uncertain, the athlete should confirm.' },
             quantity: { type: 'string', description: 'Estimated quantity in plain kitchen units, e.g. "2 eggs", "1 cup rice", "6 oz". Omit when unguessable.' },
+            protein: { type: 'integer', description: 'Estimated grams of protein from THIS food at the estimated quantity.' },
+            kcal: { type: 'integer', description: 'Estimated calories from THIS food.' },
+            carbs: { type: 'integer', description: 'Estimated grams of carbohydrate from THIS food.' },
+            fat: { type: 'integer', description: 'Estimated grams of fat from THIS food.' },
           },
-          required: ['name', 'confidence'],
+          required: ['name', 'confidence', 'protein', 'kcal', 'carbs', 'fat'],
         },
       },
       fiber: { type: 'integer', description: 'Estimated grams of dietary fiber. 0 when negligible.' },
@@ -369,7 +417,9 @@ ranges and hedged phrasing for anything the photo cannot pin down ("roughly 42 t
 move this"). Never present an estimate as an exact fact.
 
 Consistency rules, hard requirements: your written analysis, detected list, macro numbers, and
-quality score must agree with each other. Never claim "no fiber" or "no vegetables" when the
+quality score must agree with each other. Attribute the macros food by food: every detected food
+carries its own protein/kcal/carbs/fat estimate, and those per-food numbers must add up to the
+meal-level totals you report (the app removes a food's numbers when the athlete deletes it). Never claim "no fiber" or "no vegetables" when the
 detected list contains a vegetable, fruit, legume, or whole grain — if fiber seems low despite
 visible produce, say the portion looks small rather than denying what is on the plate. Never
 praise protein in the text while reporting a low protein number, or the reverse.`;
@@ -600,6 +650,59 @@ function groundMacros<T>(analysis: T): T {
   return analysis;
 }
 
+// ── Second-pass verifier (item 6) ────────────────────────────────────────────────────────────
+const VERIFY_BUDGET = posIntCap('VERIFY_DAILY_BUDGET', 3);
+const REGEN_ENABLED = (Deno.env.get('VERIFY_REGEN_ENABLED') ?? 'true') !== 'false';
+
+const ALLERGEN_TOOL = {
+  name: 'report_allergens',
+  description: 'Report whether each named allergen is present in the photo. Detection only — do not score or estimate macros.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      allergens: {
+        type: 'array',
+        description: 'One entry per allergen asked about.',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            present: { type: 'boolean' },
+            confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+          },
+          required: ['name', 'present', 'confidence'],
+        },
+      },
+    },
+    required: ['allergens'],
+  },
+} as const;
+const VERIFY_ALLERGEN_SYSTEM =
+  'You re-examine an athlete meal photo ONLY to check for specific declared allergens. ' +
+  'For each allergen, say whether it is visibly present and your confidence. Detection only: never score the meal, never estimate macros, never guarantee safety.';
+const VERIFY_ACCURACY_SYSTEM = SYSTEM +
+  '\n\nThis is a SECOND look: the first read was low-confidence. Re-identify the foods and portions carefully. Detection only — the app computes the numbers.';
+
+const REGEN_TOOL = {
+  name: 'rewrite_coaching',
+  description: 'Rewrite a coaching line to match the meal band. Change no numbers.',
+  input_schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+} as const;
+const REGEN_SYSTEM =
+  'You rewrite one short coaching line so its tone matches the meal band. Keep every number identical. ' +
+  'A low band must not sound like praise; a good band must not sound damning. Output only the rewritten line.';
+
+// Mirror of proto classifyVerifyOutcome (accuracy path only — allergen is decided inline below).
+function classifyVerifyOutcomeServer(first: { kcal?: number; protein?: number }, second: Record<string, unknown>): string {
+  const moved = (a: unknown, b: unknown) => {
+    const x = Number(a) || 0, y = Number(b) || 0;
+    return Math.abs(y - x) / Math.max(1, x) > 0.15;
+  };
+  if (moved(first.kcal, second.kcal)) return 'macros_moved';
+  if (moved(first.protein, second.protein)) return 'macros_moved';
+  return 'no_change';
+}
+
 Deno.serve(async (request) => {
   const cors = corsFor(request);
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -621,8 +724,10 @@ Deno.serve(async (request) => {
   const isLabel = req?.mode === 'label';
   const isMemory = req?.mode === 'memory';
   const isOrder = req?.mode === 'order';
-  const isMeal = !isLabel && !isMemory && !isOrder;
+  const isRegen = req?.mode === 'regen';
+  const isMeal = !isLabel && !isMemory && !isOrder && !isRegen;
   const isFinalize = isMeal && req?.phase === 'finalize';
+  const isVerify = isMeal && req?.phase === 'verify' && (req.verifyTrigger === 'allergen' || req.verifyTrigger === 'accuracy');
 
   // Input guards: reject an oversized/missing photo before spending an Anthropic call.
   // A base64 JPEG over ~8MB raw (~6MB image) is almost certainly abuse and would risk a
@@ -661,7 +766,7 @@ Deno.serve(async (request) => {
     if (typeof req.photoBase64 !== 'string' || !req.photoBase64) {
       return new Response(JSON.stringify({ error: 'photo required for label scan' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
-  } else if (typeof req?.mealType !== 'string' || !req.mealType.trim()) {
+  } else if (!isRegen && (typeof req?.mealType !== 'string' || !req.mealType.trim())) {
     // The meal prompt needs the slot (and can infer a typical meal when no photo is sent).
     return new Response(JSON.stringify({ error: 'mealType required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
@@ -669,14 +774,23 @@ Deno.serve(async (request) => {
   // Spend ceilings, in two independent tiers. Checked after the input guards so a malformed
   // request never burns a slot.
   //
-  // (1) GLOBAL daily bill backstop — applies to EVERY paid model call, no exceptions. `phase` is
-  // client-controlled, so a caller can send `phase:'finalize'` (a full paid VISION call) WITHOUT
-  // ever sending 'analyze' — previously that skipped every ceiling and let the public anon key
-  // drive unbounded vision spend. memory/order are cheaper (Haiku) but still paid, so they count
-  // too. A legitimate two-call meal (analyze + finalize) counts twice here, which is correct: it
-  // really is two paid calls against the day's bill. This is the hard backstop the constitution
-  // requires ("AI spend caps and the daily cap stay in force").
-  if (!(await withinKeyCap('global', GLOBAL_CAP, /* failOpen */ false))) {
+  // Resolve the caller once, up front: which ceiling applies depends on it, and it's reused for
+  // the daily cap below AND for cost telemetry (a single auth round-trip).
+  const userId = await resolveUserId(request);
+  //
+  // (1) GLOBAL bill backstop — ANONYMOUS callers ONLY. `phase` is client-controlled, so a caller
+  // can send `phase:'finalize'` (a full paid VISION call) WITHOUT ever sending 'analyze' —
+  // unguarded, that lets the public anon key drive unbounded vision spend. memory/order are
+  // cheaper (Haiku) but still paid, so they count too. This fails CLOSED because it is the anon
+  // caller's ONLY ceiling.
+  //
+  // A SIGNED-IN caller is never blocked here (capacity audit F1, docs/scale/CAPACITY-AUDIT.md):
+  // their own per-athlete DAILY_CAP below already bounds their spend, and a platform-wide
+  // fail-closed counter must never be the thing that denies a paying athlete's meal log. They are
+  // tracked against a monthly tier-budget SIGNAL instead (see trackAuthedAiSpend below) — it never
+  // blocks, it only raises a Command Center flag once a caller crosses 80% of the configured
+  // ceiling.
+  if (!userId && !(await withinKeyCap('global_anon', GLOBAL_CAP, /* failOpen */ false))) {
     return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
   // (2) PER-CALLER daily cap — fairness/anti-spam. memory/order are exempt (cheap Haiku prose); every
@@ -689,13 +803,12 @@ Deno.serve(async (request) => {
   // (DAILY_ANALYSIS_CAP) for a heavy logger. A signed-in athlete gets the per-athlete daily cap (fails
   // OPEN — never block a legit log on an infra hiccup); an anonymous caller gets a per-IP daily cap
   // that fails CLOSED — the only ceiling an anon caller has, so it must hold when the counter is down.
-  const countsAgainstDailyCap = !isMemory && !isOrder;
+  const countsAgainstDailyCap = !isMemory && !isOrder && !isRegen;
   // Captured for the clarify budget below: whether this is a signed-in athlete and how many paid
   // calls they've made today. Anonymous callers (userId null) never get the 2-call clarify path.
   let signedIn = false;
   let dailyUsed = 0;
   if (countsAgainstDailyCap) {
-    const userId = await resolveUserId(request);
     signedIn = userId != null;
     if (userId) {
       const cap = await withinDailyCap(userId);
@@ -703,13 +816,129 @@ Deno.serve(async (request) => {
         return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
       }
       dailyUsed = cap.used;
+      void trackAuthedAiSpend(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId, 'analyze-meal');
     } else if (!(await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP, /* failOpen */ false))) {
       return new Response(JSON.stringify({ error: 'daily analysis limit reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
   }
 
-  const system = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
-  const content = isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req, photoMime) : userContent(req, photoMime);
+  // ── regen: band-matched coaching rewrite (Haiku, toggleable). Exempt from the per-caller
+  // analysis cap (cheap prose, like memory/order); still behind the global backstop above.
+  if (isRegen) {
+    if (!REGEN_ENABLED) return new Response(JSON.stringify({ error: 'regen disabled' }), { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } });
+    const src = String(req.text ?? '').slice(0, 1200);
+    if (!src || (req.band !== 'low' && req.band !== 'good')) return new Response(JSON.stringify({ error: 'bad regen request' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+    const t0g = Date.now();
+    try {
+      const client = new Anthropic({ apiKey: key });
+      const msg = await client.messages.create({
+        model: TEXT_MODEL,
+        max_tokens: 300,
+        system: [{ type: 'text' as const, text: REGEN_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
+        tools: [{ ...REGEN_TOOL, cache_control: { type: 'ephemeral' as const } }],
+        tool_choice: { type: 'tool' as const, name: REGEN_TOOL.name },
+        messages: [{ role: 'user', content: `Band: ${req.band}. Rewrite: ${src}` }],
+      });
+      const used = msg.content.find((b) => b.type === 'tool_use');
+      const text = used && used.type === 'tool_use' ? String((used.input as { text?: unknown }).text ?? '') : '';
+      await recordAiCall({ fn: 'analyze-meal', mode: 'regen', userId, model: msg.model ?? TEXT_MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0g, ok: true });
+      if (!text) throw new Error('empty regen');
+      return new Response(JSON.stringify({ text }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    } catch (e) {
+      await recordAiCall({ fn: 'analyze-meal', mode: 'regen', userId, model: TEXT_MODEL, latencyMs: Date.now() - t0g, ok: false, errorCode: 'upstream_error' });
+      console.error('analyze-meal regen error:', e);
+      return new Response(JSON.stringify({ error: 'regen unavailable' }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+  }
+
+  // ── verify: gated second pass. Needs a photo; claims its own daily budget (separate from
+  // clarify) on top of the global backstop already checked above.
+  if (isVerify) {
+    if (typeof req.photoBase64 !== 'string' || !req.photoBase64) {
+      return new Response(JSON.stringify({ error: 'photo required for verify' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+    const vkey = userId ? `verify_user:${userId}` : `verify_ip:${clientIp(request)}`;
+    if (!(await withinKeyCap(vkey, VERIFY_BUDGET, /* failOpen */ false))) {
+      return new Response(JSON.stringify({ error: 'verify budget reached' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+    const t0v = Date.now();
+    try {
+      const client = new Anthropic({ apiKey: key });
+      if (req.verifyTrigger === 'allergen') {
+        const names = (Array.isArray(req.severeRestrictions) ? req.severeRestrictions : []).map(String).slice(0, 12);
+        const msg = await client.messages.create({
+          model: MODEL,
+          max_tokens: 512,
+          system: [{ type: 'text' as const, text: VERIFY_ALLERGEN_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
+          tools: [{ ...ALLERGEN_TOOL, cache_control: { type: 'ephemeral' as const } }],
+          tool_choice: { type: 'tool' as const, name: ALLERGEN_TOOL.name },
+          messages: [{ role: 'user', content: [
+            { type: 'image' as const, source: { type: 'base64' as const, media_type: photoMime, data: req.photoBase64 } },
+            { type: 'text' as const, text: `Check ONLY for these allergens: ${names.join(', ')}` },
+          ] }],
+        });
+        const used = msg.content.find((b) => b.type === 'tool_use');
+        const rows = used && used.type === 'tool_use' && Array.isArray((used.input as { allergens?: unknown }).allergens)
+          ? (used.input as { allergens: Array<{ name?: string; present?: boolean }> }).allergens : [];
+        const allergensFound = rows.filter((a) => a && a.present === true).map((a) => String(a.name)).filter(Boolean);
+        await recordAiCall({ fn: 'analyze-meal', mode: 'verify', phase: 'allergen', userId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0v, ok: true, outcome: allergensFound.length ? 'allergen_caught' : 'no_change' });
+        return new Response(JSON.stringify({ kind: 'verify', trigger: 'allergen', allergensFound }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+      const msg = await client.messages.create({
+        model: MODEL,
+        max_tokens: 1024,
+        system: [{ type: 'text' as const, text: VERIFY_ACCURACY_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
+        tools: [{ ...MEAL_TOOL, cache_control: { type: 'ephemeral' as const } }],
+        tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
+        messages: [{ role: 'user', content: userContent(req, photoMime) }],
+      });
+      const used = msg.content.find((b) => b.type === 'tool_use');
+      if (!used || used.type !== 'tool_use') throw new Error('no structured output');
+      const grounded = groundMacros(used.input) as Record<string, unknown>;
+      const outcome = classifyVerifyOutcomeServer(req.firstResult || {}, grounded);
+      await recordAiCall({ fn: 'analyze-meal', mode: 'verify', phase: 'accuracy', userId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0v, ok: true, outcome });
+      return new Response(JSON.stringify({ kind: 'verify', trigger: 'accuracy', ...grounded }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    } catch (e) {
+      await recordAiCall({ fn: 'analyze-meal', mode: 'verify', phase: req.verifyTrigger, userId, model: MODEL, latencyMs: Date.now() - t0v, ok: false, errorCode: 'upstream_error' });
+      console.error('analyze-meal verify error:', e);
+      return new Response(JSON.stringify({ error: 'verify unavailable' }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+  }
+
+  const baseSystem = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
+  // Typed once here: the *Content builders return unknown[], which the SDK's ContentBlockParam[]
+  // rejects at every call site that passes it. Casting at the source fixes the primary call and
+  // both fallback re-runs together, instead of three separate casts.
+  const content = (isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req, photoMime) : userContent(req, photoMime)) as unknown as Anthropic.ContentBlockParam[];
+
+  // Coach Voice v2 (flag-gated, meal path only): when coach_voice_v2 is on for this athlete AND
+  // their team has an enabled Voice config, prepend the coach's voice directive so the note/analysis
+  // read in the coach's tone. Deterministic authority (macros/score/timing) is untouched — the
+  // directive's hard rails forbid changing any figure. Flag off / no team config -> byte-identical
+  // to today. voiceCfg is also used below to re-check banned words on the generated text.
+  let voiceCfg: VoiceConfig | null = null;
+  // Plan style (0142): the athlete's resolved Structured/Guided/Intuitive, which decides what is
+  // SAYABLE (coach voice only decides how it sounds). Null = no directive = today's prompt byte
+  // for byte — and never a silent downgrade for an Intuitive athlete, because Intuitive can only
+  // come from an explicit row the loader reads. See plan-style-load.ts's header.
+  let planStyle: PlanStyle | null = null;
+  let styleSource: string | null = null;
+  if (isMeal && userId) {
+    const sb = svcClient();
+    if (sb) {
+      if (await flagOn(sb, 'coach_voice_v2', { userId })) {
+        const loaded = await loadVoice(sb, userId);
+        if (loaded) voiceCfg = loaded.cfg;
+      }
+      const st = await loadPlanStyleForAthlete(sb, userId);
+      if (st) { planStyle = st.style; styleSource = st.source; }
+    }
+  }
+  // Voice -> style -> base. `styledBase` is the prompt WITHOUT the coach voice but WITH the style:
+  // the voice fallback below re-runs on it, so dropping a banned word can never also drop the
+  // style rail (which would hand an Intuitive athlete a macro-quoting prompt to fix a tone slip).
+  const styledBase = composeSystem(baseSystem, '', planStyle);
+  const system = composeSystem(baseSystem, voiceCfg ? buildVoiceDirective(voiceCfg) : '', planStyle);
 
   // Tool set + choice. Meal phase 'analyze' may EITHER finalize or ask a clarifying question, so it
   // offers both tools and lets the model choose. Every other path (label/memory/order, and meal
@@ -731,8 +960,21 @@ Deno.serve(async (request) => {
   // of paying full price for it on every single meal photo.
   const cachedTools = tools.map((t, i) =>
     i === tools.length - 1 ? { ...t, cache_control: { type: 'ephemeral' as const } } : t
-  );
+  ) as unknown as Anthropic.Tool[];
+  // ONE typed tools array for the two fallback re-runs below (voice + plan style). MEAL_TOOL is
+  // `as const`, so its input_schema.required is a readonly tuple the SDK's mutable string[]
+  // rejects — TS tolerates that at one call site but not at several.
+  const mealToolOnly = [{ ...MEAL_TOOL, cache_control: { type: 'ephemeral' as const } }] as unknown as Anthropic.Tool[];
 
+  // Cost/latency telemetry (item 8a): time the paid call and record it once, best-effort. On
+  // success `model` is the AUTHORITATIVE string the API reports back. A billed-but-malformed
+  // response (no tool_use, thrown below) is still logged ok here — that parse error is an app
+  // concern, not a second billing event, so the `recorded` flag keeps the catch from double-logging.
+  const telemMode = isLabel ? 'label' : isMemory ? 'memory' : isOrder ? 'order' : 'meal';
+  const telemPhase = isMeal ? (isFinalize ? 'finalize' : 'analyze') : null;
+  const intendedModel = isMemory || isOrder ? TEXT_MODEL : MODEL;
+  const t0 = Date.now();
+  let recorded = false;
   try {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
@@ -743,6 +985,17 @@ Deno.serve(async (request) => {
       tool_choice: toolChoice,
       messages: [{ role: 'user', content }],
     });
+    await recordAiCall({
+      fn: 'analyze-meal',
+      mode: telemMode,
+      phase: telemPhase,
+      userId,
+      model: msg.model ?? intendedModel,
+      ...usageFrom(msg.usage),
+      latencyMs: Date.now() - t0,
+      ok: true,
+    });
+    recorded = true;
     const used = msg.content.find((b) => b.type === 'tool_use');
     if (!used || used.type !== 'tool_use') throw new Error('no structured output');
 
@@ -756,13 +1009,133 @@ Deno.serve(async (request) => {
         if (questions.length === 0) throw new Error('empty clarifying questions');
         return new Response(JSON.stringify({ kind: 'questions', questions }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
-      const grounded = groundMacros(used.input) as Record<string, unknown>;
-      return new Response(JSON.stringify({ kind: 'result', ...grounded }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      let input = used.input as Record<string, unknown>;
+      // Coach Voice safety: a banned word must never ship. If voice was applied and the free-text
+      // note/analysis trips the guard (rare — the directive already forbids them), re-run the report
+      // ONCE without the voice directive and use that. A required field can't be nulled the way a
+      // nudge can, so the fallback is a clean re-generation on the safe base prompt.
+      if (voiceCfg) {
+        const note = typeof input.note === 'string' ? input.note : '';
+        const analysis = typeof input.analysis === 'string' ? input.analysis : '';
+        if (violatesProhibited(note + ' ' + analysis, voiceCfg.prohibited)) {
+          const t0f = Date.now();
+          const retry = await client.messages.create({
+            model: MODEL,
+            max_tokens: 1024,
+            // styledBase, NOT baseSystem: drop the coach's voice, KEEP the plan-style rail.
+            system: [{ type: 'text' as const, text: styledBase, cache_control: { type: 'ephemeral' as const } }],
+            tools: mealToolOnly,
+            tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
+            messages: [{ role: 'user', content }],
+          });
+          await recordAiCall({
+            fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+            model: retry.model ?? intendedModel, ...usageFrom(retry.usage),
+            latencyMs: Date.now() - t0f, ok: true, outcome: 'voice_banned_fallback',
+          });
+          const rused = retry.content.find((b) => b.type === 'tool_use');
+          if (rused && rused.type === 'tool_use') input = rused.input as Record<string, unknown>;
+        }
+      }
+
+      // Plan-style safety (0142). THE INVERTED FALLBACK — read the header of _shared/plan-style.ts
+      // before touching this. Coach voice recovers by dropping its directive because the base
+      // prompt is the safe one; plan style CANNOT, because for Intuitive the directive IS the
+      // safety. So the ladder is: correct-and-retry (style still applied), then deterministic
+      // safe copy. A bare base-prompt re-run here would confidently produce a worse violation.
+      let styleApplied: PlanStyle | null = planStyle;
+      if (planStyle === 'intuitive') {
+        const prose = (o: Record<string, unknown>) => [
+          typeof o.note === 'string' ? o.note : '',
+          typeof o.analysis === 'string' ? o.analysis : '',
+          typeof o.reconcile === 'string' ? o.reconcile : '',
+          Array.isArray(o.highlights) ? o.highlights.filter((h) => typeof h === 'string').join(' ') : '',
+          o.substitution && typeof o.substitution === 'object'
+            ? String((o.substitution as { suggestion?: unknown }).suggestion ?? '') : '',
+        ].join(' ');
+
+        let v = violatesStyleLanguage(prose(input), planStyle);
+        if (v) {
+          const t0s = Date.now();
+          const retry = await client.messages.create({
+            model: MODEL,
+            max_tokens: 1024,
+            system: [{ type: 'text' as const, text: styledBase, cache_control: { type: 'ephemeral' as const } }],
+            tools: mealToolOnly,
+            tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
+            // Replay the model's OWN bad output, then reject it with the specific reason. Handing
+            // back the exact text it just wrote corrects far more reliably than re-asking cold.
+            messages: [
+              { role: 'user', content },
+              {
+                role: 'assistant',
+                content: [{ type: 'tool_use' as const, id: used.id, name: used.name, input: used.input as Record<string, unknown> }],
+              },
+              {
+                role: 'user',
+                content: [{ type: 'tool_result' as const, tool_use_id: used.id, content: styleCorrectionMessage(v), is_error: true }],
+              },
+            ],
+          });
+          await recordAiCall({
+            fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+            model: retry.model ?? intendedModel, ...usageFrom(retry.usage),
+            latencyMs: Date.now() - t0s, ok: true, outcome: `style_${v.kind}_retry`,
+          });
+          const rused = retry.content.find((b) => b.type === 'tool_use');
+          if (rused && rused.type === 'tool_use') {
+            const candidate = rused.input as Record<string, unknown>;
+            v = violatesStyleLanguage(prose(candidate), planStyle);
+            if (!v) input = candidate;
+          }
+          if (v) {
+            // Step 3: the corrected retry still breached. Replace ONLY the athlete-facing prose
+            // with copy that is safe about any plate. The macros are untouched and still ride
+            // through to the pro — suppression is presentation, never data.
+            input = {
+              ...input,
+              note: SAFE_INTUITIVE.note,
+              analysis: SAFE_INTUITIVE.analysis,
+              highlights: [],
+            };
+            delete input.reconcile;
+            delete input.substitution;
+            styleApplied = 'intuitive';
+            await recordAiCall({
+              fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+              model: intendedModel, latencyMs: 0, ok: true, outcome: 'style_safe_copy',
+            });
+          }
+        }
+      }
+      const grounded = groundMacros(input) as Record<string, unknown>;
+      // Stamp the style this prose was actually written for. The client trusts its own resolved
+      // style over this, but uses the stamp to know whether server prose is safe to SHOW: an old
+      // deploy (no stamp) means the client keeps suppressing, so a stale function can never leak.
+      return new Response(
+        JSON.stringify({ kind: 'result', ...grounded, ...(styleApplied ? { styleApplied, styleSource } : {}) }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } },
+      );
     }
 
     // Label facts + memory/order prose are returned as-is (the CLIENT bounds the numbers).
     return new Response(JSON.stringify(used.input), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch (e) {
+    // A failed API call (network/429/5xx): record it once as a failed attempt (latency + error tag)
+    // so failures show up in the cost/latency views too. A post-response parse throw was already
+    // recorded ok above, so `recorded` guards against a duplicate row.
+    if (!recorded) {
+      await recordAiCall({
+        fn: 'analyze-meal',
+        mode: telemMode,
+        phase: telemPhase,
+        userId,
+        model: intendedModel,
+        latencyMs: Date.now() - t0,
+        ok: false,
+        errorCode: 'upstream_error',
+      });
+    }
     // Log the detail server-side; return a generic message so no internal detail (upstream error
     // text, stack) leaks to the client. The app falls back to the deterministic result on any 5xx.
     console.error('analyze-meal upstream error:', e);

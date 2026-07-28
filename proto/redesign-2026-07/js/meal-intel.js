@@ -7,15 +7,25 @@
 const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
 
 /** Legacy string arrays and rich {name, confidence, quantity?} arrays both normalize to rich.
- *  quantity (0062: "2 eggs", "1 cup rice") rides through cleaned + capped; absent stays absent. */
+ *  quantity (0062: "2 eggs", "1 cup rice") rides through cleaned + capped; absent stays absent.
+ *  Per-food macros (Tier 1 per-food attribution) ride through as a bounded `per` object —
+ *  accepted either flat off the wire (d.protein…) or already nested (d.per.protein…) so a
+ *  result survives sessionStorage round-trips; absent stays absent (older edge deploys). */
 export function normalizeDetected(detected) {
   if (!Array.isArray(detected)) return [];
+  const num = (v) => { const n = Math.round(Number(v)); return isFinite(n) && n > 0 ? Math.min(2000, n) : 0; };
   return detected.slice(0, 8).map((d) => {
     if (typeof d === 'string') return { name: clean(d), confidence: 'high' };
     const c = d && d.confidence;
     const out = { name: clean(d && d.name), confidence: c === 'low' || c === 'medium' ? c : 'high' };
     const q = d && d.quantity;
     if (typeof q === 'string' && q.trim()) out.quantity = clean(q).slice(0, 40);
+    const src = d && (d.per && typeof d.per === 'object' ? d.per : d);
+    if (src && ['protein', 'kcal', 'carbs', 'fat'].some((k) => num(src[k]) > 0)) {
+      out.per = { protein: num(src.protein), kcal: num(src.kcal), carbs: num(src.carbs), fat: num(src.fat) };
+    }
+    if (d && d.edited) out.edited = true;
+    if (d && d.userAdded) out.userAdded = true;
     return out;
   }).filter((d) => d.name);
 }
@@ -38,8 +48,10 @@ export function groundExtras(raw) {
  * Pre-log food edit (WS4 — "user can edit for accuracy"): one reducer for every mutation of the
  * staged MEAL.result, keeping detectedRich (rich renderers) and detected (legacy flat names,
  * what logMeal persists as `foods`) in lockstep. Mutates `result` in place (it IS the staged
- * capture); returns true when something changed. Macros are DELIBERATELY untouched — no silent
- * re-estimation; the UI shows an "edited by you" hint instead.
+ * capture); returns true when something changed. This reducer touches only the food ARRAYS —
+ * totals/quality/text recompute deterministically in state.recomputeStagedMeal, which every
+ * edit surface calls right after a successful edit (session isolation: a deleted food must
+ * leave the totals, the score inputs, and the prose, not just the list).
  * op: { kind:'remove'|'rename'|'quantity'|'add', name, newName?, quantity? }
  */
 export function applyFoodEdit(result, op) {
@@ -54,6 +66,7 @@ export function applyFoodEdit(result, op) {
       if (idx === -1) return false;
       rich.splice(idx, 1);
       if (flatIdx !== -1) flat.splice(flatIdx, 1);
+      result.userRemoved = true; // no row left to mark — flag the result so the edit hint shows
       return true;
     }
     case 'rename': {
@@ -85,11 +98,12 @@ export function applyFoodEdit(result, op) {
   }
 }
 
-/** True when any staged food row was touched by the athlete — drives the honest
- *  "edited by you (macros unchanged)" hint next to the breakdown. */
+/** True when the staged plate was touched by the athlete (row edited/added, or any food
+ *  removed) — drives the honest edit hint next to the breakdown ("recalculated" when the
+ *  per-food recompute ran; "macros stay the AI's estimate" when it couldn't). */
 export function hasUserEdits(result) {
-  return !!(result && Array.isArray(result.detectedRich)
-    && result.detectedRich.some((d) => d && (d.edited || d.userAdded)));
+  return !!(result && (result.userRemoved || (Array.isArray(result.detectedRich)
+    && result.detectedRich.some((d) => d && (d.edited || d.userAdded)))));
 }
 
 /** Slot timing for the analyze-meal request (0062): pure clamped minutes, computed on the
@@ -129,6 +143,60 @@ export function estimateConfidence(source, detected) {
   if (rich.some((d) => d && d.confidence === 'low')) return 'low';
   if (rich.some((d) => d && d.confidence === 'medium')) return 'medium';
   return 'high';
+}
+
+/** Calorie-share-weighted overall confidence, for the accuracy verify trigger (spec item 6 §5).
+ *  Each food contributes a weight (high=1, medium=0.5, low=0) scaled by its kcal share; the
+ *  weighted mean maps back to a band, so a small low-confidence item can't drag a well-read
+ *  plate down. Foods without kcal are weighted equally as a fallback. Distinct from
+ *  estimateConfidence (which drives display and stays "any low -> low"). */
+export function weightedConfidence(detected) {
+  const rich = Array.isArray(detected) ? detected.filter(Boolean) : [];
+  if (!rich.length) return 'medium';
+  const score = (c) => (c === 'high' ? 1 : c === 'medium' ? 0.5 : 0);
+  const kcalOf = (d) => Math.max(0, Number(d.kcal) || 0);
+  const totalKcal = rich.reduce((s, d) => s + kcalOf(d), 0);
+  const weight = (d) => (totalKcal > 0 ? kcalOf(d) / totalKcal : 1 / rich.length);
+  const mean = rich.reduce((s, d) => s + score(d.confidence) * weight(d), 0);
+  if (mean >= 0.75) return 'high';
+  if (mean >= 0.35) return 'medium';
+  return 'low';
+}
+
+/** Pure gate for the second-pass verifier (spec item 6 §3). Fires on exactly two cases:
+ *  (a) allergen: severe restriction AND any food is low-confidence (per-food, so a single
+ *      uncertain item that could hide an allergen still fires);
+ *  (b) accuracy: calorie-weighted confidence is low AND the read looks off (quality<50).
+ *  allergen wins ties; no fire for non-photo sources or spent budget. */
+export function shouldVerify({ detected, quality, source, severeRestrictions, budgetLeft } = {}) {
+  const none = { fire: false, trigger: null };
+  if (source !== 'photo') return none;
+  if (!(Number(budgetLeft) > 0)) return none;
+  const foods = Array.isArray(detected) ? detected.filter(Boolean) : [];
+  const anyLow = foods.some((d) => d.confidence === 'low');
+  const hasSevere = Array.isArray(severeRestrictions) && severeRestrictions.length > 0;
+  if (hasSevere && anyLow) return { fire: true, trigger: 'allergen' };
+  const q = Number(quality);
+  if (weightedConfidence(foods) === 'low' && isFinite(q) && q < 50) {
+    return { fire: true, trigger: 'accuracy' };
+  }
+  return none;
+}
+
+/** What the second pass actually did, for effectiveness telemetry (ai_calls.outcome).
+ *  allergen_caught if the re-scan flagged an allergen the first read didn't; else
+ *  macros_moved if kcal or protein shifted >15%; else no_change. */
+export function classifyVerifyOutcome(first, second) {
+  const firstAllergens = (first && Array.isArray(first.allergensFound)) ? first.allergensFound : [];
+  const secondAllergens = (second && Array.isArray(second.allergensFound)) ? second.allergensFound : [];
+  if (secondAllergens.some((a) => !firstAllergens.includes(a))) return 'allergen_caught';
+  const moved = (a, b) => {
+    const x = Number(a) || 0, y = Number(b) || 0;
+    return Math.abs(y - x) / Math.max(1, x) > 0.15;
+  };
+  if (moved(first && first.kcal, second && second.kcal)) return 'macros_moved';
+  if (moved(first && first.protein, second && second.protein)) return 'macros_moved';
+  return 'no_change';
 }
 
 /* Produce vocabulary for the fiber-consistency guard: if any of these is visible on the
@@ -280,11 +348,53 @@ export function qualityReason(macros, fiber, detected) {
  * with the full openingMessage() paragraph behind a "View full analysis" expander.
  * Derived from the same stored meal data as openingMessage, so it can't drift from it.
  */
+/* The Intuitive read: what was on the plate and what to notice about it — never a calorie or
+   macro figure, never a food graded good or bad, never a fix to apply. An athlete on this plan is
+   building the skill of reading their own signals, and a number handed to them short-circuits
+   exactly the thing the plan is trying to teach. Same inputs, different vocabulary. */
+function intuitiveSummary({ detected, fiber, late, deadlineClock, highlights } = {}) {
+  const names = (Array.isArray(detected) ? detected : [])
+    .map((d) => clean(String(d && d.name != null ? d.name : d))).filter(Boolean);
+  const hasProtein = names.some((n) => /salmon|chicken|beef|steak|turkey|egg|fish|tuna|pork|shrimp|tofu|yogurt|cottage|bean|lentil/i.test(n));
+  const hasProduce = hasVisibleProduce(detected) || Math.max(0, Number(fiber) || 0) >= 5;
+
+  const good = [];
+  if (late === false) good.push(deadlineClock ? `You logged before your ${deadlineClock} deadline` : 'Logged on time');
+  else if (late === true) good.push('You got it logged, and late still beats hidden');
+  if (hasProtein && hasProduce) good.push('this plate has a protein anchor and something fresh on it');
+  else if (hasProtein) good.push('there is a real protein anchor here');
+  else if (hasProduce) good.push('there is something fresh on the plate');
+  else {
+    const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean);
+    if (hl.length) good.push(hl[0].charAt(0).toLowerCase() + hl[0].slice(1));
+  }
+
+  return {
+    wentWell: good.length ? `${good.join(', and ')}.` : '',
+    // An observation to sit with, not a deficiency to correct.
+    opportunity: hasProtein && hasProduce
+      ? 'Worth noticing how full and how steady you feel a couple of hours from now.'
+      : hasProtein
+        ? 'Worth noticing whether this one holds you, or whether hunger comes back early.'
+        : 'Worth noticing how long this one carries you before you are hungry again.',
+    next: 'No fix needed — just log how it left you feeling. That is the pattern worth having.',
+  };
+}
+
+/** @param {{quality?: number, macros?: any, fiber?: number, highlights?: string[],
+ *  late?: boolean | null, goal?: string, detected?: any[], source?: string,
+ *  deadlineClock?: string, day?: any, numbers?: boolean, tone?: string}} [o]
+ *  (explicit because two bindings carry defaults, which narrows TS's inference of the rest) */
 export function openingSummary({
   quality, macros, fiber, highlights, late, goal,
   // Upgrade 2026-07-16 — all optional; absent context is omitted, never invented:
   detected, source, deadlineClock, day,
+  // Plan style (0142): 'numbers' false suppresses every macro FIGURE for the athlete, and
+  // 'signals' tone drops good/bad plate language for pattern language. The read itself is
+  // unchanged — the same plate, described the way this athlete's plan talks about food.
+  numbers = true, tone = 'guidance',
 } = {}) {
+  if (!numbers || tone === 'signals') return intuitiveSummary({ detected, fiber, late, deadlineClock, highlights });
   const m = macros || {};
   const p = Math.max(0, Number(m.protein) || 0);
   const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean);
@@ -488,57 +598,97 @@ export function mealPatterns(recentMeals, { slot, mealProteinBar } = {}) {
 }
 
 /* ================================================================================
-   MEAL SCORE RUBRIC (upgrade 2026-07-16) — why the score is what it is.
-   The overall 0-100 comes from the AI's read of the photo; this rubric shows the
-   OBSERVABLE components behind it, each marked exact (timing, completeness are
-   facts) or estimated (macro alignment comes from photo estimates). It reuses the
-   same math as qualityReason so the rubric can never contradict the feedback.
+   MEAL SCORE RUBRIC + DETERMINISTIC QUALITY (Tier 1 invariant 2026-07-21).
+   The 0-100 meal quality is now computed HERE, in application code, from the same
+   component judgments the rubric displays — the AI explains the number, it never
+   sets it. componentStates() is the single evaluation both read from, so the score,
+   the rubric rows, and qualityReason can never contradict each other.
    ================================================================================ */
-export function scoreRubric({ quality, minutesLate, macros, fiber, detected, source, userNote, photoQ } = {}) {
+
+/** The one shared evaluation: every observable component judged met/partial/miss.
+ *  Same thresholds qualityReason speaks to (protein share ≥25% of energy, fat ≤40%,
+ *  the produce-guarded fiber rule) — null components when there's nothing to judge. */
+function componentStates({ minutesLate, macros, fiber, detected } = {}) {
   const m = macros || {};
   const p = Math.max(0, Number(m.protein) || 0);
   const c = Math.max(0, Number(m.carbs) || 0);
   const f = Math.max(0, Number(m.fat) || 0);
   const total = p * 4 + c * 4 + f * 9;
+  const late = typeof minutesLate === 'number' && minutesLate > 0;
+  const fib = Math.max(0, Number(fiber) || 0);
+  const produce = hasVisibleProduce(detected);
+  return {
+    p, c, f, total, late, fib, produce,
+    timing: late ? (minutesLate > 60 ? 'miss' : 'partial') : 'met',
+    protein: total > 0 ? ((p * 4) / total >= 0.25 ? 'met' : (p * 4) / total >= 0.2 ? 'partial' : 'miss') : null,
+    carbs: total > 0 ? ((c * 4) / total <= 0.6 ? 'met' : 'partial') : null,
+    fat: total > 0 ? ((f * 9) / total <= 0.4 ? 'met' : (f * 9) / total <= 0.45 ? 'partial' : 'miss') : null,
+    fiberState: fib >= 6 || (produce && fib >= 3) ? 'met' : produce ? 'partial' : fib >= 3 ? 'partial' : 'miss',
+  };
+}
+
+/** Points per component state — sums to 100 when everything is met. Kept simple and
+ *  inspectable on purpose: the rubric rows ARE the score. Band labels/thresholds
+ *  (qualityBand) are unchanged pending the founder's open scoring decision. */
+const QUALITY_POINTS = {
+  protein: { met: 35, partial: 22, miss: 8 },
+  carbs: { met: 15, partial: 9 },
+  fat: { met: 20, partial: 12, miss: 6 },
+  fiber: { met: 20, partial: 12, miss: 5 },
+  timing: { met: 10, partial: 6, miss: 2 },
+};
+
+/**
+ * Deterministic per-meal quality (0-100) from grounded macros + timing. Application
+ * code owns this number; the AI's own quality estimate is only a logged cross-check.
+ * Null when there are no macros to judge (no honest score — qualityBand handles null).
+ */
+export function mealQualityScore({ macros, fiber, detected, minutesLate } = {}) {
+  const s = componentStates({ minutesLate, macros, fiber, detected });
+  if (!(s.total > 0)) return null;
+  const pts = QUALITY_POINTS;
+  const score = pts.protein[s.protein] + pts.carbs[s.carbs] + pts.fat[s.fat]
+    + pts.fiber[s.fiberState] + pts.timing[s.timing];
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+export function scoreRubric({ quality, minutesLate, macros, fiber, detected, source, userNote, photoQ } = {}) {
+  const s = componentStates({ minutesLate, macros, fiber, detected });
+  const { p, c, f, total, late, fib, produce } = s;
   const conf = estimateConfidence(source, detected);
   const est = conf !== 'exact';
   const rows = [];
 
   // Timing — a fact, never estimated.
-  const late = typeof minutesLate === 'number' && minutesLate > 0;
   rows.push({
     k: 'On-time logging', exact: true,
-    state: late ? (minutesLate > 60 ? 'miss' : 'partial') : 'met',
+    state: s.timing,
     note: late ? `${Math.round(minutesLate)} min past the window` : 'Inside the window',
   });
 
   // Protein alignment — estimated for photo reads.
   if (total > 0) {
-    const pShare = (p * 4) / total;
     rows.push({
       k: 'Protein alignment', exact: !est,
-      state: pShare >= 0.25 ? 'met' : pShare >= 0.2 ? 'partial' : 'miss',
+      state: s.protein,
       note: `${est ? `~${estRange(p, conf).text}` : p}g${est ? ' (estimated)' : ''}`,
     });
     rows.push({
       k: 'Carbohydrate balance', exact: !est,
-      state: (c * 4) / total <= 0.6 ? 'met' : 'partial',
+      state: s.carbs,
       note: `${est ? `~${c}` : c}g${est ? ' (estimated)' : ''}`,
     });
-    const fShare = (f * 9) / total;
     rows.push({
       k: 'Fat within range', exact: !est,
-      state: fShare <= 0.4 ? 'met' : fShare <= 0.45 ? 'partial' : 'miss',
+      state: s.fat,
       note: `${est ? `~${f}` : f}g${est ? ' (estimated)' : ''}`,
     });
   }
 
   // Produce & fiber — guarded by what's visible, same rule as qualityReason.
-  const fib = Math.max(0, Number(fiber) || 0);
-  const produce = hasVisibleProduce(detected);
   rows.push({
     k: 'Produce & fiber', exact: false,
-    state: fib >= 6 || (produce && fib >= 3) ? 'met' : produce ? 'partial' : fib >= 3 ? 'partial' : 'miss',
+    state: s.fiberState,
     note: produce ? `Visible produce on the plate · ~${fib}g fiber (estimated)` : `~${fib}g fiber (estimated)`,
   });
 
@@ -568,6 +718,44 @@ export function scoreRubric({ quality, minutesLate, macros, fiber, detected, sou
       ? `Why this meal reads ${Math.round(Number(quality))}${est ? ' (photo estimate)' : ''}`
       : 'How this meal is judged',
   };
+}
+
+/* ================================================================================
+   SCORE ↔ LANGUAGE AGREEMENT (Tier 1 invariant 2026-07-21) — the AI's prose must
+   match the deterministic band, and text may never mention a food the athlete
+   removed. Pure validators; the caller (state.groundResult / recomputeStagedMeal)
+   decides the fallback copy.
+   ================================================================================ */
+
+/** Drop every sentence that names the removed food (case-insensitive, plural-tolerant).
+ *  Session isolation for prose: a deleted food is gone from the final text too. */
+export function stripFoodMentions(text, foodName) {
+  const t = String(text == null ? '' : text);
+  const name = String(foodName == null ? '' : foodName).trim();
+  if (!t || !name) return t;
+  // Match on the food's significant words so "Grilled chicken" also catches "the chicken".
+  const words = name.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+  if (!words.length) return t;
+  const esc = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`\\b(${words.map(esc).join('|')})s?\\b`, 'i');
+  const sentences = t.match(/[^.!?]+[.!?]*/g) || [t];
+  const kept = sentences.filter((sent) => !re.test(sent));
+  return kept.join('').trim();
+}
+
+/** True when the AI's prose can honestly sit next to the deterministic band. A weak
+ *  score with rotation-worthy praise (the founder's "keep in rotation on a 62" bug)
+ *  or a strong score talked about as a weak plate both fail. Conservative: only
+ *  unambiguous conflicts fail, so honest nuance ("solid protein, light on fiber")
+ *  always passes. */
+export function analysisAgreesWithBand(text, band) {
+  const t = String(text == null ? '' : text);
+  if (!t || !band || !band.cls) return true;
+  const praise = /\b(keep (this|it) in( the)? rotation|great (meal|plate|work)|excellent|perfect|dialed in|nailed (it|this)|crushing|exactly what you need)\b/i;
+  const damning = /\b(weak plate|well below (the )?(plan|standard)|poor (meal|plate)|way off|not (good|great) enough)\b/i;
+  if (band.cls === 'low' && praise.test(t)) return false;
+  if (band.cls === 'good' && damning.test(t)) return false;
+  return true;
 }
 
 /* ================================================================================

@@ -8,18 +8,27 @@
 // persisted into meal_comments as role 'ai' via the service role — 0046 deliberately
 // forbids clients from writing 'ai' rows, so AI messages can never be forged.
 //
-// Spend caps: BOTH ceilings are keyed counters on claim_ai_usage_key (0030) — a per-athlete
-// daily budget (`meal_chat:<uid>`, MEAL_CHAT_DAILY_CAP, default 10) and a global daily bill
-// backstop ('meal_chat_global', MEAL_CHAT_GLOBAL_CAP, default 2000). The per-athlete budget
-// is deliberately NOT the shared analyze-meal claim_ai_usage counter: chat questions and
-// photo analyses are metered independently. Both fail open, per the assist/analyze-meal
-// discipline (an un-applied migration never blocks a legit question).
+// Spend caps: a per-athlete daily budget (`meal_chat:<uid>`, MEAL_CHAT_DAILY_CAP, default 10),
+// keyed against claim_ai_usage_key (0030), fails OPEN — deliberately NOT the shared analyze-meal
+// claim_ai_usage counter, so chat questions and photo analyses are metered independently.
+//
+// There is no global fail-closed backstop here (capacity audit F2, docs/scale/CAPACITY-AUDIT.md):
+// every caller reaching this function is already authenticated (see the 401 below), so a
+// platform-wide fail-closed counter guards against traffic that structurally cannot occur, while
+// being the single most likely thing to 429 every coach's roster at once. Authed usage is tracked
+// against a monthly tier-budget SIGNAL (trackAuthedAiSpend) that never blocks.
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
+import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import {
+  composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
+} from '../_shared/plan-style.ts';
+import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
+import { clientIpFrom } from '../_shared/client-ip.ts';
+import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const DAILY_CAP = Math.max(1, Math.floor(Number(Deno.env.get('MEAL_CHAT_DAILY_CAP') ?? '10')) || 10);
-const GLOBAL_CAP = Math.max(1, Math.floor(Number(Deno.env.get('MEAL_CHAT_GLOBAL_CAP') ?? '2000')) || 2000);
 const CONTEXT_MAX = 8192;
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -28,14 +37,9 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // Keyed daily claim against ai_usage_key_daily (migration 0030: claim_ai_usage_key(p_key text,
 // p_limit int) returns (allowed, used); security definer, execute granted to service_role only,
-// so both calls go through the service-role client). Both meal-chat ceilings ride this helper,
-// with `failOpen` deciding what an unreachable counter means (audit 2026-07-11 P2):
-//   * per-athlete: key `meal_chat:<uid>`, limit DAILY_CAP, failOpen=true — an infra hiccup
-//     never blocks a legit question. Deliberately an INDEPENDENT keyed counter, NOT the shared
-//     analyze-meal claim_ai_usage (ai_usage_daily) counter, so chat questions and photo
-//     analyses are separate per-athlete budgets;
-//   * global: key 'meal_chat_global', limit GLOBAL_CAP, failOpen=false — the hard backstop on
-//     the bill (the anon key is public) must hold even when the counter is down.
+// so the call goes through the service-role client). Per-athlete: key `meal_chat:<uid>` /
+// `meal_draft:<uid>`, limit DAILY_CAP, failOpen=true — an infra hiccup never blocks a legit
+// question.
 async function withinKeyCap(key: string, limit: number, failOpen = true): Promise<boolean> {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return failOpen;
   try {
@@ -71,7 +75,7 @@ const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '30');
 const RL_WINDOW_MS = 60_000;
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIpFrom(req);
   const now = Date.now();
   const e = rlHits.get(ip);
   if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS }); return false; }
@@ -181,18 +185,35 @@ Deno.serve(async (req) => {
 
     const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
+    // Plan style (0142) resolves for the MEAL OWNER, never the caller. In draft and coach-support
+    // mode the caller is the COACH — but the person who reads the words is the athlete, so it is
+    // their style that decides what may be said. Getting this backwards would let a coach
+    // unknowingly send macro figures to an athlete who is deliberately not tracking them.
+    const planStyle: PlanStyle | null =
+      (await loadPlanStyleForAthlete(service, mealRow.athlete_id))?.style ?? null;
+    const styleSafe = (text: string): string => {
+      // Shared tail of both call sites below: one corrected retry is handled inline by the
+      // caller; this is the final rail that guarantees nothing unsafe is ever persisted.
+      const v = violatesStyleLanguage(text, planStyle);
+      return v ? SAFE_INTUITIVE.reply : text;
+    };
+
     // ---- draft mode: four candidate coach-voice replies, PERSIST NOTHING ----
     if (draftMode) {
       // New rate-limit keys so drafting never consumes the coachSupport / athlete-chat budget.
-      // Per-user fails open (an infra hiccup never blocks a legit draft); global fails CLOSED.
+      // Per-user fails open (an infra hiccup never blocks a legit draft). Every meal-chat caller
+      // is already authenticated (the 401 above) — there is no anonymous path here, so a
+      // fail-CLOSED global counter has no anon-abuse to guard against and would only risk denying
+      // a paying coach (capacity audit F2). Tracked against the monthly tier-budget signal instead.
       if (!(await withinKeyCap(`meal_draft:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
-      if (!(await withinKeyCap('meal_draft_global', GLOBAL_CAP, /* failOpen */ false))) return bad(429, 'limit', cors);
+      void trackAuthedAiSpend(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, callerId, 'meal-chat');
 
       const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+      const t0d = Date.now();
       const msg = await anthropic.messages.create({
         model: MODEL,
         max_tokens: 700, // 4 drafts x ~60 words + tool-call JSON; headroom so the 4th draft never truncates into a 502
-        system: [{ type: 'text', text: DRAFT_SYSTEM, cache_control: { type: 'ephemeral' } }],
+        system: [{ type: 'text', text: composeSystem(DRAFT_SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
         tools: [DRAFT_TOOL],
         tool_choice: { type: 'tool', name: 'draft_replies' },
         messages: [{
@@ -200,6 +221,7 @@ Deno.serve(async (req) => {
           content: `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nDraft four replies the COACH could send to the athlete about this meal, one per stance (supportive, direct, context, followup), using ONLY figures already in the context. Speak as the coach to the athlete. Each draft is 60 words or less.`,
         }],
       });
+      await recordAiCall({ fn: 'meal-chat', mode: 'draft', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0d, ok: true });
       const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: { drafts?: Array<{ stance?: string; text?: string }> } } | undefined;
       const raw = Array.isArray(tool?.input?.drafts) ? tool!.input!.drafts! : [];
       // Normalize to exactly the four canonical stances in order; strip em dashes; enforce ~60 words.
@@ -211,8 +233,19 @@ Deno.serve(async (req) => {
           byStance.set(stance, text.split(/\s+/).slice(0, 60).join(' '));
         }
       }
-      const drafts = DRAFT_STANCES.map((stance) => ({ stance, text: byStance.get(stance) ?? '' }));
+      let drafts = DRAFT_STANCES.map((stance) => ({ stance, text: byStance.get(stance) ?? '' }));
       if (drafts.some((d) => !d.text)) return bad(502, 'unavailable', cors);
+      // Plan-style rail on a COACH-facing surface: these drafts are sent verbatim to the athlete,
+      // so an Intuitive breach here is the same harm as one in the athlete's own feed. A drafting
+      // coach can see the safe replacement and edit it, so a single deterministic swap is the
+      // right cost here — no paid retry for a draft the coach is about to rewrite anyway.
+      if (planStyle === 'intuitive') {
+        const swapped = drafts.map((d) => ({ ...d, text: styleSafe(d.text) }));
+        if (swapped.some((d, i) => d.text !== drafts[i].text)) {
+          await recordAiCall({ fn: 'meal-chat', mode: 'draft', userId: callerId, model: MODEL, latencyMs: 0, ok: true, outcome: 'style_safe_copy' });
+        }
+        drafts = swapped;
+      }
       // PERSIST NOTHING — no meal_comments insert. The coach edits and sends these manually.
       return new Response(JSON.stringify({ drafts }), { headers: { ...cors, 'Content-Type': 'application/json' } });
     }
@@ -227,17 +260,25 @@ Deno.serve(async (req) => {
       if ((count ?? 0) >= 1) return new Response(JSON.stringify({ skipped: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
     }
 
-    // ---- caps: per-user daily fails open; the global bill backstop fails CLOSED ----
+    // ---- caps: per-user daily fails open. Same reasoning as the draft path above — every caller
+    // here is already authenticated, so the fail-CLOSED global counter this endpoint used to run
+    // (meal_chat_global) protected against traffic that cannot reach this endpoint, while being
+    // the thing most likely to 429 a paying coach's whole roster at once. Tracked instead. ----
     if (!(await withinKeyCap(coachSupport ? `meal_chat_support:${callerId}` : `meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
-    if (!(await withinKeyCap('meal_chat_global', GLOBAL_CAP, /* failOpen */ false))) return bad(429, 'limit', cors);
+    void trackAuthedAiSpend(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, callerId, 'meal-chat');
 
     // ---- the model call: prose only, forced tool ----
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+    // ONE typed tools array for the reply call and its style retry. REPLY_TOOL is `as const`, so
+    // its input_schema.required is a readonly tuple the SDK's mutable string[] rejects — tolerated
+    // at a single call site, not at two.
+    const replyTools = [REPLY_TOOL] as unknown as Anthropic.Tool[];
+    const t0r = Date.now();
     const msg = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 400,
-      system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
-      tools: [REPLY_TOOL],
+      system: [{ type: 'text', text: composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
+      tools: replyTools,
       tool_choice: { type: 'tool', name: 'reply' },
       messages: [{
         role: 'user',
@@ -246,9 +287,42 @@ Deno.serve(async (req) => {
           : `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}`,
       }],
     });
+    await recordAiCall({ fn: 'meal-chat', mode: 'reply', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
     const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: { message?: string } } | undefined;
-    const reply = String(tool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
+    let reply = String(tool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
     if (!reply) return bad(502, 'unavailable', cors);
+
+    // Plan-style rail (0142) — the INVERTED fallback (see _shared/plan-style.ts's header): correct
+    // and retry WITH the style still applied, never a bare re-ask. This reply is persisted as an
+    // unforgeable 'ai' row the athlete will read forever, so it gets the paid retry the throwaway
+    // coach drafts above do not.
+    {
+      const v = violatesStyleLanguage(reply, planStyle);
+      if (v) {
+        const t0s = Date.now();
+        const retry = await anthropic.messages.create({
+          model: MODEL,
+          max_tokens: 400,
+          system: [{ type: 'text', text: composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
+          tools: replyTools,
+          tool_choice: { type: 'tool', name: 'reply' },
+          messages: [
+            { role: 'user', content: `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}` },
+            { role: 'assistant', content: `<discarded>${reply}</discarded>` },
+            { role: 'user', content: styleCorrectionMessage(v) },
+          ],
+        });
+        await recordAiCall({
+          fn: 'meal-chat', mode: 'reply', userId: callerId, model: retry.model ?? MODEL,
+          ...usageFrom(retry.usage), latencyMs: Date.now() - t0s, ok: true, outcome: `style_${v.kind}_retry`,
+        });
+        const rtool = retry.content.find((b) => b.type === 'tool_use') as { input?: { message?: string } } | undefined;
+        const candidate = String(rtool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
+        // styleSafe is the final rail: a corrected retry that STILL breaches falls to safe copy
+        // rather than persisting a violation into the athlete's permanent thread.
+        reply = candidate ? styleSafe(candidate) : SAFE_INTUITIVE.reply;
+      }
+    }
 
     // ---- persist as the unforgeable 'ai' row (service role) ----
     // `kind` ships in a later migration (post-0048); insert WITH it first and on error retry

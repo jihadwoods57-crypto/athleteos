@@ -1,9 +1,90 @@
-import { S, RT, act, slotHasPhoto } from '../state.js';
+import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { appHead, scoreRing, animateRing, esc, safeImg, collapseSection } from '../components.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
+import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
+import { deriveCommitment } from '../commitments.js';
+import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
+import { commitmentCard, mountCommitmentCard, commitmentOfflineCard } from './roll-call.js';
+import { armIfPermitted } from './location-consent.js';
+
+/* Verified Commitments on Home. Renders every commitment the athlete has today that is currently
+   visible — usually zero or one, occasionally a roll call plus an afternoon study hall.
+   commitmentCard() escapes every coach-authored string, so assigning its return value is the same
+   discipline the rest of this file follows for rendered markup. */
+function paintCommitments(root) {
+  const slot = root.querySelector('#vc-slot');
+  if (!slot) return;
+  const paint = () => {
+    if (!slot.isConnected) return;
+    const now = new Date().toISOString();
+    const html = VC.today(vcToday())
+      .map((r) => commitmentCard(deriveCommitment(r, now)))
+      .filter(Boolean).join('');
+    // An outage must never render as "you have nothing scheduled". For an athlete whose coach is
+    // counting on a 5:15 AM response, silence and a failed fetch look identical and mean opposite
+    // things — so when the fetch failed and we have nothing cached, say so.
+    slot.innerHTML = html || (VC.mineError ? commitmentOfflineCard() : '');
+    if (html) mountCommitmentCard(slot, () => paintCommitments(root));
+  };
+  paint();                       // instant repaint from cache
+  loadMine().then((rows) => {    // then reconcile with the server
+    // Hand the rows to RT so state.js's exec derivation can plan commitment reminders. This is the
+    // one place they cross over: commitment-data.js deliberately never imports state.js (the same
+    // module cycle coach-data.js documents, which makes RT undefined at eval time in an ESM
+    // WebView), so the screen that owns the fetch is what publishes the result.
+    RT.vcRows = rows;
+    paint();
+    // Keep the OS watching only what is inside its window right now. No-op without background
+    // permission (and on any build without expo-location), and it registers nothing for an
+    // athlete with no located commitments today.
+    if (rows.some((r) => r.asks_arrival)) armIfPermitted();
+  });
+}
+
+// Coach Voice nudge (0094 consumer): at most one in-flight request; the resolved text is cached on
+// RT (persisted) keyed by the slipping-state signature, so we ask the model once per distinct state
+// per day and never on a clean day or a team without Coach Voice configured (the edge fn returns
+// null, which we cache too). Purely additive — absence leaves Home unchanged.
+let nudgeInFlight = null;
+function coachNudgeHtml(text) {
+  return `
+  <div class="trust" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(168,85,247,0.12), rgba(59,130,246,0.05));border-color:var(--purple-border, rgba(168,85,247,0.35))">
+    <div class="ic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('sparkle', 20)}</div>
+    <div style="flex:1"><div class="tt" style="display:flex;align-items:center;gap:6px">Your coach<span class="status-pill muted" style="font-size:10px;padding:1px 6px">AI</span></div>
+    <div class="ts">${esc(text)}</div></div>
+  </div>`;
+}
+// Server-side render of a cached nudge whose signature still matches TODAY's state — no flash on
+// re-render, and it self-drops the instant the state moves (a logged meal changes the signature).
+function cachedNudge(e) {
+  const c = RT.voiceNudge;
+  if (!c || !c.text || !shouldNudge(e)) return '';
+  return c.sig === nudgeSignature(String(DAY.date), e) ? coachNudgeHtml(c.text) : '';
+}
+function maybeCoachNudge(e) {
+  const slot = typeof document !== 'undefined' ? document.getElementById('cv-nudge') : null;
+  if (!slot) return;
+  // Only ask when slipping, signed in, and attached to a team (a coach who could have a voice).
+  if (!shouldNudge(e) || !RT.userId || !RT.team || !window.sb) return;
+  const sig = nudgeSignature(String(DAY.date), e);
+  const cached = RT.voiceNudge;
+  if (cached && cached.sig === sig) { if (cached.text) slot.innerHTML = coachNudgeHtml(cached.text); return; }
+  if (nudgeInFlight === sig) return;
+  nudgeInFlight = sig;
+  window.sb.functions.invoke('coach-voice-nudge', { body: { data: nudgeData(e, String(DAY.date)) } })
+    .then(({ data }) => {
+      nudgeInFlight = null;
+      const text = data && typeof data.nudge === 'string' && data.nudge ? data.nudge : null;
+      act.setVoiceNudge(sig, text);
+      if (!text) return;
+      const s = document.getElementById('cv-nudge');
+      if (s) s.innerHTML = coachNudgeHtml(text);
+    })
+    .catch(() => { nudgeInFlight = null; });
+}
 
 // Per-type icon media tints (a photo-less card shows its own icon — never someone else's).
 const ACT_MEDIA = {
@@ -39,6 +120,31 @@ function resCard(a) {
 // Results are things that HAPPENED — a not-yet-submitted check-in isn't one.
 // Lateral snap rail (founder call 2026-07-16): cards share one anatomy and height, the
 // next card peeks at the screen edge, and scroll snaps card-to-card.
+/* Client Home leads with the OUTCOME they hired a trainer for (a team athlete leads with the
+   score ring + team frame instead — see hero() above). Entirely derived from S.weight, which
+   the Progress screen already computes from real logged/historical rows — no new fetch, no
+   invented number. Renders nothing until there's a real current AND a real starting point;
+   never a placeholder "0.0 lb" on day one. Direction is never colored by sign (progress.js's
+   own rule, `S.weight.pace` is the honest signal — a gain can be the goal or the setback
+   depending on what the client is working toward). */
+function outcomeBand() {
+  if (S.audience !== 'client') return '';
+  const W = S.weight;
+  if (W.current == null || W.start == null) return '';
+  const delta = Number(W.current) - W.start;
+  const deltaLabel = Math.abs(delta) < 0.05 ? 'No change yet' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)} lb since you started`;
+  const days = S.streakDays;
+  return `<section class="card pad" data-go="progress" style="cursor:pointer;margin-top:12px">
+    <div class="eyebrow" style="margin:0 0 8px">Your progress</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <div class="bigstat"><span class="n" style="font-size:30px">${esc(W.current)}<small style="font-size:13px;font-weight:700;color:var(--text-3)"> lb</small></span></div>
+      ${W.pace ? `<span class="status-pill ${W.pace === 'On pace' ? 'g' : 'a'}">${W.pace}</span>` : ''}
+    </div>
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(deltaLabel)}${W.target != null ? ` · goal ${W.target} lb` : ''}</div>
+    ${days > 0 ? `<div style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:var(--amber-bright);margin-top:8px">${icon('flame', 14)}${days}-day streak</div>` : ''}
+  </section>`;
+}
+
 const recentResults = () => {
   const rows = S.activity.filter((a) => !a.dim);
   return rows.length ? `
@@ -207,6 +313,26 @@ function hero(e) {
   </section>`;
 }
 
+/* The hero on a day that is still live but sub-passing: the score is climbing, not failing. Same
+   signature ring, but the tier verdict is held — a neutral "In progress" chip + what's left to do,
+   never "Off Standard", never a red down-delta. The real tier returns once the day is decided
+   (home render gates this) or once a passing tier is earned. */
+function inProgressHero(e) {
+  const left = e.total - e.met;
+  const toGo = left > 0 ? `${left} to go — your day is still open` : 'Log your first requirement to start your score';
+  return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
+    <div class="xh-main">
+      ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      <div class="xh-body">
+        <div class="xh-k">Daily Score</div>
+        <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">In progress</span></div>
+        <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> done</div>
+        <div class="xh-flow">${esc(toGo)}</div>
+      </div>
+    </div>
+  </section>`;
+}
+
 /* Grouped-card row: Upcoming/Completed rows share ONE card, split by hairlines, instead of
    a stack of separate bordered cards. Completed rows read status-first (green check) with a
    chevron into the receipt. */
@@ -257,7 +383,7 @@ function celebration(e) {
       ${scoreRing({ score: e.score, delta: (S.scoreYesterday != null && e.score > S.scoreYesterday) ? `+${e.score - S.scoreYesterday} pts` : null, streak: S.streakDays > 0 ? `${S.streakDays} day streak` : null, tierName: S.tier.name, tierCls: S.tier.cls })}
     </section>
     <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
-    <div style="font-size:12.5px;color:var(--text-2);line-height:1.55;max-width:34ch;margin-top:5px">Every requirement is in. Day <b>${S.streakDays}</b> of your streak locks at midnight.</div>
+    <div style="font-size:12.5px;color:var(--text-2);line-height:1.55;max-width:34ch;margin-top:5px">Every requirement is in.${S.streakDays > 0 ? ` Day <b>${S.streakDays}</b> of your streak locks at midnight.` : ' Your streak starts the moment today locks at midnight.'}</div>
     <div style="height:14px"></div>
     <div class="eyebrow" style="align-self:flex-start">Today's record</div>
     <div class="xrecord" style="width:100%;box-sizing:border-box">
@@ -286,7 +412,7 @@ function notScoredHero() {
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
         <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">Not scored yet</span></div>
-        <div class="xh-line">Ready to begin — your score starts with your next action.</div>
+        <div class="xh-flow">Ready to begin — your score starts with your next action.</div>
       </div>
     </div>
   </section>`;
@@ -329,7 +455,10 @@ export default {
     if (S.notYetScored) {
       const first = e.now;
       const done = e.doneItems;
-      const upcoming = e.later.filter((i) => i.state !== 'not_required' && i.id !== 'hydration');
+      // e.next (the 2nd actionable item) lives in neither e.now nor e.later — without this it
+      // vanished from the activation-day screen entirely (not in Start here, Later, Logged, or
+      // Not counted). Surface it under "Later today", framed positively like the rest of day one.
+      const upcoming = [...(e.next ? [e.next] : []), ...e.later].filter((i) => i.state !== 'not_required' && i.id !== 'hydration');
       const excused = e.items.filter((i) => i.state === 'not_required');
       const grp = (label, rows, opts) => rows.length
         ? `<div class="xgrp">${label}</div><div class="xgroup">${rows.map((i) => grow(i, opts || {})).join('')}</div>` : '';
@@ -349,19 +478,27 @@ export default {
 
     if (RT.day0 && !RT.day0Breakfast) {
       const rest = e.items.filter((i) => i.id !== 'breakfast');
+      // A required window that already closed is NOT "Upcoming" — it split into its own
+      // honestly-labeled, color-coded group (amber "Late" while the day is live, red "Missed"
+      // once decided), exactly like the main Home render. Only items still ahead of the athlete
+      // (open / not-yet-open / optional) stay under the literal "Upcoming" header.
+      const lateRows = rest.filter((i) => i.required && i.state === 'overdue')
+        .sort((a, b) => (a.window ? a.window.due : 1e9) - (b.window ? b.window.due : 1e9));
+      const upcoming = rest.filter((i) => !(i.required && i.state === 'overdue'));
       return `
       ${appHead(headSub(e), trustShield())}
-      ${hero(e)}
+      ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
       ${syncBanner()}
       <section class="xnow">
         <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>
         <div class="xmain"><div class="xico gold">${icon('camera', 21)}</div>
-        <div><div class="xt">Log First Meal</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · 50% of score.</b></div></div></div>
+        <div><div class="xt">Log First Meal</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · ${liveWeightPct('nutrition')}% of score.</b></div></div></div>
         <div style="height:10px"></div>
         <button class="xcta" data-go="camera">${icon('camera', 18)} Log First Meal</button>
       </section>
-      <div class="xgrp">Upcoming</div>
-      <div class="xgroup">${rest.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>
+      ${lateRows.length ? `<div class="xgrp">${e.decided ? 'Missed today' : 'Late — still counts'}</div>${lateRows.map(row).join('')}` : ''}
+      ${upcoming.length ? `<div class="xgrp">Upcoming</div>
+      <div class="xgroup">${upcoming.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>` : ''}
       <div class="eyebrow">Recent Results</div>
       <div class="state-demo"><div class="sd-ic">${icon('camera', 24)}</div><div class="sd-t">No logs yet</div>
       <div class="sd-s">Your proof trail builds here as you log. Take a photo to begin today's standard.</div></div>
@@ -372,6 +509,7 @@ export default {
       return `
       ${appHead(headSub(e), trustShield())}
       ${celebration(e)}
+      ${outcomeBand()}
       <div id="seen-row" style="width:100%"></div>
       ${recentResults()}
       <div style="height:20px"></div>`;
@@ -415,9 +553,12 @@ export default {
 
     return `
     ${appHead(headSub(e), trustShield())}
-    ${hero(e)}
+    ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
+    ${outcomeBand()}
     <div id="seen-row"></div>
+    <div id="vc-slot"></div>
     ${attention}
+    <div id="cv-nudge">${cachedNudge(e)}</div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
     ${e.now ? nowCard(e) : hydroIsNow ? hydroNow(hydro) : ''}
     ${nextRows.length ? `<div class="xgrp">${e.next.state === 'overdue' ? 'Also overdue' : 'Next'}</div>${nextRows.map(row).join('')}` : ''}
@@ -430,6 +571,12 @@ export default {
   mount(root) {
     animateRing(root);
     act.syncNotifications();
+    // Verified Commitments (0138): injected async into #vc-slot rather than rendered inline, so a
+    // slow network never delays the score hero — the same seam #seen-row uses. An athlete with no
+    // coach-scheduled commitments has an empty slot and Home is byte-identical to before.
+    paintCommitments(root);
+    // Coach Voice nudge: best-effort, fire-and-forget over today's deterministic exec state.
+    maybeCoachNudge(S.exec);
     // Resolve today's stored meal photos (signed URLs) so Recent Results shows the real
     // plates after a reload — repaints once when the batch lands (spec §7.1).
     if (RT.userId) {

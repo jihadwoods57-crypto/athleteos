@@ -224,7 +224,7 @@ export const analysis = {
         <input class="fr-in qty" id="add-qty" placeholder="Qty" aria-label="Quantity" />
         <button class="fr-ok" id="add-ok" aria-label="Add">${icon('check', 15)}</button>
       </div>
-      ${edited ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);padding:4px 0 8px">Edited by you — macros stay the AI's estimate.</div>` : ''}
+      ${edited ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);padding:4px 0 8px">${MEAL.result && MEAL.result.recomputed ? 'Edited by you — macros and score recalculated from the foods listed.' : 'Edited by you — macros stay the AI’s estimate.'}</div>` : ''}
     </section>
 
     <div class="eyebrow">Estimated</div>
@@ -237,10 +237,13 @@ export const analysis = {
       // allergen and its uncertainty; a clean pass NEVER claims guaranteed safety.
       if (!RT.allergies.length && !RT.restrictions) return '';
       const cf = restrictionConflicts(rich, RT.restrictions || { allergies: RT.allergies.map((n) => ({ name: String(n).split('·')[0].trim(), severity: /severe/i.test(String(n)) ? 'severe' : 'moderate' })) });
-      if (cf.severe.length) return `
+      // A second-pass verify allergen catch isn't in `rich` (the first read missed it) — fold it in.
+      const vAll = (MEAL.result && Array.isArray(MEAL.result.verifyAllergens)) ? MEAL.result.verifyAllergens : [];
+      const severeHits = [...new Set([...cf.severe, ...vAll])];
+      if (severeHits.length) return `
       <div style="display:flex;gap:10px;padding:13px 14px;border-radius:var(--r-tile);background:var(--red-surface);border:1.5px solid var(--red-border)">
         ${icon('bell', 17, 'style="color:var(--red);flex:none;margin-top:1px"')}
-        <div><div style="font-size:13.5px;font-weight:800;color:#FF9B9B">Possible severe allergen: ${esc(cf.severe.join(', '))}</div>
+        <div><div style="font-size:13.5px;font-weight:800;color:#FF9B9B">Possible severe allergen: ${esc(severeHits.join(', '))}</div>
         <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:3px;line-height:1.45">A detected food may contain it — the read can't see every ingredient or cross-contact. Check the label or ask staff before you eat or log this.</div></div>
       </div>`;
       if (cf.moderate.length || cf.noted.length) return `
@@ -282,9 +285,11 @@ export const analysis = {
     }
     // Edit mode (real editing, not a dead button): remove / rename / set quantity / add.
     // Every mutation goes through applyFoodEdit so MEAL.result.detectedRich and .detected stay
-    // in lockstep — act.logMeal reads the arrays, not the DOM. Macros are deliberately never
-    // re-estimated; the "edited by you" hint keeps that honest. Repaint via __render so the
-    // rendered rows always mirror the arrays (no hand-synced DOM state).
+    // in lockstep — act.logMeal reads the arrays, not the DOM — then recomputeStagedMeal
+    // propagates it: totals + quality recompute deterministically from the remaining per-food
+    // macros and removed foods leave the prose (Tier 1 session isolation). When a food can't
+    // be priced the totals honestly stay the AI's estimate and the hint says so. Repaint via
+    // __render so the rendered rows always mirror the arrays (no hand-synced DOM state).
     const btn = root.querySelector('#edit-foods');
     const box = root.querySelector('#foods');
     if (!btn || !box) return;
@@ -303,19 +308,22 @@ export const analysis = {
         row.insertAdjacentHTML('beforeend', '<span class="rm" role="button" aria-label="Remove" style="margin-left:8px;color:var(--red);font-weight:800;cursor:pointer">✕</span>');
         row.querySelector('.rm').addEventListener('click', (e) => {
           e.stopPropagation();
-          if (applyFoodEdit(MEAL.result, { kind: 'remove', name })) { analysis._editing = true; window.__render(); }
+          const op = { kind: 'remove', name };
+          if (applyFoodEdit(MEAL.result, op)) { act.recomputeStagedMeal(op); analysis._editing = true; window.__render(); }
         });
         if (nameEl) {
           nameEl.innerHTML = `<input class="fr-in name" value="${esc(name)}" aria-label="Food name" />`;
           nameEl.querySelector('input').addEventListener('change', (e) => {
-            applyFoodEdit(MEAL.result, { kind: 'rename', name, newName: e.target.value });
+            const op = { kind: 'rename', name, newName: e.target.value };
+            if (applyFoodEdit(MEAL.result, op)) act.recomputeStagedMeal(op);
             analysis._editing = true; window.__render();
           });
         }
         if (qtyEl) {
           qtyEl.innerHTML = `<input class="fr-in qty" value="${esc((item && item.quantity) || '')}" placeholder="Qty" aria-label="Quantity" />`;
           qtyEl.querySelector('input').addEventListener('change', (e) => {
-            applyFoodEdit(MEAL.result, { kind: 'quantity', name, quantity: e.target.value });
+            const op = { kind: 'quantity', name, quantity: e.target.value };
+            if (applyFoodEdit(MEAL.result, op)) act.recomputeStagedMeal(op);
             analysis._editing = true; window.__render();
           });
         }
@@ -323,7 +331,9 @@ export const analysis = {
       const addOk = root.querySelector('#add-ok');
       if (addOk) addOk.addEventListener('click', () => {
         const n = root.querySelector('#add-name'), q = root.querySelector('#add-qty');
-        if (applyFoodEdit(MEAL.result, { kind: 'add', name: n && n.value, quantity: q && q.value })) {
+        const op = { kind: 'add', name: n && n.value, quantity: q && q.value };
+        if (applyFoodEdit(MEAL.result, op)) {
+          act.recomputeStagedMeal(op);
           analysis._editing = true; window.__render();
         }
       });
@@ -398,6 +408,25 @@ export const thread = {
       </div>
     </section>`;
 
+    // ---- 1b. BODY SIGNALS — the 2-tap prompt (0142). Only appears when the athlete's plan
+    // style actually tracks them (Guided: hunger + fullness; Intuitive: all three). Always
+    // skippable and never scored on its VALUE: a 1 counts exactly as much as a 5, because what
+    // earns credit is noticing, not what you noticed. Nothing renders on Structured.
+    const sigFields = S.mealSignals(M.slot);
+    const signalCard = !sigFields.length ? '' : `
+    <section class="card" style="padding:14px 16px" id="meal-signals">
+      <div style="font-size:14px;font-weight:800">How did this meal land?</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:2px;line-height:1.5">Two taps, no wrong answer — this is for spotting your own patterns.</div>
+      ${sigFields.map(f => `
+        <div class="rec-field" data-sig-key="${f.key}" style="margin-top:12px">
+          <div class="rec-top"><span class="rec-name">${esc(f.label)}</span><span class="rec-ends">${esc(f.lo)} → ${esc(f.hi)}</span></div>
+          <div class="chips5" role="radiogroup" aria-label="${esc(f.label)}">
+            ${[1, 2, 3, 4, 5].map(n => `<div class="c5 ${f.value === n ? 'on' : ''}" data-n="${n}" role="radio" aria-checked="${f.value === n ? 'true' : 'false'}" aria-label="${esc(f.label)}: ${n} of 5">${n}</div>`).join('')}
+          </div>
+        </div>`).join('')}
+    </section>
+    <div style="height:10px"></div>`;
+
     // ---- 2. PHOTO + MEAL QUALITY (feedback 2026-07-16: quality is a separate concept from
     // compliance — banded color, its own label, and a one-line WHY so 58 never reads as green
     // success or an arbitrary number). Provenance badges live here; name/timing not repeated.
@@ -458,7 +487,18 @@ export const thread = {
       ['Calories', M.macros.cals, T.calories, ''],
     ].filter(([, , target]) => target);
     const corrLog = (M.corrections || []).length;
-    const breakdown = `
+
+    // INTUITIVE (0142): no macro or calorie figure reaches the athlete. The plate itself, what
+    // was on it, and how it landed still do — the composition IS the feedback. Every number is
+    // still computed and still stored (the professional needs them, and under-fueling is a
+    // safety signal); this gate is presentation only. `showMacros` is the athlete's own
+    // opt-in-able switch, so someone who WANTS their numbers back can have them.
+    const showNums = S.planStyle.showMacros;
+    const breakdown = !showNums ? `
+    <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
+    ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
+    ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
+    <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>` : `
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Meal Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
     <div class="macro-row five" style="margin-top:10px">
@@ -501,7 +541,7 @@ export const thread = {
           <div class="fx-other"><input class="input" id="fx-other" maxlength="160" placeholder="Anything else the photo can't show…" style="height:40px"/><button class="btn ghost sm" id="fx-other-add" style="width:auto;flex:none;padding:0 14px;height:40px">Add</button></div>
         </div>
         <div id="fx-note" style="font-size:12px;font-weight:700;color:var(--green-bright);min-height:16px;margin-top:6px"></div>
-        <div class="rub-fine">Corrections update the estimate with rule-based kitchen math, keep the AI's original for the record, and your coach sees the corrected numbers.</div>
+        <div class="rub-fine">Corrections update the estimate with rule-based kitchen math, keep the AI's original for the record, and ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} sees the corrected numbers` : 'the corrected numbers are what your log keeps'}.</div>
       </section>
     </div>`;
 
@@ -522,9 +562,21 @@ export const thread = {
       quality: M.score, macros: M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal,
       detected: M.detectedRich, source: M.source, deadlineClock: M.deadlineLabel,
       day: dayP,
+      // Plan style (0142): an Intuitive read never quotes a macro figure and never grades the
+      // plate — the AI's job there is to help the athlete notice a pattern, not to hand them a
+      // number. Same analysis underneath; the professional still sees all of it.
+      numbers: S.planStyle.showMacros, tone: S.planStyle.tone,
     });
+    // The long-form read is the edge function's own prose (M.analysis). Two ways it may be shown:
+    // the style permits numbers at all, OR the server STAMPED it as written for this exact style
+    // (analyze-meal's styleApplied, slice 8 — which also enforces the language rail server-side).
+    // Anything else — an old deploy with no stamp, or a stamp from a style the athlete has since
+    // left — is suppressed rather than regex-scrubbed: a half-redacted paragraph reads worse than
+    // the honest short summary, and a stale stamp is not evidence about today's prose.
+    const styleSafeProse = S.planStyle.showMacros || M.styleApplied === S.planStyle.key;
     const fullText = openingMessage({
-      name: M.name, quality: M.score, note: M.note, analysis: M.analysis,
+      name: M.name, quality: M.score, note: M.note,
+      analysis: styleSafeProse ? M.analysis : null,
       highlights: M.highlights, goal, coachTargets: S.planTargets, late: M.late, minutesLate: M.minutesLate,
       detected: M.detectedRich, source: M.source, day: dayP, patterns,
       impact: S.mealScoreImpact(M.slot),
@@ -559,7 +611,7 @@ export const thread = {
           <div class="fq-chips">${fq.chips.map(c => `<button class="fx-chip" data-fq="${esc(fq.kind)}" data-val="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>
         </div></div>
       </div>` : ''}
-      <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : 'Syncs when connected — your coach sees this log either way.'}</div>
+      <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : (S.coach.hasCoach ? `Syncs when connected — your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected — this log is saved either way.')}</div>
     </div>
     ${M.mealId ? `
     <div class="qa-row">
@@ -579,12 +631,12 @@ export const thread = {
     <div class="day-done" style="margin-top:16px">
       <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
       <div><div class="tt">That's everything. You're OnStandard at ${e.score}.</div>
-      <div class="ts">All requirements in. Day ${S.streakDays} locks at midnight.</div></div>
+      <div class="ts">All requirements in.${S.streakDays > 0 ? ` Day ${S.streakDays} locks at midnight.` : ' Your streak starts when today locks at midnight.'}</div></div>
     </div>` : n ? `
     <div class="eyebrow" style="margin-top:16px">Next Action</div>
     <div class="xrow-item" data-go="${n.route}">
       <div class="xico sm ${n.color}">${icon(n.icon, 17)}</div>
-      <div class="xr"><div class="xa">${esc(n.title)}${n.state === 'overdue' ? ' overdue' : ''}</div>
+      <div class="xr"><div class="xa">${esc(n.title)}</div>
       <div class="xb">${n.state === 'overdue' ? 'Log now for partial credit — late still counts'
         : `${n.countdown ? `⏱ ${esc(n.countdown)} · ` : ''}${esc(n.dueLabel)}`} · ${e.score} → ${e.possible}</div></div>
       <span class="xpill ${n.color}">${n.pill}</span>
@@ -597,7 +649,9 @@ export const thread = {
       <span class="xpill gray">Upcoming</span>
     </div>` : '';
 
-    return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
+    return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${signalCard}${photoBlock}${breakdown}${discussion}${next}
+    <div style="height:18px"></div>
+    <button class="btn green" style="width:100%" data-go="home" aria-label="Done — back to home">${icon('check', 18)} Done</button>
     <div style="height:16px"></div>`;
   },
 
@@ -614,6 +668,22 @@ export const thread = {
       if (RT.lastMove) RT.lastMove._played = true;
     }
     if (!M.logged) return;
+
+    // Body-signal chips (0142): each tap persists immediately (days.signals) — no submit button,
+    // because a prompt you have to confirm is a prompt people stop answering. Re-tapping a
+    // different chip just overwrites; the paint updates in place without a full re-render, so
+    // answering one signal never scrolls the athlete away from the next.
+    root.querySelectorAll('#meal-signals [data-sig-key]').forEach((field) => {
+      const key = field.getAttribute('data-sig-key');
+      const chips = field.querySelectorAll('.c5');
+      chips.forEach((ch) => ch.addEventListener('click', () => {
+        chips.forEach((x) => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
+        ch.classList.add('on');
+        ch.setAttribute('aria-checked', 'true');
+        act.setMealSignal(M.slot, key, +ch.getAttribute('data-n'));
+      }));
+    });
+
     const roles = await import('../roles.js');
     // Delegation target for render-injected content (the fq bubble, the analysis expander):
     // #view is REPLACED on every render, so listeners attached here die with the paint —
@@ -847,7 +917,7 @@ export const thread = {
       // Thread cap (0059, coach-ratified): 3 athlete messages per meal — the DB trigger is
       // the wall; say so up front instead of letting the send bounce.
       const mine = (Array.isArray(comments) ? comments : []).filter((c) => c.role === 'athlete' && (c.kind || 'message') === 'message').length;
-      if (mine >= 3) { setNote('Thread cap: 3 messages per meal. Your coach saw them.'); return; }
+      if (mine >= 3) { setNote(`Thread cap: 3 messages per meal. ${S.coach.hasCoach ? `Your ${S.coach.noun} saw them.` : 'They\'re saved to this meal.'}`); return; }
       busy = true; setNote('');
       input.value = '';
       const posted = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', text);

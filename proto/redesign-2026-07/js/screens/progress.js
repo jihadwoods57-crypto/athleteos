@@ -48,13 +48,63 @@ function weightCard() {
   </section>`;
 }
 
+/* Entry to the progress-photo timeline (0133). A quiet link-out card — the real grid/compare live
+   in #progress-photos. Photos are private to the athlete and any linked coach; they never touch
+   the daily score, same as weight. */
+function photoCard() {
+  return `
+  <div class="eyebrow">Progress Photos</div>
+  <section class="card" style="padding:6px 16px">
+    <div class="lrow" data-go="progress-photos">
+      <div class="lic">${icon('camera', 17)}</div>
+      <div class="lm"><div class="lt">Progress photos</div><div class="ls">Your before &amp; after — private to you &amp; your ${esc(S.coach.noun)}</div></div>
+      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+    </div>
+  </section>`;
+}
+
+/* Entry to the training log (0135). Quiet link-out; sessions live in #training-history. Tracked,
+   not scored — same as weight/photos. */
+function trainingCard() {
+  return `
+  <div class="eyebrow">Training</div>
+  <section class="card" style="padding:6px 16px">
+    <div class="lrow" data-go="training-history">
+      <div class="lic">${icon('bolt', 17)}</div>
+      <div class="lm"><div class="lt">Training log</div><div class="ls">Your sessions &amp; notes — tracked, not scored</div></div>
+      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+    </div>
+    <div class="lrow" data-go="accountability">
+      <div class="lic">${icon('sun', 17)}</div>
+      <div class="lm"><div class="lt">Morning Readiness</div><div class="ls">Wake-ups, arrivals &amp; sessions — a separate record from your score</div></div>
+      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+    </div>
+  </section>`;
+}
+
+/* Plan-style bands on the score timeline (0142). A style change moves what the number MEASURES,
+   so a trend break across one has to be explained rather than left looking like a slump. Renders
+   nothing when the athlete has only ever been on one style — which is most of them. */
+function styleBandRow() {
+  const bands = S.styleBands;
+  if (!bands || bands.length < 2) return '';
+  return `
+  <div class="ps-band" aria-label="Plan style history">
+    ${bands.map(b => `<span class="seg s-${esc(b.style)}"><i></i>${esc(b.name)} · ${b.days}d · avg ${b.avg}</span>`).join('')}
+  </div>
+  <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.45">Your plan style changed during this stretch — each style measures your day differently, so compare within a band, not across.</div>`;
+}
+
 export default {
   tab: 'progress',
   render() {
     const P = S.progress;
     // Day one / early days: a REAL baseline (spec §8.2) — score, streak, best, days logged,
     // and the exact unlock rule. Never a dashed "come back later" card.
-    if (RT.day0 || !P.hasHistory) {
+    // Gate on the real 3-day trend-unlock window, NOT RT.day0 — RT.day0 just means "nothing
+    // logged yet today" and goes true every morning for established athletes, which used to show
+    // them the "Progress starts today" baseline right beside "Days logged: 30".
+    if (P.daysLogged < P.unlockNeed) {
       return `
       <div class="screen-title">Progress</div>
       <div style="height:10px"></div>
@@ -68,6 +118,8 @@ export default {
       </div>` : ''}
       <div style="height:4px"></div>
       ${weightCard()}
+    ${photoCard()}
+    ${trainingCard()}
       <div style="height:10px"></div>`;
     }
 
@@ -97,13 +149,12 @@ export default {
     const ddir = wd > 0 ? ' up' : wd < 0 ? ' down' : '';
     const trends = S.categoryTrends;
     const insight = S.progressInsight;
-    return `
-    <div class="screen-title">Progress</div>
-    ${streakRow}
+
+    const scoreTrendSection = `
     <div class="eyebrow">Score Trend</div>
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} days on standard (≥80) · best streak ${P.bestStreak}d</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} day${P.onDays === 1 ? '' : 's'} on standard (≥80) · best streak ${P.bestStreak}d</div>
       <div class="weekbars">
         ${P.weekScores.map((v, i) => `
           <div class="wb ${v >= 80 ? 'hi' : ''}">
@@ -111,6 +162,7 @@ export default {
             <span class="d">${P.weekDayLabels[i] || ''}</span>
           </div>`).join('')}
       </div>
+      ${styleBandRow()}
     </section>
 
     <div style="height:16px"></div>
@@ -130,9 +182,26 @@ export default {
           <span class="ct-v">${t.now}%</span>
           <span class="ct-d ${t.delta > 0 ? 'up' : t.delta < 0 ? 'down' : ''}">${t.delta > 0 ? `↑ ${t.delta}` : t.delta < 0 ? `↓ ${Math.abs(t.delta)}` : '–'}</span>
         </div>`).join('')}
-    </section>` : ''}
+    </section>` : ''}`;
 
-    ${weightCard()}
+    const bodySection = `${weightCard()}${photoCard()}`;
+
+    // A client is chasing a body outcome, not a sport standard — their Progress tab leads with
+    // weight + photos; a team athlete keeps the score-first order (unchanged). Same sections,
+    // same helpers, just reordered — see brainstorm decision "body outcome + trainer
+    // accountability" and plan.md §C.
+    const isClient = S.audience === 'client';
+    return `
+    <div class="screen-title">Progress</div>
+    ${streakRow}
+    ${isClient ? bodySection + scoreTrendSection : scoreTrendSection + bodySection}
+    ${trainingCard()}
+
+    <div style="height:10px"></div>
+    <div class="sidebox" data-go="monthly-report" style="cursor:pointer">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt" style="display:flex;align-items:center;gap:7px">Monthly report <span class="status-pill b">Premium</span></div><div class="ts">Your month in review</div></div>
+    </div>
 
     ${insight ? `
     <div class="eyebrow">Your biggest opportunity</div>

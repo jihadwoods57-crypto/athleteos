@@ -75,7 +75,7 @@ export default {
         <div class="bk iconbtn" data-back="home" style="width:40px;height:40px" role="button" aria-label="Back">${icon('back', 19)}</div>
         <div class="meta">
           <div class="t">Log ${slotName}</div>
-          <div class="s">${L.due}${upTo > 0 ? ` <span class="dim">· earn up to ${upTo} points</span>` : ''}</div>
+          <div class="s">${L.due}${upTo > 0 ? ` <span class="dim">· earn up to ${upTo} point${upTo === 1 ? '' : 's'}</span>` : ''}</div>
         </div>
       </div>
 
@@ -238,7 +238,7 @@ export const cameraConfirm = {
         <div class="bk iconbtn" id="cc-back" style="width:40px;height:40px" role="button" aria-label="Back">${icon('back', 19)}</div>
         <div class="meta">
           <div class="t">Use this photo?</div>
-          <div class="s"><span class="dim">${esc(MEAL.mealType || 'Meal')} · review your photo before analysis</span></div>
+          <div class="s"><span class="dim">${esc((MEAL.key && slotTitle(MEAL.key)) || MEAL.mealType || 'Meal')} · review your photo before analysis</span></div>
         </div>
       </div>
       <div class="viewfinder cc-photo" style="background-image:url('${safeImg(MEAL.photoDataUrl)}')">

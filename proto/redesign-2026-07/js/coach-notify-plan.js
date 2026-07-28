@@ -230,7 +230,7 @@ export function planCoachNotifications({
         out.push({
           id: `cn-soon-hourly:${mark}`, fireAtMin: clampMin(fireAtMin), dayOffset: 0, immediate: false,
           stage: 'soon', route: 'coach-inbox',
-          title: `${totalOverdue} requirement${totalOverdue === 1 ? '' : 's'} overdue across ${athleteN} athletes`,
+          title: `${totalOverdue} requirement${totalOverdue === 1 ? '' : 's'} overdue across ${athleteN} athlete${athleteN === 1 ? '' : 's'}`,
           body: 'Open the inbox to clear them.',
         });
       }

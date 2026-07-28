@@ -20,6 +20,9 @@ module.exports = {
     '^expo-image-picker$': '<rootDir>/jest/expoImagePickerMock.js',
     '^expo-image-manipulator$': '<rootDir>/jest/expoImageManipulatorMock.js',
     '^expo-notifications$': '<rootDir>/jest/expoNotificationsMock.js',
+    // expo-file-system v57+'s /legacy subpath (classic promise-based API the SHARE_IMAGE bridge
+    // handler needs) ships as native ESM babel-jest won't transform either — same stub pattern.
+    '^expo-file-system/legacy$': '<rootDir>/jest/expoFileSystemLegacyMock.js',
     // The Supabase client's auth storage adapter imports expo-secure-store (native-only);
     // stub it with a stateful in-memory store so the graph loads and the adapter round-trips.
     '^expo-secure-store$': '<rootDir>/jest/expoSecureStoreMock.js',

@@ -10,6 +10,31 @@ test('null on no meal items', () => {
   expect(stdFromItems([{ id: 'lift', kind: 'lift', title: 'Lift', proof: 'check' }])).toBeNull();
 });
 
+describe('snack-optional (0086 item.snack)', () => {
+  const four = (over: any[] = []) => [
+    { id: 'meal-1', kind: 'meal', title: 'Breakfast', proof: 'photo' },
+    { id: 'meal-2', kind: 'meal', title: 'Lunch', proof: 'photo' },
+    { id: 'meal-3', kind: 'meal', title: 'Snack', proof: 'photo', ...(over[2] || {}) },
+    { id: 'meal-4', kind: 'meal', title: 'Dinner', proof: 'photo' },
+  ];
+  test('PARITY: with no snack flag, mealsRequired === slot count and optional is empty', () => {
+    const std = stdFromItems(four())!;
+    expect(std.mealsRequired).toBe(4);
+    expect(std.slots.length).toBe(4);
+    expect(std.optional).toEqual([]);
+  });
+  test('a snack-flagged meal drops out of the denominator but keeps its slot', () => {
+    const std = stdFromItems(four([, , { snack: true }]))!;
+    expect(std.slots.length).toBe(4);        // still loggable
+    expect(std.mealsRequired).toBe(3);       // out of the required denominator
+    expect(std.optional).toEqual(['snack']); // the snack slot key is marked optional
+  });
+  test('degenerate all-snack config falls back to all-required (can\'t opt out of every meal)', () => {
+    const allSnack = four().map((m) => ({ ...m, snack: true }));
+    expect(stdFromItems(allSnack)!.mealsRequired).toBe(4); // never 0 — the || m guard holds the denominator
+  });
+});
+
 test('carries custom titles and window deadlines onto slot keys', () => {
   const std = stdFromItems([
     meal(1, 'Team Breakfast', 400, 555), meal(2, 'Fuel Stop', 700, 800), meal(3, 'Dinner', 1080, 1230),

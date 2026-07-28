@@ -52,10 +52,18 @@ describe('standardForGoal', () => {
       expect(standardForGoal(g).focus.length).toBeGreaterThan(10);
     }
   });
-  test('general profile relabels the weights (55/20/15/10)', () => {
-    const rows = standardForGoal('lose', 3, 'general').rows;
+  // Weights are style x profile, never profile alone — a Structured general athlete and a
+  // Guided one are scored differently, and the onboarding preview must say so. Asserting
+  // both styles here is what stops the old profile-only lookup from creeping back.
+  test('general profile on Structured relabels the weights (55/20/15/10)', () => {
+    const rows = standardForGoal('lose', 3, 'general', 'structured').rows;
     expect(rows[0][2]).toContain('55%');
     expect(rows[1][2]).toContain('20%');
+  });
+  test('general profile on Guided (the default style) is 52/23, not the Structured row', () => {
+    const rows = standardForGoal('lose', 3, 'general').rows;
+    expect(rows[0][2]).toContain('52%');
+    expect(rows[1][2]).toContain('23%');
   });
   test('athlete profile keeps 50/25/15/10', () => {
     const rows = standardForGoal('gain').rows;

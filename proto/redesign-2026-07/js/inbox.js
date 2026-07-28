@@ -83,7 +83,7 @@ export function inboxAlerts(entries, nowMs) {
     out.push({
       kind: 'alert',
       id: `alert:overdue:${id}`,
-      title: `${count} athlete${count === 1 ? '' : 's'} missed ${title}`,
+      title: `${count} athlete${count === 1 ? '' : 's'} ${count === 1 ? "hasn't" : "haven't"} logged ${title}`,
       sub: 'Overdue requirement',
       ts: nowMs,
     });

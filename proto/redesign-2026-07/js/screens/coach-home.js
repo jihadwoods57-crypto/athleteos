@@ -2,10 +2,30 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { avatarHead, esc, collapseSection, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
-import { CD, loadCoachRoster, loadActivity, actTime, entriesFor, getScope, setScope } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { teamPulse } from '../status.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
+import { paintBoard } from './coach-commitments.js';
+
+/* This screen is nav:'operator' — it renders for a coach's team AND a trainer's practice, so it
+   must load whichever book the signed-in role owns. Calling loadCoachRoster() here would fetch
+   teams a trainer doesn't have and leave them staring at an empty dashboard. */
+const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
+
+/* Operator vocabulary. Every noun a shared operator screen renders resolves HERE, so no string
+   hardcodes "team" and then lies to a trainer looking at their practice. */
+const VOCAB = {
+  team: {
+    everyone: 'Entire team', mine: 'My athletes', priorities: 'Coach priorities',
+    setup: 'Finish setting up your team', loading: 'Loading your team…',
+  },
+  practice: {
+    everyone: 'All clients', mine: 'My clients', priorities: 'Client priorities',
+    setup: 'Finish setting up your practice', loading: 'Loading your clients…',
+  },
+};
+const vocab = () => VOCAB[CD.kind] || VOCAB.team;
 
 /* Athlete-invite link + share text (mirrors the trainer's inviteLink/inviteShareText inline,
    the same way state.js mirrors src/core in plain JS). Empty code → empty string: never link or
@@ -159,7 +179,7 @@ export function emptyTeamDashboard(code, teamName) {
   return `
     ${banner}
     ${code ? coachInviteCard(code, teamName) : codeStateBox()}
-    <div class="eyebrow">Finish setting up your team</div>
+    <div class="eyebrow">${esc(vocab().setup)}</div>
     ${setupChecklistCard(st)}
     <div class="eyebrow">Team status</div>
     ${notScoredTeamTile()}
@@ -177,7 +197,7 @@ let SHOW_PULSE = false;         // pulse breakdown open?
 function scopeLabel(scope) {
   // Slice F: a scoped staff member's 'team' view is already server-narrowed to their
   // responsibility (0078) — calling it "Entire team" would overstate what they see.
-  if (!scope || scope.kind === 'team') return (CD.extras && CD.extras.scope) ? 'My athletes' : 'Entire team';
+  if (!scope || scope.kind === 'team') return (CD.extras && CD.extras.scope) ? vocab().mine : vocab().everyone;
   if (scope.kind === 'position') return `${scope.value} room`;
   if (scope.kind === 'group') {
     const g = ((CD.extras && CD.extras.groups) || []).find(x => x.id === scope.value);
@@ -185,9 +205,9 @@ function scopeLabel(scope) {
   }
   if (scope.kind === 'athlete') {
     const r = CD.roster && CD.roster.rows.find(x => x.athleteId === scope.value);
-    return r ? r.name : 'One athlete';
+    return r ? r.name : (CD.kind === 'practice' ? 'One client' : 'One athlete');
   }
-  return 'Entire team';
+  return vocab().everyone;
 }
 
 function scopeSheet() {
@@ -202,7 +222,7 @@ function scopeSheet() {
   return `
   <section class="card" style="padding:13px 16px">
     <div class="eyebrow" style="margin:0 0 8px">Who you're looking at</div>
-    <div>${chip('team', '', (CD.extras && CD.extras.scope) ? 'My athletes' : 'Entire team', is('team', ''))}
+    <div>${chip('team', '', (CD.extras && CD.extras.scope) ? vocab().mine : vocab().everyone, is('team', ''))}
     ${positions.map(p => chip('position', p, `${p} room`, is('position', p))).join('')}
     ${groups.map(g => chip('group', g.id, g.name, is('group', g.id))).join('')}</div>
     <div style="font-size:11.5px;color:var(--text-3);font-weight:600;margin-top:4px">Custom groups are built on the Roster tab.</div>
@@ -246,7 +266,9 @@ function pulseCard(rows, statuses) {
 /* Ranked priority — calm hierarchy, one primary action by tier, the rest subordinate. */
 function priorityCard(c, i, nudgedToday) {
   const tier = c.tier === 'critical' ? 'critical' : c.tier === 'below' ? 'below' : 'due';
-  const tierLbl = { critical: 'Critical', below: 'Below standard', due: 'Due soon' }[tier];
+  // needs_review also tiers as 'below', but "Below standard" would contradict its own reason
+  // line ("logged today — score pending"). Name it honestly when that's the actual status.
+  const tierLbl = c.statusKey === 'needs_review' ? 'Needs review' : { critical: 'Critical', below: 'Below standard', due: 'Due soon' }[tier];
   const scoreCol = c.score == null ? '' : c.score >= 80 ? 'var(--green-bright)' : c.score >= 60 ? 'var(--amber-bright)' : '#FF9B9B';
   const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
   const nudgeCls = !openPrimary ? (tier === 'critical' ? 'primary warn' : 'primary') : '';
@@ -263,23 +285,23 @@ function priorityCard(c, i, nudgedToday) {
     <div class="co-pri-acts">
       <button class="co-abtn ${openPrimary ? 'primary' : ''}" data-go="coach-athlete/${esc(c.athleteId)}">${openPrimary ? 'Review' : 'Open'}</button>
       <button class="co-abtn ${nudgeCls}" data-pnudge="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" ${nudgedToday ? 'disabled' : ''}>${nudgedToday ? 'Nudged ✓' : 'Nudge'}</button>
-      <button class="co-abtn" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Assign</button>
-      <button class="co-abtn" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Handled</button>
+      ${CD.caps.assignments ? `<button class="co-abtn" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Assign</button>` : ''}
+      ${CD.caps.interventions ? `<button class="co-abtn" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Handled</button>` : ''}
     </div>
     <div class="co-pstatus" id="pstatus-${esc(c.athleteId)}"></div>
   </div>`;
 }
 
 export const coachHome = {
-  nav: 'coach', tab: 'home',
+  nav: 'operator', tab: 'home',
   render() {
-    const teamName = CD.roster && CD.roster.teams[0] ? CD.roster.teams[0].name : (S.athlete.school || 'Your team');
-    const initials = S.coachIdentity.initials;
+    const me = S.operatorIdentity;
+    const teamName = CD.roster && CD.roster.book[0] ? CD.roster.book[0].name : me.bookName;
     const scope = getScope();
-    const head = avatarHead(`${S.greeting}, ${S.coachIdentity.handle}`, `${teamName} · ${scopeLabel(scope)} · today`, initials);
+    const head = avatarHead(`${S.greeting}, ${me.handle}`, `${teamName} · ${scopeLabel(scope)} · today`, me.initials);
     if (CD.roster === null) return `${head}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
-      <div><div class="tt">Loading your team…</div><div class="ts">Pulling today's real numbers.</div></div></div>`;
+      <div><div class="tt">${esc(vocab().loading)}</div><div class="ts">Pulling today's real numbers.</div></div></div>`;
     if (CD.roster.offline) return `${head}
       <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
       <div class="sd-t">Can't reach your team</div>
@@ -312,16 +334,17 @@ export const coachHome = {
     ${SHOW_SCOPES ? scopeSheet() : ''}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div><span style="color:var(--text-3)">›</span></div>` : ''}
     ${entries === null ? '' : pulseCard(rows, statuses)}
+    <div id="vc-board-slot"></div>
 
     ${(() => {
       // Setup guidance persists (collapsed) after the first athlete joins — it no longer vanishes
       // mid-setup. Hidden only once every step is genuinely done.
       const st = coachSetupState();
       const left = setupIncompleteCount(st);
-      return left ? collapseSection('coach-setup', 'Finish setting up your team', left, setupChecklistCard(st), false) : '';
+      return left ? collapseSection('coach-setup', vocab().setup, left, setupChecklistCard(st), false) : '';
     })()}
 
-    <div class="eyebrow">Coach priorities</div>
+    <div class="eyebrow">${esc(vocab().priorities)}</div>
     ${entries === null ? `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
     : cards.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">Nothing needs you right now. Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.</div>`
     : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === new Date().toISOString().slice(0, 10))).join('')}
@@ -352,7 +375,11 @@ export const coachHome = {
     <div class="co-bottom"></div>`;
   },
   mount(root) {
-    loadCoachRoster().then(() => loadActivity());
+    loadMyBook().then(() => loadActivity());
+    // Verified Commitments (0138): the live "9 of 11 in" card, injected async into its own slot so
+    // a board fetch never delays the priority queue. An operator who has scheduled nothing gets an
+    // empty slot and this screen is byte-identical to before.
+    paintBoard(root);
     // Empty-state invite card: Copy + native Share of the athlete code (present only before any
     // athlete has joined).
     const code = RT.team && RT.team.code;
@@ -393,13 +420,13 @@ export const coachHome = {
       const [kind, value] = b.getAttribute('data-scope').split(':');
       setScope({ kind: kind || 'team', value: value || null }); SHOW_SCOPES = false; window.__render();
     }));
-    const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
     // Failed writes never lie: log() only mirrors the intervention into the local cache when the
     // server took it, and returns the honest boolean so callers can keep the card + say so.
+    // logBookIntervention resolves the book id and no-ops on a practice (see coach-data.js).
     const log = async (athleteId, kind, b) => {
       const reasonKey = b.getAttribute('data-key'), tier = b.getAttribute('data-tier');
-      const ok = await roles.logIntervention({ teamId, athleteId, kind, reasonKey, tier });
-      if (ok && CD.extras) CD.extras.interventions.push({ athlete_id: athleteId, kind, reason_key: reasonKey, tier });
+      const ok = await logBookIntervention({ athleteId, kind, reasonKey, tier });
+      if (ok && CD.caps.interventions && CD.extras) CD.extras.interventions.push({ athlete_id: athleteId, kind, reason_key: reasonKey, tier });
       return ok;
     };
     const sayFail = (athleteId, msg) => {

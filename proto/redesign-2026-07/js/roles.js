@@ -24,9 +24,21 @@ export async function fetchTeamRoster(teamId) {
   const c = sb(); if (!c || !teamId) return [];
   try { const { data } = await c.rpc('team_roster', { team: teamId }); return data || []; } catch { return []; }
 }
-export async function fetchLinkedDaysSince(sinceISO) {
+/** Days since `sinceISO` for the caller's linked roster. Pass `athleteIds` (the roster is
+ *  already known by every real caller, resolved a few lines before this runs) so the query can
+ *  use the existing days(athlete_id, date desc) index — without it, `date >= sinceISO` alone is
+ *  unusable against that index and Postgres falls back to a full table scan of `days` PLUS a
+ *  per-row can_view() RLS check on every row in the table, not just the caller's roster
+ *  (capacity audit F4, docs/scale/CAPACITY-AUDIT.md). Omitting athleteIds keeps the old
+ *  RLS-only, unscoped, .limit(2000) behavior for any caller that doesn't have a roster yet. */
+export async function fetchLinkedDaysSince(sinceISO, athleteIds) {
   const c = sb(); if (!c) return [];
-  try { const { data } = await c.from('days').select('athlete_id,date,score,grade,tasks').gte('date', sinceISO).limit(2000); return data || []; } catch { return []; }
+  try {
+    let q = c.from('days').select('athlete_id,date,score,grade,tasks').gte('date', sinceISO);
+    q = Array.isArray(athleteIds) && athleteIds.length ? q.in('athlete_id', athleteIds) : q.limit(2000);
+    const { data } = await q;
+    return data || [];
+  } catch { return []; }
 }
 /** Athlete IANA timezones for the coach roster (0088), keyed by id. Best-effort and RLS-safe: a
  *  coach reads these through the SAME profiles access they already have (connected → can_view, the
@@ -90,7 +102,12 @@ export async function requestGuardianConsent(email) {
 export async function fetchMyTeamIdentity() {
   const c = sb(); if (!c) return null;
   try {
-    const { data } = await c.from('teams').select('id,name,join_code').limit(1).maybeSingle();
+    // supabase-js resolves a network/RLS failure into { error } WITHOUT throwing, so the catch
+    // below never sees it. Inspecting `error` here is what makes the { error: true } sentinel
+    // this function documents actually reachable — otherwise a flaky connection returned null,
+    // which callers read as "no team yet" and showed "Setting up" forever.
+    const { data, error } = await c.from('teams').select('id,name,join_code').limit(1).maybeSingle();
+    if (error) return { error: true };
     if (!data) return null;
     return { id: data.id, name: data.name || '', code: data.join_code || '' };
   } catch { return { error: true }; }
@@ -137,13 +154,19 @@ export async function regenerateMyTeamCode() {
 }
 
 /* ---------------- coach: roster-wide activity feed (WS4) ---------------- */
-/** Recent meals across every linked athlete (RLS can_view scopes rows). Best-effort []. */
-export async function fetchTeamActivity(sinceISO, limit = 24) {
+/** Recent meals across every linked athlete (RLS can_view scopes rows). Best-effort [].
+ *  Pass `athleteIds` when the roster is already known (same reasoning as
+ *  fetchLinkedDaysSince above): without it, `day_date >= sinceISO` can't use the
+ *  meals(athlete_id, day_date desc) index and the ORDER BY forces a full sort of every
+ *  matching row in the table before the limit applies (capacity audit F6). */
+export async function fetchTeamActivity(sinceISO, limit = 24, athleteIds) {
   const c = sb(); if (!c) return [];
   try {
-    const { data } = await c.from('meals')
+    let q = c.from('meals')
       .select('id,athlete_id,day_date,type,photo_path,name,protein,kcal,quality,logged_at')
-      .gte('day_date', sinceISO).order('logged_at', { ascending: false }).limit(limit);
+      .gte('day_date', sinceISO);
+    if (Array.isArray(athleteIds) && athleteIds.length) q = q.in('athlete_id', athleteIds);
+    const { data } = await q.order('logged_at', { ascending: false }).limit(limit);
     return data || [];
   } catch { return []; }
 }
@@ -201,9 +224,34 @@ export async function fetchMealResolved(mealId) {
 }
 
 /* ---------------- coach → athlete review ---------------- */
+/* Weight visibility (0103): days.current_weight left the direct SELECT grant, so staff reads
+   enumerate the granted columns (never '*', which 42501s post-apply). Weight, when the caller's
+   role is allowed, is stitched in separately via fetchAthleteWeights below. */
+const DAY_COLS = 'id,athlete_id,date,meals,hydration_l,tasks,quick_added,checkin,score,grade,computed_at,updated_at';
 export async function fetchDay(athleteId, date) {
   const c = sb(); if (!c || !athleteId) return null;
-  try { const { data } = await c.from('days').select('*').eq('athlete_id', athleteId).eq('date', date).maybeSingle(); return data || null; } catch { return null; }
+  try { const { data } = await c.from('days').select(DAY_COLS).eq('athlete_id', athleteId).eq('date', date).maybeSingle(); return data || null; } catch { return null; }
+}
+/** The athlete's weight-by-date map (0103 weight_series RPC). A restricted role gets an empty
+ *  map — zero rows, never an error — so callers stitch best-effort and weight surfaces simply
+ *  don't exist for roles outside [head_coach, athletic_trainer, s_and_c] (+ trainers, + self).
+ *  Pre-0103 fallback: the direct column read still works until the migration applies. */
+export async function fetchAthleteWeights(athleteId, daysBack = 30) {
+  const c = sb(); const m = new Map();
+  if (!c || !athleteId) return m;
+  try {
+    const { data, error } = await c.rpc('weight_series', { athlete: athleteId, days_back: daysBack });
+    if (!error && Array.isArray(data)) {
+      for (const r of data) if (r && r.weight != null) m.set(String(r.date), r.weight);
+      return m;
+    }
+  } catch { /* fall through */ }
+  try {
+    const { data } = await c.from('days').select('date,current_weight')
+      .eq('athlete_id', athleteId).gte('date', daysAgoISO(daysBack)).not('current_weight', 'is', null);
+    if (Array.isArray(data)) for (const r of data) if (r && r.current_weight != null) m.set(String(r.date), r.current_weight);
+  } catch { /* offline / post-0103 restricted — weight honestly absent */ }
+  return m;
 }
 export async function fetchRecentMeals(athleteId, sinceISO) {
   const c = sb(); if (!c || !athleteId) return [];
@@ -215,6 +263,167 @@ export async function fetchRecentMeals(athleteId, sinceISO) {
 export async function signedMealPhotoUrl(path) {
   const c = sb(); if (!c || !path) return null;
   try { const { data } = await c.storage.from('meal-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
+}
+
+/* ---------------- progress photos (before/after body-composition timeline, 0133) ---------------- */
+/** Upload a progress photo (raw base64 jpeg) to the private progress-photos bucket and record a
+    row. Path MUST start with the athlete's id (storage RLS). Best-effort — returns the new row or null. */
+export async function uploadProgressPhoto(userId, base64, meta) {
+  const c = sb(); if (!c || !userId || !base64) return null;
+  const m = meta || {};
+  const path = `${userId}/${Date.now()}.jpg`;
+  try {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const up = await c.storage.from('progress-photos').upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
+    if (up.error) return null;
+    const row = {
+      athlete_id: userId, photo_path: path,
+      weight_lb: (m.weightLb != null && m.weightLb !== '') ? Math.round(+m.weightLb) : null,
+      pose: m.pose || null, note: m.note || null,
+    };
+    if (m.takenOn) row.taken_on = m.takenOn;
+    const { data, error } = await c.from('progress_photos').insert(row).select().maybeSingle();
+    if (error) return null;
+    return data || null;
+  } catch { return null; }
+}
+
+/** An athlete's progress photos, newest first (self by default; a coach passes an athleteId they
+    can_view). Returns [{ id, photo_path, taken_on, weight_lb, pose, note }]. */
+export async function listProgressPhotos(athleteId) {
+  const c = sb(); if (!c) return [];
+  try {
+    let uid = athleteId;
+    if (!uid) { const { data: u } = await c.auth.getUser(); uid = u && u.user && u.user.id; }
+    if (!uid) return [];
+    const { data, error } = await c.from('progress_photos')
+      .select('id,photo_path,taken_on,weight_lb,pose,note')
+      .eq('athlete_id', uid)
+      .order('taken_on', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(60);
+    if (error) return [];
+    return data || [];
+  } catch { return []; }
+}
+
+/** Delete a progress photo (owner-RLS); best-effort object cleanup after the row goes. */
+export async function deleteProgressPhoto(id, path) {
+  const c = sb(); if (!c || !id) return false;
+  try {
+    const { error } = await c.from('progress_photos').delete().eq('id', id);
+    if (error) return false;
+    if (path) { try { await c.storage.from('progress-photos').remove([path]); } catch { /* orphan cleanup best-effort */ } }
+    return true;
+  } catch { return false; }
+}
+
+export async function signedProgressPhotoUrl(path) {
+  const c = sb(); if (!c || !path) return null;
+  try { const { data } = await c.storage.from('progress-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
+}
+
+/* ---------------- health / wearables (Apple Health, Health Connect) — DISPLAY-only in v1 ----------------
+   All false/null in a browser/preview or until the founder wires the native health module
+   (src/lib/health). Device data never changes the score; it's shown for context. */
+export async function healthAvailable() {
+  try { if (window.OnStandardNative && window.OnStandardNative.health) return !!(await window.OnStandardNative.health.available()); } catch { /* no bridge */ }
+  return false;
+}
+export async function healthConnected() {
+  try { if (window.OnStandardNative && window.OnStandardNative.health) return !!(await window.OnStandardNative.health.connected()); } catch { /* no bridge */ }
+  return false;
+}
+export async function healthConnect() {
+  try { if (window.OnStandardNative && window.OnStandardNative.health) return await window.OnStandardNative.health.connect(); } catch (e) { return { connected: false, reason: 'error' }; }
+  return { connected: false, reason: 'unavailable' };
+}
+/** Latest recovery sample { sleepHours?, hrvMs?, restingHr? } or null. */
+export async function healthRead() {
+  try { if (window.OnStandardNative && window.OnStandardNative.health) return await window.OnStandardNative.health.read(); } catch { /* no bridge */ }
+  return null;
+}
+
+/* ---------------- dietary declarations (0134) — athlete-declared, coach-readable ---------------- */
+/** Push the athlete's structured restrictions to the server (owner-write). Best-effort. */
+export async function saveDietaryRestrictions(userId, data) {
+  const c = sb(); if (!c || !userId) return false;
+  try {
+    const { error } = await c.from('dietary_restrictions')
+      .upsert({ athlete_id: userId, data: data || {}, updated_at: new Date().toISOString() });
+    return !error;
+  } catch { return false; }
+}
+/** The caller's own declaration (for cross-device hydrate). Returns the data object or null. */
+export async function fetchMyDietary() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data: u } = await c.auth.getUser(); const uid = u && u.user && u.user.id; if (!uid) return null;
+    const { data, error } = await c.from('dietary_restrictions').select('data').eq('athlete_id', uid).maybeSingle();
+    if (error) return null;
+    return (data && data.data) || null;
+  } catch { return null; }
+}
+/** Coach read: declarations for a set of roster athletes (RLS gates to those they can_view).
+    Returns [{ athlete_id, data }] — only athletes who have actually declared. */
+export async function fetchTeamDietary(athleteIds) {
+  const c = sb(); if (!c || !athleteIds || !athleteIds.length) return [];
+  try {
+    const { data, error } = await c.from('dietary_restrictions').select('athlete_id,data').in('athlete_id', athleteIds);
+    if (error) return [];
+    return data || [];
+  } catch { return []; }
+}
+
+/* ---------------- training logs (0135) — lightweight session + notes, tracked-not-scored ---------------- */
+/** Record a training session. A coach-requirement log is one-per-session-per-day (re-logging
+    replaces today's entry); a self-log always adds a new row. Best-effort — returns the row or null. */
+export async function saveTrainingLog(userId, opts) {
+  const c = sb(); if (!c || !userId) return null;
+  const o = opts || {};
+  const today = o.logDate || new Date().toISOString().slice(0, 10);
+  try {
+    const row = {
+      athlete_id: userId, log_date: today,
+      title: o.title ? String(o.title).slice(0, 80) : null,
+      note: o.note ? String(o.note).slice(0, 1000) : null,
+      feel: (o.feel != null && o.feel !== '') ? Math.max(1, Math.min(5, Math.round(+o.feel))) : null,
+      source: o.source === 'coach' ? 'coach' : 'self',
+      requirement_id: o.requirementId || null,
+    };
+    // Replace any existing same-day entry for this programmed session so "update" never duplicates.
+    if (o.requirementId) {
+      try { await c.from('training_logs').delete().eq('athlete_id', userId).eq('requirement_id', o.requirementId).eq('log_date', today); } catch { /* best-effort */ }
+    }
+    const { data, error } = await c.from('training_logs').insert(row).select().maybeSingle();
+    if (error) return null;
+    return data || null;
+  } catch { return null; }
+}
+/** An athlete's training logs, newest first (self by default; a coach passes an athleteId they
+    can_view). Returns [{ id, log_date, title, note, feel, source, requirement_id }]. */
+export async function listTrainingLogs(athleteId) {
+  const c = sb(); if (!c) return [];
+  try {
+    let uid = athleteId;
+    if (!uid) { const { data: u } = await c.auth.getUser(); uid = u && u.user && u.user.id; }
+    if (!uid) return [];
+    const { data, error } = await c.from('training_logs')
+      .select('id,log_date,title,note,feel,source,requirement_id')
+      .eq('athlete_id', uid)
+      .order('log_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(60);
+    if (error) return [];
+    return data || [];
+  } catch { return []; }
+}
+/** Delete a training log (owner-RLS). */
+export async function deleteTrainingLog(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('training_logs').delete().eq('id', id); return !error; } catch { return false; }
 }
 /** The ATHLETE side of the 0043 receipt loop: who actually opened MY day. RLS
     (coach_views_read) scopes rows to athlete_id = auth.uid() or the viewer's own receipts;
@@ -258,22 +467,69 @@ export async function postMealComment(mealId, athleteId, authorId, role, text, k
 }
 
 /* ---------------- coach: targets / trust pass (RPCs) ---------------- */
-export async function fetchAthleteTargets(athleteId) {
+/** base_weight + targets via the 0103 athlete_plan_meta RPC — the server conditionally redacts
+ *  the weight parts for roles outside the allowed set (base_weight → null, targets minus its
+ *  'weight' key; protein/calories always survive — the nutritionist's lane). Pre-0103 fallback:
+ *  direct column read, still granted until the migration applies. Best-effort null. */
+async function fetchPlanMeta(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
-  try { const { data } = await c.from('athlete_profiles').select('targets').eq('athlete_id', athleteId).maybeSingle(); return (data && data.targets) || null; } catch { return null; }
+  try {
+    const { data, error } = await c.rpc('athlete_plan_meta', { athlete: athleteId });
+    if (!error && Array.isArray(data) && data[0]) return data[0];
+    if (error) {
+      const { data: legacy } = await c.from('athlete_profiles').select('base_weight,targets').eq('athlete_id', athleteId).maybeSingle();
+      return legacy || null;
+    }
+    return null;
+  } catch { return null; }
 }
-/** Coach-visible athlete basics for target suggestions (can_view-scoped). Best-effort null. */
+export async function fetchAthleteTargets(athleteId) {
+  const meta = await fetchPlanMeta(athleteId);
+  return (meta && meta.targets) || null;
+}
+/** Coach-visible athlete basics for target suggestions + the score breakdown's nutrition config
+ *  (can_view-scoped). base_goal/position/sport stay direct reads (granted post-0103); base_weight
+ *  + coach-set targets ride the redacting RPC. A weight-restricted role gets base_weight null +
+ *  targets without a weight key — nutritionConfigForGoal degrades honestly (default bodyweight
+ *  for goal-derived targets; exact whenever coach-set protein/cal targets exist). */
 export async function fetchAthleteBasics(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
   try {
-    const { data } = await c.from('athlete_profiles')
-      .select('base_weight,position,sport,targets').eq('athlete_id', athleteId).maybeSingle();
-    return data || null;
+    const [{ data }, meta] = await Promise.all([
+      c.from('athlete_profiles').select('base_goal,position,sport').eq('athlete_id', athleteId).maybeSingle(),
+      fetchPlanMeta(athleteId),
+    ]);
+    if (!data && !meta) return null;
+    return { ...(data || {}), base_weight: meta ? meta.base_weight : null, targets: (meta && meta.targets) || null };
   } catch { return null; }
 }
 export async function coachSetGoals(athleteId, targets) {
   const c = sb(); if (!c || !athleteId) return false;
   try { const { error } = await c.rpc('coach_set_goals', { athlete: athleteId, new_targets: targets, new_season_goal: null }); return !error; } catch { return false; }
+}
+/** The athlete's own stated plan-style PREFERENCE (0142) — always readable by a connected
+ *  coach/trainer/nutrition pro (profiles_read: connected(id)), even when a team standard or
+ *  their own assignment governs the effective style. This is the "3 athletes prefer more
+ *  flexibility" signal: never a dead end for a locked athlete's answer. */
+export async function fetchAthletePlanPreference(athleteId) {
+  const c = sb(); if (!c || !athleteId) return null;
+  try {
+    const { data } = await c.from('profiles').select('plan_style_preference').eq('id', athleteId).maybeSingle();
+    return (data && data.plan_style_preference) || null;
+  } catch { return null; }
+}
+/** A coach/trainer/nutrition pro assigns (or clears) a plan style + optional knob overrides for
+ *  one athlete (set_athlete_plan_style RPC — server enforces is_team_coach_of/is_trainer_of and
+ *  validates the overrides shape). Returns false on any rejection (auth, invalid style/overrides,
+ *  offline) — the caller shows an honest error rather than assuming success. */
+export async function setAthletePlanStyle(athleteId, style, overrides, reason) {
+  const c = sb(); if (!c || !athleteId || !style) return false;
+  try {
+    const { error } = await c.rpc('set_athlete_plan_style', {
+      p_athlete: athleteId, p_style: style, p_overrides: overrides || null, p_reason: reason || null,
+    });
+    return !error;
+  } catch { return false; }
 }
 // Coach OS Slice D — Inbox v2. Ask meal-chat (draft mode) for FOUR candidate coach-voice
 // replies about a meal. The edge fn persists NOTHING here; these are drafts the coach edits
@@ -298,11 +554,48 @@ export async function fetchActiveTrustPass(athleteId) {
 }
 export async function grantTrustPass(athleteId, lengthDays) {
   const c = sb(); if (!c || !athleteId) return { ok: false };
-  try { const { error } = await c.rpc('grant_trust_pass', { p_athlete: athleteId, p_length: lengthDays || 10 }); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
+  // No length by default: the server resolves the team's trust_pass_policy (0099). An explicit
+  // number still overrides (back-compat).
+  const args = { p_athlete: athleteId };
+  if (typeof lengthDays === 'number') args.p_length = lengthDays;
+  try { const { error } = await c.rpc('grant_trust_pass', args); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
 }
 export async function endTrustPass(athleteId) {
   const c = sb(); if (!c || !athleteId) return false;
   try { const { error } = await c.rpc('end_trust_pass', { p_athlete: athleteId }); return !error; } catch { return false; }
+}
+/* Per-team Trust Pass policy (0097): the coach-chosen pass length + eligibility the grant reads.
+   Staff-scoped RLS; a missing row means the shipped 10-day / 7-day defaults are in effect. The
+   WRITE lives in state.js act.setTrustPolicy (it owns RT for updated_by), mirroring setCoachVoice. */
+export async function fetchTrustPassPolicy(teamId) {
+  const c = sb(); if (!c || !teamId) return null;
+  try {
+    const { data } = await c.from('trust_pass_policy').select('length_days, eligibility_days').eq('team_id', teamId).maybeSingle();
+    return data || null;
+  } catch { return null; }
+}
+/* Coach first-run setup progress (0092), read back so the checklist RESUMES after a reinstall or on
+   a new device — the write side (act.markCoachSetup) had no reader, so progress looked lost. Returns
+   a { step: true } map of completed steps. Staff-scoped RLS; a missing table/offline returns {}. */
+export async function fetchCoachSetupState(teamId) {
+  const c = sb(); if (!c || !teamId) return {};
+  try {
+    const { data } = await c.from('coach_setup_state').select('step, state').eq('team_id', teamId).eq('state', 'completed');
+    const map = {};
+    for (const r of (data || [])) if (r && r.step) map[r.step] = true;
+    return map;
+  } catch { return {}; }
+}
+/* Per-team weekly training/rest pattern (0100): a 7-element array indexed by getDay() (0=Sun). Team
+   MEMBERS read it (their scored day resolves day-type from it); staff write. A missing row means no
+   day-type gating — every requirement item applies every day. The WRITE lives in state.js
+   act.setWeekPattern (owns RT). */
+export async function fetchTeamWeekPattern(teamId) {
+  const c = sb(); if (!c || !teamId) return null;
+  try {
+    const { data } = await c.from('team_week_pattern').select('pattern').eq('team_id', teamId).maybeSingle();
+    return data && Array.isArray(data.pattern) ? data.pattern : null;
+  } catch { return null; }
 }
 
 /* ---------------- staff & collaborators (0061) ---------------- */
@@ -353,10 +646,14 @@ export async function setMyCoachName(name) {
 }
 
 /* ---------------- requirements engine (0055) ---------------- */
-/** The team's standing requirement sets (RLS: staff + active members). Best-effort []. */
-export async function fetchRequirementSets(teamId) {
-  const c = sb(); if (!c || !teamId) return [];
-  try { const { data } = await c.from('requirement_sets').select('*').eq('team_id', teamId); return data || []; } catch { return []; }
+/** Which owner column a book kind writes/reads (0136 dual-owner columns). A coach's book is a
+    team, a trainer's is a practice; exactly one is ever set on a row. */
+export const ownerCol = (kind) => (kind === 'practice' ? 'practice_id' : 'team_id');
+
+/** The book's standing requirement sets (RLS: staff/owner + active members/clients). []. */
+export async function fetchRequirementSets(bookId, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
+  try { const { data } = await c.from('requirement_sets').select('*').eq(ownerCol(kind), bookId); return data || []; } catch { return []; }
 }
 /** The signed-in ATHLETE's assignments: everything open plus anything closed recently
     (so a just-completed task still shows Done tonight). Best-effort []. */
@@ -392,34 +689,39 @@ export async function markMyNotificationsRead() {
 /** Coach saves a standing requirement set (team / position / athlete scope). `effectiveDate`
     ('YYYY-MM-DD' or null) makes the change prospective — null is the always-in-effect base
     (team creation / apply-now), a future date leaves today and past days untouched (0085). */
-export async function setTeamRequirements(teamId, scopeKind, scopeValue, items, effectiveDate = null) {
+export async function setTeamRequirements(bookId, scopeKind, scopeValue, items, effectiveDate = null, kind = 'team') {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  const practice = kind === 'practice';
   try {
-    const { error } = await c.rpc('set_team_requirements', {
-      p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null, p_items: items,
-      p_effective_date: effectiveDate || null,
-    });
+    const { error } = await c.rpc(practice ? 'set_practice_requirements' : 'set_team_requirements',
+      practice
+        ? { p_practice: bookId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null, p_items: items, p_effective_date: effectiveDate || null }
+        : { p_team: bookId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null, p_items: items, p_effective_date: effectiveDate || null });
     return error ? { ok: false, error: error.message || 'Could not save the standard.' } : { ok: true };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the standard.' }; }
 }
 /** Remove a scope override so it falls back to the team default (0058). */
-export async function clearTeamRequirements(teamId, scopeKind, scopeValue) {
+export async function clearTeamRequirements(bookId, scopeKind, scopeValue, kind = 'team') {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  const practice = kind === 'practice';
   try {
-    const { error } = await c.rpc('clear_team_requirements', {
-      p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null,
-    });
+    const { error } = await c.rpc(practice ? 'clear_practice_requirements' : 'clear_team_requirements',
+      practice
+        ? { p_practice: bookId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null }
+        : { p_team: bookId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null });
     return error ? { ok: false, error: error.message || 'Could not reset it.' } : { ok: true };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not reset it.' }; }
 }
 
 /** Coach + button → assign_requirement RPC (fans out one row per athlete + push row each).
     Returns { ok, count?, error? } with the server's message surfaced verbatim. */
-export async function assignRequirement({ teamId, scopeKind, scopeValue, title, proof, dueAt, dueLabel, note }) {
+export async function assignRequirement({ teamId, scopeKind, scopeValue, title, proof, dueAt, dueLabel, note, kind = 'team' }) {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  const practice = kind === 'practice';
+  const owner = practice ? { p_practice: teamId } : { p_team: teamId };
   try {
-    const { data, error } = await c.rpc('assign_requirement', {
-      p_team: teamId, p_scope_kind: scopeKind, p_scope_value: scopeValue || null,
+    const { data, error } = await c.rpc(practice ? 'assign_practice_requirement' : 'assign_requirement', {
+      ...owner, p_scope_kind: scopeKind, p_scope_value: scopeValue || null,
       p_title: title, p_proof: proof || 'check', p_due_at: dueAt || null,
       p_due_label: dueLabel || null, p_note: note || null,
     });
@@ -456,6 +758,17 @@ export async function deleteRequirementTemplate(id) {
   try { const { error } = await c.from('requirement_templates').delete().eq('id', id); return { ok: !error }; }
   catch { return { ok: false }; }
 }
+/* Rename only — never touches `items`, so a rename can't accidentally redefine what applying
+   the template fills in. Same duplicate-name message as saveRequirementTemplate (same unique
+   index: team_id, lower(name)). */
+export async function renameRequirementTemplate(id, name) {
+  const c = sb(); if (!c || !id) return { ok: false, error: 'Offline' };
+  try {
+    const { error } = await c.from('requirement_templates').update({ name }).eq('id', id);
+    if (error) return { ok: false, error: /duplicate|unique/i.test(error.message || '') ? 'A template with that name already exists.' : error.message };
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
 
 /* ---- Announcements (Slice C, 0074): staff broadcast → feed rows server-side ---- */
 export async function postAnnouncement({ teamId, scopeKind = 'team', scopeValue = null, title, body }) {
@@ -480,34 +793,36 @@ export async function fetchAnnouncements(teamId, limit = 10) {
 
 /* ---------------- Coach OS core (0071): interventions, groups, exceptions ---------------- */
 /** Log a coach action (nudge/message/assign/handled). The queue and Insights both read this. */
-export async function logIntervention({ teamId, athleteId, kind, reasonKey, tier, note }) {
+export async function logIntervention({ teamId, athleteId, kind, reasonKey, tier, note, book = 'team' }) {
   const c = sb(); if (!c || !teamId || !athleteId || !kind) return false;
+  // `kind` is the INTERVENTION kind (nudge/message/assign/handled); `book` is which owner column
+  // the row hangs off (0136). Exactly one of team_id/practice_id may be set — the CHECK enforces it.
   try {
     const { error } = await c.from('coach_interventions').insert({
-      team_id: teamId, athlete_id: athleteId, kind, day: todayISO(),
+      [ownerCol(book)]: teamId, athlete_id: athleteId, kind, day: todayISO(),
       reason_key: reasonKey || null, tier: tier || null, note: note || null,
     });
     return !error;
   } catch { return false; }
 }
 /** Today's interventions for the team (priority queue filters on these). Best-effort []. */
-export async function fetchTodayInterventions(teamId) {
-  const c = sb(); if (!c || !teamId) return [];
+export async function fetchTodayInterventions(bookId, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
   try {
     const { data } = await c.from('coach_interventions')
       .select('athlete_id,kind,reason_key,tier,created_at')
-      .eq('team_id', teamId).eq('day', todayISO()).limit(400);
+      .eq(ownerCol(kind), bookId).eq('day', todayISO()).limit(400);
     return data || [];
   } catch { return []; }
 }
-export async function fetchCoachGroups(teamId) {
-  const c = sb(); if (!c || !teamId) return [];
-  try { const { data } = await c.from('coach_groups').select('id,name,athlete_ids').eq('team_id', teamId).order('name'); return data || []; } catch { return []; }
+export async function fetchCoachGroups(bookId, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
+  try { const { data } = await c.from('coach_groups').select('id,name,athlete_ids').eq(ownerCol(kind), bookId).order('name'); return data || []; } catch { return []; }
 }
-export async function saveCoachGroup(teamId, { id, name, athleteIds }) {
-  const c = sb(); if (!c || !teamId) return { ok: false, error: 'You need a connection for this.' };
+export async function saveCoachGroup(bookId, { id, name, athleteIds }, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return { ok: false, error: 'You need a connection for this.' };
   try {
-    const row = { team_id: teamId, name, athlete_ids: athleteIds || [], updated_at: new Date().toISOString() };
+    const row = { [ownerCol(kind)]: bookId, name, athlete_ids: athleteIds || [], updated_at: new Date().toISOString() };
     const q = id ? c.from('coach_groups').update(row).eq('id', id) : c.from('coach_groups').insert(row);
     const { error } = await q;
     return error ? { ok: false, error: error.message || 'Could not save the group.' } : { ok: true };
@@ -517,22 +832,69 @@ export async function deleteCoachGroup(id) {
   const c = sb(); if (!c || !id) return false;
   try { const { error } = await c.from('coach_groups').delete().eq('id', id); return !error; } catch { return false; }
 }
-/** Exceptions whose window covers today. Best-effort []. */
-export async function fetchActiveExceptions(teamId) {
+/* Position rooms (0087, T-04 slice 1): first-class rooms, distinct from custom groups above. Members
+   read, staff write. Slice 1 is the object + CRUD only — no auto-assign, no scoring inheritance. */
+export async function fetchTeamRooms(teamId) {
   const c = sb(); if (!c || !teamId) return [];
+  try { const { data } = await c.from('team_rooms').select('id,key,label,sort,staff_owner_id').eq('team_id', teamId).order('sort').order('label'); return data || []; } catch { return []; }
+}
+export async function saveTeamRoom(teamId, { id, key, label, sort }) {
+  const c = sb(); if (!c || !teamId) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const row = { team_id: teamId, key, label, updated_at: new Date().toISOString() };
+    if (typeof sort === 'number') row.sort = sort;
+    const q = id ? c.from('team_rooms').update(row).eq('id', id) : c.from('team_rooms').insert(row);
+    const { error } = await q;
+    return error ? { ok: false, error: error.message || 'Could not save the room.' } : { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the room.' }; }
+}
+export async function deleteTeamRoom(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('team_rooms').delete().eq('id', id); return !error; } catch { return false; }
+}
+/* Set (or clear) a room's staff owner — the position coach responsible for it (T-04 slice 3).
+   Staff-scoped RLS (team_rooms tr_staff_update). staffId null clears the owner. */
+export async function setRoomOwner(roomId, staffId) {
+  const c = sb(); if (!c || !roomId) return { ok: false };
+  try { const { error } = await c.from('team_rooms').update({ staff_owner_id: staffId || null, updated_at: new Date().toISOString() }).eq('id', roomId); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
+}
+/* The signed-in ATHLETE's own assigned room label (0101), or null when unassigned. Drives their
+   standard resolution (an assigned athlete's day follows their room; null = raw position, parity).
+   Reads their own team_members row (tm_read self policy) then the room label (member read). */
+export async function fetchMyRoomLabel(teamId) {
+  const c = sb(); if (!c || !teamId) return null;
+  try {
+    const u = await c.auth.getUser();
+    const uid = u.data.user && u.data.user.id;
+    if (!uid) return null;
+    const { data: mem } = await c.from('team_members').select('room_id').eq('team_id', teamId).eq('athlete_id', uid).eq('status', 'active').maybeSingle();
+    if (!mem || !mem.room_id) return null;
+    const { data: room } = await c.from('team_rooms').select('label').eq('id', mem.room_id).maybeSingle();
+    return room && room.label ? room.label : null;
+  } catch { return null; }
+}
+/* Staff: assign (or reassign) an athlete to a room, or null to un-assign. Server re-checks the
+   coach-link and that the room is on the athlete's team (assign_athlete_room, 0101). */
+export async function assignAthleteRoom(athleteId, roomId) {
+  const c = sb(); if (!c || !athleteId) return { ok: false };
+  try { const { error } = await c.rpc('assign_athlete_room', { p_athlete: athleteId, p_room: roomId || null }); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
+}
+/** Exceptions whose window covers today. Best-effort []. */
+export async function fetchActiveExceptions(bookId, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
   try {
     const t = todayISO();
     const { data } = await c.from('athlete_exceptions')
       .select('id,athlete_id,starts_on,ends_on,reason')
-      .eq('team_id', teamId).lte('starts_on', t).gte('ends_on', t);
+      .eq(ownerCol(kind), bookId).lte('starts_on', t).gte('ends_on', t);
     return data || [];
   } catch { return []; }
 }
-export async function saveAthleteException(teamId, athleteId, startsOn, endsOn, reason) {
-  const c = sb(); if (!c || !teamId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
+export async function saveAthleteException(bookId, athleteId, startsOn, endsOn, reason, kind = 'team') {
+  const c = sb(); if (!c || !bookId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
   try {
     const { error } = await c.from('athlete_exceptions').insert({
-      team_id: teamId, athlete_id: athleteId, starts_on: startsOn, ends_on: endsOn, reason: reason || null,
+      [ownerCol(kind)]: bookId, athlete_id: athleteId, starts_on: startsOn, ends_on: endsOn, reason: reason || null,
     });
     return error ? { ok: false, error: error.message || 'Could not mark that.' } : { ok: true };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not mark that.' }; }
@@ -595,19 +957,19 @@ export async function setStaffRole(teamId, staffId, role) {
 }
 
 /* ---------------- Coach OS Slice B: profile helpers ---------------- */
-export async function fetchCoachNotes(teamId, athleteId) {
-  const c = sb(); if (!c || !teamId || !athleteId) return [];
+export async function fetchCoachNotes(bookId, athleteId, kind = 'team') {
+  const c = sb(); if (!c || !bookId || !athleteId) return [];
   try {
     const { data } = await c.from('coach_notes').select('id,author_id,body,created_at')
-      .eq('team_id', teamId).eq('athlete_id', athleteId)
+      .eq(ownerCol(kind), bookId).eq('athlete_id', athleteId)
       .order('created_at', { ascending: false }).limit(100);
     return data || [];
   } catch { return []; }
 }
-export async function postCoachNote(teamId, athleteId, body) {
-  const c = sb(); if (!c || !teamId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
+export async function postCoachNote(bookId, athleteId, body, kind = 'team') {
+  const c = sb(); if (!c || !bookId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
   try {
-    const { error } = await c.from('coach_notes').insert({ team_id: teamId, athlete_id: athleteId, body });
+    const { error } = await c.from('coach_notes').insert({ [ownerCol(kind)]: bookId, athlete_id: athleteId, body });
     return error ? { ok: false, error: error.message || 'Could not save the note.' } : { ok: true };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the note.' }; }
 }
@@ -615,11 +977,11 @@ export async function deleteCoachNote(id) {
   const c = sb(); if (!c || !id) return false;
   try { const { error } = await c.from('coach_notes').delete().eq('id', id); return !error; } catch { return false; }
 }
-export async function fetchAthleteInterventions(teamId, athleteId, sinceISO) {
-  const c = sb(); if (!c || !teamId || !athleteId) return [];
+export async function fetchAthleteInterventions(bookId, athleteId, sinceISO, kind = 'team') {
+  const c = sb(); if (!c || !bookId || !athleteId) return [];
   try {
     let q = c.from('coach_interventions').select('kind,reason_key,tier,note,created_at')
-      .eq('team_id', teamId).eq('athlete_id', athleteId);
+      .eq(ownerCol(kind), bookId).eq('athlete_id', athleteId);
     if (sinceISO) q = q.gte('day', sinceISO);
     const { data } = await q.order('created_at', { ascending: false }).limit(100);
     return data || [];
@@ -697,7 +1059,11 @@ export async function fetchMyPractices() {
 export async function fetchMyPracticeIdentity() {
   const c = sb(); if (!c) return null;
   try {
-    const { data } = await c.from('practices').select('id,name,join_code,owner_id,handle').limit(1).maybeSingle();
+    // See fetchMyTeamIdentity: supabase-js returns { error } without throwing, so this must be
+    // inspected explicitly or the { error: true } sentinel above is unreachable and Practice HQ
+    // shows "Your client code is being created" forever on a flaky connection.
+    const { data, error } = await c.from('practices').select('id,name,join_code,owner_id,handle').limit(1).maybeSingle();
+    if (error) return { error: true };
     if (!data) return null;
     return { id: data.id, name: data.name || '', code: data.join_code || '', handle: data.handle || null };
   } catch { return { error: true }; }
@@ -745,6 +1111,199 @@ export async function declineClient(practiceId, clientId) {
   try { const { error } = await c.from('practice_clients').delete().eq('practice_id', practiceId).eq('client_id', clientId); return !error; } catch { return false; }
 }
 
+/* ---------------- Trainer monetization wedge (0114): public page + offers + applications ----------------
+   Same best-effort, RLS-scoped shape as every read above — owner_id/owns_practice is the real authz,
+   so no explicit owner filter; failures fall to a null/[]/{error} sentinel and never throw. */
+export async function fetchMyTrainerPage(practiceId) {
+  const c = sb(); if (!c || !practiceId) return null;
+  try { const { data } = await c.from('trainer_public_pages').select('*').eq('practice_id', practiceId).maybeSingle(); return data || null; } catch { return { error: true }; }
+}
+export async function saveMyTrainerPage(practiceId, fields) {
+  const c = sb(); if (!c || !practiceId) return { error: 'no practice' };
+  try {
+    const { error } = await c.from('trainer_public_pages')
+      .upsert({ practice_id: practiceId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'practice_id' });
+    return { ok: !error, error: error && error.message };
+  } catch (e) { return { error: String(e) }; }
+}
+export async function publishMyTrainerPage(practiceId, publish) {
+  const c = sb(); if (!c || !practiceId) return { error: 'no practice' };
+  try {
+    const { data, error } = await c.rpc('publish_trainer_page', { p_practice: practiceId, p_publish: publish });
+    if (error) return { error: error.message };
+    return { ok: true, page: Array.isArray(data) ? data[0] : data };
+  } catch (e) { return { error: String(e) }; }
+}
+export async function fetchMyOffers(practiceId) {
+  const c = sb(); if (!c || !practiceId) return [];
+  try { const { data } = await c.from('offers').select('*').eq('practice_id', practiceId).order('sort').order('created_at'); return data || []; } catch { return []; }
+}
+export async function saveOffer(offer) {
+  const c = sb(); if (!c) return { error: 'no client' };
+  try {
+    const { id, ...row } = offer; row.updated_at = new Date().toISOString();
+    const { error } = id ? await c.from('offers').update(row).eq('id', id) : await c.from('offers').insert(row);
+    return { ok: !error, error: error && error.message };
+  } catch (e) { return { error: String(e) }; }
+}
+export async function deleteOffer(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('offers').delete().eq('id', id); return !error; } catch { return false; }
+}
+export async function fetchMyApplications(practiceId) {
+  const c = sb(); if (!c || !practiceId) return [];
+  try { const { data } = await c.from('trainer_applications').select('*').eq('practice_id', practiceId).order('created_at', { ascending: false }); return data || []; } catch { return []; }
+}
+export async function setApplicationStatus(id, status) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('trainer_applications').update({ status }).eq('id', id); return !error; } catch { return false; }
+}
+
+/* ---------------- OnStandard Pay (0119): Connect onboarding + offer checkout + payments ----------------
+   Edge functions (not RPCs — they call the Stripe API server-side) are invoked via a plain
+   fetch() with the session's own bearer token, the first time the proto has needed this pattern
+   (every prior server write went through supabase-js .rpc()/.from()). window.__SUPABASE carries
+   the project URL the native shell injects (see supabase.js); apikey is the same anon key sb was
+   built with. Every wrapper is best-effort and returns { error } on any failure — never throws. */
+async function callFn(name, body) {
+  const c = sb();
+  const cfg = window.__SUPABASE || {};
+  if (!c || !cfg.url || !cfg.anonKey) return { error: 'not configured' };
+  try {
+    const { data: { session } } = await c.auth.getSession();
+    const token = (session && session.access_token) || cfg.anonKey;
+    const res = await fetch(`${cfg.url}/functions/v1/${name}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: cfg.anonKey, Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body || {}),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: out.error || `request failed (${res.status})` };
+    return out;
+  } catch (e) {
+    return { error: String((e && e.message) || e) };
+  }
+}
+
+/** Mint/resume the trainer's Stripe Connect onboarding link. Returns { url } or { error }. */
+export async function startConnectOnboarding(practiceId) {
+  return callFn('connect-onboarding', { practiceId });
+}
+/** Create a Checkout Session for an offer (destination charge). Returns { url } or { error }. */
+export async function startOfferCheckout(offerId) {
+  return callFn('pay-offer-checkout', { offerId });
+}
+/** Refund one of the trainer's own recorded payments. Returns { ok:true } or { error }. */
+export async function refundOfferPayment(paymentId) {
+  return callFn('refund-payment', { paymentId });
+}
+
+export async function fetchConnectStatus(practiceId) {
+  const c = sb(); if (!c || !practiceId) return null;
+  try { const { data, error } = await c.rpc('my_connect_status', { p_practice: practiceId }); if (error) return null; const r = Array.isArray(data) ? data[0] : data; return r || null; } catch { return null; }
+}
+export async function fetchPracticePayments(practiceId) {
+  const c = sb(); if (!c || !practiceId) return [];
+  try { const { data } = await c.rpc('my_practice_payments', { p_practice: practiceId, p_limit: 30 }); return data || []; } catch { return []; }
+}
+/** The signed-in CLIENT's own connected trainer's payable offers (active Connect + active offer). */
+export async function fetchMyTrainerOffers() {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.rpc('my_trainer_offers'); return data || []; } catch { return []; }
+}
+/** A guardian's children's trainers' payable offers (active guardianship + active client + active Connect). */
+export async function fetchFundedOffers() {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.rpc('my_funded_offers'); return data || []; } catch { return []; }
+}
+/** The guardian's own funded plans (for the Funded plans list). */
+export async function fetchFundedPlans() {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.rpc('my_funded_plans', { p_limit: 50 }); return data || []; } catch { return []; }
+}
+/** Start Checkout for an offer on behalf of a child. Returns { url } or { error }. */
+export async function startFundedCheckout(offerId, beneficiaryAthleteId) {
+  return callFn('pay-offer-checkout', { offerId, beneficiaryAthleteId });
+}
+/** Cancel a recurring funded plan (by an offer_payments row id). Returns { ok:true } or { error }. */
+export async function cancelFundedSubscription(paymentId) {
+  return callFn('cancel-offer-subscription', { paymentId });
+}
+
+/** Generate/fetch the athlete's monthly report. Returns the report object or { error }. */
+export async function fetchMonthlyReport(period, data) {
+  return callFn('monthly-report', { period, data });
+}
+
+/** Open a Stripe-hosted URL (Connect onboarding, Checkout) in the SYSTEM browser via the native
+ *  bridge — never navigate this WebView itself into it (see bridge.ts OPEN_URL for why). Falls
+ *  back to window.open for a plain-browser dev/preview session where the bridge doesn't exist. */
+export function openExternal(url) {
+  if (!url) return;
+  if (window.OnStandardNative && window.OnStandardNative.openUrl) window.OnStandardNative.openUrl(url);
+  else window.open(url, '_blank');
+}
+
+/** Sponsor: start a Stripe checkout for N premium seats. Returns { url } or { error }. */
+export async function startSponsorCheckout(seats, label) { return callFn('sponsor-checkout', { seats, label }); }
+/** Sponsor: my purchased seat batches (code + claimed count). */
+export async function fetchMySponsorships() {
+  const c = sb(); if (!c) return [];
+  try { const { data } = await c.from('sponsorships').select('*').order('created_at', { ascending: false }); return data || []; } catch { return []; }
+}
+/** Athlete: redeem a sponsor code. Returns the RPC row { ok, reason, label, expires_at } or { error }. */
+export async function redeemSponsorCode(code) {
+  const c = sb(); if (!c) return { error: 'not configured' };
+  try { const { data, error } = await c.rpc('redeem_sponsor_code', { p_code: code }); if (error) return { error: error.message }; return Array.isArray(data) ? data[0] : data; }
+  catch (e) { return { error: String((e && e.message) || e) }; }
+}
+
+/* ---------------- consumer subscription (App Store / Play IAP via RevenueCat) ----------------
+   The native store rail. `iapAvailable()` is false in a browser/preview session and until the
+   founder wires react-native-purchases (src/lib/iap) — the paywall stays honest either way. */
+
+/** Whether the native store paywall can transact right now. */
+export async function iapAvailable() {
+  try {
+    if (window.OnStandardNative && window.OnStandardNative.iap) return !!(await window.OnStandardNative.iap.available());
+  } catch { /* bridge missing / preview */ }
+  return false;
+}
+
+/** Present the store purchase sheet for a product id. appUserId MUST be the profile UUID so the
+    RevenueCat webhook can attribute the subscription. Returns { ok:true } | { ok:false, reason, message }. */
+export async function purchaseConsumerPlan(productId, appUserId) {
+  try {
+    if (window.OnStandardNative && window.OnStandardNative.iap) return await window.OnStandardNative.iap.purchase(productId, appUserId);
+  } catch (e) { return { ok: false, reason: 'error', message: String((e && e.message) || e) }; }
+  return { ok: false, reason: 'unavailable' };
+}
+
+/** Restore a prior store purchase (Apple requires this). Same result shape as purchase. */
+export async function restoreConsumerPurchases(appUserId) {
+  try {
+    if (window.OnStandardNative && window.OnStandardNative.iap) return await window.OnStandardNative.iap.restore(appUserId);
+  } catch (e) { return { ok: false, reason: 'error', message: String((e && e.message) || e) }; }
+  return { ok: false, reason: 'unavailable' };
+}
+
+/** The caller's own subscription row for the Plan & billing screen (owner-RLS). Selects only
+    columns present since 0042, so it's safe whether or not the consumer-IAP migration 0102 is live.
+    Returns { tier, status, plan_id, current_period_end, cancel_at_period_end } | null. */
+export async function fetchMySubscription() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data: u } = await c.auth.getUser();
+    const uid = u && u.user && u.user.id;
+    if (!uid) return null;
+    const { data, error } = await c.from('subscriptions')
+      .select('tier,status,plan_id,current_period_end,cancel_at_period_end')
+      .eq('owner_id', uid).maybeSingle();
+    if (error) return null;
+    return data || null;
+  } catch { return null; }
+}
+
 /* ---------------- pure roster projection (honest: no invented numbers) ---------------- */
 export function tierFlag(score) { return score == null ? '' : score >= 80 ? 'g' : score >= 60 ? 'y' : 'r'; }
 /** Merge a roster member (from the RPC) with today's real day row into a UI row.
@@ -758,6 +1317,9 @@ export function buildRosterRow(member, dayRow, extras = {}) {
   return {
     athleteId: member.athlete_id,
     name, unit: member.position || '', position: member.position || '',
+    // Assigned room (0101), or null when unassigned. Drives room-scoped standard resolution in the
+    // coach view + Needs-Assignment; null = the athlete resolves by raw position (parity).
+    roomId: member.room_id || null,
     score, loggedToday: logged,
     flag: logged ? tierFlag(score) : 'r',
     logs: logged && tasks.length ? `${done}/${tasks.length}` : (logged ? 'Logged' : '—'),
@@ -773,81 +1335,104 @@ export function buildRosterRow(member, dayRow, extras = {}) {
   };
 }
 
-/** Full coach roster: teams → members (RPC) → merged with today's linked day rows. */
-export async function loadCoachRoster() {
-  const teams = await fetchMyTeams();
-  if (teams.error) throw new Error('roster-fetch-failed'); // caller renders honest offline
-  if (!teams.length) return { teams: [], rows: [] };
-  const [perTeam, days, recentMeals] = await Promise.all([
-    Promise.all(teams.map(t => fetchTeamRoster(t.id))),
-    fetchLinkedDaysSince(daysAgoISO(7)),
-    fetchTeamActivity(daysAgoISO(2), 400),
-  ]);
-  // Athlete timezones (0088) so coach "overdue"/"due soon" is judged in each athlete's local day.
-  // Best-effort: a pre-migration DB or missing tz leaves the map empty and every row uses the
-  // coach clock (today's behavior). Resolved after perTeam since the ids come from the roster.
-  const tzIds = []; { const s = new Set(); for (const members of perTeam) for (const m of members) if (m && m.athlete_id && !s.has(m.athlete_id)) { s.add(m.athlete_id); tzIds.push(m.athlete_id); } }
-  const tzByAthlete = await fetchProfileTimezones(tzIds);
+/** Distinct athlete ids across a book's member lists, in first-seen order. */
+function athleteIdsOf(perBook) {
+  const seen = new Set(); const ids = [];
+  for (const members of perBook) for (const m of members) {
+    if (m && m.athlete_id && !seen.has(m.athlete_id)) { seen.add(m.athlete_id); ids.push(m.athlete_id); }
+  }
+  return ids;
+}
+
+/** PURE projection shared by both books: members + day rows + recent meals + timezones → sorted UI
+    rows. No fetches, so each loader keeps its own parallelism. A coach's team book and a trainer's
+    practice book differ only in which RPC produced `perBook` — every downstream engine (status,
+    priority, inbox) then reads the same row shape. */
+function projectRows(perBook, days, recentMeals, tzByAthlete) {
   const today = todayISO();
   const dayByAthlete = {}, histByAthlete = {}, lastMealBy = {};
-  for (const d of days) {
+  for (const d of (days || [])) {
     if (d.date === today) dayByAthlete[d.athlete_id] = d;
     (histByAthlete[d.athlete_id] = histByAthlete[d.athlete_id] || []).push({ date: d.date, score: d.score });
   }
   for (const h of Object.values(histByAthlete)) h.sort((a, b) => a.date < b.date ? -1 : 1);
-  for (const m of recentMeals) {
+  for (const m of (recentMeals || [])) {
     if (!lastMealBy[m.athlete_id] || m.logged_at > lastMealBy[m.athlete_id]) lastMealBy[m.athlete_id] = m.logged_at;
   }
   const seen = new Set(); const rows = [];
-  for (const members of perTeam) {
+  for (const members of perBook) {
     for (const m of members) {
       if (seen.has(m.athlete_id)) continue; seen.add(m.athlete_id);
       rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id], {
         scoreHistory: histByAthlete[m.athlete_id] || [],
         lastMealAt: lastMealBy[m.athlete_id] || null,
-        timezone: tzByAthlete[m.athlete_id] || null,
+        timezone: (tzByAthlete || {})[m.athlete_id] || null,
       }));
     }
   }
   rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-  return { teams, rows };
+  return rows;
 }
 
-/** Trainer book: practices → clients (RPC) → merged with today's linked day rows. */
+/** Full coach roster: teams → members (RPC) → merged with today's linked day rows.
+ *  The roster resolves FIRST, then days/meals/timezones read in parallel scoped to those
+ *  athlete ids — not because it changes the roster's own cost, but because fetchLinkedDaysSince
+ *  and fetchTeamActivity can only use their existing indexes when they know which athletes to
+ *  ask for (capacity audit F4/F6). The old ordering (roster + unscoped days/meals in parallel,
+ *  timezones after) ran the two expensive unscoped scans BEFORE the ids that would have scoped
+ *  them were even available. */
+export async function loadCoachRoster() {
+  const teams = await fetchMyTeams();
+  if (teams.error) throw new Error('roster-fetch-failed'); // caller renders honest offline
+  if (!teams.length) return { teams: [], rows: [] };
+  const perTeam = await Promise.all(teams.map(t => fetchTeamRoster(t.id)));
+  const athleteIds = athleteIdsOf(perTeam);
+  const [days, recentMeals, tzByAthlete] = await Promise.all([
+    fetchLinkedDaysSince(daysAgoISO(7), athleteIds),
+    fetchTeamActivity(daysAgoISO(2), 400, athleteIds),
+    // Athlete timezones (0088) so coach "overdue"/"due soon" is judged in each athlete's local
+    // day. Best-effort: a pre-migration DB or missing tz leaves the map empty and every row uses
+    // the coach clock (today's behavior).
+    fetchProfileTimezones(athleteIds),
+  ]);
+  return { teams, rows: projectRows(perTeam, days, recentMeals, tzByAthlete) };
+}
+
+/** Trainer book: practices → clients (RPC) → merged with today's linked day rows.
+    Identical depth to the coach roster above — 7 days of history (sparklines), recent meals
+    (staleness), and timezones. Every one of those reads is `can_view`-scoped (0081 includes
+    is_trainer_of), so parity here needs no server change. Same roster-first ordering as
+    loadCoachRoster, for the same reason (capacity audit F4/F6). */
 export async function loadTrainerBook() {
   const practices = await fetchMyPractices();
   if (practices.error) throw new Error('book-fetch-failed'); // caller renders honest offline
   if (!practices.length) return { practices: [], rows: [] };
-  const [perPractice, days] = await Promise.all([
-    Promise.all(practices.map(p => fetchPracticeRoster(p.id))),
-    fetchLinkedDaysSince(daysAgoISO(1)),
+  const perPractice = await Promise.all(practices.map(p => fetchPracticeRoster(p.id)));
+  const athleteIds = athleteIdsOf(perPractice);
+  const [days, recentMeals, tzByAthlete] = await Promise.all([
+    fetchLinkedDaysSince(daysAgoISO(7), athleteIds),
+    fetchTeamActivity(daysAgoISO(2), 400, athleteIds),
+    fetchProfileTimezones(athleteIds),
   ]);
-  const today = todayISO();
-  const dayByAthlete = {};
-  for (const d of days) { if (d.date === today) dayByAthlete[d.athlete_id] = d; }
-  const seen = new Set(); const rows = [];
-  for (const clients of perPractice) {
-    for (const m of clients) {
-      if (seen.has(m.athlete_id)) continue; seen.add(m.athlete_id);
-      rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id]));
-    }
-  }
-  rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-  return { practices, rows };
+  return { practices, rows: projectRows(perPractice, days, recentMeals, tzByAthlete) };
 }
 
-/* ---------------- Slice E team insights reads (0076) ---------------- */
-export async function fetchTeamDayRollup(teamId, fromISO, toISO) {
-  const c = sb(); if (!c || !teamId) return [];
+/* ---------------- Slice E team insights reads (0076); practice mirror (0137) ---------------- */
+export async function fetchTeamDayRollup(bookId, fromISO, toISO, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
+  const practice = kind === 'practice';
   try {
-    const { data, error } = await c.rpc('team_day_rollup', { p_team: teamId, p_from: fromISO, p_to: toISO });
+    const { data, error } = await c.rpc(practice ? 'practice_day_rollup' : 'team_day_rollup',
+      practice ? { p_practice: bookId, p_from: fromISO, p_to: toISO } : { p_team: bookId, p_from: fromISO, p_to: toISO });
     return error ? [] : (data || []);
   } catch { return []; }
 }
-export async function fetchInterventionOutcomes(teamId, fromISO) {
-  const c = sb(); if (!c || !teamId) return [];
+export async function fetchInterventionOutcomes(bookId, fromISO, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
+  const practice = kind === 'practice';
   try {
-    const { data, error } = await c.rpc('team_intervention_outcomes', { p_team: teamId, p_from: fromISO });
+    const { data, error } = await c.rpc(practice ? 'practice_intervention_outcomes' : 'team_intervention_outcomes',
+      practice ? { p_practice: bookId, p_from: fromISO } : { p_team: bookId, p_from: fromISO });
     return error ? [] : (data || []);
   } catch { return []; }
 }

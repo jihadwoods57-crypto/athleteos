@@ -86,9 +86,10 @@ export type OrgMembershipRow = {
  *  added in 0042. */
 export type SubscriptionRow = {
   owner_id: string;
-  tier: 'preview' | 'team';
+  /** preview = free beta; team = B2B coach/org (Stripe); consumer = Individual/Family IAP (0102). */
+  tier: 'preview' | 'team' | 'consumer';
   status: 'preview' | 'active' | 'past_due' | 'canceled' | 'paused';
-  /** Which catalog plan was bought (pro_solo / professional / org_*). Null pre-0042. */
+  /** Which catalog plan was bought (pro_solo / professional / org_* / individual / family). Null pre-0042. */
   plan_id: string | null;
   seats: number | null;
   seats_used: number | null;
@@ -99,6 +100,10 @@ export type SubscriptionRow = {
   payment_failed_at: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  /** RevenueCat linkage for the consumer IAP rail (0102); null on preview/team rows. */
+  rc_app_user_id?: string | null;
+  store?: 'app_store' | 'play_store' | null;
+  store_product_id?: string | null;
   updated_at: string;
 }
 
@@ -271,6 +276,7 @@ export type GuardianConsentRequestRow = {
   token: string;
   requested_at: string;
   verified_at: string | null;
+  expires_at: string; // 0149 — non-null; approval links expire 14 days after (re)send
 }
 
 // Helper: a table definition matching the `supabase gen types` shape (incl. the
@@ -407,6 +413,33 @@ export interface Database {
       regenerate_my_team_code: { Args: Record<string, never>; Returns: string };
       set_my_practice_code: { Args: { new_code: string }; Returns: string };
       regenerate_my_practice_code: { Args: Record<string, never>; Returns: string };
+      // Verified Commitments (0139). Only the two the NATIVE layer calls are typed here — the
+      // proto WebView reaches the rest through supabase-js untyped, exactly like every other
+      // proto RPC. Note that verify_arrival takes a BOOLEAN, not a position: the comparison to
+      // the coach's geofence happens on device and the coordinate is discarded there.
+      my_armable_geofences: {
+        Args: { p_limit?: number | null };
+        Returns: {
+          instance_id: string;
+          starts_at: string;
+          ends_at: string | null;
+          arrive_by_at: string | null;
+          min_dwell_min: number | null;
+          name: string;
+          lat: number;
+          lng: number;
+          radius_m: number;
+        }[];
+      };
+      verify_arrival: {
+        Args: { p_instance: string; p_source: string; p_within: boolean; p_reason?: string | null };
+        Returns: {
+          status: string;
+          arrived_at: string | null;
+          arrival_source: string | null;
+          unverified_reason: string | null;
+        };
+      };
       coach_set_goals: {
         Args: {
           athlete: string;

@@ -1,7 +1,8 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
-import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, deriveAssigned } from '../requirements.js';
+import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, deriveAssigned, catalogFromItems } from '../requirements.js';
+import { DAY } from '../day.js';
 
 /* Requirement Detail — every rule in the system is legible: what it is, when,
    what proof, what it touches, and the coach's why. One screen serves the whole
@@ -11,7 +12,9 @@ export default {
   render({ sub }) {
     const id = sub || 'dinner';
     const assigned = RT.assigned.find(a => a.id === id);
-    const req = assigned ? deriveAssigned(assigned) : CATALOG.find(r => r.id === id);
+    // Resolve from the built-in CATALOG first, then the coach's standing set items (lift/custom/extra
+    // hydration/weigh), so a coach NON-MEAL requirement opens a real detail screen, not "not found".
+    const req = assigned ? deriveAssigned(assigned) : (CATALOG.find(r => r.id === id) || catalogFromItems(RT.stdItems).find(r => r.id === id));
     // Unknown id (stale deep-link, removed assigned task): a legible empty state with a
     // forward path, not a bare "Nothing here" dead end.
     if (!req) return `${backHead('Requirement', 'Not found', 'plan')}
@@ -24,14 +27,32 @@ export default {
 
     const proof = PROOF[req.proof] || PROOF.check;
     const impact = IMPACT_LABEL[req.impact.kind === 'component' ? req.impact.comp : req.impact.kind];
-    const done = assigned ? assigned.done : false;
+    // A standing NON-MEAL check requirement (coach lift/custom) completes one-tap into the per-day
+    // checked store — tracked, not scored. Its done-state reads from DAY.checkedTasks (toggle to undo).
+    const isStandingCheck = !assigned && req.proof === 'check';
+    const checkDone = isStandingCheck && !!(DAY.checkedTasks && DAY.checkedTasks[id]);
+    const done = assigned ? assigned.done : checkDone;
 
-    const actionBtn = assigned
+    // Training/lift (0135): the standing lift item opens a lightweight log (title + how'd it go +
+    // notes) instead of a one-tap check. Carries the coach's programmed session (title/desc).
+    const stdItem = (RT.stdItems || []).find((i) => i.id === id) || null;
+    const isTraining = !assigned && stdItem && stdItem.kind === 'lift';
+
+    let actionBtn = assigned
       ? (done
         ? `<div class="day-done"><div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
            <div><div class="tt">Done. ${assigned.from} can see it.</div><div class="ts">Completed tonight.</div></div></div>`
         : `<button class="btn green" data-act="completeAssigned:${id}" data-then="requirement/${id}">${icon('check', 19)} Mark Done · coach sees it</button>`)
-      : `<button class="btn primary" data-go="${req.route || proof.route || 'home'}">${icon(req.icon, 19)} ${proof.verb} ${req.title}</button>`;
+      : isStandingCheck
+        ? (checkDone
+          ? `<button class="btn ghost" data-act="completeCheck:${id}" data-then="requirement/${id}" style="width:100%">${icon('check', 19)} Done · coach sees it · tap to undo</button>`
+          : `<button class="btn green" data-act="completeCheck:${id}" data-then="requirement/${id}">${icon('check', 19)} Mark Done · coach sees it</button>`)
+        : `<button class="btn primary" data-go="${req.route || proof.route || 'home'}">${icon(req.icon, 19)} ${proof.verb} ${req.title}</button>`;
+
+    // Training override: route to the lightweight session log rather than a one-tap check.
+    if (isTraining) actionBtn = checkDone
+      ? `<button class="btn ghost" data-go="log-training/${id}" style="width:100%">${icon('check', 19)} Logged today · tap to update</button>`
+      : `<button class="btn green" data-go="log-training/${id}">${icon('bolt', 19)} Log this session</button>`;
 
     return `
     ${backHead(req.title, assigned ? `Assigned by ${assigned.from}` : freqLabel(req.freq), 'home')}
@@ -66,8 +87,12 @@ export default {
         const init = who.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
         return `<div class="who"><div class="av">${esc(init)}</div><div><div class="nm">${esc(who)}</div><div class="rl">${assigned ? 'On this task' : 'On this requirement'}</div></div></div>`;
       })()}
-      <p>“${esc(req.note)}”</p>
+      ${req.note ? `<p>“${esc(req.note)}”</p>` : ''}
     </div>
+
+    ${isTraining && stdItem.desc ? `
+    <div class="eyebrow">The session</div>
+    <div class="coachnote"><p>${esc(stdItem.desc)}</p></div>` : ''}
 
     <div style="height:18px"></div>
     ${actionBtn}

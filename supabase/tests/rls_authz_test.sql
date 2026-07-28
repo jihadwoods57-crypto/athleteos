@@ -43,7 +43,9 @@ language plpgsql as $$
 begin
   execute 'reset role';
   perform set_config('request.jwt.claim.sub', p_uid::text, false);
-  perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, false);
+  -- aal2: sessions in this suite model a fully-authenticated (MFA-verified) user. aal is read only by
+  -- is_platform_admin() (Command Center gate, migration 0130); every other boundary is aal-agnostic.
+  perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated', 'aal', 'aal2')::text, false);
   execute 'set role authenticated';
 end $$;
 
@@ -51,6 +53,20 @@ create or replace function _superuser() returns void
 language plpgsql as $$ begin execute 'reset role'; end $$;
 grant execute on function _superuser() to authenticated, anon;
 grant execute on function _as(uuid) to authenticated, anon;
+
+-- become an actor whose password `amr` timestamp is p_age seconds ago — for step-up reauth tests
+create or replace function _as_amr(p_uid uuid, p_age int) returns void
+language plpgsql as $$
+begin
+  execute 'reset role';
+  perform set_config('request.jwt.claim.sub', p_uid::text, false);
+  perform set_config('request.jwt.claims', json_build_object(
+    'sub', p_uid, 'role', 'authenticated', 'aal', 'aal2', 'session_id', '11111111-1111-1111-1111-111111111111',
+    'amr', json_build_array(json_build_object('method','password','timestamp',(extract(epoch from now())::bigint - p_age)))
+  )::text, false);
+  execute 'set role authenticated';
+end $$;
+grant execute on function _as_amr(uuid, int) to authenticated, anon;
 
 -- attempt a write AS THE CURRENT ACTOR (security invoker); report 'ok' or the denial
 create or replace function _try(p_sql text) returns text
@@ -266,6 +282,32 @@ select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, ro
 select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values ('e0000000-0000-0000-0000-00000000000b','bbbbbbbb-0000-0000-0000-000000000002','11111111-0000-0000-0000-000000000001','coach','drive-by')$q$) <> 'ok',
            'coach_1 CANNOT comment on stranger B''s meal');
 
+-- progress photos (0133) + dietary declarations (0134): owner-write, coach-read via can_view
+-- (same trust tier as meals — coach_1 can_view A is proven just above; B/coach_2 are strangers).
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok(_try($q$insert into progress_photos(athlete_id,photo_path,pose) values ('aaaaaaaa-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001/1.jpg','front')$q$) = 'ok', 'progress_photos: athlete inserts own');
+select _ok(_try($q$insert into progress_photos(athlete_id,photo_path) values ('bbbbbbbb-0000-0000-0000-000000000002','bbbbbbbb-0000-0000-0000-000000000002/x.jpg')$q$) <> 'ok', 'progress_photos: athlete cannot insert for another');
+select _ok((select count(*) from progress_photos where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=1, 'progress_photos: owner reads own');
+select _ok(_try($q$insert into dietary_restrictions(athlete_id,data) values ('aaaaaaaa-0000-0000-0000-000000000001','{"allergies":[{"name":"Peanuts","severity":"severe"}]}'::jsonb)$q$) = 'ok', 'dietary: athlete writes own');
+select _ok(_try($q$insert into dietary_restrictions(athlete_id,data) values ('bbbbbbbb-0000-0000-0000-000000000002','{}'::jsonb)$q$) <> 'ok', 'dietary: athlete cannot write for another');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');  -- stranger
+select _ok((select count(*) from progress_photos where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=0, 'progress_photos: stranger sees none');
+select _ok((select count(*) from dietary_restrictions where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=0, 'dietary: stranger sees none');
+select _ok(_try($q$delete from progress_photos where athlete_id='aaaaaaaa-0000-0000-0000-000000000001'$q$) = 'ok', 'progress_photos: stranger delete is RLS-filtered (no error, no effect)');
+select _as('11111111-0000-0000-0000-000000000001');  -- coach_1 (can_view A)
+select _ok((select count(*) from progress_photos where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=1, 'progress_photos: linked coach reads via can_view (stranger delete changed nothing)');
+select _ok((select count(*) from dietary_restrictions where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=1, 'dietary: linked coach reads via can_view');
+
+-- training_logs (0135): owner-write, coach-read via can_view (tracked-not-scored session log).
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok(_try($q$insert into training_logs(athlete_id,title,feel,source) values ('aaaaaaaa-0000-0000-0000-000000000001','Lower Body A',4,'coach')$q$) = 'ok', 'training_logs: athlete writes own');
+select _ok(_try($q$insert into training_logs(athlete_id,title,source) values ('bbbbbbbb-0000-0000-0000-000000000002','x','self')$q$) <> 'ok', 'training_logs: athlete cannot write for another');
+select _ok(_try($q$insert into training_logs(athlete_id,title,feel,source) values ('aaaaaaaa-0000-0000-0000-000000000001','bad',9,'self')$q$) <> 'ok', 'training_logs: feel out of 1-5 range is rejected');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');
+select _ok((select count(*) from training_logs where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=0, 'training_logs: stranger sees none');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select count(*) from training_logs where athlete_id='aaaaaaaa-0000-0000-0000-000000000001')=1, 'training_logs: linked coach reads via can_view');
+
 select _as('22222222-0000-0000-0000-000000000002');  -- coach_2 (stranger coach)
 select _ok((select count(*) from meals where athlete_id in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004')) = 0,
            'stranger coach_2 sees none of A''s or minor M''s meals');
@@ -304,8 +346,8 @@ select _ok((select count(*) from guardian_children() where athlete_id = 'ddddddd
            '0081: parent P sees their minor ONLY via guardian_children() (scores, not photos/weight)');
 select _ok((select count(*) from meals where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') = 0,
            'parent P CANNOT read unrelated athlete A''s meals');
-select _ok((select count(*) from checkins where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 1,
-           'parent P CAN read their minor''s checkin');
+select _ok((select count(*) from checkins where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 0,
+           '0081: parent P CANNOT read their minor''s checkin directly (weight/notes live here)');
 
 -- ================================================================ 6. TRAINER SCOPE
 select _as('44444444-0000-0000-0000-000000000004');
@@ -771,6 +813,199 @@ select _ok((select jsonb_array_length(items) from requirement_sets
             where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='VER' and effective_date is null) = 1,
            'versioning: the base version is untouched — today is unchanged');
 
+-- 8d. PRACTICE/OPERATOR PARITY (0136): a trainer's practice owns the same coaching artifacts a
+--     team does, via dual-owner (team_id | practice_id) columns. Runs BEFORE section 8's
+--     revocations, while trainer T ⇄ client A is still an active link.
+select _superuser();
+-- A second practice, owned by rando, so "another operator's practice" is a real boundary and not
+-- just an absent row.
+insert into practices (id, owner_id, name, join_code) values
+  ('88888888-0000-0000-0000-000000000002','99999999-0000-0000-0000-000000000009','P2','P2CODE');
+insert into practice_clients (practice_id, client_id, status) values
+  ('88888888-0000-0000-0000-000000000002','bbbbbbbb-0000-0000-0000-000000000002','active');
+
+-- --- the one-owner invariant (data integrity, probed as superuser: writes here are RPC-only) ---
+select _ok(_try($q$insert into requirement_sets (team_id, practice_id, scope_kind, items, created_by)
+                   values ('77777777-1111-0000-0000-000000000001','88888888-0000-0000-0000-000000000001','team',
+                           '[{"id":"m1","title":"B","kind":"meal","proof":"photo"}]'::jsonb,
+                           '11111111-0000-0000-0000-000000000001')$q$) <> 'ok',
+           '0136: a requirement_set cannot name BOTH a team and a practice');
+select _ok(_try($q$insert into requirement_sets (scope_kind, items, created_by)
+                   values ('team','[{"id":"m1","title":"B","kind":"meal","proof":"photo"}]'::jsonb,
+                           '11111111-0000-0000-0000-000000000001')$q$) <> 'ok',
+           '0136: a requirement_set must name an owner — neither is refused');
+
+-- --- standards: the practice owner writes; nobody else does ---
+select _as('44444444-0000-0000-0000-000000000004');  -- trainer T, owns P1
+select _ok(_try($q$select set_practice_requirements('88888888-0000-0000-0000-000000000001','team',null,
+                     '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) = 'ok',
+           '0136: trainer T CAN set their own practice standard');
+select _ok(_try($q$select set_practice_requirements('88888888-0000-0000-0000-000000000002','team',null,
+                     '[{"id":"m1","title":"X","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) <> 'ok',
+           '0136: trainer T CANNOT set another practice''s standard');
+select _ok(_try($q$select set_practice_requirements('88888888-0000-0000-0000-000000000001','position','LB',
+                     '[{"id":"m1","title":"X","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) <> 'ok',
+           '0136: a practice standard refuses position scope (practice_roster has no position)');
+select _ok(_try($q$select set_team_requirements('77777777-1111-0000-0000-000000000001','team',null,
+                     '[{"id":"m1","title":"X","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) <> 'ok',
+           '0136: trainer T CANNOT set a TEAM standard through the coach RPC');
+select _as('99999999-0000-0000-0000-000000000009');  -- rando owns P2, not P1
+select _ok(_try($q$select set_practice_requirements('88888888-0000-0000-0000-000000000001','team',null,
+                     '[{"id":"m1","title":"X","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) <> 'ok',
+           '0136: a non-owner CANNOT set P1''s standard');
+
+-- --- ⚠ THE UNIQUE-INDEX TRAP: with team_id nullable, every practice row's NULL team_id would be
+--     "distinct" under the old key, so re-saving would DUPLICATE instead of replacing and the
+--     client resolver would become non-deterministic about which set governs.
+select _as('44444444-0000-0000-0000-000000000004');
+select set_practice_requirements('88888888-0000-0000-0000-000000000001','team',null,
+  '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},{"id":"m2","title":"D","kind":"meal","proof":"photo"}]'::jsonb, null);
+select _ok((select count(*) from requirement_sets
+            where practice_id='88888888-0000-0000-0000-000000000001' and scope_kind='team') = 1,
+           '0136: re-saving a practice standard REPLACES it — the rebuilt unique index still bites');
+select _ok((select jsonb_array_length(items) from requirement_sets
+            where practice_id='88888888-0000-0000-0000-000000000001' and scope_kind='team') = 2,
+           '0136: the replacement kept the newer items');
+-- ...and versioning still works per-practice (same prospective-date semantics as a team).
+select set_practice_requirements('88888888-0000-0000-0000-000000000001','team',null,
+  '[{"id":"m1","title":"B","kind":"meal","proof":"photo"}]'::jsonb, current_date + 1);
+select _ok((select count(*) from requirement_sets
+            where practice_id='88888888-0000-0000-0000-000000000001' and scope_kind='team') = 2,
+           '0136: a future-dated practice standard adds a version beside the base');
+
+-- --- the coach side is UNCHANGED by the index rebuild (the regression this migration risks) ---
+select _as('11111111-0000-0000-0000-000000000001');  -- head coach of T1
+select _ok(_try($q$select set_team_requirements('77777777-1111-0000-0000-000000000001','position','REG',
+                     '[{"id":"m1","title":"B","kind":"meal","proof":"photo"}]'::jsonb, null)$q$) = 'ok',
+           '0136: set_team_requirements still works after the ON CONFLICT target was rebuilt');
+select set_team_requirements('77777777-1111-0000-0000-000000000001','position','REG',
+  '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},{"id":"m2","title":"D","kind":"meal","proof":"photo"}]'::jsonb, null);
+select _ok((select count(*) from requirement_sets
+            where team_id='77777777-1111-0000-0000-000000000001' and scope_kind='position' and scope_value='REG') = 1,
+           '0136: a coach re-save still REPLACES rather than duplicating');
+select _ok((select count(*) from requirement_sets where practice_id is not null) = 0,
+           '0136: a coach cannot see ANY practice-owned standard');
+
+-- --- the member read: this is what stops the client Plan screen attributing built-in defaults
+--     to a named trainer. The client must read the practice standard that governs THEM.
+select _as('aaaaaaaa-0000-0000-0000-000000000001');  -- client A of practice P1
+select _ok((select count(*) from requirement_sets
+            where practice_id='88888888-0000-0000-0000-000000000001') >= 1,
+           '0136: client A CAN read the practice standard governing them');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');  -- B is a client of P2, a stranger to P1
+select _ok((select count(*) from requirement_sets
+            where practice_id='88888888-0000-0000-0000-000000000001') = 0,
+           '0136: a stranger CANNOT read another practice''s standard');
+
+-- --- assignments fan out from practice_clients and reach the client ---
+select _as('44444444-0000-0000-0000-000000000004');
+select _ok((select assign_practice_requirement('88888888-0000-0000-0000-000000000001','team',null,
+              'Extra shake','check',null,null,null)) = 1,
+           '0136: assign_practice_requirement fans out to the practice''s active clients');
+select _ok(_try($q$select assign_practice_requirement('88888888-0000-0000-0000-000000000002','team',null,
+                     'Nope','check',null,null,null)$q$) <> 'ok',
+           '0136: trainer T CANNOT assign into another practice');
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok((select count(*) from requirement_assignments
+            where practice_id='88888888-0000-0000-0000-000000000001' and athlete_id = auth.uid()) = 1,
+           '0136: the client reads their own practice assignment');
+select _ok((select count(*) from notifications
+            where user_id = auth.uid() and title like 'New from your trainer:%') = 1,
+           '0136: the assignment notification names the TRAINER, not a coach');
+
+-- --- interventions / notes / groups / exceptions: practice-owned, owner-only ---
+select _as('44444444-0000-0000-0000-000000000004');
+select _ok(_try($q$insert into coach_interventions (practice_id, athlete_id, kind)
+                   values ('88888888-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','nudge')$q$) = 'ok',
+           '0136: trainer T CAN log an intervention on their own practice');
+select _ok(_try($q$insert into coach_interventions (practice_id, athlete_id, kind)
+                   values ('88888888-0000-0000-0000-000000000002','bbbbbbbb-0000-0000-0000-000000000002','nudge')$q$) <> 'ok',
+           '0136: trainer T CANNOT log an intervention on another practice');
+select _ok(_try($q$insert into coach_notes (practice_id, athlete_id, body)
+                   values ('88888888-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','private')$q$) = 'ok',
+           '0136: trainer T CAN write a private note on their own client');
+select _ok(_try($q$insert into coach_groups (practice_id, name) values ('88888888-0000-0000-0000-000000000001','Morning')$q$) = 'ok',
+           '0136: trainer T CAN create a practice group');
+select _ok(_try($q$insert into athlete_exceptions (practice_id, athlete_id)
+                   values ('88888888-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001')$q$) = 'ok',
+           '0136: trainer T CAN excuse their own client');
+-- The 0073 invariant, re-asserted on the practice branch: a note is ABOUT the athlete and the
+-- athlete must NEVER read it. (This is why cn_staff_read is is_practice_staff, not can_view.)
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok((select count(*) from coach_notes where practice_id='88888888-0000-0000-0000-000000000001') = 0,
+           '0136: the client CANNOT read a private note written about them');
+select _ok((select count(*) from athlete_exceptions
+            where practice_id='88888888-0000-0000-0000-000000000001' and athlete_id = auth.uid()) = 1,
+           '0136: the client CAN see their own excused window (ae_athlete_read still applies)');
+-- A coach must not reach across into practice-owned rows, and vice versa.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select count(*) from coach_notes where practice_id is not null) = 0,
+           '0136: a coach CANNOT read practice-owned notes');
+select _ok((select count(*) from coach_interventions where practice_id is not null) = 0,
+           '0136: a coach CANNOT read practice-owned interventions');
+select _as('44444444-0000-0000-0000-000000000004');
+select _ok((select count(*) from coach_notes where team_id is not null) = 0,
+           '0136: a trainer CANNOT read team-owned notes');
+select _ok((select count(*) from requirement_sets where team_id is not null) = 0,
+           '0136: a trainer CANNOT read team-owned standards');
+
+-- 8e. PRACTICE ROLLUPS (0137): the trainer mirror of team_day_rollup / team_intervention_outcomes.
+select _superuser();
+-- A second day row for client A so the window has >1 day (mirrors the team rollup's own shape).
+insert into days (athlete_id, date, score) values ('aaaaaaaa-0000-0000-0000-000000000001', current_date - 1, 70);
+
+select _as('44444444-0000-0000-0000-000000000004');  -- trainer T, owns P1
+select _ok((select count(*) from practice_day_rollup(
+             '88888888-0000-0000-0000-000000000001', current_date - 7, current_date)
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') = 2,
+           '0137: the rollup carries both of client A''s day rows');
+-- Compared against the ACTUALLY-STORED score, not the seeded literal: the 0041 evidence-ceiling
+-- trigger clamps a bare days row (no meals/checkin/commitment evidence) below what was inserted,
+-- same as the team rollup's own probe does above. This still proves the rollup passes through
+-- whatever the table holds — never a fabricated/rounded number of its own.
+select _ok((select score from practice_day_rollup(
+             '88888888-0000-0000-0000-000000000001', current_date, current_date)
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001')
+         = (select score from days where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001' and date = current_date),
+           '0137: the rollup carries A''s real (evidence-clamped) score, not a fabricated one');
+select _ok((select "position" from practice_day_rollup(
+             '88888888-0000-0000-0000-000000000001', current_date, current_date)
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') is null,
+           '0137: position is honestly null on a practice rollup (practice_roster has none)');
+select _ok(_try($q$select practice_day_rollup('88888888-0000-0000-0000-000000000002', current_date - 7, current_date)$q$)
+             like '%not authorized%',
+           '0137: trainer T CANNOT read another practice''s day rollup');
+select _ok(_try($q$select practice_day_rollup('88888888-0000-0000-0000-000000000001', current_date - 100, current_date)$q$)
+             like '%0-62 days%',
+           '0137: the 62-day window cap is enforced on a practice rollup same as a team''s');
+-- A practice id is refused by the TEAM rollup RPC's own gate, and vice versa.
+select _ok(_try($q$select team_day_rollup('88888888-0000-0000-0000-000000000001', current_date - 7, current_date)$q$)
+             like '%not authorized%',
+           '0137: a practice id is refused by the TEAM rollup RPC (is_team_staff denies it)');
+select _as('99999999-0000-0000-0000-000000000009');  -- rando owns P2, not P1
+select _ok(_try($q$select practice_day_rollup('88888888-0000-0000-0000-000000000001', current_date - 7, current_date)$q$)
+             like '%not authorized%',
+           '0137: a non-owner CANNOT read P1''s rollup');
+select _as('11111111-0000-0000-0000-000000000001');  -- head coach of T1, not any practice
+select _ok(_try($q$select practice_day_rollup('88888888-0000-0000-0000-000000000001', current_date - 7, current_date)$q$)
+             like '%not authorized%',
+           '0137: a coach CANNOT read a practice''s rollup');
+
+-- Intervention outcomes: reuses the coach_interventions row 8d logged (trainer T, kind 'nudge',
+-- athlete A) — practice_intervention_outcomes must resolve it with a before/after score window.
+select _as('44444444-0000-0000-0000-000000000004');
+select _ok((select count(*) from practice_intervention_outcomes(
+             '88888888-0000-0000-0000-000000000001', current_date - 30)
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') >= 1,
+           '0137: the outcomes read finds the intervention 8d logged on this practice');
+select _ok(_try($q$select practice_intervention_outcomes('88888888-0000-0000-0000-000000000002', current_date - 30)$q$)
+             like '%not authorized%',
+           '0137: trainer T CANNOT read another practice''s intervention outcomes');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($q$select practice_intervention_outcomes('88888888-0000-0000-0000-000000000001', current_date - 30)$q$)
+             like '%not authorized%',
+           '0137: a coach CANNOT read a practice''s intervention outcomes');
+
 -- ================================================================ 8. REVOCATION CUTS ACCESS *NOW*
 select _superuser();
 update team_members set status = 'removed'
@@ -931,6 +1166,1028 @@ select _ok((select count(*) from staff_invites where id='a5000000-0000-0000-0000
            '0079: staff_invite survives erasure with created_by nulled');
 select _ok((select count(*) from profiles where id='12000000-0000-0000-0000-000000000012') = 0,
            '0079: the erased coach''s profile is actually gone');
+
+-- ================================================================ 0103: per-field weight visibility
+-- Deny-by-default weight (founder decision 2026-07-21): only head_coach / athletic_trainer /
+-- s_and_c team staff (+ trainers + self) may read body weight. The wall is the COLUMN-SPLIT
+-- SELECT grant (nobody reads the raw columns directly — not even allowed roles; the RPCs are
+-- the only doors) + can_view_weight inside weight_series / athlete_plan_meta / coach_set_goals.
+-- Self-contained cast on a fresh team TW so earlier sections' membership flips can't interfere.
+select _superuser();
+insert into auth.users (id, email) values
+  ('a1030000-0000-0000-0000-0000000000a1','w@x.io'),  -- athlete W
+  ('a1030000-0000-0000-0000-0000000000c1','whc@x.io'),-- head coach (allowed)
+  ('a1030000-0000-0000-0000-0000000000c2','wat@x.io'),-- athletic trainer (allowed)
+  ('a1030000-0000-0000-0000-0000000000c3','wpc@x.io'),-- position coach (RESTRICTED)
+  ('a1030000-0000-0000-0000-0000000000c4','wnu@x.io');-- nutritionist (RESTRICTED, keeps protein/cal lane)
+insert into profiles (id, full_name, email, primary_role) values
+  ('a1030000-0000-0000-0000-0000000000a1','Athlete W','w@x.io','athlete'),
+  ('a1030000-0000-0000-0000-0000000000c1','HC W','whc@x.io','coach'),
+  ('a1030000-0000-0000-0000-0000000000c2','AT W','wat@x.io','coach'),
+  ('a1030000-0000-0000-0000-0000000000c3','PC W','wpc@x.io','coach'),
+  ('a1030000-0000-0000-0000-0000000000c4','NU W','wnu@x.io','coach')
+  on conflict (id) do update set full_name = excluded.full_name, primary_role = excluded.primary_role;
+insert into teams (id, name, join_code, created_by) values
+  ('a1030000-1111-0000-0000-000000000001','TW','TWCODE','a1030000-0000-0000-0000-0000000000c1');
+insert into team_members (team_id, athlete_id, status, position) values
+  ('a1030000-1111-0000-0000-000000000001','a1030000-0000-0000-0000-0000000000a1','active','WR');
+insert into team_staff (team_id, staff_id, role, status) values
+  ('a1030000-1111-0000-0000-000000000001','a1030000-0000-0000-0000-0000000000c1','head_coach','active'),
+  ('a1030000-1111-0000-0000-000000000001','a1030000-0000-0000-0000-0000000000c2','athletic_trainer','active'),
+  ('a1030000-1111-0000-0000-000000000001','a1030000-0000-0000-0000-0000000000c3','position_coach','active'),
+  ('a1030000-1111-0000-0000-000000000001','a1030000-0000-0000-0000-0000000000c4','nutritionist','active');
+insert into days (athlete_id, date, meals, score, grade, current_weight) values
+  ('a1030000-0000-0000-0000-0000000000a1', current_date, '{"breakfast":true}'::jsonb, 80, 'B', 201);
+insert into checkins (athlete_id, week, weight, energy) values
+  ('a1030000-0000-0000-0000-0000000000a1', '0103-w', 200, 8);
+insert into athlete_profiles (athlete_id, base_weight, base_goal, targets) values
+  ('a1030000-0000-0000-0000-0000000000a1', 199, 'perform', '{"protein":180,"calories":3200,"weight":190}'::jsonb)
+  on conflict (athlete_id) do update set base_weight = excluded.base_weight, targets = excluded.targets;
+
+-- The column wall: DIRECT weight-column selects are denied for everyone (the RPC is the door)…
+select _as('a1030000-0000-0000-0000-0000000000c3'); -- position coach
+select _ok(_try($q$select current_weight from days where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) like 'denied(42501)%',
+           '0103: position coach direct days.current_weight select is column-denied');
+select _ok(_try($q$select weight from checkins where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) like 'denied(42501)%',
+           '0103: position coach direct checkins.weight select is column-denied');
+select _ok(_try($q$select base_weight from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) like 'denied(42501)%',
+           '0103: position coach direct athlete_profiles.base_weight select is column-denied');
+select _ok(_try($q$select targets from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) like 'denied(42501)%',
+           '0103: position coach direct athlete_profiles.targets select is column-denied');
+-- …while the NON-weight columns and row visibility are untouched (the whole suite's count(*)
+-- idiom keeps working under column grants — this is the regression sentinel for that).
+select _ok(_try($q$select date, score, meals from days where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) = 'ok',
+           '0103: position coach still reads the day row''s non-weight columns');
+select _ok((select count(*) from days where athlete_id='a1030000-0000-0000-0000-0000000000a1') = 1,
+           '0103: count(*) over days still works for staff under column grants');
+select _ok(_try($q$select energy from checkins where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) = 'ok',
+           '0103: position coach still reads non-weight checkin columns');
+select _ok(_try($q$select base_goal, "position", sport from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'$q$) = 'ok',
+           '0103: position coach still reads non-weight profile columns');
+-- The RPC doors return LESS for the restricted: zero series rows, nulled/stripped plan meta.
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 0,
+           '0103: weight_series returns ZERO rows to a position coach');
+select _ok((select base_weight is null and not (targets ? 'weight') and (targets ? 'protein') and (targets ? 'calories')
+            from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
+           '0103: plan meta for a position coach has no base_weight, no target weight, but keeps protein/calories');
+
+select _as('a1030000-0000-0000-0000-0000000000c4'); -- nutritionist (deliberately restricted)
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 0,
+           '0103: weight_series returns ZERO rows to the nutritionist');
+select _ok((select not (targets ? 'weight') and (targets->>'protein')::int = 180
+            from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
+           '0103: nutritionist keeps the protein target but never the weight target');
+-- Write guard: the nutritionist's save goes through, but the stored target weight DOESN'T move.
+select _ok(_try($q$select coach_set_goals('a1030000-0000-0000-0000-0000000000a1','{"protein":200,"calories":3300,"weight":150}'::jsonb, null)$q$) = 'ok',
+           '0103: nutritionist coach_set_goals succeeds (their protein/cal lane is intact)');
+select _superuser();
+select _ok((select (targets->>'weight')::int = 190 and (targets->>'protein')::int = 200
+            from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'),
+           '0103: nutritionist save moved protein to 200 but the weight target stayed 190');
+
+select _as('a1030000-0000-0000-0000-0000000000c2'); -- athletic trainer (allowed)
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 1
+           and (select weight from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 201,
+           '0103: athletic trainer reads the real weight series through the RPC');
+select _ok((select base_weight = 199 and (targets->>'weight')::int = 190
+            from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
+           '0103: athletic trainer reads base_weight and the weight target');
+select _ok(_try($q$select coach_set_goals('a1030000-0000-0000-0000-0000000000a1','{"protein":200,"calories":3300,"weight":185}'::jsonb, null)$q$) = 'ok',
+           '0103: athletic trainer coach_set_goals succeeds');
+select _superuser();
+select _ok((select (targets->>'weight')::int = 185 from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'),
+           '0103: the athletic trainer''s weight target write actually lands');
+
+select _as('a1030000-0000-0000-0000-0000000000c1'); -- head coach (allowed)
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 1,
+           '0103: head coach reads the weight series');
+
+select _as('a1030000-0000-0000-0000-0000000000a1'); -- the athlete themself
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 1
+           and (select base_weight = 199 and (targets ? 'weight') from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
+           '0103: the athlete always reads their own weight in full (is_self)');
+
+select _as('99999999-0000-0000-0000-000000000009'); -- rando, no links
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 0
+           and (select count(*) from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')) = 0,
+           '0103: an unlinked stranger gets zero rows from both weight doors');
+
+-- ================================================================ feature flags (0109)
+-- Two tables (feature_flags, admin_audit_log) are RPC/service-role ONLY. A normal authenticated
+-- user must not be able to read/write them directly, and the admin RPCs must reject non-admins.
+select _superuser();
+insert into platform_admins (user_id) values ('55555555-0000-0000-0000-000000000005') on conflict do nothing;
+
+-- rando (no links, not a platform admin): no direct table access, no admin RPCs.
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select count(*) from feature_flags $f$) <> 'ok', 'ff: rando cannot select feature_flags');
+select _ok(_try($f$ insert into feature_flags(name) values ('x') $f$) <> 'ok', 'ff: rando cannot insert feature_flags');
+select _ok(_try($f$ select count(*) from admin_audit_log $f$) <> 'ok', 'ff: rando cannot select admin_audit_log');
+select _ok(_try($f$ select admin_list_flags() $f$) <> 'ok', 'ff: rando denied admin_list_flags');
+select _ok(_try($f$ select admin_set_flag('x','',true,false,'{}','{}','{}') $f$) <> 'ok', 'ff: rando denied admin_set_flag');
+
+-- platform admin (55555555…005, registered above): can list, can set, and the write is audited.
+select _as('55555555-0000-0000-0000-000000000005');
+select _ok(_try($f$ select admin_list_flags() $f$) = 'ok', 'ff: admin can list flags');
+select _ok(_try($f$ select admin_set_flag('probe','p',true,false,'{}','{}','{}') $f$) = 'ok', 'ff: admin can set flag');
+select _superuser();
+select _ok((select count(*) from admin_audit_log where target = 'probe' and action = 'feature_flag.set') = 1,
+           'ff: admin_set_flag wrote exactly one audit row (before/after)');
+select _ok((select default_on from feature_flags where name = 'probe') = true,
+           'ff: admin_set_flag persisted the row');
+
+-- ================================================================ command center phase 1A (0115)
+-- admin_bootstrap is the ONLY admin RPC that RETURNS for a non-admin (is_admin=false) so the client can
+-- render "access denied"; the search RPCs keep the raise-gate. Reuses the 55555…005 admin seeded above.
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok((admin_bootstrap() ->> 'is_admin') = 'false', 'cc: bootstrap reports non-admin is_admin=false');
+select _ok(_try($f$ select admin_global_search('a', 5) $f$) <> 'ok', 'cc: rando denied admin_global_search');
+select _ok(_try($f$ select admin_audit_search(null, null, 5) $f$) <> 'ok', 'cc: rando denied admin_audit_search');
+
+select _as('55555555-0000-0000-0000-000000000005');
+select _ok((admin_bootstrap() ->> 'is_admin') = 'true', 'cc: bootstrap reports admin is_admin=true');
+select _ok((admin_bootstrap() -> 'capabilities' ->> 'financial') = 'false', 'cc: bootstrap financial capability still gated (pre-payments)');
+select _ok(_try($f$ select admin_global_search('a', 5) $f$) = 'ok', 'cc: admin can global_search');
+select _ok(_try($f$ select admin_audit_search(null, null, 5) $f$) = 'ok', 'cc: admin can audit_search');
+
+-- Phase 1A section RPCs (0116 users, 0117 orgs, 0118 revenue) — gate + basic shape.
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select admin_list_users(null,null,null,0,10) $f$) <> 'ok', 'cc: rando denied admin_list_users');
+select _ok(_try($f$ select admin_athlete_profile('55555555-0000-0000-0000-000000000005') $f$) <> 'ok', 'cc: rando denied admin_athlete_profile');
+select _ok(_try($f$ select admin_list_orgs(null,0,10) $f$) <> 'ok', 'cc: rando denied admin_list_orgs');
+select _ok(_try($f$ select admin_org_health('00000000-0000-0000-0000-000000000000') $f$) <> 'ok', 'cc: rando denied admin_org_health');
+select _ok(_try($f$ select admin_revenue() $f$) <> 'ok', 'cc: rando denied admin_revenue');
+select _ok(_try($f$ select admin_failed_payments(10) $f$) <> 'ok', 'cc: rando denied admin_failed_payments');
+
+select _as('55555555-0000-0000-0000-000000000005');
+select _ok(_try($f$ select admin_list_users(null,null,null,0,10) $f$) = 'ok', 'cc: admin can list users');
+select _ok(_try($f$ select admin_list_orgs(null,0,10) $f$) = 'ok', 'cc: admin can list orgs');
+select _ok((select count(*) from admin_revenue()) = 1, 'cc: admin_revenue returns exactly one row');
+select _ok(_try($f$ select admin_failed_payments(10) $f$) = 'ok', 'cc: admin can list failed payments');
+
+-- Phase 1B reauth (0119) — grants are server-verified from the JWT amr timestamp, never self-granted.
+select _as_amr('55555555-0000-0000-0000-000000000005', 30);    -- authenticated 30s ago → fresh
+select _ok(_try($f$ select admin_open_sensitive_window('flags', false) $f$) = 'ok', 'cc: fresh reauth mints a grant');
+select _ok(admin_has_sensitive_grant('flags'), 'cc: grant is live for its scope + session');
+select _ok(not admin_has_sensitive_grant('financial'), 'cc: grant does not leak across scopes');
+select _as_amr('55555555-0000-0000-0000-000000000005', 1200);  -- authenticated 20m ago → stale
+select _ok(_try($f$ select admin_open_sensitive_window('financial', true) $f$) <> 'ok', 'cc: stale reauth is refused');
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select admin_open_sensitive_window('flags', false) $f$) <> 'ok', 'cc: rando denied open_sensitive_window');
+
+-- Phase 1B user mutations (0122) — is_platform_admin AND a live 'user_mutation' grant, both required.
+select _ok(_try($f$ select admin_correct_primary_role('55555555-0000-0000-0000-000000000005','coach') $f$) <> 'ok', 'cc: rando denied correct_role');
+select _as_amr('55555555-0000-0000-0000-000000000005', 30);
+select _ok(_try($f$ select admin_pause_account('99999999-0000-0000-0000-000000000009') $f$) <> 'ok', 'cc: mutation without a grant is refused');
+select admin_open_sensitive_window('user_mutation', false);
+select _ok(_try($f$ select admin_correct_primary_role('99999999-0000-0000-0000-000000000009','coach') $f$) = 'ok', 'cc: mutation with a live grant succeeds');
+select _superuser();
+select _ok((select count(*) from admin_audit_log where action='user.correct_role' and target='99999999-0000-0000-0000-000000000009') = 1, 'cc: role change audited exactly once');
+
+-- Phase 1B view-as (0123) — grant required + non-empty reason required + audited as impersonation.
+select _as_amr('55555555-0000-0000-0000-000000000005', 30);
+select _ok(_try($f$ select admin_view_as('99999999-0000-0000-0000-000000000009','support case #12') $f$) <> 'ok', 'cc: view-as without a grant is refused');
+select admin_open_sensitive_window('view_as', false);
+select _ok(_try($f$ select admin_view_as('99999999-0000-0000-0000-000000000009','') $f$) <> 'ok', 'cc: view-as requires a reason');
+select _ok(_try($f$ select admin_view_as('99999999-0000-0000-0000-000000000009','support case #12') $f$) = 'ok', 'cc: view-as with grant + reason works');
+select _superuser();
+select _ok((select count(*) from admin_audit_log where action='user.view_as' and (after->>'impersonation')='true') >= 1, 'cc: view-as is audited as impersonation');
+
+-- Phase 1B append-only audit (0124) — UPDATE/DELETE blocked even for a superuser (append-only ledger).
+select _superuser();
+select _ok(_try($f$ update admin_audit_log set action='tampered' where id = (select id from admin_audit_log order by id limit 1) $f$) <> 'ok', 'cc: admin_audit_log UPDATE is blocked (append-only)');
+select _ok(_try($f$ delete from admin_audit_log where id = (select id from admin_audit_log order by id limit 1) $f$) <> 'ok', 'cc: admin_audit_log DELETE is blocked (append-only)');
+
+-- Phase 1B support (0125) — validated + rate-limited intake, safety=urgent, gated founder queue.
+select _as('55555555-0000-0000-0000-000000000005');
+select _ok(_try($f$ select create_support_ticket('nonsense','hi','x') $f$) <> 'ok', 'cc: support intake rejects invalid category');
+select _ok(_try($f$ select create_support_ticket('safety','Concern about a DM','the body') $f$) = 'ok', 'cc: user can file a support ticket');
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select admin_support_queue(null,null) $f$) <> 'ok', 'cc: non-admin denied admin_support_queue');
+select _as('55555555-0000-0000-0000-000000000005');
+select _ok(_try($f$ select admin_support_queue('open',null) $f$) = 'ok', 'cc: admin can read support queue');
+select _superuser();
+select _ok((select priority from support_tickets where category='safety' order by created_at desc limit 1) = 'urgent', 'cc: safety ticket is auto-urgent');
+
+-- Phase 1B typed config (0126) — validated + versioned; set requires a 'config' grant.
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select admin_get_config() $f$) <> 'ok', 'cc: rando denied admin_get_config');
+select _as_amr('55555555-0000-0000-0000-000000000005', 30);
+select _ok(_try($f$ select admin_set_config('ai_daily_budget_usd','50'::jsonb) $f$) <> 'ok', 'cc: config set without a grant is refused');
+select admin_open_sensitive_window('config', false);
+select _ok(_try($f$ select admin_set_config('ai_daily_budget_usd','"nan"'::jsonb) $f$) <> 'ok', 'cc: config set validates value type');
+select _ok(_try($f$ select admin_set_config('ai_daily_budget_usd','50'::jsonb) $f$) = 'ok', 'cc: config set with grant + valid type works');
+select _superuser();
+select _ok((select version from app_config where key='ai_daily_budget_usd') >= 2, 'cc: config version bumps on set');
+
+-- Phase 1B payments (0127) — founder views over offer_payments (reused); financial grant is SINGLE-USE.
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select admin_offer_payments(30,10) $f$) <> 'ok', 'cc: rando denied admin_offer_payments');
+select _ok(_try($f$ select admin_consume_financial_grant() $f$) <> 'ok', 'cc: rando denied financial grant consume');
+select _as_amr('55555555-0000-0000-0000-000000000005', 30);
+select _ok(_try($f$ select admin_offer_fee_revenue(30) $f$) = 'ok', 'cc: admin can read OnStandard Pay fee revenue');
+select _ok(_try($f$ select admin_consume_financial_grant() $f$) <> 'ok', 'cc: financial action without a grant is refused');
+select admin_open_sensitive_window('financial', true);
+select _ok(_try($f$ select admin_consume_financial_grant() $f$) = 'ok', 'cc: financial grant consumed once');
+select _ok(_try($f$ select admin_consume_financial_grant() $f$) <> 'ok', 'cc: single-use financial grant cannot be reused');
+
+-- ================================================================ verified commitments (0138)
+-- The promises this feature makes to an athlete and a parent, probed as adversarially as the
+-- rest of the suite: no athlete can read another athlete's record, no stranger coach can read a
+-- board, no client can back-date a wake-up, and an unshared discipline profile stays private.
+select _superuser();
+select set_config('request.jwt.claim.sub', '', false);
+
+-- Two dedicated athletes on T1. Section 8 above REMOVES athlete A from the team (to prove
+-- revocation cuts access immediately), so A is no longer in any T1 audience and coach_1 can no
+-- longer can_view them — reusing A here would silently test nothing.
+insert into auth.users (id, email) values
+  ('eeee0000-0000-0000-0000-0000000000e1','vc1@x.io'),
+  ('eeee0000-0000-0000-0000-0000000000e2','vc2@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('eeee0000-0000-0000-0000-0000000000e1','VC Athlete One','vc1@x.io','athlete'),
+  ('eeee0000-0000-0000-0000-0000000000e2','VC Athlete Two','vc2@x.io','athlete')
+on conflict (id) do update set full_name = excluded.full_name, email = excluded.email;
+insert into athlete_profiles (athlete_id, base_age, sport) values
+  ('eeee0000-0000-0000-0000-0000000000e1', 19, 'football'),
+  ('eeee0000-0000-0000-0000-0000000000e2', 19, 'football')
+on conflict (athlete_id) do nothing;
+insert into team_members (team_id, athlete_id, status) values
+  ('77777777-1111-0000-0000-000000000001','eeee0000-0000-0000-0000-0000000000e1','active'),
+  ('77777777-1111-0000-0000-000000000001','eeee0000-0000-0000-0000-0000000000e2','active')
+on conflict (team_id, athlete_id) do update set status = 'active';
+
+-- coach_1 schedules a roll call for all of T1. The id is passed explicitly so later probes can
+-- name it without capturing a return value across a role switch.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
+    'id','ccccdddd-0000-0000-0000-0000000000c1',
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'type','morning_roll_call','title','Morning Roll Call','message','Everyone up?',
+    'audience_kind','team',
+    'repeat_days', jsonb_build_array(0,1,2,3,4,5,6),
+    'starts_min', 285, 'respond_by_min', 315)) $f$) = 'ok',
+  'vc: head coach can schedule a commitment for their own team');
+
+-- a coach from another team is a stranger here
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'type','practice','title','Not yours','audience_kind','team',
+    'repeat_days', jsonb_build_array(1), 'starts_min', 360)) $f$) <> 'ok',
+  'vc: a stranger coach cannot schedule on another team');
+
+-- materialize today
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select ensure_commitment_instances(
+    '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$) = 'ok',
+  'vc: staff can materialize instances');
+-- idempotent: calling it again must not duplicate
+select _try($f$ select ensure_commitment_instances(
+    '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+
+select _superuser();
+select _ok((select count(*) from commitment_instances
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1') = 1,
+  'vc: re-materializing the same window creates no duplicate instance');
+select _ok((select count(*) from commitment_responses r
+              join commitment_instances i on i.id = r.instance_id
+             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1')
+           = (select count(*) from team_members
+               where team_id = '77777777-1111-0000-0000-000000000001' and status = 'active'),
+  'vc: one response row seeded per active team member');
+
+-- the athlete acknowledges; the SERVER clock stamps it
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select ack_commitment((select id from commitment_instances
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1')) $f$) = 'ok',
+  'vc: an athlete can acknowledge their own commitment');
+select _superuser();
+select _ok((select abs(extract(epoch from (now() - r.acknowledged_at))) < 60
+              from commitment_responses r join commitment_instances i on i.id = r.instance_id
+             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+               and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  'vc: the response time comes from the server clock');
+
+-- ⚠ the grants probe. RLS alone would not catch a missing grant, and a missing grant would let
+-- nothing through at all; conversely a stray write grant would let an athlete back-date a wake-up.
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ update commitment_responses set acknowledged_at = now() - interval '3 hours'
+    where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' $f$) <> 'ok',
+  'vc: an athlete cannot back-date their own response with a direct write');
+select _ok(_try($f$ insert into commitment_responses (instance_id, athlete_id)
+    values ((select id from commitment_instances
+              where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'),
+            'eeee0000-0000-0000-0000-0000000000e1') $f$) <> 'ok',
+  'vc: direct insert into commitment_responses is refused (writes are RPC-only)');
+select _ok(_try($f$ update commitments set title = 'hacked'
+    where id = 'ccccdddd-0000-0000-0000-0000000000c1' $f$) <> 'ok',
+  'vc: an athlete cannot rewrite the coach''s commitment');
+
+-- NO PUBLIC LIST: a teammate on the SAME team, in the SAME roll call, still cannot read
+-- another athlete's response. This is the probe that guards "no list that embarrasses anyone".
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((select count(*) from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 0,
+  'vc: a teammate cannot read another athlete''s response (no public list)');
+select _ok((select count(*) from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2') = 1,
+  'vc: but a teammate does read their OWN response');
+
+-- a complete stranger sees neither the response nor the commitment
+select _as('bbbbbbbb-0000-0000-0000-000000000002');
+select _ok((select count(*) from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 0,
+  'vc: an outside athlete cannot read another athlete''s response');
+select _ok((select count(*) from commitments
+             where id = 'ccccdddd-0000-0000-0000-0000000000c1') = 0,
+  'vc: an athlete outside the audience cannot read the commitment');
+
+-- board scope
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(jsonb_array_length(commitment_board(
+    '77777777-1111-0000-0000-000000000001', null, current_date)) = 1,
+  'vc: the coach sees their own board');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(jsonb_array_length(commitment_board(
+    '77777777-1111-0000-0000-000000000001', null, current_date)) = 0,
+  'vc: a stranger coach sees an empty board for another team');
+
+-- accountability + the recruit profile gate
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select athlete_accountability(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) = 'ok',
+  'vc: the athlete''s own coach can read their accountability');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select athlete_accountability(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) <> 'ok',
+  'vc: a stranger coach cannot read an athlete''s accountability');
+
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select verified_discipline(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) <> 'ok',
+  'vc: an unshared Verified Discipline profile is refused');
+select _superuser();
+update profiles set share_verified_discipline = true
+  where id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select verified_discipline(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) = 'ok',
+  'vc: a shared Verified Discipline profile is readable');
+-- and once shared it still returns ONLY percentages and counts — never an event or a place
+select _ok((select bool_and(k in ('on_time_arrival_pct','commitments_completed',
+                                  'morning_response_pct','accountability_pct'))
+              from jsonb_object_keys(verified_discipline(
+                'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date)) k),
+  'vc: the shared profile exposes no location, schedule or per-event detail');
+-- the recruiter really does see the numbers (the share gate must not blank its own payload)
+select _ok((verified_discipline('eeee0000-0000-0000-0000-0000000000e1',
+              current_date - 30, current_date) ->> 'morning_response_pct') = '100',
+  'vc: a shared profile returns real numbers, not nulls');
+
+-- raw arithmetic is not directly reachable
+select _ok(_try($f$ select accountability_raw(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date - 30, current_date) $f$) <> 'ok',
+  'vc: accountability_raw is not callable by an authenticated user');
+
+-- ================================================================ arrival verification (0139)
+-- The consent gate is the promise made to a parent, so it is probed from both directions:
+-- refused without consent, allowed with it, refused again after revocation.
+select _superuser();
+
+-- A dedicated minor + guardian. Section 8 above revokes parent_p's guardianship (to prove
+-- revocation cuts access immediately), so is_guardian_of(minor_m) is false by the time we get
+-- here — reusing that pair would test the consent gate against an already-broken link.
+insert into auth.users (id, email) values
+  ('eeee0000-0000-0000-0000-0000000000e3','vcminor@x.io'),
+  ('eeee0000-0000-0000-0000-0000000000e4','vcparent@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('eeee0000-0000-0000-0000-0000000000e3','VC Minor','vcminor@x.io','athlete'),
+  ('eeee0000-0000-0000-0000-0000000000e4','VC Parent','vcparent@x.io','parent')
+on conflict (id) do update set full_name = excluded.full_name, primary_role = excluded.primary_role;
+insert into athlete_profiles (athlete_id, base_age, sport)
+values ('eeee0000-0000-0000-0000-0000000000e3', 15, 'football')
+on conflict (athlete_id) do update set base_age = 15;
+insert into team_members (team_id, athlete_id, status)
+values ('77777777-1111-0000-0000-000000000001','eeee0000-0000-0000-0000-0000000000e3','active')
+on conflict (team_id, athlete_id) do update set status = 'active';
+insert into guardianships (athlete_id, guardian_id, relationship, status)
+values ('eeee0000-0000-0000-0000-0000000000e3','eeee0000-0000-0000-0000-0000000000e4','parent','active')
+on conflict do nothing;
+
+-- a located commitment for T1
+insert into commitment_locations (id, team_id, name, lat, lng, radius_m)
+values ('aaaa1111-0000-0000-0000-0000000000f1','77777777-1111-0000-0000-000000000001',
+        'Football Facility', 28.6024, -81.2001, 120);
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
+    'id','ccccdddd-0000-0000-0000-0000000000c2',
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'type','strength','title','Morning Lift','audience_kind','team',
+    'repeat_days', jsonb_build_array(0,1,2,3,4,5,6),
+    'starts_min', 360, 'ends_min', 480, 'arrive_by_min', 355, 'min_dwell_min', 30,
+    'location_id','aaaa1111-0000-0000-0000-0000000000f1')) $f$) = 'ok',
+  'vc2: coach can schedule a located commitment');
+select _try($f$ select ensure_commitment_instances(
+  '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+
+-- the minor (base_age 15) is refused until consent exists
+select _as('eeee0000-0000-0000-0000-0000000000e3');
+select _ok(_try($f$ select verify_arrival((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual', true, null) $f$)
+  like '%consent%',
+  'vc2: a minor cannot verify arrival without consent');
+
+-- an adult on the same commitment is not gated
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual', true, null) $f$) = 'ok',
+  'vc2: an adult athlete verifies arrival without a consent row');
+
+-- the guardian grants; the minor is now allowed
+select _as('eeee0000-0000-0000-0000-0000000000e4');
+select _ok(_try($f$ select grant_verification_consent(
+    'eeee0000-0000-0000-0000-0000000000e3', 'guardian', null, 'parent approved') $f$) = 'ok',
+  'vc2: a verified guardian can grant consent');
+select _as('eeee0000-0000-0000-0000-0000000000e3');
+select _ok(_try($f$ select verify_arrival((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual', true, null) $f$) = 'ok',
+  'vc2: with consent the minor can verify arrival');
+
+-- a stranger cannot grant consent for someone else's child
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select grant_verification_consent(
+    'eeee0000-0000-0000-0000-0000000000e3', 'guardian', null, 'nope') $f$) <> 'ok',
+  'vc2: a non-guardian cannot grant guardian consent');
+select _ok(_try($f$ select grant_verification_consent(
+    'eeee0000-0000-0000-0000-0000000000e3', 'institutional',
+    '77777777-1111-0000-0000-000000000001', 'nope') $f$) <> 'ok',
+  'vc2: a non-staff user cannot assert institutional consent');
+
+-- a failed verification is UNVERIFIED, never MISSED
+select _superuser();
+update commitment_responses set arrived_at = null, arrival_source = null, status = 'pending'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2');
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _try($f$ select verify_arrival((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual', false, 'GPS too weak') $f$);
+select _superuser();
+select _ok((select status = 'unverified' from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+               and instance_id = (select id from commitment_instances
+                                   where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2')),
+  'vc2: a failed verification records unverified, never missed');
+
+-- completion is a SEPARATE signal: dwell cannot fire before the coach's minimum time on site
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select complete_commitment((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'dwell') $f$)
+  like '%minimum time%',
+  'vc2: dwell completion is refused before the minimum time on site');
+select _ok(_try($f$ select complete_commitment((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual') $f$) = 'ok',
+  'vc2: the athlete can still complete manually');
+
+-- a roll call has nothing to "complete"
+select _ok(_try($f$ select complete_commitment((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'), 'manual') $f$) <> 'ok',
+  'vc2: a roll call cannot be "completed" — responding is the whole commitment');
+
+-- the device is only ever told about events that are armed right now, and only the COACH's place
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((select bool_and(k in ('instance_id','starts_at','ends_at','arrive_by_at',
+                                  'min_dwell_min','name','lat','lng','radius_m'))
+              from jsonb_array_elements(my_armable_geofences(16)) e,
+                   jsonb_object_keys(e) k),
+  'vc2: armable geofences expose only the scheduled place, never an athlete position');
+
+-- revocation cuts it off again
+select _as('eeee0000-0000-0000-0000-0000000000e3');
+select _ok(_try($f$ select revoke_verification_consent('eeee0000-0000-0000-0000-0000000000e3') $f$) = 'ok',
+  'vc2: an athlete can revoke their own consent');
+select _superuser();
+update commitment_responses set arrived_at = null, arrival_source = null, status = 'pending'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e3'
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2');
+select _as('eeee0000-0000-0000-0000-0000000000e3');
+select _ok(_try($f$ select verify_arrival((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'manual', true, null) $f$)
+  like '%consent%',
+  'vc2: after revocation location verification is refused again');
+select _ok((select count(*) from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e3') > 0,
+  'vc2: revoking consent does not erase the athlete''s existing record');
+
+-- a dispute flags the row for staff but never rewrites it
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok(_try($f$ select dispute_response((select id from commitment_instances
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2'), 'I was in the weight room') $f$) = 'ok',
+  'vc2: an athlete can dispute a verification');
+select _superuser();
+select _ok((select disputed_at is not null and arrived_at is null
+              from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+               and instance_id = (select id from commitment_instances
+                                   where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2')),
+  'vc2: a dispute flags the record without marking the athlete present');
+
+-- ================================================================ reliability pass (0140)
+-- #5 roster reconciliation, #3 range excuse, #2 server-side reminder claiming.
+select _superuser();
+
+-- #5: an athlete who joins AFTER the instance was materialized still gets a row
+insert into auth.users (id, email) values ('eeee0000-0000-0000-0000-0000000000e5','vclate@x.io');
+insert into profiles (id, full_name, email, primary_role)
+values ('eeee0000-0000-0000-0000-0000000000e5','VC Latecomer','vclate@x.io','athlete')
+on conflict (id) do update set full_name = excluded.full_name;
+insert into athlete_profiles (athlete_id, base_age, sport)
+values ('eeee0000-0000-0000-0000-0000000000e5', 19, 'football') on conflict (athlete_id) do nothing;
+insert into team_members (team_id, athlete_id, status)
+values ('77777777-1111-0000-0000-000000000001','eeee0000-0000-0000-0000-0000000000e5','active')
+on conflict (team_id, athlete_id) do update set status = 'active';
+
+select _as('11111111-0000-0000-0000-000000000001');
+select _try($f$ select ensure_commitment_instances(
+  '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+select _superuser();
+select _ok(exists (select 1 from commitment_responses r
+                     join commitment_instances i on i.id = r.instance_id
+                    where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+                      and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e5'),
+  '0140: an athlete who joined after materialization is backfilled into the roll call');
+
+-- #5: leaving the roster removes an UNTOUCHED row, but never one carrying a real response
+select _superuser();
+update team_members set status = 'removed'
+ where team_id = '77777777-1111-0000-0000-000000000001'
+   and athlete_id = 'eeee0000-0000-0000-0000-0000000000e5';
+select _as('11111111-0000-0000-0000-000000000001');
+select _try($f$ select ensure_commitment_instances(
+  '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+select _superuser();
+select _ok(not exists (select 1 from commitment_responses r
+                         join commitment_instances i on i.id = r.instance_id
+                        where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+                          and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e5'),
+  '0140: an untouched row for someone who left the roster is cleared');
+select _ok(exists (select 1 from commitment_responses r
+                     join commitment_instances i on i.id = r.instance_id
+                    where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+                      and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+                      and r.acknowledged_at is not null),
+  '0140: a row carrying a real response is never cleared');
+
+-- #3: one call excuses a stretch AND writes the athlete_exceptions primitive
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select staff_excuse_athlete(
+    'eeee0000-0000-0000-0000-0000000000e2', current_date, current_date + 6,
+    'Family travel', '77777777-1111-0000-0000-000000000001', null) $f$) = 'ok',
+  '0140: staff can excuse an athlete across a date range');
+select _superuser();
+select _ok(exists (select 1 from athlete_exceptions
+                    where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+                      and team_id = '77777777-1111-0000-0000-000000000001'
+                      and ends_on = current_date + 6),
+  '0140: a range excuse writes athlete_exceptions, not just the response');
+select _ok((select bool_and(r.status = 'excused') from commitment_responses r
+              join commitment_instances i on i.id = r.instance_id
+             where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+               and i.occurs_on = current_date),
+  '0140: every commitment in the range is marked excused');
+
+-- #3: an athlete already excused is never left "awaiting response" on a fresh materialization
+select _superuser();
+delete from commitment_responses r using commitment_instances i
+ where r.instance_id = i.id
+   and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+   and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _as('11111111-0000-0000-0000-000000000001');
+select _try($f$ select ensure_commitment_instances(
+  '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+select _superuser();
+select _ok((select r.status = 'excused' from commitment_responses r
+              join commitment_instances i on i.id = r.instance_id
+             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+               and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0140: an existing exception marks a newly seeded row excused, not awaiting');
+
+-- a stranger cannot excuse on someone else's team
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select staff_excuse_athlete(
+    'eeee0000-0000-0000-0000-0000000000e1', current_date, current_date,
+    'nope', '77777777-1111-0000-0000-000000000001', null) $f$) <> 'ok',
+  '0140: a stranger coach cannot excuse on another team');
+
+-- #2: reminder claiming is service-role only, and claims exactly once
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select claim_due_commitment_reminders(10) $f$) <> 'ok',
+  '0140: an athlete cannot claim reminders');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select claim_due_commitment_reminders(10) $f$) <> 'ok',
+  '0140: a coach cannot claim reminders either (service role only)');
+
+select _superuser();
+-- force one response pending with a deadline five minutes out, and a 5-minute offset
+update commitment_responses set status = 'pending', acknowledged_at = null, reminded_offsets = '{}'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1');
+update commitment_instances set respond_by_at = now() + interval '5 minutes'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitments set reminder_offsets_min = '{5}'
+ where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+select _ok((select count(*) from claim_due_commitment_reminders(10)
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 1,
+  '0140: a due reminder is claimed once');
+select _ok((select count(*) from claim_due_commitment_reminders(10)
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 0,
+  '0140: the same reminder is never claimed twice (no double 4:45 AM alarm)');
+
+-- an athlete who already responded is never reminded
+select _superuser();
+update commitment_responses set status = 'acknowledged', acknowledged_at = now(), reminded_offsets = '{}'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1');
+select _ok((select count(*) from claim_due_commitment_reminders(10)
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 0,
+  '0140: an athlete who already responded is never reminded');
+
+-- ================================================================ payload contract (0138-0141)
+-- The client engine reads these jsonb keys BY NAME. Nothing else in the suite would notice a
+-- renamed or dropped key: RLS would still pass, the RPC would still return 200, and the athlete
+-- would just see a blank card. These probes are the contract between the SQL and
+-- proto/js/commitments.js — if you rename a key, this fails here rather than on a phone at 4:45 AM.
+select _superuser();
+update commitment_responses set status = 'pending', acknowledged_at = null
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((
+  with e as (select jsonb_array_elements(my_commitments(current_date, current_date)) o limit 1)
+  select bool_and(jsonb_exists(e.o, k)) from e, unnest(array[
+    'instance_id','occurs_on','type','title','message','action_label',
+    'starts_at','ends_at','respond_by_at','arrive_by_at',
+    'opens_min','starts_min','respond_by_min','arrive_by_min','min_dwell_min',
+    'reminder_offsets_min','repeat_days','starts_on','ends_on','timezone',
+    'instance_status','linked_title','linked_starts_min','asks_arrival','location_name',
+    'coach_name','status','acknowledged_at','arrived_at','completed_at',
+    'arrival_source','unverified_reason','disputed_at','excused_reason'
+  ]) k),
+  'contract: my_commitments returns every key the athlete card reads');
+
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((
+  with e as (select jsonb_array_elements(
+      commitment_board('77777777-1111-0000-0000-000000000001', null, current_date)) o limit 1)
+  select bool_and(jsonb_exists(e.o, k)) from e, unnest(array[
+    'instance_id','commitment_id','type','title','message','action_label',
+    'starts_at','respond_by_at','arrive_by_at','starts_min','respond_by_min','timezone',
+    'instance_status','audience_kind','audience_label','linked_title','linked_starts_min',
+    'asks_arrival','location_name','rows'
+  ]) k),
+  'contract: commitment_board returns every key the coach board reads');
+
+select _ok((
+  with e as (select jsonb_array_elements(
+      commitment_board('77777777-1111-0000-0000-000000000001', null, current_date)) o limit 1),
+       r as (select jsonb_array_elements(e.o -> 'rows') ro from e limit 1)
+  select bool_and(jsonb_exists(r.ro, k)) from r, unnest(array[
+    'response_id','athlete_id','name','status','acknowledged_at','arrived_at','completed_at',
+    'arrival_source','unverified_reason','excused_reason','corrected_by_name',
+    'disputed_at','dispute_note'
+  ]) k),
+  'contract: each board row returns every key the roster breakdown reads');
+
+-- The SQL rollup and the client engine must agree on the founder weighting, or the athlete's
+-- screen and the coach's screen quietly disagree about the same day.
+select _superuser();
+update commitment_responses set status = 'acknowledged', acknowledged_at = now()
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((athlete_accountability('eeee0000-0000-0000-0000-0000000000e1',
+              current_date, current_date) ->> 'wake_done')::int >= 1,
+  'contract: a recorded response counts toward the wake signal');
+select _ok((athlete_accountability('eeee0000-0000-0000-0000-0000000000e1',
+              current_date, current_date) ->> 'earned')::int
+           % 10 = 0,
+  'contract: earned points are multiples of the 10/30/60 weighting');
+
+-- ================================================================ kill switch (0141)
+-- The switch has to be IN THE PATH, not advisory. With it flipped, an athlete's card and a
+-- coach's board go quiet and no reminder is claimed — for every client version in the field.
+select _superuser();
+update public.feature_flags set kill_switch = true where name = 'verified_commitments';
+
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(jsonb_array_length(my_commitments(current_date, current_date)) = 0,
+  'kill switch: the athlete sees no commitments');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(jsonb_array_length(commitment_board(
+    '77777777-1111-0000-0000-000000000001', null, current_date)) = 0,
+  'kill switch: the coach board is empty');
+select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
+    'team_id','77777777-1111-0000-0000-000000000001','type','practice','title','while off',
+    'audience_kind','team','repeat_days',jsonb_build_array(1),'starts_min',360)) $f$) <> 'ok',
+  'kill switch: a coach cannot schedule into a switched-off feature');
+select _ok(ensure_commitment_instances(
+    '77777777-1111-0000-0000-000000000001', null, current_date, current_date) = 0,
+  'kill switch: nothing materializes');
+
+select _superuser();
+update commitment_responses set status = 'pending', acknowledged_at = null, reminded_offsets = '{}'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+update commitment_instances set respond_by_at = now() + interval '5 minutes'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1';
+select _ok((select count(*) from claim_due_commitment_reminders(10)) = 0,
+  'kill switch: no reminder is claimed, so no 4:45 AM push goes out');
+
+-- and it comes back
+update public.feature_flags set kill_switch = false where name = 'verified_commitments';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(jsonb_array_length(my_commitments(current_date, current_date)) > 0,
+  'kill switch: flipping it back restores the feature immediately');
+
+-- staged rollout: default_on = false + an allowlist wakes only the pilot
+select _superuser();
+update public.feature_flags
+   set default_on = false, enabled_user_ids = array['eeee0000-0000-0000-0000-0000000000e1'::uuid]
+ where name = 'verified_commitments';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(jsonb_array_length(my_commitments(current_date, current_date)) > 0,
+  'staged rollout: an allowlisted athlete still sees their commitments');
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok(jsonb_array_length(my_commitments(current_date, current_date)) = 0,
+  'staged rollout: an athlete outside the allowlist sees nothing');
+select _superuser();
+update public.feature_flags set default_on = true, enabled_user_ids = '{}'
+ where name = 'verified_commitments';
+
+-- ================================================================ 13. PLAN STYLES (0142)
+-- Structured / Guided / Intuitive as a spectrum of structure. The boundary that matters most:
+-- "athletes should not be able to switch modes to avoid required team standards" must be a
+-- SERVER rule, not a client convention — so an athlete under a team standard can state a
+-- preference all day long and still never move their own effective style.
+--
+-- Seeds its OWN cast (a team, an athlete, a practice, a professional, a solo adult) rather than
+-- reusing sections 1-12's actors: section 8 deliberately revokes several of those links, and a
+-- plan-style assertion must fail for plan-style reasons only.
+select _superuser();
+
+insert into auth.users (id, email) values
+  ('7a000000-0000-0000-0000-0000000000c0','psc@x.io'), ('7a000000-0000-0000-0000-0000000000a0','psa@x.io'),
+  ('7a000000-0000-0000-0000-0000000000a1','psp@x.io'), ('7a000000-0000-0000-0000-0000000000c1','pscl@x.io'),
+  ('7a000000-0000-0000-0000-0000000000b0','pssolo@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('7a000000-0000-0000-0000-0000000000c0','PS Coach','psc@x.io','coach'),
+  ('7a000000-0000-0000-0000-0000000000a0','PS Athlete','psa@x.io','athlete'),
+  ('7a000000-0000-0000-0000-0000000000a1','PS Nutrition Pro','psp@x.io','trainer'),
+  ('7a000000-0000-0000-0000-0000000000c1','PS Client','pscl@x.io','athlete'),
+  ('7a000000-0000-0000-0000-0000000000b0','PS Solo Adult','pssolo@x.io','athlete')
+on conflict (id) do update set full_name = excluded.full_name, primary_role = excluded.primary_role;
+insert into teams (id, name, join_code, created_by) values
+  ('7a777777-0000-0000-0000-000000000001','PS Team','PSCODE','7a000000-0000-0000-0000-0000000000c0');
+insert into team_staff (team_id, staff_id, role, status) values
+  ('7a777777-0000-0000-0000-000000000001','7a000000-0000-0000-0000-0000000000c0','head_coach','active');
+insert into team_members (team_id, athlete_id, status) values
+  ('7a777777-0000-0000-0000-000000000001','7a000000-0000-0000-0000-0000000000a0','active');
+insert into practices (id, owner_id, name, join_code) values
+  ('7a888888-0000-0000-0000-0000000000a1','7a000000-0000-0000-0000-0000000000a1','RD Practice','RDCODE');
+insert into practice_clients (practice_id, client_id, status) values
+  ('7a888888-0000-0000-0000-0000000000a1','7a000000-0000-0000-0000-0000000000c1','active');
+
+-- --- the standard's item schema (validate_requirement_items, extended by 0142) ---
+select _ok(_try($q$insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+             ('7a777777-0000-0000-0000-000000000001','position',
+              '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},
+                {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"nonsense"}]'::jsonb,
+              '7a000000-0000-0000-0000-0000000000c0', null)$q$) <> 'ok',
+           '0142: a plan_style item with an unknown style is refused by the check constraint');
+select _ok(_try($q$insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+             ('7a777777-0000-0000-0000-000000000001','position',
+              '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},
+                {"id":"ps1","title":"A","kind":"plan_style","proof":"check","style":"guided"},
+                {"id":"ps2","title":"B","kind":"plan_style","proof":"check","style":"intuitive"}]'::jsonb,
+              '7a000000-0000-0000-0000-0000000000c0', null)$q$) <> 'ok',
+           '0142: a standard cannot carry TWO plan_style items — "what am I on?" stays answerable');
+select _ok(_try($q$insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+             ('7a777777-0000-0000-0000-000000000001','position',
+              '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},
+                {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"guided",
+                 "overrides":{"nutrition":{"calorieBand":9}}}]'::jsonb,
+              '7a000000-0000-0000-0000-0000000000c0', null)$q$) <> 'ok',
+           '0142: an out-of-range override band is refused (calorieBand must be 0..0.5)');
+select _ok(_try($q$insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+             ('7a777777-0000-0000-0000-000000000001','position',
+              '[{"id":"m1","title":"B","kind":"meal","proof":"photo"},
+                {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"guided",
+                 "overrides":{"weights":{"nutrition":0.9}}}]'::jsonb,
+              '7a000000-0000-0000-0000-0000000000c0', null)$q$) <> 'ok',
+           '0142: a standard cannot override WEIGHTS — the 0041 evidence ceiling stays untouchable');
+select _ok((select validate_requirement_items(
+             '[{"id":"m1","title":"B","kind":"meal","proof":"photo"}]'::jsonb)),
+           '0142: an existing meals-only standard still validates unchanged');
+
+-- The real team standard governing the PS athlete: Structured, set team-wide.
+insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+  ('7a777777-0000-0000-0000-000000000001','team',
+   '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"},
+     {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"structured"}]'::jsonb,
+   '7a000000-0000-0000-0000-0000000000c0', null);
+
+select _ok(athlete_governing_plan_style('7a000000-0000-0000-0000-0000000000a0') = 'structured',
+           '0142: the team standard governs the team athlete''s plan style');
+select _ok(athlete_governing_plan_style('7a000000-0000-0000-0000-0000000000b0') is null,
+           '0142: an athlete on no team is governed by no standard');
+
+-- A future-dated switch (Structured preseason -> Intuitive offseason) does NOT take effect today.
+insert into requirement_sets (team_id, scope_kind, items, created_by, effective_date) values
+  ('7a777777-0000-0000-0000-000000000001','team',
+   '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"},
+     {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"intuitive"}]'::jsonb,
+   '7a000000-0000-0000-0000-0000000000c0', current_date + 30);
+select _ok(athlete_governing_plan_style('7a000000-0000-0000-0000-0000000000a0') = 'structured',
+           '0142: a future-dated style change never rescopes today (0085 versioning honored)');
+
+-- ...and an athlete-scoped standard outranks the team-wide one (0055 precedence).
+insert into requirement_sets (team_id, scope_kind, scope_value, items, created_by, effective_date) values
+  ('7a777777-0000-0000-0000-000000000001','athlete','7a000000-0000-0000-0000-0000000000a0',
+   '[{"id":"m1","title":"Breakfast","kind":"meal","proof":"photo"},
+     {"id":"ps","title":"Plan style","kind":"plan_style","proof":"check","style":"guided"}]'::jsonb,
+   '7a000000-0000-0000-0000-0000000000c0', null);
+select _ok(athlete_governing_plan_style('7a000000-0000-0000-0000-0000000000a0') = 'guided',
+           '0142: an athlete-scoped standard outranks the team-wide one');
+
+-- --- the athlete's own write (set_my_plan_style) ---
+select _as('7a000000-0000-0000-0000-0000000000a0');
+select _ok(set_my_plan_style('intuitive','intuitive') = 'guided',
+           '0142: a governed athlete CANNOT switch style to escape the team standard');
+select _superuser();
+select _ok((select plan_style_preference from profiles where id='7a000000-0000-0000-0000-0000000000a0') = 'intuitive',
+           '0142: ...but their stated preference still lands — a locked athlete is never a dead end');
+select _ok((select plan_style from profiles where id='7a000000-0000-0000-0000-0000000000a0') is null,
+           '0142: the governed athlete''s own style column was never written');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000a0') = 0,
+           '0142: a refused switch logs no change event');
+
+-- An UNGOVERNED adult owns their own setting outright.
+select _as('7a000000-0000-0000-0000-0000000000b0');
+select _ok(set_my_plan_style('intuitive', null) = 'intuitive',
+           '0142: an independent adult sets their own style');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000b0' and to_style='intuitive') = 1,
+           '0142: the change is logged for the Progress timeline');
+select _ok(set_my_plan_style('intuitive', null) = 'intuitive',
+           '0142: re-setting the same style is idempotent');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000b0') = 1,
+           '0142: ...and logs no duplicate event');
+select _ok(_try($q$select set_my_plan_style('paleo', null)$q$) <> 'ok',
+           '0142: an unknown style is refused outright');
+
+-- --- the change log is read-scoped and forge-proof ---
+select _ok((select count(*) from plan_style_events) = 1,
+           '0142: an athlete reads their OWN style history');
+select _ok(_try($q$insert into plan_style_events (athlete_id, to_style, actor_role)
+             values ('7a000000-0000-0000-0000-0000000000a0','guided','coach')$q$) <> 'ok',
+           '0142: nobody can forge a style-change event (RPC-only, no DML grant)');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000b0') = 0,
+           '0142: an unconnected athlete cannot read someone else''s style history');
+
+-- --- the professional's write (set_athlete_plan_style) ---
+select _as('7a000000-0000-0000-0000-0000000000a1');
+select set_athlete_plan_style('7a000000-0000-0000-0000-0000000000c1','guided',
+  '{"nutrition":{"calorieBand":0.08},"signals":{"satisfaction":true}}'::jsonb, 'in-season');
+select _ok(athlete_assigned_plan_style('7a000000-0000-0000-0000-0000000000c1') = 'guided',
+           '0142: a nutrition professional assigns a style to their client');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000c1') = 1,
+           '0142: the professional reads their client''s style history (can_view)');
+select _superuser();
+select _ok((select targets->'styleOverrides'->'nutrition'->>'calorieBand' from athlete_profiles
+            where athlete_id='7a000000-0000-0000-0000-0000000000c1') = '0.08',
+           '0142: ...and their per-knob customization rides along');
+select _ok((select count(*) from plan_style_events
+            where athlete_id='7a000000-0000-0000-0000-0000000000c1'
+              and to_style='guided' and actor_role='trainer' and reason='in-season') = 1,
+           '0142: the assignment is logged with actor, role and reason');
+
+select _as('7a000000-0000-0000-0000-0000000000a1');
+select _ok(_try($q$select set_athlete_plan_style('7a000000-0000-0000-0000-0000000000c1','guided',
+             '{"nutrition":{"calorieBand":9}}'::jsonb)$q$) <> 'ok',
+           '0142: a professional cannot save an out-of-range override');
+select _ok(_try($q$select set_athlete_plan_style('7a000000-0000-0000-0000-0000000000c1','keto')$q$) <> 'ok',
+           '0142: a professional cannot invent a style');
+
+select _as('7a000000-0000-0000-0000-0000000000b0');
+select _ok(_try($q$select set_athlete_plan_style('7a000000-0000-0000-0000-0000000000c1','structured')$q$) <> 'ok',
+           '0142: an unrelated user cannot set someone else''s plan style');
+select _as('7a000000-0000-0000-0000-0000000000c1');
+select _ok(_try($q$select set_athlete_plan_style('7a000000-0000-0000-0000-0000000000c1','structured')$q$) <> 'ok',
+           '0142: a client cannot self-assign around their professional');
+select _ok(set_my_plan_style('intuitive','intuitive') = 'guided',
+           '0142: a client under a professional assignment keeps the assigned style');
+select _superuser();
+select _ok((select plan_style_preference from profiles where id='7a000000-0000-0000-0000-0000000000c1') = 'intuitive',
+           '0142: ...and their preference still reaches the professional');
+
+-- --- the targets door is guarded too (coach_set_goals carries style in the same JSONB) ---
+select _as('7a000000-0000-0000-0000-0000000000a1');
+select _ok(_try($q$select coach_set_goals('7a000000-0000-0000-0000-0000000000c1',
+             '{"protein":180,"style":"paleo"}'::jsonb, null)$q$) <> 'ok',
+           '0142: coach_set_goals refuses an unknown style smuggled through targets');
+select _ok(_try($q$select coach_set_goals('7a000000-0000-0000-0000-0000000000c1',
+             '{"protein":180,"styleOverrides":{"parts":{"protein":900}}}'::jsonb, null)$q$) <> 'ok',
+           '0142: coach_set_goals refuses malformed style overrides through targets');
+select _ok(_try($q$select coach_set_goals('7a000000-0000-0000-0000-0000000000c1',
+             '{"protein":180,"calories":3000}'::jsonb, null)$q$) = 'ok',
+           '0142: an ordinary targets save is unaffected');
+
+-- --- the per-day stamp ---
+select _as('7a000000-0000-0000-0000-0000000000c1');
+select _ok(_try($q$insert into days (athlete_id, date, plan_style, signals)
+             values ('7a000000-0000-0000-0000-0000000000c1', current_date, 'guided',
+                     '{"breakfast":{"hunger":3,"fullness":4}}'::jsonb)$q$) = 'ok',
+           '0142: an athlete stamps their own day with its style and signals');
+select _ok(_try($q$update days set plan_style = 'keto'
+             where athlete_id='7a000000-0000-0000-0000-0000000000c1' and date = current_date$q$) <> 'ok',
+           '0142: a tampered day style is refused by the check constraint');
+select _as('7a000000-0000-0000-0000-0000000000b0');
+select _ok((select count(*) from days
+            where athlete_id='7a000000-0000-0000-0000-0000000000c1' and plan_style is not null) = 0,
+           '0142: a stranger cannot even read another athlete''s day stamp');
+
+-- ============ roll-call-ack (0144) ============
+-- ack_commitment_by_token must be service-role only: a normal authenticated client cannot call it.
+select _superuser();
+do $$
+declare ok boolean := false;
+begin
+  set local role authenticated;
+  begin
+    perform ack_commitment_by_token(gen_random_uuid(), gen_random_uuid());
+  exception when insufficient_privilege then ok := true;
+  end;
+  reset role;
+  if not ok then raise exception 'FAIL: authenticated could call ack_commitment_by_token'; end if;
+  raise notice 'PASS: ack_commitment_by_token is not callable by authenticated';
+end $$;
+
+-- ============ commitment escalation (0145) ============
+-- claim_missed_commitments and rollcall_digest are service-role only: a normal authenticated client
+-- must not be able to mass-mark responses 'missed', nor read a whole instance's non-responder names.
+select _superuser();
+do $$
+declare ok boolean := false;
+begin
+  set local role authenticated;
+  begin
+    perform claim_missed_commitments(10);
+  exception when insufficient_privilege then ok := true;
+  end;
+  reset role;
+  if not ok then raise exception 'FAIL: authenticated could call claim_missed_commitments'; end if;
+  raise notice 'PASS: claim_missed_commitments is not callable by authenticated';
+end $$;
+
+-- The new 2-arg staged signature (0146: p_grace_min, p_only) is also service-role only. Seed our own
+-- actor id array so this probe does not depend on any prior section's fixtures.
+select _superuser();
+do $$
+declare ok boolean := false;
+declare pilots uuid[] := array[gen_random_uuid(), gen_random_uuid()];
+begin
+  set local role authenticated;
+  begin
+    perform claim_missed_commitments(10, pilots);
+  exception when insufficient_privilege then ok := true;
+  end;
+  reset role;
+  if not ok then raise exception 'FAIL: authenticated could call claim_missed_commitments(int, uuid[])'; end if;
+  raise notice 'PASS: claim_missed_commitments(int, uuid[]) is not callable by authenticated';
+end $$;
+
+select _superuser();
+do $$
+declare ok boolean := false;
+begin
+  set local role authenticated;
+  begin
+    perform rollcall_digest(gen_random_uuid());
+  exception when insufficient_privilege then ok := true;
+  end;
+  reset role;
+  if not ok then raise exception 'FAIL: authenticated could call rollcall_digest'; end if;
+  raise notice 'PASS: rollcall_digest is not callable by authenticated';
+end $$;
 
 -- ================================================================ scoreboard
 select _superuser();

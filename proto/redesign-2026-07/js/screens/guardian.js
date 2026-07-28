@@ -94,7 +94,10 @@ export default {
     if (!btn || !input) return;
     const submit = async () => {
       if (btn.disabled) return;
+      // Reset BOTH text and color each submit — a prior "Reminder sent" turns this slot green
+      // (line below), and without this reset a following error would render in that success green.
       err.textContent = '';
+      err.style.color = '';
       btn.disabled = true;
       const was = btn.textContent;
       btn.textContent = 'Sending…';
