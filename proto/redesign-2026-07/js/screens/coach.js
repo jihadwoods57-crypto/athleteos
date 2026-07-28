@@ -1673,7 +1673,7 @@ export const copilot = {
     <div class="eyebrow">The numbers behind it</div>
     <section class="card" style="padding:2px 0">
       ${belowBar.map(r => `
-        <div class="roster-row" data-go="coach-athlete/${esc(r.athleteId)}">
+        <div class="roster-row" data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(r.note)}">
           <div class="flagdot ${r.flag}"></div>
           <div class="rn"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.note)}</div></div>
           <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>

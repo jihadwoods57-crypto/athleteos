@@ -329,6 +329,13 @@
 .coach-stat { text-align: center; padding: 15px 6px; border-radius: var(--r-tile); background: var(--surface-1); border: 1px solid var(--hairline); }
 .coach-stat .v { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; min-height: 30px; display: flex; align-items: center; justify-content: center; }
 .coach-stat .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top: 3px; text-transform: uppercase; letter-spacing: var(--track-key); }
+/* Two of these three tiles navigate and one does not, and they were pixel-identical — nothing on
+   screen told you which. The two that go somewhere now say so. */
+.coach-stat.tap { cursor: pointer; position: relative; transition: background var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
+.coach-stat.tap:active { transform: scale(0.97); background: var(--surface-2); }
+/* icon() emits its own class="ic ic-<name>", so a second class attribute passed as `extra` is
+   silently dropped by the parser — target the icon's own class. */
+.coach-stat.tap > .ic-chevron { position: absolute; top: 7px; right: 7px; color: var(--text-3); }
 .roster-row { display: flex; align-items: center; gap: 10px; padding: 14px 14px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
 .roster-row:last-child { border-bottom: none; }
 .roster-row .rn { flex: 1; min-width: 0; }

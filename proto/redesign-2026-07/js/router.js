@@ -279,6 +279,20 @@ function render() {
       else render();
     });
   });
+  // Keyboard activation for the non-native controls. role="button" + tabindex gives a div FOCUS
+  // but not activation — only <button>/<a> get Enter/Space for free. Everything above wires
+  // click and nothing wired keys, so every role="button" div in the app (.xhero, .iconbtn,
+  // .hd-avatar, .roster-row, the stat tiles…) could be tabbed to and then not used. One
+  // delegation covers all of them; native elements are skipped so Space can't double-fire.
+  device.querySelectorAll('[data-go],[data-act],[data-back]').forEach(el => {
+    const tag = el.tagName;
+    if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || tag === 'INPUT') return;
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      el.click();
+    });
+  });
   // Scroll: restore the exact origin position on a back-pop; fresh forward views start at top.
   // scrollTo with behavior:'instant' overrides the viewport's smooth scroll-behavior — a
   // restore must snap, never animate.

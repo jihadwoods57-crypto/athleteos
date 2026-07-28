@@ -90,7 +90,9 @@ function rosterRow(e) {
     ? activity
     : `${esc(meta.label)} <span style="color:var(--text-3)">· ${activity}</span>`;
   return `
-  <div class="roster-row" ${SELECTING ? `data-sel="${esc(r.athleteId)}"` : `data-go="coach-athlete/${esc(r.athleteId)}"`}>
+  <div class="roster-row" ${SELECTING
+    ? `data-sel="${esc(r.athleteId)}" role="checkbox" aria-checked="${sel}" tabindex="0" aria-label="${esc(r.name)}"`
+    : `data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(meta.label)}"`}>
     ${SELECTING
       ? `<div style="width:20px;height:20px;border-radius:6px;border:2px solid ${sel ? 'var(--green-bright)' : 'var(--hairline)'};background:${sel ? 'var(--green-bright)' : 'transparent'};display:grid;place-items:center;flex:none;color:#04140b;font-weight:900;font-size:12px">${sel ? '✓' : ''}</div>`
       : `<span style="width:9px;height:9px;border-radius:50%;background:${meta.color};flex:none;box-shadow:0 0 8px ${meta.color}40"></span>`}

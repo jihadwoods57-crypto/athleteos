@@ -569,13 +569,10 @@
 .streak-ribbon .sr-body{flex:1;min-width:0}
 .streak-ribbon .sr-t{font-size:13.5px;font-weight:800;letter-spacing:-.01em}
 .streak-ribbon .sr-s{font-size:11.5px;color:var(--text-2);font-weight:600;line-height:1.4;margin-top:1px}
-.streak-ribbon .sr-cta{flex:0 0 auto;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:6px 10px;border-radius:var(--r-chip);white-space:nowrap}
 .streak-ribbon.strong{background:linear-gradient(150deg,rgba(var(--amber-rgb), 0.14),rgba(var(--amber-rgb), 0.04) 60%),var(--surface-1);border-color:var(--amber-border)}
 .streak-ribbon.strong .sr-ic{background:var(--amber-surface);color:var(--amber-bright)}
-.streak-ribbon.strong .sr-cta{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}
 .streak-ribbon.mild{background:var(--surface-2);border-color:var(--hairline-soft)}
 .streak-ribbon.mild .sr-ic{background:var(--blue-surface);color:var(--blue-bright)}
-.streak-ribbon.mild .sr-cta{background:var(--blue-surface);color:var(--blue-bright);border:1px solid var(--blue-border)}
 /* Trust Pass shield + quick popup (replaces the full-width trust card on Home —
    Home stays score + next action). Popup anchors to the header. */
 .apphead{position:relative}

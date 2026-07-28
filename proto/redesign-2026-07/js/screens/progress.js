@@ -135,14 +135,14 @@ export default {
           <div class="sr-ic">${icon(strong ? 'flame' : 'shield', 18)}</div>
           <div class="sr-body"><div class="sr-t">${st.days}-day streak${strong ? ' · at risk' : ''}</div>
           <div class="sr-s">${strong ? 'This week’s grace is used — reach 80 before the day closes to continue your streak.' : 'Today is still live. Reach 80 before the day closes to continue your streak.'}</div></div>
-          <span class="sr-cta">Details</span>
+          ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}
         </div>`;
       } else {
         streakRow = `<div class="streak-ribbon mild" data-go="streak" style="margin-top:2px">
           <div class="sr-ic" style="background:rgba(52,211,153,0.10);color:var(--green-bright)">${icon('check', 18)}</div>
           <div class="sr-body"><div class="sr-t">${st.days}-day streak · secured</div>
           <div class="sr-s">Today counts. Day ${st.days} locks at midnight.</div></div>
-          <span class="sr-cta">Details</span>
+          ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}
         </div>`;
       }
     }
@@ -168,9 +168,9 @@ export default {
 
     <div style="height:16px"></div>
     <div class="coach-stats">
-      <div class="coach-stat" data-go="streak" style="cursor:pointer"><div class="v" style="color:var(--amber-bright)">${S.streakDays}d</div><div class="k">Current streak</div></div>
+      <div class="coach-stat tap" data-go="streak" role="button" tabindex="0" aria-label="Current streak, ${S.streakDays} days. Open streak details"><div class="v" style="color:var(--amber-bright)">${S.streakDays}d</div><div class="k">Current streak</div>${icon('chevron', 13)}</div>
       ${P.monthConsistency != null ? `<div class="coach-stat"><div class="v">${P.monthConsistency}%</div><div class="k">Consistency (≥80)</div></div>` : ''}
-      <div class="coach-stat" data-go="history" style="cursor:pointer"><div class="v" style="color:var(--blue-bright)">${icon('clipboard', 22)}</div><div class="k">History</div></div>
+      <div class="coach-stat tap" data-go="history" role="button" tabindex="0" aria-label="Open your score history"><div class="v" style="color:var(--blue-bright)">${icon('clipboard', 22)}</div><div class="k">History</div>${icon('chevron', 13)}</div>
     </div>
 
     ${trends ? `
