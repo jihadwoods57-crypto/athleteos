@@ -46,7 +46,9 @@ import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 
-const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
+// Per-surface override first (see meal-chat): vision is the expensive surface and should be
+// tunable without moving every other AI call in the product.
+const MODEL = Deno.env.get('ANTHROPIC_MODEL_ANALYZE_MEAL') ?? Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 // Cost sweep (audit item 20): memory/order are pure PROSE rephrases whose every number is re-verified
 // client-side (mergeRephrasedInsights/Orders drop any rewrite that changes a figure), so a cheaper
 // model cannot affect a single macro — run them on Haiku (~1/3 the cost). Meal (vision estimate) and

@@ -2434,6 +2434,18 @@ export const coachMeal = {
         ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 6px">Couldn't draft right now — write your own or try again.</div>` : '';
       return `${errLine}<div class="qa-row" style="margin-top:8px"><button class="qa" id="cm-draft">✍️ Draft a reply</button></div>`;
     })()}
+    ${(() => {
+      // ONE-TAP ACKNOWLEDGEMENT. A coach watching 60 athletes cannot write 60 comments, so most
+      // meals get nothing — and "nothing" is indistinguishable from "not seen". A reaction is two
+      // seconds and closes that gap. kind='reaction' already exists (0049) and the athlete thread
+      // already renders reactionGroups, so this is coach-side UI and nothing else.
+      const mine = new Set((Array.isArray(MC && MC.comments) ? MC.comments : [])
+        .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)
+        .map((c) => String(c.text)));
+      return `<div class="qa-row" id="cm-rx-row" style="margin-top:8px">
+        ${['💪', '🔥', '👏', '✅'].map((e) => `<button class="qa${mine.has(e) ? ' on' : ''}" data-rx="${e}" aria-pressed="${mine.has(e)}">${e}</button>`).join('')}
+      </div>`;
+    })()}
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment' })}
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>
 
@@ -2574,6 +2586,25 @@ export const coachMeal = {
       if (resolveNote) resolveNote.textContent = 'Resolved.';
       setTimeout(() => { location.hash = '#coach-inbox'; }, 800);
     });
+    // One-tap reactions. Toggle semantics: tapping an emoji you already sent removes it, so a
+    // mis-tap is undoable and the athlete never sees a reaction the coach didn't mean.
+    const rxRow = root.querySelector('#cm-rx-row');
+    if (rxRow) rxRow.addEventListener('click', async (ev) => {
+      const b = ev.target && ev.target.closest ? ev.target.closest('[data-rx]') : null;
+      if (!b || b.disabled) return;
+      const emoji = b.getAttribute('data-rx');
+      const meal = mealById(sub);
+      if (!meal) return;
+      b.disabled = true;
+      const existing = (Array.isArray(MC && MC.comments) ? MC.comments : [])
+        .find((c) => c && c.kind === 'reaction' && c.author_id === RT.userId && String(c.text) === emoji);
+      const ok = existing
+        ? await roles.deleteMealComment(existing.id).catch(() => false)
+        : await roles.postMealComment(sub, meal.athlete_id, RT.userId, 'coach', emoji, 'reaction').catch(() => false);
+      b.disabled = false;
+      if (ok) { await loadMealComments(sub); window.__render(); }
+    });
+
     // Draft a reply (Task 4): asks meal-chat's draft mode for four stance-labeled candidates.
     // Context mirrors the coachSupport shape above (meal macros) plus the last few thread
     // messages, so drafts are grounded in what was actually said.

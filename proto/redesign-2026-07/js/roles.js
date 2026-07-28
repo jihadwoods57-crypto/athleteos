@@ -466,6 +466,14 @@ export async function postMealComment(mealId, athleteId, authorId, role, text, k
   } catch { return false; }
 }
 
+/** Remove one's OWN comment (0046 delete-own policy). Used to un-send a mis-tapped reaction, so a
+ *  wrong emoji is undoable rather than something the athlete sees and the coach cannot retract. */
+export async function deleteMealComment(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('meal_comments').delete().eq('id', id); return !error; }
+  catch { return false; }
+}
+
 /* ---------------- coach: targets / trust pass (RPCs) ---------------- */
 /** base_weight + targets via the 0103 athlete_plan_meta RPC — the server conditionally redacts
  *  the weight parts for roles outside the allowed set (base_weight → null, targets minus its

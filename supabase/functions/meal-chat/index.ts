@@ -31,7 +31,9 @@ import { loadMemoryForAthlete } from '../_shared/memory-load.ts';
 import { memoryBlock } from '../_shared/memory.ts';
 import { flagOn } from '../_shared/feature-flags.ts';
 
-const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
+// Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
+// without dragging vision with it. Unset -> unchanged.
+const MODEL = Deno.env.get('ANTHROPIC_MODEL_MEAL_CHAT') ?? Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const DAILY_CAP = Math.max(1, Math.floor(Number(Deno.env.get('MEAL_CHAT_DAILY_CAP') ?? '10')) || 10);
 const CONTEXT_MAX = 8192;
 
@@ -143,7 +145,30 @@ Rules that bind you:
 2. Coach voice: specific, encouraging, practical. Consistency is praised before choices are critiqued. Never shame food, weight, or a late log.
 3. When coach guidance appears in the context, defer to it explicitly.
 4. Answer the athlete's question for THEIR goal and plan, not generic nutrition advice.
-5. 150 words maximum. No em dashes. No markdown headers.`;
+5. 150 words maximum. No em dashes. No markdown headers.
+6. STAY IN YOUR LANE. If the question is medical, an injury, weight cutting or making weight, or
+   shows a troubled relationship with food, do NOT advise and do NOT reassure: call flag_for_coach.
+   A confident-sounding answer from you is worse than silence there, because the athlete will act
+   on it. Their coach is a real person who can actually help.`;
+
+/**
+ * The escape hatch. An AI nutritionist that answers "should I cut 8lb this week" or "my knee hurts
+ * after squats" is not being helpful — it is guessing at something with real consequences, in a
+ * voice the athlete trusts. This routes those to the human who can actually help, and tells the
+ * athlete plainly that it did.
+ */
+const FLAG_TOOL = {
+  name: 'flag_for_coach',
+  description: "Decline to answer and route this question to the athlete's coach.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      reason: { type: 'string', enum: ['medical', 'injury', 'weight_cutting', 'disordered_eating', 'other'] },
+      note: { type: 'string', description: 'One sentence for the coach: what the athlete is asking.' },
+    },
+    required: ['reason', 'note'],
+  },
+} as const;
 
 function bad(status: number, error: string, cors: Record<string, string>) {
   return new Response(JSON.stringify({ error }), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -296,6 +321,9 @@ Deno.serve(async (req) => {
     // its input_schema.required is a readonly tuple the SDK's mutable string[] rejects — tolerated
     // at a single call site, not at two.
     const replyTools = [REPLY_TOOL] as unknown as Anthropic.Tool[];
+    // The athlete path may also decline and escalate. coachSupport is the coach's own message being
+    // reinforced — there is nothing there to escalate, so it keeps the single forced tool.
+    const athleteTools = [REPLY_TOOL, FLAG_TOOL] as unknown as Anthropic.Tool[];
     const t0r = Date.now();
     const msg = await anthropic.messages.create({
       model: MODEL,
@@ -303,8 +331,8 @@ Deno.serve(async (req) => {
       system: [{ type: 'text', text: memBlock ? `${composeSystem(SYSTEM, '', planStyle)}
 
 ${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
-      tools: replyTools,
-      tool_choice: { type: 'tool', name: 'reply' },
+      tools: coachSupport ? replyTools : athleteTools,
+      tool_choice: coachSupport ? { type: 'tool', name: 'reply' } : { type: 'any' },
       messages: [{
         role: 'user',
         content: coachSupport
@@ -313,7 +341,48 @@ ${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'eph
       }],
     });
     await recordAiCall({ fn: 'meal-chat', mode: 'reply', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
-    const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: { message?: string } } | undefined;
+    const tool = msg.content.find((b) => b.type === 'tool_use') as { name?: string; input?: { message?: string; reason?: string; note?: string } } | undefined;
+
+    // ESCALATION. The model declined to answer, so say so plainly to the athlete and put it in
+    // front of a human. The athlete is told what happened — a silent hand-off would read as the
+    // AI ignoring them.
+    if (tool?.name === 'flag_for_coach') {
+      const reason = String(tool.input?.reason ?? 'other').slice(0, 32);
+      const note = String(tool.input?.note ?? '').replace(/—/g, ',').trim().slice(0, 300);
+      const declineText = "That one's for a person, not me. I've flagged it for your coach so they can pick it up.";
+
+      // A jailbreak must not become a way to spam a coach: at most 3 flags per athlete per day.
+      const { data: fclaim } = await service.rpc('claim_ai_usage_key', { p_key: `meal_flag:${mealRow.athlete_id}`, p_limit: 3 });
+      const withinFlagCap = (Array.isArray(fclaim) ? fclaim[0] : fclaim)?.allowed !== false;
+
+      await service.from('meal_comments').insert({
+        meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: mealRow.athlete_id,
+        role: 'ai', kind: 'message', text: declineText,
+      });
+
+      let notified = false;
+      if (withinFlagCap) {
+        // Whoever actively staffs this athlete's team. A solo athlete has no one to notify — the
+        // decline still stands, we just record that there was no coach.
+        const { data: tm } = await service.from('team_members')
+          .select('team_id').eq('athlete_id', mealRow.athlete_id).eq('status', 'active').limit(1).maybeSingle();
+        if (tm?.team_id) {
+          const { data: staff } = await service.from('team_staff')
+            .select('staff_id').eq('team_id', tm.team_id).eq('status', 'active').limit(5);
+          for (const st of (staff ?? []) as Array<{ staff_id: string }>) {
+            await service.from('notifications').insert({
+              user_id: st.staff_id, kind: `meal_flag:${mealId}`,
+              title: 'An athlete asked something for you',
+              body: note || 'They asked a question the AI would not answer.',
+            });
+            notified = true;
+          }
+        }
+      }
+      await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'flagged_for_coach', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
+      return new Response(JSON.stringify({ reply: declineText, flagged: reason, notified }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+
     let reply = String(tool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
     if (!reply) return bad(502, 'unavailable', cors);
 
